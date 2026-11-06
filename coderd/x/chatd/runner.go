@@ -51,7 +51,6 @@ type runner struct {
 	turnSpan      *runnerTurnSpan
 	sessionStart  sessionStartTracker
 	stopNudges    stopNudgeTracker
-	experiments   turnExperimentDecisions
 }
 
 func newRunner(ctx context.Context, mgr *runnerManager, rec *runnerRecord, opts chatWorkerOptions) *runner {
@@ -181,7 +180,7 @@ func (r *runner) spawnForState(state runnerStateUpdate) {
 		r.spawnTask(taskKindInterrupt, state)
 	case database.ChatStatusRequiresAction:
 		r.spawnTask(taskKindRequiresActionTimeout, state)
-	case database.ChatStatusWaiting, database.ChatStatusError:
+	case database.ChatStatusWaiting, database.ChatStatusError, database.ChatStatusPaused:
 		r.spawnTask(taskKindAbandon, state)
 	default:
 		r.spawnTask(taskKindAbandon, state)
@@ -210,7 +209,6 @@ func (r *runner) spawnTask(kind taskKind, state runnerStateUpdate) {
 		TurnSpan:                 r.turnSpan,
 		SessionStart:             &r.sessionStart,
 		StopNudges:               &r.stopNudges,
-		TurnExperiments:          &r.experiments,
 	}
 	go r.runTask(taskCtx, kind, key, input, done)
 }

@@ -354,8 +354,8 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 							<div className="text-sm text-content-secondary font-normal my-1 flex items-center gap-1">
 								Prompt
 								<TooltipProvider>
-									<Tooltip>
-										<TooltipTrigger asChild>
+									<Tooltip interactive>
+										<TooltipTrigger aria-label="About prompt attribution">
 											<InfoIcon className="size-icon-xs p-0.5 text-content-secondary" />
 										</TooltipTrigger>
 										<TooltipContent
@@ -369,7 +369,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 											</p>
 											<Link
 												href={docs(
-													"/ai-coder/ai-gateway/audit#human-vs-agent-attribution",
+													"/ai-governance/ai-gateway/audit#human-vs-agent-attribution",
 												)}
 												target="_blank"
 												className="text-sm"
@@ -587,8 +587,8 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 				<div className="row-start-3 col-start-5 row-span-2 flex items-center text-sm text-content-secondary font-normal px-2 pt-1">
 					AI Governance
 					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
+						<Tooltip interactive>
+							<TooltipTrigger aria-label="About AI Governance">
 								<InfoIcon className="size-icon-sm p-0.5 ml-1" />
 							</TooltipTrigger>
 							<TooltipContent
@@ -602,7 +602,7 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 								</div>
 								<div>
 									<Link
-										href={docs("/ai-coder/ai-governance")}
+										href={docs("/ai-governance")}
 										target="_blank"
 										className="text-sm"
 									>

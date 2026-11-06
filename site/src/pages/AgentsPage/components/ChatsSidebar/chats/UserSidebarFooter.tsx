@@ -22,7 +22,7 @@ export const UserSidebarFooter: React.FC = () => {
 						<button
 							type="button"
 							aria-label={`Account menu for ${user.name || user.username}`}
-							className="flex min-w-0 flex-1 items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-3 text-left hover:bg-surface-tertiary/50 transition-colors"
+							className="flex min-w-0 flex-1 items-center gap-2 bg-transparent border-0 cursor-pointer px-3 py-3 text-left hover:bg-surface-tertiary/50 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
 						>
 							<Avatar
 								fallback={user.username}

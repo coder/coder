@@ -320,6 +320,13 @@ export const WithQuotaWithOrgs: Story = {
 	},
 };
 
+export const WorkspaceBreadcrumbFocused: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		canvas.getByRole("button", { name: baseWorkspace.name }).focus();
+	},
+};
+
 export const TemplateInfoPopover: Story = {
 	play: async ({ canvasElement, step }) => {
 		const canvas = within(canvasElement);

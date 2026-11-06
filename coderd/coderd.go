@@ -946,7 +946,6 @@ func New(options *Options) *API {
 				StreamSilenceTimeout:           streamSilenceTimeout,
 				DisableCallerSuppliedTools:     options.DeploymentValues.DisableChatCallerSuppliedTools.Value(),
 				Experiments:                    experiments,
-				ExperimentEvaluator:            api.ExperimentEvaluator,
 				AgentConn:                      api.agentProvider.AgentConn,
 				AgentInactiveDisconnectTimeout: api.AgentInactiveDisconnectTimeout,
 				CreateWorkspace:                api.chatCreateWorkspace,
@@ -1399,6 +1398,16 @@ func New(options *Options) *API {
 				httpmw.ExtractOrganizationParam(options.Database),
 			)
 			api.registerExperimentalOrganizationChatRoutes(r)
+			// These stay outside /skills, where {skillName} would capture them.
+			r.Route("/skill-settings", func(r chi.Router) {
+				r.Get("/", api.getOrganizationSkillSettings)
+				r.Put("/", api.putOrganizationSkillSettings)
+			})
+			r.Route("/members/{user}/skill-preferences", func(r chi.Router) {
+				r.Use(httpmw.ExtractOrganizationMemberParam(options.Database))
+				r.Get("/", api.getOrganizationSkillPreferences)
+				r.Patch("/", api.patchOrganizationSkillPreferences)
+			})
 		})
 
 		r.Route("/mcp", func(r chi.Router) {

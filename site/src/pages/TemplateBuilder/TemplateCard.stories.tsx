@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { fn, userEvent } from "storybook/test";
 import { TemplateCard } from "./TemplateCard";
 
 const meta: Meta<typeof TemplateCard> = {
@@ -29,6 +29,18 @@ export const Selected: Story = {
 		description: "Provision Docker containers as Coder workspaces.",
 		iconUrl: "/icon/docker.svg",
 		selected: true,
+	},
+};
+
+export const KeyboardFocus: Story = {
+	args: {
+		name: "Docker Containers",
+		description: "Provision Docker containers as Coder workspaces.",
+		iconUrl: "/icon/docker.svg",
+		selected: false,
+	},
+	play: async () => {
+		await userEvent.tab();
 	},
 };
 

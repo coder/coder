@@ -7,7 +7,7 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/coder/aisdk-go"
+	"github.com/coder/coder/v2/codersdk/toolsdk/tooldef"
 	"github.com/coder/coder/v2/codersdk/toolsdk/workspacetools"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
@@ -57,10 +57,10 @@ type WorkspaceReadFileArgs struct {
 
 // WorkspaceReadFile reads line-numbered content from a workspace file.
 var WorkspaceReadFile = Tool[WorkspaceReadFileArgs, workspacetools.ReadFileResult]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameWorkspaceReadFile,
 		Description: workspacetools.ReadFileDescription,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"workspace": workspaceProperty(),
 				"path":      map[string]any{"type": "string"},
@@ -95,11 +95,11 @@ type WorkspaceWriteFileArgs struct {
 
 // WorkspaceWriteFile creates or replaces a workspace file.
 var WorkspaceWriteFile = Tool[WorkspaceWriteFileArgs, workspacetools.OKResult]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name: ToolNameWorkspaceWriteFile,
 		Description: "Create a file in the workspace or overwrite an existing one with the given content. " +
 			"Use " + ToolNameWorkspaceEditFiles + " for targeted changes to an existing file.",
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"workspace": workspaceProperty(),
 				"path": map[string]any{
@@ -141,10 +141,10 @@ type WorkspaceEditFilesArgs struct {
 
 // WorkspaceEditFiles applies text replacements to workspace files.
 var WorkspaceEditFiles = Tool[WorkspaceEditFilesArgs, workspacetools.EditFilesResult]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameWorkspaceEditFiles,
 		Description: workspacetools.EditFilesDescription,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"workspace": workspaceProperty(),
 				"files": map[string]any{
@@ -217,10 +217,10 @@ type WorkspaceExecuteArgs struct {
 
 // WorkspaceExecute runs a shell command in a workspace.
 var WorkspaceExecute = Tool[WorkspaceExecuteArgs, workspacetools.ExecuteResult]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameWorkspaceExecute,
 		Description: workspacetools.ExecuteDescription(workspaceToolNames),
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"workspace": workspaceProperty(),
 				"command": map[string]any{
@@ -276,10 +276,10 @@ type WorkspaceProcessOutputArgs struct {
 
 // WorkspaceProcessOutput retrieves the output of a workspace process.
 var WorkspaceProcessOutput = Tool[WorkspaceProcessOutputArgs, workspacetools.ExecuteResult]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameWorkspaceProcessOutput,
 		Description: workspacetools.ProcessOutputDescription(workspaceToolNames),
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"workspace":  workspaceProperty(),
 				"process_id": map[string]any{"type": "string"},
@@ -317,10 +317,10 @@ type WorkspaceProcessListArgs struct {
 // WorkspaceProcessList lists processes started outside a chat in a
 // workspace.
 var WorkspaceProcessList = Tool[WorkspaceProcessListArgs, workspacesdk.ListProcessesResponse]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameWorkspaceProcessList,
 		Description: workspacetools.ProcessListDescription,
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"workspace": workspaceProperty(),
 			},
@@ -351,10 +351,10 @@ type WorkspaceProcessSignalArgs struct {
 
 // WorkspaceProcessSignal terminates or kills a workspace process.
 var WorkspaceProcessSignal = Tool[WorkspaceProcessSignalArgs, workspacetools.SignalResult]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameWorkspaceProcessSignal,
 		Description: workspacetools.ProcessSignalDescription(workspaceToolNames),
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{
 				"workspace":  workspaceProperty(),
 				"process_id": map[string]any{"type": "string"},
