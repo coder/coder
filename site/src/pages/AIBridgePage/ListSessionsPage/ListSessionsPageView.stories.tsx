@@ -1,15 +1,21 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn } from "storybook/test";
 import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTimeRange";
-import {
-	getDefaultFilterProps,
-	MockMenu,
-} from "#/components/Filter/storyHelpers";
+import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
 import {
 	mockInitialRenderResult,
 	mockSuccessResult,
 } from "#/components/PaginationWidget/PaginationContainer.mocks";
-import { MockSession } from "#/testHelpers/entities";
+import {
+	MockPermissions,
+	MockSession,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import { ListSessionsPageView } from "./ListSessionsPageView";
 
 type FilterProps = React.ComponentProps<
@@ -24,17 +30,8 @@ const timeRange: DateTimeRangeValue = {
 
 const defaultFilterProps: FilterProps = {
 	...getDefaultFilterProps<FilterProps>({
-		query: "owner:me",
-		values: {
-			username: undefined,
-			provider: undefined,
-		},
-		menus: {
-			user: MockMenu,
-			provider: MockMenu,
-			client: MockMenu,
-			model: MockMenu,
-		},
+		query: "initiator:me",
+		values: { initiator: "me" },
 	}),
 	timeRange,
 	onTimeRangeChange: fn(),
@@ -52,6 +49,11 @@ const meta: Meta<typeof ListSessionsPageView> = {
 		sessionsQuery: mockSuccessResult,
 		onSessionRowClick: fn(),
 	},
+	parameters: {
+		user: MockUserOwner,
+		permissions: MockPermissions,
+	},
+	decorators: [withAuthProvider, withDashboardProvider],
 };
 
 export default meta;
@@ -126,5 +128,15 @@ export const MultipleSessions: Story = {
 				{ total: 150, blocked: 0 },
 			][i],
 		})),
+	},
+};
+
+export const WithError: Story = {
+	args: {
+		sessions: undefined,
+		filterProps: {
+			...defaultFilterProps,
+			error: mockApiError({ message: "Failed to load sessions." }),
+		},
 	},
 };
