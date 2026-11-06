@@ -1512,11 +1512,11 @@ curl -X POST http://coder-server:8080/api/v2/chats/files?organization=497f6eca-6
 
 ### Parameters
 
-| Name                  | In     | Type         | Required | Description                                   |
-|-----------------------|--------|--------------|----------|-----------------------------------------------|
-| `organization`        | query  | string(uuid) | true     | Organization ID                               |
-| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the file name |
-| `body`                | body   | string       | true     | Raw file binary data                          |
+| Name                  | In     | Type         | Required | Description                                                      |
+|-----------------------|--------|--------------|----------|------------------------------------------------------------------|
+| `organization`        | query  | string(uuid) | true     | Organization ID                                                  |
+| `Content-Disposition` | header | string       | true     | Attachment disposition carrying the filename as a quoted string. |
+| `body`                | body   | string       | true     | Raw file binary data                                             |
 
 ### Example responses
 
@@ -4860,6 +4860,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/chats/m
     {
       "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
       "compression_threshold": 0,
+      "computer_use_provider": "anthropic",
       "context_limit": 0,
       "created_at": "2019-08-24T14:15:22Z",
       "display_name": "string",
@@ -5259,6 +5260,7 @@ curl -X POST http://coder-server:8080/api/v2/organizations/{organization}/chats/
 {
   "ai_provider_id": "5a3b8ff9-20e7-4c37-ba1a-5b433e355819",
   "compression_threshold": 0,
+  "computer_use_provider": "anthropic",
   "context_limit": 0,
   "created_at": "2019-08-24T14:15:22Z",
   "display_name": "string",

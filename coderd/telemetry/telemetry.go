@@ -34,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
@@ -2285,11 +2286,10 @@ func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMess
 		payload.ComputerUse.Overrides = []AgentsComputerUseOverrideTelemetry{}
 
 		for _, override := range overrides {
-			// When the override's model is disabled or deleted, or its AI
-			// provider type does not support computer use, the runtime falls
-			// back to the organization's default chat model.
-			supported := override.ProviderType == string(database.AIProviderTypeAnthropic) ||
-				override.ProviderType == string(database.AIProviderTypeOpenai)
+			// When the override's model is disabled or deleted, or the model
+			// does not support computer use, the runtime falls back to the
+			// organization's default chat model.
+			_, supported := chatprovider.ComputerUseProvider(database.AIProviderType(override.ProviderType), override.Model)
 			provider, model := AgentsExperimentComputerUseOrgDefaultModel, AgentsExperimentComputerUseOrgDefaultModel
 			if override.ModelAvailable && supported {
 				provider, model = override.ProviderType, override.Model

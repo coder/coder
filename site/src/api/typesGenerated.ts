@@ -3146,6 +3146,11 @@ export interface ChatModel {
 	 * the model's configured maximum.
 	 */
 	readonly reasoning_efforts?: readonly string[];
+	/**
+	 * ComputerUseProvider names the computer use tool that Coder sends for
+	 * this model. It is omitted when computer use can't run on the model.
+	 */
+	readonly computer_use_provider?: ChatComputerUseProvider;
 	readonly created_at: string;
 	readonly updated_at: string;
 }

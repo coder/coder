@@ -832,15 +832,15 @@ func validateChatModelOverride(
 	return validateChatModelOverrideEffort(modelConfig, effort)
 }
 
-// validateComputerUseModelProvider rejects models whose AI provider has no
-// computer use tool. Chatd derives the tool flavor from the provider type.
+// validateComputerUseModelProvider rejects models that cannot run computer
+// use. Chatd derives the tool flavor from the provider type and the model.
 func validateComputerUseModelProvider(
 	ctx context.Context,
 	db database.Store,
 	modelConfig database.ChatModelConfig,
 ) (int, *codersdk.Response) {
 	unsupported := &codersdk.Response{
-		Message: "Computer use requires a model from an Anthropic or OpenAI AI provider.",
+		Message: "Computer use requires " + chatprovider.ComputerUseModelRequirement + ".",
 	}
 	if !modelConfig.AIProviderID.Valid {
 		unsupported.Detail = fmt.Sprintf("Model %q has no AI provider.", modelConfig.Model)
@@ -853,16 +853,14 @@ func validateComputerUseModelProvider(
 			Detail:  err.Error(),
 		}
 	}
-	switch chatprovider.NormalizeProvider(string(provider.Type)) {
-	case string(codersdk.ChatComputerUseProviderAnthropic), string(codersdk.ChatComputerUseProviderOpenAI):
+	if _, ok := chatprovider.ComputerUseProvider(provider.Type, modelConfig.Model); ok {
 		return 0, nil
-	default:
-		unsupported.Detail = fmt.Sprintf(
-			"Model %q uses AI provider %q of type %q.",
-			modelConfig.Model, provider.Name, provider.Type,
-		)
-		return http.StatusBadRequest, unsupported
 	}
+	unsupported.Detail = fmt.Sprintf(
+		"Model %q uses AI provider %q of type %q.",
+		modelConfig.Model, provider.Name, provider.Type,
+	)
+	return http.StatusBadRequest, unsupported
 }
 
 func parseChatModelOverrideContext(raw string) (codersdk.ChatModelOverrideContext, error) {
@@ -7044,7 +7042,7 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 // @Accept image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Produce json
 // @Param organization query string true "Organization ID" format(uuid)
-// @Param Content-Disposition header string true "Attachment disposition carrying the file name" example(attachment; filename="image.png")
+// @Param Content-Disposition header string true "Attachment disposition carrying the filename as a quoted string." extensions(x-example=attachment; filename="image.png")
 // @Param request body string true "Raw file binary data"
 // @x-apidocgen {"rawBodyFile": "image.png"}
 // @Success 201 {object} codersdk.UploadChatFileResponse
@@ -8436,8 +8434,12 @@ func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *ht
 		Providers:            providers,
 		UnsupportedProviders: chatprovider.UnsupportedProviders(availability.configuredProviders),
 	}
+	providerTypes := make(map[uuid.UUID]database.AIProviderType, len(providers))
+	for _, provider := range providers {
+		providerTypes[provider.ID] = database.AIProviderType(provider.Type)
+	}
 	for _, config := range configs {
-		resp.Models = append(resp.Models, convertChatModelConfig(config))
+		resp.Models = append(resp.Models, convertChatModelConfig(config, providerTypes[config.AIProviderID.UUID]))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
@@ -8568,7 +8570,27 @@ func (api *API) getChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(config))
+	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(config, api.chatModelConfigProviderType(ctx, config)))
+}
+
+// chatModelConfigProviderType returns the type of the model's AI provider, or
+// an empty type when the provider cannot be read.
+func (api *API) chatModelConfigProviderType(ctx context.Context, config database.ChatModelConfig) database.AIProviderType {
+	if !config.AIProviderID.Valid {
+		return ""
+	}
+	//nolint:gocritic // The provider fetch only reads the redacted descriptor fields.
+	provider, err := api.Database.GetAIProviderByID(dbauthz.AsChatd(ctx), config.AIProviderID.UUID)
+	if err != nil {
+		if !xerrors.Is(err, sql.ErrNoRows) {
+			api.Logger.Warn(ctx, "get AI provider of chat model",
+				slog.F("model_config_id", config.ID),
+				slog.Error(err),
+			)
+		}
+		return ""
+	}
+	return provider.Type
 }
 
 type chatModelConfigProviderModelError struct {
@@ -8775,6 +8797,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var (
 		inserted         database.ChatModelConfig
+		providerType     database.AIProviderType
 		auditTransitions []chatModelConfigAuditTransition
 	)
 	err := api.inChatModelConfigWriteTx(ctx, insertParams.OrganizationID, func(tx database.Store) error {
@@ -8821,6 +8844,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		if err := validateChatModelConfigProviderModel(lockedAIProvider, insertParams.Model, req.ModelConfig); err != nil {
 			return err
 		}
+		providerType = lockedAIProvider.Type
 
 		transition, err := ensureDefaultChatModelConfig(ctx, tx, insertParams.OrganizationID)
 		if err != nil {
@@ -8846,7 +8870,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	api.auditChatModelConfigTransitions(ctx, r, apiKey.UserID, http.StatusCreated, auditTransitions)
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, inserted.ID)
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted, providerType))
 }
 
 // @Summary Update an AI model
@@ -9075,7 +9099,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	api.auditChatModelConfigTransitions(ctx, r, apiKey.UserID, http.StatusOK, auditTransitions)
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, updated.ID)
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated))
+	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated, api.chatModelConfigProviderType(ctx, updated)))
 }
 
 // @Summary Delete an AI model
@@ -9255,12 +9279,13 @@ func parseChatModelConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID,
 	return modelConfigID, true
 }
 
-func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModel {
+func convertChatModelConfig(config database.ChatModelConfig, providerType database.AIProviderType) codersdk.ChatModel {
 	modelConfig := unmarshalChatModelCallConfig(config.Options)
 	var reasoningEffortConfig *codersdk.ChatModelReasoningEffortConfig
 	if modelConfig != nil {
 		reasoningEffortConfig = modelConfig.ReasoningEffort
 	}
+	computerUseProvider, _ := chatprovider.ComputerUseProvider(providerType, config.Model)
 
 	// Active configs always carry a non-null ai_provider_id (CHECK
 	// chat_model_configs_ai_provider_required_when_active).
@@ -9276,6 +9301,7 @@ func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModel 
 		CompressionThreshold: config.CompressionThreshold,
 		ModelConfig:          modelConfig,
 		ReasoningEfforts:     chatprovider.SelectableReasoningEfforts(reasoningEffortConfig),
+		ComputerUseProvider:  computerUseProvider,
 		CreatedAt:            config.CreatedAt,
 		UpdatedAt:            config.UpdatedAt,
 	}
