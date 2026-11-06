@@ -2,6 +2,7 @@ package chatd_test
 
 import (
 	"context"
+	"database/sql"
 	"testing"
 
 	"github.com/google/uuid"
@@ -494,12 +495,19 @@ func TestChatContextAdoptsNewBuildFromAgentPush(t *testing.T) {
 		}
 	}
 	require.NotEqual(t, oldAgentID, newAgentID)
-	// Keep the previous agent readable so adoption cannot depend on a
-	// failed agent lookup.
-	_, err = sqlDB.ExecContext(ctx, `UPDATE workspace_agents SET deleted = false WHERE id = $1`, oldAgentID)
-	require.NoError(t, err)
-	_, err = db.GetWorkspaceAgentByID(chatCtx, oldAgentID)
-	require.NoError(t, err, "the previous build's agent remains readable")
+	for _, previousAgentID := range []uuid.UUID{oldAgentID, oldSidecarID} {
+		var deleted bool
+		err = sqlDB.QueryRowContext(ctx, `SELECT deleted FROM workspace_agents WHERE id = $1`, previousAgentID).Scan(&deleted)
+		require.NoError(t, err)
+		require.True(t, deleted, "build completion soft-deletes prior agents")
+		_, err = db.GetWorkspaceAgentByID(chatCtx, previousAgentID)
+		require.ErrorIs(t, err, sql.ErrNoRows, "deleted prior agents are not readable")
+		_, err = db.GetLatestWorkspaceAgentContextSnapshot(chatCtx, previousAgentID)
+		require.ErrorIs(t, err, sql.ErrNoRows, "build completion purges prior context snapshots")
+		previousResources, err := db.ListWorkspaceAgentContextResources(chatCtx, previousAgentID)
+		require.NoError(t, err)
+		require.Empty(t, previousResources, "build completion purges prior context resources")
+	}
 	alreadyBound := newChat(workspace.ID, uuid.NullUUID{UUID: newAgentID, Valid: true}, database.ChatStatusWaiting)
 	require.NoError(t, db.SetChatContextSnapshot(chatCtx, database.SetChatContextSnapshotParams{
 		ID:            alreadyBound.ID,
