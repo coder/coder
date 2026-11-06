@@ -64,6 +64,7 @@ unset ANTHROPIC_AUTH_TOKEN
 ```
 
 When you run Claude Code, it will prompt you to log in with your Anthropic account.
+To complete the sign-in from a workspace terminal, refer to [Sign in to Claude Code with a Claude subscription](../../../workspaces/workspace-access/claude-code-subscription.md#sign-in-interactively).
 
 ## Pre-configuring in Templates
 

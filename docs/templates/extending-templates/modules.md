@@ -60,6 +60,7 @@ module "claude-code" {
 
 Each agent module accepts its own authentication and configuration variables.
 Visit the module's page in the [Coder Registry](https://registry.coder.com/modules) for the full list.
+To let developers use a Claude subscription with Claude Code, refer to [Sign in to Claude Code with a Claude subscription](../../workspaces/workspace-access/claude-code-subscription.md).
 
 To delegate work to an agent that runs in the Coder control plane instead of in the workspace, use [Coder Agents](../../coder-agents/index.md).
 
