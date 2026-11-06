@@ -18,6 +18,9 @@ import (
 	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/v3"
+	"github.com/coder/quartz"
 )
 
 //go:embed *.sql
@@ -73,7 +76,9 @@ func GetMigrationsHash() string {
 	return migrationsHash
 }
 
-func setup(db *sql.DB, migs fs.FS) (source.Driver, *migrate.Migrate, error) {
+// setup prepares a migration run over migs, or the embedded migrations when
+// migs is nil. A nil reporter reports nothing.
+func setup(db *sql.DB, migs fs.FS, r *reporter) (source.Driver, *migrate.Migrate, error) {
 	if migs == nil {
 		migs = migrations
 	}
@@ -91,7 +96,10 @@ func setup(db *sql.DB, migs fs.FS) (source.Driver, *migrate.Migrate, error) {
 		return nil, nil, xerrors.New("currently connected to a Coder v1 database, aborting database setup")
 	}
 
-	dbDriver := &pgTxnDriver{ctx: context.Background(), db: db}
+	if r != nil {
+		r.source = sourceDriver
+	}
+	dbDriver := &pgTxnDriver{ctx: context.Background(), db: db, reporter: r, phase: phaseBatch}
 	err = dbDriver.ensureVersionTable()
 	if err != nil {
 		return nil, nil, xerrors.Errorf("ensure version table: %w", err)
@@ -112,15 +120,54 @@ func setup(db *sql.DB, migs fs.FS) (source.Driver, *migrate.Migrate, error) {
 	return sourceDriver, m, nil
 }
 
-// Up runs SQL migrations to ensure the database schema is up-to-date.
-func Up(db *sql.DB) error {
-	return UpWithFS(db, migrations)
+// Option configures Up.
+type Option func(*upOptions)
+
+type upOptions struct {
+	fs                fs.FS
+	logger            *slog.Logger
+	appName           string
+	clock             quartz.Clock
+	heartbeatInterval time.Duration
+	observerDB        *sql.DB
 }
 
-// UpWithFS runs SQL migrations in the given fs.
-func UpWithFS(db *sql.DB, migs fs.FS) (retErr error) {
-	_, m, err := setup(db, migs)
+func newUpOptions(opts ...Option) upOptions {
+	var o upOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	return o
+}
+
+// WithFS runs the migrations in fsys instead of Coder's embedded migrations.
+func WithFS(fsys fs.FS) Option {
+	return func(o *upOptions) {
+		o.fs = fsys
+	}
+}
+
+// WithLogger writes the progress of the migrations to logger: waits for the
+// migration lock, each migration as it is applied, and a heartbeat every 10
+// seconds while a wait or a migration lasts. The migration connection is
+// named coder-migrate/<version> in pg_stat_activity. Without it, migrations
+// report nothing.
+func WithLogger(logger slog.Logger) Option {
+	return func(o *upOptions) {
+		o.logger = &logger
+	}
+}
+
+// Up runs SQL migrations to ensure the database schema is up-to-date. By
+// default it runs Coder's embedded migrations and reports nothing; WithFS and
+// WithLogger change that. Reporting never changes how the migrations run,
+// lock or commit.
+func Up(db *sql.DB, opts ...Option) (retErr error) {
+	o := newUpOptions(opts...)
+	r := newReporter(db, o)
+	_, m, err := setup(db, o.fs, r)
 	if err != nil {
+		r.close()
 		return xerrors.Errorf("migrate setup: %w", err)
 	}
 	defer func() {
@@ -136,6 +183,7 @@ func UpWithFS(db *sql.DB, migs fs.FS) (retErr error) {
 	}()
 
 	err = m.Up()
+	r.close()
 	if err != nil {
 		if errors.Is(err, migrate.ErrNoChange) {
 			// It's OK if no changes happened!
@@ -150,7 +198,7 @@ func UpWithFS(db *sql.DB, migs fs.FS) (retErr error) {
 
 // Down runs all down SQL migrations.
 func Down(db *sql.DB) error {
-	_, m, err := setup(db, migrations)
+	_, m, err := setup(db, migrations, nil)
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
 	}
@@ -172,7 +220,7 @@ func Down(db *sql.DB) error {
 // applied, without making any changes to the database. If not, returns a
 // non-nil error.
 func EnsureClean(db *sql.DB) error {
-	sourceDriver, m, err := setup(db, migrations)
+	sourceDriver, m, err := setup(db, migrations, nil)
 	if err != nil {
 		return xerrors.Errorf("migrate setup: %w", err)
 	}
@@ -238,7 +286,7 @@ func CheckLatestVersion(sourceDriver source.Driver, currentVersion uint) error {
 // Stepper cannot be closed pre-emptively, it must be run to completion
 // (or until an error is encountered).
 func Stepper(db *sql.DB) (next func() (version uint, more bool, err error), err error) {
-	_, m, err := setup(db, migrations)
+	_, m, err := setup(db, migrations, nil)
 	if err != nil {
 		return nil, xerrors.Errorf("migrate setup: %w", err)
 	}
