@@ -87,10 +87,12 @@ When Coder applies database migrations at startup, it logs their progress under 
 
 - `database migration required` shows how many migrations are pending.
 - `applying update N of M` marks each migration as it starts.
-- `waiting for database migration lock` means another session holds the migration lock, such as another replica that is applying the migrations.
+- `waiting for database migration lock` means another session holds the migration lock, which Coder uses so that only one replica applies migrations at a time.
 - `still applying update N of M` and `still waiting for database migration lock` repeat every 10&nbsp;seconds while a migration or a wait lasts.
-  When the migration waits on a lock, `blocked_by` lists the process IDs of the blocking database sessions.
+  When a migration waits on a database lock, `blocked_by` lists the process IDs of the sessions that hold it.
 - A final line reports how the run ended, such as `committed database migrations` or `migration failed, transaction rolled back, no changes saved`.
+
+As long as heartbeat lines keep appearing, Coder is alive and still working on the upgrade, so a restart at that point comes from the liveness probe, not from a stalled upgrade.
 
 To show only these lines:
 
