@@ -10278,6 +10278,20 @@ func (mr *MockStoreMockRecorder) PopNextQueuedMessage(ctx, chatID any) *gomock.C
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PopNextQueuedMessage", reflect.TypeOf((*MockStore)(nil).PopNextQueuedMessage), ctx, chatID)
 }
 
+// RebindChatToAgent mocks base method.
+func (m *MockStore) RebindChatToAgent(ctx context.Context, arg database.RebindChatToAgentParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RebindChatToAgent", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RebindChatToAgent indicates an expected call of RebindChatToAgent.
+func (mr *MockStoreMockRecorder) RebindChatToAgent(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RebindChatToAgent", reflect.TypeOf((*MockStore)(nil).RebindChatToAgent), ctx, arg)
+}
+
 // RebindWorkspaceChatsToAgent mocks base method.
 func (m *MockStore) RebindWorkspaceChatsToAgent(ctx context.Context, arg database.RebindWorkspaceChatsToAgentParams) ([]database.RebindWorkspaceChatsToAgentRow, error) {
 	m.ctrl.T.Helper()

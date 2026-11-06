@@ -4503,6 +4503,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/context": {
             "put": {
+                "description": "Re-pins the chat to its workspace agent's latest stored snapshot.\nA failed refresh preserves the existing pin.",
                 "produces": [
                     "application/json"
                 ],
@@ -4526,6 +4527,24 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Chat"
+                        }
+                    },
+                    "400": {
+                        "description": "No running workspace agent or agent selection failed.",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "409": {
+                        "description": "The workspace agent has not pushed a context snapshot.",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
+                        }
+                    },
+                    "410": {
+                        "description": "The chat's workspace was deleted.",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.Response"
                         }
                     }
                 },

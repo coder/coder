@@ -2,6 +2,11 @@ package chatd_test
 
 import (
 	"context"
+	"database/sql"
+	"net/http"
+	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
@@ -15,11 +20,13 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -648,6 +655,421 @@ func TestChatContextAdoptsNewBuildFromAgentPush(t *testing.T) {
 		require.Equal(t, []byte{newContextHash}, chat.ContextAggregateHash)
 		require.True(t, chat.ContextDirtySince.Valid)
 	}
+}
+
+func TestChatContextBeforeReplacementAgentPush(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	rawDB, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	gate := &contextBuildCompletionGate{entered: make(chan struct{}), release: make(chan struct{})}
+	client, daemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+		Database:                 &contextBuildCompletionStore{Store: rawDB, gate: gate},
+	})
+	releaseBuild := sync.OnceFunc(func() { close(gate.release) })
+	db := api.Database
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
+	//nolint:gocritic // Inspect chat-owned context as the daemon subject.
+	chatCtx := dbauthz.AsChatd(ctx)
+	prompts := make(chan string, 4)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("workspace context")
+		}
+		var system strings.Builder
+		for _, msg := range req.Messages {
+			if msg.Role == "system" {
+				_, _ = system.WriteString(msg.Content)
+			}
+		}
+		prompts <- system.String()
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	model := coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
+	newVersion := func(templateID uuid.UUID, token string) codersdk.TemplateVersion {
+		t.Helper()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionGraph: echo.ProvisionGraphWithAgent(token, func(graph *proto.GraphComplete) {
+				graph.Resources[0].Agents[0].Directory = "/workspace"
+			}),
+		}, func(req *codersdk.CreateTemplateVersionRequest) { req.TemplateID = templateID })
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		return version
+	}
+	push := func(token, content string, hash byte) {
+		t.Helper()
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(token))
+		rpc, _, err := agentClient.ConnectRPC210(ctx)
+		require.NoError(t, err)
+		defer func() { _ = rpc.DRPCConn().Close() }()
+		resp, err := rpc.PushContextState(ctx, &agentproto.PushContextStateRequest{
+			Version:       1,
+			Initial:       true,
+			AggregateHash: []byte{hash},
+			Resources: []*agentproto.ContextResource{{
+				Source:      "/workspace/AGENTS.md",
+				ContentHash: []byte{hash},
+				Status:      agentproto.ContextResource_OK,
+				Body: &agentproto.ContextResource_InstructionFile{
+					InstructionFile: &agentproto.InstructionFileBody{Content: []byte(content)},
+				},
+			}},
+		})
+		require.NoError(t, err)
+		require.True(t, resp.GetAccepted())
+	}
+	oldToken := uuid.NewString()
+	version := newVersion(uuid.Nil, oldToken)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	oldWorkspace, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	oldAgentID := oldWorkspace.LatestBuild.Resources[0].Agents[0].ID
+	newChat := func(parentID uuid.NullUUID) database.Chat {
+		t.Helper()
+		return dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
+			BuildID:           uuid.NullUUID{UUID: oldWorkspace.LatestBuild.ID, Valid: true},
+			AgentID:           uuid.NullUUID{UUID: oldAgentID, Valid: true},
+			LastModelConfigID: model.ID,
+			ParentChatID:      parentID,
+			RootChatID:        parentID,
+			Status:            database.ChatStatusWaiting,
+		})
+	}
+	refreshChat := newChat(uuid.NullUUID{})
+	// A child chat avoids the root chat's plan-path dial.
+	turnChat := newChat(uuid.NullUUID{UUID: refreshChat.ID, Valid: true})
+	archivedChat := newChat(uuid.NullUUID{})
+	const (
+		oldHash    byte = 0x01
+		newHash    byte = 0x02
+		oldContent      = "Keep the previous build's instructions."
+		newContent      = "Adopt the replacement build's instructions."
+	)
+	push(oldToken, oldContent, oldHash)
+	_, err = db.ArchiveChatByID(chatCtx, archivedChat.ID)
+	require.NoError(t, err)
+	runTurnAndCapturePrompt := func() string {
+		t.Helper()
+		_, err := expClient.CreateChatMessage(ctx, turnChat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "Continue."}},
+		})
+		require.NoError(t, err)
+		prompt := testutil.RequireReceive(ctx, t, prompts)
+		got := coderdtest.WaitForChatSettled(ctx, t, api, turnChat.ID)
+		require.Equal(t, database.ChatStatusWaiting, got.Status, "%s", got.LastError.RawMessage)
+		return prompt
+	}
+	runTurnAndRefreshWithRunningAgent := func() {
+		t.Helper()
+		prompt := runTurnAndCapturePrompt()
+		require.Contains(t, prompt, oldContent)
+		require.Contains(t, prompt, "Working Directory: /workspace")
+		got, err := db.GetChatByID(chatCtx, turnChat.ID)
+		require.NoError(t, err)
+		require.Equal(t, oldAgentID, got.AgentID.UUID)
+		require.Equal(t, turnChat.BuildID, got.BuildID)
+		before, err := db.GetChatByID(chatCtx, refreshChat.ID)
+		require.NoError(t, err)
+		refreshed, err := expClient.RefreshChatContext(ctx, refreshChat.ID)
+		require.NoError(t, err)
+		require.Equal(t, oldAgentID, *refreshed.AgentID)
+		got, err = db.GetChatByID(chatCtx, refreshChat.ID)
+		require.NoError(t, err)
+		require.Equal(t, []byte{oldHash}, got.ContextAggregateHash)
+		require.Equal(t, before.UpdatedAt, got.UpdatedAt)
+	}
+	oldResources, err := db.ListChatContextResourcesByChatID(chatCtx, turnChat.ID)
+	require.NoError(t, err)
+	require.Len(t, oldResources, 1)
+
+	// Stop the provisioner so the replacement start build stays queued.
+	newToken := uuid.NewString()
+	version = newVersion(template.ID, newToken)
+	require.NoError(t, daemon.Close())
+	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition:        codersdk.WorkspaceTransitionStart,
+		TemplateVersionID: version.ID,
+	})
+	require.NoError(t, err)
+	require.Equal(t, codersdk.ProvisionerJobPending, build.Job.Status)
+	runTurnAndRefreshWithRunningAgent()
+
+	// Hold the build in provisioning by arming the gate before starting a daemon.
+	gate.jobID.Store(&build.Job.ID)
+	_ = coderdtest.NewTaggedProvisionerDaemon(t, api, uuid.NewString(), nil)
+	// Release the job before the provisioner daemon's cleanup waits for it.
+	t.Cleanup(releaseBuild)
+	testutil.TryReceive(ctx, t, gate.entered)
+	building, err := client.WorkspaceBuild(ctx, build.ID)
+	require.NoError(t, err)
+	require.Equal(t, codersdk.ProvisionerJobRunning, building.Job.Status)
+	runTurnAndRefreshWithRunningAgent()
+
+	// Complete the build before the resolved agent's first push.
+	releaseBuild()
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+	newWorkspace, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	newAgentID := newWorkspace.LatestBuild.Resources[0].Agents[0].ID
+	requirePriorAgentPurged(chatCtx, t, db, sqlDB, oldAgentID)
+	_, err = db.GetLatestWorkspaceAgentContextSnapshot(chatCtx, newAgentID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+	refreshResources, err := db.ListChatContextResourcesByChatID(chatCtx, refreshChat.ID)
+	require.NoError(t, err)
+
+	// Refresh returns 409 and keeps the pin, binding and resources.
+	_, err = expClient.RefreshChatContext(ctx, refreshChat.ID)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+	require.Contains(t, sdkErr.Message, "not ready")
+	require.Equal(t, "The workspace agent has no stored context snapshot yet. Wait for its first context snapshot, then retry.", sdkErr.Detail)
+	got, err := db.GetChatByID(chatCtx, refreshChat.ID)
+	require.NoError(t, err)
+	require.Equal(t, []byte{oldHash}, got.ContextAggregateHash)
+	require.Equal(t, refreshChat.AgentID, got.AgentID)
+	require.Equal(t, refreshChat.BuildID, got.BuildID)
+	resources, err := db.ListChatContextResourcesByChatID(chatCtx, refreshChat.ID)
+	require.NoError(t, err)
+	require.Equal(t, refreshResources, resources)
+
+	// A turn rebinds to the new agent but keeps the old pin.
+	prompt := runTurnAndCapturePrompt()
+	require.Contains(t, prompt, oldContent)
+	require.NotContains(t, prompt, newContent)
+	got, err = db.GetChatByID(chatCtx, turnChat.ID)
+	require.NoError(t, err)
+	require.Equal(t, newAgentID, got.AgentID.UUID)
+	require.Equal(t, build.ID, got.BuildID.UUID)
+	require.Equal(t, []byte{oldHash}, got.ContextAggregateHash)
+	resources, err = db.ListChatContextResourcesByChatID(chatCtx, turnChat.ID)
+	require.NoError(t, err)
+	require.Equal(t, oldResources, resources, "rebinding before the resolved agent's first push preserves the pin")
+
+	// Refreshing the rebound chat is also not ready.
+	_, err = expClient.RefreshChatContext(ctx, turnChat.ID)
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+
+	// The first push adopts the snapshot for non-archived chats.
+	push(newToken, newContent, newHash)
+	for _, chat := range []database.Chat{turnChat, refreshChat} {
+		got, err := db.GetChatByID(chatCtx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, newAgentID, got.AgentID.UUID)
+		require.Equal(t, []byte{newHash}, got.ContextAggregateHash)
+		require.False(t, got.ContextDirtySince.Valid)
+	}
+	prompt = runTurnAndCapturePrompt()
+	require.Contains(t, prompt, newContent)
+	require.NotContains(t, prompt, oldContent)
+
+	// Archived chats skip first-push adoption and can still refresh explicitly.
+	before, err := db.GetChatByID(chatCtx, archivedChat.ID)
+	require.NoError(t, err)
+	require.Equal(t, oldAgentID, before.AgentID.UUID)
+	refreshed, err := expClient.RefreshChatContext(ctx, archivedChat.ID)
+	require.NoError(t, err)
+	require.Equal(t, newAgentID, *refreshed.AgentID)
+	require.Equal(t, build.ID, *refreshed.BuildID)
+	got, err = db.GetChatByID(chatCtx, archivedChat.ID)
+	require.NoError(t, err)
+	require.Equal(t, []byte{newHash}, got.ContextAggregateHash)
+	require.Equal(t, before.UpdatedAt, got.UpdatedAt, "refresh must not reorder chats")
+}
+
+func TestChatContextRefreshUnavailable(t *testing.T) {
+	t.Parallel()
+
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{ChatWorkerDisabled: true})
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	db := api.Database
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: user.OrganizationID})
+	expClient := codersdk.NewExperimentalClient(client)
+	for _, tc := range []struct {
+		name        string
+		setup       func(t *testing.T, ctx context.Context, previous dbfake.WorkspaceResponse, resource database.WorkspaceResource)
+		wantStatus  int
+		wantMessage string
+		wantDetail  string
+	}{
+		{
+			name:        "StoppedWorkspace",
+			setup:       func(*testing.T, context.Context, dbfake.WorkspaceResponse, database.WorkspaceResource) {},
+			wantStatus:  http.StatusBadRequest,
+			wantMessage: "Workspace has no running agent.",
+			wantDetail:  "Start the workspace if it is stopped. If it is already starting, wait for startup to finish, then retry.",
+		},
+		{
+			name: "DeletedWorkspace",
+			setup: func(t *testing.T, ctx context.Context, previous dbfake.WorkspaceResponse, _ database.WorkspaceResource) {
+				require.NoError(t, db.UpdateWorkspaceDeletedByID(ctx, database.UpdateWorkspaceDeletedByIDParams{
+					ID:      previous.Workspace.ID,
+					Deleted: true,
+				}))
+			},
+			wantStatus:  http.StatusGone,
+			wantMessage: "The chat's workspace was deleted.",
+		},
+		{
+			name: "MultipleChatAgents",
+			setup: func(t *testing.T, _ context.Context, _ dbfake.WorkspaceResponse, resource database.WorkspaceResource) {
+				for _, name := range []string{"first-coderd-chat", "second-coderd-chat"} {
+					dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+						ResourceID: resource.ID,
+						Name:       name,
+					})
+				}
+			},
+			wantStatus:  http.StatusBadRequest,
+			wantMessage: "Cannot select a workspace agent for context refresh.",
+			wantDetail:  "multiple agents match",
+		},
+		{
+			name: "NoEligibleAgents",
+			setup: func(t *testing.T, _ context.Context, previous dbfake.WorkspaceResponse, resource database.WorkspaceResource) {
+				dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+					ResourceID: resource.ID,
+					ParentID:   uuid.NullUUID{UUID: previous.Agents[0].ID, Valid: true},
+				})
+			},
+			wantStatus:  http.StatusBadRequest,
+			wantMessage: "Cannot select a workspace agent for context refresh.",
+			wantDetail:  "no eligible workspace agents",
+		},
+		// A start build after a completed stop has no running agent in either phase.
+		{
+			name: "RestartStartBuildQueued",
+			setup: func(t *testing.T, _ context.Context, previous dbfake.WorkspaceResponse, _ database.WorkspaceResource) {
+				dbfake.WorkspaceBuild(t, db, previous.Workspace).Seed(database.WorkspaceBuild{
+					Transition:  database.WorkspaceTransitionStart,
+					BuildNumber: 3,
+				}).Pending().Do()
+			},
+			wantStatus:  http.StatusBadRequest,
+			wantMessage: "Workspace has no running agent.",
+			wantDetail:  "Start the workspace if it is stopped. If it is already starting, wait for startup to finish, then retry.",
+		},
+		{
+			name: "RestartStartBuildProvisioning",
+			setup: func(t *testing.T, _ context.Context, previous dbfake.WorkspaceResponse, _ database.WorkspaceResource) {
+				dbfake.WorkspaceBuild(t, db, previous.Workspace).Seed(database.WorkspaceBuild{
+					Transition:  database.WorkspaceTransitionStart,
+					BuildNumber: 3,
+				}).Starting().Do()
+			},
+			wantStatus:  http.StatusBadRequest,
+			wantMessage: "Workspace has no running agent.",
+			wantDetail:  "Start the workspace if it is stopped. If it is already starting, wait for startup to finish, then retry.",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			//nolint:gocritic // Inspect chat-owned context as the daemon subject.
+			ctx := dbauthz.AsChatd(testutil.Context(t, testutil.WaitLong))
+			//nolint:gocritic // Seed provisioner cleanup with system authorization.
+			sysCtx := dbauthz.AsSystemRestricted(ctx)
+			previous := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+				OrganizationID: user.OrganizationID,
+				OwnerID:        user.UserID,
+			}).WithAgent().Do()
+			chat := dbgen.Chat(t, db, database.Chat{
+				OrganizationID:    user.OrganizationID,
+				OwnerID:           user.UserID,
+				WorkspaceID:       uuid.NullUUID{UUID: previous.Workspace.ID, Valid: true},
+				BuildID:           uuid.NullUUID{UUID: previous.Build.ID, Valid: true},
+				AgentID:           uuid.NullUUID{UUID: previous.Agents[0].ID, Valid: true},
+				LastModelConfigID: model.ID,
+				Status:            database.ChatStatusWaiting,
+			})
+			require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{
+				ID:            chat.ID,
+				AggregateHash: []byte{0x01},
+				ContextError:  "preserve the context error",
+			}))
+			_, err := db.MarkChatsContextDirtyByAgent(ctx, database.MarkChatsContextDirtyByAgentParams{
+				AgentID:       previous.Agents[0].ID,
+				AggregateHash: []byte{0x02},
+				DirtySince:    sql.NullTime{Time: dbtime.Now(), Valid: true},
+			})
+			require.NoError(t, err)
+
+			// Complete the stop build before arranging the refresh scenario.
+			stopped := dbfake.WorkspaceBuild(t, db, previous.Workspace).Seed(database.WorkspaceBuild{
+				Transition:  database.WorkspaceTransitionStop,
+				BuildNumber: 2,
+			}).Do()
+			require.NoError(t, db.SoftDeletePriorWorkspaceAgents(sysCtx, database.SoftDeletePriorWorkspaceAgentsParams{
+				WorkspaceID:    previous.Workspace.ID,
+				CurrentBuildID: stopped.Build.ID,
+			}))
+			resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: stopped.Build.JobID})
+			tc.setup(t, sysCtx, previous, resource)
+
+			before, err := db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			require.True(t, before.ContextDirtySince.Valid)
+			_, err = expClient.RefreshChatContext(ctx, chat.ID)
+			var sdkErr *codersdk.Error
+			require.ErrorAs(t, err, &sdkErr)
+			require.Equal(t, tc.wantStatus, sdkErr.StatusCode())
+			require.Equal(t, tc.wantMessage, sdkErr.Message)
+			require.NotContains(t, sdkErr.Detail, "\n", "refresh errors have a single-line detail")
+			if tc.wantDetail == "" {
+				require.Empty(t, sdkErr.Detail)
+			} else {
+				require.Contains(t, sdkErr.Detail, tc.wantDetail)
+			}
+			after, err := db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			require.Equal(t, before, after, "an unavailable workspace must preserve the chat and pin")
+		})
+	}
+}
+
+// contextBuildCompletionGate holds the job and channels for a paused build.
+type contextBuildCompletionGate struct {
+	jobID   atomic.Pointer[uuid.UUID]
+	entered chan struct{} // Closes when the gated job reaches completion.
+	release chan struct{} // Closing it unblocks the completion write.
+	once    sync.Once
+}
+
+// contextBuildCompletionStore pauses the gated job before completion writes,
+// keeping the build in provisioning until release closes.
+type contextBuildCompletionStore struct {
+	database.Store
+	gate *contextBuildCompletionGate
+}
+
+func (s *contextBuildCompletionStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return fn(&contextBuildCompletionStore{Store: tx, gate: s.gate})
+	}, opts)
+}
+
+func (s *contextBuildCompletionStore) UpdateProvisionerJobWithCompleteByID(ctx context.Context, arg database.UpdateProvisionerJobWithCompleteByIDParams) error {
+	if jobID := s.gate.jobID.Load(); jobID != nil && *jobID == arg.ID {
+		s.gate.once.Do(func() { close(s.gate.entered) })
+		select {
+		case <-s.gate.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return s.Store.UpdateProvisionerJobWithCompleteByID(ctx, arg)
 }
 
 // TestChatContextLiveSyncFromAgentPush verifies that agent pushes live-sync MCP

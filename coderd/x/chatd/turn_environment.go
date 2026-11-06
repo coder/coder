@@ -1397,17 +1397,11 @@ func (c *turnWorkspaceContext) persistBuildAgentBinding(
 	buildID uuid.UUID,
 	agentID uuid.UUID,
 ) (database.Chat, error) {
-	// If the chat was rebound to a different agent (e.g. a workspace rebuild
-	// produced a new agent), re-pin its context to the new agent so it stops
-	// injecting the previous agent's resources. Workspace lifecycle tools clear
-	// the agent binding while preserving the pin, so a missing prior agent also
-	// requires a re-pin when pinned context exists. The binding and the re-pin
-	// commit together: a committed binding without its re-pin would never be
-	// retried, because the next turn sees no agent change. The pinned context
-	// fields on updatedChat are background state, reloaded on the next
-	// snapshot fetch.
+	// Re-pin when the agent changed or a lifecycle tool cleared the binding but
+	// kept the pin. Roll back a failed re-pin with the binding so the next turn
+	// retries. Context fields on updatedChat are reloaded on the next snapshot.
 	hasStaleUnboundContext := !chatSnapshot.AgentID.Valid && chatSnapshot.ContextAggregateHash != nil
-	needsRepin := hasStaleUnboundContext || (chatSnapshot.AgentID.Valid && chatSnapshot.AgentID.UUID != agentID)
+	needsRepin := hasStaleUnboundContext || (chatSnapshot.AgentID.Valid && !isChatBoundToAgent(chatSnapshot, agentID))
 	var updatedChat database.Chat
 	err := database.ReadModifyUpdate(c.server.db, func(tx database.Store) error {
 		var err error
@@ -1431,9 +1425,15 @@ func (c *turnWorkspaceContext) persistBuildAgentBinding(
 		if !needsRepin {
 			return nil
 		}
+		boundAgentID := uuid.NullUUID{UUID: agentID, Valid: true}
 		//nolint:gocritic // Chatd re-pins chats it does not own as the daemon subject.
-		if err := repinChatContext(dbauthz.AsChatd(ctx), tx, chatSnapshot.ID, uuid.NullUUID{UUID: agentID, Valid: true}); err != nil {
-			return xerrors.Errorf("re-pin chat context after agent rebind: %w", err)
+		repinErr := repinChatContext(dbauthz.AsChatd(ctx), tx, chatSnapshot.ID, boundAgentID)
+		if errors.Is(repinErr, ErrChatContextNotReady) {
+			// Keep the pin. First-push adoption replaces it when context arrives.
+			return nil
+		}
+		if repinErr != nil {
+			return xerrors.Errorf("re-pin chat context after agent rebind: %w", repinErr)
 		}
 		return nil
 	})
@@ -1515,61 +1515,20 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 			return chatSnapshot, database.WorkspaceAgent{}, errChatWorkspaceDeleted
 		}
 
-		if chatSnapshot.AgentID.Valid {
-			agent, err := c.server.db.GetWorkspaceAgentByID(ctx, chatSnapshot.AgentID.UUID)
-			if err == nil {
-				latestChat, workspaceMatches := c.currentWorkspaceMatches(chatSnapshot.WorkspaceID)
-				if !workspaceMatches {
-					chatSnapshot = latestChat
-					continue
-				}
-				c.agent = agent
-				c.agentLoaded = true
-				c.cachedWorkspaceID = chatSnapshot.WorkspaceID
-				return chatSnapshot, c.agent, nil
-			}
-			if !xerrors.Is(err, sql.ErrNoRows) {
-				return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf("get bound workspace agent: %w", err)
-			}
-		}
-
-		agents, err := c.server.db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(
-			ctx,
-			chatSnapshot.WorkspaceID.UUID,
-		)
-		if err != nil {
-			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf(
-				"get workspace agents in latest build: %w",
-				err,
-			)
-		}
-		if len(agents) == 0 {
-			return chatSnapshot, database.WorkspaceAgent{}, errChatHasNoWorkspaceAgent
-		}
-		selected, err := agentselect.FindChatAgent(agents)
-		if err != nil {
-			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf(
-				"find chat agent: %w",
-				err,
-			)
-		}
-
-		build, err := c.server.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, chatSnapshot.WorkspaceID.UUID)
-		if err != nil {
-			return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf("get latest workspace build: %w", err)
-		}
-
-		updatedChat, err := c.persistBuildAgentBinding(
-			ctx,
-			chatSnapshot,
-			build.ID,
-			selected.ID,
-		)
+		selected, err := resolveChatWorkspaceAgent(ctx, c.server.db, chatSnapshot)
 		if err != nil {
 			return chatSnapshot, database.WorkspaceAgent{}, err
 		}
-
-		chatSnapshot = updatedChat
+		if !isChatBoundToAgent(chatSnapshot, selected.ID) {
+			build, err := c.server.db.GetLatestWorkspaceBuildByWorkspaceID(ctx, chatSnapshot.WorkspaceID.UUID)
+			if err != nil {
+				return chatSnapshot, database.WorkspaceAgent{}, xerrors.Errorf("get latest workspace build: %w", err)
+			}
+			chatSnapshot, err = c.persistBuildAgentBinding(ctx, chatSnapshot, build.ID, selected.ID)
+			if err != nil {
+				return chatSnapshot, database.WorkspaceAgent{}, err
+			}
+		}
 		latestChat, workspaceMatches := c.currentWorkspaceMatches(chatSnapshot.WorkspaceID)
 		if !workspaceMatches {
 			chatSnapshot = latestChat
@@ -1584,6 +1543,37 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 	return chatSnapshot, database.WorkspaceAgent{}, xerrors.New(
 		"chat workspace changed while resolving agent",
 	)
+}
+
+func isChatBoundToAgent(chat database.Chat, agentID uuid.UUID) bool {
+	return chat.AgentID.Valid && chat.AgentID.UUID == agentID
+}
+
+// resolveChatWorkspaceAgent returns the bound agent while it exists and is not
+// soft-deleted. Otherwise it selects the latest build's chat agent, or returns
+// errChatHasNoWorkspaceAgent when that build has no agents.
+func resolveChatWorkspaceAgent(ctx context.Context, db database.Store, chat database.Chat) (database.WorkspaceAgent, error) {
+	if chat.AgentID.Valid {
+		agent, err := db.GetWorkspaceAgentByID(ctx, chat.AgentID.UUID)
+		if err == nil {
+			return agent, nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return database.WorkspaceAgent{}, xerrors.Errorf("get bound workspace agent: %w", err)
+		}
+	}
+	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, chat.WorkspaceID.UUID)
+	if err != nil {
+		return database.WorkspaceAgent{}, xerrors.Errorf("get workspace agents in latest build: %w", err)
+	}
+	if len(agents) == 0 {
+		return database.WorkspaceAgent{}, errChatHasNoWorkspaceAgent
+	}
+	selected, err := agentselect.FindChatAgent(agents)
+	if err != nil {
+		return database.WorkspaceAgent{}, xerrors.Errorf("find chat agent: %w", err)
+	}
+	return selected, nil
 }
 
 // isNoUsableWorkspaceAgent reports whether err from ensureWorkspaceAgent means

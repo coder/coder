@@ -17,17 +17,25 @@ The pinned copy is what the agent's system prompt and tool list are built from, 
 
 The lifecycle of an edit looks like this:
 
-1. You add a skill, edit `.mcp.json`, or change an instruction file in the workspace.
+1. You add a skill or change an instruction file in the workspace.
 1. A file watcher notices the change, and the agent re-scans after a short period and then pushes a new snapshot.
 1. Chats that have not pinned a snapshot yet pin the new one immediately.
 1. Chats that already pinned an older snapshot are marked out of date instead of being switched over.
 1. Selecting **Refresh context** in the chat re-pins that chat to the latest snapshot.
 
-This is why an in-flight chat can keep using an older snapshot: a push never rewrites a chat's pinned context.
-The pin only moves when the chat is first hydrated or when you refresh it.
+MCP server changes apply to chats on the next push without a refresh.
+Within one workspace build, instruction and skill edits leave a chat's pinned instructions and skills unchanged until you refresh.
 
-The agent publishes nothing until the workspace is ready.
-Until startup scripts finish, the agent holds an empty snapshot, so a chat opened during workspace startup can show no skills and no MCP tools until the first real push lands.
+The workspace agent publishes nothing until startup scripts finish.
+A chat that has no pinned context can show no skills or MCP tools until the first snapshot arrives.
+
+If a running workspace agent is still available while a replacement build is queued or provisioning, refresh uses that agent's snapshot.
+
+A workspace restart stops the workspace before starting it again.
+Once the stop build completes, no workspace agent is running, and the [refresh API](../reference/api/chats.md#refresh-chat-context) returns `400 Bad Request`.
+After the start build completes, refresh returns `409 Conflict` until the replacement workspace agent publishes its first snapshot.
+Both errors keep the existing pin.
+Chats that aren't archived adopt that first snapshot automatically.
 
 ### Where the agent looks
 
