@@ -18,8 +18,7 @@ Provider-specific steps live on the [Claude Code](./claude-code.md) and [Cursor]
 You need:
 
 - A Coder deployment with a Premium license, on version 2.39 or later.
-- Agent Relay v0.14.0 or later.
-  Claude Code `dispatch_deadline`, the reap delay, and the reaper startup grace require v0.15.0 or later.
+- The latest Agent Relay release.
 - Somewhere to run the Agent Relay container: a Kubernetes cluster that you can reach with `kubectl` and `helm`, or a Docker host.
 - The [Coder CLI](https://coder.com/downloads), signed in as an `owner`.
 - An account with the provider you want to serve.
@@ -364,8 +363,7 @@ Bind it to `0.0.0.0` to reach it from outside the container.
 
 </div>
 
-Each Agent Relay release on GitHub also includes static binaries for Linux and macOS on `amd64` and `arm64`, with a `checksums.txt` file.
-This guide covers only the image and the Helm chart.
+Install Agent Relay with the container image or the Helm chart.
 
 ## Step 6: Verify the deployment
 
@@ -480,13 +478,13 @@ To change these durations, set [`--reap-keepalive-refresh-before` and `--reap-ke
 - Keep the metadata `interval` well under two minutes, or Agent Relay can't rely on a fresh sample.
 - The image needs `curl`, and the Cursor module also needs `awk`.
 - Agent Relay doesn't extend a workspace past its template's maximum deadline, and doesn't extend workspaces that have no autostop deadline.
-- Keepalive requires module version 1.0.0 or later and Agent Relay v0.14.0 or later.
+- Keepalive requires module version 1.0.0 or later.
 
 Workspace names start with a provider prefix: `cc-` for Claude Code and `cur-` for Cursor.
 
 ## Upgrade from early access
 
-Agent Relay v0.14.0 and module version 1.0.0 deliver provider credentials as workspace build secrets, which need Coder 2.39 or later.
+Current Agent Relay releases and module version 1.0.0 deliver provider credentials as workspace build secrets, which need Coder 2.39 or later.
 Early access module versions, `agent-relay-claude-code` 0.4.0 or earlier and `agent-relay-cursor` 0.7.0 or earlier, don't support build secrets.
 Upgrade Coder, Agent Relay, and every Agent Relay template in the same maintenance window.
 If you need help planning the upgrade, contact Coder.
@@ -495,14 +493,14 @@ If you need help planning the upgrade, contact Coder.
 
 1. Grant the service account `workspace` `update` and `workspace_secret` `create` in every organization that a pool names.
 
-   Agent Relay v0.14.0 doesn't start without them.
+   Agent Relay doesn't start without them.
    The `organization-admin` role already includes both.
 
 1. Convert each Cursor pool's `idle_release_timeout` from seconds to a duration, such as `10m` for `600`.
 
    `0` still turns off idle release.
 
-1. Upgrade Agent Relay to v0.14.0 or later.
+1. Upgrade Agent Relay to the latest release.
 
 1. Update every Agent Relay template to module version 1.0.0.
 
