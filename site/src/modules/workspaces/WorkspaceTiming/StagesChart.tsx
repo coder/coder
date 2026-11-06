@@ -1,10 +1,6 @@
-import { CircleAlertIcon, InfoIcon } from "lucide-react";
+import { CircleAlertIcon } from "lucide-react";
 import type { TimingStage } from "#/api/typesGenerated";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
 import { Bar, ClickableBar } from "./Chart/Bar";
 import { Blocks } from "./Chart/Blocks";
 import { Chart, ChartContent } from "./Chart/Chart";
@@ -134,18 +130,16 @@ const StageLabel: React.FC<StageLabelProps> = ({ stage }) => {
 	return (
 		<span className="flex items-center justify-end gap-0.5">
 			{stage.label}
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<InfoIcon className="size-icon-xs cursor-pointer text-content-secondary" />
-				</TooltipTrigger>
-				<TooltipContent
-					side="bottom"
-					className="flex flex-col gap-1.5 max-w-xs border-surface-quaternary"
-				>
+			<InfoTooltip
+				ariaLabel={`About ${stage.label}`}
+				side="bottom"
+				size="small"
+			>
+				<div className="flex flex-col gap-1.5">
 					<p className="m-0 text-content-primary">{stage.tooltip.heading}</p>
 					<p className="m-0">{stage.tooltip.description}</p>
-				</TooltipContent>
-			</Tooltip>
+				</div>
+			</InfoTooltip>
 		</span>
 	);
 };

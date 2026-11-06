@@ -209,6 +209,14 @@ export const SkillChipBetweenText: Story = {
 	},
 };
 
+export const SelectedSkillChip: Story = {
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/rev");
+		await userEvent.keyboard("{Enter}on the latest diff");
+		await userEvent.keyboard("{Control>}a{/Control}");
+	},
+};
+
 export const OpensWithPersonalAndWorkspaceSkills: Story = {
 	args: {
 		hasWorkspace: true,

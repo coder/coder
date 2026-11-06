@@ -118,7 +118,7 @@ export const ACPTool: React.FC<ACPToolProps> = ({
 						>
 							<span>{agentName}</span>
 						</Badge>{" "}
-						{`· ${title}`}
+						{title}
 					</ToolCall.Label>
 					<ToolCall.Status />
 					<ToolCall.Chevron />

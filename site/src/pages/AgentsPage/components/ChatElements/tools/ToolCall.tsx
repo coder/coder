@@ -445,6 +445,17 @@ const Content: React.FC<ToolCallContentProps> = ({ children }) => {
 	return children;
 };
 
+type ToolCallErrorDetailProps = {
+	children: string;
+};
+
+/** Shows a failed call's error message in the expanded row body. */
+const ErrorDetail: React.FC<ToolCallErrorDetailProps> = ({ children }) => (
+	<pre className="m-0 mt-1.5 whitespace-pre-wrap break-words border-0 bg-transparent p-0 font-mono text-xs leading-5 text-content-destructive">
+		{children}
+	</pre>
+);
+
 type ToolCallScrollableProps = Omit<
 	React.ComponentProps<typeof ScrollArea>,
 	| "viewportAriaLabel"
@@ -519,5 +530,6 @@ export const ToolCall = {
 	State,
 	Header,
 	Content,
+	ErrorDetail,
 	Scrollable,
 };

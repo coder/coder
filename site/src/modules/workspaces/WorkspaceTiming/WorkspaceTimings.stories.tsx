@@ -228,6 +228,23 @@ export const NavigateToPlanStage: Story = {
 	},
 };
 
+export const StageInfoFocused: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		canvas.getByRole("button", { name: "About plan" }).focus();
+	},
+};
+
+export const ResourceBarFocused: Story = {
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		await user.click(canvas.getByRole("button", { name: "View plan details" }));
+		await user.click(canvas.getByRole("textbox"));
+		await user.tab();
+	},
+};
+
 // Navigating into a workspace boot stage
 export const NavigateToStartStage: Story = {
 	play: async ({ canvasElement }) => {
@@ -241,17 +258,7 @@ export const NavigateToStartStage: Story = {
 	},
 };
 
-export const FocusResourceBar: Story = {
-	play: async ({ canvasElement }) => {
-		const user = userEvent.setup();
-		const canvas = within(canvasElement);
-		await user.click(canvas.getByRole("button", { name: "View plan details" }));
-		await user.click(canvas.getByRole("textbox"));
-		await user.tab();
-	},
-};
-
-export const FocusScriptBar: Story = {
+export const ScriptBarFocused: Story = {
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
