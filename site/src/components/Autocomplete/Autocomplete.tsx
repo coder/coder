@@ -409,7 +409,7 @@ export function Autocomplete<TOption>({
 					<button
 						type="button"
 						onClick={handleClear}
-						className="absolute right-8 top-1/2 -translate-y-1/2 flex items-center justify-center size-6 p-0 border-0 bg-transparent rounded hover:bg-surface-secondary transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+						className="absolute right-[33px] top-1/2 -translate-y-1/2 flex items-center justify-center size-6 p-0 border-0 bg-transparent rounded hover:bg-surface-secondary transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 						aria-label="Clear selection"
 					>
 						<XIcon className="size-4 text-content-secondary hover:text-content-primary" />
