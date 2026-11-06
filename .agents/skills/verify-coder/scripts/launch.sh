@@ -216,6 +216,11 @@ run_develop() {
 # launch failed. The docker template's workspace agents reach the server
 # through host.docker.internal, so develop then restarts on every interface
 # with the same ports and the database it set up.
+# develop.sh reuses a saved CLI session without signing in, even one of
+# another user, and the journeys would then run as that user. Without it,
+# develop signs in as the admin with the launch password and saves that
+# session.
+rm -f "$VC_CONFIG_DIR/session"
 log="$VC_RUN/develop-setup.log"
 echo "setting up on 127.0.0.1"
 run_develop --bind-address 127.0.0.1 "${args[@]}"

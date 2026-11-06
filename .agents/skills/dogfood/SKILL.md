@@ -124,11 +124,12 @@ If the user asks for migration or stack UAT:
 
 1. Record the pre-migration PR, branch, or SHA.
 2. Run `verify-coder`'s `scripts/launch.sh` on that version.
-3. Create representative state required by the PR.
-4. Run `scripts/cleanup.sh --keep-data`, which stops the server and keeps the dev database.
+3. Create representative state required by the PR. Do not record workspaces that must survive the switch with `vc_record_workspace`, because cleanup deletes recorded workspaces.
+4. Run `scripts/cleanup.sh --keep-data`, which stops the server and keeps the dev database and the unrecorded workspaces.
 5. Check out the target migration PR, branch, or SHA.
 6. Run `scripts/launch.sh` again against the same preserved state.
 7. Verify that the PR-specific state migrated and still works.
+8. Delete the kept workspaces through the instance, then run `scripts/cleanup.sh`.
 
 The exact migration checks should come from the PR context. Do not use a generic migration checklist as a substitute for reading the PR.
 

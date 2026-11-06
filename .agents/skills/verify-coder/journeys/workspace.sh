@@ -49,11 +49,21 @@ wait_state() {
 	return 1
 }
 
+# wait_agent stops early when the workspace is missing or its build failed,
+# because its agent can then never connect.
 wait_agent() {
-	local ws="$1" i
+	local ws="$1" json i
 	for i in $(seq 150); do
-		if ws_json "$ws" | jq -e '[.latest_build.resources[].agents[]? | select(.status == "connected" and .lifecycle_state == "ready")] | length == 1' >/dev/null; then
+		json="$(ws_json "$ws")" || {
+			echo "workspace $ws cannot be read, so its agent cannot connect"
+			return 1
+		}
+		if jq -e '[.latest_build.resources[].agents[]? | select(.status == "connected" and .lifecycle_state == "ready")] | length == 1' <<<"$json" >/dev/null; then
 			return 0
+		fi
+		if [[ "$(jq -r .latest_build.status <<<"$json")" == failed ]]; then
+			echo "the build of $ws failed, so its agent cannot connect"
+			return 1
 		fi
 		sleep 2
 	done

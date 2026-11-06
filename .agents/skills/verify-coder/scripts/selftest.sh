@@ -4,9 +4,10 @@
 # loopback bind of the setup run, that launch.sh log tails show no password,
 # the gates before the restart on every interface, that cleanup keeps a
 # .coderv2 that Postgres still runs from, the launch lock, how
-# vc_start_develop passes the environment, that a Docker error fails the
-# leftover inventory, the default password check for admin and member, and
-# that vc_browser_login keeps the password out of the process arguments.
+# vc_start_develop passes the environment, that a Docker error or a missing
+# docker CLI fails the leftover inventory, the default password check for
+# admin and member, and that vc_browser_login keeps the password out of the
+# process arguments.
 # Usage: selftest.sh   (prints one line per check and a count line)
 set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
@@ -175,6 +176,7 @@ setup_binds_loopback() {
 		reused-data)
 			mkdir -p "$scratch_config/postgres/data"
 			echo selftest-saved-password >"$scratch_config/.verify-coder-admin-password"
+			echo selftest-other-user-token >"$scratch_config/session"
 			;;
 		esac
 		scratch_run_script launch.sh "" "${launch_flags[@]}"
@@ -182,12 +184,16 @@ setup_binds_loopback() {
 			echo "$kind: launch.sh exited $rc: ${out##*$'\n'}"
 			return 1
 		}
+		if [[ -e "$scratch_config/session" ]]; then
+			echo "$kind: develop started with a saved CLI session, so it would not sign in as the admin"
+			return 1
+		fi
 		[[ "$(wc -l <"$tmp/develop-argv")" == 1 && " $(cat "$tmp/develop-argv") " == *" --bind-address 127.0.0.1 "* ]] || {
 			echo "$kind: the first develop start was not bound to 127.0.0.1: $(head -c 300 "$tmp/develop-argv")"
 			return 1
 		}
 	done
-	echo "the setup run binds 127.0.0.1 for --fresh, new data and reused data"
+	echo "the setup run binds 127.0.0.1 for --fresh, new data and reused data, without a saved session"
 }
 vc_check setup-loopback setup_binds_loopback
 
@@ -379,6 +385,19 @@ docker_error_fails() {
 	echo "vc_docker_since fails when docker cannot list"
 }
 vc_check docker-error docker_error_fails
+
+# Without a docker CLI the inventory counts as empty only when no Docker
+# daemon is reachable either.
+docker_missing() {
+	mkdir -p "$tmp/nodocker"
+	ln -sf "$(command -v date)" "$tmp/nodocker/date"
+	if DOCKER_HOST=unix:///selftest-docker.sock PATH="$tmp/nodocker" vc_docker_since 2026-01-01T00:00:00Z >/dev/null; then
+		echo "vc_docker_since succeeded without a docker CLI although DOCKER_HOST is set"
+		return 1
+	fi
+	echo "vc_docker_since fails without a docker CLI while a daemon is configured"
+}
+vc_check docker-missing docker_missing
 
 # Reused data can keep the published default on either account.
 default_password_checks_users() {

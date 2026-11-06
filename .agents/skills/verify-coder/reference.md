@@ -47,13 +47,13 @@ It changes nothing apart from those two refused sign-ins.
 
 - the `launch.sh` refusals: `CODER_BUILD_AGPL`, develop.sh flags, server flags outside `server_flag_allowed` and the published default password;
 - that a new database without `CODER_DEV_ADMIN_PASSWORD`, and the allowed server flags, get past those checks;
-- that the setup run binds 127.0.0.1 for `--fresh`, new data and reused data;
+- that the setup run binds 127.0.0.1 for `--fresh`, new data and reused data, and starts without a saved CLI session;
 - that the develop log tails `launch.sh` prints on a failure show no password, also an escaped one;
 - that `launch.sh` does not restart on every interface when the admin or the member signs in with the published default password, and reports a setup run that died;
 - that cleanup keeps `.coderv2` and fails while a Postgres runs from it, also with a deleted binary or a pid it cannot identify, and removes it otherwise;
 - the launch lock;
 - that `vc_start_develop` passes the password through the environment and drops the caller's `CODER_*` variables and `BASH_ENV`;
-- that a Docker error fails cleanup's leftover inventory;
+- that a Docker error, or a missing docker CLI while a daemon is configured, fails cleanup's leftover inventory;
 - that the default password check covers the admin and the member, and counts any answer but 401 as accepted;
 - that `vc_browser_login` passes the password to agent-browser on stdin.
 

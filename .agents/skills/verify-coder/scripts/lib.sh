@@ -127,7 +127,12 @@ vc_password_accepted() {
 # unreadable inventory never counts as empty. Command substitutions do not
 # inherit errexit, hence the explicit returns.
 vc_docker_since() {
-	command -v docker >/dev/null || return 0
+	# Without the CLI the inventory is unreadable, unless no Docker daemon is
+	# reachable either, so no workspace can have created anything.
+	if ! command -v docker >/dev/null; then
+		[[ ! -S /var/run/docker.sock && -z "${DOCKER_HOST:-}" ]] || return 1
+		return 0
+	fi
 	local since containers volumes name created
 	since="$(date -d "$1" +%s)" || return 1
 	containers="$(docker ps -a --filter 'name=^coder-' --format '{{.Names}}')" || return 1
