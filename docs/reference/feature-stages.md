@@ -135,7 +135,7 @@ All serving replicas must run a supporting version before you rely on this contr
 Replicas that run an earlier version ignore rules and use their startup `--experiments` list.
 Every replica also falls back to its own startup list for experiments without a rule or with `inherit`, so give all replicas the same `--experiments` value.
 
-The dashboard fetches the enabled experiments again when a page loads, when the browser window regains focus, and when the connection is restored, if its copy is more than 60 seconds old.
+The dashboard fetches the enabled experiments again when a page loads, when the browser window regains focus, and when the connection is restored, if its copy is more than 60&nbsp;seconds old.
 It doesn't refresh on a timer, so a tab that stays focused can show an out-of-date view.
 The server applies the current rule to each request regardless of what the dashboard shows.
 
