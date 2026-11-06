@@ -29,6 +29,7 @@ import {
 } from "#/components/ContextMenu/ContextMenu";
 import { toast } from "#/components/Toaster/toast";
 import { useClipboard } from "#/hooks/useClipboard";
+import { DEFAULT_TERMINAL_FONT_SIZE } from "#/theme/constants";
 import { isMac } from "#/utils/platform";
 import { terminalWebsocketUrl } from "#/utils/terminal";
 import type { ConnectionStatus } from "./types";
@@ -59,6 +60,7 @@ type WorkspaceTerminalProps = {
 	sessionId: string;
 	baseUrl?: string;
 	terminalFontFamily?: string;
+	terminalFontSize?: number;
 	renderer?: string;
 	backgroundColor?: string;
 	onOpenLink?: (uri: string) => void;
@@ -91,6 +93,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 	sessionId,
 	baseUrl,
 	terminalFontFamily = DEFAULT_TERMINAL_FONT_FAMILY,
+	terminalFontSize = DEFAULT_TERMINAL_FONT_SIZE,
 	renderer,
 	backgroundColor,
 	onOpenLink,
@@ -227,7 +230,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 			customGlyphs: false,
 			disableStdin: false,
 			fontFamily: terminalFontFamily,
-			fontSize: 16,
+			fontSize: terminalFontSize,
 			...(backgroundColor ? { theme: { background: backgroundColor } } : {}),
 		});
 
@@ -357,6 +360,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 		refit,
 		renderer,
 		terminalFontFamily,
+		terminalFontSize,
 		backgroundColor,
 	]);
 

@@ -33485,6 +33485,12 @@ const docTemplate = `{
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
                 },
+                "terminal_font_size": {
+                    "description": "TerminalFontSize is optional for backward compatibility. When zero,\nthe server leaves the persisted terminal font size unchanged.",
+                    "type": "integer",
+                    "maximum": 32,
+                    "minimum": 8
+                },
                 "theme_dark": {
                     "description": "ThemeDark is required when ThemeMode is \"sync\". In \"single\" mode\nan empty value means \"preserve the previously persisted slot\"\nrather than \"clear the slot\", so partial updates that send only\none slot keep the other intact.",
                     "type": "string",
@@ -34128,6 +34134,10 @@ const docTemplate = `{
             "properties": {
                 "terminal_font": {
                     "$ref": "#/definitions/codersdk.TerminalFontName"
+                },
+                "terminal_font_size": {
+                    "description": "TerminalFontSize is the web terminal font size in pixels. Zero means\nthe user has not chosen a size and clients should use their default.",
+                    "type": "integer"
                 },
                 "theme_dark": {
                     "description": "Ignored when ThemeMode is \"single\"",

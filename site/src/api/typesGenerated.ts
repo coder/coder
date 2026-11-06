@@ -11452,6 +11452,11 @@ export interface UpdateUserAppearanceSettingsRequest {
 	 */
 	readonly theme_dark: string;
 	readonly terminal_font: TerminalFontName;
+	/**
+	 * TerminalFontSize is optional for backward compatibility. When zero,
+	 * the server leaves the persisted terminal font size unchanged.
+	 */
+	readonly terminal_font_size?: number;
 }
 
 // From codersdk/chats.go
@@ -11902,6 +11907,11 @@ export interface UserAppearanceSettings {
 	 */
 	readonly theme_dark: string;
 	readonly terminal_font: TerminalFontName;
+	/**
+	 * TerminalFontSize is the web terminal font size in pixels. Zero means
+	 * the user has not chosen a size and clients should use their default.
+	 */
+	readonly terminal_font_size: number;
 }
 
 // From codersdk/chats.go

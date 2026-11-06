@@ -210,6 +210,7 @@ const TerminalPage: React.FC = () => {
 					sessionId={sessionId}
 					baseUrl={terminalConfig.baseUrl}
 					terminalFontFamily={terminalConfig.fontFamily}
+					terminalFontSize={terminalConfig.fontSize}
 					renderer={terminalConfig.renderer}
 					onOpenLink={handleWebLink}
 					loading={

@@ -34153,7 +34153,8 @@ SELECT
 	COALESCE(MAX(value) FILTER (WHERE key = 'theme_mode'), '')::text AS theme_mode,
 	COALESCE(MAX(value) FILTER (WHERE key = 'theme_light'), '')::text AS theme_light,
 	COALESCE(MAX(value) FILTER (WHERE key = 'theme_dark'), '')::text AS theme_dark,
-	COALESCE(MAX(value) FILTER (WHERE key = 'terminal_font'), '')::text AS terminal_font
+	COALESCE(MAX(value) FILTER (WHERE key = 'terminal_font'), '')::text AS terminal_font,
+	COALESCE(MAX(value) FILTER (WHERE key = 'terminal_font_size'), '0')::int AS terminal_font_size
 FROM
 	user_configs
 WHERE
@@ -34163,16 +34164,18 @@ WHERE
 		'theme_mode',
 		'theme_light',
 		'theme_dark',
-		'terminal_font'
+		'terminal_font',
+		'terminal_font_size'
 	)
 `
 
 type GetUserAppearanceSettingsRow struct {
-	ThemePreference string `db:"theme_preference" json:"theme_preference"`
-	ThemeMode       string `db:"theme_mode" json:"theme_mode"`
-	ThemeLight      string `db:"theme_light" json:"theme_light"`
-	ThemeDark       string `db:"theme_dark" json:"theme_dark"`
-	TerminalFont    string `db:"terminal_font" json:"terminal_font"`
+	ThemePreference  string `db:"theme_preference" json:"theme_preference"`
+	ThemeMode        string `db:"theme_mode" json:"theme_mode"`
+	ThemeLight       string `db:"theme_light" json:"theme_light"`
+	ThemeDark        string `db:"theme_dark" json:"theme_dark"`
+	TerminalFont     string `db:"terminal_font" json:"terminal_font"`
+	TerminalFontSize int32  `db:"terminal_font_size" json:"terminal_font_size"`
 }
 
 func (q *sqlQuerier) GetUserAppearanceSettings(ctx context.Context, userID uuid.UUID) (GetUserAppearanceSettingsRow, error) {
@@ -34184,6 +34187,7 @@ func (q *sqlQuerier) GetUserAppearanceSettings(ctx context.Context, userID uuid.
 		&i.ThemeLight,
 		&i.ThemeDark,
 		&i.TerminalFont,
+		&i.TerminalFontSize,
 	)
 	return i, err
 }
@@ -35487,6 +35491,33 @@ type UpdateUserTerminalFontParams struct {
 
 func (q *sqlQuerier) UpdateUserTerminalFont(ctx context.Context, arg UpdateUserTerminalFontParams) (UserConfig, error) {
 	row := q.db.QueryRowContext(ctx, updateUserTerminalFont, arg.UserID, arg.TerminalFont)
+	var i UserConfig
+	err := row.Scan(&i.UserID, &i.Key, &i.Value)
+	return i, err
+}
+
+const updateUserTerminalFontSize = `-- name: UpdateUserTerminalFontSize :one
+INSERT INTO
+	user_configs (user_id, key, value)
+VALUES
+	($1, 'terminal_font_size', ($2::int)::text)
+ON CONFLICT
+	ON CONSTRAINT user_configs_pkey
+DO UPDATE
+SET
+	value = ($2::int)::text
+WHERE user_configs.user_id = $1
+	AND user_configs.key = 'terminal_font_size'
+RETURNING user_id, key, value
+`
+
+type UpdateUserTerminalFontSizeParams struct {
+	UserID           uuid.UUID `db:"user_id" json:"user_id"`
+	TerminalFontSize int32     `db:"terminal_font_size" json:"terminal_font_size"`
+}
+
+func (q *sqlQuerier) UpdateUserTerminalFontSize(ctx context.Context, arg UpdateUserTerminalFontSizeParams) (UserConfig, error) {
+	row := q.db.QueryRowContext(ctx, updateUserTerminalFontSize, arg.UserID, arg.TerminalFontSize)
 	var i UserConfig
 	err := row.Scan(&i.UserID, &i.Key, &i.Value)
 	return i, err

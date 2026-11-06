@@ -20,7 +20,9 @@ import { Section } from "#/pages/UserSettingsPage/Section";
 import type { ConcreteThemeName } from "#/theme";
 import {
 	DEFAULT_TERMINAL_FONT,
+	DEFAULT_TERMINAL_FONT_SIZE,
 	terminalFontLabels,
+	terminalFontSizes,
 	terminalFonts,
 } from "#/theme/constants";
 import {
@@ -44,6 +46,7 @@ const sortedTerminalFontNames = [
 type AppearanceFormValues = {
 	draft: ThemeModeDraft;
 	terminalFont: TerminalFontName;
+	terminalFontSize: number;
 };
 
 type AppearanceThemeMode = ThemeModeDraft["mode"];
@@ -68,6 +71,7 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 	const fontGroupId = useId();
 	const fontGroupLabelId = `${fontGroupId}-label`;
 	const fontGroupName = `${fontGroupId}-fonts`;
+	const fontSizeId = `${fontGroupId}-size`;
 	const singleThemeGroupName = `${themeModeId}-single`;
 	const syncThemeGroupNamePrefix = `${themeModeId}-sync`;
 
@@ -77,6 +81,7 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 		theme_light,
 		theme_dark,
 		terminal_font,
+		terminal_font_size,
 	} = initialValues;
 
 	useEffect(() => {
@@ -89,6 +94,7 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 			theme_light,
 			theme_dark,
 			terminal_font,
+			terminal_font_size,
 		});
 		setValues(next);
 	}, [
@@ -98,9 +104,10 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 		theme_light,
 		theme_dark,
 		terminal_font,
+		terminal_font_size,
 	]);
 
-	const { draft, terminalFont } = values;
+	const { draft, terminalFont, terminalFontSize } = values;
 
 	const submit = (next: AppearanceFormValues) => {
 		setValues(next);
@@ -128,7 +135,7 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 						light: draft.light,
 						dark: draft.dark,
 					};
-		submit({ draft: next, terminalFont });
+		submit({ ...values, draft: next });
 	};
 
 	const onSelectSyncSlot = (
@@ -139,18 +146,22 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 			scheme === "light"
 				? { ...draft, light: theme }
 				: { ...draft, dark: theme };
-		submit({ draft: next, terminalFont });
+		submit({ ...values, draft: next });
 	};
 
 	const onSelectSingle = (theme: ConcreteThemeName) => {
 		submit({
+			...values,
 			draft: { ...draft, single: theme, mode: "single" },
-			terminalFont,
 		});
 	};
 
 	const onChangeTerminalFont = (nextTerminalFont: TerminalFontName) => {
-		submit({ draft, terminalFont: nextTerminalFont });
+		submit({ ...values, terminalFont: nextTerminalFont });
+	};
+
+	const onChangeTerminalFontSize = (nextTerminalFontSize: number) => {
+		submit({ ...values, terminalFontSize: nextTerminalFontSize });
 	};
 
 	return (
@@ -251,6 +262,30 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 						</div>
 					))}
 				</RadioGroup>
+
+				<div className="mt-6 flex flex-col gap-2">
+					<Label htmlFor={fontSizeId} className="text-sm font-medium">
+						Font size
+					</Label>
+					<Select
+						value={String(terminalFontSize)}
+						onValueChange={(value) => onChangeTerminalFontSize(Number(value))}
+					>
+						<SelectTrigger
+							id={fontSizeId}
+							className="w-48 text-content-primary"
+						>
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{terminalFontSizes.map((size) => (
+								<SelectItem key={size} value={String(size)}>
+									{size}px
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+				</div>
 			</Section>
 		</form>
 	);
@@ -263,6 +298,7 @@ function toFormValues(settings: UserAppearanceSettings): AppearanceFormValues {
 			dark: settings.theme_dark,
 		}),
 		terminalFont: settings.terminal_font || DEFAULT_TERMINAL_FONT,
+		terminalFontSize: settings.terminal_font_size || DEFAULT_TERMINAL_FONT_SIZE,
 	};
 }
 
@@ -270,7 +306,10 @@ function toUpdateRequest(
 	values: AppearanceFormValues,
 	activeScheme: "dark" | "light",
 ): UpdateUserAppearanceSettingsRequest {
-	return draftToUpdate(values.draft, values.terminalFont, activeScheme);
+	return {
+		...draftToUpdate(values.draft, values.terminalFont, activeScheme),
+		terminal_font_size: values.terminalFontSize,
+	};
 }
 
 function isThemeMode(value: string): value is AppearanceThemeMode {

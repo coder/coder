@@ -17,6 +17,7 @@ const baseSettings: UserAppearanceSettings = {
 	theme_light: "light",
 	theme_dark: "dark",
 	terminal_font: "",
+	terminal_font_size: 0,
 };
 
 const resolvedSubmit = () =>
@@ -141,6 +142,7 @@ export const SelectSingleLightDefault: Story = {
 				theme_light: "light",
 				theme_dark: "dark",
 				terminal_font: "geist-mono",
+				terminal_font_size: 16,
 			});
 		});
 		expect(
@@ -227,6 +229,7 @@ export const SelectSyncMode: Story = {
 				theme_light: "light",
 				theme_dark: "dark",
 				terminal_font: "geist-mono",
+				terminal_font_size: 16,
 			});
 		});
 		expect(dropdown).toHaveTextContent("Sync with system");
@@ -266,6 +269,7 @@ export const SelectSingleFromSync: Story = {
 				theme_light: "light-protan-deuter",
 				theme_dark: "dark-tritan",
 				terminal_font: "geist-mono",
+				terminal_font_size: 16,
 			});
 		});
 		expect(dropdown).toHaveTextContent("Single theme");
@@ -341,6 +345,7 @@ export const SelectDarkThemeInLightSyncSlot: Story = {
 				theme_light: "dark-tritan",
 				theme_dark: "dark",
 				terminal_font: "geist-mono",
+				terminal_font_size: 16,
 			});
 		});
 		expect(darkTritanopia).toBeChecked();
@@ -390,6 +395,7 @@ export const SelectTerminalFont: Story = {
 				theme_light: "light",
 				theme_dark: "dark",
 				terminal_font: "fira-code",
+				terminal_font_size: 16,
 			});
 		});
 
@@ -406,10 +412,39 @@ export const SelectTerminalFont: Story = {
 			theme_light: "light",
 			theme_dark: "dark",
 			terminal_font: "fira-code",
+			terminal_font_size: 16,
 		});
 		expect(
 			await canvas.findByRole("radio", { name: /light default/i }),
 		).toBeChecked();
+	},
+};
+
+export const SelectTerminalFontSize: Story = {
+	args: {
+		initialValues: { ...baseSettings, theme_preference: "dark" },
+		onSubmit: resolvedSubmit(),
+	},
+	play: async ({ canvasElement, args }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		const trigger = await canvas.findByRole("combobox", { name: "Font size" });
+		expect(trigger).toHaveTextContent("16px");
+
+		await user.click(trigger);
+		const body = within(canvasElement.ownerDocument.body);
+		await user.click(await body.findByRole("option", { name: "20px" }));
+
+		await waitFor(() => {
+			expect(args.onSubmit).toHaveBeenCalledWith({
+				theme_preference: "dark",
+				theme_mode: "single",
+				theme_light: "light",
+				theme_dark: "dark",
+				terminal_font: "geist-mono",
+				terminal_font_size: 20,
+			});
+		});
 	},
 };
 
@@ -500,6 +535,7 @@ export const LegacyAutoTritan: Story = {
 			theme_light: "",
 			theme_dark: "",
 			terminal_font: "",
+			terminal_font_size: 0,
 		},
 	},
 };
@@ -512,6 +548,7 @@ export const LegacyAuto: Story = {
 			theme_light: "",
 			theme_dark: "",
 			terminal_font: "",
+			terminal_font_size: 0,
 		},
 	},
 };
