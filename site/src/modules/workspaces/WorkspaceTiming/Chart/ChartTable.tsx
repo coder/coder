@@ -3,7 +3,7 @@ import { useLayoutEffect, useRef } from "react";
 import { Y_AXIS_WIDTH } from "./Chart";
 import { XAxisTicks, XGrid } from "./XAxis";
 
-const XAxisMinWidth = 130;
+const X_AXIS_MIN_WIDTH = 130;
 
 type ChartTableProps = {
 	/** Accessible name of the table. It is visually hidden. */
@@ -36,7 +36,7 @@ export const ChartTable: React.FC<ChartTableProps> = ({
 		// is fully visible. The 1px is the border between the two columns.
 		const timelineWidth = rootEl.clientWidth - Y_AXIS_WIDTH - 1;
 		const avgWidth = timelineWidth / (ticks.length + 1);
-		const width = Math.max(avgWidth, XAxisMinWidth);
+		const width = Math.max(avgWidth, X_AXIS_MIN_WIDTH);
 		rootEl.style.setProperty("--x-axis-width", `${width}px`);
 	}, [ticks]);
 
