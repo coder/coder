@@ -200,7 +200,7 @@ The workspace file and command tools (`coder_workspace_read_file`, `coder_worksp
 
 - Each tool takes a `workspace` argument that selects the workspace to act on.
 - Invalid arguments and workspace agent errors are returned as MCP tool errors.
-- A single call waits at most 5 minutes.
+- A single call waits at most 5&nbsp;minutes.
   Run longer commands with `run_in_background` and check on them with `coder_workspace_process_output`.
 - Commands started through MCP are separate from Coder Agents chat processes, but anyone with SSH access to the workspace can list and signal them.
 

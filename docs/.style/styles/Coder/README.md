@@ -18,7 +18,7 @@ Planned coverage:
 - Em-dash and en-dash mirror in Vale
 - Product-voice rules
 
-## Authoring a new rule
+## Author a new rule
 
 1. Write a YAML file under this directory.
    Name it after the rule's intent, for example `InclusiveLanguage.yml` or `ProductVoice.yml`.
