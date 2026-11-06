@@ -177,7 +177,11 @@ jobs:
         run: pnpm check-docs
 
       # The docs checker tests read the committed docs, and the Go test jobs
-      # skip docs-only pull requests.
+      # skip docs-only pull requests. Fetch only the modules they need, with
+      # the retry the other Go jobs use for go mod download.
+      - name: Download docs checker modules
+        run: ./.github/scripts/retry.sh --timeout 120 -- go list -deps -test ./scripts/docs... > /dev/null
+
       - name: Test docs checkers
         run: go test ./scripts/docs...
 
@@ -185,7 +189,7 @@ jobs:
       # docs/. Every Vale step is `continue-on-error` so this section can
       # never block the required `lint-docs` job: a `vale sync` network
       # blip or a baseline rule violation surfaces as an annotation, not a
-      # merge gate. Only markdownlint/table-formatter above stay blocking.
+      # merge gate. Only the checks above stay blocking.
       # `vale --no-exit` additionally keeps the baseline error count from
       # un-overridden upstream Google rules from failing the step. Lives
       # here rather than a standalone workflow so docs lint stays in the
