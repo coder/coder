@@ -17,7 +17,7 @@ export type FilterOption = {
 export type FilterCategory = {
 	key: string;
 	/** Cache identity when pages offer different options for the same query key. */
-	optionsKey?: string;
+	optionsKey: string;
 	label: string;
 	getOptions: (query: string) => Promise<FilterOption[]>;
 	icon?: React.ReactNode;

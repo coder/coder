@@ -549,7 +549,7 @@ export const useFilterCombobox = ({
 	const unfilteredOptions = useQueries({
 		queries: categories.map((category) =>
 			filterComboboxOptions(
-				category.optionsKey ?? category.key,
+				category.optionsKey,
 				category.getOptions,
 				"",
 				unfilteredOptionsEnabled ||
@@ -674,7 +674,7 @@ export const useFilterCombobox = ({
 
 	const activeOptionsQuery = useQuery(
 		filterComboboxOptions(
-			activeCategory?.optionsKey ?? activeCategoryKey ?? "",
+			activeCategory?.optionsKey ?? "",
 			activeCategory?.getOptions,
 			debouncedActiveOptionsQuery,
 			activeCategoryKey !== null,
@@ -721,7 +721,7 @@ export const useFilterCombobox = ({
 	const suggestionOptions = useQueries({
 		queries: optionLookupCategories.map((category) =>
 			filterComboboxOptions(
-				category.optionsKey ?? category.key,
+				category.optionsKey,
 				category.getOptions,
 				debouncedTypeaheadQuery,
 				debouncedTypeaheadQuery.length > 0 &&
@@ -1150,7 +1150,7 @@ export const useFilterCombobox = ({
 			return undefined;
 		}
 		const options = filterComboboxOptions(
-			category.optionsKey ?? category.key,
+			category.optionsKey,
 			category.getOptions,
 			"",
 			true,
@@ -1191,7 +1191,7 @@ export const useFilterCombobox = ({
 				unfilteredForMenuCheck(category),
 				queryClient.fetchQuery(
 					filterComboboxOptions(
-						category.optionsKey ?? category.key,
+						category.optionsKey,
 						category.getOptions,
 						text,
 						true,
