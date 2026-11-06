@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"golang.org/x/xerrors"
+	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentcontext"
@@ -281,7 +282,7 @@ func (s *DRPCAgentSocketService) RemoveContextSource(_ context.Context, req *pro
 }
 
 // GetContextSnapshot returns the agent's current resolved snapshot without
-// forcing a re-walk.
+// starting a resolve pass.
 func (s *DRPCAgentSocketService) GetContextSnapshot(_ context.Context, _ *proto.ContextSnapshotRequest) (*proto.ContextSnapshotResponse, error) {
 	if s.contextManager == nil {
 		return nil, ErrContextManagerNotAvailable
@@ -289,14 +290,15 @@ func (s *DRPCAgentSocketService) GetContextSnapshot(_ context.Context, _ *proto.
 	return &proto.ContextSnapshotResponse{Snapshot: contextSnapshotToProto(s.contextManager.Snapshot())}, nil
 }
 
-// ResyncContext forces a re-walk and synchronous push, returning the
-// resulting snapshot. Callers use it as a barrier before fanning out a
-// refresh.
+// ResyncContext calls Manager.Resync and returns its snapshot.
 func (s *DRPCAgentSocketService) ResyncContext(ctx context.Context, _ *proto.ResyncContextRequest) (*proto.ResyncContextResponse, error) {
 	if s.contextManager == nil {
 		return nil, ErrContextManagerNotAvailable
 	}
 	snap, err := s.contextManager.Resync(ctx)
+	if errors.Is(err, agentcontext.ErrPushUnavailable) {
+		return nil, drpcerr.WithCode(err, drpcerr.Unimplemented)
+	}
 	if err != nil {
 		return nil, xerrors.Errorf("resync context: %w", err)
 	}
