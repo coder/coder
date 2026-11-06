@@ -207,7 +207,7 @@ func (c *Client) RemoveContextSource(ctx context.Context, path string) error {
 }
 
 // GetContextSnapshot returns the agent's current resolved snapshot without
-// forcing a re-walk.
+// starting a resolve pass.
 func (c *Client) GetContextSnapshot(ctx context.Context) (ContextSnapshot, error) {
 	resp, err := c.client.GetContextSnapshot(ctx, &proto.ContextSnapshotRequest{})
 	if err != nil {
@@ -217,7 +217,8 @@ func (c *Client) GetContextSnapshot(ctx context.Context) (ContextSnapshot, error
 }
 
 // ResyncContext calls Manager.Resync and returns its snapshot. A version-0
-// snapshot means collection is gated until startup scripts finish.
+// snapshot means startup scripts have not finished.
+// A dRPC Unimplemented error maps to agentcontext.ErrPushUnavailable.
 func (c *Client) ResyncContext(ctx context.Context) (ContextSnapshot, error) {
 	resp, err := c.client.ResyncContext(ctx, &proto.ResyncContextRequest{})
 	if drpcerr.Code(err) == drpcerr.Unimplemented {

@@ -282,7 +282,7 @@ func (s *DRPCAgentSocketService) RemoveContextSource(_ context.Context, req *pro
 }
 
 // GetContextSnapshot returns the agent's current resolved snapshot without
-// forcing a re-walk.
+// starting a resolve pass.
 func (s *DRPCAgentSocketService) GetContextSnapshot(_ context.Context, _ *proto.ContextSnapshotRequest) (*proto.ContextSnapshotResponse, error) {
 	if s.contextManager == nil {
 		return nil, ErrContextManagerNotAvailable
