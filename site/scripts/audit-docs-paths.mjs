@@ -26,7 +26,7 @@ import { parseArgs } from "node:util";
 // ---------------------------------------------------------------------------
 // Redirect indexing.
 
-export function loadRedirects(p) {
+function loadRedirects(p) {
 	return JSON.parse(fs.readFileSync(p, "utf-8"));
 }
 

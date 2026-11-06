@@ -207,7 +207,6 @@ const renderForm = (
 					createError={undefined}
 					canCreateChat
 					canConfigureAgentSetup={false}
-					workspaceCount={1}
 					workspaceOptions={[mockWorkspace]}
 					workspacesError={undefined}
 					isWorkspacesLoading={false}
@@ -458,7 +457,6 @@ describe("AgentCreateForm workspace file uploads", () => {
 	it("drops queued files when switching to a stopped workspace", async () => {
 		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
 		renderForm({
-			workspaceCount: 2,
 			workspaceOptions: [mockWorkspace, mockStoppedWorkspace],
 		});
 
@@ -850,7 +848,6 @@ describe("AgentCreateForm prefill", () => {
 							createError={undefined}
 							canCreateChat
 							canConfigureAgentSetup={false}
-							workspaceCount={0}
 							workspaceOptions={[]}
 							workspacesError={undefined}
 							isWorkspacesLoading={false}

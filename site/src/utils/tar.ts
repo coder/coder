@@ -143,11 +143,6 @@ export class TarReader {
 		return Number.parseInt(sizeStr, 8);
 	}
 
-	private readFileBlob(offset: number, size: number, mimetype: string) {
-		const view = new Uint8Array(this.buffer, offset, size);
-		return new Blob([view], { type: mimetype });
-	}
-
 	private readTextFile(offset: number, size: number) {
 		const view = new Uint8Array(this.buffer, offset, size);
 		return utf8Decode(view);
@@ -157,13 +152,6 @@ export class TarReader {
 		const item = this.fileInfo.find((info) => info.name === filename);
 		if (item) {
 			return this.readTextFile(item.headerOffset + 512, item.size);
-		}
-	}
-
-	getFileBlob(filename: string, mimetype = "") {
-		const item = this.fileInfo.find((info) => info.name === filename);
-		if (item) {
-			return this.readFileBlob(item.headerOffset + 512, item.size, mimetype);
 		}
 	}
 }
