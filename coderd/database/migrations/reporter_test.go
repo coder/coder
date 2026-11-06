@@ -82,8 +82,9 @@ WHERE application_name = $1 AND datname = current_database() AND wait_event_type
 	}, testutil.IntervalFast)
 }
 
-// blockingObserver is a database whose queries block until released and
-// ignore cancellation, like a PostgreSQL driver in the middle of a query.
+// blockingObserver is a database whose first query blocks until released and
+// ignores cancellation, like a PostgreSQL driver in the middle of a query.
+// Later queries fail at once.
 type blockingObserver struct {
 	entered      chan struct{}
 	release      chan struct{}
@@ -125,7 +126,14 @@ func (blockingObserverConn) Close() error              { return nil }
 func (blockingObserverConn) Begin() (driver.Tx, error) { return nil, xerrors.New("not supported") }
 
 func (c blockingObserverConn) QueryContext(context.Context, string, []driver.NamedValue) (driver.Rows, error) {
-	c.o.enteredOnce.Do(func() { close(c.o.entered) })
+	first := false
+	c.o.enteredOnce.Do(func() {
+		first = true
+		close(c.o.entered)
+	})
+	if !first {
+		return nil, xerrors.New("observer unavailable")
+	}
 	<-c.o.release
 	c.o.returnedOnce.Do(func() { close(c.o.returned) })
 	return nil, xerrors.New("observer released")
@@ -200,10 +208,12 @@ func TestReporter(t *testing.T) {
 		))
 
 		entries := sink.Entries()
-		require.Len(t, entries, 1)
+		require.Len(t, entries, 2)
 		require.Equal(t, "database schema is up to date", entries[0].Message)
 		require.Equal(t, slog.LevelDebug, entries[0].Level)
 		require.Equal(t, 1, field(t, entries[0], "version"))
+		require.Equal(t, "database migration outcome: no change", entries[1].Message)
+		require.Equal(t, slog.LevelDebug, entries[1].Level)
 	})
 
 	t.Run("FreshInstall", func(t *testing.T) {
@@ -468,6 +478,7 @@ func TestReporter(t *testing.T) {
 		close(observer.release)
 		_ = testutil.TryReceive(ctx, t, observer.returned)
 		require.Empty(t, sink.Entries(hasMessage("still applying update 1 of 1")))
-		require.Empty(t, sink.Entries(hasMessage("database migration progress details unavailable")))
+		warn := onlyEntry(t, sink, "database migration progress details unavailable")
+		require.ErrorContains(t, field(t, warn, "error").(error), "observer unavailable")
 	})
 }

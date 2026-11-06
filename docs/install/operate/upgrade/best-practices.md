@@ -90,6 +90,7 @@ When Coder applies database migrations at startup, it logs their progress under 
 - `waiting for database migration lock` means another session holds the migration lock, such as another replica that is applying the migrations.
 - `still applying update N of M` and `still waiting for database migration lock` repeat every 10&nbsp;seconds while a migration or a wait lasts.
   When the migration waits on a lock, `blocked_by` lists the process IDs of the blocking database sessions.
+- A final line reports how the run ended, such as `committed database migrations` or `migration failed, transaction rolled back, no changes saved`.
 
 To show only these lines:
 

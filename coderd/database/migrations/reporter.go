@@ -12,6 +12,7 @@ import (
 	"github.com/golang-migrate/migrate/v4/database"
 	"github.com/golang-migrate/migrate/v4/source"
 	"github.com/lib/pq"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/buildinfo"
@@ -59,13 +60,23 @@ type reporter struct {
 	// every Lock, so after the batch transaction starts it identifies that
 	// transaction.
 	xid           string
+	runStart      time.Time
 	fromVersion   int
+	targetVersion int
+	// started is set once the version was read inside the migration
+	// transaction and the pending migrations are known.
+	started       bool
 	names         map[int]string
 	total         int
 	position      int
 	current       migrationRef
 	stepStart     time.Time
 	lockWaitStart time.Time
+	// applied lists the migrations that ran in the transaction. They are
+	// only saved if it commits.
+	applied []appliedMigration
+	// failed is the migration whose statement failed, if any.
+	failed *failedMigration
 
 	stopLockWait func()
 	stopStep     func()
@@ -94,12 +105,14 @@ func newReporter(db *sql.DB, o upOptions) *reporter {
 		o.observerDB = db
 	}
 	return &reporter{
-		logger:      *o.logger,
-		appName:     o.appName,
-		clock:       o.clock,
-		interval:    o.heartbeatInterval,
-		observerDB:  o.observerDB,
-		fromVersion: database.NilVersion,
+		logger:        *o.logger,
+		appName:       o.appName,
+		clock:         o.clock,
+		interval:      o.heartbeatInterval,
+		observerDB:    o.observerDB,
+		runStart:      o.clock.Now(),
+		fromVersion:   database.NilVersion,
+		targetVersion: database.NilVersion,
 	}
 }
 
@@ -223,7 +236,12 @@ func (r *reporter) versionRead(version int) {
 	}
 
 	r.mu.Lock()
+	r.started = true
 	r.fromVersion = version
+	r.targetVersion = version
+	if len(pending) > 0 {
+		r.targetVersion = pending[len(pending)-1].version
+	}
 	r.names = names
 	r.total = len(pending)
 	r.position = 0
@@ -287,6 +305,7 @@ func (r *reporter) stepApplied(version int) {
 	r.mu.Lock()
 	ref := migrationRef{version: version, name: r.names[version]}
 	duration := r.clock.Since(r.stepStart)
+	r.applied = append(r.applied, appliedMigration{migrationRef: ref, duration: duration})
 	position, total := r.position, r.total
 	from := r.fromVersion
 	r.mu.Unlock()
@@ -294,6 +313,25 @@ func (r *reporter) stepApplied(version int) {
 	fields := stepFields(ref, position, total)
 	fields = append(fields, slog.F("duration_ms", duration.Milliseconds()))
 	r.perStep(from, "database migration applied, pending commit", fields...)
+}
+
+// statementFailed records which migration failed, how long it ran and
+// PostgreSQL's error.
+func (r *reporter) statementFailed(err error) {
+	if r == nil {
+		return
+	}
+	var pgErr *pq.Error
+	_ = xerrors.As(err, &pgErr)
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.failed = &failedMigration{
+		migrationRef: r.current,
+		duration:     r.clock.Since(r.stepStart),
+		err:          err,
+		pgErr:        pgErr,
+	}
 }
 
 // stopHeartbeats stops every running heartbeat.
