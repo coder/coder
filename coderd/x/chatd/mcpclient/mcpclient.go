@@ -1250,11 +1250,16 @@ func (t *mcpToolWrapper) Info() fantasy.ToolInfo {
 		required = []string{}
 	}
 
+	parameters := t.parameters
+	if parameters == nil {
+		parameters = map[string]any{}
+	}
+
 	if !t.modelIntent {
 		return fantasy.ToolInfo{
 			Name:        t.prefixedName,
 			Description: t.description,
-			Parameters:  t.parameters,
+			Parameters:  parameters,
 			Required:    required,
 			Parallel:    true,
 		}
@@ -1277,7 +1282,7 @@ func (t *mcpToolWrapper) Info() fantasy.ToolInfo {
 		},
 		"properties": map[string]any{
 			"type":       "object",
-			"properties": t.parameters,
+			"properties": parameters,
 			"required":   required,
 		},
 	}

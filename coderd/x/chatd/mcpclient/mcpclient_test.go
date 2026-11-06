@@ -1505,6 +1505,57 @@ func TestModelIntent_Info_NoWrapWhenDisabled(t *testing.T) {
 	assert.True(t, hasInput, "original 'input' param should be at top level")
 }
 
+func TestModelIntent_Info_ZeroArgTool(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, makeTool("get_schemas"))
+
+	cfg := makeConfig("zero-arg-srv", ts.URL)
+	cfg.ModelIntent = true
+
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	info := tools[0].Info()
+
+	// Top-level schema should have model_intent and properties.
+	_, hasModelIntent := info.Parameters["model_intent"]
+	_, hasProperties := info.Parameters["properties"]
+	assert.True(t, hasModelIntent, "schema should contain model_intent")
+	assert.True(t, hasProperties, "schema should contain properties")
+
+	// properties.properties must be a non-nil empty map rather than nil/null.
+	propsObj, ok := info.Parameters["properties"].(map[string]any)
+	require.True(t, ok)
+	innerProps, ok := propsObj["properties"].(map[string]any)
+	require.True(t, ok)
+	require.NotNil(t, innerProps, "zero-argument tool properties should not be nil")
+	assert.Empty(t, innerProps, "zero-argument tool should have empty properties")
+}
+
+func TestModelIntent_Info_ZeroArgToolNoWrap(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+	ts := newTestMCPServer(t, makeTool("get_schemas"))
+
+	cfg := makeConfig("zero-arg-nowrap", ts.URL)
+	cfg.ModelIntent = false
+
+	tools, _, cleanup := mcpclient.ConnectAll(ctx, logger, []mcpclient.Server{cfg}, nil, uuid.Nil, nil, nil, testMCPHTTPClient(nil))
+	t.Cleanup(cleanup)
+	require.Len(t, tools, 1)
+
+	info := tools[0].Info()
+
+	require.NotNil(t, info.Parameters, "unwrapped parameters should not be nil")
+	assert.Empty(t, info.Parameters, "zero-argument tool parameters should be empty")
+}
+
 func TestModelIntent_Run_UnwrapsProperties(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
