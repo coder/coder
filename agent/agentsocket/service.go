@@ -289,9 +289,7 @@ func (s *DRPCAgentSocketService) GetContextSnapshot(_ context.Context, _ *proto.
 	return &proto.ContextSnapshotResponse{Snapshot: contextSnapshotToProto(s.contextManager.Snapshot())}, nil
 }
 
-// ResyncContext forces a re-walk and synchronous push, returning the
-// resulting snapshot. Callers use it as a barrier before fanning out a
-// refresh.
+// ResyncContext calls Manager.Resync and returns its snapshot.
 func (s *DRPCAgentSocketService) ResyncContext(ctx context.Context, _ *proto.ResyncContextRequest) (*proto.ResyncContextResponse, error) {
 	if s.contextManager == nil {
 		return nil, ErrContextManagerNotAvailable

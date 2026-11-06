@@ -150,9 +150,10 @@ func TestAPI_Resync(t *testing.T) {
 	wd := t.TempDir()
 	mustWriteFile(t, filepath.Join(wd, "AGENTS.md"), "hello")
 
-	srv, _ := newAPITestServer(t, agentcontext.ManagerOptions{
+	srv, m := newAPITestServer(t, agentcontext.ManagerOptions{
 		WorkingDir: func() string { return wd },
 	})
+	startTestPush(t, m)
 
 	status, body := doRequest(t, http.MethodPost, srv.URL+"/resync", nil)
 	require.Equal(t, http.StatusOK, status)

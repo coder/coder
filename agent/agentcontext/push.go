@@ -121,6 +121,10 @@ func (m *Manager) RunPush(ctx context.Context, p Pusher, opts PushOptions) error
 		switch {
 		case err == nil:
 			initial = false
+			m.mu.Lock()
+			m.pushedVersion = max(m.pushedVersion, snap.Version)
+			m.notifyResyncLocked()
+			m.mu.Unlock()
 		case errors.Is(err, ErrPushUnimplemented):
 			logger.Warn(ctx, "coderd peer does not implement PushContextState; stopping")
 			return nil
@@ -164,9 +168,9 @@ func pushWithRetry(
 		resp, err := p.PushContextState(ctx, req)
 		if err == nil {
 			if resp != nil && !resp.Accepted {
-				// Out-of-order or replayed push. Do not
-				// retry; the next change will redeliver
-				// the snapshot with a higher version.
+				// A replay or out-of-order push means coderd already
+				// stores this version or a newer one. It acknowledges
+				// delivery without retrying the same snapshot.
 				logger.Debug(ctx, "push rejected, awaiting next change",
 					slog.F("version", req.Version))
 			}

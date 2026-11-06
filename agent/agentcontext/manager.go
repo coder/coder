@@ -94,6 +94,12 @@ type Manager struct {
 	// an old walk's stale result from overwriting a newer one's
 	// fresh result at a higher version number.
 	resolveEpoch uint64
+	// snapshotEpoch identifies the pass that published snapshot.
+	snapshotEpoch uint64
+	// pushedVersion is the highest version acknowledged by coderd.
+	pushedVersion uint64
+	// resyncCh wakes all waiters on publication or acknowledgement.
+	resyncCh chan struct{}
 
 	// subscribers receive a non-blocking signal whenever the
 	// snapshot changes. Subscribers must drain their channel
@@ -148,6 +154,7 @@ func NewManager(opts ManagerOptions) *Manager {
 		mcpReconnect: opts.MCPReconnect,
 		sources:      make([]Source, 0),
 		sourceIndex:  make(map[string]int),
+		resyncCh:     make(chan struct{}),
 		subscribers:  make(map[chan struct{}]struct{}),
 		trigger:      make(chan struct{}, 1),
 		closedCh:     make(chan struct{}),
@@ -438,18 +445,27 @@ func (m *Manager) SubscribeChanges() (<-chan struct{}, func()) {
 	return ch, unsub
 }
 
-// Resync forces an immediate re-resolve and returns the new
-// Snapshot. Resync is safe to call regardless of whether Run is
-// active. Like resolveAndBroadcast, Resync drops the Manager's
-// mutex around the resolver pass so concurrent Sources,
-// AddSource, RemoveSource, and Snapshot calls do not block on
-// filesystem I/O. When the watcher is active, Resync also
-// re-arms it so newly added scan roots are observed for
-// subsequent edits.
+// Resync re-resolves context and waits for coderd to acknowledge a snapshot
+// from this pass or a newer pass. The wait is bounded even without RunPush.
+// Before SetReady it returns the version-0 placeholder without collecting.
+// Filesystem I/O runs without the Manager's mutex. When the watcher is active,
+// Resync also re-arms it for newly added scan roots.
 func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return m.Snapshot(), ctxErr
 	}
+
+	m.mu.Lock()
+	if m.closed {
+		m.mu.Unlock()
+		return m.Snapshot(), ErrManagerClosed
+	}
+	if !m.ready {
+		snap := m.snapshot
+		m.mu.Unlock()
+		return snap, nil
+	}
+	m.mu.Unlock()
 
 	if m.mcpReconnect != nil {
 		if err := m.mcpReconnect(ctx); err != nil {
@@ -461,12 +477,6 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 	if m.closed {
 		m.mu.Unlock()
 		return m.Snapshot(), ErrManagerClosed
-	}
-	if !m.ready {
-		// Gated until SetReady: return the version-0 placeholder, no scan.
-		snap := m.snapshot
-		m.mu.Unlock()
-		return snap, nil
 	}
 	roots := m.scanRootsLocked()
 	resolver := m.resolver
@@ -499,23 +509,16 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 		return m.Snapshot(), ErrManagerClosed
 	}
 	if m.resolveEpoch != myEpoch {
-		// A newer resolve pass started while this one was
-		// walking the filesystem. The newer pass's data
-		// strictly supersedes ours, so skip the publish to
-		// avoid overwriting a fresher Snapshot at a higher
-		// version. Return the currently published Snapshot,
-		// which is at least as fresh as ours. The watcher
-		// is NOT re-armed: the winning pass already synced
-		// with the current roots, and replaying our stale
-		// root set here would drop watches on sources that
-		// only the newer pass knows about.
-		published := m.snapshot
+		// The winning pass owns the current roots and watcher. Wait for
+		// its publication rather than returning an older snapshot.
 		m.mu.Unlock()
-		return published, nil
+		return m.waitForPush(ctx, myEpoch)
 	}
 	m.version++
 	snap.Version = m.version
 	m.snapshot = snap
+	m.snapshotEpoch = myEpoch
+	m.notifyResyncLocked()
 	subs := make([]chan struct{}, 0, len(m.subscribers))
 	for ch := range m.subscribers {
 		subs = append(subs, ch)
@@ -536,7 +539,46 @@ func (m *Manager) Resync(ctx context.Context) (Snapshot, error) {
 		default:
 		}
 	}
-	return snap, nil
+	return m.waitForPush(ctx, myEpoch)
+}
+
+func (m *Manager) waitForPush(ctx context.Context, epoch uint64) (Snapshot, error) {
+	timer := m.clock.NewTimer(30 * time.Second)
+	defer timer.Stop()
+
+	var target Snapshot
+	for {
+		m.mu.Lock()
+		snap := m.snapshot
+		if target.Version == 0 && m.snapshotEpoch >= epoch {
+			target = snap
+		}
+		closed := m.closed
+		acknowledged := target.Version > 0 && m.pushedVersion >= target.Version
+		changed := m.resyncCh
+		m.mu.Unlock()
+		if closed {
+			return snap, ErrManagerClosed
+		}
+		if acknowledged {
+			return target, nil
+		}
+		select {
+		case <-ctx.Done():
+			return m.Snapshot(), xerrors.Errorf("wait for context snapshot acknowledgement from coderd: %w", ctx.Err())
+		case <-m.closedCh:
+			return m.Snapshot(), ErrManagerClosed
+		case <-timer.C:
+			return m.Snapshot(), xerrors.Errorf("wait for context snapshot acknowledgement from coderd: %w", context.DeadlineExceeded)
+		case <-changed:
+		}
+	}
+}
+
+// notifyResyncLocked wakes every Resync waiter. m.mu must be held.
+func (m *Manager) notifyResyncLocked() {
+	close(m.resyncCh)
+	m.resyncCh = make(chan struct{})
 }
 
 // signal triggers a re-resolve. Sends are non-blocking; the
@@ -696,6 +738,8 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	m.version++
 	snap.Version = m.version
 	m.snapshot = snap
+	m.snapshotEpoch = myEpoch
+	m.notifyResyncLocked()
 	subs := make([]chan struct{}, 0, len(m.subscribers))
 	for ch := range m.subscribers {
 		subs = append(subs, ch)

@@ -214,8 +214,8 @@ func (c *Client) GetContextSnapshot(ctx context.Context) (ContextSnapshot, error
 	return contextSnapshotFromProto(resp.GetSnapshot()), nil
 }
 
-// ResyncContext forces a re-walk and synchronous push, returning the resulting
-// snapshot. Use it as a barrier before fanning out a refresh.
+// ResyncContext calls Manager.Resync and returns its snapshot. A version-0
+// snapshot means collection is gated until startup scripts finish.
 func (c *Client) ResyncContext(ctx context.Context) (ContextSnapshot, error) {
 	resp, err := c.client.ResyncContext(ctx, &proto.ResyncContextRequest{})
 	if err != nil {
