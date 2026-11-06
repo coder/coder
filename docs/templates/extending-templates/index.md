@@ -47,7 +47,7 @@ You can read more about how resource behavior and workspace state in the [worksp
 Template resources follow the [behavior of Terraform resources](https://developer.hashicorp.com/terraform/language/resources/behavior#how-terraform-applies-a-configuration) and can be further configured  using the [lifecycle argument](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle).
 
 A common configuration is a template whose only persistent resource is the home directory.
-This allows the developer to retain their work while ensuring the rest of their environment is consistently up-to-date on each workspace restart.
+This allows the developer to retain their work while making sure the rest of their environment is consistently up-to-date on each workspace restart.
 
 When a workspace is deleted, the control plane essentially runs a [terraform destroy](https://www.terraform.io/cli/commands/destroy) to remove all resources associated with the workspace.
 
@@ -178,7 +178,7 @@ resource "coder_script" "install_dependencies" {
 - **Lifecycle control**:
   Run on start (`run_on_start`), stop (`run_on_stop`), or cron schedule (`cron`)
 - **Login blocking**:
-  Use `start_blocks_login = true` to ensure critical setup completes before user access
+  Use `start_blocks_login = true` to make sure critical setup completes before user access
 - **Timeouts**:
   Configure `timeout` for long-running scripts
 - **Custom icons**:

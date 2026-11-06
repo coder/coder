@@ -146,7 +146,7 @@ Most browsers require a secure (HTTPS) origin for the [Push API](https://develop
 If your access URL uses plain HTTP, push notifications may not function.
 
 This does not affect agents themselves, only the browser notification delivery.
-If you terminate TLS at a reverse proxy, ensure the [access URL](../admin/setup/index.md) is configured with an `https://` scheme.
+If you terminate TLS at a reverse proxy, make sure the [access URL](../admin/setup/index.md) is configured with an `https://` scheme.
 
 ### Set a deployment-wide system prompt
 

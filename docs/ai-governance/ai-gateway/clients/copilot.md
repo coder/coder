@@ -54,7 +54,7 @@ export NODE_EXTRA_CA_CERTS="/path/to/combined-ca.pem"
 
 Copilot CLI may start Model Context Protocol (MCP) server processes that use runtimes other than Node.js (for example, Go).
 These processes inherit environment variables like `HTTPS_PROXY` but may not respect `NODE_EXTRA_CA_CERTS`.
-Adding the TLS certificate to the [system trust store](../ai-gateway-proxy/setup.md#system-trust-store) ensures all processes trust it.
+Adding the TLS certificate to the [system trust store](../ai-gateway-proxy/setup.md#system-trust-store) makes sure all processes trust it.
 
 ## VS Code Copilot Extension
 

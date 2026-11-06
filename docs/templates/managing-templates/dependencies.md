@@ -72,7 +72,7 @@ module "razzledazzle" {
 ## Use a Dependency Lock File
 
 Terraform allows creating a [dependency lock file](https://developer.hashicorp.com/terraform/language/files/dependency-lock) to track which provider versions were selected previously.
-This allows you to ensure that the next workspace build uses the same provider versions as with the last build.
+This allows you to make sure that the next workspace build uses the same provider versions as with the last build.
 
 To create a new Terraform lock file, run the [`terraform init` command](https://developer.hashicorp.com/terraform/cli/commands/init) inside a folder containing the Terraform source code for a given template.
 

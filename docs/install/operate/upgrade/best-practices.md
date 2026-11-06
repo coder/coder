@@ -34,7 +34,7 @@ For production deployments running multiple replicas (HA), active connections fr
    Before running `helm upgrade`, scale your Coder deployment down to eliminate database connection contention from existing pods.
 
    - **Scale to zero** for a clean cutover with no active database connections when the upgrade starts.
-     This momentarily ensures no application access to the database, allowing migrations to acquire locks immediately:
+     This momentarily prevents application access to the database, allowing migrations to acquire locks immediately:
 
      ```sh
      kubectl scale deployment coder --replicas=0
@@ -104,7 +104,7 @@ Remove the `livenessProbe` section entirely, then proceed with the upgrade.
    Temporarily remove the `livenessProbe` from your Deployment configuration to prevent Kubernetes from restarting the pod during migrations.
 
 1. **Isolate the migration:**
-   Ensure all extra replica sets are shut down.
+   Make sure all extra replica sets are shut down.
 
    If you have clear evidence of database locks from old pods, scale the deployment to 1 replica to prevent old pods from holding locks on the tables being upgraded.
 
@@ -157,7 +157,7 @@ If an upgrade gets stuck in a restart loop due to database locks:
    SELECT * FROM schema_migrations;
    ```
 
-1. **Ensure image version:**
+1. **Make sure the image version matches:**
    Confirm the Deployment image version (old or new) matches the database migration state found in step 3.
 
    Match your tag in the [migrations directory](../../../../coderd/database/migrations) to the value in the `schema_migrations` output.

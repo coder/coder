@@ -268,14 +268,14 @@ If your organization requires all outbound traffic to pass through a corporate p
 Tunneled requests (non-allowlisted domains) are forwarded to the upstream proxy configured via [`CODER_AI_GATEWAY_PROXY_UPSTREAM`](../../../reference/cli/server/index.md#--ai-gateway-proxy-upstream).
 
 MITM'd requests (AI provider domains) are forwarded to AI Gateway, which then communicates with AI providers.
-To ensure AI Gateway also routes requests through the upstream proxy, make sure to configure the proxy settings for the `coderd` process.
+For AI Gateway to also route requests through the upstream proxy, make sure to configure the proxy settings for the `coderd` process.
 
 ![AI Gateway Proxy with an upstream corporate proxy](../../../images/aibridge/ai-gateway-proxy-upstream.png)
 
 > [!NOTE]
 > When an upstream proxy is configured, AI Gateway Proxy validates the destination IP before forwarding the request.
 > However, the upstream proxy re-resolves DNS independently, so a small DNS rebinding window exists between the validation and the actual connection.
-> Ensure your upstream proxy enforces its own restrictions on private and reserved IP ranges.
+> Make sure your upstream proxy enforces its own restrictions on private and reserved IP ranges.
 
 ### Configuration
 

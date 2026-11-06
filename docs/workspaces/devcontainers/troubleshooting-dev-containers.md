@@ -13,7 +13,7 @@ If your dev container fails to start:
    - `/tmp/coder-script-[script_id].log`
 
 1. Verify Docker is available in your workspace (see below).
-1. Ensure the `devcontainer.json` file is valid JSON.
+1. Make sure the `devcontainer.json` file is valid JSON.
 1. Check that the repository has been cloned correctly.
 1. Verify the resource limits in your workspace are sufficient.
 
@@ -74,7 +74,7 @@ VS Code connects to dev containers through the Coder extension.
 The extension uses the sub-agent information to route connections through the parent workspace agent to the dev container.
 If VS Code fails to connect:
 
-1. Ensure you have the latest Coder VS Code extension.
+1. Make sure you have the latest Coder VS Code extension.
 1. Verify the dev container is running in the Coder dashboard.
 1. Check the parent workspace agent is healthy.
 1. Try restarting the dev container from the dashboard.
@@ -83,7 +83,7 @@ If VS Code fails to connect:
 
 If features from your `devcontainer.json` aren't being applied:
 
-1. Rebuild the container to ensure features are installed fresh.
+1. Rebuild the container to make sure features are installed fresh.
 1. Check the container build output for feature installation errors.
 1. Verify the feature reference format is correct:
 

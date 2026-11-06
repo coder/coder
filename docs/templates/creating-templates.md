@@ -157,7 +157,7 @@ After the build, you will be taken to the new template page.
 
 ### CLI
 
-First, ensure you are logged in to the control plane as a user with permissions to read and write permissions.
+First, make sure you are logged in to the control plane as a user with permissions to read and write permissions.
 
 ```console
 coder login

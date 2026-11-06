@@ -218,7 +218,7 @@ Clients that support prompts surface them for you to invoke, for example as slas
 
 - Verify your session token is valid and not expired
 - Check that the MCP server experiment is enabled on your deployment
-- Ensure your user has appropriate permissions for the requested operations
+- Make sure your user has appropriate permissions for the requested operations
 
 ### Connection timeouts
 
@@ -228,7 +228,7 @@ Clients that support prompts surface them for you to invoke, for example as slas
 
 ### OAuth2 authentication not working
 
-- Ensure your Coder deployment has `CODER_OAUTH2_PROVIDER_ENABLE=true` set
-- If your client registers itself automatically, ensure [Dynamic Client Registration](./admin/integrations/oauth2-provider/index.md#dynamic-client-registration) is enabled
+- Make sure your Coder deployment has `CODER_OAUTH2_PROVIDER_ENABLE=true` set
+- If your client registers itself automatically, make sure [Dynamic Client Registration](./admin/integrations/oauth2-provider/index.md#dynamic-client-registration) is enabled
 - Verify your MCP client supports RFC 9728 Protected Resource Metadata
 - Check that your browser can reach the Coder authorization endpoint

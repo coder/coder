@@ -62,10 +62,10 @@ Dormancy Auto-Deletion is only available for licensed customers.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
 Autostop requirement is a template setting that determines how often workspaces using the template must automatically stop.
-Autostop requirement ignores any active connections, and ensures that workspaces do not run in perpetuity when connections are left open inadvertently.
+Autostop requirement ignores any active connections, and guarantees that workspaces do not run in perpetuity when connections are left open inadvertently.
 
 Workspaces will apply the template autostop requirement on the given day in the user's timezone and specified quiet hours (see below).
-This ensures that workspaces will not be stopped during work hours.
+This makes sure that workspaces will not be stopped during work hours.
 
 The available options are "Days", which can be set to "Daily", "Saturday" or "Sunday", and "Weeks", which can be set to any number from 1 to 16.
 

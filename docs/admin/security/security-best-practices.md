@@ -152,10 +152,10 @@ Running provisioner daemons within the same cluster/cloud as the workspaces they
 
 1. Scope your keys to organizations and the specific cluster/cloud using the same tags when creating the keys.
 
-   This ensures that a compromised key will not allow an attacker to gain access to jobs for other clusters or organizations.
+   This makes sure that a compromised key will not allow an attacker to gain access to jobs for other clusters or organizations.
 
 Provisioner daemons should have access only to cluster/cloud API credentials for the specific cluster/cloud they are for.
-This ensures that compromise of one Provisioner Daemon does not compromise all clusters/clouds.
+This guarantees that compromise of one Provisioner Daemon does not compromise all clusters/clouds.
 
 Deploy the provisioner daemon to the cloud and leverage infrastructure-provided credentials, if available:
 
@@ -165,7 +165,7 @@ Deploy the provisioner daemon to the cloud and leverage infrastructure-provided 
 
 ### Encryption in transit
 
-Enable TLS on the control plane and ensure you use an `https://` URL to access the control plane.
+Enable TLS on the control plane and make sure you use an `https://` URL to access the control plane.
 
 See the **Encryption in transit** subheading of the [Templates](#workspace-templates) section for more about encrypting cluster/cloud API calls.
 
@@ -186,7 +186,7 @@ Run provisioner daemons only on systems with full disk encryption enabled.
 
 Workspace proxies authenticate end users and then proxy network traffic to workspaces.
 
-Coder takes care to ensure the user credentials processed by workspace proxies are scoped to application access and do not grant full access to the Coder API on behalf of the user.
+Coder takes care to make sure the user credentials processed by workspace proxies are scoped to application access and do not grant full access to the Coder API on behalf of the user.
 Still, a fully compromised workspace proxy would be in a privileged position to phish unrestricted user credentials.
 
 Workspace proxies have unrestricted access to establish encrypted tunnels to workspaces and can access any port on any running workspace.
@@ -201,7 +201,7 @@ Workspace proxies have unrestricted access to establish encrypted tunnels to wor
 
 ### Encryption in transit
 
-Enable TLS on the control plane and ensure you use an `https://` URL to access the control plane.
+Enable TLS on the control plane and make sure you use an `https://` URL to access the control plane.
 
 Communication to the proxied workspace applications is always encrypted with Wireguard.
 No action is required.
@@ -257,9 +257,9 @@ Configuration of this depends on the specific Terraform providers in use and is 
 
 While your most privileged secrets should never be included in template files, they may inevitably contain confidential or sensitive data about your operations and/or infrastructure.
 
-- Ensure that operators who write, review or modify Coder templates are working on laptops/workstations with full disk encryption, or do their work inside a Coder workspace with full disk encryption.
-- Ensure [PostgreSQL](#postgresql) is encrypted at rest.
-- Ensure any [source code repositories that store templates](#gitops) are encrypted at rest and have appropriate access controls.
+- Make sure that operators who write, review or modify Coder templates are working on laptops/workstations with full disk encryption, or do their work inside a Coder workspace with full disk encryption.
+- Make sure [PostgreSQL](#postgresql) is encrypted at rest.
+- Make sure any [source code repositories that store templates](#gitops) are encrypted at rest and have appropriate access controls.
 
 ### GitOps
 
@@ -274,7 +274,7 @@ GitOps is the practice of using a Git repository as the source of truth for oper
 
 1. Use a Coder user account exclusively for pushing template changes, and give no human users the credentials.
 
-   This ensures any actions taken by the account correspond exactly to CI/CD actions from the repository and allows you to avoid granting the template admin role widely in your organization.
+   This guarantees any actions taken by the account correspond exactly to CI/CD actions from the repository and allows you to avoid granting the template admin role widely in your organization.
 
 1. Use [GitHub branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches), or the equivalent for your source repository to enforce code review of changes to templates.
 
@@ -327,7 +327,7 @@ A non-exclusive list of network assets to consider:
 ### Inbound network access
 
 Coder manages inbound network access to your workspaces via a set of Wireguard encrypted tunnels.
-These tunnels are established by sending outbound packets, so on stateful firewalls, disable inbound connections to workspaces to ensure inbound connections are handled exclusively by the encrypted tunnels.
+These tunnels are established by sending outbound packets, so on stateful firewalls, disable inbound connections to workspaces to make sure inbound connections are handled exclusively by the encrypted tunnels.
 
 #### DERP
 

@@ -15,8 +15,8 @@ $ coder ssh myworkspace
 
 While troubleshooting steps vary by resource, here are some general best practices:
 
-- Ensure the resource has `curl` installed (alternatively, `wget` or `busybox`)
-- Ensure the resource can `curl` your Coder [access URL](../admin/setup/index.md#access-url)
+- Make sure the resource has `curl` installed (alternatively, `wget` or `busybox`)
+- Make sure the resource can `curl` your Coder [access URL](../admin/setup/index.md#access-url)
 - Manually connect to the resource and check the agent logs (for example, `kubectl exec`, `docker exec` or AWS console)
   - The Coder agent logs are typically stored in `/tmp/coder-agent.log`
   - The Coder agent startup script logs are typically stored in `/tmp/coder-startup-script.log`

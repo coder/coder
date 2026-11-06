@@ -3,7 +3,7 @@ title: Workspace tags
 ---
 
 Template administrators can leverage static template tags to limit workspace provisioning to designated provisioner groups that have locally deployed credentials for creating workspace resources.
-While this method ensures controlled access, it offers limited flexibility and does not permit users to select the nodes for their workspace creation.
+While this method guarantees controlled access, it offers limited flexibility and does not permit users to select the nodes for their workspace creation.
 
 By using `coder_workspace_tags` and `coder_parameter`s, template administrators can enable dynamic tag selection and modify static template tags.
 
@@ -55,7 +55,7 @@ This is illustrated in the table below:
 It is possible to choose tag combinations that no provisioner can handle.
 This will cause the provisioner job to get stuck in the queue until a provisioner is added that can handle its combination of tags.
 
-Before releasing the template version with configurable workspace tags, ensure that every tag set is associated with at least one healthy provisioner.
+Before releasing the template version with configurable workspace tags, make sure that every tag set is associated with at least one healthy provisioner.
 
 > [!NOTE]
 > It may be useful to run at least one provisioner with no additional tag restrictions that is able to take on any job.

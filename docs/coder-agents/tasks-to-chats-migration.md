@@ -367,7 +367,7 @@ The reasons are different from Tasks, but the principle holds:
   Language runtimes, build tools, `git`, and project-specific dependencies should be baked into the image.
   Time the agent spends installing tools is time not spent on the task.
 - **Git configuration.**
-  Ensure `git` is configured with credentials and author information so the agent can commit and push without additional setup.
+  Make sure `git` is configured with credentials and author information so the agent can commit and push without additional setup.
 - **Minimal parameters.**
   Use sensible defaults so the agent can provision workspaces without guessing.
   Avoid required parameters with opaque identifiers.

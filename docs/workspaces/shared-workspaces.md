@@ -24,7 +24,7 @@ This is helpful in a number of scenarios, including:
 
 Workspaces can be shared through either the Coder CLI or UI.
 
-Before you begin, ensure that you have a version of Coder with workspace sharing enabled and that your account has permission to share workspaces.
+Before you begin, make sure that you have a version of Coder with workspace sharing enabled and that your account has permission to share workspaces.
 This is true by default if you are an open source software (OSS) user, but deployments with Premium licenses may be restricted by admins.
 
 ### CLI

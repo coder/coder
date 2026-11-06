@@ -30,7 +30,7 @@ To troubleshoot claims, set `CODER_LOG_FILTER=".*got oidc claims.*"` and follow 
 Coder will log the claim fields returned by the upstream identity provider in a message containing the string `got oidc claims`, as well as the user info returned.
 
 > [!NOTE]
-> If you need to ensure that Coder only uses information from the ID token and does not hit the UserInfo endpoint, you can set the configuration option `CODER_OIDC_IGNORE_USERINFO=true`.
+> If you need to make sure that Coder only uses information from the ID token and does not hit the UserInfo endpoint, you can set the configuration option `CODER_OIDC_IGNORE_USERINFO=true`.
 
 ### Email Addresses
 

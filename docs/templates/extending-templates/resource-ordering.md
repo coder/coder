@@ -35,7 +35,7 @@ data "coder_parameter" "account_id" {
 
 ### Agents
 
-Agent resources within the UI left pane are sorted based on the `order` property, followed by `name`, ensuring a consistent and intuitive arrangement.
+Agent resources within the UI left pane are sorted based on the `order` property, followed by `name`, for a consistent and intuitive arrangement.
 
 ```tf
 resource "coder_agent" "primary" {
@@ -130,7 +130,7 @@ resource "coder_app" "filebrowser" {
 ### Coder parameter options
 
 The options for Coder parameters maintain the same order as in the file structure.
-This simplifies management and ensures consistency between configuration files and UI presentation.
+This simplifies management and keeps configuration files and UI presentation consistent.
 
 ```tf
 data "coder_parameter" "database_region" {

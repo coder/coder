@@ -119,7 +119,7 @@ Keeping expired keys for a short period allows Coder to return a more helpful er
 
 Workspace agent logs are deleted based on when the agent last connected, not the age of the logs themselves.
 **Logs from the latest build of each workspace are always retained** regardless of when the agent last connected.
-This ensures you can always debug issues with active workspaces.
+This makes sure you can always debug issues with active workspaces.
 
 For non-latest builds, logs are deleted if the agent hasn't connected within the retention period.
 Setting `--workspace-agent-logs-retention=7d` deletes logs for agents that haven't connected in 7&nbsp;days (excluding those from the latest build).

@@ -55,7 +55,7 @@ Learn more in [Configure OIDC refresh tokens](./refresh-tokens.md).
 
 ## Troubleshooting
 
-- "invalid redirect_uri": ensure the redirect URI in Google Cloud matches `https://<your-coder-host>/api/v2/users/oidc/callback`.
+- "invalid redirect_uri": make sure the redirect URI in Google Cloud matches `https://<your-coder-host>/api/v2/users/oidc/callback`.
 - Domain restriction: if users from unexpected domains can log in, verify `CODER_OIDC_EMAIL_DOMAIN`.
 - Claims: to inspect claims returned by Google, see guidance in the [OIDC overview](./index.md#oidc-claims).
 

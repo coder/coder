@@ -31,7 +31,7 @@ See the [troubleshooting section](#troubleshooting-grouproleorganization-sync) f
 ## Group Sync
 
 If your OpenID Connect provider supports group claims, you can configure Coder to synchronize groups in your auth provider to groups within Coder.
-To enable group sync, ensure that the `groups` claim is being sent by your OpenID provider.
+To enable group sync, make sure that the `groups` claim is being sent by your OpenID provider.
 You might need to request an additional [scope](../../reference/cli/server/index.md#--oidc-scopes) or additional configuration on the OpenID provider side.
 
 If group sync is enabled, the user's groups will be controlled by the OIDC provider.
@@ -455,7 +455,7 @@ The solution is to update the value of `CODER_OIDC_SCOPES` to the correct value 
 
 Steps to troubleshoot.
 
-1. Ensure the user is a part of a group in the IdP.
+1. Make sure the user is a part of a group in the IdP.
 
    If the user has 0 groups, no `groups` claim will be sent.
 2. Check if another claim appears to be the correct claim with a different name.

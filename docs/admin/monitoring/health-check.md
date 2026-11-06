@@ -37,7 +37,7 @@ configure an [access URL](../setup/index.md#access-url) for Coder.
 `${CODER_ACCESS_URL}/healthz` is not a valid URL.
 
 **Solution:**
-Ensure that the access URL is a valid URL accepted by [`url.Parse`](https://pkg.go.dev/net/url#Parse).
+Make sure that the access URL is a valid URL accepted by [`url.Parse`](https://pkg.go.dev/net/url#Parse).
 Example: `https://dev.coder.com/`.
 
 You can use [the Go playground](https://go.dev/play/p/CabcJZyTwt9) for additional testing.
@@ -140,7 +140,7 @@ Additionally, while workspace users should still be able to reach their workspac
 > This may also be shown if you have [forced websocket connections for DERP](../../reference/cli/server/index.md#--derp-force-websockets).
 
 **Solution:**
-ensure that any proxies you use allow connection upgrade with the `Upgrade: derp` header.
+make sure that any proxies you use allow connection upgrade with the `Upgrade: derp` header.
 
 ### EDERP02
 
@@ -151,7 +151,7 @@ This is shown if Coder is unable to reach one or more configured DERP servers.
 Clients will fall back to use the remaining DERP servers, but performance may be impacted for clients closest to the unhealthy DERP server.
 
 **Solution:**
-Ensure that the DERP server is available and reachable over the network, for example:
+Make sure that the DERP server is available and reachable over the network, for example:
 
 ```sh
 curl -v "https://coder.company.com/derp"
@@ -172,7 +172,7 @@ Without at least one working DERP server, workspace networking may not work.
 This can happen if the built-in DERP server is disabled and no external DERP map is configured, or if workspace proxies are expected to provide DERP but no healthy DERP-enabled proxy is currently available.
 
 **Solution:**
-Ensure that at least one DERP server is available to the deployment.
+Make sure that at least one DERP server is available to the deployment.
 For example:
 
 - Restart `coderd` with the built-in DERP server enabled
@@ -189,7 +189,7 @@ Coder will use STUN to establish [direct connections](../networking/stun.md).
 Without at least one working STUN server, direct connections may not be possible.
 
 **Solution:**
-Ensure that the [configured STUN severs](../../reference/cli/server/index.md#--derp-server-stun-addresses) are reachable from Coder and that User Datagram Protocol (UDP) traffic can be sent/received on the configured port.
+Make sure that the [configured STUN severs](../../reference/cli/server/index.md#--derp-server-stun-addresses) are reachable from Coder and that User Datagram Protocol (UDP) traffic can be sent/received on the configured port.
 
 ### ESTUN02
 
@@ -224,13 +224,13 @@ Coder was unable to establish a WebSocket connection over its own Access URL.
 **Solution:**
 There are multiple possible causes of this problem:
 
-1. Ensure that Coder's configured Access URL can be reached from the server running Coder, using standard troubleshooting tools like `curl`:
+1. Make sure Coder's configured Access URL can be reached from the server running Coder, using standard troubleshooting tools like `curl`:
 
    ```sh
    curl -v "https://coder.company.com"
    ```
 
-2. Ensure that any reverse proxy that is serving Coder's configured access URL allows connection upgrade with the header `Upgrade: websocket`.
+2. Make sure that any reverse proxy that is serving Coder's configured access URL allows connection upgrade with the header `Upgrade: websocket`.
 
 ### EWS02
 
@@ -280,7 +280,7 @@ If it persists, it could signify an issue with Coder's configured database.
 One or more workspace proxies are not reachable.
 
 **Solution:**
-Ensure that Coder can establish a connection to the configured workspace proxies.
+Make sure that Coder can establish a connection to the configured workspace proxies.
 
 ### EPD01
 
@@ -292,8 +292,8 @@ No workspaces can be built until there is at least one provisioner daemon runnin
 
 **Solution:**
 
-If you are using [External Provisioner Daemons](../../install/operate/provisioners/index.md), ensure that they are able to successfully connect to Coder.
-Otherwise, ensure [`--provisioner-daemons`](../../reference/cli/server/index.md#--provisioner-daemons) is set to a value greater than 0.
+If you are using [External Provisioner Daemons](../../install/operate/provisioners/index.md), make sure that they are able to successfully connect to Coder.
+Otherwise, make sure [`--provisioner-daemons`](../../reference/cli/server/index.md#--provisioner-daemons) is set to a value greater than 0.
 
 > [!NOTE]
 > This may be a transient issue if you are currently in the process of updating your deployment.
