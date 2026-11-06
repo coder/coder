@@ -140,7 +140,8 @@ func TestManager_AddSourceRejectsOutsideAllowedRoots(t *testing.T) {
 // resolved working dir validate once the manifest lands.
 func TestManager_AddSourceAcceptsLateWorkingDir(t *testing.T) {
 	t.Parallel()
-	wd := t.TempDir()
+	wd := testutil.TempDirResolved(t)
+	src := filepath.Join(wd, "source")
 	var resolved atomic.Pointer[string]
 	m := newTestManager(t, agentcontext.ManagerOptions{
 		WorkingDir: func() string {
@@ -154,13 +155,13 @@ func TestManager_AddSourceAcceptsLateWorkingDir(t *testing.T) {
 
 	// Before the manifest "loads", workingDir is empty; sources
 	// under wd must be rejected.
-	_, err := m.AddSource(agentcontext.Source{Path: wd})
+	_, err := m.AddSource(agentcontext.Source{Path: src})
 	require.Error(t, err)
 
 	// After the manifest "loads", workingDir resolves and the
 	// same path validates without restarting the Manager.
 	resolved.Store(&wd)
-	_, err = m.AddSource(agentcontext.Source{Path: wd})
+	_, err = m.AddSource(agentcontext.Source{Path: src})
 	require.NoError(t, err)
 }
 
@@ -237,7 +238,256 @@ func TestManager_RemoveSource(t *testing.T) {
 	require.ErrorIs(t, err, agentcontext.ErrSourceNotFound)
 }
 
-func TestManager_HasSource(t *testing.T) {
+func TestManager_AutomaticRootExclusions(t *testing.T) {
+	t.Parallel()
+	wd := testutil.TempDirResolved(t)
+	for _, tc := range []struct {
+		name string
+		path string
+	}{
+		{name: "WorkingDirectory", path: wd},
+		{name: "BuiltinCoder", path: "~/.coder"},
+		{name: "BuiltinSkills", path: "~/.coder/skills"},
+		{name: "BuiltinPlugins", path: "~/.claude/plugins/cache"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			m := newTestManager(t, agentcontext.ManagerOptions{
+				WorkingDir:   func() string { return wd },
+				AllowedRoots: []string{wd},
+			})
+			resolved, err := agentcontext.CanonicalizePath(tc.path)
+			require.NoError(t, err)
+			_, err = m.AddSource(agentcontext.Source{Path: tc.path})
+			require.NoError(t, err)
+			require.NoError(t, m.RemoveSource(tc.path))
+			require.Equal(t, []agentcontext.Source{{Path: resolved, Excluded: true}}, m.Sources())
+			require.NoError(t, m.RemoveSource(tc.path), "removing an exclusion is idempotent")
+			_, err = m.AddSource(agentcontext.Source{Path: tc.path})
+			require.NoError(t, err)
+			require.Equal(t, []agentcontext.Source{{Path: resolved}}, m.Sources())
+		})
+	}
+}
+
+//nolint:paralleltest,tparallel // Uses t.Setenv.
+func TestManager_AutomaticRootExclusionAliases(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+	home := testutil.TempDirResolved(t)
+	switchHomeEnv(t, home)
+	wd := testutil.TempDirResolved(t)
+	for _, tc := range []struct {
+		name   string
+		path   string
+		seeded bool
+	}{
+		{name: "WorkingDirectory", path: wd},
+		{name: "BuiltinCoder", path: filepath.Join(home, ".coder")},
+		{name: "BuiltinSkills", path: filepath.Join(home, ".coder", "skills")},
+		{name: "BuiltinPlugins", path: filepath.Join(home, ".claude", "plugins", "cache")},
+		{name: "SeededSource", path: filepath.Join(home, "seeded"), seeded: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.NoError(t, os.MkdirAll(tc.path, 0o700))
+			alias := filepath.Join(testutil.TempDirResolved(t), "alias")
+			require.NoError(t, os.Symlink(tc.path, alias))
+			m := newTestManager(t, agentcontext.ManagerOptions{
+				WorkingDir:   func() string { return wd },
+				AllowedRoots: []string{wd, home},
+			})
+			if tc.seeded {
+				m.SeedSources([]agentcontext.Source{{Path: tc.path}})
+			}
+			require.NoError(t, m.RemoveSource(alias))
+			require.Equal(t, []agentcontext.Source{{Path: tc.path, Excluded: true}}, m.Sources())
+			source, ok := m.GetSource(alias)
+			require.True(t, ok)
+			require.Equal(t, agentcontext.Source{Path: tc.path, Excluded: true}, source)
+			if tc.seeded {
+				m.SeedSources([]agentcontext.Source{{Path: alias}})
+				require.Contains(t, m.Sources(), agentcontext.Source{Path: alias, Excluded: true})
+			}
+			_, err := m.AddSource(agentcontext.Source{Path: alias})
+			require.NoError(t, err)
+			require.Contains(t, m.Sources(), agentcontext.Source{Path: alias})
+			require.NoError(t, m.RemoveSource(tc.path))
+			for _, source := range m.Sources() {
+				require.True(t, source.Excluded)
+			}
+		})
+	}
+}
+
+func TestManager_SeededSourceExclusions(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name  string
+		setup func(*testing.T) (*agentcontext.Manager, string)
+	}{
+		{
+			name: "InitialSource",
+			setup: func(t *testing.T) (*agentcontext.Manager, string) {
+				src := testutil.TempDirResolved(t)
+				m := newTestManager(t, agentcontext.ManagerOptions{
+					InitialSources: []agentcontext.Source{{Path: src}},
+				})
+				return m, src
+			},
+		},
+		{
+			name: "LateSeed",
+			setup: func(t *testing.T) (*agentcontext.Manager, string) {
+				src := testutil.TempDirResolved(t)
+				m := newTestManager(t, agentcontext.ManagerOptions{})
+				m.SeedSources([]agentcontext.Source{{Path: src}})
+				return m, src
+			},
+		},
+		{
+			name: "ExistingSourceSeeded",
+			setup: func(t *testing.T) (*agentcontext.Manager, string) {
+				src := testutil.TempDirResolved(t)
+				m := newTestManager(t, agentcontext.ManagerOptions{AllowedRoots: []string{src}})
+				_, err := m.AddSource(agentcontext.Source{Path: src})
+				require.NoError(t, err)
+				m.SeedSources([]agentcontext.Source{{Path: src}})
+				return m, src
+			},
+		},
+		{
+			name: "SeededBuiltin",
+			setup: func(t *testing.T) (*agentcontext.Manager, string) {
+				m := newTestManager(t, agentcontext.ManagerOptions{
+					InitialSources: []agentcontext.Source{{Path: "~/.coder"}},
+				})
+				return m, "~/.coder"
+			},
+		},
+		{
+			name: "SeededWorkingDirectory",
+			setup: func(t *testing.T) (*agentcontext.Manager, string) {
+				wd := testutil.TempDirResolved(t)
+				m := newTestManager(t, agentcontext.ManagerOptions{
+					WorkingDir:     func() string { return wd },
+					InitialSources: []agentcontext.Source{{Path: wd}},
+				})
+				return m, wd
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			m, path := tc.setup(t)
+			resolved, err := agentcontext.CanonicalizePath(path)
+			require.NoError(t, err)
+			require.NoError(t, m.RemoveSource(path))
+			m.SeedSources([]agentcontext.Source{{Path: path}})
+			require.Equal(t, []agentcontext.Source{{Path: resolved, Excluded: true}}, m.Sources())
+			_, err = m.AddSource(agentcontext.Source{Path: path})
+			require.NoError(t, err)
+			require.Equal(t, []agentcontext.Source{{Path: resolved}}, m.Sources())
+		})
+	}
+}
+
+//nolint:paralleltest,tparallel // Uses t.Setenv.
+func TestManager_ExcludedNestedDiscovery(t *testing.T) {
+	home := testutil.TempDirResolved(t)
+	switchHomeEnv(t, home)
+	skills := filepath.Join(home, ".coder", "skills")
+	instructions := filepath.Join(home, ".coder", "AGENTS.md")
+	mcpConfig := filepath.Join(home, ".coder", ".mcp.json")
+	mustWriteSkill(t, skills, "builtin", "builtin skill")
+	mustWriteFile(t, instructions, "builtin instructions")
+	mustWriteFile(t, mcpConfig, `{"mcpServers":{}}`)
+	opts := agentcontext.ManagerOptions{
+		InitialSources: []agentcontext.Source{{Path: instructions}, {Path: mcpConfig}},
+	}
+	m := newTestManager(t, opts)
+	require.Len(t, m.Snapshot().Resources, 3)
+	for i, path := range []string{skills, instructions, mcpConfig} {
+		require.NoError(t, m.RemoveSource(path))
+		snapshot, err := m.Resync(testutil.Context(t, testutil.WaitShort))
+		require.NoError(t, err)
+		require.Len(t, snapshot.Resources, 2-i, "the parent ~/.coder scan must not rediscover an excluded root")
+	}
+	restarted := newTestManager(t, opts)
+	require.Len(t, restarted.Snapshot().Resources, 3, "exclusions do not outlive the Manager")
+	_, err := m.AddSource(agentcontext.Source{Path: filepath.Join(home, ".coder")})
+	require.NoError(t, err)
+	snapshot, err := m.Resync(testutil.Context(t, testutil.WaitShort))
+	require.NoError(t, err)
+	require.Empty(t, snapshot.Resources, "adding a parent does not clear separate child exclusions")
+	for _, path := range []string{skills, instructions, mcpConfig} {
+		_, err = m.AddSource(agentcontext.Source{Path: path})
+		require.NoError(t, err)
+	}
+	snapshot, err = m.Resync(testutil.Context(t, testutil.WaitShort))
+	require.NoError(t, err)
+	require.Len(t, snapshot.Resources, 3)
+}
+
+func TestManager_ExclusionDescendants(t *testing.T) {
+	t.Parallel()
+	root := testutil.TempDirResolved(t)
+	wd := filepath.Join(root, "project")
+	skills := filepath.Join(wd, ".agents", "skills")
+	claudeSkills := filepath.Join(wd, ".claude", "skills")
+	explicit := filepath.Join(wd, "explicit")
+	sibling := filepath.Join(root, "project-other")
+	late := filepath.Join(wd, "late")
+	mustWriteFile(t, filepath.Join(wd, "AGENTS.md"), "project instructions")
+	mustWriteSkill(t, skills, "auto", "automatic skill")
+	mustWriteSkill(t, claudeSkills, "claude", "claude skill")
+	mustWriteFile(t, filepath.Join(explicit, "AGENTS.md"), "explicit instructions")
+	mustWriteFile(t, filepath.Join(sibling, "AGENTS.md"), "sibling instructions")
+	seeded := []agentcontext.Source{{Path: skills}, {Path: sibling}}
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir:     func() string { return wd },
+		AllowedRoots:   []string{root},
+		InitialSources: seeded,
+	})
+	_, err := m.AddSource(agentcontext.Source{Path: explicit})
+	require.NoError(t, err)
+	resourcePaths := func() []string {
+		t.Helper()
+		snap, err := m.Resync(testutil.Context(t, testutil.WaitShort))
+		require.NoError(t, err)
+		paths := make([]string, 0, len(snap.Resources))
+		for _, resource := range snap.Resources {
+			paths = append(paths, resource.Source)
+		}
+		return paths
+	}
+	initial := []string{
+		filepath.Join(wd, "AGENTS.md"), filepath.Join(skills, "auto"),
+		filepath.Join(claudeSkills, "claude"), filepath.Join(explicit, "AGENTS.md"),
+		filepath.Join(sibling, "AGENTS.md"),
+	}
+	require.ElementsMatch(t, initial, resourcePaths())
+
+	require.NoError(t, m.RemoveSource(wd))
+	included := []string{filepath.Join(explicit, "AGENTS.md"), filepath.Join(sibling, "AGENTS.md")}
+	require.ElementsMatch(t, included, resourcePaths())
+	mustWriteFile(t, filepath.Join(late, "AGENTS.md"), "late seed")
+	m.SeedSources(append(seeded, agentcontext.Source{Path: late}))
+	require.ElementsMatch(t, included, resourcePaths(), "reconnect and late seeds cannot override an exclusion")
+	require.Contains(t, m.Sources(), agentcontext.Source{Path: wd, Excluded: true})
+	require.Contains(t, m.Sources(), agentcontext.Source{Path: skills, Excluded: true})
+	require.Contains(t, m.Sources(), agentcontext.Source{Path: late, Excluded: true})
+
+	_, err = m.AddSource(agentcontext.Source{Path: late})
+	require.NoError(t, err)
+	require.ElementsMatch(t, append(included, filepath.Join(late, "AGENTS.md")), resourcePaths())
+	require.NoError(t, m.RemoveSource(late))
+	_, err = m.AddSource(agentcontext.Source{Path: wd})
+	require.NoError(t, err)
+	require.ElementsMatch(t, initial, resourcePaths(), "adding the parent restores automatic descendants except separate exclusions")
+}
+
+func TestManager_GetSource(t *testing.T) {
 	t.Parallel()
 	wd := t.TempDir()
 	src := testutil.TempDirResolved(t)
@@ -247,16 +497,16 @@ func TestManager_HasSource(t *testing.T) {
 		AllowedRoots: []string{wd, src},
 	})
 
-	canonical, ok := m.HasSource(src)
+	source, ok := m.GetSource(src)
 	require.False(t, ok)
-	require.Equal(t, src, canonical)
+	require.Equal(t, src, source.Path)
 
 	_, err := m.AddSource(agentcontext.Source{Path: src})
 	require.NoError(t, err)
 
-	canonical, ok = m.HasSource(src)
+	source, ok = m.GetSource(src)
 	require.True(t, ok)
-	require.Equal(t, src, canonical)
+	require.Equal(t, agentcontext.Source{Path: src}, source)
 }
 
 func TestManager_ResyncReturnsLatestSnapshot(t *testing.T) {

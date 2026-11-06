@@ -102,15 +102,16 @@ func dialAgentContextSocket(ctx context.Context, socketPath string) (*agentsocke
 
 func (*RootCmd) chatContextListCommand(socketPath *string) *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]agentsocket.ContextSource{}, []string{"path"}),
+		cliui.TableFormat([]agentsocket.ContextSource{}, []string{"path", "excluded"}),
 		cliui.JSONFormat(),
 	)
 	cmd := &serpent.Command{
 		Use:   "list",
-		Short: "List the workspace context sources registered on the agent",
-		Long: "List the additional scan roots registered on this workspace's agent. " +
-			"Built-in defaults (the working directory, ~/.coder, ~/.claude) are always " +
-			"scanned and are not shown here.\n\nMust be run from inside the workspace.",
+		Short: "List workspace context sources and exclusions",
+		Long: "List registered scan roots and exclusions on this workspace's agent. " +
+			"The excluded column is true for excluded roots, including seeded sources " +
+			"beneath an excluded path. Explicitly added sources stay included. Exclusions " +
+			"last until the agent process restarts.\n\nMust be run from inside the workspace.",
 		Middleware: serpent.RequireNArgs(0),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
@@ -206,8 +207,10 @@ func (*RootCmd) chatContextAddCommand(socketPath *string) *serpent.Command {
 			"it uses for the working directory: AGENTS.md / CLAUDE.md / .cursorrules, " +
 			".agents/skills/<name>/SKILL.md, and .mcp.json are picked up now and as they " +
 			"appear. Any change to a recognized file dirties this workspace's chats until " +
-			"you refresh.\n\nA path may be a file or a directory. Must be run from inside " +
-			"the workspace.",
+			"you refresh.\n\nA path may be a file or a directory. Adding a path clears its " +
+			"exact exclusion and registers it explicitly, including a working directory " +
+			"or built-in scan root. Explicit sources stay included beneath other excluded " +
+			"roots. Separate child exclusions remain in effect.\n\nMust be run from inside the workspace.",
 		Middleware: serpent.RequireNArgs(1),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
@@ -226,7 +229,7 @@ func (*RootCmd) chatContextAddCommand(socketPath *string) *serpent.Command {
 
 			src, err := client.AddContextSource(ctx, path)
 			if err != nil {
-				return xerrors.Errorf("add context source: %w", err)
+				return err
 			}
 			_, _ = fmt.Fprintf(inv.Stdout, "Registered context source %s\n", src.Path)
 			return nil
@@ -239,9 +242,15 @@ func (*RootCmd) chatContextRemoveCommand(socketPath *string) *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "remove <path>",
 		Short: "Remove a workspace context source",
-		Long: "Remove a previously-registered context source from this workspace's agent " +
-			"and re-resolve. Built-in default scan roots cannot be removed.\n\nMust be run " +
-			"from inside the workspace.",
+		Long: "Remove a user-added context source and re-resolve. Removing the working " +
+			"directory, a built-in scan root, or a seeded source excludes its resolved " +
+			"path until the agent process restarts. Automatic roots beneath that path " +
+			"are also excluded, including seeded skill directories. Explicitly added " +
+			"descendants remain included. Reconnects do not clear exclusions; add the path " +
+			"again to re-enable it. Startup-script exclusions affect the first context " +
+			"snapshot. Removing a source does not disconnect MCP servers or ACP subagents. " +
+			"Existing chats adopt instruction and skill changes after refresh.\n\n" +
+			"Must be run from inside the workspace.",
 		Middleware: serpent.RequireNArgs(1),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
@@ -256,7 +265,7 @@ func (*RootCmd) chatContextRemoveCommand(socketPath *string) *serpent.Command {
 				return err
 			}
 			if err := client.RemoveContextSource(ctx, path); err != nil {
-				return xerrors.Errorf("remove context source: %w", err)
+				return err
 			}
 			_, _ = fmt.Fprintf(inv.Stdout, "Removed context source %s\n", path)
 			return nil
