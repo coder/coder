@@ -248,7 +248,8 @@ func (*RootCmd) chatContextRemoveCommand(socketPath *string) *serpent.Command {
 			"are also excluded, including seeded skill directories. Explicitly added " +
 			"descendants remain included. Reconnects do not clear exclusions; add the path " +
 			"again to re-enable it. Startup-script exclusions affect the first context " +
-			"snapshot. Existing chats adopt instruction and skill changes after refresh.\n\n" +
+			"snapshot. Removing a source does not disconnect MCP servers or ACP subagents. " +
+			"Existing chats adopt instruction and skill changes after refresh.\n\n" +
 			"Must be run from inside the workspace.",
 		Middleware: serpent.RequireNArgs(1),
 		Handler: func(inv *serpent.Invocation) error {

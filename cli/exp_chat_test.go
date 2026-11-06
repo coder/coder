@@ -160,6 +160,8 @@ func TestExpChatContextSources(t *testing.T) {
 	run := func(args ...string) string {
 		t.Helper()
 		inv, _ := clitest.New(t, append([]string{"exp", "chat", "context", "--socket-path", socketPath}, args...)...)
+		inv.Environ.Set("CODER_URL", "")
+		inv.Environ.Set("CODER_SESSION_TOKEN", "")
 		var stdout bytes.Buffer
 		inv.Stdout = &stdout
 		require.NoError(t, inv.WithContext(testutil.Context(t, testutil.WaitLong)).Run())
@@ -214,11 +216,14 @@ func TestExpChatContextSources(t *testing.T) {
 	}
 	for {
 		push := testutil.RequireReceive(ctx, t, observed.pushes)
-		if push.api == reconnected && push.request.Version > beforeReconnect.Version {
+		// The initial push can replay a snapshot from before the reconnect.
+		if push.api == reconnected && !push.request.Initial && push.request.Version > beforeReconnect.Version {
+			for _, resource := range push.request.Resources {
+				require.False(t, strings.HasPrefix(resource.Source, wd+string(os.PathSeparator)), "reseeded roots must stay excluded")
+			}
 			break
 		}
 	}
-	waitForResources(projectPaths, false)
 	run("add", wd)
 	waitForResources(projectPaths, true)
 }

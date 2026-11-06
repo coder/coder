@@ -298,8 +298,8 @@ func (m *Manager) sourcesLocked() []Source {
 	out := make([]Source, 0, len(m.sources)+len(m.excluded))
 	listed := make(map[string]bool)
 	for _, entry := range m.sources {
-		resolved, _ := CanonicalizePath(entry.Path)
-		excluded := !entry.Explicit && m.isExcludedLocked(resolved)
+		resolved, err := CanonicalizePath(entry.Path)
+		excluded := !entry.Explicit && err == nil && m.isExcludedLocked(resolved)
 		out = append(out, Source{Path: entry.Path, Excluded: excluded})
 		if excluded {
 			listed[resolved] = true
@@ -324,7 +324,10 @@ func (m *Manager) GetSource(path string) (Source, bool) {
 	if err != nil {
 		return Source{}, false
 	}
-	resolved, _ := CanonicalizePath(identity)
+	resolved, err := CanonicalizePath(identity)
+	if err != nil {
+		return Source{}, false
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	sources := m.sourcesLocked()
@@ -334,8 +337,8 @@ func (m *Manager) GetSource(path string) (Source, bool) {
 		}
 	}
 	for _, source := range sources {
-		canonical, _ := CanonicalizePath(source.Path)
-		if canonical == resolved {
+		canonical, err := CanonicalizePath(source.Path)
+		if err == nil && canonical == resolved {
 			return source, true
 		}
 	}
@@ -394,8 +397,8 @@ func (m *Manager) automaticRootLocked(resolved string) bool {
 	}
 	for _, source := range m.sources {
 		if source.Seeded {
-			canonical, _ := CanonicalizePath(source.Path)
-			if canonical == resolved {
+			canonical, err := CanonicalizePath(source.Path)
+			if err == nil && canonical == resolved {
 				return true
 			}
 		}
@@ -426,8 +429,8 @@ func (m *Manager) SeedSources(sources []Source) {
 			continue
 		}
 		added := m.seedSourceLocked(identity)
-		resolved, _ := CanonicalizePath(identity)
-		if added && !m.isExcludedLocked(resolved) {
+		resolved, err := CanonicalizePath(identity)
+		if added && err == nil && !m.isExcludedLocked(resolved) {
 			changed = true
 		}
 	}
@@ -464,8 +467,8 @@ func (m *Manager) RemoveSource(path string) error {
 	automatic := excluded || m.automaticRootLocked(resolved)
 	found := false
 	for i := 0; i < len(m.sources); {
-		canonical, _ := CanonicalizePath(m.sources[i].Path)
-		if m.sources[i].Path != identity && canonical != resolved {
+		canonical, err := CanonicalizePath(m.sources[i].Path)
+		if m.sources[i].Path != identity && (err != nil || canonical != resolved) {
 			i++
 			continue
 		}
@@ -681,14 +684,14 @@ func (m *Manager) scanRootsLocked() []ScanRoot {
 		if err != nil || (!s.Explicit && m.isExcludedLocked(resolved)) {
 			continue
 		}
-		out = append(out, m.scanRootLocked(s.Path, s.Path, s.Explicit))
+		out = append(out, m.scanRootLocked(s, resolved))
 	}
 	for _, r := range builtinRoots {
 		canonical, err := CanonicalizePath(r)
 		if err != nil || m.isExcludedLocked(canonical) {
 			continue
 		}
-		out = append(out, m.scanRootLocked(canonical, "", false))
+		out = append(out, m.scanRootLocked(sourceEntry{Path: canonical}, canonical))
 	}
 	if m.workingDir != nil {
 		if wd := strings.TrimSpace(m.workingDir()); wd != "" {
@@ -701,18 +704,20 @@ func (m *Manager) scanRootsLocked() []ScanRoot {
 			// vars.
 			canonical, err := CanonicalizePath(wd)
 			if err == nil && !m.isExcludedLocked(canonical) {
-				out = append(out, m.scanRootLocked(wd, "", false))
+				out = append(out, m.scanRootLocked(sourceEntry{Path: wd}, canonical))
 			}
 		}
 	}
 	return out
 }
 
-func (m *Manager) scanRootLocked(path, userSource string, explicit bool) ScanRoot {
-	root := ScanRoot{Path: path, UserSource: userSource}
-	resolved, _ := CanonicalizePath(path)
+func (m *Manager) scanRootLocked(source sourceEntry, resolved string) ScanRoot {
+	root := ScanRoot{Path: source.Path}
+	if source.Seeded || source.Explicit {
+		root.UserSource = source.Path
+	}
 	for excluded := range m.excluded {
-		if explicit && pathHasPrefix(resolved, excluded) {
+		if source.Explicit && pathHasPrefix(resolved, excluded) {
 			continue
 		}
 		root.ExcludedPaths = append(root.ExcludedPaths, excluded)

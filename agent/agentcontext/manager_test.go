@@ -302,6 +302,9 @@ func TestManager_AutomaticRootExclusionAliases(t *testing.T) {
 			}
 			require.NoError(t, m.RemoveSource(alias))
 			require.Equal(t, []agentcontext.Source{{Path: tc.path, Excluded: true}}, m.Sources())
+			source, ok := m.GetSource(alias)
+			require.True(t, ok)
+			require.Equal(t, agentcontext.Source{Path: tc.path, Excluded: true}, source)
 			if tc.seeded {
 				m.SeedSources([]agentcontext.Source{{Path: alias}})
 				require.Contains(t, m.Sources(), agentcontext.Source{Path: alias, Excluded: true})
