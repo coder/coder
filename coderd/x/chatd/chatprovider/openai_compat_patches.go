@@ -93,6 +93,7 @@ func patchOpenAICompatChatCompletionsBody(body []byte, baseURL string, modelID s
 	}
 
 	changed := rewriteOpenAICompatSingleToolChoice(payload)
+	changed = mergeOpenAICompatLeadingSystemMessages(payload) || changed
 	if googleopenai.ShouldPatchOpenAICompatRequest(baseURL, modelID) {
 		changed = googleopenai.AddThoughtSignaturesToLatestTurn(payload) || changed
 		changed = rewriteGoogleCompatThinkingConfig(payload) || changed
@@ -145,5 +146,48 @@ func rewriteOpenAICompatSingleToolChoice(payload map[string]any) bool {
 	}
 
 	payload["tool_choice"] = "required"
+	return true
+}
+
+// mergeOpenAICompatLeadingSystemMessages joins the system messages that open
+// the conversation into one, because some compatible endpoints (Qwen and Gemma
+// chat templates, for example) accept a system message only as the first one.
+func mergeOpenAICompatLeadingSystemMessages(payload map[string]any) bool {
+	messages, ok := payload["messages"].([]any)
+	if !ok {
+		return false
+	}
+	var system []map[string]any
+	for _, message := range messages {
+		msg, ok := message.(map[string]any)
+		if !ok || msg["role"] != "system" {
+			break
+		}
+		system = append(system, msg)
+	}
+	if len(system) < 2 {
+		return false
+	}
+
+	var texts []string
+	var parts []any
+	for _, msg := range system {
+		switch content := msg["content"].(type) {
+		case string:
+			texts = append(texts, content)
+			parts = append(parts, map[string]any{"type": "text", "text": content})
+		case []any:
+			parts = append(parts, content...)
+		default:
+			return false
+		}
+	}
+
+	if len(texts) == len(system) {
+		system[0]["content"] = strings.Join(texts, "\n\n")
+	} else {
+		system[0]["content"] = parts
+	}
+	payload["messages"] = append([]any{system[0]}, messages[len(system):]...)
 	return true
 }
