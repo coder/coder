@@ -984,9 +984,8 @@ func TestSearchUsers(t *testing.T) {
 		},
 		{
 			Name:  "IncludeSystem",
-			Query: "prebuilds include_system:true",
+			Query: "include_system:true",
 			Expected: database.GetUsersParams{
-				Search:        "prebuilds",
 				IncludeSystem: true,
 				Status:        []database.UserStatus{},
 				RbacRole:      []string{},
