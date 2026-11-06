@@ -12957,7 +12957,9 @@ func TestAgentContextFilesAndSkillsLoadedIntoChat(t *testing.T) {
 }
 
 // TestInterruptChatCancelsToolCallsOnAgent checks that tool calls reach a
-// real agent with the tool call IDs the interrupt cancels.
+// real agent with the tool call IDs the interrupt cancels. The step also
+// holds a dynamic call that is still pending, which the interrupt must close
+// too, or the chat never leaves interrupting.
 func TestInterruptChatCancelsToolCallsOnAgent(t *testing.T) {
 	t.Parallel()
 
@@ -13005,7 +13007,9 @@ func TestInterruptChatCancelsToolCallsOnAgent(t *testing.T) {
 		chunk := chattest.OpenAIToolCallChunk("write_file", string(writeArgs))
 		executeCall := chattest.OpenAIToolCallChunk("execute", string(executeArgs)).Choices[0].ToolCalls[0]
 		executeCall.Index = 1
-		chunk.Choices[0].ToolCalls = append(chunk.Choices[0].ToolCalls, executeCall)
+		dynamicCall := chattest.OpenAIToolCallChunk("client_tool", `{}`).Choices[0].ToolCalls[0]
+		dynamicCall.Index = 2
+		chunk.Choices[0].ToolCalls = append(chunk.Choices[0].ToolCalls, executeCall, dynamicCall)
 		return chattest.OpenAIStreamingResponse(chunk)
 	})
 	coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
@@ -13014,6 +13018,11 @@ func TestInterruptChatCancelsToolCallsOnAgent(t *testing.T) {
 	chat, err := expClient.CreateChat(ctx, codersdk.CreateChatRequest{
 		OrganizationID: user.OrganizationID,
 		WorkspaceID:    &workspaceID,
+		UnsafeDynamicTools: []codersdk.DynamicTool{{
+			Name:        "client_tool",
+			Description: "client-executed",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
+		}},
 		Content: []codersdk.ChatInputPart{{
 			Type: codersdk.ChatInputPartTypeText,
 			Text: "Write the file and run the command.",
@@ -13045,8 +13054,10 @@ func TestInterruptChatCancelsToolCallsOnAgent(t *testing.T) {
 			}
 		}
 	}
-	require.Len(t, results, 2, "want one result per tool call")
+	require.Len(t, results, 3, "want one result per tool call")
 
+	// The client never saw the dynamic call, so the interrupt closes it.
+	require.True(t, results["client_tool"].IsError, "client_tool result: %s", results["client_tool"].Result)
 	writeResult := results["write_file"]
 	require.False(t, writeResult.IsError, "write_file result: %s", writeResult.Result)
 	require.JSONEq(t, `{"ok":true}`, string(writeResult.Result))
