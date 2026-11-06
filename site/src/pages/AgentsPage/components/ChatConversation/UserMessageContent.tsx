@@ -40,7 +40,7 @@ const renderUserChip = (
 ): InlineNode => {
 	// Middle alignment sits a chip low in a body line it nearly fills and grows
 	// the line. Headings keep middle alignment to center the chip on their text.
-	const spacing = cn(
+	const chipClassName = cn(
 		"align-top in-[h1,h2,h3,h4,h5,h6]:align-middle",
 		hasInlineContentBefore(inlineParts, index) && "ml-1",
 		hasInlineContentAfter(inlineParts, index) && "mr-1",
@@ -51,7 +51,7 @@ const renderUserChip = (
 				<SkillChip
 					source={block.skill_source}
 					name={block.skill_name}
-					className={spacing}
+					className={chipClassName}
 				/>
 			),
 			text: getSkillAlias(block.skill_source, block.skill_name),
@@ -69,15 +69,16 @@ const renderUserChip = (
 				fileName={block.file_name}
 				startLine={block.start_line}
 				endLine={block.end_line}
-				className={spacing}
+				className={chipClassName}
 			/>
 		),
 		text: title,
 	};
 };
 
-// At the bubble's top or bottom edge, the padding stands in for the leading
-// around text glyphs, so files sit as far from the edge as text does.
+// At the bubble's top or bottom edge, the padding stands in for the
+// half-leading of the 13px leading-relaxed message text, so files sit as far
+// from the edge as text does.
 const FileRow: React.FC<React.PropsWithChildren> = ({ children }) => (
 	<div className="flex flex-wrap gap-2 first:pt-1 last:pb-1">{children}</div>
 );
