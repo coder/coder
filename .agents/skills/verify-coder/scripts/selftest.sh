@@ -281,7 +281,7 @@ cleanup_keeps_running_postgres() {
 		dead=$!
 		wait "$dead"
 		printf 'VC_PID=%q\nVC_LOG=%q\nVC_STARTED_AT=%q\nVC_ADMIN_PASSWORD=x\n' "$dead" "$scratch_run/develop.log" "$(date -u +%FT%TZ)" >"$scratch_run/env"
-		rm -rf "$tmp/fake/$case"
+		rm -rf "$tmp/fake/$case" "$tmp/zombie.pid"
 		mkdir -p "$tmp/fake/$case"
 		cp "$(command -v bash)" "$tmp/fake/$case/postgres"
 		pid="$dead"
@@ -293,12 +293,21 @@ cleanup_keeps_running_postgres() {
 			keep=1
 			;;
 		zombie)
-			# The child exits at once, and the parent execs sleep, which never
+			# The child exits after its parent has become sleep, which never
 			# reaps it.
-			(cd "$data" && exec bash -c 'sleep 0 & echo $! >"$1"; exec sleep 10' _ "$tmp/zombie.pid") &
+			(cd "$data" && exec bash -c 'sleep 1 & echo $! >"$1"; exec sleep 20' _ "$tmp/zombie.pid") &
 			others+=("$!")
-			sleep 1
-			pid="$(cat "$tmp/zombie.pid")"
+			for _ in $(seq 100); do
+				pid="$(cat "$tmp/zombie.pid" 2>/dev/null)" || true
+				if [[ -n "$pid" ]] && grep -q '^State:.Z' "/proc/$pid/status" 2>/dev/null; then
+					break
+				fi
+				sleep 0.1
+			done
+			grep -q '^State:.Z' "/proc/$pid/status" 2>/dev/null || {
+				echo "zombie: the stand-in never became a zombie"
+				return 1
+			}
 			keep=1
 			;;
 		other-folder)

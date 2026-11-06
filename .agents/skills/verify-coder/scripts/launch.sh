@@ -203,6 +203,7 @@ run_develop() {
 		fi
 		sleep 2
 	done
+	save_password
 }
 
 # develop.sh creates the first user, the owner, through the unauthenticated
