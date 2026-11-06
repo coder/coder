@@ -197,7 +197,8 @@ Worker startup after the build doesn't.
 - The default is `10m` and the maximum is `15m`.
   Set `0` to turn off the deadline.
 - When the deadline passes, Agent Relay deletes the workspace and the developer's chat shows `agent-relay: workspace build exceeded the spawn budget`.
-- Regardless of the deadline, Agent Relay deletes a workspace that's still building after the [startup grace](./configuration.md#--reap-startup-grace), 15&nbsp;minutes from its latest build by default.
+- Regardless of the deadline, Agent Relay deletes a workspace that's still building after the longer of `dispatch_deadline` and the reaper's [startup grace](./configuration.md#--reap-startup-grace).
+  The grace is 15&nbsp;minutes by default and starts when the latest build is created.
 
 Slow templates are the most common reason sessions don't start.
 Pre-pull images, avoid persistent volumes, and bake the Cursor CLI into the image with `install_cli = false`.
