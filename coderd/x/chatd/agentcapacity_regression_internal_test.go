@@ -51,14 +51,27 @@ func (l *refusalCountingLimiter) refusals(chatID uuid.UUID) int {
 // from the database, so that replica acquires nothing.
 type partitionableLimiter struct {
 	*refusalCountingLimiter
-	partitioned atomic.Bool
+	// mu is held for reading by every Admit call, so setPartitioned waits
+	// for admissions that started before the partition to finish.
+	mu          sync.RWMutex
+	partitioned bool
 }
 
 func (l *partitionableLimiter) Admit(ctx context.Context, store database.Store, chat database.Chat) (bool, error) {
-	if l.partitioned.Load() {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	if l.partitioned {
 		return false, xerrors.New("replica is partitioned from the database")
 	}
 	return l.refusalCountingLimiter.Admit(ctx, store, chat)
+}
+
+// setPartitioned returns once no admission decided before the change is
+// still in flight.
+func (l *partitionableLimiter) setPartitioned(partitioned bool) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.partitioned = partitioned
 }
 
 // runningFreshLeases counts chats that are running and hold a fresh lease
@@ -281,7 +294,9 @@ func TestRunnerManager_HeartbeatDoesNotReviveStaleLease(t *testing.T) {
 	}))
 
 	// Replica one loses the database for longer than the stale threshold.
-	limiterOne.partitioned.Store(true)
+	// An admission already in flight must finish before A goes stale, or
+	// it could observe the stale lease and admit B on replica one.
+	limiterOne.setPartitioned(true)
 	ownedA, err := f.db.GetChatByID(ctx, chatA.ID)
 	require.NoError(t, err)
 	require.True(t, ownedA.RunnerID.Valid)
@@ -300,7 +315,7 @@ func TestRunnerManager_HeartbeatDoesNotReviveStaleLease(t *testing.T) {
 	require.Equal(t, 1, runningFreshLeases(ctx, t, f.db, chatA.ID, chatB.ID))
 
 	// Replica one reconnects and runs one heartbeat tick.
-	limiterOne.partitioned.Store(false)
+	limiterOne.setPartitioned(false)
 	replicaOne.mu.Lock()
 	managerOne := replicaOne.manager
 	replicaOne.mu.Unlock()
