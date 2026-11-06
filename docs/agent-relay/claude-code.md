@@ -221,10 +221,6 @@ Each pool's `dispatch_deadline` sets the spawn budget: how long a Claude Code wo
 
 For templates where the image pull and build regularly take longer than 5&nbsp;minutes, raise `dispatch_deadline`.
 
-> [!NOTE]
-> Claude Code `dispatch_deadline` requires Agent Relay v0.15.0 or later.
-> Earlier versions use a fixed 5-minute budget that you can't change.
-
 To fit inside the budget:
 
 - Pre-pull images and avoid persistent volumes.
