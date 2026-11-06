@@ -3736,8 +3736,9 @@ export interface ChatQueuedMessage {
 	readonly reasoning_effort?: string;
 	/**
 	 * EditingSince is set while the owner edits the message. A message
-	 * under edit and every message behind it wait until the edit ends; a
-	 * turn that ends at a message under edit pauses the chat.
+	 * under edit and every message behind it wait until the edit ends. A
+	 * steer message under edit also holds the steer messages ahead of
+	 * it. A turn that ends at a message under edit pauses the chat.
 	 */
 	readonly editing_since?: string;
 }

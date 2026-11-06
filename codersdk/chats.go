@@ -2105,8 +2105,9 @@ type ChatQueuedMessage struct {
 	CreatedAt       time.Time        `json:"created_at" format:"date-time"`
 	ReasoningEffort *string          `json:"reasoning_effort,omitempty"`
 	// EditingSince is set while the owner edits the message. A message
-	// under edit and every message behind it wait until the edit ends; a
-	// turn that ends at a message under edit pauses the chat.
+	// under edit and every message behind it wait until the edit ends. A
+	// steer message under edit also holds the steer messages ahead of
+	// it. A turn that ends at a message under edit pauses the chat.
 	EditingSince *time.Time `json:"editing_since,omitempty" format:"date-time"`
 }
 

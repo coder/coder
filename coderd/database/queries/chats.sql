@@ -3007,9 +3007,11 @@ WHERE chat_id = @chat_id::uuid;
 
 -- name: GetChatQueuedMessageHead :one
 -- Returns the queue head: the first row in GetChatQueuedMessages order.
+-- A steer row under edit comes first instead, because it holds the
+-- whole steer lane.
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid
-ORDER BY CASE busy_behavior WHEN 'steer' THEN 0 ELSE 1 END, position ASC, id ASC
+ORDER BY (busy_behavior = 'steer' AND editing_since IS NOT NULL) DESC, CASE busy_behavior WHEN 'steer' THEN 0 ELSE 1 END, position ASC, id ASC
 LIMIT 1;
 
 -- name: GetChatQueuedMessageByID :one

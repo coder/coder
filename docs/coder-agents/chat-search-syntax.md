@@ -95,7 +95,7 @@ Multiple filters in one query combine with AND logic.
 
 - `status:waiting` is an idle conversation, `status:running` is a turn in progress, and `status:interrupting` is a turn being stopped.
 - `status:requires_action` means the agent needs you before it can continue, and `status:error` means the turn failed.
-- `status:paused` means a turn finished while the next queued message was being edited. The agent does not continue until the edit ends.
+- `status:paused` means a turn finished while the next queued message, or any message under **Next step**, was being edited. The agent does not continue until the edit ends.
 - `title:`, `repo:`, and `pr_title:` use ILIKE matching.
   `%` and `_` act as wildcards.
 - `pr_status:draft` means the PR is open **and** marked as a draft.

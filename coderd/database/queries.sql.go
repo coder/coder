@@ -10817,11 +10817,13 @@ func (q *sqlQuerier) GetChatQueuedMessageByID(ctx context.Context, arg GetChatQu
 const getChatQueuedMessageHead = `-- name: GetChatQueuedMessageHead :one
 SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior FROM chat_queued_messages
 WHERE chat_id = $1::uuid
-ORDER BY CASE busy_behavior WHEN 'steer' THEN 0 ELSE 1 END, position ASC, id ASC
+ORDER BY (busy_behavior = 'steer' AND editing_since IS NOT NULL) DESC, CASE busy_behavior WHEN 'steer' THEN 0 ELSE 1 END, position ASC, id ASC
 LIMIT 1
 `
 
 // Returns the queue head: the first row in GetChatQueuedMessages order.
+// A steer row under edit comes first instead, because it holds the
+// whole steer lane.
 func (q *sqlQuerier) GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error) {
 	row := q.db.QueryRowContext(ctx, getChatQueuedMessageHead, chatID)
 	var i ChatQueuedMessage

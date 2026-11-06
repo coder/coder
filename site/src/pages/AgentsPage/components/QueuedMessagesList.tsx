@@ -32,7 +32,6 @@ type QueuedMessagesListProps = {
 	onEdit?: (id: number) => void;
 	onEndEdit?: (id: number) => Promise<void> | void;
 	isChatPaused?: boolean;
-	isChatActive?: boolean;
 	queuedMessageUnderEditID: number | null;
 	// The queued row this composer edits, or null. It gets no Edit action; a
 	// row under edit elsewhere keeps Edit so this client can take it over.
@@ -132,7 +131,7 @@ type QueuedMessageItem = QueuedMessageInfo & {
 	id: number;
 	busyBehavior: ChatBusyBehavior;
 	isUnderEdit: boolean;
-	isWaitingBehindEdit: boolean;
+	isWaitingForEdit: boolean;
 	badge: QueuedMessageBadge | undefined;
 };
 
@@ -199,13 +198,13 @@ const QueuedMessageActionButton: React.FC<QueuedMessageActionButtonProps> = ({
 };
 
 /**
- * Whether Send now on a row does anything. While the turn is in progress, a
- * steer row already goes in before the next model call.
+ * Whether a row offers Send now, which moves a queue row into the steer lane.
+ * A steer row needs no action: the next model call, or the next message in a
+ * paused or errored chat, delivers the steer lane.
  */
 export const canSendQueuedMessageNow = (
 	busyBehavior: ChatBusyBehavior,
-	isChatActive: boolean,
-): boolean => !(isChatActive && busyBehavior === "steer");
+): boolean => busyBehavior !== "steer";
 
 export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	messages,
@@ -214,7 +213,6 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	onEdit,
 	onEndEdit,
 	isChatPaused = false,
-	isChatActive = false,
 	queuedMessageUnderEditID,
 	composerQueuedMessageID,
 	showEnterToSendHint,
@@ -225,7 +223,13 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 	);
 	const items: QueuedMessageItem[] = messages.map((message, index) => {
 		const isUnderEdit = message.id === queuedMessageUnderEditID;
-		const isWaitingBehindEdit = underEditIndex !== -1 && index > underEditIndex;
+		// A steer row under edit also holds the rows ahead of it, which are all
+		// steer rows because the steer lane comes first.
+		const isWaitingForEdit =
+			underEditIndex !== -1 &&
+			(index > underEditIndex ||
+				(index < underEditIndex &&
+					messages[underEditIndex].busy_behavior === "steer"));
 
 		let badge: QueuedMessageBadge | undefined;
 		if (isUnderEdit) {
@@ -233,10 +237,13 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 				label: "Editing",
 				tooltip: "Not sent until you finish editing.",
 			};
-		} else if (isWaitingBehindEdit) {
+		} else if (isWaitingForEdit) {
 			badge = {
 				label: "Waiting",
-				tooltip: "Waits for the edit above to finish.",
+				tooltip:
+					index > underEditIndex
+						? "Waits for the edit above to finish."
+						: "Waits for the edit below to finish.",
 			};
 		}
 
@@ -245,7 +252,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 			id: message.id,
 			busyBehavior: message.busy_behavior,
 			isUnderEdit,
-			isWaitingBehindEdit,
+			isWaitingForEdit,
 			badge,
 		};
 	});
@@ -389,7 +396,7 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 											: undefined
 									}
 									onPromote={
-										canSendQueuedMessageNow(item.busyBehavior, isChatActive)
+										canSendQueuedMessageNow(item.busyBehavior)
 											? () => void runAction(item.id, "promote", onPromote)
 											: undefined
 									}
@@ -461,7 +468,7 @@ const QueuedMessageRow: React.FC<QueuedMessageRowProps> = ({
 	<div
 		className={cn(
 			"my-1 transition-opacity",
-			item.isWaitingBehindEdit
+			item.isWaitingForEdit
 				? "opacity-25 focus-within:opacity-60 hover:opacity-60"
 				: "opacity-40 focus-within:opacity-80 hover:opacity-80",
 		)}

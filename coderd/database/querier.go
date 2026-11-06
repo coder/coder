@@ -571,6 +571,8 @@ type sqlcQuerier interface {
 	GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error)
 	GetChatQueuedMessageByID(ctx context.Context, arg GetChatQueuedMessageByIDParams) (ChatQueuedMessage, error)
 	// Returns the queue head: the first row in GetChatQueuedMessages order.
+	// A steer row under edit comes first instead, because it holds the
+	// whole steer lane.
 	GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
 	// Returns the queue in promotion order (steer lane first, then the queue
 	// lane, each by position ASC, id ASC), the same order chatstate uses to
