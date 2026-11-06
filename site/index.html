@@ -10,20 +10,20 @@
      .########+        -########.     #########+      ##########  ####    .####   ###########
   -->
 
-<html lang="en">
+<html lang="en" class="{{ .ThemeClass }}">
 <head>
 	<meta charset="utf-8" />
 	<title>Coder</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<!-- ThemeProvider overwrites both with the active theme. Until then, a dark OS gets a dark title bar, not a white one. -->
+	<!-- ThemeProvider overwrites both with the active theme. Until then, site.go picks the one that applies. -->
 	<meta
 		name="theme-color"
-		media="(prefers-color-scheme: light)"
+		media="{{ .LightThemeColorMedia }}"
 		content="#ffffff"
 	/>
 	<meta
 		name="theme-color"
-		media="(prefers-color-scheme: dark)"
+		media="{{ .DarkThemeColorMedia }}"
 		content="#09090b"
 	/>
 	<meta name="application-name" content="{{ .ApplicationName }}" />
