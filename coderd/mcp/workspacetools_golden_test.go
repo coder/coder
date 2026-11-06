@@ -36,7 +36,8 @@ type workspaceToolContract struct {
 //
 // The MCP versions differ only by the coder_workspace_ name prefix and
 // an extra workspace argument. Coder Agents additionally exposes
-// plan-turn guidance on write_file.
+// plan-turn guidance on write_file. edit_files is not compared: Coder
+// Agents takes a flat edits list, and the MCP tool keeps the files list.
 func TestWorkspaceToolsGolden(t *testing.T) {
 	t.Parallel()
 
@@ -80,7 +81,6 @@ func TestWorkspaceToolsGolden(t *testing.T) {
 			ignoreArgDescriptions: []string{"path"},
 			descriptionPrefix:     true,
 		},
-		{mcpName: toolsdk.ToolNameWorkspaceEditFiles, agents: chattool.EditFiles(chattool.EditFilesOptions{})},
 		{mcpName: toolsdk.ToolNameWorkspaceExecute, agents: chattool.Execute(chattool.ExecuteOptions{})},
 		{mcpName: toolsdk.ToolNameWorkspaceProcessOutput, agents: chattool.ProcessOutput(chattool.ProcessToolOptions{})},
 		{mcpName: toolsdk.ToolNameWorkspaceProcessList, agents: chattool.ProcessList(chattool.ProcessToolOptions{})},

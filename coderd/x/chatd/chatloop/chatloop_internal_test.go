@@ -35,7 +35,7 @@ func TestProcessStepStreamPreservesReasoningMetadataAcrossNilDelta(t *testing.T)
 		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop})
 	})
 
-	result, err := processStepStream(stream, quartz.NewMock(t), func(codersdk.ChatMessageRole, codersdk.ChatMessagePart) {})
+	result, err := processStepStream(stream, quartz.NewMock(t), func(codersdk.ChatMessageRole, codersdk.ChatMessagePart) {}, nil)
 	require.NoError(t, err)
 	require.Len(t, result.content, 1)
 	reasoning, ok := fantasy.AsContentType[fantasy.ReasoningContent](result.content[0])
@@ -71,7 +71,7 @@ func TestProcessStepStreamPersistsRedactedThinkingOnEnd(t *testing.T) {
 		yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop})
 	})
 
-	result, err := processStepStream(stream, quartz.NewMock(t), func(codersdk.ChatMessageRole, codersdk.ChatMessagePart) {})
+	result, err := processStepStream(stream, quartz.NewMock(t), func(codersdk.ChatMessageRole, codersdk.ChatMessagePart) {}, nil)
 	require.NoError(t, err)
 	require.Len(t, result.content, 2)
 	reasoning, ok := fantasy.AsContentType[fantasy.ReasoningContent](result.content[0])
@@ -106,7 +106,7 @@ func TestProcessStepStreamLabelsNarration(t *testing.T) {
 	var published []codersdk.ChatMessagePart
 	result, err := processStepStream(stream, quartz.NewMock(t), func(_ codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 		published = append(published, part)
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	narration := codersdk.ChatMessageText("Reading")
@@ -150,7 +150,7 @@ func TestProcessStepStreamSetsReasoningDeltaCreatedAtToBlockStart(t *testing.T) 
 			require.NotNil(t, part.CreatedAt)
 			sinceStart = append(sinceStart, part.CreatedAt.Sub(start))
 		}
-	})
+	}, nil)
 	require.NoError(t, err)
 	require.Equal(t, []time.Duration{0, 0, 3 * time.Second}, sinceStart,
 		"interrupted turns split reasoning blocks by CreatedAt, so each delta's CreatedAt must be its block's start time")
@@ -206,7 +206,7 @@ func TestProcessStepStreamProviderWebSearch(t *testing.T) {
 			var published []codersdk.ChatMessagePart
 			result, err := processStepStream(stream, quartz.NewMock(t), func(_ codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
 				published = append(published, part)
-			})
+			}, nil)
 			require.NoError(t, err)
 			require.Len(t, result.content, 2)
 
