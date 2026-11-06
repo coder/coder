@@ -30600,21 +30600,36 @@ func (q *sqlQuerier) InsertTelemetryLock(ctx context.Context, arg InsertTelemetr
 const getTemplateAverageBuildTime = `-- name: GetTemplateAverageBuildTime :one
 WITH build_times AS (
 SELECT
-	EXTRACT(EPOCH FROM (pj.completed_at - pj.started_at))::FLOAT AS exec_time_sec,
-	workspace_builds.transition
+	recent.exec_time_sec,
+	recent.transition
 FROM
-	workspace_builds
-JOIN template_versions ON
-	workspace_builds.template_version_id = template_versions.id
-JOIN provisioner_jobs pj ON
-	workspace_builds.job_id = pj.id
-WHERE
-	template_versions.template_id = $1 AND
+	template_versions
+	-- The newest 100 builds of the template are among the newest 100 builds of
+	-- each of its versions. Fetching those per version walks
+	-- workspace_builds_template_version_id_created_at_idx in order and stops
+	-- early, instead of joining every build of the template to its job.
+CROSS JOIN LATERAL (
+	SELECT
+		EXTRACT(EPOCH FROM (pj.completed_at - pj.started_at))::FLOAT AS exec_time_sec,
+		workspace_builds.transition,
+		workspace_builds.created_at
+	FROM
+		workspace_builds
+	JOIN provisioner_jobs pj ON
+		workspace_builds.job_id = pj.id
+	WHERE
+		workspace_builds.template_version_id = template_versions.id AND
 		(pj.completed_at IS NOT NULL) AND (pj.started_at IS NOT NULL) AND
 		(pj.canceled_at IS NULL) AND
 		((pj.error IS NULL) OR (pj.error = ''))
+	ORDER BY
+		workspace_builds.created_at DESC
+	LIMIT 100
+) recent
+WHERE
+	template_versions.template_id = $1
 ORDER BY
-	workspace_builds.created_at DESC
+	recent.created_at DESC
 LIMIT 100
 )
 SELECT
