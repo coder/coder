@@ -1063,6 +1063,7 @@ func TestComputerUseProvider(t *testing.T) {
 		{name: "AnthropicAnyModel", providerType: database.AIProviderTypeAnthropic, model: "custom-model", want: codersdk.ChatComputerUseProviderAnthropic},
 		{name: "OpenAI", providerType: database.AIProviderTypeOpenai, model: "gpt-5.4", want: codersdk.ChatComputerUseProviderOpenAI},
 		{name: "BedrockClaude", providerType: database.AIProviderTypeBedrock, model: "us.anthropic.claude-opus-5-5", want: codersdk.ChatComputerUseProviderAnthropic},
+		{name: "BedrockClaudeFoundationModelARN", providerType: database.AIProviderTypeBedrock, model: "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-opus-5-5-v1:0", want: codersdk.ChatComputerUseProviderAnthropic},
 		{name: "BedrockOpenAI", providerType: database.AIProviderTypeBedrock, model: "openai.gpt-5.4"},
 		{name: "OpenRouterClaude", providerType: database.AIProviderTypeOpenrouter, model: "anthropic/claude-opus-5-5"},
 		{name: "Azure", providerType: database.AIProviderTypeAzure, model: "gpt-5.4"},

@@ -515,7 +515,8 @@ func IsAnthropicFamilyModelID(modelID string) bool {
 func bedrockIsAnthropicModel(model string) bool {
 	return strings.HasPrefix(model, "claude-") ||
 		strings.HasPrefix(model, "anthropic.") ||
-		strings.Contains(model, ".anthropic.")
+		strings.Contains(model, ".anthropic.") ||
+		strings.Contains(model, "/anthropic.")
 }
 
 // ClientProvider returns the fantasy provider whose client chatd builds for a
