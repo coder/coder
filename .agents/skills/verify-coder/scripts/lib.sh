@@ -170,6 +170,40 @@ vc_session_pids() {
 	ps -eo pid=,sid= | awk -v s="$1" '$2 == s { print $1 }'
 }
 
+# vc_stop_develop stops the develop session that launch.sh started as <pid>:
+# SIGINT to develop, then TERM and KILL to leftovers of that session only.
+vc_stop_develop() {
+	local pid="$1" left
+	if [[ -d "/proc/$pid" ]] && ! vc_owns_pid "$pid"; then
+		echo "pid $pid now belongs to another program, left it alone"
+		return 1
+	fi
+	if vc_owns_pid "$pid"; then
+		kill -INT "$pid"
+		for _ in $(seq 60); do
+			[[ -d "/proc/$pid" ]] || break
+			sleep 1
+		done
+	fi
+	# A live process whose session id is pid can only be a leftover of our
+	# session: Linux does not reuse a pid while a session still refers to it.
+	mapfile -t left < <(vc_session_pids "$pid")
+	if ((${#left[@]})); then
+		kill -TERM "${left[@]}" 2>/dev/null || true
+		sleep 5
+		mapfile -t left < <(vc_session_pids "$pid")
+		if ((${#left[@]})); then
+			kill -KILL "${left[@]}" 2>/dev/null || true
+		fi
+	fi
+	mapfile -t left < <(vc_session_pids "$pid")
+	((${#left[@]} == 0)) || {
+		echo "processes still running: ${left[*]}"
+		return 1
+	}
+	echo "develop session $pid stopped"
+}
+
 vc_port_listener_pid() {
 	ss -Hltnp "sport = :$1" | { grep -o 'pid=[0-9]*' || true; } | head -n 1 | cut -d= -f2
 }

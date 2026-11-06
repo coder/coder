@@ -102,38 +102,6 @@ stop_helpers() {
 	echo "stopped $n helpers"
 }
 
-stop_develop() {
-	if [[ -d "/proc/$VC_PID" ]] && ! vc_owns_pid "$VC_PID"; then
-		echo "pid $VC_PID now belongs to another program, left it alone"
-		return 1
-	fi
-	if vc_owns_pid "$VC_PID"; then
-		kill -INT "$VC_PID"
-		for _ in $(seq 60); do
-			[[ -d "/proc/$VC_PID" ]] || break
-			sleep 1
-		done
-	fi
-	# A live process whose session id is VC_PID can only be a leftover of our
-	# session: Linux does not reuse a pid while a session still refers to it.
-	local left
-	mapfile -t left < <(vc_session_pids "$VC_PID")
-	if ((${#left[@]})); then
-		kill -TERM "${left[@]}" 2>/dev/null || true
-		sleep 5
-		mapfile -t left < <(vc_session_pids "$VC_PID")
-		if ((${#left[@]})); then
-			kill -KILL "${left[@]}" 2>/dev/null || true
-		fi
-	fi
-	mapfile -t left < <(vc_session_pids "$VC_PID")
-	((${#left[@]} == 0)) || {
-		echo "processes still running: ${left[*]}"
-		return 1
-	}
-	echo "develop session $VC_PID stopped"
-}
-
 ports_free() {
 	local port busy=()
 	if [[ -z "${VC_API_PORT:-}" ]]; then
@@ -156,7 +124,7 @@ archive_logs() {
 	local stamp f kept=()
 	stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 	mkdir -p "$VC_EVIDENCE"
-	for f in develop build; do
+	for f in develop-setup develop build; do
 		if [[ -f "$VC_RUN/$f.log" ]]; then
 			mv "$VC_RUN/$f.log" "$VC_EVIDENCE/$stamp-$f.log"
 			kept+=("$stamp-$f.log")
@@ -213,7 +181,7 @@ remove_data() {
 vc_check workspaces delete_workspaces
 vc_check browser close_browser
 vc_check helpers stop_helpers
-vc_check develop stop_develop
+vc_check develop vc_stop_develop "$VC_PID"
 vc_check ports ports_free
 # The data goes before the run state, so a failed removal keeps the state
 # for a retry.

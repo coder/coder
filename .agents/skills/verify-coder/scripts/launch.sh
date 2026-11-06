@@ -64,8 +64,8 @@ case "${CODER_BUILD_AGPL:-}" in
 *) vc_fail "CODER_BUILD_AGPL is not supported: make would reuse the existing enterprise binary" ;;
 esac
 
-# develop.sh binds every interface, so the instance never runs with the
-# published default password. A database that this launch creates (--fresh,
+# After setup the instance listens on every interface, so it never runs with
+# the published default password. A database that this launch creates (--fresh,
 # or no built-in Postgres data yet) gets a random one. Reused data needs the
 # password it already has, from CODER_DEV_ADMIN_PASSWORD or the file that an
 # earlier launch saved next to the data.
@@ -113,11 +113,10 @@ if ((fresh)); then
 	args+=(--db-reset)
 fi
 
-log="$VC_RUN/develop.log"
 started_at="$(date -u +%FT%TZ)"
-vc_start_develop "$log" "$password" "$develop_in_coder" "${args[@]}" -- "${server_flags[@]}"
-pid="$VC_DEVELOP_PID"
-
+pid=""
+api_port=""
+web_port=""
 # write_env records the instance. printf %q keeps paths with spaces or shell
 # characters intact when lib.sh sources the file. Journeys drive the
 # production frontend that coder server serves from the embedded build
@@ -130,7 +129,7 @@ write_env() {
 		printf 'VC_LOG=%q\n' "$log"
 		printf 'VC_STARTED_AT=%q\n' "$started_at"
 		printf 'VC_ADMIN_PASSWORD=%q\n' "$password"
-		if [[ -n "${api_port:-}" ]]; then
+		if [[ -n "$api_port" ]]; then
 			printf 'VC_API_PORT=%q\n' "$api_port"
 			printf 'VC_WEB_PORT=%q\n' "$web_port"
 			printf 'VC_API_URL=%q\n' "http://127.0.0.1:$api_port"
@@ -140,20 +139,6 @@ write_env() {
 		fi
 	} >"$VC_RUN/env"
 }
-# The pid goes on record at once, so cleanup.sh can stop a launch that fails
-# before develop reports its ports.
-write_env
-deadline=$((SECONDS + 120))
-until ports="$(sed -n 's/.*resolved ports .*api=\([0-9][0-9]*\) .*web=\([0-9][0-9]*\) .*/\1 \2/p' "$log" | head -n 1)" && [[ -n "$ports" ]]; do
-	if ! kill -0 "$pid" 2>/dev/null || ((SECONDS >= deadline)); then
-		tail -n 20 "$log" | cut -c1-300 >&2
-		vc_fail "develop.sh reported no ports, see $log, then run cleanup.sh"
-	fi
-	sleep 1
-done
-read -r api_port web_port <<<"$ports"
-write_env
-echo "started develop.sh as pid $pid (api $api_port, web $web_port, log: $log)"
 
 # The password file changes only once develop has reset the database, so a
 # launch that fails before that keeps the old file for the old data.
@@ -167,33 +152,74 @@ save_password() {
 		password_saved=1
 	fi
 }
-deadline=$((SECONDS + ${VERIFY_CODER_TIMEOUT:-900}))
-until grep -q 'Coder is now running in development mode' "$log"; do
+
+# run_develop <develop args...> starts develop with $log as its log and waits
+# until it is ready. The pid goes on record at once, so cleanup.sh can stop a
+# launch that fails before develop reports its ports.
+run_develop() {
+	local ports
+	vc_start_develop "$log" "$password" "$develop_in_coder" "$@" -- "${server_flags[@]}"
+	pid="$VC_DEVELOP_PID"
+	api_port=""
+	web_port=""
+	write_env
+	deadline=$((SECONDS + 120))
+	until ports="$(sed -n 's/.*resolved ports .*api=\([0-9][0-9]*\) .*web=\([0-9][0-9]*\) .*/\1 \2/p' "$log" | head -n 1)" && [[ -n "$ports" ]]; do
+		if ! kill -0 "$pid" 2>/dev/null || ((SECONDS >= deadline)); then
+			tail -n 20 "$log" | cut -c1-300 >&2
+			vc_fail "develop.sh reported no ports, see $log, then run cleanup.sh"
+		fi
+		sleep 1
+	done
+	read -r api_port web_port <<<"$ports"
+	write_env
+	echo "started develop.sh as pid $pid (api $api_port, web $web_port, log: $log)"
+	deadline=$((SECONDS + ${VERIFY_CODER_TIMEOUT:-900}))
+	until grep -q 'Coder is now running in development mode' "$log"; do
+		save_password
+		if ! kill -0 "$pid" 2>/dev/null; then
+			tail -n 40 "$log" | cut -c1-300 >&2
+			vc_fail "develop.sh exited before it was ready, see $log, then run cleanup.sh"
+		fi
+		if ((SECONDS >= deadline)); then
+			tail -n 20 "$log" | cut -c1-300 >&2
+			vc_fail "not ready after ${VERIFY_CODER_TIMEOUT:-900}s, instance left running for diagnosis, run cleanup.sh when done"
+		fi
+		sleep 2
+	done
 	save_password
-	if ! kill -0 "$pid" 2>/dev/null; then
-		tail -n 40 "$log" | cut -c1-300 >&2
-		vc_fail "develop.sh exited before it was ready, see $log, then run cleanup.sh"
-	fi
-	if ((SECONDS >= deadline)); then
-		tail -n 20 "$log" | cut -c1-300 >&2
-		vc_fail "not ready after ${VERIFY_CODER_TIMEOUT:-900}s, instance left running for diagnosis, run cleanup.sh when done"
-	fi
-	sleep 2
-done
-save_password
+}
+
+# develop.sh creates the first user, the owner, through the unauthenticated
+# /api/v2/users/first route once the server is healthy. On every interface, a
+# host on the network could claim the owner first. So develop runs its setup
+# on 127.0.0.1, also for reused data, which can lack a user when an earlier
+# launch failed. The docker template's workspace agents reach the server
+# through host.docker.internal, so develop then restarts on every interface
+# with the same ports and the database it set up.
+log="$VC_RUN/develop-setup.log"
+echo "setting up on 127.0.0.1"
+run_develop --bind-address 127.0.0.1 "${args[@]}"
 if ((new_database && !password_saved)); then
 	vc_fail "launch.sh created a new database but develop.sh logged no first user, see $log, then run cleanup.sh"
 fi
 # Reused data can still have the default password when the one launch.sh was
-# given is wrong. Stop the server at once instead of leaving it exposed.
+# given is wrong, and develop.sh reuses a saved session without signing in.
+# Both show here, before the server listens on other interfaces.
 VC_API_URL="http://127.0.0.1:$api_port"
 if vc_default_password_accepted; then
-	kill -INT "$pid" 2>/dev/null || true
-	vc_fail "the instance accepts the published default password, so launch.sh stopped it: run cleanup.sh, then launch.sh --fresh"
+	vc_fail "the instance accepts the published default password, so launch.sh keeps it on 127.0.0.1: run cleanup.sh, then launch.sh --fresh"
 fi
-# develop.sh reuses a saved session without signing in, so a wrong password
-# for reused data shows only here.
 vc_password_accepted "$password" || vc_fail "the admin password launch.sh used does not sign in, so the journeys would fail: run cleanup.sh, then fix CODER_DEV_ADMIN_PASSWORD or launch.sh --fresh"
-
 grep -E 'template created in org|starter template setup failed|created member user' "$log" | cut -c1-200 || true
+
+vc_stop_develop "$pid" >/dev/null || vc_fail "could not stop the setup run (pid $pid), run cleanup.sh"
+for port in "$api_port" "$web_port"; do
+	if vc_port_busy "$port"; then
+		vc_fail "port $port is still in use after the setup run stopped, run cleanup.sh"
+	fi
+done
+log="$VC_RUN/develop.log"
+echo "restarting on every interface"
+run_develop --prometheus-port 0 --port "$api_port" --web-port "$web_port"
 exec "$(dirname "${BASH_SOURCE[0]}")/doctor.sh"

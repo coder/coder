@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Checks harness behavior that needs no running instance: the launch.sh
 # argument and password refusals, the random password for a new database, the
-# launch lock, how vc_start_develop passes the environment, that a Docker
-# error fails the leftover inventory, and that
+# loopback bind of the setup run, the launch lock, how vc_start_develop passes
+# the environment, that a Docker error fails the leftover inventory, and that
 # vc_browser_login keeps the password out of the process arguments.
 # Usage: selftest.sh   (prints one line per check and a count line)
 set -euo pipefail
@@ -31,8 +31,13 @@ STUB
 cat >"$tmp/bin/setsid" <<'STUB'
 #!/bin/bash
 /usr/bin/env >"$VC_SELFTEST_DIR/develop-env"
+shift
+printf '%s\n' "$*" >>"$VC_SELFTEST_DIR/develop-argv"
 STUB
-chmod +x "$tmp/bin/make" "$tmp/bin/agent-browser" "$tmp/bin/env" "$tmp/bin/setsid"
+# bin-built goes first on PATH for checks that need launch.sh past the build.
+mkdir -p "$tmp/bin-built"
+printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/bin-built/make"
+chmod +x "$tmp/bin/make" "$tmp/bin/agent-browser" "$tmp/bin/env" "$tmp/bin/setsid" "$tmp/bin-built/make"
 export VERIFY_CODER_STATE="$tmp/state" VC_SELFTEST_DIR="$tmp"
 # shellcheck source=.agents/skills/verify-coder/scripts/lib.sh
 source "$here/lib.sh"
@@ -103,6 +108,31 @@ start_develop_isolates() {
 	echo "develop.sh gets the password through its environment and no caller CODER_* variable"
 }
 vc_check start-develop start_develop_isolates
+
+# develop.sh creates the owner through an unauthenticated route, so the first
+# develop start, the only one before setup is done, must bind 127.0.0.1. The
+# stub develop exits at once, so launch.sh stops after that start.
+setup_binds_loopback() {
+	local out rc=0 created=0
+	[[ -d "$VC_CONFIG_DIR" ]] || created=1
+	rm -f "$tmp/develop-argv"
+	out="$(env -u CODER_DEV_ADMIN_PASSWORD CODER_BUILD_AGPL= PATH="$tmp/bin-built:$tmp/bin:$PATH" "$here/launch.sh" --fresh 2>&1)" || rc=$?
+	rm -rf "$VERIFY_CODER_STATE/run"
+	if ((created)); then
+		rm -f "$VC_CONFIG_DIR/.verify-coder-created"
+		rmdir "$VC_CONFIG_DIR"
+	fi
+	[[ "$rc" == 1 && "$out" == *"develop.sh reported no ports"* ]] || {
+		echo "launch.sh exited $rc: ${out##*$'\n'}"
+		return 1
+	}
+	[[ "$(wc -l <"$tmp/develop-argv")" == 1 && " $(cat "$tmp/develop-argv") " == *" --bind-address 127.0.0.1 "* ]] || {
+		echo "the first develop start was not bound to 127.0.0.1: $(head -c 300 "$tmp/develop-argv")"
+		return 1
+	}
+	echo "the setup run of develop.sh binds 127.0.0.1"
+}
+vc_check setup-loopback setup_binds_loopback
 
 # A second launch in the same checkout must stop while the first holds the lock.
 launch_lock_held() {
