@@ -34,6 +34,7 @@ import {
 } from "#/theme/themeMode";
 import { SingleModeSection } from "./SingleModeSection";
 import { SyncModeSection } from "./SyncModeSection";
+import { TerminalPreview } from "./TerminalPreview";
 
 // Display Geist Mono (the default monospace font) first, then the rest
 // alphabetically. TerminalFontNames is auto-generated in alphabetical
@@ -241,50 +242,60 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 				}
 				layout="fluid"
 			>
-				<RadioGroup
-					aria-labelledby={fontGroupLabelId}
-					value={terminalFont}
-					name={fontGroupName}
-					onValueChange={(value) =>
-						onChangeTerminalFont(toTerminalFontName(value))
-					}
-				>
-					{sortedTerminalFontNames.map((name) => (
-						<div key={name} className="flex items-center space-x-2">
-							<RadioGroupItem value={name} id={`${fontGroupId}-${name}`} />
-							<Label
-								htmlFor={`${fontGroupId}-${name}`}
-								className="cursor-pointer font-normal"
-								style={{ fontFamily: terminalFonts[name] }}
-							>
-								{terminalFontLabels[name]}
-							</Label>
-						</div>
-					))}
-				</RadioGroup>
-
-				<div className="mt-6 flex flex-col gap-2">
-					<Label htmlFor={fontSizeId} className="text-sm font-medium">
-						Font size
-					</Label>
-					<Select
-						value={String(terminalFontSize)}
-						onValueChange={(value) => onChangeTerminalFontSize(Number(value))}
-					>
-						<SelectTrigger
-							id={fontSizeId}
-							className="w-48 text-content-primary"
+				<div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-12">
+					<div className="shrink-0">
+						<RadioGroup
+							aria-labelledby={fontGroupLabelId}
+							value={terminalFont}
+							name={fontGroupName}
+							onValueChange={(value) =>
+								onChangeTerminalFont(toTerminalFontName(value))
+							}
 						>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							{terminalFontSizes.map((size) => (
-								<SelectItem key={size} value={String(size)}>
-									{size}px
-								</SelectItem>
+							{sortedTerminalFontNames.map((name) => (
+								<div key={name} className="flex items-center space-x-2">
+									<RadioGroupItem value={name} id={`${fontGroupId}-${name}`} />
+									<Label
+										htmlFor={`${fontGroupId}-${name}`}
+										className="cursor-pointer font-normal"
+										style={{ fontFamily: terminalFonts[name] }}
+									>
+										{terminalFontLabels[name]}
+									</Label>
+								</div>
 							))}
-						</SelectContent>
-					</Select>
+						</RadioGroup>
+
+						<div className="mt-6 flex flex-col gap-2">
+							<Label htmlFor={fontSizeId} className="text-sm font-medium">
+								Font size
+							</Label>
+							<Select
+								value={String(terminalFontSize)}
+								onValueChange={(value) =>
+									onChangeTerminalFontSize(Number(value))
+								}
+							>
+								<SelectTrigger
+									id={fontSizeId}
+									className="w-48 text-content-primary"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{terminalFontSizes.map((size) => (
+										<SelectItem key={size} value={String(size)}>
+											{size}px
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					</div>
+					<TerminalPreview
+						fontFamily={terminalFonts[terminalFont]}
+						fontSize={terminalFontSize}
+					/>
 				</div>
 			</Section>
 		</form>
