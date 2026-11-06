@@ -46,7 +46,7 @@ If you open a new shell, set these variables again, and run the `export KUBECONF
 Do this section while the workstation has internet access.
 
 1. Create a directory for the artifacts and open it.
-   Stay in this directory for the rest of the tutorial.
+   Choose a location with at least 2&nbsp;GB of free space, and stay in this directory for the rest of the tutorial.
 
    ```sh
    mkdir -p airgap-stage/coder-image airgap-stage/workspace-image airgap-stage/debs
@@ -326,10 +326,10 @@ The `fake-hwclock` package saves the time at shutdown and restores it at startup
              image_pull_policy = "IfNotPresent"
    ```
 
-1. Remove the backup files that the edits created.
+1. Remove the temporary files that the edits created.
 
    ```sh
-   rm template/main.tf.bak
+   rm -f template/main.tf.bak startup-script.txt
    ```
 
 ## Copy the artifacts to the host
@@ -355,7 +355,8 @@ The `fake-hwclock` package saves the time at shutdown and restores it at startup
    ssh ${HOST} 'cd ~/airgap && sha256sum -c SHA256SUMS'
    ```
 
-   Every line ends with `OK`:
+   The command prints one line for every staged file, and every line ends with `OK`.
+   For example:
 
    ```txt
    ./k3s-arm64: OK
@@ -687,8 +688,11 @@ This tutorial runs the official PostgreSQL image in the cluster, which suits a p
      --first-user-password <password> --first-user-trial=false
    ```
 
+   Replace `<username>`, `<email>`, and `<password>` with the values for the first user.
+   If the password contains special characters, put it in single quotes.
    The first user becomes the owner of the deployment.
-   You see that you are authenticated:
+
+   You see a message that begins by confirming that you are authenticated:
 
    ```txt
    Welcome to Coder, <username>! You're authenticated.
@@ -734,6 +738,7 @@ This tutorial runs the official PostgreSQL image in the cluster, which suits a p
 
    You see `connected`.
    If the agent has not connected yet, the command waits for it.
+   You might also see a notice that the workspace startup scripts are still running.
 
 ## Verify the air gap
 
