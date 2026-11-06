@@ -349,15 +349,21 @@ func TestQueueInsertUpdatesQueueVersion(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, int64(0), before.QueueVersion)
 
-	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
-
 	content := userMessageContent(t, "queued")
-	_, err = f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:    created.Chat.ID,
-		Content:   content,
-		CreatedBy: f.User.ID,
-	})
+	var bumped database.Chat
+	err = f.DB.InTx(func(tx database.Store) error {
+		var err error
+		bumped, err = tx.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
+		if err != nil {
+			return err
+		}
+		_, err = tx.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+			ChatID:    created.Chat.ID,
+			Content:   content,
+			CreatedBy: f.User.ID,
+		})
+		return err
+	}, nil)
 	require.NoError(t, err)
 
 	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
@@ -391,10 +397,18 @@ func TestLegacyQueuedMessageInsertUsesChatOwnerAsCreator(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	created := createTestChat(t, f)
 
-	queued, err := f.DB.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
-		ChatID:  created.Chat.ID,
-		Content: userMessageContent(t, "legacy-queued"),
-	})
+	var queued database.ChatQueuedMessage
+	err := f.DB.InTx(func(tx database.Store) error {
+		if _, err := tx.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID); err != nil {
+			return err
+		}
+		var err error
+		queued, err = tx.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+			ChatID:  created.Chat.ID,
+			Content: userMessageContent(t, "legacy-queued"),
+		})
+		return err
+	}, nil)
 	require.NoError(t, err)
 	require.Equal(t, created.Chat.OwnerID, queued.CreatedBy)
 }
@@ -409,12 +423,11 @@ func TestQueueUpdateContentUpdatesQueueVersion(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	created := createTestChat(t, f)
 
-	queued, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+	queued := dbgen.ChatQueuedMessage(t, f.DB, database.ChatQueuedMessage{
 		ChatID:    created.Chat.ID,
 		Content:   userMessageContent(t, "initial"),
 		CreatedBy: f.User.ID,
 	})
-	require.NoError(t, err)
 
 	before, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
@@ -444,21 +457,38 @@ func TestQueueUpdateEditingSinceUpdatesQueueVersion(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	created := createTestChat(t, f)
 
-	queued, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+	queued := dbgen.ChatQueuedMessage(t, f.DB, database.ChatQueuedMessage{
 		ChatID:    created.Chat.ID,
 		Content:   userMessageContent(t, "initial"),
 		CreatedBy: f.User.ID,
 	})
-	require.NoError(t, err)
 
-	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	editing, err := f.DB.UpdateChatQueuedMessageEditing(ctx, database.UpdateChatQueuedMessageEditingParams{
-		ChatID:  created.Chat.ID,
-		ID:      queued.ID,
-		Editing: true,
-	})
-	require.NoError(t, err)
+	// setEditing bumps the snapshot and updates editing_since in one
+	// transaction, and returns the bumped chat and the updated row.
+	setEditing := func(editing bool) (database.Chat, database.ChatQueuedMessage) {
+		t.Helper()
+		var (
+			bumped database.Chat
+			row    database.ChatQueuedMessage
+		)
+		err := f.DB.InTx(func(tx database.Store) error {
+			var err error
+			bumped, err = tx.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
+			if err != nil {
+				return err
+			}
+			row, err = tx.UpdateChatQueuedMessageEditing(ctx, database.UpdateChatQueuedMessageEditingParams{
+				ChatID:  created.Chat.ID,
+				ID:      queued.ID,
+				Editing: editing,
+			})
+			return err
+		}, nil)
+		require.NoError(t, err)
+		return bumped, row
+	}
+
+	bumped, editing := setEditing(true)
 	require.True(t, editing.EditingSince.Valid)
 	after, err := f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
@@ -466,22 +496,10 @@ func TestQueueUpdateEditingSinceUpdatesQueueVersion(t *testing.T) {
 		"setting editing_since bumps queue_version")
 
 	// Beginning again keeps the original timestamp.
-	editingAgain, err := f.DB.UpdateChatQueuedMessageEditing(ctx, database.UpdateChatQueuedMessageEditingParams{
-		ChatID:  created.Chat.ID,
-		ID:      queued.ID,
-		Editing: true,
-	})
-	require.NoError(t, err)
+	_, editingAgain := setEditing(true)
 	require.Equal(t, editing.EditingSince, editingAgain.EditingSince, "re-beginning is idempotent")
 
-	bumped, err = f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
-	ended, err := f.DB.UpdateChatQueuedMessageEditing(ctx, database.UpdateChatQueuedMessageEditingParams{
-		ChatID:  created.Chat.ID,
-		ID:      queued.ID,
-		Editing: false,
-	})
-	require.NoError(t, err)
+	bumped, ended := setEditing(false)
 	require.False(t, ended.EditingSince.Valid)
 	after, err = f.DB.GetChatByID(ctx, created.Chat.ID)
 	require.NoError(t, err)
@@ -499,18 +517,16 @@ func TestQueueUpdatePositionUpdatesQueueVersion(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	created := createTestChat(t, f)
 
-	q1, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+	q1 := dbgen.ChatQueuedMessage(t, f.DB, database.ChatQueuedMessage{
 		ChatID:    created.Chat.ID,
 		Content:   userMessageContent(t, "first"),
 		CreatedBy: f.User.ID,
 	})
-	require.NoError(t, err)
-	q2, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+	q2 := dbgen.ChatQueuedMessage(t, f.DB, database.ChatQueuedMessage{
 		ChatID:    created.Chat.ID,
 		Content:   userMessageContent(t, "second"),
 		CreatedBy: f.User.ID,
 	})
-	require.NoError(t, err)
 	require.NotEqual(t, q1.ID, q2.ID)
 
 	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
@@ -537,20 +553,28 @@ func TestQueueDeleteUpdatesQueueVersion(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	created := createTestChat(t, f)
 
-	queued, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+	queued := dbgen.ChatQueuedMessage(t, f.DB, database.ChatQueuedMessage{
 		ChatID:    created.Chat.ID,
 		Content:   userMessageContent(t, "to delete"),
 		CreatedBy: f.User.ID,
 	})
-	require.NoError(t, err)
 
-	bumped, err := f.DB.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
-	require.NoError(t, err)
-
-	rows, err := f.DB.DeleteChatQueuedMessageReturningCount(ctx, database.DeleteChatQueuedMessageReturningCountParams{
-		ID:     queued.ID,
-		ChatID: created.Chat.ID,
-	})
+	var (
+		bumped database.Chat
+		rows   int64
+	)
+	err := f.DB.InTx(func(tx database.Store) error {
+		var err error
+		bumped, err = tx.LockChatAndBumpSnapshotVersion(ctx, created.Chat.ID)
+		if err != nil {
+			return err
+		}
+		rows, err = tx.DeleteChatQueuedMessageReturningCount(ctx, database.DeleteChatQueuedMessageReturningCountParams{
+			ID:     queued.ID,
+			ChatID: created.Chat.ID,
+		})
+		return err
+	}, nil)
 	require.NoError(t, err)
 	require.Equal(t, int64(1), rows)
 

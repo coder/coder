@@ -109,7 +109,7 @@ func TestChatSkillInvocation(t *testing.T) {
 		OrganizationID: firstUser.OrganizationID, OwnerID: firstUser.UserID,
 		LastModelConfigID: chat.LastModelConfigID, Status: database.ChatStatusError,
 	})
-	queued := insertTestChatQueuedMessage(ctx, t, db, queuedChat.ID, queuedTextContent(t, "queued"), chat.LastModelConfigID)
+	queued := insertTestChatQueuedMessage(t, db, queuedChat.ID, queuedTextContent(t, "queued"), chat.LastModelConfigID)
 	err = client.EditChatQueuedMessage(ctx, queuedChat.ID, queued.ID, codersdk.EditChatQueuedMessageRequest{Content: missing})
 	sdkErr = requireSDKError(t, err, http.StatusBadRequest)
 	require.Equal(t, "Skill personal/missing is not available.", sdkErr.Message)

@@ -458,11 +458,13 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	})
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("original")})
 	require.NoError(t, err)
-	inserted, err := db.InsertChatMessages(ctx, singleChatMessageInsertParams(
-		chat.ID, database.ChatMessageRoleUser, content, model.ID, user.ID,
-	))
-	require.NoError(t, err)
-	require.Len(t, inserted, 1)
+	inserted := dbgen.ChatMessage(t, db, database.ChatMessage{
+		ChatID:        chat.ID,
+		CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		Role:          database.ChatMessageRoleUser,
+		Content:       content,
+	})
 	type receivedHook struct {
 		request agenthooks.Request
 		claims  agenthooks.Claims
@@ -500,7 +502,7 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 	result, err := server.EditMessage(ctx, chatd.EditMessageOptions{
 		ChatID:          chat.ID,
 		CreatedBy:       user.ID,
-		EditedMessageID: inserted[0].ID,
+		EditedMessageID: inserted.ID,
 		Content: []codersdk.ChatMessagePart{
 			reference,
 			codersdk.ChatMessageText("edited original"),
@@ -560,7 +562,6 @@ func TestEditMessageUserPromptSubmitHook(t *testing.T) {
 // queued row, a state that admits EditQueuedMessage.
 func seedErroredChatWithQueuedMessage(t *testing.T, db database.Store, text string) (database.Chat, database.ChatQueuedMessage) {
 	t.Helper()
-	ctx := testutil.Context(t, testutil.WaitShort)
 	user, org, model := seedChatDependencies(t, db)
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
@@ -570,12 +571,11 @@ func seedErroredChatWithQueuedMessage(t *testing.T, db database.Store, text stri
 	})
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
 	require.NoError(t, err)
-	queued, err := db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+	queued := dbgen.ChatQueuedMessage(t, db, database.ChatQueuedMessage{
 		ChatID:        chat.ID,
 		Content:       content.RawMessage,
 		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 	})
-	require.NoError(t, err)
 	return chat, queued
 }
 
@@ -660,9 +660,14 @@ func TestEditQueuedMessageUserPromptSubmitDispatchFailure(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	chat, queued := seedErroredChatWithQueuedMessage(t, db, "original")
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, db.DeleteChatQueuedMessage(r.Context(), database.DeleteChatQueuedMessageParams{
-			ID: queued.ID, ChatID: chat.ID,
-		}))
+		require.NoError(t, db.InTx(func(tx database.Store) error {
+			if _, err := tx.LockChatAndBumpSnapshotVersion(r.Context(), chat.ID); err != nil {
+				return err
+			}
+			return tx.DeleteChatQueuedMessage(r.Context(), database.DeleteChatQueuedMessageParams{
+				ID: queued.ID, ChatID: chat.ID,
+			})
+		}, nil))
 		_, err := db.UpdateChatStatus(r.Context(), database.UpdateChatStatusParams{
 			ID:     chat.ID,
 			Status: database.ChatStatusWaiting,
@@ -785,15 +790,17 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 
 		content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("original")})
 		require.NoError(t, err)
-		inserted, err := db.InsertChatMessages(ctx, singleChatMessageInsertParams(
-			chat.ID, database.ChatMessageRoleUser, content, model.ID, user.ID,
-		))
-		require.NoError(t, err)
-		require.Len(t, inserted, 1)
+		inserted := dbgen.ChatMessage(t, db, database.ChatMessage{
+			ChatID:        chat.ID,
+			CreatedBy:     uuid.NullUUID{UUID: user.ID, Valid: true},
+			ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+			Role:          database.ChatMessageRoleUser,
+			Content:       content,
+		})
 		_, err = server.EditMessage(ctx, chatd.EditMessageOptions{
 			ChatID:          chat.ID,
 			CreatedBy:       user.ID,
-			EditedMessageID: inserted[0].ID,
+			EditedMessageID: inserted.ID,
 			Content:         []codersdk.ChatMessagePart{codersdk.ChatMessageText("bad model edit")},
 			ModelConfigID:   uuid.New(),
 		})
@@ -831,13 +838,12 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 			queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")})
 			require.NoError(t, err)
 			for range tt.maxQueued - 1 {
-				_, err = db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+				dbgen.ChatQueuedMessage(t, db, database.ChatQueuedMessage{
 					ChatID:        busy.ID,
 					Content:       queuedContent.RawMessage,
 					ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 					CreatedBy:     user.ID,
 				})
-				require.NoError(t, err)
 			}
 
 			result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
@@ -891,19 +897,24 @@ func TestPromptHooksAdmissionPreflight(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitLong)
 			queuedContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("queued")})
 			require.NoError(t, err)
-			queued, err := db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+			queued := dbgen.ChatQueuedMessage(t, db, database.ChatQueuedMessage{
 				ChatID:        chat.ID,
 				Content:       queuedContent.RawMessage,
 				ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 				CreatedBy:     user.ID,
 			})
-			require.NoError(t, err)
 			if tc.editing {
-				_, err = db.UpdateChatQueuedMessageEditing(ctx, database.UpdateChatQueuedMessageEditingParams{
-					ID:      queued.ID,
-					ChatID:  chat.ID,
-					Editing: true,
-				})
+				err = db.InTx(func(tx database.Store) error {
+					if _, err := tx.LockChatAndBumpSnapshotVersion(ctx, chat.ID); err != nil {
+						return err
+					}
+					_, err := tx.UpdateChatQueuedMessageEditing(ctx, database.UpdateChatQueuedMessageEditingParams{
+						ID:      queued.ID,
+						ChatID:  chat.ID,
+						Editing: true,
+					})
+					return err
+				}, nil)
 				require.NoError(t, err)
 			}
 
