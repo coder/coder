@@ -275,8 +275,10 @@ func (r *RootCmd) chatContextRefreshCommand(socketPath *string) *serpent.Command
 			"<chat> argument, refreshes that chat and works from anywhere.\n\nWith no " +
 			"argument, run from inside the workspace: forces the agent to re-resolve its " +
 			"sources (catching freshly-cloned repos and startup-script writes the watcher " +
-			"has not seen yet) and retry MCP servers that failed to connect, then " +
-			"refreshes every drifted chat. This path authenticates " +
+			"has not seen yet) and retry MCP servers that failed to connect, waits " +
+			"for coderd to store the snapshot, then refreshes every drifted chat. " +
+			"During startup, collection is deferred until startup scripts finish. " +
+			"This path authenticates " +
 			"with the agent token, so it does not require 'coder login'.",
 		Middleware: serpent.RequireRangeArgs(0, 1),
 		Handler: func(inv *serpent.Invocation) error {
@@ -314,11 +316,23 @@ func (r *RootCmd) chatContextRefreshCommand(socketPath *string) *serpent.Command
 					"(run inside the workspace, or pass a <chat> ID): %w", err)
 			}
 			defer sock.Close()
+			before, err := sock.GetContextSnapshot(ctx)
+			if err != nil {
+				return xerrors.Errorf("get agent context snapshot: %w", err)
+			}
 			snap, err := sock.ResyncContext(ctx)
 			if err != nil {
 				return xerrors.Errorf("re-resolve agent context: %w", err)
 			}
-			_, _ = fmt.Fprintf(inv.Stdout, "Re-resolved agent context (version %d, %d resources).\n", snap.Version, len(snap.Resources))
+			if snap.Version == 0 {
+				_, _ = fmt.Fprintln(inv.Stdout, "Context will be collected after startup scripts finish. Chats were not refreshed.")
+				return nil
+			}
+			change := "unchanged"
+			if snap.AggregateHash != before.AggregateHash || snap.SnapshotError != before.SnapshotError {
+				change = "changed"
+			}
+			_, _ = fmt.Fprintf(inv.Stdout, "Agent context %s (version %d, %d resources).\n", change, snap.Version, len(snap.Resources))
 			if snap.SnapshotError != "" {
 				_, _ = fmt.Fprintf(inv.Stdout, "Snapshot reported an error: %s\n", snap.SnapshotError)
 			}
