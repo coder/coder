@@ -430,7 +430,10 @@ export function Autocomplete<TOption>({
 				align="start"
 				onKeyDownCapture={handleKeyDown}
 			>
-				<Command shouldFilter={controlledInputValue === undefined}>
+				<Command
+					shouldFilter={controlledInputValue === undefined}
+					label={placeholder}
+				>
 					<CommandInput
 						placeholder={placeholder}
 						value={inputValue}

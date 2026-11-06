@@ -2117,7 +2117,7 @@ const WorkspacePickerList: React.FC<WorkspacePickerListProps> = ({
 	onSelect,
 }) => {
 	return (
-		<Command loop>
+		<Command loop label="Search workspaces">
 			<CommandInput placeholder="Search workspaces..." className="text-xs" />
 			<CommandList>
 				<CommandEmpty className="text-xs">No workspaces found</CommandEmpty>

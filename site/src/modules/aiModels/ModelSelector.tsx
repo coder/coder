@@ -214,13 +214,13 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 			>
 				<Command
 					shouldFilter={false}
+					label="Search models"
 					className="[&_[cmdk-input-wrapper]]:border-0 [&_[cmdk-input-wrapper]]:border-border [&_[cmdk-input-wrapper]]:border-b [&_[cmdk-input-wrapper]]:border-solid [&_[cmdk-input-wrapper]]:px-3 [&_[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
 				>
 					<CommandInput
 						value={search}
 						onValueChange={setSearch}
 						placeholder="Search..."
-						aria-label="Search models"
 						className="h-auto py-0 text-xs font-normal leading-[18px] text-content-primary placeholder:text-content-disabled"
 					/>
 					<CommandList
