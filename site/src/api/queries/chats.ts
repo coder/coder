@@ -850,16 +850,15 @@ export const mergeWatchedChatSummary = (
 				(status) => diffStatusRefKey(status) === primaryKey,
 			)
 		: cachedChat.diff_status;
-	// Context updates do not bump updated_at. Adopt their flags, including
-	// omitted clears, while retaining resources absent from watch payloads.
-	const nextContext =
-		isContextDirtyEvent && watchedChat.context
-			? {
-					...watchedChat.context,
-					resources:
-						watchedChat.context.resources ?? cachedChat.context?.resources,
-				}
-			: cachedChat.context;
+	// Context updates do not bump updated_at. Missing context clears cached
+	// context; otherwise only omitted resources retain their cached value.
+	const nextContext = isContextDirtyEvent
+		? watchedChat.context && {
+				...watchedChat.context,
+				resources:
+					watchedChat.context.resources ?? cachedChat.context?.resources,
+			}
+		: cachedChat.context;
 	const nextQueuedForCapacity =
 		isStatusEvent && nextStatus !== "running"
 			? false

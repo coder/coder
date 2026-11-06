@@ -3567,6 +3567,10 @@ describe("mergeWatchedChatSummary", () => {
 
 	it.each([
 		{
+			name: "the pin clears",
+			context: undefined,
+		},
+		{
 			name: "drift and the error clear",
 			context: { dirty: false },
 		},
@@ -3585,13 +3589,20 @@ describe("mergeWatchedChatSummary", () => {
 		const mockCachedChat = makeChat("chat-1", {
 			context: { ...MockChatContextDirty, error: "previous snapshot error" },
 		});
-		const mockWatchedChat = makeChat("chat-1", { context });
+		const mockWatchedChat = makeChat(
+			"chat-1",
+			context ? { context } : undefined,
+		);
 
 		expect(
 			mergeWatchedChatSummary(mockCachedChat, mockWatchedChat, {
 				eventKind: "context_dirty",
 			}).context,
-		).toEqual({ ...context, resources: MockChatContextDirty.resources });
+		).toEqual(
+			context
+				? { ...context, resources: MockChatContextDirty.resources }
+				: undefined,
+		);
 	});
 
 	it("preserves queued_for_capacity while the chat remains running", () => {
