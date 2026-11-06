@@ -280,7 +280,7 @@ func (r *RootCmd) chatContextRefreshCommand(socketPath *string) *serpent.Command
 			"has not seen yet) and retry MCP servers that failed to connect. It then " +
 			"waits up to 30 seconds for coderd to store that snapshot or a newer one " +
 			"before refreshing this agent's drifted chats. The wait fails if coderd " +
-			"is unreachable. Before startup scripts finish, it collects nothing and " +
+			"is unreachable. Before startup scripts finish, it resolves nothing and " +
 			"refreshes no chats. This path authenticates with the agent token, so it " +
 			"does not require 'coder login'.",
 		Middleware: serpent.RequireRangeArgs(0, 1),
