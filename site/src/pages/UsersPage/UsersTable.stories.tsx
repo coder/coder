@@ -21,6 +21,7 @@ const meta: Meta<typeof UsersTable> = {
 	component: UsersTable,
 	args: {
 		me: MockUserOwner.id,
+		isLoadingGroups: false,
 		onAction: fn(),
 	},
 };
@@ -101,6 +102,21 @@ export const Editable: Story = {
 export const Empty: Story = {
 	args: {
 		users: [],
+	},
+};
+
+export const GroupsLoading: Story = {
+	args: {
+		users: [MockUserOwner, MockUserMember],
+		isLoadingGroups: true,
+		canEditUsers: true,
+	},
+};
+
+export const NoGroups: Story = {
+	args: {
+		users: [MockUserOwner, MockUserMember],
+		groupsByUserId: new Map(),
 	},
 };
 

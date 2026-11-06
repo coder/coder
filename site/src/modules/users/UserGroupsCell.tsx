@@ -1,4 +1,3 @@
-import { cn } from "cn";
 import { UsersIcon } from "lucide-react";
 import type { Group } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
@@ -7,16 +6,27 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { TableCell } from "#/components/Table/Table";
 
 type GroupsCellProps = {
 	userGroups: readonly Group[] | undefined;
+	isLoading?: boolean;
 };
 
-export const UserGroupsCell: React.FC<GroupsCellProps> = ({ userGroups }) => {
+export const UserGroupsCell: React.FC<GroupsCellProps> = ({
+	userGroups,
+	isLoading = false,
+}) => {
 	return (
 		<TableCell>
 			{userGroups === undefined ? (
+				isLoading ? (
+					<Skeleton variant="text" width="50%" />
+				) : (
+					<span className="text-content-secondary">Unavailable</span>
+				)
+			) : userGroups.length === 0 ? (
 				<span>No groups</span>
 			) : (
 				<Popover>
@@ -24,19 +34,10 @@ export const UserGroupsCell: React.FC<GroupsCellProps> = ({ userGroups }) => {
 						<button
 							type="button"
 							className="cursor-pointer bg-transparent border-0 p-0 text-inherit leading-none"
-							aria-label={
-								userGroups.length === 0
-									? "No groups"
-									: `View ${userGroups.length} group${userGroups.length !== 1 ? "s" : ""}`
-							}
+							aria-label={`View ${userGroups.length} group${userGroups.length !== 1 ? "s" : ""}`}
 						>
 							<div className="flex flex-row gap-2 items-center">
-								<UsersIcon
-									className={cn([
-										"size-4 opacity-50",
-										userGroups.length > 0 && "opacity-80",
-									])}
-								/>
+								<UsersIcon className="size-4 opacity-80" />
 
 								<span>
 									{userGroups.length} Group{userGroups.length !== 1 && "s"}
