@@ -83,12 +83,9 @@ type ContextAPI struct {
 // domain nor performs chat-authorized writes directly.
 type ContextDirtyMarker interface {
 	// HydrateAndMarkChatsDirty runs inside the PushContextState
-	// transaction using the supplied store. It hydrates chats for the
-	// agent that have no pinned hash yet (no dirty event) and flips
-	// already-pinned chats whose hash differs from aggregateHash. It
-	// returns a callback that publishes the resulting dirty watch events;
-	// the caller invokes it only after the transaction commits. The
-	// callback is a no-op when nothing transitioned to dirty.
+	// transaction using the supplied store. It pins unpinned chats,
+	// reconciles dirty markers against the snapshot hash and error, and
+	// returns a callback to notify watchers after commit.
 	HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (publishDirty func(), err error)
 }
 
@@ -238,8 +235,7 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 		return &agentproto.PushContextStateResponse{Accepted: false}, nil
 	}
 
-	// The snapshot committed; fan out dirty watch events to chats whose
-	// pinned context drifted from this push.
+	// The snapshot committed; notify watchers of context changes.
 	if publishDirty != nil {
 		publishDirty()
 	}

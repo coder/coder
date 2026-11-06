@@ -77,7 +77,7 @@ func TestActiveAgentChatsIncludeInheritedACLs(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	activeChats, err := db.GetActiveChatsByAgentID(ctx, workspace.Agents[0].ID)
+	activeChats, err := db.GetUnarchivedChatsByAgentID(ctx, workspace.Agents[0].ID)
 	require.NoError(t, err)
 	require.Len(t, activeChats, 2)
 

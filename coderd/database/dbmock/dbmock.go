@@ -14,10 +14,11 @@ import (
 	reflect "reflect"
 	time "time"
 
-	database "github.com/coder/coder/v2/coderd/database"
-	rbac "github.com/coder/coder/v2/coderd/rbac"
 	uuid "github.com/google/uuid"
 	gomock "go.uber.org/mock/gomock"
+
+	database "github.com/coder/coder/v2/coderd/database"
+	rbac "github.com/coder/coder/v2/coderd/rbac"
 )
 
 // MockStore is a mock of Store interface.
@@ -420,6 +421,21 @@ func (m *MockStore) ClearChatDiffStatusPR(ctx context.Context, arg database.Clea
 func (mr *MockStoreMockRecorder) ClearChatDiffStatusPR(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearChatDiffStatusPR", reflect.TypeOf((*MockStore)(nil).ClearChatDiffStatusPR), ctx, arg)
+}
+
+// ClearChatsContextDirtyByAgent mocks base method.
+func (m *MockStore) ClearChatsContextDirtyByAgent(ctx context.Context, arg database.ClearChatsContextDirtyByAgentParams) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClearChatsContextDirtyByAgent", ctx, arg)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClearChatsContextDirtyByAgent indicates an expected call of ClearChatsContextDirtyByAgent.
+func (mr *MockStoreMockRecorder) ClearChatsContextDirtyByAgent(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearChatsContextDirtyByAgent", reflect.TypeOf((*MockStore)(nil).ClearChatsContextDirtyByAgent), ctx, arg)
 }
 
 // ClearWorkspaceSecretsBeforeBuild mocks base method.
@@ -2451,21 +2467,6 @@ func (m *MockStore) GetActiveAISeatCount(ctx context.Context) (int64, error) {
 func (mr *MockStoreMockRecorder) GetActiveAISeatCount(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveAISeatCount", reflect.TypeOf((*MockStore)(nil).GetActiveAISeatCount), ctx)
-}
-
-// GetActiveChatsByAgentID mocks base method.
-func (m *MockStore) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.Chat, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetActiveChatsByAgentID", ctx, agentID)
-	ret0, _ := ret[0].([]database.Chat)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetActiveChatsByAgentID indicates an expected call of GetActiveChatsByAgentID.
-func (mr *MockStoreMockRecorder) GetActiveChatsByAgentID(ctx, agentID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveChatsByAgentID", reflect.TypeOf((*MockStore)(nil).GetActiveChatsByAgentID), ctx, agentID)
 }
 
 // GetActivePresetPrebuildSchedules mocks base method.
@@ -6561,6 +6562,21 @@ func (m *MockStore) GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg datab
 func (mr *MockStoreMockRecorder) GetTotalUsageHBAgentRuntimeV1(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTotalUsageHBAgentRuntimeV1", reflect.TypeOf((*MockStore)(nil).GetTotalUsageHBAgentRuntimeV1), ctx, arg)
+}
+
+// GetUnarchivedChatsByAgentID mocks base method.
+func (m *MockStore) GetUnarchivedChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUnarchivedChatsByAgentID", ctx, agentID)
+	ret0, _ := ret[0].([]database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUnarchivedChatsByAgentID indicates an expected call of GetUnarchivedChatsByAgentID.
+func (mr *MockStoreMockRecorder) GetUnarchivedChatsByAgentID(ctx, agentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUnarchivedChatsByAgentID", reflect.TypeOf((*MockStore)(nil).GetUnarchivedChatsByAgentID), ctx, agentID)
 }
 
 // GetUnexpiredLicenses mocks base method.

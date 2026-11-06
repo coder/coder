@@ -8853,6 +8853,48 @@ func (q *sqlQuerier) ClearChatDiffStatusPR(ctx context.Context, arg ClearChatDif
 	return err
 }
 
+const clearChatsContextDirtyByAgent = `-- name: ClearChatsContextDirtyByAgent :many
+UPDATE chats
+SET context_dirty_since = NULL
+WHERE agent_id = $1::uuid
+    AND archived = false
+    AND context_aggregate_hash = $2
+    AND context_error = $3
+    AND context_dirty_since IS NOT NULL
+RETURNING id
+`
+
+type ClearChatsContextDirtyByAgentParams struct {
+	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
+	AggregateHash []byte    `db:"aggregate_hash" json:"aggregate_hash"`
+	ContextError  string    `db:"context_error" json:"context_error"`
+}
+
+// Clears drift when both the hash and error match the pin again, without
+// rewriting the pin or resources. Returns only chats that became clean.
+func (q *sqlQuerier) ClearChatsContextDirtyByAgent(ctx context.Context, arg ClearChatsContextDirtyByAgentParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, clearChatsContextDirtyByAgent, arg.AgentID, arg.AggregateHash, arg.ContextError)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const countChatCapacityActiveByPool = `-- name: CountChatCapacityActiveByPool :one
 SELECT
     COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS active_root_count,
@@ -9056,90 +9098,6 @@ func (q *sqlQuerier) DeleteStaleChatHeartbeats(ctx context.Context, staleSeconds
 		return 0, err
 	}
 	return result.RowsAffected()
-}
-
-const getActiveChatsByAgentID = `-- name: GetActiveChatsByAgentID :many
-SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at
-FROM chats_expanded
-WHERE agent_id = $1::uuid
-    AND archived = false
-    -- Excludes error (terminal state) and interrupting.
-    AND status IN ('waiting', 'running', 'requires_action', 'paused')
-ORDER BY updated_at DESC
-`
-
-func (q *sqlQuerier) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]Chat, error) {
-	rows, err := q.db.QueryContext(ctx, getActiveChatsByAgentID, agentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []Chat
-	for rows.Next() {
-		var i Chat
-		if err := rows.Scan(
-			&i.ID,
-			&i.OwnerID,
-			&i.WorkspaceID,
-			&i.Title,
-			&i.Status,
-			&i.WorkerID,
-			&i.StartedAt,
-			&i.HeartbeatAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.ParentChatID,
-			&i.RootChatID,
-			&i.LastModelConfigID,
-			&i.LastReasoningEffort,
-			&i.Archived,
-			&i.LastError,
-			&i.Mode,
-			pq.Array(&i.MCPServerIDs),
-			&i.Labels,
-			&i.BuildID,
-			&i.AgentID,
-			&i.PinOrder,
-			&i.LastReadMessageID,
-			&i.DynamicTools,
-			&i.OrganizationID,
-			&i.ProjectID,
-			&i.PlanMode,
-			&i.ClientType,
-			&i.LastTurnSummary,
-			&i.Summary,
-			&i.SummaryGeneratedAt,
-			&i.SnapshotVersion,
-			&i.HistoryVersion,
-			&i.QueueVersion,
-			&i.GenerationAttempt,
-			&i.RetryState,
-			&i.RetryStateVersion,
-			&i.RunnerID,
-			&i.RequiresActionDeadlineAt,
-			&i.UserACL,
-			&i.GroupACL,
-			&i.OwnerUsername,
-			&i.OwnerName,
-			&i.ContextAggregateHash,
-			&i.ContextDirtySince,
-			&i.ContextDirtyResources,
-			&i.ContextError,
-			&i.CompactionRequestedAt,
-			&i.TitleSource,
-			&i.TitleUpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
 }
 
 const getAutoArchiveInactiveChatCandidateByID = `-- name: GetAutoArchiveInactiveChatCandidateByID :one
@@ -12202,6 +12160,88 @@ func (q *sqlQuerier) GetTotalChatMessageRuntimeMsInRange(ctx context.Context, ar
 	return total_runtime_ms, err
 }
 
+const getUnarchivedChatsByAgentID = `-- name: GetUnarchivedChatsByAgentID :many
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at
+FROM chats_expanded
+WHERE agent_id = $1::uuid
+    AND archived = false
+ORDER BY updated_at DESC
+`
+
+func (q *sqlQuerier) GetUnarchivedChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getUnarchivedChatsByAgentID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.LastReasoningEffort,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.DynamicTools,
+			&i.OrganizationID,
+			&i.ProjectID,
+			&i.PlanMode,
+			&i.ClientType,
+			&i.LastTurnSummary,
+			&i.Summary,
+			&i.SummaryGeneratedAt,
+			&i.SnapshotVersion,
+			&i.HistoryVersion,
+			&i.QueueVersion,
+			&i.GenerationAttempt,
+			&i.RetryState,
+			&i.RetryStateVersion,
+			&i.RunnerID,
+			&i.RequiresActionDeadlineAt,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.OwnerUsername,
+			&i.OwnerName,
+			&i.ContextAggregateHash,
+			&i.ContextDirtySince,
+			&i.ContextDirtyResources,
+			&i.ContextError,
+			&i.CompactionRequestedAt,
+			&i.TitleSource,
+			&i.TitleUpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const hydrateAgentChatsContext = `-- name: HydrateAgentChatsContext :many
 WITH hydrated AS (
     UPDATE chats
@@ -13122,9 +13162,11 @@ UPDATE chats
 SET context_dirty_since = $1
 WHERE agent_id = $2::uuid
     AND archived = false
-    AND status IN ('waiting', 'running', 'requires_action', 'paused')
     AND context_aggregate_hash IS NOT NULL
-    AND context_aggregate_hash IS DISTINCT FROM $3
+    AND (
+        context_aggregate_hash IS DISTINCT FROM $3
+        OR context_error IS DISTINCT FROM $4
+    )
     AND context_dirty_since IS NULL
 RETURNING id, owner_id
 `
@@ -13133,6 +13175,7 @@ type MarkChatsContextDirtyByAgentParams struct {
 	DirtySince    sql.NullTime `db:"dirty_since" json:"dirty_since"`
 	AgentID       uuid.UUID    `db:"agent_id" json:"agent_id"`
 	AggregateHash []byte       `db:"aggregate_hash" json:"aggregate_hash"`
+	ContextError  string       `db:"context_error" json:"context_error"`
 }
 
 type MarkChatsContextDirtyByAgentRow struct {
@@ -13140,13 +13183,16 @@ type MarkChatsContextDirtyByAgentRow struct {
 	OwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
 }
 
-// Flips active, already-hydrated chats for an agent to dirty when the
-// agent's latest snapshot hash differs from the chat's pinned hash. The
-// pinned hash is intentionally left untouched; the refresh endpoint
-// re-pins it. Returns the chats that transitioned so the caller can
-// emit watch events after the transaction commits.
+// Marks non-archived, pinned chats dirty when the snapshot hash or error
+// differs from their pin. The pin stays unchanged until refresh. Returns
+// transitioned chats so the caller can notify watchers after commit.
 func (q *sqlQuerier) MarkChatsContextDirtyByAgent(ctx context.Context, arg MarkChatsContextDirtyByAgentParams) ([]MarkChatsContextDirtyByAgentRow, error) {
-	rows, err := q.db.QueryContext(ctx, markChatsContextDirtyByAgent, arg.DirtySince, arg.AgentID, arg.AggregateHash)
+	rows, err := q.db.QueryContext(ctx, markChatsContextDirtyByAgent,
+		arg.DirtySince,
+		arg.AgentID,
+		arg.AggregateHash,
+		arg.ContextError,
+	)
 	if err != nil {
 		return nil, err
 	}

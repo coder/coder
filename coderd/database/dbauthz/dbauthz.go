@@ -2050,6 +2050,13 @@ func (q *querier) ClearChatDiffStatusPR(ctx context.Context, arg database.ClearC
 	return q.db.ClearChatDiffStatusPR(ctx, arg)
 }
 
+func (q *querier) ClearChatsContextDirtyByAgent(ctx context.Context, arg database.ClearChatsContextDirtyByAgentParams) ([]uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.ClearChatsContextDirtyByAgent(ctx, arg)
+}
+
 func (q *querier) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg database.ClearWorkspaceSecretsBeforeBuildParams) error {
 	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	if err != nil {
@@ -3195,10 +3202,6 @@ func (q *querier) GetActiveAISeatCount(ctx context.Context) (int64, error) {
 		return 0, err
 	}
 	return q.db.GetActiveAISeatCount(ctx)
-}
-
-func (q *querier) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.Chat, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetActiveChatsByAgentID)(ctx, agentID)
 }
 
 func (q *querier) GetActivePresetPrebuildSchedules(ctx context.Context) ([]database.TemplateVersionPresetPrebuildSchedule, error) {
@@ -5443,6 +5446,10 @@ func (q *querier) GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg databas
 	return q.db.GetTotalUsageHBAgentRuntimeV1(ctx, arg)
 }
 
+func (q *querier) GetUnarchivedChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.Chat, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetUnarchivedChatsByAgentID)(ctx, agentID)
+}
+
 func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceLicense); err != nil {
 		return nil, err
@@ -7537,8 +7544,7 @@ func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg datab
 }
 
 func (q *querier) MarkChatsContextDirtyByAgent(ctx context.Context, arg database.MarkChatsContextDirtyByAgentParams) ([]database.MarkChatsContextDirtyByAgentRow, error) {
-	// System-level operation: the dirty fan-out runs across every active
-	// chat for the agent in response to a context push.
+	// System-level operation across non-archived chats bound to the agent.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return nil, err
 	}

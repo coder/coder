@@ -1587,16 +1587,20 @@ func TestChatContextHydration(t *testing.T) {
 	hashH := []byte{0x01, 0x02, 0x03}
 	hashOther := []byte{0xff, 0xee}
 
-	chatNull := newChat(database.ChatStatusWaiting, agent.ID)     // never hydrated
-	chatMatch := newChat(database.ChatStatusRunning, agent.ID)    // already at hashH
-	chatDrift := newChat(database.ChatStatusRunning, agent.ID)    // drifted, active
-	chatTerminal := newChat(database.ChatStatusError, agent.ID)   // drifted, terminal
+	chatNull := newChat(database.ChatStatusWaiting, agent.ID)  // never hydrated
+	chatMatch := newChat(database.ChatStatusRunning, agent.ID) // already at hashH
+	chatDrift := newChat(database.ChatStatusRunning, agent.ID) // drifted, active
+	chatError := newChat(database.ChatStatusError, agent.ID)
+	chatInterrupting := newChat(database.ChatStatusInterrupting, agent.ID)
+	chatErrorOnly := newChat(database.ChatStatusPaused, agent.ID)
 	chatArchived := newChat(database.ChatStatusRunning, agent.ID) // drifted, archived
 	chatOtherAgent := newChat(database.ChatStatusRunning, otherAgent.ID)
 
 	// Pin starting hashes; chatNull is intentionally left NULL.
 	require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: chatMatch.ID, AggregateHash: hashH}))
-	for _, id := range []uuid.UUID{chatDrift.ID, chatTerminal.ID, chatArchived.ID, chatOtherAgent.ID} {
+	const snapshotError = "one source failed"
+	require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: chatErrorOnly.ID, AggregateHash: hashH, ContextError: snapshotError}))
+	for _, id := range []uuid.UUID{chatDrift.ID, chatError.ID, chatInterrupting.ID, chatArchived.ID, chatOtherAgent.ID} {
 		require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: id, AggregateHash: hashOther}))
 	}
 	_, err := db.ArchiveChatByID(ctx, chatArchived.ID)
@@ -1617,10 +1621,7 @@ func TestChatContextHydration(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, hashOther, gotDrift.ContextAggregateHash, "hydrate must not overwrite an already-pinned hash")
 
-	// Mark dirty: only the active, pinned, drifted chat for THIS agent flips.
-	// chatNull (now matches), chatMatch (matches), chatTerminal (status
-	// excluded), chatArchived (archived), and chatOtherAgent (other agent)
-	// are all left clean.
+	// Dirty marking includes error chats but excludes archived and other-agent chats.
 	now := dbtime.Now()
 	flipped, err := db.MarkChatsContextDirtyByAgent(ctx, database.MarkChatsContextDirtyByAgentParams{
 		AgentID:       agent.ID,
@@ -1632,11 +1633,75 @@ func TestChatContextHydration(t *testing.T) {
 	for _, f := range flipped {
 		flippedIDs = append(flippedIDs, f.ID)
 	}
-	require.ElementsMatch(t, []uuid.UUID{chatDrift.ID}, flippedIDs)
+	require.ElementsMatch(t, []uuid.UUID{chatDrift.ID, chatError.ID, chatInterrupting.ID, chatErrorOnly.ID}, flippedIDs)
 
 	gotDrift, err = db.GetChatByID(ctx, chatDrift.ID)
 	require.NoError(t, err)
 	require.True(t, gotDrift.ContextDirtySince.Valid, "drifted chat is marked dirty")
+
+	flipped, err = db.MarkChatsContextDirtyByAgent(ctx, database.MarkChatsContextDirtyByAgentParams{
+		AgentID:       agent.ID,
+		AggregateHash: hashH,
+		DirtySince:    sql.NullTime{Time: now.Add(time.Minute), Valid: true},
+	})
+	require.NoError(t, err)
+	require.Empty(t, flipped)
+	gotDrift, err = db.GetChatByID(ctx, chatDrift.ID)
+	require.NoError(t, err)
+	require.Equal(t, now, gotDrift.ContextDirtySince.Time.UTC(), "pushes preserve the first drift timestamp")
+
+	_, err = sqlDB.ExecContext(ctx, `UPDATE chats SET context_dirty_since = $1 WHERE id IN ($2, $3)`, now, chatArchived.ID, chatOtherAgent.ID)
+	require.NoError(t, err)
+
+	for _, snapshot := range []struct {
+		hash []byte
+		err  string
+	}{
+		{hash: hashH, err: ""},
+		{hash: hashOther, err: snapshotError},
+	} {
+		cleared, err := db.ClearChatsContextDirtyByAgent(ctx, database.ClearChatsContextDirtyByAgentParams{
+			AgentID:       agent.ID,
+			AggregateHash: snapshot.hash,
+			ContextError:  snapshot.err,
+		})
+		require.NoError(t, err)
+		require.Empty(t, cleared, "both the hash and error must match")
+	}
+	cleared, err := db.ClearChatsContextDirtyByAgent(ctx, database.ClearChatsContextDirtyByAgentParams{
+		AgentID:       agent.ID,
+		AggregateHash: hashOther,
+	})
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{chatDrift.ID, chatError.ID, chatInterrupting.ID}, cleared)
+	gotDrift, err = db.GetChatByID(ctx, chatDrift.ID)
+	require.NoError(t, err)
+	require.False(t, gotDrift.ContextDirtySince.Valid)
+	require.Equal(t, hashOther, gotDrift.ContextAggregateHash)
+	require.Equal(t, chatDrift.UpdatedAt, gotDrift.UpdatedAt)
+
+	cleared, err = db.ClearChatsContextDirtyByAgent(ctx, database.ClearChatsContextDirtyByAgentParams{
+		AgentID:       agent.ID,
+		AggregateHash: hashH,
+		ContextError:  snapshotError,
+	})
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{chatErrorOnly.ID}, cleared)
+	cleared, err = db.ClearChatsContextDirtyByAgent(ctx, database.ClearChatsContextDirtyByAgentParams{
+		AgentID:       agent.ID,
+		AggregateHash: hashH,
+		ContextError:  snapshotError,
+	})
+	require.NoError(t, err)
+	require.Empty(t, cleared, "unchanged snapshots do not notify watchers again")
+
+	chats, err := db.GetUnarchivedChatsByAgentID(ctx, agent.ID)
+	require.NoError(t, err)
+	chatIDs := make([]uuid.UUID, 0, len(chats))
+	for _, chat := range chats {
+		chatIDs = append(chatIDs, chat.ID)
+	}
+	require.ElementsMatch(t, []uuid.UUID{chatNull.ID, chatMatch.ID, chatDrift.ID, chatError.ID, chatInterrupting.ID, chatErrorOnly.ID}, chatIDs)
 
 	// Refresh re-pins to the latest hash and clears the dirty marker.
 	require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: chatDrift.ID, AggregateHash: hashH}))
@@ -1645,20 +1710,14 @@ func TestChatContextHydration(t *testing.T) {
 	require.Equal(t, hashH, gotDrift.ContextAggregateHash)
 	require.False(t, gotDrift.ContextDirtySince.Valid, "refresh clears the dirty marker")
 
-	// With every chat now matching, a second mark is a no-op.
-	flipped, err = db.MarkChatsContextDirtyByAgent(ctx, database.MarkChatsContextDirtyByAgentParams{
-		AgentID:       agent.ID,
-		AggregateHash: hashH,
-		DirtySince:    sql.NullTime{Time: now, Valid: true},
-	})
-	require.NoError(t, err)
-	require.Empty(t, flipped)
-
-	// The other agent's chat is never touched by this agent's push.
+	// The other agent's dirty chat is never cleared by this agent's push.
 	gotOther, err := db.GetChatByID(ctx, chatOtherAgent.ID)
 	require.NoError(t, err)
 	require.Equal(t, hashOther, gotOther.ContextAggregateHash)
-	require.False(t, gotOther.ContextDirtySince.Valid)
+	require.True(t, gotOther.ContextDirtySince.Valid)
+	gotArchived, err := db.GetChatByID(ctx, chatArchived.ID)
+	require.NoError(t, err)
+	require.True(t, gotArchived.ContextDirtySince.Valid)
 }
 
 func TestGetAuthorizedChats(t *testing.T) {
