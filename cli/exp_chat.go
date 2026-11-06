@@ -108,11 +108,11 @@ func (*RootCmd) chatContextListCommand(socketPath *string) *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "list",
 		Short: "List the workspace context sources registered on the agent",
-		Long: "List the scan roots registered on this workspace's agent, including sources " +
-			"seeded from agent configuration. Built-in roots (~/.coder, ~/.coder/skills, " +
-			"~/.claude/plugins/cache) and the working directory are always scanned, even " +
-			"when not listed. Sources seeded from agent configuration (CODER_AGENT_EXP_* " +
-			"settings or their defaults) cannot be removed.\n\nMust be run from inside the workspace.",
+		Long: "List the context sources registered on this workspace's agent, including " +
+			"seeded sources from CODER_AGENT_EXP_* settings or their defaults. Seeded " +
+			"sources cannot be removed. Built-in scan roots (~/.coder, ~/.coder/skills, " +
+			"~/.claude/plugins/cache) and the working directory are always scanned. " +
+			"They can appear in this list as seeded sources.\n\nMust be run from inside the workspace.",
 		Middleware: serpent.RequireNArgs(0),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
@@ -229,7 +229,7 @@ func (*RootCmd) chatContextAddCommand(socketPath *string) *serpent.Command {
 
 			src, err := client.AddContextSource(ctx, path)
 			if err != nil {
-				return xerrors.Errorf("add context source: %w", err)
+				return err
 			}
 			_, _ = fmt.Fprintf(inv.Stdout, "Registered context source %s\n", src.Path)
 			return nil
@@ -242,11 +242,10 @@ func (*RootCmd) chatContextRemoveCommand(socketPath *string) *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "remove <path>",
 		Short: "Remove a workspace context source",
-		Long: "Remove a previously-registered context source from this workspace's agent " +
-			"and re-resolve. Sources seeded from agent configuration (CODER_AGENT_EXP_* " +
-			"settings or their defaults) cannot be removed. Change the agent configuration " +
-			"to change these sources. Built-in roots and the working directory are always " +
-			"scanned.\n\nMust be run from inside the workspace.",
+		Long: "Remove a registered context source from this workspace's agent and " +
+			"re-resolve. Seeded sources from CODER_AGENT_EXP_* settings or their defaults " +
+			"cannot be removed. To change them, edit those settings. Built-in scan roots " +
+			"and the working directory are always scanned.\n\nMust be run from inside the workspace.",
 		Middleware: serpent.RequireNArgs(1),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
@@ -261,7 +260,7 @@ func (*RootCmd) chatContextRemoveCommand(socketPath *string) *serpent.Command {
 				return err
 			}
 			if err := client.RemoveContextSource(ctx, path); err != nil {
-				return xerrors.Errorf("remove context source: %w", err)
+				return err
 			}
 			_, _ = fmt.Fprintf(inv.Stdout, "Removed context source %s\n", path)
 			return nil

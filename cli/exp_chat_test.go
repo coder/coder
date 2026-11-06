@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,7 +30,7 @@ type chatContextEnvInfo struct {
 
 func (e chatContextEnvInfo) HomeDir() (string, error) { return e.home, nil }
 
-func TestExpChatContextRemove(t *testing.T) {
+func TestExpChatContextSources(t *testing.T) {
 	t.Parallel()
 
 	wd := testutil.TempDirResolved(t)
@@ -73,30 +74,6 @@ func TestExpChatContextRemove(t *testing.T) {
 		err := inv.WithContext(testutil.Context(t, testutil.WaitLong)).Run()
 		return stdout.String(), err
 	}
-	for _, tc := range []struct {
-		name   string
-		args   []string
-		reason string
-	}{
-		{name: "Instructions", args: []string{"remove", instructions}, reason: "CODER_AGENT_EXP_* settings or their defaults"},
-		{name: "DefaultSkills", args: []string{"remove", skills}, reason: "CODER_AGENT_EXP_* settings or their defaults"},
-		{name: "DefaultMCPConfig", args: []string{"remove", mcpConfig}, reason: "CODER_AGENT_EXP_* settings or their defaults"},
-		{name: "SeededBuiltin", args: []string{"remove", "~/.coder"}, reason: "agent configuration"},
-		{name: "AddBuiltin", args: []string{"add", "~/.coder"}, reason: "built-in scan root"},
-		{name: "AddWorkingDirectory", args: []string{"add", wd}, reason: "working directory"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			before, err := run(t, "list", "--output", "json")
-			require.NoError(t, err)
-			stdout, err := run(t, tc.args...)
-			require.ErrorContains(t, err, tc.reason)
-			require.Empty(t, stdout, "rejected source change must not report success")
-			after, err := run(t, "list", "--output", "json")
-			require.NoError(t, err)
-			require.JSONEq(t, before, after)
-		})
-	}
 
 	removable := filepath.Join(wd, "user-added")
 	require.NoError(t, os.MkdirAll(removable, 0o700))
@@ -133,6 +110,36 @@ func TestExpChatContextRemove(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 	_, err = run(t, "remove", removable)
 	require.ErrorContains(t, err, "not found")
+
+	t.Run("RejectsIneffectiveChanges", func(t *testing.T) {
+		t.Parallel()
+		const seededReason = "CODER_AGENT_EXP_* settings or their defaults"
+		for _, tc := range []struct {
+			name   string
+			args   []string
+			reason string
+		}{
+			{name: "Instructions", args: []string{"remove", instructions}, reason: seededReason},
+			{name: "DefaultSkills", args: []string{"remove", skills}, reason: seededReason},
+			{name: "DefaultMCPConfig", args: []string{"remove", mcpConfig}, reason: seededReason},
+			{name: "SeededBuiltin", args: []string{"remove", "~/.coder"}, reason: seededReason},
+			{name: "AddBuiltin", args: []string{"add", "~/.coder"}, reason: "built-in scan root"},
+			{name: "AddWorkingDirectory", args: []string{"add", wd}, reason: "working directory"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				before, err := run(t, "list", "--output", "json")
+				require.NoError(t, err)
+				stdout, err := run(t, tc.args...)
+				require.ErrorContains(t, err, tc.reason)
+				require.Equal(t, 1, strings.Count(err.Error(), tc.args[0]+" context source:"))
+				require.Empty(t, stdout, "rejected source change must not report success")
+				after, err := run(t, "list", "--output", "json")
+				require.NoError(t, err)
+				require.JSONEq(t, before, after)
+			})
+		}
+	})
 }
 
 func TestExpChatContextAdd(t *testing.T) {
