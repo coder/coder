@@ -109,6 +109,13 @@
 		"refs": "error",
 		"erasing-op": "error",
 		"no-unused-expressions": "error",
+		"static-components": "error",
+		"no-conditional-tests": "error",
+		"no-useless-fallback-in-spread": "error",
+		"no-noninteractive-element-interactions": "error",
+		"control-has-associated-label": "error",
+		"preserve-manual-memoization": "error",
+		"no-useless-spread": "error",
 
 		// --- security ---
 		"jsx-no-target-blank": "error",
@@ -232,13 +239,6 @@
 		"immutability": "off", // (small)
 		"vitest/valid-expect": "off", // (small)
 		"purity": "off", // (small)
-		"no-useless-spread": "off", // (small)
-		"preserve-manual-memoization": "off", // (small)
-		"control-has-associated-label": "off", // (small)
-		"no-noninteractive-element-interactions": "off", // (small)
-		"no-useless-fallback-in-spread": "off", // (small)
-		"no-conditional-tests": "off", // (small)
-		"static-components": "off", // (small)
 
 		"no-restricted-imports": [
 			"error",

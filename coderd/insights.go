@@ -605,7 +605,7 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, template
 		}
 		apps = append(apps, codersdk.TemplateAppUsage{
 			TemplateIDs:         templateIDs,
-			Method:              sessionAppMethod(appName),
+			Method:              codersdk.SessionAppMethod(appName),
 			DisplayName:         displayName,
 			Slug:                appName,
 			Icon:                icon,
@@ -633,19 +633,6 @@ func convertTemplateInsightsApps(usage database.GetTemplateInsightsRow, template
 	}
 
 	return apps, nil
-}
-
-// sessionAppMethod derives a session app's method from its name.
-// TODO(EhabY): Store the method instead (#31012).
-func sessionAppMethod(appName string) codersdk.ConnectionLogMethod {
-	switch codersdk.AppFamilyName(appName) {
-	case codersdk.AppFamilyReconnectingPTY:
-		return codersdk.ConnectionLogMethodReconnectingPTY
-	case codersdk.AppFamilyPortForwarding:
-		return codersdk.ConnectionLogMethodPortForwarding
-	default:
-		return codersdk.ConnectionLogMethodSSH
-	}
 }
 
 // parseInsightsStartAndEndTime parses the start and end time query parameters

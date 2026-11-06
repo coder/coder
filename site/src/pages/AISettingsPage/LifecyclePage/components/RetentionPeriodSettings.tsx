@@ -86,7 +86,7 @@ export const RetentionPeriodSettings: React.FC<
 		<LifecycleSettingLayout
 			title="Conversation retention period"
 			description="Archived conversations and orphaned files older than this are automatically deleted."
-			docsHref={docs("/ai-coder/agents/platform-controls/chat-retention")}
+			docsHref={docs("/coder-agents/platform-controls/chat-retention")}
 			checked={form.values.enabled}
 			onCheckedChange={(checked) => void form.setFieldValue("enabled", checked)}
 			switchLabel="Enable conversation retention"

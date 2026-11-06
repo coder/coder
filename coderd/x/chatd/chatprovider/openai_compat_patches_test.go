@@ -373,3 +373,21 @@ func TestModelFromConfig_GeminiOpenAICompatPinnedThinkingConfig(t *testing.T) {
 		"thinking_level":   "low",
 	}, google["thinking_config"])
 }
+
+func TestProviderOptionsForCall_GoogleThinkingConfigSkipsNonCompatClients(t *testing.T) {
+	t.Parallel()
+
+	model, err := chatprovider.ModelFromConfig(fantasyopenai.Name, "gemini-3-flash-preview", chatprovider.ProviderAPIKeys{
+		ByProvider: map[string]string{fantasyopenai.Name: "test-key"},
+	}, chatprovider.UserAgent(), nil, nil, nil)
+	require.NoError(t, err)
+
+	providerOptions := chatprovider.ProviderOptionsForCall(model, codersdk.ChatModelCallConfig{
+		ProviderOptions: &codersdk.ChatModelProviderOptions{
+			Google: &codersdk.ChatModelGoogleProviderOptions{
+				ThinkingConfig: &codersdk.ChatModelGoogleThinkingConfig{ThinkingLevel: ptr.Ref("high")},
+			},
+		},
+	}, nil)
+	require.NotContains(t, providerOptions, fantasyopenaicompat.Name)
+}

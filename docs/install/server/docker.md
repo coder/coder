@@ -16,7 +16,7 @@ You can install and run Coder using the official Docker images published on [Git
 > [!IMPORTANT]
 > This guide is for **Linux** hosts only.
 > The `getent` and `--group-add` Docker socket patterns used below are Linux-specific and do not translate cleanly to macOS Docker runtimes.
-> For macOS, install Coder using the [standalone binary](../cli.md) instead.
+> For macOS, install Coder using the [standalone binary](https://coder.com/downloads) instead.
 
 <div class="tabs">
 
@@ -29,6 +29,7 @@ Coder publishes a [docker compose example](../../../compose.yaml) which includes
 1. Download the [`docker-compose.yaml`](../../../compose.yaml) file.
 
 1. Update `group_add:` in `docker-compose.yaml` with the `gid` of `docker` group.
+
    You can get the `docker` group `gid` by running the below command:
 
    ```sh
@@ -124,7 +125,7 @@ Then restart the control plane.
 ### Docker-based workspace is stuck in "Connecting..."
 
 Ensure you have an externally-reachable `CODER_ACCESS_URL` set.
-See [troubleshooting templates](../../admin/templates/troubleshooting.md) for more steps.
+See [troubleshooting templates](../../templates/troubleshooting.md) for more steps.
 
 ### Permission denied while trying to connect to the Docker daemon socket
 
@@ -137,11 +138,11 @@ If the host systems `/var/run/docker.sock` is not group writable or does not bel
 
 ### I cannot add cloud-based templates
 
-In order to use cloud-based templates (e.g. Kubernetes, AWS), you must have an external URL that users and workspaces will use to connect to Coder.
+In order to use cloud-based templates (for example, Kubernetes, AWS), you must have an external URL that users and workspaces will use to connect to Coder.
 For proof-of-concept deployments, you can use [Coder's tunnel](../../admin/setup/index.md#tunnel).
 For production deployments, we recommend setting an [access URL](../../admin/setup/index.md#access-url)
 
 ## Next steps
 
-- [Create your first template](../../tutorials/template-from-scratch.md)
+- [Create your first template](../../templates/template-from-scratch.md)
 - [Control plane configuration](../../admin/setup/index.md)

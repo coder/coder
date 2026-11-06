@@ -9,14 +9,44 @@ import {
 import { Toaster as Sonner, type ToasterProps as SonnerProps } from "sonner";
 import { Spinner } from "#/components/Spinner/Spinner";
 
+type SeverityIconProps = { icon: React.ReactNode; label: string };
+
+// Lucide icons are aria-hidden, so the severity needs its own text.
+const SeverityIcon = ({ icon, label }: SeverityIconProps) => (
+	<>
+		{icon}
+		<span className="sr-only">{label}: </span>
+	</>
+);
+
 export const Toaster = ({ ...props }: SonnerProps) => {
 	return (
 		<Sonner
 			icons={{
-				success: <CheckIcon className="text-content-success" />,
-				info: <InfoIcon className="text-content-primary" />,
-				warning: <TriangleAlertIcon className="text-content-warning" />,
-				error: <OctagonXIcon className="text-content-destructive" />,
+				success: (
+					<SeverityIcon
+						icon={<CheckIcon className="text-content-success" />}
+						label="Success"
+					/>
+				),
+				info: (
+					<SeverityIcon
+						icon={<InfoIcon className="text-content-primary" />}
+						label="Info"
+					/>
+				),
+				warning: (
+					<SeverityIcon
+						icon={<TriangleAlertIcon className="text-content-warning" />}
+						label="Warning"
+					/>
+				),
+				error: (
+					<SeverityIcon
+						icon={<OctagonXIcon className="text-content-destructive" />}
+						label="Error"
+					/>
+				),
 				loading: <Spinner size="sm" loading />,
 				close: <XIcon className="size-icon-sm" />,
 			}}

@@ -1,0 +1,44 @@
+# Coder.CheckOut - use "refer to" or "visit" instead of "check out" when the
+# prose points the reader at a page, section, or site.
+# Refer to word-choice.md#refer-to-or-visit-not-see-or-check-out for the rule.
+#
+# The Git sense of "check out" is allowed ("check out the branch", "check out
+# a commit"), and so is the noun "checkout" ("a source checkout"), which this
+# rule never matches. A match that spans link text can't be located in the
+# source, so the rule is a script: it finds each "check out" and reports only
+# those two words, after skipping a Git object in the next 3 words (a
+# hyphenated name such as `code-marketplace` isn't one) or an "and" right after
+# the verb ("check out and install a dotfiles repository").
+#
+# Level: warning. A cross-reference that names a Git word right after the verb
+# is skipped, and a Git sense with an object the list below doesn't name is
+# flagged, because the rule can't tell the two senses apart from text alone.
+extends: script
+message: "Use 'refer to' or 'visit' instead of '%s' for a cross-reference. Refer to word-choice.md#refer-to-or-visit-not-see-or-check-out."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/word-choice.md#refer-to-or-visit-not-see-or-check-out
+level: warning
+scope: text
+script: |
+  text := import("text")
+  matches := []
+
+  verb := `(?i)\bcheck(?:s|ed|ing)?[ \t\r\n]+out\b`
+  gitWord := `(?i)(?:^|[^\w-])(?:branch(?:es)?|repos?|repositor(?:y|ies)|code|source|commits?|tags?|prs?|pull|requests?|forks?|clones?|worktrees?|files?|revisions?|refs?|master|main|trunk|submodules?|sha|changes|release|version|folder|directory|dotfiles)(?:$|[^\w-])`
+  andNext := `(?i)^[ \t\r\n]+and\b`
+
+  found := text.re_find(verb, scope, -1)
+  if found != undefined {
+    for group in found {
+      m := group[0]
+      rest := scope[m.end:]
+      // The 3 words after the verb are the window that can name a Git object.
+      window := text.re_find(`^(?:[ \t\r\n]+[\w'’-]+){0,3}`, rest, 1)
+      ctx := ""
+      if window != undefined {
+        ctx = window[0][0].text
+      }
+      if !text.re_match(gitWord, ctx) && !text.re_match(andNext, rest) {
+        matches = append(matches, {begin: m.begin, end: m.end, text: m.text})
+      }
+    }
+  }

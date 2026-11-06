@@ -2,6 +2,12 @@
 title: Envbuilder security and caching
 ---
 
+> [!WARNING]
+> Envbuilder is in **maintenance mode** with no new features planned.
+>
+> The recommended way to use dev containers in Coder is the built-in [Dev Containers Integration](../integration.md).
+> To find the best approach for your deployment, join our [community](https://coder.com/community) to be guided towards the best approach.
+
 Ensure Envbuilder can only pull pre-approved images and artifacts by configuring it with your existing HTTP proxies, firewalls, and artifact managers.
 
 ## Configure registry authentication
@@ -27,7 +33,7 @@ Note that caching requires push access to a registry, and may require approval f
 
 Refer to the [Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/caching.md) for more information about Envbuilder and caching.
 
-Visit the [speed up templates](../../../../tutorials/best-practices/speed-up-templates.md) best practice documentation for more ways that you can speed up build times.
+Visit the [speed up templates](../../../../workspaces/speed-up-templates.md) best practice documentation for more ways that you can speed up build times.
 
 ### Image caching
 
@@ -47,4 +53,4 @@ You may also wish to consult a [documented example usage of the `envbuilder_cach
 ## Next steps
 
 - [Envbuilder releases and known issues](./envbuilder-releases-known-issues.md)
-- [Dotfiles](../../../../user-guides/workspace-dotfiles.md)
+- [Dotfiles](../../../../workspaces/workspace-dotfiles.md)

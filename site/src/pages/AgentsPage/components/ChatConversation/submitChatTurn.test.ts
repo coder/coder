@@ -45,6 +45,7 @@ const buildParams = (
 		isSubmissionPending: false,
 		hasModelOptions: true,
 		isEditReasoningEffortDirtyRef: { current: false },
+		isEditModelDirtyRef: { current: false },
 		personalSkills: [],
 		organizationSkills: [],
 		projectSkills: [],
@@ -61,6 +62,7 @@ const buildParams = (
 		effectiveReasoningEffort: undefined,
 		mcpServerIds: ["mcp-1"],
 		editMessage: vi.fn().mockResolvedValue(undefined),
+		saveQueuedMessage: vi.fn().mockResolvedValue(undefined),
 		sendMessage: vi.fn().mockResolvedValue({ queued: false }),
 		onRequestError: vi.fn(),
 		invalidateChat: vi.fn(),
@@ -247,7 +249,7 @@ describe("submitChatTurn", () => {
 		await submitChatTurn(
 			buildParams({
 				message: "new text",
-				editedMessageID: 5,
+				editingTarget: { kind: "history", id: 5 },
 				chatMessages: [originalMessage],
 				editMessage,
 				scrollToEnd,
@@ -270,32 +272,130 @@ describe("submitChatTurn", () => {
 		expect(sendMessage).not.toHaveBeenCalled();
 	});
 
-	it("omits reasoning effort on edit until the picker is dirty", async () => {
-		const originalMessage = {
-			...MockChatMessage,
-			id: 5,
-			model_config_id: pickerModel.id,
-		};
-		const editMessage = vi.fn().mockResolvedValue(undefined);
-		await submitChatTurn(
-			buildParams({
-				message: "new text",
-				editedMessageID: 5,
-				chatMessages: [originalMessage],
-				effectiveReasoningEffort: "high",
-				isEditReasoningEffortDirtyRef: { current: false },
-				editMessage,
-			}),
-		);
-		expect(editMessage).toHaveBeenCalledWith(
-			expect.objectContaining({
-				req: expect.objectContaining({
-					reasoning_effort: undefined,
-					model_config_id: undefined,
+	it.each([
+		{ name: "restores the queue", queueUpdate: false },
+		{
+			name: "keeps a queue update received during the request",
+			queueUpdate: true,
+		},
+	])("$name when a history edit fails", async ({ queueUpdate }) => {
+		const store = createChatStore();
+		store.setActiveChatID("chat-1");
+		const queued = { ...MockChatQueuedMessage, id: 7 };
+		store.setQueuedMessages([queued]);
+		const updated = [{ ...queued, editing_since: "2024-01-01T00:00:01Z" }];
+		const editMessage = vi.fn(async () => {
+			if (queueUpdate) {
+				store.applyAuthoritativeQueuedMessages(updated);
+			}
+			throw new Error("edit failed");
+		});
+
+		await expect(
+			submitChatTurn(
+				buildParams({
+					message: "new text",
+					editingTarget: { kind: "history", id: 5 },
+					chatMessages: [{ ...MockChatMessage, id: 5 }],
+					store,
+					editMessage,
 				}),
-			}),
+			),
+		).rejects.toThrow("edit failed");
+
+		expect(store.getSnapshot().queuedMessages).toEqual(
+			queueUpdate ? updated : [queued],
 		);
 	});
+
+	it("saves a queued row with its chips and the marker cleared and makes no chat send", async () => {
+		const store = createChatStore();
+		store.setActiveChatID("chat-1");
+		store.setQueuedMessages([{ ...MockChatQueuedMessage, id: 7 }]);
+		const saveQueuedMessage = vi.fn().mockResolvedValue(undefined);
+		const editMessage = vi.fn();
+		const sendMessage = vi.fn();
+
+		await submitChatTurn(
+			buildParams({
+				message: "new text ",
+				composerParts: [
+					{ type: "text", text: "new text " },
+					{ type: "skill-invocation", source: "project", name: "triage" },
+					{
+						type: "file-reference",
+						reference: {
+							fileName: "main.go",
+							startLine: 3,
+							endLine: 5,
+							content: "func main() {}",
+						},
+					},
+				],
+				editingTarget: { kind: "queued", id: 7 },
+				store,
+				saveQueuedMessage,
+				editMessage,
+				sendMessage,
+			}),
+		);
+
+		expect(saveQueuedMessage).toHaveBeenCalledWith(7, {
+			content: [
+				{ type: "text", text: "new text " },
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+				{
+					type: "file-reference",
+					file_name: "main.go",
+					start_line: 3,
+					end_line: 5,
+					content: "func main() {}",
+				},
+			],
+			model_config_id: undefined,
+			reasoning_effort: undefined,
+			editing: false,
+		});
+		expect(editMessage).not.toHaveBeenCalled();
+		expect(sendMessage).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		{ name: "omits", isDirty: false, want: undefined },
+		{ name: "sends", isDirty: true, want: "high" },
+	])(
+		"$name reasoning effort on edit when the picker dirty flag is $isDirty",
+		async ({ isDirty, want }) => {
+			const originalMessage = {
+				...MockChatMessage,
+				id: 5,
+				model_config_id: pickerModel.id,
+			};
+			const editMessage = vi.fn().mockResolvedValue(undefined);
+			await submitChatTurn(
+				buildParams({
+					message: "new text",
+					editingTarget: { kind: "history", id: 5 },
+					chatMessages: [originalMessage],
+					effectiveReasoningEffort: "high",
+					isEditReasoningEffortDirtyRef: { current: isDirty },
+					editMessage,
+				}),
+			);
+			expect(editMessage).toHaveBeenCalledWith(
+				expect.objectContaining({
+					req: expect.objectContaining({
+						reasoning_effort: want,
+						model_config_id: undefined,
+					}),
+				}),
+			);
+		},
+	);
 
 	it("reports send failures and invalidates the chat", async () => {
 		const error = new Error("send failed");

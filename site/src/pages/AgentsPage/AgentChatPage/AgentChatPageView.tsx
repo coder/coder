@@ -8,15 +8,8 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useProxy } from "#/contexts/ProxyContext";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
-import {
-	getAgentBrowserApp,
-	isWorkspaceAppEmbeddable,
-} from "#/modules/apps/apps";
-import { WorkspaceAppFrame } from "#/modules/apps/WorkspaceAppFrame";
-import { findWorkspaceAppWithAgent } from "#/modules/apps/workspaceApps";
-import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { getAgentBrowserApp } from "#/modules/apps/apps";
 import { generateConnectionSessionId, generateUUID } from "#/utils/random";
-import { findWorkspaceAgent } from "#/utils/workspace";
 import {
 	AgentChatInput,
 	type ChatMessageInputRef,
@@ -33,21 +26,24 @@ import {
 } from "../components/ChatConversation/chatStore";
 
 import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedForCapacityCallout";
+import type { EditingTarget } from "../components/ChatConversation/types";
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "../components/ChatPageContent";
 import { ChatSummaryPanel } from "../components/ChatSummaryPanel";
-import { getEffectiveTabId } from "../components/ChatsSidebar/tabs/getEffectiveTabId";
-import { SidebarTabView } from "../components/ChatsSidebar/tabs/SidebarTabView";
+import {
+	SidebarTab,
+	SidebarTabView,
+} from "../components/ChatsSidebar/tabs/SidebarTabView";
 import { ChatTopBar } from "../components/ChatTopBar";
 import { GitPanel } from "../components/GitPanel/GitPanel";
+import { AppPanel } from "../components/RightPanel/AppPanel";
 import { DebugPanel } from "../components/RightPanel/DebugPanel/DebugPanel";
 import { DesktopPanel } from "../components/RightPanel/DesktopPanel";
-import { PortPreviewPanel } from "../components/RightPanel/PortPreviewPanel";
 import { RightPanel } from "../components/RightPanel/RightPanel";
 import { RightPanelAddTabControl } from "../components/RightPanel/RightPanelAddTabControl";
+import { UserTabPanel } from "../components/RightPanel/UserTabPanel";
 import { getWorkspaceStatus, StatusIcon } from "../components/StatusIcon";
-import { TerminalPanel } from "../components/TerminalPanel";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { TerminalClientSessionContext } from "../context/TerminalClientSessionContext";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
@@ -79,15 +75,10 @@ type EditingState = {
 	editorInitialValue: string;
 	initialEditorState: string | undefined;
 	remountKey: number;
-	editingMessageId: number | null;
+	editingTarget: EditingTarget | null;
 	editingFileBlocks: readonly ChatMessagePart[];
-	handleEditUserMessage: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly ChatMessagePart[],
-		editorState?: string,
-	) => void;
-	handleCancelHistoryEdit: () => void;
+	handleBeginHistoryEdit: (messageId: number) => void;
+	handleCancelEdit: () => void;
 	handleSendFromInput: (options: SendChatMessageOptions) => void;
 	handleContentChange: (
 		content: string,
@@ -150,13 +141,13 @@ type AgentChatPageViewProps = {
 		refresh: () => boolean;
 	};
 
-	// Workspace action handlers.
-	sshCommand: string | undefined;
-
 	// Chat action handlers.
 	handleInterrupt: () => void;
 	handleDeleteQueuedMessage: (id: number) => Promise<void>;
 	handlePromoteQueuedMessage: (id: number) => Promise<void>;
+	handleEditQueuedMessage: (id: number) => void;
+	handleEndQueuedMessageEdit: (id: number) => Promise<void>;
+	queuedMessageUnderEditID: number | null;
 
 	onImplementPlan: () => Promise<void> | void;
 	onSendAskUserQuestionResponse: (message: string) => Promise<void> | void;
@@ -174,95 +165,9 @@ type AgentChatPageViewProps = {
 	mcpServers: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds: readonly string[];
 	onMCPSelectionChange: (ids: string[]) => void;
-	onMCPAuthComplete: (serverId: string) => void;
 
 	// Desktop chat ID (optional).
 	desktopChatId?: string;
-};
-
-const UnavailableTabMessage: React.FC<{ message: string }> = ({ message }) => (
-	<div className="flex h-full min-h-0 items-center justify-center px-6 text-center text-xs text-content-secondary">
-		{message}
-	</div>
-);
-
-type UserTabContentProps = {
-	tab: UserRightPanelTab;
-	chatId: string;
-	workspace: TypesGen.Workspace | undefined;
-	workspaceAgent: TypesGen.WorkspaceAgent | undefined;
-	wildcardHostname: string;
-	sidebarVisible: boolean;
-	isActive: boolean;
-	isPending: boolean;
-	onTerminalReady: (tabId: string) => void;
-};
-
-const UserTabContent: React.FC<UserTabContentProps> = ({
-	tab,
-	chatId,
-	workspace,
-	workspaceAgent,
-	wildcardHostname,
-	sidebarVisible,
-	isActive,
-	isPending,
-	onTerminalReady,
-}) => {
-	switch (tab.kind) {
-		case "terminal":
-			return workspace && workspaceAgent ? (
-				<TerminalPanel
-					chatId={chatId}
-					reconnectionToken={tab.reconnectionToken}
-					initialCommand={tab.initialCommand}
-					isHot={sidebarVisible && (isActive || isPending)}
-					autoFocus={sidebarVisible && isActive}
-					onReady={() => onTerminalReady(tab.id)}
-					workspace={workspace}
-					workspaceAgent={workspaceAgent}
-				/>
-			) : (
-				<UnavailableTabMessage message="Terminal will be available once the workspace agent is ready." />
-			);
-		case "workspace_app": {
-			if (!workspace) {
-				return null;
-			}
-			const app = findWorkspaceAppWithAgent(workspace, tab.agentId, tab.appId);
-			if (!app || !isWorkspaceAppEmbeddable(app)) {
-				return (
-					<UnavailableTabMessage message="This workspace app is no longer available as a right-panel tab." />
-				);
-			}
-			return (
-				<WorkspaceAppFrame workspace={workspace} app={app} active={isActive} />
-			);
-		}
-		case "port": {
-			if (!workspace) {
-				return null;
-			}
-			const agent = findWorkspaceAgent(workspace, tab.agentId);
-			if (!agent) {
-				return (
-					<UnavailableTabMessage message="This port preview tab is no longer available." />
-				);
-			}
-			return (
-				<PortPreviewPanel
-					workspace={workspace}
-					agent={agent}
-					host={wildcardHostname}
-					tab={tab}
-				/>
-			);
-		}
-		default: {
-			const _exhaustive: never = tab;
-			return _exhaustive;
-		}
-	}
 };
 
 export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
@@ -300,10 +205,12 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	onSetShowSidebarPanel,
 	debugLoggingEnabled,
 	gitWatcher,
-	sshCommand,
 	handleInterrupt,
 	handleDeleteQueuedMessage,
 	handlePromoteQueuedMessage,
+	handleEditQueuedMessage,
+	handleEndQueuedMessageEdit,
+	queuedMessageUnderEditID,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
 	hasMoreMessages,
@@ -315,12 +222,10 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	mcpServers,
 	selectedMCPServerIds,
 	onMCPSelectionChange,
-	onMCPAuthComplete,
 	desktopChatId,
 }) => {
 	const { proxy } = useProxy();
-	const { entitlements } = useDashboard();
-	const { permissions, user: currentUser } = useAuthenticated();
+	const { user: currentUser } = useAuthenticated();
 	const wildcardHostname = proxy.preferredWildcardHostname;
 	const agentId = chat.id;
 	const organizationId = chat.organization_id;
@@ -392,8 +297,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		}
 	}, [agentId, isArchived, visibleSingletonTabs]);
 
-	const shouldShowSidebar = showSidebarPanel;
-
 	// Prefer the git repository root over the agent's expanded directory
 	// for VS Code folder resolution (important for monorepos).
 	const preferredFolder = (() => {
@@ -449,53 +352,25 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		{ workspace, workspaceAgent, wildcardHostname },
 	);
 
-	const hasBuiltInTerminal = Boolean(
-		workspace && workspaceAgent && !defaultTerminalHidden,
-	);
-	// Single source of truth for available tabs and their order. The list
-	// of tab IDs used by `getEffectiveTabId` is derived from this so a
-	// new tab can never be added to one without the other going out of
-	// sync. Desktop is ordered before terminals so terminals are rightmost.
-	const builtInSidebarTabConfigs = [
-		{ id: "summary", label: "Summary" },
-		{ id: "git", label: "Git" },
-		...(isSingletonTabShown("debug") ? [{ id: "debug", label: "Debug" }] : []),
-		...(isSingletonTabShown("browser")
-			? [{ id: "browser", label: "Browser" }]
-			: []),
-		...(isSingletonTabShown("desktop")
-			? [{ id: "desktop", label: "Desktop" }]
-			: []),
-		...(hasBuiltInTerminal ? [{ id: "terminal", label: "Terminal" }] : []),
-	];
-	// Dense terminal numbering: position among unlabeled terminal tabs,
-	// after the built-in Terminal when visible. Labeled terminals (command
-	// apps) display their own label, so they don't consume a number.
-	// Closing a terminal renumbers the ones after it.
-	const terminalNumbers = new Map(
-		validatedUserRightPanelTabs
-			.filter((tab) => tab.kind === "terminal" && tab.label === undefined)
-			.map(
-				(tab, index) =>
-					[tab.id, (hasBuiltInTerminal ? 1 : 0) + index + 1] as const,
-			),
-	);
-	const sidebarTabConfigs = [
-		...builtInSidebarTabConfigs,
-		// Only unlabeled terminal tabs fall through to the numbered label;
-		// every other tab kind has a required label.
-		...validatedUserRightPanelTabs.map((tab) => {
-			const terminalNumber = terminalNumbers.get(tab.id);
-			return {
-				id: tab.id,
-				label:
-					tab.label ??
-					(terminalNumber === 1 ? "Terminal" : `Terminal ${terminalNumber}`),
-			};
-		}),
-	];
-	const sidebarTabIds = sidebarTabConfigs.map((tab) => tab.id);
-	const effectiveSidebarTabId = getEffectiveTabId(sidebarTabIds, sidebarTabId);
+	// The built-in Terminal renders like any other terminal tab. Its
+	// reconnection token is the chat ID, which keeps existing sessions.
+	const builtInTerminalTab: UserRightPanelTab = {
+		id: "terminal",
+		kind: "terminal",
+		reconnectionToken: agentId,
+	};
+
+	const isBuiltInTerminalShown =
+		workspace !== undefined &&
+		workspaceAgent !== undefined &&
+		!defaultTerminalHidden;
+
+	const builtInTabs = isBuiltInTerminalShown ? [builtInTerminalTab] : [];
+
+	const userTabs = nameUnlabeledTerminals([
+		...builtInTabs,
+		...validatedUserRightPanelTabs,
+	]);
 
 	const activateRightPanelTab = (tabId: string) => {
 		onSetShowSidebarPanel(true);
@@ -548,12 +423,14 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		if (!workspace || !workspaceAgent) {
 			return;
 		}
+
 		// Reopen the built-in Terminal instead of creating Terminal 2 with no Terminal 1.
 		if (defaultTerminalHidden) {
 			setDefaultTerminalHiddenState(false);
 			startPendingTab("terminal");
 			return;
 		}
+
 		const tabId = createUserRightPanelTabId("terminal");
 		setUserRightPanelTabsState((currentTabs) => [
 			...currentTabs,
@@ -570,6 +447,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		if (!workspaceAgent) {
 			return;
 		}
+
 		const existingTab = validatedUserRightPanelTabs.find(
 			(tab) =>
 				tab.kind === "workspace_app" &&
@@ -580,6 +458,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			activateRightPanelTab(existingTab.id);
 			return;
 		}
+
 		const tab: UserRightPanelTab = {
 			id: createUserRightPanelTabId("workspace_app"),
 			kind: "workspace_app",
@@ -587,6 +466,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			agentId: workspaceAgent.id,
 			appId: app.id,
 		};
+
 		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
 		activateRightPanelTab(tab.id);
 	};
@@ -595,6 +475,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		if (!workspace || !workspaceAgent || !app.command) {
 			return;
 		}
+
 		const existingTab = validatedUserRightPanelTabs.find(
 			(tab) => tab.kind === "terminal" && tab.sourceAppId === app.id,
 		);
@@ -602,6 +483,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			activateRightPanelTab(existingTab.id);
 			return;
 		}
+
 		const tab: UserRightPanelTab = {
 			id: createUserRightPanelTabId("terminal"),
 			kind: "terminal",
@@ -610,6 +492,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			initialCommand: app.command,
 			sourceAppId: app.id,
 		};
+
 		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
 		startPendingTab(tab.id);
 	};
@@ -618,6 +501,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		if (!workspaceAgent) {
 			return;
 		}
+
 		const existingTab = validatedUserRightPanelTabs.find(
 			(tab) =>
 				tab.kind === "port" &&
@@ -629,6 +513,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			activateRightPanelTab(existingTab.id);
 			return;
 		}
+
 		const tab: UserRightPanelTab = {
 			id: createUserRightPanelTabId("port"),
 			kind: "port",
@@ -637,110 +522,18 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			port: selection.port,
 			protocol: selection.protocol,
 		};
+
 		setUserRightPanelTabsState((currentTabs) => [...currentTabs, tab]);
 		activateRightPanelTab(tab.id);
 	};
 
-	const renderTabContent = (tabId: string): React.ReactNode => {
-		switch (tabId) {
-			case "summary":
-				return (
-					<ChatSummaryPanel
-						chatId={agentId}
-						isVisible={shouldShowSidebar && effectiveSidebarTabId === "summary"}
-						store={store}
-						hasMoreMessages={hasMoreMessages}
-						isFetchingMoreMessages={isFetchingMoreMessages}
-						isHydratingMessages={isHydratingMessages}
-						hasFetchMoreError={hasFetchMoreError}
-						onFetchMoreMessages={onFetchMoreMessages}
-					/>
-				);
-			case "git":
-				return (
-					<GitPanel
-						chatId={agentId}
-						repositories={gitWatcher.repositories}
-						everDirty={gitWatcher.everDirty}
-						isGitStatusLoading={
-							workspaceAgent?.status === "connected" &&
-							!gitWatcher.hasReceivedChanges
-						}
-						onRefresh={gitWatcher.refresh}
-						isExpanded={visualExpanded}
-						remoteDiffStats={chat.diff_statuses}
-						primaryDiffStatus={chat.diff_status}
-						chatInputRef={editing.chatInputRef}
-					/>
-				);
-			case "browser":
-				return workspace && workspaceAgent && availableBrowserApp ? (
-					<WorkspaceAppFrame
-						workspace={workspace}
-						app={{ ...availableBrowserApp, agent: workspaceAgent }}
-						active={effectiveSidebarTabId === "browser"}
-					/>
-				) : null;
-			case "desktop":
-				return workspace && availableDesktopChatId ? (
-					<DesktopPanel
-						chatId={availableDesktopChatId}
-						workspace={workspace}
-						workspaceAgent={workspaceAgent}
-						isVisible={effectiveSidebarTabId === "desktop"}
-					/>
-				) : null;
-			case "terminal":
-				return workspace && workspaceAgent ? (
-					<TerminalPanel
-						chatId={agentId}
-						isHot={
-							shouldShowSidebar &&
-							(effectiveSidebarTabId === "terminal" ||
-								pendingTabId === "terminal")
-						}
-						autoFocus={
-							shouldShowSidebar && effectiveSidebarTabId === "terminal"
-						}
-						onReady={() => handleTerminalTabReady("terminal")}
-						workspace={workspace}
-						workspaceAgent={workspaceAgent}
-					/>
-				) : null;
-			case "debug":
-				return (
-					<DebugPanel
-						chatId={agentId}
-						isVisible={shouldShowSidebar && effectiveSidebarTabId === "debug"}
-					/>
-				);
-			default: {
-				const userTab = validatedUserRightPanelTabs.find(
-					(tab) => tab.id === tabId,
-				);
-				return userTab ? (
-					<UserTabContent
-						tab={userTab}
-						chatId={agentId}
-						workspace={workspace}
-						workspaceAgent={workspaceAgent}
-						wildcardHostname={wildcardHostname}
-						sidebarVisible={shouldShowSidebar}
-						isActive={effectiveSidebarTabId === userTab.id}
-						isPending={pendingTabId === userTab.id}
-						onTerminalReady={handleTerminalTabReady}
-					/>
-				) : null;
-			}
-		}
-	};
-
-	const handleCloseTab = (tabId: string) => {
+	const handleCloseTab = (
+		tabId: string,
+		nextActiveTabId: string | undefined,
+	) => {
 		setPendingTabId((currentTabId) =>
 			currentTabId === tabId ? null : currentTabId,
 		);
-		const remainingTabIds = sidebarTabIds.filter((id) => id !== tabId);
-		const closedTabIndex = sidebarTabIds.indexOf(tabId);
 
 		if (tabId === "terminal") {
 			setDefaultTerminalHiddenState(true);
@@ -754,41 +547,10 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 			);
 		}
 
-		if (effectiveSidebarTabId !== tabId) {
-			return;
-		}
-		const nextActiveTabId =
-			remainingTabIds[Math.min(closedTabIndex, remainingTabIds.length - 1)];
 		if (nextActiveTabId) {
 			setSidebarTabId(nextActiveTabId);
 		}
 	};
-
-	const handleToggleSingletonTab = (tabId: SingletonRightPanelTabId) => {
-		if (!singletonTabSupport[tabId]) {
-			return;
-		}
-		if (isSingletonTabShown(tabId)) {
-			handleCloseTab(tabId);
-		} else {
-			showSingletonTab(tabId);
-		}
-	};
-
-	const sidebarTabs = sidebarTabConfigs.map((tab) => {
-		const isCloseable =
-			tab.id === "terminal" ||
-			isSingletonRightPanelTabId(tab.id) ||
-			validatedUserRightPanelTabs.some((userTab) => userTab.id === tab.id);
-		return {
-			id: tab.id,
-			label: tab.label,
-			content: renderTabContent(tab.id),
-			onClose: isCloseable ? () => handleCloseTab(tab.id) : undefined,
-		};
-	});
-
-	const isEditing = editing.editingMessageId !== null;
 
 	const chatOwnerUsername = chat.owner_username?.trim();
 	const chatOwnerLabel =
@@ -799,85 +561,66 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
 		: undefined;
 
-	const hasLicense = entitlements.has_license;
-	const canManageLicenses = permissions.viewAllLicenses;
-	const runtimeHours = entitlements.features.agent_runtime_hours;
-	const agentHoursHardLimit =
-		runtimeHours.enabled &&
-		runtimeHours.hard_limit !== undefined &&
-		runtimeHours.actual !== undefined &&
-		runtimeHours.actual >= runtimeHours.hard_limit
-			? runtimeHours.hard_limit
-			: undefined;
-
 	return (
 		<TerminalClientSessionContext value={clientSessionId}>
-			<ChatWorkspaceContext
-				value={{
-					workspaceId: workspace?.id,
-					buildId: chat.build_id,
-					agentId: chat.agent_id,
-				}}
-			>
-				<DesktopPanelContext value={desktopPanelCtx}>
+			<DesktopPanelContext value={desktopPanelCtx}>
+				<div className="relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]">
 					<div
 						className={cn(
-							"relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
-							shouldShowSidebar && !visualExpanded && "flex-row",
+							"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:min-w-(--agents-chat-panel-min-width,0px)",
+							visualExpanded && "hidden",
+							showSidebarPanel && "max-lg:hidden",
 						)}
 					>
-						<div
-							data-testid="agents-chat-panel"
-							className={cn(
-								"relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden sm:min-w-(--agents-chat-panel-min-width,0px)",
-								visualExpanded && "hidden",
-								shouldShowSidebar && "max-lg:hidden",
+						<div className="relative z-10 shrink-0 overflow-visible">
+							<ChatTopBar
+								chat={chat}
+								liveChatStatus={liveChatStatus}
+								panel={{
+									showSidebarPanel,
+									onToggleSidebar: () =>
+										onSetShowSidebarPanel(!showSidebarPanel),
+								}}
+							/>
+							{modelCatalogError != null && (
+								<ErrorAlert error={modelCatalogError} />
 							)}
-						>
-							<div className="relative z-10 shrink-0 overflow-visible">
-								{" "}
-								<ChatTopBar
-									chat={chat}
-									liveChatStatus={liveChatStatus}
-									panel={{
-										showSidebarPanel,
-										onToggleSidebar: () =>
-											onSetShowSidebarPanel(!showSidebarPanel),
-									}}
-								/>
-								{modelCatalogError != null && (
-									<ErrorAlert error={modelCatalogError} />
-								)}
-								{unavailableModelNotice && (
-									<div
-										role="status"
-										aria-label={unavailableModelNotice}
-										aria-live="polite"
-										className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
-									>
-										<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
-										{unavailableModelNotice}
-									</div>
-								)}
-								{isArchived && (
-									<div className="flex shrink-0 items-center gap-2 border-b border-border bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
-										<ArchiveIcon className="size-4 shrink-0" />
-										This agent has been archived and is read-only.
-									</div>
-								)}
+							{unavailableModelNotice && (
 								<div
-									aria-hidden
-									className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
-									style={{
-										maskImage:
-											"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-										WebkitMaskImage:
-											"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
-									}}
-								/>
-							</div>
+									role="status"
+									aria-label={unavailableModelNotice}
+									aria-live="polite"
+									className="flex shrink-0 items-center gap-2 border-b border-border-warning bg-surface-orange px-4 py-2 text-xs text-content-primary"
+								>
+									<TriangleAlertIcon className="size-4 shrink-0 text-content-warning" />
+									{unavailableModelNotice}
+								</div>
+							)}
+							{isArchived && (
+								<div className="flex shrink-0 items-center gap-2 border-b border-border bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
+									<ArchiveIcon className="size-4 shrink-0" />
+									This agent has been archived and is read-only.
+								</div>
+							)}
+							<div
+								aria-hidden
+								className="pointer-events-none absolute inset-x-0 top-full z-10 h-3 sm:h-6 bg-surface-primary"
+								style={{
+									maskImage:
+										"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+									WebkitMaskImage:
+										"linear-gradient(to bottom, black 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)",
+								}}
+							/>
+						</div>
+						<ChatWorkspaceContext
+							value={{
+								workspaceId: workspace?.id,
+								buildId: chat.build_id,
+								agentId: chat.agent_id,
+							}}
+						>
 							<ChatPageTimeline
-								key={agentId}
 								organizationId={organizationId}
 								store={store}
 								chatFiles={chat.files}
@@ -891,123 +634,238 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								onEditUserMessage={
 									isOtherUserReadOnly
 										? undefined
-										: editing.handleEditUserMessage
+										: editing.handleBeginHistoryEdit
 								}
-								editingMessageId={editing.editingMessageId}
+								editingMessageId={
+									editing.editingTarget?.kind === "history"
+										? editing.editingTarget.id
+										: null
+								}
 								urlTransform={urlTransform}
 								mcpServers={mcpServers}
 								onImplementPlan={
-									isOtherUserReadOnly || !canSubmitChatTurn
-										? undefined
-										: onImplementPlan
+									canSubmitChatTurn ? onImplementPlan : undefined
 								}
 								onSendAskUserQuestionResponse={
-									isOtherUserReadOnly || !canSubmitChatTurn
-										? undefined
-										: onSendAskUserQuestionResponse
+									canSubmitChatTurn ? onSendAskUserQuestionResponse : undefined
 								}
 								footer={
 									chat.queued_for_capacity ? (
-										<QueuedForCapacityCallout
-											hasLicense={hasLicense}
-											canManageLicenses={canManageLicenses}
-											agentHoursHardLimit={agentHoursHardLimit}
-										/>
+										<QueuedForCapacityCallout />
 									) : undefined
 								}
 							/>
-							{!isArchived && (
-								<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
-									<ChatPageInput
-										chat={chat}
-										store={store}
-										modelCatalog={modelCatalog}
-										onSend={editing.handleSendFromInput}
-										onDeleteQueuedMessage={handleDeleteQueuedMessage}
-										onPromoteQueuedMessage={handlePromoteQueuedMessage}
-										onInterrupt={handleInterrupt}
-										isInputDisabled={isInputDisabled}
-										isReadOnly={isOtherUserReadOnly}
-										readOnlyNotice={readOnlyNotice}
-										isSendPending={isSubmissionPending}
-										isInterruptPending={isInterruptPending}
-										hasModelOptions={hasModelOptions}
-										canConfigureAgentSetup={canConfigureAgentSetup}
-										providerCount={providerCount}
-										modelCount={modelCount}
-										unsupportedProviderNames={unsupportedProviderNames}
-										aiGatewayDisabled={aiGatewayDisabled}
-										selectedModel={effectiveSelectedModel}
-										onModelChange={setSelectedModel}
-										modelOptions={modelOptions}
-										modelSelectorPlaceholder={modelSelectorPlaceholder}
-										modelSelectorHelp={modelSelectorHelp}
-										reasoningEffort={reasoningEffort}
-										onReasoningEffortChange={onReasoningEffortChange}
-										onPlanModeToggle={onPlanModeToggle}
-										isModelCatalogLoading={isModelCatalogLoading}
-										onWorkspaceChange={onWorkspaceChange}
-										isWorkspaceLoading={isWorkspaceLoading}
-										inputRef={editing.chatInputRef}
-										initialValue={editing.editorInitialValue}
-										initialEditorState={editing.initialEditorState}
-										remountKey={editing.remountKey}
-										onContentChange={editing.handleContentChange}
-										isEditing={isEditing}
-										onCancelHistoryEdit={editing.handleCancelHistoryEdit}
-										editingFileBlocks={editing.editingFileBlocks}
-										mcpServers={mcpServers}
-										selectedMCPServerIds={selectedMCPServerIds}
-										onMCPSelectionChange={onMCPSelectionChange}
-										onMCPAuthComplete={onMCPAuthComplete}
-										workspace={workspace}
-										workspaceAgent={workspaceAgent}
-										sshCommand={sshCommand}
-										attachedWorkspace={attachedWorkspace}
-										folder={preferredFolder}
-									/>
-								</div>
-							)}
-						</div>
-						<RightPanel
-							isOpen={shouldShowSidebar}
-							isExpanded={showSidebarPanel && isRightPanelExpanded}
+						</ChatWorkspaceContext>
+						{!isArchived && (
+							<div className="shrink-0 overflow-y-auto px-4 pb-3 md:pb-0 scrollbar-gutter-stable scrollbar-thin">
+								<ChatPageInput
+									chat={chat}
+									store={store}
+									modelCatalog={modelCatalog}
+									onSend={editing.handleSendFromInput}
+									onDeleteQueuedMessage={handleDeleteQueuedMessage}
+									onPromoteQueuedMessage={handlePromoteQueuedMessage}
+									onEditQueuedMessage={
+										isOtherUserReadOnly ? undefined : handleEditQueuedMessage
+									}
+									onEndQueuedMessageEdit={
+										isOtherUserReadOnly ? undefined : handleEndQueuedMessageEdit
+									}
+									onInterrupt={handleInterrupt}
+									isInputDisabled={isInputDisabled}
+									isReadOnly={isOtherUserReadOnly}
+									readOnlyNotice={readOnlyNotice}
+									isSendPending={isSubmissionPending}
+									isInterruptPending={isInterruptPending}
+									hasModelOptions={hasModelOptions}
+									canConfigureAgentSetup={canConfigureAgentSetup}
+									providerCount={providerCount}
+									modelCount={modelCount}
+									unsupportedProviderNames={unsupportedProviderNames}
+									aiGatewayDisabled={aiGatewayDisabled}
+									selectedModel={effectiveSelectedModel}
+									onModelChange={setSelectedModel}
+									modelOptions={modelOptions}
+									modelSelectorPlaceholder={modelSelectorPlaceholder}
+									modelSelectorHelp={modelSelectorHelp}
+									reasoningEffort={reasoningEffort}
+									onReasoningEffortChange={onReasoningEffortChange}
+									onPlanModeToggle={onPlanModeToggle}
+									isModelCatalogLoading={isModelCatalogLoading}
+									onWorkspaceChange={onWorkspaceChange}
+									isWorkspaceLoading={isWorkspaceLoading}
+									inputRef={editing.chatInputRef}
+									initialValue={editing.editorInitialValue}
+									initialEditorState={editing.initialEditorState}
+									remountKey={editing.remountKey}
+									onContentChange={editing.handleContentChange}
+									editingTarget={editing.editingTarget}
+									queuedMessageUnderEditID={queuedMessageUnderEditID}
+									onCancelEdit={editing.handleCancelEdit}
+									editingFileBlocks={editing.editingFileBlocks}
+									mcpServers={mcpServers}
+									selectedMCPServerIds={selectedMCPServerIds}
+									onMCPSelectionChange={onMCPSelectionChange}
+									workspace={workspace}
+									workspaceAgent={workspaceAgent}
+									attachedWorkspace={attachedWorkspace}
+									folder={preferredFolder}
+								/>
+							</div>
+						)}
+					</div>
+					<RightPanel
+						isOpen={showSidebarPanel}
+						isExpanded={showSidebarPanel && isRightPanelExpanded}
+						onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
+						onClose={() => onSetShowSidebarPanel(false)}
+						onVisualExpandedChange={setDragVisualExpanded}
+					>
+						<SidebarTabView
+							activeTabId={sidebarTabId}
+							onActiveTabChange={handleActiveTabChange}
+							isPanelOpen={showSidebarPanel}
+							isExpanded={visualExpanded}
 							onToggleExpanded={() => setIsRightPanelExpanded((prev) => !prev)}
 							onClose={() => onSetShowSidebarPanel(false)}
-							onVisualExpandedChange={setDragVisualExpanded}
+							chatTitle={chat.title}
+							addTabControl={(closeTab) => (
+								<RightPanelAddTabControl
+									workspace={workspace}
+									agent={workspaceAgent}
+									host={wildcardHostname}
+									isRunning={workspace?.latest_build.status === "running"}
+									supportedSingletonTabs={supportedSingletonTabs}
+									visibleSingletonTabs={shownSingletonTabs}
+									onToggleSingletonTab={(tabId) =>
+										isSingletonTabShown(tabId)
+											? closeTab(tabId)
+											: showSingletonTab(tabId)
+									}
+									onNewTerminal={handleAddTerminalTab}
+									onOpenWorkspaceApp={handleOpenWorkspaceAppTab}
+									onOpenCommandApp={handleOpenCommandAppTab}
+									onOpenPort={handleOpenPortTab}
+								/>
+							)}
 						>
-							<SidebarTabView
-								effectiveTabId={effectiveSidebarTabId}
-								onActiveTabChange={handleActiveTabChange}
-								tabs={sidebarTabs}
-								addTabControl={
-									<RightPanelAddTabControl
+							<SidebarTab id="summary" label="Summary">
+								<ChatSummaryPanel
+									chatId={agentId}
+									store={store}
+									hasMoreMessages={hasMoreMessages}
+									isHydratingMessages={isHydratingMessages}
+								/>
+							</SidebarTab>
+
+							<SidebarTab id="git" label="Git">
+								<GitPanel
+									chatId={agentId}
+									repositories={gitWatcher.repositories}
+									everDirty={gitWatcher.everDirty}
+									isGitStatusLoading={
+										workspaceAgent?.status === "connected" &&
+										!gitWatcher.hasReceivedChanges
+									}
+									onRefresh={gitWatcher.refresh}
+									remoteDiffStats={chat.diff_statuses}
+									primaryDiffStatus={chat.diff_status}
+									chatInputRef={editing.chatInputRef}
+								/>
+							</SidebarTab>
+
+							{isSingletonTabShown("debug") && (
+								<SidebarTab
+									id="debug"
+									label="Debug"
+									onClose={(next) => handleCloseTab("debug", next)}
+								>
+									<DebugPanel chatId={agentId} />
+								</SidebarTab>
+							)}
+
+							{isSingletonTabShown("browser") && (
+								<SidebarTab
+									id="browser"
+									label="Browser"
+									onClose={(next) => handleCloseTab("browser", next)}
+								>
+									{workspace && workspaceAgent && availableBrowserApp && (
+										<AppPanel
+											workspace={workspace}
+											app={{ ...availableBrowserApp, agent: workspaceAgent }}
+										/>
+									)}
+								</SidebarTab>
+							)}
+
+							{isSingletonTabShown("desktop") && (
+								<SidebarTab
+									id="desktop"
+									label="Desktop"
+									onClose={(next) => handleCloseTab("desktop", next)}
+								>
+									{workspace && availableDesktopChatId && (
+										<DesktopPanel
+											chatId={availableDesktopChatId}
+											workspace={workspace}
+											workspaceAgent={workspaceAgent}
+										/>
+									)}
+								</SidebarTab>
+							)}
+
+							{/* User tabs come last so they sit rightmost. */}
+							{userTabs.map((tab) => (
+								<SidebarTab
+									key={tab.id}
+									id={tab.id}
+									label={tab.label}
+									onClose={(next) => handleCloseTab(tab.id, next)}
+								>
+									<UserTabPanel
+										tab={tab}
+										chatId={agentId}
 										workspace={workspace}
-										agent={workspaceAgent}
-										host={wildcardHostname}
-										isRunning={workspace?.latest_build.status === "running"}
-										supportedSingletonTabs={supportedSingletonTabs}
-										visibleSingletonTabs={shownSingletonTabs}
-										onToggleSingletonTab={handleToggleSingletonTab}
-										onNewTerminal={handleAddTerminalTab}
-										onOpenWorkspaceApp={handleOpenWorkspaceAppTab}
-										onOpenCommandApp={handleOpenCommandAppTab}
-										onOpenPort={handleOpenPortTab}
+										workspaceAgent={workspaceAgent}
+										wildcardHostname={wildcardHostname}
+										isPending={pendingTabId === tab.id}
+										onTerminalReady={handleTerminalTabReady}
 									/>
-								}
-								onClose={() => onSetShowSidebarPanel(false)}
-								isExpanded={visualExpanded}
-								onToggleExpanded={() =>
-									setIsRightPanelExpanded((prev) => !prev)
-								}
-								chatTitle={chat.title}
-							/>
-						</RightPanel>
-					</div>
-				</DesktopPanelContext>
-			</ChatWorkspaceContext>
+								</SidebarTab>
+							))}
+						</SidebarTabView>
+					</RightPanel>
+				</div>
+			</DesktopPanelContext>
 		</TerminalClientSessionContext>
 	);
+};
+
+type LabeledUserRightPanelTab = UserRightPanelTab & { label: string };
+
+/**
+ * Names unlabeled terminal tabs by their position among them: "Terminal",
+ * "Terminal 2", and so on, so closing one renumbers the ones after it.
+ * Command app terminals and every other tab kind keep their own label.
+ */
+const nameUnlabeledTerminals = (
+	tabs: readonly UserRightPanelTab[],
+): LabeledUserRightPanelTab[] => {
+	let terminalNumber = 0;
+
+	return tabs.map((tab) => {
+		if (tab.label !== undefined) {
+			return { ...tab, label: tab.label };
+		}
+
+		terminalNumber += 1;
+
+		const label =
+			terminalNumber === 1 ? "Terminal" : `Terminal ${terminalNumber}`;
+
+		return { ...tab, label };
+	});
 };
 
 type AgentChatPageLoadingViewProps = {
@@ -1053,12 +911,7 @@ export const AgentChatPageLoadingView: React.FC<
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	return (
-		<div
-			className={cn(
-				"relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]",
-				showRightPanel && "flex-row",
-			)}
-		>
+		<div className="relative flex h-full min-h-0 min-w-0 flex-1 sm:[--agents-chat-panel-min-width:360px]">
 			<div className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col sm:min-w-(--agents-chat-panel-min-width,0px)">
 				<ChatTopBar
 					panel={{
@@ -1098,7 +951,7 @@ export const AgentChatPageLoadingView: React.FC<
 						hasModelOptions={hasModelOptions}
 						canConfigureAgentSetup={false}
 					/>
-				</div>{" "}
+				</div>
 			</div>
 			{showRightPanel && (
 				<RightPanel

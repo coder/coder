@@ -1,8 +1,12 @@
 import { cn } from "cn";
-import { Fragment } from "react";
+import type { UrlTransform } from "streamdown";
+import { getSkillAlias } from "../../utils/skillAliases";
+import type { InlineNode } from "../ChatElements/inlineNodes";
 import { Message, MessageContent } from "../ChatElements/Message";
+import { Response } from "../ChatElements/Response";
 import { FileReferenceChip } from "../ChatMessageInput/FileReferenceChip";
 import {
+	getFileReferenceDisplay,
 	hasInlineContentAfter,
 	hasInlineContentBefore,
 	type InlinePart,
@@ -29,44 +33,62 @@ const getInlineParts = (
 	});
 };
 
-const renderUserInlineBlock = (
+const renderUserChip = (
 	inlineParts: readonly InlinePart[],
-	block: UserInlineRenderBlock,
+	block: Exclude<UserInlineRenderBlock, { type: "response" }>,
 	index: number,
-) => {
-	if (block.type === "response") {
-		return <Fragment key={index}>{block.text}</Fragment>;
-	}
-	const spacing = cn(
+): InlineNode => {
+	// Middle alignment sits a chip low in a body line it nearly fills and grows
+	// the line. Headings keep middle alignment to center the chip on their text.
+	const chipClassName = cn(
+		"align-top in-[h1,h2,h3,h4,h5,h6]:align-middle",
 		hasInlineContentBefore(inlineParts, index) && "ml-1",
 		hasInlineContentAfter(inlineParts, index) && "mr-1",
 	);
 	if (block.type === "skill-invocation") {
-		return (
-			<SkillChip
-				key={index}
-				source={block.skill_source}
-				name={block.skill_name}
-				className={spacing}
-			/>
-		);
+		return {
+			element: (
+				<SkillChip
+					source={block.skill_source}
+					name={block.skill_name}
+					className={chipClassName}
+				/>
+			),
+			text: getSkillAlias(block.skill_source, block.skill_name),
+		};
 	}
 
-	return (
-		<FileReferenceChip
-			key={index}
-			fileName={block.file_name}
-			startLine={block.start_line}
-			endLine={block.end_line}
-			className={spacing}
-		/>
-	);
+	const { title } = getFileReferenceDisplay({
+		fileName: block.file_name,
+		startLine: block.start_line,
+		endLine: block.end_line,
+	});
+	return {
+		element: (
+			<FileReferenceChip
+				fileName={block.file_name}
+				startLine={block.start_line}
+				endLine={block.end_line}
+				className={chipClassName}
+			/>
+		),
+		text: title,
+	};
 };
 
-const renderUserInlineContent = (blocks: readonly UserInlineRenderBlock[]) => {
+// At the bubble's top or bottom edge, the padding stands in for the
+// half-leading of the 13px leading-relaxed message text, so files sit as far
+// from the edge as text does.
+const FileRow: React.FC<React.PropsWithChildren> = ({ children }) => (
+	<div className="flex flex-wrap gap-2 first:pt-1 last:pb-1">{children}</div>
+);
+
+const getUserMessageParts = (blocks: readonly UserInlineRenderBlock[]) => {
 	const inlineParts = getInlineParts(blocks);
 	return blocks.map((block, index) =>
-		renderUserInlineBlock(inlineParts, block, index),
+		block.type === "response"
+			? block.text
+			: renderUserChip(inlineParts, block, index),
 	);
 };
 
@@ -74,9 +96,20 @@ export const UserMessageContent: React.FC<{
 	displayState: MessageDisplayState;
 	markdown: string;
 	isEditing: boolean;
-	onImageClick: (src: string) => void;
-	onTextFileClick: (attachment: PreviewTextAttachment) => void;
-}> = ({ displayState, markdown, isEditing, onImageClick, onTextFileClick }) => {
+	onImageClick: (src: string, trigger: HTMLButtonElement) => void;
+	onTextFileClick: (
+		attachment: PreviewTextAttachment,
+		trigger: HTMLButtonElement,
+	) => void;
+	urlTransform: UrlTransform;
+}> = ({
+	displayState,
+	markdown,
+	isEditing,
+	onImageClick,
+	onTextFileClick,
+	urlTransform,
+}) => {
 	return (
 		<Message className="w-fit max-w-[min(80vw,80%)]">
 			<MessageContent
@@ -86,25 +119,20 @@ export const UserMessageContent: React.FC<{
 						"border-surface-secondary shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
 				)}
 			>
-				<div className="flex flex-col gap-1.5">
-					{(displayState.hasUserMessageBody || displayState.hasFileBlocks) && (
-						<div className="flex items-start gap-2">
-							{displayState.hasUserMessageBody && (
-								<span className="min-w-0 flex-1">
-									{displayState.userInlineContent.length > 0
-										? renderUserInlineContent(displayState.userInlineContent)
-										: markdown || ""}
-								</span>
-							)}
-						</div>
+				<div className="flex flex-col gap-2">
+					{displayState.hasUserMessageBody && (
+						<Response
+							className="whitespace-normal"
+							preserveLineBreaks
+							urlTransform={urlTransform}
+						>
+							{displayState.userInlineContent.length > 0
+								? getUserMessageParts(displayState.userInlineContent)
+								: markdown}
+						</Response>
 					)}
 					{displayState.hasFileBlocks && (
-						<div
-							className={cn(
-								displayState.hasUserMessageBody && "mt-2",
-								"flex flex-wrap gap-2",
-							)}
-						>
+						<FileRow>
 							{displayState.userFileBlocks.map((block, index) => (
 								<AttachmentBlock
 									key={`user-file-${block.file_id ?? index}`}
@@ -113,15 +141,10 @@ export const UserMessageContent: React.FC<{
 									onTextFileClick={onTextFileClick}
 								/>
 							))}
-						</div>
+						</FileRow>
 					)}
 					{displayState.hasWorkspaceFileReferences && (
-						<div
-							className={cn(
-								displayState.hasUserMessageBody && "mt-2",
-								"flex flex-wrap gap-2",
-							)}
-						>
+						<FileRow>
 							{displayState.workspaceFileBlocks.map((block, index) => (
 								<WorkspaceFileChip
 									key={`workspace-file-${block.workspace_file_path}-${index}`}
@@ -130,7 +153,7 @@ export const UserMessageContent: React.FC<{
 									size={block.workspace_file_size}
 								/>
 							))}
-						</div>
+						</FileRow>
 					)}
 				</div>
 			</MessageContent>

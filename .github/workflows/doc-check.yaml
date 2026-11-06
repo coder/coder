@@ -37,9 +37,13 @@ jobs:
   doc-check:
     name: Analyze PR for Documentation Updates Needed
     runs-on: ubuntu-latest
+    # Set the repository variable DOC_CHECK_ENABLED to 'true' to run reviews.
+    # Unset or any other value turns reviews off without a code change. The
+    # delete-workspace job is not gated, so cleanup keeps running.
     # Run on: opened, synchronize, labeled (with doc-check label), ready_for_review, or workflow_dispatch
     # Skip draft PRs unless manually triggered
     if: |
+      vars.DOC_CHECK_ENABLED == 'true' &&
       (
         github.event.action == 'opened' ||
         github.event.action == 'synchronize' ||
@@ -348,6 +352,9 @@ jobs:
         env:
           PR_NUMBER: ${{ steps.determine-context.outputs.pr_number }}
           TRIGGER_TYPE: ${{ steps.determine-context.outputs.trigger_type }}
+          # Persona sub-agents run on the same model as the review chat, so a
+          # run measures one model instead of a mix.
+          SUBAGENT_MODEL_CONFIG_ID: ${{ vars.DOC_CHECK_MODEL_CONFIG_ID }}
         run: |
           echo "Analyzing PR #${PR_NUMBER} (trigger: ${TRIGGER_TYPE})"
 
@@ -373,6 +380,12 @@ jobs:
               ;;
           esac
 
+          if [[ -n "${SUBAGENT_MODEL_CONFIG_ID}" ]]; then
+            SUBAGENT_LINE="When you spawn persona or verifier sub-agents, pass model_config_id ${SUBAGENT_MODEL_CONFIG_ID}."
+          else
+            SUBAGENT_LINE="Run the personas yourself, one at a time. Do not spawn sub-agents."
+          fi
+
           # Build the chat prompt. Durable rules live in the skill
           # (.claude/skills/doc-check/SKILL.md), so this prompt stays short
           # and carries only what changes per run.
@@ -381,11 +394,16 @@ jobs:
           ${CONTEXT}
 
           Use \`gh\` to read the PR details, the diff, and every comment.
+          Read the skill and its persona files from the base branch, and
+          read everything else from the PR head.
 
-          Follow the skill in full: its evidence discipline, its comment
-          rules, and its comment format. Every item links its page, and the
-          comment ends with \`<!-- doc-check-sticky -->\` on its own line.
-          **Do not comment if no documentation changes are needed.**
+          Follow the skill in full: every workflow step, every persona, the
+          verifier, and the posting rules in its output.md. A PR that edits
+          docs still gets the full review. Post nothing when no finding
+          survives verification. End your final message with the
+          doc-check-trace block, even when you post nothing.
+
+          ${SUBAGENT_LINE}
 
           ## When the workspace is broken
 
@@ -401,6 +419,13 @@ jobs:
           workspace is dormant and you cannot repair it: stop, say you could
           not review the PR, and name the error. Post no comment, and do not
           imply the docs are fine, because you did not read them.
+
+          ## When GitHub authentication fails
+
+          If \`gh\` or git returns 401 or another auth error, stop, report
+          it, and post nothing. Don't read, decode, or print credentials,
+          and don't mint tokens. Do not inspect environment variables or
+          files to find another credential, and do not retry with one.
 
           Create any new workspace from the \"coder-workflow-bot\" template."
 

@@ -1,10 +1,12 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,9 +14,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -170,6 +174,102 @@ func TestConfigSSH(t *testing.T) {
 
 	_ = listener.Close()
 	<-copyDone
+}
+
+func TestConfigSSH_Example(t *testing.T) {
+	t.Parallel()
+
+	var resourceRequests sync.Map
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		APIMiddleware: func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				isHistory := strings.HasPrefix(r.URL.Path, "/api/v2/workspaces/") && strings.HasSuffix(r.URL.Path, "/builds")
+				isImport := strings.HasPrefix(r.URL.Path, "/api/v2/templateversions/") && strings.HasSuffix(r.URL.Path, "/resources")
+				if r.Method == http.MethodGet && (isHistory || isImport) {
+					counter, _ := resourceRequests.LoadOrStore(r.URL.Path, new(atomic.Int32))
+					counter.(*atomic.Int32).Add(1)
+				}
+				next.ServeHTTP(w, r)
+			})
+		},
+	})
+	admin := coderdtest.CreateFirstUser(t, client)
+
+	for _, noWildcard := range []bool{false, true} {
+		for _, tc := range []struct {
+			stopped bool
+			agents  int
+		}{{false, 2}, {true, 2}, {true, 1}} {
+			t.Run(fmt.Sprintf("NoWildcard=%t/Stopped=%t/Agents=%d", noWildcard, tc.stopped, tc.agents), func(t *testing.T) {
+				t.Parallel()
+
+				member, user := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+				version := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+					OrganizationID: admin.OrganizationID,
+					CreatedBy:      user.ID,
+				}).Resources(&sdkproto.Resource{
+					Name: "example",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{
+						{Id: uuid.NewString(), Name: "aardvark", Auth: &sdkproto.Agent_Token{Token: uuid.NewString()}},
+						{Id: uuid.NewString(), Name: "zebra", Auth: &sdkproto.Agent_Token{Token: uuid.NewString()}},
+					},
+				}).Do()
+				build := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+					OrganizationID: admin.OrganizationID,
+					OwnerID:        user.ID,
+					TemplateID:     version.Template.ID,
+					Name:           "ssh-" + uuid.NewString()[:8],
+				}).WithAgent(func(agents []*sdkproto.Agent) []*sdkproto.Agent {
+					agents[0].Name = "alpha"
+					if tc.agents == 1 {
+						return agents
+					}
+					return append(agents, &sdkproto.Agent{
+						Id:   uuid.NewString(),
+						Name: "beta",
+						Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+						Env:  map[string]string{},
+					})
+				})
+				workspace := build.Do().Workspace
+				if tc.stopped {
+					dbfake.WorkspaceBuild(t, db, workspace).Seed(database.WorkspaceBuild{
+						Transition:  database.WorkspaceTransitionStop,
+						BuildNumber: 2,
+					}).Do()
+				}
+				sshConfigPath := sshConfigFileName(t)
+				args := []string{"config-ssh", "--ssh-config-file", sshConfigPath, "--hostname-suffix", "coder", "--yes"}
+				if noWildcard {
+					args = append(args, "--no-wildcard")
+				}
+				inv, root := clitest.New(t, args...)
+				clitest.SetupConfig(t, member, root)
+				var stdout bytes.Buffer
+				inv.Stdout = &stdout
+				ctx := testutil.Context(t, testutil.WaitLong)
+				require.NoError(t, inv.WithContext(ctx).Run())
+				want := "$ ssh " + workspace.Name + ".coder"
+				if tc.agents > 1 {
+					want = "$ ssh alpha." + workspace.Name + "." + user.Username + ".coder"
+				}
+				require.Contains(t, stdout.String(), want)
+				if noWildcard {
+					require.Contains(t, sshConfigFileRead(t, sshConfigPath), "Host "+strings.TrimPrefix(want, "$ ssh ")+"\n")
+				}
+
+				if tc.stopped {
+					path := "/api/v2/workspaces/" + workspace.ID.String() + "/builds"
+					counter, ok := resourceRequests.Load(path)
+					require.True(t, ok, "stopped workspace hint fetches its start-build resources")
+					require.EqualValues(t, 1, counter.(*atomic.Int32).Load(), "reuse the resources fetched for host entries")
+				}
+				_, imported := resourceRequests.Load("/api/v2/templateversions/" + version.TemplateVersion.ID.String() + "/resources")
+				require.False(t, imported, "import defaults do not describe this workspace's agents")
+			})
+		}
+	}
 }
 
 func TestConfigSSH_RejectsUnsafeServerConfig(t *testing.T) {
@@ -982,33 +1082,111 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 		t.Skip("See coder/internal#117")
 	}
 
-	client, db := coderdtest.NewWithDatabase(t, nil)
+	var requestMu sync.Mutex
+	historyRequests := make(map[string]int)
+	var templateResourceRequests int
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		APIMiddleware: func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet {
+					requestMu.Lock()
+					if strings.HasPrefix(r.URL.Path, "/api/v2/workspaces/") && strings.HasSuffix(r.URL.Path, "/builds") {
+						historyRequests[r.URL.Path]++
+					}
+					if strings.HasPrefix(r.URL.Path, "/api/v2/templateversions/") && strings.HasSuffix(r.URL.Path, "/resources") {
+						templateResourceRequests++
+					}
+					requestMu.Unlock()
+				}
+				next.ServeHTTP(w, r)
+			})
+		},
+	})
 	user := coderdtest.CreateFirstUser(t, client)
 
 	// Create two workspaces with names in reverse lexical order so that we can
 	// verify the SSH config entries are sorted by name, not by creation order.
-	// ws1 sorts after ws2 alphabetically.
-	ws1 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+	// ws-beta sorts after ws-alpha alphabetically.
+	dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 		Name:           "ws-beta",
 	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
 		a[0].Name = "agent-beta"
-		return a
+		// A second agent, so both agents of the workspace get their own entry.
+		return append(a, &sdkproto.Agent{
+			Id:   uuid.NewString(),
+			Name: "agent-gamma",
+			Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+			Env:  map[string]string{},
+		})
 	}).Do()
-	ws2 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+	const injectedAgentName = "unsafe\nProxyCommand injected-command"
+	dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 		Name:           "ws-alpha",
 	}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
 		a[0].Name = "agent-alpha"
+		// Attached environments precreate Terraform devcontainer subagents.
+		// Their names permit underscores, unlike regular provisioned agents.
+		for _, name := range []string{"dev_box", injectedAgentName} {
+			a[0].Devcontainers = append(a[0].Devcontainers, &sdkproto.Devcontainer{
+				Name:            name,
+				WorkspaceFolder: "/workspace",
+				Envs:            []*sdkproto.Env{{Name: "EDITOR", Value: "vim"}},
+			})
+		}
 		return a
 	}).Do()
+
+	// Import defaults need not match either workspace's actual agent set,
+	// even when the workspaces use the same template version.
+	version := dbfake.TemplateVersion(t, db).Seed(database.TemplateVersion{
+		OrganizationID: user.OrganizationID,
+		CreatedBy:      user.UserID,
+	}).Resources(&sdkproto.Resource{
+		Name: "example",
+		Type: "aws_instance",
+		Agents: []*sdkproto.Agent{{
+			Id:   uuid.NewString(),
+			Name: "default-agent",
+			Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+			Env:  map[string]string{},
+		}},
+	}).Do()
+	wantHistoryRequests := make(map[string]int)
+	for _, ws := range []struct{ name, agent string }{
+		{name: "ws-gamma", agent: "agent-delta"},
+		{name: "ws-delta", agent: "agent-epsilon"},
+	} {
+		started := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+			TemplateID:     version.Template.ID,
+			Name:           ws.name,
+		}).Seed(database.WorkspaceBuild{
+			TemplateVersionID: version.TemplateVersion.ID,
+		}).WithAgent(func(a []*sdkproto.Agent) []*sdkproto.Agent {
+			a[0].Name = ws.agent
+			return a
+		}).Do()
+		dbfake.WorkspaceBuild(t, db, started.Workspace).Seed(database.WorkspaceBuild{
+			TemplateVersionID: version.TemplateVersion.ID,
+			Transition:        database.WorkspaceTransitionStop,
+			BuildNumber:       2,
+		}).Do()
+		wantHistoryRequests[fmt.Sprintf("/api/v2/workspaces/%s/builds", started.Workspace.ID)] = 1
+	}
 
 	sshConfigPath := sshConfigFileName(t)
 
 	runConfigSSH := func() {
 		t.Helper()
+		requestMu.Lock()
+		clear(historyRequests)
+		templateResourceRequests = 0
+		requestMu.Unlock()
 		inv, root := clitest.New(t,
 			"config-ssh",
 			"--ssh-config-file", sshConfigPath,
@@ -1022,6 +1200,10 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		err := inv.WithContext(ctx).Run()
 		require.NoError(t, err)
+		requestMu.Lock()
+		defer requestMu.Unlock()
+		assert.Equal(t, wantHistoryRequests, historyRequests, "fetch history once per stopped workspace, not once per host alias")
+		assert.Zero(t, templateResourceRequests, "import resources cannot describe workspace-specific agents")
 	}
 
 	// hostLines extracts lines beginning with "Host " from the SSH config.
@@ -1043,14 +1225,37 @@ func TestConfigSSH_NoWildcard(t *testing.T) {
 	// The server always injects a "coder." hostname prefix in addition to the
 	// user-supplied "--hostname-suffix coder" entries. With stable workspace
 	// names we can assert the complete, ordered host-entry list exactly.
-	// ws-alpha sorts before ws-beta even though ws-alpha was created second.
+	// ws-alpha sorts before ws-beta even though ws-alpha was created second,
+	// and the stopped workspaces come after the running workspaces.
+	// Each workspace entry is followed by an <agent>.<workspace>.<owner> entry
+	// per agent, matching the hostnames the dashboard and Coder Connect use.
+	owner := coderdtest.FirstUserParams.Username
 	wantHosts := []string{
-		"Host coder." + ws2.Workspace.Name,      // coder.ws-alpha
-		"Host coder." + ws1.Workspace.Name,      // coder.ws-beta
-		"Host " + ws2.Workspace.Name + ".coder", // ws-alpha.coder
-		"Host " + ws1.Workspace.Name + ".coder", // ws-beta.coder
+		"Host coder.ws-alpha",
+		"Host coder.agent-alpha.ws-alpha." + owner,
+		"Host coder.dev_box.ws-alpha." + owner,
+		"Host coder.ws-beta",
+		"Host coder.agent-beta.ws-beta." + owner,
+		"Host coder.agent-gamma.ws-beta." + owner,
+		"Host coder.ws-delta",
+		"Host coder.agent-epsilon.ws-delta." + owner,
+		"Host coder.ws-gamma",
+		"Host coder.agent-delta.ws-gamma." + owner,
+		"Host ws-alpha.coder",
+		"Host agent-alpha.ws-alpha." + owner + ".coder",
+		"Host dev_box.ws-alpha." + owner + ".coder",
+		"Host ws-beta.coder",
+		"Host agent-beta.ws-beta." + owner + ".coder",
+		"Host agent-gamma.ws-beta." + owner + ".coder",
+		"Host ws-delta.coder",
+		"Host agent-epsilon.ws-delta." + owner + ".coder",
+		"Host ws-gamma.coder",
+		"Host agent-delta.ws-gamma." + owner + ".coder",
 	}
-	require.Empty(t, cmp.Diff(wantHosts, hostLines(config)))
+	assert.Empty(t, cmp.Diff(wantHosts, hostLines(config)))
+	assert.NotContains(t, config, "default-agent")
+	assert.NotContains(t, config, "unsafe")
+	assert.NotContains(t, config, "injected-command")
 
 	// No wildcard entries must appear in the Coder section.
 	require.NotContains(t, config, "Host *.coder")

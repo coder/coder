@@ -117,16 +117,13 @@ export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 		<>
 			<nav className="mb-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
 				<Button
-					asChild
 					variant="outline"
 					size="lg"
 					title="Back to AI Gateway sessions list"
 					onClick={onBackClicked}
 				>
-					<span>
-						<ArrowLeftIcon />
-						Back
-					</span>
+					<ArrowLeftIcon />
+					Back
 				</Button>
 				{session && (
 					<div className="flex flex-col items-stretch md:items-end gap-1 md:w-[28rem]">
@@ -180,6 +177,14 @@ export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 							providers={session.providers}
 							inputTokens={session.token_usage_summary.input_tokens}
 							outputTokens={session.token_usage_summary.output_tokens}
+							cacheReadTokens={
+								session.token_usage_summary.cache_read_input_tokens
+							}
+							cacheWriteTokens={
+								session.token_usage_summary.cache_write_input_tokens
+							}
+							costMicros={session.token_usage_summary.cost_micros}
+							hasUnpricedUsage={session.token_usage_summary.has_unpriced_usage}
 							threadCount={threads.length}
 							toolCallCount={toolCallCount}
 							tokenUsageMetadata={session.token_usage_summary.metadata}

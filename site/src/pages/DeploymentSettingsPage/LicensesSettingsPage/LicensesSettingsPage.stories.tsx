@@ -1,13 +1,22 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import { expect, within } from "storybook/test";
-import { MockEntitlements, MockLicenseResponse } from "#/testHelpers/entities";
+import {
+	MockEntitlements,
+	MockLicenseResponse,
+	MockPermissions,
+	MockUserOwner,
+} from "#/testHelpers/entities";
+import { withAuthProvider } from "#/testHelpers/storybook";
 import LicensesSettingsPage from "./LicensesSettingsPage";
 
 const meta: Meta<typeof LicensesSettingsPage> = {
 	title: "pages/DeploymentSettingsPage/LicensesSettingsPage",
 	component: LicensesSettingsPage,
+	decorators: [withAuthProvider],
 	parameters: {
+		user: MockUserOwner,
+		permissions: MockPermissions,
 		queries: [
 			{ key: ["licenses"], data: MockLicenseResponse },
 			{ key: ["insights", "userStatusCounts"], data: { active: [] } },

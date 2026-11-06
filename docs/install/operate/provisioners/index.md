@@ -10,7 +10,7 @@ However, there are often benefits to running external provisioner daemons:
 
 - **Isolate APIs:**
   Deploy provisioners in isolated environments (on-prem, AWS, Azure) instead of exposing APIs (Docker, Kubernetes, VMware) to the control plane.
-  See [Provider Authentication](../../../admin/templates/extending-templates/provider-authentication.md) for more details.
+  See [Provider Authentication](../../../templates/extending-templates/provider-authentication.md) for more details.
 
 - **Isolate secrets**:
   Keep Coder unaware of cloud secrets, manage/rotate secrets on provisioner servers.
@@ -22,8 +22,8 @@ However, there are often benefits to running external provisioner daemons:
 Each provisioner runs a single [concurrent workspace build](../../validate/scale-testing.md#control-plane-provisionerd).
 For example, running 30 provisioner containers will allow 30 users to start workspaces at the same time.
 
-Provisioners are started with the [`coder provisioner start`](../../../reference/cli/provisioner/start.md) command in the [full Coder binary](https://github.com/coder/coder/releases).
-Keep reading to learn how to start provisioners via Docker, Kubernetes, Systemd, etc.
+Provisioners are started with the [`coder provisioner start`](../../../reference/cli/provisioner/start.md) command in the [full Coder binary](https://coder.com/downloads).
+Keep reading to learn how to start provisioners via Docker, Kubernetes, Systemd, and so on.
 
 You can use the dashboard, CLI, or API to [manage provisioners](./manage-provisioner-jobs.md).
 
@@ -71,7 +71,7 @@ Keys are scoped to an organization, and optionally to a specific set of tags.
    coder provisioner start
    ```
 
-Keep reading to see instructions for running provisioners on Kubernetes/Docker/etc.
+Keep reading to see instructions for running provisioners on Kubernetes, Docker, and so on.
 
 ## User Tokens
 
@@ -95,7 +95,7 @@ Note: Any user can start [user-scoped provisioners](#user-scoped-provisioners), 
 
 ## Global PSK (Not Recommended)
 
-We do not recommend using global PSK.
+We do not recommend using global pre-shared key (PSK).
 
 Global pre-shared keys (PSK) make it difficult to rotate keys or isolate provisioners.
 
@@ -146,7 +146,7 @@ This can also be done in the UI when building a template:
 ![template tags](../../../images/admin/provisioner-tags.png)
 
 Alternatively, a template can target a provisioner via [workspace tags](../../../../examples/workspace-tags) inside the Terraform.
-See the [workspace tags documentation](../../../admin/templates/extending-templates/workspace-tags.md) for more information.
+See the [workspace tags documentation](../../../templates/extending-templates/workspace-tags.md) for more information.
 
 > [!NOTE]
 > Workspace tags defined with the `coder_workspace_tags` data source template **do not** automatically apply to the template import job!
@@ -155,8 +155,11 @@ See the [workspace tags documentation](../../../admin/templates/extending-templa
 A provisioner can run a given build job if one of the below is true:
 
 1. A job with no explicit tags can only be run on a provisioner with no explicit tags.
+
    This way you can introduce tagging into your deployment without disrupting existing provisioners and jobs.
-1. If a job has any explicit tags, it can only run on a provisioner with those explicit tags (the provisioner could have additional tags).
+1. If a job has any explicit tags, it can only run on a provisioner with those explicit tags.
+
+   The provisioner could have additional tags.
 
 The external provisioner in the above example can run build jobs in the same organization with tags:
 

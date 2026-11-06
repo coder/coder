@@ -345,7 +345,7 @@ func New(ctx context.Context, logger slog.Logger, opts Options) (pubSub *Pubsub,
 		}
 	}
 
-	ns, err := startEmbeddedServer(sopts)
+	ns, err := startEmbeddedServer(logger, sopts)
 	if err != nil {
 		return nil, err
 	}

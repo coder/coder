@@ -122,7 +122,9 @@ type CreateWorkspaceBuildRequest struct {
 	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty" format:"uuid"`
 	Transition        WorkspaceTransition `json:"transition" validate:"oneof=start stop delete,required"`
 	DryRun            bool                `json:"dry_run,omitempty"`
-	ProvisionerState  []byte              `json:"state,omitempty"`
+	// ProvisionerState overrides the provisioner state for this build. JSON
+	// carries it as a base64 string.
+	ProvisionerState []byte `json:"state,omitempty" swaggertype:"string" format:"byte"`
 	// Orphan may be set for the Destroy transition.
 	Orphan bool `json:"orphan,omitempty"`
 	// ParameterValues are optional. It will write params to the 'workspace' scope.
@@ -654,7 +656,7 @@ func (c *Client) Workspaces(ctx context.Context, filter WorkspaceFilter) (Worksp
 }
 
 // WorkspaceByOwnerAndName returns a workspace by the owner's UUID and the workspace's name.
-func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name string, params WorkspaceOptions) (Workspace, error) {
+func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name string, opts ...WorkspaceOptions) (Workspace, error) {
 	// These identifiers must remain individual path segments during URL resolution.
 	if err := validateWorkspacePathSegment(owner); err != nil {
 		return Workspace{}, xerrors.Errorf("invalid workspace owner: %w", err)
@@ -662,11 +664,12 @@ func (c *Client) WorkspaceByOwnerAndName(ctx context.Context, owner string, name
 	if err := validateWorkspacePathSegment(name); err != nil {
 		return Workspace{}, xerrors.Errorf("invalid workspace name: %w", err)
 	}
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspace/%s", owner, name), nil, func(r *http.Request) {
-		q := r.URL.Query()
-		q.Set("include_deleted", fmt.Sprintf("%t", params.IncludeDeleted))
-		r.URL.RawQuery = q.Encode()
-	})
+	reqOpts := make([]RequestOption, 0, len(opts)+1)
+	reqOpts = append(reqOpts, WithQueryParam("include_deleted", "false"))
+	for _, o := range opts {
+		reqOpts = append(reqOpts, o.asRequestOption())
+	}
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/workspace/%s", owner, name), nil, reqOpts...)
 	if err != nil {
 		return Workspace{}, err
 	}
@@ -709,9 +712,13 @@ func SplitWorkspaceIdentifier(identifier string) (owner, name string, err error)
 // pair. When the identifier parses as a valid UUID but no workspace
 // exists with that ID, the function falls back to a name-based
 // lookup because workspace names can be valid UUID strings.
-func (c *Client) ResolveWorkspace(ctx context.Context, identifier string) (Workspace, error) {
+//
+// An optional WorkspaceOptions is forwarded to the underlying lookup,
+// so callers can request deleted workspaces or narrow the related data
+// loaded. All options are applied in order, matching Workspace.
+func (c *Client) ResolveWorkspace(ctx context.Context, identifier string, opts ...WorkspaceOptions) (Workspace, error) {
 	if uid, err := uuid.Parse(identifier); err == nil {
-		ws, err := c.Workspace(ctx, uid)
+		ws, err := c.Workspace(ctx, uid, opts...)
 		if err == nil {
 			return ws, nil
 		}
@@ -733,7 +740,7 @@ func (c *Client) ResolveWorkspace(ctx context.Context, identifier string) (Works
 	if err != nil {
 		return Workspace{}, err
 	}
-	return c.WorkspaceByOwnerAndName(ctx, owner, name, WorkspaceOptions{})
+	return c.WorkspaceByOwnerAndName(ctx, owner, name, opts...)
 }
 
 type WorkspaceQuota struct {
