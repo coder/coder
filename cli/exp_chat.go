@@ -102,17 +102,16 @@ func dialAgentContextSocket(ctx context.Context, socketPath string) (*agentsocke
 
 func (*RootCmd) chatContextListCommand(socketPath *string) *serpent.Command {
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]agentsocket.ContextSource{}, []string{"path"}),
+		cliui.TableFormat([]agentsocket.ContextSource{}, []string{"path", "excluded"}),
 		cliui.JSONFormat(),
 	)
 	cmd := &serpent.Command{
 		Use:   "list",
-		Short: "List the workspace context sources registered on the agent",
-		Long: "List the context sources registered on this workspace's agent, including " +
-			"seeded sources from CODER_AGENT_EXP_* settings or their defaults. Seeded " +
-			"sources cannot be removed. Built-in scan roots (~/.coder, ~/.coder/skills, " +
-			"~/.claude/plugins/cache) and the working directory are always scanned. " +
-			"They can appear in this list as seeded sources.\n\nMust be run from inside the workspace.",
+		Short: "List workspace context sources and exclusions",
+		Long: "List registered scan roots and exclusions on this workspace's agent. " +
+			"The excluded column is true for excluded roots, including seeded sources " +
+			"beneath an excluded path. Explicitly added sources stay included. Exclusions " +
+			"last until the agent process restarts.\n\nMust be run from inside the workspace.",
 		Middleware: serpent.RequireNArgs(0),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
@@ -208,9 +207,10 @@ func (*RootCmd) chatContextAddCommand(socketPath *string) *serpent.Command {
 			"it uses for the working directory: AGENTS.md / CLAUDE.md / .cursorrules, " +
 			".agents/skills/<name>/SKILL.md, and .mcp.json are picked up now and as they " +
 			"appear. Any change to a recognized file dirties this workspace's chats until " +
-			"you refresh.\n\nA path may be a file or a directory. The working directory " +
-			"and built-in scan roots, including symlink aliases, are already scanned " +
-			"and cannot be added.\n\nMust be run from inside the workspace.",
+			"you refresh.\n\nA path may be a file or a directory. Adding a path clears its " +
+			"exact exclusion and registers it explicitly, including a working directory " +
+			"or built-in scan root. Explicit sources stay included beneath other excluded " +
+			"roots. Separate child exclusions remain in effect.\n\nMust be run from inside the workspace.",
 		Middleware: serpent.RequireNArgs(1),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
@@ -242,10 +242,14 @@ func (*RootCmd) chatContextRemoveCommand(socketPath *string) *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "remove <path>",
 		Short: "Remove a workspace context source",
-		Long: "Remove a registered context source from this workspace's agent and " +
-			"re-resolve. Seeded sources from CODER_AGENT_EXP_* settings or their defaults " +
-			"cannot be removed. To change them, edit those settings. Built-in scan roots " +
-			"and the working directory are always scanned.\n\nMust be run from inside the workspace.",
+		Long: "Remove a user-added context source and re-resolve. Removing the working " +
+			"directory, a built-in scan root, or a seeded source excludes its resolved " +
+			"path until the agent process restarts. Automatic roots beneath that path " +
+			"are also excluded, including seeded skill directories. Explicitly added " +
+			"descendants remain included. Reconnects do not clear exclusions; add the path " +
+			"again to re-enable it. Startup-script exclusions affect the first context " +
+			"snapshot. Existing chats adopt instruction and skill changes after refresh.\n\n" +
+			"Must be run from inside the workspace.",
 		Middleware: serpent.RequireNArgs(1),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()

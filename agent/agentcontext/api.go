@@ -14,11 +14,10 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-// SourceResponse is the on-wire representation of a Source.
-// Matches the path-only RFC schema; future additions (tags,
-// labels) can land additively without breaking clients.
+// SourceResponse is the on-wire representation of a source and its exclusion.
 type SourceResponse struct {
-	Path string `json:"path"`
+	Path     string `json:"path"`
+	Excluded bool   `json:"excluded"`
 }
 
 // SourceRequest is the request body for POST /sources.
@@ -100,9 +99,9 @@ func (a *API) handleAddSource(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(r.Context(), rw, r, &req) {
 		return
 	}
-	s, err := a.manager.AddSource(Source(req))
+	s, err := a.manager.AddSource(Source{Path: req.Path})
 	if err != nil {
-		httpapi.Write(r.Context(), rw, sourceChangeStatus(err), codersdk.Response{
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Could not add context source.",
 			Detail:  err.Error(),
 		})
@@ -121,7 +120,7 @@ func (a *API) handleGetSource(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	canonical, ok := a.manager.HasSource(decoded)
+	source, ok := a.manager.GetSource(decoded)
 	if !ok {
 		httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
 			Message: "Context source not found.",
@@ -129,7 +128,7 @@ func (a *API) handleGetSource(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	httpapi.Write(r.Context(), rw, http.StatusOK, SourceResponse{Path: canonical})
+	httpapi.Write(r.Context(), rw, http.StatusOK, SourceResponse(source))
 }
 
 func (a *API) handleRemoveSource(rw http.ResponseWriter, r *http.Request) {
@@ -143,29 +142,20 @@ func (a *API) handleRemoveSource(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := a.manager.RemoveSource(decoded); err != nil {
-		status := sourceChangeStatus(err)
-		message := "Could not remove context source."
-		if status == http.StatusNotFound {
-			message = "Context source not found."
+		if errors.Is(err, ErrSourceNotFound) {
+			httpapi.Write(r.Context(), rw, http.StatusNotFound, codersdk.Response{
+				Message: "Context source not found.",
+				Detail:  err.Error(),
+			})
+			return
 		}
-		httpapi.Write(r.Context(), rw, status, codersdk.Response{
-			Message: message,
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Could not remove context source.",
 			Detail:  err.Error(),
 		})
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
-}
-
-func sourceChangeStatus(err error) int {
-	switch {
-	case errors.Is(err, ErrSourceNotFound):
-		return http.StatusNotFound
-	case errors.Is(err, ErrSourceManaged):
-		return http.StatusConflict
-	default:
-		return http.StatusBadRequest
-	}
 }
 
 func (a *API) handleResync(rw http.ResponseWriter, r *http.Request) {

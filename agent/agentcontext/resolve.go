@@ -138,6 +138,24 @@ type ScanRoot struct {
 	// declared, when this root came from a user-added Source.
 	// Empty for built-in roots.
 	UserSource string
+	// ExcludedPaths are resolved subtrees that must not be read by this root.
+	ExcludedPaths []string
+}
+
+func (root ScanRoot) excludes(path string) bool {
+	if len(root.ExcludedPaths) == 0 {
+		return false
+	}
+	resolved, err := CanonicalizePath(path)
+	if err != nil {
+		return false
+	}
+	for _, excluded := range root.ExcludedPaths {
+		if pathHasPrefix(resolved, excluded) {
+			return true
+		}
+	}
+	return false
 }
 
 // Resolve walks the supplied scan roots and returns a Snapshot.
@@ -293,6 +311,9 @@ func deduplicateSkills(resources []Resource) []Resource {
 // top-level instruction files and .mcp.json plus skills from the
 // fixed container locations under it. The walk goes no deeper.
 func (r *Resolver) discoverIn(root ScanRoot, out *[]Resource, seenID map[string]int) {
+	if root.excludes(root.Path) {
+		return
+	}
 	info, err := os.Stat(root.Path)
 	if err != nil {
 		// Missing roots silently fall through. The user either
@@ -338,6 +359,9 @@ func (r *Resolver) discoverTopLevelFiles(root ScanRoot, out *[]Resource, seenID 
 			continue
 		}
 		path := filepath.Join(root.Path, name)
+		if root.excludes(path) {
+			continue
+		}
 		var res Resource
 		if isInstruction {
 			res = r.readInstructionFile(root.Path, path, info, root.UserSource)
@@ -652,6 +676,9 @@ func (r *Resolver) readSkillMeta(scanRoot, path string, info fs.FileInfo, userSo
 // recognized skills-container directory and emits one Skill
 // resource per subdirectory whose SKILL.md parses cleanly.
 func (r *Resolver) emitSkillsFromContainer(container string, root ScanRoot, out *[]Resource, seenID map[string]int) {
+	if root.excludes(container) {
+		return
+	}
 	entries, err := os.ReadDir(container)
 	if err != nil {
 		return
@@ -661,6 +688,9 @@ func (r *Resolver) emitSkillsFromContainer(container string, root ScanRoot, out 
 			continue
 		}
 		meta := filepath.Join(container, e.Name(), skillMetaFileName)
+		if root.excludes(meta) {
+			continue
+		}
 		// Lstat (not Stat) so a symlinked SKILL.md is
 		// detected and routed through resolveReadTarget,
 		// which enforces the scan-root boundary.

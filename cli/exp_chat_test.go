@@ -2,9 +2,11 @@ package cli_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -16,10 +18,13 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agenttest"
+	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -30,148 +35,207 @@ type chatContextEnvInfo struct {
 
 func (e chatContextEnvInfo) HomeDir() (string, error) { return e.home, nil }
 
+type chatContextPush struct {
+	api     *chatContextAgentAPI
+	request *agentproto.PushContextStateRequest
+}
+
+type chatContextAgentClient struct {
+	*agentsdk.Client
+	connections chan *chatContextAgentAPI
+	pushes      chan chatContextPush
+}
+
+func (c *chatContextAgentClient) ConnectRPC216WithRole(ctx context.Context, role string) (agentproto.DRPCAgentClient216, tailnetproto.DRPCTailnetClient28, error) {
+	api, tailnet, err := c.Client.ConnectRPC216WithRole(ctx, role)
+	if err != nil {
+		return nil, nil, err
+	}
+	observed := &chatContextAgentAPI{DRPCAgentClient216: api, pushes: c.pushes, manifest: make(chan struct{})}
+	c.connections <- observed
+	return observed, tailnet, nil
+}
+
+type chatContextAgentAPI struct {
+	agentproto.DRPCAgentClient216
+	pushes   chan chatContextPush
+	manifest chan struct{}
+}
+
+func (a *chatContextAgentAPI) GetManifest(ctx context.Context, req *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
+	manifest, err := a.DRPCAgentClient216.GetManifest(ctx, req)
+	if err == nil {
+		close(a.manifest)
+	}
+	return manifest, err
+}
+
+func (a *chatContextAgentAPI) PushContextState(ctx context.Context, req *agentproto.PushContextStateRequest) (*agentproto.PushContextStateResponse, error) {
+	response, err := a.DRPCAgentClient216.PushContextState(ctx, req)
+	if err == nil {
+		select {
+		case a.pushes <- chatContextPush{api: a, request: req}:
+		case <-ctx.Done():
+		}
+	}
+	return response, err
+}
+
+// TestExpChatContextStartupHelper runs the CLI from the agent's startup script.
+func TestExpChatContextStartupHelper(t *testing.T) {
+	t.Parallel()
+	socket := os.Getenv("CODER_TEST_CONTEXT_STARTUP_SOCKET")
+	if socket == "" {
+		t.Skip("startup-script subprocess helper")
+	}
+	inv, _ := clitest.New(t, "exp", "chat", "context", "remove", os.Getenv("CODER_TEST_CONTEXT_STARTUP_DIR"), "--socket-path", socket)
+	inv.Environ.Set("CODER_URL", "")
+	inv.Environ.Set("CODER_SESSION_TOKEN", "")
+	require.NoError(t, inv.WithContext(testutil.Context(t, testutil.WaitLong)).Run())
+}
+
 func TestExpChatContextSources(t *testing.T) {
 	t.Parallel()
-
-	wd := testutil.TempDirResolved(t)
-	instructions := filepath.Join(wd, "instructions")
-	skills := filepath.Join(wd, ".agents", "skills")
-	mcpConfig := filepath.Join(wd, ".mcp.json")
-	for _, dir := range []string{wd, instructions, skills} {
+	root := testutil.TempDirResolved(t)
+	wd := filepath.Join(root, "project")
+	outside := filepath.Join(root, "outside")
+	agentsSkill := filepath.Join(wd, ".agents", "skills", "project-agent")
+	claudeSkill := filepath.Join(wd, ".claude", "skills", "project-claude")
+	for _, dir := range []string{wd, outside, agentsSkill, claudeSkill} {
 		require.NoError(t, os.MkdirAll(dir, 0o700))
 	}
-	require.NoError(t, os.WriteFile(filepath.Join(instructions, "AGENTS.md"), []byte("seeded instructions"), 0o600))
-	require.NoError(t, os.WriteFile(mcpConfig, []byte(`{"mcpServers":{}}`), 0o600))
-
+	projectInstructions := filepath.Join(wd, "AGENTS.md")
+	require.NoError(t, os.WriteFile(projectInstructions, []byte("project instructions"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(outside, "AGENTS.md"), []byte("outside instructions"), 0o600))
+	for _, skill := range []string{agentsSkill, claudeSkill} {
+		content := "---\nname: " + filepath.Base(skill) + "\ndescription: project skill\n---\nSkill instructions.\n"
+		require.NoError(t, os.WriteFile(filepath.Join(skill, "SKILL.md"), []byte(content), 0o600))
+	}
+	require.NoError(t, os.WriteFile(filepath.Join(wd, ".mcp.json"), []byte(`{"mcpServers":{}}`), 0o600))
+	binary, err := os.Executable()
+	require.NoError(t, err)
+	script := "'" + strings.ReplaceAll(binary, "'", "'\"'\"'") + "' '-test.run=^TestExpChatContextStartupHelper$'"
+	if runtime.GOOS == "windows" {
+		script = "& '" + strings.ReplaceAll(binary, "'", "''") + "' '-test.run=^TestExpChatContextStartupHelper$'"
+	}
+	socketPath := testutil.AgentSocketPath(t)
 	client, workspace, agentToken := setupWorkspaceForAgent(t, func(agents []*proto.Agent) []*proto.Agent {
 		agents[0].Directory = wd
+		agents[0].Env["CODER_TEST_CONTEXT_STARTUP_SOCKET"] = socketPath
+		agents[0].Env["CODER_TEST_CONTEXT_STARTUP_DIR"] = wd
+		agents[0].Scripts = []*proto.Script{{Script: script, RunOnStart: true, TimeoutSeconds: 30, DisplayName: "exclude project context"}}
 		return agents
 	})
-	socketPath := testutil.AgentSocketPath(t)
+	observed := &chatContextAgentClient{
+		Client:      agentsdk.New(client.URL, agentsdk.WithFixedToken(agentToken)),
+		connections: make(chan *chatContextAgentAPI, 8),
+		pushes:      make(chan chatContextPush, 128),
+	}
 	agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
+		o.Client = observed
 		// Isolate ACP harness configuration from the host's home directory.
 		o.EnvInfo = chatContextEnvInfo{home: t.TempDir()}
 		o.SocketPath = socketPath
 		o.SocketServerEnabled = true
 		o.ContextConfig = agentcontextconfig.Config{
-			InstructionsDirs: "instructions," + agentcontextconfig.DefaultInstructionsDir,
+			InstructionsDirs: ".," + outside,
 			SkillsDirs:       agentcontextconfig.DefaultSkillsDir,
 			MCPConfigFiles:   agentcontextconfig.DefaultMCPConfigFile,
 		}
 	})
-	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).WaitFor(coderdtest.AgentsReady)
 	ctx := testutil.Context(t, testutil.WaitLong)
+	firstAPI := testutil.RequireReceive(ctx, t, observed.connections)
+	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).WaitFor(coderdtest.AgentsReady)
+	firstPush := testutil.RequireReceive(ctx, t, observed.pushes)
+	require.True(t, firstPush.request.Initial)
+	require.True(t, slices.ContainsFunc(firstPush.request.Resources, func(resource *agentproto.ContextResource) bool {
+		return resource.Source == filepath.Join(outside, "AGENTS.md")
+	}), "the first push must contain the completed startup inventory")
+	for _, resource := range firstPush.request.Resources {
+		require.False(t, strings.HasPrefix(resource.Source, wd+string(os.PathSeparator)), "startup exclusion must be in the first push")
+	}
 	sock, err := agentsocket.NewClient(ctx, agentsocket.WithPath(socketPath))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = sock.Close() })
-
-	run := func(t *testing.T, args ...string) (string, error) {
+	run := func(args ...string) string {
 		t.Helper()
-		args = append([]string{"exp", "chat", "context", "--socket-path", socketPath}, args...)
-		inv, _ := clitest.New(t, args...)
+		inv, _ := clitest.New(t, append([]string{"exp", "chat", "context", "--socket-path", socketPath}, args...)...)
 		var stdout bytes.Buffer
 		inv.Stdout = &stdout
-		err := inv.WithContext(testutil.Context(t, testutil.WaitLong)).Run()
-		return stdout.String(), err
+		require.NoError(t, inv.WithContext(testutil.Context(t, testutil.WaitLong)).Run())
+		return stdout.String()
 	}
+	projectPaths := []string{projectInstructions, agentsSkill, claudeSkill, filepath.Join(wd, ".mcp.json")}
+	waitForResources := func(paths []string, included bool) agentsocket.ContextSnapshot {
+		t.Helper()
+		var snapshot agentsocket.ContextSnapshot
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			var err error
+			snapshot, err = sock.GetContextSnapshot(ctx)
+			if !assert.NoError(c, err) {
+				return
+			}
+			for _, path := range paths {
+				found := slices.ContainsFunc(snapshot.Resources, func(resource agentsocket.ContextResource) bool { return resource.Source == path })
+				assert.Equal(c, included, found, "context resource %s", path)
+			}
+		}, testutil.WaitLong, testutil.IntervalFast)
+		return snapshot
+	}
+	waitForResources(projectPaths, false)
+	var listed []agentsocket.ContextSource
+	require.NoError(t, json.Unmarshal([]byte(run("list", "--output", "json")), &listed))
+	require.Contains(t, listed, agentsocket.ContextSource{Path: wd, Excluded: true})
+	require.Contains(t, listed, agentsocket.ContextSource{Path: filepath.Join(wd, ".agents", "skills"), Excluded: true})
+	require.Contains(t, run("list"), "EXCLUDED")
 
-	// A user-added source can be added, contributes context, and can be removed.
+	run("add", wd)
+	waitForResources(projectPaths, true)
+	// User-added sources retain their ordinary add/remove lifecycle.
 	removable := filepath.Join(wd, "user-added")
 	require.NoError(t, os.MkdirAll(removable, 0o700))
-	removableFile := filepath.Join(removable, "AGENTS.md")
-	require.NoError(t, os.WriteFile(removableFile, []byte("user instructions"), 0o600))
-	_, err = run(t, "add", removable)
-	require.NoError(t, err)
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		snap, err := sock.GetContextSnapshot(ctx)
-		if !assert.NoError(c, err) {
-			return
-		}
-		assert.True(c, slices.ContainsFunc(snap.Resources, func(res agentsocket.ContextResource) bool {
-			return res.Source == removableFile
-		}), "added source must contribute its instruction file")
-	}, testutil.WaitLong, testutil.IntervalFast)
+	userInstructions := filepath.Join(removable, "AGENTS.md")
+	require.NoError(t, os.WriteFile(userInstructions, []byte("user instructions"), 0o600))
+	run("add", removable)
+	waitForResources([]string{userInstructions}, true)
+	run("remove", removable)
+	waitForResources([]string{userInstructions}, false)
+	require.NoError(t, json.Unmarshal([]byte(run("list", "--output", "json")), &listed))
+	require.False(t, slices.ContainsFunc(listed, func(source agentsocket.ContextSource) bool { return source.Path == removable }))
 
-	stdout, err := run(t, "remove", removable)
-	require.NoError(t, err)
-	require.Contains(t, stdout, "Removed context source "+removable)
-	listed, err := run(t, "list", "--output", "json")
-	require.NoError(t, err)
-	var sources []agentsocket.ContextSource
-	require.NoError(t, json.Unmarshal([]byte(listed), &sources))
-	require.NotContains(t, sources, agentsocket.ContextSource{Path: removable})
-	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		snap, err := sock.GetContextSnapshot(ctx)
-		if !assert.NoError(c, err) {
-			return
+	run("remove", wd)
+	beforeReconnect := waitForResources(projectPaths, false)
+	require.NoError(t, firstAPI.DRPCConn().Close())
+	reconnected := testutil.RequireReceive(ctx, t, observed.connections)
+	select {
+	case <-reconnected.manifest:
+	case <-ctx.Done():
+		t.Fatal("agent did not fetch its manifest after reconnect")
+	}
+	for {
+		push := testutil.RequireReceive(ctx, t, observed.pushes)
+		if push.api == reconnected && push.request.Version > beforeReconnect.Version {
+			break
 		}
-		assert.False(c, slices.ContainsFunc(snap.Resources, func(res agentsocket.ContextResource) bool {
-			return res.Source == removableFile
-		}), "removed source must stop contributing its instruction file")
-	}, testutil.WaitLong, testutil.IntervalFast)
-	_, err = run(t, "remove", removable)
-	require.ErrorContains(t, err, "not found")
-
-	t.Run("RejectsIneffectiveChanges", func(t *testing.T) {
-		t.Parallel()
-		const seededReason = "CODER_AGENT_EXP_* settings or their defaults"
-		for _, tc := range []struct {
-			name   string
-			args   []string
-			reason string
-		}{
-			{name: "Instructions", args: []string{"remove", instructions}, reason: seededReason},
-			{name: "DefaultSkills", args: []string{"remove", skills}, reason: seededReason},
-			{name: "DefaultMCPConfig", args: []string{"remove", mcpConfig}, reason: seededReason},
-			{name: "SeededBuiltin", args: []string{"remove", "~/.coder"}, reason: seededReason},
-			{name: "AddBuiltin", args: []string{"add", "~/.coder"}, reason: "built-in scan root"},
-			{name: "AddWorkingDirectory", args: []string{"add", wd}, reason: "working directory"},
-		} {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-				before, err := run(t, "list", "--output", "json")
-				require.NoError(t, err)
-				stdout, err := run(t, tc.args...)
-				require.ErrorContains(t, err, tc.reason)
-				require.Equal(t, 1, strings.Count(err.Error(), tc.args[0]+" context source:"),
-					"the error names the operation once, without double wrapping")
-				require.Empty(t, stdout, "rejected source change must not report success")
-				after, err := run(t, "list", "--output", "json")
-				require.NoError(t, err)
-				require.JSONEq(t, before, after)
-			})
-		}
-	})
+	}
+	waitForResources(projectPaths, false)
+	run("add", wd)
+	waitForResources(projectPaths, true)
 }
 
 func TestExpChatContextAdd(t *testing.T) {
 	t.Parallel()
-
 	t.Run("RequiresPathArgument", func(t *testing.T) {
 		t.Parallel()
-
-		// `add` registers a context source identified by <path>, so the path
-		// argument is required and a bare invocation is a usage error.
 		inv, _ := clitest.New(t, "exp", "chat", "context", "add")
-
 		err := inv.Run()
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "wanted 1 args but got 0")
+		require.ErrorContains(t, err, "wanted 1 args but got 0")
 	})
-
 	t.Run("RequiresWorkspaceSocket", func(t *testing.T) {
 		t.Parallel()
-
-		// Source registration talks to the agent over its local socket, so
-		// outside a workspace it fails to connect rather than silently doing
-		// nothing. Point at a socket path that does not exist so the dial
-		// fails deterministically (and never touches a real agent socket).
 		missingSocket := filepath.Join(t.TempDir(), "agent.sock")
-		inv, _ := clitest.New(t, "exp", "chat", "context", "add", t.TempDir(),
-			"--socket-path", missingSocket)
-
+		inv, _ := clitest.New(t, "exp", "chat", "context", "add", t.TempDir(), "--socket-path", missingSocket)
 		err := inv.Run()
-		require.Error(t, err)
-		require.Contains(t, err.Error(), "inside the workspace")
+		require.ErrorContains(t, err, "inside the workspace")
 	})
 }

@@ -29,7 +29,7 @@ var (
 // interface so tests can supply a fake.
 type ContextManager interface {
 	Sources() []agentcontext.Source
-	HasSource(path string) (canonical string, ok bool)
+	GetSource(path string) (agentcontext.Source, bool)
 	AddSource(s agentcontext.Source) (agentcontext.Source, error)
 	RemoveSource(path string) error
 	Snapshot() agentcontext.Snapshot
@@ -236,7 +236,7 @@ func (s *DRPCAgentSocketService) ContextSources(_ context.Context, _ *proto.Cont
 	sources := s.contextManager.Sources()
 	out := &proto.ContextSourcesResponse{Sources: make([]*proto.ContextSource, 0, len(sources))}
 	for _, src := range sources {
-		out.Sources = append(out.Sources, &proto.ContextSource{Path: src.Path})
+		out.Sources = append(out.Sources, &proto.ContextSource{Path: src.Path, Excluded: src.Excluded})
 	}
 	return out, nil
 }
@@ -247,11 +247,11 @@ func (s *DRPCAgentSocketService) GetContextSource(_ context.Context, req *proto.
 	if s.contextManager == nil {
 		return nil, ErrContextManagerNotAvailable
 	}
-	canonical, ok := s.contextManager.HasSource(req.Path)
+	source, ok := s.contextManager.GetSource(req.Path)
 	if !ok {
 		return nil, xerrors.Errorf("%q: %w", req.Path, ErrContextSourceNotFound)
 	}
-	return &proto.GetContextSourceResponse{Source: &proto.ContextSource{Path: canonical}}, nil
+	return &proto.GetContextSourceResponse{Source: &proto.ContextSource{Path: source.Path, Excluded: source.Excluded}}, nil
 }
 
 // AddContextSource registers a new scan root and triggers a re-resolve.
@@ -263,7 +263,7 @@ func (s *DRPCAgentSocketService) AddContextSource(_ context.Context, req *proto.
 	if err != nil {
 		return nil, xerrors.Errorf("add context source: %w", err)
 	}
-	return &proto.AddContextSourceResponse{Source: &proto.ContextSource{Path: src.Path}}, nil
+	return &proto.AddContextSourceResponse{Source: &proto.ContextSource{Path: src.Path, Excluded: src.Excluded}}, nil
 }
 
 // RemoveContextSource removes a previously-registered scan root.

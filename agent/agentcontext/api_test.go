@@ -119,8 +119,15 @@ func TestAPI_AddAutomaticRoot(t *testing.T) {
 			body, err := json.Marshal(agentcontext.SourceRequest{Path: tc.path})
 			require.NoError(t, err)
 			status, _ := doRequest(t, http.MethodPost, srv.URL+"/sources", bytes.NewReader(body))
-			require.Equal(t, http.StatusConflict, status)
-			require.Empty(t, m.Sources())
+			require.Equal(t, http.StatusCreated, status)
+			status, _ = doRequest(t, http.MethodDelete, srv.URL+"/sources/"+url.PathEscape(tc.path), nil)
+			require.Equal(t, http.StatusNoContent, status)
+			status, response := doRequest(t, http.MethodGet, srv.URL+"/sources/"+url.PathEscape(tc.path), nil)
+			require.Equal(t, http.StatusOK, status)
+			var source agentcontext.SourceResponse
+			require.NoError(t, json.Unmarshal(response, &source))
+			require.True(t, source.Excluded)
+			require.Contains(t, m.Sources(), agentcontext.Source{Path: source.Path, Excluded: true})
 		})
 	}
 }
@@ -157,10 +164,9 @@ func TestAPI_DeleteSeededSource(t *testing.T) {
 		InitialSources: []agentcontext.Source{{Path: src}},
 	})
 
-	status, body := doRequest(t, http.MethodDelete, srv.URL+"/sources/"+url.PathEscape(src), nil)
-	require.Equal(t, http.StatusConflict, status)
-	require.Contains(t, string(body), "agent configuration")
-	require.Equal(t, []agentcontext.Source{{Path: src}}, m.Sources())
+	status, _ := doRequest(t, http.MethodDelete, srv.URL+"/sources/"+url.PathEscape(src), nil)
+	require.Equal(t, http.StatusNoContent, status)
+	require.Equal(t, []agentcontext.Source{{Path: src, Excluded: true}}, m.Sources())
 }
 
 func TestAPI_GetSourceNotFound(t *testing.T) {
@@ -180,23 +186,11 @@ func TestAPI_DeleteSourceNotFound(t *testing.T) {
 		WorkingDir: func() string { return wd },
 	})
 
-	for _, tc := range []struct {
-		name string
-		path string
-	}{
-		{name: "MissingSource", path: "/never-added"},
-		{name: "WorkingDirectory", path: wd},
-		{name: "BuiltinCoder", path: "~/.coder"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			status, body := doRequest(t, http.MethodDelete, srv.URL+"/sources/"+url.PathEscape(tc.path), nil)
-			require.Equal(t, http.StatusNotFound, status)
-			var response codersdk.Response
-			require.NoError(t, json.Unmarshal(body, &response))
-			require.Equal(t, "Context source not found.", response.Message)
-		})
-	}
+	status, body := doRequest(t, http.MethodDelete, srv.URL+"/sources/"+url.PathEscape("/never-added"), nil)
+	require.Equal(t, http.StatusNotFound, status)
+	var response codersdk.Response
+	require.NoError(t, json.Unmarshal(body, &response))
+	require.Equal(t, "Context source not found.", response.Message)
 }
 
 func TestAPI_Resync(t *testing.T) {
