@@ -802,6 +802,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			onEditQueuedMessage={onEditQueuedMessage}
 			onEndQueuedMessageEdit={onEndQueuedMessageEdit}
 			isChatPaused={chatStatus === "paused"}
+			isChatActive={isActiveChatStatus(chatStatus)}
 			queuedMessageUnderEditID={queuedMessageUnderEditID}
 			composerQueuedMessageID={
 				editingTarget?.kind === "queued" ? editingTarget.id : null

@@ -614,8 +614,6 @@ const AgentChatPage: React.FC = () => {
 			id,
 			store,
 			promoteQueuedMessage,
-			fetchQueueConvergence,
-			setCacheQueuedMessages,
 			agentId,
 			clearChatErrorReason,
 			onError: handleRequestError,

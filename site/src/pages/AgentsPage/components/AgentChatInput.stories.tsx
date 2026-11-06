@@ -147,47 +147,6 @@ export const EditingQueuedMessage: Story = {
 	},
 };
 
-export const ChatPaused: Story = {
-	args: {
-		queuedMessageUnderEditID: MockChatQueuedMessageUnderEdit.id,
-		isChatPaused: true,
-		queuedMessages: [
-			MockChatQueuedMessageUnderEdit,
-			{ ...MockChatQueuedMessage, id: 2 },
-		],
-		onEditQueuedMessage: fn(),
-		onEndQueuedMessageEdit: fn(),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.type(
-			canvas.getByRole("textbox", { name: "Chat message" }),
-			"Also update the docs",
-		);
-		await userEvent.hover(canvas.getByRole("button", { name: "Queue" }));
-	},
-};
-
-// The queue head is under edit on a chat that is not paused, for example
-// one in error.
-export const QueueHeadUnderEdit: Story = {
-	args: {
-		queuedMessageUnderEditID: MockChatQueuedMessageUnderEdit.id,
-		queuedMessages: [
-			MockChatQueuedMessageUnderEdit,
-			{ ...MockChatQueuedMessage, id: 2 },
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.type(
-			canvas.getByRole("textbox", { name: "Chat message" }),
-			"Also update the docs",
-		);
-		await userEvent.hover(canvas.getByRole("button", { name: "Queue" }));
-	},
-};
-
 export const DisablesSendUntilInput: Story = {};
 
 export const SendsAndClearsInput: Story = {

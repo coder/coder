@@ -184,6 +184,31 @@ export const AttachmentsOnly: Story = {
 	},
 };
 
+export const GroupedByLane: Story = {
+	args: {
+		messages: [
+			{
+				...buildMessage(1, textContent("Also check the error logs")),
+				busy_behavior: "steer",
+			},
+			{
+				...buildMessage(2, textContent("Skip the flaky test")),
+				busy_behavior: "steer",
+			},
+			buildMessage(3, textContent("Then open a pull request")),
+		],
+	},
+};
+
+// Steer rows while the turn runs.
+export const GroupedByLaneWhileActive: Story = {
+	args: {
+		...GroupedByLane.args,
+		isChatActive: true,
+		showEnterToSendHint: false,
+	},
+};
+
 // One row with every action.
 export const HeadRowActions: Story = {
 	args: {
@@ -313,6 +338,21 @@ export const EndRequestPending: Story = {
 			},
 			buildMessage(2, textContent("Open the browser")),
 		],
+	},
+};
+
+export const SendNowPending: Story = {
+	args: {
+		messages: [
+			buildMessage(1, textContent("First queued")),
+			buildMessage(2, textContent("Second queued")),
+		],
+		onPromote: () => new Promise<void>(() => {}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sendNowButtons = canvas.getAllByRole("button", { name: "Send now" });
+		await userEvent.click(sendNowButtons[0]);
 	},
 };
 
