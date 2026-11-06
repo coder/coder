@@ -5383,8 +5383,8 @@ export interface DeleteWorkspaceAgentPortShareRequest {
  * DeploymentConfig contains both the deployment values and how they're set.
  */
 export interface DeploymentConfig {
-	readonly config?: DeploymentValues;
-	readonly options?: SerpentOptionSet;
+	readonly config: DeploymentValues;
+	readonly options: SerpentOptionSet;
 }
 
 // From codersdk/deployment.go

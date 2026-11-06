@@ -54,7 +54,7 @@ const TemplatesPage: React.FC = () => {
 	});
 	const templateBuilderEnabled =
 		deploymentConfigQuery.isSuccess &&
-		!deploymentConfigQuery.data?.config?.template_builder?.disabled &&
+		!deploymentConfigQuery.data?.config.template_builder?.disabled &&
 		permissions.createTemplates;
 
 	const error =

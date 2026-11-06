@@ -10,7 +10,7 @@ export function getTerminalConfig(
 	proxyPathAppURL: string | undefined,
 ) {
 	return {
-		renderer: config?.config?.web_terminal_renderer,
+		renderer: config?.config.web_terminal_renderer,
 		baseUrl:
 			process.env.NODE_ENV !== "development" ? proxyPathAppURL : undefined,
 		fontFamily:

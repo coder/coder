@@ -36,7 +36,7 @@ const TemplateBuilderPage: React.FC = () => {
 	// across wizard_entry and compose_completion telemetry events.
 	const sessionId = useMemo(() => generateUUID(), []);
 
-	const builderDisabled = data?.config?.template_builder?.disabled ?? false;
+	const builderDisabled = data?.config.template_builder?.disabled ?? false;
 	const wizardReady =
 		!builderDisabled && !isLoading && permissions.createTemplates;
 
