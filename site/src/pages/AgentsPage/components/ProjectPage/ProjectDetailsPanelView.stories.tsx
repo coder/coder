@@ -10,6 +10,7 @@ import {
 	MockOrganization,
 	MockUnsetChatProjectInstructions,
 	MockUserMember,
+	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
@@ -61,6 +62,10 @@ const meta: Meta<typeof ProjectDetailsPanelView> = {
 	],
 	args: {
 		ownerLabel: "You",
+		ownerAvatar: {
+			src: MockUserOwner.avatar_url ?? "",
+			fallback: MockUserOwner.username,
+		},
 		createdAt: MockChatProject.created_at,
 		skillCount: 3,
 		disabledSkillCount: 0,
@@ -120,6 +125,7 @@ export const WithOrganizationNoIcon: Story = {
 export const OwnerLoading: Story = {
 	args: {
 		ownerLabel: undefined,
+		ownerAvatar: undefined,
 		members: { ...mockMembers, entries: undefined },
 	},
 };
@@ -127,6 +133,7 @@ export const OwnerLoading: Story = {
 export const OtherOwner: Story = {
 	args: {
 		ownerLabel: "Jane Doe",
+		ownerAvatar: { src: "", fallback: "Jane Doe" },
 		members: {
 			...mockMembers,
 			entries: buildAccessEntries({
@@ -141,6 +148,7 @@ export const OtherOwner: Story = {
 export const OwnerUnknown: Story = {
 	args: {
 		ownerLabel: "Unknown",
+		ownerAvatar: undefined,
 		members: {
 			...mockMembers,
 			entries: undefined,
@@ -153,6 +161,7 @@ export const OwnerUnknown: Story = {
 export const LongNames: Story = {
 	args: {
 		ownerLabel: "bartholomewmontgomeryfitzgerald1",
+		ownerAvatar: { src: "", fallback: "bartholomewmontgomeryfitzgerald1" },
 		organizationLabel: "Platform-Infrastructure-Engineering-Europe",
 		organizationIconUrl: MockOrganization.icon,
 		members: {

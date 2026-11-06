@@ -34,6 +34,12 @@ type MembersSectionProps = {
 type ProjectDetailsPanelViewProps = {
 	/** The owner's display label. `undefined` while it loads. */
 	readonly ownerLabel: string | undefined;
+	/** Omit when the owner is unknown or still loading to hide the avatar. */
+	readonly ownerAvatar?: {
+		readonly src: string;
+		/** The name whose initial shows when `src` is empty or fails to load. */
+		readonly fallback: string;
+	};
 	readonly createdAt: string;
 	/** Omit to hide the organization row. */
 	readonly organizationLabel?: string;
@@ -63,6 +69,7 @@ export const ProjectDetailsPanelView: React.FC<
 	ProjectDetailsPanelViewProps
 > = ({
 	ownerLabel,
+	ownerAvatar,
 	createdAt,
 	organizationLabel,
 	organizationIconUrl,
@@ -112,9 +119,11 @@ export const ProjectDetailsPanelView: React.FC<
 				<dl className="m-0 flex flex-col gap-2 border-0 border-b border-solid border-border p-4 text-sm">
 					<DetailRow label="Project owner">
 						{ownerLabel !== undefined ? (
-							<span className="block truncate" title={ownerLabel}>
-								{ownerLabel}
-							</span>
+							<AvatarValue
+								label={ownerLabel}
+								avatarSrc={ownerAvatar?.src}
+								avatarFallback={ownerAvatar?.fallback}
+							/>
 						) : (
 							<>
 								<Skeleton className="my-1 ml-auto h-3 w-12" />
@@ -140,22 +149,11 @@ export const ProjectDetailsPanelView: React.FC<
 					</DetailRow>
 					{organizationLabel !== undefined && (
 						<DetailRow label="Organization">
-							{organizationIconUrl === undefined ? (
-								<span className="block truncate" title={organizationLabel}>
-									{organizationLabel}
-								</span>
-							) : (
-								<span className="flex items-center justify-end gap-1.5">
-									<Avatar
-										size="xs"
-										src={organizationIconUrl}
-										fallback={organizationLabel}
-									/>
-									<span className="min-w-0 truncate" title={organizationLabel}>
-										{organizationLabel}
-									</span>
-								</span>
-							)}
+							<AvatarValue
+								label={organizationLabel}
+								avatarSrc={organizationIconUrl}
+								avatarFallback={organizationLabel}
+							/>
 						</DetailRow>
 					)}
 					<DetailRow label="Skills">
@@ -412,6 +410,29 @@ const OverflowTile: React.FC<OverflowTileProps> = ({ entries }) => {
 		</MemberTile>
 	);
 };
+
+type AvatarValueProps = {
+	readonly label: string;
+	/** Omit to hide the avatar. An empty string shows the fallback's initial. */
+	readonly avatarSrc: string | undefined;
+	readonly avatarFallback: string | undefined;
+};
+
+/** A detail value with an optional avatar, truncated to one line. */
+const AvatarValue: React.FC<AvatarValueProps> = ({
+	label,
+	avatarSrc,
+	avatarFallback,
+}) => (
+	<span className="flex items-center justify-end gap-1.5">
+		{avatarSrc !== undefined && (
+			<Avatar size="xs" src={avatarSrc} fallback={avatarFallback} />
+		)}
+		<span className="min-w-0 truncate" title={label}>
+			{label}
+		</span>
+	</span>
+);
 
 type DetailRowProps = {
 	readonly label: string;

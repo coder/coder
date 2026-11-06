@@ -53,6 +53,14 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 			: aclQuery.isError
 				? "Unknown"
 				: undefined;
+	const ownerAvatar = isOwner
+		? { src: me.avatar_url ?? "", fallback: me.name || me.username }
+		: owner
+			? {
+					src: owner.avatar_url ?? "",
+					fallback: owner.name || owner.username,
+				}
+			: undefined;
 	const organization = organizations.find(
 		(org) => org.id === project.organization_id,
 	);
@@ -104,6 +112,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 		<>
 			<ProjectDetailsPanelView
 				ownerLabel={ownerLabel}
+				ownerAvatar={ownerAvatar}
 				createdAt={project.created_at}
 				organizationLabel={organizationLabel}
 				organizationIconUrl={showOrganizations ? organization?.icon : undefined}
