@@ -1546,6 +1546,11 @@
 							"title": "Security - best practices",
 							"description": "Follow security best practices to harden your Coder deployment against common risks.",
 							"path": "./admin/security/security-best-practices.md"
+						},
+						{
+							"title": "Hardening",
+							"description": "Review security-relevant server defaults and the settings that weaken or strengthen them.",
+							"path": "./admin/security/hardening.md"
 						}
 					]
 				}
