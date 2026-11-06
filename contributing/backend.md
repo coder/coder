@@ -163,6 +163,57 @@ much data as possible.
 
 Run `make gen` to generate models.
 
+#### Migration numbering in CI
+
+The required `migration-numbers` CI job checks up/down pairs, unique versions,
+and matching fixture versions. New migrations must follow the current base
+branch in contiguous order. The separate `migration-numbering` status is
+refreshed on PR events and when a migration lands on main. It updates earlier
+results as main changes; this refresh is asynchronous.
+
+Autofix is disabled until someone manually adds the `migration-autofix` label
+to an eligible PR. A maintainer can create the repository label if it does not
+exist. Removing the label disables further repairs. Automation never adds or
+restores the label, including when a PR opens or reopens.
+
+Eligible fixes append a normal bot commit that renames only new migration pairs
+and their new fixtures, preserving order and file contents. Ordinary CI runs
+again. Forks, detected stacks, merge conflicts or unknown mergeability,
+historical migration edits, hardcoded number references, and unsupported file
+types require a manual fix. The status and workflow log explain the reason and
+show the proposed renames. The bot discards work if the head, main, or eligibility
+changes before its final check. GitHub atomically rejects an author push using
+`expectedHeadOid`; main or label changes after that check can still race one
+already-started commit.
+
+Repository maintainers must require the `migration-numbering` status in addition
+to `required`, without strict up-to-date branch protection. When a migration
+lands on main, the workflow refreshes the status of open PRs that change
+migrations. A PR can still merge between a migration landing on main and the
+refresh posting a failure. A manual workflow run reconciles a missing status.
+Check that the repository's Actions event policy permits this trusted
+`pull_request_target` workflow before requiring its status. See
+[GitHub's event-policy guidance](https://docs.github.com/en/actions/reference/security/securely-using-pull_request_target).
+Reuse `BACKPORT_APP_ID` and `BACKPORT_APP_PRIVATE_KEY`; the installation
+must permit contents writes to this repository. Automation requests only
+`contents:write` for the App token. Without a usable token, checks
+continue while writes are disabled. Renumbering does not update the branch with
+main and may require renewed approval under repository review rules.
+
+The privileged workflow executes only trusted main code and reads PR blobs as
+data. GitHub may suppress `pull_request_target` for some SHA-like branch names.
+For a missing status, or to retry a manual-fix skip after resolving its cause,
+maintainers can run the Migration numbering workflow manually. It rechecks open
+main-targeting PRs and repairs only eligible labeled PRs.
+
+After merging this workflow, smoke-test it on a same-repository PR targeting
+main with a migration-number conflict. Before adding the label, verify that
+`migration-numbering` fails and the bot leaves the branch untouched. Manually
+add `migration-autofix`, then verify the bot renumbers the migration pair and
+fixtures, ordinary CI runs on the new commit, and the numbering check passes.
+Remove the label before introducing another numbering conflict, and verify
+that the check fails without a further bot commit.
+
 #### Database fixtures (for testing migrations)
 
 There are two types of fixtures that are used to test that migrations don't
