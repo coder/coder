@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"slices"
 	"time"
 
@@ -351,7 +350,7 @@ func bindChatToResolvedAgent(ctx context.Context, tx database.Store, chat databa
 		return database.Chat{}, ErrChatContextNoAgent
 	}
 	if errors.Is(err, agentselect.ErrMultipleChatAgents) || errors.Is(err, agentselect.ErrNoEligibleAgents) {
-		return database.Chat{}, fmt.Errorf("%w: %w", ErrChatContextAgentSelection, err)
+		return database.Chat{}, errors.Join(ErrChatContextAgentSelection, err)
 	}
 	if err != nil {
 		return database.Chat{}, err

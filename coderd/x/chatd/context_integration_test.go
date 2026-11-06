@@ -661,7 +661,7 @@ func TestChatContextBeforeReplacementAgentPush(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	rawDB, _ := dbtestutil.NewDB(t)
+	rawDB, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 	gate := &contextBuildCompletionGate{entered: make(chan struct{}), release: make(chan struct{})}
 	client, daemon, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
@@ -822,13 +822,7 @@ func TestChatContextBeforeReplacementAgentPush(t *testing.T) {
 	newWorkspace, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err)
 	newAgentID := newWorkspace.LatestBuild.Resources[0].Agents[0].ID
-	_, err = db.GetWorkspaceAgentByID(chatCtx, oldAgentID)
-	require.ErrorIs(t, err, sql.ErrNoRows)
-	_, err = db.GetLatestWorkspaceAgentContextSnapshot(chatCtx, oldAgentID)
-	require.ErrorIs(t, err, sql.ErrNoRows)
-	oldAgentResources, err := db.ListWorkspaceAgentContextResources(chatCtx, oldAgentID)
-	require.NoError(t, err)
-	require.Empty(t, oldAgentResources)
+	requirePriorAgentPurged(chatCtx, t, db, sqlDB, oldAgentID)
 	_, err = db.GetLatestWorkspaceAgentContextSnapshot(chatCtx, newAgentID)
 	require.ErrorIs(t, err, sql.ErrNoRows)
 	refreshResources, err := db.ListChatContextResourcesByChatID(chatCtx, refreshChat.ID)
