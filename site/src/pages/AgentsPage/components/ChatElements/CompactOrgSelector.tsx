@@ -34,7 +34,7 @@ export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
 	options,
 	disabled = false,
 	className,
-	dropdownSide = "bottom",
+	dropdownSide = "top",
 	dropdownAlign = "start",
 }) => {
 	const [open, setOpen] = useState(false);
@@ -54,7 +54,7 @@ export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
 					}
 					className={cn(
 						"group flex h-6 w-auto cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none whitespace-nowrap transition-colors",
-						"hover:text-content-primary focus:ring-0",
+						"rounded-sm hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 						"disabled:cursor-not-allowed disabled:opacity-50",
 						className,
 					)}
@@ -82,18 +82,16 @@ export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
 			<PopoverContent
 				side={dropdownSide}
 				align={dropdownAlign}
-				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-64 p-0"
+				className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-72 max-w-[calc(100vw-2rem)] overflow-hidden p-0"
 			>
-				<Command loop>
-					<CommandInput placeholder="Find organization…" className="text-xs" />
+				<Command loop label="Search organizations">
+					<CommandInput placeholder="Search organizations..." />
 					<CommandList>
-						<CommandEmpty className="text-xs">
-							No organizations found
-						</CommandEmpty>
+						<CommandEmpty>No organizations found</CommandEmpty>
 						<CommandGroup>
 							{options.map((org) => (
 								<CommandItem
-									className="text-xs font-normal"
+									className={cn(value?.id === org.id && "bg-surface-secondary")}
 									key={org.id}
 									value={`${org.display_name} ${org.name}`}
 									onSelect={() => {
@@ -101,13 +99,12 @@ export const CompactOrgSelector: React.FC<CompactOrgSelectorProps> = ({
 										setOpen(false);
 									}}
 								>
-									{" "}
 									<Avatar
 										// Decorative: without this the fallback initials join
 										// the option's accessible name once they render, making
 										// name queries and screen-reader output timing-dependent.
 										aria-hidden
-										size="xs"
+										size="sm"
 										src={org.icon}
 										fallback={org.display_name || org.name}
 									/>

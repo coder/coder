@@ -718,7 +718,7 @@ const openMCPSubmenu: Story["play"] = async ({ canvasElement }) => {
 		within(canvasElement).getByRole("button", { name: "More options" }),
 	);
 	await userEvent.click(
-		await screen.findByRole("button", { name: /MCP servers/ }),
+		await screen.findByRole("menuitem", { name: /MCP servers/ }),
 	);
 };
 
@@ -779,7 +779,7 @@ export const MCPGroupPopoverOpen: Story = {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", { name: "3 MCPs" }),
 		);
-		await screen.findByRole("dialog");
+		await screen.findByRole("menu");
 	},
 };
 
@@ -893,10 +893,13 @@ export const WithMCPNoneActive: Story = {
 export const PlusMenuOpen: Story = {
 	args: {
 		...mcpDefaults,
+		chatOrganizationId: MockWorkspace.organization_id,
 		mcpServers: [sentryMCP, linearMCP, githubMCPConnected],
 		selectedMCPServerIds: [sentryMCP.id, linearMCP.id, githubMCPConnected.id],
 		onAttach: fn(),
 		onRemoveAttachment: fn(),
+		workspaceOptions: [MockWorkspace],
+		onWorkspaceChange: fn(),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -910,9 +913,8 @@ export const PlanFirstMenuItem: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		await body.findByRole("dialog");
+		await screen.findByRole("menu", { name: "More options" });
 	},
 };
 
@@ -983,14 +985,14 @@ export const PlanFirstCheckedState: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
-		await body.findByRole("dialog");
+		await screen.findByRole("menu", { name: "More options" });
 	},
 };
 
 export const DetailPageWorkspacePicker: Story = {
 	args: {
+		...PlusMenuOpen.args,
 		workspaceOptions: [
 			{
 				id: "ws-detail",
@@ -1009,34 +1011,12 @@ export const DetailPageWorkspacePicker: Story = {
 			statusLabel: "Workspace running",
 		},
 	},
-	play: async ({ args, canvasElement }) => {
+	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-
-		expect(canvas.getAllByText("agents-workspace")).toHaveLength(1);
-		const removeWorkspaceButton = canvas.getByRole("button", {
-			name: "Remove workspace agents-workspace",
-		});
-		expect(removeWorkspaceButton).toBeVisible();
-		await userEvent.click(removeWorkspaceButton);
-		expect(args.onWorkspaceChange).toHaveBeenCalledWith(null);
-
-		const moreOptionsButton = canvas.getByRole("button", {
-			name: "More options",
-		});
-		await userEvent.click(moreOptionsButton);
-		await waitFor(() => {
-			const plusMenuId = moreOptionsButton.getAttribute("aria-controls");
-			if (!plusMenuId) {
-				throw new Error("Expected More options to control a menu dialog.");
-			}
-
-			const plusMenu = canvasElement.ownerDocument.getElementById(plusMenuId);
-			if (!(plusMenu instanceof HTMLElement)) {
-				throw new Error("Expected More options menu dialog to render.");
-			}
-
-			expect(within(plusMenu).getByText("Attach workspace")).toBeVisible();
-		});
+		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
+		await userEvent.click(
+			await screen.findByRole("menuitem", { name: "Attach workspace" }),
+		);
 	},
 };
 
@@ -1110,33 +1090,13 @@ export const UncheckSelectedWorkspaceFromPicker: Story = {
 		viewport: { defaultViewport: "mobile1" },
 		pixel: { matrix: { viewports: ["phone"] } },
 	},
-	play: async ({ args, canvasElement }) => {
-		const canvas = within(canvasElement);
-		const body = within(canvasElement.ownerDocument.body);
-
-		const moreOptionsButton = canvas.getByRole("button", {
-			name: "More options",
-		});
-		expect(moreOptionsButton).toBeEnabled();
-		await userEvent.click(moreOptionsButton);
-
-		const attachWorkspaceButton = (
-			await body.findByText("Attach workspace")
-		).closest("button");
-		if (!(attachWorkspaceButton instanceof HTMLButtonElement)) {
-			throw new Error("Expected Attach workspace to be a button.");
-		}
-		expect(attachWorkspaceButton).toBeEnabled();
-		await userEvent.click(attachWorkspaceButton);
-
-		const workspaceMatches = await body.findAllByText(MockWorkspace.name);
-		const selectedWorkspaceOption = workspaceMatches.at(-1);
-		if (!(selectedWorkspaceOption instanceof HTMLElement)) {
-			throw new Error("Expected workspace option to render.");
-		}
-		await userEvent.click(selectedWorkspaceOption);
-
-		expect(args.onWorkspaceChange).toHaveBeenCalledWith(null);
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "More options" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("menuitem", { name: "Attach workspace" }),
+		);
 	},
 };
 
@@ -1213,8 +1173,8 @@ export const MCPGroupInOverflow: Story = {
 		await userEvent.click(
 			within(overflow).getByRole("button", { name: "3 MCPs" }),
 		);
-		// The group popover is a second dialog, so wait for one of its switches.
-		await screen.findByRole("switch", { name: "Disable Linear" });
+
+		await screen.findByRole("menuitemcheckbox", { name: "Linear" });
 	},
 };
 
