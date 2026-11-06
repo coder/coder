@@ -124,6 +124,7 @@ Refer to [Pool fields](#pool-fields) and [Agent Relay for Cursor](./cursor.md).
 | `template_parameters`  | No       | Fixed parameter values that Agent Relay sets on every build from this pool, as a map of parameter names to values. Use it for required or environment-specific parameters. Agent Relay doesn't log the values.                                                                                                                                                                                        |
 | `idle_release_timeout` | No       | How long a session can go without a new message after the agent finishes a turn before it's released and its workspace is deleted, as a duration such as `30m`. Defaults to `1h`. `0` turns off idle release. Claude Code needs whole minutes, up to `168h`. Cursor needs whole seconds and logs a warning at startup for values below `5m`. Agent Relay refuses to start on a number without a unit. |
 | `template_version`     | No       | A version name or UUID of `template` that every build from this pool uses, including rebuilds. Leave it unset to use the active version. Refer to [Pin a template version](#pin-a-template-version).                                                                                                                                                                                                  |
+| `reap_delay`           | No       | Overrides [`--reap-delay`](#--reap-delay) for this pool, as a duration that isn't negative, such as `10m`. Set `0s` to turn off the delay for this pool. Requires Agent Relay v0.15.0 or later.                                                                                                                                                                                                       |
 
 Agent Relay also accepts an inline `secret` field in place of `secret_env`.
 Set exactly one of the two.
@@ -138,10 +139,10 @@ Use `secret_env` to keep the secret out of configuration files and Helm values.
 
 ### Cursor pool fields
 
-| Field               | Required | Description                                                                                                                                                                                                                              |
-|---------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `cursor_pool_name`  | Yes      | The pool name that workers register under in Cursor and that developers select. It's separate from `name`, which only labels the pool in Agent Relay.                                                                                    |
-| `dispatch_deadline` | No       | The longest time from claim to a ready workspace, as a duration such as `10m`. Defaults to `10m`, with a maximum of `15m`. `0` turns off the deadline, but Agent Relay still deletes a workspace that is building after 15&nbsp;minutes. |
+| Field               | Required | Description                                                                                                                                                                                                                                                         |
+|---------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `cursor_pool_name`  | Yes      | The pool name that workers register under in Cursor and that developers select. It's separate from `name`, which only labels the pool in Agent Relay.                                                                                                               |
+| `dispatch_deadline` | No       | The longest time from claim to a ready workspace, as a duration such as `10m`. Defaults to `10m`, with a maximum of `15m`. `0` turns off the deadline, but Agent Relay still deletes a workspace that is building after the [startup grace](#--reap-startup-grace). |
 
 Agent Relay refuses to start if:
 
@@ -277,6 +278,54 @@ In Docker, set `0.0.0.0:2112`.
 The Helm chart always binds to `0.0.0.0` on `prometheus.port`.
 
 ## Workspace reaper
+
+### `--reap-startup-grace`
+
+| Property    | Value                                              |
+|-------------|----------------------------------------------------|
+| Type        | <code>duration</code>                              |
+| Environment | <code>$CODER_AGENT_RELAY_REAP_STARTUP_GRACE</code> |
+| YAML        | <code>reapStartupGrace</code>                      |
+| Helm        | <code>reapStartupGrace</code>                      |
+| Default     | <code>15m0s</code>                                 |
+
+How long the reaper waits for a workspace to build and start its worker, measured from when the latest build was created.
+Must be positive.
+
+- A build that is still pending or starting waits for the longer of this grace and the pool's `dispatch_deadline`, then the reaper deletes the workspace.
+- A build that finished but whose worker still reports no status, or `pending`, fails after this grace, which includes the time spent building.
+- A short grace can fail workspaces whose agent connects slowly or whose worker starts slowly.
+  Keep the default unless you run an isolated test deployment.
+
+The reaper sweeps about every 30&nbsp;seconds, so cleanup isn't exact to the second.
+Requires Agent Relay v0.15.0 or later.
+Earlier versions use a fixed 15&nbsp;minutes.
+
+### `--reap-delay`
+
+| Property    | Value                                      |
+|-------------|--------------------------------------------|
+| Type        | <code>duration</code>                      |
+| Environment | <code>$CODER_AGENT_RELAY_REAP_DELAY</code> |
+| YAML        | <code>reapDelay</code>                     |
+| Default     | <code>0s</code>                            |
+
+How long the reaper waits after the latest workspace build completes before it deletes a workspace whose worker exited cleanly, or whose build failed or was canceled.
+For a failed worker, the reaper also waits this long before it reports the failure to the provider and deletes the workspace.
+This postpones provider retries and the failure messages that users see.
+Must not be negative.
+A pool's `reap_delay` overrides it.
+
+- A build that fails while Agent Relay is still dispatching it is deleted right away.
+- If autostop could stop the workspace before the delay ends, the reaper deletes it right away.
+- A worker that never starts fails after the startup grace, so its delay might already have passed.
+- If the provider sends the session again and Agent Relay rebuilds the workspace, the delay starts over from the new build.
+- On each sweep that holds a workspace, the reaper counts a `delayed` verdict.
+  Set `--log-level` to `debug` to log held workspaces and when the reaper deletes them.
+
+Requires Agent Relay v0.15.0 or later.
+The Helm chart has no dedicated value for this option.
+Set it with [`extraEnv`](#helm-values).
 
 ### `--reap-workers`
 
