@@ -124,7 +124,7 @@ Refer to [Pool fields](#pool-fields) and [Agent Relay for Cursor](./cursor.md).
 | `template_parameters`  | No       | Fixed parameter values that Agent Relay sets on every build from this pool, as a map of parameter names to values. Use it for required or environment-specific parameters. Agent Relay doesn't log the values.                                                                                                                                                                                        |
 | `idle_release_timeout` | No       | How long a session can go without a new message after the agent finishes a turn before it's released and its workspace is deleted, as a duration such as `30m`. Defaults to `1h`. `0` turns off idle release. Claude Code needs whole minutes, up to `168h`. Cursor needs whole seconds and logs a warning at startup for values below `5m`. Agent Relay refuses to start on a number without a unit. |
 | `template_version`     | No       | A version name or UUID of `template` that every build from this pool uses, including rebuilds. Leave it unset to use the active version. Refer to [Pin a template version](#pin-a-template-version).                                                                                                                                                                                                  |
-| `reap_delay`           | No       | Overrides [`--reap-delay`](#--reap-delay) for this pool, as a duration that isn't negative, such as `10m`. Set `0s` to turn off the delay for this pool. Requires Agent Relay v0.15.0 or later.                                                                                                                                                                                                       |
+| `reap_delay`           | No       | Overrides [`--reap-delay`](#--reap-delay) for this pool, as a duration that isn't negative, such as `10m`. Set `0s` to turn off the delay for this pool.                                                                                                                                                                                                                                              |
 
 Agent Relay also accepts an inline `secret` field in place of `secret_env`.
 Set exactly one of the two.
@@ -279,6 +279,9 @@ The Helm chart always binds to `0.0.0.0` on `prometheus.port`.
 
 ## Workspace reaper
 
+The reaper is the process that deletes relay workspaces when their sessions end or fail.
+For what it does and which setting to change, refer to [Workspace lifecycle](./setup.md#workspace-lifecycle).
+
 ### `--reap-startup-grace`
 
 | Property    | Value                                              |
@@ -299,8 +302,8 @@ Must be positive.
   Unless you run an isolated test deployment, keep the default.
 
 The reaper sweeps about every 30&nbsp;seconds, so cleanup isn't exact to the second.
-Requires Agent Relay v0.15.0 or later.
-Earlier versions use a fixed 15&nbsp;minutes.
+Raise it when a template legitimately takes longer than 15&nbsp;minutes to build and start its worker.
+Refer to [Choose cleanup settings](./setup.md#choose-cleanup-settings).
 
 ### `--reap-delay`
 
@@ -324,7 +327,8 @@ A pool's `reap_delay` overrides this option.
 - On each sweep that holds a workspace, the reaper counts a `delayed` verdict.
   Set `--log-level` to `debug` to log held workspaces and when the reaper deletes them.
 
-Requires Agent Relay v0.15.0 or later.
+Use it while you debug failed sessions, so you can open the workspace and read its logs before Agent Relay deletes it.
+Refer to [Choose cleanup settings](./setup.md#choose-cleanup-settings).
 The Helm chart has no dedicated value for this option.
 Set it with [`extraEnv`](#helm-values).
 
