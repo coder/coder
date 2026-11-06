@@ -1,0 +1,3 @@
+DROP INDEX IF EXISTS idx_provisioner_jobs_organization_id_created_at;
+DROP INDEX IF EXISTS idx_provisioner_jobs_incomplete;
+DROP INDEX IF EXISTS idx_notification_messages_queued_created_at;
