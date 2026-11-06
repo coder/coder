@@ -129,6 +129,7 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 ### Transitions used by the HTTP endpoints
 
 - `Create(initialMessages, initialStatus)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `initialStatus`. The initial status defaults to `running`; a caller can request `waiting` instead to create an idle chat, which starts running with its first `SendMessage`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
+  <!-- TODO(CODAGT-1501): `Create` now accepts empty `initialMessages` when `initialStatus` is `waiting`. Such a chat inserts no history, so `history_version` stays 0 until its first `SendMessage`. A `running` chat still needs at least one initial message. -->
 - When `Create(initialMessages, initialStatus)` creates a child chat, it first locks the family's root chat row with `FOR SHARE` and fails if the root is archived, so a new child never joins an archived family.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
 - `SetProject(project)` sets or clears the project of one chat without changing its execution state. A move of a root chat applies it to the root and each descendant in one transaction, and fails without changing any chat if one of them isn't in `W`, `E0`, `E1`, `E1P` or `P`. Only the root's `project_id` changes; subagents go through `SetProject` only so that their execution state is checked too. As in a family archive, the root row is locked first, so a concurrent child creation either joins the move or waits for it. A move to the root's current project applies no transition.
@@ -397,6 +398,8 @@ Each row in `chat_messages` has a `revision` column. It stores the `chats.snapsh
 
 `chats.history_version` stores the latest `snapshot_version` in which chat message history changed. It starts at `0`, remains unchanged for non-history transitions, and is set to the current `snapshot_version` whenever a message is inserted or meaningfully updated. A newly created chat starts with `snapshot_version = 1`; because `Create` inserts initial history in that snapshot, the created chat's `history_version` becomes `1`. No-op message updates do not advance message `revision`, advance `history_version`, or reset `generation_attempt`. Whenever `history_version` changes, `generation_attempt` is reset to `0`; generation attempts are scoped to the current history version.
 
+<!-- TODO(CODAGT-1501): a chat created `waiting` without initial messages keeps `history_version = 0` until its first message, so "the created chat's `history_version` becomes `1`" holds only when `Create` inserts history. -->
+
 Message revision triggers depend on the transition invariant that `snapshot_version` is allocated immediately after the chat row is locked and before any message mutation happens. Runtime code must not assign `chat_messages.revision` directly, and every `chat_messages` insert or update must go through a state machine transition: the triggers advance `history_version` on any write, so an out-of-band write (even of a hidden or soft-deleted row) moves `history_version` without a matching `snapshot_version` bump and breaks the fence of an in-flight generation task.
 
 A `BEFORE INSERT` trigger assigns the current chat `snapshot_version` to the inserted message row and records the same value as the chat's latest history version:
@@ -565,6 +568,8 @@ This endpoint uses `Create(initialMessages, initialStatus)`:
 - `N -> Create(initialMessages, waiting) -> W` if `content` is empty
 
 With empty `content`, the chat starts idle with only system messages. This lets a client get the chat ID before the first turn, for example to upload files into the chat's workspace, and then start generation with its first `POST /api/v2/chats/{chat}/messages`.
+
+<!-- TODO(CODAGT-1501): creation no longer saves workspace awareness as a system message; each turn adds it to the system prompt from the chat's current workspace binding. With empty `content` and no deployment, organization, or chat system prompt, the chat starts with no messages at all. -->
 
 No other input states are supported.
 

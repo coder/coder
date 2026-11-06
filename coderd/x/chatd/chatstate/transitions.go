@@ -61,12 +61,13 @@ type CreateChatResult struct {
 	InitialMessages []database.ChatMessage
 }
 
-// CreateChat creates a brand new chat with initial history in a single
-// transaction. It is package-level rather than a method on [ChatMachine]
-// because no chat-scoped machine can exist before the chat row is written.
+// CreateChat creates a brand new chat and its initial history, if any, in
+// a single transaction. It is package-level rather than a method on
+// [ChatMachine] because no chat-scoped machine can exist before the chat
+// row is written.
 //
 // Validation:
-//   - InitialMessages must be non-empty.
+//   - InitialMessages must be non-empty unless InitialStatus is `waiting`.
 //   - InitialStatus must be `waiting`, `running`, or empty (`running`).
 //   - When RootChatID is set, the root chat must exist and must not be
 //     archived; otherwise CreateChat returns [ErrChatNotFound] or
@@ -114,17 +115,19 @@ func insertChat(
 	if publisher == nil {
 		return CreateChatResult{}, xerrors.New("chatstate: CreateChat called with nil publisher")
 	}
-	if len(input.InitialMessages) == 0 {
-		return CreateChatResult{}, newTransitionError(
-			TransitionCreateChat, StateN,
-			"initial messages must include at least one message",
-		)
-	}
 	initialStatus := cmp.Or(input.InitialStatus, database.ChatStatusRunning)
 	if initialStatus != database.ChatStatusWaiting && initialStatus != database.ChatStatusRunning {
 		return CreateChatResult{}, newTransitionError(
 			TransitionCreateChat, StateN,
 			"initial status must be waiting or running",
+		)
+	}
+	// A running chat needs history for the worker to process. A waiting
+	// chat gets its first message from SendMessage.
+	if len(input.InitialMessages) == 0 && initialStatus == database.ChatStatusRunning {
+		return CreateChatResult{}, newTransitionError(
+			TransitionCreateChat, StateN,
+			"a running chat needs at least one initial message",
 		)
 	}
 	var result CreateChatResult
@@ -177,9 +180,14 @@ func insertChat(
 		// Insert the initial history under the new chat row. The
 		// message revision trigger advances `history_version` to the
 		// current `snapshot_version` (which is 1 for a brand new chat).
-		inserted, err := store.InsertChatMessages(ctx, toInsertParams(chat.ID, input.InitialMessages))
-		if err != nil {
-			return xerrors.Errorf("insert initial messages: %w", err)
+		// A chat created without messages keeps `history_version` 0
+		// until its first message.
+		var inserted []database.InsertChatMessagesRow
+		if len(input.InitialMessages) > 0 {
+			inserted, err = store.InsertChatMessages(ctx, toInsertParams(chat.ID, input.InitialMessages))
+			if err != nil {
+				return xerrors.Errorf("insert initial messages: %w", err)
+			}
 		}
 		if err := LinkFiles(ctx, store, chat.ID, input.FileIDs, input.MaxFileLinks); err != nil {
 			return err
