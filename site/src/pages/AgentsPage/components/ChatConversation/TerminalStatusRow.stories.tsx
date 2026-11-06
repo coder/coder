@@ -19,6 +19,7 @@ const meta: Meta<typeof TerminalStatusRow> = {
 						hasFetchMoreError={false}
 						hasTranscriptRows={true}
 						onFetchMoreMessages={async () => {}}
+						isTurnActive={false}
 					>
 						<Story />
 					</ChatMessageScroller>
