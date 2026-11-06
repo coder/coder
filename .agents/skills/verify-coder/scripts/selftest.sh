@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Checks harness behavior that needs no running instance: the launch.sh
 # argument and password refusals, the random password for a new database, the
-# loopback bind of the setup run, that launch.sh log tails show no password,
-# the gates before the restart on every interface, that cleanup keeps a
-# .coderv2 that Postgres still runs from, the launch lock, how
+# loopback bind of develop, that launch.sh log tails show no password, the
+# password gates after develop is ready, that cleanup keeps a .coderv2 that
+# Postgres still runs from, the launch lock, how
 # vc_start_develop passes the environment, that a Docker error or a missing
 # docker CLI fails the leftover inventory, the default password check for
 # admin and member, and that vc_browser_login keeps the password out of the
@@ -161,10 +161,9 @@ start_develop_isolates() {
 }
 vc_check start-develop start_develop_isolates
 
-# develop.sh creates the owner through an unauthenticated route, so the first
-# develop start, the only one before setup is done, must bind 127.0.0.1 for
-# every kind of data. The stub develop exits at once, so launch.sh stops after
-# that start.
+# develop.sh creates the owner through an unauthenticated route, and Vite
+# serves checkout files, so develop must bind 127.0.0.1 for every kind of
+# data. The stub develop exits at once, so launch.sh stops after that start.
 setup_binds_loopback() {
 	local kind
 	unset CODER_DEV_ADMIN_PASSWORD
@@ -193,7 +192,7 @@ setup_binds_loopback() {
 			return 1
 		}
 	done
-	echo "the setup run binds 127.0.0.1 for --fresh, new data and reused data, without a saved session"
+	echo "develop binds 127.0.0.1 for --fresh, new data and reused data, without a saved session"
 }
 vc_check setup-loopback setup_binds_loopback
 
@@ -242,9 +241,9 @@ log_tail_drops_escaped_password() {
 }
 vc_check log-tail log_tail_drops_escaped_password
 
-# launch.sh must not restart on every interface when the setup run accepts the
+# launch.sh must fail and start develop only once when the instance accepts the
 # published default password for the admin or the member, and must report a
-# setup run that died after its banner.
+# develop that died after its banner.
 setup_gates() {
 	local email
 	export CODER_DEV_ADMIN_PASSWORD="selftest-$RANDOM"
@@ -257,17 +256,17 @@ setup_gates() {
 			return 1
 		}
 		if [[ "$(wc -l <"$tmp/develop-argv")" != 1 ]]; then
-			echo "$email: launch.sh restarted develop"
+			echo "$email: launch.sh started develop more than once"
 			return 1
 		fi
 	done
 	scratch_reset
 	scratch_run_script launch.sh ready --fresh
-	[[ "$rc" == 1 && "$out" == *"develop.sh exited after setup"* ]] || {
-		echo "dead setup run: launch.sh exited $rc: ${out##*$'\n'}"
+	[[ "$rc" == 1 && "$out" == *"develop.sh exited after it was ready"* ]] || {
+		echo "dead develop: launch.sh exited $rc: ${out##*$'\n'}"
 		return 1
 	}
-	echo "launch.sh stops on a default password for admin or member and on a dead setup run"
+	echo "launch.sh stops on a default password for admin or member and on a dead develop"
 }
 vc_check setup-gates setup_gates
 

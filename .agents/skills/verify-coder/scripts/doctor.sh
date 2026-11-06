@@ -108,7 +108,8 @@ state_private() {
 	echo "$VC_STATE is private (700)"
 }
 
-# The server listens on every interface, so it must refuse the published
+# Every process on this host, other users' included, can reach the server,
+# so it must refuse the published
 # default password, whatever data it runs on.
 default_password_refused() {
 	local user

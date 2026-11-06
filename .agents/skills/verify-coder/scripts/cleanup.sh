@@ -124,7 +124,7 @@ archive_logs() {
 	local stamp f kept=()
 	stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 	mkdir -p "$VC_EVIDENCE"
-	for f in develop-setup develop build; do
+	for f in develop build; do
 		if [[ -f "$VC_RUN/$f.log" ]]; then
 			mv "$VC_RUN/$f.log" "$VC_EVIDENCE/$stamp-$f.log"
 			kept+=("$stamp-$f.log")

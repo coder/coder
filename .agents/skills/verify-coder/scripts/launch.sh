@@ -64,8 +64,8 @@ case "${CODER_BUILD_AGPL:-}" in
 *) vc_fail "CODER_BUILD_AGPL is not supported: make would reuse the existing enterprise binary" ;;
 esac
 
-# After setup the instance listens on every interface, so it never runs with
-# the published default password. A database that this launch creates (--fresh,
+# The instance never runs with the published default password, which every
+# process on the host could use. A database that this launch creates (--fresh,
 # or no built-in Postgres data yet) gets a random one. Reused data needs the
 # password it already has, from CODER_DEV_ADMIN_PASSWORD or the file that an
 # earlier launch saved next to the data.
@@ -79,10 +79,10 @@ elif [[ -n "${CODER_DEV_ADMIN_PASSWORD:-}" ]]; then
 elif [[ -f "$password_file" ]]; then
 	password="$(<"$password_file")"
 else
-	vc_fail "$VC_CONFIG_DIR has no saved admin password, so its admin likely has the published default, which develop.sh would expose on every interface: run launch.sh --fresh, or set CODER_DEV_ADMIN_PASSWORD to its real password"
+	vc_fail "$VC_CONFIG_DIR has no saved admin password, so its admin likely has the published default, which every process on this host could use: run launch.sh --fresh, or set CODER_DEV_ADMIN_PASSWORD to its real password"
 fi
 if [[ "$password" == "SomeSecurePassword!" ]]; then
-	vc_fail "the published default password is not allowed: develop.sh listens on every interface"
+	vc_fail "the published default password is not allowed: every process on this host can reach the instance"
 fi
 
 bin="$(vc_coder_bin)"
@@ -210,41 +210,26 @@ run_develop() {
 }
 
 # develop.sh creates the first user, the owner, through the unauthenticated
-# /api/v2/users/first route once the server is healthy. On every interface, a
-# host on the network could claim the owner first. So develop runs its setup
-# on 127.0.0.1, also for reused data, which can lack a user when an earlier
-# launch failed. The docker template's workspace agents reach the server
-# through host.docker.internal, so develop then restarts on every interface
-# with the same ports and the database it set up.
+# /api/v2/users/first route once the server is healthy, and its Vite dev
+# server serves files of the checkout, .coderv2/session included. So develop
+# listens on 127.0.0.1 only.
 # develop.sh reuses a saved CLI session without signing in, even one of
 # another user, and the journeys would then run as that user. Without it,
 # develop signs in as the admin with the launch password and saves that
 # session.
 rm -f "$VC_CONFIG_DIR/session"
-log="$VC_RUN/develop-setup.log"
-echo "setting up on 127.0.0.1"
+log="$VC_RUN/develop.log"
 run_develop --bind-address 127.0.0.1 "${args[@]}"
 if ((new_database && !password_saved)); then
 	vc_fail "launch.sh created a new database but develop.sh logged no first user, see $log, then run cleanup.sh"
 fi
 # Reused data can still have the default password when the one launch.sh was
-# given is wrong, and develop.sh reuses a saved session without signing in.
-# Both show here, before the server listens on other interfaces.
+# given is wrong.
 VC_API_URL="http://127.0.0.1:$api_port"
-kill -0 "$pid" 2>/dev/null || vc_fail "develop.sh exited after setup, see $log, then run cleanup.sh"
+kill -0 "$pid" 2>/dev/null || vc_fail "develop.sh exited after it was ready, see $log, then run cleanup.sh"
 if default_user="$(vc_default_password_accepted)"; then
-	vc_fail "$default_user signs in with the published default password, so launch.sh keeps the instance on 127.0.0.1: run cleanup.sh, then launch.sh --fresh"
+	vc_fail "$default_user signs in with the published default password: run cleanup.sh, then launch.sh --fresh"
 fi
 vc_password_accepted "$password" || vc_fail "the admin password launch.sh used does not sign in, so the journeys would fail: run cleanup.sh, then fix CODER_DEV_ADMIN_PASSWORD or launch.sh --fresh"
 grep -E 'template created in org|starter template setup failed|created member user' "$log" | cut -c1-200 || true
-
-vc_stop_develop "$pid" >/dev/null || vc_fail "could not stop the setup run (pid $pid), run cleanup.sh"
-for port in "$api_port" "$web_port"; do
-	if vc_port_busy "$port"; then
-		vc_fail "port $port is still in use after the setup run stopped, run cleanup.sh"
-	fi
-done
-log="$VC_RUN/develop.log"
-echo "restarting on every interface"
-run_develop --prometheus-port 0 --port "$api_port" --web-port "$web_port"
 exec "$(dirname "${BASH_SOURCE[0]}")/doctor.sh"
