@@ -29,7 +29,7 @@ The staged artifacts total about 1.5&nbsp;GB, and the steps use about 11&nbsp;GB
 ## Set the host variables
 
 Run every command in this tutorial in the same workstation shell.
-If you open a new shell, set these variables again.
+If you open a new shell, set these variables again, and run the `export KUBECONFIG` command again after you create it in the "Connect to the cluster" section.
 
 1. Set the host address and the SSH user.
 
@@ -86,8 +86,8 @@ Do this section while the workstation has internet access.
    You see `OK` for both files:
 
    ```txt
-   k3s-arm64: OK
    k3s-airgap-images-arm64.tar.zst: OK
+   k3s-arm64: OK
    ```
 
 1. Download the Coder Helm chart.
@@ -208,7 +208,7 @@ You install code-server while you build the workspace image instead.
 1. Check the code-server version in the image.
 
    ```sh
-   docker run --rm --platform linux/arm64 --entrypoint /opt/code-server/bin/code-server ${WORKSPACE_IMAGE} --version
+   docker run --rm --platform linux/arm64 --entrypoint /opt/code-server/bin/code-server ${WORKSPACE_IMAGE} --version | tail -1
    ```
 
    The output starts with your code-server version:
@@ -248,6 +248,7 @@ The `fake-hwclock` package saves the time at shutdown and restores it at startup
    docker rm stage-debs
    ```
 
+   The `apt-get` command prints a warning about an unsandboxed download, and the package still downloads.
    The `debs` directory now holds a file named `fake-hwclock_<version>_all.deb`.
 
 ### Create the template
@@ -262,6 +263,10 @@ The `fake-hwclock` package saves the time at shutdown and restores it at startup
 
    ```txt
    Extracting  kubernetes  to template...
+   Create your template by running:
+   cd template && coder templates push
+
+   Examples provide a starting point and are expected to be edited! 🎨
    ```
 
 1. Set the agent architecture to `arm64`.
@@ -321,12 +326,18 @@ The `fake-hwclock` package saves the time at shutdown and restores it at startup
              image_pull_policy = "IfNotPresent"
    ```
 
+1. Remove the backup files that the edits created.
+
+   ```sh
+   rm template/main.tf.bak
+   ```
+
 ## Copy the artifacts to the host
 
 1. Create a checksum list for every staged file.
 
    ```sh
-   find . -type f ! -name SHA256SUMS ! -name '*.bak' -print0 | xargs -0 shasum -a 256 > SHA256SUMS
+   find . -type f ! -name SHA256SUMS -print0 | xargs -0 shasum -a 256 > SHA256SUMS
    ```
 
 1. Copy the staged files to the host.
@@ -375,14 +386,14 @@ The `fake-hwclock` package saves the time at shutdown and restores it at startup
 1. Compare the two clocks.
 
    ```sh
-   date -u; ssh ${HOST} date -u
+   date -u +%T; ssh ${HOST} date -u +%T
    ```
 
    The two times differ by only a few seconds:
 
    ```txt
-   Fri Nov  6 18:03:34 UTC 2026
-   Fri Nov  6 18:03:36 UTC 2026
+   18:03:34
+   18:03:36
    ```
 
 A production host needs a network time source on your internal network instead of this approach.
@@ -404,6 +415,7 @@ A production host needs a network time source on your internal network instead o
      sudo cp ~/airgap/*.tar.zst /var/lib/rancher/k3s/agent/images/'
    ```
 
+   The directory receives the K3s archive and your three image archives.
    K3s imports every archive in this directory when it starts.
 
 1. Run the K3s install script without downloads.
@@ -424,9 +436,10 @@ A production host needs a network time source on your internal network instead o
 1. Wait for the node to become ready.
 
    ```sh
-   ssh ${HOST} 'until sudo k3s kubectl get nodes | grep -q " Ready"; do sleep 5; done; sudo k3s kubectl get nodes'
+   ssh ${HOST} 'until sudo k3s kubectl get nodes 2>/dev/null | grep -q " Ready"; do sleep 5; done; sudo k3s kubectl get nodes'
    ```
 
+   K3s needs a few minutes to start, and the command prints nothing until the node is ready.
    You see one node with the `control-plane` role:
 
    ```txt
@@ -622,8 +635,6 @@ This tutorial runs the official PostgreSQL image in the cluster, which suits a p
          value: "true"
        - name: CODER_OAUTH2_GITHUB_DEFAULT_PROVIDER_ENABLE
          value: "false"
-       - name: CODER_EXTERNAL_AUTH_GITHUB_DEFAULT_PROVIDER_ENABLE
-         value: "false"
    EOF
    ```
 
@@ -632,7 +643,7 @@ This tutorial runs the official PostgreSQL image in the cluster, which suits a p
    - The resource requests and limits replace the chart default of 2&nbsp;CPU cores and 4&nbsp;GiB of memory, which a host with 4&nbsp;GB of memory cannot schedule.
    - The `NodePort` service avoids the ports 80 and 443 that the bundled Traefik ingress controller uses.
    - The `CODER_ACCESS_URL` value must be reachable from your browser and from workspaces.
-   - The remaining environment variables turn off telemetry, the update check, Session Traversal Utilities for Network Address Translation (STUN), the default GitHub sign-in and external authentication providers, and the template builder, and they send workspace connections through the control plane.
+   - The remaining environment variables turn off telemetry, the update check, Session Traversal Utilities for Network Address Translation (STUN), the default GitHub sign-in provider, and the template builder, and they send workspace connections through the control plane.
 
 1. Install Coder from the chart file.
 
@@ -683,6 +694,9 @@ This tutorial runs the official PostgreSQL image in the cluster, which suits a p
    Welcome to Coder, <username>! You're authenticated.
    ```
 
+   If your `coder` CLI version differs from the Coder version that you installed, every command prints a version mismatch warning.
+   The commands in this tutorial still work.
+
 1. Push the template.
 
    ```sh
@@ -723,21 +737,35 @@ This tutorial runs the official PostgreSQL image in the cluster, which suits a p
 
 ## Verify the air gap
 
-1. Open the workspace in a browser.
+1. Open code-server in a browser, or check it from the command line.
 
    Open the Coder dashboard, select **my-workspace**, and select **code-server**.
    You see the code-server editor.
 
+   To check from the command line instead, run this command:
+
+   ```sh
+   coder ssh my-workspace -- 'wget -q -O - http://localhost:13337/healthz'
+   ```
+
+   You see the health response:
+
+   ```txt
+   {"status":"expired","lastHeartbeat":0}
+   ```
+
+   The status `expired` is normal when no browser is connected.
+
 1. Confirm that the workspace has no internet access.
 
    ```sh
-   coder ssh my-workspace -- sh -c 'wget -T 5 -q -O /dev/null https://example.com || echo "No internet access"'
+   coder ssh my-workspace -- 'wget -T 5 -q -O /dev/null https://example.com || echo "wget exit code: $?"'
    ```
 
-   You see the message:
+   You see the exit code 4, which means that `wget` could not reach the server:
 
    ```txt
-   No internet access
+   wget exit code: 4
    ```
 
    The result depends on your network.
