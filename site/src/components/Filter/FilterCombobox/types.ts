@@ -21,8 +21,6 @@ export type FilterCategory = {
 	/** Cache identity when pages offer different options for the same query key. */
 	optionsKey?: string;
 	label: string;
-	/** Separate this submenu from the categories above it. */
-	separatorBefore?: boolean;
 	/** Picking a value replaces other values in this category. */
 	singleSelect?: boolean;
 	getOptions: (query: string) => Promise<FilterOption[]>;

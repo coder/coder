@@ -41,8 +41,6 @@ describe("AuditFilter", () => {
 			route: "/?filter=action:write%20date_from:2026-01-01",
 		});
 		await user.click(await screen.findByRole("button", { name: "Filters" }));
-		await screen.findByRole("option", { name: "Presets" });
-		await user.keyboard("{End}{ArrowRight}");
 		await user.click(await screen.findByRole("option", { name: label }));
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(query));
 	});
@@ -67,34 +65,16 @@ describe("AuditFilter", () => {
 		);
 	});
 
-	it("opens the presets submenu using the keyboard", async () => {
+	it("applies an inline preset using the keyboard", async () => {
 		const user = userEvent.setup();
 		const onChange = vi.fn();
 		renderWithAuth(<Harness onChange={onChange} />);
 		await user.click(await screen.findByRole("button", { name: "Filters" }));
-		await screen.findByRole("option", { name: "Presets" });
-		await user.keyboard("{End}{ArrowRight}");
 		await screen.findByRole("option", { name: "User logins" });
 		await user.keyboard("{End}{Enter}");
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith(
 				"resource_type:api_key action:login",
-			),
-		);
-	});
-
-	it("applies a preset from the pointer flyout", async () => {
-		const user = userEvent.setup({ skipHover: true });
-		const onChange = vi.fn();
-		renderWithAuth(<Harness onChange={onChange} />);
-		await user.click(await screen.findByRole("button", { name: "Filters" }));
-		await user.hover(await screen.findByRole("option", { name: "Presets" }));
-		await user.click(
-			await screen.findByRole("button", { name: "Created workspaces" }),
-		);
-		await waitFor(() =>
-			expect(onChange).toHaveBeenLastCalledWith(
-				"resource_type:workspace action:create",
 			),
 		);
 	});
@@ -188,11 +168,10 @@ describe("AuditFilter", () => {
 		]);
 		const checkAuthorization = vi
 			.spyOn(API, "checkAuthorization")
-			.mockImplementation(async ({ checks }) =>
-				Object.fromEntries(
-					Object.keys(checks).map((key) => [key, key !== MockOrganization2.id]),
-				),
-			);
+			.mockResolvedValue({
+				[MockDefaultOrganization.id]: true,
+				[MockOrganization2.id]: false,
+			});
 		const user = userEvent.setup();
 		const onChange = vi.fn();
 		renderWithAuth(<Harness onChange={onChange} />);
@@ -212,15 +191,22 @@ describe("AuditFilter", () => {
 			),
 		);
 		expect(checkAuthorization).toHaveBeenCalledWith({
-			checks: Object.fromEntries(
-				[MockDefaultOrganization, MockOrganization2].map((org) => [
-					org.id,
-					{
-						object: { resource_type: "audit_log", organization_id: org.id },
-						action: "read",
+			checks: {
+				[MockDefaultOrganization.id]: {
+					object: {
+						resource_type: "audit_log",
+						organization_id: MockDefaultOrganization.id,
 					},
-				]),
-			),
+					action: "read",
+				},
+				[MockOrganization2.id]: {
+					object: {
+						resource_type: "audit_log",
+						organization_id: MockOrganization2.id,
+					},
+					action: "read",
+				},
+			},
 		});
 	});
 

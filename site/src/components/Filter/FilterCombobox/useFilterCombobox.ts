@@ -1041,13 +1041,12 @@ export const useFilterCombobox = ({
 			: chipValues.map((chip) => (chip === replaced ? token : chip));
 	};
 
-	const toggledChips = (
-		token: string,
-		add = () =>
-			categoryForChip(token)?.singleSelect
-				? withCategoryOption(token)
-				: [...chipValues, token],
-	): string[] =>
+	const withValueSuggestion = (token: string) =>
+		categoryForChip(token)?.singleSelect
+			? withCategoryOption(token)
+			: [...chipValues, token];
+
+	const toggledChips = (token: string, add: () => string[]): string[] =>
 		chipValues.includes(token)
 			? chipValues.filter((chip) => chip !== token)
 			: add();
@@ -1077,7 +1076,10 @@ export const useFilterCombobox = ({
 		if (applyQueryOption(token)) {
 			return;
 		}
-		updateFromChips(toggledChips(token), "");
+		updateFromChips(
+			toggledChips(token, () => withValueSuggestion(token)),
+			"",
+		);
 		closeMenu();
 	};
 

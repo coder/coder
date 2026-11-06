@@ -936,6 +936,15 @@ Actions: `start`, `stop`
 
 ## How to Filter Audit Logs
 
+On the **Audit** page, select **Filters** to choose a resource type, action, user, build reason, or organization.
+Organization options include only organizations whose audit logs you can read.
+Selecting another value in a category replaces its previous value.
+Remove a filter chip to clear that condition.
+
+Under **Show…**, select a preset, such as **Created workspaces**, to replace the entire query.
+You can also find filters and presets by typing in the search field.
+For advanced queries, type parameters such as `date_from:2026-01-01` directly in the search field.
+
 You can filter audit logs by the following parameters:
 
 - `resource_type` - The type of the resource, such as a workspace, template,

@@ -5,14 +5,7 @@ import {
 	ListFilterIcon,
 	SearchIcon,
 } from "lucide-react";
-import {
-	Fragment,
-	useEffect,
-	useId,
-	useLayoutEffect,
-	useRef,
-	useState,
-} from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "react-query";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
@@ -21,7 +14,6 @@ import {
 	InputGroupAddon,
 	InputGroupButton,
 } from "#/components/InputGroup/InputGroup";
-import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { Switch } from "#/components/Switch/Switch";
@@ -823,29 +815,25 @@ function MainPanel({
 					<Skeleton variant="text" className="w-24" />
 				</div>
 			))}
-			{listedCategories.map((category, index) => (
-				<Fragment key={category.key}>
-					{category.separatorBefore && index > 0 && (
-						<Separator className="my-1" />
-					)}
-					<FilterComboboxItem
-						ref={(element) => registerCategoryRow(category.key, element)}
-						className={OPTION_ITEM_CLASS}
-						value={category.key}
-						onMouseEnter={() => onOpenFlyout(category.key)}
-						onSelect={() => {
-							if (drillIn) {
-								onSelectCategory(category.key);
-								return;
-							}
-							onOpenFlyout(category.key, true);
-						}}
-					>
-						{category.icon && <OptionIcon>{category.icon}</OptionIcon>}
-						<span className="shrink-0">{category.label}</span>
-						<ChevronRightIcon aria-hidden className="ml-auto shrink-0" />
-					</FilterComboboxItem>
-				</Fragment>
+			{listedCategories.map((category) => (
+				<FilterComboboxItem
+					key={category.key}
+					ref={(element) => registerCategoryRow(category.key, element)}
+					className={OPTION_ITEM_CLASS}
+					value={category.key}
+					onMouseEnter={() => onOpenFlyout(category.key)}
+					onSelect={() => {
+						if (drillIn) {
+							onSelectCategory(category.key);
+							return;
+						}
+						onOpenFlyout(category.key, true);
+					}}
+				>
+					{category.icon && <OptionIcon>{category.icon}</OptionIcon>}
+					<span className="shrink-0">{category.label}</span>
+					<ChevronRightIcon aria-hidden className="ml-auto shrink-0" />
+				</FilterComboboxItem>
 			))}
 			{inlineSections.map(
 				({ category, heading, rows, status, loadRowValue }) => (

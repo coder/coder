@@ -229,20 +229,8 @@ export const InvalidFilter: Story = {
 	},
 };
 
-export const PresetsMenuOpen: Story = {
-	args: { auditsQuery: mockSuccessResult },
-	play: async ({ canvasElement }) => {
-		await userEvent.click(
-			within(canvasElement).getByRole("button", { name: "Filters" }),
-		);
-		await userEvent.hover(
-			await screen.findByRole("option", { name: "Presets" }),
-		);
-	},
-};
-
 export const SelectedPresetMenuOpen: Story = {
-	...PresetsMenuOpen,
+	...FilterMenuOpen,
 	args: {
 		auditsQuery: mockSuccessResult,
 		filterProps: getDefaultFilterProps<FilterProps>({

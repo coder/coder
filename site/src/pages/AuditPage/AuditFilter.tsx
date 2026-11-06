@@ -4,7 +4,7 @@ import {
 	BoxIcon,
 	Building2Icon,
 	HammerIcon,
-	ListFilterIcon,
+	Settings2Icon,
 	UserIcon,
 } from "lucide-react";
 import { useMemo } from "react";
@@ -38,26 +38,31 @@ const presets: FilterOption[] = [
 	{
 		label: "Created workspaces",
 		value: "created_workspaces",
+		startIcon: <Settings2Icon />,
 		query: "resource_type:workspace action:create",
 	},
 	{
 		label: "Added templates",
 		value: "added_templates",
+		startIcon: <Settings2Icon />,
 		query: "resource_type:template action:create",
 	},
 	{
 		label: "Deleted users",
 		value: "deleted_users",
+		startIcon: <Settings2Icon />,
 		query: "resource_type:user action:delete",
 	},
 	{
 		label: "Builds started by a user",
 		value: "user_builds",
+		startIcon: <Settings2Icon />,
 		query: "resource_type:workspace_build action:start build_reason:initiator",
 	},
 	{
 		label: "User logins",
 		value: "user_logins",
+		startIcon: <Settings2Icon />,
 		query: "resource_type:api_key action:login",
 	},
 ];
@@ -70,44 +75,46 @@ const actionOptions: FilterOption[] = AuditActions.filter(
 const resourceOptions: FilterOption[] = ResourceTypes.map((type) => {
 	let label: string = capitalize(type);
 
-	if (type === "api_key") {
-		label = "API Key";
-	}
+	switch (type) {
+		case "api_key":
+			label = "API Key";
+			break;
 
-	if (type === "git_ssh_key") {
-		label = "Git SSH Key";
-	}
+		case "git_ssh_key":
+			label = "Git SSH Key";
+			break;
 
-	if (type === "template_version") {
-		label = "Template Version";
-	}
+		case "template_version":
+			label = "Template Version";
+			break;
 
-	if (type === "workspace_build") {
-		label = "Workspace Build";
-	}
+		case "workspace_build":
+			label = "Workspace Build";
+			break;
 
-	if (type === "chat_instruction_settings") {
-		label = "Chat Instruction Settings";
-	}
+		case "chat_instruction_settings":
+			label = "Chat Instruction Settings";
+			break;
 
-	if (type === "chat_organization_system_prompt") {
-		label = "Chat Organization System Prompt";
-	}
+		case "chat_organization_system_prompt":
+			label = "Chat Organization System Prompt";
+			break;
 
-	if (type === "chat_project_instructions") {
-		label = "Chat Project Instructions";
-	}
+		case "chat_project_instructions":
+			label = "Chat Project Instructions";
+			break;
 
-	if (type === "chat_project_skill") {
-		label = "Chat Project Skill";
-	}
+		case "chat_project_skill":
+			label = "Chat Project Skill";
+			break;
 
-	if (type === "chat_operational_settings") {
-		label = "Chat Operational Settings";
-	}
+		case "chat_operational_settings":
+			label = "Chat Operational Settings";
+			break;
 
-	if (type === "experiment_rule") {
-		label = "Experiment Rule";
+		case "experiment_rule":
+			label = "Experiment Rule";
+			break;
 	}
 
 	return {
@@ -174,9 +181,10 @@ export const AuditFilter: React.FC<AuditFilterProps> = ({ filter, error }) => {
 			key: "preset",
 			optionsKey: "audit.presets",
 			label: "Presets",
-			icon: <ListFilterIcon />,
 			chipKeys: [],
-			separatorBefore: true,
+			inlineOptions: true,
+			inlineOptionsLabel: "Show…",
+			inlineOptionsIcons: true,
 			getOptions: async () => presets,
 		});
 		return next.map((category) => ({ ...category, singleSelect: true }));
