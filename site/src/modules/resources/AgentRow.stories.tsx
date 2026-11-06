@@ -6,6 +6,7 @@ import type { WorkspaceAgentLogSource } from "#/api/typesGenerated";
 import { getPreferredProxy } from "#/contexts/ProxyContext";
 import * as M from "#/testHelpers/entities";
 import {
+	withAuthProvider,
 	withDashboardProvider,
 	withProxyProvider,
 	withWebSocket,
@@ -132,8 +133,15 @@ const meta: Meta<typeof AgentRow> = {
 		workspace: M.MockWorkspace,
 		initialMetadata: defaultAgentMetadata,
 	},
-	decorators: [withProxyProvider(), withDashboardProvider, withWebSocket],
+	decorators: [
+		withAuthProvider,
+		withProxyProvider(),
+		withDashboardProvider,
+		withWebSocket,
+	],
 	parameters: {
+		user: M.MockUserOwner,
+		permissions: M.MockPermissions,
 		queries: [
 			{
 				key: ["portForward", M.MockWorkspaceAgent.id],

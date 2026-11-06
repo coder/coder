@@ -49,6 +49,7 @@ import {
 	toWorkspaceFileReferencePart,
 } from "../utils/chatInputContent";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
+import { hasHighlightComposerState } from "../utils/composerHighlight";
 import { type DeepLinkState, readDeepLinkState } from "../utils/deepLinkState";
 import { buildAgentChatPath } from "../utils/navigation";
 import {
@@ -169,6 +170,16 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	};
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
+
+	// The highlight state persists on its history entry, so only a location
+	// key that differs from the one at mount is a fresh New chat click.
+	// Mounting on that entry (a reload, or Back to it) must not replay it.
+	const [mountLocationKey] = useState(location.key);
+	const composerHighlightKey =
+		hasHighlightComposerState(location.state) &&
+		location.key !== mountLocationKey
+			? location.key
+			: undefined;
 
 	const linkState = readDeepLinkState(location.state);
 	const debugLinkParam = searchParams.get(debugWorkspaceBuildSearchParam);
@@ -430,6 +441,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			workspacesError={workspacesQuery.error}
 			isWorkspacesLoading={workspacesQuery.isLoading}
 			prefill={prefill}
+			highlightKey={composerHighlightKey}
 		/>
 	);
 

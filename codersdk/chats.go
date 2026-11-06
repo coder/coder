@@ -286,9 +286,11 @@ type ChatProjectGroup struct {
 	Role ChatProjectRole `json:"role" enums:"use,admin"`
 }
 
-// ChatProjectACL lists who a chat project is shared with. The Everyone
-// group's ID is the organization ID.
+// ChatProjectACL lists who a chat project is shared with and who owns
+// it. The Everyone group's ID is the organization ID.
 type ChatProjectACL struct {
+	// Owner is the project owner, who is never listed in Users.
+	Owner  MinimalUser        `json:"owner"`
 	Users  []ChatProjectUser  `json:"users"`
 	Groups []ChatProjectGroup `json:"groups"`
 }
@@ -565,7 +567,8 @@ type ChatMessagePart struct {
 	// positional argument. Program names are normalized to their base
 	// name (e.g. /usr/bin/go becomes go). Only populated when ToolName
 	// is "execute" and the command parses successfully; nil otherwise.
-	ParsedCommands [][]string      `json:"parsed_commands,omitempty" variants:"tool-call?"`
+	ParsedCommands [][]string `json:"parsed_commands,omitempty" variants:"tool-call?"`
+	// Result is the tool output, which can be any JSON value.
 	Result         json.RawMessage `json:"result,omitempty" variants:"tool-result?"`
 	ResultDelta    string          `json:"result_delta,omitempty" variants:"tool-result?"`
 	ReasoningDelta string          `json:"reasoning_delta,omitempty" variants:"tool-result?"`
@@ -577,17 +580,18 @@ type ChatMessagePart struct {
 	Title          string          `json:"title,omitempty" variants:"source?"`
 	MediaType      string          `json:"media_type" variants:"file"`
 	Name           string          `json:"name,omitempty" variants:"file?"`
-	Data           []byte          `json:"data,omitempty" variants:"file?"`
-	FileID         uuid.NullUUID   `json:"file_id,omitempty" format:"uuid" variants:"file?"`
-	FileName       string          `json:"file_name" variants:"file-reference"`
-	StartLine      int             `json:"start_line" variants:"file-reference"`
-	EndLine        int             `json:"end_line" variants:"file-reference"`
+	// Data holds an inline file's bytes, which JSON carries as a base64 string.
+	Data      []byte        `json:"data,omitempty" swaggertype:"string" format:"byte" variants:"file?"`
+	FileID    uuid.NullUUID `json:"file_id,omitempty" format:"uuid" variants:"file?"`
+	FileName  string        `json:"file_name" variants:"file-reference"`
+	StartLine int           `json:"start_line" variants:"file-reference"`
+	EndLine   int           `json:"end_line" variants:"file-reference"`
 	// The code content from the diff that was commented on.
 	Content string `json:"content" variants:"file-reference"`
 	// ProviderMetadata holds provider-specific response metadata
 	// (e.g. Anthropic cache control hints) as raw JSON. Internal
 	// only: stripped by db2sdk before API responses.
-	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" typescript:"-"`
+	ProviderMetadata json.RawMessage `json:"provider_metadata,omitempty" typescript:"-" swaggerignore:"true"`
 	// ProviderIdentity records the provider that produced a reasoning
 	// part, because a model config's provider can change after the
 	// message was written. Internal only: stripped before API responses.
@@ -874,9 +878,10 @@ type SubmitToolResultsRequest struct {
 
 // ToolResult is the client's response to a dynamic tool call.
 type ToolResult struct {
-	ToolCallID string          `json:"tool_call_id"`
-	Output     json.RawMessage `json:"output"`
-	IsError    bool            `json:"is_error"`
+	ToolCallID string `json:"tool_call_id"`
+	// Output is the tool output, which can be any JSON value.
+	Output  json.RawMessage `json:"output"`
+	IsError bool            `json:"is_error"`
 }
 
 // MaxChatTitleRunes is the longest title accepted at creation or rename,
@@ -1396,8 +1401,8 @@ type UpdateAdvisorConfigRequest struct {
 }
 
 // ChatComputerUseProvider identifies the computer use tool flavor. Chatd
-// derives it from the AI provider type of the model a computer use chat runs
-// on.
+// derives it from the API format of the client for the model that a computer
+// use chat runs on, so a Claude model on AWS Bedrock uses the Anthropic tool.
 type ChatComputerUseProvider string
 
 const (
@@ -1722,9 +1727,12 @@ type ChatModel struct {
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
 	// ReasoningEfforts lists selectable reasoning effort values through
 	// the model's configured maximum.
-	ReasoningEfforts []string  `json:"reasoning_efforts,omitempty"`
-	CreatedAt        time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
+	ReasoningEfforts []string `json:"reasoning_efforts,omitempty"`
+	// ComputerUseProvider names the computer use tool that Coder sends for
+	// this model. It is omitted when computer use can't run on the model.
+	ComputerUseProvider ChatComputerUseProvider `json:"computer_use_provider,omitempty"`
+	CreatedAt           time.Time               `json:"created_at" format:"date-time"`
+	UpdatedAt           time.Time               `json:"updated_at" format:"date-time"`
 }
 
 // ChatModelACL is the access control list for an organization-scoped chat

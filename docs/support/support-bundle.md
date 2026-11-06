@@ -63,7 +63,7 @@ The archive contains the following files when the corresponding data is availabl
 | `deployment/prometheus.txt`                   | Control plane Prometheus metrics, when enabled and accessible.                                                                                                                         |
 | `license-status.txt`                          | License status, when available.                                                                                                                                                        |
 | `logs.txt`                                    | Logs from the `codersdk.Client` used to generate the bundle.                                                                                                                           |
-| `network/connection_info.json`                | Information used by workspace agents used to connect to Coder (DERP map etc.)                                                                                                          |
+| `network/connection_info.json`                | Information used by workspace agents used to connect to Coder (Designated Encrypted Relay for Packets (DERP) map etc.)                                                                 |
 | `network/coordinator_debug.html`              | Peers currently connected to each Coder instance and the tunnels established between peers. *Requires Owner role.*                                                                     |
 | `network/interfaces.json`                     | Network interfaces on the machine running the CLI.                                                                                                                                     |
 | `network/netcheck.json`                       | Results of running `coder netcheck` locally.                                                                                                                                           |
@@ -157,7 +157,7 @@ Running the CLI separately doesn't collect those local IDE files.
 
 ### VS Code
 
-Use the [Coder Remote extension](../user-guides/workspace-access/vscode.md) version 1.16.0 or later for this workflow.
+Use the [Coder Remote extension](../workspaces/workspace-access/vscode.md) version 1.16.0 or later for this workflow.
 Sign in to your Coder deployment in the extension before collecting a bundle.
 
 - Bundle generation requires Coder CLI version 2.10.0 or later.
@@ -202,7 +202,7 @@ To turn off buffering, set `coder.connectionLogBuffer.size` to `0`.
 
 Remote editor server logs appear under `agent/workspace_files/`, separately from the local VS Code diagnostics.
 
-For telemetry controls and retention, refer to [VS Code local telemetry](../user-guides/workspace-access/vscode.md#local-telemetry).
+For telemetry controls and retention, refer to [VS Code local telemetry](../workspaces/workspace-access/vscode.md#local-telemetry).
 For extension installation and settings, refer to the [Coder Remote README](https://github.com/coder/vscode-coder/blob/main/README.md#getting-started).
 
 ### JetBrains Toolbox
@@ -216,7 +216,7 @@ Workspace support-bundle collection requires all of the following:
 
 Coder plugin version 0.9.4 and earlier collect Toolbox logs without generating a Coder support bundle.
 Upgrading Toolbox alone doesn't add bundle collection to those plugin versions.
-For installation, refer to the [JetBrains Toolbox guide](../user-guides/workspace-access/jetbrains/toolbox.md#install-the-coder-provider-for-toolbox).
+For installation, refer to the [JetBrains Toolbox guide](../workspaces/workspace-access/jetbrains/toolbox.md#install-the-coder-provider-for-toolbox).
 
 Sign in to your Coder deployment in the plugin before collecting a bundle.
 After sign-in, Coder's main page lists your environments.

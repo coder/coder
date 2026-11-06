@@ -30,7 +30,7 @@ Planned coverage:
    - The rule is objectively correct (typo, brand-name casing, banned
      substitution).
    - The existing-content violation count for the rule reaches zero.
-4. A follow-up PR adds a parity CI check that verifies every rule here has a matching section in `style-guide/`.
+4. A follow-up PR adds a parity continuous integration (CI) check for a matching `style-guide/` section per rule.
 
    Add the section in the same PR as the rule.
 

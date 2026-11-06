@@ -114,7 +114,7 @@ export const Loaded: Story = {
 		const docsLink = canvas.getByRole("link", { name: /View docs/ });
 		await expect(docsLink).toHaveAttribute(
 			"href",
-			expect.stringContaining("/user-guides/user-secrets"),
+			expect.stringContaining("/workspaces/user-secrets"),
 		);
 	},
 };

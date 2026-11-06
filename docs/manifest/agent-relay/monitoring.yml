@@ -1,0 +1,7 @@
+title: Monitor
+description: Trace sessions and failures with Agent Relay logs and Prometheus metrics.
+path: ./agent-relay/monitoring/index.md
+children:
+  - title: Send logs to a SIEM
+    description: Ingest Agent Relay logs into a SIEM, with the record shape, fields, parsing rules, and log-based alerts.
+    path: ./agent-relay/monitoring/siem.md
