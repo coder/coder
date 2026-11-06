@@ -658,7 +658,7 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 
 	// Scripts that start develop with --port-offset read the ports from
 	// this line, long before the banner.
-	logger.Info(ctx, "resolved ports",
+	logger.Info(ctx, "resolved listen ports",
 		slog.F("api", cfg.apiPort),
 		slog.F("web", cfg.webPort),
 		slog.F("proxy", cfg.proxyPort),

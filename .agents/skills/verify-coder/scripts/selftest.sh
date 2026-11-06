@@ -38,7 +38,7 @@ cat >"$tmp/bin/setsid" <<'STUB'
 shift
 printf '%s\n' "$*" >>"$VC_SELFTEST_DIR/develop-argv"
 out='selftest develop output'
-ports='resolved ports  api=1 web=2 proxy=0 metrics=0'
+ports='resolved listen ports  api=1 web=2 proxy=0 metrics=0'
 first="creating first user  email=admin@coder.com  password=${CODER_DEV_ADMIN_PASSWORD:-}"
 ready='Coder is now running in development mode.'
 case "${VC_SELFTEST_DEVELOP:-}" in

@@ -164,7 +164,7 @@ run_develop() {
 	web_port=""
 	write_env
 	deadline=$((SECONDS + 120))
-	until ports="$(sed -n 's/.*resolved ports .*api=\([0-9][0-9]*\) .*web=\([0-9][0-9]*\) .*/\1 \2/p' "$log" | head -n 1)" && [[ -n "$ports" ]]; do
+	until ports="$(sed -n 's/.*resolved listen ports .*api=\([0-9][0-9]*\) .*web=\([0-9][0-9]*\) .*/\1 \2/p' "$log" | head -n 1)" && [[ -n "$ports" ]]; do
 		if ! kill -0 "$pid" 2>/dev/null || ((SECONDS >= deadline)); then
 			vc_log_tail 20 "$log" "$password" >&2
 			vc_fail "develop.sh reported no ports, see $log, then run cleanup.sh"
