@@ -19,6 +19,7 @@ You need:
 
 - A Coder deployment with a Premium license, on version 2.39 or later.
 - Agent Relay v0.14.0 or later.
+  Claude Code `dispatch_deadline`, the reap delay, and the reaper startup grace require v0.15.0 or later.
 - Somewhere to run the Agent Relay container: a Kubernetes cluster that you can reach with `kubectl` and `helm`, or a Docker host.
 - The [Coder CLI](https://coder.com/downloads), signed in as an `owner`.
 - An account with the provider you want to serve.
@@ -263,6 +264,9 @@ The module READMEs for [`coder/agent-relay-claude-code`](https://registry.coder.
     The budget starts when Anthropic issues the work order.
     If the build and setup keep overrunning it, no worker ever serves the session: Anthropic offers the session again, and each new build runs the same setup from the start.
 
+To check whether workers start before setup finishes, compare the [`agent_relay_reaper_claim_to_agent_ready_seconds` and `agent_relay_reaper_claim_to_runner_up_seconds`](./monitoring/index.md#shared-metrics) metrics.
+A worker that's up before the agent is ready started while startup scripts were still running.
+
 ## Step 4: Configure provider pools
 
 Follow the steps on the provider page to create the provider credential, add the module to your template, and write the pool configuration:
@@ -360,7 +364,8 @@ Bind it to `0.0.0.0` to reach it from outside the container.
 
 </div>
 
-Agent Relay release binaries for running as a `systemd` service aren't published yet.
+Each Agent Relay release on GitHub also includes static binaries for Linux and macOS on `amd64` and `arm64`, with a `checksums.txt` file.
+This guide covers only the image and the Helm chart.
 
 ## Step 6: Verify the deployment
 
@@ -377,7 +382,7 @@ An invalid token, an unlicensed deployment, an unsupported Coder version, or a m
    docker logs <container>
    ```
 
-1. Confirm that the `authenticated against coderd` log line shows `build_secrets=true`.
+1. Confirm that the `authenticated against coderd` log line shows `credential_transport=secrets`.
 
 1. Confirm that each pool logs that it's ready.
 
