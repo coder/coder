@@ -312,6 +312,14 @@ func (m queryMetricsStore) ClearChatDiffStatusPR(ctx context.Context, arg databa
 	return r0
 }
 
+func (m queryMetricsStore) ClearChatsContextDirtyByAgent(ctx context.Context, arg database.ClearChatsContextDirtyByAgentParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.ClearChatsContextDirtyByAgent(ctx, arg)
+	m.queryLatencies.WithLabelValues("ClearChatsContextDirtyByAgent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearChatsContextDirtyByAgent").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg database.ClearWorkspaceSecretsBeforeBuildParams) error {
 	start := time.Now()
 	r0 := m.s.ClearWorkspaceSecretsBeforeBuild(ctx, arg)
@@ -1389,14 +1397,6 @@ func (m queryMetricsStore) GetActiveAISeatCount(ctx context.Context) (int64, err
 	r0, r1 := m.s.GetActiveAISeatCount(ctx)
 	m.queryLatencies.WithLabelValues("GetActiveAISeatCount").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetActiveAISeatCount").Inc()
-	return r0, r1
-}
-
-func (m queryMetricsStore) GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.Chat, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetActiveChatsByAgentID(ctx, agentID)
-	m.queryLatencies.WithLabelValues("GetActiveChatsByAgentID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetActiveChatsByAgentID").Inc()
 	return r0, r1
 }
 
@@ -3480,6 +3480,14 @@ func (m queryMetricsStore) GetTotalUsageHBAgentRuntimeV1(ctx context.Context, ar
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUnarchivedChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUnarchivedChatsByAgentID(ctx, agentID)
+	m.queryLatencies.WithLabelValues("GetUnarchivedChatsByAgentID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetUnarchivedChatsByAgentID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUnexpiredLicenses(ctx context.Context) ([]database.License, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUnexpiredLicenses(ctx)
@@ -5534,6 +5542,14 @@ func (m queryMetricsStore) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Co
 	m.queryLatencies.WithLabelValues("SoftDeleteWorkspaceAgentsByWorkspaceID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteWorkspaceAgentsByWorkspaceID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) SyncAgentChatsContextError(ctx context.Context, arg database.SyncAgentChatsContextErrorParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.SyncAgentChatsContextError(ctx, arg)
+	m.queryLatencies.WithLabelValues("SyncAgentChatsContextError").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SyncAgentChatsContextError").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) SyncAgentChatsContextLiveResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {

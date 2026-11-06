@@ -2747,7 +2747,7 @@ func (api *API) workspaceAgentRefreshChatContext(rw http.ResponseWriter, r *http
 		return
 	}
 
-	chats, err := api.Database.GetActiveChatsByAgentID(sysCtx, workspaceAgent.ID)
+	chats, err := api.Database.GetUnarchivedChatsByAgentID(sysCtx, workspaceAgent.ID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chats for agent.",

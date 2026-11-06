@@ -750,11 +750,23 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().HydrateAgentChatsContext(gomock.Any(), arg).Return(hydrated, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(hydrated)
 	}))
+	s.Run("ClearChatsContextDirtyByAgent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.ClearChatsContextDirtyByAgentParams{AgentID: uuid.New()}
+		cleared := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().ClearChatsContextDirtyByAgent(gomock.Any(), arg).Return(cleared, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(cleared)
+	}))
 	s.Run("MarkChatsContextDirtyByAgent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		arg := database.MarkChatsContextDirtyByAgentParams{AgentID: uuid.New()}
 		rows := []database.MarkChatsContextDirtyByAgentRow{{ID: uuid.New(), OwnerID: uuid.New()}}
 		dbm.EXPECT().MarkChatsContextDirtyByAgent(gomock.Any(), arg).Return(rows, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(rows)
+	}))
+	s.Run("SyncAgentChatsContextError", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.SyncAgentChatsContextErrorParams{AgentID: uuid.New()}
+		synced := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().SyncAgentChatsContextError(gomock.Any(), arg).Return(synced, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(synced)
 	}))
 	s.Run("SyncAgentChatsContextLiveResources", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		agentID := uuid.New()
@@ -1102,10 +1114,10 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatsByWorkspaceIDs(gomock.Any(), arg).Return([]database.Chat{chatA, chatB}, nil).AnyTimes()
 		check.Args(arg).Asserts(chatA, policy.ActionRead, chatB, policy.ActionRead).Returns([]database.Chat{chatA, chatB})
 	}))
-	s.Run("GetActiveChatsByAgentID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+	s.Run("GetUnarchivedChatsByAgentID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		agentID := uuid.New()
-		dbm.EXPECT().GetActiveChatsByAgentID(gomock.Any(), agentID).Return([]database.Chat{chat}, nil).AnyTimes()
+		dbm.EXPECT().GetUnarchivedChatsByAgentID(gomock.Any(), agentID).Return([]database.Chat{chat}, nil).AnyTimes()
 		check.Args(agentID).Asserts(chat, policy.ActionRead).Returns([]database.Chat{chat})
 	}))
 	s.Run("SoftDeleteContextFileMessages", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {

@@ -2386,17 +2386,19 @@ export interface ChatConfig {
  */
 export interface ChatContext {
 	/**
-	 * Dirty is true when the agent's latest snapshot hash differs from the
-	 * chat's pinned hash.
+	 * Dirty is true when the aggregate hash of the agent's latest instruction
+	 * and skill resources differs from the chat's pinned aggregate hash. MCP
+	 * and ACP resources and snapshot errors do not affect dirty markers.
 	 */
 	readonly dirty: boolean;
 	/**
-	 * DirtySince is when drift was first detected; nil when not dirty.
+	 * DirtySince is when the chat was first marked dirty; nil when not dirty.
 	 */
 	readonly dirty_since?: string;
 	/**
-	 * Error is the snapshot-level error copied from the pinned snapshot
-	 * (empty when healthy).
+	 * Error is the most recently synchronized snapshot-level error (empty when
+	 * healthy). Pushes update it for unarchived chats independently of the
+	 * pinned aggregate hash.
 	 */
 	readonly error?: string;
 	/**

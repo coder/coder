@@ -771,6 +771,17 @@ const mergeDiffStatuses = (
 	return statuses.length > 0 ? statuses : undefined;
 };
 
+// Watch payloads omit resource inventories, but their context state is authoritative.
+const mergeContextFromEvent = (
+	cached: TypesGen.ChatContext | undefined,
+	watched: TypesGen.ChatContext | undefined,
+): TypesGen.ChatContext | undefined => {
+	if (!watched) {
+		return undefined;
+	}
+	return { ...watched, resources: watched.resources ?? cached?.resources };
+};
+
 /**
  * Merges event-scoped chat fields into a cached summary. Row fields,
  * including the model config, are ordered by updated_at. Title fields come
@@ -786,7 +797,7 @@ export const mergeWatchedChatSummary = (
 	const isSummaryEvent = eventKind === "summary_change";
 	const isChatSummaryEvent = eventKind === "chat_summary_change";
 	const isDiffStatusEvent = eventKind === "diff_status_change";
-	const isContextDirtyEvent = eventKind === "context_dirty";
+	const isContextUpdateEvent = eventKind === "context_dirty";
 	const isProjectEvent = eventKind === "project_change";
 	const updatedAtComparison = compareUpdatedAtInstants(
 		cachedChat.updated_at,
@@ -850,15 +861,10 @@ export const mergeWatchedChatSummary = (
 				(status) => diffStatusRefKey(status) === primaryKey,
 			)
 		: cachedChat.diff_status;
-	// Context drift is tracked outside chats.updated_at (it is driven by
-	// agent context pushes), so apply context_dirty payloads regardless of
-	// the summary timestamp. Merge rather than replace so the pinned
-	// resources a single-chat GET populated are preserved while the dirty
-	// flags update; the open chat refetches the full detail.
-	const nextContext =
-		isContextDirtyEvent && watchedChat.context
-			? { ...cachedChat.context, ...watchedChat.context }
-			: cachedChat.context;
+	// Context updates do not bump updated_at.
+	const nextContext = isContextUpdateEvent
+		? mergeContextFromEvent(cachedChat.context, watchedChat.context)
+		: cachedChat.context;
 	const nextQueuedForCapacity =
 		isStatusEvent && nextStatus !== "running"
 			? false

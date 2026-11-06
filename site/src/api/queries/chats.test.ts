@@ -15,6 +15,7 @@ import {
 } from "#/pages/AgentsPage/components/RightPanel/DebugPanel/debugPanelUtils";
 import {
 	MockChatAttachment,
+	MockChatContextDirty,
 	MockChatMessage,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
@@ -3562,6 +3563,54 @@ describe("mergeWatchedChatSummary", () => {
 				},
 			],
 		});
+	});
+
+	it.each([
+		{
+			name: "the pin clears",
+			context: undefined,
+			want: undefined,
+		},
+		{
+			name: "drift and the error clear",
+			context: { dirty: false },
+			want: { dirty: false, resources: MockChatContextDirty.resources },
+		},
+		{
+			name: "the error clears while still dirty",
+			context: {
+				dirty: true,
+				dirty_since: MockChatContextDirty.dirty_since,
+			},
+			want: {
+				dirty: true,
+				dirty_since: MockChatContextDirty.dirty_since,
+				resources: MockChatContextDirty.resources,
+			},
+		},
+		{
+			name: "drift clears while an error remains",
+			context: { dirty: false, error: "context watcher degraded" },
+			want: {
+				dirty: false,
+				error: "context watcher degraded",
+				resources: MockChatContextDirty.resources,
+			},
+		},
+	])("clears omitted context_dirty fields when $name", ({ context, want }) => {
+		const mockCachedChat = makeChat("chat-1", {
+			context: { ...MockChatContextDirty, error: "previous snapshot error" },
+		});
+		const mockWatchedChat = makeChat(
+			"chat-1",
+			context ? { context } : undefined,
+		);
+
+		expect(
+			mergeWatchedChatSummary(mockCachedChat, mockWatchedChat, {
+				eventKind: "context_dirty",
+			}).context,
+		).toEqual(want);
 	});
 
 	it("preserves queued_for_capacity while the chat remains running", () => {

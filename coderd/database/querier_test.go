@@ -1552,7 +1552,6 @@ func TestChatContextHydration(t *testing.T) {
 	sqlDB := testSQLDB(t)
 	require.NoError(t, migrations.Up(sqlDB))
 	db := database.New(sqlDB)
-	ctx := testutil.Context(t, testutil.WaitMedium)
 
 	org := dbgen.Organization(t, db, database.Organization{})
 	owner := dbgen.User(t, db, database.User{})
@@ -1565,16 +1564,14 @@ func TestChatContextHydration(t *testing.T) {
 		CompressionThreshold: 80,
 	})
 
-	// Chats are scoped per agent, so build two independent agents.
-	newAgent := func() database.WorkspaceAgent {
+	newAgent := func(t *testing.T) database.WorkspaceAgent {
+		t.Helper()
 		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{OrganizationID: org.ID})
 		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: job.ID})
 		return dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: resource.ID})
 	}
-	agent := newAgent()
-	otherAgent := newAgent()
-
-	newChat := func(status database.ChatStatus, agentID uuid.UUID) database.Chat {
+	newChat := func(t *testing.T, status database.ChatStatus, agentID uuid.UUID) database.Chat {
+		t.Helper()
 		return dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           owner.ID,
@@ -1584,81 +1581,223 @@ func TestChatContextHydration(t *testing.T) {
 		})
 	}
 
-	hashH := []byte{0x01, 0x02, 0x03}
-	hashOther := []byte{0xff, 0xee}
+	t.Run("HydrateMarkClearRefresh", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		agent := newAgent(t)
+		otherAgent := newAgent(t)
+		hashH := []byte{0x01, 0x02, 0x03}
+		hashOther := []byte{0xff, 0xee}
 
-	chatNull := newChat(database.ChatStatusWaiting, agent.ID)     // never hydrated
-	chatMatch := newChat(database.ChatStatusRunning, agent.ID)    // already at hashH
-	chatDrift := newChat(database.ChatStatusRunning, agent.ID)    // drifted, active
-	chatTerminal := newChat(database.ChatStatusError, agent.ID)   // drifted, terminal
-	chatArchived := newChat(database.ChatStatusRunning, agent.ID) // drifted, archived
-	chatOtherAgent := newChat(database.ChatStatusRunning, otherAgent.ID)
+		chatNull := newChat(t, database.ChatStatusWaiting, agent.ID)              // unpinned until hydration
+		chatMatch := newChat(t, database.ChatStatusRunning, agent.ID)             // already at hashH
+		chatDrift := newChat(t, database.ChatStatusRunning, agent.ID)             // different pinned hash
+		chatError := newChat(t, database.ChatStatusError, agent.ID)               // resumable after an error
+		chatInterrupting := newChat(t, database.ChatStatusInterrupting, agent.ID) // stop in progress
+		chatSnapshotError := newChat(t, database.ChatStatusPaused, agent.ID)      // same hash, different error
+		chatArchived := newChat(t, database.ChatStatusRunning, agent.ID)          // excluded even with a different hash
+		chatOtherAgent := newChat(t, database.ChatStatusRunning, otherAgent.ID)   // independent snapshot
 
-	// Pin starting hashes; chatNull is intentionally left NULL.
-	require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: chatMatch.ID, AggregateHash: hashH}))
-	for _, id := range []uuid.UUID{chatDrift.ID, chatTerminal.ID, chatArchived.ID, chatOtherAgent.ID} {
-		require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: id, AggregateHash: hashOther}))
-	}
-	_, err := db.ArchiveChatByID(ctx, chatArchived.ID)
-	require.NoError(t, err)
+		// Pin starting hashes; chatNull is intentionally left NULL.
+		require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: chatMatch.ID, AggregateHash: hashH}))
+		const snapshotError = "one source failed"
+		require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: chatSnapshotError.ID, AggregateHash: hashH, ContextError: snapshotError}))
+		for _, id := range []uuid.UUID{chatDrift.ID, chatError.ID, chatInterrupting.ID, chatArchived.ID, chatOtherAgent.ID} {
+			require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: id, AggregateHash: hashOther}))
+		}
+		_, err := db.ArchiveChatByID(ctx, chatArchived.ID)
+		require.NoError(t, err)
 
-	// Hydrate stamps only the NULL-hash chat for this agent and returns
-	// exactly the chats it pinned.
-	hydrated, err := db.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
-		AgentID:       agent.ID,
-		AggregateHash: hashH,
+		// Hydrate stamps only the NULL-hash chat for this agent.
+		hydrated, err := db.HydrateAgentChatsContext(ctx, database.HydrateAgentChatsContextParams{
+			AgentID:       agent.ID,
+			AggregateHash: hashH,
+		})
+		require.NoError(t, err)
+		require.Equal(t, []uuid.UUID{chatNull.ID}, hydrated)
+		gotNull, err := db.GetChatByID(ctx, chatNull.ID)
+		require.NoError(t, err)
+		require.Equal(t, hashH, gotNull.ContextAggregateHash, "NULL-hash chat is hydrated")
+		gotDrift, err := db.GetChatByID(ctx, chatDrift.ID)
+		require.NoError(t, err)
+		require.Equal(t, hashOther, gotDrift.ContextAggregateHash, "hydrate must not overwrite an already-pinned hash")
+
+		// Dirty marking includes error chats but excludes archived and other-agent chats.
+		now := dbtime.Now()
+		flipped, err := db.MarkChatsContextDirtyByAgent(ctx, database.MarkChatsContextDirtyByAgentParams{
+			AgentID:       agent.ID,
+			AggregateHash: hashH,
+			DirtySince:    sql.NullTime{Time: now, Valid: true},
+		})
+		require.NoError(t, err)
+		flippedIDs := make([]uuid.UUID, 0, len(flipped))
+		for _, chat := range flipped {
+			flippedIDs = append(flippedIDs, chat.ID)
+		}
+		require.ElementsMatch(t, []uuid.UUID{chatDrift.ID, chatError.ID, chatInterrupting.ID}, flippedIDs)
+		gotDrift, err = db.GetChatByID(ctx, chatDrift.ID)
+		require.NoError(t, err)
+		require.True(t, gotDrift.ContextDirtySince.Valid, "different pinned hash is marked dirty")
+
+		flipped, err = db.MarkChatsContextDirtyByAgent(ctx, database.MarkChatsContextDirtyByAgentParams{
+			AgentID:       agent.ID,
+			AggregateHash: hashH,
+			DirtySince:    sql.NullTime{Time: now.Add(time.Minute), Valid: true},
+		})
+		require.NoError(t, err)
+		require.Empty(t, flipped)
+		gotDrift, err = db.GetChatByID(ctx, chatDrift.ID)
+		require.NoError(t, err)
+		require.Equal(t, now, gotDrift.ContextDirtySince.Time.UTC(), "pushes preserve the first dirty timestamp")
+
+		// Seed dirty markers on chats the clear query must skip.
+		_, err = sqlDB.ExecContext(ctx, `UPDATE chats SET context_dirty_since = $1 WHERE id IN ($2, $3)`, now, chatArchived.ID, chatOtherAgent.ID)
+		require.NoError(t, err)
+
+		// Clear dirty markers only when the pushed hash matches the pin.
+		cleared, err := db.ClearChatsContextDirtyByAgent(ctx, database.ClearChatsContextDirtyByAgentParams{
+			AgentID:       agent.ID,
+			AggregateHash: hashH,
+		})
+		require.NoError(t, err)
+		require.Empty(t, cleared, "a different hash stays dirty")
+		cleared, err = db.ClearChatsContextDirtyByAgent(ctx, database.ClearChatsContextDirtyByAgentParams{
+			AgentID:       agent.ID,
+			AggregateHash: hashOther,
+		})
+		require.NoError(t, err)
+		require.ElementsMatch(t, []uuid.UUID{chatDrift.ID, chatError.ID, chatInterrupting.ID}, cleared)
+		gotDrift, err = db.GetChatByID(ctx, chatDrift.ID)
+		require.NoError(t, err)
+		require.False(t, gotDrift.ContextDirtySince.Valid)
+		require.Empty(t, gotDrift.ContextError)
+		require.Equal(t, hashOther, gotDrift.ContextAggregateHash)
+		require.Equal(t, chatDrift.UpdatedAt, gotDrift.UpdatedAt)
+
+		cleared, err = db.ClearChatsContextDirtyByAgent(ctx, database.ClearChatsContextDirtyByAgentParams{
+			AgentID:       agent.ID,
+			AggregateHash: hashOther,
+		})
+		require.NoError(t, err)
+		require.Empty(t, cleared, "unchanged snapshots do not notify watchers again")
+
+		// Refresh re-pins to the latest hash and clears the dirty marker.
+		require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: chatDrift.ID, AggregateHash: hashH}))
+		gotDrift, err = db.GetChatByID(ctx, chatDrift.ID)
+		require.NoError(t, err)
+		require.Equal(t, hashH, gotDrift.ContextAggregateHash)
+		require.False(t, gotDrift.ContextDirtySince.Valid, "refresh clears the dirty marker")
+
+		gotOther, err := db.GetChatByID(ctx, chatOtherAgent.ID)
+		require.NoError(t, err)
+		require.Equal(t, hashOther, gotOther.ContextAggregateHash)
+		require.True(t, gotOther.ContextDirtySince.Valid)
+		require.Empty(t, gotOther.ContextError)
+		gotArchived, err := db.GetChatByID(ctx, chatArchived.ID)
+		require.NoError(t, err)
+		require.True(t, gotArchived.ContextDirtySince.Valid)
+		require.Empty(t, gotArchived.ContextError)
 	})
-	require.NoError(t, err)
-	require.Equal(t, []uuid.UUID{chatNull.ID}, hydrated)
-	gotNull, err := db.GetChatByID(ctx, chatNull.ID)
-	require.NoError(t, err)
-	require.Equal(t, hashH, gotNull.ContextAggregateHash, "NULL-hash chat is hydrated")
-	gotDrift, err := db.GetChatByID(ctx, chatDrift.ID)
-	require.NoError(t, err)
-	require.Equal(t, hashOther, gotDrift.ContextAggregateHash, "hydrate must not overwrite an already-pinned hash")
 
-	// Mark dirty: only the active, pinned, drifted chat for THIS agent flips.
-	// chatNull (now matches), chatMatch (matches), chatTerminal (status
-	// excluded), chatArchived (archived), and chatOtherAgent (other agent)
-	// are all left clean.
-	now := dbtime.Now()
-	flipped, err := db.MarkChatsContextDirtyByAgent(ctx, database.MarkChatsContextDirtyByAgentParams{
-		AgentID:       agent.ID,
-		AggregateHash: hashH,
-		DirtySince:    sql.NullTime{Time: now, Valid: true},
+	t.Run("SyncError", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		agent := newAgent(t)
+		otherAgent := newAgent(t)
+		hash := []byte{0x01}
+		hashOther := []byte{0xff}
+
+		chatPinned := newChat(t, database.ChatStatusWaiting, agent.ID)            // needs its first error sync
+		chatRunning := newChat(t, database.ChatStatusRunning, agent.ID)           // same pin, different chat status
+		chatDirty := newChat(t, database.ChatStatusRunning, agent.ID)             // error sync must preserve the dirty marker
+		chatError := newChat(t, database.ChatStatusError, agent.ID)               // accepts messages after a model error
+		chatInterrupting := newChat(t, database.ChatStatusInterrupting, agent.ID) // accepts updates while a stop is in progress
+		chatSnapshotError := newChat(t, database.ChatStatusPaused, agent.ID)      // replaces an earlier snapshot error
+		chatArchived := newChat(t, database.ChatStatusRunning, agent.ID)          // excluded even with a pinned hash
+		chatOtherAgent := newChat(t, database.ChatStatusRunning, otherAgent.ID)   // unchanged by this agent's push
+		chatUnpinned := newChat(t, database.ChatStatusWaiting, agent.ID)          // waits for hydration before error sync
+		pinnedIDs := []uuid.UUID{chatPinned.ID, chatRunning.ID, chatDirty.ID, chatError.ID, chatInterrupting.ID, chatSnapshotError.ID}
+		for _, id := range []uuid.UUID{chatPinned.ID, chatRunning.ID, chatError.ID, chatInterrupting.ID, chatArchived.ID, chatOtherAgent.ID} {
+			require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: id, AggregateHash: hash}))
+		}
+		require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: chatDirty.ID, AggregateHash: hashOther}))
+		require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: chatSnapshotError.ID, AggregateHash: hash, ContextError: "one source failed"}))
+		_, err := db.ArchiveChatByID(ctx, chatArchived.ID)
+		require.NoError(t, err)
+		// Error synchronization must preserve an existing dirty marker.
+		now := dbtime.Now()
+		_, err = sqlDB.ExecContext(ctx, `UPDATE chats SET context_dirty_since = $1 WHERE id = $2`, now, chatDirty.ID)
+		require.NoError(t, err)
+
+		const liveError = "context watcher degraded"
+		synced, err := db.SyncAgentChatsContextError(ctx, database.SyncAgentChatsContextErrorParams{
+			AgentID:      agent.ID,
+			ContextError: liveError,
+		})
+		require.NoError(t, err)
+		require.ElementsMatch(t, pinnedIDs, synced)
+		gotDirty, err := db.GetChatByID(ctx, chatDirty.ID)
+		require.NoError(t, err)
+		require.Equal(t, liveError, gotDirty.ContextError)
+		require.Equal(t, now, gotDirty.ContextDirtySince.Time.UTC())
+		require.Equal(t, hashOther, gotDirty.ContextAggregateHash)
+		require.Equal(t, chatDirty.UpdatedAt, gotDirty.UpdatedAt)
+		gotSnapshotError, err := db.GetChatByID(ctx, chatSnapshotError.ID)
+		require.NoError(t, err)
+		require.Equal(t, liveError, gotSnapshotError.ContextError)
+		require.False(t, gotSnapshotError.ContextDirtySince.Valid, "snapshot errors do not affect dirty markers")
+
+		synced, err = db.SyncAgentChatsContextError(ctx, database.SyncAgentChatsContextErrorParams{
+			AgentID:      agent.ID,
+			ContextError: liveError,
+		})
+		require.NoError(t, err)
+		require.Empty(t, synced, "unchanged errors do not notify watchers again")
+		synced, err = db.SyncAgentChatsContextError(ctx, database.SyncAgentChatsContextErrorParams{
+			AgentID: agent.ID,
+		})
+		require.NoError(t, err)
+		require.ElementsMatch(t, pinnedIDs, synced)
+
+		for _, chat := range []database.Chat{chatArchived, chatOtherAgent, chatUnpinned} {
+			got, err := db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			require.Empty(t, got.ContextError)
+		}
+		gotUnpinned, err := db.GetChatByID(ctx, chatUnpinned.ID)
+		require.NoError(t, err)
+		require.Nil(t, gotUnpinned.ContextAggregateHash)
 	})
-	require.NoError(t, err)
-	flippedIDs := make([]uuid.UUID, 0, len(flipped))
-	for _, f := range flipped {
-		flippedIDs = append(flippedIDs, f.ID)
-	}
-	require.ElementsMatch(t, []uuid.UUID{chatDrift.ID}, flippedIDs)
 
-	gotDrift, err = db.GetChatByID(ctx, chatDrift.ID)
-	require.NoError(t, err)
-	require.True(t, gotDrift.ContextDirtySince.Valid, "drifted chat is marked dirty")
+	t.Run("GetUnarchived", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		agent := newAgent(t)
+		otherAgent := newAgent(t)
 
-	// Refresh re-pins to the latest hash and clears the dirty marker.
-	require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: chatDrift.ID, AggregateHash: hashH}))
-	gotDrift, err = db.GetChatByID(ctx, chatDrift.ID)
-	require.NoError(t, err)
-	require.Equal(t, hashH, gotDrift.ContextAggregateHash)
-	require.False(t, gotDrift.ContextDirtySince.Valid, "refresh clears the dirty marker")
+		chatPinned := newChat(t, database.ChatStatusWaiting, agent.ID)
+		require.NoError(t, db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{ID: chatPinned.ID, AggregateHash: []byte{0x01}}))
+		want := []uuid.UUID{chatPinned.ID}
+		for _, status := range []database.ChatStatus{
+			database.ChatStatusRunning, database.ChatStatusError, database.ChatStatusInterrupting,
+			database.ChatStatusRequiresAction, database.ChatStatusPaused,
+		} {
+			chat := newChat(t, status, agent.ID)
+			want = append(want, chat.ID)
+		}
+		chatArchived := newChat(t, database.ChatStatusRunning, agent.ID)
+		_, err := db.ArchiveChatByID(ctx, chatArchived.ID)
+		require.NoError(t, err)
+		newChat(t, database.ChatStatusRunning, otherAgent.ID)
 
-	// With every chat now matching, a second mark is a no-op.
-	flipped, err = db.MarkChatsContextDirtyByAgent(ctx, database.MarkChatsContextDirtyByAgentParams{
-		AgentID:       agent.ID,
-		AggregateHash: hashH,
-		DirtySince:    sql.NullTime{Time: now, Valid: true},
+		chats, err := db.GetUnarchivedChatsByAgentID(ctx, agent.ID)
+		require.NoError(t, err)
+		chatIDs := make([]uuid.UUID, 0, len(chats))
+		for _, chat := range chats {
+			chatIDs = append(chatIDs, chat.ID)
+		}
+		require.ElementsMatch(t, want, chatIDs)
 	})
-	require.NoError(t, err)
-	require.Empty(t, flipped)
-
-	// The other agent's chat is never touched by this agent's push.
-	gotOther, err := db.GetChatByID(ctx, chatOtherAgent.ID)
-	require.NoError(t, err)
-	require.Equal(t, hashOther, gotOther.ContextAggregateHash)
-	require.False(t, gotOther.ContextDirtySince.Valid)
 }
 
 func TestGetAuthorizedChats(t *testing.T) {

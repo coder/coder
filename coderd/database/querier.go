@@ -93,6 +93,9 @@ type sqlcQuerier interface {
 	CleanTailnetTunnels(ctx context.Context) error
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 	ClearChatDiffStatusPR(ctx context.Context, arg ClearChatDiffStatusPRParams) error
+	// Clears dirty markers when the snapshot hash matches the pin again, without
+	// rewriting the pin or resources. Returns only chats that became clean.
+	ClearChatsContextDirtyByAgent(ctx context.Context, arg ClearChatsContextDirtyByAgentParams) ([]uuid.UUID, error)
 	// Drops the values of every live row that belongs to an earlier build of the
 	// workspace (lower build number than the given build), keeping the rows so
 	// the history of which secrets earlier builds received stays inspectable.
@@ -405,7 +408,6 @@ type sqlcQuerier interface {
 	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
 	GetActiveAISeatCount(ctx context.Context) (int64, error)
-	GetActiveChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]Chat, error)
 	GetActivePresetPrebuildSchedules(ctx context.Context) ([]TemplateVersionPresetPrebuildSchedule, error)
 	GetActiveUserCount(ctx context.Context, includeSystem bool) (int64, error)
 	// Returns the authorization roles (site and org-scoped, including implied
@@ -991,6 +993,7 @@ type sqlcQuerier interface {
 	// usage_events retention policy ever lands, this must move to the daily
 	// rollup and accept day-granularity bounds.
 	GetTotalUsageHBAgentRuntimeV1(ctx context.Context, arg GetTotalUsageHBAgentRuntimeV1Params) (int64, error)
+	GetUnarchivedChatsByAgentID(ctx context.Context, agentID uuid.UUID) ([]Chat, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
 	// Returns the models used since the given time that hold no price, most used
 	// first. openai-compat providers cannot be priced, so their models are excluded.
@@ -1463,11 +1466,8 @@ type sqlcQuerier interface {
 	// no rows by later calls.
 	LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
-	// Flips active, already-hydrated chats for an agent to dirty when the
-	// agent's latest snapshot hash differs from the chat's pinned hash. The
-	// pinned hash is intentionally left untouched; the refresh endpoint
-	// re-pins it. Returns the chats that transitioned so the caller can
-	// emit watch events after the transaction commits.
+	// Marks unarchived, pinned chats dirty when the snapshot hash differs
+	// from their pin. Returns transitioned chats for post-commit notifications.
 	MarkChatsContextDirtyByAgent(ctx context.Context, arg MarkChatsContextDirtyByAgentParams) ([]MarkChatsContextDirtyByAgentRow, error)
 	// Records a permanent refresh failure (e.g. revoked grant) and clears
 	// the dead token material so it is never attached to a request again.
@@ -1550,6 +1550,10 @@ type sqlcQuerier interface {
 	// Agent context rows are hard-deleted for the same reason as in
 	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
+	// Copies the agent's snapshot error to pinned, unarchived chats whose error
+	// differs. Returns changed chat IDs. Errors do not affect dirty markers or
+	// pinned prompts.
+	SyncAgentChatsContextError(ctx context.Context, arg SyncAgentChatsContextErrorParams) ([]uuid.UUID, error)
 	// MCP and ACP resources bypass context drift and are live-synced on each push.
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 	// cannot interleave with the replacement.

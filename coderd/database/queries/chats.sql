@@ -1712,20 +1712,39 @@ copied AS (
 SELECT id FROM hydrated;
 
 -- name: MarkChatsContextDirtyByAgent :many
--- Flips active, already-hydrated chats for an agent to dirty when the
--- agent's latest snapshot hash differs from the chat's pinned hash. The
--- pinned hash is intentionally left untouched; the refresh endpoint
--- re-pins it. Returns the chats that transitioned so the caller can
--- emit watch events after the transaction commits.
+-- Marks unarchived, pinned chats dirty when the snapshot hash differs
+-- from their pin. Returns transitioned chats for post-commit notifications.
 UPDATE chats
 SET context_dirty_since = @dirty_since
 WHERE agent_id = @agent_id::uuid
     AND archived = false
-    AND status IN ('waiting', 'running', 'requires_action', 'paused')
     AND context_aggregate_hash IS NOT NULL
     AND context_aggregate_hash IS DISTINCT FROM @aggregate_hash
     AND context_dirty_since IS NULL
 RETURNING id, owner_id;
+
+-- name: ClearChatsContextDirtyByAgent :many
+-- Clears dirty markers when the snapshot hash matches the pin again, without
+-- rewriting the pin or resources. Returns only chats that became clean.
+UPDATE chats
+SET context_dirty_since = NULL
+WHERE agent_id = @agent_id::uuid
+    AND archived = false
+    AND context_aggregate_hash = @aggregate_hash
+    AND context_dirty_since IS NOT NULL
+RETURNING id;
+
+-- name: SyncAgentChatsContextError :many
+-- Copies the agent's snapshot error to pinned, unarchived chats whose error
+-- differs. Returns changed chat IDs. Errors do not affect dirty markers or
+-- pinned prompts.
+UPDATE chats
+SET context_error = @context_error
+WHERE agent_id = @agent_id::uuid
+    AND archived = false
+    AND context_aggregate_hash IS NOT NULL
+    AND context_error IS DISTINCT FROM @context_error
+RETURNING id;
 
 -- name: SyncAgentChatsContextLiveResources :many
 -- MCP and ACP resources bypass context drift and are live-synced on each push.
@@ -2535,13 +2554,11 @@ SELECT cmc.id, ap.type::text AS provider, cmc.model, cmc.context_limit, cmc.enab
 FROM chat_model_configs cmc
 JOIN ai_providers ap ON ap.id = cmc.ai_provider_id
 WHERE cmc.deleted = false;
--- name: GetActiveChatsByAgentID :many
+-- name: GetUnarchivedChatsByAgentID :many
 SELECT *
 FROM chats_expanded
 WHERE agent_id = @agent_id::uuid
     AND archived = false
-    -- Excludes error (terminal state) and interrupting.
-    AND status IN ('waiting', 'running', 'requires_action', 'paused')
 ORDER BY updated_at DESC;
 
 -- name: SoftDeleteContextFileMessages :exec

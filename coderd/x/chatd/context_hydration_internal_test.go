@@ -90,9 +90,9 @@ func TestHydrateChatContextOnCreate(t *testing.T) {
 	})
 }
 
-// TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied verifies one
-// event per hydrated, dirtied, or MCP-synced chat.
-func TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied(t *testing.T) {
+// TestUpdateAgentChatsContextPublishesContextChanges verifies one event per
+// hydrated, dirtied, cleared, error-synced, or resource-synced chat.
+func TestUpdateAgentChatsContextPublishesContextChanges(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
@@ -107,9 +107,11 @@ func TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied(t *testing.T) {
 
 	hydratedChat := database.Chat{ID: uuid.New(), OwnerID: ownerID, ContextAggregateHash: hash}
 	dirtiedChat := database.Chat{ID: uuid.New(), OwnerID: ownerID, ContextAggregateHash: []byte{0x99}}
+	clearedChat := database.Chat{ID: uuid.New(), OwnerID: ownerID, ContextAggregateHash: hash}
 	syncedChat := database.Chat{ID: uuid.New(), OwnerID: ownerID, ContextAggregateHash: hash}
 
-	events := make(chan codersdk.ChatWatchEvent, 3)
+	want := []uuid.UUID{hydratedChat.ID, dirtiedChat.ID, clearedChat.ID, syncedChat.ID}
+	events := make(chan codersdk.ChatWatchEvent, len(want))
 	cancelSub, err := ps.SubscribeWithErr(
 		coderdpubsub.ChatWatchEventChannel(ownerID),
 		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
@@ -129,24 +131,32 @@ func TestHydrateAndMarkChatsDirtyPublishesForHydratedAndDirtied(t *testing.T) {
 		AggregateHash: hash,
 		DirtySince:    sql.NullTime{Time: now, Valid: true},
 	}).Return([]database.MarkChatsContextDirtyByAgentRow{{ID: dirtiedChat.ID, OwnerID: ownerID}}, nil)
-	// Return the dirtied chat from the sync to verify event deduplication.
+	db.EXPECT().ClearChatsContextDirtyByAgent(gomock.Any(), database.ClearChatsContextDirtyByAgentParams{
+		AgentID:       agentID,
+		AggregateHash: hash,
+	}).Return([]uuid.UUID{clearedChat.ID}, nil)
+	db.EXPECT().SyncAgentChatsContextError(gomock.Any(), database.SyncAgentChatsContextErrorParams{
+		AgentID: agentID,
+	}).Return([]uuid.UUID{syncedChat.ID, dirtiedChat.ID}, nil)
+	// Live sync can overlap either dirty transition, with one event per chat.
 	db.EXPECT().SyncAgentChatsContextLiveResources(gomock.Any(), agentID).
-		Return([]uuid.UUID{syncedChat.ID, dirtiedChat.ID}, nil)
+		Return([]uuid.UUID{syncedChat.ID, dirtiedChat.ID, clearedChat.ID}, nil)
 	db.EXPECT().GetChatByID(gomock.Any(), hydratedChat.ID).Return(hydratedChat, nil)
 	db.EXPECT().GetChatByID(gomock.Any(), dirtiedChat.ID).Return(dirtiedChat, nil)
+	db.EXPECT().GetChatByID(gomock.Any(), clearedChat.ID).Return(clearedChat, nil)
 	db.EXPECT().GetChatByID(gomock.Any(), syncedChat.ID).Return(syncedChat, nil)
 
-	publish, err := server.HydrateAndMarkChatsDirty(ctx, db, agentID, hash, "", now)
+	publish, err := server.UpdateAgentChatsContext(ctx, db, agentID, hash, "", now)
 	require.NoError(t, err)
 	publish()
 
-	gotChatIDs := make([]uuid.UUID, 0, 3)
-	for range 3 {
+	gotChatIDs := make([]uuid.UUID, 0, len(want))
+	for range want {
 		event := testutil.RequireReceive(ctx, t, events)
 		require.Equal(t, codersdk.ChatWatchEventKindContextDirty, event.Kind)
 		gotChatIDs = append(gotChatIDs, event.Chat.ID)
 	}
-	require.ElementsMatch(t, []uuid.UUID{hydratedChat.ID, dirtiedChat.ID, syncedChat.ID}, gotChatIDs)
+	require.ElementsMatch(t, want, gotChatIDs)
 }
 
 // TestEnsureChatContextPinnedOnFirstTurn covers the lazy-bind pinning path. An

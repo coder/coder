@@ -64,10 +64,8 @@ type ContextAPI struct {
 	Log       slog.Logger
 	Clock     quartz.Clock
 	Database  database.Store
-	// DirtyMarker hydrates chats from, and marks chats dirty against, the
-	// snapshot persisted by a push. It is nil when chatd is not running,
-	// in which case PushContextState stays a pure write path.
-	DirtyMarker ContextDirtyMarker
+	// ChatContextUpdater is nil when chatd is disabled.
+	ChatContextUpdater ChatContextUpdater
 	// Disabled rejects every push with a dRPC Unimplemented code. The
 	// agent's DRPCPusher translates that code into ErrPushUnimplemented,
 	// which terminates its RunPush loop for the life of the connection,
@@ -77,19 +75,13 @@ type ContextAPI struct {
 	Disabled bool
 }
 
-// ContextDirtyMarker hydrates chats from, and marks chats dirty against, a
-// freshly persisted agent context snapshot. It is implemented by chatd and
-// injected at coderd construction so this package neither imports the chat
-// domain nor performs chat-authorized writes directly.
-type ContextDirtyMarker interface {
-	// HydrateAndMarkChatsDirty runs inside the PushContextState
-	// transaction using the supplied store. It hydrates chats for the
-	// agent that have no pinned hash yet (no dirty event) and flips
-	// already-pinned chats whose hash differs from aggregateHash. It
-	// returns a callback that publishes the resulting dirty watch events;
-	// the caller invokes it only after the transaction commits. The
-	// callback is a no-op when nothing transitioned to dirty.
-	HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (publishDirty func(), err error)
+// ChatContextUpdater applies an agent's pushed snapshot to chats. Chatd
+// implements it so this package does not perform chat-authorized writes.
+type ChatContextUpdater interface {
+	// UpdateAgentChatsContext pins unpinned chats, marks or clears dirty markers,
+	// and syncs errors and MCP/ACP resources using the supplied push transaction.
+	// The returned callback notifies watchers after commit.
+	UpdateAgentChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (publishContext func(), err error)
 }
 
 // PushContextState persists a snapshot pushed by the workspace
@@ -156,15 +148,15 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 	sort.Strings(activeSources)
 
 	var accepted bool
-	// publishDirty is captured from the final (committed) attempt and
+	// publishContext is captured from the final (committed) attempt and
 	// invoked after the transaction commits; ReadModifyUpdate may re-run
 	// the closure on serialization conflicts.
-	var publishDirty func()
+	var publishContext func()
 	err = database.ReadModifyUpdate(a.Database, func(tx database.Store) error {
 		// The closure re-runs on serialization conflicts; reset any
 		// state carried over from a rolled-back attempt.
 		accepted = false
-		publishDirty = nil
+		publishContext = nil
 
 		existing, err := tx.GetLatestWorkspaceAgentContextSnapshot(ctx, a.AgentID)
 		switch {
@@ -212,13 +204,12 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 			return xerrors.Errorf("delete stale resources: %w", err)
 		}
 
-		// Hydrate and dirty chats against the snapshot just written, in the
-		// same transaction so a concurrent refresh cannot interleave with
-		// the version gate. Events are published only after commit.
-		if a.DirtyMarker != nil {
-			publishDirty, err = a.DirtyMarker.HydrateAndMarkChatsDirty(ctx, tx, a.AgentID, req.AggregateHash, req.SnapshotError, now)
+		// Update chats in the push transaction so refresh cannot interleave.
+		// Notify watchers only after commit.
+		if a.ChatContextUpdater != nil {
+			publishContext, err = a.ChatContextUpdater.UpdateAgentChatsContext(ctx, tx, a.AgentID, req.AggregateHash, req.SnapshotError, now)
 			if err != nil {
-				return xerrors.Errorf("hydrate and mark chats dirty: %w", err)
+				return xerrors.Errorf("update agent chats context: %w", err)
 			}
 		}
 
@@ -238,10 +229,9 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 		return &agentproto.PushContextStateResponse{Accepted: false}, nil
 	}
 
-	// The snapshot committed; fan out dirty watch events to chats whose
-	// pinned context drifted from this push.
-	if publishDirty != nil {
-		publishDirty()
+	// The snapshot committed; notify watchers of context changes.
+	if publishContext != nil {
+		publishContext()
 	}
 
 	a.Log.Debug(ctx, "PushContextState accepted",

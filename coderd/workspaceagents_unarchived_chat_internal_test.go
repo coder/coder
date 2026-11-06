@@ -16,7 +16,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestActiveAgentChatsIncludeInheritedACLs(t *testing.T) {
+func TestUnarchivedAgentChatsIncludeInheritedACLs(t *testing.T) {
 	t.Parallel()
 
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitMedium))
@@ -38,7 +38,7 @@ func TestActiveAgentChatsIncludeInheritedACLs(t *testing.T) {
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           owner.ID,
 		LastModelConfigID: modelConfig.ID,
-		Title:             "root-active-chat",
+		Title:             "root-unarchived-chat",
 		AgentID:           uuid.NullUUID{UUID: workspace.Agents[0].ID, Valid: true},
 	})
 	require.NoError(t, err)
@@ -49,7 +49,7 @@ func TestActiveAgentChatsIncludeInheritedACLs(t *testing.T) {
 		ClientType:        database.ChatClientTypeUi,
 		OwnerID:           owner.ID,
 		LastModelConfigID: modelConfig.ID,
-		Title:             "child-active-chat",
+		Title:             "child-unarchived-chat",
 		AgentID:           uuid.NullUUID{UUID: workspace.Agents[0].ID, Valid: true},
 		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
 		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
@@ -77,21 +77,21 @@ func TestActiveAgentChatsIncludeInheritedACLs(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	activeChats, err := db.GetActiveChatsByAgentID(ctx, workspace.Agents[0].ID)
+	unarchivedChats, err := db.GetUnarchivedChatsByAgentID(ctx, workspace.Agents[0].ID)
 	require.NoError(t, err)
-	require.Len(t, activeChats, 2)
+	require.Len(t, unarchivedChats, 2)
 
-	activeByID := make(map[uuid.UUID]database.Chat, len(activeChats))
-	for _, chat := range activeChats {
-		activeByID[chat.ID] = chat
+	chatsByID := make(map[uuid.UUID]database.Chat, len(unarchivedChats))
+	for _, chat := range unarchivedChats {
+		chatsByID[chat.ID] = chat
 	}
 
-	fetchedRoot, ok := activeByID[root.ID]
+	fetchedRoot, ok := chatsByID[root.ID]
 	require.True(t, ok)
 	require.Equal(t, rootUserACL, fetchedRoot.UserACL)
 	require.Equal(t, rootGroupACL, fetchedRoot.GroupACL)
 
-	fetchedChild, ok := activeByID[child.ID]
+	fetchedChild, ok := chatsByID[child.ID]
 	require.True(t, ok)
 	require.True(t, fetchedChild.ParentChatID.Valid)
 	require.Equal(t, rootUserACL, fetchedChild.UserACL)

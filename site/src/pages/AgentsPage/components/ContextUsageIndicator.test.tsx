@@ -5,7 +5,16 @@ import { MockChatContextDirty } from "#/testHelpers/chatEntities";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 
 describe("ContextUsageIndicator", () => {
-	it("refreshes context after opening the popover with a click", async () => {
+	it.each([
+		{
+			name: "refreshes changed context",
+			context: MockChatContextDirty,
+		},
+		{
+			name: "refreshes changed context with a snapshot error",
+			context: { ...MockChatContextDirty, error: "one source failed" },
+		},
+	])("$name", async ({ context }) => {
 		const user = userEvent.setup();
 		const onRefreshContext = vi.fn();
 		render(
@@ -13,7 +22,7 @@ describe("ContextUsageIndicator", () => {
 				usage={{
 					usedTokens: 12_000,
 					contextLimitTokens: 200_000,
-					context: MockChatContextDirty,
+					context,
 				}}
 				onRefreshContext={onRefreshContext}
 			/>,
