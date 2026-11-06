@@ -7,7 +7,6 @@ import {
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Label } from "#/components/Label/Label";
-import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import {
 	Select,
 	SelectContent,
@@ -70,8 +69,7 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 	const [values, setValues] = useState(() => toFormValues(initialValues));
 	const themeModeId = useId();
 	const fontGroupId = useId();
-	const fontGroupLabelId = `${fontGroupId}-label`;
-	const fontGroupName = `${fontGroupId}-fonts`;
+	const fontFamilyId = `${fontGroupId}-family`;
 	const fontSizeId = `${fontGroupId}-size`;
 	const singleThemeGroupName = `${themeModeId}-single`;
 	const syncThemeGroupNamePrefix = `${themeModeId}-sync`;
@@ -232,7 +230,7 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 			<Section
 				title={
 					<div className="flex flex-row items-center gap-2">
-						<span id={fontGroupLabelId}>Terminal Font</span>
+						<span>Terminal</span>
 						<Spinner
 							loading={isUpdating}
 							size="sm"
@@ -242,31 +240,39 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 				}
 				layout="fluid"
 			>
-				<div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-16">
-					<div className="shrink-0">
-						<RadioGroup
-							aria-labelledby={fontGroupLabelId}
-							value={terminalFont}
-							name={fontGroupName}
-							onValueChange={(value) =>
-								onChangeTerminalFont(toTerminalFontName(value))
-							}
-						>
-							{sortedTerminalFontNames.map((name) => (
-								<div key={name} className="flex items-center space-x-2">
-									<RadioGroupItem value={name} id={`${fontGroupId}-${name}`} />
-									<Label
-										htmlFor={`${fontGroupId}-${name}`}
-										className="cursor-pointer font-normal"
-										style={{ fontFamily: terminalFonts[name] }}
-									>
-										{terminalFontLabels[name]}
-									</Label>
-								</div>
-							))}
-						</RadioGroup>
+				<div className="flex flex-col gap-6">
+					<div className="flex gap-4">
+						<div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-none">
+							<Label htmlFor={fontFamilyId} className="text-sm font-medium">
+								Font
+							</Label>
+							<Select
+								value={terminalFont}
+								onValueChange={(value) =>
+									onChangeTerminalFont(toTerminalFontName(value))
+								}
+							>
+								<SelectTrigger
+									id={fontFamilyId}
+									className="w-full text-content-primary sm:w-48"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{sortedTerminalFontNames.map((name) => (
+										<SelectItem
+											key={name}
+											value={name}
+											style={{ fontFamily: terminalFonts[name] }}
+										>
+											{terminalFontLabels[name]}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
 
-						<div className="mt-6 flex flex-col gap-2">
+						<div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-none">
 							<Label htmlFor={fontSizeId} className="text-sm font-medium">
 								Font size
 							</Label>
@@ -278,7 +284,7 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 							>
 								<SelectTrigger
 									id={fontSizeId}
-									className="w-48 text-content-primary"
+									className="w-full text-content-primary sm:w-48"
 								>
 									<SelectValue />
 								</SelectTrigger>

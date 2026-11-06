@@ -386,7 +386,9 @@ export const SelectTerminalFont: Story = {
 	play: async ({ canvasElement, args }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
-		await user.click(await canvas.findByText("Fira Code"));
+		await user.click(await canvas.findByRole("combobox", { name: "Font" }));
+		const body = within(canvasElement.ownerDocument.body);
+		await user.click(await body.findByRole("option", { name: "Fira Code" }));
 
 		await waitFor(() => {
 			expect(args.onSubmit).toHaveBeenCalledWith({
