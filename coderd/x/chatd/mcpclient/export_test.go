@@ -68,6 +68,10 @@ const ToolCallIDMetaKeyForTest = toolCallIDMetaKey
 // MaxInlineToolResultBytesForTest exposes the result cap.
 const MaxInlineToolResultBytesForTest = maxInlineToolResultBytes
 
+// MaxInProcessToolResultTextBytesForTest exposes the in-process result
+// text cap.
+const MaxInProcessToolResultTextBytesForTest = maxInProcessToolResultTextBytes
+
 // MaxInlineHTTPResponseBytesForTest exposes the body cap.
 const MaxInlineHTTPResponseBytesForTest = maxInlineHTTPResponseBytes
 
