@@ -248,7 +248,7 @@ func PrecheckAPIKey(cfg ValidateAPIKeyConfig) func(http.Handler) http.Handler {
 //
 // Returns (result, nil) on success or (nil, error) on failure.
 func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Request) (*ValidateAPIKeyResult, *ValidateAPIKeyError) {
-	key, valErr := apiKeyFromRequestValidate(ctx, cfg.DB, cfg.SessionTokenFunc, r)
+	key, valErr := apiKeyFromRequestValidate(ctx, cfg.DB, cfg.Logger, cfg.SessionTokenFunc, r)
 	if valErr != nil {
 		return nil, valErr
 	}
@@ -492,8 +492,8 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 	}, nil
 }
 
-func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, codersdk.Response, bool) {
-	key, valErr := apiKeyFromRequestValidate(ctx, db, sessionTokenFunc, r)
+func APIKeyFromRequest(ctx context.Context, db database.Store, logger slog.Logger, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, codersdk.Response, bool) {
+	key, valErr := apiKeyFromRequestValidate(ctx, db, logger, sessionTokenFunc, r)
 	if valErr != nil {
 		return nil, valErr.Response, false
 	}
@@ -501,7 +501,7 @@ func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc 
 	return key, codersdk.Response{}, true
 }
 
-func apiKeyFromRequestValidate(ctx context.Context, db database.Store, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, *ValidateAPIKeyError) {
+func apiKeyFromRequestValidate(ctx context.Context, db database.Store, logger slog.Logger, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, *ValidateAPIKeyError) {
 	tokenFunc := APITokenFromRequest
 	if sessionTokenFunc != nil {
 		tokenFunc = sessionTokenFunc
