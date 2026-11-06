@@ -159,6 +159,7 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
 }) => {
 	const variant = useContext(VariantContext);
 	const label = typeof children === "string" ? children : `step ${step}`;
+	const ariaCurrent = variant === "current" ? "step" : undefined;
 
 	if (onClick) {
 		return (
@@ -166,6 +167,7 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
 				type="button"
 				onClick={onClick}
 				aria-label={`Go to ${label}`}
+				aria-current={ariaCurrent}
 				className={cn(
 					"flex items-center gap-2 w-full text-left text-content-primary p-0 bg-transparent border-0 cursor-pointer rounded-sm",
 					"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
@@ -178,7 +180,7 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
 	}
 
 	return (
-		<div className="flex items-center gap-2">
+		<div className="flex items-center gap-2" aria-current={ariaCurrent}>
 			<div className={stepCircleVariants({ variant })}>{step}</div>
 			<span className={stepLabelVariants({ variant })}>{children}</span>
 		</div>
