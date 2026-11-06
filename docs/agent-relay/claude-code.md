@@ -162,6 +162,9 @@ pools:
       # Optional: release a session after this long without a user message.
       # Default 1h; 0 never releases.
       # idle_release_timeout: 1h
+      # Optional: how long the build can take from work order issue.
+      # Default 5m, between 10s and 15m.
+      # dispatch_deadline: 5m
 
 secretEnv:
   - name: CLAUDE_ENVIRONMENT_SECRET
@@ -188,6 +191,9 @@ claudeCodeRunnerPools:
     # Optional: release a session after this long without a user message.
     # Default 1h; 0 never releases.
     # idle_release_timeout: 1h
+    # Optional: how long the build can take from work order issue.
+    # Default 5m, between 10s and 15m.
+    # dispatch_deadline: 5m
 ```
 
 Pass `CLAUDE_ENVIRONMENT_SECRET` to the container alongside `CODER_AGENT_RELAY_CODERD_SESSION_TOKEN`, as shown in [Install with Docker](./setup.md#docker).
@@ -203,10 +209,17 @@ When the pool is configured, return to [Install Agent Relay](./setup.md#step-5-i
 
 ## Build budget
 
-Agent Relay gives each Claude Code workspace a fixed 300-second spawn budget.
-The budget starts when Anthropic issues the session's work order, so time in Anthropic's queue and time waiting for a provisioner both count.
-When a build misses the budget, Agent Relay returns the session to Anthropic as retryable and deletes the workspace.
-The budget isn't configurable.
+Each pool's `dispatch_deadline` sets the spawn budget: how long a Claude Code workspace build can take.
+
+- The default is `5m`, the minimum is `10s`, and the maximum is `15m`.
+  The value must be whole seconds.
+- You can't turn off the budget, because Anthropic requires one.
+- Agent Relay sends the budget to Anthropic on every poll.
+  If no runner starts within the budget, Anthropic offers the session again.
+- The budget starts when Anthropic issues the session's work order, so time in Anthropic's queue and time waiting for a provisioner both count.
+- When a build misses the budget, Agent Relay reports the failure to Anthropic, cancels the build if it's still running, and deletes the workspace.
+
+For templates where the image pull and build regularly take longer than 5&nbsp;minutes, raise `dispatch_deadline`.
 
 To fit inside the budget:
 
@@ -226,7 +239,7 @@ For example, a template that builds in 60&nbsp;seconds needs about 12 provisione
 
 > [!WARNING]
 > Provisioner shortages feed themselves.
-> A build that misses the budget is returned to Anthropic and its workspace is deleted, and Anthropic then sends the session again.
+> A build that misses the budget fails, Agent Relay deletes its workspace, and Anthropic sends the session again.
 > Each late build adds a delete and a rebuild to the same provisioners.
 
 ## Network requirements
