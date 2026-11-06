@@ -1207,8 +1207,10 @@ func startPrometheusServer(ctx context.Context, logger slog.Logger, cfg *devConf
 
 	// If the port is already in use, check whether it's our
 	// container from a previous run. Reuse it only when it listens on
-	// the current bind address, so a loopback run never keeps a UI that
-	// an earlier run exposed on every interface.
+	// the current bind address, so a loopback run never claims a UI that
+	// listens on every interface. A running container usually belongs to
+	// another live develop run, so a mismatch skips it instead of
+	// replacing it.
 	if isPortBusy(ctx, prometheusServerPort) {
 		out, err := exec.CommandContext(ctx, "docker", "inspect",
 			"-f", "{{.State.Running}} {{json .Args}}",
@@ -1224,7 +1226,10 @@ func startPrometheusServer(ctx context.Context, logger slog.Logger, cfg *devConf
 				slog.F("note", fmt.Sprintf("scrape target may differ from current --prometheus-port %d; restart to apply", cfg.coderMetricsPort)))
 			return true, nil
 		}
-		logger.Info(ctx, "replacing the prometheus server, it listens on another address")
+		logger.Warn(ctx, "a running prometheus server listens on another address, skipping",
+			slog.F("container", prometheusContainerName),
+			slog.F("bind_address", cfg.bindAddress))
+		return false, nil
 	}
 
 	// Remove any stopped leftover container from a previous run.
