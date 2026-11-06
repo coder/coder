@@ -13307,6 +13307,8 @@ locked AS (
         AND (
             agent_id = $2::uuid
             OR agent_id NOT IN (SELECT id FROM build_agents)
+            -- NOT IN yields NULL for unbound chats. Include those that have
+            -- a pinned snapshot explicitly.
             OR (agent_id IS NULL AND context_aggregate_hash IS NOT NULL)
         )
     ORDER BY id
@@ -13330,10 +13332,11 @@ type RebindWorkspaceChatsToAgentRow struct {
 	ContextAggregateHash []byte    `db:"context_aggregate_hash" json:"context_aggregate_hash"`
 }
 
-// Rebinds non-archived workspace chats except those bound to another agent in
-// this build or unbound without a pin. Keep updated_at unchanged: adopting a
-// build is background state and must not reorder chat lists. Lock in ID order
-// to serialize with context refresh and live resource sync.
+// Rebinds non-archived workspace chats bound to the given agent, bound to an
+// agent outside the given build, or unbound with a pinned snapshot.
+// Keeps updated_at unchanged: adoption is a background update and must not
+// reorder chat lists. Locks in ID order to serialize with context refresh and
+// live resource sync.
 func (q *sqlQuerier) RebindWorkspaceChatsToAgent(ctx context.Context, arg RebindWorkspaceChatsToAgentParams) ([]RebindWorkspaceChatsToAgentRow, error) {
 	rows, err := q.db.QueryContext(ctx, rebindWorkspaceChatsToAgent, arg.BuildID, arg.AgentID, arg.WorkspaceID)
 	if err != nil {

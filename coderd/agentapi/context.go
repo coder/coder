@@ -78,8 +78,8 @@ type ContextAPI struct {
 // ChatContextUpdater applies an agent's pushed snapshot to chats. Chatd
 // implements it so this package does not perform chat-authorized writes.
 type ChatContextUpdater interface {
-	// AdoptWorkspaceChatsContext rebinds workspace chats and adopts the latest
-	// build's context on an agent's first stored snapshot.
+	// AdoptWorkspaceChatsContext adopts context for eligible workspace chats.
+	// It uses the supplied transaction and returns a post-commit callback.
 	AdoptWorkspaceChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte) (publish func(), err error)
 	// UpdateAgentChatsContext pins unpinned chats, marks or clears dirty markers,
 	// and syncs errors and MCP/ACP resources using the supplied push transaction.
@@ -151,9 +151,9 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 	sort.Strings(activeSources)
 
 	var accepted bool
-	// publishContext is captured from the final (committed) attempt and
-	// invoked after the transaction commits; ReadModifyUpdate may re-run
-	// the closure on serialization conflicts.
+	// Capture both callbacks from the final (committed) attempt and invoke them
+	// after commit. ReadModifyUpdate may retry the closure on serialization
+	// conflicts.
 	var publishContext func()
 	var publishAdopted func()
 	err = database.ReadModifyUpdate(a.Database, func(tx database.Store) error {
@@ -164,10 +164,11 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 		publishAdopted = nil
 
 		existing, err := tx.GetLatestWorkspaceAgentContextSnapshot(ctx, a.AgentID)
-		firstPush := errors.Is(err, sql.ErrNoRows)
+		noStoredSnapshot := false
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
-			// No previous snapshot; first push always wins.
+			// No stored snapshot means there is no version baseline to compare.
+			noStoredSnapshot = true
 		case err != nil:
 			return xerrors.Errorf("get latest snapshot: %w", err)
 		default:
@@ -213,7 +214,8 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 		// Update chats in the push transaction so refresh cannot interleave.
 		// Notify watchers only after commit.
 		if a.ChatContextUpdater != nil {
-			if firstPush {
+			if noStoredSnapshot {
+				// Attempt build adoption on the agent's first stored snapshot.
 				publishAdopted, err = a.ChatContextUpdater.AdoptWorkspaceChatsContext(ctx, tx, a.AgentID, req.AggregateHash)
 				if err != nil {
 					return xerrors.Errorf("adopt workspace chats context: %w", err)
