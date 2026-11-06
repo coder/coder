@@ -101,6 +101,7 @@ type API struct {
 	recreateSuccessTimes     map[string]time.Time                           // By workspace folder.
 	recreateErrorTimes       map[string]time.Time                           // By workspace folder.
 	injectedSubAgentProcs    map[string]subAgentProcess                     // By workspace folder.
+	lifecycleCommandsProcs   map[string]*lifecycleCommandsProcess           // By workspace folder.
 	usingWorkspaceFolderName map[string]bool                                // By workspace folder.
 	ignoredDevcontainers     map[string]bool                                // By workspace folder. Tracks three states (true, false and not checked).
 	asyncWg                  sync.WaitGroup
@@ -111,6 +112,14 @@ type subAgentProcess struct {
 	containerID string
 	ctx         context.Context
 	stop        context.CancelFunc
+}
+
+// lifecycleCommandsProcess tracks the devcontainer lifecycle commands that
+// run in the background after the command configured by waitFor completes.
+type lifecycleCommandsProcess struct {
+	cancel   context.CancelFunc
+	canceled bool // Protected by api.mu.
+	done     chan struct{}
 }
 
 // Option is a functional option for API.
@@ -342,6 +351,7 @@ func NewAPI(logger slog.Logger, options ...Option) *API {
 		recreateErrorTimes:          make(map[string]time.Time),
 		scriptLogger:                func(uuid.UUID) ScriptLogger { return noopScriptLogger{} },
 		injectedSubAgentProcs:       make(map[string]subAgentProcess),
+		lifecycleCommandsProcs:      make(map[string]*lifecycleCommandsProcess),
 		usingWorkspaceFolderName:    make(map[string]bool),
 	}
 	// The ctx and logger must be set before applying options to avoid
@@ -1295,12 +1305,15 @@ func (api *API) handleDevcontainerDelete(w http.ResponseWriter, r *http.Request)
 		subAgentID = proc.agent.ID
 		proc.stop()
 	}
+	lifecycleCommandsDone := api.stopLifecycleCommandsLocked(dc.WorkspaceFolder)
 
 	dc.Status = codersdk.WorkspaceAgentDevcontainerStatusStopping
 	dc.Error = ""
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	api.broadcastUpdatesLocked()
 	api.mu.Unlock()
+
+	waitForLifecycleCommands(ctx, lifecycleCommandsDone)
 
 	// Stop and remove the container if it exists.
 	if containerID != "" {
@@ -1422,6 +1435,9 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	dc.Error = ""
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	api.broadcastUpdatesLocked()
+	// Prevent lifecycle commands of the previous container from updating
+	// the state. CreateDevcontainer waits for them to exit.
+	_ = api.stopLifecycleCommandsLocked(dc.WorkspaceFolder)
 
 	go func() {
 		_ = api.CreateDevcontainer(dc.WorkspaceFolder, dc.ConfigPath, WithRemoveExistingContainer())
@@ -1435,13 +1451,17 @@ func (api *API) handleDevcontainerRecreate(w http.ResponseWriter, r *http.Reques
 	})
 }
 
-// createDevcontainer should run in its own goroutine and is responsible for
+// CreateDevcontainer should run in its own goroutine and is responsible for
 // recreating a devcontainer based on the provided devcontainer configuration.
 // It updates the devcontainer status and logs the process. The configPath is
 // passed as a parameter for the odd chance that the container being recreated
 // has a different config file than the one stored in the devcontainer state.
 // The devcontainer state must be set to starting and the asyncWg must be
 // incremented before calling this function.
+//
+// It returns once the lifecycle command configured by waitFor in
+// devcontainer.json (updateContentCommand by default) completes. The
+// remaining lifecycle commands run in the background.
 func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...DevcontainerCLIUpOptions) error {
 	api.mu.Lock()
 	if api.closed {
@@ -1474,6 +1494,7 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 
 	api.asyncWg.Add(1)
 	defer api.asyncWg.Done()
+	previousLifecycleCommandsDone := api.stopLifecycleCommandsLocked(dc.WorkspaceFolder)
 	api.mu.Unlock()
 
 	if dc.ConfigPath != configPath {
@@ -1481,6 +1502,8 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 			slog.F("config_path_param", configPath),
 		)
 	}
+
+	waitForLifecycleCommands(ctx, previousLifecycleCommandsDone)
 
 	scriptLogger := api.scriptLogger(logSourceID)
 	defer func() {
@@ -1497,7 +1520,7 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 
 	logger.Debug(ctx, "starting devcontainer recreation")
 
-	upOptions := []DevcontainerCLIUpOptions{WithUpOutput(infoW, errW)}
+	upOptions := []DevcontainerCLIUpOptions{WithUpOutput(infoW, errW), WithSkipNonBlockingCommands()}
 	upOptions = append(upOptions, opts...)
 
 	containerID, upErr := api.dccli.Up(ctx, dc.WorkspaceFolder, configPath, upOptions...)
@@ -1558,6 +1581,11 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 	api.recreateSuccessTimes[dc.WorkspaceFolder] = api.clock.Now("agentcontainers", "recreate", "successTimes")
 	api.knownDevcontainers[dc.WorkspaceFolder] = dc
 	api.broadcastUpdatesLocked()
+	// A lifecycle command failure stops the devcontainer CLI, so the
+	// remaining commands only run after a successful up.
+	if upErr == nil && !api.closed {
+		api.startLifecycleCommandsLocked(logger, dc.WorkspaceFolder, configPath, containerID, logSourceID)
+	}
 	api.mu.Unlock()
 
 	// Ensure an immediate refresh to accurately reflect the
@@ -1568,6 +1596,87 @@ func (api *API) CreateDevcontainer(workspaceFolder, configPath string, opts ...D
 	}
 
 	return nil
+}
+
+// startLifecycleCommandsLocked runs the lifecycle commands that follow the
+// command configured by waitFor in the background. Failures are reported
+// in the devcontainer error. The caller must hold api.mu.
+func (api *API) startLifecycleCommandsLocked(logger slog.Logger, workspaceFolder, configPath, containerID string, logSourceID uuid.UUID) {
+	ctx, cancel := context.WithCancel(api.ctx)
+	proc := &lifecycleCommandsProcess{cancel: cancel, done: make(chan struct{})}
+	api.lifecycleCommandsProcs[workspaceFolder] = proc
+
+	api.asyncWg.Go(func() {
+		defer close(proc.done)
+		defer cancel()
+
+		scriptLogger := api.scriptLogger(logSourceID)
+		infoW := agentsdk.LogsWriter(api.ctx, scriptLogger.Send, logSourceID, codersdk.LogLevelInfo)
+		errW := agentsdk.LogsWriter(api.ctx, scriptLogger.Send, logSourceID, codersdk.LogLevelError)
+
+		logger.Debug(ctx, "running devcontainer lifecycle commands in the background")
+		err := api.dccli.RunUserCommands(ctx, workspaceFolder, configPath,
+			WithRunUserCommandsOutput(infoW, errW),
+			WithRunUserCommandsContainerID(containerID),
+		)
+
+		_ = infoW.Close()
+		_ = errW.Close()
+		flushCtx, flushCancel := context.WithTimeout(api.ctx, 5*time.Second)
+		if flushErr := scriptLogger.Flush(flushCtx); flushErr != nil {
+			logger.Error(flushCtx, "flush devcontainer lifecycle command logs failed", slog.Error(flushErr))
+		}
+		flushCancel()
+
+		api.mu.Lock()
+		defer api.mu.Unlock()
+		if api.lifecycleCommandsProcs[workspaceFolder] == proc {
+			delete(api.lifecycleCommandsProcs, workspaceFolder)
+		}
+		if proc.canceled || api.closed {
+			return
+		}
+		if err == nil {
+			logger.Info(ctx, "devcontainer lifecycle commands finished")
+			return
+		}
+
+		logger.Error(ctx, "devcontainer lifecycle commands failed", slog.Error(err))
+		dc, ok := api.knownDevcontainers[workspaceFolder]
+		if !ok {
+			return
+		}
+		dc.Error = err.Error()
+		api.knownDevcontainers[workspaceFolder] = dc
+		api.broadcastUpdatesLocked()
+	})
+}
+
+// stopLifecycleCommandsLocked cancels the background lifecycle commands for
+// the workspace folder and prevents them from updating the devcontainer
+// state. It returns a channel that is closed when they exit, or nil if none
+// are running. The process removes itself from lifecycleCommandsProcs on
+// exit, so repeated calls return the same channel. The caller must hold
+// api.mu.
+func (api *API) stopLifecycleCommandsLocked(workspaceFolder string) <-chan struct{} {
+	proc, ok := api.lifecycleCommandsProcs[workspaceFolder]
+	if !ok {
+		return nil
+	}
+	proc.canceled = true
+	proc.cancel()
+	return proc.done
+}
+
+// waitForLifecycleCommands waits for done to be closed, if set.
+func waitForLifecycleCommands(ctx context.Context, done <-chan struct{}) {
+	if done == nil {
+		return
+	}
+	select {
+	case <-done:
+	case <-ctx.Done():
+	}
 }
 
 // markDevcontainerDirty finds the devcontainer with the given config file path

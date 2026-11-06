@@ -112,6 +112,17 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				wantContainerID: true,
 			},
 			{
+				name:      "with skip non-blocking commands",
+				logFile:   "up.log",
+				workspace: "/test/workspace",
+				opts: []agentcontainers.DevcontainerCLIUpOptions{
+					agentcontainers.WithSkipNonBlockingCommands(),
+				},
+				wantArgs:        "up --log-format json --workspace-folder /test/workspace --skip-non-blocking-commands",
+				wantError:       false,
+				wantContainerID: true,
+			},
+			{
 				// This test verifies that when a lifecycle script like
 				// postCreateCommand fails, the CLI returns both an error
 				// and a container ID. The caller can then proceed with
@@ -254,6 +265,68 @@ func TestDevcontainerCLI_ArgsAndParsing(t *testing.T) {
 				err := dccli.Exec(ctx, tt.workspaceFolder, tt.configPath, tt.cmd, tt.cmdArgs, tt.opts...)
 				if tt.wantError {
 					assert.Error(t, err, "want error")
+				} else {
+					assert.NoError(t, err, "want no error")
+				}
+			})
+		}
+	})
+
+	t.Run("RunUserCommands", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name      string
+			logFile   string
+			workspace string
+			config    string
+			opts      []agentcontainers.DevcontainerCLIRunUserCommandsOptions
+			wantArgs  string
+			wantError bool
+		}{
+			{
+				name:      "success",
+				logFile:   "run-user-commands.log",
+				workspace: "/test/workspace",
+				wantArgs:  "run-user-commands --log-format json --workspace-folder /test/workspace",
+			},
+			{
+				name:      "with config and container ID",
+				logFile:   "run-user-commands.log",
+				workspace: "/test/workspace",
+				config:    "/test/config.json",
+				opts: []agentcontainers.DevcontainerCLIRunUserCommandsOptions{
+					agentcontainers.WithRunUserCommandsContainerID("test-container-123"),
+				},
+				wantArgs: "run-user-commands --log-format json --workspace-folder /test/workspace --config /test/config.json --container-id test-container-123",
+			},
+			{
+				name:      "lifecycle script failure",
+				logFile:   "run-user-commands-error-lifecycle-script.log",
+				workspace: "/test/workspace",
+				wantArgs:  "run-user-commands --log-format json --workspace-folder /test/workspace",
+				wantError: true,
+			},
+		}
+
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitMedium)
+
+				testExecer := &testDevcontainerExecer{
+					testExePath: testExePath,
+					wantArgs:    tt.wantArgs,
+					wantError:   tt.wantError,
+					logFile:     filepath.Join("testdata", "devcontainercli", "parse", tt.logFile),
+				}
+
+				dccli := agentcontainers.NewDevcontainerCLI(logger, testExecer)
+				err := dccli.RunUserCommands(ctx, tt.workspace, tt.config, tt.opts...)
+				if tt.wantError {
+					require.Error(t, err, "want error")
+					assert.Contains(t, err.Error(), "postCreateCommand from devcontainer.json failed")
 				} else {
 					assert.NoError(t, err, "want no error")
 				}

@@ -356,6 +356,10 @@ func (*fakeDevcontainerCLI) Up(ctx context.Context, workspaceFolder, configFile 
 	return "", nil
 }
 
+func (*fakeDevcontainerCLI) RunUserCommands(context.Context, string, string, ...agentcontainers.DevcontainerCLIRunUserCommandsOptions) error {
+	return nil
+}
+
 func TestOpenVSCodeDevContainer(t *testing.T) {
 	t.Parallel()
 
