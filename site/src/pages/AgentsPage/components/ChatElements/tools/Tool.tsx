@@ -2,7 +2,9 @@ import { File as FileViewer } from "@pierre/diffs/react";
 import { cn } from "cn";
 import { memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
+import { Button } from "#/components/Button/Button";
 import { useTheme } from "#/theme/context";
+import { useChatWorkspace } from "../../../context/ChatWorkspaceContext";
 import type { SourceLink } from "../../ChatConversation/types";
 import { ACPTool } from "./ACPTool";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
@@ -22,6 +24,7 @@ import { type FindToolsMatch, FindToolsTool } from "./FindToolsTool";
 import { ListAgentsTool } from "./ListAgentsTool";
 import { ListSubagentModelsTool } from "./ListSubagentModelsTool";
 import { ListTemplatesTool } from "./ListTemplatesTool";
+import { parseOpenPreviewTarget, usePreviewPanel } from "./PreviewPanelContext";
 import { ProcessOutputTool } from "./ProcessOutputTool";
 import { ProposePlanTool } from "./ProposePlanTool";
 import { getReadFileToolData, ReadFileTool } from "./ReadFileTool";
@@ -1166,6 +1169,49 @@ const WebSearchRenderer: React.FC<ToolRendererProps> = (props) =>
 		<GenericToolRenderer {...props} />
 	);
 
+const OpenPreviewRenderer: React.FC<ToolRendererProps> = (props) => {
+	const { onOpenPreview } = usePreviewPanel();
+	const { workspaceId } = useChatWorkspace();
+	const { status, args, result, isError } = props;
+	const title = asString(parseArgs(args)?.title).trim() || "preview";
+	const target = isError ? undefined : parseOpenPreviewTarget(result);
+	const isCurrentWorkspace = target?.workspaceId === workspaceId;
+
+	let label = `Opened ${title}`;
+	if (status === "running") {
+		label = `Opening ${title}…`;
+	} else if (isError) {
+		label = `Failed to open ${title}`;
+	}
+
+	return (
+		<ToolCall.Root
+			className="w-full"
+			status={status}
+			isError={isError}
+			errorMessage={
+				asString(asRecord(result)?.error) || "Failed to open preview"
+			}
+			hasContent={false}
+		>
+			<ToolCall.HeaderLayout>
+				<ToolCall.Header iconName="open_preview" label={label} />
+				{target && isCurrentWorkspace && onOpenPreview && (
+					<ToolCall.Actions>
+						<Button
+							size="xs"
+							variant="outline"
+							onClick={() => onOpenPreview(target)}
+						>
+							Open preview
+						</Button>
+					</ToolCall.Actions>
+				)}
+			</ToolCall.HeaderLayout>
+		</ToolCall.Root>
+	);
+};
+
 // ---------------------------------------------------------------------------
 // Renderer lookup map for tool names and specialized renderers.
 // ---------------------------------------------------------------------------
@@ -1203,6 +1249,7 @@ export const toolRenderers: Record<string, React.FC<ToolRendererProps>> = {
 	advisor: AdvisorRenderer,
 	computer: ComputerRenderer,
 	web_search: WebSearchRenderer,
+	open_preview: OpenPreviewRenderer,
 };
 
 // Exported so tests can assert cross-cutting affordances across every
