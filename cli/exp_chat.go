@@ -108,9 +108,11 @@ func (*RootCmd) chatContextListCommand(socketPath *string) *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "list",
 		Short: "List the workspace context sources registered on the agent",
-		Long: "List the additional scan roots registered on this workspace's agent. " +
-			"Built-in defaults (the working directory, ~/.coder, ~/.claude) are always " +
-			"scanned and are not shown here.\n\nMust be run from inside the workspace.",
+		Long: "List the scan roots registered on this workspace's agent, including sources " +
+			"seeded from agent configuration. Built-in roots (~/.coder, ~/.coder/skills, " +
+			"~/.claude/plugins/cache) and the working directory are always scanned, even " +
+			"when not listed. Registered sources that match these roots or come from " +
+			"agent configuration cannot be removed.\n\nMust be run from inside the workspace.",
 		Middleware: serpent.RequireNArgs(0),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
@@ -240,8 +242,11 @@ func (*RootCmd) chatContextRemoveCommand(socketPath *string) *serpent.Command {
 		Use:   "remove <path>",
 		Short: "Remove a workspace context source",
 		Long: "Remove a previously-registered context source from this workspace's agent " +
-			"and re-resolve. Built-in default scan roots cannot be removed.\n\nMust be run " +
-			"from inside the workspace.",
+			"and re-resolve. Sources seeded from agent configuration, built-in scan roots, " +
+			"and the working directory cannot be removed. Change CODER_AGENT_EXP_*_DIRS " +
+			"or CODER_AGENT_EXP_MCP_CONFIG_FILES in the agent configuration to change " +
+			"seeded sources. Built-in roots and the working directory are always scanned.\n\n" +
+			"Must be run from inside the workspace.",
 		Middleware: serpent.RequireNArgs(1),
 		Handler: func(inv *serpent.Invocation) error {
 			ctx := inv.Context()
