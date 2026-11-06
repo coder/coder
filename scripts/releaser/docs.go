@@ -493,13 +493,15 @@ func updateReleaseDocs(
 }
 
 // promptAndUpdateDocs asks the user if they want to create a
-// docs update PR and does so if confirmed.
+// docs update PR and does so if confirmed. It returns the error from
+// creating the PR; declining the prompt is not an error.
 func promptAndUpdateDocs(
 	inv *serpent.Invocation,
+	p *prompter,
 	newVer version,
 	channel string,
 	dryRun bool,
-) {
+) error {
 	w := inv.Stderr
 	_, _ = fmt.Fprintln(w)
 	_, _ = fmt.Fprintln(w, pretty.Sprint(cliui.BoldFmt(),
@@ -507,13 +509,13 @@ func promptAndUpdateDocs(
 			"(calendar, helm versions, rancher)."))
 	_, _ = fmt.Fprintln(w)
 
-	if err := confirmWithDefault(inv, "Create docs update PR?", cliui.ConfirmYes); err != nil {
+	if err := p.confirmWithDefault("Create docs update PR?", cliui.ConfirmYes); err != nil {
 		infof(w, "Skipped docs update. You can update them manually.")
-		return
+		return nil
 	}
 
 	if err := updateReleaseDocs(inv, newVer, channel, dryRun); err != nil {
-		warnf(w, "Failed to create docs PR: %v", err)
-		warnf(w, "You'll need to update release docs manually.")
+		return xerrors.Errorf("creating docs PR: %w", err)
 	}
+	return nil
 }
