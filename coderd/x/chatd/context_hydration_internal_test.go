@@ -10,11 +10,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -88,6 +90,52 @@ func TestHydrateChatContextOnCreate(t *testing.T) {
 			AgentID: uuid.NullUUID{UUID: agentID, Valid: true},
 		})
 	})
+}
+
+func TestAdoptWorkspaceChatsContextLogsSelectionError(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name      string
+		agents    []database.WorkspaceAgent
+		wantError error
+	}{
+		{
+			name:      "NoEligibleAgents",
+			wantError: agentselect.ErrNoEligibleAgents,
+		},
+		{
+			name: "MultipleChatAgents",
+			agents: []database.WorkspaceAgent{
+				{ID: uuid.New(), Name: "first-coderd-chat"},
+				{ID: uuid.New(), Name: "second-coderd-chat"},
+			},
+			wantError: agentselect.ErrMultipleChatAgents,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			db := dbmock.NewMockStore(gomock.NewController(t))
+			agentID := uuid.New()
+			workspace := database.Workspace{ID: uuid.New()}
+			db.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agentID).Return(workspace, nil)
+			db.EXPECT().GetWorkspaceAgentsInLatestBuildByWorkspaceID(gomock.Any(), workspace.ID).
+				Return(tc.agents, nil)
+			sink := testutil.NewFakeSink(t)
+			server := &Server{logger: sink.Logger()}
+
+			publish, err := server.AdoptWorkspaceChatsContext(ctx, db, agentID, []byte{0x01})
+			require.NoError(t, err)
+			publish()
+
+			entries := sink.Entries()
+			require.Len(t, entries, 1)
+			require.Equal(t, slog.LevelDebug, entries[0].Level)
+			require.Equal(t, workspace.ID.String(), sinkFieldValue(t, entries[0].Fields, "workspace_id"))
+			require.Contains(t, sinkFieldValue(t, entries[0].Fields, "error"), tc.wantError.Error())
+		})
+	}
 }
 
 // TestUpdateAgentChatsContextPublishesContextChanges verifies one event per

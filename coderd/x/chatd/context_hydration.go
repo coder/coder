@@ -120,14 +120,14 @@ func (p *Server) chatContextPublisher(ctx context.Context, tx database.Store, to
 func (p *Server) AdoptWorkspaceChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte) (func(), error) {
 	//nolint:gocritic // An agent does not own the workspace's chats.
 	ctx = dbauthz.AsChatd(ctx)
-	adopted, err := adoptWorkspaceChatsContext(ctx, tx, agentID, aggregateHash)
+	adopted, err := adoptWorkspaceChatsContext(ctx, tx, p.logger, agentID, aggregateHash)
 	if err != nil {
 		return nil, err
 	}
 	return p.chatContextPublisher(ctx, tx, adopted)
 }
 
-func adoptWorkspaceChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte) ([]uuid.UUID, error) {
+func adoptWorkspaceChatsContext(ctx context.Context, tx database.Store, logger slog.Logger, agentID uuid.UUID, aggregateHash []byte) ([]uuid.UUID, error) {
 	workspace, err := tx.GetWorkspaceByAgentID(ctx, agentID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -143,7 +143,12 @@ func adoptWorkspaceChatsContext(ctx context.Context, tx database.Store, agentID 
 		return nil, xerrors.Errorf("get latest build agents for context adoption: %w", err)
 	}
 	selected, err := agentselect.FindChatAgent(agents)
-	if err != nil || selected.ID != agentID {
+	if err != nil {
+		logger.Debug(ctx, "skip workspace context adoption: chat agent selection failed",
+			slog.F("workspace_id", workspace.ID), slog.Error(err))
+		return nil, nil
+	}
+	if selected.ID != agentID {
 		return nil, nil
 	}
 	build, err := tx.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
