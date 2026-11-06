@@ -530,6 +530,127 @@ func AnthropicReasoningTextChunks(reasoning []AnthropicReasoningBlock, text stri
 	return chunks
 }
 
+// AnthropicWebSearch configures one provider-executed web search for
+// AnthropicWebSearchChunks.
+type AnthropicWebSearch struct {
+	// ID is the server_tool_use block ID that the web_search_tool_result
+	// block references. It defaults to a generated srvtoolu_ ID.
+	ID    string
+	Query string
+	// Results are the pages the search found.
+	Results []AnthropicWebSearchResult
+	// ErrorCode, when set, replaces Results with a
+	// web_search_tool_result_error carrying this code, such as
+	// "max_uses_exceeded".
+	ErrorCode string
+}
+
+// AnthropicWebSearchResult is one web_search_result item in a
+// web_search_tool_result block.
+type AnthropicWebSearchResult struct {
+	URL     string
+	Title   string
+	PageAge string
+}
+
+// AnthropicWebSearchChunks creates a complete streaming response in which
+// Anthropic runs a web search and then answers with text. The search is a
+// server_tool_use block whose input streams as input_json_delta, followed
+// by a web_search_tool_result block that arrives whole in its
+// content_block_start, as in the Anthropic Messages API.
+func AnthropicWebSearchChunks(search AnthropicWebSearch, text string) []AnthropicChunk {
+	searchID := search.ID
+	if searchID == "" {
+		searchID = fmt.Sprintf("srvtoolu_%s", uuid.New().String()[:8])
+	}
+	input, err := json.Marshal(map[string]string{"query": search.Query})
+	if err != nil {
+		panic(fmt.Sprintf("marshal web search input: %v", err))
+	}
+
+	var content any
+	if search.ErrorCode != "" {
+		content = map[string]any{
+			"type":       "web_search_tool_result_error",
+			"error_code": search.ErrorCode,
+		}
+	} else {
+		results := make([]map[string]any, 0, len(search.Results))
+		for _, result := range search.Results {
+			item := map[string]any{
+				"type":              "web_search_result",
+				"url":               result.URL,
+				"title":             result.Title,
+				"encrypted_content": "encrypted-" + result.URL,
+			}
+			if result.PageAge != "" {
+				item["page_age"] = result.PageAge
+			}
+			results = append(results, item)
+		}
+		content = results
+	}
+
+	return []AnthropicChunk{
+		{
+			Type: "message_start",
+			Message: AnthropicChunkMessage{
+				ID:    fmt.Sprintf("msg-%s", uuid.New().String()[:8]),
+				Type:  "message",
+				Role:  "assistant",
+				Model: "claude-3-opus-20240229",
+				Usage: map[string]int{"input_tokens": 10},
+			},
+		},
+		{
+			Type:  "content_block_start",
+			Index: 0,
+			ContentBlock: AnthropicContentBlock{
+				Type:  "server_tool_use",
+				ID:    searchID,
+				Name:  "web_search",
+				Input: json.RawMessage("{}"),
+			},
+		},
+		{
+			Type:  "content_block_delta",
+			Index: 0,
+			Delta: AnthropicDeltaBlock{
+				Type:        "input_json_delta",
+				PartialJSON: string(input),
+			},
+		},
+		{Type: "content_block_stop", Index: 0},
+		{
+			Type:  "content_block_start",
+			Index: 1,
+			ContentBlock: AnthropicContentBlock{
+				Type:      "web_search_tool_result",
+				ToolUseID: searchID,
+				Content:   content,
+			},
+		},
+		{Type: "content_block_stop", Index: 1},
+		{
+			Type:         "content_block_start",
+			Index:        2,
+			ContentBlock: AnthropicContentBlock{Type: "text"},
+		},
+		{
+			Type:  "content_block_delta",
+			Index: 2,
+			Delta: AnthropicDeltaBlock{Type: "text_delta", Text: text},
+		},
+		{Type: "content_block_stop", Index: 2},
+		{
+			Type:       "message_delta",
+			StopReason: "end_turn",
+			UsageMap:   map[string]int{"output_tokens": 5},
+		},
+		{Type: "message_stop"},
+	}
+}
+
 // AnthropicToolCallChunks creates a complete streaming response for a tool call.
 // Input JSON can be split across multiple deltas, matching Anthropic's
 // input_json_delta streaming behavior.
