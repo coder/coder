@@ -52,9 +52,16 @@ export const TagInput: React.FC<TagInputProps> = ({
 					aria-label={label}
 					className="grow text-inherit p-0 border-none bg-transparent focus:outline-hidden"
 					onKeyDown={(event) => {
-						if (event.key === ",") {
+						if (event.nativeEvent.isComposing) {
+							return;
+						}
+
+						if (event.key === "," || event.key === "Enter") {
 							event.preventDefault();
 							const newValue = event.currentTarget.value;
+							if (event.key === "Enter" && newValue === "") {
+								return;
+							}
 							onChange([...values, newValue]);
 							event.currentTarget.value = "";
 							return;
