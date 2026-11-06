@@ -346,7 +346,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 	);
 
 	return (
-		<>
+		<li>
 			<div className="border border-solid border-border-control rounded-md flex flex-col items-start w-full lg:w-auto lg:flex-row gap-6 p-2">
 				<div className="flex flex-col gap-1 mb-2 min-w-0 flex-1 w-full">
 					{thread.prompt && (
@@ -473,10 +473,10 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 				</BracketConnector>
 			) : (
 				// Spacer to create visual gap between threads. Hidden on the
-				// last thread via the wrapper div's :last-child selector.
+				// last thread via the list's :last-child selector.
 				<div className="h-4 thread-gap" />
 			)}
-		</>
+		</li>
 	);
 };
 
@@ -650,7 +650,10 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 						</div>
 					)}
 					{/* threads */}
-					<div className="[&>.thread-gap:last-child]:hidden">
+					<ol
+						aria-label="Threads"
+						className="list-none m-0 p-0 [&>li:last-child>.thread-gap]:hidden"
+					>
 						{threadItems.map(({ thread, classification }) => (
 							<ThreadItem
 								key={thread.id}
@@ -662,7 +665,7 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 								highlight={searchQuery}
 							/>
 						))}
-					</div>
+					</ol>
 					{isSearching && !hasAnyMatches ? (
 						<p
 							className="m-0 py-4 text-sm font-normal text-content-secondary"
