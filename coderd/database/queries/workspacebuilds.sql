@@ -117,12 +117,18 @@ WHERE
 	id = $1;
 
 -- name: UpdateWorkspaceBuildDeadlineByID :exec
+-- Records why the deadline changed only when it changes, so rewriting the same
+-- deadline keeps the previous explanation.
 UPDATE
 	workspace_builds
 SET
 	deadline = @deadline::timestamptz,
 	max_deadline = @max_deadline::timestamptz,
-	updated_at = @updated_at::timestamptz
+	updated_at = @updated_at::timestamptz,
+	deadline_reason = CASE WHEN workspace_builds.deadline IS DISTINCT FROM @deadline::timestamptz THEN @deadline_reason::workspace_build_deadline_reason ELSE workspace_builds.deadline_reason END,
+	deadline_changed_at = CASE WHEN workspace_builds.deadline IS DISTINCT FROM @deadline::timestamptz THEN @updated_at::timestamptz ELSE workspace_builds.deadline_changed_at END,
+	deadline_changed_by = CASE WHEN workspace_builds.deadline IS DISTINCT FROM @deadline::timestamptz THEN sqlc.narg('deadline_changed_by')::uuid ELSE workspace_builds.deadline_changed_by END,
+	deadline_sources = CASE WHEN workspace_builds.deadline IS DISTINCT FROM @deadline::timestamptz THEN '[]'::jsonb ELSE workspace_builds.deadline_sources END
 FROM
 	workspaces
 WHERE

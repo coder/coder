@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/codersdk"
@@ -44,6 +45,9 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 		})
 		noQuietUser = dbgen.User(t, db, database.User{
 			Username: "no-quiet",
+		})
+		templateAdmin = dbgen.User(t, db, database.User{
+			Username: "template-admin",
 		})
 		file = dbgen.File(t, db, database.File{
 			CreatedBy: quietUser.ID,
@@ -91,8 +95,9 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 		noQuietHours bool
 		// Note that ttl will not influence the new build at all unless it's 0
 		// AND the build does not have a max deadline post recalculation.
-		ttl         time.Duration
-		autostopReq *agplschedule.TemplateAutostopRequirement
+		ttl          time.Duration
+		autostopReq  *agplschedule.TemplateAutostopRequirement
+		serviceActor bool
 	}{
 		{
 			name:        "SkippedWorkspaceMaxDeadlineTooSoon",
@@ -152,6 +157,16 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			newDeadline:    nextQuietHours,
 			newMaxDeadline: nextQuietHours,
 			ttl:            defaultTTL, // no effect
+		},
+		{
+			name:           "ServiceActorDeadlineAfterNewWorkspaceMaxDeadline",
+			now:            nextQuietHours.Add(-6 * time.Hour),
+			deadline:       nextQuietHours.Add(24 * time.Hour),
+			maxDeadline:    nextQuietHours.Add(24 * time.Hour),
+			newDeadline:    nextQuietHours,
+			newMaxDeadline: nextQuietHours,
+			ttl:            defaultTTL, // no effect
+			serviceActor:   true,
 		},
 		{
 			// There was a bug if a user has no quiet hours set, and autostop
@@ -263,10 +278,12 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			require.NotEmpty(t, buildProvisionerState, "provisioner state must not be empty")
 
 			err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-				ID:          buildResp.Build.ID,
-				UpdatedAt:   buildTime,
-				Deadline:    c.deadline,
-				MaxDeadline: c.maxDeadline,
+				DeadlineReason:    database.WorkspaceBuildDeadlineReasonBuild,
+				DeadlineChangedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
+				ID:                buildResp.Build.ID,
+				UpdatedAt:         buildTime,
+				Deadline:          c.deadline,
+				MaxDeadline:       c.maxDeadline,
 			})
 			require.NoError(t, err)
 
@@ -294,7 +311,11 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			if c.autostopReq != nil {
 				autostopReq = *c.autostopReq
 			}
-			_, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
+			setCtx := dbauthz.As(ctx, rbac.Subject{Type: rbac.SubjectTypeUser, ID: templateAdmin.ID.String()})
+			if c.serviceActor {
+				setCtx = dbauthz.AsSystemRestricted(ctx)
+			}
+			_, err = templateScheduleStore.Set(setCtx, db, template, agplschedule.TemplateScheduleOptions{
 				UserAutostartEnabled:     false,
 				UserAutostopEnabled:      false,
 				DefaultTTL:               c.ttl,
@@ -311,6 +332,19 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 
 			require.WithinDuration(t, c.newDeadline, newBuild.Deadline, time.Second, "deadline")
 			require.WithinDuration(t, c.newMaxDeadline, newBuild.MaxDeadline, time.Second, "max_deadline")
+
+			// Only a schedule change that moves the deadline claims it.
+			wantReason := wsBuild.DeadlineReason
+			wantChangedBy := wsBuild.DeadlineChangedBy
+			if !newBuild.Deadline.Equal(wsBuild.Deadline) {
+				wantReason = database.NullWorkspaceBuildDeadlineReason{WorkspaceBuildDeadlineReason: database.WorkspaceBuildDeadlineReasonTemplateSchedule, Valid: true}
+				wantChangedBy = uuid.NullUUID{UUID: templateAdmin.ID, Valid: true}
+				if c.serviceActor {
+					wantChangedBy = uuid.NullUUID{}
+				}
+			}
+			require.Equal(t, wantReason, newBuild.DeadlineReason, "deadline_reason")
+			require.Equal(t, wantChangedBy, newBuild.DeadlineChangedBy, "deadline_changed_by")
 
 			// Check that the new build has the same state as before.
 			newBuildProvisionerStateRow, err := db.GetWorkspaceBuildProvisionerStateByID(ctx, newBuild.ID)
@@ -508,10 +542,11 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 		require.NotEmpty(t, wsBuildProvisionerState, "provisioner state must not be empty")
 
 		err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-			ID:          wsBuild.ID,
-			UpdatedAt:   buildTime,
-			Deadline:    originalMaxDeadline,
-			MaxDeadline: originalMaxDeadline,
+			DeadlineReason: database.WorkspaceBuildDeadlineReasonBuild,
+			ID:             wsBuild.ID,
+			UpdatedAt:      buildTime,
+			Deadline:       originalMaxDeadline,
+			MaxDeadline:    originalMaxDeadline,
 		})
 		require.NoError(t, err)
 
