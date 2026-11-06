@@ -6,8 +6,8 @@
 # Postgres still runs from, the launch lock, how
 # vc_start_develop passes the environment, that a Docker error or a missing
 # docker CLI fails the leftover inventory, the default password check for
-# admin and member, and that vc_browser_login keeps the password out of the
-# process arguments.
+# admin and member, that docker-forward.py carries its port, and that
+# vc_browser_login keeps the password out of the process arguments.
 # Usage: selftest.sh   (prints one line per check and a count line)
 set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
@@ -423,6 +423,46 @@ default_password_checks_users() {
 	echo "the default password is caught for admin and member, and only 401 counts as refused"
 }
 vc_check default-users default_password_checks_users
+
+# docker-forward.py carries the one port it was given from its listen address
+# to 127.0.0.1, and cleanup recognizes it as a helper to stop. 127.0.0.2
+# stands in for the Docker bridge gateway.
+docker_forward_carries_port() {
+	local port="" out="" www="$tmp/www" fw rc=0
+	mkdir -p "$www"
+	echo selftest-forward >"$www/x"
+	# Port 0 lets the kernel pick a free port, which the server then prints.
+	(cd "$www" && exec python3 -u -m http.server 0 --bind 127.0.0.1) >"$tmp/www.log" 2>&1 &
+	local server=$!
+	for _ in $(seq 50); do
+		port="$(sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' "$tmp/www.log" | head -n 1)"
+		[[ -z "$port" ]] || break
+		sleep 0.2
+	done
+	[[ -n "$port" ]] || {
+		kill "$server" 2>/dev/null || true
+		echo "the stand-in API server did not start"
+		return 1
+	}
+	python3 "$VC_SKILL_SCRIPTS/docker-forward.py" 127.0.0.2 "$port" >"$tmp/forward.log" 2>&1 &
+	fw=$!
+	for _ in $(seq 50); do
+		out="$(curl -sS --max-time 2 "http://127.0.0.2:$port/x" 2>/dev/null)" && break
+		sleep 0.2
+	done
+	vc_is_docker_forward "$fw" || rc=1
+	kill "$server" "$fw" 2>/dev/null || true
+	[[ "$out" == selftest-forward ]] || {
+		echo "docker-forward.py did not carry port $port: ${out:-no answer}"
+		return 1
+	}
+	((rc == 0)) || {
+		echo "cleanup would not recognize docker-forward.py pid $fw"
+		return 1
+	}
+	echo "docker-forward.py carries its port to 127.0.0.1, and cleanup recognizes it"
+}
+vc_check docker-forward docker_forward_carries_port
 
 login_keeps_password_off_argv() {
 	local marker="selftest-$RANDOM-$RANDOM"

@@ -98,6 +98,28 @@ starter_template() {
 
 # launch.sh makes the state folder private because develop.log records the
 # admin password.
+# Workspace agents reach the API through the Docker bridge gateway, and
+# nothing but the API may listen there.
+docker_forward() {
+	local gateway pid
+	if ! docker info >/dev/null 2>&1; then
+		echo "docker is not available, so no workspace agent needs the API"
+		return 0
+	fi
+	gateway="$(vc_docker_gateway)"
+	pid="$(cat "$VC_RUN/docker-forward.pid")"
+	vc_is_docker_forward "$pid" || {
+		echo "pid $pid does not run docker-forward.py"
+		return 1
+	}
+	curl -fsS --max-time 10 -o /dev/null "http://$gateway:$VC_API_PORT/healthz"
+	if curl -sS --max-time 5 -o /dev/null "http://$gateway:$VC_WEB_PORT/" 2>/dev/null; then
+		echo "the Vite port answers on $gateway"
+		return 1
+	fi
+	echo "workspace agents reach the API on $gateway:$VC_API_PORT, and Vite stays on 127.0.0.1"
+}
+
 state_private() {
 	local mode
 	mode="$(stat -c '%a' "$VC_STATE")"
@@ -129,6 +151,7 @@ vc_check admin-session admin_session
 vc_check embedded-ui embedded_ui
 vc_check vite vite_proxies_api
 vc_check starter-template starter_template
+vc_check docker-forward docker_forward
 vc_check state-private state_private
 vc_check default-password default_password_refused
 

@@ -5,7 +5,7 @@ description: "Launch an isolated local Coder from this checkout with scripts/dev
 
 # Verify Coder
 
-Drive the real app, not tests. Every script prints one line per check and ends with a count line such as `doctor: 11/11 checks passed`. A run without its count line is unchecked.
+Drive the real app, not tests. Every script prints one line per check and ends with a count line such as `doctor: 12/12 checks passed`. A run without its count line is unchecked.
 
 Script paths are relative to this skill's directory, `.agents/skills/verify-coder/`, and the scripts work from any working directory. `build/verify-coder/` and `.coderv2/` are relative to the repo root. `reference.md` has the details behind each step.
 

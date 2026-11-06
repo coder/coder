@@ -41,7 +41,7 @@ Preconditions:
 
 - Every build runs `terraform init`, which downloads the `coder/coder` and `kreuzwerker/docker` providers from GitHub releases. A GitHub 504 fails the build with `Failed to install provider`. Read the cause with `grep level=ERROR "$VC_LOG"` and report it as an environment failure.
 - The `docker` template has one parameter, `jetbrains_ides` (`list(string)`, a multi-select). Without `--parameter`, `coder create` prompts for it, and with no TTY the prompt sends a value that fails `terraform plan` with `When using list(string) type, value must be a json encoded list of strings`.
-- The template rewrites `127.0.0.1` in the agent URL to `host.docker.internal`, mapped to the host gateway. After setup, `scripts/launch.sh` restarts the API on `0.0.0.0`, so agents reach it from a local Docker daemon (`unix:///var/run/docker.sock`). A remote daemon was not tested.
+- The template rewrites `127.0.0.1` in the agent URL to `host.docker.internal`, mapped to the Docker bridge gateway. develop listens on 127.0.0.1 only, so `scripts/launch.sh` runs `scripts/docker-forward.py`, which carries only the API port from the gateway to 127.0.0.1. Agents of a local Docker daemon (`unix:///var/run/docker.sock`) connect through it. A remote daemon was not tested.
 - The first workspace pulls `codercom/example-base:ubuntu`. Allow several minutes.
 - The agent name in the `docker` template is `main`.
 - About 6 seconds into a build, the workspace page scrolls down 72 px to follow the build log. The header buttons (`Stop`, `Start`, the options button) then sit under the sticky navbar, and a click lands on the navbar. Run `vc_ab eval 'window.scrollTo(0, 0)'` before clicking them.

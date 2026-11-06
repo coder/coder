@@ -232,4 +232,24 @@ if default_user="$(vc_default_password_accepted)"; then
 fi
 vc_password_accepted "$password" || vc_fail "the admin password launch.sh used does not sign in, so the journeys would fail: run cleanup.sh, then fix CODER_DEV_ADMIN_PASSWORD or launch.sh --fresh"
 grep -E 'template created in org|starter template setup failed|created member user' "$log" | cut -c1-200 || true
+
+# The docker template's workspace agents reach the server through
+# host.docker.internal, the Docker bridge gateway. docker-forward.py carries
+# only the API port from there to 127.0.0.1, so the API, which needs the
+# admin password, is the one thing that containers on this host can reach.
+if docker info >/dev/null 2>&1; then
+	gateway="$(vc_docker_gateway)" || vc_fail "docker works but its bridge network has no gateway, run cleanup.sh"
+	setsid python3 "$VC_SKILL_SCRIPTS/docker-forward.py" "$gateway" "$api_port" >"$VC_RUN/docker-forward.log" 2>&1 </dev/null 9>&- &
+	echo "$!" >"$VC_RUN/docker-forward.pid"
+	for _ in $(seq 50); do
+		if grep -q '^forwarding ' "$VC_RUN/docker-forward.log"; then
+			break
+		fi
+		kill -0 "$(<"$VC_RUN/docker-forward.pid")" 2>/dev/null || break
+		sleep 0.2
+	done
+	grep -q '^forwarding ' "$VC_RUN/docker-forward.log" ||
+		vc_fail "docker-forward.py did not start on $gateway:$api_port, see $VC_RUN/docker-forward.log, then run cleanup.sh"
+	echo "workspace agents reach the API through $gateway:$api_port"
+fi
 exec "$(dirname "${BASH_SOURCE[0]}")/doctor.sh"

@@ -4,7 +4,7 @@ This folder is the maintained source for verifying the Coder features listed bel
 
 ## Baseline preconditions
 
-- `scripts/launch.sh` started the instance from this checkout and `scripts/doctor.sh` prints `doctor: 11/11 checks passed`.
+- `scripts/launch.sh` started the instance from this checkout and `scripts/doctor.sh` prints `doctor: 12/12 checks passed`.
 - `source scripts/lib.sh && vc_load_run` exported `VC_WEB_URL`, `VC_API_URL` and `VC_BROWSER_SESSION`.
 - Seed data from `scripts/develop/main.go`: owner `admin@coder.com`, user `member@coder.com`, both with the password in `$VC_ADMIN_PASSWORD` (random when `launch.sh` created the database, see "Admin password" in `reference.md`), the default organization `coder`, and the `docker` template when Docker works on the host.
 - Nothing seeds an AI provider, a model, a license, a workspace or a second organization.

@@ -85,15 +85,16 @@ close_browser() {
 	fi
 }
 
-# Journeys record helpers they start (such as llm-mock) as $VC_RUN/*.pid.
-# Stop only pids that still run this checkout's coder binary.
+# launch.sh and the journeys record helpers they start (docker-forward.py,
+# llm-mock) as $VC_RUN/*.pid. Stop only pids that still run this checkout's
+# coder binary or this skill's docker-forward.py.
 stop_helpers() {
 	local f pid n=0 bin
 	bin="$(vc_coder_bin)"
 	for f in "$VC_RUN"/*.pid; do
 		[[ -f "$f" ]] || continue
 		pid="$(cat "$f")"
-		if [[ "$(readlink "/proc/$pid/exe" 2>/dev/null)" == "$bin"* ]]; then
+		if [[ "$(readlink "/proc/$pid/exe" 2>/dev/null)" == "$bin"* ]] || vc_is_docker_forward "$pid"; then
 			kill "$pid" 2>/dev/null || true
 			n=$((n + 1))
 		fi

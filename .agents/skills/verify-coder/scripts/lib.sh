@@ -7,10 +7,11 @@ VC_STATE="${VERIFY_CODER_STATE:-$VC_ROOT/build/verify-coder}"
 VC_RUN="$VC_STATE/run"
 VC_EVIDENCE="$VC_STATE/evidence"
 VC_CONFIG_DIR="$VC_ROOT/.coderv2"
+VC_SKILL_SCRIPTS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 VC_ADMIN_EMAIL="admin@coder.com"
 # vc_load_run replaces this with the password launch.sh gave the instance.
 VC_ADMIN_PASSWORD="${CODER_DEV_ADMIN_PASSWORD:-SomeSecurePassword!}"
-export VC_ROOT VC_STATE VC_RUN VC_EVIDENCE VC_CONFIG_DIR VC_ADMIN_EMAIL VC_ADMIN_PASSWORD
+export VC_ROOT VC_STATE VC_RUN VC_EVIDENCE VC_CONFIG_DIR VC_SKILL_SCRIPTS VC_ADMIN_EMAIL VC_ADMIN_PASSWORD
 
 vc_fail() {
 	echo "error: $*" >&2
@@ -231,6 +232,21 @@ vc_port_listener_pid() {
 
 vc_port_busy() {
 	[[ -n "$(ss -Hltn "sport = :$1")" ]]
+}
+
+# vc_docker_gateway prints the Docker bridge gateway, the address that
+# host.docker.internal resolves to in the docker template's workspaces.
+vc_docker_gateway() {
+	local gateway
+	gateway="$(docker network inspect bridge --format '{{range .IPAM.Config}}{{.Gateway}}{{end}}')" || return 1
+	[[ "$gateway" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
+	echo "$gateway"
+}
+
+# vc_is_docker_forward succeeds when pid runs this skill's docker-forward.py.
+vc_is_docker_forward() {
+	[[ -r "/proc/$1/cmdline" ]] || return 1
+	[[ "$(tr '\0' ' ' <"/proc/$1/cmdline")" == *" $VC_SKILL_SCRIPTS/docker-forward.py "* ]]
 }
 
 vc_coder_bin() {
