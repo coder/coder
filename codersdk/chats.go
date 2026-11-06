@@ -1401,8 +1401,8 @@ type UpdateAdvisorConfigRequest struct {
 }
 
 // ChatComputerUseProvider identifies the computer use tool flavor. Chatd
-// derives it from the AI provider type of the model a computer use chat runs
-// on.
+// derives it from the API format of the client for the model that a computer
+// use chat runs on, so a Claude model on AWS Bedrock uses the Anthropic tool.
 type ChatComputerUseProvider string
 
 const (
@@ -1727,9 +1727,12 @@ type ChatModel struct {
 	ModelConfig          *ChatModelCallConfig `json:"model_config,omitempty"`
 	// ReasoningEfforts lists selectable reasoning effort values through
 	// the model's configured maximum.
-	ReasoningEfforts []string  `json:"reasoning_efforts,omitempty"`
-	CreatedAt        time.Time `json:"created_at" format:"date-time"`
-	UpdatedAt        time.Time `json:"updated_at" format:"date-time"`
+	ReasoningEfforts []string `json:"reasoning_efforts,omitempty"`
+	// ComputerUseProvider names the computer use tool that Coder sends for
+	// this model. It is omitted when computer use can't run on the model.
+	ComputerUseProvider ChatComputerUseProvider `json:"computer_use_provider,omitempty"`
+	CreatedAt           time.Time               `json:"created_at" format:"date-time"`
+	UpdatedAt           time.Time               `json:"updated_at" format:"date-time"`
 }
 
 // ChatModelACL is the access control list for an organization-scoped chat

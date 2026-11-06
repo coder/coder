@@ -9,7 +9,6 @@ import (
 
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
-	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/xerrors"
@@ -292,7 +291,8 @@ func (p *Server) newModel(
 }
 
 func coerceBedrockReasoningSummary(providerType database.AIProviderType, model string, callConfig codersdk.ChatModelCallConfig) codersdk.ChatModelCallConfig {
-	if providerType != database.AIProviderTypeBedrock || bedrockIsAnthropicModel(model) ||
+	if providerType != database.AIProviderTypeBedrock ||
+		chatprovider.ClientProvider(providerType, model) != fantasyopenai.Name ||
 		callConfig.ProviderOptions == nil || callConfig.ProviderOptions.OpenAI == nil ||
 		callConfig.ProviderOptions.OpenAI.ReasoningSummary == nil ||
 		*callConfig.ProviderOptions.OpenAI.ReasoningSummary == "auto" {
@@ -347,35 +347,8 @@ type aibridgeFantasyConfig struct {
 	Keys         chatprovider.ProviderAPIKeys
 }
 
-// bedrockIsAnthropicModel reports whether a model ID on a bedrock provider
-// uses the Anthropic Messages wire shape. InvokeModel configurations can use a
-// client-facing Claude alias while remapping it to an AWS model ID upstream.
-func bedrockIsAnthropicModel(model string) bool {
-	return strings.HasPrefix(model, "claude-") ||
-		strings.HasPrefix(model, "anthropic.") ||
-		strings.Contains(model, ".anthropic.")
-}
-
-func aibridgeClientProvider(providerType database.AIProviderType, model string) string {
-	switch providerType {
-	case database.AIProviderTypeAnthropic:
-		return fantasyanthropic.Name
-	case database.AIProviderTypeBedrock:
-		// Bedrock Mantle serves both Anthropic Messages and OpenAI Responses
-		// shapes; the model ID vendor prefix picks the wire format.
-		if bedrockIsAnthropicModel(model) {
-			return fantasyanthropic.Name
-		}
-		return fantasyopenai.Name
-	case database.AIProviderTypeOpenai:
-		return fantasyopenai.Name
-	default:
-		return fantasyopenaicompat.Name
-	}
-}
-
 func fantasyConfigForAIBridge(providerType database.AIProviderType, model string) aibridgeFantasyConfig {
-	fantasyProvider := aibridgeClientProvider(providerType, model)
+	fantasyProvider := chatprovider.ClientProvider(providerType, model)
 	baseURL := aibridgeLocalBaseURL + "/v1"
 	if fantasyProvider == fantasyanthropic.Name {
 		baseURL = aibridgeLocalBaseURL
@@ -438,7 +411,7 @@ func (p *Server) resolveAIGatewayRoute(
 		ctx,
 		ownerID,
 		provider,
-		aibridgeClientProvider(provider.Type, model),
+		chatprovider.ClientProvider(provider.Type, model),
 	)
 	if err != nil {
 		return aiGatewayModelRoute{}, xerrors.Errorf("resolve AI Gateway provider auth: %w", err)

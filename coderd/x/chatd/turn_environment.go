@@ -226,11 +226,11 @@ func (p *Server) buildTurnEnvironment(
 	var computerUseToolVersion anthropic.ComputerUseToolVersion
 	if isComputerUse {
 		var ok bool
-		computerUseProvider, ok = computerUseProviderForAIProviderType(string(resolved.route.Provider.Type))
+		computerUseProvider, ok = chatprovider.ComputerUseProvider(resolved.route.Provider.Type, modelConfig.Model)
 		if !ok {
 			return turnEnvironment{}, xerrors.Errorf(
-				"computer use requires a model from an Anthropic or OpenAI AI provider, but model %q uses AI provider %q of type %q",
-				modelConfig.Model, resolved.route.Provider.Name, resolved.route.Provider.Type,
+				"computer use requires %s, but model %q uses AI provider %q of type %q",
+				chatprovider.ComputerUseModelRequirement, modelConfig.Model, resolved.route.Provider.Name, resolved.route.Provider.Type,
 			)
 		}
 		if computerUseProvider == codersdk.ChatComputerUseProviderAnthropic {
