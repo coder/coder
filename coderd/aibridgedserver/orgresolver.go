@@ -75,7 +75,7 @@ func (s *Server) resolveOrganization(ctx context.Context, userID uuid.UUID, in o
 
 	group, ok, err := budget.ResolveUserEffectiveGroup(ctx, s.store, userID, uuid.NullUUID{}, s.budgetPolicy)
 	if err != nil {
-		return resolvedOrganization{}, xerrors.Errorf("resolve effective AI group for user %s: %w", userID, err)
+		return resolvedOrganization{}, internalError(xerrors.Errorf("resolve effective AI group for user %s: %w", userID, err))
 	}
 	if !ok {
 		return resolvedOrganization{}, ErrNoOrganization
@@ -92,7 +92,7 @@ func (s *Server) workspaceOrganization(ctx context.Context, userID, workspaceID 
 		return uuid.Nil, ErrUnknownWorkspace
 	}
 	if err != nil {
-		return uuid.Nil, xerrors.Errorf("get workspace %s: %w", workspaceID, err)
+		return uuid.Nil, internalError(xerrors.Errorf("get workspace %s: %w", workspaceID, err))
 	}
 	// Workspaces are soft-deleted, so a deleted row still resolves by ID.
 	if workspace.Deleted {
@@ -113,7 +113,7 @@ func (s *Server) requireOrganizationMember(ctx context.Context, userID, orgID uu
 		Deleted: sql.NullBool{Bool: false, Valid: true},
 	})
 	if err != nil {
-		return xerrors.Errorf("get organizations for user %s: %w", userID, err)
+		return internalError(xerrors.Errorf("get organizations for user %s: %w", userID, err))
 	}
 	if !slices.ContainsFunc(orgs, func(org database.Organization) bool {
 		return org.ID == orgID

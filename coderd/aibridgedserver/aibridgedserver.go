@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/url"
 	"slices"
 	"strings"
@@ -16,6 +17,7 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -788,7 +790,8 @@ externalAuthLoop:
 
 // IsAuthorized validates a given Coder API key and returns the user ID to which it belongs (if valid).
 // It also returns the organization the request resolves to, as determined by [Server.resolveOrganization], and
-// rejects the request when that resolution fails.
+// rejects the request when that resolution fails. An error caused by coderd itself, such as a failed database
+// query, carries [proto.ErrCodeInternal] so the gateway can tell it from a rejected request.
 //
 // SECURITY: when in.KeyId is set (the "delegated" path), this method trusts the
 // caller's claim of identity and skips the key-secret check. This DRPCServer is
@@ -848,9 +851,12 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 
 	// Key exists.
 	key, err := s.store.GetAPIKeyByID(ctx, keyID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrUnknownKey
+	}
 	if err != nil {
 		s.logger.Warn(ctx, "failed to retrieve API key by id", slog.F("key_id", keyID), slog.Error(err))
-		return nil, ErrUnknownKey
+		return nil, internalError(xerrors.Errorf("get API key %s: %w", keyID, err))
 	}
 
 	// Key has not expired.
@@ -866,9 +872,12 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 
 	// User exists.
 	user, err := s.store.GetUserByID(ctx, key.UserID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrUnknownUser
+	}
 	if err != nil {
 		s.logger.Warn(ctx, "failed to retrieve API key user", slog.F("key_id", keyID), slog.F("user_id", key.UserID), slog.Error(err))
-		return nil, ErrUnknownUser
+		return nil, internalError(xerrors.Errorf("get user %s: %w", key.UserID, err))
 	}
 
 	// User is active, not deleted, and not a system user.
@@ -908,6 +917,13 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	resp.OrganizationId = org.ID.String()
 	resp.OrganizationSource = string(org.Source)
 	return resp, nil
+}
+
+// internalError marks err as a failure of coderd, such as a failed database
+// query, rather than a rejection of the request. The gateway answers an error
+// carrying [proto.ErrCodeInternal] with a 500 instead of a 403.
+func internalError(err error) error {
+	return drpcerr.WithCode(err, proto.ErrCodeInternal)
 }
 
 // workspaceAttribution parses the workspace UUID from a strict server-minted
