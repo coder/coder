@@ -61,8 +61,9 @@ Usage:
       Specifies the remote shell for remote installation. Defaults to ssh.
 
   --with-terraform
-	  Installs Terraform binary from https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/ source
-	  alongside coder.
+	  Installs the Terraform binary bundled with the Coder release alongside coder.
+	  The version and its SHA256 checksum come from the Coder repository, and the
+	  binary is downloaded from https://releases.hashicorp.com/terraform/ and verified.
 	  This is great for if you are having issues with Coder installing terraform, or if you
 	  just want it on your base system aswell.
 	  This supports most systems, however if you are unsure yours is supported you can check
@@ -276,7 +277,6 @@ EOF
 main() {
 	MAINLINE=1
 	STABLE=0
-	TERRAFORM_VERSION="1.17.1"
 
 	if [ "${TRACE-}" ]; then
 		set -x
@@ -436,6 +436,11 @@ main() {
 		VERSION=${STABLE_VERSION}
 		echoh "Resolved stable version: v${VERSION}"
 	fi
+	if ! is_version "${VERSION-}" rc; then
+		echoerr "Invalid Coder version \"${VERSION-}\"."
+		echoerr "Expected a version like 2.28.0, without a leading v."
+		exit 1
+	fi
 
 	distro_name
 
@@ -573,12 +578,46 @@ with_terraform() {
 		echoerr "Please install unzip to use this function"
 		exit 1
 	fi
+	# The Terraform version and its checksum come from the Coder repository, the
+	# same source as this script and the Coder release, so the Terraform download
+	# from HashiCorp is verified against a checksum we publish.
+	if ! TERRAFORM_SHA256SUMS=$(fetch_terraform_sha256sums); then
+		echoh
+		echoerr "Could not download the Terraform checksums from the Coder repository."
+		exit 1
+	fi
+	# Each line looks like "<sha256>  terraform_<version>_<os>_<arch>.zip".
+	# Only well-formed lines are accepted, so the file can't smuggle another
+	# file name or version into the download and install commands below.
+	TERRAFORM_SUM=$(echo "$TERRAFORM_SHA256SUMS" | awk -v suffix="_${OS}_${TERRAFORM_ARCH}.zip" '
+		NF == 2 && length($1) == 64 && $1 !~ /[^0-9a-f]/ &&
+			$2 ~ /^terraform_[0-9]+[.][0-9]+[.][0-9]+_[a-z0-9]+_[a-z0-9]+[.]zip$/ &&
+			substr($2, length($2) - length(suffix) + 1) == suffix { print $1, $2; exit }
+	')
+	if [ ! "$TERRAFORM_SUM" ]; then
+		echoh
+		echoerr "The Coder repository has no Terraform checksum for ${OS}_${TERRAFORM_ARCH}."
+		echoerr "Refusing to install an unverified Terraform binary."
+		exit 1
+	fi
+	TERRAFORM_SHA256=${TERRAFORM_SUM%% *}
+	TERRAFORM_VERSION=$(echo "${TERRAFORM_SUM#* }" | cut -d_ -f2)
+	if ! is_version "$TERRAFORM_VERSION"; then
+		echoh
+		echoerr "The Coder repository has an invalid Terraform version \"$TERRAFORM_VERSION\"."
+		exit 1
+	fi
+	# Build the file name from validated parts instead of using it verbatim.
+	TERRAFORM_ZIP="terraform_${TERRAFORM_VERSION}_${OS}_${TERRAFORM_ARCH}.zip"
 	echoh "Installing Terraform version $TERRAFORM_VERSION $TERRAFORM_ARCH from the HashiCorp release repository."
 	echoh
 
 	# Download from official source and save it to cache
-	fetch "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_${OS}_${TERRAFORM_ARCH}.zip" \
-		"$CACHE_DIR/terraform_${TERRAFORM_VERSION}_${OS}_${TERRAFORM_ARCH}.zip"
+	fetch "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/${TERRAFORM_ZIP}" \
+		"$CACHE_DIR/$TERRAFORM_ZIP"
+	if [ ! "${DRY_RUN-}" ]; then
+		verify_sha256 "$CACHE_DIR/$TERRAFORM_ZIP" "$TERRAFORM_SHA256"
+	fi
 
 	sh_c mkdir -p "$TERRAFORM_INSTALL_PREFIX" 2>/dev/null || true
 
@@ -588,7 +627,7 @@ with_terraform() {
 	fi
 	# Prepare /usr/local/bin/ and the binary for copying
 	"$sh_c" mkdir -p "$TERRAFORM_INSTALL_PREFIX/bin"
-	"$sh_c" unzip -d "$CACHE_DIR" -o "$CACHE_DIR/terraform_${TERRAFORM_VERSION}_${OS}_${ARCH}.zip"
+	"$sh_c" unzip -d "$CACHE_DIR" -o "$CACHE_DIR/$TERRAFORM_ZIP"
 	COPY_LOCATION="$TERRAFORM_INSTALL_PREFIX/bin/terraform"
 
 	# Remove the file if it already exists to
@@ -599,6 +638,57 @@ with_terraform() {
 
 	# Copy the binary to the correct location.
 	"$sh_c" cp "$CACHE_DIR/terraform" "$COPY_LOCATION"
+}
+
+# fetch_terraform_sha256sums prints provisioner/terraform/terraform_SHA256SUMS
+# from the Coder repository: HashiCorp's checksum file for the Terraform version
+# bundled with Coder. It reads the file at the tag of the Coder release being
+# installed, and falls back to main only if that tag doesn't have the file
+# (releases from before it existed). Fully qualified refs make sure a branch
+# named like the tag, or a tag named main, can't be read instead.
+fetch_terraform_sha256sums() {
+	sums_path=provisioner/terraform/terraform_SHA256SUMS
+	sums_response=$(curl -sSL -w "\n%{http_code}" "https://raw.githubusercontent.com/coder/coder/refs/tags/v${VERSION}/${sums_path}") || return 1
+	sums_status=$(echo "$sums_response" | tail -n1)
+	if [ "$sums_status" = 200 ]; then
+		echo "$sums_response" | sed '$d'
+		return 0
+	fi
+	if [ "$sums_status" != 404 ]; then
+		echoerr "Downloading the Terraform checksums for Coder v${VERSION} returned status code: ${sums_status}"
+		return 1
+	fi
+	echoh "Coder v${VERSION} doesn't pin Terraform checksums; using the ones from main." >&2
+	curl -fsSL "https://raw.githubusercontent.com/coder/coder/refs/heads/main/${sums_path}"
+}
+
+# sha256_file prints the SHA256 checksum of a file.
+sha256_file() {
+	if command_exists sha256sum; then
+		sha256sum "$1" | awk '{ print $1 }'
+	elif command_exists shasum; then
+		shasum -a 256 "$1" | awk '{ print $1 }'
+	elif command_exists sha256; then
+		sha256 -q "$1"
+	else
+		echoerr "This script needs sha256sum, shasum or sha256 to verify downloads."
+		exit 1
+	fi
+}
+
+# verify_sha256 exits if a file doesn't match the expected SHA256 checksum.
+# The file is removed so a rerun downloads it again instead of reusing it.
+verify_sha256() {
+	actual=$(sha256_file "$1")
+	if [ "$actual" != "$2" ]; then
+		rm -f "$1"
+		echoh
+		echoerr "SHA256 checksum mismatch for $1"
+		echoerr "  expected: $2"
+		echoerr "  actual:   $actual"
+		exit 1
+	fi
+	echoh "+ Verified SHA256 checksum of $1"
 }
 
 install_macos() {
@@ -806,28 +896,59 @@ command_exists() {
 	command -v "$@" >/dev/null
 }
 
+# sh_c prints and runs a command. The arguments are run as-is, never re-parsed
+# by a shell, so a path or version can't turn into extra shell commands.
 sh_c() {
 	echoh "+ $*"
 	if [ ! "${DRY_RUN-}" ]; then
-		sh -c "$*"
+		"$@"
 	fi
 }
 
+# sudo_sh_c runs a command as root with sh_c.
 sudo_sh_c() {
 	if [ "$(id -u)" = 0 ]; then
 		sh_c "$@"
 	elif command_exists sudo; then
-		sh_c "sudo $*"
+		sh_c sudo "$@"
 	elif command_exists doas; then
-		sh_c "doas $*"
+		sh_c doas "$@"
 	elif command_exists su; then
-		sh_c "su - -c '$*'"
+		# su only takes a command string, so quote every argument for its shell.
+		sh_c su - -c "$(quote_args "$@")"
 	else
 		echoh
 		echoerr "This script needs to run the following command as root."
 		echoerr "  $*"
 		echoerr "Please install sudo, su, or doas."
 		exit 1
+	fi
+}
+
+# quote_args prints its arguments as one shell command line, with every
+# argument single-quoted so the shell runs it verbatim.
+quote_args() {
+	quoted_args=
+	for quote_arg in "$@"; do
+		# Turn each ' into '\'' (end the quote, add a literal ', reopen it). The x
+		# keeps $(...) from dropping trailing newlines.
+		quote_arg=$(printf '%sx' "$quote_arg" | sed "s/'/'\\\\''/g")
+		quoted_args="$quoted_args '${quote_arg%x}'"
+	done
+	printf '%s\n' "${quoted_args# }"
+}
+
+# is_version reports whether $1 is a MAJOR.MINOR.PATCH version. With "rc" as
+# $2, a Coder release candidate (MAJOR.MINOR.PATCH-rc.N) is accepted too.
+# Versions end up in URLs, file names and commands, so nothing else is allowed.
+is_version() {
+	case $1 in
+	"" | *[!0-9a-z.-]*) return 1 ;;
+	esac
+	if [ "${2-}" = rc ]; then
+		printf '%s\n' "$1" | grep -Eq '^[0-9]+[.][0-9]+[.][0-9]+(-rc[.][0-9]+)?$'
+	else
+		printf '%s\n' "$1" | grep -Eq '^[0-9]+[.][0-9]+[.][0-9]+$'
 	fi
 }
 

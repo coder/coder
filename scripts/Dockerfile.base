@@ -27,9 +27,19 @@ RUN apk add --no-cache \
 # Terraform was disabled in the edge repo due to a build issue.
 # https://gitlab.alpinelinux.org/alpine/aports/-/commit/f3e263d94cfac02d594bef83790c280e045eba35
 # Using wget for now. Note that busybox unzip doesn't support streaming.
-RUN ARCH="$(arch)"; if [ "${ARCH}" == "x86_64" ]; then ARCH="amd64"; elif [ "${ARCH}" == "aarch64" ]; then ARCH="arm64"; elif [ "${ARCH}" == "armv7l" ]; then ARCH="arm"; fi; wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.17.1/terraform_1.17.1_linux_${ARCH}.zip" && \
-		busybox unzip /tmp/terraform.zip -d /usr/local/bin && \
-		rm -f /tmp/terraform.zip && \
+#
+# The Terraform version and SHA256 come from terraform_SHA256SUMS, a copy of
+# provisioner/terraform/terraform_SHA256SUMS (HashiCorp's GPG-signed checksum
+# file). Every build context for this Dockerfile must include it. The build
+# fails if there's no entry for this architecture or the download doesn't match.
+COPY terraform_SHA256SUMS /tmp/terraform_SHA256SUMS
+RUN ARCH="$(arch)"; if [ "${ARCH}" == "x86_64" ]; then ARCH="amd64"; elif [ "${ARCH}" == "aarch64" ]; then ARCH="arm64"; elif [ "${ARCH}" == "armv7l" ]; then ARCH="arm"; fi; cd /tmp && \
+		ZIP="$(grep -oE "terraform_[0-9]+\.[0-9]+\.[0-9]+_linux_${ARCH}\.zip$" terraform_SHA256SUMS)" && \
+		VERSION="$(echo "${ZIP}" | cut -d_ -f2)" && \
+		wget "https://releases.hashicorp.com/terraform/${VERSION}/${ZIP}" && \
+		grep -E "  ${ZIP}$" terraform_SHA256SUMS | sha256sum -c - && \
+		busybox unzip "${ZIP}" -d /usr/local/bin && \
+		rm -f "${ZIP}" terraform_SHA256SUMS && \
 		chmod +x /usr/local/bin/terraform && \
 		terraform --version
 USER 1000:1000
