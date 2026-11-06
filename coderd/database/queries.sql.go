@@ -3672,6 +3672,7 @@ func (q *sqlQuerier) GetOverBudgetUsersPerGroup(ctx context.Context, periodStart
 const getUnpricedAIModels = `-- name: GetUnpricedAIModels :many
 WITH unpriced_usage AS (
 	SELECT
+		groups.organization_id,
 		interceptions.provider_name,
 		interceptions.model,
 		SUM(
@@ -3683,11 +3684,17 @@ WITH unpriced_usage AS (
 	FROM aibridge_token_usages AS token_usages
 	JOIN aibridge_interceptions AS interceptions
 		ON interceptions.id = token_usages.interception_id
+	LEFT JOIN groups
+		ON groups.id = token_usages.effective_group_id
 	WHERE token_usages.created_at >= $2::timestamptz
 		AND token_usages.created_at < $3::timestamptz
 		AND token_usages.cost_micros IS NULL
 		AND token_usages.priced_model IS NULL
-	GROUP BY interceptions.provider_name, interceptions.model
+		AND (
+			$4::uuid IS NULL
+			OR groups.organization_id = $4::uuid
+		)
+	GROUP BY groups.organization_id, interceptions.provider_name, interceptions.model
 )
 SELECT
 	providers.name AS provider_name,
@@ -3695,7 +3702,7 @@ SELECT
 	providers.icon AS provider_icon,
 	providers.type::text AS provider_type,
 	unpriced_usage.model,
-	unpriced_usage.token_count
+	SUM(unpriced_usage.token_count)::bigint AS token_count
 FROM unpriced_usage
 JOIN ai_providers AS providers
 	ON providers.name = unpriced_usage.provider_name
@@ -3707,17 +3714,33 @@ WHERE providers.type::text = ANY($1::text[])
 		WHERE prices.provider = providers.type::text
 			AND prices.model = unpriced_usage.model
 	)
+	AND NOT EXISTS (
+		SELECT 1
+		FROM ai_model_configs AS configs
+		WHERE configs.organization_id = unpriced_usage.organization_id
+			AND configs.provider_id = providers.id
+			AND configs.model = unpriced_usage.model
+			AND configs.deleted = false
+			AND COALESCE(
+				configs.input_price,
+				configs.output_price,
+				configs.cache_read_price,
+				configs.cache_write_price
+			) IS NOT NULL
+	)
+GROUP BY providers.name, providers.display_name, providers.icon, providers.type, unpriced_usage.model
 ORDER BY
-	unpriced_usage.token_count DESC,
-	providers.name ASC,
+	token_count DESC,
+	provider_name ASC,
 	LOWER(unpriced_usage.model) ASC,
 	unpriced_usage.model ASC
 `
 
 type GetUnpricedAIModelsParams struct {
-	PriceableProviders []string  `db:"priceable_providers" json:"priceable_providers"`
-	PeriodStart        time.Time `db:"period_start" json:"period_start"`
-	PeriodEnd          time.Time `db:"period_end" json:"period_end"`
+	PriceableProviders []string      `db:"priceable_providers" json:"priceable_providers"`
+	PeriodStart        time.Time     `db:"period_start" json:"period_start"`
+	PeriodEnd          time.Time     `db:"period_end" json:"period_end"`
+	OrganizationID     uuid.NullUUID `db:"organization_id" json:"organization_id"`
 }
 
 type GetUnpricedAIModelsRow struct {
@@ -3731,12 +3754,20 @@ type GetUnpricedAIModelsRow struct {
 
 // Returns, for each live provider, the requested models with unpriced token
 // usage in the [period_start, period_end) window, most used first. Only models
-// without a site-wide price now are returned. Usage priced through the model
-// reported by the provider, or whose cost could not be computed from a found
-// price, is not reported as unpriced. openai-compat providers cannot be priced,
-// so they are excluded.
+// without a price now are returned. A model has a price if it has a site-wide
+// price for the provider's type, or an organization price in the organization
+// of the usage's effective group. Usage priced through the model reported by
+// the provider, or whose cost could not be computed from a found price, is not
+// reported as unpriced. openai-compat providers cannot be priced, so they are
+// excluded. @organization_id limits the usage to one organization, and null
+// includes all.
 func (q *sqlQuerier) GetUnpricedAIModels(ctx context.Context, arg GetUnpricedAIModelsParams) ([]GetUnpricedAIModelsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getUnpricedAIModels, pq.Array(arg.PriceableProviders), arg.PeriodStart, arg.PeriodEnd)
+	rows, err := q.db.QueryContext(ctx, getUnpricedAIModels,
+		pq.Array(arg.PriceableProviders),
+		arg.PeriodStart,
+		arg.PeriodEnd,
+		arg.OrganizationID,
+	)
 	if err != nil {
 		return nil, err
 	}

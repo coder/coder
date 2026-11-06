@@ -5450,8 +5450,14 @@ func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License,
 	return q.db.GetUnexpiredLicenses(ctx)
 }
 
+// GetUnpricedAIModels requires read access to the organization's prices when
+// given an organization, and site-wide access otherwise.
 func (q *querier) GetUnpricedAIModels(ctx context.Context, arg database.GetUnpricedAIModelsParams) ([]database.GetUnpricedAIModelsRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceAiModelPrice); err != nil {
+	object := rbac.ResourceAiModelPrice
+	if arg.OrganizationID.Valid {
+		object = object.InOrg(arg.OrganizationID.UUID)
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, object); err != nil {
 		return nil, err
 	}
 	return q.db.GetUnpricedAIModels(ctx, arg)
