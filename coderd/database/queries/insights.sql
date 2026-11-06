@@ -34,11 +34,13 @@ ORDER BY
 -- produces a bloated value if a user has used multiple templates
 -- simultaneously.
 WITH
-	deployment_stats AS (
+	-- One pass over the window: per user capped minutes per bucket, and the
+	-- user's templates. GROUPING tells the two row kinds apart.
+	base AS (
 		SELECT
-			start_time,
+			GROUPING(start_time) = 0 AS is_bucket_row,
 			user_id,
-			array_agg(template_id) AS template_ids,
+			template_id,
 			-- See motivation in GetTemplateInsights for LEAST(SUM(n), 30).
 			LEAST(SUM(usage_mins), 30) AS usage_mins
 		FROM
@@ -47,39 +49,33 @@ WITH
 			start_time >= @start_time::timestamptz
 			AND end_time <= @end_time::timestamptz
 			AND CASE WHEN COALESCE(array_length(@template_ids::uuid[], 1), 0) > 0 THEN template_id = ANY(@template_ids::uuid[]) ELSE TRUE END
-		GROUP BY
-			start_time, user_id
+		GROUP BY GROUPING SETS ((start_time, user_id), (user_id, template_id))
 	),
-	template_ids AS (
+	user_stats AS (
 		SELECT
 			user_id,
-			array_agg(DISTINCT template_id) AS ids
+			array_agg(template_id ORDER BY template_id) FILTER (WHERE NOT is_bucket_row) AS template_ids,
+			SUM(usage_mins) FILTER (WHERE is_bucket_row) AS usage_mins
 		FROM
-			deployment_stats, unnest(template_ids) template_id
+			base
 		GROUP BY
 			user_id
 	)
 
 SELECT
-	ds.user_id,
+	us.user_id,
 	u.username,
 	u.avatar_url,
-	t.ids::uuid[] AS template_ids,
-	(SUM(ds.usage_mins) * 60)::bigint AS usage_seconds
+	us.template_ids::uuid[] AS template_ids,
+	(us.usage_mins * 60)::bigint AS usage_seconds
 FROM
-	deployment_stats ds
+	user_stats AS us
 JOIN
-	users u
+	users AS u
 ON
-	u.id = ds.user_id
-JOIN
-	template_ids t
-ON
-	ds.user_id = t.user_id
-GROUP BY
-	ds.user_id, u.username, u.avatar_url, t.ids
+	u.id = us.user_id
 ORDER BY
-	ds.user_id ASC;
+	us.user_id ASC;
 
 -- name: GetTemplateInsights :one
 -- GetTemplateInsights aggregates workspace usage, including apps.
