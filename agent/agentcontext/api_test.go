@@ -103,13 +103,19 @@ func TestAPI_AddSourceRejected(t *testing.T) {
 func TestAPI_AddAutomaticRoot(t *testing.T) {
 	t.Parallel()
 	wd := testutil.TempDirResolved(t)
-	for _, path := range []string{wd, "~/.coder"} {
-		t.Run(path, func(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		path string
+	}{
+		{name: "WorkingDirectory", path: wd},
+		{name: "BuiltinCoder", path: "~/.coder"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			srv, m := newAPITestServer(t, agentcontext.ManagerOptions{
 				WorkingDir: func() string { return wd },
 			})
-			body, err := json.Marshal(agentcontext.SourceRequest{Path: path})
+			body, err := json.Marshal(agentcontext.SourceRequest{Path: tc.path})
 			require.NoError(t, err)
 			status, _ := doRequest(t, http.MethodPost, srv.URL+"/sources", bytes.NewReader(body))
 			require.Equal(t, http.StatusConflict, status)
@@ -173,10 +179,17 @@ func TestAPI_DeleteSourceNotFound(t *testing.T) {
 		WorkingDir: func() string { return wd },
 	})
 
-	for _, path := range []string{"/never-added", wd, "~/.coder"} {
-		t.Run(path, func(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		path string
+	}{
+		{name: "MissingSource", path: "/never-added"},
+		{name: "WorkingDirectory", path: wd},
+		{name: "BuiltinCoder", path: "~/.coder"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			status, _ := doRequest(t, http.MethodDelete, srv.URL+"/sources/"+url.PathEscape(path), nil)
+			status, _ := doRequest(t, http.MethodDelete, srv.URL+"/sources/"+url.PathEscape(tc.path), nil)
 			require.Equal(t, http.StatusNotFound, status)
 		})
 	}

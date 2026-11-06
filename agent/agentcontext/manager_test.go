@@ -241,17 +241,25 @@ func TestManager_RemoveSource(t *testing.T) {
 func TestManager_AddSourceRejectsAutomaticRoots(t *testing.T) {
 	t.Parallel()
 	wd := testutil.TempDirResolved(t)
-	for _, path := range []string{wd, "~/.coder", "~/.coder/skills", "~/.claude/plugins/cache"} {
-		t.Run(path, func(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		path string
+	}{
+		{name: "WorkingDirectory", path: wd},
+		{name: "BuiltinCoder", path: "~/.coder"},
+		{name: "BuiltinSkills", path: "~/.coder/skills"},
+		{name: "BuiltinPlugins", path: "~/.claude/plugins/cache"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			m := newTestManager(t, agentcontext.ManagerOptions{
 				WorkingDir:   func() string { return wd },
 				AllowedRoots: []string{wd},
 			})
-			_, err := m.AddSource(agentcontext.Source{Path: path})
+			_, err := m.AddSource(agentcontext.Source{Path: tc.path})
 			require.ErrorIs(t, err, agentcontext.ErrSourceManaged)
 			require.Empty(t, m.Sources())
-			require.ErrorIs(t, m.RemoveSource(path), agentcontext.ErrSourceNotFound)
+			require.ErrorIs(t, m.RemoveSource(tc.path), agentcontext.ErrSourceNotFound)
 		})
 	}
 }
@@ -264,16 +272,19 @@ func TestManager_AddSourceRejectsAutomaticRootAliases(t *testing.T) {
 	home := testutil.TempDirResolved(t)
 	switchHomeEnv(t, home)
 	wd := testutil.TempDirResolved(t)
-	for _, path := range []string{
-		wd,
-		filepath.Join(home, ".coder"),
-		filepath.Join(home, ".coder", "skills"),
-		filepath.Join(home, ".claude", "plugins", "cache"),
+	for _, tc := range []struct {
+		name string
+		path string
+	}{
+		{name: "WorkingDirectory", path: wd},
+		{name: "BuiltinCoder", path: filepath.Join(home, ".coder")},
+		{name: "BuiltinSkills", path: filepath.Join(home, ".coder", "skills")},
+		{name: "BuiltinPlugins", path: filepath.Join(home, ".claude", "plugins", "cache")},
 	} {
-		t.Run(path, func(t *testing.T) {
-			require.NoError(t, os.MkdirAll(path, 0o700))
+		t.Run(tc.name, func(t *testing.T) {
+			require.NoError(t, os.MkdirAll(tc.path, 0o700))
 			alias := filepath.Join(testutil.TempDirResolved(t), "alias")
-			require.NoError(t, os.Symlink(path, alias))
+			require.NoError(t, os.Symlink(tc.path, alias))
 			m := newTestManager(t, agentcontext.ManagerOptions{
 				WorkingDir:   func() string { return wd },
 				AllowedRoots: []string{wd, home},

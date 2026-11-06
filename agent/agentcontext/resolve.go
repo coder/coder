@@ -238,9 +238,7 @@ func (r *Resolver) normalize() *Resolver {
 // never climbs to a parent directory; additional directories must
 // be added explicitly as scan roots.
 func (r *Resolver) walk(ctx context.Context, roots []ScanRoot) (resources []Resource, snapErrs []string) {
-	// Dedup roots by canonical path. The first occurrence
-	// wins so user-added roots that overlap with a built-in
-	// root attribute resources to the built-in.
+	// Keep the first root for each path, including its source attribution.
 	seenRoot := make(map[string]struct{}, len(roots))
 	dedup := make([]ScanRoot, 0, len(roots))
 	for _, root := range roots {
