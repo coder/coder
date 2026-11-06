@@ -655,7 +655,7 @@ export const ContextUsageIndicator: React.FC<{
 							{hasContextError
 								? contextError
 								: "The workspace context changed since this chat was pinned."}
-							{onRefreshContext && (
+							{isDirty && onRefreshContext && (
 								<ContextAlertActions>
 									<Button
 										size="xs"
