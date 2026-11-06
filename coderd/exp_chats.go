@@ -2636,12 +2636,17 @@ func (api *API) applyChatTitleUpdate(
 // and clears the dirty marker.
 //
 // @Summary Refresh chat context
+// @Description Re-pins the chat to its workspace agent's latest stored snapshot.
+// @Description A failed refresh preserves the existing pin.
 // @ID refresh-chat-context
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Success 200 {object} codersdk.Chat
+// @Failure 400 {object} codersdk.Response "No running workspace agent or agent selection failed."
+// @Failure 409 {object} codersdk.Response "The current workspace agent has not pushed a context snapshot."
+// @Failure 410 {object} codersdk.Response "The chat's workspace was deleted."
 // @Router /api/v2/chats/{chat}/context [put]
 func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
