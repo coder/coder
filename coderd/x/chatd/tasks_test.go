@@ -637,8 +637,10 @@ func TestInterruptTask_ToolBatchBillsPartialWindowOnUsageRecord(t *testing.T) {
 }
 
 // TestInterruptTask_ClosesEveryUnresolvedToolCall covers steps that commit a
-// call the interrupt cannot cancel on an agent. FinishInterruption rejects
-// every outstanding call, so the interrupt must close those calls too.
+// call the interrupt cannot cancel on an agent. The chat must leave
+// interrupting with an error result for every call, and the batch must bill
+// the calls that ran as built-ins, even when the chat declares a dynamic tool
+// with the same name.
 func TestInterruptTask_ClosesEveryUnresolvedToolCall(t *testing.T) {
 	t.Parallel()
 

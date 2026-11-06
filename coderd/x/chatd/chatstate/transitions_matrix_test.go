@@ -57,10 +57,10 @@ const (
 	// scenarioWithBlockedQueue marks ReconcileInvalidState cases
 	// seeded with a queue whose head is under edit.
 	scenarioWithBlockedQueue scenario = "with_blocked_queue"
-	// scenarioRejectNonDynamicOutstandingToolCall marks the
-	// FinishInterruption case that exercises the precondition
-	// rejecting outstanding non-dynamic tool calls.
-	scenarioRejectNonDynamicOutstandingToolCall scenario = "reject_non_dynamic_outstanding_tool_call"
+	// scenarioCloseOutstandingToolCall marks the FinishInterruption
+	// case that answers an outstanding non-dynamic tool call with a
+	// synthetic cancellation.
+	scenarioCloseOutstandingToolCall scenario = "close_outstanding_tool_call"
 	// scenarioEditBehindHead marks cases seeded with a ready head and
 	// an edit on the row behind it, so removing or promoting the head
 	// exposes a blocked head.
@@ -1017,7 +1017,7 @@ func matrixCases() []transitionCaseSpec {
 		// non-empty), I1->R1P (the row exposed as the new head is
 		// under edit; the promoted turn still runs).
 		finishInterruptionCase(chatstate.StateI0, chatstate.StateW, queueShapeDefault),
-		finishInterruptionRejectsOutstandingToolCallCase(),
+		finishInterruptionClosesOutstandingToolCallCase(),
 		finishInterruptionCase(chatstate.StateI1, chatstate.StateR0, queueShapeDefault),
 		finishInterruptionCase(chatstate.StateI1, chatstate.StateR1, queueShapeMulti),
 		withSeed(finishInterruptionCase(chatstate.StateI1, chatstate.StateR1P, queueShapeDefault), scenarioEditBehindHead, multiEditingBehind),
@@ -1998,12 +1998,12 @@ func enterRequiresActionCase(from, want chatstate.ExecutionState) transitionCase
 	}
 }
 
-func finishInterruptionRejectsOutstandingToolCallCase() transitionCaseSpec {
+func finishInterruptionClosesOutstandingToolCallCase() transitionCaseSpec {
 	return transitionCaseSpec{
 		transition: chatstate.TransitionFinishInterruption,
 		from:       chatstate.StateI0,
-		want:       chatstate.StateI0,
-		scenario:   scenarioRejectNonDynamicOutstandingToolCall,
+		want:       chatstate.StateW,
+		scenario:   scenarioCloseOutstandingToolCall,
 		seed: func(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			created := createTestChat(t, f)
@@ -2029,16 +2029,19 @@ func finishInterruptionRejectsOutstandingToolCallCase() transitionCaseSpec {
 			}
 		},
 		apply: applyFinishInterruption,
-		assertFailure: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, err error) {
-			require.Error(t, err, "FinishInterruption must reject an outstanding tool call")
-			require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed,
-				"rejection must wrap ErrTransitionNotAllowed")
-			var te *chatstate.TransitionError
-			require.ErrorAs(t, err, &te,
-				"FinishInterruption must return a typed TransitionError")
-			require.Equal(t, chatstate.TransitionFinishInterruption, te.Transition)
-			require.Equal(t, chatstate.StateI0, te.From)
-			assertNoMutationOrPublish(ctx, t, f, seeded.chatID, base)
+		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
+			after, err := f.DB.GetChatByID(ctx, seeded.chatID)
+			require.NoError(t, err)
+			require.Equal(t, database.ChatStatusWaiting, after.Status,
+				"FinishInterruption lands in waiting once the outstanding call is closed")
+			cancels := result.finishInterruption.CancellationMessages
+			require.Len(t, cancels, len(seeded.pendingToolCallIDs),
+				"FinishInterruption synthesizes one cancellation per outstanding call")
+			require.Equal(t, cancels, result.finishInterruption.InsertedMessages,
+				"the cancellations are the only inserted messages")
+			assertToolResultForCall(t, requireChatMessageByID(ctx, t, f, cancels[0].ID), seeded.pendingToolCallIDs[0])
+			require.Equal(t, newActiveMessageIDs(base, activeHistoryIDs(ctx, t, f, seeded.chatID)), []int64{cancels[0].ID},
+				"history gains only the cancellation")
 		},
 	}
 }

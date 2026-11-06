@@ -815,10 +815,10 @@ func (s *taskStarter) cancelUnresolvedToolCalls(ctx context.Context, chat databa
 }
 
 // committedPendingToolCancellationMessages builds a cancellation result for
-// every unresolved call of the chat's last step, because FinishInterruption
-// rejects the chat while any call is outstanding, whatever its kind. That
-// includes the calls of the chat's dynamic tools: a step can commit them
-// beside local calls, and Interrupt does not close them from running.
+// every unresolved call of the chat's last step, dynamic ones included: a step
+// can commit them beside local calls, and Interrupt does not close them from
+// running. FinishInterruption would close what is left with a generic result,
+// but these results carry the agent's real output and the tool billing.
 //
 // It passes no dynamic tool names, so every call counts and keeps its call
 // order. A call's position is the key generation recorded its timing under,
