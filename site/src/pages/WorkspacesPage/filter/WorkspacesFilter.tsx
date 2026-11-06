@@ -56,6 +56,7 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 		const next: FilterCategory[] = [
 			{
 				key: "owner",
+				optionsKey: "workspaces.owner",
 				label: "Owner",
 				icon: <UserIcon />,
 				scopeToggle: {
@@ -74,6 +75,7 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 			},
 			{
 				key: "status",
+				optionsKey: "workspaces.status",
 				label: "Status",
 				icon: <CircleDotIcon />,
 				inlineOptions: true,
@@ -82,6 +84,7 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 			},
 			{
 				key: "attribute",
+				optionsKey: "workspaces.attribute",
 				label: "Attributes",
 				aliases: ["attributes"],
 				icon: <TagIcon />,
@@ -97,6 +100,7 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 			},
 			{
 				key: "template",
+				optionsKey: "workspaces.template",
 				label: "Template",
 				// Deprecated templates are not offered, so the row can hide while
 				// its one active template would still narrow the results.
@@ -109,6 +113,7 @@ export const WorkspacesFilter: React.FC<WorkspaceFilterProps> = ({
 		if (showOrganizations) {
 			next.push({
 				key: "organization",
+				optionsKey: "workspaces.organization",
 				label: "Organization",
 				// Only organizations with `audit_log:read` are offered, so the row
 				// can hide while its one option would still narrow the results.

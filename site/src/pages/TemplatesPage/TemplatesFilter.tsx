@@ -48,6 +48,7 @@ export const TemplatesFilter: React.FC<TemplatesFilterProps> = ({
 		() => [
 			{
 				key: "author",
+				optionsKey: "templates.author",
 				label: "Author",
 				icon: <UserIcon />,
 				getOptions: permissions.viewAllUsers
