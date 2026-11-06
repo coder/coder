@@ -35,6 +35,7 @@ const readInfiniteChats = (
 import { QueryClient, QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
+import { ChatStreamKeepaliveIntervalSeconds } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
@@ -55,6 +56,7 @@ import {
 } from "./chatStore";
 import { deriveLiveStatus } from "./liveStatusModel";
 import { buildStreamTools } from "./streamState";
+import { CHAT_SOCKET_SILENCE_TIMEOUT_MS } from "./useChatStore";
 
 vi.mock("#/api/api", () => ({
 	watchChat: vi.fn(),
@@ -3973,6 +3975,119 @@ describe("useChatStore", () => {
 			expect(result.current.reconnectState).toBeNull();
 			expect(result.current.chatStatus).toBe("running");
 		});
+	});
+
+	it("keeps the stream connected while only empty keepalive batches arrive", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		immediateAnimationFrame();
+
+		const chatID = "chat-keepalive";
+		const watchMock = vi.mocked(watchChat);
+		const sockets = mockWatchChatWithFreshSockets(watchMock);
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
+					chatID,
+					chatMessages: [],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return {
+					streamError: useChatSelector(store, selectStreamError),
+					chatStatus: useChatSelector(store, selectChatStatus),
+				};
+			},
+			{ wrapper: createWrapper(createTestQueryClient()) },
+		);
+
+		await waitFor(() => {
+			expect(watchMock).toHaveBeenCalledWith(chatID, undefined);
+		});
+		const socket = sockets[0];
+		if (socket === undefined) {
+			throw new Error("watchChat did not return a socket");
+		}
+		act(() => {
+			socket.emitOpen();
+		});
+		// Keepalives one interval apart, for longer than the silence timeout.
+		const keepaliveMs = ChatStreamKeepaliveIntervalSeconds * 1000;
+		for (let t = 0; t <= CHAT_SOCKET_SILENCE_TIMEOUT_MS; t += keepaliveMs) {
+			await act(async () => {
+				vi.advanceTimersByTime(keepaliveMs);
+				socket.emitDataBatch([]);
+			});
+		}
+
+		expect(result.current.streamError).toBeNull();
+		expect(result.current.chatStatus).toBe("running");
+		expect(watchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("reconnects a chat stream that stays silent for the silence timeout", async () => {
+		vi.useFakeTimers({ shouldAdvanceTime: true });
+		immediateAnimationFrame();
+		vi.spyOn(Math, "random").mockReturnValue(0.5);
+
+		const chatID = "chat-silent-stream";
+		const watchMock = vi.mocked(watchChat);
+		const sockets = mockWatchChatWithFreshSockets(watchMock);
+
+		const queryClient = createTestQueryClient();
+		const wrapper = createWrapper(queryClient);
+
+		const { result } = renderHook(
+			() => {
+				const { store } = useChatStore({
+					chatRecordUpdatedAt: 0,
+					chatID,
+					chatMessages: [],
+					chatRecord: buildChat(chatID),
+					chatMessagesData: {
+						messages: [],
+						queued_messages: [],
+						has_more: false,
+					},
+					chatQueuedMessages: [],
+					setChatErrorReason: vi.fn(),
+					clearChatErrorReason: vi.fn(),
+				});
+				return useChatSelector(store, selectReconnectState);
+			},
+			{ wrapper },
+		);
+
+		await waitFor(() => {
+			expect(watchMock).toHaveBeenCalledWith(chatID, undefined);
+		});
+		const socket1 = sockets[0];
+		if (socket1 === undefined) {
+			throw new Error("watchChat did not return a socket");
+		}
+		act(() => {
+			socket1.emitOpen();
+		});
+
+		await act(async () => {
+			vi.advanceTimersByTime(CHAT_SOCKET_SILENCE_TIMEOUT_MS);
+		});
+
+		expect(socket1.close).toHaveBeenCalled();
+		expect(result.current).toMatchObject({ attempt: 1, delayMs: 1000 });
+
+		await act(async () => {
+			vi.advanceTimersByTime(1_000);
+		});
+		expect(watchMock).toHaveBeenCalledTimes(2);
 	});
 
 	it("clears stale streamError when a reconnected socket opens", async () => {
