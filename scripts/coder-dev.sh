@@ -12,6 +12,11 @@ source "${SCRIPT_DIR}/lib.sh"
 # the config dir we use to override auth for dogfood.cdr.dev.
 unset CODER_SESSION_TOKEN
 unset CODER_URL
+# CODER_DEV_URL points the CLI at a dev instance other than the URL saved in
+# .coderv2, for example one that runs on non-default ports.
+if [[ -n "${CODER_DEV_URL:-}" ]]; then
+	export CODER_URL="${CODER_DEV_URL}"
+fi
 
 GOOS="$(go env GOOS)"
 GOARCH="$(go env GOARCH)"

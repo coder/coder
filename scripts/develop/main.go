@@ -656,6 +656,14 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	sigCtx, stop := signal.NotifyContext(ctx, cli.StopSignals...)
 	defer stop()
 
+	// Scripts that start develop with --port-offset read the ports from
+	// this line, long before the banner.
+	logger.Info(ctx, "resolved listen ports",
+		slog.F("api", cfg.apiPort),
+		slog.F("web", cfg.webPort),
+		slog.F("proxy", cfg.proxyPort),
+		slog.F("metrics", cfg.coderMetricsPort))
+
 	if err := preflight(sigCtx, logger, cfg); err != nil {
 		return err
 	}

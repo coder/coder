@@ -1,17 +1,19 @@
 ---
 name: dogfood
-description: "Run a Coder PR dogfood instance: inspect PR context, check out the right branch or stack, start Coder with scripts/develop.sh using agent-safe dev-instance practices, validate the changed functionality with UI evidence when needed, and report findings."
+description: "Dogfood a Coder PR: inspect the PR context, check out the right branch or stack, decide what to validate, run the instance with the verify-coder skill, validate the changed functionality with UI evidence when needed, and report findings."
 ---
 
 # Coder dogfood
 
 Use this skill when the user asks to dogfood, UAT, manually validate, or end-to-end test a Coder PR, branch, or stack.
 
-The primary job is to run a reliable local dogfood instance and use the PR context to decide what to validate. Do not hardcode a large scenario plan into this skill. Derive scenarios from the PR description, changed files, tests, docs, and the user's requested focus.
+This skill owns the scoping and the report: what the PR changed, which scenarios to validate, and what to post. The `verify-coder` skill (`.agents/skills/verify-coder/`) owns the run: launch, readiness, driving the UI and the CLI, evidence folders, and cleanup. Do not start `scripts/develop.sh` by hand in a checkout where you use `verify-coder`.
+
+Do not hardcode a large scenario plan into this skill. Derive scenarios from the PR description, changed files, tests, docs, and the user's requested focus.
 
 ## References
 
-Use the canonical repo guidance for startup, isolation, observability, and cleanup:
+Background on startup, isolation, observability, and troubleshooting:
 
 - `.claude/docs/WORKFLOWS.md`
 - `.claude/docs/DEV_ISOLATION.md`
@@ -29,65 +31,9 @@ Before starting Coder:
 5. Decide what must be validated through UI, API, SQL, logs, browser automation, desktop automation, or computer use.
 6. Resolve the target PR, base PR, stack order, and required access from conversation context, Git state, PR metadata, and available local configuration. Ask only if essential target or access information remains unavailable, and continue validation that does not depend on it. Never expose credential values while investigating.
 
-## Start the dogfood instance
+## Run the instance
 
-Use the development script:
-
-```bash
-./scripts/develop.sh
-```
-
-For isolated multi-worktree dogfood runs, prefer one of these:
-
-```bash
-CODER_DEV_PORT_OFFSET=true ./scripts/develop.sh
-```
-
-```bash
-./scripts/develop.sh --port-offset
-```
-
-Pass extra Coder server flags after the delimiter argument named `--`. For trace logging, use `--trace` as the forwarded server flag.
-
-Useful defaults:
-
-| Resource        | Default |
-|-----------------|---------|
-| API server      | `3000`  |
-| Web UI          | `8080`  |
-| Workspace proxy | `3010`  |
-| Coder metrics   | `2114`  |
-
-Useful overrides:
-
-- `CODER_DEV_PORT`
-- `CODER_DEV_WEB_PORT`
-- `CODER_DEV_PROXY_PORT`
-- `CODER_DEV_PROMETHEUS_PORT`
-- `CODER_DEV_PORT_OFFSET`
-- `CODER_DEV_ACCESS_URL`
-- `CODER_DEV_ADMIN_PASSWORD`
-
-## Readiness
-
-Do not start browser, desktop, or computer use validation until the instance is ready.
-
-Accept either:
-
-- `GET /healthz` succeeds.
-- The develop script prints `Coder is now running in development mode`.
-
-The banner is the preferred ready signal for UI work because it includes the effective API and Web UI URLs.
-
-If readiness fails, inspect the develop output first, especially logs tagged:
-
-- `api`
-- `site`
-- `proxy`
-- `ext-provisioner`
-- `prometheus`
-
-Look for port conflicts, database recovery prompts, frontend build errors, and missing dependencies.
+Follow `verify-coder`: `scripts/launch.sh`, then `scripts/doctor.sh`, then the journeys or hand-driven checks for the scenarios you chose, then `scripts/cleanup.sh`. Its doctor is the readiness check, and its feature files under `features/` show how to drive each area.
 
 ## Validate from the PR context
 
@@ -139,7 +85,7 @@ Do not rely only on direct API calls when the PR changes the user-facing agent e
 
 ### Provider and model setup
 
-If provider or model setup is required, reuse the existing environment variables available in the dogfood environment to set up test providers and models.
+`verify-coder` starts the server without the host's provider keys, so nothing spends tokens by itself. `features/coder-agents.md` there sets up a provider against a local fake model. When the PR needs a real model, add the provider through the UI with a key from the dogfood environment.
 
 Common provider types:
 
@@ -177,43 +123,26 @@ Keep migration handling lightweight in this skill.
 If the user asks for migration or stack UAT:
 
 1. Record the pre-migration PR, branch, or SHA.
-2. Start the dogfood instance on that version.
+2. Run `verify-coder`'s `scripts/launch.sh` on that version.
 3. Create representative state required by the PR.
-4. Stop the server without deleting the dev database or state.
+4. Run `scripts/cleanup.sh --keep-data`, which stops the server and keeps the dev database.
 5. Check out the target migration PR, branch, or SHA.
-6. Start the dogfood instance against the same preserved state.
+6. Run `scripts/launch.sh` again against the same preserved state.
 7. Verify that the PR-specific state migrated and still works.
 
 The exact migration checks should come from the PR context. Do not use a generic migration checklist as a substitute for reading the PR.
 
 ## Evidence to capture
 
-Capture enough evidence for another engineer to understand the result:
+`verify-coder` keeps screenshots, read-backs and logs in its evidence folders. The report also needs:
 
 - PR number and URL.
 - Branch and SHA tested.
-- Start command and relevant flags.
-- Effective API and Web UI URLs.
 - Provider and model names, without secrets.
-- Validation scenarios run.
-- Prompts and outcomes for chat tests.
+- Validation scenarios run, with prompts and outcomes for chat tests.
 - Tool calls attempted and results.
-- Screenshots, when UI validation was requested or useful.
 - SQL queries and results, when database state matters.
-- Relevant logs and errors.
 - What was not tested.
-
-## Cleanup
-
-Use the least destructive cleanup that solves the problem.
-
-Preferred order:
-
-1. Stop the develop process gracefully with `Ctrl+C`.
-2. If a port is stuck, identify the listener with `lsof -iTCP:<port> -sTCP:LISTEN` and terminate only that process.
-3. For database issues, prefer develop flags such as `--db-rollback`, `--db-continue`, or `--db-reset`.
-4. Only delete `.coderv2` state when that is truly intended.
-5. If embedded Prometheus was used and remains stuck, stop the develop process first, then remove the `coder-prometheus` container if needed.
 
 ## PR comments
 
@@ -252,11 +181,10 @@ If testing a stack, comment on the PR where the issue appears to originate. If t
 Before responding to the user, report:
 
 - What PR, branch, and SHA were tested.
-- How the dogfood instance was started.
-- Which URL was used.
+- Which `verify-coder` launch and checks ran.
 - Which providers and models were configured.
 - Which scenarios passed.
 - Which scenarios failed.
 - What was not tested.
 - Where evidence is stored.
-- Whether the server was stopped.
+- Whether `scripts/cleanup.sh` passed.
