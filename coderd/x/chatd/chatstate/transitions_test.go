@@ -166,7 +166,7 @@ func TestCreateChat_AllowsNonFinalUserMessage(t *testing.T) {
 	require.Len(t, res.InitialMessages, 2)
 }
 
-func TestPromoteQueuedMessageResolvesOrganizationModel(t *testing.T) {
+func TestSteerQueuedMessageResolvesOrganizationModel(t *testing.T) {
 	t.Parallel()
 
 	t.Run("local model remains selected", func(t *testing.T) {
@@ -175,7 +175,7 @@ func TestPromoteQueuedMessageResolvesOrganizationModel(t *testing.T) {
 		localModel := dbgen.ChatModelConfig(t, f.DB, database.ChatModelConfig{
 			OrganizationID: f.Org.ID,
 		})
-		promoted := promoteQueuedMessageWithModel(t, f, localModel.ID)
+		promoted := steerQueuedMessageWithModel(t, f, localModel.ID)
 		require.Equal(t, localModel.ID, promoted.ModelConfigID.UUID)
 	})
 
@@ -187,14 +187,14 @@ func TestPromoteQueuedMessageResolvesOrganizationModel(t *testing.T) {
 			OrganizationID: foreignOrg.ID,
 			IsDefault:      true,
 		})
-		promoted := promoteQueuedMessageWithModel(t, f, foreignModel.ID)
+		promoted := steerQueuedMessageWithModel(t, f, foreignModel.ID)
 		require.Equal(t, f.Model.ID, promoted.ModelConfigID.UUID)
 	})
 
 	t.Run("missing model falls back to local default", func(t *testing.T) {
 		t.Parallel()
 		f := newTestFixture(t)
-		promoted := promoteQueuedMessageWithModel(t, f, uuid.New())
+		promoted := steerQueuedMessageWithModel(t, f, uuid.New())
 		require.Equal(t, f.Model.ID, promoted.ModelConfigID.UUID)
 	})
 
@@ -205,7 +205,7 @@ func TestPromoteQueuedMessageResolvesOrganizationModel(t *testing.T) {
 			OrganizationID: f.Org.ID,
 		})
 		setChatModelConfigEnabled(t, f.DB, disabled, false)
-		promoted := promoteQueuedMessageWithModel(t, f, disabled.ID)
+		promoted := steerQueuedMessageWithModel(t, f, disabled.ID)
 		require.Equal(t, f.Model.ID, promoted.ModelConfigID.UUID)
 	})
 
@@ -226,7 +226,7 @@ func TestPromoteQueuedMessageResolvesOrganizationModel(t *testing.T) {
 		}))
 
 		err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-			_, err := tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
+			_, err := tx.SteerQueuedMessage(chatstate.SteerQueuedMessageInput{
 				QueuedMessageID: queued.QueuedMessage.ID,
 			})
 			return err
@@ -254,7 +254,7 @@ func TestPromoteQueuedMessageResolvesOrganizationModel(t *testing.T) {
 		failingStore := &modelConfigErrorStore{Store: f.DB, err: queryErr}
 		machine = chatstate.NewChatMachine(failingStore, f.Pub, created.Chat.ID)
 		err := machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-			_, err := tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
+			_, err := tx.SteerQueuedMessage(chatstate.SteerQueuedMessageInput{
 				QueuedMessageID: queued.QueuedMessage.ID,
 			})
 			return err
@@ -262,6 +262,111 @@ func TestPromoteQueuedMessageResolvesOrganizationModel(t *testing.T) {
 		require.ErrorIs(t, err, queryErr)
 		require.Equal(t, chatstate.StateE1, f.classify(ctx, t, created.Chat.ID))
 	})
+}
+
+func TestSteerQueuedMessageLaneOrder(t *testing.T) {
+	t.Parallel()
+
+	queue, steer := chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer
+	cases := []struct {
+		name      string
+		from      chatstate.ExecutionState
+		behaviors []chatstate.BusyBehavior
+
+		steered []int
+
+		finish      bool
+		wantHistory []int
+		wantQueue   []int
+	}{
+		{
+			name:        "steered queue rows follow the waiting steer row",
+			from:        chatstate.StateR1,
+			behaviors:   []chatstate.BusyBehavior{queue, queue, queue, steer},
+			steered:     []int{0, 2},
+			finish:      true,
+			wantHistory: []int{3, 0, 2},
+			wantQueue:   []int{1},
+		},
+		{
+			name:        "steered steer row keeps its place",
+			from:        chatstate.StateR1,
+			behaviors:   []chatstate.BusyBehavior{steer, steer},
+			steered:     []int{0},
+			finish:      true,
+			wantHistory: []int{0, 1},
+			wantQueue:   []int{},
+		},
+		{
+			name:        "owned interrupting chat delivers the whole steer lane",
+			from:        chatstate.StateI1,
+			behaviors:   []chatstate.BusyBehavior{queue, steer, queue},
+			steered:     []int{2},
+			finish:      true,
+			wantHistory: []int{1, 2},
+			wantQueue:   []int{0},
+		},
+		{
+			name:        "errored chat delivers the steer lane at once",
+			from:        chatstate.StateE1,
+			behaviors:   []chatstate.BusyBehavior{queue, steer},
+			steered:     []int{0},
+			wantHistory: []int{1, 0},
+			wantQueue:   []int{},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			f := newTestFixture(t)
+			ctx := testutil.Context(t, testutil.WaitShort)
+			seeded := seedQueue(t, f, tc.from, tc.behaviors...)
+			m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+			historyBefore := activeHistoryIDs(ctx, t, f, seeded.chatID)
+
+			for _, idx := range tc.steered {
+				require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+					_, err := tx.SteerQueuedMessage(chatstate.SteerQueuedMessageInput{
+						QueuedMessageID: seeded.queuedMessageIDs[idx],
+					})
+					return err
+				}))
+			}
+			if tc.finish {
+				if tc.from == chatstate.StateR1 {
+					require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+						if err := ownChat(ctx, tx, store, seeded.chatID); err != nil {
+							return err
+						}
+						_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "test"})
+						return err
+					}))
+				}
+				require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+					_, err := tx.FinishInterruption(chatstate.FinishInterruptionInput{})
+					return err
+				}))
+			}
+
+			var gotHistory []int64
+			for _, id := range activeHistoryIDs(ctx, t, f, seeded.chatID)[len(historyBefore):] {
+				msg := requireChatMessageByID(ctx, t, f, id)
+				require.True(t, msg.QueuedMessageID.Valid, "history message %d is not a queued row", id)
+				gotHistory = append(gotHistory, msg.QueuedMessageID.Int64)
+			}
+			wantHistory := make([]int64, len(tc.wantHistory))
+			for i, idx := range tc.wantHistory {
+				wantHistory[i] = seeded.queuedMessageIDs[idx]
+			}
+			require.Equal(t, wantHistory, gotHistory, "queued rows reach history in lane order")
+
+			wantQueue := make([]int64, len(tc.wantQueue))
+			for i, idx := range tc.wantQueue {
+				wantQueue[i] = seeded.queuedMessageIDs[idx]
+			}
+			require.Equal(t, wantQueue, queuedIDsByPosition(ctx, t, f, seeded.chatID), "queue rows stay queued")
+		})
+	}
 }
 
 type modelConfigErrorStore struct {
@@ -282,7 +387,7 @@ func (s *modelConfigErrorStore) GetEnabledChatModelConfigByID(
 	return database.ChatModelConfig{}, s.err
 }
 
-func promoteQueuedMessageWithModel(
+func steerQueuedMessageWithModel(
 	t *testing.T,
 	f *testFixture,
 	modelConfigID uuid.UUID,
@@ -305,16 +410,16 @@ func promoteQueuedMessageWithModel(
 		return err
 	}))
 
-	var result chatstate.PromoteQueuedMessageResult
+	var result chatstate.SteerQueuedMessageResult
 	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		var err error
-		result, err = tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
+		result, err = tx.SteerQueuedMessage(chatstate.SteerQueuedMessageInput{
 			QueuedMessageID: queued.ID,
 		})
 		return err
 	}))
-	require.NotNil(t, result.InsertedMessage)
-	promoted := requireChatMessageByID(ctx, t, f, result.InsertedMessage.ID)
+	require.Len(t, result.InsertedMessages, 1)
+	promoted := requireChatMessageByID(ctx, t, f, result.InsertedMessages[0].ID)
 	require.True(t, promoted.ModelConfigID.Valid)
 	return promoted
 }

@@ -27,15 +27,10 @@ func clientQueueIDs(t *testing.T, f *testFixture, chatID uuid.UUID) []int64 {
 	return ids
 }
 
-// TestClientQueueOrderMatchesPromotionOrder checks that clients receive the
-// queue in the order promotions take it (position, id), including when
-// position and created_at disagree.
 func TestClientQueueOrderMatchesPromotionOrder(t *testing.T) {
 	t.Parallel()
 
-	// An explicit promote on a running chat moves the target to the head
-	// by position only; created_at keeps the old order.
-	t.Run("PromoteWhileRunning", func(t *testing.T) {
+	t.Run("SteerWhileRunning", func(t *testing.T) {
 		t.Parallel()
 		f := newTestFixture(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -47,17 +42,27 @@ func TestClientQueueOrderMatchesPromotionOrder(t *testing.T) {
 		require.Equal(t, chatstate.StateR1, f.classify(ctx, t, created.Chat.ID))
 
 		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-			_, err := tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
+			_, err := tx.SteerQueuedMessage(chatstate.SteerQueuedMessageInput{
 				QueuedMessageID: second.QueuedMessage.ID,
 			})
 			return err
 		}))
-		require.Equal(t, chatstate.StateI1, f.classify(ctx, t, created.Chat.ID))
+		require.Equal(t, chatstate.StateR1, f.classify(ctx, t, created.Chat.ID))
 
-		promotionOrder := queuedIDsByPosition(ctx, t, f, created.Chat.ID)
-		require.Equal(t, []int64{second.QueuedMessage.ID, first.QueuedMessage.ID}, promotionOrder)
-		require.Equal(t, promotionOrder, clientQueueIDs(t, f, created.Chat.ID),
-			"clients see the promoted message behind the message that will run after it")
+		require.Equal(t, []int64{first.QueuedMessage.ID, second.QueuedMessage.ID}, queuedIDsByPosition(ctx, t, f, created.Chat.ID))
+		clientOrder := clientQueueIDs(t, f, created.Chat.ID)
+		require.Equal(t, []int64{second.QueuedMessage.ID, first.QueuedMessage.ID}, clientOrder,
+			"clients see the steered message first")
+
+		var finish chatstate.FinishTurnResult
+		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			var err error
+			finish, err = tx.FinishTurn(chatstate.FinishTurnInput{})
+			return err
+		}))
+		require.Len(t, finish.PromotedMessages, 1)
+		require.Equal(t, clientOrder[0], finish.PromotedMessages[0].QueuedMessageID.Int64,
+			"the first message clients see is promoted first")
 	})
 
 	// Two senders: the first transaction starts (fixing now() and so
