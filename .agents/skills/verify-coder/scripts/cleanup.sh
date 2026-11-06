@@ -29,7 +29,7 @@ VC_CHECK_LOG="$VC_EVIDENCE/$(date -u +%Y%m%dT%H%M%SZ)-cleanup.log"
 # cleanup removes a .coderv2 that launch.sh created, its database goes too,
 # so every workspace in it is deleted first and leaves no container behind.
 delete_workspaces() {
-	if ! vc_owns_pid "$VC_PID" || ! curl -fsS --max-time 5 "$VC_API_URL/healthz" >/dev/null 2>&1; then
+	if ! vc_owns_pid "$VC_PID" || ! curl -fsS --max-time 5 "${VC_API_URL:-http://127.0.0.1:0}/healthz" >/dev/null 2>&1; then
 		local left
 		left="$(vc_docker_since "$VC_STARTED_AT")" || {
 			echo "server is down and docker cannot list containers or volumes, run cleanup.sh again when it can"
@@ -44,7 +44,7 @@ delete_workspaces() {
 	fi
 	local ws status kept deleted=()
 	if [[ -f "$VC_CONFIG_DIR/.verify-coder-created" ]] && ((!keep_data)); then
-		"$here/coder.sh" list --all --output json 2>/dev/null |
+		vc_coder list --all --output json 2>/dev/null |
 			jq -r '.[] | "\(.owner_name)/\(.name)"' >>"$VC_RUN/workspaces"
 	fi
 	if [[ -f "$VC_RUN/workspaces" ]]; then
@@ -58,20 +58,24 @@ delete_workspaces() {
 				echo "GET workspace $ws answered $status, run cleanup.sh again"
 				return 1
 			}
-			"$here/coder.sh" delete "$ws" --yes >>"$VC_LOG" 2>&1 || {
+			vc_coder delete "$ws" --yes >>"$VC_LOG" 2>&1 || {
 				echo "coder delete $ws failed, see $VC_LOG"
 				return 1
 			}
 			deleted+=("$ws")
 		done < <(sort -u "$VC_RUN/workspaces")
 	fi
-	kept="$("$here/coder.sh" list --all --output json 2>/dev/null | jq -r '[.[] | "\(.owner_name)/\(.name)"] | join(" ")')"
+	kept="$(vc_coder list --all --output json 2>/dev/null | jq -r '[.[] | "\(.owner_name)/\(.name)"] | join(" ")')"
 	echo "deleted: ${deleted[*]:-none}"
 	echo "kept, not recorded by the harness: ${kept:-none}"
 	echo "deleted ${#deleted[@]} workspaces, kept $(wc -w <<<"$kept") not recorded by the harness, names in $(basename "$VC_CHECK_LOG")"
 }
 
 close_browser() {
+	if [[ -z "${VC_BROWSER_SESSION:-}" ]]; then
+		echo "no browser session, develop reported no ports"
+		return 0
+	fi
 	if agent-browser session list --json | jq -e --arg s "$VC_BROWSER_SESSION" \
 		'.data.sessions[] | select((if type == "string" then . else .name end) == $s)' >/dev/null; then
 		agent-browser --session "$VC_BROWSER_SESSION" close >/dev/null
@@ -132,6 +136,10 @@ stop_develop() {
 
 ports_free() {
 	local port busy=()
+	if [[ -z "${VC_API_PORT:-}" ]]; then
+		echo "develop reported no ports, so no port of this run was bound"
+		return 0
+	fi
 	for port in "$VC_API_PORT" "$VC_WEB_PORT"; do
 		if vc_port_busy "$port"; then
 			busy+=("$port")

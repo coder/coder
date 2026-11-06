@@ -132,6 +132,13 @@ vc_docker_since() {
 	done <<<"$volumes"
 }
 
+# vc_coder runs scripts/coder-dev.sh, the repo's CLI shim for .coderv2,
+# against the recorded instance. A reused .coderv2 can hold the URL of an
+# older develop.sh run, so CODER_DEV_URL pins it.
+vc_coder() {
+	CODER_DEV_URL="$VC_API_URL" "$VC_ROOT/scripts/coder-dev.sh" "$@"
+}
+
 # vc_record_workspace marks <owner>/<name> as created by the harness, so
 # cleanup.sh deletes it. Record a workspace before you create it.
 vc_record_workspace() {

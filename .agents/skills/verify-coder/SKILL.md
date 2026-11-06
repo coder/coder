@@ -5,86 +5,59 @@ description: "Launch an isolated local Coder from this checkout with scripts/dev
 
 # Verify Coder
 
-Drive the real app, not tests. Every helper prints one line per check and ends with a count line such as `doctor: 11/11 checks passed`. A run without its count line is unchecked.
+Drive the real app, not tests. Every script prints one line per check and ends with a count line such as `doctor: 11/11 checks passed`. A run without its count line is unchecked.
 
-Script paths below (`scripts/`, `journeys/`, `features/`) are relative to this skill's directory, `.agents/skills/verify-coder/`. From the repo root, prefix them with that directory. The scripts work from any working directory. State and evidence paths (`build/verify-coder/`, `.coderv2/`) are relative to the repo root.
+Script paths are relative to this skill's directory, `.agents/skills/verify-coder/`, and the scripts work from any working directory. `build/verify-coder/` and `.coderv2/` are relative to the repo root. `reference.md` has the details behind each step.
 
-## Launch
+## 1. Launch
 
 ```sh
-scripts/launch.sh            # reuse this checkout's .coderv2 data
-scripts/launch.sh --fresh    # destroy this checkout's dev database first (--db-reset)
-scripts/launch.sh -- --verbose     # after --, allowed coder server flags
+scripts/launch.sh               # reuse this checkout's .coderv2 data
+scripts/launch.sh --fresh       # destroy this checkout's dev database first
+scripts/launch.sh -- --verbose  # after --, only the server flags launch.sh allows
 ```
 
-- It takes only `--fresh` and, after `--`, the coder server flags in `server_flag_allowed` (`--verbose`, `--experiments=<list>`). It refuses every other argument, because the harness owns the database, the ports, the listen and access addresses and the admin password. Add a flag to `server_flag_allowed` only when it changes none of them.
-- It starts develop through `vc_start_develop` with every `CODER_*` variable of the calling shell removed, so a `CODER_PG_CONNECTION_URL`, `CODER_DEV_DB_RESET` or `CODER_DEV_ENV_FILE` there never reaches the instance. `CODER_DEV_PORT`, `CODER_DEV_WEB_PORT` and `CODER_DEV_ADMIN_PASSWORD` still work: `launch.sh` reads them itself.
+- Run it in the foreground. It returns once the instance is ready, and the instance keeps running in its own session.
+- It refuses data from a plain `develop.sh` run, whose admin has the published default password. Use `--fresh` for that data.
 
-- It builds `build/.bin/develop` and `build/coder_<os>_<arch>` first, then picks free API and web ports (13000 and 18000 plus a per-checkout offset), then starts `scripts/develop.sh` in its own process session. Coder metrics are off (`--prometheus-port 0`).
-- The first build in a checkout compiles the site and seven slim binaries. It took 13 minutes on 8 cores at load average 15 to 27. With the build done, startup took about 40 seconds on a new database and 9 seconds on kept data.
-- Run `launch.sh` in the foreground. It returns once the instance is ready, and the instance keeps running in its own session after that. A launch started with `&` in a shell that then exits dies mid-build.
-- Ready means the develop banner `Coder is now running in development mode` appeared in `$VC_LOG` (launch.sh does not echo it), which comes after migrations, the first user, the `member` user and the `docker` starter template. Then `launch.sh` runs the doctor and exits with its result.
-- Seed data: `admin@coder.com` (owner) and `member@coder.com`, both with the same password. `develop.sh` listens on every network interface, so when `launch.sh` creates the database (`--fresh`, or no `.coderv2/postgres/data` yet), it sets a random password and saves it in `.coderv2/.verify-coder-admin-password` (mode 0600). `CODER_DEV_ADMIN_PASSWORD` overrides it. On reused data it uses `CODER_DEV_ADMIN_PASSWORD`, then that file, and refuses to start when it has neither. It never runs with the published default `SomeSecurePassword!`: it refuses that password up front, and stops the server if the instance still accepts it once ready. Data from a plain `develop.sh` run has that default, so launch it with `--fresh`. `vc_load_run` sets `VC_ADMIN_PASSWORD` to the password in use. Never print it. After `--fresh` on your own `.coderv2`, a plain `scripts/develop.sh` run needs `CODER_DEV_ADMIN_PASSWORD="$(cat .coderv2/.verify-coder-admin-password)"` to sign in. The `docker` template exists only when `docker info` works and Terraform can download its providers from GitHub. When Docker works but the import failed (a `starter template setup failed` warning in the log, often a GitHub 504), the doctor fails `starter-template`. Relaunch to retry: `scripts/cleanup.sh --keep-data && scripts/launch.sh`.
-- It holds a per-checkout lock (`build/verify-coder/launch.lock`), so a second `launch.sh` in the same checkout stops at once. Once the instance is ready, it checks that the admin password it used signs in, and fails otherwise.
-- It refuses to start when `build/verify-coder/run/env` records an instance. It never reuses a Coder it did not start: `develop.sh` itself would silently reuse any Coder on its API port, so never point `CODER_DEV_PORT` at a busy port.
-- It unsets `ANTHROPIC_*` and `OPENAI_*` keys for the server, so nothing spends real tokens unless you configure a provider in the UI.
-- State: `build/verify-coder/run/` (env file, `build.log`, `develop.log`) and `.coderv2/` (built-in Postgres, CLI session). Both are per checkout and gitignored. `launch.sh` makes `build/verify-coder/` mode 0700, because `develop.log` records the admin password. `VERIFY_CODER_STATE` moves `build/verify-coder/`. Cleanup deletes its `run/` subfolder, so point it only at a folder the harness owns.
-- `launch.sh` refuses `CODER_BUILD_AGPL` set to anything but empty, `0` or `false`: `make` would reuse an existing enterprise binary. Set the admin password with `CODER_DEV_ADMIN_PASSWORD`, so the journeys sign in with the same password.
-
-## Doctor
+## 2. Doctor
 
 ```sh
 scripts/doctor.sh
 ```
 
-It changes nothing apart from one refused sign-in with the published default password. Run it first whenever anything looks off. It checks that the recorded pid is this checkout's `build/.bin/develop` session leader, that both ports belong to that session, `/healthz`, that the `/api/v2/buildinfo` version (`-devel+<short sha>`) is `HEAD` (FAIL means stale binary: clean up and relaunch; it compares commits only, so relaunch after uncommitted edits too), that the CLI session in `.coderv2/session` is the admin, that the API port serves the embedded frontend, that the Vite port proxies `/api`, that the `docker` template exists whenever `docker info` works, that `build/verify-coder/` is mode 0700, and that the published default password is refused. It prints the URLs as an INFO line.
+Run it first whenever anything looks off. A FAIL on `build` means a stale binary: clean up and relaunch.
 
-## Self-test
+## 3. Drive
 
-```sh
-scripts/selftest.sh
-```
-
-Needs no instance and takes about a second. It checks that `launch.sh` refuses `CODER_BUILD_AGPL`, develop.sh flags, server flags outside `server_flag_allowed` and the published default password before it builds, that a new database without `CODER_DEV_ADMIN_PASSWORD` and the allowed server flags get past those checks, that a second launch stops while another holds the checkout's lock, that a Docker error fails cleanup's leftover inventory, that `vc_start_develop` gives develop the password through its environment and none of the caller's `CODER_*` variables or `BASH_ENV`, and that `vc_browser_login` passes the password to agent-browser on stdin, not as an argument. Run it after you edit `launch.sh` or `lib.sh`.
-
-## Drive
-
-Load the instance in every new shell, including each separate tool call: `source scripts/lib.sh && vc_load_run`. Sourcing sets no shell options. It sets `VC_WEB_URL`, `VC_API_URL`, `VC_LOG`, `VC_BROWSER_SESSION`, `VC_ADMIN_EMAIL`, `VC_ADMIN_PASSWORD`, `VC_EVIDENCE` and these helpers: `vc_ab`, `vc_browser_login`, `vc_api`, `vc_api_status`, `vc_curl` (curl as the admin), `vc_coder_bin` (path of the built coder binary) and `vc_check`.
-
-- Web UI: drive `$VC_WEB_URL`, the production frontend that coder server serves from the binary `launch.sh` built (the API port). Launch rebuilds it when a `.ts` or `.tsx` file under `site/` changed (Makefile `site/out/index.html`), so relaunch after a frontend edit. A change to only CSS or static files does not trigger the rebuild: touch a `.tsx` file or run `make -B site/out/index.html` first. `$VC_VITE_URL` is the Vite dev server with hot reload. Use it only to watch an edit live: under host load it failed lazy route imports (`Failed to fetch dynamically imported module`). Drive the UI with `agent-browser --session "$VC_BROWSER_SESSION"` (`vc_ab` in `lib.sh`). Never use another session name: sessions are host-global. `vc_browser_login [email password]` signs in through the real form. Prefer `find label`, `find role ... --name`, `data-testid` and page titles (`<Page> - Coder`) over refs from an old snapshot. `site/e2e/helpers.ts` has a working Playwright recipe for most pages: translate it, then check the labels against the page source because the e2e matchers ignore case.
-- CLI: `scripts/coder.sh <args>` runs the binary develop built with `--global-config .coderv2`, logged in as the admin. It sets `CODER_URL` to `$VC_API_URL` and unsets `CODER_SESSION_TOKEN`, so it never talks to the deployment this workspace runs on or to a URL an older `develop.sh` run saved in `.coderv2`.
-- API: `vc_api /api/v2/<path>` GETs as the admin and prints the body, failing on an HTTP error. `vc_api_status /api/v2/<path>` prints only the status code, for checks such as a 404 after a delete. Both keep the token out of the process list. Never echo `.coderv2/session` or pass it as an argument.
-- Logs: `$VC_LOG` holds the `api`, `site` and `build` streams. Launch with `scripts/launch.sh -- --verbose` for debug lines.
-- Journeys: `journeys/create-user.sh` (9 checks, about 15 seconds, deletes its users at the end), `journeys/templates.sh` (4 checks, 10 to 35 seconds, needs Docker), `journeys/workspace.sh` (10 checks, about 2 minutes, needs Docker) and `journeys/coder-agents.sh` (7 checks, about 15 seconds, starts its own `llm-mock` and restores the default model). Each drives one mapped feature end to end and writes evidence. Copy one for a new feature.
-
-## Evidence
-
-- Each journey writes `build/verify-coder/evidence/<UTC stamp>-<journey>/`: numbered screenshots of the actions and results, the API and CLI read-backs its checks save (JSON or text), `result.txt` with the check lines and count line, and `steps.log` with each step's full output. Some journeys also save an accessibility snapshot of a page they assert on.
-- Hand-driven checks put their files in one `$VC_EVIDENCE/<UTC stamp>-<sub-feature id>/` folder per sub-feature (`mkdir -p` it), for example `20261105T090000Z-users-create-cli/`. Name files `<NN>-<entry point>-<state>.<ext>`, where the entry point is `ui`, `cli` or `api`, such as `01-cli-create.txt` or `02-ui-users-after.png`. Record each check with `vc_check <name> <command> [args]` and `VC_RESULT_FILE=<folder>/result.txt`, then end with `echo "<sub-feature id>: $VC_PASS/$VC_TOTAL checks passed" >>"$VC_RESULT_FILE"`. `vc_check` runs its arguments as one command, not a shell string, so put pipes and redirects inside a function and pass the function. It always returns 0 and prints PASS or FAIL. Its counters start at 0 each time `lib.sh` is sourced, so run one sub-feature in one shell. Cleanup keeps these folders.
-- Prove the real user path: the UI form or the CLI command a user runs, not a test endpoint or a direct DB write. Capture the state before and after the action, not only the final screen.
-- Verify side effects next to what is visible: rows through the API, CLI output, files, containers (`docker ps`), log lines.
-- Pass absolute paths to `agent-browser screenshot`. Relative paths resolve against the daemon's working directory.
-- Never screenshot or snapshot a form after typing a real secret, and never save command output that echoes one. Journeys use throwaway passwords and screenshot before typing them.
-- Mocks only where a production boundary already isolates the external system, for example an OpenAI-compatible fake for an LLM provider.
-
-## Cleanup
+Load the instance in every new shell, each separate tool call included:
 
 ```sh
-scripts/cleanup.sh             # also removes .coderv2 when launch.sh created it
-scripts/cleanup.sh --keep-data # keep .coderv2, and treat it as yours from then on
+source scripts/lib.sh && vc_load_run
 ```
 
-It deletes, through the CLI, only the workspaces recorded in `build/verify-coder/run/workspaces`, and lists every other workspace as kept, because a reused `.coderv2` can hold a developer's own workspaces. Journeys record theirs. Before you create a workspace by hand, run `vc_record_workspace <owner>/<name>`, or delete it yourself. When it is about to remove a `.coderv2` that `launch.sh` created, it deletes every workspace in it, because the data goes anyway. It closes only `$VC_BROWSER_SESSION`, stops helpers that journeys recorded as `build/verify-coder/run/*.pid` when they still run this checkout's coder binary, sends SIGINT to the develop session it started and then TERM and KILL to leftovers of that session only, checks both ports are free, and moves `develop.log` and `build.log` into `build/verify-coder/evidence/`. Every step's full output, including the names of deleted and kept workspaces, goes to `build/verify-coder/evidence/<stamp>-cleanup.log`. When the server is already down, it cannot delete workspaces, so it fails and names every `coder-*` container and volume created since the launch, or fails when Docker cannot list them. It removes `.coderv2` only when `launch.sh` created it (marker file `.coderv2/.verify-coder-created`) and no other process has its Postgres path on the command line. `--keep-data` deletes the marker, so later cleanups keep the folder too. It never kills by process name and never deletes `build/verify-coder/evidence/`. Run it after every failed attempt too. A FAIL line keeps the run state so you can fix the cause and run it again.
+- Web UI: `vc_browser_login`, then `vc_ab <agent-browser args>` against `$VC_WEB_URL`.
+- CLI: `vc_coder <coder args>`.
+- API: `vc_api /api/v2/<path>` and `vc_api_status /api/v2/<path>`.
+- Journeys, each one feature end to end with its own evidence:
+  - `journeys/create-user.sh` (9 checks, about 15 seconds)
+  - `journeys/templates.sh` (4 checks, needs Docker)
+  - `journeys/workspace.sh` (10 checks, about 2 minutes, needs Docker)
+  - `journeys/coder-agents.sh` (7 checks, starts its own fake LLM)
+- `features/README.md` maps each feature to its entry points and proofs. A proof through one entry point is incomplete when the feature file lists others.
 
-## Features
+## 4. Evidence
 
-`features/README.md` indexes the user-facing features with how to reach, drive and prove each one. A proof that drives one convenient entry point is incomplete when the feature file lists others. When a journey fails because seed data lacks a precondition, report the failure and record the reason in that feature's Gotchas. Never weaken the journey to make it pass.
+- Journeys write `build/verify-coder/evidence/<UTC stamp>-<journey>/` with screenshots, read-backs, `result.txt` and `steps.log`. For hand-driven checks, follow "Hand-driven checks" in `reference.md`.
+- Prove the real user path, the UI form or the CLI command, and check the side effect through a second view such as the API.
+- Never screenshot a form after typing a real secret, and never save output that echoes one.
+- Mock only where a production boundary already isolates the external system, such as an LLM provider.
 
-## Gotchas
+## 5. Cleanup
 
-- Inside a Coder workspace (`CODER_AGENT_URL` set) the dev build names the session cookie `dev_coder_session_token` instead of `coder_session_token` (`scripts/build_go.sh`). Sign in through the form instead of setting cookies by hand.
-- After `agent-browser cookies clear`, a cached `/login` breaks CSRF in the dev site and every POST answers 400. Sign in with `vc_browser_login`, which loads `/login` with a unique query. See `features/sign-in.md`.
-- At load average near 30 on 8 cores, pages sometimes took more than 25 seconds to render, which is agent-browser's default timeout. `vc_ab` raises it to 90 seconds (`VERIFY_CODER_BROWSER_TIMEOUT_MS`). A failed journey step saves `fail-<step>.png`, its page errors, console and network requests next to `steps.log`.
-- `vc_browser_login` fills the password through `agent-browser batch` on stdin, so it stays out of the process list. Other `vc_ab fill` calls put their text in the process list: use them only for throwaway values.
-- `launch.sh` sets `umask 022` for the build and the server. Some agent shells default to 077.
-- A second checkout can run its own instance at the same time. Two instances in one checkout cannot: they share `.coderv2`.
+```sh
+scripts/cleanup.sh              # also removes .coderv2 when launch.sh created it
+scripts/cleanup.sh --keep-data  # keep .coderv2, and treat it as yours from then on
+```
+
+Run it after every attempt, failed ones too. A FAIL line keeps the run state, so fix the cause and run it again. It deletes only the workspaces the harness recorded. Run `vc_record_workspace <owner>/<name>` before you create one by hand.

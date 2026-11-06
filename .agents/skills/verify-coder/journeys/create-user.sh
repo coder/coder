@@ -104,7 +104,7 @@ api_has_user() {
 }
 
 cli_lists_user() {
-	"$scripts/coder.sh" users list --output json | jq --arg u "$username" '[.[] | select(.username == $u) | {username, email}]' >"$out/cli-users.json"
+	vc_coder users list --output json | jq --arg u "$username" '[.[] | select(.username == $u) | {username, email}]' >"$out/cli-users.json"
 	jq -e 'length == 1' "$out/cli-users.json" >/dev/null
 	echo "coder users list includes $username"
 }
@@ -127,7 +127,7 @@ new_user_can_sign_in() {
 # stream is kept.
 cli_create_user() {
 	local rc=0
-	"$scripts/coder.sh" users create --username "$cli_username" --email "$cli_username@coder.com" --full-name "Verify $cli_username" >/dev/null 2>&1 || rc=$?
+	vc_coder users create --username "$cli_username" --email "$cli_username@coder.com" --full-name "Verify $cli_username" >/dev/null 2>&1 || rc=$?
 	((rc == 0)) || {
 		echo "coder users create exited $rc (output discarded, it holds the generated password)"
 		return 1
@@ -157,7 +157,7 @@ delete_users() {
 			echo "GET /api/v2/users/$u answered $status"
 			return 1
 		}
-		"$scripts/coder.sh" users delete "$u" >"$out/08-cli-delete-$u.txt" 2>&1 || {
+		vc_coder users delete "$u" >"$out/08-cli-delete-$u.txt" 2>&1 || {
 			echo "coder users delete $u failed, see 08-cli-delete-$u.txt"
 			return 1
 		}

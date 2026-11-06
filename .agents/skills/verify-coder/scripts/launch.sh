@@ -92,27 +92,6 @@ if ! (cd "$VC_ROOT" && DEVELOP_IN_CODER="$develop_in_coder" MAKE_TIMED=1 make -j
 	vc_fail "build failed, see $VC_RUN/build.log"
 fi
 
-pick_port() {
-	local port="$1"
-	while vc_port_busy "$port"; do
-		port=$((port + 1))
-	done
-	echo "$port"
-}
-offset=$(($(cksum <<<"$VC_ROOT" | cut -d' ' -f1) % 50 * 20))
-if [[ -n "${CODER_DEV_PORT:-}" ]]; then
-	vc_port_busy "$CODER_DEV_PORT" && vc_fail "CODER_DEV_PORT $CODER_DEV_PORT is busy"
-	api_port="$CODER_DEV_PORT"
-else
-	api_port="$(pick_port $((13000 + offset)))"
-fi
-if [[ -n "${CODER_DEV_WEB_PORT:-}" ]]; then
-	vc_port_busy "$CODER_DEV_WEB_PORT" && vc_fail "CODER_DEV_WEB_PORT $CODER_DEV_WEB_PORT is busy"
-	web_port="$CODER_DEV_WEB_PORT"
-else
-	web_port="$(pick_port $((18000 + offset)))"
-fi
-
 # The marker tells cleanup.sh that this harness created the folder.
 # cleanup.sh --keep-data deletes it, so the folder then counts as the
 # developer's.
@@ -121,33 +100,59 @@ if [[ ! -d "$VC_CONFIG_DIR" ]]; then
 	touch "$VC_CONFIG_DIR/.verify-coder-created"
 fi
 
-args=(--port "$api_port" --web-port "$web_port" --prometheus-port 0)
+# develop picks the ports: --port-offset is its per-checkout offset
+# (.claude/docs/DEV_ISOLATION.md), and explicit ports skip it.
+args=(--port-offset --prometheus-port 0)
+if [[ -n "${CODER_DEV_PORT:-}" ]]; then
+	args+=(--port "$CODER_DEV_PORT")
+fi
+if [[ -n "${CODER_DEV_WEB_PORT:-}" ]]; then
+	args+=(--web-port "$CODER_DEV_WEB_PORT")
+fi
 if ((fresh)); then
 	args+=(--db-reset)
 fi
 
 log="$VC_RUN/develop.log"
+started_at="$(date -u +%FT%TZ)"
 vc_start_develop "$log" "$password" "$develop_in_coder" "${args[@]}" -- "${server_flags[@]}"
 pid="$VC_DEVELOP_PID"
 
-# Journeys drive the production frontend that coder server serves from the
-# embedded build (VC_WEB_URL, the API port). The Vite dev server
-# (VC_VITE_URL) serves thousands of unbundled modules per page, and under host
-# load one failed fetch broke a lazy route import with the app's error page.
-# printf %q keeps paths with spaces or shell characters intact when lib.sh
-# sources the file.
-{
-	printf 'VC_PID=%q\n' "$pid"
-	printf 'VC_API_PORT=%q\n' "$api_port"
-	printf 'VC_WEB_PORT=%q\n' "$web_port"
-	printf 'VC_API_URL=%q\n' "http://127.0.0.1:$api_port"
-	printf 'VC_WEB_URL=%q\n' "http://127.0.0.1:$api_port"
-	printf 'VC_VITE_URL=%q\n' "http://127.0.0.1:$web_port"
-	printf 'VC_LOG=%q\n' "$log"
-	printf 'VC_BROWSER_SESSION=%q\n' "verify-coder-$api_port"
-	printf 'VC_STARTED_AT=%q\n' "$(date -u +%FT%TZ)"
-	printf 'VC_ADMIN_PASSWORD=%q\n' "$password"
-} >"$VC_RUN/env"
+# write_env records the instance. printf %q keeps paths with spaces or shell
+# characters intact when lib.sh sources the file. Journeys drive the
+# production frontend that coder server serves from the embedded build
+# (VC_WEB_URL, the API port). The Vite dev server (VC_VITE_URL) serves
+# thousands of unbundled modules per page, and under host load one failed
+# fetch broke a lazy route import with the app's error page.
+write_env() {
+	{
+		printf 'VC_PID=%q\n' "$pid"
+		printf 'VC_LOG=%q\n' "$log"
+		printf 'VC_STARTED_AT=%q\n' "$started_at"
+		printf 'VC_ADMIN_PASSWORD=%q\n' "$password"
+		if [[ -n "${api_port:-}" ]]; then
+			printf 'VC_API_PORT=%q\n' "$api_port"
+			printf 'VC_WEB_PORT=%q\n' "$web_port"
+			printf 'VC_API_URL=%q\n' "http://127.0.0.1:$api_port"
+			printf 'VC_WEB_URL=%q\n' "http://127.0.0.1:$api_port"
+			printf 'VC_VITE_URL=%q\n' "http://127.0.0.1:$web_port"
+			printf 'VC_BROWSER_SESSION=%q\n' "verify-coder-$api_port"
+		fi
+	} >"$VC_RUN/env"
+}
+# The pid goes on record at once, so cleanup.sh can stop a launch that fails
+# before develop reports its ports.
+write_env
+deadline=$((SECONDS + 120))
+until ports="$(sed -n 's/.*resolved ports .*api=\([0-9][0-9]*\) .*web=\([0-9][0-9]*\) .*/\1 \2/p' "$log" | head -n 1)" && [[ -n "$ports" ]]; do
+	if ! kill -0 "$pid" 2>/dev/null || ((SECONDS >= deadline)); then
+		tail -n 20 "$log" | cut -c1-300 >&2
+		vc_fail "develop.sh reported no ports, see $log, then run cleanup.sh"
+	fi
+	sleep 1
+done
+read -r api_port web_port <<<"$ports"
+write_env
 echo "started develop.sh as pid $pid (api $api_port, web $web_port, log: $log)"
 
 # The password file changes only once develop has reset the database, so a

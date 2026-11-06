@@ -92,7 +92,7 @@ ui_status() {
 }
 
 cli_create() {
-	"$scripts/coder.sh" create "$cli_ws" --template docker --parameter 'jetbrains_ides=[]' --yes </dev/null >"$out/01-cli-create.txt" 2>&1
+	vc_coder create "$cli_ws" --template docker --parameter 'jetbrains_ides=[]' --yes </dev/null >"$out/01-cli-create.txt" 2>&1
 	wait_state "$cli_ws" start/running
 	echo "coder create $cli_ws exited 0 and the build is start/running"
 }
@@ -109,7 +109,7 @@ cli_agent() {
 
 cli_ssh() {
 	local got
-	got="$("$scripts/coder.sh" ssh "$cli_ws" -- echo verify-ssh-ok 2>/dev/null)"
+	got="$(vc_coder ssh "$cli_ws" -- echo verify-ssh-ok 2>/dev/null)"
 	echo "$got" >"$out/03-cli-ssh.txt"
 	[[ "$got" == verify-ssh-ok ]] || {
 		echo "coder ssh printed '$got'"
@@ -119,13 +119,13 @@ cli_ssh() {
 }
 
 cli_stop_start() {
-	"$scripts/coder.sh" stop "$cli_ws" --yes </dev/null >"$out/04-cli-stop.txt" 2>&1
+	vc_coder stop "$cli_ws" --yes </dev/null >"$out/04-cli-stop.txt" 2>&1
 	wait_state "$cli_ws" stop/stopped
 	[[ "$(container_count "$cli_ws")" == 0 ]] || {
 		echo "the container still runs after coder stop"
 		return 1
 	}
-	"$scripts/coder.sh" start "$cli_ws" --yes </dev/null >"$out/05-cli-start.txt" 2>&1
+	vc_coder start "$cli_ws" --yes </dev/null >"$out/05-cli-start.txt" 2>&1
 	wait_state "$cli_ws" start/running
 	[[ "$(container_count "$cli_ws")" == 1 ]] || {
 		echo "no container runs after coder start"
@@ -167,7 +167,7 @@ ui_terminal() {
 	vc_ab press Enter >/dev/null
 	sleep 2
 	vc_ab screenshot "$out/08-ui-terminal.png" >/dev/null
-	got="$("$scripts/coder.sh" ssh "$ui_ws" -- cat /tmp/verify-web-terminal 2>/dev/null)"
+	got="$(vc_coder ssh "$ui_ws" -- cat /tmp/verify-web-terminal 2>/dev/null)"
 	[[ "$got" == verify-web-terminal-ok ]] || {
 		echo "the file the terminal wrote holds '$got'"
 		return 1
@@ -222,7 +222,7 @@ ui_delete() {
 cli_delete() {
 	local id
 	id="$(ws_json "$cli_ws" | jq -r '.id')"
-	"$scripts/coder.sh" delete "$cli_ws" --yes >"$out/11-cli-delete.txt" 2>&1
+	vc_coder delete "$cli_ws" --yes >"$out/11-cli-delete.txt" 2>&1
 	wait_gone "$cli_ws"
 	[[ "$(docker ps -a --filter "name=^coder-admin-$cli_ws\$" --format '{{.Names}}' | wc -l)" == 0 ]] || {
 		echo "a container for $cli_ws is left"

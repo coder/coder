@@ -6,13 +6,13 @@ This folder is the maintained source for verifying the Coder features listed bel
 
 - `scripts/launch.sh` started the instance from this checkout and `scripts/doctor.sh` prints `doctor: 11/11 checks passed`.
 - `source scripts/lib.sh && vc_load_run` exported `VC_WEB_URL`, `VC_API_URL` and `VC_BROWSER_SESSION`.
-- Seed data from `scripts/develop/main.go`: owner `admin@coder.com`, user `member@coder.com`, both with the password in `$VC_ADMIN_PASSWORD` (random when `launch.sh` created the database, see SKILL.md, Launch), the default organization `coder`, and the `docker` template when Docker works on the host.
+- Seed data from `scripts/develop/main.go`: owner `admin@coder.com`, user `member@coder.com`, both with the password in `$VC_ADMIN_PASSWORD` (random when `launch.sh` created the database, see "Admin password" in `reference.md`), the default organization `coder`, and the `docker` template when Docker works on the host.
 - Nothing seeds an AI provider, a model, a license, a workspace or a second organization.
 
 ## Driving conventions
 
 - Browser: `vc_ab <agent-browser args>` and `vc_browser_login [email password]`. Prefer `find label`, `find role <role> --name`, `data-testid` and page titles of the form `<Page> - Coder`.
-- CLI: `scripts/coder.sh <args>`. The first line of output is a dev-version warning on stderr.
+- CLI: `vc_coder <args>`. The first line of output is a dev-version warning on stderr.
 - API reads: `vc_api /api/v2/<path>`.
 - Never drive an instance that `scripts/doctor.sh` does not pass.
 
@@ -20,7 +20,7 @@ This folder is the maintained source for verifying the Coder features listed bel
 
 - Capture the action and the resulting state: a screenshot before and after, and an accessibility snapshot of the result.
 - Prove each mutation from a second view: the API or the CLI after a UI change, the UI after a CLI change.
-- Put hand-driven artifacts in `$VC_EVIDENCE/<UTC stamp>-<sub-feature id>/`, named `<NN>-<entry point>-<state>.<ext>` (see SKILL.md, Evidence).
+- Put hand-driven artifacts in `$VC_EVIDENCE/<UTC stamp>-<sub-feature id>/`, named `<NN>-<entry point>-<state>.<ext>` (see "Hand-driven checks" in `reference.md`).
 - Report an entry point you could not reach with the command you ran and the missing precondition. Do not report it as verified through another entry point.
 
 ## Feature entry contract

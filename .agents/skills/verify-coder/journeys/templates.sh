@@ -34,7 +34,7 @@ list() {
 	vc_ab wait --fn 'document.title === "Templates - Coder"' >/dev/null
 	vc_ab wait 'a[href="/templates/docker/workspace"]' >/dev/null
 	vc_ab screenshot "$out/01-ui-templates.png" >/dev/null
-	"$scripts/coder.sh" templates list --output json 2>/dev/null | jq -r '.[].Template.name' >"$out/01-cli-templates.txt"
+	vc_coder templates list --output json 2>/dev/null | jq -r '.[].Template.name' >"$out/01-cli-templates.txt"
 	grep -qx docker "$out/01-cli-templates.txt" || {
 		echo "coder templates list has no docker template"
 		return 1
@@ -61,9 +61,9 @@ starter() {
 push() {
 	local before after message
 	before="$(jq -r '.active_version_id' "$out/03-api-template.json")"
-	"$scripts/coder.sh" templates pull "$name" "$pulled" >"$out/04-cli-pull.txt" 2>&1
+	vc_coder templates pull "$name" "$pulled" >"$out/04-cli-pull.txt" 2>&1
 	echo "# verify-coder push $name" >>"$pulled/main.tf"
-	"$scripts/coder.sh" templates push "$name" --directory "$pulled" --message "verify-coder push" --yes </dev/null >"$out/05-cli-push.txt" 2>&1
+	vc_coder templates push "$name" --directory "$pulled" --message "verify-coder push" --yes </dev/null >"$out/05-cli-push.txt" 2>&1
 	after="$(template_json "$name" | jq -r '.active_version_id')"
 	[[ -n "$after" && "$after" != "$before" ]] || {
 		echo "the active version did not change"
@@ -74,13 +74,13 @@ push() {
 		echo "the active version message is '$message'"
 		return 1
 	}
-	"$scripts/coder.sh" templates versions list "$name" >"$out/06-cli-versions.txt" 2>/dev/null
+	vc_coder templates versions list "$name" >"$out/06-cli-versions.txt" 2>/dev/null
 	echo "pull, edit and push made a new active version with message 'verify-coder push'"
 }
 
 delete() {
 	local listed
-	"$scripts/coder.sh" templates delete "$name" --yes >"$out/07-cli-delete.txt" 2>&1
+	vc_coder templates delete "$name" --yes >"$out/07-cli-delete.txt" 2>&1
 	# A plain assignment keeps errexit, so a failed read fails the check.
 	listed="$(vc_api /api/v2/templates | jq --arg n "$name" 'any(.[]; .name == $n)')"
 	[[ "$listed" == false ]] || {
@@ -95,7 +95,7 @@ delete() {
 deleted=0
 on_exit() {
 	if ((!deleted)); then
-		"$scripts/coder.sh" templates delete "$name" --yes >>"$VC_CHECK_LOG" 2>&1 || true
+		vc_coder templates delete "$name" --yes >>"$VC_CHECK_LOG" 2>&1 || true
 	fi
 }
 trap on_exit EXIT
