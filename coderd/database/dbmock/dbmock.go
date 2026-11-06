@@ -5303,6 +5303,36 @@ func (mr *MockStoreMockRecorder) GetOrganizationAIProviderModelConfig(ctx, arg a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationAIProviderModelConfig", reflect.TypeOf((*MockStore)(nil).GetOrganizationAIProviderModelConfig), ctx, arg)
 }
 
+// GetOrganizationAISpendPerDay mocks base method.
+func (m *MockStore) GetOrganizationAISpendPerDay(ctx context.Context, arg database.GetOrganizationAISpendPerDayParams) ([]database.GetOrganizationAISpendPerDayRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrganizationAISpendPerDay", ctx, arg)
+	ret0, _ := ret[0].([]database.GetOrganizationAISpendPerDayRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrganizationAISpendPerDay indicates an expected call of GetOrganizationAISpendPerDay.
+func (mr *MockStoreMockRecorder) GetOrganizationAISpendPerDay(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationAISpendPerDay", reflect.TypeOf((*MockStore)(nil).GetOrganizationAISpendPerDay), ctx, arg)
+}
+
+// GetOrganizationAISpendTotals mocks base method.
+func (m *MockStore) GetOrganizationAISpendTotals(ctx context.Context, arg database.GetOrganizationAISpendTotalsParams) (database.GetOrganizationAISpendTotalsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOrganizationAISpendTotals", ctx, arg)
+	ret0, _ := ret[0].(database.GetOrganizationAISpendTotalsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOrganizationAISpendTotals indicates an expected call of GetOrganizationAISpendTotals.
+func (mr *MockStoreMockRecorder) GetOrganizationAISpendTotals(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOrganizationAISpendTotals", reflect.TypeOf((*MockStore)(nil).GetOrganizationAISpendTotals), ctx, arg)
+}
+
 // GetOrganizationByID mocks base method.
 func (m *MockStore) GetOrganizationByID(ctx context.Context, id uuid.UUID) (database.Organization, error) {
 	m.ctrl.T.Helper()
@@ -9858,6 +9888,21 @@ func (m *MockStore) ListChatContextResourcesByChatID(ctx context.Context, chatID
 func (mr *MockStoreMockRecorder) ListChatContextResourcesByChatID(ctx, chatID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListChatContextResourcesByChatID", reflect.TypeOf((*MockStore)(nil).ListChatContextResourcesByChatID), ctx, chatID)
+}
+
+// ListOrganizationAISpendPerUser mocks base method.
+func (m *MockStore) ListOrganizationAISpendPerUser(ctx context.Context, arg database.ListOrganizationAISpendPerUserParams) ([]database.ListOrganizationAISpendPerUserRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListOrganizationAISpendPerUser", ctx, arg)
+	ret0, _ := ret[0].([]database.ListOrganizationAISpendPerUserRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListOrganizationAISpendPerUser indicates an expected call of ListOrganizationAISpendPerUser.
+func (mr *MockStoreMockRecorder) ListOrganizationAISpendPerUser(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListOrganizationAISpendPerUser", reflect.TypeOf((*MockStore)(nil).ListOrganizationAISpendPerUser), ctx, arg)
 }
 
 // ListOrganizationAISpendUsers mocks base method.
