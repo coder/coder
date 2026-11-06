@@ -1,8 +1,27 @@
+import { cn } from "cn";
 import { ListTreeIcon } from "lucide-react";
-import { Component } from "react";
+import { AnimatePresence, animate, motion, usePresence } from "motion/react";
+import {
+	Component,
+	useContext,
+	useEffect,
+	useEffectEvent,
+	useRef,
+	useState,
+} from "react";
 import { useTime } from "#/hooks/useTime";
 import { humanDurationShort } from "#/utils/time";
-import { ToolCall } from "../ChatElements/tools/ToolCall";
+import {
+	useMessageScrollerLayoutSync,
+	useMessageScrollerUserLayoutIntent,
+} from "#/vendor/message-scroller";
+import { branchGeometry, ToolCall } from "../ChatElements/tools/ToolCall";
+import {
+	PeekVariantsContext,
+	slide,
+	WorkingBlockPeek,
+	type WorkingBlockPeekProps,
+} from "./WorkingBlockPeek";
 import type { WorkingBlock } from "./workingBlockGrouping";
 
 /**
@@ -48,21 +67,29 @@ export const formatLiveElapsed = (ms: number): string => {
 	return `${seconds}s`;
 };
 
-type LiveLabelProps = { block: WorkingBlock };
+type LiveLabelProps = {
+	block: WorkingBlock;
+	/** PROTOTYPE: counts the steps, which the peek hides past its newest two. */
+	showSteps: boolean;
+};
 
-const LiveLabel: React.FC<LiveLabelProps> = ({ block }) => {
+const LiveLabel: React.FC<LiveLabelProps> = ({ block, showSteps }) => {
 	// Only the live block subscribes to a clock; completed blocks render a
 	// fixed label, so long transcripts never tick.
 	const now = useTime(() => Date.now());
+	const steps =
+		showSteps && block.stepCount > 0
+			? ` (${countLabel(block, block.stepCount, "step")})`
+			: "";
 
 	if (block.startedAt === undefined) {
-		return <ToolCall.Label>Working</ToolCall.Label>;
+		return <ToolCall.Label>{`Working${steps}`}</ToolCall.Label>;
 	}
 
 	const elapsed = formatLiveElapsed(now - block.startedAt);
 	return (
 		<ToolCall.Label className="tabular-nums">
-			{`Working for ${atLeast(block)}${elapsed}`}
+			{`Working for ${atLeast(block)}${elapsed}${steps}`}
 		</ToolCall.Label>
 	);
 };
@@ -94,7 +121,17 @@ const getScrollParent = (element: HTMLElement): HTMLElement | null => {
 
 type WorkingBlockContentProps = {
 	memberIds: readonly number[];
+	/**
+	 * PROTOTYPE: running rows branch off the rail, and the rail ends in the
+	 * last row's elbow, as in the peek.
+	 */
+	branches: boolean;
 	children: React.ReactNode;
+};
+
+type WorkingBlockContentState = {
+	/** From the top of the rows to the last rail row's center. */
+	railEnd: number | null;
 };
 
 /**
@@ -103,8 +140,45 @@ type WorkingBlockContentProps = {
  * A class so getSnapshotBeforeUpdate can measure right before the commit:
  * nested rows resize on their own state, so an earlier height can be stale.
  */
-class WorkingBlockContent extends Component<WorkingBlockContentProps> {
+class WorkingBlockContent extends Component<
+	WorkingBlockContentProps,
+	WorkingBlockContentState
+> {
+	state: WorkingBlockContentState = { railEnd: null };
 	private content: HTMLDivElement | null = null;
+	private resizeObserver: ResizeObserver | null = null;
+
+	// Rows sit inside message slices of any height, so only layout knows
+	// where the last one is. Measured after each commit, before paint, and
+	// again when rows resize on their own.
+	private measureRailEnd = () => {
+		const content = this.content;
+		const rows = this.props.branches
+			? content?.querySelectorAll("[data-rail-row]")
+			: undefined;
+		const last = rows?.[rows.length - 1];
+		const railEnd =
+			content && last
+				? last.getBoundingClientRect().top -
+					content.getBoundingClientRect().top +
+					branchGeometry.rowCenter
+				: null;
+		if (railEnd !== this.state.railEnd) {
+			this.setState({ railEnd });
+		}
+	};
+
+	componentDidMount() {
+		this.measureRailEnd();
+		if (this.content && typeof ResizeObserver !== "undefined") {
+			this.resizeObserver = new ResizeObserver(this.measureRailEnd);
+			this.resizeObserver.observe(this.content);
+		}
+	}
+
+	componentWillUnmount() {
+		this.resizeObserver?.disconnect();
+	}
 
 	getSnapshotBeforeUpdate(previous: WorkingBlockContentProps): number | null {
 		if (!didPrependIntoBlock(previous.memberIds, this.props.memberIds)) {
@@ -116,9 +190,10 @@ class WorkingBlockContent extends Component<WorkingBlockContentProps> {
 
 	componentDidUpdate(
 		_previous: WorkingBlockContentProps,
-		_state: unknown,
+		_state: WorkingBlockContentState,
 		heightBefore: number | null,
 	) {
+		this.measureRailEnd();
 		const content = this.content;
 		if (!content || heightBefore === null) {
 			return;
@@ -139,14 +214,31 @@ class WorkingBlockContent extends Component<WorkingBlockContentProps> {
 	}
 
 	render() {
+		const { railEnd } = this.state;
 		return (
 			<div
 				ref={(content) => {
 					this.content = content;
 				}}
-				className="mt-1.5 flex flex-col gap-2 border-0 border-l border-solid border-border ml-2 pl-4"
+				className={cn(
+					"mt-1.5 flex flex-col gap-2 border-0 border-l border-solid ml-2 pl-4",
+					railEnd === null ? "border-border" : "relative border-transparent",
+				)}
 			>
-				{this.props.children}
+				{railEnd !== null && (
+					<span
+						aria-hidden
+						className="pointer-events-none absolute top-0 -left-px border-0 border-b border-l border-solid border-border"
+						style={{
+							height: railEnd,
+							width: branchGeometry.arm,
+							borderBottomLeftRadius: branchGeometry.radius,
+						}}
+					/>
+				)}
+				<ToolCall.BranchProvider mode={this.props.branches ? "running" : "off"}>
+					{this.props.children}
+				</ToolCall.BranchProvider>
 			</div>
 		);
 	}
@@ -156,7 +248,72 @@ type WorkingBlockDisclosureProps = {
 	block: WorkingBlock;
 	expanded: boolean;
 	onExpandedChange: (expanded: boolean) => void;
+	/**
+	 * PROTOTYPE: previews a collapsed live block's newest steps. The peek
+	 * folds away when its items empty.
+	 */
+	peek?: Omit<WorkingBlockPeekProps, "onExpand">;
 	children: React.ReactNode;
+};
+
+/** A block this young formed in front of the reader, so its peek grows in. */
+const FRESH_BLOCK_MS = 5000;
+
+const fold = { duration: 0.5, ease: [0.4, 0, 0.2, 1] } as const;
+
+/**
+ * Grows the peek in with the shared slide, and folds it away when the block
+ * completes. The fold writes each frame's height itself and reconciles the
+ * scroll position in the same frame: the scroller's resize pass waits for the
+ * next frame, so a fold it corrects late lets the browser clamp an anchored
+ * prompt for a frame.
+ */
+const PeekPresence: React.FC<{ children: React.ReactNode }> = ({
+	children,
+}) => {
+	const [isPresent, safeToRemove] = usePresence();
+	const foldRef = useRef<HTMLDivElement>(null);
+	const syncLayout = useMessageScrollerLayoutSync();
+	// A reply streaming in re-renders the folding peek, so the fold runs once
+	// per exit instead of restarting whenever these callbacks change.
+	const onFoldFrame = useEffectEvent(() => syncLayout());
+	const onFoldEnd = useEffectEvent(() => safeToRemove?.());
+
+	// The fold is an animation driven outside React.
+	useEffect(() => {
+		const element = foldRef.current;
+		if (isPresent) {
+			return;
+		}
+		if (!element) {
+			onFoldEnd();
+			return;
+		}
+		const from = element.offsetHeight;
+		const controls = animate(from, 0, {
+			...fold,
+			onUpdate: (height) => {
+				element.style.height = `${height}px`;
+				element.style.opacity = String(from > 0 ? height / from : 0);
+				onFoldFrame();
+			},
+			onComplete: () => onFoldEnd(),
+		});
+		return () => controls.stop();
+	}, [isPresent]);
+
+	return (
+		<div ref={foldRef} className="overflow-hidden">
+			<motion.div
+				className="overflow-hidden"
+				initial={{ height: 0, opacity: 0 }}
+				animate={{ height: "auto", opacity: 1 }}
+				transition={slide}
+			>
+				{children}
+			</motion.div>
+		</div>
+	);
 };
 
 /**
@@ -166,10 +323,35 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 	block,
 	expanded,
 	onExpandedChange,
+	peek,
 	children,
 }) => {
+	const { branches } = useContext(PeekVariantsContext);
+	// A page that loads mid-turn, or a reader collapsing the block, shows the
+	// peek at once; only a block that just formed grows it in.
+	const [peekGrowsIn] = useState(
+		() =>
+			block.startedAt === undefined ||
+			Date.now() - block.startedAt < FRESH_BLOCK_MS,
+	);
+	const [hasExpanded, setHasExpanded] = useState(expanded);
+	if (expanded && !hasExpanded) {
+		setHasExpanded(true);
+	}
+	const rootRef = useRef<HTMLDivElement>(null);
+	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
+	// The scroller reveals the end of the item holding the toggled element.
+	// The peek unmounts as the block expands, so the root stands in for it.
+	const expandFromPeek = () => {
+		if (rootRef.current) {
+			userLayoutIntent(rootRef.current, { revealEnd: true });
+		}
+		onExpandedChange(true);
+	};
+
 	return (
 		<ToolCall.Root
+			ref={rootRef}
 			status={block.isLive ? "running" : "completed"}
 			hasContent
 			expanded={expanded}
@@ -181,14 +363,30 @@ export const WorkingBlockDisclosure: React.FC<WorkingBlockDisclosureProps> = ({
 					<ListTreeIcon className="size-4 shrink-0 stroke-[1.5] text-current" />
 				</ToolCall.LeadingIcon>
 				{block.isLive ? (
-					<LiveLabel block={block} />
+					<LiveLabel block={block} showSteps={peek !== undefined} />
 				) : (
 					<ToolCall.Label>{getCompletedWorkingLabel(block)}</ToolCall.Label>
 				)}
 				<ToolCall.Chevron />
 			</ToolCall.HeaderButton>
+			{/* Unmounted while expanded, so the expanded rows replace the peek in
+			    the same frame; otherwise it folds away. */}
+			{peek && !expanded && (
+				<AnimatePresence initial={peekGrowsIn && !hasExpanded}>
+					{peek.items.length > 0 && (
+						<PeekPresence key="peek">
+							<WorkingBlockPeek {...peek} onExpand={expandFromPeek} />
+						</PeekPresence>
+					)}
+				</AnimatePresence>
+			)}
 			<ToolCall.Content>
-				<WorkingBlockContent memberIds={block.memberIds}>
+				<WorkingBlockContent
+					memberIds={block.memberIds}
+					// Completed blocks too, so a block that finishes while open keeps
+					// its rail's shape.
+					branches={peek !== undefined && branches}
+				>
 					{children}
 				</WorkingBlockContent>
 			</ToolCall.Content>
