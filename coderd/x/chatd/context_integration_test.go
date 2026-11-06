@@ -402,14 +402,21 @@ func TestChatContextAdoptsNewBuildFromAgentPush(t *testing.T) {
 		require.True(t, resp.GetAccepted())
 	}
 
-	oldToken := uuid.NewString()
-	version := newVersion(uuid.Nil, oldToken, "")
+	oldToken, oldSidecarToken := uuid.NewString(), uuid.NewString()
+	version := newVersion(uuid.Nil, oldToken, oldSidecarToken)
 	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 	ws, err := client.Workspace(ctx, workspace.ID)
 	require.NoError(t, err)
-	oldAgentID := ws.LatestBuild.Resources[0].Agents[0].ID
+	var oldAgentID, oldSidecarID uuid.UUID
+	for _, agent := range ws.LatestBuild.Resources[0].Agents {
+		if agent.Name == "workspace-coderd-chat" {
+			oldAgentID = agent.ID
+		} else {
+			oldSidecarID = agent.ID
+		}
+	}
 	oldRPC := connectAgent(oldToken)
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
 	newChat := func(workspaceID uuid.UUID, agentID uuid.NullUUID, status database.ChatStatus) database.Chat {
@@ -430,6 +437,17 @@ func TestChatContextAdoptsNewBuildFromAgentPush(t *testing.T) {
 	unbound := newChat(workspace.ID, oldBinding, database.ChatStatusWaiting)
 	unchanged := newChat(workspace.ID, oldBinding, database.ChatStatusWaiting)
 	archived := newChat(workspace.ID, oldBinding, database.ChatStatusWaiting)
+	matchingDirty := newChat(workspace.ID, uuid.NullUUID{UUID: oldSidecarID, Valid: true}, database.ChatStatusWaiting)
+	oldSidecarRPC := connectAgent(oldSidecarToken)
+	push(oldSidecarRPC, 1, true, 0x02, "/new/AGENTS.md")
+	push(oldSidecarRPC, 2, false, 0x05, "/drifted/AGENTS.md")
+	matchingDirtyBefore, err := db.GetChatByID(chatCtx, matchingDirty.ID)
+	require.NoError(t, err)
+	require.Equal(t, []byte{0x02}, matchingDirtyBefore.ContextAggregateHash)
+	require.True(t, matchingDirtyBefore.ContextDirtySince.Valid)
+	matchingDirtyResources, err := db.ListChatContextResourcesByChatID(chatCtx, matchingDirty.ID)
+	require.NoError(t, err)
+	require.Len(t, matchingDirtyResources, 1)
 	push(oldRPC, 1, true, 0x01, "/old/AGENTS.md")
 	push(oldRPC, 2, false, 0x02, "/new/AGENTS.md")
 	_, err = expClient.RefreshChatContext(ctx, unchanged.ID)
@@ -517,7 +535,7 @@ func TestChatContextAdoptsNewBuildFromAgentPush(t *testing.T) {
 	newRPC := connectAgent(newToken)
 	// The first accepted push need not carry Initial, which is process-scoped.
 	push(newRPC, 1, false, 0x02, "/new/AGENTS.md")
-	adopted := []database.Chat{idle, errored, unbound, alreadyBound}
+	adopted := []database.Chat{idle, errored, unbound, alreadyBound, matchingDirty}
 	for _, before := range append(adopted, unchanged) {
 		chat := readChat(before.ID)
 		require.Equal(t, uuid.NullUUID{UUID: newAgentID, Valid: true}, chat.AgentID)
@@ -532,6 +550,9 @@ func TestChatContextAdoptsNewBuildFromAgentPush(t *testing.T) {
 		if chat.ID == unchanged.ID {
 			require.Equal(t, unchangedResources, resources, "matching pins are not rewritten")
 		}
+		if chat.ID == matchingDirty.ID {
+			require.Equal(t, matchingDirtyResources, resources, "clearing old-build drift preserves matching pinned resources")
+		}
 	}
 	var eventChatIDs []uuid.UUID
 	for range adopted {
@@ -539,7 +560,7 @@ func TestChatContextAdoptsNewBuildFromAgentPush(t *testing.T) {
 		require.False(t, event.Chat.Context.Dirty)
 		eventChatIDs = append(eventChatIDs, event.Chat.ID)
 	}
-	require.ElementsMatch(t, []uuid.UUID{idle.ID, errored.ID, unbound.ID, alreadyBound.ID}, eventChatIDs)
+	require.ElementsMatch(t, []uuid.UUID{idle.ID, errored.ID, unbound.ID, alreadyBound.ID, matchingDirty.ID}, eventChatIDs)
 	require.Empty(t, events, "unchanged context emits no event")
 	require.Equal(t, oldBinding, readChat(archived.ID).AgentID)
 	require.Equal(t, []byte{0x01}, readChat(archived.ID).ContextAggregateHash)
