@@ -90,9 +90,9 @@ func TestHydrateChatContextOnCreate(t *testing.T) {
 	})
 }
 
-// TestHydrateAndMarkChatsDirtyPublishesContextChanges verifies one event per
+// TestUpdateAgentChatsContextPublishesContextChanges verifies one event per
 // hydrated, dirtied, cleared, or live-synced chat.
-func TestHydrateAndMarkChatsDirtyPublishesContextChanges(t *testing.T) {
+func TestUpdateAgentChatsContextPublishesContextChanges(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctrl := gomock.NewController(t)
@@ -134,6 +134,9 @@ func TestHydrateAndMarkChatsDirtyPublishesContextChanges(t *testing.T) {
 		AgentID:       agentID,
 		AggregateHash: hash,
 	}).Return([]uuid.UUID{clearedChat.ID}, nil)
+	db.EXPECT().SyncAgentChatsContextError(gomock.Any(), database.SyncAgentChatsContextErrorParams{
+		AgentID: agentID,
+	}).Return([]uuid.UUID{syncedChat.ID, dirtiedChat.ID}, nil)
 	// Live sync can overlap either dirty transition, with one event per chat.
 	db.EXPECT().SyncAgentChatsContextLiveResources(gomock.Any(), agentID).
 		Return([]uuid.UUID{syncedChat.ID, dirtiedChat.ID, clearedChat.ID}, nil)
@@ -142,7 +145,7 @@ func TestHydrateAndMarkChatsDirtyPublishesContextChanges(t *testing.T) {
 	db.EXPECT().GetChatByID(gomock.Any(), clearedChat.ID).Return(clearedChat, nil)
 	db.EXPECT().GetChatByID(gomock.Any(), syncedChat.ID).Return(syncedChat, nil)
 
-	publish, err := server.HydrateAndMarkChatsDirty(ctx, db, agentID, hash, "", now)
+	publish, err := server.UpdateAgentChatsContext(ctx, db, agentID, hash, "", now)
 	require.NoError(t, err)
 	publish()
 

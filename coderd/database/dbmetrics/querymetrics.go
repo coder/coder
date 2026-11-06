@@ -5544,6 +5544,14 @@ func (m queryMetricsStore) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Co
 	return r0
 }
 
+func (m queryMetricsStore) SyncAgentChatsContextError(ctx context.Context, arg database.SyncAgentChatsContextErrorParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.SyncAgentChatsContextError(ctx, arg)
+	m.queryLatencies.WithLabelValues("SyncAgentChatsContextError").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SyncAgentChatsContextError").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) SyncAgentChatsContextLiveResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.SyncAgentChatsContextLiveResources(ctx, agentID)

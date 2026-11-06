@@ -1712,31 +1712,36 @@ copied AS (
 SELECT id FROM hydrated;
 
 -- name: MarkChatsContextDirtyByAgent :many
--- Marks non-archived, pinned chats dirty when the snapshot hash or error
--- differs from their pin. The pin stays unchanged until refresh. Returns
--- transitioned chats so the caller can notify watchers after commit.
+-- Marks non-archived, pinned chats dirty when the snapshot hash differs
+-- from their pin. Returns transitioned chats for post-commit notifications.
 UPDATE chats
 SET context_dirty_since = @dirty_since
 WHERE agent_id = @agent_id::uuid
     AND archived = false
     AND context_aggregate_hash IS NOT NULL
-    AND (
-        context_aggregate_hash IS DISTINCT FROM @aggregate_hash
-        OR context_error IS DISTINCT FROM @context_error
-    )
+    AND context_aggregate_hash IS DISTINCT FROM @aggregate_hash
     AND context_dirty_since IS NULL
 RETURNING id, owner_id;
 
 -- name: ClearChatsContextDirtyByAgent :many
--- Clears drift when both the hash and error match the pin again, without
+-- Clears drift when the snapshot hash matches the pin again, without
 -- rewriting the pin or resources. Returns only chats that became clean.
 UPDATE chats
 SET context_dirty_since = NULL
 WHERE agent_id = @agent_id::uuid
     AND archived = false
     AND context_aggregate_hash = @aggregate_hash
-    AND context_error = @context_error
     AND context_dirty_since IS NOT NULL
+RETURNING id;
+
+-- name: SyncAgentChatsContextError :many
+-- Snapshot errors describe live discovery and do not affect pinned prompts.
+UPDATE chats
+SET context_error = @context_error
+WHERE agent_id = @agent_id::uuid
+    AND archived = false
+    AND context_aggregate_hash IS NOT NULL
+    AND context_error IS DISTINCT FROM @context_error
 RETURNING id;
 
 -- name: SyncAgentChatsContextLiveResources :many

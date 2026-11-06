@@ -22105,7 +22105,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "dirty": {
-                    "description": "Dirty is true when the agent's latest snapshot hash differs from the\nchat's pinned hash.",
+                    "description": "Dirty is true when the agent's latest instruction and skill hash differs\nfrom the chat's pinned hash. MCP and ACP resources and snapshot errors do\nnot affect drift.",
                     "type": "boolean"
                 },
                 "dirty_since": {
@@ -22114,7 +22114,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "error": {
-                    "description": "Error is the snapshot-level error copied from the pinned snapshot\n(empty when healthy).",
+                    "description": "Error is the agent's latest snapshot-level error, live-synced on pushes\nindependently of the pinned hash (empty when healthy).",
                     "type": "string"
                 },
                 "resources": {

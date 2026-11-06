@@ -29,9 +29,9 @@ func latestAgentSnapshot(ctx context.Context, db database.Store, agentID uuid.UU
 	}
 }
 
-// HydrateAndMarkChatsDirty pins unpinned chats, reconciles drift, and live-syncs
-// MCP and ACP resources. Its callback notifies watchers after commit.
-func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (func(), error) {
+// UpdateAgentChatsContext reconciles chats with a pushed agent snapshot.
+// Its callback notifies watchers after commit.
+func (p *Server) UpdateAgentChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (func(), error) {
 	//nolint:gocritic // An agent does not own the chats bound to it.
 	ctx = dbauthz.AsChatd(ctx)
 
@@ -50,7 +50,6 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 		AgentID:       agentID,
 		AggregateHash: aggregateHash,
 		DirtySince:    sql.NullTime{Time: now, Valid: true},
-		ContextError:  snapshotError,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("mark chats context dirty: %w", err)
@@ -58,10 +57,17 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 	cleared, err := tx.ClearChatsContextDirtyByAgent(ctx, database.ClearChatsContextDirtyByAgentParams{
 		AgentID:       agentID,
 		AggregateHash: aggregateHash,
-		ContextError:  snapshotError,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("clear chats context dirty: %w", err)
+	}
+
+	errorsSynced, err := tx.SyncAgentChatsContextError(ctx, database.SyncAgentChatsContextErrorParams{
+		AgentID:      agentID,
+		ContextError: snapshotError,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("sync agent chats context error: %w", err)
 	}
 
 	// MCP and ACP resources bypass drift detection, so sync them on every push.
@@ -71,8 +77,8 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 	}
 
 	// A chat can also be live-synced, so publish it only once.
-	seen := make(map[uuid.UUID]struct{}, len(hydrated)+len(dirtied)+len(cleared)+len(synced))
-	touched := make([]uuid.UUID, 0, len(hydrated)+len(dirtied)+len(cleared)+len(synced))
+	seen := make(map[uuid.UUID]struct{}, len(hydrated)+len(dirtied)+len(cleared)+len(errorsSynced)+len(synced))
+	touched := make([]uuid.UUID, 0, len(hydrated)+len(dirtied)+len(cleared)+len(errorsSynced)+len(synced))
 	appendTouched := func(id uuid.UUID) {
 		if _, ok := seen[id]; ok {
 			return
@@ -87,6 +93,9 @@ func (p *Server) HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store
 		appendTouched(d.ID)
 	}
 	for _, id := range cleared {
+		appendTouched(id)
+	}
+	for _, id := range errorsSynced {
 		appendTouched(id)
 	}
 	for _, id := range synced {
@@ -299,5 +308,6 @@ func (p *Server) RefreshChatContext(ctx context.Context, chat database.Chat) (da
 	if err != nil {
 		return database.Chat{}, err
 	}
+	p.publishChatPubsubEvents([]database.Chat{updated}, codersdk.ChatWatchEventKindContextDirty)
 	return updated, nil
 }

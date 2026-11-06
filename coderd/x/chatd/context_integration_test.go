@@ -27,9 +27,9 @@ import (
 // context integration. An echo-provisioned workspace agent pushes a context
 // snapshot that hydrates a bound chat; a later push with a different hash
 // marks the chat dirty; the experimental API reports the dirty state and the
-// snapshot error; returning to the pinned snapshot clears drift; an error-only
-// change dirties the chat; and refresh re-pins the snapshot. Watch events carry
-// each dirty transition. An agent-less chat stays untouched throughout.
+// snapshot error; returning to the pinned snapshot clears drift; snapshot errors
+// live-sync without drift; and refresh re-pins the snapshot. Watch events carry
+// each context change. An agent-less chat stays untouched throughout.
 func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	t.Parallel()
 
@@ -247,8 +247,8 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.NotNil(t, got.Context)
 	require.True(t, got.Context.Dirty, "drift should mark the chat dirty")
 	require.NotNil(t, got.Context.DirtySince)
-	require.Empty(t, got.Context.Error, "dirty marking leaves the pinned hash and error unchanged")
-	requireContextEvent(true, "")
+	require.Equal(t, snapshotError, got.Context.Error, "snapshot errors live-sync while resources stay pinned")
+	requireContextEvent(true, snapshotError)
 	requireChatContextNil(otherChat.ID, "agent-less chat unaffected by the dirty fan-out")
 
 	// While dirty the GET still reports the pinned (hashA) resources.
@@ -261,9 +261,11 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.Len(t, pinned, 1, "dirty marking does not re-copy resources")
 	require.Equal(t, agentsV1Hash, pinned[agentsSource].ContentHash, "chat keeps the pinned snapshot's resources while dirty")
 
+	const watcherError = "context watcher degraded"
 	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
 		Version:       3,
 		AggregateHash: hashA,
+		SnapshotError: watcherError,
 		Resources:     []*agentproto.ContextResource{instructionResource(agentsSource, "hello-v1", agentsV1Hash)},
 	})
 	require.NoError(t, err)
@@ -273,7 +275,8 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.NotNil(t, got.Context)
 	require.False(t, got.Context.Dirty, "returning to the pinned snapshot clears drift")
 	require.Nil(t, got.Context.DirtySince)
-	requireContextEvent(false, "")
+	require.Equal(t, watcherError, got.Context.Error)
+	requireContextEvent(false, watcherError)
 	require.Equal(t, agentsV1Hash, pinnedResources(chat.ID)[agentsSource].ContentHash)
 
 	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
@@ -287,9 +290,9 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	got, err = expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
 	require.NotNil(t, got.Context)
-	require.True(t, got.Context.Dirty, "an error-only change marks the chat dirty")
-	require.Empty(t, got.Context.Error, "the error stays pinned until refresh")
-	requireContextEvent(true, "")
+	require.False(t, got.Context.Dirty, "an error-only change does not mark the chat dirty")
+	require.Equal(t, snapshotError, got.Context.Error)
+	requireContextEvent(false, snapshotError)
 
 	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
 		Version:       5,
@@ -303,13 +306,15 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, resp.GetAccepted())
 
-	// Refreshing re-pins the latest snapshot (hash and error) and clears the
-	// dirty marker.
+	requireContextEvent(true, snapshotError)
+
+	// Refreshing re-pins the latest snapshot and clears the dirty marker.
 	refreshed, err := expClient.RefreshChatContext(ctx, chat.ID)
 	require.NoError(t, err)
 	require.NotNil(t, refreshed.Context)
 	require.False(t, refreshed.Context.Dirty, "refresh clears the dirty marker")
-	require.Equal(t, snapshotError, refreshed.Context.Error, "refresh re-pins the snapshot error")
+	require.Equal(t, snapshotError, refreshed.Context.Error)
+	requireContextEvent(false, snapshotError)
 
 	// The refresh response itself must carry the freshly pinned resources, so
 	// the client reflects the refresh without a full reload. A regression here
@@ -365,14 +370,9 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	got, err = expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
 	require.NotNil(t, got.Context)
-	require.True(t, got.Context.Dirty, "resolving the snapshot error marks the chat dirty")
-	require.Equal(t, snapshotError, got.Context.Error)
-	requireContextEvent(true, snapshotError)
-	refreshed, err = expClient.RefreshChatContext(ctx, chat.ID)
-	require.NoError(t, err)
-	require.NotNil(t, refreshed.Context)
-	require.False(t, refreshed.Context.Dirty)
-	require.Empty(t, refreshed.Context.Error)
+	require.False(t, got.Context.Dirty, "resolving the snapshot error does not mark the chat dirty")
+	require.Empty(t, got.Context.Error)
+	requireContextEvent(false, "")
 }
 
 // TestChatContextLiveSyncFromAgentPush verifies that agent pushes live-sync MCP
@@ -748,6 +748,28 @@ func TestChatContextRefreshFromAgentToken(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = aAPI.DRPCConn().Close() }()
 
+	events := make(chan codersdk.ChatWatchEvent, 1)
+	cancelSub, err := api.Pubsub.SubscribeWithErr(
+		coderdpubsub.ChatWatchEventChannel(user.UserID),
+		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, event codersdk.ChatWatchEvent, err error) {
+			require.NoError(t, err)
+			if event.Kind == codersdk.ChatWatchEventKindContextDirty && event.Chat.ID == chat.ID {
+				events <- event
+			}
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(cancelSub)
+	requireContextEvent := func(dirty bool) {
+		t.Helper()
+		event := testutil.RequireReceive(ctx, t, events)
+		require.NotNil(t, event.Chat.Context)
+		require.Equal(t, dirty, event.Chat.Context.Dirty, "watchers see the committed context")
+		if !dirty {
+			require.Nil(t, event.Chat.Context.DirtySince)
+		}
+	}
+
 	// Initial push hydrates the chat to a clean context.
 	resp, err := aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
 		Version:       1,
@@ -762,6 +784,7 @@ func TestChatContextRefreshFromAgentToken(t *testing.T) {
 	refresh, err := agentClient.RefreshChatContext(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 0, refresh.Refreshed, "no dirty chats to refresh")
+	requireContextEvent(false)
 
 	// A second push with a different hash drifts the bound chat dirty.
 	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
@@ -776,11 +799,13 @@ func TestChatContextRefreshFromAgentToken(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got.Context)
 	require.True(t, got.Context.Dirty, "second push drifts the chat dirty")
+	requireContextEvent(true)
 
 	// The agent-token refresh re-pins every drifted chat bound to the agent.
 	refresh, err = agentClient.RefreshChatContext(ctx)
 	require.NoError(t, err)
 	require.Equal(t, 1, refresh.Refreshed, "the drifted chat is re-pinned")
+	requireContextEvent(false)
 
 	got, err = expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)

@@ -8859,7 +8859,6 @@ SET context_dirty_since = NULL
 WHERE agent_id = $1::uuid
     AND archived = false
     AND context_aggregate_hash = $2
-    AND context_error = $3
     AND context_dirty_since IS NOT NULL
 RETURNING id
 `
@@ -8867,13 +8866,12 @@ RETURNING id
 type ClearChatsContextDirtyByAgentParams struct {
 	AgentID       uuid.UUID `db:"agent_id" json:"agent_id"`
 	AggregateHash []byte    `db:"aggregate_hash" json:"aggregate_hash"`
-	ContextError  string    `db:"context_error" json:"context_error"`
 }
 
-// Clears drift when both the hash and error match the pin again, without
+// Clears drift when the snapshot hash matches the pin again, without
 // rewriting the pin or resources. Returns only chats that became clean.
 func (q *sqlQuerier) ClearChatsContextDirtyByAgent(ctx context.Context, arg ClearChatsContextDirtyByAgentParams) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, clearChatsContextDirtyByAgent, arg.AgentID, arg.AggregateHash, arg.ContextError)
+	rows, err := q.db.QueryContext(ctx, clearChatsContextDirtyByAgent, arg.AgentID, arg.AggregateHash)
 	if err != nil {
 		return nil, err
 	}
@@ -13163,10 +13161,7 @@ SET context_dirty_since = $1
 WHERE agent_id = $2::uuid
     AND archived = false
     AND context_aggregate_hash IS NOT NULL
-    AND (
-        context_aggregate_hash IS DISTINCT FROM $3
-        OR context_error IS DISTINCT FROM $4
-    )
+    AND context_aggregate_hash IS DISTINCT FROM $3
     AND context_dirty_since IS NULL
 RETURNING id, owner_id
 `
@@ -13175,7 +13170,6 @@ type MarkChatsContextDirtyByAgentParams struct {
 	DirtySince    sql.NullTime `db:"dirty_since" json:"dirty_since"`
 	AgentID       uuid.UUID    `db:"agent_id" json:"agent_id"`
 	AggregateHash []byte       `db:"aggregate_hash" json:"aggregate_hash"`
-	ContextError  string       `db:"context_error" json:"context_error"`
 }
 
 type MarkChatsContextDirtyByAgentRow struct {
@@ -13183,16 +13177,10 @@ type MarkChatsContextDirtyByAgentRow struct {
 	OwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
 }
 
-// Marks non-archived, pinned chats dirty when the snapshot hash or error
-// differs from their pin. The pin stays unchanged until refresh. Returns
-// transitioned chats so the caller can notify watchers after commit.
+// Marks non-archived, pinned chats dirty when the snapshot hash differs
+// from their pin. Returns transitioned chats for post-commit notifications.
 func (q *sqlQuerier) MarkChatsContextDirtyByAgent(ctx context.Context, arg MarkChatsContextDirtyByAgentParams) ([]MarkChatsContextDirtyByAgentRow, error) {
-	rows, err := q.db.QueryContext(ctx, markChatsContextDirtyByAgent,
-		arg.DirtySince,
-		arg.AgentID,
-		arg.AggregateHash,
-		arg.ContextError,
-	)
+	rows, err := q.db.QueryContext(ctx, markChatsContextDirtyByAgent, arg.DirtySince, arg.AgentID, arg.AggregateHash)
 	if err != nil {
 		return nil, err
 	}
@@ -13508,6 +13496,45 @@ WHERE chat_id = $1::uuid
 func (q *sqlQuerier) SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, softDeleteContextFileMessages, chatID)
 	return err
+}
+
+const syncAgentChatsContextError = `-- name: SyncAgentChatsContextError :many
+UPDATE chats
+SET context_error = $1
+WHERE agent_id = $2::uuid
+    AND archived = false
+    AND context_aggregate_hash IS NOT NULL
+    AND context_error IS DISTINCT FROM $1
+RETURNING id
+`
+
+type SyncAgentChatsContextErrorParams struct {
+	ContextError string    `db:"context_error" json:"context_error"`
+	AgentID      uuid.UUID `db:"agent_id" json:"agent_id"`
+}
+
+// Snapshot errors describe live discovery and do not affect pinned prompts.
+func (q *sqlQuerier) SyncAgentChatsContextError(ctx context.Context, arg SyncAgentChatsContextErrorParams) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, syncAgentChatsContextError, arg.ContextError, arg.AgentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const syncAgentChatsContextLiveResources = `-- name: SyncAgentChatsContextLiveResources :many

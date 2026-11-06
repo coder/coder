@@ -64,10 +64,9 @@ type ContextAPI struct {
 	Log       slog.Logger
 	Clock     quartz.Clock
 	Database  database.Store
-	// DirtyMarker hydrates chats from, and marks chats dirty against, the
-	// snapshot persisted by a push. It is nil when chatd is not running,
-	// in which case PushContextState stays a pure write path.
-	DirtyMarker ContextDirtyMarker
+	// ChatContextUpdater applies persisted snapshots to chats. It is nil when
+	// chatd is disabled.
+	ChatContextUpdater ChatContextUpdater
 	// Disabled rejects every push with a dRPC Unimplemented code. The
 	// agent's DRPCPusher translates that code into ErrPushUnimplemented,
 	// which terminates its RunPush loop for the life of the connection,
@@ -77,16 +76,12 @@ type ContextAPI struct {
 	Disabled bool
 }
 
-// ContextDirtyMarker hydrates chats from, and marks chats dirty against, a
-// freshly persisted agent context snapshot. It is implemented by chatd and
-// injected at coderd construction so this package neither imports the chat
-// domain nor performs chat-authorized writes directly.
-type ContextDirtyMarker interface {
-	// HydrateAndMarkChatsDirty runs inside the PushContextState
-	// transaction using the supplied store. It pins unpinned chats,
-	// reconciles dirty markers against the snapshot hash and error, and
-	// returns a callback to notify watchers after commit.
-	HydrateAndMarkChatsDirty(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (publishDirty func(), err error)
+// ChatContextUpdater applies an agent's pushed snapshot to chats. Chatd
+// implements it so this package does not perform chat-authorized writes.
+type ChatContextUpdater interface {
+	// UpdateAgentChatsContext uses the supplied push transaction and returns a
+	// callback to notify watchers after commit.
+	UpdateAgentChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (publishContext func(), err error)
 }
 
 // PushContextState persists a snapshot pushed by the workspace
@@ -153,15 +148,15 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 	sort.Strings(activeSources)
 
 	var accepted bool
-	// publishDirty is captured from the final (committed) attempt and
+	// publishContext is captured from the final (committed) attempt and
 	// invoked after the transaction commits; ReadModifyUpdate may re-run
 	// the closure on serialization conflicts.
-	var publishDirty func()
+	var publishContext func()
 	err = database.ReadModifyUpdate(a.Database, func(tx database.Store) error {
 		// The closure re-runs on serialization conflicts; reset any
 		// state carried over from a rolled-back attempt.
 		accepted = false
-		publishDirty = nil
+		publishContext = nil
 
 		existing, err := tx.GetLatestWorkspaceAgentContextSnapshot(ctx, a.AgentID)
 		switch {
@@ -209,13 +204,12 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 			return xerrors.Errorf("delete stale resources: %w", err)
 		}
 
-		// Hydrate and dirty chats against the snapshot just written, in the
-		// same transaction so a concurrent refresh cannot interleave with
-		// the version gate. Events are published only after commit.
-		if a.DirtyMarker != nil {
-			publishDirty, err = a.DirtyMarker.HydrateAndMarkChatsDirty(ctx, tx, a.AgentID, req.AggregateHash, req.SnapshotError, now)
+		// Update chats in the push transaction so refresh cannot interleave.
+		// Notify watchers only after commit.
+		if a.ChatContextUpdater != nil {
+			publishContext, err = a.ChatContextUpdater.UpdateAgentChatsContext(ctx, tx, a.AgentID, req.AggregateHash, req.SnapshotError, now)
 			if err != nil {
-				return xerrors.Errorf("hydrate and mark chats dirty: %w", err)
+				return xerrors.Errorf("update agent chats context: %w", err)
 			}
 		}
 
@@ -236,8 +230,8 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 	}
 
 	// The snapshot committed; notify watchers of context changes.
-	if publishDirty != nil {
-		publishDirty()
+	if publishContext != nil {
+		publishContext()
 	}
 
 	a.Log.Debug(ctx, "PushContextState accepted",

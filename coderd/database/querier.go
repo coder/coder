@@ -93,7 +93,7 @@ type sqlcQuerier interface {
 	CleanTailnetTunnels(ctx context.Context) error
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 	ClearChatDiffStatusPR(ctx context.Context, arg ClearChatDiffStatusPRParams) error
-	// Clears drift when both the hash and error match the pin again, without
+	// Clears drift when the snapshot hash matches the pin again, without
 	// rewriting the pin or resources. Returns only chats that became clean.
 	ClearChatsContextDirtyByAgent(ctx context.Context, arg ClearChatsContextDirtyByAgentParams) ([]uuid.UUID, error)
 	// Drops the values of every live row that belongs to an earlier build of the
@@ -1466,9 +1466,8 @@ type sqlcQuerier interface {
 	// no rows by later calls.
 	LockProvisionerKeyByIDForShare(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
 	MarkAllInboxNotificationsAsRead(ctx context.Context, arg MarkAllInboxNotificationsAsReadParams) error
-	// Marks non-archived, pinned chats dirty when the snapshot hash or error
-	// differs from their pin. The pin stays unchanged until refresh. Returns
-	// transitioned chats so the caller can notify watchers after commit.
+	// Marks non-archived, pinned chats dirty when the snapshot hash differs
+	// from their pin. Returns transitioned chats for post-commit notifications.
 	MarkChatsContextDirtyByAgent(ctx context.Context, arg MarkChatsContextDirtyByAgentParams) ([]MarkChatsContextDirtyByAgentRow, error)
 	// Records a permanent refresh failure (e.g. revoked grant) and clears
 	// the dead token material so it is never attached to a request again.
@@ -1551,6 +1550,8 @@ type sqlcQuerier interface {
 	// Agent context rows are hard-deleted for the same reason as in
 	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
+	// Snapshot errors describe live discovery and do not affect pinned prompts.
+	SyncAgentChatsContextError(ctx context.Context, arg SyncAgentChatsContextErrorParams) ([]uuid.UUID, error)
 	// MCP and ACP resources bypass context drift and are live-synced on each push.
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 	// cannot interleave with the replacement.

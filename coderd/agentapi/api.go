@@ -106,9 +106,8 @@ type Options struct {
 	Database              database.Store
 	NotificationsEnqueuer notifications.Enqueuer
 	Pubsub                pubsub.Pubsub
-	// ContextDirtyMarker is the chatd-backed hydrate/dirty fan-out invoked
-	// from PushContextState. Nil when chatd is disabled.
-	ContextDirtyMarker ContextDirtyMarker
+	// ChatContextUpdater is nil when chatd is disabled.
+	ChatContextUpdater ChatContextUpdater
 	// ContextSyncDisabled makes PushContextState reject pushes with a dRPC
 	// Unimplemented code so agents stop sending context snapshots.
 	ContextSyncDisabled               bool
@@ -283,13 +282,13 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 	}
 
 	api.ContextAPI = &ContextAPI{
-		AgentID:     agent.ID,
-		Workspace:   api.cachedWorkspaceFields,
-		Log:         opts.Log,
-		Clock:       opts.Clock,
-		Database:    opts.Database,
-		DirtyMarker: opts.ContextDirtyMarker,
-		Disabled:    opts.ContextSyncDisabled,
+		AgentID:            agent.ID,
+		Workspace:          api.cachedWorkspaceFields,
+		Log:                opts.Log,
+		Clock:              opts.Clock,
+		Database:           opts.Database,
+		ChatContextUpdater: opts.ChatContextUpdater,
+		Disabled:           opts.ContextSyncDisabled,
 	}
 
 	// Start background cache refresh loop to handle workspace changes
