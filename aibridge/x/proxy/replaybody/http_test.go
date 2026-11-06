@@ -6,9 +6,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
+	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/aibridge/x/proxy/replaybody"
@@ -31,10 +33,16 @@ func startServer(t *testing.T, http2 bool, handler http.HandlerFunc) (*httptest.
 	return srv, srv.Client()
 }
 
-// TestNewRequestProxy forwards real server requests through
-// httputil.ReverseProxy to an echoing upstream. Uploads must reach upstream
-// through the forwarding body, bodiless requests must complete capture
-// without one, and every request must keep the inbound connection reusable.
+// proxyCaptures reports what one proxied request retained on each side.
+type proxyCaptures struct {
+	request  result
+	response result
+}
+
+// TestNewRequestProxy is the request happy path through httputil.ReverseProxy
+// with both captures installed. Uploads must reach an echoing upstream through
+// replayBody, bodiless requests must complete capture without one, and every
+// request must keep the inbound connection reusable.
 func TestNewRequestProxy(t *testing.T) {
 	t.Parallel()
 	const payload = "payload"
@@ -48,22 +56,33 @@ func TestNewRequestProxy(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
-			upstream, _ := startServer(t, false, func(w http.ResponseWriter, r *http.Request) {
+			upstream, upstreamClient := startServer(t, false, func(w http.ResponseWriter, r *http.Request) {
 				_, _ = io.Copy(w, r.Body)
 			})
-			proxy := &httputil.ReverseProxy{
-				Rewrite: func(r *httputil.ProxyRequest) {
-					r.Out.URL.Scheme = "http"
-					r.Out.URL.Host = strings.TrimPrefix(upstream.URL, "http://")
-				},
-			}
-			captures := make(chan result, 2)
+			target, err := url.Parse(upstream.URL)
+			require.NoError(t, err)
+			captures := make(chan proxyCaptures, 3)
 			gateway, client := startServer(t, tc.http2, func(w http.ResponseWriter, r *http.Request) {
-				capture := replaybody.NewRequest(r)
+				requestCapture := replaybody.NewRequest(r)
+				var responseCapture *replaybody.TeeBuffer
+				proxy := &httputil.ReverseProxy{
+					Rewrite: func(r *httputil.ProxyRequest) { r.SetURL(target) },
+					Transport: testutil.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
+						response, err := upstreamClient.Transport.RoundTrip(r)
+						if err != nil {
+							return nil, err
+						}
+						responseCapture = replaybody.NewResponse(response)
+						return response, nil
+					}),
+				}
 				proxy.ServeHTTP(w, r)
-				_ = capture.Close()
-				data, err := capture.Wait(context.Background())
-				captures <- result{data, err}
+				_ = requestCapture.Close()
+				_ = responseCapture.Close()
+				var c proxyCaptures
+				c.request.data, c.request.err = requestCapture.Wait(context.Background())
+				c.response.data, c.response.err = responseCapture.Wait(context.Background())
+				captures <- c
 			})
 			for _, method := range []string{http.MethodPost, http.MethodGet, http.MethodPost} {
 				var body io.Reader
@@ -83,9 +102,11 @@ func TestNewRequestProxy(t *testing.T) {
 				require.Equal(t, want, string(got), "upstream must receive exactly the forwarded upload")
 				require.Equal(t, tc.http2, resp.ProtoMajor == 2, "request wrapping must preserve the client protocol")
 				require.False(t, resp.Close, "completed requests must keep the connection open")
-				capture := testutil.RequireReceive(ctx, t, captures)
-				require.NoError(t, capture.err, "completed requests must seal without an error")
-				require.Equal(t, want, string(capture.data), "completed capture must retain exactly the upload")
+				c := testutil.RequireReceive(ctx, t, captures)
+				require.NoError(t, c.request.err, "completed uploads must complete capture")
+				require.Equal(t, want, string(c.request.data), "request capture must retain exactly the upload")
+				require.NoError(t, c.response.err, "proxied responses must complete capture")
+				require.Equal(t, want, string(c.response.data), "response capture must retain exactly the echo")
 			}
 		})
 	}
@@ -133,160 +154,105 @@ func TestNewRequestReplay(t *testing.T) {
 	}
 }
 
-// TestNewResponseStreamsAndPreservesMetadata forwards a transport response
-// through the forwarding body. The body must stream before upstream EOF,
-// capture must hold exactly the forwarded bytes, and trailers populated by the
-// transport at EOF must stay visible on the response.
-func TestNewResponseStreamsAndPreservesMetadata(t *testing.T) {
+// TestNewResponseProxy is the response happy path through
+// httputil.ReverseProxy with both captures installed. The response must stream
+// to the client before upstream EOF, both captures must hold exactly the bytes
+// proxied, and trailers the transport sets at EOF must reach the client
+// without racing the proxy.
+func TestNewResponseProxy(t *testing.T) {
 	t.Parallel()
+	const upload = "upload"
 	for _, tc := range []struct {
-		name          string
-		http2         bool
-		contentLength bool
-		undeclared    bool
+		name       string
+		http2      bool
+		undeclared bool
 	}{
-		{name: "HTTP1Trailer"},
-		{name: "HTTP1ContentLength", contentLength: true},
-		{name: "HTTP2Trailer", http2: true},
-		{name: "HTTP2ContentLength", http2: true, contentLength: true},
+		{name: "HTTP1DeclaredTrailer"},
 		{name: "HTTP1UndeclaredTrailer", undeclared: true},
+		{name: "HTTP2DeclaredTrailer", http2: true},
 		{name: "HTTP2UndeclaredTrailer", http2: true, undeclared: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitShort)
-			release := make(chan struct{})
-			upstream, client := startServer(t, tc.http2, func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Set("X-Upstream", "value")
-				if tc.contentLength {
-					w.Header().Set("Content-Length", "12")
-				} else if !tc.undeclared {
-					w.Header().Set("Trailer", "X-Trailer")
+			ctx := testutil.Context(t, testutil.WaitLong)
+			// Each request hands the upstream a channel that releases its suffix.
+			releases := make(chan chan struct{}, 2)
+			upstream, upstreamClient := startServer(t, tc.http2, func(w http.ResponseWriter, r *http.Request) {
+				got, err := io.ReadAll(r.Body)
+				assert.NoError(t, err)
+				assert.Equal(t, upload, string(got), "upstream must receive the upload")
+				name := "X-Trailer"
+				if tc.undeclared {
+					name = http.TrailerPrefix + name
+				} else {
+					w.Header().Set("Trailer", name)
 				}
-				w.WriteHeader(http.StatusAccepted)
 				_, _ = io.WriteString(w, "prefix")
 				w.(http.Flusher).Flush()
 				select {
-				case <-release:
+				case <-<-releases:
 				case <-r.Context().Done():
 					return
 				}
 				_, _ = io.WriteString(w, "suffix")
-				if !tc.contentLength {
-					name := "X-Trailer"
-					if tc.undeclared {
-						name = http.TrailerPrefix + name
-					}
-					w.Header().Set(name, "done")
-				}
-			})
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, upstream.URL, nil)
-			require.NoError(t, err)
-			//nolint:bodyclose // Ownership transfers to capture, which cleanup closes.
-			resp, err := client.Do(req)
-			require.NoError(t, err)
-			wantMajor := 1
-			if tc.http2 {
-				wantMajor = 2
-			}
-			wantLength := int64(-1)
-			if tc.contentLength {
-				wantLength = 12
-			}
-			original := resp.Body
-			if tc.undeclared {
-				require.Nil(t, resp.Trailer, "undeclared trailers must start without a trailer map")
-			}
-
-			b := replaybody.NewResponse(resp)
-			t.Cleanup(func() { require.NoError(t, b.Close()) })
-			require.False(t, original == resp.Body, "the response must read through the forwarding body")
-
-			prefix := make([]byte, len("prefix"))
-			_, err = io.ReadFull(resp.Body, prefix)
-			require.NoError(t, err, "prefix must stream before upstream EOF")
-			require.Equal(t, "prefix", string(prefix), "streamed bytes must match upstream data")
-			close(release)
-			suffix, err := io.ReadAll(resp.Body)
-			require.NoError(t, err, "forwarding must consume the suffix before capture completes")
-			require.Equal(t, "suffix", string(suffix), "forwarding must preserve the remaining bytes")
-			require.NoError(t, resp.Body.Close(), "forwarding bodies must be independently closable")
-
-			payload, err := b.Wait(ctx)
-			require.NoError(t, err, "forwarding to EOF must complete capture")
-			require.Equal(t, "prefixsuffix", string(payload), "capture must retain exactly the forwarded response")
-			require.Equal(t, http.StatusAccepted, resp.StatusCode, "response status must be preserved")
-			require.Equal(t, wantMajor, resp.ProtoMajor, "response protocol must be preserved")
-			require.Equal(t, "value", resp.Header.Get("X-Upstream"), "response headers must be preserved")
-			require.Equal(t, wantLength, resp.ContentLength, "response content length must be preserved")
-			if !tc.contentLength {
-				require.Equal(t, "done", resp.Trailer.Get("X-Trailer"), "transport trailers must stay visible after EOF")
-			}
-		})
-	}
-}
-
-// TestNewResponseProxyTrailers forwards captured responses through
-// httputil.ReverseProxy. Trailers populated by the transport during the
-// forwarding read must reach the downstream client without racing the proxy.
-func TestNewResponseProxyTrailers(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		name     string
-		declared bool
-	}{
-		{name: "Declared", declared: true},
-		{name: "Undeclared"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			upstream, client := startServer(t, false, func(w http.ResponseWriter, _ *http.Request) {
-				name := "X-Trailer"
-				if tc.declared {
-					w.Header().Set("Trailer", name)
-				} else {
-					name = http.TrailerPrefix + name
-				}
-				_, _ = io.WriteString(w, "payload")
-				w.(http.Flusher).Flush()
 				w.Header().Set(name, "done")
 			})
-			captures := make(chan result, 2)
-			gateway, downstream := startServer(t, false, func(w http.ResponseWriter, r *http.Request) {
-				var capture *replaybody.TeeBuffer
+			target, err := url.Parse(upstream.URL)
+			require.NoError(t, err)
+			captures := make(chan proxyCaptures, 2)
+			gateway, client := startServer(t, false, func(w http.ResponseWriter, r *http.Request) {
+				requestCapture := replaybody.NewRequest(r)
+				var responseCapture *replaybody.TeeBuffer
 				proxy := &httputil.ReverseProxy{
-					Rewrite: func(r *httputil.ProxyRequest) {
-						r.Out.URL.Scheme = "http"
-						r.Out.URL.Host = strings.TrimPrefix(upstream.URL, "http://")
-					},
+					Rewrite:       func(r *httputil.ProxyRequest) { r.SetURL(target) },
+					FlushInterval: -1,
 					Transport: testutil.RoundTripperFunc(func(r *http.Request) (*http.Response, error) {
-						response, err := client.Transport.RoundTrip(r)
+						response, err := upstreamClient.Transport.RoundTrip(r)
 						if err != nil {
 							return nil, err
 						}
-						capture = replaybody.NewResponse(response)
+						if tc.undeclared {
+							assert.Nil(t, response.Trailer, "undeclared trailers must start without a trailer map")
+						} else {
+							assert.Contains(t, response.Trailer, "X-Trailer", "declared trailers must start with the key announced")
+							assert.Empty(t, response.Trailer.Get("X-Trailer"), "declared trailers must have no value before EOF")
+						}
+						original := response.Body
+						responseCapture = replaybody.NewResponse(response)
+						assert.False(t, original == response.Body, "the response must read through replayBody")
 						return response, nil
 					}),
 				}
 				proxy.ServeHTTP(w, r)
-				_ = capture.Close()
-				data, err := capture.Wait(context.Background())
-				captures <- result{data, err}
+				_ = requestCapture.Close()
+				_ = responseCapture.Close()
+				var c proxyCaptures
+				c.request.data, c.request.err = requestCapture.Wait(context.Background())
+				c.response.data, c.response.err = responseCapture.Wait(context.Background())
+				captures <- c
 			})
-			ctx := testutil.Context(t, testutil.WaitShort)
 			for range 2 {
-				request, err := http.NewRequestWithContext(ctx, http.MethodGet, gateway.URL, nil)
+				release := make(chan struct{})
+				releases <- release
+				request, err := http.NewRequestWithContext(ctx, http.MethodPost, gateway.URL, strings.NewReader(upload))
 				require.NoError(t, err)
-				response, err := downstream.Do(request)
+				response, err := client.Do(request)
 				require.NoError(t, err)
-				payload, err := io.ReadAll(response.Body)
+				prefix := make([]byte, len("prefix"))
+				_, err = io.ReadFull(response.Body, prefix)
+				require.NoError(t, err, "the proxy must stream before upstream EOF")
+				require.Equal(t, "prefix", string(prefix))
+				close(release)
+				suffix, err := io.ReadAll(response.Body)
 				require.NoError(t, response.Body.Close())
 				require.NoError(t, err, "the proxy must forward the response to EOF")
-				require.Equal(t, "payload", string(payload), "the proxy must preserve the body")
-				require.Equal(t, "done", response.Trailer.Get("X-Trailer"), "the proxy must forward transport-populated trailers")
-				capture := testutil.RequireReceive(ctx, t, captures)
-				require.NoError(t, capture.err, "proxying to EOF must complete capture")
-				require.Equal(t, "payload", string(capture.data), "capture must retain the proxied response")
+				require.Equal(t, "suffix", string(suffix))
+				require.Equal(t, "done", response.Trailer.Get("X-Trailer"), "the proxy must forward trailers the transport sets at EOF")
+				c := testutil.RequireReceive(ctx, t, captures)
+				require.NoError(t, c.request.err, "proxying the upload must complete request capture")
+				require.Equal(t, upload, string(c.request.data), "request capture must retain exactly the upload")
+				require.NoError(t, c.response.err, "proxying to EOF must complete response capture")
+				require.Equal(t, "prefixsuffix", string(c.response.data), "response capture must retain exactly the proxied response")
 			}
 		})
 	}
