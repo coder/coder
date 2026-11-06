@@ -115,8 +115,12 @@ export const getUserFilterOptions = async (
 	me: UserIdentity,
 	queryClient: OptionsQueryClient,
 ): Promise<FilterOption[]> => {
+	// Prebuilt workspaces belong to the `prebuilds` system user.
 	const usersRes = await queryClient.fetchQuery(
-		users({ q: query, limit: USER_SUGGESTIONS_LIMIT }),
+		users({
+			q: `${query} include_system:true`,
+			limit: USER_SUGGESTIONS_LIMIT,
+		}),
 	);
 	// The users API also matches name and email, so a result for the current
 	// user keeps its option even when the query is not in its label.
