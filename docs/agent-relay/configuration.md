@@ -154,6 +154,10 @@ Agent Relay refuses to start if:
 ### Pin a template version
 
 Leave `template_version` unset so that builds use the template's active version, and roll out changes by promoting a version in Coder.
+That includes rebuilds: when Agent Relay rebuilds an existing workspace for a session that the provider sends again, it moves the workspace to the active version.
+A stopped workspace then picks up the new version, and still starts on a template that requires the active version.
+If Coder refuses a rebuild with `400` or `403`, such as for a version that the service account can't use, Agent Relay reports the failure as non-retryable instead of retrying in a loop.
+
 When a pool sets `template_version`, all of its builds use that version, including rebuilds of existing workspaces:
 
 - If the template requires the active version, Coder refuses builds from any other version unless the Agent Relay service account has `update` on the template.
