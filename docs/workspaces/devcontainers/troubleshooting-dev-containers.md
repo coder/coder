@@ -36,7 +36,7 @@ ls -la /var/run/docker.sock
 docker ps  # test access
 ```
 
-If you get permission errors, your user may need to be in the `docker` group.
+If you get permission errors, your user might need to be in the `docker` group.
 
 <a id="finding-your-dev-container-agent"></a>
 

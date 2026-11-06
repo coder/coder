@@ -80,7 +80,7 @@ To correctly route the traffic backwards, the corporate router must correctly ro
 - Traffic sent from the client to the external IP of the corporate router back to the cluster router, and
 - Traffic sent from the agent to the external IP of the corporate router to the VPN exit node.
 
-This behavior is known as "hairpinning", and may not be supported in all network configurations.
+This behavior is known as "hairpinning", and might not be supported in all network configurations.
 
 If hairpinning is not supported, deploying an internal STUN server can aid establishing direct connections between client and agent.
 When the agent and client query this internal STUN server, they will be able to determine the addresses on the corporate network from which their traffic appears to originate.
@@ -94,8 +94,8 @@ Some NATs are known to use a different port when forwarding requests to the STUN
 In that case, the address a peer discovers over the STUN protocol will have the correct IP address, but the wrong port.
 Tailscale refers to this as "hard" NAT in [How NAT traversal works (tailscale.com)](https://tailscale.com/blog/how-nat-traversal-works).
 
-If both peers are behind a "hard" NAT, direct connections may take longer to establish or will not be established at all.
-If one peer is behind a "hard" NAT and the other is running a firewall (including Windows Defender Firewall), the firewall may block direct connections.
+If both peers are behind a "hard" NAT, direct connections might take longer to establish or will not be established at all.
+If one peer is behind a "hard" NAT and the other is running a firewall (including Windows Defender Firewall), the firewall might block direct connections.
 
 In both cases, peers fallback to Designated Encrypted Relay for Packets (DERP) connections if they cannot establish a direct connection.
 
@@ -103,7 +103,7 @@ If your workspaces are behind a "hard" NAT, you can:
 
 1. Ensure clients are not also behind a "hard" NAT.
 
-   You may have limited ability to control this if end users connect from their homes.
+   You might have limited ability to control this if end users connect from their homes.
 2. Allow all inbound UDP ports in client firewalls, either to the `coder` or `coder.exe` binary or from workspace NAT IPs.
 
    For example, add an inbound policy to Windows Defender Firewall.

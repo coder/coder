@@ -24,7 +24,7 @@ https://coder.example.com/oauth2/authorize?
 ```
 
 An application can carry a `scope` allowlist.
-The client may then request anything that allowlist covers, and is granted the whole allowlist if it requests nothing.
+The client can then request anything that allowlist covers, and is granted the whole allowlist if it requests nothing.
 An application with no allowlist honors any requested scope, and a request that names no scope is granted `coder:all`.
 
 An application registered through [Dynamic Client Registration](./index.md#dynamic-client-registration) declares its allowlist in the `scope` field of its registration.

@@ -237,7 +237,7 @@ Not that Coder's control plane filesystem is ephemeral, so no persistent storage
 ## PostgreSQL database
 
 Coder requires access to an external PostgreSQL database to store user data, workspace state, template files, and more.
-Depending on the scale of the user-base, workspace activity, and High Availability requirements, the amount of CPU and memory resources required by Coder's database may differ.
+Depending on the scale of the user-base, workspace activity, and High Availability requirements, the amount of CPU and memory resources required by Coder's database can differ.
 
 ### Disaster recovery
 

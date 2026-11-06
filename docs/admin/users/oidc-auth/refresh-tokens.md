@@ -190,7 +190,7 @@ If all verification steps pass successfully, your refresh token configuration is
 **Cause**:
 
 - Existing user sessions don't have refresh tokens stored.
-- Configuration may be incomplete.
+- Configuration might be incomplete.
 
 **Solution**:
 

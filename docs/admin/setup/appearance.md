@@ -27,7 +27,7 @@ The default is the Coder logo.
 ![announcement banner](../../images/admin/setup/appearance/announcement_banner_settings.png)
 
 Announcement Banners let admins post important messages to all site users.
-Only Site Owners may set the announcement banners.
+Only Site Owners can set the announcement banners.
 
 Example: Use multiple announcement banners for concurrent deployment-wide updates, such as maintenance or new feature rollout.
 

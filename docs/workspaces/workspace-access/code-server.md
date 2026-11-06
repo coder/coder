@@ -19,7 +19,7 @@ Some of the key differences between code-server and VS Code Web are:
 | File operations          | Options to disable downloads and uploads                                    | No built-in restrictions                                          |
 | Health endpoint          | Provides `/healthz` endpoint                                                | Limited health monitoring                                         |
 | Marketplace              | Open VSX by default, configurable via flags/env vars                        | Uses Microsoft marketplace; modify `product.json` to use your own |
-| Path-based routing       | Has fixes for state collisions when used path-based                         | May have issues with path-based routing in certain configurations |
+| Path-based routing       | Has fixes for state collisions when used path-based                         | Can have issues with path-based routing in certain configurations |
 | Proposed API             | Always enabled for all extensions                                           | Only Microsoft extensions without configuration                   |
 | Proxy integration        | Integrates with Coder's proxy for ports panel                               | Integration is more limited                                       |
 | Sourcemaps               | Loads locally                                                               | Uses content delivery network (CDN)                               |

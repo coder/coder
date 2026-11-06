@@ -16,7 +16,7 @@ Refer to [Enable OAuth2 Provider](./index.md#enable-oauth2-provider).
 ## "Invalid redirect_uri"
 
 Ensure the redirect Uniform Resource Identifier (URI) in your request exactly matches one of the redirect URIs registered for your application.
-The one exception is the port of a loopback `http://` redirect URI (`localhost`, `127.0.0.1`, `[::1]`), which may differ from the registered one.
+The one exception is the port of a loopback `http://` redirect URI (`localhost`, `127.0.0.1`, `[::1]`), which can differ from the registered one.
 Refer to [Callback URL schemes](./callback-url-schemes.md).
 
 ## "Invalid Callback URL" on the consent page
@@ -36,7 +36,7 @@ When it cannot grant what was asked for, it redirects to your registered callbac
 The `error_description` opens with the requested name that caused the rejection:
 
 - `unknown or unsupported scope`: this deployment does not offer that name to OAuth2 clients.
-  It may not exist, or it may exist and be internal-only, which no version offers.
+  It might not exist, or it might exist and be internal-only, which no version offers.
   Read the current list from `scopes_supported` in `GET /.well-known/oauth-authorization-server`.
 - `scope requests permissions beyond this app's allowed scopes`: the name is supported, but the application's `scope` allowlist does not cover it.
   Request less, or widen the allowlist.
@@ -98,11 +98,11 @@ Authorizing again issues a code within the current allowlist.
 `POST /oauth2/tokens` answers HTTP 400 with `error=invalid_scope` when a refresh request names a `scope` the control plane will not grant.
 This is the token endpoint, not the authorization endpoint above: there is no redirect, and the error is in the response body.
 
-A refresh may name a `scope` of its own to give up authority.
+A refresh can name a `scope` of its own to give up authority.
 The narrowing applies to the access token that refresh mints, and to nothing else.
-The refresh token continues to represent the scope the user consented to, so the ceiling does not move and a later refresh may ask for a different part of the same grant, or omit `scope` to take the grant whole again.
+The refresh token continues to represent the scope the user consented to, so the ceiling does not move and a later refresh can ask for a different part of the same grant, or omit `scope` to take the grant whole again.
 
-The request may name any scope the original grant confers **that also appears in `scopes_supported`**, including a single permission out of a composite scope, so a token granted `coder:workspaces.access` can refresh down to `workspace:read` for one call and to `workspace:ssh` for the next.
+The request can name any scope the original grant confers **that also appears in `scopes_supported`**, including a single permission out of a composite scope, so a token granted `coder:workspaces.access` can refresh down to `workspace:read` for one call and to `workspace:ssh` for the next.
 Two descriptions can open the `error_description`, each opening with the requested name that caused it:
 
 - `scope requests permissions beyond the scope originally granted; a refresh cannot widen a grant, so authorize again to obtain a broader one`: the name is offered, but the resource owner never granted it.
@@ -113,7 +113,7 @@ A refused refresh mints nothing and leaves the refresh token usable, so a client
 Only the resource owner lowers the ceiling, by revoking the token or authorizing again with less.
 This is also what OAuth 2.1 section 4.3.3 requires: a rotated refresh token carries the scope of the one presented.
 
-Narrowing a composite scope to the low-level names you can request may drop permissions that have no requestable name of their own.
+Narrowing a composite scope to the low-level names you can request might drop permissions that have no requestable name of their own.
 `coder:workspaces.create` confers `organization_member:read`, which a workspace build needs and which `scopes_supported` does not list, so a token narrowed to the fullest set a client can name will fail to create a workspace.
 Refresh without a `scope` to return to the composite.
 

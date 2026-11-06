@@ -93,7 +93,7 @@ Prebuilt workspaces follow a specific lifecycle from creation through eligibilit
    1. The workspace name changes to the user's requested name.
    1. `terraform apply` is executed using the new ownership details.
 
-      This may affect the [`coder_workspace`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace) and [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) datasources (see [Prevent resource replacement](#prevent-resource-replacement) for further considerations).
+      This might affect the [`coder_workspace`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace) and [`coder_workspace_owner`](https://registry.terraform.io/providers/coder/coder/latest/docs/data-sources/workspace_owner) datasources (see [Prevent resource replacement](#prevent-resource-replacement) for further considerations).
 
    The claiming process is transparent to the developer — the workspace will just be ready faster than usual.
 
@@ -351,12 +351,12 @@ coder provisioner jobs list --status=pending --initiator=prebuilds --output json
 ```
 
 This will clear the provisioner queue of all jobs that were not initiated by a human being, which increases the probability that a provisioner will be available when the next human operator needs it.
-It does not cancel running provisioner jobs, so there may still be some delay in processing new provisioner jobs until a provisioner completes its current job.
+It does not cancel running provisioner jobs, so there might still be some delay in processing new provisioner jobs until a provisioner completes its current job.
 
 At this stage, most prebuild related impact will have been mitigated.
-There may still be a bugged template version, but it will no longer pollute provisioner queues with prebuilt workspace jobs.
+There might still be a bugged template version, but it will no longer pollute provisioner queues with prebuilt workspace jobs.
 If the latest version of a template is also broken for reasons unrelated to prebuilds, then users are able to create workspaces using a previous template version.
-Some running jobs may have been initiated by the prebuild system, but these cannot be canceled without potentially orphaning resources that have already been deployed by Terraform.
+Some running jobs might have been initiated by the prebuild system, but these cannot be canceled without potentially orphaning resources that have already been deployed by Terraform.
 Depending on your deployment and template provisioning times, it might be best to upload a new template version and wait for it to be processed organically.
 
 #### Cancel running prebuild provisioning jobs (Optional)
@@ -421,7 +421,7 @@ If you include too many fields, Terraform might ignore changes that wouldn't oth
 
 Learn more about `ignore_changes` in the [Terraform documentation](https://developer.hashicorp.com/terraform/language/meta-arguments#lifecycle).
 
-_A note on "immutable" attributes: Terraform providers may specify `ForceNew` on their resources' attributes.
+_A note on "immutable" attributes: Terraform providers can specify `ForceNew` on their resources' attributes.
 Any change to these attributes require the replacement (destruction and recreation) of the managed resource instance, rather than an in-place update.
 For example, the [`ami`](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/instance#ami-1) attribute on the `aws_instance` resource has [`ForceNew`](https://github.com/hashicorp/terraform-provider-aws/blob/main/internal/service/ec2/ec2_instance.go#L75-L81) set, since the AMI cannot be changed in-place._
 

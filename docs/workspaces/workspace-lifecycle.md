@@ -10,7 +10,7 @@ To learn about automating workspace schedules for cost control, read the [worksp
 
 ## Workspace ephemerality
 
-Workspaces are composed of resources which may be _ephemeral_ or _persistent_.
+Workspaces are composed of resources which can be _ephemeral_ or _persistent_.
 Persistent resources stay provisioned when the workspace is stopped, where as ephemeral resources are destroyed and recreated on restart.
 All resources are destroyed when a workspace is deleted.
 
@@ -18,13 +18,13 @@ Template administrators can learn more about resource configuration in the [exte
 
 ## Workspace States
 
-Generally, there are 3 states that a workspace may fall into:
+Generally, there are 3 states that a workspace can fall into:
 
 - Running: Started and ready for connections
 - Stopped: Ephemeral resources destroyed, persistent resources idle
 - Deleted: All resources destroyed, workspace records removed from database
 
-If some error occurs during the above, a workspace may fall into one of the following broken states:
+If some error occurs during the above, a workspace might fall into one of the following broken states:
 
 - Failed: Failure during provisioning, no resource consumption
 - Unhealthy: Resources have been provisioned, but the agent can't facilitate connections
@@ -33,7 +33,7 @@ If some error occurs during the above, a workspace may fall into one of the foll
 
 Workspaces are created from [templates](../templates/index.md) via the CLI, API, or dashboard.
 
-By default, there is no limit on the number of workspaces a user may create, regardless of the template's resource demands.
+By default, there is no limit on the number of workspaces a user can create, regardless of the template's resource demands.
 On Premium deployments, administrators can use [quotas](../admin/users/quotas.md) to limit each user's workspace spend in each organization, which prevents over provisioning and controls costs.
 
 When a user creates a workspace, they're sending a build request to the control plane.
@@ -46,7 +46,7 @@ A workspace must contain some computational resource to run the Coder agent proc
 The provisioned workspace's computational resources start the agent process, which opens connections to your workspace via SSH, the terminal, and IDEs such as [JetBrains](./workspace-access/jetbrains/index.md) or [VSCode](./workspace-access/vscode.md).
 
 Once started, the Coder agent is responsible for running your workspace startup scripts.
-These may configure tools, service connections, or personalization with [dotfiles](./workspace-dotfiles.md).
+These can configure tools, service connections, or personalization with [dotfiles](./workspace-dotfiles.md).
 For complex initialization with multiple dependent scripts, see [Workspace Startup Coordination](../templates/startup-coordination/index.md).
 
 Once these steps have completed, your workspace will now be in the `Running` state.
@@ -56,16 +56,16 @@ You can access it via any of the [supported methods](./index.md), stop it when y
 
 ## Stop workspaces
 
-Workspaces may be stopped manually by users and admins in the dashboard, CLI, or API.
-Workspaces may be automatically stopped due to template updates or inactivity by [scheduling configuration](./workspace-scheduling.md).
+Workspaces can be stopped manually by users and admins in the dashboard, CLI, or API.
+Workspaces can be automatically stopped due to template updates or inactivity by [scheduling configuration](./workspace-scheduling.md).
 
-Once stopped, a workspace may resume running by starting it manually, or via user connection if automatic start is enabled.
+Once stopped, a workspace can resume running by starting it manually, or via user connection if automatic start is enabled.
 
 <a id="deleting-workspaces"></a>
 
 ## Delete workspaces
 
-Similarly to stopping, workspaces may be deleted manually or automatically by Coder through workspace dormancy.
+Similarly to stopping, workspaces can be deleted manually or automatically by Coder through workspace dormancy.
 
 A delete workspace build runs `terraform destroy`, destroying both persistent and ephemeral resources.
 This action can not be reverted.
@@ -77,13 +77,13 @@ Learn about configuring workspace dormancy in the template scheduling docs.
 ### Orphan resources
 
 Typically, when a workspace is deleted, all of the workspace's resources are deleted along with it.
-Rarely, one may wish to delete a workspace without deleting its resources, for example, a workspace in a broken state.
+Rarely, one might wish to delete a workspace without deleting its resources, for example, a workspace in a broken state.
 Users with the Template Admin role have the option to do so both in the UI, and also in the CLI by running the delete command with the `--orphan` flag.
-This option should be considered cautiously as orphaning may lead to unaccounted cloud resources.
+This option should be considered cautiously as orphaning might lead to unaccounted cloud resources.
 
 ## Broken workspace states
 
-During a workspace start or stop build, one of two errors may lead to a broken state.
+During a workspace start or stop build, one of two errors can lead to a broken state.
 If the call to `terraform apply` fails to correctly provision resources, a workspace build has **failed**.
 If the computational resources fail to connect the agent, a workspace becomes **unhealthy**.
 
