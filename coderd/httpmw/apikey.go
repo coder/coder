@@ -148,7 +148,7 @@ func ExtractAPIKeyMW(cfg ExtractAPIKeyConfig) func(http.Handler) http.Handler {
 	}
 }
 
-func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, codersdk.Response, bool) {
+func APIKeyFromRequest(ctx context.Context, db database.Store, logger slog.Logger, sessionTokenFunc func(r *http.Request) string, r *http.Request) (*database.APIKey, codersdk.Response, bool) {
 	tokenFunc := APITokenFromRequest
 	if sessionTokenFunc != nil {
 		tokenFunc = sessionTokenFunc
@@ -180,9 +180,10 @@ func APIKeyFromRequest(ctx context.Context, db database.Store, sessionTokenFunc 
 			}, false
 		}
 
+		logger.Error(ctx, "fetch api key by id", slog.Error(err))
 		return nil, codersdk.Response{
 			Message: internalErrorMessage,
-			Detail:  fmt.Sprintf("Internal error fetching API key by id. %s", err.Error()),
+			Detail:  "Internal error fetching API key by id.",
 		}, false
 	}
 
@@ -239,7 +240,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		return nil, nil, false
 	}
 
-	key, resp, ok := APIKeyFromRequest(ctx, cfg.DB, cfg.SessionTokenFunc, r)
+	key, resp, ok := APIKeyFromRequest(ctx, cfg.DB, cfg.Logger, cfg.SessionTokenFunc, r)
 	if !ok {
 		return optionalWrite(http.StatusUnauthorized, resp)
 	}
