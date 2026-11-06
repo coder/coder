@@ -1905,7 +1905,7 @@ func TestTools(t *testing.T) {
 			agents[0].Apps = []*proto.App{
 				{
 					Slug: "zero",
-					Url:  "http://zero.dev.coder.com",
+					Url:  "http://zero.coder.example.com",
 				},
 			}
 			return agents
@@ -1920,15 +1920,15 @@ func TestTools(t *testing.T) {
 			agents[0].Apps = []*proto.App{
 				{
 					Slug: "one",
-					Url:  "http://one.dev.coder.com",
+					Url:  "http://one.coder.example.com",
 				},
 				{
 					Slug: "two",
-					Url:  "http://two.dev.coder.com",
+					Url:  "http://two.coder.example.com",
 				},
 				{
 					Slug: "three",
-					Url:  "http://three.dev.coder.com",
+					Url:  "http://three.coder.example.com",
 				},
 			}
 			agents = append(agents, &proto.Agent{
@@ -1941,7 +1941,7 @@ func TestTools(t *testing.T) {
 				Apps: []*proto.App{
 					{
 						Slug: "four",
-						Url:  "http://four.dev.coder.com",
+						Url:  "http://four.coder.example.com",
 					},
 				},
 			})
@@ -1969,7 +1969,7 @@ func TestTools(t *testing.T) {
 				expected: []toolsdk.WorkspaceListApp{
 					{
 						Name: "zero",
-						URL:  "http://zero.dev.coder.com",
+						URL:  "http://zero.coder.example.com",
 					},
 				},
 			},
@@ -1988,7 +1988,7 @@ func TestTools(t *testing.T) {
 				expected: []toolsdk.WorkspaceListApp{
 					{
 						Name: "four",
-						URL:  "http://four.dev.coder.com",
+						URL:  "http://four.coder.example.com",
 					},
 				},
 			},
@@ -2000,15 +2000,15 @@ func TestTools(t *testing.T) {
 				expected: []toolsdk.WorkspaceListApp{
 					{
 						Name: "one",
-						URL:  "http://one.dev.coder.com",
+						URL:  "http://one.coder.example.com",
 					},
 					{
 						Name: "three",
-						URL:  "http://three.dev.coder.com",
+						URL:  "http://three.coder.example.com",
 					},
 					{
 						Name: "two",
-						URL:  "http://two.dev.coder.com",
+						URL:  "http://two.coder.example.com",
 					},
 				},
 			},
