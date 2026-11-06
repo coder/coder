@@ -75,6 +75,7 @@ func TestExpChatContextSources(t *testing.T) {
 		return stdout.String(), err
 	}
 
+	// A user-added source can be added, contributes context, and can be removed.
 	removable := filepath.Join(wd, "user-added")
 	require.NoError(t, os.MkdirAll(removable, 0o700))
 	removableFile := filepath.Join(removable, "AGENTS.md")
@@ -132,7 +133,8 @@ func TestExpChatContextSources(t *testing.T) {
 				require.NoError(t, err)
 				stdout, err := run(t, tc.args...)
 				require.ErrorContains(t, err, tc.reason)
-				require.Equal(t, 1, strings.Count(err.Error(), tc.args[0]+" context source:"))
+				require.Equal(t, 1, strings.Count(err.Error(), tc.args[0]+" context source:"),
+					"the error names the operation once, without double wrapping")
 				require.Empty(t, stdout, "rejected source change must not report success")
 				after, err := run(t, "list", "--output", "json")
 				require.NoError(t, err)
