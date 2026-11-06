@@ -29,9 +29,10 @@ import (
 // context integration. An echo-provisioned workspace agent pushes a context
 // snapshot that hydrates a bound chat; a later push with a different hash
 // marks the chat dirty; the experimental API reports the dirty state and the
-// snapshot error; returning to the pinned snapshot clears drift; snapshot errors
-// live-sync without drift; and refresh re-pins the snapshot. Watch events carry
-// each context change. An agent-less chat stays untouched throughout.
+// snapshot error; returning to the pinned snapshot clears the dirty marker;
+// snapshot errors live-sync without marking the chat dirty; and refresh re-pins
+// the snapshot. Watch events carry each context change. An agent-less chat stays
+// untouched throughout.
 func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	t.Parallel()
 
@@ -164,21 +165,6 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = aAPI.DRPCConn().Close() }()
 
-	pushAndGet := func(version uint64, hash []byte, snapshotError string, resources ...*agentproto.ContextResource) codersdk.Chat {
-		t.Helper()
-		resp, err := aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
-			Version:       version,
-			AggregateHash: hash,
-			SnapshotError: snapshotError,
-			Resources:     resources,
-		})
-		require.NoError(t, err)
-		require.True(t, resp.GetAccepted())
-		got, err := expClient.GetChat(ctx, chat.ID)
-		require.NoError(t, err)
-		require.NotNil(t, got.Context)
-		return got
-	}
 	events := subscribeChatContextEvents(t, api.Pubsub, user.UserID, chat.ID)
 
 	hashA := []byte{0x01, 0x02, 0x03}
@@ -243,7 +229,7 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	got, err = expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
 	require.NotNil(t, got.Context)
-	require.True(t, got.Context.Dirty, "drift should mark the chat dirty")
+	require.True(t, got.Context.Dirty, "a changed aggregate hash marks the chat dirty")
 	require.NotNil(t, got.Context.DirtySince)
 	require.Equal(t, snapshotError, got.Context.Error, "snapshot errors live-sync while resources stay pinned")
 	requireChatContextEvent(ctx, t, events, true, snapshotError)
@@ -258,9 +244,25 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.Len(t, pinned, 1, "dirty marking does not re-copy resources")
 	require.Equal(t, agentsV1Hash, pinned[agentsSource].ContentHash, "chat keeps the pinned snapshot's resources while dirty")
 
+	pushAndGet := func(version uint64, hash []byte, snapshotError string, resources ...*agentproto.ContextResource) codersdk.Chat {
+		t.Helper()
+		resp, err := aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
+			Version:       version,
+			AggregateHash: hash,
+			SnapshotError: snapshotError,
+			Resources:     resources,
+		})
+		require.NoError(t, err)
+		require.True(t, resp.GetAccepted())
+		got, err := expClient.GetChat(ctx, chat.ID)
+		require.NoError(t, err)
+		require.NotNil(t, got.Context)
+		return got
+	}
+
 	const watcherError = "context watcher degraded"
 	got = pushAndGet(3, hashA, watcherError, instructionResource(agentsSource, "hello-v1", agentsV1Hash))
-	require.False(t, got.Context.Dirty, "returning to the pinned snapshot clears drift")
+	require.False(t, got.Context.Dirty, "returning to the pinned snapshot clears the dirty marker")
 	require.Nil(t, got.Context.DirtySince)
 	require.Equal(t, watcherError, got.Context.Error)
 	requireChatContextEvent(ctx, t, events, false, watcherError)
@@ -271,6 +273,7 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.Equal(t, snapshotError, got.Context.Error)
 	requireChatContextEvent(ctx, t, events, false, snapshotError)
 
+	// Mark the chat dirty again so refresh has a change to adopt.
 	pushAndGet(5, hashB, snapshotError,
 		instructionResource(agentsSource, "hello-v2", agentsV2Hash),
 		skillResource(skillSource, skillHash),
@@ -597,7 +600,8 @@ func TestChatContextLiveSyncFromAgentPush(t *testing.T) {
 		require.NotContains(t, pinned, harnessSource)
 	}
 
-	// Drifted pushes still sync MCP and ACP rows while leaving prompt rows pinned.
+	// Pushes with a different hash still sync MCP/ACP rows while prompt rows
+	// stay pinned.
 	driftedHash := []byte{0x03, 0x04}
 	changedInstruction := instructionResource()
 	changedInstruction.ContentHash = []byte{0x12}
@@ -617,7 +621,7 @@ func TestChatContextLiveSyncFromAgentPush(t *testing.T) {
 	got, err = expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
 	require.NotNil(t, got.Context)
-	require.True(t, got.Context.Dirty, "drift still marks the chat dirty")
+	require.True(t, got.Context.Dirty, "the changed aggregate hash marks the chat dirty")
 	pinned := pinnedResources(chat.ID)
 	require.Len(t, pinned, 3)
 	require.Equal(t, toolsV1Hash, pinned[mcpSource].ContentHash, "MCP row syncs even on a dirty chat")
@@ -628,8 +632,8 @@ func TestChatContextLiveSyncFromAgentPush(t *testing.T) {
 // TestChatContextRefreshFromAgentToken covers the in-workspace
 // `coder exp chat context refresh` (no chat argument) path, which authenticates
 // with the agent token instead of a user session. The agent endpoint re-pins
-// every drifted chat bound to the calling agent to its latest snapshot and
-// clears the drift marker, returning how many were refreshed. A chat bound to
+// every dirty chat bound to the calling agent to its latest snapshot and
+// clears the dirty marker, returning how many were refreshed. A chat bound to
 // no agent must stay untouched, guarding the agent-scoped query.
 func TestChatContextRefreshFromAgentToken(t *testing.T) {
 	t.Parallel()
@@ -718,7 +722,7 @@ func TestChatContextRefreshFromAgentToken(t *testing.T) {
 	require.Equal(t, 0, refresh.Refreshed, "no dirty chats to refresh")
 	requireChatContextEvent(ctx, t, events, false, "")
 
-	// A second push with a different hash drifts the bound chat dirty.
+	// A second push with a different hash marks the bound chat dirty.
 	resp, err = aAPI.PushContextState(ctx, &agentproto.PushContextStateRequest{
 		Version:       2,
 		AggregateHash: []byte{0x02},
@@ -730,13 +734,13 @@ func TestChatContextRefreshFromAgentToken(t *testing.T) {
 	got, err := expClient.GetChat(ctx, chat.ID)
 	require.NoError(t, err)
 	require.NotNil(t, got.Context)
-	require.True(t, got.Context.Dirty, "second push drifts the chat dirty")
+	require.True(t, got.Context.Dirty, "second push marks the chat dirty")
 	requireChatContextEvent(ctx, t, events, true, "")
 
-	// The agent-token refresh re-pins every drifted chat bound to the agent.
+	// The agent-token refresh re-pins every dirty chat bound to the agent.
 	refresh, err = agentClient.RefreshChatContext(ctx)
 	require.NoError(t, err)
-	require.Equal(t, 1, refresh.Refreshed, "the drifted chat is re-pinned")
+	require.Equal(t, 1, refresh.Refreshed, "the dirty chat is re-pinned")
 	requireChatContextEvent(ctx, t, events, false, "")
 
 	got, err = expClient.GetChat(ctx, chat.ID)
