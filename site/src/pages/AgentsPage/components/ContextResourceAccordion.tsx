@@ -23,9 +23,9 @@ export const ContextResourceAccordionTrigger: React.FC<
 > = ({ detail, children, className, ...props }) => (
 	<CollapsibleTrigger
 		className={cn(
-			"group flex items-center justify-between gap-1 rounded h-8 pl-1 pr-2",
-			"text-left text-xs font-medium text-content-secondary",
-			"focus-visible:outline-hidden focus-visible:ring-2",
+			"group flex items-center justify-between gap-1 rounded py-3 pl-3 pr-4",
+			"text-left text-xs font-medium leading-4.5 text-content-secondary",
+			"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset",
 			"focus-visible:ring-content-link",
 			"data-[state=open]:text-content-primary",
 			"hover:text-content-primary",
@@ -41,7 +41,7 @@ export const ContextResourceAccordionTrigger: React.FC<
 			</span>
 		</div>
 		{detail != null && (
-			<span className="font-mono font-normal text-content-secondary group-data-[state=open]:opacity-0 transition-opacity duration-25">
+			<span className="font-mono font-medium text-content-secondary group-data-[state=open]:opacity-0 transition-opacity duration-25">
 				{detail}
 			</span>
 		)}
@@ -53,7 +53,7 @@ export const ContextResourceAccordionContent: React.FC<
 	React.ComponentProps<typeof CollapsibleContent>
 > = ({ className, ...props }) => (
 	<CollapsibleContent
-		className={cn("flex flex-col gap-2.5 pl-1 pr-2 pb-2", className)}
+		className={cn("flex flex-col gap-2.5 pl-3 pr-4 pb-2", className)}
 		{...props}
 	/>
 );
