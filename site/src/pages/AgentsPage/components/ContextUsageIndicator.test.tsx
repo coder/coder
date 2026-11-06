@@ -12,19 +12,12 @@ describe("ContextUsageIndicator", () => {
 		{
 			name: "refreshes changed context",
 			context: MockChatContextDirty,
-			refreshes: 1,
 		},
 		{
 			name: "refreshes changed context with a snapshot error",
 			context: { ...MockChatContextDirty, error: "one source failed" },
-			refreshes: 1,
 		},
-		{
-			name: "does not refresh an unchanged snapshot error",
-			context: { ...MockChatContextClean, error: "one source failed" },
-			refreshes: 0,
-		},
-	])("$name", async ({ context, refreshes }) => {
+	])("$name", async ({ context }) => {
 		const user = userEvent.setup();
 		const onRefreshContext = vi.fn();
 		render(
@@ -38,13 +31,23 @@ describe("ContextUsageIndicator", () => {
 			/>,
 		);
 		await user.click(screen.getByRole("button", { name: /Context usage/ }));
-		const refreshButton = screen.queryByRole("button", {
-			name: "Refresh context",
-		});
-		if (refreshButton) {
-			await user.click(refreshButton);
-		}
-		await user.keyboard("{Escape}");
-		expect(onRefreshContext).toHaveBeenCalledTimes(refreshes);
+		await user.click(screen.getByRole("button", { name: "Refresh context" }));
+		expect(onRefreshContext).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not offer refresh for an unchanged snapshot error", async () => {
+		const user = userEvent.setup();
+		render(
+			<ContextUsageIndicator
+				usage={{
+					context: { ...MockChatContextClean, error: "one source failed" },
+				}}
+				onRefreshContext={vi.fn()}
+			/>,
+		);
+		await user.click(screen.getByRole("button", { name: /Context usage/ }));
+		expect(
+			screen.queryByRole("button", { name: "Refresh context" }),
+		).toBeNull();
 	});
 });
