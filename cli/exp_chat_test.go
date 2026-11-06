@@ -15,11 +15,19 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agenttest"
+	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
+
+type chatContextEnvInfo struct {
+	usershell.SystemEnvInfo
+	home string
+}
+
+func (e chatContextEnvInfo) HomeDir() (string, error) { return e.home, nil }
 
 func TestExpChatContextRemove(t *testing.T) {
 	t.Parallel()
@@ -40,6 +48,8 @@ func TestExpChatContextRemove(t *testing.T) {
 	})
 	socketPath := testutil.AgentSocketPath(t)
 	agenttest.New(t, client.URL, agentToken, func(o *agent.Options) {
+		// Isolate ACP harness configuration from the host's home directory.
+		o.EnvInfo = chatContextEnvInfo{home: t.TempDir()}
 		o.SocketPath = socketPath
 		o.SocketServerEnabled = true
 		o.ContextConfig = agentcontextconfig.Config{
