@@ -102,41 +102,6 @@ stop_helpers() {
 	echo "stopped $n helpers"
 }
 
-# Coder server starts its built-in Postgres as a daemon and stops it on a
-# clean exit. After a server crash (SIGKILL, the OOM killer) Postgres keeps
-# running, and the develop session stop does not reach it. It is an orphan of
-# this launch when it runs from this checkout's .coderv2, started after the
-# launch, and no coder server runs on this .coderv2 any more (a plain
-# develop.sh run in the same checkout would).
-stop_orphan_postgres() {
-	local pid_file="$VC_CONFIG_DIR/postgres/data/postmaster.pid" pid cmd started
-	pid="$(head -n 1 "$pid_file" 2>/dev/null)" || true
-	if [[ ! "$pid" =~ ^[0-9]+$ ]] || [[ ! -d "/proc/$pid" ]]; then
-		echo "no Postgres runs from $VC_CONFIG_DIR"
-		return 0
-	fi
-	cmd="$(tr '\0' ' ' <"/proc/$pid/cmdline")"
-	started="$(date -d "$(ps -o lstart= -p "$pid")" +%s)"
-	if [[ "$cmd" != *"$VC_CONFIG_DIR/postgres"* ]] || ((started < $(date -d "$VC_STARTED_AT" +%s))); then
-		echo "Postgres pid $pid did not start from this launch, left it alone"
-		return 0
-	fi
-	if any_cmdline_contains "--global-config $VC_CONFIG_DIR server"; then
-		echo "a coder server still runs on $VC_CONFIG_DIR, left its Postgres pid $pid alone"
-		return 0
-	fi
-	kill -INT "$pid"
-	for _ in $(seq 30); do
-		[[ -d "/proc/$pid" ]] || {
-			echo "stopped orphaned Postgres pid $pid"
-			return 0
-		}
-		sleep 1
-	done
-	echo "orphaned Postgres pid $pid still runs"
-	return 1
-}
-
 ports_free() {
 	local port busy=()
 	if [[ -z "${VC_API_PORT:-}" ]]; then
@@ -169,13 +134,16 @@ archive_logs() {
 	echo "moved ${kept[*]:-no logs} to the evidence folder, which keeps every journey and hand-driven folder"
 }
 
-# any_cmdline_contains matches its argument literally: pgrep -f would read it
-# as a regular expression, and a checkout path with [ or ( could then miss a
-# live process.
-any_cmdline_contains() {
-	local all
-	all="$(ps -eww -o args=)" || return 1
-	[[ "$all" == *"$1"* ]]
+# postgres_running succeeds while Postgres runs from this checkout's .coderv2.
+# Postgres keeps postmaster.pid in its data folder while it runs. It can
+# outlive a crashed coder server, or belong to a plain develop.sh run on the
+# same folder. A pid that cleanup cannot identify counts as running.
+postgres_running() {
+	local pid exe
+	pid="$(head -n 1 "$VC_CONFIG_DIR/postgres/data/postmaster.pid" 2>/dev/null)" || return 1
+	[[ "$pid" =~ ^[0-9]+$ && -d "/proc/$pid" ]] || return 1
+	exe="$(readlink "/proc/$pid/exe")" || return 0
+	[[ "${exe##*/}" == postgres ]]
 }
 
 # --keep-data hands the folder over: without the marker, a later cleanup keeps
@@ -190,11 +158,11 @@ remove_data() {
 		echo "kept $VC_CONFIG_DIR (launch.sh did not create it)"
 		return 0
 	fi
-	# The harness's own Postgres is stopped by now, so a live one on this
-	# folder belongs to someone else, such as a plain develop.sh run.
-	if any_cmdline_contains "$VC_CONFIG_DIR/postgres"; then
-		echo "kept $VC_CONFIG_DIR, another process still runs Postgres from it"
-		return 0
+	# The harness's server is stopped by now, so a Postgres that still runs
+	# was left by a crashed server or belongs to a plain develop.sh run.
+	if postgres_running; then
+		echo "Postgres pid $(head -n 1 "$VC_CONFIG_DIR/postgres/data/postmaster.pid") still runs from $VC_CONFIG_DIR, so it stays: if no develop.sh uses that folder, stop it with kill -INT <pid> and run cleanup.sh again, or run cleanup.sh --keep-data"
+		return 1
 	fi
 	# The marker goes last, so a removal that fails part way still counts as
 	# the harness's data on the next try.
@@ -212,7 +180,6 @@ vc_check workspaces delete_workspaces
 vc_check browser close_browser
 vc_check helpers stop_helpers
 vc_check develop vc_stop_develop "$VC_PID"
-vc_check postgres stop_orphan_postgres
 vc_check ports ports_free
 # The data goes before the run state, so a failed removal keeps the state
 # for a retry.

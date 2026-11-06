@@ -43,18 +43,18 @@ It changes nothing apart from those two refused sign-ins.
 
 ## Self-test
 
-`scripts/selftest.sh` needs no instance and takes about 15 seconds. Run it after you edit `launch.sh`, `lib.sh` or `cleanup.sh`. Checks that take `launch.sh` or `cleanup.sh` past their refusals run a copy of the scripts in a scratch git repo with stub `develop`, `make`, `curl` and `docker`. It checks:
+`scripts/selftest.sh` needs no instance and takes about 15 seconds. Run it after you edit `launch.sh`, `lib.sh` or `cleanup.sh`. Checks that would start develop or touch `.coderv2` run a copy of the scripts in a scratch git repo, with stubs for `setsid` (in place of develop), `make`, `curl` and `docker`. It checks:
 
 - the `launch.sh` refusals: `CODER_BUILD_AGPL`, develop.sh flags, server flags outside `server_flag_allowed` and the published default password;
 - that a new database without `CODER_DEV_ADMIN_PASSWORD`, and the allowed server flags, get past those checks;
 - that the setup run binds 127.0.0.1 for `--fresh`, new data and reused data;
 - that the develop log tails `launch.sh` prints on a failure show no password, also an escaped one;
 - that `launch.sh` does not restart on every interface when the admin or the member signs in with the published default password, and reports a setup run that died;
-- that cleanup stops an orphaned Postgres of this launch and leaves alone one that a live coder server uses or that started before the launch;
+- that cleanup keeps `.coderv2` and fails while a Postgres runs from it;
 - the launch lock;
 - that `vc_start_develop` passes the password through the environment and drops the caller's `CODER_*` variables and `BASH_ENV`;
 - that a Docker error fails cleanup's leftover inventory;
-- that the default password check covers the admin and the member;
+- that the default password check covers the admin and the member, and counts any answer but 401 as accepted;
 - that `vc_browser_login` passes the password to agent-browser on stdin.
 
 ## Drive
@@ -80,8 +80,8 @@ It changes nothing apart from those two refused sign-ins.
 - `cleanup.sh` deletes only the workspaces recorded in `build/verify-coder/run/workspaces` and lists the rest as kept, because a reused `.coderv2` can hold a developer's own workspaces. When it is about to remove a `.coderv2` that `launch.sh` created, it deletes every workspace in it, because the data goes anyway.
 - It closes only `$VC_BROWSER_SESSION`. It stops helpers recorded as `build/verify-coder/run/*.pid` while they still run this checkout's coder binary.
 - It sends SIGINT to the develop session it started, then TERM and KILL to leftovers of that session only, and checks that both ports are free. It never kills by process name.
-- Coder server starts its built-in Postgres as a daemon. When the server crashed, cleanup stops that Postgres only when it runs from this checkout's `.coderv2`, started after the launch, and no coder server runs on that `.coderv2` any more.
-- It removes `.coderv2` only when `launch.sh` created it (marker `.coderv2/.verify-coder-created`) and no other process has its Postgres path on the command line. The marker goes last, so a failed removal can be retried. `--keep-data` deletes the marker, so later cleanups keep the folder too.
+- Coder server starts its built-in Postgres as a daemon, which can outlive a crashed server. While a Postgres runs from `.coderv2` (its `postmaster.pid`), cleanup keeps the folder, fails and names the pid. Stop that pid with `kill -INT` when no `develop.sh` uses the folder, then run cleanup again.
+- It removes `.coderv2` only when `launch.sh` created it (marker `.coderv2/.verify-coder-created`) and no Postgres runs from it. The marker goes last, so a failed removal can be retried. `--keep-data` deletes the marker, so later cleanups keep the folder too.
 - It moves `develop-setup.log`, `develop.log` and `build.log` into `build/verify-coder/evidence/` and never deletes that folder. Each step's full output goes to `build/verify-coder/evidence/<stamp>-cleanup.log`.
 - With the server already down, it cannot delete workspaces. It then fails and names every `coder-*` container and volume created since the launch, or fails when Docker cannot list them.
 - A FAIL line keeps the run state, so you can fix the cause and run it again.

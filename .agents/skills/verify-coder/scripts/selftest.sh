@@ -2,11 +2,11 @@
 # Checks harness behavior that needs no running instance: the launch.sh
 # argument and password refusals, the random password for a new database, the
 # loopback bind of the setup run, that launch.sh log tails show no password,
-# the gates before the restart on every interface, the orphaned Postgres
-# cleanup, the launch lock, how vc_start_develop passes the environment, that
-# a Docker error fails the leftover inventory, the default password check for
-# admin and member, and that vc_browser_login keeps the password out of the
-# process arguments.
+# the gates before the restart on every interface, that cleanup keeps a
+# .coderv2 that Postgres still runs from, the launch lock, how
+# vc_start_develop passes the environment, that a Docker error fails the
+# leftover inventory, the default password check for admin and member, and
+# that vc_browser_login keeps the password out of the process arguments.
 # Usage: selftest.sh   (prints one line per check and a count line)
 set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
@@ -49,10 +49,11 @@ ready) printf '%s\n' "$out" "$ports" "$first" "$ready" ;;
 ready-wait) printf '%s\n' "$out" "$ports" "$first" "$ready" && exec sleep 30 ;;
 esac
 STUB
-# curl answers 201 to a sign-in as VC_SELFTEST_CURL_OK and 401 otherwise.
+# curl answers VC_SELFTEST_CURL_CODE (default 201) to a sign-in as
+# VC_SELFTEST_CURL_OK and 401 otherwise.
 cat >"$tmp/bin/curl" <<'STUB'
 #!/bin/bash
-if [[ -n "${VC_SELFTEST_CURL_OK:-}" && "$*" == *"\"$VC_SELFTEST_CURL_OK\""* ]]; then echo 201; else echo 401; fi
+if [[ -n "${VC_SELFTEST_CURL_OK:-}" && "$*" == *"\"$VC_SELFTEST_CURL_OK\""* ]]; then echo "${VC_SELFTEST_CURL_CODE:-201}"; else echo 401; fi
 STUB
 # bin-built goes first on PATH for checks that need launch.sh past the build
 # or a docker that lists nothing.
@@ -224,14 +225,14 @@ launch_tails_drop_password() {
 vc_check launch-tails launch_tails_drop_password
 
 # develop logs a password with special characters quoted and escaped, so the
-# tail also drops any password field.
+# tail drops any password field as well as any line with the password.
 log_tail_drops_escaped_password() {
-	printf 'before\ncreating first user  password="p\\"q"\nafter\n' >"$tmp/tail.log"
+	printf 'before\ncreating first user  password="p\\"q"\nsecret p"q in another field\nafter\n' >"$tmp/tail.log"
 	[[ "$(vc_log_tail 20 "$tmp/tail.log" 'p"q')" == $'before\nafter' ]] || {
-		echo "the log tail kept an escaped password line or lost other lines"
+		echo "the log tail kept a line with the password or lost other lines"
 		return 1
 	}
-	echo "the log tail drops an escaped password line only"
+	echo "the log tail drops password lines and password fields only"
 }
 vc_check log-tail log_tail_drops_escaped_password
 
@@ -264,56 +265,53 @@ setup_gates() {
 }
 vc_check setup-gates setup_gates
 
-# cleanup.sh stops a Postgres that a crashed server of this launch left, and
-# leaves one alone that a live coder server on the same .coderv2 uses or that
-# started before the launch. Python stands in for both processes: only its
-# command line matters.
-fake_process() {
-	python3 -c 'import signal, time; signal.signal(signal.SIGINT, signal.SIG_DFL); time.sleep(60)' "$@" >/dev/null 2>&1 &
-	echo $!
-}
-cleanup_orphan_postgres() {
-	local case started pg dead server=()
-	for case in orphan live-server before-launch; do
+# cleanup.sh must keep .coderv2 and fail while a Postgres runs from it, and
+# remove it when postmaster.pid names a dead pid or another program. A copy of
+# bash named postgres stands in for Postgres.
+cleanup_keeps_running_postgres() {
+	local case pid dead want_rc
+	mkdir -p "$tmp/fake"
+	cp "$(command -v bash)" "$tmp/fake/postgres"
+	for case in running dead other-program; do
 		scratch_reset
 		mkdir -p "$scratch_run" "$repo/build/verify-coder/evidence" "$scratch_config/postgres/data"
 		touch "$scratch_config/.verify-coder-created"
-		started="$(date -u -d '-1 min' +%FT%TZ)"
-		if [[ "$case" == before-launch ]]; then
-			started="$(date -u -d '+1 hour' +%FT%TZ)"
-		fi
 		true &
 		dead=$!
 		wait "$dead"
-		printf 'VC_PID=%q\nVC_LOG=%q\nVC_STARTED_AT=%q\nVC_ADMIN_PASSWORD=x\n' "$dead" "$scratch_run/develop.log" "$started" >"$scratch_run/env"
-		pg="$(fake_process "$scratch_config/postgres/data")"
-		echo "$pg" >"$scratch_config/postgres/data/postmaster.pid"
-		server=()
-		if [[ "$case" == live-server ]]; then
-			server=("$(fake_process --global-config "$scratch_config" server)")
+		printf 'VC_PID=%q\nVC_LOG=%q\nVC_STARTED_AT=%q\nVC_ADMIN_PASSWORD=x\n' "$dead" "$scratch_run/develop.log" "$(date -u +%FT%TZ)" >"$scratch_run/env"
+		case "$case" in
+		running) "$tmp/fake/postgres" -c 'while :; do sleep 1; done' & ;;
+		other-program) sleep 60 & ;;
+		esac
+		pid=$!
+		if [[ "$case" == dead ]]; then
+			pid="$dead"
 		fi
+		echo "$pid" >"$scratch_config/postgres/data/postmaster.pid"
 		scratch_run_script cleanup.sh ""
-		local alive=0
-		if [[ -d "/proc/$pg" ]]; then
-			alive=1
+		kill "$pid" 2>/dev/null || true
+		want_rc=0
+		if [[ "$case" == running ]]; then
+			want_rc=1
 		fi
-		kill "$pg" "${server[@]}" 2>/dev/null || true
-		[[ "$rc" == 0 ]] || {
+		[[ "$rc" == "$want_rc" ]] || {
 			echo "$case: cleanup.sh exited $rc: ${out##*$'\n'}"
 			return 1
 		}
-		if [[ "$case" == orphan ]] && ((alive)); then
-			echo "orphan: cleanup.sh left the orphaned Postgres running"
-			return 1
-		fi
-		if [[ "$case" != orphan ]] && ((!alive)); then
-			echo "$case: cleanup.sh stopped a Postgres that was not an orphan of this launch"
+		if [[ "$case" == running ]]; then
+			[[ -d "$scratch_config" && "$out" == *"Postgres pid $pid still runs from"* ]] || {
+				echo "running: cleanup.sh removed .coderv2 or did not name the Postgres pid"
+				return 1
+			}
+		elif [[ -d "$scratch_config" ]]; then
+			echo "$case: cleanup.sh kept .coderv2"
 			return 1
 		fi
 	done
-	echo "cleanup.sh stops only an orphaned Postgres of this launch"
+	echo "cleanup.sh keeps .coderv2 only while a Postgres runs from it"
 }
-vc_check cleanup-postgres cleanup_orphan_postgres
+vc_check cleanup-postgres cleanup_keeps_running_postgres
 
 # A second launch in the same checkout must stop while the first holds the lock.
 launch_lock_held() {
@@ -360,7 +358,12 @@ default_password_checks_users() {
 		echo "every account refuses the default password, but the check failed"
 		return 1
 	fi
-	echo "the default password is caught for admin and member"
+	VC_API_URL=http://127.0.0.1:1 VC_SELFTEST_CURL_OK=admin@coder.com VC_SELFTEST_CURL_CODE=500 PATH="$tmp/bin:$PATH" \
+		vc_default_password_accepted >/dev/null || {
+		echo "an answer other than 401 counted as refused"
+		return 1
+	}
+	echo "the default password is caught for admin and member, and only 401 counts as refused"
 }
 vc_check default-users default_password_checks_users
 
