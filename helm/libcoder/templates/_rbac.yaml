@@ -63,7 +63,8 @@ roleRef:
   {{- $extra := default (list) $wsnsRaw -}}
 
   {{- range $_, $ns := $extra }}
-    {{- $nsName := ternary $ns.name $ns (kindIs "map" $ns) -}}
+    {{- $nsName := $ns -}}
+    {{- if kindIs "map" $ns }}{{- $nsName = $ns.name -}}{{- end }}
     {{- if $nsName }}
       {{- $params := dict "Top" $top "NS" $nsName -}}
       {{- if kindIs "map" $ns }}

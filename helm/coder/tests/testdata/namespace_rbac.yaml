@@ -26,3 +26,4 @@ coder:
               - list
               - create
       - name: test-namespace4
+      - test-namespace5
