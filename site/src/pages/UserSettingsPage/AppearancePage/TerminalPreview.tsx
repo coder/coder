@@ -10,6 +10,23 @@ const Prompt: React.FC = () => (
 	</>
 );
 
+// Ordinary Go that exercises common ligatures (:= <- != && >= //) and
+// easily confused glyphs (0 and O, 1 and l).
+const sampleFile = [
+	"package main",
+	"",
+	'import "fmt"',
+	"",
+	"func main() {",
+	"\tready := make(chan int, 1)",
+	"\tgo func() { ready <- 10 }()",
+	"\tif n := <-ready; n != 0 && n >= 1 {",
+	'\t\tfmt.Println("Online:", n) // ok',
+	"\t}",
+	"}",
+	"",
+].join("\n");
+
 /**
  * Static mock of the web terminal, using xterm's default colors, so users can
  * compare terminal fonts and sizes without opening a workspace.
@@ -31,8 +48,8 @@ export const TerminalPreview: React.FC<TerminalPreviewProps> = ({
 				<span className="text-[#729fcf]">site</span>
 				{"  README.md  go.mod  main.go\n"}
 				<Prompt />
-				{'echo "0O 1lI {} => != ->"\n'}
-				{"0O 1lI {} => != ->\n"}
+				{"cat main.go\n"}
+				{sampleFile}
 				<Prompt />
 				<span className="bg-white"> </span>
 			</pre>
