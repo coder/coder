@@ -103,6 +103,10 @@ var testCases = []testCase{
 		},
 	},
 	{
+		name:    "image_digest",
+		fixture: "image_digest",
+	},
+	{
 		name:          "missing_key_field",
 		fixture:       "fails_missing_key_field",
 		expectedError: "aigateway.keySecret.key is required when name is set.",

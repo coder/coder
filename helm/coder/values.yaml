@@ -57,6 +57,10 @@ coder:
     # app version will not work and you'll need to set this value. The helm
     # chart helpfully fails quickly in this case.
     tag: ""
+    # coder.image.digest -- The digest of the image, for example
+    # "sha256:<hash>". When set, it is appended to the image reference and takes
+    # precedence over the tag when pulling. Ignored when empty.
+    digest: ""
     # coder.image.pullPolicy -- The pull policy to use for the image. See:
     # https://kubernetes.io/docs/concepts/containers/images/#image-pull-policy
     pullPolicy: IfNotPresent
