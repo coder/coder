@@ -111,7 +111,11 @@ export const ProjectDetailsPanelView: React.FC<
 			<div className="rounded-lg border border-border">
 				<dl className="m-0 flex flex-col gap-2 border-0 border-b border-solid border-border p-4 text-sm">
 					<DetailRow label="Project owner">
-						{ownerLabel ?? (
+						{ownerLabel !== undefined ? (
+							<span className="block truncate" title={ownerLabel}>
+								{ownerLabel}
+							</span>
+						) : (
 							<>
 								<Skeleton className="my-1 ml-auto h-3 w-12" />
 								<span className="sr-only">Loading</span>
@@ -137,16 +141,19 @@ export const ProjectDetailsPanelView: React.FC<
 					{organizationLabel !== undefined && (
 						<DetailRow label="Organization">
 							{organizationIconUrl === undefined ? (
-								organizationLabel
+								<span className="block truncate" title={organizationLabel}>
+									{organizationLabel}
+								</span>
 							) : (
-								<span className="flex items-start justify-end gap-1.5">
+								<span className="flex items-center justify-end gap-1.5">
 									<Avatar
 										size="xs"
 										src={organizationIconUrl}
 										fallback={organizationLabel}
-										className="mt-[3px]"
 									/>
-									<span className="min-w-0">{organizationLabel}</span>
+									<span className="min-w-0 truncate" title={organizationLabel}>
+										{organizationLabel}
+									</span>
 								</span>
 							)}
 						</DetailRow>
@@ -412,10 +419,8 @@ type DetailRowProps = {
 };
 
 const DetailRow: React.FC<DetailRowProps> = ({ label, children }) => (
-	<div className="flex items-start justify-between gap-4">
+	<div className="flex items-center justify-between gap-4">
 		<dt className="shrink-0 text-content-secondary">{label}</dt>
-		<dd className="m-0 min-w-0 break-words text-right text-content-primary">
-			{children}
-		</dd>
+		<dd className="m-0 min-w-0 text-right text-content-primary">{children}</dd>
 	</div>
 );

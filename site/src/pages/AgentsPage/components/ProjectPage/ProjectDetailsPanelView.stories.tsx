@@ -149,7 +149,7 @@ export const OwnerUnknown: Story = {
 	},
 };
 
-/** Long owner and organization names wrap so they stay readable. */
+/** Long owner and organization names truncate to keep each row on one line. */
 export const LongNames: Story = {
 	args: {
 		ownerLabel: "bartholomewmontgomeryfitzgerald1",
