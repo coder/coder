@@ -461,43 +461,23 @@ func TestChatContextAdoptsNewBuildFromAgentPush(t *testing.T) {
 		return dbgen.Chat(t, db, seed)
 	}
 
-	// Pin the prior build's chats and leave one matching pin dirty.
-	idle := newChat(database.Chat{
-		WorkspaceID: workspaceID,
-		BuildID:     oldBuildID,
-		AgentID:     oldBinding,
-		Status:      database.ChatStatusWaiting,
-	})
-	errored := newChat(database.Chat{
-		WorkspaceID: workspaceID,
-		BuildID:     oldBuildID,
-		AgentID:     oldBinding,
-		Status:      database.ChatStatusError,
-	})
-	lifecycleChat := newChat(database.Chat{
-		WorkspaceID: workspaceID,
-		BuildID:     oldBuildID,
-		AgentID:     oldBinding,
-		Status:      database.ChatStatusWaiting,
-	})
-	unchanged := newChat(database.Chat{
-		WorkspaceID: workspaceID,
-		BuildID:     oldBuildID,
-		AgentID:     oldBinding,
-		Status:      database.ChatStatusWaiting,
-	})
-	archived := newChat(database.Chat{
-		WorkspaceID: workspaceID,
-		BuildID:     oldBuildID,
-		AgentID:     oldBinding,
-		Status:      database.ChatStatusWaiting,
-	})
-	matchingDirty := newChat(database.Chat{
-		WorkspaceID: workspaceID,
-		BuildID:     oldBuildID,
-		AgentID:     uuid.NullUUID{UUID: oldSidecarID, Valid: true},
-		Status:      database.ChatStatusWaiting,
-	})
+	newOldBuildChat := func(agentID uuid.NullUUID, status database.ChatStatus) database.Chat {
+		t.Helper()
+		return newChat(database.Chat{
+			WorkspaceID: workspaceID,
+			BuildID:     oldBuildID,
+			AgentID:     agentID,
+			Status:      status,
+		})
+	}
+	idle := newOldBuildChat(oldBinding, database.ChatStatusWaiting)
+	errored := newOldBuildChat(oldBinding, database.ChatStatusError)
+	lifecycleChat := newOldBuildChat(oldBinding, database.ChatStatusWaiting)
+	unchanged := newOldBuildChat(oldBinding, database.ChatStatusWaiting)
+	archived := newOldBuildChat(oldBinding, database.ChatStatusWaiting)
+	matchingDirty := newOldBuildChat(uuid.NullUUID{UUID: oldSidecarID, Valid: true}, database.ChatStatusWaiting)
+
+	// The sidecar pins matchingDirty to the latest build's eventual hash.
 	oldSidecarRPC := connectAgent(oldSidecarToken)
 	push(oldSidecarRPC, &agentproto.PushContextStateRequest{
 		Version:       1,
@@ -505,6 +485,7 @@ func TestChatContextAdoptsNewBuildFromAgentPush(t *testing.T) {
 		AggregateHash: []byte{newContextHash},
 		Resources:     []*agentproto.ContextResource{instructionResource("/new/AGENTS.md", "new instructions", newContextHash)},
 	})
+	// A later sidecar snapshot leaves that pin dirty.
 	push(oldSidecarRPC, &agentproto.PushContextStateRequest{
 		Version:       2,
 		Initial:       false,
@@ -516,18 +497,21 @@ func TestChatContextAdoptsNewBuildFromAgentPush(t *testing.T) {
 	require.True(t, matchingDirtyBefore.ContextDirtySince.Valid)
 	matchingDirtyResources := pinnedResources(matchingDirty.ID)
 	require.Len(t, matchingDirtyResources, 1)
+	// The old chat agent pins its chats to the prior context.
 	push(oldRPC, &agentproto.PushContextStateRequest{
 		Version:       1,
 		Initial:       true,
 		AggregateHash: []byte{oldContextHash},
 		Resources:     []*agentproto.ContextResource{instructionResource("/old/AGENTS.md", "old instructions", oldContextHash)},
 	})
+	// Its next snapshot marks those pins dirty.
 	push(oldRPC, &agentproto.PushContextStateRequest{
 		Version:       2,
 		Initial:       false,
 		AggregateHash: []byte{newContextHash},
 		Resources:     []*agentproto.ContextResource{instructionResource("/new/AGENTS.md", "new instructions", newContextHash)},
 	})
+	// Refresh one chat to match the latest build's eventual snapshot.
 	_, err = expClient.RefreshChatContext(ctx, unchanged.ID)
 	require.NoError(t, err)
 	unchangedResources := pinnedResources(unchanged.ID)
@@ -595,17 +579,7 @@ func TestChatContextAdoptsNewBuildFromAgentPush(t *testing.T) {
 		Status:      database.ChatStatusWaiting,
 	})
 
-	events := make(chan codersdk.ChatWatchEvent, 32)
-	cancelSub, err := ps.SubscribeWithErr(coderdpubsub.ChatWatchEventChannel(user.UserID),
-		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, event codersdk.ChatWatchEvent, err error) {
-			require.NoError(t, err)
-			if event.Kind == codersdk.ChatWatchEventKindContextDirty {
-				events <- event
-			}
-		}),
-	)
-	require.NoError(t, err)
-	t.Cleanup(cancelSub)
+	events := subscribeChatContextEvents(t, ps, user.UserID, uuid.Nil)
 
 	// A sidecar push must not adopt chats from the prior build.
 	sidecarRPC := connectAgent(sidecarToken)
@@ -622,6 +596,7 @@ func TestChatContextAdoptsNewBuildFromAgentPush(t *testing.T) {
 
 	// The selected chat agent adopts the latest build's context.
 	newRPC := connectAgent(newToken)
+	// The first accepted push need not carry Initial, which is process-scoped.
 	push(newRPC, &agentproto.PushContextStateRequest{
 		Version:       1,
 		Initial:       false,
@@ -1107,6 +1082,8 @@ func TestChatContextRefreshFromAgentToken(t *testing.T) {
 	require.Equal(t, 0, refresh.Refreshed, "nothing left to refresh")
 }
 
+// subscribeChatContextEvents watches context events for chatID, or every chat
+// owned by ownerID when chatID is uuid.Nil.
 func subscribeChatContextEvents(t *testing.T, ps dbpubsub.Pubsub, ownerID, chatID uuid.UUID) <-chan codersdk.ChatWatchEvent {
 	t.Helper()
 	events := make(chan codersdk.ChatWatchEvent, 16)
@@ -1116,7 +1093,7 @@ func subscribeChatContextEvents(t *testing.T, ps dbpubsub.Pubsub, ownerID, chatI
 			if !assert.NoError(t, err) {
 				return
 			}
-			if event.Kind == codersdk.ChatWatchEventKindContextDirty && event.Chat.ID == chatID {
+			if event.Kind == codersdk.ChatWatchEventKindContextDirty && (chatID == uuid.Nil || event.Chat.ID == chatID) {
 				events <- event
 			}
 		}),

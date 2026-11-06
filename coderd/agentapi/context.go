@@ -78,8 +78,9 @@ type ContextAPI struct {
 // ChatContextUpdater applies an agent's pushed snapshot to chats. Chatd
 // implements it so this package does not perform chat-authorized writes.
 type ChatContextUpdater interface {
-	// AdoptWorkspaceChatsContext adopts context for eligible workspace chats.
-	// It uses the supplied transaction and returns a post-commit callback.
+	// AdoptWorkspaceChatsContext rebinds workspace chats to agentID and re-pins
+	// context when hashes differ, if agentID is the latest build's selected chat
+	// agent. It uses the supplied transaction and returns a post-commit callback.
 	AdoptWorkspaceChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte) (publish func(), err error)
 	// UpdateAgentChatsContext pins unpinned chats, marks or clears dirty markers,
 	// and syncs errors and MCP/ACP resources using the supplied push transaction.

@@ -91,6 +91,8 @@ func (p *Server) UpdateAgentChatsContext(ctx context.Context, tx database.Store,
 	return p.chatContextPublisher(ctx, tx, touched)
 }
 
+// chatContextPublisher reads touched chats in tx and returns a callback that
+// publishes one context event per chat.
 func (p *Server) chatContextPublisher(ctx context.Context, tx database.Store, touched []uuid.UUID) (func(), error) {
 	if len(touched) == 0 {
 		return func() {}, nil
@@ -123,14 +125,12 @@ func (p *Server) AdoptWorkspaceChatsContext(ctx context.Context, tx database.Sto
 	ctx = dbauthz.AsChatd(ctx)
 	workspace, err := tx.GetWorkspaceByAgentID(ctx, agentID)
 	if errors.Is(err, sql.ErrNoRows) {
-		// An agent without a workspace has no workspace chats to adopt.
 		return func() {}, nil
 	}
 	if err != nil {
 		return nil, xerrors.Errorf("get workspace for context adoption: %w", err)
 	}
 	if workspace.Deleted {
-		// Deleted workspaces cannot adopt context.
 		return func() {}, nil
 	}
 	agents, err := tx.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
