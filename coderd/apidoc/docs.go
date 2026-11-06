@@ -357,6 +357,71 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/ai/spend": {
+            "get": {
+                "description": "Returns the AI spend of the organization in the period, read from the daily spend aggregate: the number of users with spend, the total spend of all users, the median spend across users with spend, the daily spend as one interval per UTC day in the period (omitting days after the current day), and one page of users, most spend first, with the groups their spend was attributed to. The count, totals, and daily spend cover every user with spend.\nThe optional period_start and period_end query parameters set the period. They must be provided together, be at 00:00:00 UTC, and span at most 31 days. When both are omitted, the current budget period is used.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get organization AI spend overview",
+                "operationId": "get-organization-ai-spend-overview",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Inclusive lower bound at 00:00:00 UTC (RFC3339)",
+                        "name": "period_start",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Exclusive upper bound at 00:00:00 UTC (RFC3339)",
+                        "name": "period_end",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page size (default 10, maximum 100)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationAISpendOverview"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/ai/spend/users": {
             "get": {
                 "description": "Returns one page of per-user AI spend for the organization, most expensive first, built from the same raw AI Gateway token usage as the CSV export so the two reconcile. Each user lists the providers and clients they spent through, and the response carries the user count, total spend, and unpriced usage count over every matching user.\nThe optional period_start and period_end query parameters bound the period and are interpreted as UTC. They must be provided together and span at most 31 days. When both are omitted, the current UTC monthly period is used.\nAn explicit period_start must fall within the configured AI Gateway data retention window, since older token usage is purged. The default period is narrowed to that window instead. The response echoes the applied bounds and, when retention is enabled, the start of the retention window.\nThe optional provider_name, model, and client query parameters restrict the spend report to usage matching all supplied filters. Use client=Unknown for usage with an unknown or missing client.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
@@ -28952,6 +29017,119 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string",
                     "format": "date-time"
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendOverview": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "description": "Count is the number of users with spend in the period.",
+                    "type": "integer"
+                },
+                "intervals": {
+                    "description": "Intervals holds the daily spend, one interval per UTC day in the period\n(omitting days after the current day). Days without spend are zero.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.OrganizationAISpendOverviewInterval"
+                    }
+                },
+                "period_end": {
+                    "description": "PeriodEnd is the exclusive upper bound of the current budget\nperiod.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "period_start": {
+                    "description": "PeriodStart is the inclusive lower bound of the current budget\nperiod.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "totals": {
+                    "$ref": "#/definitions/codersdk.OrganizationAISpendOverviewTotals"
+                },
+                "users": {
+                    "description": "Users is the requested page, most spend first.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.OrganizationAISpendOverviewUser"
+                    }
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendOverviewGroup": {
+            "type": "object",
+            "properties": {
+                "group_display_name": {
+                    "type": "string"
+                },
+                "group_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "group_name": {
+                    "type": "string"
+                },
+                "spend_micros": {
+                    "description": "SpendMicros is the user's spend attributed to this group in the period.",
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendOverviewInterval": {
+            "type": "object",
+            "properties": {
+                "end_time": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "spend_micros": {
+                    "type": "integer"
+                },
+                "start_time": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendOverviewTotals": {
+            "type": "object",
+            "properties": {
+                "median_spend_micros": {
+                    "description": "MedianSpendMicros is the median spend across users with spend in the\nperiod. It is zero when no user has spend.",
+                    "type": "integer"
+                },
+                "spend_micros": {
+                    "description": "SpendMicros is the total spend of all users in the period.",
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.OrganizationAISpendOverviewUser": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "groups": {
+                    "description": "Groups are the groups the user's spend was attributed to, most spend\nfirst.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.OrganizationAISpendOverviewGroup"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "spend_micros": {
+                    "description": "SpendMicros is the user's total spend in the period, across all of\ntheir groups.",
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "username": {
+                    "type": "string"
                 }
             }
         },
