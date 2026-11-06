@@ -205,8 +205,10 @@ func (*RootCmd) chatContextAddCommand(socketPath *string) *serpent.Command {
 			"The agent treats it as an extra scan root, applying the same discovery rules " +
 			"it uses for the working directory: AGENTS.md / CLAUDE.md / .cursorrules, " +
 			".agents/skills/<name>/SKILL.md, and .mcp.json are picked up now and as they " +
-			"appear. Any change to a recognized file dirties this workspace's chats until " +
-			"you refresh.\n\nA path may be a file or a directory. Must be run from inside " +
+			"appear. Instruction and skill changes mark this workspace's chats dirty while " +
+			"they differ from the pinned context. Refresh adopts the latest context; " +
+			"reverting the changes also clears the marker.\n\n" +
+			"A path may be a file or a directory. Must be run from inside " +
 			"the workspace.",
 		Middleware: serpent.RequireNArgs(1),
 		Handler: func(inv *serpent.Invocation) error {

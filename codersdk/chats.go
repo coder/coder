@@ -344,14 +344,15 @@ type CreateChatProjectMemoryRequest struct {
 // drifted from the agent's latest pushed snapshot. The chat stays usable
 // when dirty; refreshing re-pins it to the latest snapshot.
 type ChatContext struct {
-	// Dirty is true when the agent's latest instruction and skill hash differs
-	// from the chat's pinned hash. MCP and ACP resources and snapshot errors do
-	// not affect drift.
+	// Dirty is true when the aggregate hash of the agent's latest instruction
+	// and skill resources differs from the chat's pinned aggregate hash. MCP
+	// and ACP resources and snapshot errors do not affect dirty markers.
 	Dirty bool `json:"dirty"`
-	// DirtySince is when drift was first detected; nil when not dirty.
+	// DirtySince is when the chat was first marked dirty; nil when not dirty.
 	DirtySince *time.Time `json:"dirty_since,omitempty" format:"date-time"`
-	// Error is the agent's latest snapshot-level error, live-synced on pushes
-	// independently of the pinned hash (empty when healthy).
+	// Error is the most recently synchronized snapshot-level error (empty when
+	// healthy). Pushes update it for unarchived chats independently of the
+	// pinned aggregate hash.
 	Error string `json:"error,omitempty"`
 	// Resources is the chat's pinned workspace-context inventory,
 	// metadata only (no bodies). It is populated only on the single-chat
@@ -2306,9 +2307,9 @@ const (
 	ChatWatchEventKindDeleted          ChatWatchEventKind = "deleted"
 	ChatWatchEventKindDiffStatusChange ChatWatchEventKind = "diff_status_change"
 	ChatWatchEventKindActionRequired   ChatWatchEventKind = "action_required"
-	// ChatWatchEventKindContextDirty signals a workspace-context update:
-	// drift appeared or cleared, context was pinned or refreshed, or live
-	// resources or the snapshot error changed.
+	// ChatWatchEventKindContextDirty signals workspace-context updates, not
+	// just dirty-state changes: pinning, refresh, setting or clearing dirty
+	// markers, or changes to live resources or the snapshot error.
 	ChatWatchEventKindContextDirty ChatWatchEventKind = "context_dirty"
 	// ChatWatchEventKindProjectChange is published for each chat of a
 	// family after its root chat moves into, between or out of projects.

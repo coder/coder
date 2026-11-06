@@ -22105,16 +22105,16 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "dirty": {
-                    "description": "Dirty is true when the agent's latest instruction and skill hash differs\nfrom the chat's pinned hash. MCP and ACP resources and snapshot errors do\nnot affect drift.",
+                    "description": "Dirty is true when the aggregate hash of the agent's latest instruction\nand skill resources differs from the chat's pinned aggregate hash. MCP\nand ACP resources and snapshot errors do not affect dirty markers.",
                     "type": "boolean"
                 },
                 "dirty_since": {
-                    "description": "DirtySince is when drift was first detected; nil when not dirty.",
+                    "description": "DirtySince is when the chat was first marked dirty; nil when not dirty.",
                     "type": "string",
                     "format": "date-time"
                 },
                 "error": {
-                    "description": "Error is the agent's latest snapshot-level error, live-synced on pushes\nindependently of the pinned hash (empty when healthy).",
+                    "description": "Error is the most recently synchronized snapshot-level error (empty when\nhealthy). Pushes update it for unarchived chats independently of the\npinned aggregate hash.",
                     "type": "string"
                 },
                 "resources": {
