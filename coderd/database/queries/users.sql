@@ -446,8 +446,9 @@ WHERE
 
 -- name: GetUsers :many
 -- This will never return deleted users.
+WITH filtered_users AS NOT MATERIALIZED (
 SELECT
-	*, COUNT(*) OVER() AS count
+	*
 FROM
 	users
 WHERE
@@ -564,9 +565,26 @@ WHERE
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
 	-- @authorize_filter
+)
+SELECT
+	filtered_users.*,
+	-- COUNT(*) OVER () pushes every matching row through a window before
+	-- the LIMIT applies. A separate count lets the page walk
+	-- users_username_lower_idx and stop after LIMIT rows. Unindexed filters
+	-- that are expensive or usually match few rows (ILIKE searches, roles)
+	-- keep the single pass window count instead of scanning twice.
+	-- Parameters are known at plan time, so Postgres removes the unused
+	-- branch.
+	CASE
+		WHEN @search :: text = '' AND @name :: text = '' AND cardinality(@rbac_role :: text[]) = 0
+			THEN (SELECT COUNT(*) FROM filtered_users)
+		ELSE COUNT(*) OVER ()
+	END :: bigint AS count
+FROM
+	filtered_users
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET @offset_opt
+	LOWER(filtered_users.username) ASC OFFSET @offset_opt
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
 	NULLIF(@limit_opt :: int, 0);
