@@ -21,7 +21,7 @@ export const TerminalPreview: React.FC<TerminalPreviewProps> = ({
 	return (
 		<div
 			aria-hidden
-			className="w-full max-w-lg overflow-hidden rounded-md border border-solid border-border bg-black p-2 text-white select-none"
+			className="w-full min-w-0 flex-1 overflow-hidden rounded-md border border-solid border-border bg-black p-2 text-white select-none"
 			style={{ fontFamily, fontSize }}
 		>
 			<pre className="m-0 whitespace-pre-wrap break-all font-[inherit]">

@@ -242,7 +242,7 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 				}
 				layout="fluid"
 			>
-				<div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-12">
+				<div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-16">
 					<div className="shrink-0">
 						<RadioGroup
 							aria-labelledby={fontGroupLabelId}
