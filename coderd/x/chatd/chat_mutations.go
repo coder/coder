@@ -72,7 +72,7 @@ func (p *Server) SendMessage(
 
 	busyBehavior := opts.BusyBehavior
 	if busyBehavior == "" {
-		busyBehavior = SendMessageBusyBehaviorQueue
+		busyBehavior = SendMessageBusyBehaviorSteer
 	}
 	switch busyBehavior {
 	case SendMessageBusyBehaviorQueue, SendMessageBusyBehaviorSteer, SendMessageBusyBehaviorInterrupt:
@@ -218,9 +218,9 @@ func (p *Server) SendMessage(
 			// last in the inserted slice.
 			result.Message = sendResult.InsertedMessages[len(sendResult.InsertedMessages)-1]
 		}
-		// A queued send on an errored chat can also promote the
-		// previous queue head into history; report those inserts so
-		// clients can update their caches.
+		// A send to an errored or paused chat can also insert queued
+		// messages; report those inserts so clients can update their
+		// caches.
 		result.InsertedMessages = sendResult.InsertedMessages
 		promotedQueuedAt = sendResult.PromotedQueuedAt
 		finishedInterruption = sendResult.FinishedInterruption
@@ -862,15 +862,16 @@ func translateToolResultValidationError(err error) error {
 // transition. Active runs land in `interrupting`; requires-action
 // chats synthesize cancellation messages and return to running.
 //
-// Returns the post-transition chat and an error so callers can map
-// state conflicts deliberately. Idle chats return a
-// chatstate.ErrTransitionNotAllowed wrapper.
+// Returns the post-transition chat, whether the call interrupted
+// anything, and an error so callers can map state conflicts
+// deliberately. A chat with nothing to interrupt, such as an idle
+// chat, is returned unchanged without an error.
 func (p *Server) InterruptChat(
 	ctx context.Context,
 	chat database.Chat,
-) (database.Chat, error) {
+) (database.Chat, bool, error) {
 	if chat.ID == uuid.Nil {
-		return chat, xerrors.New("chat_id is required")
+		return chat, false, xerrors.New("chat_id is required")
 	}
 
 	var result chatstate.InterruptResult
@@ -882,14 +883,14 @@ func (p *Server) InterruptChat(
 		return err
 	})
 	if err != nil {
-		return chat, err
+		return chat, false, err
 	}
 
 	p.recordQueueWait(ctx, refreshed, result.PromotedQueuedAt)
 	if result.FinishedInterruption {
 		p.afterInlineInterruption(ctx, refreshed)
 	}
-	return refreshed, nil
+	return refreshed, result.Interrupted, nil
 }
 
 // afterInlineInterruption applies the side effects a worker applies

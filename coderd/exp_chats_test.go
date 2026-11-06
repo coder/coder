@@ -8432,7 +8432,6 @@ func TestSendMessageWithReasoningEffortUpdatesLastReasoningEffort(t *testing.T) 
 			Type: codersdk.ChatInputPartTypeText,
 			Text: "and another thing",
 		}},
-		BusyBehavior: codersdk.ChatBusyBehaviorInterrupt,
 	})
 	require.NoError(t, err)
 

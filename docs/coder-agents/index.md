@@ -123,7 +123,13 @@ The agent can resume work by creating a new workspace with the same template and
 ### Message queuing
 
 Users can send follow-up messages while the agent is actively working.
-Messages are queued and delivered when the agent completes its current step, so there is no need to wait for a response before providing additional context or changing direction.
+Messages are held and delivered before the agent's next model call, so there is no need to wait for a response before providing additional context or changing direction.
+Interrupt the agent only to stop it, not to send it a message.
+A message waits for the current step to finish, so a long tool call delays it.
+After an interrupt, the agent starts with the messages that were already held.
+A message sent while the agent works can change the model: the agent uses that message's model from its next model call.
+When several messages are delivered together, the agent uses the model of the last one, and the reasoning effort of the last one that sets an effort.
+API and MCP clients can set `busy_behavior` to `queue` to deliver a message when the current turn ends instead.
 Users can edit a queued message before it is delivered.
 While it is being edited, it and the messages behind it wait.
 
