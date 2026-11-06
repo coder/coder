@@ -46,12 +46,13 @@ If you open a new shell, set these variables again, and run the `export KUBECONF
 Do this section while the workstation has internet access.
 
 1. Create a directory for the artifacts and open it.
-   Choose a location with at least 2&nbsp;GB of free space, and stay in this directory for the rest of the tutorial.
 
    ```sh
    mkdir -p airgap-stage/coder-image airgap-stage/workspace-image airgap-stage/debs
    cd airgap-stage
    ```
+
+   Choose a location with at least 2&nbsp;GB of free space, and stay in this directory for the rest of the tutorial.
 
 1. Set the versions that these steps use.
 
