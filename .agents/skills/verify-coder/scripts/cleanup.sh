@@ -134,16 +134,20 @@ archive_logs() {
 	echo "moved ${kept[*]:-no logs} to the evidence folder, which keeps every journey and hand-driven folder"
 }
 
-# postgres_running succeeds while Postgres runs from this checkout's .coderv2.
-# Postgres keeps postmaster.pid in its data folder while it runs. It can
-# outlive a crashed coder server, or belong to a plain develop.sh run on the
-# same folder. A pid that cleanup cannot identify counts as running.
+# postgres_running succeeds and prints the pid while Postgres runs from this
+# checkout's .coderv2. Postgres keeps postmaster.pid in its data folder, which
+# is also its working folder, while it runs. It can outlive a crashed coder
+# server, or belong to a plain develop.sh run on the same folder. A live pid
+# that cleanup cannot identify counts as running.
 postgres_running() {
-	local pid exe
-	pid="$(head -n 1 "$VC_CONFIG_DIR/postgres/data/postmaster.pid" 2>/dev/null)" || return 1
+	local data="$VC_CONFIG_DIR/postgres/data" pid exe
+	pid="$(head -n 1 "$data/postmaster.pid" 2>/dev/null)" || return 1
 	[[ "$pid" =~ ^[0-9]+$ && -d "/proc/$pid" ]] || return 1
+	echo "$pid"
 	exe="$(readlink "/proc/$pid/exe")" || return 0
-	[[ "${exe##*/}" == postgres ]]
+	readlink "/proc/$pid/cwd" >/dev/null || return 0
+	exe="${exe% (deleted)}"
+	[[ "${exe##*/}" == postgres && "/proc/$pid/cwd" -ef "$data" ]]
 }
 
 # --keep-data hands the folder over: without the marker, a later cleanup keeps
@@ -160,8 +164,9 @@ remove_data() {
 	fi
 	# The harness's server is stopped by now, so a Postgres that still runs
 	# was left by a crashed server or belongs to a plain develop.sh run.
-	if postgres_running; then
-		echo "Postgres pid $(head -n 1 "$VC_CONFIG_DIR/postgres/data/postmaster.pid") still runs from $VC_CONFIG_DIR, so it stays: if no develop.sh uses that folder, stop it with kill -INT <pid> and run cleanup.sh again, or run cleanup.sh --keep-data"
+	local pg_pid
+	if pg_pid="$(postgres_running)"; then
+		echo "Postgres pid $pg_pid still runs from .coderv2: kill -INT $pg_pid if no develop.sh uses it, then rerun, or use --keep-data"
 		return 1
 	fi
 	# The marker goes last, so a removal that fails part way still counts as

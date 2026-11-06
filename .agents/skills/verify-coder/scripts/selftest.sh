@@ -265,48 +265,69 @@ setup_gates() {
 }
 vc_check setup-gates setup_gates
 
-# cleanup.sh must keep .coderv2 and fail while a Postgres runs from it, and
-# remove it when postmaster.pid names a dead pid or another program. A copy of
-# bash named postgres stands in for Postgres.
+# cleanup.sh must keep .coderv2 and fail while a Postgres runs from it, also
+# when its binary was deleted or its pid cannot be identified (a zombie), and
+# remove .coderv2 otherwise. A copy of bash named postgres stands in for
+# Postgres, which runs from its data folder.
 cleanup_keeps_running_postgres() {
-	local case pid dead want_rc
+	local case pid dead keep data="$scratch_config/postgres/data" loop='while :; do sleep 1; done'
+	local others=()
 	mkdir -p "$tmp/fake"
-	cp "$(command -v bash)" "$tmp/fake/postgres"
-	for case in running dead other-program; do
+	for case in running deleted-binary zombie dead other-folder other-program no-pid-file; do
 		scratch_reset
-		mkdir -p "$scratch_run" "$repo/build/verify-coder/evidence" "$scratch_config/postgres/data"
+		mkdir -p "$scratch_run" "$repo/build/verify-coder/evidence" "$data"
 		touch "$scratch_config/.verify-coder-created"
 		true &
 		dead=$!
 		wait "$dead"
 		printf 'VC_PID=%q\nVC_LOG=%q\nVC_STARTED_AT=%q\nVC_ADMIN_PASSWORD=x\n' "$dead" "$scratch_run/develop.log" "$(date -u +%FT%TZ)" >"$scratch_run/env"
+		rm -rf "$tmp/fake/$case"
+		mkdir -p "$tmp/fake/$case"
+		cp "$(command -v bash)" "$tmp/fake/$case/postgres"
+		pid="$dead"
+		keep=0
 		case "$case" in
-		running) "$tmp/fake/postgres" -c 'while :; do sleep 1; done' & ;;
-		other-program) sleep 60 & ;;
+		running | deleted-binary)
+			(cd "$data" && exec "$tmp/fake/$case/postgres" -c "$loop") &
+			pid=$!
+			keep=1
+			;;
+		zombie)
+			# The child exits at once, and the parent execs sleep, which never
+			# reaps it.
+			(cd "$data" && exec bash -c 'sleep 0 & echo $! >"$1"; exec sleep 10' _ "$tmp/zombie.pid") &
+			others+=("$!")
+			sleep 1
+			pid="$(cat "$tmp/zombie.pid")"
+			keep=1
+			;;
+		other-folder)
+			(cd "$tmp" && exec "$tmp/fake/$case/postgres" -c "$loop") &
+			pid=$!
+			;;
+		other-program)
+			(cd "$data" && exec sleep 60) &
+			pid=$!
+			;;
 		esac
-		pid=$!
-		if [[ "$case" == dead ]]; then
-			pid="$dead"
+		if [[ "$case" == deleted-binary ]]; then
+			rm "$tmp/fake/$case/postgres"
 		fi
-		echo "$pid" >"$scratch_config/postgres/data/postmaster.pid"
+		if [[ "$case" != no-pid-file ]]; then
+			echo "$pid" >"$data/postmaster.pid"
+		fi
 		scratch_run_script cleanup.sh ""
-		kill "$pid" 2>/dev/null || true
-		want_rc=0
-		if [[ "$case" == running ]]; then
-			want_rc=1
-		fi
-		[[ "$rc" == "$want_rc" ]] || {
-			echo "$case: cleanup.sh exited $rc: ${out##*$'\n'}"
-			return 1
-		}
-		if [[ "$case" == running ]]; then
-			[[ -d "$scratch_config" && "$out" == *"Postgres pid $pid still runs from"* ]] || {
-				echo "running: cleanup.sh removed .coderv2 or did not name the Postgres pid"
+		kill "$pid" "${others[@]}" 2>/dev/null || true
+		if ((keep)); then
+			[[ "$rc" == 1 && -d "$scratch_config" && "$out" == *"Postgres pid $pid still runs from .coderv2"* ]] || {
+				echo "$case: cleanup.sh exited $rc and did not keep .coderv2 for pid $pid: ${out##*$'\n'}"
 				return 1
 			}
-		elif [[ -d "$scratch_config" ]]; then
-			echo "$case: cleanup.sh kept .coderv2"
-			return 1
+		else
+			[[ "$rc" == 0 && ! -d "$scratch_config" ]] || {
+				echo "$case: cleanup.sh exited $rc or kept .coderv2: ${out##*$'\n'}"
+				return 1
+			}
 		fi
 	done
 	echo "cleanup.sh keeps .coderv2 only while a Postgres runs from it"

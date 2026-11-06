@@ -157,15 +157,24 @@ save_password() {
 # until it is ready. The pid goes on record at once, so cleanup.sh can stop a
 # launch that fails before develop reports its ports.
 run_develop() {
-	local ports
+	local ports alive
 	vc_start_develop "$log" "$password" "$develop_in_coder" "$@" -- "${server_flags[@]}"
 	pid="$VC_DEVELOP_PID"
 	api_port=""
 	web_port=""
 	write_env
+	# Both waits check that develop runs before they read its log, so a
+	# develop that writes a line and exits between the two still counts as
+	# having written it.
 	deadline=$((SECONDS + 120))
-	until ports="$(sed -n 's/.*resolved listen ports .*api=\([0-9][0-9]*\) .*web=\([0-9][0-9]*\) .*/\1 \2/p' "$log" | head -n 1)" && [[ -n "$ports" ]]; do
-		if ! kill -0 "$pid" 2>/dev/null || ((SECONDS >= deadline)); then
+	while :; do
+		alive=0
+		if kill -0 "$pid" 2>/dev/null; then
+			alive=1
+		fi
+		ports="$(sed -n 's/.*resolved listen ports .*api=\([0-9][0-9]*\) .*web=\([0-9][0-9]*\) .*/\1 \2/p' "$log" | head -n 1)"
+		[[ -z "$ports" ]] || break
+		if ((!alive || SECONDS >= deadline)); then
 			vc_log_tail 20 "$log" "$password" >&2
 			vc_fail "develop.sh reported no ports, see $log, then run cleanup.sh"
 		fi
@@ -175,9 +184,16 @@ run_develop() {
 	write_env
 	echo "started develop.sh as pid $pid (api $api_port, web $web_port, log: $log)"
 	deadline=$((SECONDS + ${VERIFY_CODER_TIMEOUT:-900}))
-	until grep -q 'Coder is now running in development mode' "$log"; do
+	while :; do
+		alive=0
+		if kill -0 "$pid" 2>/dev/null; then
+			alive=1
+		fi
 		save_password
-		if ! kill -0 "$pid" 2>/dev/null; then
+		if grep -q 'Coder is now running in development mode' "$log"; then
+			break
+		fi
+		if ((!alive)); then
 			vc_log_tail 40 "$log" "$password" >&2
 			vc_fail "develop.sh exited before it was ready, see $log, then run cleanup.sh"
 		fi
@@ -187,7 +203,6 @@ run_develop() {
 		fi
 		sleep 2
 	done
-	save_password
 }
 
 # develop.sh creates the first user, the owner, through the unauthenticated
