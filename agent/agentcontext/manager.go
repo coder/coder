@@ -305,8 +305,8 @@ func (m *Manager) HasSource(path string) (canonical string, ok bool) {
 }
 
 // AddSource validates a new source against the AllowedRoots set
-// and registers it by its lexical identity. AddSource is
-// idempotent.
+// and registers it by its lexical identity. AddSource is idempotent, but
+// rejects built-in roots and the working directory, which are always scanned.
 func (m *Manager) AddSource(s Source) (Source, error) {
 	identity, err := lexicalPath(s.Path)
 	if err != nil {
@@ -316,6 +316,18 @@ func (m *Manager) AddSource(s Source) (Source, error) {
 	resolved, err := CanonicalizePath(s.Path)
 	if err != nil {
 		return Source{}, xerrors.Errorf("canonicalize: %w", err)
+	}
+	for _, root := range defaultBuiltinRoots() {
+		builtin, err := CanonicalizePath(root)
+		if err == nil && resolved == builtin {
+			return Source{}, xerrors.Errorf("cannot add source %q: %w; it is a built-in scan root and is always scanned", identity, ErrSourceManaged)
+		}
+	}
+	if m.workingDir != nil {
+		wd, err := CanonicalizePath(m.workingDir())
+		if err == nil && resolved == wd {
+			return Source{}, xerrors.Errorf("cannot add source %q: %w; it is the working directory and is always scanned", identity, ErrSourceManaged)
+		}
 	}
 	if err := ValidateSourcePath(resolved, m.effectiveAllowedRoots()); err != nil {
 		return Source{}, err
@@ -371,7 +383,7 @@ func (m *Manager) SeedSources(sources []Source) {
 
 // RemoveSource removes the source matching path by its lexical
 // identity, returning ErrSourceNotFound if none matches. Sources from agent
-// configuration, built-in roots, and the working directory cannot be removed.
+// configuration cannot be removed.
 func (m *Manager) RemoveSource(path string) error {
 	identity, err := lexicalPath(path)
 	if err != nil {
@@ -382,27 +394,10 @@ func (m *Manager) RemoveSource(path string) error {
 		return ErrSourceNotFound
 	}
 
-	resolved, err := CanonicalizePath(identity)
-	if err != nil {
-		return xerrors.Errorf("canonicalize: %w", err)
-	}
-	for _, root := range defaultBuiltinRoots() {
-		builtin, err := CanonicalizePath(root)
-		if err == nil && resolved == builtin {
-			return xerrors.Errorf("cannot remove source %q: it is a built-in scan root and is always scanned", identity)
-		}
-	}
-	if m.workingDir != nil {
-		wd, err := CanonicalizePath(m.workingDir())
-		if err == nil && resolved == wd {
-			return xerrors.Errorf("cannot remove source %q: it is the working directory and is always scanned", identity)
-		}
-	}
-
 	m.mu.Lock()
 	if _, seeded := m.seededSources[identity]; seeded {
 		m.mu.Unlock()
-		return xerrors.Errorf("cannot remove source %q: it is seeded from agent configuration; update CODER_AGENT_EXP_*_DIRS or CODER_AGENT_EXP_MCP_CONFIG_FILES instead", identity)
+		return xerrors.Errorf("cannot remove source %q: %w; it is seeded from agent configuration (CODER_AGENT_EXP_* settings or their defaults)", identity, ErrSourceManaged)
 	}
 	idx, ok := m.sourceIndex[identity]
 	if !ok {
@@ -739,6 +734,10 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 // ErrSourceNotFound is returned by RemoveSource when the
 // requested path is not in the source list.
 var ErrSourceNotFound = xerrors.New("source not found")
+
+// ErrSourceManaged is returned when adding an automatically scanned root or
+// removing a source seeded from agent configuration.
+var ErrSourceManaged = xerrors.New("source is managed by the agent")
 
 // ErrManagerClosed is returned by methods called after Close.
 var ErrManagerClosed = xerrors.New("agentcontext: manager closed")

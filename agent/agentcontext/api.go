@@ -102,7 +102,11 @@ func (a *API) handleAddSource(rw http.ResponseWriter, r *http.Request) {
 	}
 	s, err := a.manager.AddSource(Source(req))
 	if err != nil {
-		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+		status := http.StatusBadRequest
+		if errors.Is(err, ErrSourceManaged) {
+			status = http.StatusConflict
+		}
+		httpapi.Write(r.Context(), rw, status, codersdk.Response{
 			Message: "Could not add context source.",
 			Detail:  err.Error(),
 		})
@@ -150,7 +154,11 @@ func (a *API) handleRemoveSource(rw http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+		status := http.StatusBadRequest
+		if errors.Is(err, ErrSourceManaged) {
+			status = http.StatusConflict
+		}
+		httpapi.Write(r.Context(), rw, status, codersdk.Response{
 			Message: "Could not remove context source.",
 			Detail:  err.Error(),
 		})

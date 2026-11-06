@@ -100,6 +100,24 @@ func TestAPI_AddSourceRejected(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, status)
 }
 
+func TestAPI_AddAutomaticRoot(t *testing.T) {
+	t.Parallel()
+	wd := testutil.TempDirResolved(t)
+	for _, path := range []string{wd, "~/.coder"} {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+			srv, m := newAPITestServer(t, agentcontext.ManagerOptions{
+				WorkingDir: func() string { return wd },
+			})
+			body, err := json.Marshal(agentcontext.SourceRequest{Path: path})
+			require.NoError(t, err)
+			status, _ := doRequest(t, http.MethodPost, srv.URL+"/sources", bytes.NewReader(body))
+			require.Equal(t, http.StatusConflict, status)
+			require.Empty(t, m.Sources())
+		})
+	}
+}
+
 func TestAPI_GetAndDeleteSource(t *testing.T) {
 	t.Parallel()
 	wd := t.TempDir()
@@ -133,7 +151,7 @@ func TestAPI_DeleteSeededSource(t *testing.T) {
 	})
 
 	status, body := doRequest(t, http.MethodDelete, srv.URL+"/sources/"+url.PathEscape(src), nil)
-	require.Equal(t, http.StatusBadRequest, status)
+	require.Equal(t, http.StatusConflict, status)
 	require.Contains(t, string(body), "agent configuration")
 	require.Equal(t, []agentcontext.Source{{Path: src}}, m.Sources())
 }
@@ -150,12 +168,18 @@ func TestAPI_GetSourceNotFound(t *testing.T) {
 
 func TestAPI_DeleteSourceNotFound(t *testing.T) {
 	t.Parallel()
+	wd := testutil.TempDirResolved(t)
 	srv, _ := newAPITestServer(t, agentcontext.ManagerOptions{
-		WorkingDir: func() string { return t.TempDir() },
+		WorkingDir: func() string { return wd },
 	})
 
-	status, _ := doRequest(t, http.MethodDelete, srv.URL+"/sources/"+url.PathEscape("/never-added"), nil)
-	require.Equal(t, http.StatusNotFound, status)
+	for _, path := range []string{"/never-added", wd, "~/.coder"} {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+			status, _ := doRequest(t, http.MethodDelete, srv.URL+"/sources/"+url.PathEscape(path), nil)
+			require.Equal(t, http.StatusNotFound, status)
+		})
+	}
 }
 
 func TestAPI_Resync(t *testing.T) {
