@@ -38,15 +38,15 @@ To change it, you need permission to edit that organization's models.
 1. Select **Save**.
 
 The **Computer use** row appears only while the `chat-virtual-desktop` experiment is enabled.
-The list shows the organization's enabled models whose AI provider type is Anthropic or OpenAI, because computer use supports only those provider types.
-To add a model to the list, enable an Anthropic or OpenAI model on the **Models** page.
+The list shows the organization's enabled models that computer use supports: models from Anthropic and OpenAI AI providers, and Claude models from AWS Bedrock AI providers.
+To add a model to the list, enable one of these models on the **Models** page.
 
 When no model is selected, the row shows **Use default model** and computer use runs on the organization's default model.
 To return to the default model, select **Clear**, then select **Save**.
-If the selected model is later disabled, deleted, moved to an AI provider whose type isn't Anthropic or OpenAI, or unusable for the chat owner, computer use falls back to the organization's default model.
+If the selected model is later disabled, deleted, changed to a model that computer use doesn't support, or unusable for the chat owner, computer use falls back to the organization's default model.
 
 Computer use is unavailable in a chat when the chat owner has no usable [credentials](../models.md#credential-selection) for the AI provider of the model it runs on.
-It's also unavailable when it runs on the organization's default model and that model's AI provider type isn't Anthropic or OpenAI.
+It's also unavailable when it runs on the organization's default model and computer use doesn't support that model.
 OpenAI computer use requires the Responses API, so it fails on an OpenAI model whose **Use Responses API** override is set to Off.
 
 A warning icon next to the model selector means that Coder hasn't verified the model for computer use, or that the model's AI provider type is OpenAI and its **Use Responses API** override is set to Off.
@@ -62,4 +62,4 @@ To turn the Responses API back on for a model whose AI provider type is OpenAI:
 1. Select **Update model**.
 
 You can also choose the computer use model through the API at `PUT /api/v2/organizations/{organization}/chats/model-overrides/computer_use`.
-The request fails with `404 Not Found` while the experiment is disabled, and with `400 Bad Request` when the model's AI provider type is not Anthropic or OpenAI.
+The request fails with `404 Not Found` while the experiment is disabled, and with `400 Bad Request` when computer use doesn't support the model.
