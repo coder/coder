@@ -26,8 +26,8 @@ func TestExpChatContextRemove(t *testing.T) {
 
 	wd := testutil.TempDirResolved(t)
 	instructions := filepath.Join(wd, "instructions")
-	skills := filepath.Join(wd, "skills")
-	mcpConfig := filepath.Join(wd, "mcp.json")
+	skills := filepath.Join(wd, ".agents", "skills")
+	mcpConfig := filepath.Join(wd, ".mcp.json")
 	for _, dir := range []string{wd, instructions, skills} {
 		require.NoError(t, os.MkdirAll(dir, 0o700))
 	}
@@ -43,9 +43,9 @@ func TestExpChatContextRemove(t *testing.T) {
 		o.SocketPath = socketPath
 		o.SocketServerEnabled = true
 		o.ContextConfig = agentcontextconfig.Config{
-			InstructionsDirs: "instructions",
-			SkillsDirs:       "skills",
-			MCPConfigFiles:   "mcp.json",
+			InstructionsDirs: "instructions," + agentcontextconfig.DefaultInstructionsDir,
+			SkillsDirs:       agentcontextconfig.DefaultSkillsDir,
+			MCPConfigFiles:   agentcontextconfig.DefaultMCPConfigFile,
 		}
 	})
 	coderdtest.NewWorkspaceAgentWaiter(t, client, workspace.ID).WaitFor(coderdtest.AgentsReady)
@@ -65,24 +65,23 @@ func TestExpChatContextRemove(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name   string
-		path   string
+		args   []string
 		reason string
 	}{
-		{name: "Instructions", path: instructions, reason: "agent configuration"},
-		{name: "Skills", path: skills, reason: "agent configuration"},
-		{name: "MCPConfig", path: mcpConfig, reason: "agent configuration"},
-		{name: "Builtin", path: "~/.coder", reason: "built-in scan root"},
-		{name: "WorkingDirectory", path: wd, reason: "working directory"},
+		{name: "Instructions", args: []string{"remove", instructions}, reason: "CODER_AGENT_EXP_* settings or their defaults"},
+		{name: "DefaultSkills", args: []string{"remove", skills}, reason: "CODER_AGENT_EXP_* settings or their defaults"},
+		{name: "DefaultMCPConfig", args: []string{"remove", mcpConfig}, reason: "CODER_AGENT_EXP_* settings or their defaults"},
+		{name: "SeededBuiltin", args: []string{"remove", "~/.coder"}, reason: "agent configuration"},
+		{name: "AddBuiltin", args: []string{"add", "~/.coder"}, reason: "built-in scan root"},
+		{name: "AddWorkingDirectory", args: []string{"add", wd}, reason: "working directory"},
 	} {
-		_, err := run(t, "add", tc.path)
-		require.NoError(t, err)
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			before, err := run(t, "list", "--output", "json")
 			require.NoError(t, err)
-			stdout, err := run(t, "remove", tc.path)
+			stdout, err := run(t, tc.args...)
 			require.ErrorContains(t, err, tc.reason)
-			require.Empty(t, stdout, "rejected removal must not report success")
+			require.Empty(t, stdout, "rejected source change must not report success")
 			after, err := run(t, "list", "--output", "json")
 			require.NoError(t, err)
 			require.JSONEq(t, before, after)
