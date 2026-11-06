@@ -116,7 +116,14 @@ func TestPushContextState(t *testing.T) {
 		api, dbm := makeAPI(t)
 		updater := &fakeChatContextUpdater{}
 		api.ChatContextUpdater = updater
-		expectInTx(dbm)
+		dbm.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+			func(f func(database.Store) error, _ *database.TxOptions) error {
+				err := f(dbm)
+				require.Zero(t, updater.published)
+				require.Zero(t, updater.adoptionPublished)
+				return err
+			},
+		)
 
 		dbm.EXPECT().GetLatestWorkspaceAgentContextSnapshot(gomock.Any(), agentID).
 			Return(database.WorkspaceAgentContextSnapshot{}, errNoRows())
@@ -142,6 +149,8 @@ func TestPushContextState(t *testing.T) {
 		// callback publishes only after the transaction commits.
 		require.Equal(t, 1, updater.called)
 		require.Equal(t, 1, updater.published)
+		require.Equal(t, 1, updater.adoptionCalled)
+		require.Equal(t, 1, updater.adoptionPublished)
 		require.Equal(t, agentID, updater.gotAgent)
 		require.Equal(t, []byte{0xaa, 0xbb}, updater.gotHash)
 		require.Equal(t, "watcher degraded", updater.gotErr)
@@ -168,8 +177,10 @@ func TestPushContextState(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.False(t, resp.GetAccepted())
-		require.Equal(t, 0, updater.called)
-		require.Equal(t, 0, updater.published)
+		require.Zero(t, updater.called)
+		require.Zero(t, updater.published)
+		require.Zero(t, updater.adoptionCalled)
+		require.Zero(t, updater.adoptionPublished)
 	})
 
 	t.Run("RejectsEmptyAndDuplicateSources", func(t *testing.T) {
@@ -470,6 +481,8 @@ func TestPushContextState(t *testing.T) {
 		t.Parallel()
 
 		api, dbm := makeAPI(t)
+		updater := &fakeChatContextUpdater{}
+		api.ChatContextUpdater = updater
 
 		// First attempt: the closure runs fully but the commit fails
 		// with a serialization error because a concurrent push won the
@@ -513,6 +526,9 @@ func TestPushContextState(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.False(t, resp.GetAccepted())
+		require.Equal(t, 1, updater.adoptionCalled)
+		require.Zero(t, updater.adoptionPublished)
+		require.Zero(t, updater.published)
 	})
 
 	t.Run("ServerSideLimits", func(t *testing.T) {
@@ -693,11 +709,18 @@ func mcpServerResource(source, serverName, description string) *agentproto.Conte
 
 // fakeChatContextUpdater records snapshot arguments and callback invocations.
 type fakeChatContextUpdater struct {
-	called    int
-	published int
-	gotAgent  uuid.UUID
-	gotHash   []byte
-	gotErr    string
+	called            int
+	published         int
+	adoptionCalled    int
+	adoptionPublished int
+	gotAgent          uuid.UUID
+	gotHash           []byte
+	gotErr            string
+}
+
+func (f *fakeChatContextUpdater) AdoptWorkspaceChatsContext(context.Context, database.Store, uuid.UUID, []byte) (func(), error) {
+	f.adoptionCalled++
+	return func() { f.adoptionPublished++ }, nil
 }
 
 func (f *fakeChatContextUpdater) UpdateAgentChatsContext(_ context.Context, _ database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, _ time.Time) (func(), error) {

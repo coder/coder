@@ -179,12 +179,12 @@ func decodeSkillIdentity(body json.RawMessage) (name, description string, decode
 // agent only decorates the instruction header with its OS and directory; an
 // unresolved (zero-value) agent does not blank the context, so the pin keeps
 // working when the workspace is unreachable.
-func (server *Server) pinnedWorkspaceContext(
+func (p *Server) pinnedWorkspaceContext(
 	ctx context.Context,
 	chat database.Chat,
 	agent database.WorkspaceAgent,
 ) (instruction string, skills []chattool.SkillMeta, err error) {
-	resources, err := server.db.ListChatContextResourcesByChatID(ctx, chat.ID)
+	resources, err := p.db.ListChatContextResourcesByChatID(ctx, chat.ID)
 	if err != nil {
 		return "", nil, xerrors.Errorf("list chat context resources: %w", err)
 	}
@@ -201,13 +201,13 @@ func (server *Server) pinnedWorkspaceContext(
 		// A status-OK resource whose body cannot be decoded means the pin
 		// hydrated content that is now unreadable; surface it so a proto
 		// or encoding regression does not silently drop context.
-		server.logger.Warn(ctx, "skipped malformed pinned chat context resources",
+		p.logger.Warn(ctx, "skipped malformed pinned chat context resources",
 			slog.F("chat_id", chat.ID),
 			slog.F("malformed_count", malformed),
 			slog.F("resource_count", len(resources)),
 		)
 	}
-	server.logger.Debug(ctx, "built prompt context from pinned chat resources",
+	p.logger.Debug(ctx, "built prompt context from pinned chat resources",
 		slog.F("chat_id", chat.ID),
 		slog.F("resource_count", len(resources)),
 		slog.F("skill_count", len(skills)),
@@ -221,7 +221,7 @@ func (server *Server) pinnedWorkspaceContext(
 // (chat_context_resources). agent is the chat's resolved workspace agent,
 // used only to decorate the pinned instruction header. A non-workspace chat
 // yields no context.
-func (server *Server) resolveTurnWorkspaceContext(
+func (p *Server) resolveTurnWorkspaceContext(
 	ctx context.Context,
 	chat database.Chat,
 	agent database.WorkspaceAgent,
@@ -229,7 +229,7 @@ func (server *Server) resolveTurnWorkspaceContext(
 	if !chat.WorkspaceID.Valid {
 		return "", nil, nil
 	}
-	return server.pinnedWorkspaceContext(ctx, chat, agent)
+	return p.pinnedWorkspaceContext(ctx, chat, agent)
 }
 
 // contextResourcesToPrompt converts a chat's pinned context resources into
@@ -304,21 +304,21 @@ func contextResourcesToPrompt(
 // silently omitting it.
 // ACP harnesses are included only when the chat-acp-subagents experiment is
 // enabled.
-func (server *Server) ContextResources(
+func (p *Server) ContextResources(
 	ctx context.Context,
 	chat database.Chat,
 ) ([]codersdk.ChatContextResource, error) {
-	pinned, err := server.db.ListChatContextResourcesByChatID(ctx, chat.ID)
+	pinned, err := p.db.ListChatContextResourcesByChatID(ctx, chat.ID)
 	if err != nil {
 		return nil, xerrors.Errorf("list chat context resources: %w", err)
 	}
 	resources := pinnedContextResources(pinned)
-	if !server.experiments.Enabled(codersdk.ExperimentChatACPSubagents) {
+	if !p.experiments.Enabled(codersdk.ExperimentChatACPSubagents) {
 		resources = slices.DeleteFunc(resources, func(resource codersdk.ChatContextResource) bool {
 			return resource.Kind == codersdk.ChatContextResourceKindACPHarness
 		})
 	}
-	server.logger.Debug(ctx, "computed chat context resources",
+	p.logger.Debug(ctx, "computed chat context resources",
 		slog.F("chat_id", chat.ID),
 		slog.F("resource_count", len(resources)),
 	)

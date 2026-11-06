@@ -201,7 +201,7 @@ func hasOpenAIReasoningState(part codersdk.ChatMessagePart) bool {
 	return err == nil && chatsanitize.HasOpenAIReasoningState(options)
 }
 
-func (server *Server) sanitizeForeignProviderStateRows(
+func (p *Server) sanitizeForeignProviderStateRows(
 	ctx context.Context,
 	logger slog.Logger,
 	rows []database.ChatMessage,
@@ -223,7 +223,7 @@ func (server *Server) sanitizeForeignProviderStateRows(
 		if _, seen := origins[id.UUID]; seen {
 			continue
 		}
-		originCfg, _, err := server.resolveModelConfigAndNormalizedProvider(ctx, ownerID, id.UUID)
+		originCfg, _, err := p.resolveModelConfigAndNormalizedProvider(ctx, ownerID, id.UUID)
 		switch {
 		case err == nil:
 			origins[id.UUID] = reasoningProvenance{

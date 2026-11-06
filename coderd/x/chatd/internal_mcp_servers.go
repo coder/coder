@@ -49,9 +49,9 @@ func validateInternalMCPServers(servers []InternalMCPServer) error {
 
 // A fixed classification keeps callback error details out of the
 // user-facing chat error.
-func (server *Server) internalMCPServersForChat(ctx context.Context, chat database.Chat) ([]mcpclient.InProcessServer, error) {
+func (p *Server) internalMCPServersForChat(ctx context.Context, chat database.Chat) ([]mcpclient.InProcessServer, error) {
 	var servers []mcpclient.InProcessServer
-	for _, internal := range server.internalMCPServers {
+	for _, internal := range p.internalMCPServers {
 		mcpServer, err := internal.ServerForChat(ctx, chat)
 		if err != nil {
 			return nil, chaterror.WithClassification(

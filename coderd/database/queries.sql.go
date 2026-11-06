@@ -13291,6 +13291,75 @@ func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID)
 	return i, err
 }
 
+const rebindWorkspaceChatsToAgent = `-- name: RebindWorkspaceChatsToAgent :many
+WITH build_agents AS (
+    SELECT workspace_agents.id
+    FROM workspace_agents
+    JOIN workspace_resources ON workspace_resources.id = workspace_agents.resource_id
+    JOIN workspace_builds ON workspace_builds.job_id = workspace_resources.job_id
+    WHERE workspace_builds.id = $1::uuid
+),
+locked AS (
+    SELECT id
+    FROM chats
+    WHERE workspace_id = $3::uuid
+        AND archived = false
+        AND (
+            agent_id = $2::uuid
+            OR agent_id NOT IN (SELECT id FROM build_agents)
+            -- NOT IN yields NULL for unbound chats. Include those that have
+            -- a pinned snapshot explicitly.
+            OR (agent_id IS NULL AND context_aggregate_hash IS NOT NULL)
+        )
+    ORDER BY id
+    FOR UPDATE
+)
+UPDATE chats
+SET build_id = $1::uuid,
+    agent_id = $2::uuid
+WHERE id IN (SELECT id FROM locked)
+RETURNING id, context_aggregate_hash
+`
+
+type RebindWorkspaceChatsToAgentParams struct {
+	BuildID     uuid.UUID `db:"build_id" json:"build_id"`
+	AgentID     uuid.UUID `db:"agent_id" json:"agent_id"`
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+}
+
+type RebindWorkspaceChatsToAgentRow struct {
+	ID                   uuid.UUID `db:"id" json:"id"`
+	ContextAggregateHash []byte    `db:"context_aggregate_hash" json:"context_aggregate_hash"`
+}
+
+// Rebinds non-archived workspace chats bound to the given agent, bound to an
+// agent outside the given build, or unbound with a pinned snapshot.
+// Keeps updated_at unchanged: adoption is a background update and must not
+// reorder chat lists. Locks in ID order to serialize with context refresh and
+// live resource sync.
+func (q *sqlQuerier) RebindWorkspaceChatsToAgent(ctx context.Context, arg RebindWorkspaceChatsToAgentParams) ([]RebindWorkspaceChatsToAgentRow, error) {
+	rows, err := q.db.QueryContext(ctx, rebindWorkspaceChatsToAgent, arg.BuildID, arg.AgentID, arg.WorkspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RebindWorkspaceChatsToAgentRow
+	for rows.Next() {
+		var i RebindWorkspaceChatsToAgentRow
+		if err := rows.Scan(&i.ID, &i.ContextAggregateHash); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const reindexStaleChatMessagesSearchTsv = `-- name: ReindexStaleChatMessagesSearchTsv :execrows
 WITH batch AS (
     SELECT id FROM chat_messages

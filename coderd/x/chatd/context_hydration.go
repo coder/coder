@@ -1,6 +1,7 @@
 package chatd
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -14,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -86,6 +88,12 @@ func (p *Server) UpdateAgentChatsContext(ctx context.Context, tx database.Store,
 	}
 	// A chat can appear in several lists; publish it once.
 	touched := slice.Unique(slices.Concat(hydrated, dirtiedIDs, cleared, errorsSynced, synced))
+	return p.chatContextPublisher(ctx, tx, touched)
+}
+
+// chatContextPublisher reads touched chats in tx and returns a callback that
+// publishes one context event per chat.
+func (p *Server) chatContextPublisher(ctx context.Context, tx database.Store, touched []uuid.UUID) (func(), error) {
 	if len(touched) == 0 {
 		return func() {}, nil
 	}
@@ -107,6 +115,61 @@ func (p *Server) UpdateAgentChatsContext(ctx context.Context, tx database.Store,
 	return func() {
 		p.publishChatPubsubEvents(touchedChats, codersdk.ChatWatchEventKindContextDirty)
 	}, nil
+}
+
+// AdoptWorkspaceChatsContext adopts context for eligible workspace chats when
+// agentID is the latest build's selected chat agent. It rebinds those chats to
+// agentID and re-pins context only when aggregate hashes differ.
+func (p *Server) AdoptWorkspaceChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte) (func(), error) {
+	//nolint:gocritic // An agent does not own the workspace's chats.
+	ctx = dbauthz.AsChatd(ctx)
+	workspace, err := tx.GetWorkspaceByAgentID(ctx, agentID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return func() {}, nil
+	}
+	if err != nil {
+		return nil, xerrors.Errorf("get workspace for context adoption: %w", err)
+	}
+	if workspace.Deleted {
+		return func() {}, nil
+	}
+	agents, err := tx.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("get latest build agents for context adoption: %w", err)
+	}
+	selected, err := agentselect.FindChatAgent(agents)
+	if err != nil {
+		p.logger.Debug(ctx, "skip workspace context adoption: chat agent selection failed",
+			slog.F("workspace_id", workspace.ID), slog.Error(err))
+		return func() {}, nil
+	}
+	if selected.ID != agentID {
+		// Other agents must not change the workspace's chat bindings.
+		return func() {}, nil
+	}
+	build, err := tx.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("get latest build for context adoption: %w", err)
+	}
+	chats, err := tx.RebindWorkspaceChatsToAgent(ctx, database.RebindWorkspaceChatsToAgentParams{
+		WorkspaceID: workspace.ID,
+		BuildID:     build.ID,
+		AgentID:     agentID,
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("rebind workspace chats for context adoption: %w", err)
+	}
+	var repinned []uuid.UUID
+	for _, chat := range chats {
+		if pinned := chat.ContextAggregateHash; pinned != nil && bytes.Equal(pinned, aggregateHash) {
+			continue // A matching pin keeps its resources.
+		}
+		if err := repinChatContext(ctx, tx, chat.ID, uuid.NullUUID{UUID: agentID, Valid: true}); err != nil {
+			return nil, xerrors.Errorf("re-pin chat context for latest build: %w", err)
+		}
+		repinned = append(repinned, chat.ID)
+	}
+	return p.chatContextPublisher(ctx, tx, repinned)
 }
 
 // hydrateAgentChatsFromSnapshot stamps every chat bound to agentID that still

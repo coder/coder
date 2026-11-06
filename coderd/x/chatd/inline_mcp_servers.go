@@ -15,9 +15,9 @@ import (
 // inlineMCPServersEnabled reports whether this deployment loads and
 // connects inline MCP servers at turn time. Both the experiment
 // and the caller-supplied tools kill switch must allow it.
-func (server *Server) inlineMCPServersEnabled() bool {
-	return !server.disableCallerSuppliedTools &&
-		server.experiments.Enabled(codersdk.ExperimentChatInlineMCPServers)
+func (p *Server) inlineMCPServersEnabled() bool {
+	return !p.disableCallerSuppliedTools &&
+		p.experiments.Enabled(codersdk.ExperimentChatInlineMCPServers)
 }
 
 // loadInlineMCPServers returns the inline MCP servers that apply to
@@ -25,12 +25,12 @@ func (server *Server) inlineMCPServersEnabled() bool {
 // allowed in subagents. A row with invalid stored headers is a connect
 // outcome, so it is returned as a failed ConnectSummary row: the chat
 // debug panel shows it beside connection failures.
-func (server *Server) loadInlineMCPServers(ctx context.Context, chat database.Chat) ([]mcpclient.Server, []mcpclient.ConnectSummary, error) {
+func (p *Server) loadInlineMCPServers(ctx context.Context, chat database.Chat) ([]mcpclient.Server, []mcpclient.ConnectSummary, error) {
 	rootChatID := chat.ID
 	if chat.RootChatID.Valid {
 		rootChatID = chat.RootChatID.UUID
 	}
-	rows, err := server.db.GetChatMCPServersByChatID(ctx, rootChatID)
+	rows, err := p.db.GetChatMCPServersByChatID(ctx, rootChatID)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("get inline MCP servers: %w", err)
 	}
@@ -43,7 +43,7 @@ func (server *Server) loadInlineMCPServers(ctx context.Context, chat database.Ch
 		}
 		var headers map[string]string
 		if err := json.Unmarshal([]byte(row.Headers), &headers); err != nil {
-			server.logger.Warn(ctx, "skipping inline MCP server with invalid stored headers",
+			p.logger.Warn(ctx, "skipping inline MCP server with invalid stored headers",
 				slog.F("chat_id", chat.ID), slog.F("server_slug", row.Slug), slog.Error(err))
 			failures = append(failures, mcpclient.ConnectSummary{
 				ConfigID: row.ID,

@@ -16,12 +16,14 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -328,6 +330,324 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.False(t, got.Context.Dirty, "resolving the snapshot error does not mark the chat dirty")
 	require.Empty(t, got.Context.Error)
 	requireChatContextEvent(ctx, t, events, false, "")
+}
+
+func TestChatContextAdoptsNewBuildFromAgentPush(t *testing.T) {
+	t.Parallel()
+
+	const (
+		chatAgentName           = "workspace-coderd-chat"
+		sidecarAgentName        = "aaa-sidecar"
+		oldContextHash     byte = 0x01
+		newContextHash     byte = 0x02
+		sidecarContextHash byte = 0x03
+		restartContextHash byte = 0x04
+		driftedSidecarHash byte = 0x05
+	)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	// In-memory publication finishes before the RPC returns, including when
+	// no event is expected for an unchanged pin.
+	ps := dbpubsub.NewInMemory()
+	rawDB, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+		Database:                 rawDB,
+		Pubsub:                   ps,
+	})
+	db := api.Database
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
+	//nolint:gocritic // Inspect chat-owned context as the daemon subject.
+	chatCtx := dbauthz.AsChatd(ctx)
+
+	newVersion := func(templateID uuid.UUID, token, sidecarToken string) codersdk.TemplateVersion {
+		t.Helper()
+		graph := echo.ProvisionGraphWithAgent(token, func(g *proto.GraphComplete) {
+			g.Resources[0].Agents[0].Name = chatAgentName
+			g.Resources[0].Agents = append(g.Resources[0].Agents, &proto.Agent{
+				Id:   uuid.NewString(),
+				Name: sidecarAgentName,
+				Auth: &proto.Agent_Token{Token: sidecarToken},
+			})
+		})
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionGraph: graph,
+		}, func(req *codersdk.CreateTemplateVersionRequest) {
+			req.TemplateID = templateID
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		return version
+	}
+	chatAgentIDs := func(workspace codersdk.Workspace) (chatAgentID, sidecarID uuid.UUID) {
+		t.Helper()
+		require.Len(t, workspace.LatestBuild.Resources, 1)
+		require.Len(t, workspace.LatestBuild.Resources[0].Agents, 2)
+		for _, agent := range workspace.LatestBuild.Resources[0].Agents {
+			switch agent.Name {
+			case chatAgentName:
+				chatAgentID = agent.ID
+			case sidecarAgentName:
+				sidecarID = agent.ID
+			default:
+				t.Fatalf("unexpected workspace agent %q", agent.Name)
+			}
+		}
+		require.NotEqual(t, uuid.Nil, chatAgentID)
+		require.NotEqual(t, uuid.Nil, sidecarID)
+		return chatAgentID, sidecarID
+	}
+	connectAgent := func(token string) agentproto.DRPCAgentClient210 {
+		t.Helper()
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(token))
+		rpc, _, err := agentClient.ConnectRPC210(ctx)
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = rpc.DRPCConn().Close() })
+		return rpc
+	}
+	push := func(rpc agentproto.DRPCAgentClient210, request *agentproto.PushContextStateRequest) {
+		t.Helper()
+		resp, err := rpc.PushContextState(ctx, request)
+		require.NoError(t, err)
+		require.True(t, resp.GetAccepted())
+	}
+	instructionResource := func(source, content string, hash byte) *agentproto.ContextResource {
+		return &agentproto.ContextResource{
+			Source:      source,
+			ContentHash: []byte{hash},
+			SizeBytes:   uint64(len(content)),
+			Status:      agentproto.ContextResource_OK,
+			Body: &agentproto.ContextResource_InstructionFile{
+				InstructionFile: &agentproto.InstructionFileBody{Content: []byte(content)},
+			},
+		}
+	}
+	readChat := func(id uuid.UUID) database.Chat {
+		t.Helper()
+		chat, err := db.GetChatByID(chatCtx, id)
+		require.NoError(t, err)
+		return chat
+	}
+	pinnedResources := func(id uuid.UUID) []database.ChatContextResource {
+		t.Helper()
+		resources, err := db.ListChatContextResourcesByChatID(chatCtx, id)
+		require.NoError(t, err)
+		return resources
+	}
+
+	// Provision the prior build with a chat agent and a sidecar.
+	oldToken, oldSidecarToken := uuid.NewString(), uuid.NewString()
+	oldVersion := newVersion(uuid.Nil, oldToken, oldSidecarToken)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, oldVersion.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	oldWorkspace, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	oldAgentID, oldSidecarID := chatAgentIDs(oldWorkspace)
+	workspaceID := uuid.NullUUID{UUID: workspace.ID, Valid: true}
+	oldBuildID := uuid.NullUUID{UUID: oldWorkspace.LatestBuild.ID, Valid: true}
+	oldBinding := uuid.NullUUID{UUID: oldAgentID, Valid: true}
+	oldRPC := connectAgent(oldToken)
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	newChat := func(seed database.Chat) database.Chat {
+		t.Helper()
+		seed.OrganizationID = user.OrganizationID
+		seed.OwnerID = user.UserID
+		seed.LastModelConfigID = model.ID
+		return dbgen.Chat(t, db, seed)
+	}
+
+	newOldBuildChat := func(agentID uuid.NullUUID, status database.ChatStatus) database.Chat {
+		t.Helper()
+		return newChat(database.Chat{
+			WorkspaceID: workspaceID,
+			BuildID:     oldBuildID,
+			AgentID:     agentID,
+			Status:      status,
+		})
+	}
+	idle := newOldBuildChat(oldBinding, database.ChatStatusWaiting)
+	errored := newOldBuildChat(oldBinding, database.ChatStatusError)
+	lifecycleChat := newOldBuildChat(oldBinding, database.ChatStatusWaiting)
+	unchanged := newOldBuildChat(oldBinding, database.ChatStatusWaiting)
+	archived := newOldBuildChat(oldBinding, database.ChatStatusWaiting)
+	matchingDirty := newOldBuildChat(uuid.NullUUID{UUID: oldSidecarID, Valid: true}, database.ChatStatusWaiting)
+
+	// The sidecar pins matchingDirty to the latest build's eventual hash.
+	oldSidecarRPC := connectAgent(oldSidecarToken)
+	push(oldSidecarRPC, &agentproto.PushContextStateRequest{
+		Version:       1,
+		Initial:       true,
+		AggregateHash: []byte{newContextHash},
+		Resources:     []*agentproto.ContextResource{instructionResource("/new/AGENTS.md", "new instructions", newContextHash)},
+	})
+	// A later sidecar snapshot leaves that pin dirty.
+	push(oldSidecarRPC, &agentproto.PushContextStateRequest{
+		Version:       2,
+		Initial:       false,
+		AggregateHash: []byte{driftedSidecarHash},
+		Resources:     []*agentproto.ContextResource{instructionResource("/drifted/AGENTS.md", "drifted instructions", driftedSidecarHash)},
+	})
+	matchingDirtyBefore := readChat(matchingDirty.ID)
+	require.Equal(t, []byte{newContextHash}, matchingDirtyBefore.ContextAggregateHash)
+	require.True(t, matchingDirtyBefore.ContextDirtySince.Valid)
+	matchingDirtyResources := pinnedResources(matchingDirty.ID)
+	require.Len(t, matchingDirtyResources, 1)
+	// The old chat agent pins its chats to the prior context.
+	push(oldRPC, &agentproto.PushContextStateRequest{
+		Version:       1,
+		Initial:       true,
+		AggregateHash: []byte{oldContextHash},
+		Resources:     []*agentproto.ContextResource{instructionResource("/old/AGENTS.md", "old instructions", oldContextHash)},
+	})
+	// Its next snapshot marks those pins dirty.
+	push(oldRPC, &agentproto.PushContextStateRequest{
+		Version:       2,
+		Initial:       false,
+		AggregateHash: []byte{newContextHash},
+		Resources:     []*agentproto.ContextResource{instructionResource("/new/AGENTS.md", "new instructions", newContextHash)},
+	})
+	// Refresh one chat to match the latest build's eventual snapshot.
+	_, err = expClient.RefreshChatContext(ctx, unchanged.ID)
+	require.NoError(t, err)
+	unchangedResources := pinnedResources(unchanged.ID)
+	require.Len(t, unchangedResources, 1)
+
+	// Workspace lifecycle tools clear the agent binding but keep the pin.
+	lifecycleChat, err = db.UpdateChatBuildAgentBinding(chatCtx, database.UpdateChatBuildAgentBindingParams{
+		ID:      lifecycleChat.ID,
+		BuildID: lifecycleChat.BuildID,
+	})
+	require.NoError(t, err)
+	_, err = db.ArchiveChatByID(chatCtx, archived.ID)
+	require.NoError(t, err)
+	unpinned := newChat(database.Chat{
+		WorkspaceID: workspaceID,
+		BuildID:     oldBuildID,
+		Status:      database.ChatStatusWaiting,
+	})
+	otherWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+		TemplateID:     template.ID,
+	})
+	otherChat := newChat(database.Chat{
+		WorkspaceID: uuid.NullUUID{UUID: otherWorkspace.ID, Valid: true},
+		Status:      database.ChatStatusWaiting,
+	})
+	require.NoError(t, db.SetChatContextSnapshot(chatCtx, database.SetChatContextSnapshotParams{
+		ID:            otherChat.ID,
+		AggregateHash: []byte{oldContextHash},
+	}))
+
+	// Complete the latest build and verify prior-agent cleanup.
+	newToken, sidecarToken := uuid.NewString(), uuid.NewString()
+	latestVersion := newVersion(template.ID, newToken, sidecarToken)
+	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition:        codersdk.WorkspaceTransitionStart,
+		TemplateVersionID: latestVersion.ID,
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+	newWorkspace, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	newAgentID, sidecarID := chatAgentIDs(newWorkspace)
+	newBuildID := uuid.NullUUID{UUID: build.ID, Valid: true}
+	newBinding := uuid.NullUUID{UUID: newAgentID, Valid: true}
+	require.NotEqual(t, oldAgentID, newAgentID)
+	for _, previousAgentID := range []uuid.UUID{oldAgentID, oldSidecarID} {
+		requirePriorAgentPurged(chatCtx, t, db, sqlDB, previousAgentID)
+	}
+	alreadyBound := newChat(database.Chat{
+		WorkspaceID: workspaceID,
+		BuildID:     newBuildID,
+		AgentID:     newBinding,
+		Status:      database.ChatStatusWaiting,
+	})
+	require.NoError(t, db.SetChatContextSnapshot(chatCtx, database.SetChatContextSnapshotParams{
+		ID:            alreadyBound.ID,
+		AggregateHash: []byte{oldContextHash},
+	}))
+	sidecarChat := newChat(database.Chat{
+		WorkspaceID: workspaceID,
+		BuildID:     newBuildID,
+		AgentID:     uuid.NullUUID{UUID: sidecarID, Valid: true},
+		Status:      database.ChatStatusWaiting,
+	})
+
+	events := subscribeChatContextEvents(t, ps, user.UserID, uuid.Nil)
+
+	// A sidecar push must not adopt chats from the prior build.
+	sidecarRPC := connectAgent(sidecarToken)
+	push(sidecarRPC, &agentproto.PushContextStateRequest{
+		Version:       1,
+		Initial:       true,
+		AggregateHash: []byte{sidecarContextHash},
+		Resources:     []*agentproto.ContextResource{instructionResource("/sidecar/AGENTS.md", "sidecar instructions", sidecarContextHash)},
+	})
+	require.Equal(t, oldBinding, readChat(idle.ID).AgentID, "the unselected agent cannot adopt chats")
+	event := testutil.RequireReceive(ctx, t, events)
+	require.Equal(t, sidecarChat.ID, event.Chat.ID)
+	require.Empty(t, events)
+
+	// The selected chat agent adopts the latest build's context.
+	newRPC := connectAgent(newToken)
+	// The first accepted push need not carry Initial, which is process-scoped.
+	push(newRPC, &agentproto.PushContextStateRequest{
+		Version:       1,
+		Initial:       false,
+		AggregateHash: []byte{newContextHash},
+		Resources:     []*agentproto.ContextResource{instructionResource("/new/AGENTS.md", "new instructions", newContextHash)},
+	})
+	adoptedChats := []database.Chat{idle, errored, lifecycleChat, alreadyBound, matchingDirty, unchanged}
+	for _, before := range adoptedChats {
+		chat := readChat(before.ID)
+		require.Equal(t, newBinding, chat.AgentID)
+		require.Equal(t, newBuildID, chat.BuildID)
+		require.Equal(t, []byte{newContextHash}, chat.ContextAggregateHash)
+		require.False(t, chat.ContextDirtySince.Valid)
+		require.Equal(t, before.UpdatedAt, chat.UpdatedAt, "adoption does not reorder idle chats")
+		resources := pinnedResources(chat.ID)
+		require.Len(t, resources, 1)
+		require.Equal(t, "/new/AGENTS.md", resources[0].Source)
+	}
+	require.Equal(t, unchangedResources, pinnedResources(unchanged.ID), "matching pins are not rewritten")
+	require.Equal(t, matchingDirtyResources, pinnedResources(matchingDirty.ID), "clearing old-build drift preserves matching pinned resources")
+
+	expectedEvents := []uuid.UUID{idle.ID, errored.ID, lifecycleChat.ID, alreadyBound.ID, matchingDirty.ID}
+	var eventChatIDs []uuid.UUID
+	for range expectedEvents {
+		event := testutil.RequireReceive(ctx, t, events)
+		require.False(t, event.Chat.Context.Dirty)
+		eventChatIDs = append(eventChatIDs, event.Chat.ID)
+	}
+	require.ElementsMatch(t, expectedEvents, eventChatIDs)
+	require.Empty(t, events, "unchanged context emits no event")
+	require.Equal(t, oldBinding, readChat(archived.ID).AgentID)
+	require.Equal(t, []byte{oldContextHash}, readChat(archived.ID).ContextAggregateHash)
+	require.False(t, readChat(unpinned.ID).AgentID.Valid, "an unbound chat without a pin stays unbound")
+	require.Nil(t, readChat(unpinned.ID).ContextAggregateHash)
+	require.Equal(t, sidecarID, readChat(sidecarChat.ID).AgentID.UUID)
+	require.Equal(t, []byte{sidecarContextHash}, readChat(sidecarChat.ID).ContextAggregateHash)
+	require.False(t, readChat(otherChat.ID).AgentID.Valid)
+	require.Equal(t, []byte{oldContextHash}, readChat(otherChat.ID).ContextAggregateHash)
+
+	// A process restart in the same build still requires a context refresh.
+	push(newRPC, &agentproto.PushContextStateRequest{
+		Version:       1,
+		Initial:       true,
+		AggregateHash: []byte{restartContextHash},
+		Resources:     []*agentproto.ContextResource{instructionResource("/changed/AGENTS.md", "changed instructions", restartContextHash)},
+	})
+	for _, before := range adoptedChats {
+		chat := readChat(before.ID)
+		require.Equal(t, []byte{newContextHash}, chat.ContextAggregateHash)
+		require.True(t, chat.ContextDirtySince.Valid)
+	}
 }
 
 // TestChatContextLiveSyncFromAgentPush verifies that agent pushes live-sync MCP
@@ -762,6 +1082,8 @@ func TestChatContextRefreshFromAgentToken(t *testing.T) {
 	require.Equal(t, 0, refresh.Refreshed, "nothing left to refresh")
 }
 
+// subscribeChatContextEvents watches context events for chatID, or every chat
+// owned by ownerID when chatID is uuid.Nil.
 func subscribeChatContextEvents(t *testing.T, ps dbpubsub.Pubsub, ownerID, chatID uuid.UUID) <-chan codersdk.ChatWatchEvent {
 	t.Helper()
 	events := make(chan codersdk.ChatWatchEvent, 16)
@@ -771,7 +1093,7 @@ func subscribeChatContextEvents(t *testing.T, ps dbpubsub.Pubsub, ownerID, chatI
 			if !assert.NoError(t, err) {
 				return
 			}
-			if event.Kind == codersdk.ChatWatchEventKindContextDirty && event.Chat.ID == chatID {
+			if event.Kind == codersdk.ChatWatchEventKindContextDirty && (chatID == uuid.Nil || event.Chat.ID == chatID) {
 				events <- event
 			}
 		}),
