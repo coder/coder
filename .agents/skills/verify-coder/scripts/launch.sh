@@ -166,7 +166,7 @@ run_develop() {
 	deadline=$((SECONDS + 120))
 	until ports="$(sed -n 's/.*resolved ports .*api=\([0-9][0-9]*\) .*web=\([0-9][0-9]*\) .*/\1 \2/p' "$log" | head -n 1)" && [[ -n "$ports" ]]; do
 		if ! kill -0 "$pid" 2>/dev/null || ((SECONDS >= deadline)); then
-			tail -n 20 "$log" | cut -c1-300 >&2
+			vc_log_tail 20 "$log" "$password" >&2
 			vc_fail "develop.sh reported no ports, see $log, then run cleanup.sh"
 		fi
 		sleep 1
@@ -178,11 +178,11 @@ run_develop() {
 	until grep -q 'Coder is now running in development mode' "$log"; do
 		save_password
 		if ! kill -0 "$pid" 2>/dev/null; then
-			tail -n 40 "$log" | cut -c1-300 >&2
+			vc_log_tail 40 "$log" "$password" >&2
 			vc_fail "develop.sh exited before it was ready, see $log, then run cleanup.sh"
 		fi
 		if ((SECONDS >= deadline)); then
-			tail -n 20 "$log" | cut -c1-300 >&2
+			vc_log_tail 20 "$log" "$password" >&2
 			vc_fail "not ready after ${VERIFY_CODER_TIMEOUT:-900}s, instance left running for diagnosis, run cleanup.sh when done"
 		fi
 		sleep 2
@@ -207,8 +207,9 @@ fi
 # given is wrong, and develop.sh reuses a saved session without signing in.
 # Both show here, before the server listens on other interfaces.
 VC_API_URL="http://127.0.0.1:$api_port"
-if vc_default_password_accepted; then
-	vc_fail "the instance accepts the published default password, so launch.sh keeps it on 127.0.0.1: run cleanup.sh, then launch.sh --fresh"
+kill -0 "$pid" 2>/dev/null || vc_fail "develop.sh exited after setup, see $log, then run cleanup.sh"
+if default_user="$(vc_default_password_accepted)"; then
+	vc_fail "$default_user signs in with the published default password, so launch.sh keeps the instance on 127.0.0.1: run cleanup.sh, then launch.sh --fresh"
 fi
 vc_password_accepted "$password" || vc_fail "the admin password launch.sh used does not sign in, so the journeys would fail: run cleanup.sh, then fix CODER_DEV_ADMIN_PASSWORD or launch.sh --fresh"
 grep -E 'template created in org|starter template setup failed|created member user' "$log" | cut -c1-200 || true

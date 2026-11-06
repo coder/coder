@@ -9,7 +9,7 @@ Details behind the steps in `SKILL.md`. Paths are relative to this skill's direc
 - It starts develop with `--port-offset`, develop's per-checkout offset (`.claude/docs/DEV_ISOLATION.md`), and reads the ports from develop's `resolved ports` log line. `CODER_DEV_PORT` and `CODER_DEV_WEB_PORT` set explicit ports instead.
 - It starts develop through `vc_start_develop`, which removes every `CODER_*` variable of the calling shell, `BASH_ENV`, `ENV` and the `ANTHROPIC_*` and `OPENAI_*` keys. A `CODER_PG_CONNECTION_URL` or `CODER_DEV_DB_RESET` in your shell therefore never reaches the instance, and nothing spends real tokens.
 - It holds `build/verify-coder/launch.lock`, so a second `launch.sh` in the same checkout stops at once. It refuses to start while `build/verify-coder/run/env` records an instance.
-- It runs develop twice. The setup run listens on 127.0.0.1 only (`--bind-address 127.0.0.1`), because develop creates the owner through the unauthenticated `/api/v2/users/first` route, and a host on the network could claim it first. Its log is `build/verify-coder/run/develop-setup.log`. Then `launch.sh` checks the admin password, stops the setup run and restarts develop on every interface with the same ports, because the `docker` template's workspace agents reach the server through `host.docker.internal`. The restart takes about a minute.
+- It runs develop twice. The setup run listens on 127.0.0.1 only (`--bind-address 127.0.0.1`), because develop creates the owner through the unauthenticated `/api/v2/users/first` route, and a host on the network could claim it first. Its log is `build/verify-coder/run/develop-setup.log`. Then `launch.sh` checks the admin password, stops the setup run and restarts develop on every interface with the same ports, because the `docker` template's workspace agents reach the server through `host.docker.internal`. Each run gets its own `VERIFY_CODER_TIMEOUT`.
 - Ready means develop printed `Coder is now running in development mode` in its log. After the restart, `launch.sh` runs the doctor.
 - `launch.sh` refuses `CODER_BUILD_AGPL` set to anything but empty, `0` or `false`, because `make` would reuse an existing enterprise binary.
 - It sets `umask 022` for the build and the server. Some agent shells default to 077.
@@ -19,7 +19,7 @@ Details behind the steps in `SKILL.md`. Paths are relative to this skill's direc
 - `admin@coder.com` (owner) and `member@coder.com` share one password. `vc_load_run` sets `VC_ADMIN_PASSWORD` to it. Never print it.
 - A database that the launch creates (`--fresh`, or no `.coderv2/postgres/data` yet) gets a random password, saved in `.coderv2/.verify-coder-admin-password` (mode 0600) once develop creates the first user. `CODER_DEV_ADMIN_PASSWORD` overrides it.
 - Reused data uses `CODER_DEV_ADMIN_PASSWORD`, then that file. With neither, `launch.sh` refuses to start.
-- It never runs with the published default `SomeSecurePassword!`. It refuses that password up front. When the setup run still accepts it, `launch.sh` fails and leaves the instance on 127.0.0.1. Data from a plain `develop.sh` run has that default, so launch it with `--fresh`.
+- It never runs with the published default `SomeSecurePassword!`. It refuses that password up front. When the setup run still accepts it for the admin or the member, `launch.sh` fails and leaves the instance on 127.0.0.1. Data from a plain `develop.sh` run has that default, so launch it with `--fresh`.
 - After `--fresh` on your own `.coderv2`, a plain `scripts/develop.sh` run needs `CODER_DEV_ADMIN_PASSWORD="$(cat .coderv2/.verify-coder-admin-password)"` to sign in.
 
 ## State
@@ -37,7 +37,7 @@ Details behind the steps in `SKILL.md`. Paths are relative to this skill's direc
 - the CLI session in `.coderv2/session` is the admin;
 - the API port serves the embedded frontend and the Vite port proxies `/api`;
 - the `docker` template exists whenever `docker info` works;
-- `build/verify-coder/` is mode 0700 and the published default password is refused.
+- `build/verify-coder/` is mode 0700 and the published default password is refused for `admin@coder.com` and `member@coder.com`.
 
 It changes nothing apart from that one refused sign-in.
 
@@ -47,10 +47,12 @@ It changes nothing apart from that one refused sign-in.
 
 - the `launch.sh` refusals: `CODER_BUILD_AGPL`, develop.sh flags, server flags outside `server_flag_allowed` and the published default password;
 - that a new database without `CODER_DEV_ADMIN_PASSWORD`, and the allowed server flags, get past those checks;
-- that the setup run binds 127.0.0.1;
+- that the setup run binds 127.0.0.1 for `--fresh`, new data and reused data;
 - the launch lock;
 - that `vc_start_develop` passes the password through the environment and drops the caller's `CODER_*` variables and `BASH_ENV`;
 - that a Docker error fails cleanup's leftover inventory;
+- that the log tails `launch.sh` prints on a failure drop the line with the password;
+- that a member who signs in with the published default password is caught;
 - that `vc_browser_login` passes the password to agent-browser on stdin.
 
 ## Drive
@@ -76,6 +78,7 @@ It changes nothing apart from that one refused sign-in.
 - `cleanup.sh` deletes only the workspaces recorded in `build/verify-coder/run/workspaces` and lists the rest as kept, because a reused `.coderv2` can hold a developer's own workspaces. When it is about to remove a `.coderv2` that `launch.sh` created, it deletes every workspace in it, because the data goes anyway.
 - It closes only `$VC_BROWSER_SESSION`. It stops helpers recorded as `build/verify-coder/run/*.pid` while they still run this checkout's coder binary.
 - It sends SIGINT to the develop session it started, then TERM and KILL to leftovers of that session only, and checks that both ports are free. It never kills by process name.
+- Coder server runs its built-in Postgres in another session. When the server crashed, cleanup stops that Postgres only when it runs from this checkout's `.coderv2`, started after the launch and has no coder server of this checkout as its parent.
 - It removes `.coderv2` only when `launch.sh` created it (marker `.coderv2/.verify-coder-created`) and no other process has its Postgres path on the command line. The marker goes last, so a failed removal can be retried. `--keep-data` deletes the marker, so later cleanups keep the folder too.
 - It moves `develop-setup.log`, `develop.log` and `build.log` into `build/verify-coder/evidence/` and never deletes that folder. Each step's full output goes to `build/verify-coder/evidence/<stamp>-cleanup.log`.
 - With the server already down, it cannot delete workspaces. It then fails and names every `coder-*` container and volume created since the launch, or fails when Docker cannot list them.

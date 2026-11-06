@@ -110,11 +110,12 @@ state_private() {
 # The server listens on every interface, so it must refuse the published
 # default password, whatever data it runs on.
 default_password_refused() {
-	if vc_default_password_accepted; then
-		echo "sign-in with the published default password did not answer 401"
+	local user
+	if user="$(vc_default_password_accepted)"; then
+		echo "sign-in as $user with the published default password did not answer 401"
 		return 1
 	fi
-	echo "the published default password is refused (401)"
+	echo "the published default password is refused for admin and member (401)"
 }
 
 vc_check owner owner

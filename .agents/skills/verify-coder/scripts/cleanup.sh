@@ -102,6 +102,38 @@ stop_helpers() {
 	echo "stopped $n helpers"
 }
 
+# Coder server runs its built-in Postgres in another session and stops it on
+# a clean exit. After a server crash (SIGKILL, the OOM killer) Postgres keeps
+# running, and the develop session stop does not reach it. One that runs from
+# this checkout's .coderv2, started after this launch and has no coder server
+# of this checkout as its parent is an orphan of this launch.
+stop_orphan_postgres() {
+	local pid_file="$VC_CONFIG_DIR/postgres/data/postmaster.pid" pid ppid cmd started
+	pid="$(head -n 1 "$pid_file" 2>/dev/null)" || true
+	if [[ ! "$pid" =~ ^[0-9]+$ ]] || [[ ! -d "/proc/$pid" ]]; then
+		echo "no Postgres runs from $VC_CONFIG_DIR"
+		return 0
+	fi
+	cmd="$(tr '\0' ' ' <"/proc/$pid/cmdline")"
+	ppid="$(ps -o ppid= -p "$pid" | tr -d ' ')"
+	started="$(date -d "$(ps -o lstart= -p "$pid")" +%s)"
+	if [[ "$cmd" != *"$VC_CONFIG_DIR/postgres"* ]] || ((started < $(date -d "$VC_STARTED_AT" +%s))) ||
+		[[ "$(readlink "/proc/$ppid/exe" 2>/dev/null)" == "$(vc_coder_bin)"* ]]; then
+		echo "Postgres pid $pid is not an orphan of this launch, left it alone"
+		return 0
+	fi
+	kill -INT "$pid"
+	for _ in $(seq 30); do
+		[[ -d "/proc/$pid" ]] || {
+			echo "stopped orphaned Postgres pid $pid"
+			return 0
+		}
+		sleep 1
+	done
+	echo "orphaned Postgres pid $pid still runs"
+	return 1
+}
+
 ports_free() {
 	local port busy=()
 	if [[ -z "${VC_API_PORT:-}" ]]; then
@@ -182,6 +214,7 @@ vc_check workspaces delete_workspaces
 vc_check browser close_browser
 vc_check helpers stop_helpers
 vc_check develop vc_stop_develop "$VC_PID"
+vc_check postgres stop_orphan_postgres
 vc_check ports ports_free
 # The data goes before the run state, so a failed removal keeps the state
 # for a retry.

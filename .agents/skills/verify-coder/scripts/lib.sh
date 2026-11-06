@@ -85,14 +85,29 @@ vc_start_develop() {
 	VC_DEVELOP_PID=$!
 }
 
-# vc_default_password_accepted succeeds when the instance signs the admin in
-# with the published default password. It fails closed: any answer other than
-# 401 counts as accepted.
+# vc_default_password_accepted succeeds when the instance signs the admin or
+# the member develop.sh creates in with the published default password, and
+# prints that email. Reused data can keep the default on either account. It
+# fails closed: any answer other than 401 counts as accepted.
 vc_default_password_accepted() {
-	local code
-	code="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \
-		--data '{"email": "admin@coder.com", "password": "SomeSecurePassword!"}' "$VC_API_URL/api/v2/users/login" 2>/dev/null)" || true
-	[[ "$code" != 401 ]]
+	local code email
+	for email in admin@coder.com member@coder.com; do
+		code="$(curl -sS --max-time 10 -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' \
+			--data "{\"email\": \"$email\", \"password\": \"SomeSecurePassword!\"}" "$VC_API_URL/api/v2/users/login" 2>/dev/null)" || true
+		if [[ "$code" != 401 ]]; then
+			echo "$email"
+			return 0
+		fi
+	done
+	return 1
+}
+
+# vc_log_tail prints the last <n> lines of a develop log without any line that
+# contains the password: develop logs it when it creates the first user. An
+# empty password drops every line, so a failure prints too little, never the
+# password.
+vc_log_tail() {
+	tail -n "$1" "$2" | { grep -vF -e "$3" || true; } | cut -c1-300
 }
 
 # vc_password_accepted succeeds when the instance signs the admin in with the

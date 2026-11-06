@@ -2,8 +2,9 @@
 # Checks harness behavior that needs no running instance: the launch.sh
 # argument and password refusals, the random password for a new database, the
 # loopback bind of the setup run, the launch lock, how vc_start_develop passes
-# the environment, that a Docker error fails the leftover inventory, and that
-# vc_browser_login keeps the password out of the process arguments.
+# the environment, that a Docker error fails the leftover inventory, that log
+# tails drop the password, that the member's default password is caught, and
+# that vc_browser_login keeps the password out of the process arguments.
 # Usage: selftest.sh   (prints one line per check and a count line)
 set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
@@ -110,27 +111,38 @@ start_develop_isolates() {
 vc_check start-develop start_develop_isolates
 
 # develop.sh creates the owner through an unauthenticated route, so the first
-# develop start, the only one before setup is done, must bind 127.0.0.1. The
-# stub develop exits at once, so launch.sh stops after that start.
+# develop start, the only one before setup is done, must bind 127.0.0.1 for
+# every kind of data. launch.sh runs from a copy in a scratch repo, so its
+# .coderv2 is a scratch folder. The stub develop exits at once, so launch.sh
+# stops after that start.
 setup_binds_loopback() {
-	local out rc=0 created=0
-	[[ -d "$VC_CONFIG_DIR" ]] || created=1
-	rm -f "$tmp/develop-argv"
-	out="$(env -u CODER_DEV_ADMIN_PASSWORD CODER_BUILD_AGPL= PATH="$tmp/bin-built:$tmp/bin:$PATH" "$here/launch.sh" --fresh 2>&1)" || rc=$?
-	rm -rf "$VERIFY_CODER_STATE/run"
-	if ((created)); then
-		rm -f "$VC_CONFIG_DIR/.verify-coder-created"
-		rmdir "$VC_CONFIG_DIR"
-	fi
-	[[ "$rc" == 1 && "$out" == *"develop.sh reported no ports"* ]] || {
-		echo "launch.sh exited $rc: ${out##*$'\n'}"
-		return 1
-	}
-	[[ "$(wc -l <"$tmp/develop-argv")" == 1 && " $(cat "$tmp/develop-argv") " == *" --bind-address 127.0.0.1 "* ]] || {
-		echo "the first develop start was not bound to 127.0.0.1: $(head -c 300 "$tmp/develop-argv")"
-		return 1
-	}
-	echo "the setup run of develop.sh binds 127.0.0.1"
+	local repo="$tmp/repo" kind out rc
+	git init -q "$repo"
+	mkdir -p "$repo/.agents/skills/verify-coder"
+	cp -R "$here" "$repo/.agents/skills/verify-coder/scripts"
+	for kind in fresh new-data reused-data; do
+		rm -rf "$repo/.coderv2" "$repo/build" "$tmp/develop-argv"
+		local launch_flags=()
+		case "$kind" in
+		fresh) launch_flags=(--fresh) ;;
+		reused-data)
+			mkdir -p "$repo/.coderv2/postgres/data"
+			echo selftest-saved-password >"$repo/.coderv2/.verify-coder-admin-password"
+			;;
+		esac
+		rc=0
+		out="$(env -u CODER_DEV_ADMIN_PASSWORD -u VERIFY_CODER_STATE CODER_BUILD_AGPL= PATH="$tmp/bin-built:$tmp/bin:$PATH" \
+			"$repo/.agents/skills/verify-coder/scripts/launch.sh" "${launch_flags[@]}" 2>&1)" || rc=$?
+		[[ "$rc" == 1 && "$out" == *"develop.sh reported no ports"* ]] || {
+			echo "$kind: launch.sh exited $rc: ${out##*$'\n'}"
+			return 1
+		}
+		[[ "$(wc -l <"$tmp/develop-argv")" == 1 && " $(cat "$tmp/develop-argv") " == *" --bind-address 127.0.0.1 "* ]] || {
+			echo "$kind: the first develop start was not bound to 127.0.0.1: $(head -c 300 "$tmp/develop-argv")"
+			return 1
+		}
+	done
+	echo "the setup run binds 127.0.0.1 for --fresh, new data and reused data"
 }
 vc_check setup-loopback setup_binds_loopback
 
@@ -161,6 +173,46 @@ docker_error_fails() {
 	echo "vc_docker_since fails when docker cannot list"
 }
 vc_check docker-error docker_error_fails
+
+# develop logs the password when it creates the first user, so the log tails
+# that launch.sh prints on a failure must drop that line and keep the rest.
+log_tail_drops_password() {
+	local marker="selftest-$RANDOM-$RANDOM" out
+	printf 'before\ncreating first user  email=admin@coder.com  password=%s\nafter\n' "$marker" >"$tmp/tail.log"
+	out="$(vc_log_tail 20 "$tmp/tail.log" "$marker")"
+	if [[ "$out" == *"$marker"* ]]; then
+		echo "the password appears in the log tail"
+		return 1
+	fi
+	[[ "$out" == $'before\nafter' ]] || {
+		echo "the log tail lost other lines: $out"
+		return 1
+	}
+	echo "the log tail drops the password line only"
+}
+vc_check log-tail log_tail_drops_password
+
+# Reused data can keep the published default on the member account alone.
+# The stub curl answers 201 only for member@coder.com.
+default_password_checks_member() {
+	local user
+	mkdir -p "$tmp/bin-curl"
+	cat >"$tmp/bin-curl/curl" <<'STUB'
+#!/bin/bash
+if [[ "$*" == *'"member@coder.com"'* ]]; then echo 201; else echo 401; fi
+STUB
+	chmod +x "$tmp/bin-curl/curl"
+	user="$(VC_API_URL=http://127.0.0.1:1 PATH="$tmp/bin-curl:$PATH" vc_default_password_accepted)" || {
+		echo "a member that signs in with the default password went unnoticed"
+		return 1
+	}
+	[[ "$user" == member@coder.com ]] || {
+		echo "vc_default_password_accepted named $user, not member@coder.com"
+		return 1
+	}
+	echo "the member's default password is caught"
+}
+vc_check default-member default_password_checks_member
 
 login_keeps_password_off_argv() {
 	local marker="selftest-$RANDOM-$RANDOM"
