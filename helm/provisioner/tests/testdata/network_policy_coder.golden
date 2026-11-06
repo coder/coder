@@ -12,8 +12,6 @@ metadata:
     app.kubernetes.io/part-of: coder-provisioner
     app.kubernetes.io/version: "0.1.0"
     app.kubernetes.io/managed-by: Helm
-  annotations:
-    {}
 spec:
   podSelector:
     matchLabels:
@@ -37,15 +35,16 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
-    - to:
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: coder
-      ports:
+    - ports:
         - port: 8080
           protocol: TCP
         - port: 8443
           protocol: TCP
+      to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              app.kubernetes.io/name: coder
     - ports:
         - port: 443
           protocol: TCP
@@ -176,15 +175,12 @@ spec:
         - name: CODER_URL
           value: http://coder.coder.svc.cluster.local
         - name: CODER_PROMETHEUS_ENABLE
-          value: "true"
+          value: "True"
         image: ghcr.io/coder/coder:latest
         imagePullPolicy: IfNotPresent
         lifecycle: {}
         name: coder
-        ports:
-        - containerPort: 2112
-          name: prometheus-http
-          protocol: TCP
+        ports: null
         resources:
           limits:
             cpu: 2000m

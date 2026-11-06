@@ -42,6 +42,10 @@ var testCases = []testCase{
 		expectedError: "",
 	},
 	{
+		name:          "network_policy_open_egress",
+		expectedError: "",
+	},
+	{
 		name:          "sa",
 		expectedError: "",
 	},

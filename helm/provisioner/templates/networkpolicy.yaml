@@ -7,8 +7,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "coder.labels" . | nindent 4 }}
+  {{- with .Values.coder.networkPolicy.annotations }}
   annotations:
-    {{- toYaml .Values.coder.networkPolicy.annotations | nindent 4 }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   podSelector:
     matchLabels:
@@ -42,13 +44,15 @@ spec:
           protocol: UDP
         - port: 53
           protocol: TCP
-    - to:
-        {{- toYaml .Values.coder.networkPolicy.egress.coderServer.to | nindent 8 }}
-      ports:
+    - ports:
         {{- range .Values.coder.networkPolicy.egress.coderServer.ports }}
         - port: {{ . }}
           protocol: TCP
         {{- end }}
+      {{- with .Values.coder.networkPolicy.egress.coderServer.to }}
+      to:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
     - ports:
         {{- range .Values.coder.networkPolicy.egress.kubernetesAPI.ports }}
         - port: {{ . }}

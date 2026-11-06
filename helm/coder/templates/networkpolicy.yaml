@@ -7,8 +7,10 @@ metadata:
   namespace: {{ .Release.Namespace }}
   labels:
     {{- include "coder.labels" . | nindent 4 }}
+  {{- with .Values.coder.networkPolicy.annotations }}
   annotations:
-    {{- toYaml .Values.coder.networkPolicy.annotations | nindent 4 }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 spec:
   podSelector:
     matchLabels:
