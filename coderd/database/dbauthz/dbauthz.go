@@ -2051,6 +2051,7 @@ func (q *querier) ClearChatDiffStatusPR(ctx context.Context, arg database.ClearC
 }
 
 func (q *querier) ClearChatsContextDirtyByAgent(ctx context.Context, arg database.ClearChatsContextDirtyByAgentParams) ([]uuid.UUID, error) {
+	// System-level operation across unarchived chats bound to the agent.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return nil, err
 	}
@@ -7544,7 +7545,7 @@ func (q *querier) MarkAllInboxNotificationsAsRead(ctx context.Context, arg datab
 }
 
 func (q *querier) MarkChatsContextDirtyByAgent(ctx context.Context, arg database.MarkChatsContextDirtyByAgentParams) ([]database.MarkChatsContextDirtyByAgentRow, error) {
-	// System-level operation across non-archived chats bound to the agent.
+	// System-level operation across unarchived chats bound to the agent.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return nil, err
 	}
@@ -7778,6 +7779,7 @@ func (q *querier) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, wo
 }
 
 func (q *querier) SyncAgentChatsContextError(ctx context.Context, arg database.SyncAgentChatsContextErrorParams) ([]uuid.UUID, error) {
+	// System-level operation across unarchived chats bound to the agent.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return nil, err
 	}

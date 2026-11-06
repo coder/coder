@@ -110,7 +110,8 @@ func TestUpdateAgentChatsContextPublishesContextChanges(t *testing.T) {
 	clearedChat := database.Chat{ID: uuid.New(), OwnerID: ownerID, ContextAggregateHash: hash}
 	syncedChat := database.Chat{ID: uuid.New(), OwnerID: ownerID, ContextAggregateHash: hash}
 
-	events := make(chan codersdk.ChatWatchEvent, 4)
+	want := []uuid.UUID{hydratedChat.ID, dirtiedChat.ID, clearedChat.ID, syncedChat.ID}
+	events := make(chan codersdk.ChatWatchEvent, len(want))
 	cancelSub, err := ps.SubscribeWithErr(
 		coderdpubsub.ChatWatchEventChannel(ownerID),
 		coderdpubsub.HandleChatWatchEvent(func(_ context.Context, payload codersdk.ChatWatchEvent, err error) {
@@ -149,13 +150,13 @@ func TestUpdateAgentChatsContextPublishesContextChanges(t *testing.T) {
 	require.NoError(t, err)
 	publish()
 
-	gotChatIDs := make([]uuid.UUID, 0, 4)
-	for range 4 {
+	gotChatIDs := make([]uuid.UUID, 0, len(want))
+	for range want {
 		event := testutil.RequireReceive(ctx, t, events)
 		require.Equal(t, codersdk.ChatWatchEventKindContextDirty, event.Kind)
 		gotChatIDs = append(gotChatIDs, event.Chat.ID)
 	}
-	require.ElementsMatch(t, []uuid.UUID{hydratedChat.ID, dirtiedChat.ID, clearedChat.ID, syncedChat.ID}, gotChatIDs)
+	require.ElementsMatch(t, want, gotChatIDs)
 }
 
 // TestEnsureChatContextPinnedOnFirstTurn covers the lazy-bind pinning path. An

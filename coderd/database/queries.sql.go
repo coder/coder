@@ -8868,7 +8868,7 @@ type ClearChatsContextDirtyByAgentParams struct {
 	AggregateHash []byte    `db:"aggregate_hash" json:"aggregate_hash"`
 }
 
-// Clears drift when the snapshot hash matches the pin again, without
+// Clears dirty markers when the snapshot hash matches the pin again, without
 // rewriting the pin or resources. Returns only chats that became clean.
 func (q *sqlQuerier) ClearChatsContextDirtyByAgent(ctx context.Context, arg ClearChatsContextDirtyByAgentParams) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, clearChatsContextDirtyByAgent, arg.AgentID, arg.AggregateHash)
@@ -13177,7 +13177,7 @@ type MarkChatsContextDirtyByAgentRow struct {
 	OwnerID uuid.UUID `db:"owner_id" json:"owner_id"`
 }
 
-// Marks non-archived, pinned chats dirty when the snapshot hash differs
+// Marks unarchived, pinned chats dirty when the snapshot hash differs
 // from their pin. Returns transitioned chats for post-commit notifications.
 func (q *sqlQuerier) MarkChatsContextDirtyByAgent(ctx context.Context, arg MarkChatsContextDirtyByAgentParams) ([]MarkChatsContextDirtyByAgentRow, error) {
 	rows, err := q.db.QueryContext(ctx, markChatsContextDirtyByAgent, arg.DirtySince, arg.AgentID, arg.AggregateHash)
@@ -13513,7 +13513,9 @@ type SyncAgentChatsContextErrorParams struct {
 	AgentID      uuid.UUID `db:"agent_id" json:"agent_id"`
 }
 
-// Snapshot errors describe live discovery and do not affect pinned prompts.
+// Copies the agent's snapshot error to pinned, unarchived chats whose error
+// differs. Returns changed chat IDs. Errors do not affect dirty markers or
+// pinned prompts.
 func (q *sqlQuerier) SyncAgentChatsContextError(ctx context.Context, arg SyncAgentChatsContextErrorParams) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, syncAgentChatsContextError, arg.ContextError, arg.AgentID)
 	if err != nil {

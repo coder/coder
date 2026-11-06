@@ -1712,7 +1712,7 @@ copied AS (
 SELECT id FROM hydrated;
 
 -- name: MarkChatsContextDirtyByAgent :many
--- Marks non-archived, pinned chats dirty when the snapshot hash differs
+-- Marks unarchived, pinned chats dirty when the snapshot hash differs
 -- from their pin. Returns transitioned chats for post-commit notifications.
 UPDATE chats
 SET context_dirty_since = @dirty_since
@@ -1724,7 +1724,7 @@ WHERE agent_id = @agent_id::uuid
 RETURNING id, owner_id;
 
 -- name: ClearChatsContextDirtyByAgent :many
--- Clears drift when the snapshot hash matches the pin again, without
+-- Clears dirty markers when the snapshot hash matches the pin again, without
 -- rewriting the pin or resources. Returns only chats that became clean.
 UPDATE chats
 SET context_dirty_since = NULL
@@ -1735,7 +1735,9 @@ WHERE agent_id = @agent_id::uuid
 RETURNING id;
 
 -- name: SyncAgentChatsContextError :many
--- Snapshot errors describe live discovery and do not affect pinned prompts.
+-- Copies the agent's snapshot error to pinned, unarchived chats whose error
+-- differs. Returns changed chat IDs. Errors do not affect dirty markers or
+-- pinned prompts.
 UPDATE chats
 SET context_error = @context_error
 WHERE agent_id = @agent_id::uuid

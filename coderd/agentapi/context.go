@@ -64,8 +64,7 @@ type ContextAPI struct {
 	Log       slog.Logger
 	Clock     quartz.Clock
 	Database  database.Store
-	// ChatContextUpdater applies persisted snapshots to chats. It is nil when
-	// chatd is disabled.
+	// ChatContextUpdater is nil when chatd is disabled.
 	ChatContextUpdater ChatContextUpdater
 	// Disabled rejects every push with a dRPC Unimplemented code. The
 	// agent's DRPCPusher translates that code into ErrPushUnimplemented,
@@ -79,8 +78,9 @@ type ContextAPI struct {
 // ChatContextUpdater applies an agent's pushed snapshot to chats. Chatd
 // implements it so this package does not perform chat-authorized writes.
 type ChatContextUpdater interface {
-	// UpdateAgentChatsContext uses the supplied push transaction and returns a
-	// callback to notify watchers after commit.
+	// UpdateAgentChatsContext pins unpinned chats, marks or clears dirty markers,
+	// and syncs errors and MCP/ACP resources using the supplied push transaction.
+	// The returned callback notifies watchers after commit.
 	UpdateAgentChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (publishContext func(), err error)
 }
 
