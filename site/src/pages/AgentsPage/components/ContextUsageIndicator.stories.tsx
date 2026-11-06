@@ -424,6 +424,11 @@ export const Dirty: Story = {
 			usedTokens: 12_000,
 			contextLimitTokens: 200_000,
 			context: MockChatContextDirty,
+			compactionThreshold: {
+				percent: 70,
+				source: "user",
+				organizationOverrideNotLoaded: false,
+			},
 		},
 	},
 	play: async ({ canvasElement }) => {

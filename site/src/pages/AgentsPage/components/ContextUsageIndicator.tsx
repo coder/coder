@@ -443,10 +443,10 @@ export const ContextUsageIndicator: React.FC<{
 			<PopoverContent
 				side="top"
 				align="end"
-				className="mobile-full-width-dropdown w-76 text-xs pb-0.5 font-normal"
+				className="mobile-full-width-dropdown w-76 text-xs pb-1 font-normal"
 			>
-				<div className="text-xs text-content-primary p-3">
-					<div className="text-sm font-semibold">Context</div>
+				<div className="text-xs text-content-primary px-4 pt-2 pb-3">
+					<div className="pt-1 text-sm font-semibold leading-6">Context</div>
 					{hasReportedUsage ? (
 						hasPercent ? (
 							<div className="flex gap-2 items-center pt-2">
@@ -526,7 +526,7 @@ export const ContextUsageIndicator: React.FC<{
 					)}
 				</div>
 				{hasContextList && (
-					<div className="flex flex-col text-content-secondary px-1.5">
+					<div className="flex flex-col text-content-secondary">
 						{(fileItems.length > 0 || fileIssues.length > 0) && (
 							<ContextResourceAccordion>
 								<ContextResourceAccordionTrigger
@@ -643,33 +643,34 @@ export const ContextUsageIndicator: React.FC<{
 					</div>
 				)}
 				{(isDirty || hasContextError) && (
-					<ContextAlert
-						severity={hasContextError ? "error" : "warning"}
-						variant="panel"
-						className="mx-3 mb-3 mt-2"
-					>
-						<ContextAlertTitle>
-							{hasContextError ? "Context error" : "Context changed"}
-						</ContextAlertTitle>
-						<ContextAlertDescription>
-							{hasContextError
-								? contextError
-								: "The workspace context changed since this chat was pinned."}
-							{onRefreshContext && (
-								<ContextAlertActions>
-									<Button
-										size="xs"
-										disabled={isRefreshingContext}
-										onClick={() => onRefreshContext()}
-										variant="outline"
-									>
-										<Spinner size="sm" loading={isRefreshingContext} />
-										Refresh context
-									</Button>
-								</ContextAlertActions>
-							)}
-						</ContextAlertDescription>
-					</ContextAlert>
+					<div className="px-4 py-3">
+						<ContextAlert
+							severity={hasContextError ? "error" : "warning"}
+							variant="panel"
+						>
+							<ContextAlertTitle>
+								{hasContextError ? "Context error" : "Context changed"}
+							</ContextAlertTitle>
+							<ContextAlertDescription>
+								{hasContextError
+									? contextError
+									: "The workspace context changed since this chat was pinned."}
+								{onRefreshContext && (
+									<ContextAlertActions>
+										<Button
+											size="xs"
+											disabled={isRefreshingContext}
+											onClick={() => onRefreshContext()}
+											variant="outline"
+										>
+											<Spinner size="sm" loading={isRefreshingContext} />
+											Refresh context
+										</Button>
+									</ContextAlertActions>
+								)}
+							</ContextAlertDescription>
+						</ContextAlert>
+					</div>
 				)}
 			</PopoverContent>
 		</Popover>
