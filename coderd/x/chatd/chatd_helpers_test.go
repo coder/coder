@@ -4,6 +4,7 @@ package chatd_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"strings"
 	"sync"
@@ -221,6 +222,23 @@ func chatMessages(ctx context.Context, t *testing.T, db database.Store, chatID u
 	messages, err := db.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{ChatID: chatID})
 	require.NoError(t, err)
 	return messages
+}
+
+// requirePriorAgentPurged checks that the agent is soft-deleted and its context
+// snapshot and resources are purged.
+func requirePriorAgentPurged(ctx context.Context, t *testing.T, db database.Store, sqlDB *sql.DB, agentID uuid.UUID) {
+	t.Helper()
+	var deleted bool
+	err := sqlDB.QueryRowContext(ctx, `SELECT deleted FROM workspace_agents WHERE id = $1`, agentID).Scan(&deleted)
+	require.NoError(t, err)
+	require.True(t, deleted, "build completion soft-deletes prior agents")
+	_, err = db.GetWorkspaceAgentByID(ctx, agentID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "agent lookups exclude deleted prior agents")
+	_, err = db.GetLatestWorkspaceAgentContextSnapshot(ctx, agentID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "build completion purges prior context snapshots")
+	resources, err := db.ListWorkspaceAgentContextResources(ctx, agentID)
+	require.NoError(t, err)
+	require.Empty(t, resources, "build completion purges prior context resources")
 }
 
 func requireTextPart(t *testing.T, msg database.ChatMessage, text string) {
