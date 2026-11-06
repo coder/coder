@@ -9,10 +9,7 @@ A **private** repository needs authentication, which is what you add here.
 In this guide, you add the `coder_external_auth` data source, connect your workspace to GitHub, and clone a private repository with no manual login.
 This guide uses GitHub, and the same external-auth pattern works for other providers.
 
-> [!NOTE]
-> This guide assumes your Quickstart template is open for editing.
-> If it's not, you can edit the template from the web by finding the template, selecting the three dots menu, and selecting **Edit files**.
-> Refer to [Customize workspace startup](./index.md#open-the-template-for-editing) for more information.
+<include>../../_includes/get-started/quickstart-template-open.md</include>
 
 ## What you'll do
 

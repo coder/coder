@@ -2,9 +2,7 @@
 title: Set up Agent Relay
 ---
 
-> [!NOTE]
-> Agent Relay is in [beta](../reference/feature-stages.md#beta) and requires a Premium license.
-> To try it, [request a Premium trial](https://coder.com/trial).
+<include>../_includes/agent-relay/beta-notice.md</include>
 
 This guide is for Coder administrators who deploy Agent Relay against an existing Coder deployment.
 It covers the steps that are the same for every provider: the service account, provisioners, template rules, installation, and verification.

@@ -2,8 +2,7 @@
 title: Cline
 ---
 
-> [!NOTE]
-> AI Gateway is part of [AI Governance](../../index.md), which is included with a Premium license.
+<include>../../../_includes/ai-governance/ai-gateway-premium.md</include>
 
 Cline supports both OpenAI and Anthropic models and can be configured to use AI Gateway by setting providers.
 

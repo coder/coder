@@ -2,8 +2,7 @@
 title: VS Code
 ---
 
-> [!NOTE]
-> AI Gateway is part of [AI Governance](../../index.md), which is included with a Premium license.
+<include>../../../_includes/ai-governance/ai-gateway-premium.md</include>
 
 VS Code's native chat can be configured to use AI Gateway via the **Custom Endpoint** language model provider (VS Code 1.122+, Stable).
 GitHub sign-in is not required, so this works in air-gapped or restricted environments.

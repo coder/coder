@@ -2,8 +2,7 @@
 title: Kilo Code
 ---
 
-> [!NOTE]
-> AI Gateway is part of [AI Governance](../../index.md), which is included with a Premium license.
+<include>../../../_includes/ai-governance/ai-gateway-premium.md</include>
 
 Kilo Code allows you to configure providers via the UI and can be set up to use AI Gateway.
 

@@ -2,8 +2,7 @@
 title: MCP
 ---
 
-> [!NOTE]
-> AI Gateway is part of [AI Governance](../index.md), which is included with a Premium license.
+<include>../../_includes/ai-governance/ai-gateway-premium.md</include>
 
 <!-- -->
 

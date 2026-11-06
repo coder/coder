@@ -2,8 +2,7 @@
 title: Audit AI sessions
 ---
 
-> [!NOTE]
-> AI Gateway is part of [AI Governance](../index.md), which is included with a Premium license.
+<include>../../_includes/ai-governance/ai-gateway-premium.md</include>
 
 AI Gateway groups intercepted requests into **sessions** and **threads** to show the causal relationships between human prompts and agent actions.
 This structure gives auditors clear provenance over who initiated what, and why.

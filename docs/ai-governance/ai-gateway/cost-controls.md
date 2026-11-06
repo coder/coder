@@ -2,8 +2,7 @@
 title: AI Governance cost control
 ---
 
-> [!NOTE]
-> AI Gateway is part of [AI Governance](../index.md), which is included with a Premium license.
+<include>../../_includes/ai-governance/ai-gateway-premium.md</include>
 
 AI Governance Cost Control governs AI spend in two complementary ways:
 

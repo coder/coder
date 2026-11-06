@@ -2,9 +2,7 @@
 title: Monitor Agent Relay
 ---
 
-> [!NOTE]
-> Agent Relay is in [beta](../../reference/feature-stages.md#beta) and requires a Premium license.
-> To try it, [request a Premium trial](https://coder.com/trial).
+<include>../../_includes/agent-relay/beta-notice.md</include>
 > Metric names, labels, and log fields can change between beta releases.
 
 This page is for operators who run Agent Relay and need to answer how many sessions ran, who ran them, and which failed and why.

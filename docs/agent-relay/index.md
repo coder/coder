@@ -2,9 +2,7 @@
 title: Agent Relay
 ---
 
-> [!NOTE]
-> Agent Relay is in [beta](../reference/feature-stages.md#beta) and requires a Premium license.
-> To try it, [request a Premium trial](https://coder.com/trial).
+<include>../_includes/agent-relay/beta-notice.md</include>
 > Test it in a staging deployment before you roll it out to production users.
 
 Agent Relay connects a cloud-hosted AI coding agent's sessions to self-hosted [Coder workspaces](../workspaces/workspace-management.md).

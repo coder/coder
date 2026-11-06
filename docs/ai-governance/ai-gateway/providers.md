@@ -2,8 +2,7 @@
 title: Provider configuration
 ---
 
-> [!NOTE]
-> AI Gateway is part of [AI Governance](../index.md), which is included with a Premium license.
+<include>../../_includes/ai-governance/ai-gateway-premium.md</include>
 
 Providers are deployment-scoped and managed from the dashboard or the [AI Providers API](../../reference/api/aiproviders.md).
 See [Setup](./setup.md#configure-providers) for the steps to add, edit, and disable a provider.

@@ -43,6 +43,7 @@ import rehypeSanitize, {
 } from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import coderGithubAlert from "../lib/coderGithubAlert";
+import { expandIncludes } from "../lib/includes";
 
 type FilePath = string;
 type UrlPath = string;
@@ -238,7 +239,7 @@ export const getStaticProps: GetStaticProps = (context) => {
 	const { attributes, body } = fm<{ title?: string }>(
 		readContentFile(route.path),
 	);
-	const content = body;
+	const content = expandIncludes(route.path, body, readContentFile);
 	const navigation = getNavigation(manifest);
 	const version = manifest.versions[0];
 

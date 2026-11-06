@@ -65,6 +65,14 @@ func TestCheckSource(t *testing.T) {
 			want: nil,
 		},
 		{
+			name: "include directive",
+			src:  "<include>../_includes/agent-relay/beta-notice.md</include>\n",
+		},
+		{
+			name: "include directive indented in a list item",
+			src:  "1. Step one.\n\n   <include>../_includes/vscode/install-from-vsix.md</include>\n",
+		},
+		{
 			name: "balanced children component",
 			src:  "<children></children>\n",
 			want: nil,

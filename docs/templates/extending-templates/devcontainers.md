@@ -8,8 +8,4 @@ Coder's Dev Containers Integration uses the standard `@devcontainers/cli` and Do
 
 For setup instructions, see [Dev Containers Integration](../../admin/integrations/devcontainers/integration.md).
 
-> [!TIP]
-> Nix flakes are an alternate way to handle dependency management.
-> With Nix flakes, developers and template administrators define environments and manage dependencies at a much deeper level, without requiring a container runtime.
->
-> To use them in Coder with or without NixOS, consult the [Nix(OS)](../../admin/integrations/nix.md) page.
+<include>../../_includes/devcontainers/nix-flakes-tip.md</include>

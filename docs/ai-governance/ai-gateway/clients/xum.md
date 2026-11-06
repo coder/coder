@@ -2,8 +2,7 @@
 title: Xum
 ---
 
-> [!NOTE]
-> AI Gateway is part of [AI Governance](../../index.md), which is included with a Premium license.
+<include>../../../_includes/ai-governance/ai-gateway-premium.md</include>
 
 Xum (formerly Mux) makes it easy to run parallel coding agents, each with its own isolated workspace, from your browser or desktop.
 It is open source and provider-agnostic.

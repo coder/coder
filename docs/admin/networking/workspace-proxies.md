@@ -218,5 +218,4 @@ When multiple workspace proxies are deployed:
 
 Coder workspace proxy exports metrics via the HTTP endpoint, which can be enabled using either the environment variable `CODER_PROMETHEUS_ENABLE` or the flag `--prometheus-enable`.
 
-The Prometheus endpoint address is `http://localhost:2112/` by default.
-You can use either the environment variable `CODER_PROMETHEUS_ADDRESS` or the flag `--prometheus-address <network-interface>:<port>` to select a different listen address.
+<include>../../_includes/prometheus/listen-address.md</include>

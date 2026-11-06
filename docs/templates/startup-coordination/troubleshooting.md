@@ -4,8 +4,7 @@ title: Workspace startup coordination troubleshooting
 
 For dependencies between whole startup or shutdown scripts, use [declarative script ordering](../extending-templates/script-ordering.md) instead of `coder exp sync`.
 
-> [!NOTE]
-> The `coder exp sync` commands are experimental and might change without notice.
+<include>../../_includes/templates/coder-exp-sync-experimental.md</include>
 
 ## Test Sync Availability
 

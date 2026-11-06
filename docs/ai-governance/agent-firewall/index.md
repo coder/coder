@@ -6,8 +6,7 @@ Agent Firewall is a process-level firewall that restricts and audits what autono
 
 ![Screenshot of Agent Firewall blocking a process](../../images/guides/ai-agents/boundary.png)Example of Agent Firewall blocking a process.
 
-> [!NOTE]
-> Agent Firewall is part of [AI Governance](../index.md), which is included with a Premium license.
+<include>../../_includes/ai-governance/agent-firewall-premium.md</include>
 >
 > Agent Firewall was previously known as "Agent Boundaries".
 > Some configuration options and internal references still use the old name and will be updated in a future release.

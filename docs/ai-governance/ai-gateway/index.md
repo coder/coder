@@ -21,8 +21,7 @@ AI Gateway solves 3 key problems:
 1. **Centralized MCP administration**:
    define a set of approved Model Context Protocol (MCP) servers and tools which your users may use.
 
-> [!NOTE]
-> AI Gateway is part of [AI Governance](../index.md), which is included with a Premium license.
+<include>../../_includes/ai-governance/ai-gateway-premium.md</include>
 >
 > AI Gateway was previously known as "AI Bridge".
 > Visit [Rebranding Migration](./rebranding-migration.md) for details.

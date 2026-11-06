@@ -47,8 +47,7 @@ CODER_OIDC_SCOPES=openid,profile,email,offline_access,groups
 CODER_OIDC_GROUP_FIELD=groups
 ```
 
-> [!NOTE]
-> The `offline_access` scope is required in Coder v2.23.0+ to prevent hourly session timeouts.
+<include>../../../_includes/oidc/offline-access-scope.md</include>
 
 These groups can also be used to configure role syncing based on group membership:
 
@@ -95,8 +94,7 @@ CODER_OIDC_USER_ROLE_MAPPING='{"admin-group":["template-admin","user-admin"]}'
 # CODER_OIDC_GROUP_FIELD=...
 ```
 
-> [!NOTE]
-> The `offline_access` scope is required in Coder v2.23.0+ to prevent hourly session timeouts.
+<include>../../../_includes/oidc/offline-access-scope.md</include>
 
 ## (Advanced) Custom scopes to retrieve custom claims
 
@@ -144,8 +142,7 @@ CODER_OIDC_USER_ROLE_FIELD=roles
 CODER_OIDC_USER_ROLE_MAPPING='{"admin-group":["template-admin","user-admin"]}'
 ```
 
-> [!NOTE]
-> The `offline_access` scope is required in Coder v2.23.0+ to prevent hourly session timeouts.
+<include>../../../_includes/oidc/offline-access-scope.md</include>
 
 You can use the "Token Preview" page to verify it has been correctly configured and verify the `roles` is in the payload.
 
