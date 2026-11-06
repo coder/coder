@@ -146,7 +146,7 @@ func TestUpdateAgentChatsContextPublishesContextChanges(t *testing.T) {
 	db.EXPECT().GetChatByID(gomock.Any(), clearedChat.ID).Return(clearedChat, nil)
 	db.EXPECT().GetChatByID(gomock.Any(), syncedChat.ID).Return(syncedChat, nil)
 
-	publish, err := server.UpdateAgentChatsContext(ctx, db, agentID, hash, "", false, now)
+	publish, err := server.UpdateAgentChatsContext(ctx, db, agentID, hash, "", now)
 	require.NoError(t, err)
 	publish()
 

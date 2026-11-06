@@ -78,10 +78,13 @@ type ContextAPI struct {
 // ChatContextUpdater applies an agent's pushed snapshot to chats. Chatd
 // implements it so this package does not perform chat-authorized writes.
 type ChatContextUpdater interface {
+	// AdoptWorkspaceChatsContext rebinds workspace chats and adopts the latest
+	// build's context on an agent's first stored snapshot.
+	AdoptWorkspaceChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte) (publish func(), err error)
 	// UpdateAgentChatsContext pins unpinned chats, marks or clears dirty markers,
 	// and syncs errors and MCP/ACP resources using the supplied push transaction.
 	// The returned callback notifies watchers after commit.
-	UpdateAgentChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, firstPush bool, now time.Time) (publishContext func(), err error)
+	UpdateAgentChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (publishContext func(), err error)
 }
 
 // PushContextState persists a snapshot pushed by the workspace
@@ -152,11 +155,13 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 	// invoked after the transaction commits; ReadModifyUpdate may re-run
 	// the closure on serialization conflicts.
 	var publishContext func()
+	var publishAdopted func()
 	err = database.ReadModifyUpdate(a.Database, func(tx database.Store) error {
 		// The closure re-runs on serialization conflicts; reset any
 		// state carried over from a rolled-back attempt.
 		accepted = false
 		publishContext = nil
+		publishAdopted = nil
 
 		existing, err := tx.GetLatestWorkspaceAgentContextSnapshot(ctx, a.AgentID)
 		firstPush := errors.Is(err, sql.ErrNoRows)
@@ -208,7 +213,13 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 		// Update chats in the push transaction so refresh cannot interleave.
 		// Notify watchers only after commit.
 		if a.ChatContextUpdater != nil {
-			publishContext, err = a.ChatContextUpdater.UpdateAgentChatsContext(ctx, tx, a.AgentID, req.AggregateHash, req.SnapshotError, firstPush, now)
+			if firstPush {
+				publishAdopted, err = a.ChatContextUpdater.AdoptWorkspaceChatsContext(ctx, tx, a.AgentID, req.AggregateHash)
+				if err != nil {
+					return xerrors.Errorf("adopt workspace chats context: %w", err)
+				}
+			}
+			publishContext, err = a.ChatContextUpdater.UpdateAgentChatsContext(ctx, tx, a.AgentID, req.AggregateHash, req.SnapshotError, now)
 			if err != nil {
 				return xerrors.Errorf("update agent chats context: %w", err)
 			}
@@ -231,6 +242,9 @@ func (a *ContextAPI) PushContextState(ctx context.Context, req *agentproto.PushC
 	}
 
 	// The snapshot committed; notify watchers of context changes.
+	if publishAdopted != nil {
+		publishAdopted()
+	}
 	if publishContext != nil {
 		publishContext()
 	}

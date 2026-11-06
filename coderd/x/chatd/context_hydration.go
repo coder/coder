@@ -37,18 +37,9 @@ func latestAgentSnapshot(ctx context.Context, db database.Store, agentID uuid.UU
 // aggregateHash, and syncs snapshotError and MCP/ACP resources for unarchived
 // chats bound to agentID. Its callback publishes one event per changed chat after
 // commit.
-func (p *Server) UpdateAgentChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, firstPush bool, now time.Time) (func(), error) {
+func (p *Server) UpdateAgentChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte, snapshotError string, now time.Time) (func(), error) {
 	//nolint:gocritic // An agent does not own the chats bound to it.
 	ctx = dbauthz.AsChatd(ctx)
-
-	var adopted []uuid.UUID
-	if firstPush {
-		var err error
-		adopted, err = adoptWorkspaceChatsContext(ctx, tx, agentID, aggregateHash)
-		if err != nil {
-			return nil, err
-		}
-	}
 
 	// Chats created before the agent's first push land with a NULL pinned
 	// hash. Stamp them now so they start clean.
@@ -96,7 +87,11 @@ func (p *Server) UpdateAgentChatsContext(ctx context.Context, tx database.Store,
 		dirtiedIDs = append(dirtiedIDs, chat.ID)
 	}
 	// A chat can appear in several lists; publish it once.
-	touched := slice.Unique(slices.Concat(adopted, hydrated, dirtiedIDs, cleared, errorsSynced, synced))
+	touched := slice.Unique(slices.Concat(hydrated, dirtiedIDs, cleared, errorsSynced, synced))
+	return p.chatContextPublisher(ctx, tx, touched)
+}
+
+func (p *Server) chatContextPublisher(ctx context.Context, tx database.Store, touched []uuid.UUID) (func(), error) {
 	if len(touched) == 0 {
 		return func() {}, nil
 	}
@@ -120,8 +115,18 @@ func (p *Server) UpdateAgentChatsContext(ctx context.Context, tx database.Store,
 	}, nil
 }
 
-// adoptWorkspaceChatsContext moves chats to the latest build's selected chat
-// agent on its first push. Matching pins keep their resources.
+// AdoptWorkspaceChatsContext moves chats to the latest build's selected chat
+// agent on its first stored snapshot. Matching pins keep their resources.
+func (p *Server) AdoptWorkspaceChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte) (func(), error) {
+	//nolint:gocritic // An agent does not own the workspace's chats.
+	ctx = dbauthz.AsChatd(ctx)
+	adopted, err := adoptWorkspaceChatsContext(ctx, tx, agentID, aggregateHash)
+	if err != nil {
+		return nil, err
+	}
+	return p.chatContextPublisher(ctx, tx, adopted)
+}
+
 func adoptWorkspaceChatsContext(ctx context.Context, tx database.Store, agentID uuid.UUID, aggregateHash []byte) ([]uuid.UUID, error) {
 	workspace, err := tx.GetWorkspaceByAgentID(ctx, agentID)
 	if errors.Is(err, sql.ErrNoRows) {
