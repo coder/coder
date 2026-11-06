@@ -570,10 +570,11 @@ type sqlcQuerier interface {
 	// Pool fullness distinguishes capacity waits from worker pickup delays.
 	GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error)
 	GetChatQueuedMessageByID(ctx context.Context, arg GetChatQueuedMessageByIDParams) (ChatQueuedMessage, error)
-	// Returns the queue head (lowest position, then lowest id).
+	// Returns the queue head: the first row in GetChatQueuedMessages order.
 	GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
-	// Returns the queue in promotion order (position ASC, id ASC), the same
-	// order chatstate uses to pick the head. Clients read the queue through
+	// Returns the queue in promotion order (steer lane first, then the queue
+	// lane, each by position ASC, id ASC), the same order chatstate uses to
+	// pick the head. Clients read the queue through
 	// this query, so it must not order by created_at: promoting a message
 	// changes only its position, and concurrent senders can commit with
 	// created_at and position in opposite orders.
