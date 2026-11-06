@@ -53,6 +53,7 @@ func TestExperimentDisplayNames(t *testing.T) {
 		codersdk.ExperimentEnableAIWorkspaceDebug:    "AI Workspace Debugging",
 		codersdk.ExperimentChatStageMetrics:          "Chat Stage Metrics",
 		codersdk.ExperimentChatACPSubagents:          "Chat ACP Subagents",
+		codersdk.ExperimentChatBatchAuthz:            "Chat Batch Authorization",
 	}
 
 	require.Len(t, expected, len(codersdk.ExperimentsKnown))

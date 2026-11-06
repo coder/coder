@@ -435,6 +435,7 @@ func New(options *Options) *API {
 		options.Authorizer,
 		options.Logger.Named("authz_querier"),
 		options.AccessControlStore,
+		dbauthz.WithBatchChatAuthz(experiments.Enabled(codersdk.ExperimentChatBatchAuthz)),
 	)
 
 	if options.IDPSync == nil {

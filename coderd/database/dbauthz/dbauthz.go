@@ -115,20 +115,39 @@ type querier struct {
 	auth rbac.Authorizer
 	log  slog.Logger
 	acs  *atomic.Pointer[AccessControlStore]
+
+	opts           []Option
+	batchChatAuthz bool
 }
 
-func New(db database.Store, authorizer rbac.Authorizer, logger slog.Logger, acs *atomic.Pointer[AccessControlStore]) database.Store {
+// Option configures optional querier behavior.
+type Option func(*querier)
+
+// WithBatchChatAuthz authorizes multi-chat lookups with a single batched
+// chat fetch instead of one GetChatByID per chat.
+func WithBatchChatAuthz(enabled bool) Option {
+	return func(q *querier) {
+		q.batchChatAuthz = enabled
+	}
+}
+
+func New(db database.Store, authorizer rbac.Authorizer, logger slog.Logger, acs *atomic.Pointer[AccessControlStore], opts ...Option) database.Store {
 	// If the underlying db store is already a querier, return it.
 	// Do not double wrap.
 	if slices.Contains(db.Wrappers(), wrapname) {
 		return db
 	}
-	return &querier{
+	q := &querier{
 		db:   db,
 		auth: authorizer,
 		log:  logger,
 		acs:  acs,
+		opts: opts,
 	}
+	for _, opt := range opts {
+		opt(q)
+	}
+	return q
 }
 
 func (q *querier) Wrappers() []string {
@@ -1370,7 +1389,7 @@ func (q *querier) PGLocks(ctx context.Context) (database.PGLocks, error) {
 func (q *querier) InTx(function func(querier database.Store) error, txOpts *database.TxOptions) error {
 	return q.db.InTx(func(tx database.Store) error {
 		// Wrap the transaction store in a querier.
-		wrapped := New(tx, q.auth, q.log, q.acs)
+		wrapped := New(tx, q.auth, q.log, q.acs, q.opts...)
 		return function(wrapped)
 	}, txOpts)
 }
@@ -3471,6 +3490,17 @@ func (q *querier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uu
 
 	actor, ok := ActorFromContext(ctx)
 	if ok && actor.Type == rbac.SubjectTypeSystemRestricted {
+		return q.db.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
+	}
+
+	if !q.batchChatAuthz {
+		for _, chatID := range chatIDs {
+			// Authorize read on each parent chat.
+			_, err := q.GetChatByID(ctx, chatID)
+			if err != nil {
+				return nil, err
+			}
+		}
 		return q.db.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
 	}
 

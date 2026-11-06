@@ -338,7 +338,11 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	accessControlStore.Store(&acs)
 
 	runtimeManager := runtimeconfig.NewManager()
-	options.Database = dbauthz.New(options.Database, options.Authorizer, *options.Logger, accessControlStore)
+	// coderd.New skips its own dbauthz wrap for an already wrapped store, so
+	// querier options must be applied here.
+	batchChatAuthz := options.DeploymentValues != nil &&
+		coderd.ReadExperiments(*options.Logger, options.DeploymentValues.Experiments).Enabled(codersdk.ExperimentChatBatchAuthz)
+	options.Database = dbauthz.New(options.Database, options.Authorizer, *options.Logger, accessControlStore, dbauthz.WithBatchChatAuthz(batchChatAuthz))
 
 	// Some routes expect a deployment ID, so just make sure one exists.
 	// Check first incase the caller already set up this database.
