@@ -46,12 +46,12 @@ If any answer routes you away from the docs, refer to the [routing table](#routi
 ### Follow the Diátaxis framework
 
 The docs follow the [Diátaxis framework](https://diataxis.fr/).
-Every page should be identifiable as one of:
+Every page must be identifiable as one of the following:
 
-- a tutorial,
-- a how-to guide,
-- a reference, or
-- an explanation.
+- A tutorial.
+- A how-to guide.
+- A reference document.
+- An explanation.
 
 Avoid mixing those modes within a single page.
 
