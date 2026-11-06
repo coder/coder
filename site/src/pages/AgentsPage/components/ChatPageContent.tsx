@@ -51,7 +51,7 @@ import {
 	selectQueuedMessages,
 	selectReconnectState,
 	selectRetryState,
-	selectStreamError,
+	selectShownError,
 	selectStreamState,
 	selectSubagentStatusOverrides,
 	useChatMessages,
@@ -119,7 +119,6 @@ type ChatPageTimelineProps = {
 	initialActiveTurnMaxMessageId?: number;
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
-	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
 	onFetchMoreMessages: () => Promise<unknown>;
 	onEditUserMessage?: (messageId: number) => void;
@@ -139,7 +138,6 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	initialActiveTurnMaxMessageId,
 	hasMoreMessages,
 	isFetchingMoreMessages,
-	isHydratingMessages,
 	hasFetchMoreError,
 	onFetchMoreMessages,
 	onEditUserMessage,
@@ -159,7 +157,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		selectIsAwaitingFirstStreamChunk,
 	);
 	const streamState = useChatSelector(store, selectStreamState);
-	const streamError = useChatSelector(store, selectStreamError);
+	const shownError = useChatSelector(store, selectShownError);
 	const retryState = useChatSelector(store, selectRetryState);
 	const reconnectState = useChatSelector(store, selectReconnectState);
 	const subagentStatusOverrides = useChatSelector(
@@ -174,7 +172,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		streamState: liveStreamState,
 		retryState,
 		reconnectState,
-		streamError,
+		streamError: shownError,
 		persistedError: persistedError ?? null,
 		isAwaitingFirstStreamChunk,
 		chatStatus,
@@ -204,7 +202,6 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 				<ChatMessageScroller
 					hasMoreMessages={hasMoreMessages}
 					isFetchingMoreMessages={isFetchingMoreMessages}
-					isHydratingMessages={isHydratingMessages}
 					hasFetchMoreError={hasFetchMoreError}
 					hasTranscriptRows={parsedMessages.length > 0}
 					onFetchMoreMessages={onFetchMoreMessages}
@@ -679,6 +676,12 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	const modeWorkspaceUploads = isEditing
 		? editWorkspaceUploads
 		: composeWorkspaceUploads;
+	// The attachments of a send in flight. Until the send settles, the composer
+	// hides them and all workspace uploads, and shows attachments added since.
+	// An edit sets none, because the composer shows the compose draft during it.
+	const [submittedAttachments, setSubmittedAttachments] = useState<
+		readonly File[] | null
+	>(null);
 	const visibleWorkspaceUploads = isEditing
 		? [...preservedWorkspaceUploads, ...editWorkspaceUploads.uploads]
 		: composeWorkspaceUploads.uploads;
@@ -758,6 +761,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 						pendingWorkspaceUploads.length > 0
 							? pendingWorkspaceUploads
 							: undefined;
+					setSubmittedAttachments(isEditing ? null : attachments);
 					try {
 						await onSend({
 							message,
@@ -766,26 +770,34 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 						});
 					} catch {
 						// Attachments preserved for retry on failure.
+						setSubmittedAttachments(null);
 						return;
 					}
+					setSubmittedAttachments(null);
 					if (isEditing) {
 						editAttachments.resetAttachments();
 						resetEditWorkspaceUploads();
 						setPreservedWorkspaceUploads([]);
 					} else {
-						composeAttachments.resetAttachments();
+						for (const file of attachments) {
+							composeAttachments.handleRemoveAttachment(file);
+						}
 						composeWorkspaceUploads.reset();
 					}
 				})();
 			}}
-			attachments={attachments}
+			attachments={
+				submittedAttachments
+					? attachments.filter((file) => !submittedAttachments.includes(file))
+					: attachments
+			}
 			onAttach={handleAttach}
 			onRemoveAttachment={handleRemoveAttachment}
 			uploadStates={uploadStates}
 			previewUrls={previewUrls}
 			textContents={textContents}
 			workspaceUploads={{
-				uploads: visibleWorkspaceUploads,
+				uploads: submittedAttachments ? [] : visibleWorkspaceUploads,
 				onAttach: canUploadWorkspaceFiles
 					? modeWorkspaceUploads.attach
 					: undefined,

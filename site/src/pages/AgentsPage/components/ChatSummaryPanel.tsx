@@ -5,7 +5,12 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { ChatAttachments } from "./ChatAttachments";
 import { getChatCostTreeID } from "./ChatConversation/chatHelpers";
-import { type ChatStore, useChatMessages } from "./ChatConversation/chatStore";
+import {
+	type ChatStore,
+	selectOldestStoredMessageID,
+	useChatMessages,
+	useChatSelector,
+} from "./ChatConversation/chatStore";
 import {
 	deriveEvictedFileIds,
 	getEarlierMessageAttachments,
@@ -19,13 +24,12 @@ import { useTabPanelState } from "./ChatsSidebar/tabs/SidebarTabView";
 type ChatSummaryPanelProps = {
 	chatId: string;
 	store: ChatStore;
-} & Pick<EarlierMessagesProps, "hasMoreMessages" | "isHydratingMessages">;
+} & Pick<EarlierMessagesProps, "hasMoreMessages">;
 
 export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	chatId,
 	store,
 	hasMoreMessages,
-	isHydratingMessages,
 }) => {
 	const queryClient = useQueryClient();
 	const showCost = Boolean(useFeatureVisibility().aibridge);
@@ -44,15 +48,16 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 	});
 
 	const messages = useChatMessages(store);
-	const oldestLoadedMessageId = messages.at(0)?.id;
+	const oldestLoadedMessageId = useChatSelector(
+		store,
+		selectOldestStoredMessageID,
+	);
 	const earlierAttachmentsQuery = useQuery({
 		...chatAttachments(queryClient, chatId, oldestLoadedMessageId),
 		enabled: isVisible && hasMoreMessages,
 	});
-	// The final transcript page clears hasMoreMessages before the store holds
-	// its messages, so the cached list covers them until hydration catches up.
 	const earlierAttachments =
-		(hasMoreMessages || isHydratingMessages) && earlierAttachmentsQuery.data
+		hasMoreMessages && earlierAttachmentsQuery.data
 			? getEarlierMessageAttachments(earlierAttachmentsQuery.data.attachments)
 			: [];
 	// A retry clears the error of a query with no data, so keep the retried
@@ -75,12 +80,10 @@ export const ChatSummaryPanel: React.FC<ChatSummaryPanelProps> = ({
 		!earlierAttachmentsQuery.data &&
 		!earlierAttachmentsError;
 
-	// Gating on isHydratingMessages alone would blank the list on every live
-	// message.
-	const attachments =
-		isHydratingMessages && messages.length === 0
-			? undefined
-			: [...getMessageAttachments(messages), ...earlierAttachments];
+	const attachments = [
+		...getMessageAttachments(messages),
+		...earlierAttachments,
+	];
 
 	const evictedFileIds = deriveEvictedFileIds(
 		messages.map((message) => ({ message })),

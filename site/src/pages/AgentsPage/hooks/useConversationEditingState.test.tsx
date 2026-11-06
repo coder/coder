@@ -15,6 +15,7 @@ import {
 import { QueryClientProvider } from "react-query";
 import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessagePart } from "#/api/typesGenerated";
+import { createDeferred } from "#/testHelpers/deferred";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
 import type { EditingTarget } from "../components/ChatConversation/types";
@@ -30,6 +31,7 @@ import {
 	parseStoredDraft,
 } from "../utils/draftStorage";
 import {
+	BuiltInCommandPendingError,
 	type SendChatTurnOptions,
 	useConversationEditingState,
 } from "./useConversationEditingState";
@@ -725,7 +727,6 @@ describe("useConversationEditingState", () => {
 			).rejects.toThrow("boom");
 		});
 
-		expect(mockInput.clear).toHaveBeenCalled();
 		expect(result.current.inputValueRef.current).toBe("edited message");
 		expect(result.current.editingTarget).toEqual({ kind: "history", id: 7 });
 		expect(result.current.editingFileBlocks).toEqual(fileBlocks);
@@ -737,23 +738,354 @@ describe("useConversationEditingState", () => {
 	it("preserves the composer and draft when send fails", async () => {
 		const { result, onSend, unmount } = renderEditing();
 		const mockInput = createMockChatInputHandle("hello");
+		// The editor reports its clear as a content change.
+		mockInput.clear.mockImplementation(() =>
+			result.current.handleContentChange("", "", false),
+		);
 		result.current.chatInputRef.current = mockInput.handle;
-		onSend.mockRejectedValueOnce(new Error("boom"));
+		const send = createDeferred<undefined>();
+		onSend.mockReturnValueOnce(send.promise);
 
 		act(() => {
 			result.current.handleContentChange("hello", "hello", false);
 		});
 
+		let sent: Promise<void> = Promise.resolve();
+		act(() => {
+			sent = result.current.handleSendFromInput({ message: "hello" });
+		});
+		expect(mockInput.clear).toHaveBeenCalled();
+		expect(result.current.inputValueRef.current).toBe("");
+
 		await act(async () => {
-			await expect(
-				result.current.handleSendFromInput({ message: "hello" }),
-			).rejects.toThrow("boom");
+			send.reject(new Error("boom"));
+			await expect(sent).rejects.toThrow("boom");
 		});
 
-		expect(mockInput.clear).not.toHaveBeenCalled();
 		expect(mockInput.focus).not.toHaveBeenCalled();
 		expect(result.current.inputValueRef.current).toBe("hello");
+		expect(result.current.editorInitialValue).toBe("hello");
+		expect(result.current.initialEditorState).toBe("hello");
 		expect(localStorage.getItem(expectedKey)).toBe("hello");
+
+		// A command whose availability is still loading restores it too.
+		onSend.mockRejectedValueOnce(new BuiltInCommandPendingError());
+		await act(async () => {
+			await result.current.handleSendFromInput({ message: "hello" });
+		});
+		expect(result.current.inputValueRef.current).toBe("hello");
+		expect(localStorage.getItem(expectedKey)).toBe("hello");
+		unmount();
+	});
+
+	const paragraph = (text: string) => ({
+		type: "paragraph",
+		children: [{ type: "text", text }],
+	});
+	const editorStateOf = (text: string) =>
+		JSON.stringify({ root: { type: "root", children: [paragraph(text)] } });
+
+	it("saves the sent message and what was typed since while a send is pending", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("hello");
+		// The editor reports its clear as a content change.
+		mockInput.clear.mockImplementation(() =>
+			result.current.handleContentChange("", "", false),
+		);
+		result.current.chatInputRef.current = mockInput.handle;
+		const send = createDeferred<undefined>();
+		onSend.mockReturnValueOnce(send.promise);
+
+		act(() => {
+			result.current.handleContentChange(
+				"hello",
+				editorStateOf("hello"),
+				false,
+			);
+		});
+		let sent: Promise<void> = Promise.resolve();
+		act(() => {
+			sent = result.current.handleSendFromInput({ message: "hello" });
+		});
+		expect(localStorage.getItem(expectedKey)).toBe(editorStateOf("hello"));
+		act(() => {
+			result.current.handleContentChange("next", editorStateOf("next"), false);
+		});
+		unmount();
+
+		// A reload, or a failure after the unmount, finds both.
+		const both = {
+			root: { type: "root", children: [paragraph("hello"), paragraph("next")] },
+		};
+		expect(JSON.parse(localStorage.getItem(expectedKey) ?? "")).toEqual(both);
+		send.reject(new Error("boom"));
+		await expect(sent).rejects.toThrow("boom");
+		expect(JSON.parse(localStorage.getItem(expectedKey) ?? "")).toEqual(both);
+	});
+
+	describe.each(["history", "queued"] as const)("a %s edit request", (kind) => {
+		const submitEdit = () => {
+			const rendered = renderEditing();
+			rendered.result.current.chatInputRef.current =
+				createMockChatInputHandle().handle;
+			const edit = createDeferred<undefined>();
+			rendered.onSend.mockReturnValueOnce(edit.promise);
+
+			act(() => {
+				rendered.result.current.handleContentChange("draft", "draft", false);
+			});
+			act(() => {
+				rendered.beginEdit({ kind, id: 7 }, "old");
+			});
+			let sent: Promise<void> = Promise.resolve();
+			act(() => {
+				sent = rendered.result.current.handleSendFromInput({
+					message: "edited",
+				});
+			});
+			expect(rendered.result.current.editingTarget).toBeNull();
+			expect(rendered.result.current.editorInitialValue).toBe("draft");
+			act(() => {
+				rendered.result.current.handleContentChange(
+					"draft typed",
+					"draft typed",
+					false,
+				);
+			});
+			return { ...rendered, edit, sent };
+		};
+
+		it("keeps the compose draft when the edit succeeds", async () => {
+			const { result, edit, sent, unmount } = submitEdit();
+
+			await act(async () => {
+				edit.resolve(undefined);
+				await sent;
+			});
+
+			expect(result.current.editingTarget).toBeNull();
+			expect(result.current.editorInitialValue).toBe("draft");
+			expect(localStorage.getItem(expectedKey)).toBe("draft typed");
+			unmount();
+		});
+
+		it("keeps the compose draft for Cancel when the edit fails", async () => {
+			const { result, edit, sent, unmount } = submitEdit();
+
+			await act(async () => {
+				edit.reject(new Error("boom"));
+				await expect(sent).rejects.toThrow("boom");
+			});
+
+			expect(result.current.editingTarget).toEqual({ kind, id: 7 });
+			expect(result.current.editorInitialValue).toBe("edited");
+			expect(localStorage.getItem(expectedKey)).toBe("draft typed");
+			act(() => {
+				result.current.handleCancelEdit();
+			});
+			expect(result.current.editorInitialValue).toBe("draft typed");
+			unmount();
+		});
+	});
+
+	describe("a send that succeeds after the user left", () => {
+		// Sends "hello", types `typed` during the send, and unmounts. The returned
+		// function lets the send succeed.
+		const sendAndLeave = (typed: string) => {
+			const { result, onSend, unmount } = renderEditing();
+			const mockInput = createMockChatInputHandle("hello");
+			// The editor reports its clear as a content change.
+			mockInput.clear.mockImplementation(() =>
+				result.current.handleContentChange("", "", false),
+			);
+			result.current.chatInputRef.current = mockInput.handle;
+			const send = createDeferred<undefined>();
+			onSend.mockReturnValueOnce(send.promise);
+			act(() => {
+				result.current.handleContentChange("hello", "hello", false);
+			});
+			let sent: Promise<void> = Promise.resolve();
+			act(() => {
+				sent = result.current.handleSendFromInput({ message: "hello" });
+			});
+			if (typed) {
+				act(() => {
+					result.current.handleContentChange(typed, typed, false);
+				});
+			}
+			unmount();
+			return async () => {
+				await act(async () => {
+					send.resolve(undefined);
+					await sent;
+				});
+			};
+		};
+
+		it("leaves no draft when nothing was typed during it", async () => {
+			const succeed = sendAndLeave("");
+			await succeed();
+			expect(localStorage.getItem(expectedKey)).toBeNull();
+		});
+
+		it("leaves what was typed during it as the draft", async () => {
+			const succeed = sendAndLeave("next");
+			await succeed();
+			expect(localStorage.getItem(expectedKey)).toBe("next");
+		});
+
+		it("keeps the draft that a later visit saved", async () => {
+			const succeed = sendAndLeave("next");
+			const later = renderEditing();
+			act(() => {
+				later.result.current.handleContentChange("newer", "newer", false);
+			});
+			await succeed();
+			expect(localStorage.getItem(expectedKey)).toBe("newer");
+			later.unmount();
+		});
+	});
+
+	// The page ignores Edit while isRequestInFlight reports a request.
+	it("reports a send as in flight until it settles, and does not load a row marked during it", async () => {
+		const { result, onSend, unmount, markOnServer } = renderEditing();
+		result.current.chatInputRef.current = createMockChatInputHandle().handle;
+		const send = createDeferred<undefined>();
+		onSend.mockReturnValueOnce(send.promise);
+
+		let sent: Promise<void> = Promise.resolve();
+		act(() => {
+			sent = result.current.handleSendFromInput({ message: "hello" });
+		});
+		expect(result.current.isRequestInFlight()).toBe(true);
+		markOnServer(5, "queued text");
+
+		expect(result.current.editingTarget).toBeNull();
+		expect(result.current.editorInitialValue).toBe("");
+		await act(async () => {
+			send.resolve(undefined);
+			await sent;
+		});
+		expect(result.current.isRequestInFlight()).toBe(false);
+		unmount();
+	});
+
+	it("keeps what was typed during a send after it succeeds", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("hello");
+		// The editor reports its clear as a content change.
+		mockInput.clear.mockImplementation(() =>
+			result.current.handleContentChange("", "", false),
+		);
+		result.current.chatInputRef.current = mockInput.handle;
+		const send = createDeferred<undefined>();
+		onSend.mockReturnValueOnce(send.promise);
+
+		let sent: Promise<void> = Promise.resolve();
+		act(() => {
+			sent = result.current.handleSendFromInput({ message: "hello" });
+		});
+		act(() => {
+			result.current.handleContentChange("next", "next state", false);
+		});
+		await act(async () => {
+			send.resolve(undefined);
+			await sent;
+		});
+
+		expect(mockInput.clear).toHaveBeenCalledTimes(1);
+		expect(result.current.inputValueRef.current).toBe("next");
+		expect(localStorage.getItem(expectedKey)).toBe("next state");
+		unmount();
+	});
+
+	// A file-reference or skill chip has no plain text.
+	it.each([
+		{ outcome: "succeeds", draft: editorStateOf("chip") },
+		{
+			outcome: "fails",
+			draft: JSON.stringify({
+				root: {
+					type: "root",
+					children: [paragraph("hello"), paragraph("chip")],
+				},
+			}),
+		},
+	])(
+		"keeps a chip added during a send that $outcome",
+		async ({ outcome, draft }) => {
+			const { result, onSend, unmount } = renderEditing();
+			const mockInput = createMockChatInputHandle("hello");
+			mockInput.clear.mockImplementation(() =>
+				result.current.handleContentChange("", "", false),
+			);
+			result.current.chatInputRef.current = mockInput.handle;
+			const send = createDeferred<undefined>();
+			onSend.mockReturnValueOnce(send.promise);
+
+			act(() => {
+				result.current.handleContentChange(
+					"hello",
+					editorStateOf("hello"),
+					false,
+				);
+			});
+			let sent: Promise<void> = Promise.resolve();
+			act(() => {
+				sent = result.current.handleSendFromInput({ message: "hello" });
+			});
+			act(() => {
+				result.current.handleContentChange("", editorStateOf("chip"), true);
+			});
+			await act(async () => {
+				if (outcome === "succeeds") {
+					send.resolve(undefined);
+					await sent;
+				} else {
+					send.reject(new Error("boom"));
+					await expect(sent).rejects.toThrow("boom");
+				}
+			});
+
+			expect(localStorage.getItem(expectedKey)).toBe(draft);
+			unmount();
+		},
+	);
+
+	it("puts a failed message in front of what was typed during it", async () => {
+		const { result, onSend, unmount } = renderEditing();
+		const mockInput = createMockChatInputHandle("hello");
+		result.current.chatInputRef.current = mockInput.handle;
+		const send = createDeferred<undefined>();
+		onSend.mockReturnValueOnce(send.promise);
+
+		act(() => {
+			result.current.handleContentChange(
+				"hello",
+				editorStateOf("hello"),
+				false,
+			);
+		});
+		let sent: Promise<void> = Promise.resolve();
+		act(() => {
+			sent = result.current.handleSendFromInput({ message: "hello" });
+		});
+		act(() => {
+			result.current.handleContentChange("next", editorStateOf("next"), false);
+		});
+		await act(async () => {
+			send.reject(new Error("boom"));
+			await expect(sent).rejects.toThrow("boom");
+		});
+
+		expect(result.current.editorInitialValue).toBe("hello\n\nnext");
+		expect(result.current.inputValueRef.current).toBe("hello\n\nnext");
+		expect(JSON.parse(result.current.initialEditorState ?? "")).toEqual({
+			root: {
+				type: "root",
+				children: [paragraph("hello"), paragraph("next")],
+			},
+		});
 		unmount();
 	});
 
@@ -774,46 +1106,7 @@ describe("useConversationEditingState", () => {
 			editingTarget: undefined,
 		});
 		expect(mockInput.clear).toHaveBeenCalled();
-		expect(mockInput.focus).toHaveBeenCalled();
 		expect(localStorage.getItem(expectedKey)).toBeNull();
-		unmount();
-	});
-
-	it("calls focus on the input ref after a successful send", async () => {
-		const { result, onSend, unmount } = renderEditing();
-
-		// Attach a mock ChatMessageInputRef to the chatInputRef
-		const mockFocus = vi.fn();
-		const mockClear = vi.fn();
-		const mockInputRef = {
-			focus: mockFocus,
-			clear: mockClear,
-			setValue: vi.fn(),
-			insertText: vi.fn(),
-			getValue: vi.fn().mockReturnValue(""),
-			addFileReference: vi.fn(),
-			insertSkill: vi.fn(),
-			removeSkills: vi.fn(),
-			getEditorState: vi.fn(() => ""),
-			restoreEditorState: vi.fn(),
-			getContentParts: vi.fn().mockReturnValue([]),
-		}; // The hook exposes chatInputRef, so assign the mock to it.
-		result.current.chatInputRef.current = mockInputRef;
-
-		await act(async () => {
-			result.current.handleSendFromInput({ message: "hello" });
-			await vi.waitFor(() => {
-				expect(onSend).toHaveBeenCalledWith({
-					message: "hello",
-					attachments: undefined,
-					workspaceUploads: undefined,
-					editingTarget: undefined,
-				});
-			});
-		});
-
-		expect(mockClear).toHaveBeenCalled();
-		expect(mockFocus).toHaveBeenCalled();
 		unmount();
 	});
 
@@ -1084,8 +1377,6 @@ describe("useConversationEditingState", () => {
 				workspaceUploads: undefined,
 				editingTarget: { kind: "queued", id: 42 },
 			});
-			expect(mockInput.clear).toHaveBeenCalled();
-			expect(mockInput.focus).toHaveBeenCalled();
 			expect(result.current.editingTarget).toBeNull();
 			expect(result.current.editingFileBlocks).toEqual([]);
 			expect(result.current.editorInitialValue).toBe("draft");
@@ -1606,56 +1897,6 @@ describe("useConversationEditingState", () => {
 				unmount();
 			});
 
-			it("an edit opened while a save is in flight keeps its row and typed text after the save, and Cancel gives the draft back", async () => {
-				const {
-					result,
-					unmount,
-					onSend,
-					beginEdit,
-					openEditWhileBeginPending,
-				} = renderEditing();
-				let resolveSave: () => void = () => undefined;
-				onSend.mockImplementationOnce(
-					() =>
-						new Promise<void>((resolve) => {
-							resolveSave = resolve;
-						}),
-				);
-				act(() => {
-					result.current.handleContentChange("draft", "draft", false);
-					beginEdit({ kind: "queued", id: 42 }, "queued text");
-				});
-				act(() => {
-					result.current.handleContentChange(
-						"queued edit",
-						"queued edit",
-						false,
-					);
-				});
-
-				let save: Promise<void> = Promise.resolve();
-				act(() => {
-					save = result.current.handleSendFromInput({ message: "queued edit" });
-				});
-				openEditWhileBeginPending(6, "other row", 42);
-				act(() => {
-					result.current.handleContentChange("other row!", "other row!", false);
-				});
-				await act(async () => {
-					resolveSave();
-					await save;
-				});
-
-				expect(result.current.editingTarget).toEqual({ kind: "queued", id: 6 });
-				expect(result.current.inputValueRef.current).toBe("other row!");
-
-				act(() => {
-					result.current.handleCancelEdit();
-				});
-				expect(result.current.editorInitialValue).toBe("draft");
-				unmount();
-			});
-
 			it("a save that fails after the row was dropped keeps the text as a new-message draft", async () => {
 				const { result, unmount, onSend, beginEdit, markOnServer } =
 					renderEditing();
@@ -1693,6 +1934,59 @@ describe("useConversationEditingState", () => {
 				expect(result.current.inputValueRef.current).toBe("queued edit");
 				unmount();
 			});
+
+			it.each(["before", "after"] as const)(
+				"a save that fails with its row dropped %s the failure keeps the edit followed by what was typed during the save as a new-message draft",
+				async (dropped) => {
+					const { result, unmount, onSend, beginEdit, markOnServer } =
+						renderEditing();
+					const save = createDeferred<undefined>();
+					onSend.mockReturnValueOnce(save.promise);
+					act(() => {
+						result.current.handleContentChange("draft", "draft", false);
+						beginEdit({ kind: "queued", id: 42 }, "queued text");
+					});
+					act(() => {
+						result.current.handleContentChange(
+							"queued edit",
+							"queued edit",
+							false,
+						);
+					});
+
+					let saved: Promise<void> = Promise.resolve();
+					act(() => {
+						saved = result.current.handleSendFromInput({
+							message: "queued edit",
+						});
+					});
+					act(() => {
+						result.current.handleContentChange(
+							"draft typed",
+							"draft typed",
+							false,
+						);
+					});
+					if (dropped === "before") {
+						markOnServer(null);
+					}
+					await act(async () => {
+						save.reject(new Error("gone"));
+						await saved.catch(() => undefined);
+					});
+					if (dropped === "after") {
+						markOnServer(null);
+					}
+
+					const kept = "queued edit\n\ndraft typed";
+					expect(result.current.editingTarget).toBeNull();
+					expect(result.current.composerMode).toBe("draft");
+					expect(result.current.editorInitialValue).toBe(kept);
+					expect(result.current.inputValueRef.current).toBe(kept);
+					expect(localStorage.getItem(expectedKey)).toBe(kept);
+					unmount();
+				},
+			);
 		});
 
 		it("Cancel restores the draft from before the edit and leaves the composer in draft mode", () => {

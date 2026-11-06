@@ -249,6 +249,7 @@ describe("QueuedMessagesList", () => {
 			<TooltipProvider>
 				<QueuedMessagesList
 					messages={messages}
+					busyRows={new Map()}
 					onDelete={onDelete}
 					onPromote={onPromote}
 					onEdit={onEdit}
@@ -270,44 +271,6 @@ describe("QueuedMessagesList", () => {
 		const handlers = renderList([{ ...MockChatQueuedMessage, id: 9 }]);
 		await user.click(screen.getByRole("button", { name }));
 		expect(handlers[handler]).toHaveBeenCalledWith(9);
-	});
-
-	it("hides the row and disables sibling actions while onPromote is pending, and restores them after it fails", async () => {
-		const user = userEvent.setup();
-		let rejectPromote: ((error: Error) => void) | undefined;
-		const onPromote = vi.fn(
-			() =>
-				new Promise<void>((_, reject) => {
-					rejectPromote = reject;
-				}),
-		);
-		const { onDelete } = renderList(
-			[
-				{ ...MockChatQueuedMessage, id: 7 },
-				{ ...MockChatQueuedMessage, id: 8 },
-			],
-			{ onPromote },
-		);
-
-		const [sendHead] = screen.getAllByRole("button", { name: "Send now" });
-		await user.click(sendHead);
-		expect(onPromote).toHaveBeenCalledWith(7);
-		await user.click(screen.getByRole("button", { name: "Send now" }));
-		expect(onPromote).toHaveBeenCalledTimes(1);
-
-		const failPromote = rejectPromote;
-		if (!failPromote) {
-			throw new Error("onPromote was not invoked");
-		}
-		await act(async () => {
-			failPromote(new Error("promote failed"));
-		});
-
-		const [removeHead] = screen.getAllByRole("button", {
-			name: "Remove from queue",
-		});
-		await user.click(removeHead);
-		expect(onDelete).toHaveBeenCalledWith(7);
 	});
 
 	it("forwards Edit and Cancel edit with the row id", async () => {

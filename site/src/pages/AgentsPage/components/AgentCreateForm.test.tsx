@@ -394,6 +394,20 @@ describe("AgentCreateForm workspace file uploads", () => {
 		expect(onCreateChat).toHaveBeenCalledTimes(1);
 	});
 
+	it("locks the editor while the create request is pending", async () => {
+		const { onCreateChat } = renderForm();
+		onCreateChat.mockReturnValue(new Promise<void>(() => {}));
+
+		await submitMessage("plain text message");
+		await waitFor(() => expect(onCreateChat).toHaveBeenCalledTimes(1));
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("textbox", { name: "Chat message" }),
+			).toHaveAttribute("contenteditable", "false"),
+		);
+	});
+
 	it("rejects attachments while the submit is pending", async () => {
 		localStorage.setItem("agents.selected-workspace-id", mockWorkspace.id);
 		const { onCreateChat } = renderForm();

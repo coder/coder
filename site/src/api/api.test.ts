@@ -10,7 +10,12 @@ import {
 	MockWorkspace,
 	MockWorkspaceBuild,
 } from "#/testHelpers/entities";
-import { API, getURLWithSearchParams, ParameterValidationError } from "./api";
+import {
+	API,
+	getURLWithSearchParams,
+	ParameterValidationError,
+	watchChat,
+} from "./api";
 import type * as TypesGen from "./typesGenerated";
 
 const axiosInstance = API.getAxiosInstance();
@@ -53,6 +58,19 @@ describe("api.ts", () => {
 			} catch (error) {
 				expect(error).toStrictEqual(expectedError);
 			}
+		});
+	});
+
+	describe("watchChat", () => {
+		const routeOf = (snapshotVersion: number) => {
+			const socket = watchChat("chat-1", snapshotVersion);
+			const route = new URL(socket.url);
+			socket.close();
+			return Object.fromEntries(route.searchParams.entries());
+		};
+
+		it("opens the stream at the given snapshot version", () => {
+			expect(routeOf(7)).toEqual({ snapshot_version: "7" });
 		});
 	});
 

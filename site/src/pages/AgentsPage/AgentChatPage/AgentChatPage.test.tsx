@@ -15,7 +15,12 @@ import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
 import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import { toast } from "#/components/Toaster/toast";
+import {
+	MockChat,
+	MockChatMessage,
+	MockChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
@@ -58,15 +63,17 @@ beforeAll(() => {
 	});
 });
 
-// Renders the page for MockChat with the given queued rows; the user owns
-// the chat. publish delivers stream events to the page. Queries are scoped
-// to this render, so a test can render the page twice as two tabs.
+// Renders the page for MockChat with the given messages and queued rows; the
+// user owns the chat. publish delivers stream events to the page. Queries are
+// scoped to this render, so a test can render the page twice as two tabs.
 const renderQueuedChat = ({
 	queuedMessages,
+	messages = [],
 	chat = MockChat,
 	models = [{ ...MockChatModel, id: chat.last_model_config_id }],
 }: {
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
+	messages?: readonly TypesGen.ChatMessage[];
 	chat?: TypesGen.Chat;
 	models?: readonly TypesGen.ChatModel[];
 }) => {
@@ -84,9 +91,10 @@ const renderQueuedChat = ({
 	);
 	vi.spyOn(API.experimental, "getChat").mockResolvedValue(chat);
 	vi.spyOn(API.experimental, "getChatMessages").mockResolvedValue({
-		messages: [],
+		messages: [...messages],
 		queued_messages: [...queuedMessages],
 		has_more: false,
+		snapshot_version: 1,
 	});
 	vi.spyOn(API.experimental, "getChatModels").mockResolvedValue({
 		models: models.map((model) => ({
@@ -154,38 +162,48 @@ const renderQueuedChat = ({
 	};
 };
 
+const renderChatPage = (
+	queuedMessages: readonly TypesGen.ChatQueuedMessage[] = [],
+) => {
+	vi.spyOn(apiModule, "watchChat").mockImplementation(
+		() =>
+			new OneWayWebSocket({
+				apiRoute: `/api/experimental/chats/${mockProjectChat.id}/stream`,
+				websocketInit: (url, protocol) => createMockWebSocket(url, protocol)[0],
+			}),
+	);
+	vi.spyOn(API.experimental, "getChat").mockResolvedValue(mockProjectChat);
+	vi.spyOn(API.experimental, "getChatMessages").mockResolvedValue({
+		messages: [],
+		queued_messages: queuedMessages,
+		has_more: false,
+		snapshot_version: 1,
+	});
+	vi.spyOn(API.experimental, "getChatModels").mockResolvedValue({
+		models: [
+			{
+				...MockChatModel,
+				id: mockProjectChat.last_model_config_id,
+				organization_id: mockProjectChat.organization_id,
+				is_default: true,
+			},
+		],
+		providers: [MockChatModelProviderDescriptor],
+		unsupported_providers: [],
+	});
+	vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
+		MockUserPreferenceSettings,
+	);
+	vi.spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
+	return renderWithAuth(<Outlet context={outletContext} />, {
+		path: "/agents",
+		route: `/agents/${mockProjectChat.id}`,
+		children: [{ path: ":agentId", element: <AgentChatPage /> }],
+	});
+};
+
 describe("AgentChatPage", () => {
 	it("refreshes the project actions after a send fails", async () => {
-		vi.spyOn(apiModule, "watchChat").mockImplementation(
-			() =>
-				new OneWayWebSocket({
-					apiRoute: `/api/experimental/chats/${mockProjectChat.id}/stream`,
-					websocketInit: (url, protocol) =>
-						createMockWebSocket(url, protocol)[0],
-				}),
-		);
-		vi.spyOn(API.experimental, "getChat").mockResolvedValue(mockProjectChat);
-		vi.spyOn(API.experimental, "getChatMessages").mockResolvedValue({
-			messages: [],
-			queued_messages: [],
-			has_more: false,
-		});
-		vi.spyOn(API.experimental, "getChatModels").mockResolvedValue({
-			models: [
-				{
-					...MockChatModel,
-					id: mockProjectChat.last_model_config_id,
-					organization_id: mockProjectChat.organization_id,
-					is_default: true,
-				},
-			],
-			providers: [MockChatModelProviderDescriptor],
-			unsupported_providers: [],
-		});
-		vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
-			MockUserPreferenceSettings,
-		);
-		vi.spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
 		const getChatProjectSkills = vi
 			.spyOn(API.experimental, "getChatProjectSkills")
 			.mockResolvedValue([{ ...MockSkill, name: "deploy", action: true }]);
@@ -196,12 +214,14 @@ describe("AgentChatPage", () => {
 			);
 		const user = userEvent.setup();
 
-		const { queryClient } = renderWithAuth(<Outlet context={outletContext} />, {
-			path: "/agents",
-			route: `/agents/${mockProjectChat.id}`,
-			children: [{ path: ":agentId", element: <AgentChatPage /> }],
-		});
+		const { queryClient } = renderChatPage();
 
+		// The actions bar remounts after the send, so only the failure's
+		// invalidation may refetch the list.
+		queryClient.setQueryDefaults(
+			chatProjectSkillsKey(mockProjectChat.project_id),
+			{ staleTime: Number.POSITIVE_INFINITY },
+		);
 		await user.click(await screen.findByRole("button", { name: "deploy" }));
 		// The page and the actions bar share the list, so let both settle.
 		await waitFor(() =>
@@ -271,6 +291,7 @@ describe("AgentChatPage", () => {
 					type: "queue_update",
 					chat_id: MockChat.id,
 					queued_messages: [row],
+					snapshot_version: 2,
 				});
 
 				const expected = typedInB ? `queued text edit${typedInB}` : "draft";
@@ -387,16 +408,25 @@ describe("AgentChatPage", () => {
 
 		// react-query delivers the failed request's state to the page on a
 		// scheduler it owns, which may run before the request's own error
-		// handlers.
+		// handlers. On a 404 the row is gone, and another client's edit of
+		// another row follows.
+		const otherRow = {
+			...row,
+			id: 8,
+			content: [{ type: "text" as const, text: "other row" }],
+		};
 		it.each([
-			["", defaultScheduler],
+			["", defaultScheduler, 409, [row]],
 			[
 				" when the page sees the failure before the request's handlers",
 				queueMicrotask,
+				409,
+				[row],
 			],
+			[" or of another row after a 404", defaultScheduler, 404, [otherRow]],
 		])(
 			"an Edit the server refuses leaves the composer as it was, so it does not open another client's edit of the row%s",
-			async (_name, scheduler) => {
+			async (_name, scheduler, status, queueAfter) => {
 				notifyManager.setScheduler(scheduler);
 				onTestFinished(() => notifyManager.setScheduler(defaultScheduler));
 				const page = renderQueuedChat({ queuedMessages: [row] });
@@ -412,7 +442,7 @@ describe("AgentChatPage", () => {
 
 				page.editChatQueuedMessage.mockRejectedValueOnce({
 					...mockApiError({ message: "Another edit is open." }),
-					status: 409,
+					status,
 				});
 				await page.rowAction("Edit");
 				await waitFor(() =>
@@ -423,11 +453,104 @@ describe("AgentChatPage", () => {
 				await page.publish({
 					type: "queue_update",
 					chat_id: MockChat.id,
-					queued_messages: [{ ...row, editing_since: "2024-01-01T00:00:00Z" }],
+					queued_messages: queueAfter.map((queued) => ({
+						...queued,
+						editing_since: "2024-01-01T00:00:00Z",
+					})),
+					snapshot_version: 2,
 				});
 				await screen.findByRole("button", { name: "Editing" });
 				expect(page.composer().textContent).toBe("draft");
 			},
 		);
+
+		// The row leaves the queue only at a queue update.
+		it.each([
+			[404, "Queued message was already sent or removed."],
+			[409, "Another edit is open."],
+		])(
+			"an Edit refused with %i reports it and shows the row as before",
+			async (status, message) => {
+				const toastError = vi.spyOn(toast, "error");
+				const page = renderQueuedChat({ queuedMessages: [row] });
+				page.editChatQueuedMessage.mockRejectedValueOnce({
+					...mockApiError({ message: "Another edit is open." }),
+					status,
+				});
+
+				await page.rowAction("Edit");
+
+				await waitFor(() => expect(toastError).toHaveBeenCalledWith(message));
+				await waitFor(() =>
+					expect(screen.queryByRole("button", { name: "Editing" })).toBeNull(),
+				);
+				expect(screen.getByRole("button", { name: "Edit" })).toBeEnabled();
+			},
+		);
+
+		it("Edit does nothing while a send is in flight", async () => {
+			vi.spyOn(API.experimental, "createChatMessage").mockReturnValue(
+				new Promise(() => {}),
+			);
+			const page = renderQueuedChat({ queuedMessages: [row] });
+			await page.type("hello");
+			await page.user.click(screen.getByRole("button", { name: "Send" }));
+			await waitFor(() => expect(page.composer().textContent).toBe(""));
+
+			await page.rowAction("Edit");
+
+			expect(page.editChatQueuedMessage).not.toHaveBeenCalled();
+			expect(screen.queryByRole("button", { name: "Editing" })).toBeNull();
+			expect(page.composer().textContent).toBe("");
+		});
+
+		it("Edit on a sent message does nothing while a send is in flight", async () => {
+			vi.spyOn(API.experimental, "createChatMessage").mockReturnValue(
+				new Promise(() => {}),
+			);
+			const page = renderQueuedChat({
+				queuedMessages: [],
+				messages: [
+					{
+						...MockChatMessage,
+						id: 3,
+						chat_id: MockChat.id,
+						role: "user",
+						content: [{ type: "text", text: "sent text" }],
+					},
+				],
+			});
+			await page.type("hello");
+			await page.user.click(screen.getByRole("button", { name: "Send" }));
+			await waitFor(() => expect(page.composer().textContent).toBe(""));
+
+			await page.user.click(
+				screen.getByRole("button", { name: "Edit message" }),
+			);
+
+			expect(screen.queryByRole("button", { name: "Save Edit" })).toBeNull();
+			expect(page.composer().textContent).toBe("");
+		});
+	});
+
+	it("reports a failed promote and keeps the row queued", async () => {
+		vi.spyOn(API.experimental, "getChatProjectSkills").mockResolvedValue([]);
+		const promote = vi
+			.spyOn(API.experimental, "promoteChatQueuedMessage")
+			.mockRejectedValue(mockApiError({ message: "promote failed" }));
+		const user = userEvent.setup();
+
+		renderChatPage([MockChatQueuedMessage]);
+
+		await user.click(await screen.findByRole("button", { name: "Send now" }));
+		await waitFor(() =>
+			expect(outletContext.setChatErrorReason).toHaveBeenCalledWith(
+				mockProjectChat.id,
+				expect.objectContaining({ message: "promote failed" }),
+			),
+		);
+		// The row is listed again, so it can be promoted again.
+		await user.click(screen.getByRole("button", { name: "Send now" }));
+		await waitFor(() => expect(promote).toHaveBeenCalledTimes(2));
 	});
 });

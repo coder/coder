@@ -199,7 +199,6 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		queuedMessageUnderEditID: null,
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
-		isHydratingMessages: false,
 		hasFetchMoreError: false,
 		onFetchMoreMessages: fn(async () => {}),
 		mcpServers: [] as React.ComponentProps<
@@ -220,7 +219,6 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		onImplementPlan: fn(),
 		onSendAskUserQuestionResponse: fn(),
 		urlTransform: (url: string) => url,
-		initialMessages: [],
 		...overrides,
 		store,
 		editing: buildEditing(editing),
@@ -868,16 +866,30 @@ const buildMessage = (
 ): TypesGen.ChatMessage =>
 	buildMessageWithContent(id, role, [{ type: "text", text }]);
 
+// A play function reruns on a module-level store, so it replaces the history
+// a previous run left. A reset applies only above the last reset's version.
+let replaceVersion = 0;
+const replaceStoreMessages = (
+	store: ReturnType<typeof createChatStore>,
+	msgs: TypesGen.ChatMessage[],
+) => {
+	replaceVersion += 1;
+	store.batch(() => {
+		store.resetHistoryFrom(0, replaceVersion);
+		store.upsertDurableMessages(msgs, replaceVersion);
+	});
+};
+
 const buildStoreWithMessages = (
 	msgs: TypesGen.ChatMessage[],
 	status: TypesGen.ChatStatus = "waiting",
 	queuedMessages?: TypesGen.ChatQueuedMessage[],
 ) => {
 	const store = createChatStore();
-	store.replaceMessages(msgs);
-	store.setChatStatus(status);
+	store.upsertDurableMessages(msgs, 1);
+	store.applyServerChatStatus(status);
 	if (queuedMessages) {
-		store.setQueuedMessages(queuedMessages);
+		store.setQueuedMessages(queuedMessages, 1);
 	}
 	return store;
 };
@@ -1093,7 +1105,7 @@ const prependOlderMessages = (
 				: `Older answer ${Math.abs(id)}.`;
 		return buildMessage(id, role, text);
 	});
-	store.replaceMessages([...olderMessages, ...existing]);
+	store.upsertDurableMessages(olderMessages, 1);
 };
 
 const singleRenderStore = buildStoreWithMessages([
@@ -1145,10 +1157,11 @@ export const ReachingTheStartLoadsEarlierMessages: Story = {
 		/>
 	),
 	play: async ({ canvasElement }) => {
-		startEdgeStore.replaceMessages(
+		replaceStoreMessages(
+			startEdgeStore,
 			buildLongConversation(AGENT_ID, 40).slice(1),
 		);
-		startEdgeStore.setChatStatus("waiting");
+		startEdgeStore.applyServerChatStatus("waiting");
 		startEdgeFetchSpy.mockClear();
 		const canvas = within(canvasElement);
 		const viewport = getViewport(canvas);
@@ -1192,8 +1205,11 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={streamCompletionStore} />,
 	play: async ({ canvasElement }) => {
-		streamCompletionStore.replaceMessages(buildLongConversation(AGENT_ID, 40));
-		streamCompletionStore.setChatStatus("waiting");
+		replaceStoreMessages(
+			streamCompletionStore,
+			buildLongConversation(AGENT_ID, 40),
+		);
+		streamCompletionStore.applyServerChatStatus("waiting");
 		const canvas = within(canvasElement);
 		const viewport = getViewport(canvas);
 
@@ -1212,10 +1228,11 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 		// A new turn begins: the prompt is appended and the assistant starts
 		// streaming into the live row.
 		streamCompletionStore.batch(() => {
-			streamCompletionStore.upsertDurableMessages([
-				buildMessage(41, "user", "Final question."),
-			]);
-			streamCompletionStore.setChatStatus("running");
+			streamCompletionStore.upsertDurableMessages(
+				[buildMessage(41, "user", "Final question.")],
+				1,
+			);
+			streamCompletionStore.applyServerChatStatus("running");
 			streamCompletionStore.applyMessageParts([
 				{ type: "text", text: "Streaming the final answer." },
 			]);
@@ -1230,11 +1247,12 @@ export const StreamCompletionKeepsViewportPosition: Story = {
 
 		// The durable assistant row replaces the live row, then the turn ends.
 		streamCompletionStore.batch(() => {
-			streamCompletionStore.upsertDurableMessages([
-				buildMessage(42, "assistant", "Streaming the final answer."),
-			]);
+			streamCompletionStore.upsertDurableMessages(
+				[buildMessage(42, "assistant", "Streaming the final answer.")],
+				1,
+			);
 			streamCompletionStore.clearStreamState();
-			streamCompletionStore.setChatStatus("waiting");
+			streamCompletionStore.applyServerChatStatus("waiting");
 		});
 		await waitFor(() => {
 			expect(canvas.getByTestId("chat-message-message:42")).toBeInTheDocument();
@@ -1259,8 +1277,11 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 	decorators: scrollStoryDecorators,
 	render: () => <StoryAgentChatPageView store={thinkingShiftStore} />,
 	play: async ({ canvasElement }) => {
-		thinkingShiftStore.replaceMessages(buildLongConversation(AGENT_ID, 40));
-		thinkingShiftStore.setChatStatus("waiting");
+		replaceStoreMessages(
+			thinkingShiftStore,
+			buildLongConversation(AGENT_ID, 40),
+		);
+		thinkingShiftStore.applyServerChatStatus("waiting");
 		const canvas = within(canvasElement);
 		const viewport = getViewport(canvas);
 		await waitForScrollOverflow(viewport);
@@ -1271,10 +1292,11 @@ export const ThinkingHandoffKeepsPromptPosition: Story = {
 		// Begin a turn: the prompt is appended and the chat goes running, so
 		// the live row shows the Thinking indicator with no stream output yet.
 		thinkingShiftStore.batch(() => {
-			thinkingShiftStore.upsertDurableMessages([
-				buildMessage(41, "user", "Follow-up question."),
-			]);
-			thinkingShiftStore.setChatStatus("running");
+			thinkingShiftStore.upsertDurableMessages(
+				[buildMessage(41, "user", "Follow-up question.")],
+				1,
+			);
+			thinkingShiftStore.applyServerChatStatus("running");
 		});
 		await canvas.findByTestId("chat-message-live-assistant");
 		await canvas.findByTestId("live-activity-slot");
@@ -1322,14 +1344,16 @@ const UnderflowPaginationStory: React.FC = () => {
 
 	const completePage = () => {
 		const nextPage = loadedPages + 1;
-		store.replaceMessages([
-			buildMessage(
-				9 - nextPage,
-				nextPage % 2 === 1 ? "user" : "assistant",
-				`Loaded underflow page ${nextPage}. `.repeat(20),
-			),
-			...getStoreMessages(store),
-		]);
+		store.upsertDurableMessages(
+			[
+				buildMessage(
+					9 - nextPage,
+					nextPage % 2 === 1 ? "user" : "assistant",
+					`Loaded underflow page ${nextPage}. `.repeat(20),
+				),
+			],
+			1,
+		);
 		setLoadedPages(nextPage);
 		setIsFetching(false);
 	};
