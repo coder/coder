@@ -1666,6 +1666,13 @@ SET
     context_dirty_since = NULL
 WHERE id = @id::uuid;
 
+-- name: RebindChatContextAgent :exec
+-- Context refresh must not reorder chat lists.
+UPDATE chats
+SET build_id = @build_id::uuid,
+    agent_id = @agent_id::uuid
+WHERE id = @id::uuid;
+
 -- name: RebindWorkspaceChatsToAgent :many
 -- Rebinds non-archived workspace chats bound to the given agent, bound to an
 -- agent outside the given build, or unbound with a pinned snapshot.

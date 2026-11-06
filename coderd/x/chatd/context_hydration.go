@@ -272,8 +272,14 @@ func (p *Server) ensureChatContextPinnedOnFirstTurn(ctx context.Context, chat da
 	p.publishChatPubsubEvents(pinnedChats, codersdk.ChatWatchEventKindContextDirty)
 }
 
-// ErrChatContextNotReady means the current workspace agent has no snapshot.
-var ErrChatContextNotReady = xerrors.New("workspace context is not ready; try again after the agent pushes its context")
+var (
+	// ErrChatContextNotReady means the current workspace agent has no snapshot.
+	ErrChatContextNotReady = xerrors.New("workspace context is not ready; try again after the agent pushes its context")
+	// ErrChatContextNoAgent means no workspace agent can supply context.
+	ErrChatContextNoAgent = xerrors.New("workspace has no running agent")
+	// ErrChatContextWorkspaceDeleted means the chat's workspace was deleted.
+	ErrChatContextWorkspaceDeleted = xerrors.New("the chat's workspace was deleted")
+)
 
 // repinChatContext re-pins a chat to its agent's latest snapshot in a
 // transaction. An agent with no snapshot keeps the pin until its first push.
@@ -344,9 +350,16 @@ func (p *Server) RefreshChatContext(ctx context.Context, chat database.Chat) (da
 			return xerrors.Errorf("get chat for refresh: %w", err)
 		}
 		if current.WorkspaceID.Valid {
+			workspace, err := tx.GetWorkspaceByID(ctx, current.WorkspaceID.UUID)
+			if errors.Is(err, sql.ErrNoRows) || (err == nil && workspace.Deleted) {
+				return ErrChatContextWorkspaceDeleted
+			}
+			if err != nil {
+				return xerrors.Errorf("get workspace for context refresh: %w", err)
+			}
 			agent, err := resolveChatWorkspaceAgent(ctx, tx, current)
-			if isNoUsableWorkspaceAgent(err) {
-				return ErrChatContextNotReady
+			if errors.Is(err, errChatHasNoWorkspaceAgent) {
+				return ErrChatContextNoAgent
 			}
 			if err != nil {
 				return err
@@ -356,14 +369,15 @@ func (p *Server) RefreshChatContext(ctx context.Context, chat database.Chat) (da
 				if err != nil {
 					return xerrors.Errorf("get latest workspace build for refresh: %w", err)
 				}
-				current, err = tx.UpdateChatBuildAgentBinding(ctx, database.UpdateChatBuildAgentBindingParams{
+				err = tx.RebindChatContextAgent(ctx, database.RebindChatContextAgentParams{
 					ID:      current.ID,
-					BuildID: uuid.NullUUID{UUID: build.ID, Valid: true},
-					AgentID: uuid.NullUUID{UUID: agent.ID, Valid: true},
+					BuildID: build.ID,
+					AgentID: agent.ID,
 				})
 				if err != nil {
-					return xerrors.Errorf("update chat build/agent binding for refresh: %w", err)
+					return xerrors.Errorf("rebind chat context agent: %w", err)
 				}
+				current.AgentID = uuid.NullUUID{UUID: agent.ID, Valid: true}
 			}
 		}
 		if err := repinChatContext(ctx, tx, current.ID, current.AgentID); err != nil {

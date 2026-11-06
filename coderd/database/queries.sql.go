@@ -13291,6 +13291,25 @@ func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID)
 	return i, err
 }
 
+const rebindChatContextAgent = `-- name: RebindChatContextAgent :exec
+UPDATE chats
+SET build_id = $1::uuid,
+    agent_id = $2::uuid
+WHERE id = $3::uuid
+`
+
+type RebindChatContextAgentParams struct {
+	BuildID uuid.UUID `db:"build_id" json:"build_id"`
+	AgentID uuid.UUID `db:"agent_id" json:"agent_id"`
+	ID      uuid.UUID `db:"id" json:"id"`
+}
+
+// Context refresh must not reorder chat lists.
+func (q *sqlQuerier) RebindChatContextAgent(ctx context.Context, arg RebindChatContextAgentParams) error {
+	_, err := q.db.ExecContext(ctx, rebindChatContextAgent, arg.BuildID, arg.AgentID, arg.ID)
+	return err
+}
+
 const rebindWorkspaceChatsToAgent = `-- name: RebindWorkspaceChatsToAgent :many
 WITH build_agents AS (
     SELECT workspace_agents.id

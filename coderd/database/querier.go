@@ -1492,6 +1492,8 @@ type sqlcQuerier interface {
 	// sequence, so this is acceptable.
 	PinChatByID(ctx context.Context, id uuid.UUID) error
 	PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
+	// Context refresh must not reorder chat lists.
+	RebindChatContextAgent(ctx context.Context, arg RebindChatContextAgentParams) error
 	// Rebinds non-archived workspace chats bound to the given agent, bound to an
 	// agent outside the given build, or unbound with a pinned snapshot.
 	// Keeps updated_at unchanged: adoption is a background update and must not

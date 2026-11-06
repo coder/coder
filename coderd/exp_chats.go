@@ -2664,6 +2664,26 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	if errors.Is(err, chatd.ErrChatContextNoAgent) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Workspace has no running agent.",
+			Detail:  "Start the workspace before refreshing context.",
+		})
+		return
+	}
+	if errors.Is(err, chatd.ErrChatContextWorkspaceDeleted) {
+		httpapi.Write(ctx, rw, http.StatusGone, codersdk.Response{
+			Message: "The chat's workspace was deleted.",
+		})
+		return
+	}
+	if errors.Is(err, agentselect.ErrMultipleChatAgents) || errors.Is(err, agentselect.ErrNoEligibleAgents) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Cannot select a workspace agent for context refresh.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error refreshing chat context.",

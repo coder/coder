@@ -1539,22 +1539,24 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 	)
 }
 
-// resolveChatWorkspaceAgent keeps a binding only while its agent belongs to the
-// latest build. Otherwise it selects that build's chat agent.
+// resolveChatWorkspaceAgent prefers the readable bound agent so queued or
+// provisioning builds do not interrupt access to the running workspace.
 func resolveChatWorkspaceAgent(ctx context.Context, db database.Store, chat database.Chat) (database.WorkspaceAgent, error) {
+	if chat.AgentID.Valid {
+		agent, err := db.GetWorkspaceAgentByID(ctx, chat.AgentID.UUID)
+		if err == nil {
+			return agent, nil
+		}
+		if !errors.Is(err, sql.ErrNoRows) {
+			return database.WorkspaceAgent{}, xerrors.Errorf("get bound workspace agent: %w", err)
+		}
+	}
 	agents, err := db.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, chat.WorkspaceID.UUID)
 	if err != nil {
 		return database.WorkspaceAgent{}, xerrors.Errorf("get workspace agents in latest build: %w", err)
 	}
 	if len(agents) == 0 {
 		return database.WorkspaceAgent{}, errChatHasNoWorkspaceAgent
-	}
-	if chat.AgentID.Valid {
-		for _, agent := range agents {
-			if agent.ID == chat.AgentID.UUID {
-				return agent, nil
-			}
-		}
 	}
 	selected, err := agentselect.FindChatAgent(agents)
 	if err != nil {

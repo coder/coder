@@ -5408,6 +5408,14 @@ func (m queryMetricsStore) PopNextQueuedMessage(ctx context.Context, chatID uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) RebindChatContextAgent(ctx context.Context, arg database.RebindChatContextAgentParams) error {
+	start := time.Now()
+	r0 := m.s.RebindChatContextAgent(ctx, arg)
+	m.queryLatencies.WithLabelValues("RebindChatContextAgent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RebindChatContextAgent").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) RebindWorkspaceChatsToAgent(ctx context.Context, arg database.RebindWorkspaceChatsToAgentParams) ([]database.RebindWorkspaceChatsToAgentRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.RebindWorkspaceChatsToAgent(ctx, arg)
