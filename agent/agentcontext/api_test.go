@@ -125,6 +125,19 @@ func TestAPI_GetAndDeleteSource(t *testing.T) {
 	require.Empty(t, m.Sources())
 }
 
+func TestAPI_DeleteSeededSource(t *testing.T) {
+	t.Parallel()
+	src := testutil.TempDirResolved(t)
+	srv, m := newAPITestServer(t, agentcontext.ManagerOptions{
+		InitialSources: []agentcontext.Source{{Path: src}},
+	})
+
+	status, body := doRequest(t, http.MethodDelete, srv.URL+"/sources/"+url.PathEscape(src), nil)
+	require.Equal(t, http.StatusBadRequest, status)
+	require.Contains(t, string(body), "agent configuration")
+	require.Equal(t, []agentcontext.Source{{Path: src}}, m.Sources())
+}
+
 func TestAPI_GetSourceNotFound(t *testing.T) {
 	t.Parallel()
 	srv, _ := newAPITestServer(t, agentcontext.ManagerOptions{

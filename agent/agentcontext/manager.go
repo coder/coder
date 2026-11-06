@@ -25,8 +25,7 @@ type ManagerOptions struct {
 	// scan root.
 	WorkingDir func() string
 	// InitialSources seeds the Manager's source list at boot
-	// time. Sources from CODER_AGENT_EXP_*_DIRS env vars or
-	// startup scripts are layered here.
+	// time from agent configuration. These sources cannot be removed.
 	InitialSources []Source
 	// AllowedRoots restricts which paths may be added as
 	// sources at runtime. When empty the package falls back
@@ -80,6 +79,8 @@ type Manager struct {
 	// sourceIndex maps canonical path -> position in sources
 	// for O(1) lookups during AddSource / RemoveSource.
 	sourceIndex map[string]int
+	// seededSources tracks paths kept in force by agent configuration.
+	seededSources map[string]struct{}
 
 	// snapshot is the latest result of a resolver pass. It is
 	// replaced atomically under mu.
@@ -139,20 +140,21 @@ func NewManager(opts ManagerOptions) *Manager {
 	}
 
 	m := &Manager{
-		logger:       opts.Logger,
-		clock:        clock,
-		workingDir:   opts.WorkingDir,
-		allowedRoots: append([]string(nil), opts.AllowedRoots...),
-		resolver:     resolver,
-		debounce:     debounce,
-		mcpReconnect: opts.MCPReconnect,
-		sources:      make([]Source, 0),
-		sourceIndex:  make(map[string]int),
-		subscribers:  make(map[chan struct{}]struct{}),
-		trigger:      make(chan struct{}, 1),
-		closedCh:     make(chan struct{}),
-		runDoneCh:    make(chan struct{}),
-		runStartedCh: make(chan struct{}),
+		logger:        opts.Logger,
+		clock:         clock,
+		workingDir:    opts.WorkingDir,
+		allowedRoots:  append([]string(nil), opts.AllowedRoots...),
+		resolver:      resolver,
+		debounce:      debounce,
+		mcpReconnect:  opts.MCPReconnect,
+		sources:       make([]Source, 0),
+		sourceIndex:   make(map[string]int),
+		seededSources: make(map[string]struct{}),
+		subscribers:   make(map[chan struct{}]struct{}),
+		trigger:       make(chan struct{}, 1),
+		closedCh:      make(chan struct{}),
+		runDoneCh:     make(chan struct{}),
+		runStartedCh:  make(chan struct{}),
 	}
 
 	if resolver.ACPResources == nil {
@@ -184,6 +186,7 @@ func NewManager(opts ManagerOptions) *Manager {
 			continue
 		}
 		m.addSourceLocked(identity)
+		m.seededSources[identity] = struct{}{}
 	}
 
 	// Start gated: m.snapshot stays the zero value (version 0) until
@@ -335,8 +338,8 @@ func (m *Manager) AddSource(s Source) (Source, error) {
 // SeedSources registers a batch of trusted sources without
 // AllowedRoots validation, the late-binding equivalent of
 // ManagerOptions.InitialSources for when the working directory
-// is only known after Run starts. Invalid paths are skipped and
-// duplicates are ignored.
+// is only known after Run starts. Seeded sources cannot be removed.
+// Invalid paths are skipped and duplicates are ignored.
 //
 // Untrusted callers must use AddSource; SeedSources exists only
 // for manifest-triggered seeding from CODER_AGENT_EXP_*_DIRS.
@@ -355,6 +358,7 @@ func (m *Manager) SeedSources(sources []Source) {
 				slog.Error(err))
 			continue
 		}
+		m.seededSources[identity] = struct{}{}
 		if m.addSourceLocked(identity) {
 			changed = true
 		}
@@ -366,7 +370,8 @@ func (m *Manager) SeedSources(sources []Source) {
 }
 
 // RemoveSource removes the source matching path by its lexical
-// identity, returning ErrSourceNotFound if none matches.
+// identity, returning ErrSourceNotFound if none matches. Sources from agent
+// configuration, built-in roots, and the working directory cannot be removed.
 func (m *Manager) RemoveSource(path string) error {
 	identity, err := lexicalPath(path)
 	if err != nil {
@@ -377,7 +382,28 @@ func (m *Manager) RemoveSource(path string) error {
 		return ErrSourceNotFound
 	}
 
+	resolved, err := CanonicalizePath(identity)
+	if err != nil {
+		return xerrors.Errorf("canonicalize: %w", err)
+	}
+	for _, root := range defaultBuiltinRoots() {
+		builtin, err := CanonicalizePath(root)
+		if err == nil && resolved == builtin {
+			return xerrors.Errorf("cannot remove source %q: it is a built-in scan root and is always scanned", identity)
+		}
+	}
+	if m.workingDir != nil {
+		wd, err := CanonicalizePath(m.workingDir())
+		if err == nil && resolved == wd {
+			return xerrors.Errorf("cannot remove source %q: it is the working directory and is always scanned", identity)
+		}
+	}
+
 	m.mu.Lock()
+	if _, seeded := m.seededSources[identity]; seeded {
+		m.mu.Unlock()
+		return xerrors.Errorf("cannot remove source %q: it is seeded from agent configuration; update CODER_AGENT_EXP_*_DIRS or CODER_AGENT_EXP_MCP_CONFIG_FILES instead", identity)
+	}
 	idx, ok := m.sourceIndex[identity]
 	if !ok {
 		m.mu.Unlock()

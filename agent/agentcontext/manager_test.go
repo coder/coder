@@ -237,6 +237,80 @@ func TestManager_RemoveSource(t *testing.T) {
 	require.ErrorIs(t, err, agentcontext.ErrSourceNotFound)
 }
 
+func TestManager_RemoveSourceRejectsRequiredRoots(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		path   string
+		seed   string
+		reason string
+	}{
+		{name: "InitialSource", seed: "initial", reason: "agent configuration"},
+		{name: "LateSeed", seed: "late", reason: "agent configuration"},
+		{name: "ExistingSourceSeeded", seed: "existing", reason: "agent configuration"},
+		{name: "WorkingDirectory", path: "working-directory", reason: "working directory"},
+		{name: "BuiltinCoder", path: "~/.coder", reason: "built-in scan root"},
+		{name: "BuiltinSkills", path: "~/.coder/skills", reason: "built-in scan root"},
+		{name: "BuiltinPlugins", path: "~/.claude/plugins/cache", reason: "built-in scan root"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			wd := testutil.TempDirResolved(t)
+			src := testutil.TempDirResolved(t)
+			if tc.path == "working-directory" {
+				src = wd
+			} else if tc.path != "" {
+				src = tc.path
+			}
+			opts := agentcontext.ManagerOptions{
+				WorkingDir:   func() string { return wd },
+				AllowedRoots: []string{wd, src},
+			}
+			if tc.seed == "initial" {
+				opts.InitialSources = []agentcontext.Source{{Path: src}}
+			}
+			m := newTestManager(t, opts)
+			switch tc.seed {
+			case "late":
+				m.SeedSources([]agentcontext.Source{{Path: src}})
+			case "":
+				err := m.RemoveSource(src)
+				require.ErrorContains(t, err, tc.reason)
+			}
+
+			_, err := m.AddSource(agentcontext.Source{Path: src})
+			require.NoError(t, err)
+			if tc.seed == "existing" {
+				m.SeedSources([]agentcontext.Source{{Path: src}})
+			}
+			before := m.Sources()
+			err = m.RemoveSource(src)
+			require.ErrorContains(t, err, tc.reason)
+			require.Equal(t, before, m.Sources())
+		})
+	}
+}
+
+func TestManager_RemoveSourceRejectsWorkingDirectoryAlias(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks require admin privileges on Windows runners")
+	}
+	wd := testutil.TempDirResolved(t)
+	alias := filepath.Join(testutil.TempDirResolved(t), "alias")
+	require.NoError(t, os.Symlink(wd, alias))
+	m := newTestManager(t, agentcontext.ManagerOptions{
+		WorkingDir:   func() string { return wd },
+		AllowedRoots: []string{wd},
+	})
+	_, err := m.AddSource(agentcontext.Source{Path: alias})
+	require.NoError(t, err)
+	err = m.RemoveSource(alias)
+	require.ErrorContains(t, err, "working directory")
+	require.Equal(t, []agentcontext.Source{{Path: alias}}, m.Sources())
+}
+
 func TestManager_HasSource(t *testing.T) {
 	t.Parallel()
 	wd := t.TempDir()
