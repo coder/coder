@@ -243,6 +243,7 @@ The agent has access to a set of workspace tools that it uses to accomplish task
 | `process_list`                              | List all tracked processes in the workspace                                                                                                                  |
 | `process_signal`                            | Send a signal (terminate/kill) to a tracked process                                                                                                          |
 | `attach_file`                               | Attach a workspace file to the chat as a durable downloadable attachment                                                                                     |
+| `open_preview`                              | Open an embedded preview of a running HTTP app, an `.html` file, or a directory containing `index.html`                                                      |
 | `spawn_agent` (`type=general` or `explore`) | Delegate a task to a sub-agent running in parallel, optionally on a specific model                                                                           |
 | `list_subagent_models`                      | List the models available for `spawn_agent`'s `model_config_id` argument                                                                                     |
 | `wait_agent`                                | Wait for a sub-agent to complete and collect its result                                                                                                      |
@@ -256,7 +257,7 @@ The agent has access to a set of workspace tools that it uses to accomplish task
 | `find_tools`                                | Search the deferred MCP tool catalog and activate matching tools. Only available when the turn has MCP tools to defer                                        |
 
 These tools connect to the workspace over the same secure connection used for web terminals and IDE access.
-No additional ports or services are required in the workspace.
+You don't need to expose additional inbound ports.
 
 Platform tools (`list_templates`, `read_template`, `create_workspace`, `start_workspace`, `stop_workspace`, `propose_plan`, `ask_user_question`) and orchestration tools (`spawn_agent`, `list_subagent_models`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`) are only available to root chats.
 Sub-agents do not have access to these tools and cannot create workspaces or spawn further sub-agents.
@@ -269,6 +270,62 @@ It also requires a model from an Anthropic or OpenAI AI provider, or a Claude mo
 In plan mode, the agent can still inspect the workspace and template metadata, execute shell commands for exploration, and read process output.
 `write_file` and `edit_files` remain available only for the chat-specific plan file under `.coder/plans/`.
 Workspace MCP tools are unavailable in plan mode, and plan-mode sub-agents receive no MCP tools.
+`open_preview` is only available to root chats outside plan mode.
+
+### Embedded previews
+
+The agent can call `open_preview` to show a running app or HyperText Markup Language (HTML) files in the chat's **Preview** tab.
+It gives each preview a short title and supplies exactly one of `port` or `path`:
+
+- `port` opens an app that is already running on a workspace port between 1000 and 65535.
+  Coder connects to the port over HTTP, not HTTPS, so the app must accept plain HTTP.
+  An optional `url_path` opens the app at a path and query, such as `/?folder=/home/coder/project`.
+- `path` publishes an absolute workspace path to an `.html` file, or a directory containing `index.html`.
+
+`open_preview` is only available when the deployment has a [wildcard access URL](../admin/networking/wildcard-access-url.md).
+Previews also need the selected workspace proxy, including one the dashboard selects automatically, to have a wildcard access URL and run the deployment's Coder version.
+If the **Preview** tab is missing or a preview doesn't load, go to another dashboard page, such as **Workspaces**, and [select](../admin/networking/workspace-proxies.md#select-a-proxy) the primary proxy, named **Default** unless an administrator renamed it, or a proxy that meets both requirements.
+The Agents page uses the proxy you select there.
+Preview hostnames must fit the 63-character DNS label limit, so previews can fail to load when the agent, workspace, and user names total more than 40 characters, minus any suffix in the wildcard access URL, such as `-apps` in `*-apps.example.com`.
+
+A file preview publishes only the selected file, so for HTML that uses local Cascading Style Sheets (CSS), JavaScript, or images, the agent must publish their directory.
+A directory preview serves every regular file in the directory except files and subdirectories whose names start with a dot or contain `~`, `:`, or `\`, which Windows can use to refer to another file.
+It doesn't provide directory listings or serve symbolic links inside the directory, and no preview serves a file with more than one hard link.
+Links to a subdirectory must end in `/`, such as `/about/`.
+
+> [!WARNING]
+> Do not publish a directory containing secrets.
+> A directory preview exposes every eligible file, including files added after publishing, not only HTML and assets.
+
+Preview pages contain content the agent wrote, and a prompt injection can change what the agent writes, so Coder restricts what they can do:
+
+- Only users who can connect to the workspace's apps can view its previews, such as the workspace owner and users the workspace is shared with.
+  Deployment owners can too, unless the deployment sets `--disable-owner-workspace-access`.
+  [Port sharing levels](../workspaces/workspace-access/port-forwarding.md#share-ports) don't apply to previews.
+- Preview pages run in a sandbox that keeps them from navigating the dashboard or opening pop-ups.
+- Preview pages can load scripts, styles, images, and other files, and send `fetch` calls, WebSocket connections, and form posts, only from their own origin.
+  They can't load files from a content delivery network (CDN), embed pages from other origins, such as videos or maps, or call external APIs from the browser.
+- Preview pages can't register service workers.
+- In the **Preview** tab, and when you open a preview in a new browser tab from it, a preview page can't navigate itself to another origin.
+  A preview in a new browser tab shows its title and host above the page, because the address bar shows the dashboard's URL.
+  If you go to a preview's URL directly, the page can navigate to any URL, such as the workspace's other ports and apps, and pages there don't have these restrictions.
+- Coder removes `Clear-Site-Data` headers and cookies with a `Domain` attribute from preview responses.
+  Scripts on a preview page can still set cookies that other apps on the wildcard domain receive, so enable [`--host-prefix-cookie`](../reference/cli/server/index.md#--host-prefix-cookie) to keep them from replacing your session cookie.
+
+Treat a preview like any app that runs code the agent controls.
+
+The **Preview** tab has a menu that lists every preview the chat opened in its current workspace.
+When the chat has a workspace, you can add the tab from the right panel's add menu, even before the agent opens a preview.
+When the agent opens a preview while you view a chat, the page shows `Opened a preview` with the preview's title and an **Open preview** button.
+Select **Open preview** there or on the tool result to show the **Preview** tab with that preview selected.
+Unless the chat is archived, reloading the page keeps the tab and preview you last selected.
+To see edited static files, use the refresh button.
+If a build deletes and recreates the published directory, or the directory that contains a published file, ask the agent to call `open_preview` again.
+
+Published files stay available until the workspace agent restarts, even if you close the tab, and can't be unpublished.
+The workspace agent serves up to 64 published paths until it restarts.
+After a restart, ask the agent to call `open_preview` again.
+Preview links from before the restart stop working.
 
 ## Plan mode
 
