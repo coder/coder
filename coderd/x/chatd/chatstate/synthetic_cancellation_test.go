@@ -61,11 +61,12 @@ func commitAssistantToolCall(
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	var step chatstate.CommitStepResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		var err error
 		step, err = tx.CommitStep(chatstate.CommitStepInput{Messages: append([]chatstate.Message{msg}, toolMessages...)})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	require.Len(t, step.InsertedMessages, 1+len(toolMessages))
 	return step.InsertedMessages[0]
 }
@@ -74,10 +75,11 @@ func commitAssistantToolCall(
 func landInW(t *testing.T, f *testFixture, m *chatstate.ChatMachine) {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	require.Equal(t, chatstate.StateW, f.classify(ctx, t, m.ChatID()))
 }
 
@@ -85,7 +87,7 @@ func landInW(t *testing.T, f *testFixture, m *chatstate.ChatMachine) {
 func landInE0(t *testing.T, f *testFixture, m *chatstate.ChatMachine) {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.FinishError(chatstate.FinishErrorInput{
 			LastError: pqtype.NullRawMessage{
 				RawMessage: json.RawMessage(`{"message":"boom"}`),
@@ -93,7 +95,8 @@ func landInE0(t *testing.T, f *testFixture, m *chatstate.ChatMachine) {
 			},
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	require.Equal(t, chatstate.StateE0, f.classify(ctx, t, m.ChatID()))
 }
 
@@ -149,7 +152,7 @@ func testSendMessageDirectWSynthesizesToolCancellations(t *testing.T) {
 	landInW(t, f, m)
 
 	var send chatstate.SendMessageResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		var err error
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("after-cancel", f.User.ID, f.Model.ID),
@@ -157,7 +160,8 @@ func testSendMessageDirectWSynthesizesToolCancellations(t *testing.T) {
 			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 
 	require.Len(t, send.InsertedMessages, 3, "synthetic cancels + new user")
 	assertToolResultForCall(t, send.InsertedMessages[0], "outstanding-1")
@@ -184,7 +188,7 @@ func testSendMessageDirectE0SynthesizesToolCancellations(t *testing.T) {
 	landInE0(t, f, m)
 
 	var send chatstate.SendMessageResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		var err error
 		send, err = tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage("after-error", f.User.ID, f.Model.ID),
@@ -192,7 +196,8 @@ func testSendMessageDirectE0SynthesizesToolCancellations(t *testing.T) {
 			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 
 	require.Len(t, send.InsertedMessages, 2)
 	assertToolResultForCall(t, send.InsertedMessages[0], callID)
@@ -234,13 +239,14 @@ func testEditMessageSynthesizesToolCancellationsBeforeReplacement(t *testing.T) 
 	assistantTC := nonDynamicAssistantToolCallMessage(t, f.Model.ID, callID)
 	secondUser := userTextMessage("second user", f.User.ID, f.Model.ID)
 	var step chatstate.CommitStepResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		var err error
 		step, err = tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{assistantTC, secondUser},
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	require.Len(t, step.InsertedMessages, 2)
 	secondUserID := step.InsertedMessages[1].ID
 	require.Equal(t, database.ChatMessageRoleUser, step.InsertedMessages[1].Role)
@@ -249,7 +255,7 @@ func testEditMessageSynthesizesToolCancellationsBeforeReplacement(t *testing.T) 
 	editedContent := mustMarshalParts(t, []codersdk.ChatMessagePart{
 		codersdk.ChatMessageText("edited"),
 	})
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		var err error
 		edit, err = tx.EditMessage(chatstate.EditMessageInput{
 			MessageID: secondUserID,
@@ -257,7 +263,8 @@ func testEditMessageSynthesizesToolCancellationsBeforeReplacement(t *testing.T) 
 			Content:   editedContent,
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 
 	require.Len(t, edit.CancellationMessages, 1, "synthetic cancel inserted")
 	assertToolResultForCall(t, edit.CancellationMessages[0], callID)
@@ -304,7 +311,7 @@ func testPromoteQueuedMessageE1SynthesizesToolCancellations(t *testing.T) {
 	require.Equal(t, chatstate.StateR1, f.classify(ctx, t, created.Chat.ID))
 
 	// R1 -> E1 via FinishError.
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.FinishError(chatstate.FinishErrorInput{
 			LastError: pqtype.NullRawMessage{
 				RawMessage: json.RawMessage(`{"message":"boom"}`),
@@ -312,17 +319,19 @@ func testPromoteQueuedMessageE1SynthesizesToolCancellations(t *testing.T) {
 			},
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	require.Equal(t, chatstate.StateE1, f.classify(ctx, t, created.Chat.ID))
 
 	var promote chatstate.PromoteQueuedMessageResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		var err error
 		promote, err = tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
 			QueuedMessageID: queued.QueuedMessage.ID,
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 
 	require.Len(t, promote.CancellationMessages, 1)
 	assertToolResultForCall(t, promote.CancellationMessages[0], callID)
@@ -352,10 +361,11 @@ func testPromoteQueuedMessageA1SynthesizesDynamicToolCancellations(t *testing.T)
 		assistantToolCallMessage(t, f.Model.ID, toolName, dynCallID))
 
 	// Land in A0.
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	require.Equal(t, chatstate.StateA0, f.classify(ctx, t, created.Chat.ID))
 
 	// A0 -> A1 with one queued user message.
@@ -364,13 +374,14 @@ func testPromoteQueuedMessageA1SynthesizesDynamicToolCancellations(t *testing.T)
 	require.Equal(t, chatstate.StateA1, f.classify(ctx, t, created.Chat.ID))
 
 	var promote chatstate.PromoteQueuedMessageResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		var err error
 		promote, err = tx.PromoteQueuedMessage(chatstate.PromoteQueuedMessageInput{
 			QueuedMessageID: queued.QueuedMessage.ID,
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 
 	require.Len(t, promote.CancellationMessages, 1, "dynamic tool call canceled")
 	assertToolResultForCall(t, promote.CancellationMessages[0], dynCallID)
@@ -412,11 +423,12 @@ func testFinishTurnR1SynthesizesToolCancellationsBeforePromotion(t *testing.T) {
 	beforeIDs := historyMessageIDs(ctx, t, f, created.Chat.ID)
 
 	var finish chatstate.FinishTurnResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		var err error
 		finish, err = tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	require.NotNil(t, finish.PromotedMessage)
 	require.Equal(t, database.ChatMessageRoleUser, finish.PromotedMessage.Role)
 
@@ -462,23 +474,25 @@ func testFinishInterruptionI1PromotesQueueHead(t *testing.T) {
 	queued := sendQueuedMessage(t, f, m, "queued-for-interruption")
 	require.NotNil(t, queued.QueuedMessage)
 	// R1 -> I1 via Interrupt.
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		if err := ownChat(ctx, tx, store, created.Chat.ID); err != nil {
 			return err
 		}
 		_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "test"})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	require.Equal(t, chatstate.StateI1, f.classify(ctx, t, created.Chat.ID))
 
 	beforeIDs := historyMessageIDs(ctx, t, f, created.Chat.ID)
 
 	var finish chatstate.FinishInterruptionResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		var err error
 		finish, err = tx.FinishInterruption(chatstate.FinishInterruptionInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	require.NotNil(t, finish.PromotedMessage)
 	require.Equal(t, database.ChatMessageRoleUser, finish.PromotedMessage.Role)
 
@@ -507,13 +521,14 @@ func testFinishInterruptionRejectsOutstandingToolCalls(t *testing.T) {
 	// R0 -> I0 via Interrupt. Interrupt closes pending dynamic calls
 	// when transitioning from A0/A1, but from R0 it does NOT, so the
 	// chat keeps its outstanding dynamic call.
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		if err := ownChat(ctx, tx, store, created.Chat.ID); err != nil {
 			return err
 		}
 		_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "test"})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	require.Equal(t, chatstate.StateI0, f.classify(ctx, t, created.Chat.ID))
 
 	stateBefore := f.classify(ctx, t, created.Chat.ID)
@@ -522,7 +537,7 @@ func testFinishInterruptionRejectsOutstandingToolCalls(t *testing.T) {
 
 	// FinishInterruption with no partial commits should reject
 	// because the dynamic call is still outstanding.
-	err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.FinishInterruption(chatstate.FinishInterruptionInput{})
 		return err
 	})

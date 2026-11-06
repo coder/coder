@@ -592,7 +592,7 @@ func runPositiveCase(t *testing.T, f *testFixture, spec transitionCaseSpec) {
 
 	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
 	var result transitionCaseResult
-	err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		return spec.apply(t, f, tx, seeded, spec.from, &result)
 	})
 	if spec.assertFailure != nil {
@@ -625,7 +625,7 @@ func runDisallowedCase(t *testing.T, f *testFixture, tr chatstate.Transition, fr
 	require.NotNil(t, applier, "no default applier for transition %s", tr)
 	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
 	var result transitionCaseResult
-	err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		return applier(t, f, tx, seeded, from, &result)
 	})
 
@@ -2013,13 +2013,14 @@ func finishInterruptionRejectsOutstandingToolCallCase() transitionCaseSpec {
 			commitAssistantToolCall(t, f, m,
 				nonDynamicAssistantToolCallMessage(t, f.Model.ID, nonDynCallID))
 
-			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+			_, err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 				if err := ownChat(ctx, tx, store, created.Chat.ID); err != nil {
 					return err
 				}
 				_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "test"})
 				return err
-			}))
+			})
+			require.NoError(t, err)
 			return seededChat{
 				chatID:                 created.Chat.ID,
 				exists:                 true,

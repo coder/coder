@@ -72,12 +72,13 @@ func seedBlockedHead(t *testing.T, f *testFixture, from chatstate.ExecutionState
 			bodies = append([]string{bodies[last]}, bodies[:last]...)
 		}
 		if from == chatstate.StateE1 {
-			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			_, err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 				_, err := tx.FinishError(chatstate.FinishErrorInput{
 					LastError: pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"message":"boom"}`), Valid: true},
 				})
 				return err
-			}))
+			})
+			require.NoError(t, err)
 		}
 		seeded = seededChat{
 			chatID:               created.Chat.ID,
@@ -100,10 +101,11 @@ func seedPaused(t *testing.T, f *testFixture, extra int) seededChat {
 	t.Helper()
 	seeded := seedBlockedHead(t, f, chatstate.StateR1, extra)
 	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
-	require.NoError(t, m.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store) error {
+	_, err := m.Update(testutil.Context(t, testutil.WaitShort), func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	return seeded
 }
 

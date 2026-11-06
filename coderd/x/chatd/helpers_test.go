@@ -215,18 +215,20 @@ func (f *workerTestFixture) createRequiresActionChat(t *testing.T) database.Chat
 	})
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, res.Chat.ID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{
 				assistantToolCallMessage(t, f.model.ID, toolName),
 			},
 		})
 		return err
-	}))
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	})
+	require.NoError(t, err)
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.EnterRequiresAction(chatstate.EnterRequiresActionInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	chat, err := f.db.GetChatByID(ctx, res.Chat.ID)
 	require.NoError(t, err)
 	f.pubsub.clear()
@@ -452,10 +454,11 @@ func finishTurn(t *testing.T, f *workerTestFixture, chatID uuid.UUID) database.C
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.FinishTurn(chatstate.FinishTurnInput{})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	chat, err := f.db.GetChatByID(ctx, chatID)
 	require.NoError(t, err)
 	return chat
@@ -465,12 +468,13 @@ func commitAssistantStep(t *testing.T, f *workerTestFixture, chatID uuid.UUID, t
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.CommitStep(chatstate.CommitStepInput{
 			Messages: []chatstate.Message{assistantTextMessage(t, text, f.model.ID)},
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	chat, err := f.db.GetChatByID(ctx, chatID)
 	require.NoError(t, err)
 	return chat
@@ -481,14 +485,15 @@ func interruptChat(t *testing.T, f *workerTestFixture, chatID uuid.UUID) databas
 	ctx := testutil.Context(t, testutil.WaitShort)
 	f.pubsub.clear()
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
 			Message:      userTextMessage(t, "interrupt", f.user.ID, f.model.ID),
 			BusyBehavior: chatstate.BusyBehaviorInterrupt,
 			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	chat, err := f.db.GetChatByID(ctx, chatID)
 	require.NoError(t, err)
 	return chat
@@ -498,10 +503,11 @@ func acquireChat(t *testing.T, f *workerTestFixture, chatID uuid.UUID, workerID 
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatID)
-	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+	_, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
 		_, err := tx.Acquire(chatstate.AcquireInput{WorkerID: workerID, RunnerID: runnerID})
 		return err
-	}))
+	})
+	require.NoError(t, err)
 	chat, err := f.db.GetChatByID(ctx, chatID)
 	require.NoError(t, err)
 	f.pubsub.clear()
