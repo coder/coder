@@ -81,7 +81,7 @@ func TestForwardingHandlerPlaceholder(t *testing.T) {
 			logger := slogtest.Make(t, nil)
 			gate := aibridge.NewInflightGate(logger)
 			t.Cleanup(gate.Close)
-			handler, err := newForwardingHandler(prov, logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, &testutil.MockRecorder{})
+			handler, err := newForwardingHandler(prov, logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, &testutil.MockRecorder{}, http.DefaultTransport)
 			require.NoError(t, err)
 			response := httptest.NewRecorder()
 			handler.ServeHTTP(response, req)
@@ -248,7 +248,7 @@ func TestCheckRequest(t *testing.T) {
 					prov = tc.provider(t)
 				}
 				sink := codertestutil.NewFakeSink(t)
-				h, err := newForwardingHandler(prov, sink.Logger(), nil, nil, nil, &testutil.MockRecorder{})
+				h, err := newForwardingHandler(prov, sink.Logger(), nil, nil, nil, &testutil.MockRecorder{}, http.DefaultTransport)
 				require.NoError(t, err)
 				response := httptest.NewRecorder()
 				_, record, cred := h.checkRequest(response, req)
@@ -356,7 +356,7 @@ func TestForwardingHandlerOpenCircuit(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	gate := aibridge.NewInflightGate(logger)
 	t.Cleanup(gate.Close)
-	handler, err := newForwardingHandler(prov, logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, &testutil.MockRecorder{})
+	handler, err := newForwardingHandler(prov, logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, &testutil.MockRecorder{}, http.DefaultTransport)
 	require.NoError(t, err)
 	const route = "/v1/responses"
 	require.NoError(t, handler.breaker.Execute(route, "", httptest.NewRecorder(), func(w http.ResponseWriter) error {

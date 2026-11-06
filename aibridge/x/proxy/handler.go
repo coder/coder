@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"strings"
 	"time"
 
@@ -20,36 +22,83 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/headers"
+	"github.com/coder/coder/v2/aibridge/intercept/apidump"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
+	"github.com/coder/coder/v2/aibridge/x/proxy/replaybody"
+	"github.com/coder/quartz"
 )
 
 type forwardingHandler struct {
-	provider provider.Provider
-	logger   slog.Logger
-	tracer   trace.Tracer
-	inflight *aibridge.InflightGate
-	recorder recorder.Recorder
-	breaker  *circuitbreaker.ProviderCircuitBreakers
+	provider  provider.Provider
+	logger    slog.Logger
+	tracer    trace.Tracer
+	transport http.RoundTripper
+	proxy     *httputil.ReverseProxy
+	inflight  *aibridge.InflightGate
+	recorder  recorder.Recorder
+	breaker   *circuitbreaker.ProviderCircuitBreakers
 }
 
 var _ http.Handler = (*forwardingHandler)(nil)
 
-// newForwardingHandler constructs one bridged handler per provider snapshot.
-func newForwardingHandler(prov provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate, rec recorder.Recorder) (*forwardingHandler, error) {
+// newForwardingHandler constructs one forwarding engine per provider snapshot.
+// The caller owns the transport and its connection lifecycle.
+func newForwardingHandler(prov provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate, rec recorder.Recorder, transport http.RoundTripper) (*forwardingHandler, error) {
 	if rec == nil {
 		return nil, xerrors.New("recorder is required")
 	}
-	return &forwardingHandler{
-		provider: prov,
-		logger:   logger.With(slog.F("provider", prov.Name())),
-		tracer:   tracer,
-		inflight: inflight,
-		recorder: rec,
-		breaker:  circuitbreaker.NewProviderCircuitBreakers(prov.Name(), prov.CircuitBreakerConfig(), logger, m),
-	}, nil
+	baseURL, err := url.Parse(prov.BaseURL())
+	if err != nil {
+		return nil, xerrors.Errorf("configure provider %q base URL: %w", prov.Name(), err)
+	}
+	h := &forwardingHandler{
+		provider:  prov,
+		logger:    logger.With(slog.F("provider", prov.Name())),
+		tracer:    tracer,
+		transport: apidump.NewPassthroughMiddleware(transport, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),
+		inflight:  inflight,
+		recorder:  rec,
+		breaker:   circuitbreaker.NewProviderCircuitBreakers(prov.Name(), prov.CircuitBreakerConfig(), logger, m),
+	}
+	h.proxy = &httputil.ReverseProxy{
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			rewriteForwardingURL(pr, prov.RoutePrefix(), baseURL)
+			pr.Out.Header = prepareForwardingHeaders(pr)
+		},
+		Transport:     h.transport,
+		FlushInterval: -1,
+		ErrorLog:      slog.Stdlib(context.Background(), logger.With(slog.F("provider", prov.Name())), slog.LevelWarn),
+	}
+	return h, nil
+}
+
+func rewriteForwardingURL(pr *httputil.ProxyRequest, routePrefix string, baseURL *url.URL) {
+	pr.Out.URL.Path = strings.TrimPrefix(pr.In.URL.Path, routePrefix)
+	if pr.In.URL.RawPath != "" {
+		pr.Out.URL.RawPath = strings.TrimPrefix(pr.In.URL.RawPath, routePrefix)
+	}
+	// ReverseProxy may sanitize query parameters; forwarding preserves the bytes.
+	pr.Out.URL.RawQuery = pr.In.URL.RawQuery
+	pr.SetURL(baseURL)
+}
+
+func prepareForwardingHeaders(pr *httputil.ProxyRequest) http.Header {
+	prepared := headers.PrepareClientHeaders(pr.Out.Header)
+	// Unlike SDK requests, forwarding preserves the client's encoding choice.
+	if values, ok := pr.Out.Header["Accept-Encoding"]; ok {
+		prepared["Accept-Encoding"] = values
+	}
+	// In contains only the selected credential. Restore it even if Connection
+	// nominated it for removal by ReverseProxy.
+	for _, name := range []string{headers.AuthHeaderAuthorization, headers.AuthHeaderXAPIKey} {
+		if value := pr.In.Header.Get(name); value != "" {
+			prepared.Set(name, value)
+		}
+	}
+	return prepared
 }
 
 func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +113,7 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, span := h.tracer.Start(ctx, "Proxy")
 	defer span.End()
 	r = r.WithContext(ctx)
-	logger, record, cred := h.checkRequest(w, r)
+	logger, record, _ := h.checkRequest(w, r)
 	if record == nil {
 		return
 	}
@@ -80,8 +129,8 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() { h.finishForwarding(ctx, record, logger, err) }()
 	route := strings.TrimPrefix(r.URL.Path, "/"+h.provider.Name())
 	err = h.breaker.Execute(route, "", w, func(rw http.ResponseWriter) error {
-		outbound := h.prepareForwarding(r, cred, logger)
-		return h.forward(rw, outbound, logger)
+		// Capture stays dormant until lifecycle recording activates forwarding.
+		return h.forward(rw, r.Clone(ctx), logger)
 	})
 }
 
@@ -173,10 +222,19 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 	return logger, ir, cred
 }
 
-func (*forwardingHandler) prepareForwarding(r *http.Request, _ credential.Credential, _ slog.Logger) *http.Request {
-	// TODO: prepare provider headers and a replayable request body.
-	// https://linear.app/codercom/issue/AIGOV-615
-	return r.Clone(r.Context())
+func (*forwardingHandler) prepareForwarding(w http.ResponseWriter, r *http.Request, cred credential.Credential, _ slog.Logger) (http.ResponseWriter, *http.Request, *replaybody.TeeBuffer) {
+	r = r.Clone(r.Context())
+	body := replaybody.NewRequest(r)
+	r.Header.Del(headers.AuthHeaderAuthorization)
+	r.Header.Del(headers.AuthHeaderXAPIKey)
+	if byok, ok := credential.AsBYOK(cred); ok {
+		value := byok.Secret
+		if byok.Header == headers.AuthHeaderAuthorization {
+			value = "Bearer " + value
+		}
+		r.Header.Set(byok.Header, value)
+	}
+	return w, r, body
 }
 
 func (*forwardingHandler) forward(w http.ResponseWriter, _ *http.Request, _ slog.Logger) error {
