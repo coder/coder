@@ -2202,6 +2202,107 @@ func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 	}
 }
 
+// DeleteOldChats selects chats by age, not hierarchy, so a parent can be
+// deleted before its descendants. The orphaned chat keeps root_chat_id, is
+// listed as a root, and inherits the root's ACL through chats_expanded.
+//
+//nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
+func TestGetAuthorizedChatsPurgedParent(t *testing.T) {
+	if testing.Short() {
+		t.SkipNow()
+	}
+
+	rbac.SetChatACLDisabled(false)
+	t.Cleanup(func() { rbac.SetChatACLDisabled(false) })
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	sqlDB := testSQLDB(t)
+	err := migrations.Up(sqlDB)
+	require.NoError(t, err)
+	db := database.New(sqlDB)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	owner := dbgen.User(t, db, database.User{})
+	recipient := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: owner.ID, OrganizationID: org.ID})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: recipient.ID, OrganizationID: org.ID})
+	dbgen.ChatProvider(t, db, database.ChatProvider{Provider: "openai", DisplayName: "OpenAI"})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
+		Model:                "test-model",
+		CreatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		UpdatedBy:            uuid.NullUUID{UUID: owner.ID, Valid: true},
+		IsDefault:            true,
+		CompressionThreshold: 80,
+	})
+
+	newChat := func(title string, parentID, rootID uuid.UUID) database.Chat {
+		return dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           owner.ID,
+			LastModelConfigID: modelCfg.ID,
+			Title:             title,
+			ParentChatID:      uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
+			RootChatID:        uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
+		})
+	}
+	root := newChat("root", uuid.Nil, uuid.Nil)
+	parent := newChat("parent", root.ID, root.ID)
+	orphan := newChat("orphan", parent.ID, root.ID)
+
+	err = db.UpdateChatACLByID(ctx, database.UpdateChatACLByIDParams{
+		ID: root.ID,
+		UserACL: database.ChatACL{
+			recipient.ID.String(): database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}},
+		},
+		GroupACL: database.ChatACL{},
+	})
+	require.NoError(t, err)
+	const prURL = "https://github.com/coder/coder/pull/1"
+	_, err = db.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
+		ChatID:          orphan.ID,
+		Url:             sql.NullString{String: prURL, Valid: true},
+		GitBranch:       "feature",
+		GitRemoteOrigin: "git@github.com:coder/coder.git",
+		StaleAt:         dbtime.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	_, err = sqlDB.ExecContext(ctx, "DELETE FROM chats WHERE id = $1", parent.ID)
+	require.NoError(t, err)
+
+	prepare := func(userID uuid.UUID) rbac.PreparedAuthorized {
+		subject, _, err := httpmw.UserRBACSubject(ctx, db, userID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		prepared, err := authorizer.Prepare(ctx, subject, policy.ActionRead, rbac.ResourceChat.Type)
+		require.NoError(t, err)
+		return prepared
+	}
+	chatIDs := func(rows []database.GetChatsRow) []uuid.UUID {
+		ids := make([]uuid.UUID, 0, len(rows))
+		for _, row := range rows {
+			ids = append(ids, row.Chat.ID)
+		}
+		return ids
+	}
+
+	shared, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
+		SharedOnly:       true,
+		ViewerID:         recipient.ID,
+		SharedWithUserID: recipient.ID,
+	}, prepare(recipient.ID))
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{root.ID, orphan.ID}, chatIDs(shared))
+
+	byDiffURL, err := db.GetAuthorizedChats(ctx, database.GetChatsParams{
+		OwnedOnly: true,
+		ViewerID:  owner.ID,
+		DiffURL:   sql.NullString{String: prURL, Valid: true},
+	}, prepare(owner.ID))
+	require.NoError(t, err)
+	require.ElementsMatch(t, []uuid.UUID{root.ID, orphan.ID}, chatIDs(byDiffURL))
+}
+
 //nolint:tparallel,paralleltest // It toggles the global chat ACL flag.
 func TestGetAuthorizedChatsACLSharingGroupACL(t *testing.T) {
 	if testing.Short() {
