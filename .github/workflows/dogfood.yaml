@@ -218,4 +218,4 @@ jobs:
           save: true
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: "codercom/oss-dogfood-vscode-coder:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood-vscode-coder:latest"
-        if: matrix.image-version == '22.04'
+        if: matrix.image-version == '26.04'
