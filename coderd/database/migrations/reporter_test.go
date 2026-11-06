@@ -105,22 +105,26 @@ func newBlockingObserver(t *testing.T) (*blockingObserver, *sql.DB) {
 }
 
 func (o *blockingObserver) Connect(context.Context) (driver.Conn, error) {
-	return blockingConn{o: o}, nil
+	return blockingObserverConn{o: o}, nil
 }
 
-func (o *blockingObserver) Driver() driver.Driver { return blockingDriver{o: o} }
+func (o *blockingObserver) Driver() driver.Driver { return blockingObserverDriver{o: o} }
 
-type blockingDriver struct{ o *blockingObserver }
+type blockingObserverDriver struct{ o *blockingObserver }
 
-func (d blockingDriver) Open(string) (driver.Conn, error) { return blockingConn(d), nil }
+func (d blockingObserverDriver) Open(string) (driver.Conn, error) {
+	return blockingObserverConn(d), nil
+}
 
-type blockingConn struct{ o *blockingObserver }
+type blockingObserverConn struct{ o *blockingObserver }
 
-func (blockingConn) Prepare(string) (driver.Stmt, error) { return nil, xerrors.New("not supported") }
-func (blockingConn) Close() error                        { return nil }
-func (blockingConn) Begin() (driver.Tx, error)           { return nil, xerrors.New("not supported") }
+func (blockingObserverConn) Prepare(string) (driver.Stmt, error) {
+	return nil, xerrors.New("not supported")
+}
+func (blockingObserverConn) Close() error              { return nil }
+func (blockingObserverConn) Begin() (driver.Tx, error) { return nil, xerrors.New("not supported") }
 
-func (c blockingConn) QueryContext(context.Context, string, []driver.NamedValue) (driver.Rows, error) {
+func (c blockingObserverConn) QueryContext(context.Context, string, []driver.NamedValue) (driver.Rows, error) {
 	c.o.enteredOnce.Do(func() { close(c.o.entered) })
 	<-c.o.release
 	c.o.returnedOnce.Do(func() { close(c.o.returned) })
