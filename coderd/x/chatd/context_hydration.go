@@ -272,11 +272,12 @@ func (p *Server) ensureChatContextPinnedOnFirstTurn(ctx context.Context, chat da
 	p.publishChatPubsubEvents(pinnedChats, codersdk.ChatWatchEventKindContextDirty)
 }
 
-// repinChatContext re-pins a single chat to its agent's latest context
-// snapshot: it sets the pinned hash and error and rewrites the chat's pinned
-// resources (clear-then-copy) so the two always agree. A chat with no bound
-// agent, or whose agent has no snapshot, has its pinned hash, dirty marker,
-// and resources cleared. Callers run this inside a transaction.
+// ErrChatContextNotReady means the current workspace agent has no snapshot.
+var ErrChatContextNotReady = xerrors.New("workspace context is not ready; try again after the agent pushes its context")
+
+// repinChatContext re-pins a chat to its agent's latest snapshot in a
+// transaction. An agent with no snapshot keeps the pin until its first push.
+// A chat with no bound agent has its pin cleared.
 func repinChatContext(ctx context.Context, db database.Store, chatID uuid.UUID, agentID uuid.NullUUID) error {
 	var (
 		aggregateHash []byte
@@ -288,11 +289,12 @@ func repinChatContext(ctx context.Context, db database.Store, chatID uuid.UUID, 
 		if err != nil {
 			return err
 		}
-		if ok {
-			aggregateHash = hash
-			snapshotError = snapErr
-			hasSnapshot = true
+		if !ok {
+			return ErrChatContextNotReady
 		}
+		aggregateHash = hash
+		snapshotError = snapErr
+		hasSnapshot = true
 	}
 
 	if err := db.SetChatContextSnapshot(ctx, database.SetChatContextSnapshotParams{
@@ -320,11 +322,9 @@ func repinChatContext(ctx context.Context, db database.Store, chatID uuid.UUID, 
 	return nil
 }
 
-// RefreshChatContext re-pins a chat to its agent's latest context snapshot
-// (hash, error, and resource bodies) and clears the dirty marker. It backs
-// PUT /chats/{chat}/context (no body). A chat with no bound agent, or whose
-// agent has no snapshot, simply has its pinned hash, dirty marker, and
-// resources cleared.
+// RefreshChatContext resolves the current workspace agent and re-pins its
+// latest snapshot, clearing drift. It returns ErrChatContextNotReady without
+// changing the pin when the current agent has not pushed a snapshot.
 //
 // The snapshot read and the re-pin run in one repeatable-read transaction so a
 // concurrent push cannot land between them and leave the chat pinned to a
@@ -342,6 +342,29 @@ func (p *Server) RefreshChatContext(ctx context.Context, chat database.Chat) (da
 		current, err := tx.GetChatByID(ctx, chat.ID)
 		if err != nil {
 			return xerrors.Errorf("get chat for refresh: %w", err)
+		}
+		if current.WorkspaceID.Valid {
+			agent, err := resolveChatWorkspaceAgent(ctx, tx, current)
+			if isNoUsableWorkspaceAgent(err) {
+				return ErrChatContextNotReady
+			}
+			if err != nil {
+				return err
+			}
+			if !current.AgentID.Valid || current.AgentID.UUID != agent.ID {
+				build, err := tx.GetLatestWorkspaceBuildByWorkspaceID(ctx, current.WorkspaceID.UUID)
+				if err != nil {
+					return xerrors.Errorf("get latest workspace build for refresh: %w", err)
+				}
+				current, err = tx.UpdateChatBuildAgentBinding(ctx, database.UpdateChatBuildAgentBindingParams{
+					ID:      current.ID,
+					BuildID: uuid.NullUUID{UUID: build.ID, Valid: true},
+					AgentID: uuid.NullUUID{UUID: agent.ID, Valid: true},
+				})
+				if err != nil {
+					return xerrors.Errorf("update chat build/agent binding for refresh: %w", err)
+				}
+			}
 		}
 		if err := repinChatContext(ctx, tx, current.ID, current.AgentID); err != nil {
 			return err

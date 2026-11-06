@@ -4346,28 +4346,15 @@ func TestStoppedWorkspaceWithPersistedAgentBindingDoesNotBlockChat(t *testing.T)
 		BuildNumber: 2,
 	}).Do()
 
-	clock := quartz.NewMock(t).WithLogger(quartz.NoOpLogger)
-	validationTrap := clock.Trap().NewTimer("chatd", "dial-validation-delay")
-	defer validationTrap.Close()
-	dialStarted := make(chan struct{})
 	var dialCalls atomic.Int32
 	factory := chattest.NewMockAIBridgeTransport(t, openAIURL)
 	_ = newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.Clock = clock
 		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(factory)
-		cfg.AgentConn = func(ctx context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+		cfg.AgentConn = func(context.Context, uuid.UUID) (workspacesdk.AgentConn, func(), error) {
 			dialCalls.Add(1)
-			require.Equal(t, dbAgent.ID, agentID)
-			close(dialStarted)
-			<-ctx.Done()
-			return nil, nil, ctx.Err()
+			return nil, nil, xerrors.New("stopped workspace must not be dialed")
 		}
 	})
-
-	validationTimer := validationTrap.MustWait(ctx)
-	validationTimer.MustRelease(ctx)
-	testutil.TryReceive(ctx, t, dialStarted)
-	advanceMockClockBy(ctx, t, clock, validationTimer.Duration)
 
 	var chatResult database.Chat
 	require.Eventually(t, func() bool {
@@ -4383,7 +4370,7 @@ func TestStoppedWorkspaceWithPersistedAgentBindingDoesNotBlockChat(t *testing.T)
 		require.FailNowf(t, "chat failed", "last_error=%q", chatLastErrorMessage(chatResult.LastError))
 	}
 
-	require.EqualValues(t, 1, dialCalls.Load())
+	require.Zero(t, dialCalls.Load())
 	require.GreaterOrEqual(t, streamedCallCount.Load(), int32(2))
 
 	streamedCallsMu.Lock()

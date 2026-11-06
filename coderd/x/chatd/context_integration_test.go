@@ -2,6 +2,9 @@ package chatd_test
 
 import (
 	"context"
+	"database/sql"
+	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -20,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	dbpubsub "github.com/coder/coder/v2/coderd/database/pubsub"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -648,6 +652,183 @@ func TestChatContextAdoptsNewBuildFromAgentPush(t *testing.T) {
 		require.Equal(t, []byte{newContextHash}, chat.ContextAggregateHash)
 		require.True(t, chat.ContextDirtySince.Valid)
 	}
+}
+
+func TestChatContextDuringWorkspaceStart(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	rawDB, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+		Database:                 rawDB,
+	})
+	db := api.Database
+	aibridgedtest.StartTestAIBridgeDaemon(t.Context(), t, api, nil)
+	user := coderdtest.CreateFirstUser(t, client)
+	expClient := codersdk.NewExperimentalClient(client)
+	//nolint:gocritic // Inspect chat-owned context as the daemon subject.
+	chatCtx := dbauthz.AsChatd(ctx)
+	prompts := make(chan string, 4)
+	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+		if !req.Stream {
+			return chattest.OpenAINonStreamingResponse("workspace context")
+		}
+		var system strings.Builder
+		for _, msg := range req.Messages {
+			if msg.Role == "system" {
+				_, _ = system.WriteString(msg.Content)
+			}
+		}
+		prompts <- system.String()
+		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+	})
+	model := coderdtest.CreateOpenAICompatChatModel(t, expClient, openAIURL)
+	newVersion := func(templateID uuid.UUID, token string) codersdk.TemplateVersion {
+		t.Helper()
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ApplyComplete,
+			ProvisionGraph: echo.ProvisionGraphWithAgent(token),
+		}, func(req *codersdk.CreateTemplateVersionRequest) { req.TemplateID = templateID })
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		return version
+	}
+	push := func(token, content string, hash byte) {
+		t.Helper()
+		agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(token))
+		rpc, _, err := agentClient.ConnectRPC210(ctx)
+		require.NoError(t, err)
+		defer func() { _ = rpc.DRPCConn().Close() }()
+		resp, err := rpc.PushContextState(ctx, &agentproto.PushContextStateRequest{
+			Version:       1,
+			Initial:       true,
+			AggregateHash: []byte{hash},
+			Resources: []*agentproto.ContextResource{{
+				Source:      "/workspace/AGENTS.md",
+				ContentHash: []byte{hash},
+				Status:      agentproto.ContextResource_OK,
+				Body: &agentproto.ContextResource_InstructionFile{
+					InstructionFile: &agentproto.InstructionFileBody{Content: []byte(content)},
+				},
+			}},
+		})
+		require.NoError(t, err)
+		require.True(t, resp.GetAccepted())
+	}
+	oldToken := uuid.NewString()
+	version := newVersion(uuid.Nil, oldToken)
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+	ws, err := client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	oldAgentID := ws.LatestBuild.Resources[0].Agents[0].ID
+	newChat := func(parentID uuid.NullUUID) database.Chat {
+		t.Helper()
+		return dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    user.OrganizationID,
+			OwnerID:           user.UserID,
+			WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
+			BuildID:           uuid.NullUUID{UUID: ws.LatestBuild.ID, Valid: true},
+			AgentID:           uuid.NullUUID{UUID: oldAgentID, Valid: true},
+			LastModelConfigID: model.ID,
+			ParentChatID:      parentID,
+			RootChatID:        parentID,
+			Status:            database.ChatStatusWaiting,
+		})
+	}
+	refreshChat := newChat(uuid.NullUUID{})
+	turnChat := newChat(uuid.NullUUID{UUID: refreshChat.ID, Valid: true})
+	const oldContent = "Keep the previous build's instructions."
+	const newContent = "Adopt the current build's instructions."
+	push(oldToken, oldContent, 0x01)
+	oldResources, err := db.ListChatContextResourcesByChatID(chatCtx, turnChat.ID)
+	require.NoError(t, err)
+	require.Len(t, oldResources, 1)
+	refreshResources, err := db.ListChatContextResourcesByChatID(chatCtx, refreshChat.ID)
+	require.NoError(t, err)
+	newToken := uuid.NewString()
+	version = newVersion(template.ID, newToken)
+	build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+		Transition: codersdk.WorkspaceTransitionStart, TemplateVersionID: version.ID,
+	})
+	require.NoError(t, err)
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
+	ws, err = client.Workspace(ctx, workspace.ID)
+	require.NoError(t, err)
+	newAgentID := ws.LatestBuild.Resources[0].Agents[0].ID
+	_, err = sqlDB.ExecContext(ctx, `UPDATE workspace_agents SET deleted = false WHERE id = $1`, oldAgentID)
+	require.NoError(t, err)
+	_, err = db.GetWorkspaceAgentByID(chatCtx, oldAgentID)
+	require.NoError(t, err, "the previous build's agent remains readable")
+	_, err = db.GetLatestWorkspaceAgentContextSnapshot(chatCtx, newAgentID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	_, err = expClient.RefreshChatContext(ctx, refreshChat.ID)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+	require.Contains(t, sdkErr.Message, "not ready")
+	got, err := db.GetChatByID(chatCtx, refreshChat.ID)
+	require.NoError(t, err)
+	require.Equal(t, []byte{0x01}, got.ContextAggregateHash)
+	resources, err := db.ListChatContextResourcesByChatID(chatCtx, refreshChat.ID)
+	require.NoError(t, err)
+	require.Equal(t, refreshResources, resources)
+	turn := func(chatID uuid.UUID) string {
+		t.Helper()
+		_, err := expClient.CreateChatMessage(ctx, chatID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "Continue."}},
+		})
+		require.NoError(t, err)
+		prompt := testutil.RequireReceive(ctx, t, prompts)
+		got := coderdtest.WaitForChatSettled(ctx, t, api, chatID)
+		require.Equal(t, database.ChatStatusWaiting, got.Status, "%s", got.LastError.RawMessage)
+		return prompt
+	}
+	prompt := turn(turnChat.ID)
+	require.Contains(t, prompt, oldContent)
+	require.NotContains(t, prompt, newContent)
+	got, err = db.GetChatByID(chatCtx, turnChat.ID)
+	require.NoError(t, err)
+	require.Equal(t, newAgentID, got.AgentID.UUID)
+	require.Equal(t, build.ID, got.BuildID.UUID)
+	require.Equal(t, []byte{0x01}, got.ContextAggregateHash)
+	resources, err = db.ListChatContextResourcesByChatID(chatCtx, turnChat.ID)
+	require.NoError(t, err)
+	require.Equal(t, oldResources, resources, "the start window does not rewrite the pin")
+	_, err = expClient.RefreshChatContext(ctx, turnChat.ID)
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusConflict, sdkErr.StatusCode())
+
+	push(newToken, newContent, 0x02)
+	for _, chat := range []database.Chat{turnChat, refreshChat} {
+		got, err := db.GetChatByID(chatCtx, chat.ID)
+		require.NoError(t, err)
+		require.Equal(t, newAgentID, got.AgentID.UUID)
+		require.Equal(t, []byte{0x02}, got.ContextAggregateHash)
+		require.False(t, got.ContextDirtySince.Valid)
+	}
+	prompt = turn(turnChat.ID)
+	require.Contains(t, prompt, newContent)
+	require.NotContains(t, prompt, oldContent)
+
+	// A stale binding also resolves the current agent when it has a snapshot.
+	_, err = db.UpdateChatBuildAgentBinding(chatCtx, database.UpdateChatBuildAgentBindingParams{
+		ID:      refreshChat.ID,
+		BuildID: refreshChat.BuildID,
+		AgentID: refreshChat.AgentID,
+	})
+	require.NoError(t, err)
+	refreshed, err := expClient.RefreshChatContext(ctx, refreshChat.ID)
+	require.NoError(t, err)
+	require.Equal(t, newAgentID, *refreshed.AgentID)
+	require.Equal(t, build.ID, *refreshed.BuildID)
+	got, err = db.GetChatByID(chatCtx, refreshChat.ID)
+	require.NoError(t, err)
+	require.Equal(t, []byte{0x02}, got.ContextAggregateHash)
 }
 
 // TestChatContextLiveSyncFromAgentPush verifies that agent pushes live-sync MCP

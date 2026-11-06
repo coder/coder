@@ -1175,6 +1175,7 @@ The generation goroutine supports:
 - file links
 - workspace binding
   <!-- TODO: Document first-push adoption of the latest build's context, including idle chats and unchanged pins. -->
+  <!-- TODO: Document current-build resolution before prompt reads and refresh, preserving pins until the first snapshot and reporting refresh as not ready. -->
 - plan mode
 - respecting model configuration
 - provider-specific tools like web search and computer use

@@ -2657,6 +2657,13 @@ func (api *API) refreshChatContext(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	updated, err := api.chatDaemon.RefreshChatContext(ctx, chat)
+	if errors.Is(err, chatd.ErrChatContextNotReady) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Workspace context is not ready.",
+			Detail:  err.Error(),
+		})
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error refreshing chat context.",

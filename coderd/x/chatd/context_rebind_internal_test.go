@@ -151,10 +151,8 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 		require.Empty(t, postRes, "first-time binding copies no resources via the rebind path")
 	})
 
-	// ClearsContextWhenNewAgentHasNoSnapshot: rebinding to an agent that has
-	// not pushed a snapshot yet clears the chat's pinned hash and resources
-	// (repinChatContext's no-snapshot branch).
-	t.Run("ClearsContextWhenNewAgentHasNoSnapshot", func(t *testing.T) {
+	// Rebinding before the first push preserves the previous pin.
+	t.Run("KeepsContextWhenNewAgentHasNoSnapshot", func(t *testing.T) {
 		t.Parallel()
 		fix := newRebindFixture(t)
 
@@ -182,10 +180,10 @@ func TestPersistBuildAgentBindingRepinsContext(t *testing.T) {
 
 		post, err := fix.db.GetChatByID(fix.ctx, chat.ID)
 		require.NoError(t, err)
-		require.Empty(t, post.ContextAggregateHash, "rebinding to an agent with no snapshot clears the pinned hash")
+		require.Equal(t, fix.hashA, post.ContextAggregateHash)
 		postRes, err := fix.db.ListChatContextResourcesByChatID(fix.ctx, chat.ID)
 		require.NoError(t, err)
-		require.Empty(t, postRes, "rebinding to an agent with no snapshot clears the pinned resources")
+		require.Equal(t, preRes, postRes)
 	})
 
 	// RepinErrorRollsBackBinding: a re-pin failure fails the binding in the
@@ -260,7 +258,7 @@ type rebindFixture struct {
 // newRebindFixture seeds a workspace with agents A and B that each have a
 // pushed context snapshot and one resource (so a chat can be pinned to A and
 // rebound to B), plus a third agent that never pushes a snapshot (for the
-// clear-only re-pin path). The agents share one build/resource because the
+// pin-preserving re-pin path). The agents share one build/resource because the
 // rebind guard keys on the agent, not the build.
 func newRebindFixture(t *testing.T) rebindFixture {
 	t.Helper()
@@ -299,7 +297,7 @@ func newRebindFixture(t *testing.T) rebindFixture {
 	})
 	agentA := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
 	agentB := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
-	// A third agent that never pushes a snapshot, for the clear-only re-pin path.
+	// A third agent that never pushes a snapshot.
 	agentNoSnap := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{ResourceID: res.ID})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
 
