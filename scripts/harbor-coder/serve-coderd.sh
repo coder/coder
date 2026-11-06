@@ -3,7 +3,8 @@
 # bootstrap it for a Harbor eval. Writes CODER_URL/CODER_SESSION_TOKEN/
 # HARBOR_CODER_TEMPLATE to the env file given as $1.
 #
-# Requires HARBOR_CODER_UPSTREAM_TOKEN (a Coder API key for the AI gateway).
+# Requires AWS_REGION, CLAUDE_PLATFORM_WORKSPACE_ID, and AWS credentials in the
+# environment that can invoke models in that Claude Platform workspace.
 set -euo pipefail
 
 ENV_FILE="${1:?env file path required}"
@@ -31,6 +32,6 @@ export PATH="${STATE}:${PATH}"
 # python resolves to the hash-verified venv from install.sh when it is on PATH.
 python -m harbor_coder.bootstrap \
 	--url "${URL}" --template-dir "${ROOT}/scripts/harbor-coder/template" \
-	--state-dir "${STATE}" --model "${HARBOR_CODER_MODEL:-claude-haiku-4-5}" >"${ENV_FILE}"
+	--model "${HARBOR_CODER_MODEL:-claude-sonnet-5-5}" >"${ENV_FILE}"
 chmod 600 "${ENV_FILE}"
 echo "HARBOR_CODER_BIN=${STATE}/coder" >>"${ENV_FILE}"

@@ -8,8 +8,9 @@ A/B Coder Agents between a branch and `main` using
   binary, created from `template/`, exec over `coder ssh`).
 - `harbor_coder.agent:CoderAgentsAgent`: Harbor agent that binds a chat to
   that workspace, waits for the turn to finish, and records tokens and cost.
-- `harbor_coder.bootstrap`: first user, AI provider (dogfood's gateway), chat
-  model, template push on a fresh coderd.
+- `harbor_coder.bootstrap`: first user, AI provider (Claude Platform on AWS,
+  signed with the host's AWS credentials; no API key), chat model, template
+  push, and one smoke chat turn on a fresh coderd.
 - `harbor_coder.compare`: pass rate per task and cost for two job directories.
 
 Comment `/coder-agents-eval` on a PR to run `.github/workflows/eval-coder-agents.yaml`:
@@ -28,11 +29,18 @@ Measured on the 77-task set (before the 3 refused tasks were dropped) at
 concurrency 5 (chatd's unlicensed cap on
 concurrent chats): about $23 and 90 minutes per arm
 ([run](https://github.com/coder/coder/actions/runs/40423882171)). One
-`/coder-agents-eval` runs two arms in parallel, so about $47 of gateway
-spend and two 8-core runners for roughly 1.5h. The full 86 tasks on `main`
+`/coder-agents-eval` runs two arms in parallel, so about $47 of model
+spend and two runners for roughly 1.5h. The full 86 tasks on `main`
 scored 73% at two attempts, $31.54 and 3.4h for one arm.
 Dataset, model, attempts, concurrency, and the Harbor version are the `env`
 block at the top of the workflow.
+
+The workflow runs on the self-hosted runner pool (ephemeral KubeVirt microVMs
+on bare metal, one per job, Docker inside the VM) and assumes an IAM role via
+OIDC; coderd's AI gateway signs Claude Platform requests with that role
+through the default AWS credential chain. It expects the repository
+variables `EVAL_RUNNER_LABEL`, `EVAL_AWS_ROLE_ARN`, `EVAL_AWS_REGION`, and
+`CLAUDE_PLATFORM_WORKSPACE_ID`; no secrets.
 
 ## Local
 
@@ -40,8 +48,9 @@ block at the top of the workflow.
 # Installs Harbor into .harbor-coder/venv from requirements.lock with
 # --require-hashes, so every dependency (litellm included) is pinned by sha256.
 ./scripts/harbor-coder/install.sh && export PATH="$PWD/.harbor-coder/venv/bin:$PATH"
-# dogfood gateway auth; the gateway ignores token scopes, so keep it narrow
-export HARBOR_CODER_UPSTREAM_TOKEN=$(coder tokens create --lifetime 8h --scope user:read_personal)
+# AWS credentials that can invoke models in the Claude Platform workspace,
+# e.g. from `aws sso login` or an assumed role.
+export AWS_REGION=us-east-1 CLAUDE_PLATFORM_WORKSPACE_ID=wrkspc_...
 export HARBOR_CODER_MODEL=claude-sonnet-5-5
 ./scripts/harbor-coder/serve-coderd.sh .harbor-coder/env
 set -a; . .harbor-coder/env; set +a; export PATH="$PWD/.harbor-coder:$PATH"
