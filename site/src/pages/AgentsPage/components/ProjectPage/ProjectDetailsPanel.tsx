@@ -106,6 +106,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				ownerLabel={ownerLabel}
 				createdAt={project.created_at}
 				organizationLabel={organizationLabel}
+				organizationIconUrl={showOrganizations ? organization?.icon : undefined}
 				skillCount={skillsQuery.data?.length}
 				disabledSkillCount={
 					skillsQuery.data?.filter((skill) => !skill.enabled).length

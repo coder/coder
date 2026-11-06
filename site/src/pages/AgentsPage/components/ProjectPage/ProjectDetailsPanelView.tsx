@@ -37,6 +37,11 @@ type ProjectDetailsPanelViewProps = {
 	readonly createdAt: string;
 	/** Omit to hide the organization row. */
 	readonly organizationLabel?: string;
+	/**
+	 * The organization's icon URL. An empty string shows the name's initial.
+	 * Omit when the organization is unknown to hide the avatar.
+	 */
+	readonly organizationIconUrl?: string;
 	/** `undefined` while the skills load or after loading fails. */
 	readonly skillCount: number | undefined;
 	/** `undefined` while the skills load or after loading fails. */
@@ -60,6 +65,7 @@ export const ProjectDetailsPanelView: React.FC<
 	ownerLabel,
 	createdAt,
 	organizationLabel,
+	organizationIconUrl,
 	skillCount,
 	disabledSkillCount,
 	skillsError,
@@ -129,7 +135,21 @@ export const ProjectDetailsPanelView: React.FC<
 						</Tooltip>
 					</DetailRow>
 					{organizationLabel !== undefined && (
-						<DetailRow label="Organization">{organizationLabel}</DetailRow>
+						<DetailRow label="Organization">
+							{organizationIconUrl === undefined ? (
+								organizationLabel
+							) : (
+								<span className="flex items-start justify-end gap-1.5">
+									<Avatar
+										size="xs"
+										src={organizationIconUrl}
+										fallback={organizationLabel}
+										className="mt-[3px]"
+									/>
+									<span className="min-w-0">{organizationLabel}</span>
+								</span>
+							)}
+						</DetailRow>
 					)}
 					<DetailRow label="Skills">
 						{skillCount === undefined && !skillsError ? (
@@ -394,7 +414,7 @@ type DetailRowProps = {
 const DetailRow: React.FC<DetailRowProps> = ({ label, children }) => (
 	<div className="flex items-start justify-between gap-4">
 		<dt className="shrink-0 text-content-secondary">{label}</dt>
-		<dd className="m-0 min-w-0 break-words text-right font-mono text-content-primary">
+		<dd className="m-0 min-w-0 break-words text-right text-content-primary">
 			{children}
 		</dd>
 	</div>

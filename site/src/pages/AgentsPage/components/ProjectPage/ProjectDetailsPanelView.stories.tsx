@@ -7,6 +7,7 @@ import {
 	MockChatProjectInstructions,
 	MockEveryoneGroup,
 	MockGroup,
+	MockOrganization,
 	MockUnsetChatProjectInstructions,
 	MockUserMember,
 	mockApiError,
@@ -105,7 +106,14 @@ export const UnsetWithoutUpdatePermission: Story = {
 };
 
 export const WithOrganization: Story = {
-	args: { organizationLabel: "Coder" },
+	args: {
+		organizationLabel: MockOrganization.display_name,
+		organizationIconUrl: MockOrganization.icon,
+	},
+};
+
+export const WithOrganizationNoIcon: Story = {
+	args: { organizationLabel: "Coder", organizationIconUrl: "" },
 };
 
 /** The ACL names the owner, so both load together. */
@@ -146,6 +154,7 @@ export const LongNames: Story = {
 	args: {
 		ownerLabel: "bartholomewmontgomeryfitzgerald1",
 		organizationLabel: "Platform-Infrastructure-Engineering-Europe",
+		organizationIconUrl: MockOrganization.icon,
 		members: {
 			...mockMembers,
 			entries: buildAccessEntries({
