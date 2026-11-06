@@ -4,10 +4,12 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -31,19 +33,75 @@ func (s *source) Close() error {
 	return s.closeErr
 }
 
-func newBuffer(source io.ReadCloser) *replaybody.Buffer {
-	//nolint:bodyclose // Buffer.Close owns the source transferred to NewResponse.
-	response, b := replaybody.NewResponse(context.Background(), &http.Response{Body: source})
-	_ = response.Body.Close()
-	return b
+// newBuffer wraps source through NewResponse and returns the forwarding body.
+func newBuffer(source io.ReadCloser) (io.ReadCloser, *replaybody.TeeBuffer) {
+	response := &http.Response{Body: source}
+	b := replaybody.NewResponse(response)
+	return response.Body, b
 }
 
-func newReader(t *testing.T, b *replaybody.Buffer) io.ReadCloser {
-	t.Helper()
-	r, err := b.NewReader()
-	require.NoError(t, err, "creating an independent reader must succeed")
-	t.Cleanup(func() { require.NoError(t, r.Close()) })
-	return r
+// newRequestBuffer wraps source reader through NewRequest.
+func newRequestBuffer(source io.ReadCloser) (*http.Request, *replaybody.TeeBuffer) {
+	request := httptest.NewRequest(http.MethodPost, "/", nil)
+	request.Body = source
+	request.ContentLength = -1 // source has unknown length
+	return request, replaybody.NewRequest(request)
+}
+
+type result struct {
+	data []byte
+	err  error
+}
+
+func TestBufferLazy(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		input   string
+		consume bool
+		readErr error
+		want    string
+		wantErr error
+	}{
+		{name: "UnreadEmpty", wantErr: io.ErrClosedPipe},
+		{name: "EmptyEOF", consume: true, readErr: io.EOF},
+		{name: "Partial", input: "payload", consume: true, want: "p", wantErr: io.ErrClosedPipe},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			synctest.Test(t, func(t *testing.T) {
+				var reads atomic.Int32
+				input := strings.NewReader(tc.input)
+				s := &source{closed: make(chan struct{})}
+				s.read = func(p []byte) (int, error) {
+					reads.Add(1)
+					return input.Read(p)
+				}
+				body, b := newBuffer(s)
+				defer body.Close()
+				defer b.Close()
+				waited := make(chan result, 1)
+				go func() { p, err := b.Wait(context.Background()); waited <- result{p, err} }()
+				synctest.Wait()
+				require.Zero(t, reads.Load(), "construction and Wait must not read the source")
+
+				_, err := body.Read(nil)
+				require.NoError(t, err, "zero-length forwarding reads must succeed")
+				require.Zero(t, reads.Load(), "zero-length forwarding reads must not consume input")
+				if tc.consume {
+					_, err = body.Read(make([]byte, 1))
+					require.ErrorIs(t, err, tc.readErr)
+					require.EqualValues(t, 1, reads.Load(), "capture must not read ahead")
+				}
+				require.NoError(t, body.Close())
+				require.NoError(t, b.Close())
+				synctest.Wait()
+				got := <-waited
+				require.Equal(t, tc.want, string(got.data), "retain exactly the bytes consumed by forwarding")
+				require.ErrorIs(t, got.err, tc.wantErr)
+			})
+		})
+	}
 }
 
 func TestBufferSharedCapture(t *testing.T) {
@@ -60,41 +118,27 @@ func TestBufferSharedCapture(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			reading := make(chan struct{})
+			ctx := testutil.Context(t, testutil.WaitLong)
 			var reads atomic.Int32
 			s := &source{closed: make(chan struct{})}
 			s.read = func(p []byte) (int, error) {
 				if reads.Add(1) == 1 {
 					return copy(p, "prefix"), nil
 				}
-				close(reading)
-				<-s.closed
 				return copy(p, "suffix"), tc.terminal
 			}
-			b := newBuffer(s)
+			request, b := newRequestBuffer(s)
+			body := request.Body
+			defer body.Close()
 			t.Cleanup(func() { require.NoError(t, b.Close()) })
-			ctx := testutil.Context(t, testutil.WaitLong)
-			testutil.TryReceive(ctx, t, reading)
-			require.EqualValues(t, 2, reads.Load(), "capture must start without a reader")
 
-			first := newReader(t, b)
-			require.NoError(t, first.Close(), "readers may close before reading")
-			require.Zero(t, s.closes.Load(), "reader close must not close the source")
-			_, err := first.Read(make([]byte, 1))
-			require.ErrorIs(t, err, io.ErrClosedPipe, "closed readers must reject reads")
-
-			second := newReader(t, b)
 			prefix := make([]byte, len("prefix"))
-			_, err = io.ReadFull(second, prefix)
-			require.NoError(t, err, "readers must stream before source EOF")
-			require.Equal(t, "prefix", string(prefix), "each reader must start at the captured prefix")
-			require.NoError(t, second.Close(), "partially read cursors must close independently")
+			_, err := io.ReadFull(body, prefix)
+			require.NoError(t, err)
+			require.Equal(t, "prefix", string(prefix))
 
-			third := newReader(t, b)
-			_, err = io.ReadFull(third, prefix)
-			require.NoError(t, err, "new readers must replay while capture is active")
-
-			require.NoError(t, s.Close())
+			_, err = io.Copy(io.Discard, body)
+			require.ErrorIs(t, err, tc.want, "reading source must consume EOF and preserve other source errors")
 			payload, err := b.Wait(ctx)
 			require.ErrorIs(t, err, tc.want, "wait must normalize bare EOF and preserve read errors")
 			require.NotErrorIs(t, err, io.ErrClosedPipe, "source errors must not become capture interruptions")
@@ -103,133 +147,150 @@ func TestBufferSharedCapture(t *testing.T) {
 
 			shared, _ := b.Wait(ctx)
 			require.Same(t, &payload[0], &shared[0], "wait must return the same shared bytes")
-			replay, replayErr := io.ReadAll(newReader(t, b))
-			require.Equal(t, payload, replay, "new readers must replay all retained bytes")
-			require.ErrorIs(t, replayErr, tc.want, "reading replay must succeed at EOF and preserve source errors")
-			require.NoError(t, b.Stop(context.Canceled), "stopping finished capture must succeed")
+			retry, err := request.GetBody()
+			require.NoError(t, err)
+			defer retry.Close()
+			replay, replayErr := io.ReadAll(retry)
+			require.Equal(t, payload, replay, "retries must replay all retained bytes")
+			require.ErrorIs(t, replayErr, tc.want, "retries must replay the source's terminal state")
+			require.EqualValues(t, 2, reads.Load(), "retries must not read the source after its terminal state")
+			require.NoError(t, b.Close(), "closing finished capture must succeed")
 			_, err = b.Wait(ctx)
-			require.ErrorIs(t, err, tc.want, "stop must preserve the source's terminal state")
+			require.ErrorIs(t, err, tc.want, "close must preserve the source's terminal state")
 		})
 	}
 }
 
-func TestReaderCloseUnblocksRead(t *testing.T) {
+// TestBodyCloseUnblocksRead closes a forwarding body while its reads wait on
+// a blocked source. Every waiting read must fail, the source must stay open,
+// and a retry must continue from the read that was in flight when the body
+// closed.
+func TestBodyCloseUnblocksRead(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
-	input, output := io.Pipe()
-	b := newBuffer(input)
-	t.Cleanup(func() { require.NoError(t, b.Close()); _ = output.Close() })
-	first := newReader(t, b)
-	second := newReader(t, b)
-	result := make(chan error, 2)
-	for range 2 {
-		go func() { _, err := first.Read(make([]byte, 1)); result <- err }()
+	reading, release := make(chan struct{}), make(chan struct{})
+	input := strings.NewReader("request")
+	var started sync.Once
+	s := &source{closed: make(chan struct{})}
+	s.read = func(p []byte) (int, error) {
+		started.Do(func() { close(reading) })
+		select {
+		case <-release:
+			return input.Read(p)
+		case <-s.closed:
+			return 0, io.ErrClosedPipe
+		}
 	}
+	request, b := newRequestBuffer(s)
+	t.Cleanup(func() { require.NoError(t, b.Close()) })
+	results := make(chan error, 2)
+	for range 2 {
+		go func() { _, err := request.Body.Read(make([]byte, 1)); results <- err }()
+	}
+	testutil.TryReceive(ctx, t, reading)
 	closed := make(chan error, 2)
 	for range 2 {
-		go func() { closed <- first.Close() }()
+		go func() { closed <- request.Body.Close() }()
 	}
 	for range 2 {
 		require.NoError(t, testutil.RequireReceive(ctx, t, closed), "concurrent closes must all succeed")
-		require.ErrorIs(t, testutil.RequireReceive(ctx, t, result), io.ErrClosedPipe, "every read on the closed cursor must report closure")
+		require.ErrorIs(t, testutil.RequireReceive(ctx, t, results), io.ErrClosedPipe, "Close must unblock every read on this body")
 	}
-	go func() { _, _ = io.WriteString(output, "request"); _ = output.Close() }()
-	payload, err := io.ReadAll(second)
-	require.NoError(t, err, "closing one cursor must not stop capture")
-	require.Equal(t, "request", string(payload), "closing one cursor must leave other cursors usable")
+	require.Zero(t, s.closes.Load(), "closing a body must preserve the source")
+	retry, err := request.GetBody()
+	require.NoError(t, err)
+	defer retry.Close()
+	bodyResult := make(chan result, 1)
+	go func() { p, err := io.ReadAll(retry); bodyResult <- result{p, err} }()
+	close(release)
+	got := testutil.RequireReceive(ctx, t, bodyResult)
+	require.NoError(t, got.err, "a retry must continue the in-flight source read")
+	require.Equal(t, "request", string(got.data), "a retry must receive every byte, including the in-flight read")
 }
 
-func TestBufferStop(t *testing.T) {
+// TestBodyClose closes the first forwarding body after a partial read and
+// checks that a retry from GetBody replays the prefix and continues the
+// source from where the first body stopped.
+func TestBodyClose(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	input := strings.NewReader("request")
+	s := &source{closed: make(chan struct{})}
+	s.read = input.Read
+	request, b := newRequestBuffer(s)
+	t.Cleanup(func() { require.NoError(t, b.Close()) })
+	prefix := make([]byte, len("req"))
+	_, err := io.ReadFull(request.Body, prefix)
+	require.NoError(t, err, "the first body must stream the prefix")
+	require.NoError(t, request.Body.Close())
+	_, err = request.Body.Read(make([]byte, 1))
+	require.ErrorIs(t, err, io.ErrClosedPipe, "closed bodies must reject reads")
+	retry, err := request.GetBody()
+	require.NoError(t, err)
+	defer retry.Close()
+	payload, err := io.ReadAll(retry)
+	require.NoError(t, err, "a retry must replay the prefix and continue the source")
+	require.Equal(t, "request", string(payload), "a retry must receive the entire body")
+	retained, err := b.Wait(ctx)
+	require.NoError(t, err, "the retry must complete capture at EOF")
+	require.Equal(t, payload, retained, "retries must not duplicate retained bytes")
+	require.Zero(t, s.closes.Load(), "the server owns the request body")
+}
+
+// TestBufferClose closes the buffer while a forwarding read is blocked in the
+// source. Close must return without waiting for that read, retain only the
+// bytes published before it, unblock the waiting body, and close the source
+// exactly once.
+func TestBufferClose(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	reading := make(chan struct{})
-	s := &source{closed: make(chan struct{})}
+	var reads atomic.Int32
+	s := &source{closed: make(chan struct{}), closeErr: io.ErrUnexpectedEOF}
 	s.read = func(p []byte) (int, error) {
+		if reads.Add(1) == 1 {
+			return copy(p, "prefix"), nil
+		}
 		close(reading)
 		<-s.closed
-		return copy(p, "captured"), io.ErrClosedPipe
+		return copy(p, "late"), io.ErrClosedPipe
 	}
-	b := newBuffer(s)
-	readResult := make(chan error, 1)
-	r := newReader(t, b)
-	go func() { _, err := io.ReadAll(r); readResult <- err }()
+	body, b := newBuffer(s)
+	defer body.Close()
+	bodyResult := make(chan result, 1)
+	go func() { p, err := io.ReadAll(body); bodyResult <- result{p, err} }()
 	testutil.TryReceive(ctx, t, reading)
-	done := make(chan struct{}, 2)
+	closed := make(chan error, 2)
 	for range 2 {
-		go func() { _ = b.Stop(context.Canceled); done <- struct{}{} }()
+		go func() { closed <- b.Close() }()
 	}
-	// Every concurrent Stop call must return.
 	for range 2 {
-		testutil.TryReceive(ctx, t, done)
+		require.ErrorIs(t, testutil.RequireReceive(ctx, t, closed), s.closeErr, "every Close must return the source close error")
 	}
-	require.EqualValues(t, 1, s.closes.Load(), "concurrent stops must close the source exactly once")
+	require.EqualValues(t, 1, s.closes.Load(), "concurrent closes must close the source exactly once")
 	payload, err := b.Wait(ctx)
-	require.ErrorIs(t, err, io.ErrClosedPipe, "stopped capture must report interruption")
-	require.ErrorIs(t, err, context.Canceled, "capture must preserve the requested stop cause")
-	require.Equal(t, "captured", string(payload), "retain bytes returned during shutdown")
-	readErr := testutil.RequireReceive(ctx, t, readResult)
-	require.ErrorIs(t, readErr, io.ErrClosedPipe, "existing readers must report interruption")
-	require.ErrorIs(t, readErr, context.Canceled, "existing readers must preserve the stop cause")
-	_, replayErr := io.ReadAll(newReader(t, b))
-	require.ErrorIs(t, replayErr, io.ErrClosedPipe, "new readers must replay interruption")
-	require.ErrorIs(t, replayErr, context.Canceled, "new readers must preserve the stop cause")
+	require.ErrorIs(t, err, io.ErrClosedPipe, "closed capture must report interruption")
+	require.Equal(t, "prefix", string(payload), "close must retain the bytes published before it")
+	got := testutil.RequireReceive(ctx, t, bodyResult)
+	require.ErrorIs(t, got.err, io.ErrClosedPipe, "the body must report interruption without waiting for the source")
+	require.Equal(t, payload, got.data, "bytes returned after Close must not reach the body")
+	require.ErrorIs(t, b.Close(), s.closeErr, "later closes must return the cached close error")
+	require.EqualValues(t, 1, s.closes.Load(), "later closes must not close the source again")
 }
 
-func TestBufferTerminalErrors(t *testing.T) {
-	t.Parallel()
-	laterCause := xerrors.New("later stop")
-	for _, tc := range []struct {
-		name  string
-		cause error
-		close bool
-	}{
-		{name: "Close", close: true},
-		{name: "NilStop"},
-		{name: "EOFStop", cause: io.EOF},
-		{name: "WrappedEOFStop", cause: xerrors.Errorf("stop: %w", io.EOF)},
-		{name: "WrappedCause", cause: xerrors.Errorf("stop: %w", context.DeadlineExceeded)},
-		{name: "FirstStopWins", cause: context.Canceled},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			s := &source{closed: make(chan struct{}), closeErr: io.ErrUnexpectedEOF}
-			s.read = func([]byte) (int, error) { <-s.closed; return 0, io.ErrClosedPipe }
-			b := newBuffer(s)
-			var err error
-			if tc.close {
-				err = b.Close()
-			} else {
-				err = b.Stop(tc.cause)
-			}
-			require.ErrorIs(t, err, s.closeErr, "Close and Stop must return the source close error")
-			require.ErrorIs(t, b.Stop(laterCause), s.closeErr, "later stops must return the cached close error")
-			_, err = b.Wait(testutil.Context(t, testutil.WaitLong))
-			require.ErrorIs(t, err, io.ErrClosedPipe, "wait must report interruption for every stop cause")
-			require.NotErrorIs(t, err, laterCause, "later stops must not replace the first cause")
-			_, readErr := io.ReadAll(newReader(t, b))
-			require.ErrorIs(t, readErr, io.ErrClosedPipe, "reader interruption must not look like successful EOF")
-			if tc.cause != nil {
-				require.ErrorIs(t, err, tc.cause, "wait must preserve the original stop cause")
-				require.ErrorIs(t, readErr, tc.cause, "readers must preserve the original stop cause")
-			}
-			require.EqualValues(t, 1, s.closes.Load(), "later stops must not close the source again")
-		})
-	}
-}
-
-func TestBufferConcurrentReaders(t *testing.T) {
+// TestBufferConcurrentBodies drives the forwarding body and a retry body
+// against a pipe at once. Each must receive every chunk exactly once,
+// whichever body read it from the source.
+func TestBufferConcurrentBodies(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	input, output := io.Pipe()
-	b := newBuffer(input)
+	request, b := newRequestBuffer(input)
 	t.Cleanup(func() { require.NoError(t, b.Close()); _ = output.Close() })
-	type result struct {
-		payload []byte
-		err     error
-	}
+	retry, err := request.GetBody()
+	require.NoError(t, err)
 	results := make(chan result, 2)
-	for range 2 {
-		r := newReader(t, b)
+	for _, r := range []io.ReadCloser{request.Body, retry} {
 		go func() { p, err := io.ReadAll(r); results <- result{p, err} }()
 	}
 	for range 2 {
@@ -239,15 +300,16 @@ func TestBufferConcurrentReaders(t *testing.T) {
 	require.NoError(t, output.Close())
 	for range 2 {
 		got := testutil.RequireReceive(ctx, t, results)
-		require.NoError(t, got.err, "every cursor must finish successfully at source EOF")
-		require.Equal(t, strings.Repeat("chunk", 2), string(got.payload), "each cursor must receive every chunk")
+		require.NoError(t, got.err, "every body must finish successfully at source EOF")
+		require.Equal(t, strings.Repeat("chunk", 2), string(got.data), "each body must receive every chunk")
 	}
 }
 
 func TestBufferWaitCanceled(t *testing.T) {
 	t.Parallel()
 	input, output := io.Pipe()
-	b := newBuffer(input)
+	body, b := newBuffer(input)
+	defer body.Close()
 	t.Cleanup(func() { require.NoError(t, b.Close()); _ = output.Close() })
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
@@ -255,164 +317,9 @@ func TestBufferWaitCanceled(t *testing.T) {
 	require.Nil(t, payload, "a canceled Wait must return a nil payload")
 	require.ErrorIs(t, err, context.Canceled, "wait must report its own context cancellation")
 	go func() { _, _ = io.WriteString(output, "request"); _ = output.Close() }()
+	_, err = io.Copy(io.Discard, body)
+	require.NoError(t, err, "canceling Wait must not interrupt forwarding")
 	payload, err = b.Wait(testutil.Context(t, testutil.WaitLong))
 	require.NoError(t, err, "canceling Wait must not cancel capture")
 	require.Equal(t, "request", string(payload), "capture must retain the full body after Wait is canceled")
-}
-
-// afterFuncContext tracks context.AfterFunc registrations. Its distinct Done
-// channel forces the AfterFunc hook without hiding context values or causes.
-type afterFuncContext struct {
-	context.Context
-	done       chan struct{}
-	registered atomic.Int32
-	active     atomic.Int32
-	// holdCallback, when set, delays every cancellation callback until closed.
-	holdCallback <-chan struct{}
-}
-
-func newAfterFuncContext(ctx context.Context) *afterFuncContext {
-	c := &afterFuncContext{Context: ctx, done: make(chan struct{})}
-	context.AfterFunc(ctx, func() { close(c.done) })
-	return c
-}
-
-func (c *afterFuncContext) Done() <-chan struct{} { return c.done }
-func (c *afterFuncContext) Err() error {
-	select {
-	case <-c.done:
-		return c.Context.Err()
-	default:
-		return nil
-	}
-}
-
-func (c *afterFuncContext) AfterFunc(f func()) func() bool {
-	c.registered.Add(1)
-	c.active.Add(1)
-	stop := context.AfterFunc(c.Context, func() {
-		<-c.done
-		if c.holdCallback != nil {
-			<-c.holdCallback
-		}
-		c.active.Add(-1)
-		f()
-	})
-	return func() bool {
-		if !stop() {
-			return false
-		}
-		c.active.Add(-1)
-		return true
-	}
-}
-
-func TestBufferReleasesCancellationSubscription(t *testing.T) {
-	t.Parallel()
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	tracked := newAfterFuncContext(ctx)
-	response, buffer := replaybody.NewResponse(tracked, &http.Response{Body: io.NopCloser(strings.NewReader("payload"))})
-	defer response.Body.Close()
-	defer buffer.Close()
-	payload, err := buffer.Wait(testutil.Context(t, testutil.WaitShort))
-	require.NoError(t, err)
-	require.Equal(t, "payload", string(payload), "capture must retain all source bytes")
-	require.EqualValues(t, 1, tracked.registered.Load(), "capture must register exactly one cancellation hook")
-	require.Zero(t, tracked.active.Load(), "completed capture must release its context subscription")
-}
-
-// TestBufferEOFCompletion stops capture while the final read is in flight.
-// In-flight read returns the last bytes with EOF after Stop has closed the source.
-// Capture must complete successfully even though a stop cause is pending.
-func TestBufferEOFCompletion(t *testing.T) {
-	t.Parallel()
-	for _, tc := range []struct {
-		name string
-		stop func(t *testing.T, cancel context.CancelFunc, b *replaybody.Buffer)
-	}{
-		{
-			name: "Stop",
-			stop: func(t *testing.T, _ context.CancelFunc, b *replaybody.Buffer) {
-				require.NoError(t, b.Stop(context.Canceled))
-			},
-		},
-		{
-			name: "ContextCancellation",
-			stop: func(_ *testing.T, cancel context.CancelFunc, _ *replaybody.Buffer) { cancel() },
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx, cancel := context.WithCancel(t.Context())
-			defer cancel()
-			reading := make(chan struct{})
-			input := &source{closed: make(chan struct{})}
-			input.read = func(p []byte) (int, error) {
-				close(reading)
-				<-input.closed
-				return copy(p, "payload"), io.EOF
-			}
-			//nolint:bodyclose // Buffer.Close owns the source transferred to NewResponse.
-			response, b := replaybody.NewResponse(ctx, &http.Response{Body: input})
-			defer response.Body.Close()
-			t.Cleanup(func() { require.NoError(t, b.Close()) })
-			waitCtx := testutil.Context(t, testutil.WaitShort)
-			testutil.TryReceive(waitCtx, t, reading)
-			tc.stop(t, cancel, b)
-
-			payload, err := b.Wait(waitCtx)
-			require.NoError(t, err, "source EOF must complete capture even while stopping")
-			require.Equal(t, "payload", string(payload), "capture must retain the bytes returned with EOF")
-
-			replay, readErr := io.ReadAll(newReader(t, b))
-			require.NoError(t, readErr, "replay must succeed at EOF even if capture was stopped")
-			require.Equal(t, payload, replay, "replay must retain every captured byte")
-		})
-	}
-}
-
-// TestBufferContextStopsCapture cancels the context during a read while holding
-// back the Stop that cancellation schedules, so only the read can report the cause.
-func TestBufferContextStopsCapture(t *testing.T) {
-	t.Parallel()
-	for _, cause := range []error{
-		context.Canceled,
-		xerrors.Errorf("cancel: %w", context.DeadlineExceeded),
-		io.EOF,
-		xerrors.Errorf("cancel: %w", io.EOF),
-	} {
-		t.Run(cause.Error(), func(t *testing.T) {
-			t.Parallel()
-			ctx, cancel := context.WithCancelCause(t.Context())
-			defer cancel(nil)
-			release := make(chan struct{})
-			defer close(release)
-			tracked := newAfterFuncContext(ctx)
-			tracked.holdCallback = release
-			input := &source{closed: make(chan struct{})}
-			var reads atomic.Int32
-			input.read = func(p []byte) (int, error) {
-				if reads.Add(1) > 1 {
-					return 0, io.ErrUnexpectedEOF
-				}
-				cancel(cause)
-				<-tracked.Done()
-				return copy(p, "partial"), nil
-			}
-			//nolint:bodyclose // Buffer.Close owns the source transferred to NewResponse.
-			response, b := replaybody.NewResponse(tracked, &http.Response{Body: input})
-			defer response.Body.Close()
-			t.Cleanup(func() { require.NoError(t, b.Close()) })
-			payload, err := b.Wait(testutil.Context(t, testutil.WaitShort))
-			require.ErrorIs(t, err, io.ErrClosedPipe, "the read must report interruption without waiting for Stop")
-			require.ErrorIs(t, err, cause, "capture must preserve the original cancellation cause")
-			require.Equal(t, "partial", string(payload), "cancellation must retain bytes returned by the same read")
-
-			replay, readErr := io.ReadAll(newReader(t, b))
-			require.ErrorIs(t, readErr, io.ErrClosedPipe, "replaying canceled capture must not swallow EOF causes")
-			require.ErrorIs(t, readErr, cause, "replay must preserve the original cancellation cause")
-			require.Equal(t, payload, replay, "replay must retain every captured byte")
-		})
-	}
 }
