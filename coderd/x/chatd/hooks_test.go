@@ -570,10 +570,11 @@ func seedErroredChatWithQueuedMessage(t *testing.T, db database.Store, text stri
 	})
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText(text)})
 	require.NoError(t, err)
-	queued, err := db.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+	queued, err := db.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
 		ChatID:        chat.ID,
 		Content:       content.RawMessage,
 		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+		CreatedBy:     user.ID,
 	})
 	require.NoError(t, err)
 	return chat, queued
@@ -660,10 +661,11 @@ func TestEditQueuedMessageUserPromptSubmitDispatchFailure(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	chat, queued := seedErroredChatWithQueuedMessage(t, db, "original")
 	consumer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, db.DeleteChatQueuedMessage(r.Context(), database.DeleteChatQueuedMessageParams{
+		_, err := db.DeleteChatQueuedMessageReturningCount(r.Context(), database.DeleteChatQueuedMessageReturningCountParams{
 			ID: queued.ID, ChatID: chat.ID,
-		}))
-		_, err := db.UpdateChatStatus(r.Context(), database.UpdateChatStatusParams{
+		})
+		require.NoError(t, err)
+		_, err = db.UpdateChatStatus(r.Context(), database.UpdateChatStatusParams{
 			ID:     chat.ID,
 			Status: database.ChatStatusWaiting,
 		})

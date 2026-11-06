@@ -384,21 +384,6 @@ func TestQueuedMessageCreatedByIsRequired(t *testing.T) {
 	require.Contains(t, err.Error(), "created_by")
 }
 
-func TestLegacyQueuedMessageInsertUsesChatOwnerAsCreator(t *testing.T) {
-	t.Parallel()
-	tf := newTriggerFixture(t)
-	f := tf.f
-	ctx := testutil.Context(t, testutil.WaitShort)
-	created := createTestChat(t, f)
-
-	queued, err := f.DB.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
-		ChatID:  created.Chat.ID,
-		Content: userMessageContent(t, "legacy-queued"),
-	})
-	require.NoError(t, err)
-	require.Equal(t, created.Chat.OwnerID, queued.CreatedBy)
-}
-
 // TestQueueUpdateContentUpdatesQueueVersion verifies that an UPDATE
 // of chat_queued_messages.content bumps queue_version. The
 // AFTER UPDATE trigger explicitly listens for content changes.
