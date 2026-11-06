@@ -129,7 +129,7 @@ type AgentConn interface {
 	ReadFile(ctx context.Context, path string, offset, limit int64) (io.ReadCloser, string, error)
 	ReadFileInRoot(ctx context.Context, root, path string, offset, limit int64) (io.ReadCloser, string, error)
 	ReadFileLines(ctx context.Context, path string, offset, limit int64, limits ReadFileLinesLimits) (ReadFileLinesResponse, error)
-	WriteFile(ctx context.Context, path string, reader io.Reader) error
+	WriteFile(ctx context.Context, path string, reader io.Reader) (WriteFileResponse, error)
 	UploadChatFile(ctx context.Context, req UploadChatFileRequest) (AgentUploadChatFileResponse, error)
 	EditFiles(ctx context.Context, edits FileEditRequest) (FileEditResponse, error)
 	BundleFiles(ctx context.Context, req BundleFilesRequest) ([]byte, error)
@@ -1050,10 +1050,12 @@ type StartProcessRequest struct {
 	TimeoutMs int64 `json:"timeout_ms,omitempty"`
 }
 
-// StartProcessResponse is returned when a process is started.
+// StartProcessResponse is returned when a process is started. Hooks
+// lists the workspace hooks that ran before the process started.
 type StartProcessResponse struct {
-	ID      string `json:"id"`
-	Started bool   `json:"started"`
+	ID      string         `json:"id"`
+	Started bool           `json:"started"`
+	Hooks   []HookDecision `json:"hooks,omitempty"`
 }
 
 // ListProcessesResponse contains information about tracked
@@ -1280,7 +1282,7 @@ func (c *agentConn) readFileRequest(ctx context.Context, root, path string, offs
 }
 
 // WriteFile writes to a file in the workspace.
-func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader) error {
+func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader) (WriteFileResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 
@@ -1288,22 +1290,29 @@ func (c *agentConn) WriteFile(ctx context.Context, path string, reader io.Reader
 		"path": []string{path},
 	}), reader)
 	if err != nil {
-		return xerrors.Errorf("do request: %w", err)
+		return WriteFileResponse{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
 	return readWriteFileResponse(res)
 }
 
-func readWriteFileResponse(res *http.Response) error {
+func readWriteFileResponse(res *http.Response) (WriteFileResponse, error) {
 	if res.StatusCode != http.StatusOK {
-		return readAgentError(res)
+		return WriteFileResponse{}, readAgentError(res)
 	}
 
-	var m codersdk.Response
+	var m WriteFileResponse
 	if err := decodeAgentJSON(res, &m); err != nil {
-		return xerrors.Errorf("decode response body: %w", err)
+		return WriteFileResponse{}, xerrors.Errorf("decode response body: %w", err)
 	}
-	return nil
+	return m, nil
+}
+
+// WriteFileResponse is returned after a file was written. Hooks lists
+// the workspace hooks that ran before the write.
+type WriteFileResponse struct {
+	Message string         `json:"message"`
+	Hooks   []HookDecision `json:"hooks,omitempty"`
 }
 
 // UploadChatFileRequest is the streaming request for the agent's
@@ -1354,13 +1363,15 @@ func (c *agentConn) UploadChatFile(ctx context.Context, req UploadChatFileReques
 }
 
 // ReadFileLinesResponse is the response from the line-based file reader.
+// Hooks lists the workspace hooks that ran before the read.
 type ReadFileLinesResponse struct {
-	Success    bool   `json:"success"`
-	FileSize   int64  `json:"file_size,omitempty"`
-	TotalLines int    `json:"total_lines,omitempty"`
-	LinesRead  int    `json:"lines_read,omitempty"`
-	Content    string `json:"content,omitempty"`
-	Error      string `json:"error,omitempty"`
+	Success    bool           `json:"success"`
+	FileSize   int64          `json:"file_size,omitempty"`
+	TotalLines int            `json:"total_lines,omitempty"`
+	LinesRead  int            `json:"lines_read,omitempty"`
+	Content    string         `json:"content,omitempty"`
+	Error      string         `json:"error,omitempty"`
+	Hooks      []HookDecision `json:"hooks,omitempty"`
 }
 
 // ReadFileLinesLimits contains configurable safety limits for the line-based
@@ -1433,6 +1444,8 @@ type FileEditRequest struct {
 // wire break.
 type FileEditResponse struct {
 	Files []FileEditResult `json:"files,omitempty"`
+	// Hooks lists the workspace hooks that ran before the edits.
+	Hooks []HookDecision `json:"hooks,omitempty"`
 }
 
 // FileEditResult carries the outcome of editing one file. Path is
@@ -1727,6 +1740,9 @@ func (c *agentConn) apiRequestWithOptions(ctx context.Context, method, path stri
 	for key, values := range opts.header {
 		req.Header[key] = values
 	}
+	if id := modelToolCallIDFromContext(ctx); id != "" {
+		req.Header.Set(CoderModelToolCallIDHeader, id)
+	}
 
 	res, err := c.apiClient(ctx).Do(req)
 	if err != nil {
@@ -1758,6 +1774,9 @@ const (
 // a *codersdk.Error carrying the agent's status code.
 func readAgentError(res *http.Response) error {
 	res.Body = newLimitedResponseBody(res.Body, agentErrorResponseMaxBytes)
+	if denied := hookDeniedError(res); denied != nil {
+		return denied
+	}
 	err := codersdk.ReadBodyAsError(res)
 	var sdkErr *codersdk.Error
 	if errors.As(err, &sdkErr) {
