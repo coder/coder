@@ -870,8 +870,8 @@ chat:
   # labels use the same limit. Must be at least 1.
   # (default: 25, type: int)
   maxGenerationRetries: 25
-  # Maximum number of messages that can be queued in a chat. Sending a message to a
-  # chat whose queue is full fails with HTTP 429. Must be at least 1.
+  # Maximum number of messages that can be queued in a chat. Sending a message that
+  # would make a full queue longer fails with HTTP 429. Must be at least 1.
   # (default: 20, type: int)
   maxQueuedMessagesPerChat: 20
   # Maximum number of files linked to a chat, including user uploads, files the

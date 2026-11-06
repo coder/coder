@@ -102,7 +102,6 @@ func (p *Server) sendSubagentMessage(
 	parentChatID uuid.UUID,
 	targetChatID uuid.UUID,
 	message string,
-	busyBehavior SendMessageBusyBehavior,
 ) (database.Chat, error) {
 	message = strings.TrimSpace(message)
 	if message == "" {
@@ -127,7 +126,7 @@ func (p *Server) sendSubagentMessage(
 		ChatID:       targetChatID,
 		CreatedBy:    targetChat.OwnerID,
 		Content:      []codersdk.ChatMessagePart{codersdk.ChatMessageText(message)},
-		BusyBehavior: busyBehavior,
+		BusyBehavior: SendMessageBusyBehaviorSteer,
 	})
 	if err != nil {
 		return database.Chat{}, err
