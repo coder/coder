@@ -44,7 +44,9 @@ coder:
           name: coder-db-url
           key: url
 
-    # This env enables the Prometheus metrics endpoint.
+    # Enable the Prometheus metrics endpoint.
+    - name: CODER_PROMETHEUS_ENABLE
+      value: "true"
     - name: CODER_PROMETHEUS_ADDRESS
       value: "0.0.0.0:2112"
     # For production deployments, we recommend configuring your own GitHub
@@ -66,7 +68,9 @@ coder:
   networkPolicy:
     enable: true
     ingress:
-      # Optional. If empty, any source can reach the HTTP(S) ports.
+      # Optional. If empty, any source can reach the HTTP(S) ports. If set,
+      # also list workspaces, workspace proxies, and provisioners that connect
+      # in-cluster. Node-routed LoadBalancer traffic may not match a selector.
       from:
         - namespaceSelector:
             matchLabels:
@@ -87,7 +91,8 @@ coder:
 Once enabled, ingress is limited to the HTTP(S) ports, Prometheus metrics (when
 `CODER_PROMETHEUS_ENABLE` is set in `coder.env`, on the port from
 `CODER_PROMETHEUS_ADDRESS`), and ports 8080 and
-6222 between Coder replicas for high availability.
+6222 between Coder replicas for high availability. Variables set through
+`valueFrom` or `envFrom` are not detected; open the port with `extraIngress`.
 
 Egress is unrestricted unless you set `coder.networkPolicy.egress.enable`. In
 that case only DNS, PostgreSQL, ports 8080 and 6222 to other Coder replicas, and

@@ -26,10 +26,6 @@ spec:
       {{- with .Values.networkPolicy.ingress.from }}
       from:
         {{- toYaml . | nindent 8 }}
-        # Gateway replicas may reach each other.
-        - podSelector:
-            matchLabels:
-              {{- include "coder.selectorLabels" $ | nindent 14 }}
       {{- end }}
     {{- with include "libcoder.prometheusPort" (list . true) }}
     # Prometheus metrics, unless CODER_PROMETHEUS_ENABLE is false in coder.env.

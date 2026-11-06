@@ -97,6 +97,13 @@ var testCases = []testCase{
 		},
 	},
 	{
+		name:    "network_policy_metrics_off",
+		fixture: "network_policy_metrics_off",
+		mustNotContain: []string{
+			"port: 2112",
+		},
+	},
+	{
 		name:    "nodeport",
 		fixture: "nodeport",
 		mustNotContain: []string{

@@ -27,9 +27,9 @@ coder:
   env:
     - name: CODER_URL
       value: "https://coder.example.com"
-    # This env enables the Prometheus metrics endpoint.
-    - name: CODER_PROMETHEUS_ADDRESS
-      value: "0.0.0.0:2112"
+    # Enable the Prometheus metrics endpoint.
+    - name: CODER_PROMETHEUS_ENABLE
+      value: "true"
   replicaCount: 10
 provisionerDaemon:
   keySecretName: "coder-provisionerd-key"
@@ -74,15 +74,15 @@ extra toggle. Restrict who can scrape with `coder.networkPolicy.prometheus.from`
 or allow more with `coder.networkPolicy.extraIngress`.
 
 Egress is restricted by default. Only DNS, the Coder server, and the Kubernetes
-API are allowed, plus anything in `coder.networkPolicy.extraEgress`. Set
+API ports are allowed, plus anything in `coder.networkPolicy.extraEgress`. Set
 `coder.networkPolicy.egress.enable` to `false` to leave egress open.
 
-- `egress.coderServer` defaults to the Coder chart's pods in the release
-  namespace, matching the default `CODER_URL`. Override `to` and `ports` if
-  `CODER_URL` points elsewhere.
+- `egress.coderServer` defaults to the Coder chart's pods in any namespace.
+  Override `to` and `ports` if `CODER_URL` points elsewhere, such as an external
+  address. An empty `to` allows any destination on those ports.
 - `egress.kubernetesAPI` defaults to any destination on ports 443 and 6443,
-  because control plane addresses vary by cluster. Set `to` to an `ipBlock` for
-  your API server to tighten it.
+  because control plane addresses vary by cluster. That includes the internet, so
+  set `to` to an `ipBlock` for your API server to tighten it.
 
 Your templates probably reach other services during builds, such as cloud APIs
 and registries. Allow them with `extraEgress`:

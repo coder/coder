@@ -28,11 +28,6 @@ spec:
         - namespaceSelector:
             matchLabels:
               kubernetes.io/metadata.name: ingress-nginx
-        # Gateway replicas may reach each other.
-        - podSelector:
-            matchLabels:
-              app.kubernetes.io/name: coder-ai-gateway
-              app.kubernetes.io/instance: ai-gateway
     # Prometheus metrics, unless CODER_PROMETHEUS_ENABLE is false in coder.env.
     - ports:
         - port: 2112

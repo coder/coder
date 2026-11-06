@@ -3,7 +3,7 @@ coder:
     tag: latest
   env:
     - name: CODER_PROMETHEUS_ENABLE
-      value: "true"
+      value: "True"
   networkPolicy:
     enable: true
     prometheus:

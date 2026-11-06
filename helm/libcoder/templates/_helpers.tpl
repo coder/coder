@@ -250,15 +250,20 @@ This should be overridden in each chart to specify the component type.
 {{/*
 Prometheus metrics port exposed through coder.env, or empty if metrics are
 disabled. Takes (list <root context> <enabled by default>). Reads
-CODER_PROMETHEUS_ENABLE and CODER_PROMETHEUS_ADDRESS from coder.env, so a
-variable supplied through envFrom is not seen.
+CODER_PROMETHEUS_ENABLE (any Go boolean spelling) and CODER_PROMETHEUS_ADDRESS
+from coder.env, so a variable supplied through valueFrom or envFrom is not seen.
 */}}
 {{- define "libcoder.prometheusPort" -}}
 {{- $enabled := index . 1 -}}
 {{- $addr := "0.0.0.0:2112" -}}
 {{- range (index . 0).Values.coder.env -}}
 {{- if eq .name "CODER_PROMETHEUS_ENABLE" -}}
-{{- $enabled = eq (toString .value) "true" -}}
+{{- $v := lower (toString .value) -}}
+{{- if has $v (list "1" "t" "true") -}}
+{{- $enabled = true -}}
+{{- else if has $v (list "0" "f" "false") -}}
+{{- $enabled = false -}}
+{{- end -}}
 {{- else if and (eq .name "CODER_PROMETHEUS_ADDRESS") .value -}}
 {{- $addr = toString .value -}}
 {{- end -}}

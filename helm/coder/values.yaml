@@ -561,8 +561,10 @@ coder:
     # coder.networkPolicy.ingress.from -- Peers allowed to reach the HTTP(S)
     # ports, as NetworkPolicyPeer objects. If empty, any source is allowed,
     # which is typically required because users, agents, and load balancers
-    # connect from varying addresses. Other Coder replicas are always allowed
-    # on ports 8080 (DERP relay) and 6222 (pubsub) regardless of this setting.
+    # connect from varying addresses. If set, also include any other in-cluster
+    # callers (workspaces, workspace proxies, provisioners). Traffic through a
+    # LoadBalancer or NodePort Service may arrive from node IPs. Other Coder
+    # replicas are always allowed on ports 8080 (DERP relay) and 6222 (pubsub).
     ingress:
       from: []
       # - namespaceSelector:
