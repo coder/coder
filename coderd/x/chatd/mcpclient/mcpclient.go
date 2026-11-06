@@ -1178,15 +1178,16 @@ func (r secretRedactor) redactResponse(response fantasy.ToolResponse) fantasy.To
 // fantasy.AgentTool. It stores the prefixed name for Info() but
 // strips the prefix when forwarding calls to the remote server.
 type mcpToolWrapper struct {
-	configID     uuid.UUID
-	prefixedName string
-	originalName string
-	description  string
-	parameters   map[string]any
-	required     []string
-	modelIntent  bool
-	session      *mcp.ClientSession
-	redactor     secretRedactor
+	configID       uuid.UUID
+	prefixedName   string
+	originalName   string
+	description    string
+	parameters     map[string]any
+	required       []string
+	rawInputSchema map[string]any
+	modelIntent    bool
+	session        *mcp.ClientSession
+	redactor       secretRedactor
 	// maxResultBytes caps the serialized tool result; 0 means no cap.
 	maxResultBytes  int
 	providerOptions fantasy.ProviderOptions
@@ -1209,7 +1210,12 @@ func newMCPTool(
 	redactor secretRedactor,
 	maxResultBytes int,
 ) *mcpToolWrapper {
-	properties, required := splitInputSchema(tool.InputSchema)
+	rawMap := rawSchemaToMap(tool.InputSchema)
+	properties, required := splitInputSchema(rawMap)
+	var rawInputSchema map[string]any
+	if rawMap != nil {
+		rawInputSchema = redactor.redactMap(rawMap)
+	}
 	// Model-visible fields are redacted once here. originalName is
 	// deliberately left as is: it is the name sent in tools/call and the
 	// server must recognize it.
@@ -1220,6 +1226,7 @@ func newMCPTool(
 		description:    redactor.redactString(tool.Description),
 		parameters:     redactor.redactMap(properties),
 		required:       redactor.redactStrings(required),
+		rawInputSchema: rawInputSchema,
 		modelIntent:    modelIntent,
 		session:        session,
 		redactor:       redactor,
@@ -1227,9 +1234,27 @@ func newMCPTool(
 	}
 }
 
+func rawSchemaToMap(schema any) map[string]any {
+	if schema == nil {
+		return nil
+	}
+	if m, ok := schema.(map[string]any); ok {
+		return m
+	}
+	data, err := json.Marshal(schema)
+	if err != nil {
+		return nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil
+	}
+	return m
+}
+
 func splitInputSchema(schema any) (map[string]any, []string) {
-	m, ok := schema.(map[string]any)
-	if !ok {
+	m := rawSchemaToMap(schema)
+	if m == nil {
 		return nil, nil
 	}
 	properties, _ := m["properties"].(map[string]any)
@@ -1288,6 +1313,62 @@ func (t *mcpToolWrapper) Info() fantasy.ToolInfo {
 		Required:    []string{"model_intent", "properties"},
 		Parallel:    true,
 	}
+}
+
+// InputSchema returns the tool's complete JSON schema, preserving top-level
+// attributes such as "$schema", "$defs", and "definitions" from the MCP server.
+func (t *mcpToolWrapper) InputSchema() map[string]any {
+	if !t.modelIntent {
+		if t.rawInputSchema != nil {
+			clone := make(map[string]any, len(t.rawInputSchema))
+			for k, v := range t.rawInputSchema {
+				clone[k] = v
+			}
+			if clone["properties"] == nil {
+				clone["properties"] = map[string]any{}
+			}
+			if _, ok := clone["type"]; !ok {
+				clone["type"] = "object"
+			}
+			return clone
+		}
+		return nil
+	}
+
+	wrapped := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"model_intent": map[string]any{
+				"type": "string",
+				"description": "A short, natural-language, present-participle " +
+					"phrase describing why you are calling this tool. " +
+					"This is shown to the user as a status label while " +
+					"the tool runs. Use plain English with no underscores " +
+					"or technical jargon. Keep it under 100 characters. " +
+					"Good examples: \"Reading the authentication module\", " +
+					"\"Searching for configuration files\", " +
+					"\"Creating a new workspace\".",
+			},
+			"properties": map[string]any{
+				"type":       "object",
+				"properties": t.parameters,
+				"required":   t.required,
+			},
+		},
+		"required": []string{"model_intent", "properties"},
+	}
+	if t.rawInputSchema != nil {
+		if schemaVal, ok := t.rawInputSchema["$schema"]; ok {
+			wrapped["$schema"] = schemaVal
+		}
+		if defsVal, ok := t.rawInputSchema["$defs"]; ok {
+			wrapped["$defs"] = defsVal
+		}
+		if defsVal, ok := t.rawInputSchema["definitions"]; ok {
+			wrapped["definitions"] = defsVal
+		}
+	}
+	return wrapped
 }
 
 func (t *mcpToolWrapper) Run(

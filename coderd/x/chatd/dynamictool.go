@@ -21,6 +21,7 @@ type dynamicTool struct {
 	description string
 	parameters  map[string]any
 	required    []string
+	rawSchema   map[string]any
 	opts        fantasy.ProviderOptions
 }
 
@@ -39,13 +40,11 @@ func dynamicToolsFromSDK(logger slog.Logger, tools []codersdk.DynamicTool) []fan
 		}
 		// InputSchema is a full JSON Schema object stored as
 		// json.RawMessage. Extract the "properties" and
-		// "required" fields that fantasy.ToolInfo expects.
+		// "required" fields that fantasy.ToolInfo expects, and
+		// preserve the raw schema map for ToolInputSchemaProvider.
 		if len(t.InputSchema) > 0 {
-			var schema struct {
-				Properties map[string]any `json:"properties"`
-				Required   []string       `json:"required"`
-			}
-			if err := json.Unmarshal(t.InputSchema, &schema); err != nil {
+			var rawMap map[string]any
+			if err := json.Unmarshal(t.InputSchema, &rawMap); err != nil {
 				// Defensive: present the tool with no parameter
 				// constraints rather than failing. The LLM may
 				// hallucinate argument shapes, but the tool will
@@ -54,13 +53,33 @@ func dynamicToolsFromSDK(logger slog.Logger, tools []codersdk.DynamicTool) []fan
 					slog.F("tool_name", t.Name),
 					slog.Error(err))
 			} else {
-				dt.parameters = schema.Properties
-				dt.required = schema.Required
+				dt.rawSchema = rawMap
+				if props, ok := rawMap["properties"].(map[string]any); ok {
+					dt.parameters = props
+				}
+				if req, ok := rawMap["required"].([]any); ok {
+					for _, r := range req {
+						if str, ok := r.(string); ok {
+							dt.required = append(dt.required, str)
+						}
+					}
+				}
 			}
 		}
 		result = append(result, dt)
 	}
 	return result
+}
+
+func (t *dynamicTool) InputSchema() map[string]any {
+	if t.rawSchema == nil {
+		return nil
+	}
+	clone := make(map[string]any, len(t.rawSchema))
+	for k, v := range t.rawSchema {
+		clone[k] = v
+	}
+	return clone
 }
 
 func (t *dynamicTool) Info() fantasy.ToolInfo {
