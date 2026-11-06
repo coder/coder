@@ -91,7 +91,7 @@ func TestHydrateChatContextOnCreate(t *testing.T) {
 }
 
 // TestUpdateAgentChatsContextPublishesContextChanges verifies one event per
-// hydrated, dirtied, cleared, or live-synced chat.
+// hydrated, dirtied, cleared, error-synced, or resource-synced chat.
 func TestUpdateAgentChatsContextPublishesContextChanges(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)

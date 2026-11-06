@@ -154,9 +154,9 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 		return out
 	}
 
-	// Connect as the agent and push the initial snapshot. The push runs the
-	// hydrate/dirty fan-out synchronously inside its transaction, so the chat
-	// reflects the change by the time the RPC returns.
+	// Connect as the agent and push the initial snapshot. The push updates chat
+	// context synchronously inside its transaction, so the chat reflects the
+	// change by the time the RPC returns.
 	agentClient := agentsdk.New(client.URL, agentsdk.WithFixedToken(agentToken))
 	aAPI, _, err := agentClient.ConnectRPC210(ctx)
 	require.NoError(t, err)
@@ -249,14 +249,13 @@ func TestChatContextDirtyFromAgentPush(t *testing.T) {
 	require.NotNil(t, got.Context.DirtySince)
 	require.Equal(t, snapshotError, got.Context.Error, "snapshot errors live-sync while resources stay pinned")
 	requireContextEvent(true, snapshotError)
-	requireChatContextNil(otherChat.ID, "agent-less chat unaffected by the dirty fan-out")
+	requireChatContextNil(otherChat.ID, "agent-less chat unaffected by context updates")
 
 	// While dirty the GET still reports the pinned (hashA) resources.
 	require.Len(t, got.Context.Resources, 1, "resources stay pinned while dirty")
 	require.Equal(t, agentsSource, got.Context.Resources[0].Source)
 
-	// The dirty fan-out must NOT re-copy resources: the chat keeps the bodies
-	// from its pinned (hashA) snapshot until it is refreshed.
+	// Instruction bodies stay pinned to hashA until refresh.
 	pinned = pinnedResources(chat.ID)
 	require.Len(t, pinned, 1, "dirty marking does not re-copy resources")
 	require.Equal(t, agentsV1Hash, pinned[agentsSource].ContentHash, "chat keeps the pinned snapshot's resources while dirty")
