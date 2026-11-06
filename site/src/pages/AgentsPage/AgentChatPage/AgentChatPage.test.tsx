@@ -22,6 +22,7 @@ import {
 } from "#/testHelpers/chatModels";
 import {
 	MockUserPreferenceSettings,
+	MockWorkspace,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
@@ -33,6 +34,7 @@ import {
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
 import { parseStoredDraft } from "../utils/draftStorage";
+import { NIL_UUID } from "../utils/modelOptions";
 import AgentChatPage from "./AgentChatPage";
 
 const mockProjectChat = { ...MockChat, project_id: "project-1" };
@@ -220,6 +222,75 @@ describe("AgentChatPage", () => {
 				listRequestsBeforeSend + 1,
 			),
 		);
+	});
+
+	it("detaches the workspace only after the user confirms", async () => {
+		const mockWorkspace: TypesGen.Workspace = {
+			...MockWorkspace,
+			latest_build: {
+				...MockWorkspace.latest_build,
+				resources: [],
+			},
+		};
+		vi.spyOn(API, "getWorkspace").mockResolvedValue(mockWorkspace);
+		vi.spyOn(apiModule, "watchWorkspace").mockImplementation(
+			() =>
+				new OneWayWebSocket({
+					apiRoute: `/api/v2/workspaces/${mockWorkspace.id}/watch-ws`,
+					websocketInit: (url, protocol) =>
+						createMockWebSocket(url, protocol)[0],
+				}),
+		);
+		const updateChat = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		const { user, composer } = renderQueuedChat({
+			queuedMessages: [],
+			chat: { ...MockChat, workspace_id: mockWorkspace.id },
+		});
+		const removeWorkspace = () =>
+			screen.findByRole("button", {
+				name: `Remove workspace ${mockWorkspace.name}`,
+			});
+
+		const removeButton = await removeWorkspace();
+		await user.click(removeButton);
+		await user.click(
+			within(await screen.findByRole("dialog")).getByRole("button", {
+				name: "Cancel",
+			}),
+		);
+		expect(updateChat).not.toHaveBeenCalled();
+		await waitFor(() => expect(removeButton).toHaveFocus());
+
+		const moreOptions = screen.getByRole("button", { name: "More options" });
+		await user.click(moreOptions);
+		await user.click(
+			await screen.findByRole("button", { name: /Attach workspace/ }),
+		);
+		await user.click(
+			await screen.findByRole("option", { name: mockWorkspace.name }),
+		);
+		await user.click(
+			within(await screen.findByRole("dialog")).getByRole("button", {
+				name: "Cancel",
+			}),
+		);
+		expect(updateChat).not.toHaveBeenCalled();
+		await waitFor(() => expect(moreOptions).toHaveFocus());
+
+		await user.click(await removeWorkspace());
+		await user.click(
+			within(await screen.findByRole("dialog")).getByRole("button", {
+				name: "Detach",
+			}),
+		);
+		await waitFor(() =>
+			expect(updateChat).toHaveBeenCalledWith(MockChat.id, {
+				workspace_id: NIL_UUID,
+			}),
+		);
+		await waitFor(() => expect(composer()).toHaveFocus());
 	});
 
 	describe("queued message editing", () => {
