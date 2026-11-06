@@ -330,7 +330,7 @@ If you don't have a project in mind, ask the agent to generate something small y
 
 The Quickstart template is a starting point.
 [Customize your template](./customize-your-template/index.md) walks you through adding a language, installing your own command-line tools, and cloning private repositories.
-Each task takes about 10 minutes.
+Each task takes about 10&nbsp;minutes.
 
 To carry your shell and editor settings into every workspace without editing the template, use [dotfiles](../workspaces/workspace-dotfiles.md).
 
