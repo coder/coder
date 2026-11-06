@@ -103,7 +103,10 @@ func (a *API) handleWatch(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	// If a chat_id query parameter is provided and the PathStore is
-	// available, subscribe to path updates for this chat.
+	// available, subscribe to path updates for this chat. Paths are
+	// re-resolved only on the goroutine below so that a refresh and a
+	// path update cannot apply path lists out of order.
+	var resolvePaths chan struct{}
 	if hasWatchChatID && a.pathStore != nil {
 		// Subscribe to future path updates BEFORE reading
 		// existing paths. This ordering guarantees no
@@ -115,18 +118,19 @@ func (a *API) handleWatch(rw http.ResponseWriter, r *http.Request) {
 		defer unsubscribe()
 
 		// Load any paths that are already tracked for this chat.
-		handler.Subscribe(a.pathStore.GetPaths(watchChatID))
+		handler.SetPaths(ctx, a.pathStore.GetPaths(watchChatID))
 
+		resolvePaths = make(chan struct{}, 1)
 		go func() {
 			for {
 				select {
 				case <-ctx.Done():
 					return
 				case <-notifyCh:
-					paths := a.pathStore.GetPaths(watchChatID)
-					handler.Subscribe(paths)
-					handler.RequestScan()
+				case <-resolvePaths:
 				}
+				handler.SetPaths(ctx, a.pathStore.GetPaths(watchChatID))
+				handler.RequestScan()
 			}
 		}()
 	}
@@ -151,12 +155,17 @@ func (a *API) handleWatch(rw http.ResponseWriter, r *http.Request) {
 			switch msg.Type {
 			case codersdk.WorkspaceAgentGitClientMessageTypeRefresh:
 				// Re-resolve the chat's paths, as a new connection
-				// would, so repos created or recreated after their
-				// paths were recorded are picked up.
-				if hasWatchChatID && a.pathStore != nil {
-					handler.Subscribe(a.pathStore.GetPaths(watchChatID))
+				// would, so repos created, recreated, or nested after
+				// their paths were recorded are picked up. The
+				// resolver requests the scan afterwards. Without a
+				// chat there are no repos to refresh.
+				if resolvePaths != nil {
+					select {
+					case resolvePaths <- struct{}{}:
+					default:
+						// A re-resolve is already pending.
+					}
 				}
-				handler.RequestScan()
 			default:
 				if err := stream.Send(codersdk.WorkspaceAgentGitServerMessage{
 					Type:    codersdk.WorkspaceAgentGitServerMessageTypeError,
