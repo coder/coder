@@ -155,13 +155,13 @@ func (m Model) AcceptsFilePartMediaType(mediaType string) bool {
 	case fantasyanthropic.Name:
 		return isImage || isText || isPDF
 	case fantasyopenai.Name:
-		// Chat Completions accepts text and audio as native file parts.
+		// Chat Completions also accepts audio as native file parts.
 		if m.transport.UsesResponses() {
 			return isImage || isPDF
 		}
-		return isImage || isText || isAudio || isPDF
+		return isImage || isAudio || isPDF
 	case fantasyopenaicompat.Name:
-		return isImage || isText || isAudio || isPDF
+		return isImage || isAudio || isPDF
 	default:
 		return false
 	}

@@ -53,7 +53,7 @@ func TestAcceptsFilePartMediaType(t *testing.T) {
 	t.Parallel()
 
 	// A representative Responses-capable model ID. Non-Responses models
-	// use the Chat Completions path, which accepts text/* natively.
+	// use the Chat Completions path, which also accepts audio.
 	const responsesModel = "gpt-4o"
 	const nonResponsesModel = "babbage-002"
 
@@ -74,9 +74,10 @@ func TestAcceptsFilePartMediaType(t *testing.T) {
 		{"openai-image", "openai", responsesModel, "image/png", true, nil},
 		{"openai-pdf", "openai", responsesModel, "application/pdf", true, nil},
 
-		// OpenAI Chat Completions (non-Responses models) accepts text/*
-		// and audio as native file parts.
-		{"openai-non-responses-text", "openai", nonResponsesModel, "text/plain", true, nil},
+		// OpenAI Chat Completions (non-Responses models) accepts audio as
+		// native file parts, but not text files.
+		{"openai-non-responses-text", "openai", nonResponsesModel, "text/plain", false, nil},
+		{"openai-non-responses-audio", "openai", nonResponsesModel, "audio/mpeg", true, nil},
 		{"openai-non-responses-json", "openai", nonResponsesModel, "application/json", false, nil},
 		{"openai-non-responses-image", "openai", nonResponsesModel, "image/png", true, nil},
 
@@ -86,8 +87,8 @@ func TestAcceptsFilePartMediaType(t *testing.T) {
 		{"anthropic-pdf", "anthropic", "", "application/pdf", true, nil},
 		{"anthropic-image", "anthropic", "", "image/webp", true, nil},
 
-		// OpenAI-compatible accepts text/*, images, audio, and PDFs.
-		{"openaicompat-text", "openai-compat", "", "text/plain", true, nil},
+		// OpenAI-compatible accepts images, audio, and PDFs.
+		{"openaicompat-text", "openai-compat", "", "text/plain", false, nil},
 		{"openaicompat-json", "openai-compat", "", "application/json", false, nil},
 		{"openaicompat-audio", "openai-compat", "", "audio/mpeg", true, nil},
 
@@ -105,13 +106,12 @@ func TestAcceptsFilePartMediaType(t *testing.T) {
 		// Provider name normalization is case-insensitive.
 		{"anthropic-uppercase", "Anthropic", "", "text/plain", true, nil},
 
-		{"openai-forced-responses-text", "openai", nonResponsesModel, "text/plain", false, &forceResponses},
+		{"openai-forced-responses-audio", "openai", nonResponsesModel, "audio/mpeg", false, &forceResponses},
 		{"openai-forced-responses-image", "openai", nonResponsesModel, "image/png", true, &forceResponses},
-		{"openai-forced-completions-text", "openai", responsesModel, "text/plain", true, &forceCompletions},
 		{"openai-forced-completions-audio", "openai", responsesModel, "audio/mpeg", true, &forceCompletions},
 
 		{"anthropic-ignores-override", "anthropic", "", "text/plain", true, &forceResponses},
-		{"openaicompat-ignores-override", "openai-compat", "", "text/plain", true, &forceResponses},
+		{"openaicompat-ignores-override", "openai-compat", "", "audio/mpeg", true, &forceResponses},
 	}
 
 	for _, tc := range cases {
