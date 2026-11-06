@@ -102,6 +102,17 @@ export const Lists: Story = {
 	],
 };
 
+export const TableColumnAlignment: Story = {
+	args: {
+		children: [
+			"| Left | Center | Right |",
+			"| :--- | :----: | ----: |",
+			"| one | two | three |",
+			"| a longer cell | b | c |",
+		].join("\n"),
+	},
+};
+
 export const FencedFileBlock: Story = {
 	args: {
 		children: sampleFileMarkdown,

@@ -78,7 +78,7 @@ const markdownRootClassName = cn(
 	"[&_.task-list-item]:list-none",
 	// Streamdown renders every paragraph in a list item inline, which joins
 	// the paragraphs of a multi-paragraph item into one line.
-	"[&_li]:py-0.5 [&_li>p]:my-0 [&_li>p]:block [&_li>p+p]:mt-2",
+	"[&_li]:py-0.5 [&_li>p]:my-0 [&_li>p]:block [&_li>p+p]:mt-1",
 );
 
 const noInlineNodes: readonly InlineNode[] = [];
@@ -105,6 +105,7 @@ type MarkdownComponentProps = {
 	checked?: boolean;
 	disabled?: boolean;
 	className?: string;
+	style?: React.CSSProperties;
 };
 
 /**
@@ -265,13 +266,19 @@ const createComponents = (
 		),
 		// Table cells: streamdown defaults to text-sm (14px).
 		// Drop the explicit size so cells inherit the 13px base.
-		th: ({ children }: MarkdownComponentProps) => (
-			<th className="whitespace-nowrap px-4 py-2 text-left font-semibold">
+		// The style carries the column alignment from the separator row.
+		th: ({ children, style }: MarkdownComponentProps) => (
+			<th
+				className="whitespace-nowrap px-4 py-2 text-left font-semibold"
+				style={style}
+			>
 				{children}
 			</th>
 		),
-		td: ({ children }: MarkdownComponentProps) => (
-			<td className="px-4 py-2">{children}</td>
+		td: ({ children, style }: MarkdownComponentProps) => (
+			<td className="px-4 py-2" style={style}>
+				{children}
+			</td>
 		),
 		// Inline code only, fenced blocks are handled by the pre override.
 		code: ({ children }: MarkdownComponentProps) => (
