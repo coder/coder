@@ -472,6 +472,16 @@ export const NoUsageWithContext: Story = {
 	},
 };
 
+const mockChatContextSnapshotError: ChatContext = {
+	...MockChatContextClean,
+	error: "failed to read AGENTS.md: permission denied",
+};
+
+const mockChatContextDirtySnapshotError: ChatContext = {
+	...MockChatContextDirty,
+	error: mockChatContextSnapshotError.error,
+};
+
 // Snapshot-level error: the indicator shows a distinct error treatment and the
 // popover surfaces the error message.
 export const SnapshotError: Story = {
@@ -479,16 +489,22 @@ export const SnapshotError: Story = {
 		usage: {
 			usedTokens: 12_000,
 			contextLimitTokens: 200_000,
-			context: {
-				dirty: false,
-				error: "failed to read AGENTS.md: permission denied",
-				resources: MockChatContextClean.resources,
-			},
+			context: mockChatContextSnapshotError,
 		},
 	},
 	play: async ({ canvasElement }) => {
 		const button = within(canvasElement).getByRole("button");
 		await userEvent.click(button);
+	},
+};
+
+export const DirtySnapshotError: Story = {
+	...SnapshotError,
+	args: {
+		usage: {
+			...SnapshotError.args?.usage,
+			context: mockChatContextDirtySnapshotError,
+		},
 	},
 };
 
