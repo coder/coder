@@ -1,219 +1,206 @@
-// Package replaybody captures a body once for independent readers.
+// Package replaybody retains the bytes forwarded from an HTTP body so other
+// consumers can process them after forwarding.
 package replaybody
 
 import (
 	"context"
-	"errors"
 	"io"
 	"net/http"
 	"sync"
-	"sync/atomic"
-	"time"
 )
 
-// Buffer captures body bytes once for independent readers and a shared payload.
-// Capture starts at construction and runs until EOF, failure, or Stop.
-// The caller must limit the body size and call Buffer.Close or Buffer.Stop.
-// Buffer and its readers are safe for concurrent use.
-type Buffer struct {
-	source         *bodySource
-	mu             sync.Mutex
-	data           []byte
-	captureErr     error
-	stopCause      error
-	readNotify     *sync.Cond // Wakes waiting goroutines on new data, completion, or reader close.
-	done           chan struct{}
-	closeSource    sync.Once
-	sourceCloseErr error
+// maxSourceRead bounds one source read.
+const maxSourceRead = 32 << 10
+
+// TeeBuffer retains every byte read from source. Only the replayBody that
+// NewRequest and NewResponse install reads the source. The caller must limit
+// the body size and call Close when finished.
+// TeeBuffer is safe for concurrent use.
+type TeeBuffer struct {
+	source io.ReadCloser
+
+	mu            sync.Mutex // Guards data, err, and readingSource.
+	notify        *sync.Cond // Signals new data, completion, or a closed reader.
+	data          []byte
+	err           error         // Terminal state. Bare io.EOF means the source completed.
+	readingSource bool          // A source read is in flight.
+	done          chan struct{} // Closed by finish. data and err do not change afterwards.
+
+	closeOnce sync.Once
+	closeErr  error
 }
 
-// NewRequest clones r and captures its body for independent Body and GetBody
-// readers. It takes ownership of r.Body.
-// Canceling the request context stops capture asynchronously.
-// Buffer.Close or Buffer.Stop must be called before ServeHTTP returns.
-//
-// For nonempty HTTP/1 bodies, the handler must use the returned writer. It owns
-// the Connection response header and prevents reuse for replies before EOF.
-// Stopping before EOF interrupts the upload with an inbound read deadline.
-// Nil and http.NoBody bodies return w, a clone with http.NoBody, and a
-// completed empty buffer.
-func NewRequest(w http.ResponseWriter, r *http.Request) (http.ResponseWriter, *http.Request, *Buffer) {
-	r = r.Clone(r.Context())
-	if r.Body == nil || r.Body == http.NoBody {
+// NewRequest replaces r.Body and r.GetBody with a replayBody and returns the connected buffer.
+// HTTP/1 handlers must enable full duplex, or the server will drain the body before an early reply.
+func NewRequest(r *http.Request) *TeeBuffer {
+	// HTTP/2 uses ContentLength == 0 instead of nil or http.NoBody.
+	if r.Body == nil || r.Body == http.NoBody || r.ContentLength == 0 {
 		r.Body = http.NoBody
 		r.GetBody = func() (io.ReadCloser, error) { return http.NoBody, nil }
-		return w, r, newBuffer(r.Context(), nil)
+		return newBuffer(http.NoBody)
 	}
-	controller := http.NewResponseController(w)
-	source := &bodySource{ReadCloser: r.Body, controller: controller, ctx: r.Context()}
-	if r.ProtoMajor == 1 {
-		w.Header().Set("Connection", "close")
-		w = &responseWriter{ResponseWriter: w, source: source}
-	}
-	body := newBuffer(r.Context(), source)
-	//nolint:errcheck // NewReader always returns a nil error.
-	r.Body, _ = body.NewReader()
-	r.GetBody = body.NewReader
-	if r.ContentLength == 0 {
-		// ReverseProxy drops bodies at length zero; use -1 for unknown length.
-		r.ContentLength = -1
-	}
-	return w, r, body
-}
-
-// NewResponse shallow-copies r and replaces its body with a reader.
-// It takes ownership of r.Body. Canceling ctx stops capture asynchronously.
-// The caller must still call Buffer.Close or Buffer.Stop when finished.
-// Header and Trailer stay shared so transport trailers remain visible after
-// capture completes. NewResponse initializes r.Trailer if needed.
-// A 101 response returns a nil buffer, caller retains the original body.
-// Nil and http.NoBody bodies return original response with http.NoBody and a empty buffer.
-func NewResponse(ctx context.Context, r *http.Response) (*http.Response, *Buffer) {
-	response := *r
-	if response.StatusCode == http.StatusSwitchingProtocols {
-		return &response, nil
-	}
-	if response.Body == nil || response.Body == http.NoBody {
-		response.Body = http.NoBody
-		return &response, newBuffer(ctx, nil)
-	}
-	if response.Trailer == nil {
-		// The transport may populate undeclared trailers after capture starts.
-		r.Trailer = make(http.Header)
-		response.Trailer = r.Trailer
-	}
-	body := newBuffer(ctx, &bodySource{ReadCloser: response.Body, ctx: ctx})
-	//nolint:errcheck // NewReader always returns a nil error.
-	response.Body, _ = body.NewReader()
-	return &response, body
-}
-
-// newBuffer creates a new buffer and starts capture.
-// Empty bodies complete synchronously.
-// Source must unblock pending reads when closed.
-func newBuffer(ctx context.Context, source *bodySource) *Buffer {
-	if source == nil {
-		source = &bodySource{}
-	}
-	b := &Buffer{
-		source: source,
-		done:   make(chan struct{}),
-	}
-	b.readNotify = sync.NewCond(&b.mu)
-	if source.ReadCloser == nil || source.ReadCloser == http.NoBody {
-		source.ReadCloser = http.NoBody
-		source.eof.Store(true)
-		b.captureErr = io.EOF
-		close(b.done)
-		return b
-	}
-	stopAfterFunc := context.AfterFunc(ctx, func() {
-		//nolint:errcheck // Stop caches the error and Buffer.Close returns it.
-		_ = b.Stop(context.Cause(ctx))
-	})
-	go b.capture(stopAfterFunc)
+	// The server closes the original body after the handler returns.
+	// Closing the buffer must not close the original body.
+	b := newBuffer(io.NopCloser(r.Body))
+	r.Body = b.newBody()
+	r.GetBody = func() (io.ReadCloser, error) { return b.newBody(), nil }
 	return b
 }
 
-// Wait returns the shared payload and capture error once capture finishes.
-// A nil error means successful capture; wrapped EOF is a failure.
-// The returned bytes are read-only and remain valid after Buffer.Close.
-// Canceling ctx cancels only this wait, not capture.
-func (b *Buffer) Wait(ctx context.Context) ([]byte, error) {
+// NewResponse replaces response Body with a replayBody and returns the connected buffer.
+// It takes ownership of the original Body and closes it when the buffer is closed.
+func NewResponse(r *http.Response) *TeeBuffer {
+	if r.Body == nil || r.Body == http.NoBody {
+		r.Body = http.NoBody
+		return newBuffer(http.NoBody)
+	}
+	b := newBuffer(r.Body)
+	r.Body = b.newBody()
+	return b
+}
+
+// newBuffer creates TeeBuffer for the given source.
+func newBuffer(source io.ReadCloser) *TeeBuffer {
+	b := &TeeBuffer{source: source, done: make(chan struct{})}
+	b.notify = sync.NewCond(&b.mu)
+	if source == http.NoBody {
+		b.finish(io.EOF)
+	}
+	return b
+}
+
+// Wait returns the retained bytes once capture finishes. A nil error means
+// the source completed, io.ErrClosedPipe means Close interrupted it, and any
+// other error came from the source. The bytes are read-only and stay valid
+// after Close. Canceling ctx cancels only this wait.
+func (b *TeeBuffer) Wait(ctx context.Context) ([]byte, error) {
 	select {
 	case <-b.done:
-		b.mu.Lock()
-		defer b.mu.Unlock()
-		err := b.captureErr
-		if err == io.EOF { //nolint:errorlint // A wrapped EOF is a failure, not complete input.
+		err := b.err
+		if err == io.EOF { //nolint:errorlint // Only bare EOF means completion.
 			err = nil
 		}
-		// Clamp capacity so appending bytes allocates new storage.
+		// Clamp capacity so appending to the result allocates new storage.
 		return b.data[:len(b.data):len(b.data)], err
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
 }
 
-// Stop closes the source once and waits for capture, retaining in-flight bytes.
-// Finished capture keeps its result. For unfinished capture, source EOF wins
-// over stopping; otherwise the first stop cause wins. Interrupted capture wraps
-// io.ErrClosedPipe and any supplied cause.
-// Stop returns the source Close error, not the capture error.
-func (b *Buffer) Stop(cause error) error {
+// teeRead reads from the source until it makes progress, appends read
+// bytes to the buffer and notifies waiting readers. It always ends in
+// new bytes or the terminal state.
+func (b *TeeBuffer) teeRead(size int) {
+	var n int
+	var err error
+	p := make([]byte, min(size, maxSourceRead))
+
+	for n == 0 && err == nil {
+		n, err = b.source.Read(p)
+	}
 	b.mu.Lock()
-	if b.captureErr == nil && b.stopCause == nil {
-		b.stopCause = errors.Join(io.ErrClosedPipe, cause)
+	defer b.mu.Unlock()
+	b.readingSource = false
+	if b.err == nil {
+		b.data = append(b.data, p[:n]...)
+		if err != nil {
+			b.finish(err)
+			return
+		}
+	}
+	b.notify.Broadcast()
+}
+
+// Close marks unfinished capture as interrupted and closes the source. It
+// does not wait for an in-flight source read, whose bytes are dropped. It
+// returns the source close error, cached for later calls.
+func (b *TeeBuffer) Close() error {
+	b.mu.Lock()
+	if b.err == nil {
+		b.finish(io.ErrClosedPipe)
 	}
 	b.mu.Unlock()
-	b.closeSource.Do(func() { b.sourceCloseErr = b.source.Close() })
-	<-b.done
-	return b.sourceCloseErr
+	b.closeOnce.Do(func() { b.closeErr = b.source.Close() })
+	return b.closeErr
 }
 
-// Close stops unfinished capture with io.ErrClosedPipe and waits for capture.
-// It closes the source without invalidating retained payloads or readers.
-func (b *Buffer) Close() error { return b.Stop(nil) }
-
-// finish is called with mu held, after all captured bytes have been published.
-func (b *Buffer) finish(err error) {
-	b.captureErr = err
-	b.readNotify.Broadcast()
+// finish records the terminal capture result and wakes readers.
+// The caller must hold b.mu unless the buffer is still private to the constructor.
+func (b *TeeBuffer) finish(err error) {
+	b.err = err
 	close(b.done)
+	b.notify.Broadcast()
 }
 
-func (b *Buffer) capture(stopAfterFunc func() bool) {
-	_, err := io.Copy(captureWriter{b}, b.source)
-	stopAfterFunc()
+// reader reads retained bytes only.
+// Close unblocks its pending reads without affecting capture.
+type reader struct {
+	buffer *TeeBuffer
+	closed bool // Guarded by TeeBuffer.mu.
+	offset int  // Guarded by TeeBuffer.mu.
+}
+
+func (r *reader) Read(p []byte) (int, error) {
+	b := r.buffer
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	// Source EOF wins even if the final write reports a stop cause.
-	if err == nil || b.source.eof.Load() {
-		err = io.EOF
-	} else if b.stopCause != nil {
-		err = b.stopCause
+
+	if r.closed {
+		return 0, io.ErrClosedPipe
 	}
-	b.finish(err)
+	if len(p) == 0 {
+		return 0, nil
+	}
+
+	for !r.closed && r.offset == len(b.data) && b.err == nil {
+		b.notify.Wait()
+	}
+
+	if r.closed {
+		return 0, io.ErrClosedPipe
+	}
+
+	n := copy(p, b.data[r.offset:])
+	r.offset += n
+	// Report the terminal error only after the last retained byte.
+	if r.offset == len(b.data) {
+		return n, b.err
+	}
+	return n, nil
 }
 
-// captureWriter publishes in-flight bytes even when Stop has been requested.
-type captureWriter struct{ buffer *Buffer }
-
-func (w captureWriter) Write(p []byte) (int, error) {
-	b := w.buffer
+// Close invalidates only this reader or replayBody.
+// The buffer and source are not affected.
+func (r *reader) Close() error {
+	b := r.buffer
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	b.data = append(b.data, p...)
-	b.readNotify.Broadcast()
-	return len(p), b.stopCause
+	r.closed = true
+	b.notify.Broadcast()
+	return nil
 }
 
-// bodySource interrupts unfinished HTTP server reads with a read deadline.
-// Its underlying ReadCloser must unblock pending reads when closed.
-type bodySource struct {
-	io.ReadCloser
-	controller *http.ResponseController
-	ctx        context.Context
-	eof        atomic.Bool
+// replayBody is a reader that reads from the source when it runs out of buffered
+// bytes. Bytes read from source are teed into the buffer and waiting readers are
+// notified about updates.
+type replayBody struct {
+	reader
 }
 
-func (s *bodySource) Read(p []byte) (int, error) {
-	n, err := s.ReadCloser.Read(p)
-	if err == io.EOF { // A wrapped EOF is a failure, not complete input.
-		s.eof.Store(true)
-		return n, err
-	}
-	// Wrap cancellation so even an EOF cause remains a read failure.
-	if cause := context.Cause(s.ctx); cause != nil {
-		return n, errors.Join(io.ErrClosedPipe, cause)
-	}
-	return n, err
+func (b *TeeBuffer) newBody() io.ReadCloser {
+	return &replayBody{reader{buffer: b}}
 }
 
-func (s *bodySource) Close() error {
-	if s.controller != nil && !s.eof.Load() {
-		//nolint:errcheck // Deadline interruption is best-effort.
-		_ = s.controller.SetReadDeadline(time.Now())
+// Read reads from the buffer and, once the buffer is exhausted, from the source.
+func (t *replayBody) Read(p []byte) (int, error) {
+	b := t.buffer
+	b.mu.Lock()
+	if !t.closed && len(p) > 0 && t.offset == len(b.data) && b.err == nil && !b.readingSource {
+		b.readingSource = true
+		// Running teeRead in a goroutine so that Close can
+		// unblock Read without waiting for the source read to complete.
+		go b.teeRead(len(p))
 	}
-	return s.ReadCloser.Close()
+	b.mu.Unlock()
+	return t.reader.Read(p)
 }
