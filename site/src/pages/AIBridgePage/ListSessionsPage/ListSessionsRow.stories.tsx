@@ -3,11 +3,13 @@ import { fn, screen, userEvent, within } from "storybook/test";
 import { Table, TableBody } from "#/components/Table/Table";
 import { MockSession } from "#/testHelpers/entities";
 import { ListSessionsRow } from "./ListSessionsRow";
+import { sessionColumnIds } from "./sessionColumns";
 
 const meta: Meta<typeof ListSessionsRow> = {
 	title: "pages/AIBridgePage/ListSessionsRow",
 	component: ListSessionsRow,
 	args: {
+		columns: sessionColumnIds,
 		onClick: fn(),
 	},
 	decorators: [
@@ -96,6 +98,19 @@ export const NoPrompt: Story = {
 export const ManyThreads: Story = {
 	args: {
 		session: { ...MockSession, threads: 128 },
+	},
+};
+
+export const SubCentCost: Story = {
+	args: {
+		session: {
+			...MockSession,
+			token_usage_summary: {
+				...MockSession.token_usage_summary,
+				input_tokens: 300,
+				output_tokens: 200,
+			},
+		},
 	},
 };
 
