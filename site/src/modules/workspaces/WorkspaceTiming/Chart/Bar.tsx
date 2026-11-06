@@ -83,6 +83,8 @@ export const FocusableBar: React.FC<FocusableBarProps> = ({
 	scale,
 	value,
 	offset,
+	className,
+	style,
 	...htmlProps
 }) => {
 	return (
@@ -92,9 +94,9 @@ export const FocusableBar: React.FC<FocusableBarProps> = ({
 			className={cn(
 				barClassName,
 				"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
-				htmlProps.className,
+				className,
 			)}
-			style={barStyle({ colors, scale, value, offset, style: htmlProps.style })}
+			style={barStyle({ colors, scale, value, offset, style })}
 		/>
 	);
 };
