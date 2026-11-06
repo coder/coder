@@ -118,7 +118,6 @@ export const getUserFilterOptions = async (
 	me: UserIdentity,
 	queryClient: OptionsQueryClient,
 ): Promise<FilterOption[]> => {
-	// Prebuilt workspaces belong to the `prebuilds` system user.
 	const usersRes = await queryClient.fetchQuery(
 		users({
 			q: `${query} include_system:true`,
