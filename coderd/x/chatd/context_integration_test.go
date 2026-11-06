@@ -476,10 +476,12 @@ func TestChatContextAdoptsNewBuildFromAgentPush(t *testing.T) {
 		}
 	}
 	require.NotEqual(t, oldAgentID, newAgentID)
-	var previousAgentID uuid.UUID
-	err = sqlDB.QueryRowContext(ctx, `SELECT id FROM workspace_agents WHERE id = $1`, oldAgentID).Scan(&previousAgentID)
-	require.NoError(t, err, "the previous build's agent row still exists")
-	require.Equal(t, oldAgentID, previousAgentID)
+	// Keep the previous agent readable so adoption cannot depend on a
+	// failed agent lookup.
+	_, err = sqlDB.ExecContext(ctx, `UPDATE workspace_agents SET deleted = false WHERE id = $1`, oldAgentID)
+	require.NoError(t, err)
+	_, err = db.GetWorkspaceAgentByID(chatCtx, oldAgentID)
+	require.NoError(t, err, "the previous build's agent remains readable")
 	alreadyBound := newChat(workspace.ID, uuid.NullUUID{UUID: newAgentID, Valid: true}, database.ChatStatusWaiting)
 	require.NoError(t, db.SetChatContextSnapshot(chatCtx, database.SetChatContextSnapshotParams{
 		ID:            alreadyBound.ID,
