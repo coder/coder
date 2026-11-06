@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Check that the recorded instance is ours, current and usable. It changes
-# nothing apart from one refused sign-in with the published default password.
+# nothing apart from two refused sign-ins (admin and member) with the published
+# default password.
 # Prints one line per check and a count line, exits 1 on any failure.
 set -euo pipefail
 # shellcheck source=.agents/skills/verify-coder/scripts/lib.sh

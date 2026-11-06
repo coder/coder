@@ -103,11 +103,12 @@ vc_default_password_accepted() {
 }
 
 # vc_log_tail prints the last <n> lines of a develop log without any line that
-# contains the password: develop logs it when it creates the first user. An
-# empty password drops every line, so a failure prints too little, never the
-# password.
+# contains the password or a password field: develop logs the password when
+# it creates the first user, quoted and escaped when it has special
+# characters. An empty password drops every line, so a failure prints too
+# little, never the password.
 vc_log_tail() {
-	tail -n "$1" "$2" | { grep -vF -e "$3" || true; } | cut -c1-300
+	tail -n "$1" "$2" | { grep -vF -e "$3" -e "password=" || true; } | cut -c1-300
 }
 
 # vc_password_accepted succeeds when the instance signs the admin in with the

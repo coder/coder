@@ -102,24 +102,27 @@ stop_helpers() {
 	echo "stopped $n helpers"
 }
 
-# Coder server runs its built-in Postgres in another session and stops it on
-# a clean exit. After a server crash (SIGKILL, the OOM killer) Postgres keeps
-# running, and the develop session stop does not reach it. One that runs from
-# this checkout's .coderv2, started after this launch and has no coder server
-# of this checkout as its parent is an orphan of this launch.
+# Coder server starts its built-in Postgres as a daemon and stops it on a
+# clean exit. After a server crash (SIGKILL, the OOM killer) Postgres keeps
+# running, and the develop session stop does not reach it. It is an orphan of
+# this launch when it runs from this checkout's .coderv2, started after the
+# launch, and no coder server runs on this .coderv2 any more (a plain
+# develop.sh run in the same checkout would).
 stop_orphan_postgres() {
-	local pid_file="$VC_CONFIG_DIR/postgres/data/postmaster.pid" pid ppid cmd started
+	local pid_file="$VC_CONFIG_DIR/postgres/data/postmaster.pid" pid cmd started
 	pid="$(head -n 1 "$pid_file" 2>/dev/null)" || true
 	if [[ ! "$pid" =~ ^[0-9]+$ ]] || [[ ! -d "/proc/$pid" ]]; then
 		echo "no Postgres runs from $VC_CONFIG_DIR"
 		return 0
 	fi
 	cmd="$(tr '\0' ' ' <"/proc/$pid/cmdline")"
-	ppid="$(ps -o ppid= -p "$pid" | tr -d ' ')"
 	started="$(date -d "$(ps -o lstart= -p "$pid")" +%s)"
-	if [[ "$cmd" != *"$VC_CONFIG_DIR/postgres"* ]] || ((started < $(date -d "$VC_STARTED_AT" +%s))) ||
-		[[ "$(readlink "/proc/$ppid/exe" 2>/dev/null)" == "$(vc_coder_bin)"* ]]; then
-		echo "Postgres pid $pid is not an orphan of this launch, left it alone"
+	if [[ "$cmd" != *"$VC_CONFIG_DIR/postgres"* ]] || ((started < $(date -d "$VC_STARTED_AT" +%s))); then
+		echo "Postgres pid $pid did not start from this launch, left it alone"
+		return 0
+	fi
+	if any_cmdline_contains "--global-config $VC_CONFIG_DIR server"; then
+		echo "a coder server still runs on $VC_CONFIG_DIR, left its Postgres pid $pid alone"
 		return 0
 	fi
 	kill -INT "$pid"
@@ -166,18 +169,13 @@ archive_logs() {
 	echo "moved ${kept[*]:-no logs} to the evidence folder, which keeps every journey and hand-driven folder"
 }
 
-# postgres_runs_from matches the path literally: pgrep -f would read it as a
-# regular expression, and a checkout path with [ or ( could then miss a live
-# server.
-postgres_runs_from() {
-	local f cmd
-	for f in /proc/[0-9]*/cmdline; do
-		cmd="$(tr '\0' ' ' 2>/dev/null <"$f")" || continue
-		if [[ "$cmd" == *"$1"* ]]; then
-			return 0
-		fi
-	done
-	return 1
+# any_cmdline_contains matches its argument literally: pgrep -f would read it
+# as a regular expression, and a checkout path with [ or ( could then miss a
+# live process.
+any_cmdline_contains() {
+	local all
+	all="$(ps -eww -o args=)" || return 1
+	[[ "$all" == *"$1"* ]]
 }
 
 # --keep-data hands the folder over: without the marker, a later cleanup keeps
@@ -194,7 +192,7 @@ remove_data() {
 	fi
 	# The harness's own Postgres is stopped by now, so a live one on this
 	# folder belongs to someone else, such as a plain develop.sh run.
-	if postgres_runs_from "$VC_CONFIG_DIR/postgres"; then
+	if any_cmdline_contains "$VC_CONFIG_DIR/postgres"; then
 		echo "kept $VC_CONFIG_DIR, another process still runs Postgres from it"
 		return 0
 	fi
