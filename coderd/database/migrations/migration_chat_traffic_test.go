@@ -1,0 +1,198 @@
+package migrations_test
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/lib/pq"
+	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/testutil"
+)
+
+// TestMigrationUpgradeFromReleaseDuringChatTraffic upgrades a v2.38 database
+// in one transaction, as coder server does, while chat requests wait for the
+// lock that 000607 and 000608 hold on chats. The target migration must
+// complete, with Postgres canceling each request as the deadlock victim. A
+// migration that retries short lock waits is still retrying when the test
+// context expires.
+//
+// This covers only requests that start waiting less than deadlock_timeout
+// before the migration needs their lock. A request that waited longer has
+// already had its single deadlock check, so Postgres cancels the migration
+// instead and the upgrade fails. Retrying short lock waits does not avoid
+// this: such a migration is never canceled, retries until its own deadline,
+// and then fails.
+func TestMigrationUpgradeFromReleaseDuringChatTraffic(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		target int
+		// request holds a lock that target needs, then waits for chats.
+		request func(ctx context.Context, conn *sql.Conn, chatID, userID uuid.UUID) error
+	}{
+		{
+			name:   "000609ChatMessageInsert",
+			target: 609,
+			request: func(ctx context.Context, conn *sql.Conn, chatID, _ uuid.UUID) error {
+				_, err := conn.ExecContext(ctx, `INSERT INTO chat_messages (chat_id, role, content_version) VALUES ($1, 'user', 1)`, chatID)
+				return err
+			},
+		},
+		{
+			name:   "000615ReadUserThenChat",
+			target: 615,
+			request: func(ctx context.Context, conn *sql.Conn, chatID, userID uuid.UUID) error {
+				tx, err := conn.BeginTx(ctx, nil)
+				if err != nil {
+					return err
+				}
+				defer func() { _ = tx.Rollback() }()
+				if _, err := tx.ExecContext(ctx, `SELECT id FROM users WHERE id = $1`, userID); err != nil {
+					return err
+				}
+				_, err = tx.ExecContext(ctx, `SELECT id FROM chats WHERE id = $1`, chatID)
+				return err
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			testUpgradeFromReleaseDuringChatTraffic(t, tc.target, tc.request)
+		})
+	}
+}
+
+func testUpgradeFromReleaseDuringChatTraffic(t *testing.T, target int, request func(ctx context.Context, conn *sql.Conn, chatID, userID uuid.UUID) error) {
+	// Postgres checks a waiting request for a deadlock once, deadlock_timeout
+	// after it starts waiting. All requests start waiting together and their
+	// timeouts differ by requestDeadlockTimeoutStep, so their checks spread
+	// over (requestCount-1)*requestDeadlockTimeoutStep. A migration that
+	// alternates 100ms lock waits with 100ms pauses is paused for at least one
+	// check as long as that spread is longer than one lock wait and the step
+	// is shorter than one pause. requestDeadlockTimeout is much longer than the
+	// time between the requests waiting and the migration waiting, so every
+	// check finds the migration waiting. migrationDeadlockTimeout keeps the
+	// migration's own check from firing first. In production every check uses
+	// the same timeout, with the same result for requests that start waiting
+	// less than deadlock_timeout before the migration does.
+	const (
+		releaseVersion             = 605 // Last migration in v2.38.
+		requestCount               = 4
+		requestDeadlockTimeout     = 2 * time.Second
+		requestDeadlockTimeoutStep = 50 * time.Millisecond
+		migrationDeadlockTimeout   = 10 * time.Second
+	)
+
+	sqlDB := testSQLDB(t)
+	stepTo(t, sqlDB, releaseVersion)
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	orgID, userID, modelID, chatID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	for _, q := range []struct {
+		sql  string
+		args []any
+	}{
+		{`INSERT INTO organizations (id, name, display_name, description, created_at, updated_at, default_org_member_roles)
+			VALUES ($1, 'org-upgrade', 'org-upgrade', '', now(), now(), '{}')`, []any{orgID}},
+		{`INSERT INTO users (id, email, username, hashed_password, created_at, updated_at)
+			VALUES ($1, 'upgrade@example.com', 'upgrade', '\x', now(), now())`, []any{userID}},
+		{`INSERT INTO chat_model_configs (id, organization_id, model, context_limit, compression_threshold, deleted)
+			VALUES ($1, $2, 'model-upgrade', 1000, 50, true)`, []any{modelID, orgID}},
+		{`INSERT INTO chats (id, owner_id, organization_id, last_model_config_id, title)
+			VALUES ($1, $2, $3, $4, 'chat-upgrade')`, []any{chatID, userID, orgID, modelID}},
+	} {
+		_, err := sqlDB.ExecContext(ctx, q.sql, q.args...)
+		require.NoError(t, err)
+	}
+
+	migrationConn, migrationPID := dedicatedConn(ctx, t, sqlDB)
+	tx, err := migrationConn.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	_, err = tx.ExecContext(ctx, fmt.Sprintf("SET LOCAL deadlock_timeout = '%dms'", migrationDeadlockTimeout.Milliseconds()))
+	require.NoError(t, err)
+	for version := releaseVersion + 1; version < target; version++ {
+		_, err := tx.ExecContext(ctx, readUpMigration(t, version))
+		require.NoError(t, err, "migration %d", version)
+	}
+
+	requestConns := make([]*sql.Conn, requestCount)
+	requestPIDs := make([]int, requestCount)
+	for i := range requestCount {
+		requestConns[i], requestPIDs[i] = dedicatedConn(ctx, t, sqlDB)
+		timeout := requestDeadlockTimeout + time.Duration(i)*requestDeadlockTimeoutStep
+		_, err := requestConns[i].ExecContext(ctx, fmt.Sprintf("SET deadlock_timeout = '%dms'", timeout.Milliseconds()))
+		require.NoError(t, err)
+	}
+	requestResults := make([]<-chan error, requestCount)
+	for i, conn := range requestConns {
+		requestResults[i] = async(func() error {
+			return request(ctx, conn, chatID, userID)
+		})
+	}
+	require.Eventually(t, func() bool {
+		for _, pid := range requestPIDs {
+			var blocked bool
+			err := sqlDB.QueryRowContext(ctx, `SELECT $2::int = ANY(pg_blocking_pids($1))`, pid, migrationPID).Scan(&blocked)
+			if err != nil || !blocked {
+				return false
+			}
+		}
+		return true
+	}, testutil.WaitMedium, testutil.IntervalFast, "the chat requests never waited for the upgrade")
+
+	targetSQL := readUpMigration(t, target)
+	migrationResult := async(func() error {
+		_, err := tx.ExecContext(ctx, targetSQL)
+		return err
+	})
+	require.NoError(t, testutil.TryReceive(ctx, t, migrationResult), "migration %d", target)
+	require.NoError(t, tx.Commit())
+
+	for _, result := range requestResults {
+		err := testutil.TryReceive(ctx, t, result)
+		pqErr, ok := errors.AsType[*pq.Error](err)
+		require.Truef(t, ok && pqErr.Code.Name() == "deadlock_detected", "chat request: want deadlock_detected, got %v", err)
+	}
+}
+
+// readUpMigration returns the SQL of the up migration with the given version
+// from the migrations directory.
+func readUpMigration(t *testing.T, version int) string {
+	t.Helper()
+	files, err := filepath.Glob(fmt.Sprintf("%06d_*.up.sql", version))
+	require.NoError(t, err)
+	require.Len(t, files, 1, "up migration %d", version)
+	query, err := os.ReadFile(files[0])
+	require.NoError(t, err)
+	return string(query)
+}
+
+// async runs fn in a goroutine and returns a channel that receives its
+// result.
+func async(fn func() error) <-chan error {
+	done := make(chan error, 1)
+	go func() { done <- fn() }()
+	return done
+}
+
+// dedicatedConn returns a connection that stays checked out for the test and
+// its backend PID.
+func dedicatedConn(ctx context.Context, t *testing.T, db *sql.DB) (*sql.Conn, int) {
+	t.Helper()
+	conn, err := db.Conn(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = conn.Close() })
+	var pid int
+	require.NoError(t, conn.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&pid))
+	return conn, pid
+}
