@@ -2080,6 +2080,46 @@ curl -X PATCH http://coder-server:8080/api/v2/templateversions/{templateversion}
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get template version documentation
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/docs \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /api/v2/templateversions/{templateversion}/docs`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+|-------------------|------|--------------|----------|---------------------|
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "files": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                   |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.TemplateVersionDocumentation](schemas.md#codersdktemplateversiondocumentation) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Create template version dry-run
 
 ### Code samples

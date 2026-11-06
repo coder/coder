@@ -1030,6 +1030,16 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getTemplateVersionDocs = async (
+		versionId: string,
+	): Promise<TypesGen.TemplateVersionDocumentation> => {
+		const response =
+			await this.axios.get<TypesGen.TemplateVersionDocumentation>(
+				`/api/v2/templateversions/${versionId}/docs`,
+			);
+		return response.data;
+	};
+
 	getTemplateVersionResources = async (
 		versionId: string,
 	): Promise<TypesGen.WorkspaceResource[]> => {

@@ -1,26 +1,27 @@
-import frontMatter from "front-matter";
-import { MemoizedMarkdown } from "#/components/Markdown/Markdown";
+import { useQuery } from "react-query";
+import { templateVersionDocs } from "#/api/queries/templates";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Loader } from "#/components/Loader/Loader";
 import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
 import { pageTitle } from "#/utils/page";
+import { TemplateDocsPageView } from "./TemplateDocsPageView";
 
 export default function TemplateDocsPage() {
 	const { template, activeVersion } = useTemplateLayoutContext();
-	const readme = frontMatter(activeVersion.readme);
-
+	const { data, error, isLoading } = useQuery(
+		templateVersionDocs(activeVersion.id),
+	);
 	return (
 		<>
 			<title>{pageTitle(template.name, "Documentation")}</title>
-			<div
-				className="bg-surface-primary border border-solid border-border rounded-lg"
-				id="readme"
-			>
-				<div className="text-content-secondary font-semibold py-4 px-6 border-b border-border">
-					README.md
-				</div>
-				<div className="px-8 pt-2 pb-12 max-w-[860px]">
-					<MemoizedMarkdown>{readme.body}</MemoizedMarkdown>
-				</div>
-			</div>
+			{error && <ErrorAlert error={error} />}
+			{isLoading ? (
+				<Loader />
+			) : (
+				<TemplateDocsPageView
+					files={data?.files ?? { "README.md": activeVersion.readme }}
+				/>
+			)}
 		</>
 	);
 }
