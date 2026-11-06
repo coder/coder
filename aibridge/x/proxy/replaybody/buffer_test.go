@@ -168,7 +168,8 @@ func TestBufferSharedCapture(t *testing.T) {
 func TestBodyCloseUnblocksRead(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
-	reading, release := make(chan struct{}), make(chan struct{})
+	reading := make(chan struct{})
+	release := make(chan struct{})
 	input := strings.NewReader("request")
 	var started sync.Once
 	s := &source{closed: make(chan struct{})}
