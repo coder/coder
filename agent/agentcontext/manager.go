@@ -451,7 +451,7 @@ func (m *Manager) SubscribeChanges() (<-chan struct{}, func()) {
 }
 
 // Resync retries failed MCP servers and starts a resolve pass, then waits up to
-// 30 seconds for coderd to acknowledge its snapshot or a newer version.
+// resyncTimeout for coderd to acknowledge its snapshot or a newer version.
 // The wait returns ErrManagerClosed after Close, or ErrPushUnavailable when
 // coderd does not accept pushes. Cancellation stops the caller's wait.
 // Before SetReady it returns the version-0 placeholder without resolving or
@@ -511,6 +511,7 @@ func (m *Manager) waitForPush(ctx context.Context, epoch uint64) (Snapshot, erro
 
 	var target Snapshot
 	for {
+		// Check cancellation before the acknowledgement fast path.
 		if err := ctx.Err(); err != nil {
 			return m.Snapshot(), xerrors.Errorf("wait for an acknowledged context snapshot: %w", err)
 		}
@@ -539,7 +540,7 @@ func (m *Manager) waitForPush(ctx context.Context, epoch uint64) (Snapshot, erro
 		}
 		select {
 		case <-ctx.Done():
-			continue
+			continue // Reported by the cancellation check above.
 		case <-m.closedCh:
 			return m.Snapshot(), ErrManagerClosed
 		case <-timer.C:
@@ -700,8 +701,8 @@ func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 
 // beginResolveLocked captures the inputs and registers a resolve pass.
 // The Manager's mutex must be held.
-func (m *Manager) beginResolveLocked() ([]ScanRoot, *Watcher, uint64) {
-	roots := m.scanRootsLocked()
+func (m *Manager) beginResolveLocked() (roots []ScanRoot, watcher *Watcher, epoch uint64) {
+	roots = m.scanRootsLocked()
 	m.resolveEpoch++
 	m.resolveWG.Add(1)
 	return roots, m.watcher, m.resolveEpoch
