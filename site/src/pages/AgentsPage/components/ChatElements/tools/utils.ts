@@ -128,6 +128,10 @@ export const mapSubagentStatusToToolStatus = (
 	subagentStatus: string,
 	fallback: ToolStatus,
 ): ToolStatus => {
+	// A failed call stays failed even if its child keeps running or later succeeds.
+	if (fallback === "error") {
+		return "error";
+	}
 	const normalized = normalizeStatus(subagentStatus);
 	if (!normalized) {
 		return fallback;

@@ -80,6 +80,11 @@
 									"path": "./install/plan/sizing/10k-users.md"
 								}
 							]
+						},
+						{
+							"title": "Migrate from Ona (formerly Gitpod)",
+							"description": "Move an Ona Enterprise deployment, including runners, projects, policies, and agents, to a self-hosted Coder deployment.",
+							"path": "./install/plan/migrate-from-ona.md"
 						}
 					]
 				},

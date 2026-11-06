@@ -138,12 +138,28 @@ describe("mapSubagentStatusToToolStatus", () => {
 		);
 	});
 
-	it("maps running statuses to running when fallback is not completed", () => {
+	it("maps running statuses to running when the call is running", () => {
 		expect(mapSubagentStatusToToolStatus("pending", "running")).toBe("running");
-		expect(mapSubagentStatusToToolStatus("running", "error")).toBe("running");
+		expect(mapSubagentStatusToToolStatus("running", "running")).toBe("running");
 		expect(mapSubagentStatusToToolStatus("awaiting", "running")).toBe(
 			"running",
 		);
+	});
+
+	it.each([
+		"",
+		"pending",
+		"running",
+		"awaiting",
+		"completed",
+		"reported",
+		"waiting",
+		"paused",
+		"terminated",
+		"error",
+		"unknown-status",
+	])("preserves a failed call with subagent status %s", (status) => {
+		expect(mapSubagentStatusToToolStatus(status, "error")).toBe("error");
 	});
 
 	it("preserves completed fallback even with running subagent status", () => {
