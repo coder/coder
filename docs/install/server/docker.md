@@ -124,7 +124,7 @@ Then restart the control plane.
 
 ### Docker-based workspace is stuck in "Connecting..."
 
-Ensure you have an externally-reachable `CODER_ACCESS_URL` set.
+Make sure you have an externally-reachable `CODER_ACCESS_URL` set.
 See [troubleshooting templates](../../templates/troubleshooting.md) for more steps.
 
 ### Permission denied while trying to connect to the Docker daemon socket
@@ -133,7 +133,7 @@ See Docker's official documentation to [Manage Docker as a non-root user](https:
 
 ### I cannot add Docker templates
 
-Coder runs as a non-root user, we use `--group-add` to ensure Coder has permissions to manage Docker via `docker.sock`.
+Coder runs as a non-root user, we use `--group-add` to make sure Coder has permissions to manage Docker via `docker.sock`.
 If the host systems `/var/run/docker.sock` is not group writable or does not belong to the `docker` group, the above might not work as-is.
 
 ### I cannot add cloud-based templates

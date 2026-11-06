@@ -41,7 +41,7 @@ This approach is useful when developers frequently switch between repositories o
 
 ## Install the Dev Containers CLI
 
-Use the [devcontainers-cli](https://registry.coder.com/modules/devcontainers-cli) module to ensure the `@devcontainers/cli` is installed in your workspace:
+Use the [devcontainers-cli](https://registry.coder.com/modules/devcontainers-cli) module to make sure the `@devcontainers/cli` is installed in your workspace:
 
 ```tf
 module "devcontainers-cli" {
@@ -55,7 +55,7 @@ Alternatively, install the devcontainer CLI manually in your base image.
 
 ## Configure Automatic Dev Container Startup
 
-The [`coder_devcontainer`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/devcontainer) resource automatically starts a Dev Container in your workspace, ensuring it's ready when you access the workspace:
+The [`coder_devcontainer`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/devcontainer) resource automatically starts a Dev Container in your workspace, so it's ready when you access the workspace:
 
 ```tf
 resource "coder_devcontainer" "my-repository" {
@@ -66,7 +66,7 @@ resource "coder_devcontainer" "my-repository" {
 ```
 
 The `workspace_folder` attribute must point to a valid project folder containing a `devcontainer.json` file.
-Consider using the [`git-clone`](https://registry.coder.com/modules/git-clone) module to ensure your repository is cloned and ready for automatic startup.
+Consider using the [`git-clone`](https://registry.coder.com/modules/git-clone) module to make sure your repository is cloned and ready for automatic startup.
 
 For multi-repo workspaces, define multiple `coder_devcontainer` resources, each pointing to a different repository.
 Each one runs as a separate sub-agent with its own terminal and apps in the dashboard.

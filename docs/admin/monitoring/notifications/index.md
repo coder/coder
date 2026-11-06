@@ -295,7 +295,7 @@ To resume sending notifications, execute [`coder notifications resume`](../../..
 
 If notifications are not being delivered, use the following methods to troubleshoot:
 
-1. Ensure notifications are being added to the `notification_messages` table.
+1. Make sure notifications are being added to the `notification_messages` table.
 1. Review any available error messages in the `status_reason` column
 1. Review the logs.
    Search for the term `notifications` for diagnostic information.

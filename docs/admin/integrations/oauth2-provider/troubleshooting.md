@@ -15,7 +15,7 @@ Refer to [Enable OAuth2 Provider](./index.md#enable-oauth2-provider).
 
 ## "Invalid redirect_uri"
 
-Ensure the redirect Uniform Resource Identifier (URI) in your request exactly matches one of the redirect URIs registered for your application.
+Make sure the redirect Uniform Resource Identifier (URI) in your request exactly matches one of the redirect URIs registered for your application.
 The one exception is the port of a loopback `http://` redirect URI (`localhost`, `127.0.0.1`, `[::1]`), which can differ from the registered one.
 Refer to [Callback URL schemes](./callback-url-schemes.md).
 

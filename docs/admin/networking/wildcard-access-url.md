@@ -113,7 +113,7 @@ For a suffix pattern such as `*-apps.example.com`, DNS and TLS wildcards must co
 ```
 
 DNS providers and certificate authorities don't interpret `*-apps.example.com` as a wildcard record or certificate name.
-Configure `*.example.com` instead, and ensure routing that wildcard to Coder doesn't conflict with other services under `example.com`.
+Configure `*.example.com` instead, and make sure routing that wildcard to Coder doesn't conflict with other services under `example.com`.
 
 ### Workspace Proxies
 
@@ -161,7 +161,7 @@ If workspace applications are not working:
 
 1. Verify the `CODER_WILDCARD_ACCESS_URL` environment variable is configured correctly:
    - Check the deployment settings in the Coder dashboard (Settings > Deployment)
-   - Ensure it matches your wildcard domain (for example, `*.coder.example.com`)
+   - Make sure it matches your wildcard domain (for example, `*.coder.example.com`)
    - Restart the control plane if you made changes to the environment variable
 2. Check DNS resolution for wildcard subdomains:
 
@@ -170,7 +170,7 @@ If workspace applications are not working:
    nslookup test.coder.example.com
    ```
 
-3. Ensure TLS certificates cover the wildcard domain
+3. Make sure TLS certificates cover the wildcard domain
 4. Confirm template `coder_app` resources have `subdomain = true`
 
 ## See also

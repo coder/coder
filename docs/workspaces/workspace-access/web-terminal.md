@@ -233,7 +233,7 @@ export CTERM=xterm-256color
 If the terminal fails to connect:
 
 1. **Check workspace status**:
-   Ensure your workspace is running
+   Make sure your workspace is running
 2. **Verify agent health**:
    Look for agent connection warnings
 3. **Network issues**:
@@ -246,7 +246,7 @@ If the terminal fails to connect:
 If characters or colors appear incorrect:
 
 1. **Unicode support**:
-   Ensure your shell locale is set correctly (`locale -a`)
+   Make sure your shell locale is set correctly (`locale -a`)
 2. **Terminal type**:
    The terminal sets `TERM=xterm-256color` automatically
 3. **Color schemes**:

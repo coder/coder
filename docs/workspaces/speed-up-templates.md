@@ -120,4 +120,4 @@ The next time the template is used, Terraform will attempt to cache the specific
 
 Coder will instruct Terraform to cache its downloaded providers in the configured [`CODER_CACHE_DIRECTORY`](../reference/cli/server/index.md#--cache-dir) directory.
 
-Ensure that this directory is set to a location on disk which will persist across restarts of Coder or [external provisioners](../install/operate/provisioners/index.md), if you're using them.
+Make sure that this directory is set to a location on disk which will persist across restarts of Coder or [external provisioners](../install/operate/provisioners/index.md), if you're using them.

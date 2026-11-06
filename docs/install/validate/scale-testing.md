@@ -2,12 +2,12 @@
 title: Scale Testing
 ---
 
-Scaling Coder involves planning and testing to ensure it can handle more load without compromising service.
+Scaling Coder involves planning and testing to make sure it can handle more load without compromising service.
 This process encompasses infrastructure setup, traffic projections, and aggressive testing to identify and mitigate potential bottlenecks.
 
 A dedicated Kubernetes cluster for Coder is recommended to configure, host, and manage Coder workloads.
 Kubernetes provides container orchestration capabilities, allowing Coder to efficiently deploy, scale, and manage workspaces across a distributed infrastructure.
-This ensures high availability, fault tolerance, and scalability for Coder deployments.
+This guarantees high availability, fault tolerance, and scalability for Coder deployments.
 Coder is deployed on this cluster using the [Helm chart](../server/kubernetes/index.md#4-install-coder-with-helm).
 
 For more information about scaling, see our [Coder scaling best practices](scale-coder.md).
@@ -93,11 +93,11 @@ Database:
 
 ### Control plane: coderd
 
-To ensure stability and reliability of the Coder control plane, it's essential to focus on node sizing, resource limits, and the number of replicas.
+To maintain stability and reliability of the Coder control plane, it's essential to focus on node sizing, resource limits, and the number of replicas.
 We recommend referencing public cloud providers such as AWS, GCP, and Azure for guidance on optimal configurations.
 A reasonable approach involves using scaling formulas based on factors like CPU, memory, and the number of users.
 
-While the minimum requirements specify 1&nbsp;CPU core and 2&nbsp;GB of memory per `coderd` replica, we recommend that you allocate additional resources depending on the workload size to ensure deployment stability.
+While the minimum requirements specify 1&nbsp;CPU core and 2&nbsp;GB of memory per `coderd` replica, we recommend that you allocate additional resources depending on the workload size to maintain deployment stability.
 
 #### CPU and memory usage
 
@@ -113,7 +113,7 @@ Inactive users do not consume Coder resources.
 When determining scaling requirements, consider the following factors:
 
 - `1 vCPU x 2 GB memory` for every 250 users: A reasonable formula to determine resource allocation based on the number of users and their expected usage patterns.
-- API latency/response time: Monitor API latency and response times to ensure optimal performance under varying loads.
+- API latency/response time: Monitor API latency and response times to make sure performance stays optimal under varying loads.
 - Average number of HTTP requests: Track the average number of HTTP requests to gauge system usage and identify potential bottlenecks.
   The number of proxied connections: For a very high number of proxied connections, more memory is required.
 

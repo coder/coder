@@ -116,7 +116,7 @@ Otherwise, follow the steps below to install a free runtime quickly on your plat
 
 ### Windows
 
-If you plan to use the built-in PostgreSQL database, ensure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
+If you plan to use the built-in PostgreSQL database, make sure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
 
 [Podman Desktop](https://podman-desktop.io) is a free graphical user interface (GUI) for the Podman container runtime.
 Its onboarding installs and configures the required Windows Subsystem for Linux (WSL2) or Hyper-V layer if it isn't already enabled.
@@ -167,7 +167,7 @@ Install the `coder` CLI to get started:
 
 ### Windows
 
-If you plan to use the built-in PostgreSQL database, ensure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
+If you plan to use the built-in PostgreSQL database, make sure that the [Visual C++ Runtime](https://learn.microsoft.com/en-US/cpp/windows/latest-supported-vc-redist#latest-microsoft-visual-c-redistributable-version) is installed.
 
 1. Use the [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget) package manager to install Coder:
 

@@ -233,7 +233,7 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitea.com/login/oauth/authorize"
 ```
 
-The redirect URI for Gitea should be `https://coder.example.com/external-auth/gitea/callback`.
+The redirect URI for Gitea is `https://coder.example.com/external-auth/gitea/callback`.
 
 ### GitHub
 
@@ -293,7 +293,7 @@ Visit the [JFrog Artifactory](./integrations/jfrog-artifactory.md) guide for ins
 
 ## Self-managed Git providers
 
-Custom authentication and token URLs should be used for self-managed Git provider deployments.
+Use custom authentication and token URLs for self-managed Git provider deployments.
 
 ```dotenv
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/oauth/authorize"

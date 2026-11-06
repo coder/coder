@@ -68,7 +68,7 @@ While the Coder UI or API can be used to assign specific users to organizations,
 Instead, we recommend syncing the state from your identity provider such as Okta.
 A single claim from the identity provider (like `memberOf`) can be used to sync site-wide roles, organizations, groups, and organization roles.
 
-Regex filters and mapping can be configured to ensure the proper resources are allocated in Coder.
+Regex filters and mapping can be configured to make sure the proper resources are allocated in Coder.
 Learn more about [identity provider (IDP) sync](idp-sync.md).
 
 ## Custom Roles

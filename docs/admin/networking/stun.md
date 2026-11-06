@@ -101,7 +101,7 @@ In both cases, peers fallback to Designated Encrypted Relay for Packets (DERP) c
 
 If your workspaces are behind a "hard" NAT, you can:
 
-1. Ensure clients are not also behind a "hard" NAT.
+1. Make sure clients are not also behind a "hard" NAT.
 
    You might have limited ability to control this if end users connect from their homes.
 2. Allow all inbound UDP ports in client firewalls, either to the `coder` or `coder.exe` binary or from workspace NAT IPs.

@@ -214,13 +214,13 @@ To improve latency and user experience:
 - **Deploy workspace proxies**:
   Place [proxies](./workspace-proxies.md) in regions closer to users, connecting back to your single control plane deployment.
 - **Use P2P connections**:
-  Ensure network configurations permit direct connections.
+  Make sure network configurations permit direct connections.
 - **Strategic placement**:
   Deploy your control plane in a region where most users work.
 - **Network configuration**:
   Optimize routing between users and workspaces.
 - **Check firewall rules**:
-  Ensure they don't block necessary Coder connections.
+  Make sure they don't block necessary Coder connections.
 
 For help troubleshooting connection issues, including latency problems, refer to the [networking troubleshooting guide](./troubleshooting.md).
 

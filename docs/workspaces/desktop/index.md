@@ -172,14 +172,14 @@ You can also configure a `Updater:ForcedChannel` string value to lock users to a
 
 - Verify Coder Connect is enabled (toggle should be ON)
 - Check that your deployment URL is correct
-- Ensure your session token hasn't expired
+- Make sure your session token hasn't expired
 - Try disconnecting and reconnecting Coder Connect
 
 #### VPN extension not working
 
 - Restart Coder Desktop
 - Check system permissions for network extensions
-- Ensure only one copy of Coder Desktop is installed
+- Make sure only one copy of Coder Desktop is installed
 
 ### Recover from a stale tunnel
 

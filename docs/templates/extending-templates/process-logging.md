@@ -60,7 +60,7 @@ You can view these templates in the [exectrace repo](https://github.com/coder/ex
 
 If you have an existing Kubernetes or Kubernetes with `envbox` template that you would like to add workspace process logging to, follow these steps:
 
-1. Ensure the image used in your template has `curl` installed.
+1. Make sure the image used in your template has `curl` installed.
 
 1. Add the following section to your template's `main.tf` file:
 
