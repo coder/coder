@@ -89,7 +89,7 @@ func TestManager_ResyncReconnectsMCP(t *testing.T) {
 	})
 	require.Equal(t, agentcontext.StatusUnreadable, findMCPServerResource(m.Snapshot(), "srv").Status)
 
-	startTestPush(t, m)
+	startTestPush(t, m, newFakePusher())
 	snap, err := m.Resync(testutil.Context(t, testutil.WaitShort))
 	require.NoError(t, err)
 	got := findMCPServerResource(snap, "srv")

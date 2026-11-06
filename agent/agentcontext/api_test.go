@@ -153,7 +153,7 @@ func TestAPI_Resync(t *testing.T) {
 	srv, m := newAPITestServer(t, agentcontext.ManagerOptions{
 		WorkingDir: func() string { return wd },
 	})
-	startTestPush(t, m)
+	startTestPush(t, m, newFakePusher())
 
 	status, body := doRequest(t, http.MethodPost, srv.URL+"/resync", nil)
 	require.Equal(t, http.StatusOK, status)

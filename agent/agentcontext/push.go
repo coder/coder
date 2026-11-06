@@ -44,9 +44,8 @@ type Pusher interface {
 	PushContextState(ctx context.Context, req *PushRequest) (*PushResponse, error)
 }
 
-// ErrPushUnimplemented signals that the coderd peer does not
-// implement PushContextState. RunPush stops pushing for the
-// remainder of the connection.
+// ErrPushUnimplemented means the peer returned Unimplemented for
+// PushContextState. RunPush stops for the remainder of the connection.
 var ErrPushUnimplemented = xerrors.New("agentcontext: PushContextState unimplemented")
 
 // ErrPushUnavailable means the deployment does not accept workspace context
@@ -125,17 +124,10 @@ func (m *Manager) RunPush(ctx context.Context, p Pusher, opts PushOptions) error
 		switch {
 		case err == nil:
 			initial = false
-			m.mu.Lock()
-			m.pushedVersion = max(m.pushedVersion, snap.Version)
-			m.pushUnavailable = false
-			m.notifyResyncLocked()
-			m.mu.Unlock()
+			m.recordPushAcked(snap.Version)
 		case errors.Is(err, ErrPushUnimplemented):
-			m.mu.Lock()
-			m.pushUnavailable = true
-			m.notifyResyncLocked()
-			m.mu.Unlock()
-			logger.Warn(ctx, "coderd peer does not implement PushContextState; stopping")
+			m.recordPushUnavailable()
+			logger.Warn(ctx, "workspace context sync unavailable; stopping push loop")
 			return nil
 		case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
 			return ctx.Err()
@@ -177,10 +169,9 @@ func pushWithRetry(
 		resp, err := p.PushContextState(ctx, req)
 		if err == nil {
 			if resp != nil && !resp.Accepted {
-				// A replay or out-of-order push means coderd already
-				// stores this version or a newer one. It acknowledges
-				// delivery without retrying the same snapshot.
-				logger.Debug(ctx, "push rejected, awaiting next change",
+				// coderd already stores this version or a newer one. Count the
+				// push as acknowledged without retrying.
+				logger.Debug(ctx, "snapshot or newer version already stored; not retrying",
 					slog.F("version", req.Version))
 			}
 			return nil

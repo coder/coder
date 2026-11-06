@@ -269,7 +269,7 @@ func TestManager_ResyncReturnsLatestSnapshot(t *testing.T) {
 	})
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	startTestPush(t, m)
+	startTestPush(t, m, newFakePusher())
 	runDone := make(chan struct{})
 	go func() {
 		defer close(runDone)
@@ -402,7 +402,7 @@ func TestManager_SeedSourcesLateBindsAfterManifest(t *testing.T) {
 	require.Len(t, sources, 1)
 	require.Equal(t, late, sources[0].Path)
 
-	startTestPush(t, m)
+	startTestPush(t, m, newFakePusher())
 	snap, err := m.Resync(testutil.Context(t, testutil.WaitShort))
 	require.NoError(t, err)
 	require.Len(t, snap.Resources, 1)
