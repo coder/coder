@@ -1,7 +1,6 @@
 import { cn } from "cn";
 import {
 	ArrowLeftIcon,
-	ArrowUpIcon,
 	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
@@ -41,14 +40,12 @@ import {
 } from "#/components/Popover/Popover";
 import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useMediaQuery } from "#/hooks/useMediaQuery";
 import {
 	ModelSelector,
 	type ModelSelectorOption,
@@ -56,11 +53,7 @@ import {
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
-import {
-	isBelowMdViewport,
-	isMobileViewport,
-	mobileViewportMediaQuery,
-} from "#/utils/mobile";
+import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
@@ -68,16 +61,14 @@ import {
 	isWorkspaceUploadInProgress,
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
-import {
-	getAgentChatSendShortcut,
-	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
-} from "../utils/agentChatSendShortcut";
+import { getAgentChatSendShortcut } from "../utils/agentChatSendShortcut";
 import {
 	chatAttachmentAcceptAttribute,
 	isChatAttachmentFile,
 	shouldRouteFileToWorkspace,
 } from "../utils/chatAttachments";
 import type { ChatSlashCommand } from "../utils/slashCommands";
+import { AgentChatSendButton } from "./AgentChatSendButton";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 import {
 	AttachmentPreview,
@@ -134,7 +125,7 @@ const workspaceUploadPendingSendMessage =
 	"Wait for the current message to finish sending, then add the file again.";
 
 type AgentChatInputProps = {
-	onSend: (message: string) => void;
+	onSend: (message: string, busyBehavior?: TypesGen.ChatBusyBehavior) => void;
 	placeholder?: string;
 	isDisabled: boolean;
 	isReadOnly?: boolean;
@@ -618,7 +609,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		preferencesQuery.isLoading,
 	);
 	const [chatFullWidth] = useChatFullWidth();
-	const isMobile = useMediaQuery(mobileViewportMediaQuery);
 	const { organizations } = useDashboard();
 	const chatOrganization = organizations.find(
 		(organization) => organization.id === chatOrganizationId,
@@ -1204,10 +1194,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		hasModelOptions &&
 		hasSendableContent &&
 		!hasActiveUploads;
-	const handleSubmit = () => {
+	const submit = (busyBehavior?: TypesGen.ChatBusyBehavior) => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
 		if (
+			!busyBehavior &&
 			!text &&
 			!hasUploadedAttachments &&
 			!hasChips &&
@@ -1233,12 +1224,15 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			return;
 		}
 
-		onSend(text);
+		onSend(text, busyBehavior);
 		resetPromptCycle();
 		if (!isMobileViewport()) {
 			internalRef.current?.focus();
 		}
 	};
+	const handleSubmit = () => submit();
+	const offersSendAfterTurn = isStreaming && !isEditingMessage;
+	const handleSubmitAfterTurn = () => submit("queue");
 	const handleStartRecording = () => {
 		resetPromptCycle();
 		setPreRecordingState(internalRef.current?.getEditorState() ?? null);
@@ -1386,20 +1380,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const showSendButton =
 		!isReadOnlyView &&
 		(!isStreaming || (draftOccupiesSlot && !editingHoldsStop));
-	// Mobile viewports advertise no send shortcut.
-	const sendShortcutLabel = isMobile
-		? undefined
-		: sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
-			? "Cmd/Ctrl+Enter"
-			: "Enter";
-	const sendButtonKeyShortcuts = isMobile
-		? undefined
-		: sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
-			? "Control+Enter Meta+Enter"
-			: "Enter";
-	const sendButtonTooltip = sendShortcutLabel
-		? `${sendButtonLabel}: ${sendShortcutLabel}`
-		: sendButtonLabel;
 
 	const content = (
 		<div
@@ -1554,6 +1534,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						onChange={handleContentChange}
 						onKeyDown={handleEditorKeyDown}
 						onEnter={handleSubmit}
+						onSendAfterTurn={
+							offersSendAfterTurn ? handleSubmitAfterTurn : undefined
+						}
 						sendShortcut={sendShortcut}
 						disabled={isReadOnly || isLoading}
 						hasWorkspace={hasSkillsWorkspace}
@@ -1998,38 +1981,17 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							</>
 						)}
 						{showSendButton && (
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Button
-										size="icon"
-										variant="default"
-										className="size-7 rounded-full transition-colors [&>svg]:size-5! [&>svg]:p-0"
-										onClick={
-											speech.isRecording ? handleAcceptRecording : handleSubmit
-										}
-										disabled={speech.isRecording ? false : !canSend}
-										aria-keyshortcuts={sendButtonKeyShortcuts}
-									>
-										{isLoading && !isInterruptPending ? (
-											<Spinner size="sm" loading aria-hidden="true" />
-										) : speech.isRecording ? (
-											<CheckIcon />
-										) : (
-											<ArrowUpIcon />
-										)}
-										<span className="sr-only">
-											{speech.isRecording
-												? "Accept voice input"
-												: sendButtonLabel}
-										</span>
-									</Button>
-								</TooltipTrigger>
-								<TooltipContent side="top">
-									{speech.isRecording
-										? "Accept voice input"
-										: sendButtonTooltip}
-								</TooltipContent>
-							</Tooltip>
+							<AgentChatSendButton
+								label={sendButtonLabel}
+								sendShortcut={sendShortcut}
+								canSend={canSend}
+								offersSendAfterTurn={offersSendAfterTurn}
+								isRecording={speech.isRecording}
+								isSending={isLoading && !isInterruptPending}
+								onSend={handleSubmit}
+								onSendAfterTurn={handleSubmitAfterTurn}
+								onAcceptRecording={handleAcceptRecording}
+							/>
 						)}
 						{showStopButton && (
 							<Tooltip>
