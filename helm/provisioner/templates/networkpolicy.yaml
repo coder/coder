@@ -1,0 +1,69 @@
+{{- if .Values.coder.networkPolicy.enable }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "coder.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "coder.labels" . | nindent 4 }}
+  {{- with .Values.coder.networkPolicy.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "coder.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    {{- if .Values.coder.networkPolicy.egress.enable }}
+    - Egress
+    {{- end }}
+  {{- $metricsPort := include "libcoder.prometheusPort" (list . false) }}
+  {{- if or $metricsPort .Values.coder.networkPolicy.extraIngress }}
+  ingress:
+    {{- if $metricsPort }}
+    # Prometheus metrics, when CODER_PROMETHEUS_ENABLE is set in coder.env.
+    - ports:
+        - port: {{ $metricsPort }}
+          protocol: TCP
+      {{- with .Values.coder.networkPolicy.prometheus.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+    {{- with .Values.coder.networkPolicy.extraIngress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+  {{- if .Values.coder.networkPolicy.egress.enable }}
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    - ports:
+        {{- range .Values.coder.networkPolicy.egress.coderServer.ports }}
+        - port: {{ . }}
+          protocol: TCP
+        {{- end }}
+      {{- with .Values.coder.networkPolicy.egress.coderServer.to }}
+      to:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    - ports:
+        {{- range .Values.coder.networkPolicy.egress.kubernetesAPI.ports }}
+        - port: {{ . }}
+          protocol: TCP
+        {{- end }}
+      {{- with .Values.coder.networkPolicy.egress.kubernetesAPI.to }}
+      to:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- with .Values.coder.networkPolicy.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+{{- end }}

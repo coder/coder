@@ -44,7 +44,9 @@ coder:
           name: coder-db-url
           key: url
 
-    # This env enables the Prometheus metrics endpoint.
+    # Enable the Prometheus metrics endpoint.
+    - name: CODER_PROMETHEUS_ENABLE
+      value: "true"
     - name: CODER_PROMETHEUS_ADDRESS
       value: "0.0.0.0:2112"
     # For production deployments, we recommend configuring your own GitHub
@@ -55,3 +57,47 @@ coder:
     secretNames:
       - my-tls-secret-name
 ```
+
+## Network policy
+
+Set `coder.networkPolicy.enable` to create a Kubernetes `NetworkPolicy` for the
+Coder pods. Your CNI must enforce NetworkPolicy for it to have any effect.
+
+```yaml
+coder:
+  networkPolicy:
+    enable: true
+    ingress:
+      # Optional. If empty, any source can reach the HTTP(S) ports. If set,
+      # also list workspaces, workspace proxies, and provisioners that connect
+      # in-cluster. Node-routed LoadBalancer traffic may not match a selector.
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+    # Optional. Restrict who can scrape metrics. If empty, any source can.
+    prometheus:
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+    # Open other ports, such as pprof.
+    extraIngress:
+      - ports:
+          - port: 6060
+            protocol: TCP
+```
+
+Once enabled, ingress is limited to the HTTP(S) ports, Prometheus metrics (when
+`CODER_PROMETHEUS_ENABLE` is set in `coder.env`, on the port from
+`CODER_PROMETHEUS_ADDRESS`), and ports 8080 and
+6222 between Coder replicas for high availability. Variables set through
+`valueFrom` or `envFrom` are not detected; open the port with `extraIngress`.
+
+Egress is unrestricted unless you set `coder.networkPolicy.egress.enable`. In
+that case only DNS, PostgreSQL, ports 8080 and 6222 to other Coder replicas, and
+your `extraEgress` rules are allowed, so you
+must also allow the Kubernetes API, workspaces, and any external services Coder
+uses. PostgreSQL defaults to any destination on port 5432, because its address
+varies. Restrict it with `coder.networkPolicy.egress.postgres.to`, and change
+`postgres.ports` if your connection URL uses another port.

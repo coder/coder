@@ -549,6 +549,72 @@ coder:
       #   port: 80
       parentRefs: []
 
+  # coder.networkPolicy -- A NetworkPolicy for the Coder pods. Requires a CNI
+  # that enforces NetworkPolicy. Once enabled, ingress to the Coder pods is
+  # limited to the HTTP(S) ports and Prometheus metrics, if enabled; add other ports
+  # with extraIngress.
+  networkPolicy:
+    # coder.networkPolicy.enable -- Whether to create the NetworkPolicy object.
+    enable: false
+    # coder.networkPolicy.annotations -- The NetworkPolicy annotations.
+    annotations: {}
+    # coder.networkPolicy.ingress.from -- Peers allowed to reach the HTTP(S)
+    # ports, as NetworkPolicyPeer objects. If empty, any source is allowed,
+    # which is typically required because users, agents, and load balancers
+    # connect from varying addresses. If set, also include any other in-cluster
+    # callers (workspaces, workspace proxies, provisioners). Traffic through a
+    # LoadBalancer or NodePort Service may arrive from node IPs. Other Coder
+    # replicas are always allowed on ports 8080 (DERP relay) and 6222 (pubsub).
+    ingress:
+      from: []
+      # - namespaceSelector:
+      #     matchLabels:
+      #       kubernetes.io/metadata.name: ingress-nginx
+    prometheus:
+      # coder.networkPolicy.prometheus.from -- NetworkPolicyPeer objects allowed to scrape
+      # metrics. Metrics ingress is allowed automatically when Prometheus is
+      # enabled in coder.env (CODER_PROMETHEUS_ENABLE), on the port from
+      # CODER_PROMETHEUS_ADDRESS. Empty allows any source; restrict it to your
+      # Prometheus.
+      from: []
+      # - namespaceSelector:
+      #     matchLabels:
+      #       kubernetes.io/metadata.name: monitoring
+    # coder.networkPolicy.extraIngress -- Additional NetworkPolicyIngressRule
+    # objects appended to spec.ingress.
+    extraIngress: []
+    # - ports:
+    #     - port: 2112
+    #       protocol: TCP
+    #   from:
+    #     - namespaceSelector:
+    #         matchLabels:
+    #           kubernetes.io/metadata.name: monitoring
+    egress:
+      # coder.networkPolicy.egress.enable -- Whether to also restrict egress.
+      # When true, only DNS (port 53), PostgreSQL, and extraEgress rules are
+      # allowed, so you must also allow the Kubernetes API, workspaces, and any
+      # external services Coder uses (OIDC, git providers, etc.).
+      enable: false
+      postgres:
+        # coder.networkPolicy.egress.postgres.to -- NetworkPolicyPeer objects
+        # for PostgreSQL. PostgreSQL is required and its address varies, so
+        # the default is empty, which allows any destination on the ports
+        # below. Restrict it to your database with a podSelector or ipBlock.
+        to: []
+        # coder.networkPolicy.egress.postgres.ports -- TCP ports of PostgreSQL.
+        # Change this if CODER_PG_CONNECTION_URL uses a non-default port.
+        ports: [5432]
+    # coder.networkPolicy.extraEgress -- Additional NetworkPolicyEgressRule
+    # objects appended to spec.egress. Only used if egress.enable is true.
+    extraEgress: []
+    # - to:
+    #     - ipBlock:
+    #         cidr: 10.0.0.0/8
+    #   ports:
+    #     - port: 5432
+    #       protocol: TCP
+
   # coder.command -- The command to use when running the Coder container. Used
   # for customizing the location of the `coder` binary in your image.
   command:

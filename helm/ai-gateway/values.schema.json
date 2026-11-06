@@ -118,6 +118,19 @@
       "type": "object", "additionalProperties": false, "required": ["enable", "parentRefs", "hostnames", "annotations"],
       "properties": {"enable": {"type": "boolean"}, "parentRefs": {"type": "array"}, "hostnames": {"type": "array", "items": {"type": "string"}}, "annotations": {"type": "object"}}
     },
+    "networkPolicy": {
+      "type": "object", "additionalProperties": false,
+      "required": ["enable", "annotations", "ingress", "prometheus", "extraIngress", "egress", "extraEgress"],
+      "properties": {
+        "enable": {"type": "boolean"},
+        "annotations": {"type": "object"},
+        "ingress": {"type": "object", "additionalProperties": false, "required": ["from"], "properties": {"from": {"type": "array", "items": {"type": "object"}}}},
+        "prometheus": {"type": "object", "additionalProperties": false, "required": ["from"], "properties": {"from": {"type": "array", "items": {"type": "object"}}}},
+        "extraIngress": {"type": "array", "items": {"type": "object"}},
+        "egress": {"type": "object", "additionalProperties": false, "required": ["enable"], "properties": {"enable": {"type": "boolean"}}},
+        "extraEgress": {"type": "array", "items": {"type": "object"}}
+      }
+    },
     "extraTemplates": {"type": "array", "items": {"oneOf": [{"type": "string"}, {"type": "object"}]}}
   },
   "required": ["coder", "aigateway", "service", "ingress", "httproute", "extraTemplates"],

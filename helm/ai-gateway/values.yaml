@@ -224,5 +224,35 @@ httproute:
   hostnames: []
   annotations: {}
 
+# Optional networking.k8s.io/v1 NetworkPolicy for the gateway pods. Requires a
+# CNI that enforces NetworkPolicy. Once enabled, ingress is limited to the HTTP
+# data-plane port (4001) and Prometheus metrics. Open other ports with
+# extraIngress.
+networkPolicy:
+  enable: false
+  annotations: {}
+  ingress:
+    # Peers (NetworkPolicyPeer objects) allowed to reach the data-plane port.
+    # Empty allows any source. Other gateway replicas are always allowed in
+    # addition when this is set.
+    from: []
+    # - namespaceSelector:
+    #     matchLabels:
+    #       kubernetes.io/metadata.name: ingress-nginx
+  prometheus:
+    # Peers (NetworkPolicyPeer objects) allowed to scrape metrics. Metrics
+    # ingress is allowed automatically unless CODER_PROMETHEUS_ENABLE is false
+    # in coder.env. Empty allows any source; restrict it to your Prometheus.
+    from: []
+  # NetworkPolicyIngressRule objects appended to spec.ingress.
+  extraIngress: []
+  egress:
+    # When true, only DNS (port 53) and extraEgress rules are allowed, so you
+    # must allow Coder, the AI providers, and the Kubernetes API.
+    enable: false
+  # NetworkPolicyEgressRule objects appended to spec.egress. Only used if
+  # egress.enable is true.
+  extraEgress: []
+
 # Additional templated Kubernetes manifests.
 extraTemplates: []
