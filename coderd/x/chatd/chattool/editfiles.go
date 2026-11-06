@@ -411,12 +411,14 @@ type editFilesBatchFile struct {
 	indexes []int
 	// rejected is set when coderd rejected the file, so it was not sent.
 	rejected *editFilesFileResult
+	// dropped reports the no-op edits left out of a file that was sent.
+	dropped *editFilesFileResult
 	// sent holds the edits[i] indexes of the edits sent for the file.
 	sent []int
 }
 
-// newEditFilesBatch groups args by path and leaves out every file that
-// checkPath, when set, rejects.
+// newEditFilesBatch groups args by path, leaves out every file that
+// checkPath, when set, rejects, and drops no-op edits.
 func newEditFilesBatch(args EditFilesArgs, checkPath func(filePath string) string) editFilesBatch {
 	batch := editFilesBatch{
 		total: len(args.Edits),
@@ -438,8 +440,34 @@ func newEditFilesBatch(args EditFilesArgs, checkPath func(filePath string) strin
 				continue
 			}
 		}
-		f.sent = f.indexes
-		batch.request.Files = append(batch.request.Files, file)
+		// An edit whose old_text equals new_text changes nothing, so it is
+		// dropped and reported instead of sent and reported as applied;
+		// the rest of its file is still sent. The comparison is byte for
+		// byte because texts that differ only in whitespace or line
+		// endings can still change the file.
+		sent := workspacesdk.FileEdits{Path: file.Path}
+		var noOps []int
+		for j, edit := range file.Edits {
+			if edit.OldText == edit.NewText {
+				noOps = append(noOps, f.indexes[j])
+				continue
+			}
+			sent.Edits = append(sent.Edits, edit)
+			f.sent = append(f.sent, f.indexes[j])
+		}
+		if len(noOps) > 0 {
+			noOpResult := &editFilesFileResult{Path: file.Path, Status: editFilesStatusRejected, Edits: noOps, Error: editFilesNoOpError}
+			if len(noOps) > 1 {
+				noOpResult.Error = editFilesNoOpsError
+			}
+			if len(sent.Edits) == 0 {
+				f.rejected = noOpResult
+				batch.files = append(batch.files, f)
+				continue
+			}
+			f.dropped = noOpResult
+		}
+		batch.request.Files = append(batch.request.Files, sent)
 		batch.files = append(batch.files, f)
 	}
 	return batch
@@ -492,8 +520,8 @@ func (b editFilesBatch) response(resp workspacesdk.FileEditResponse, err error) 
 			reject(*f.rejected)
 			continue
 		}
-		if len(f.sent) == 0 {
-			continue
+		if f.dropped != nil {
+			reports = append(reports, *f.dropped)
 		}
 		sentIndexes = append(sentIndexes, f.sent...)
 		agentResult, reported := results[path.Clean(f.path)]
@@ -571,6 +599,10 @@ func editFilesResultMessage(applied, total int, reports []editFilesFileResult) s
 			unknown = append(unknown, prefix+reason+". Re-read "+file.Path+" before resending these edits.")
 		case file.Error == editFilesInterruptedError:
 			rejected = append(rejected, prefix+reason+".")
+		case file.Error == editFilesNoOpError:
+			rejected = append(rejected, prefix+reason+". If you meant to change this text, resend the edit with the new text.")
+		case file.Error == editFilesNoOpsError:
+			rejected = append(rejected, prefix+reason+". If you meant to change this text, resend these edits with the new text.")
 		case file.Path == "":
 			rejected = append(rejected, prefix+reason+". No file was changed; fix the failing edit and resend these edits.")
 		default:
@@ -603,6 +635,15 @@ func editFilesResultMessage(applied, total int, reports []editFilesFileResult) s
 // with such a file, and the user may have interrupted to stop it, so
 // its line has no resend instruction.
 const editFilesInterruptedError = "not sent because the tool call was interrupted"
+
+// editFilesNoOpError and editFilesNoOpsError are the errors of one and
+// of several edits in a file whose old_text equals new_text. Those
+// edits were not sent, so their line says to resend them only if a
+// change was meant.
+const (
+	editFilesNoOpError  = "old_text equals new_text, so it would change nothing"
+	editFilesNoOpsError = "old_text equals new_text in each, so they would change nothing"
+)
 
 // editFilesUnreportedError is the error of a sent file that the agent's
 // per-file results leave out.
@@ -642,7 +683,8 @@ type editFilesFileResult struct {
 	Status string `json:"status"`
 	// Edits holds the edits[i] indexes of a file that was not applied.
 	// The agent reports one error per file without saying which edit
-	// failed, so it lists every edit of that file.
+	// failed, so it lists every edit sent for that file. For a file of
+	// only no-ops it lists those.
 	Edits []int  `json:"edits,omitempty"`
 	Error string `json:"error,omitempty"`
 	// Diff is the agent's diff for an applied file, nil when the agent
