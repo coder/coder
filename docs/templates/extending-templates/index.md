@@ -11,7 +11,7 @@ Alternatively, you can view our [example templates](../../../examples/templates)
 
 For users to connect to a workspace, the template must include a [`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent).
 The associated agent will facilitate [workspace connections](../../workspaces/workspace-access/index.md) via SSH, port forwarding, and IDEs.
-The agent may also display real-time [workspace metadata](./agent-metadata.md) like resource usage.
+The agent can also display real-time [workspace metadata](./agent-metadata.md) like resource usage.
 
 ```tf
 resource "coder_agent" "dev" {
@@ -32,13 +32,13 @@ It also provides all information displayed in the dashboard's workspace view.
 
 ![A healthy workspace agent](../../images/templates/healthy-workspace-agent.png)
 
-Multiple agents may be used in a single template or even a single resource.
-Each agent may have its own apps, startup script, and metadata.
+Multiple agents can be used in a single template or even a single resource.
+Each agent can have its own apps, startup script, and metadata.
 This can be used to associate multiple containers or VMs with a workspace.
 
 ## Resource persistence
 
-The resources you define in a template may be _ephemeral_ or _persistent_.
+The resources you define in a template can be _ephemeral_ or _persistent_.
 Persistent resources stay provisioned when workspaces are stopped, where as ephemeral resources are destroyed and recreated on restart.
 All resources are destroyed when a workspace is deleted.
 

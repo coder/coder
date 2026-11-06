@@ -36,7 +36,7 @@ To request `client_secret_post`, set `token_endpoint_auth_method` to `client_sec
 To register a public client, set it to `none`: Coder issues no `client_secret`, and the registration response omits that field entirely.
 
 > [!IMPORTANT]
-> Which redirect URI schemes and hosts a client may register, including the loopback host and port rules for public and confidential clients, is a separate restriction from client authentication.
+> Which redirect URI schemes and hosts a client can register, including the loopback host and port rules for public and confidential clients, is a separate restriction from client authentication.
 > Refer to [Callback URL schemes](./callback-url-schemes.md).
 
 A client's type is fixed when it registers.

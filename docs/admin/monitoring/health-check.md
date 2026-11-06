@@ -17,7 +17,7 @@ The Access URL section shows checks related to Coder's [access URL](../setup/ind
 Coder will periodically send a GET request to `${CODER_ACCESS_URL}/healthz` and validate that the response is `200 OK`.
 The expected response body is also the string `OK`.
 
-If there is an issue, you may see one of the following errors reported:
+If there is an issue, you might see one of the following errors reported:
 
 ### EACS01
 
@@ -108,22 +108,22 @@ Investigate the health of the database.
 
 **Problem:**
 This code is returned if the median latency is higher than the [configured threshold](../../reference/cli/server/index.md#--health-check-threshold-database).
-This may not be an error as such, but is an indication of a potential issue.
+This might not be an error as such, but is an indication of a potential issue.
 
 **Solution:**
 Investigate the sizing of the configured database with regard to Coder's current activity and usage.
-It may be necessary to increase the resources allocated to Coder's database.
+It might be necessary to increase the resources allocated to Coder's database.
 Alternatively, you can raise the configured threshold to a higher value (this will not address the root cause).
 
 > [!TIP]
 > You can enable [detailed database metrics](../../reference/cli/server/index.md#--prometheus-collect-db-metrics) in Coder's Prometheus endpoint.
-> If you have [tracing enabled](../../reference/cli/server/index.md#--trace), these traces may also contain useful information regarding Coder's database activity.
+> If you have [tracing enabled](../../reference/cli/server/index.md#--trace), these traces might also contain useful information regarding Coder's database activity.
 
 ## DERP
 
-Coder workspace agents may use [Designated Encrypted Relay for Packets (DERP)](https://tailscale.com/blog/how-tailscale-works/#encrypted-tcp-relays-derp) to communicate with Coder.
+Coder workspace agents can use [Designated Encrypted Relay for Packets (DERP)](https://tailscale.com/blog/how-tailscale-works/#encrypted-tcp-relays-derp) to communicate with Coder.
 This requires connectivity to a number of configured [DERP servers](../../reference/cli/server/index.md#--derp-config-path) which are used to relay traffic between Coder and workspace agents.
-Coder periodically queries the health of its configured DERP servers and may return one or more of the following:
+Coder periodically queries the health of its configured DERP servers and can return one or more of the following:
 
 ### EDERP01
 
@@ -131,13 +131,13 @@ Coder periodically queries the health of its configured DERP servers and may ret
 
 **Problem:**
 When Coder attempts to establish a connection to one or more DERP servers, it sends a specific `Upgrade: derp` HTTP header.
-Some load balancers may block this header, in which case Coder will fall back to `Upgrade: websocket`.
+Some load balancers might block this header, in which case Coder will fall back to `Upgrade: websocket`.
 
 This is not necessarily a fatal error, but a possible indication of a misconfigured reverse HTTP proxy.
-Additionally, while workspace users should still be able to reach their workspaces, connection performance may be degraded.
+Additionally, while workspace users should still be able to reach their workspaces, connection performance might be degraded.
 
 > [!NOTE]
-> This may also be shown if you have [forced websocket connections for DERP](../../reference/cli/server/index.md#--derp-force-websockets).
+> This might also be shown if you have [forced websocket connections for DERP](../../reference/cli/server/index.md#--derp-force-websockets).
 
 **Solution:**
 make sure that any proxies you use allow connection upgrade with the `Upgrade: derp` header.
@@ -148,7 +148,7 @@ make sure that any proxies you use allow connection upgrade with the `Upgrade: d
 
 **Problem:**
 This is shown if Coder is unable to reach one or more configured DERP servers.
-Clients will fall back to use the remaining DERP servers, but performance may be impacted for clients closest to the unhealthy DERP server.
+Clients will fall back to use the remaining DERP servers, but performance might be impacted for clients closest to the unhealthy DERP server.
 
 **Solution:**
 Make sure that the DERP server is available and reachable over the network, for example:
@@ -167,7 +167,7 @@ curl -v "https://coder.company.com/derp"
 
 **Problem:**
 This is shown when Coder's effective DERP map does not contain any DERP servers.
-Without at least one working DERP server, workspace networking may not work.
+Without at least one working DERP server, workspace networking might not work.
 
 This can happen if the built-in DERP server is disabled and no external DERP map is configured, or if workspace proxies are expected to provide DERP but no healthy DERP-enabled proxy is currently available.
 
@@ -186,7 +186,7 @@ For example:
 **Problem:**
 This is shown if no Session Traversal Utilities for Network Address Translation (STUN) servers are available.
 Coder will use STUN to establish [direct connections](../networking/stun.md).
-Without at least one working STUN server, direct connections may not be possible.
+Without at least one working STUN server, direct connections might not be possible.
 
 **Solution:**
 Make sure that the [configured STUN severs](../../reference/cli/server/index.md#--derp-server-stun-addresses) are reachable from Coder and that User Datagram Protocol (UDP) traffic can be sent/received on the configured port.
@@ -197,7 +197,7 @@ Make sure that the [configured STUN severs](../../reference/cli/server/index.md#
 
 **Problem:**
 This is a warning shown when multiple attempts to determine our public IP address/port via STUN resulted in different `ip:port` combinations.
-This is a sign that you are behind a "hard Network Address Translation (NAT)", and may result in difficulty establishing direct connections.
+This is a sign that you are behind a "hard Network Address Translation (NAT)", and might result in difficulty establishing direct connections.
 However, it does not mean that direct connections are impossible.
 
 **Solution:**
@@ -258,7 +258,7 @@ If you have configured [Workspace Proxies](../networking/workspace-proxies.md), 
 Coder was unable to query the connected workspace proxies for their health status.
 
 **Solution:**
-This may be a transient issue.
+This might be a transient issue.
 If it persists, it could signify a connectivity issue.
 
 ### EWP02
@@ -269,7 +269,7 @@ If it persists, it could signify a connectivity issue.
 Coder was unable to fetch the stored workspace proxy health data from the database.
 
 **Solution:**
-This may be a transient issue.
+This might be a transient issue.
 If it persists, it could signify an issue with Coder's configured database.
 
 ### EWP04
@@ -296,7 +296,7 @@ If you are using [External Provisioner Daemons](../../install/operate/provisione
 Otherwise, make sure [`--provisioner-daemons`](../../reference/cli/server/index.md#--provisioner-daemons) is set to a value greater than 0.
 
 > [!NOTE]
-> This may be a transient issue if you are currently in the process of updating your deployment.
+> This might be a transient issue if you are currently in the process of updating your deployment.
 
 ### EPD02
 
@@ -310,7 +310,7 @@ It is important that provisioner daemons are updated at the same time as the mai
 Update the provisioner daemon to match the currently running version of Coder.
 
 > [!NOTE]
-> This may be a transient issue if you are currently in the process of updating your deployment.
+> This might be a transient issue if you are currently in the process of updating your deployment.
 
 ### EPD03
 
@@ -318,13 +318,13 @@ Update the provisioner daemon to match the currently running version of Coder.
 
 **Problem:**
 One or more provisioner daemons are using APIs that are marked as deprecated.
-These deprecated APIs may be removed in a future release of Coder, at which point the affected provisioner daemons will no longer be able to connect to Coder.
+These deprecated APIs might be removed in a future release of Coder, at which point the affected provisioner daemons will no longer be able to connect to Coder.
 
 **Solution:**
 Update the provisioner daemon to match the currently running version of Coder.
 
 > [!NOTE]
-> This may be a transient issue if you are currently in the process of updating your deployment.
+> This might be a transient issue if you are currently in the process of updating your deployment.
 
 ### EUNKNOWN
 
@@ -332,8 +332,8 @@ Update the provisioner daemon to match the currently running version of Coder.
 
 **Problem:**
 This error is shown when an unexpected error occurred evaluating deployment health.
-It may resolve on its own.
+It might resolve on its own.
 
 **Solution:**
-This may be a bug.
+This might be a bug.
 [File a GitHub issue](https://github.com/coder/coder/issues/new)!

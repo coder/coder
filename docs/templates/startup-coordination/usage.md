@@ -16,9 +16,9 @@ When you need to synchronize with another unit, you can use `coder exp sync star
 
 A **unit** is a named phase of work, typically corresponding to a script or initialization task.
 
-- Units **may** declare dependencies on other units, creating an explicit ordering for workspace initialization.
+- Units **can** declare dependencies on other units, creating an explicit ordering for workspace initialization.
 - Units **must** be registered before they can be marked as complete.
-- Units **may** be marked as dependencies before they are registered.
+- Units **can** be marked as dependencies before they are registered.
 - Units **must not** declare cyclic dependencies.
   Attempting to create a cyclic dependency will result in an error.
 

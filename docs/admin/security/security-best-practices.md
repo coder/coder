@@ -78,7 +78,7 @@ If you do keep path-based apps enabled:
 ## PostgreSQL
 
 PostgreSQL is the persistent datastore underlying the entire Coder deployment.
-If the database is compromised, it may leave every other part of your deployment vulnerable.
+If the database is compromised, it might leave every other part of your deployment vulnerable.
 
 Coder session tokens and API keys are salted and hashed, so a read-only compromise of the database is unlikely to allow an attacker to log into Coder.
 However, the database contains the Terraform state for all workspaces, OIDC tokens, and agent tokens, so it is possible that a read-only attack could enable lateral movement to other systems.
@@ -255,7 +255,7 @@ Configuration of this depends on the specific Terraform providers in use and is 
 
 ### Encryption at rest
 
-While your most privileged secrets should never be included in template files, they may inevitably contain confidential or sensitive data about your operations and/or infrastructure.
+While your most privileged secrets should never be included in template files, they might inevitably contain confidential or sensitive data about your operations and/or infrastructure.
 
 - Make sure that operators who write, review or modify Coder templates are working on laptops/workstations with full disk encryption, or do their work inside a Coder workspace with full disk encryption.
 - Make sure [PostgreSQL](#postgresql) is encrypted at rest.
@@ -355,8 +355,8 @@ Unlike DERP, it doesn’t definitively learn about communicating pairs of IPs.
 
 If you consider the public IP and port information to be sensitive, do not use public STUN servers.
 
-You may choose not to configure any STUN servers, in which case most workspace traffic will need to be relayed via DERP.
-You may choose to deploy your own STUN servers, either on the public Internet, or on your corporate network and [configure Coder to use it](../../reference/cli/server/index.md#--derp-server-stun-addresses).
+You can choose not to configure any STUN servers, in which case most workspace traffic will need to be relayed via DERP.
+You can choose to deploy your own STUN servers, either on the public Internet, or on your corporate network and [configure Coder to use it](../../reference/cli/server/index.md#--derp-server-stun-addresses).
 
 If you do not consider the addresses and ports to be sensitive, we recommend using the default set of STUN servers operated by Google.
 

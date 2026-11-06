@@ -63,7 +63,7 @@ If your upstream identity provider uses a different claim, you can set `CODER_OI
 
 > [!NOTE]
 > If this claim is empty, the email address will be stripped of the domain, and become the username (for example, `example@coder.com` becomes `example`).
-> To avoid conflicts, Coder may also append a random word to the resulting username.
+> To avoid conflicts, Coder might also append a random word to the resulting username.
 
 ## OIDC Login Customization
 
@@ -124,7 +124,7 @@ CODER_DISABLE_PASSWORD_AUTH=true
 >
 > Coder's SCIM 2.0 implementation is not a fully certified or guaranteed implementation of the [SCIM 2.0 specification](https://datatracker.ietf.org/doc/html/rfc7644).
 > It is intended to cover common user provisioning and deprovisioning flows with the major identity providers (Okta, Microsoft Entra ID, and so on).
-> Specific attributes, endpoints, or behaviors required by your IdP may not be supported, and compatibility may change between releases.
+> Specific attributes, endpoints, or behaviors required by your IdP might not be supported, and compatibility might change between releases.
 > If you depend on a specific SCIM behavior, [contact us](https://coder.com/contact) before rolling it out broadly.
 > See [coder/coder#15830](https://github.com/coder/coder/issues/15830) for tracked gaps and ongoing work.
 

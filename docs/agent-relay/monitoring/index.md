@@ -90,7 +90,7 @@ For a failed session, also check:
 
 ### Send logs to a SIEM
 
-To ingest Agent Relay logs into a SIEM or another log platform, refer to [Send Agent Relay logs to a SIEM](./siem.md).
+To ingest Agent Relay logs into a security information and event management (SIEM) system or another log platform, refer to [Send Agent Relay logs to a SIEM](./siem.md).
 It covers the record shape, every field, parsing and scoping rules, and log-based alerts.
 
 ## Prometheus metrics

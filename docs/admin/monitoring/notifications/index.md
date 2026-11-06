@@ -4,7 +4,7 @@ title: Notifications
 
 Notifications are sent by Coder in response to specific internal events, such as a workspace being deleted or a user being created.
 
-Available events may differ between versions.
+Available events might differ between versions.
 For a list of all events, visit your Coder deployment's `https://coder.example.com/deployment/notifications`.
 
 ## Event Types
@@ -284,7 +284,7 @@ fi
 
 ## Stop sending notifications
 
-Administrators may wish to stop _all_ notifications across the deployment.
+Administrators might wish to stop _all_ notifications across the deployment.
 We support a killswitch in the CLI for these cases.
 
 To pause sending notifications, execute [`coder notifications pause`](../../../reference/cli/notifications/pause.md).

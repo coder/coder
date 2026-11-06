@@ -11,7 +11,7 @@ February 24, 2024
 
 ---
 
-Your organization may require connecting to the database instance over Secure Sockets Layer (SSL).
+Your organization might require connecting to the database instance over Secure Sockets Layer (SSL).
 To supply Coder with the appropriate certificates, and have it connect over SSL, follow the steps below:
 
 ## Client verification (server verifies the client)

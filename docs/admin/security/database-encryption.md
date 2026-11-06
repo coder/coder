@@ -26,7 +26,7 @@ The following database fields are currently encrypted:
 - `gitsshkeys.private_key`
 - `chat_mcp_servers.headers`
 
-Additional database fields may be encrypted in the future.
+Additional database fields might be encrypted in the future.
 
 ### Implementation notes
 
@@ -133,7 +133,7 @@ To disable encryption, perform the following actions:
   **Do not skip this step.**
 
 - Stop all active `coderd` instances.
-  This will prevent new encrypted data from being written, which may cause the next step to fail.
+  This will prevent new encrypted data from being written, which might cause the next step to fail.
 
 - Run [`coder server dbcrypt decrypt`](../../reference/cli/server/dbcrypt/decrypt.md).
   This command will decrypt all encrypted user tokens and revoke all active encryption keys.
@@ -176,7 +176,7 @@ To delete all encrypted data from your database, perform the following actions:
   If you are seeing this behavior, make sure that the encryption keys provided are correct.
 - If Coder detects that the data stored in the database was encrypted with a key that is no longer active, it will refuse to start.
   If you are seeing this behavior, make sure that the encryption keys provided are correct and that you have not revoked any keys that are still in use.
-- Decryption may fail if newly encrypted data is written while decryption is in progress.
+- Decryption might fail if newly encrypted data is written while decryption is in progress.
   If this happens, make sure that all active coder instances are stopped, and retry.
 
 ## Next steps

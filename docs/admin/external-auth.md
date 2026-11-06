@@ -341,7 +341,7 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
    | Members       | Read-only    | Grants access to organization members and teams.       |
 
 1. Install the App for your organization.
-   You may select a subset of repositories to grant access to.
+   You can grant access to a subset of repositories.
 
    ![Install GitHub App](../images/admin/github-app-install.png)
 

@@ -156,7 +156,7 @@ Sub-agents spawned by `spawn_agent` do not have access to them and cannot create
 
 `propose_plan` and `ask_user_question` are only exposed while plan mode is active.
 In that mode, `write_file` and `edit_files` are restricted to the chat-specific plan file, while `execute` and `process_output` remain available for exploration such as cloning repositories, searching code, and running inspection commands.
-Root plan-mode chats may also receive administrator-approved external MCP tools.
+Root plan-mode chats can also receive administrator-approved external MCP tools.
 Workspace MCP tools remain unavailable in plan mode, and plan-mode sub-agents still do not receive any MCP tools.
 Dynamic, provider-native, and computer-use tools are not available.
 

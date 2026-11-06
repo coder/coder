@@ -200,7 +200,7 @@ For installation instructions, visit the [observability repository](https://gith
 ## Kubernetes Security Reference
 
 Below are common requirements we see from our enterprise customers when deploying an application in Kubernetes.
-This is intended to serve as a reference, and not all security requirements may apply to your business.
+This is intended to serve as a reference, and some security requirements might not apply to your business.
 
 1. **All container images must be sourced from an internal container registry.**
 

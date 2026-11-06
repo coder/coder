@@ -249,14 +249,14 @@ Refer to [Anthropic's network requirements](https://code.claude.com/docs/en/self
   Anthropic never connects into your network.
 - Corporate egress proxies work through `HTTPS_PROXY` and `NO_PROXY`.
   Session streaming uses server-sent events, so a proxy in the path must not buffer responses.
-- Workspace clocks must be synchronized, for example with NTP.
+- Workspace clocks must be synchronized, for example with [NTP](https://en.wikipedia.org/wiki/Network_Time_Protocol).
   Anthropic authentication fails when a clock is more than 5&nbsp;minutes off.
 
 ## User identity
 
 Agent Relay matches the email that Anthropic attests for the session to a Coder user.
 The match is exact, case-insensitive, and limited to members of the pool's organization.
-This covers sessions started from claude.ai, the desktop and mobile apps, `claude --cloud`, and a Slack DM with Claude.
+This covers sessions started from claude.ai, the desktop and mobile apps, `claude --cloud`, and a direct message to Claude in Slack.
 
 Agent Relay doesn't serve a session when:
 

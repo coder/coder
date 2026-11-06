@@ -67,7 +67,7 @@ Coder Desktop requires VPN extension permissions:
 
 1. When prompted with **"Coder Desktop" would like to use a new network extension**, select **Open System Settings**
 1. In **Network Extensions** settings, enable the Coder Desktop extension
-1. You may need to enter your password to authorize the extension
+1. You might need to enter your password to authorize the extension
 
 ✅ **Verify Installation**: Coder Desktop should appear in your menu bar
 
@@ -92,9 +92,9 @@ winget install Coder.CoderDesktop
 </div>
 
 - [.NET Windows Desktop Runtime](https://dotnet.microsoft.com/en-us/download/dotnet/8.0) (installed automatically if not present)
-- Windows App Runtime SDK (may require manual installation)
+- Windows App Runtime SDK (might require manual installation)
 
-✅ **Verify Installation**: Coder Desktop should appear in your system tray (you may need to select **^** to show hidden icons)
+✅ **Verify Installation**: Coder Desktop should appear in your system tray (you might need to select **^** to show hidden icons)
 
 </div>
 
@@ -183,7 +183,7 @@ You can also configure a `Updater:ForcedChannel` string value to lock users to a
 
 ### Recover from a stale tunnel
 
-If the menu bar or tray shows **Coder Connect** as enabled but workspaces are unreachable (SSH hangs, `workspace.coder` fails to resolve, or file sync cannot list the workspace directory), the embedded tunnel may be in a stale state.
+If the menu bar or tray shows **Coder Connect** as enabled but workspaces are unreachable (SSH hangs, `workspace.coder` fails to resolve, or file sync cannot list the workspace directory), the embedded tunnel might be in a stale state.
 Restart the helper components first.
 If that doesn't resolve the issue, reboot your computer.
 
@@ -285,7 +285,7 @@ The Name Resolution Policy Table (NRPT) and adapter checks confirm the system ro
 > [!NOTE]
 > `ipconfig /flushdns` does not reset Coder Desktop's embedded DNS resolver.
 > Restarting the service is what clears its internal cache.
-> If you are running a network filtering agent (for example, Zscaler), it may shadow `.coder` lookups even after the tunnel comes back.
+> If you are running a network filtering agent (for example, Zscaler), it might shadow `.coder` lookups even after the tunnel comes back.
 > Check with your information technology (IT) team if DNS still fails after a clean restart.
 
 </div>

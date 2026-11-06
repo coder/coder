@@ -143,7 +143,7 @@ The Web Terminal supports standard terminal keybindings:
 - **Paste**:
   Use the standard paste shortcut or middle-click (on Linux/X11)
 - **Browser permissions**:
-  First paste may prompt for clipboard access
+  First paste might prompt for clipboard access
 
 ## URL Handling
 
@@ -250,6 +250,6 @@ If characters or colors appear incorrect:
 2. **Terminal type**:
    The terminal sets `TERM=xterm-256color` automatically
 3. **Color schemes**:
-   Some applications may not render correctly in dark mode
+   Some applications might not render correctly in dark mode
 4. **Font rendering**:
    Try switching terminal fonts in your appearance settings

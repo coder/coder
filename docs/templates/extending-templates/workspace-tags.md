@@ -58,7 +58,7 @@ This will cause the provisioner job to get stuck in the queue until a provisione
 Before releasing the template version with configurable workspace tags, make sure that every tag set is associated with at least one healthy provisioner.
 
 > [!NOTE]
-> It may be useful to run at least one provisioner with no additional tag restrictions that is able to take on any job.
+> It can be useful to run at least one provisioner with no additional tag restrictions that is able to take on any job.
 >
 > `coder_workspace_tags` are cumulative.
 > Jobs will only match provisioners that have all tags defined in both your template configuration and `coder_workspace_tags`.
@@ -73,7 +73,7 @@ When a workspace tag refers to a `coder_parameter` without involving the string 
 A mutable `coder_parameter` can be dangerous for a workspace tag as it allows the workspace owner to change a provisioner group (due to different tags).
 In most cases, `coder_parameter`s backing `coder_workspace_tags` should be marked as immutable and set only once, during workspace creation.
 
-You may only specify the following as inputs for `coder_workspace_tags`:
+You can only specify the following as inputs for `coder_workspace_tags`:
 
 | Input              | Example                                       |
 |:-------------------|:----------------------------------------------|

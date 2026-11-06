@@ -252,7 +252,7 @@ To use Coder modules in offline installations, you can either:
 
 ## Firewall exceptions
 
-In restricted internet networks, Coder may require connection to internet.
+In restricted internet networks, Coder might require connection to internet.
 Make sure that the following web addresses are accessible from the machine where Coder is installed.
 
 - code-server.dev (install via Arch User Repository (AUR))

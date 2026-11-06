@@ -261,7 +261,7 @@ curl -X POST \
 
 In the Tasks API, pausing stops the workspace and frees compute.
 In the Chats API, interrupt stops the agent loop in the control plane.
-The workspace may remain running.
+The workspace might remain running.
 The workspace lifecycle is managed independently.
 
 ### 8. Update GitHub Actions integrations
@@ -327,7 +327,7 @@ See the [action README](https://github.com/coder/create-agent-chat-action#inputs
      these against their own deployment patterns before adopting them. -->
 
 > [!NOTE]
-> This section contains recommendations that may evolve as Coder Agents matures.
+> This section contains recommendations that might evolve as Coder Agents matures.
 > Review these against your deployment requirements.
 
 With Coder Tasks, every task-capable template requires specific Terraform resources (`coder_ai_task`, `coder_task`, agent modules, and LLM API keys).
@@ -347,7 +347,7 @@ The reasons are different from Tasks, but the principle holds:
   The agent connects via the workspace daemon's HTTP API, not through VS Code or JetBrains.
   Removing IDE extensions, desktop environments, and similar tooling from agent templates reduces image size and startup time.
 - **Scoped credentials.**
-  Agent workloads may warrant more restrictive credentials than interactive developer sessions.
+  Agent workloads might warrant more restrictive credentials than interactive developer sessions.
   A dedicated template lets you provide a separate, narrower-scoped git token or service account without affecting your developers' workflow.
 - **Cost control.**
   Agent workspaces can often use smaller compute resources than developer workspaces since they don't need to run IDEs, language servers, or other interactive tooling.
@@ -636,7 +636,7 @@ The Chats API returns a `Chat` object with conversation-centric fields:
 | `display_name`     | `title`                                       | Auto-generated or set via `PATCH`                                |
 | `status`           | `status`                                      | Different enum values (see status table above)                   |
 | `current_state`    | Latest `status` event from the stream         | No equivalent top-level field                                    |
-| `workspace_id`     | `workspace_id`                                | Nullable in Chats. May be `null` if no workspace was provisioned |
+| `workspace_id`     | `workspace_id`                                | Nullable in Chats. Can be `null` if no workspace was provisioned |
 | `workspace_status` | n/a                                           | Manage workspace lifecycle separately                            |
 | `template_id`      | n/a                                           | Not exposed; the agent selects templates internally              |
 | `owner_id`         | `owner_id`                                    | Same concept                                                     |

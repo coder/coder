@@ -49,7 +49,7 @@ The agent loop runs inside [the control plane](./architecture.md).
 When a user submits a prompt, the control plane:
 
 1. Sends the prompt to the configured LLM provider (Anthropic, OpenAI, Google, Azure, AWS Bedrock, or any OpenAI-compatible endpoint).
-1. Receives the model's response, which may include tool calls such as reading files, writing code, or running shell commands.
+1. Receives the model's response, which can include tool calls such as reading files, writing code, or running shell commands.
 1. Executes tool calls by connecting to a Coder workspace over the existing workspace connection.
 
    This is the same path used for web terminals, port forwarding, and IDE access.

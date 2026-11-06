@@ -140,7 +140,7 @@ Three corollaries:
    No speculative docs for unmerged or uncommitted work.
 3. **Multi-PR launch exception.**
 
-   For a body of work that spans several PRs and is spec'd to launch together by a particular date, docs may be written ahead of those merges, in the present tense, describing the feature as it will exist at launch.
+   For a body of work that spans several PRs and is spec'd to launch together by a particular date, you can write docs ahead of those merges, in the present tense, describing the feature as it will exist at launch.
    They must never read as a promise of what's coming.
    No "will support", "in a future release", "coming soon", or roadmap framing.
 
@@ -157,7 +157,7 @@ Do not conflate them:
 Practical impact for docs:
 
 - **Unsafe experiments** don't need docs.
-  The feature is in active development, hidden behind a flag the user wouldn't enable on a real deployment, and may be reverted at any time.
+  The feature is in active development, hidden behind a flag the user wouldn't enable on a real deployment, and might be reverted at any time.
 - **Safe experiments and Early Access features** need at least a single docs page covering how to enable the feature, what it does, and known limitations.
 - **Beta features** get full docs (how to use, configure, and operate), with the `Beta` label.
 - **General availability (GA) features** get full docs across reference, tutorials, and guides as appropriate.
