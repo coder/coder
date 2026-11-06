@@ -5144,6 +5144,10 @@ CREATE INDEX idx_audit_log_resource_id ON audit_logs USING btree (resource_id);
 
 CREATE INDEX idx_audit_log_user_id ON audit_logs USING btree (user_id);
 
+CREATE INDEX idx_audit_logs_action ON audit_logs USING btree (action);
+
+CREATE INDEX idx_audit_logs_resource_type ON audit_logs USING btree (resource_type);
+
 CREATE INDEX idx_audit_logs_time_desc ON audit_logs USING btree ("time" DESC);
 
 CREATE INDEX idx_boundary_logs_captured_at ON boundary_logs USING btree (captured_at);
@@ -5259,6 +5263,8 @@ CREATE INDEX idx_connection_logs_workspace_owner_id ON connection_logs USING btr
 CREATE INDEX idx_custom_roles_id ON custom_roles USING btree (id);
 
 CREATE UNIQUE INDEX idx_custom_roles_name_lower_organization_id ON custom_roles USING btree (lower(name), COALESCE(organization_id, '00000000-0000-0000-0000-000000000000'::uuid));
+
+CREATE INDEX idx_group_members_group_id ON group_members USING btree (group_id);
 
 CREATE INDEX idx_inbox_notifications_user_id_read_at ON inbox_notifications USING btree (user_id, read_at);
 
