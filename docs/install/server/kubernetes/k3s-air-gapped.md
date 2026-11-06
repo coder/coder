@@ -731,6 +731,10 @@ This tutorial runs the official PostgreSQL image in the cluster, which suits a p
    The first workspace can take several minutes to start on a host with slow storage, because K3s unpacks the image on first use.
    Later starts are much faster.
 
+   While the workspace starts, you might see the warning `The workspace agent is having trouble connecting`.
+   You might also see a `context deadline exceeded` event from `kubectl get events -n coder`, followed by one pod restart.
+   Both are normal on the first start, and the workspace recovers on its own.
+
 1. Run a command in the workspace.
 
    ```sh
@@ -774,8 +778,8 @@ This tutorial runs the official PostgreSQL image in the cluster, which suits a p
    wget exit code: 4
    ```
 
-   The result depends on your network.
-   The workspace can reach the internet if the host itself has a route to it.
+   A different exit code, or no `wget` error, means the workspace reached the internet.
+   The result depends on your network, because the workspace can reach the internet if the host itself has a route to it.
 
 ## Learn more
 
