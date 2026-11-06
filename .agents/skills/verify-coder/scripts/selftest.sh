@@ -320,6 +320,15 @@ cleanup_keeps_running_postgres() {
 			;;
 		esac
 		if [[ "$case" == deleted-binary ]]; then
+			# Delete the binary only once the stand-in runs it.
+			for _ in $(seq 100); do
+				[[ "$(readlink "/proc/$pid/exe" 2>/dev/null)" != "$tmp/fake/$case/postgres" ]] || break
+				sleep 0.1
+			done
+			[[ "$(readlink "/proc/$pid/exe" 2>/dev/null)" == "$tmp/fake/$case/postgres" ]] || {
+				echo "deleted-binary: the stand-in never ran its binary"
+				return 1
+			}
 			rm "$tmp/fake/$case/postgres"
 		fi
 		if [[ "$case" != no-pid-file ]]; then

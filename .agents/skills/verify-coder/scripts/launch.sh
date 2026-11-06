@@ -158,6 +158,9 @@ save_password() {
 # launch that fails before develop reports its ports.
 run_develop() {
 	local ports alive
+	# The background develop opens its log only once it runs, so the waits
+	# below could read a missing file.
+	: >"$log"
 	vc_start_develop "$log" "$password" "$develop_in_coder" "$@" -- "${server_flags[@]}"
 	pid="$VC_DEVELOP_PID"
 	api_port=""
