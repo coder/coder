@@ -256,10 +256,6 @@ func (m *Manager) Run(ctx context.Context) error {
 		case <-m.closedCh:
 			return nil
 		case <-m.trigger:
-			m.mu.Lock()
-			roots := m.scanRootsLocked()
-			m.mu.Unlock()
-			watcher.Sync(ctx, roots)
 			m.resolveAndBroadcast(ctx)
 		}
 	}
@@ -650,11 +646,8 @@ func (m *Manager) effectiveAllowedRoots() []string {
 	return roots
 }
 
-// resolveAndBroadcast computes a fresh snapshot and notifies
-// every subscriber. The broadcast is unconditional: Resync
-// waiters that triggered the pass without an actual content
-// change still need to wake up. Subscribers compare snapshots
-// via AggregateHash if they want to filter.
+// resolveAndBroadcast collects and broadcasts even when content is unchanged.
+// ctx gates starting the pass; collection uses the Manager's context.
 func (m *Manager) resolveAndBroadcast(ctx context.Context) {
 	// Snapshot the inputs under the lock, then release it
 	// before running the resolver. The resolver walks the
