@@ -88,11 +88,11 @@ describe("TokenPage", () => {
 		let copiedText = "";
 		document.execCommand = vi.fn((commandId) => {
 			const dummyInput = document.querySelector(
-				`input[data-testid=${HTTP_FALLBACK_DATA_ID}]`,
+				`textarea[data-testid=${HTTP_FALLBACK_DATA_ID}]`,
 			);
 			const inputCanReceiveDialogFocus =
 				commandId === "copy" &&
-				dummyInput instanceof HTMLInputElement &&
+				dummyInput instanceof HTMLTextAreaElement &&
 				dummyInput.closest('[role="dialog"]') !== null &&
 				document.activeElement === dummyInput;
 
