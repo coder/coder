@@ -9,6 +9,8 @@ type ItemsBadgeItem = {
 	key: string;
 	label: string;
 	icon: React.ReactNode;
+	/** Extra detail shown in a tooltip when the item renders on its own. */
+	description?: React.ReactNode;
 };
 
 type ItemsBadgeProps = {
@@ -59,6 +61,32 @@ export const ItemsBadge: React.FC<ItemsBadgeProps> = ({ items, noun }) => {
 		);
 	}
 	const [item] = items;
+	if (item.description) {
+		return (
+			<Tooltip>
+				<TooltipTrigger asChild>
+					<Badge asChild hover className="gap-1.5 max-w-full">
+						{/* Radix opens tooltips on hover or focus only, so a click or tap
+						must keep reaching the clickable session row. */}
+						<button type="button">
+							<div className="shrink-0 flex items-center">{item.icon}</div>
+							<span className="truncate min-w-0">{item.label}</span>
+						</button>
+					</Badge>
+				</TooltipTrigger>
+				<TooltipContent
+					side="top"
+					align="start"
+					collisionPadding={16}
+					className="max-w-80"
+					// The portal still bubbles React clicks up to the session row.
+					onClick={(event) => event.stopPropagation()}
+				>
+					{item.description}
+				</TooltipContent>
+			</Tooltip>
+		);
+	}
 	return (
 		<Badge className="gap-1.5 max-w-full">
 			<div className="shrink-0 flex items-center">{item.icon}</div>

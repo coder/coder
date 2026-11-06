@@ -64,7 +64,16 @@ export const EmptyProviders: Story = {
 
 export const NullClient: Story = {
 	args: {
-		session: { ...MockSession, client: null },
+		session: {
+			...MockSession,
+			client: null,
+			metadata: { request_user_agent: "acme-agent/1.4.0 node/22.11.0" },
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByRole("button", { name: "Unknown" }));
+		await screen.findByRole("tooltip");
 	},
 };
 
