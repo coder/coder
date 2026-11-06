@@ -196,7 +196,7 @@ export const IdpRoleSyncForm: React.FC<IdpRoleSyncFormProps> = ({
 											placeholder="Select IdP role"
 										/>
 									</ComboboxTrigger>
-									<ComboboxContent className="w-72">
+									<ComboboxContent className="w-72" label="Search IdP roles">
 										<ComboboxInput
 											value={comboInputValue}
 											onValueChange={setComboInputValue}
