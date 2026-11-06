@@ -14,11 +14,10 @@ import (
 	reflect "reflect"
 	time "time"
 
-	uuid "github.com/google/uuid"
-	gomock "go.uber.org/mock/gomock"
-
 	database "github.com/coder/coder/v2/coderd/database"
 	rbac "github.com/coder/coder/v2/coderd/rbac"
+	uuid "github.com/google/uuid"
+	gomock "go.uber.org/mock/gomock"
 )
 
 // MockStore is a mock of Store interface.
