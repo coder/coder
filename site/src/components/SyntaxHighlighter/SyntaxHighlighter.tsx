@@ -1,4 +1,8 @@
-import type { FileContents, SupportedLanguages } from "@pierre/diffs";
+import type {
+	BaseCodeOptions,
+	FileContents,
+	SupportedLanguages,
+} from "@pierre/diffs";
 import { File, MultiFileDiff } from "@pierre/diffs/react";
 import { MONOSPACE_FONT_FAMILY } from "#/theme/constants";
 import { useTheme } from "#/theme/context";
@@ -22,7 +26,7 @@ const style = {
 	"--diffs-bg-deletion-override": "hsl(var(--surface-git-deleted))",
 	"--diffs-bg-addition-number-override": "hsl(var(--surface-git-added))",
 	"--diffs-bg-deletion-number-override": "hsl(var(--surface-git-deleted))",
-} as React.CSSProperties;
+} satisfies React.CSSProperties;
 
 export const SyntaxHighlighter: React.FC<SyntaxHighlighterProps> = ({
 	filename,
@@ -31,12 +35,13 @@ export const SyntaxHighlighter: React.FC<SyntaxHighlighterProps> = ({
 	language,
 }) => {
 	const theme = useTheme();
-	const options = {
+	// Shared by both `File` and `MultiFileDiff`, whose options extend this type.
+	const options: BaseCodeOptions = {
 		theme: coderShikiThemes,
 		themeType: theme.palette.mode,
 		disableFileHeader: true,
 		overflow: "scroll",
-	} as const;
+	};
 
 	const file: FileContents = {
 		name: filename,
