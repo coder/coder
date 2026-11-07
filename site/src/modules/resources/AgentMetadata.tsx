@@ -133,7 +133,7 @@ export const AgentMetadata: React.FC<AgentMetadataProps> = ({
 
 const AgentMetadataSkeleton: React.FC = () => {
 	return (
-		<div className="flex flex-row items-baseline gap-12">
+		<div className="flex items-baseline gap-12">
 			<div className="leading-relaxed flex flex-col overflow-visible shrink-0">
 				<Skeleton width={40} height={6} variant="text" />
 				<Skeleton width={65} height={8} variant="text" />

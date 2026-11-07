@@ -75,7 +75,7 @@ export const GlobalErrorBoundaryInner: React.FC<
 					</div>
 				</div>
 
-				<div className="flex flex-row flex-nowrap justify-center gap-2">
+				<div className="flex flex-nowrap justify-center gap-2">
 					<Button asChild className="min-w-32 ">
 						<a href={location.pathname}>Reload page</a>
 					</Button>

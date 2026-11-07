@@ -280,7 +280,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 									</span>
 
 									{!advancedSchedulingEnabled && (
-										<div className="flex flex-row gap-4 items-center mt-4">
+										<div className="flex gap-4 items-center mt-4">
 											<PremiumBadge />
 											<span>Premium license required to be enabled.</span>
 										</div>
@@ -305,7 +305,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 						/>
 						<Label htmlFor="disable_module_cache">
 							<StackLabel>
-								<span className="flex flex-row gap-2 items-center">
+								<span className="flex gap-2 items-center">
 									Disable Terraform module caching
 									{moduleCacheDisabledByDeployment && (
 										<Badge variant="warning" size="sm" svgSize="sm">
@@ -327,7 +327,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 									</span>
 
 									{moduleCacheDisabledByDeployment && (
-										<span className="flex flex-row gap-2 items-start mt-4">
+										<span className="flex gap-2 items-start mt-4">
 											<TriangleAlertIcon className="size-icon-sm shrink-0 mt-0.5 text-content-warning" />
 											<span>
 												<strong>
@@ -399,7 +399,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 						className="w-full"
 					/>
 					{!accessControlEnabled && (
-						<div className="flex flex-row gap-4 items-center">
+						<div className="flex gap-4 items-center">
 							<PremiumBadge />
 							<span className="text-xs text-content-secondary">
 								Premium license required to deprecate templates.
@@ -471,7 +471,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 						)}
 					</div>
 					{!portSharingControlsEnabled && (
-						<div className="flex flex-row gap-4 items-center">
+						<div className="flex gap-4 items-center">
 							<PremiumBadge />
 							<span className="text-xs text-content-secondary">
 								Premium license required to control max port sharing level.

@@ -103,7 +103,7 @@ export const AddWorkspaceMemberForm: React.FC<AddWorkspaceMemberFormProps> = ({
 }) => {
 	return (
 		<form action={onSubmit}>
-			<div className="flex flex-row items-center gap-2">
+			<div className="flex items-center gap-2">
 				{children}
 				<Button disabled={disabled || isLoading} type="submit">
 					<Spinner loading={isLoading}>
