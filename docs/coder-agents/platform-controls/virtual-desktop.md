@@ -38,7 +38,7 @@ To change it, you need permission to edit that organization's models.
 1. Select **Save**.
 
 The **Computer use** row appears only while the `chat-virtual-desktop` experiment is enabled.
-The list shows the organization's enabled models that computer use supports: models from Anthropic and OpenAI AI providers, and Claude models from AWS Bedrock AI providers.
+The list shows the organization's enabled models that computer use supports: models from Anthropic, OpenAI, and OpenAI-compatible AI providers, and Claude models from AWS Bedrock AI providers.
 To add a model to the list, enable one of these models on the **Models** page.
 
 When no model is selected, the row shows **Use default model** and computer use runs on the organization's default model.
@@ -48,6 +48,10 @@ If the selected model is later disabled, deleted, changed to a model that comput
 Computer use is unavailable in a chat when the chat owner has no usable [credentials](../models.md#credential-selection) for the AI provider of the model it runs on.
 It's also unavailable when it runs on the organization's default model and computer use doesn't support that model.
 OpenAI computer use requires the Responses API, so it fails on an OpenAI model whose **Use Responses API** override is set to Off.
+
+An OpenAI-compatible AI provider serves the chat completions API, which has no hosted computer tool, so Coder sends computer use as a function tool instead and returns a screenshot after every action.
+Coder can't verify an arbitrary OpenAI-compatible model, so such a model keeps the warning icon.
+Before you use one, confirm that the model accepts images and calls tools.
 
 A warning icon next to the model selector means that Coder hasn't verified the model for computer use, or that the model's AI provider type is OpenAI and its **Use Responses API** override is set to Off.
 The icon reflects the selected model, or the organization's default model when no model is selected or the selected model no longer appears in the list.
