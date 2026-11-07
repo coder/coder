@@ -297,12 +297,13 @@ Once you select **Implement plan**, the next turn runs in normal mode again.
 ## Questions outside plan mode
 
 In chats created from the Coder dashboard, the agent can also call `ask_user_question` outside plan mode.
+A chat you start on the **Agents** page in the Coder dashboard is a dashboard chat.
 The question doesn't stop the agent, which keeps working on anything that doesn't depend on the answer.
 You can answer while the agent runs, or after it ends its turn.
 While the agent runs, your answer joins the end of the message queue.
 The agent reads it in a later turn, after the current turn and any messages queued before it.
 After the agent ends its turn, your answer starts a new turn right away.
-If the agent can't continue without the answer, it ends its turn with a note of what is blocked.
+If the agent can't continue without the answer, the tool's instructions tell it to finish what it can and end its turn with a short note of what is blocked.
 
 While the question is open, its answer form appears in an **Open question** panel above the chat input.
 Sending an answer removes the panel, even while the answer waits in the queue.
@@ -312,7 +313,11 @@ The panel keeps your draft, so you can submit it after the edit if the question 
 A newer question replaces an earlier unanswered one, and the earlier question shows as closed.
 
 The panel shows one question at a time, and each answer has a number.
-While the form has focus, press a number to pick that answer, except in the Other text field.
+While the form has focus, press a number to pick that answer, except in the custom-answer field.
 Press Enter on an answer to move to the next question, or to submit on the last one.
+**Skip** moves past a question without answering it.
+On the last question, **Skip** also submits your answers.
+Select the panel header to collapse the answer form.
+For a question set, the collapsed header shows how many questions are answered.
 
 When the agent asks a question, Coder sends you a [push notification](./getting-started.md#use-https-for-push-notifications) if push notifications are enabled.
