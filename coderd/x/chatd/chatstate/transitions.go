@@ -1291,6 +1291,10 @@ func (tx *Tx) PromoteQueuedMessage(input PromoteQueuedMessageInput) (PromoteQueu
 	}, nil
 }
 
+// defaultInterruptReason is the result text of a synthetic cancellation
+// when the caller names no reason.
+const defaultInterruptReason = "Tool execution interrupted by user"
+
 // InterruptInput configures [Tx.Interrupt].
 type InterruptInput struct {
 	Reason string
@@ -1313,7 +1317,7 @@ func (tx *Tx) Interrupt(input InterruptInput) (InterruptResult, error) {
 	chat, from, err := tx.requireFromAllowed(TransitionInterrupt)
 	reason := input.Reason
 	if reason == "" {
-		reason = "Tool execution interrupted by user"
+		reason = defaultInterruptReason
 	}
 	if err != nil {
 		// The matrix rejects Interrupt from I*, because an owned
@@ -1401,23 +1405,13 @@ func (tx *Tx) finishUnownedInterruption(chat database.Chat, reason string) (unow
 	if chat.WorkerID.Valid {
 		return unownedInterruption{}, xerrors.New("finish unowned interruption: chat is owned")
 	}
-	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, reason, false)
-	if err != nil {
-		return unownedInterruption{}, err
-	}
-	finished, err := tx.FinishInterruption(FinishInterruptionInput{PartialMessages: cancels})
+	finished, err := tx.FinishInterruption(FinishInterruptionInput{CancellationReason: reason})
 	if err != nil {
 		return unownedInterruption{}, xerrors.Errorf("finish unowned interruption: %w", err)
 	}
-	if len(finished.InsertedMessages) < len(cancels) {
-		return unownedInterruption{}, xerrors.Errorf(
-			"finish unowned interruption: inserted %d messages, want at least %d",
-			len(finished.InsertedMessages), len(cancels),
-		)
-	}
 	return unownedInterruption{
 		FinishInterruptionResult: finished,
-		cancellations:            finished.InsertedMessages[:len(cancels)],
+		cancellations:            finished.CancellationMessages,
 	}, nil
 }
 
@@ -1762,21 +1756,34 @@ func (tx *Tx) EnterRequiresAction(_ EnterRequiresActionInput) (EnterRequiresActi
 // FinishInterruptionInput configures [Tx.FinishInterruption].
 type FinishInterruptionInput struct {
 	PartialMessages []Message
+	// CancellationReason is the result text of each call that
+	// PartialMessages leave unanswered. It defaults to the reason of a
+	// user interrupt.
+	CancellationReason string
 }
 
 // FinishInterruptionResult is returned by [Tx.FinishInterruption].
 type FinishInterruptionResult struct {
+	// InsertedMessages holds every inserted message in order: the
+	// partial messages, then CancellationMessages, then the promoted
+	// queue head's own cancellations and the head.
 	InsertedMessages []database.ChatMessage
-	PromotedMessage  *database.ChatMessage
+	// CancellationMessages are the synthetic results this call inserted
+	// for the calls PartialMessages left unanswered.
+	CancellationMessages []database.ChatMessage
+	PromotedMessage      *database.ChatMessage
 	// PromotedQueuedAt is zero when no queue head was promoted.
 	PromotedQueuedAt time.Time
 }
 
 // FinishInterruption commits an optional partial assistant/tool suffix
 // and moves the chat to waiting (I0), running with the next queued
-// message promoted (I1), or paused (I1P).
+// message promoted (I1), or paused (I1P). It answers every tool call the
+// suffix leaves outstanding, dynamic or not, with a synthetic
+// cancellation, so finishing an interruption always leaves valid LLM
+// history. The suffix carries the real results.
 func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterruptionResult, error) {
-	chat, from, err := tx.requireFromAllowed(TransitionFinishInterruption)
+	chat, _, err := tx.requireFromAllowed(TransitionFinishInterruption)
 	if err != nil {
 		return FinishInterruptionResult{}, err
 	}
@@ -1784,23 +1791,27 @@ func (tx *Tx) FinishInterruption(input FinishInterruptionInput) (FinishInterrupt
 	if err != nil {
 		return FinishInterruptionResult{}, xerrors.Errorf("insert interruption partial messages: %w", err)
 	}
-	// Any outstanding call, dynamic or not, would leave invalid LLM history.
-	outstanding, err := outstandingToolCalls(tx.ctx, tx.store, chat, false)
+	reason := input.CancellationReason
+	if reason == "" {
+		reason = defaultInterruptReason
+	}
+	cancels, err := synthesizePendingToolCancellations(tx.ctx, tx.store, chat, reason, false)
 	if err != nil {
 		return FinishInterruptionResult{}, err
 	}
-	if len(outstanding) > 0 {
-		return FinishInterruptionResult{}, newTransitionError(
-			TransitionFinishInterruption, from,
-			"outstanding tool calls remain after partial commit",
-		)
+	insertedCancels, err := tx.insertMessages(cancels)
+	if err != nil {
+		return FinishInterruptionResult{}, xerrors.Errorf("insert interruption cancellations: %w", err)
 	}
 
 	_, promoted, err := tx.advanceQueue(chat)
 	if err != nil {
 		return FinishInterruptionResult{}, err
 	}
-	result := FinishInterruptionResult{InsertedMessages: insertedPartial}
+	result := FinishInterruptionResult{
+		InsertedMessages:     append(insertedPartial, insertedCancels...),
+		CancellationMessages: insertedCancels,
+	}
 	if promoted.Message != nil {
 		result.InsertedMessages = append(append(result.InsertedMessages, promoted.Cancellations...), *promoted.Message)
 		result.PromotedMessage = promoted.Message

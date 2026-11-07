@@ -135,6 +135,13 @@ func compactionStillOverLimitError(source compactionTriggerSource, otherOverLimi
 type generationDecision struct {
 	kind           generationActionKind
 	localToolCalls []fantasy.ToolCallContent
+	// localToolCallPositions holds each local call's position among the
+	// step's unanswered calls, dynamic ones included. An interrupt numbers
+	// the calls the same way without knowing which ones ran here. It covers
+	// only the calls the model asked to run locally, so when dynamic calls
+	// join the batch it is shorter than localToolCalls, and then nothing
+	// records tool timings.
+	localToolCallPositions []int
 	// observedToolCalls is the step's batch for chatloop step observers
 	// and halting tools: localToolCalls plus the calls answered before
 	// execution, in call order.
@@ -202,7 +209,7 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 	if err != nil {
 		return generationDecision{}, err
 	}
-	localCalls, dynamicCalls := unansweredToolCalls(stepCalls, answered, input.dynamicToolNames)
+	localCalls, localPositions, dynamicCalls := unansweredToolCalls(stepCalls, answered, input.dynamicToolNames)
 	if len(localCalls) > 0 {
 		runsDynamic := len(dynamicCalls) > 0 && hasExclusiveToolCall(localCalls, input.exclusiveToolNames)
 		if runsDynamic {
@@ -227,10 +234,11 @@ func decideGenerationAction(input generationDecisionInput) (generationDecision, 
 			observedCalls = append(observedCalls, call)
 		}
 		return generationDecision{
-			kind:              generationActionExecuteLocalTools,
-			localToolCalls:    localCalls,
-			observedToolCalls: observedCalls,
-			toolCallMessageID: messageID,
+			kind:                   generationActionExecuteLocalTools,
+			localToolCalls:         localCalls,
+			localToolCallPositions: localPositions,
+			observedToolCalls:      observedCalls,
+			toolCallMessageID:      messageID,
 		}, nil
 	}
 	if len(dynamicCalls) > 0 {
@@ -330,7 +338,7 @@ func unresolvedToolCallsFromHistory(
 	if err != nil {
 		return nil, nil, 0, err
 	}
-	localCalls, dynamicCalls := unansweredToolCalls(stepCalls, answered, dynamicToolNames)
+	localCalls, _, dynamicCalls := unansweredToolCalls(stepCalls, answered, dynamicToolNames)
 	return localCalls, dynamicCalls, messageID, nil
 }
 
@@ -367,18 +375,21 @@ func lastStepToolCalls(messages []database.ChatMessage) ([]fantasy.ToolCallConte
 }
 
 // unansweredToolCalls splits the calls not yet answered into local calls and
-// dynamic calls, which the client runs.
+// dynamic calls, which the client runs. localPositions holds each local call's
+// position among all the unanswered calls, dynamic ones included.
 func unansweredToolCalls(
 	calls []fantasy.ToolCallContent,
 	answered map[string]bool,
 	dynamicToolNames map[string]bool,
-) ([]fantasy.ToolCallContent, []pendingDynamicToolCall) {
-	localCalls := make([]fantasy.ToolCallContent, 0)
-	dynamicCalls := make([]pendingDynamicToolCall, 0)
+) (localCalls []fantasy.ToolCallContent, localPositions []int, dynamicCalls []pendingDynamicToolCall) {
+	localCalls = make([]fantasy.ToolCallContent, 0)
+	localPositions = make([]int, 0)
+	dynamicCalls = make([]pendingDynamicToolCall, 0)
 	for _, call := range calls {
 		if answered[call.ToolCallID] {
 			continue
 		}
+		position := len(localCalls) + len(dynamicCalls)
 		if dynamicToolNames[call.ToolName] {
 			dynamicCalls = append(dynamicCalls, pendingDynamicToolCall{
 				ToolCallID: call.ToolCallID,
@@ -388,8 +399,9 @@ func unansweredToolCalls(
 			continue
 		}
 		localCalls = append(localCalls, call)
+		localPositions = append(localPositions, position)
 	}
-	return localCalls, dynamicCalls
+	return localCalls, localPositions, dynamicCalls
 }
 
 // exclusiveBatchRejected reports whether the exclusive-tool policy will
@@ -1088,24 +1100,37 @@ func withoutResolvedToolCalls(content []fantasy.Content, toolCalls []fantasy.Too
 
 // bufferToolBillingRecorder translates a dispatch index in the filtered batch
 // back to the unresolved-call position the buffer episode keys timings by.
+// allowedIndexes maps the dispatch index to an index into the decision's local
+// calls, and positions maps that to the call's position among the unanswered
+// calls.
 type bufferToolBillingRecorder struct {
 	allowedIndexes []int
+	positions      []int
 	recordStart    func(callIndex int, startedAt time.Time)
 	recordComplete func(callIndex int, completedAt time.Time)
 }
 
-func (r *bufferToolBillingRecorder) RecordStart(dispatchIndex int, startedAt time.Time) {
+func (r *bufferToolBillingRecorder) position(dispatchIndex int) (int, bool) {
 	if dispatchIndex < 0 || dispatchIndex >= len(r.allowedIndexes) {
-		return
+		return 0, false
 	}
-	r.recordStart(r.allowedIndexes[dispatchIndex], startedAt)
+	localIndex := r.allowedIndexes[dispatchIndex]
+	if localIndex < 0 || localIndex >= len(r.positions) {
+		return 0, false
+	}
+	return r.positions[localIndex], true
+}
+
+func (r *bufferToolBillingRecorder) RecordStart(dispatchIndex int, startedAt time.Time) {
+	if position, ok := r.position(dispatchIndex); ok {
+		r.recordStart(position, startedAt)
+	}
 }
 
 func (r *bufferToolBillingRecorder) RecordComplete(dispatchIndex int, completedAt time.Time) {
-	if dispatchIndex < 0 || dispatchIndex >= len(r.allowedIndexes) {
-		return
+	if position, ok := r.position(dispatchIndex); ok {
+		r.recordComplete(position, completedAt)
 	}
-	r.recordComplete(r.allowedIndexes[dispatchIndex], completedAt)
 }
 
 func (s *taskStarter) executeLocalTools(
@@ -1151,6 +1176,7 @@ func (s *taskStarter) executeLocalTools(
 		if !exclusiveRejected {
 			billingRecorder = &bufferToolBillingRecorder{
 				allowedIndexes: allowedIndexes,
+				positions:      decision.localToolCallPositions,
 				recordStart:    attempt.recordToolStart,
 				recordComplete: attempt.recordToolCompletion,
 			}
