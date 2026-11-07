@@ -271,12 +271,10 @@ func (t *computerUseTool) HaltedToolCallError() (string, bool) {
 
 func (t *computerUseTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 	switch DefaultComputerUseProvider(t.provider) {
-	case codersdk.ChatComputerUseProviderAnthropic:
-		return t.runAnthropicComputerUse(ctx, call)
+	case codersdk.ChatComputerUseProviderAnthropic, codersdk.ChatComputerUseProviderOpenAICompat:
+		return t.runActionPerCallComputerUse(ctx, call)
 	case codersdk.ChatComputerUseProviderOpenAI:
 		return t.runOpenAIComputerUse(ctx, call)
-	case codersdk.ChatComputerUseProviderOpenAICompat:
-		return t.runOpenAICompatComputerUse(ctx, call)
 	default:
 		return fantasy.NewTextErrorResponse(fmt.Sprintf(
 			"unsupported computer use provider %q, supported providers: %s",
@@ -286,36 +284,24 @@ func (t *computerUseTool) Run(ctx context.Context, call fantasy.ToolCall) (fanta
 	}
 }
 
-// runAnthropicComputerUse runs one Anthropic computer action. The toolset
-// answers actions other than screenshot with text, and the model asks for a
-// screenshot when it needs one. Older versions screenshot after every action.
-func (t *computerUseTool) runAnthropicComputerUse(
-	ctx context.Context,
-	call fantasy.ToolCall,
-) (fantasy.ToolResponse, error) {
-	textResult := t.anthropicToolVersion == fantasyanthropic.ComputerUseToolset20260801
-	return t.runActionPerCallComputerUse(ctx, call, textResult)
-}
-
-// runOpenAICompatComputerUse runs one computer action declared in the chat
-// completions function tool format. Those servers return no screenshot with an
-// action result, and an unverified model cannot be relied on to ask for one, so
-// every action answers with a fresh screenshot, as the tool description states.
-func (t *computerUseTool) runOpenAICompatComputerUse(
-	ctx context.Context,
-	call fantasy.ToolCall,
-) (fantasy.ToolResponse, error) {
-	return t.runActionPerCallComputerUse(ctx, call, false)
+// computerUseAnswersWithText reports whether a performed action answers with the
+// desktop output as text instead of a fresh screenshot. Only the newest Anthropic
+// toolset does, and the model asks for a screenshot when it needs one. The older
+// Anthropic toolsets and the chat completions function tool return no screenshot
+// with an action result, and an unverified model cannot be relied on to ask for
+// one, so every action answers with a screenshot, as those descriptions state.
+func (t *computerUseTool) computerUseAnswersWithText() bool {
+	return DefaultComputerUseProvider(t.provider) == codersdk.ChatComputerUseProviderAnthropic &&
+		t.anthropicToolVersion == fantasyanthropic.ComputerUseToolset20260801
 }
 
 // runActionPerCallComputerUse runs one computer action delivered as a single
 // action per call, the shape both the Anthropic computer toolsets and the chat
-// completions function tool declare. When textResult is true, an action other
-// than screenshot answers with text instead of a screenshot.
+// completions function tool declare. computerUseAnswersWithText decides whether
+// a performed action answers with text or with a fresh screenshot.
 func (t *computerUseTool) runActionPerCallComputerUse(
 	ctx context.Context,
 	call fantasy.ToolCall,
-	textResult bool,
 ) (fantasy.ToolResponse, error) {
 	input, err := fantasyanthropic.ParseComputerUseInput(call.Input)
 	if err != nil {
@@ -338,7 +324,7 @@ func (t *computerUseTool) runActionPerCallComputerUse(
 		return t.captureSharedScreenshot(ctx, conn, declaredWidth, declaredHeight)
 	case fantasyanthropic.ActionWait:
 		t.wait(ctx, anthropicDurationMillis(input.Duration))
-		if textResult {
+		if t.computerUseAnswersWithText() {
 			return fantasy.NewTextResponse("wait action performed"), nil
 		}
 		return t.captureScreenshot(ctx, conn, declaredWidth, declaredHeight)
@@ -390,7 +376,7 @@ func (t *computerUseTool) runActionPerCallComputerUse(
 		}
 	}
 
-	if textResult {
+	if t.computerUseAnswersWithText() {
 		// The agent reports cursor_position in declared coordinates, which
 		// are the toolset's screenshot coordinates.
 		output := actionResp.Output
