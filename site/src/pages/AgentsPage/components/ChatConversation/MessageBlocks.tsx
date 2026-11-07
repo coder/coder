@@ -71,6 +71,7 @@ export type BlockListProps = {
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
 	latestAskUserQuestion?: MergedTool;
+	dockedAskUserQuestion?: MergedTool;
 	askUserQuestionResponseTextByTool?: ReadonlyMap<MergedTool, string>;
 	isLatestAskUserQuestionAnswered: boolean;
 	urlTransform: UrlTransform;
@@ -97,6 +98,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 	onSendAskUserQuestionResponse,
 	isChatCompleted,
 	latestAskUserQuestion,
+	dockedAskUserQuestion,
 	askUserQuestionResponseTextByTool,
 	isLatestAskUserQuestionAnswered,
 	urlTransform,
@@ -251,6 +253,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 									tool === latestAskUserQuestion &&
 									!isLatestAskUserQuestionAnswered
 								}
+								isDockedAskUserQuestion={tool === dockedAskUserQuestion}
 								previousResponseText={
 									tool.name === "ask_user_question"
 										? askUserQuestionResponseTextByTool?.get(tool)
@@ -321,6 +324,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 					isLatestAskUserQuestion={
 						tool === latestAskUserQuestion && !isLatestAskUserQuestionAnswered
 					}
+					isDockedAskUserQuestion={tool === dockedAskUserQuestion}
 					previousResponseText={
 						tool.name === "ask_user_question"
 							? askUserQuestionResponseTextByTool?.get(tool)

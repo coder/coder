@@ -199,6 +199,8 @@ type QuestionStepProps = {
 	questionCount: number;
 	idPrefix: string;
 	draft: QuestionDraft;
+	/** Off while the panel header above the form shows the label. */
+	showsLabel: boolean;
 	isEnabled: boolean;
 	questionTextRef: React.Ref<HTMLDivElement>;
 	optionRefs: React.RefObject<Array<HTMLButtonElement | null>>;
@@ -214,6 +216,7 @@ export const QuestionStep: React.FC<QuestionStepProps> = ({
 	questionCount,
 	idPrefix,
 	draft,
+	showsLabel,
 	isEnabled,
 	questionTextRef,
 	optionRefs,
@@ -228,13 +231,15 @@ export const QuestionStep: React.FC<QuestionStepProps> = ({
 
 	return (
 		<div>
-			<p
-				id={questionLabelId}
-				className="m-0 flex items-center gap-1.5 text-xs text-content-secondary"
-			>
-				<MessageCircleQuestionIcon aria-hidden="true" className="size-3.5" />
-				{getQuestionLabel(question, questionIndex, questionCount)}
-			</p>
+			{showsLabel && (
+				<p
+					id={questionLabelId}
+					className="m-0 flex items-center gap-1.5 text-xs text-content-secondary"
+				>
+					<MessageCircleQuestionIcon aria-hidden="true" className="size-3.5" />
+					{getQuestionLabel(question, questionIndex, questionCount)}
+				</p>
+			)}
 			<Response
 				ref={questionTextRef}
 				id={questionTextId}
@@ -244,7 +249,9 @@ export const QuestionStep: React.FC<QuestionStepProps> = ({
 				{getQuestionText(question)}
 			</Response>
 			<RadioGroup
-				aria-labelledby={`${questionLabelId} ${questionTextId}`}
+				aria-labelledby={
+					showsLabel ? `${questionLabelId} ${questionTextId}` : questionTextId
+				}
 				className="mt-4 gap-1.5"
 				name={`${questionIdBase}-options`}
 				value={getSelectedValue(draft)}
