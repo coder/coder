@@ -70,35 +70,34 @@ export const UserDropdownContent: React.FC<UserDropdownContentProps> = ({
 
 	return (
 		<>
-			<DropdownMenuItem className="flex items-center gap-3" asChild>
-				<Link to="/settings/account">
-					<div className="flex flex-col">
-						<span className="text-content-primary">{user.username}</span>
-						<span className="text-xs font-semibold">{user.email}</span>
-					</div>
-				</Link>
+			<DropdownMenuItem
+				className="flex items-center gap-3"
+				render={<Link to="/settings/account" />}
+			>
+				<div className="flex flex-col">
+					<span className="text-content-primary">{user.username}</span>
+					<span className="text-xs font-semibold">{user.email}</span>
+				</div>
 			</DropdownMenuItem>
 			{profileExtra}
 			<DropdownMenuSeparator />
 			{supportsCoderDesktop() && (
-				<DropdownMenuItem asChild>
-					<a href={CODER_DESKTOP_DOCS_URL} target="_blank" rel="noreferrer">
-						<MonitorIcon />
-						<span>Install Coder Desktop</span>
-					</a>
-				</DropdownMenuItem>
+				<DropdownMenuItem
+					render={
+						<a href={CODER_DESKTOP_DOCS_URL} target="_blank" rel="noreferrer">
+							<MonitorIcon />
+							<span>Install Coder Desktop</span>
+						</a>
+					}
+				></DropdownMenuItem>
 			)}
-			<DropdownMenuItem asChild>
-				<Link to="/install">
-					<TerminalIcon />
-					<span>Install CLI</span>
-				</Link>
+			<DropdownMenuItem render={<Link to="/install" />}>
+				<TerminalIcon />
+				<span>Install CLI</span>
 			</DropdownMenuItem>
-			<DropdownMenuItem asChild>
-				<Link to="/settings/account">
-					<CircleUserIcon />
-					<span>Account</span>
-				</Link>
+			<DropdownMenuItem render={<Link to="/settings/account" />}>
+				<CircleUserIcon />
+				<span>Account</span>
 			</DropdownMenuItem>
 			<DropdownMenuItem onClick={onSignOut}>
 				<LogOutIcon />
@@ -108,41 +107,45 @@ export const UserDropdownContent: React.FC<UserDropdownContentProps> = ({
 				<>
 					<DropdownMenuSeparator />
 					{supportLinks.map((link) => (
-						<DropdownMenuItem key={link.name} asChild>
-							<a href={link.target} target="_blank" rel="noreferrer">
-								{link.icon && <SupportIcon icon={link.icon} />}
-								<span>{link.name}</span>
-							</a>
-						</DropdownMenuItem>
+						<DropdownMenuItem
+							key={link.name}
+							render={
+								<a href={link.target} target="_blank" rel="noreferrer">
+									{link.icon && <SupportIcon icon={link.icon} />}
+									<span>{link.name}</span>
+								</a>
+							}
+						></DropdownMenuItem>
 					))}
 				</>
 			)}
 			{codernautsEnabled && (
-				<DropdownMenuItem asChild>
-					<Link to="/coder-cup">
-						<CodernautsSVG />
-						<span>Codernauts</span>
-					</Link>
+				<DropdownMenuItem render={<Link to="/coder-cup" />}>
+					<CodernautsSVG />
+					<span>Codernauts</span>
 				</DropdownMenuItem>
 			)}
 			{trialCta}
 			<DropdownMenuSeparator />
 			<Tooltip disableHoverableContent>
 				<TooltipTrigger asChild>
-					<DropdownMenuItem className="text-xs" asChild>
-						<a
-							href={buildInfo?.external_url}
-							className="flex items-center gap-2"
-							target="_blank"
-							rel="noreferrer"
-						>
-							<span className="flex-1">
-								{buildInfo?.version}
-								<span className="sr-only"> (opens in new tab)</span>
-							</span>
-							<SquareArrowOutUpRightIcon className="size-icon-xs!" />
-						</a>
-					</DropdownMenuItem>
+					<DropdownMenuItem
+						className="text-xs"
+						render={
+							<a
+								href={buildInfo?.external_url}
+								className="flex items-center gap-2"
+								target="_blank"
+								rel="noreferrer"
+							>
+								<span className="flex-1">
+									{buildInfo?.version}
+									<span className="sr-only"> (opens in new tab)</span>
+								</span>
+								<SquareArrowOutUpRightIcon className="size-icon-xs!" />
+							</a>
+						}
+					></DropdownMenuItem>
 				</TooltipTrigger>
 				<TooltipContent side="bottom">Browse the source code</TooltipContent>
 			</Tooltip>
@@ -151,7 +154,8 @@ export const UserDropdownContent: React.FC<UserDropdownContentProps> = ({
 					<TooltipTrigger asChild>
 						<DropdownMenuItem
 							className="text-xs"
-							onSelect={(e) => {
+							closeOnClick={false}
+							onClick={(e) => {
 								e.preventDefault();
 								copyToClipboard(buildInfo.deployment_id);
 							}}

@@ -154,6 +154,9 @@ describe("ProjectFolders", () => {
 				name: `Open project actions for ${MockChatProject.name}`,
 			}),
 		);
+		act(() => {
+			vi.runOnlyPendingTimers();
+		});
 		await user.click(screen.getByRole("menuitem", { name: "New chat" }));
 		await act(async () => {});
 		const composer = screen.getByRole("textbox", { name: "Composer" });

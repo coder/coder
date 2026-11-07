@@ -423,16 +423,18 @@ const AccessRow: React.FC<AccessRowProps> = ({
 				<TableCell>
 					{editableEntry && (
 						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button
-									size="icon-lg"
-									variant="subtle"
-									ref={menuTriggerRef}
-									aria-label={`Open menu for ${editableEntry.name}`}
-									disabled={disabled}
-								>
-									<EllipsisVerticalIcon aria-hidden="true" />
-								</Button>
+							<DropdownMenuTrigger
+								render={
+									<Button
+										size="icon-lg"
+										variant="subtle"
+										ref={menuTriggerRef}
+										aria-label={`Open menu for ${editableEntry.name}`}
+										disabled={disabled}
+									/>
+								}
+							>
+								<EllipsisVerticalIcon aria-hidden="true" />
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="end">
 								<DropdownMenuItem

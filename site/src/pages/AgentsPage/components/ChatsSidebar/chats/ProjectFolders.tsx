@@ -233,80 +233,84 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 			}}
 		>
 			<ContextMenu>
-				<ContextMenuTrigger asChild>
-					<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary group-data-[drop=unavailable]/drop:opacity-50 hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary">
-						<Button
-							ref={toggleRef}
-							variant="subtle"
-							size="icon"
-							className="size-6 min-w-0 p-0 text-current [&>svg]:size-3.5"
-							aria-expanded={expanded}
-							aria-label={`${expanded ? "Collapse" : "Expand"} ${projectLabel}`}
-							onClick={onToggle}
-						>
-							<ChevronRightIcon
-								aria-hidden="true"
-								className={cn("transition-transform", expanded && "rotate-90")}
-							/>
-						</Button>
-						<NavLink
-							to={projectPath}
-							aria-label={projectLabel}
-							className="flex min-w-0 flex-1 items-center gap-2 py-1 text-[13px] no-underline"
-						>
-							{({ isActive }) => (
-								<>
-									<ChatProjectIcon
-										project={project}
-										expanded={expanded}
-										className="size-4 stroke-[1.75]"
-									/>
-									<span
-										className={cn(
-											"flex-1 truncate text-content-primary",
-											!isActive &&
-												"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-[state=open]:opacity-100 group-has-data-[state=open]:opacity-100",
-										)}
-									>
-										{project.name}
-									</span>
-								</>
-							)}
-						</NavLink>
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
+				<ContextMenuTrigger
+					render={
+						<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary group-data-[drop=unavailable]/drop:opacity-50 hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary" />
+					}
+				>
+					<Button
+						ref={toggleRef}
+						variant="subtle"
+						size="icon"
+						className="size-6 min-w-0 p-0 text-current [&>svg]:size-3.5"
+						aria-expanded={expanded}
+						aria-label={`${expanded ? "Collapse" : "Expand"} ${projectLabel}`}
+						onClick={onToggle}
+					>
+						<ChevronRightIcon
+							aria-hidden="true"
+							className={cn("transition-transform", expanded && "rotate-90")}
+						/>
+					</Button>
+					<NavLink
+						to={projectPath}
+						aria-label={projectLabel}
+						className="flex min-w-0 flex-1 items-center gap-2 py-1 text-[13px] no-underline"
+					>
+						{({ isActive }) => (
+							<>
+								<ChatProjectIcon
+									project={project}
+									expanded={expanded}
+									className="size-4 stroke-[1.75]"
+								/>
+								<span
+									className={cn(
+										"flex-1 truncate text-content-primary",
+										!isActive &&
+											"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-popup-open:opacity-100 group-has-data-popup-open:opacity-100",
+									)}
+								>
+									{project.name}
+								</span>
+							</>
+						)}
+					</NavLink>
+					<DropdownMenu>
+						<DropdownMenuTrigger
+							render={
 								<Button
 									variant="subtle"
 									size="icon"
-									className="size-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+									className="size-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
 									aria-label={`Open project actions for ${projectLabel}`}
 									{...preventRowContextMenuProps}
-								>
-									<EllipsisVerticalIcon />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent
-								align="end"
-								onCloseAutoFocus={handleMenuCloseAutoFocus}
-								// Portaled, but React events still bubble to the row's
-								// context-menu trigger and would open a second menu.
-								onContextMenu={(e) => {
-									e.preventDefault();
-									e.stopPropagation();
-								}}
-							>
-								<ProjectActionsMenuItems
-									Item={DropdownMenuItem}
-									Separator={DropdownMenuSeparator}
-									projectPath={projectPath}
-									onNewChatInPlace={isOnProjectPage ? handleNewChat : undefined}
-									permissions={project.permissions}
-									onEdit={onEdit}
-									onDelete={onDelete}
 								/>
-							</DropdownMenuContent>
-						</DropdownMenu>
-					</div>
+							}
+						>
+							<EllipsisVerticalIcon />
+						</DropdownMenuTrigger>
+						<DropdownMenuContent
+							align="end"
+							onCloseAutoFocus={handleMenuCloseAutoFocus}
+							// Portaled, but React events still bubble to the row's
+							// context-menu trigger and would open a second menu.
+							onContextMenu={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+							}}
+						>
+							<ProjectActionsMenuItems
+								Item={DropdownMenuItem}
+								Separator={DropdownMenuSeparator}
+								projectPath={projectPath}
+								onNewChatInPlace={isOnProjectPage ? handleNewChat : undefined}
+								permissions={project.permissions}
+								onEdit={onEdit}
+								onDelete={onDelete}
+							/>
+						</DropdownMenuContent>
+					</DropdownMenu>
 				</ContextMenuTrigger>
 				<ContextMenuContent onCloseAutoFocus={handleMenuCloseAutoFocus}>
 					<ProjectActionsMenuItems

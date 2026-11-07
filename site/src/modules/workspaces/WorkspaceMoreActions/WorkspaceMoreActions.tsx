@@ -128,17 +128,19 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 	return (
 		<>
 			<DropdownMenu open={open} onOpenChange={setOpen}>
-				<DropdownMenuTrigger asChild>
-					<Button
-						size="icon-lg"
-						variant="subtle"
-						data-testid="workspace-options-button"
-						aria-controls="workspace-options"
-						disabled={disabled}
-					>
-						<EllipsisVerticalIcon aria-hidden="true" />
-						<span className="sr-only">Workspace actions</span>
-					</Button>
+				<DropdownMenuTrigger
+					render={
+						<Button
+							size="icon-lg"
+							variant="subtle"
+							data-testid="workspace-options-button"
+							aria-controls="workspace-options"
+							disabled={disabled}
+						/>
+					}
+				>
+					<EllipsisVerticalIcon aria-hidden="true" />
+					<span className="sr-only">Workspace actions</span>
 				</DropdownMenuTrigger>
 
 				<DropdownMenuContent id="workspace-options" align="end">
@@ -156,13 +158,15 @@ export const WorkspaceMoreActions: React.FC<WorkspaceMoreActionsProps> = ({
 						</DropdownMenuItem>
 					)}
 
-					<DropdownMenuItem asChild>
-						<RouterLink
-							to={`/@${workspace.owner_name}/${workspace.name}/settings`}
-						>
-							<SettingsIcon />
-							Settings
-						</RouterLink>
+					<DropdownMenuItem
+						render={
+							<RouterLink
+								to={`/@${workspace.owner_name}/${workspace.name}/settings`}
+							/>
+						}
+					>
+						<SettingsIcon />
+						Settings
 					</DropdownMenuItem>
 
 					{permissions?.updateWorkspaceVersion && (

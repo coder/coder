@@ -30,11 +30,9 @@ export const IntervalMenu: React.FC<IntervalMenuProps> = ({
 }) => {
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button variant="outline">
-					{insightsIntervals[value].label}
-					<ChevronDownIcon />
-				</Button>
+			<DropdownMenuTrigger render={<Button variant="outline" />}>
+				{insightsIntervals[value].label}
+				<ChevronDownIcon />
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="start">
 				<DropdownMenuRadioGroup

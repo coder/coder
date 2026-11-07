@@ -634,18 +634,23 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 					background-color: hsl(var(--surface-scrollbar));
 				}
 			`}</style>
-			<ContextMenu onOpenChange={handleContextMenuOpenChange}>
-				<ContextMenuTrigger asChild disabled={isMac()}>
-					<div
-						className={cn(
-							"workspace-terminal h-full w-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary",
-							className,
-						)}
-						ref={terminalWrapperRef}
-						data-terminal-scope={scopeId}
-						data-testid={testId}
-					/>
-				</ContextMenuTrigger>
+			<ContextMenu
+				disabled={isMac()}
+				onOpenChange={handleContextMenuOpenChange}
+			>
+				<ContextMenuTrigger
+					render={
+						<div
+							className={cn(
+								"workspace-terminal h-full w-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary",
+								className,
+							)}
+							ref={terminalWrapperRef}
+							data-terminal-scope={scopeId}
+							data-testid={testId}
+						/>
+					}
+				></ContextMenuTrigger>
 				<ContextMenuContent
 					onCloseAutoFocus={(event) => {
 						event.preventDefault();
@@ -654,11 +659,11 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 				>
 					<ContextMenuItem
 						disabled={!hasSelection}
-						onSelect={copyTerminalSelection}
+						onClick={copyTerminalSelection}
 					>
 						Copy
 					</ContextMenuItem>
-					<ContextMenuItem onSelect={() => void pasteIntoTerminal()}>
+					<ContextMenuItem onClick={() => void pasteIntoTerminal()}>
 						Paste
 					</ContextMenuItem>
 				</ContextMenuContent>

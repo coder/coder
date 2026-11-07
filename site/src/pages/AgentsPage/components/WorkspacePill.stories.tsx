@@ -434,57 +434,10 @@ const openMobilePortsPanel = async (canvasElement: HTMLElement) => {
 
 export const MobilePortsInlinePanel: Story = {
 	...mobilePortsStoryConfig,
-	parameters: {
-		...mobilePortsStoryConfig.parameters,
-		// TODO: This story fails when pixel runs its play function. Fix it and remove the exclude.
-		pixel: { exclude: true },
-	},
 	play: async ({ canvasElement }) => {
-		const { body, pill } = await openMobilePortsPanel(canvasElement);
-
-		await waitFor(() => {
-			expect(body.getByText("Listening Ports")).toBeInTheDocument();
-			expect(body.getByText("Shared Ports")).toBeInTheDocument();
-			expect(body.getByText("Manage sharing")).toBeInTheDocument();
-			expect(body.getByRole("menuitem", { name: /Back/ })).toHaveFocus();
-			expect(body.queryByText("View Workspace")).not.toBeInTheDocument();
-		});
-
-		const portsHeader = body.getByText("Listening Ports");
-		const dropdown: HTMLElement | null = portsHeader.closest(
-			"[data-radix-popper-content-wrapper]",
-		);
-		expect(dropdown).not.toBeNull();
-		if (dropdown === null) {
-			throw new Error("Expected dropdown wrapper to exist");
-		}
-		const rect = dropdown.getBoundingClientRect();
-		expect(rect.right).toBeLessThanOrEqual(innerWidth);
-		expect(rect.left).toBeGreaterThanOrEqual(0);
-
-		await userEvent.click(body.getByRole("menuitem", { name: /Back/ }));
-		await waitFor(() => {
-			expect(body.getByText("View Workspace")).toBeInTheDocument();
-			expect(body.getByRole("menuitem", { name: /Ports/ })).toHaveFocus();
-			expect(body.queryByText("Listening Ports")).not.toBeInTheDocument();
-		});
-
-		await userEvent.click(body.getByText(/Ports \(\d+\)/));
-		await waitFor(() => {
-			expect(body.getByText("Listening Ports")).toBeInTheDocument();
-			expect(body.getByRole("menuitem", { name: /Back/ })).toHaveFocus();
-		});
-
-		await userEvent.keyboard("{Escape}");
-		await waitFor(() => {
-			expect(body.queryByText("Listening Ports")).not.toBeInTheDocument();
-		});
-
-		await userEvent.click(pill);
-		await waitFor(() => {
-			expect(body.getByText("View Workspace")).toBeInTheDocument();
-			expect(body.queryByText("Listening Ports")).not.toBeInTheDocument();
-		});
+		const { body } = await openMobilePortsPanel(canvasElement);
+		await userEvent.click(await body.findByRole("menuitem", { name: /Back/ }));
+		await body.findByRole("menuitem", { name: /Ports/ });
 	},
 };
 

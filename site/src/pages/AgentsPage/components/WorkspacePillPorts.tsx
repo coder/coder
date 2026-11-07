@@ -75,7 +75,8 @@ export const PortsMenuItem: React.FC<{
 			<DropdownMenuItem
 				ref={itemRef}
 				disabled={!isRunning}
-				onSelect={(event) => {
+				closeOnClick={false}
+				onClick={(event) => {
 					event.preventDefault();
 					onSelectInline?.();
 				}}
@@ -123,7 +124,8 @@ export const MobilePortsPanel: React.FC<{
 		<>
 			<DropdownMenuItem
 				ref={backRef}
-				onSelect={(event) => {
+				closeOnClick={false}
+				onClick={(event) => {
 					event.preventDefault();
 					onBack();
 				}}
@@ -207,11 +209,11 @@ const PortsList: React.FC<{
 			)}
 
 			<DropdownMenuSeparator className="my-1" />
-			<DropdownMenuItem asChild>
-				<Link to={route} target="_blank" rel="noreferrer">
-					<ExternalLinkIcon className="size-3.5" />
-					Manage sharing
-				</Link>
+			<DropdownMenuItem
+				render={<Link to={route} target="_blank" rel="noreferrer" />}
+			>
+				<ExternalLinkIcon className="size-3.5" />
+				Manage sharing
 			</DropdownMenuItem>
 		</>
 	);
@@ -237,7 +239,7 @@ const ListeningPortItem: React.FC<{
 	if (onPortSelect) {
 		return (
 			<DropdownMenuItem
-				onSelect={() =>
+				onClick={() =>
 					onPortSelect({
 						label: `Port ${port.port}`,
 						port: port.port,
@@ -265,18 +267,20 @@ const ListeningPortItem: React.FC<{
 		protocol,
 	);
 	return (
-		<DropdownMenuItem asChild>
-			<a href={url} target="_blank" rel="noreferrer">
-				<RadioIcon className="size-3.5 shrink-0" />
-				<span className="font-mono tabular-nums">{port.port}</span>
-				{port.process_name !== "" && (
-					<span className="truncate text-content-tertiary">
-						{port.process_name}
-					</span>
-				)}
-				<ExternalLinkIcon className="ml-auto size-3.5 shrink-0 opacity-50" />
-			</a>
-		</DropdownMenuItem>
+		<DropdownMenuItem
+			render={
+				<a href={url} target="_blank" rel="noreferrer">
+					<RadioIcon className="size-3.5 shrink-0" />
+					<span className="font-mono tabular-nums">{port.port}</span>
+					{port.process_name !== "" && (
+						<span className="truncate text-content-tertiary">
+							{port.process_name}
+						</span>
+					)}
+					<ExternalLinkIcon className="ml-auto size-3.5 shrink-0 opacity-50" />
+				</a>
+			}
+		></DropdownMenuItem>
 	);
 };
 
@@ -297,7 +301,7 @@ const SharedPortItem: React.FC<{
 	if (onPortSelect) {
 		return (
 			<DropdownMenuItem
-				onSelect={() =>
+				onClick={() =>
 					onPortSelect({
 						label: `Port ${share.port}`,
 						port: share.port,
@@ -323,15 +327,17 @@ const SharedPortItem: React.FC<{
 		share.protocol,
 	);
 	return (
-		<DropdownMenuItem asChild>
-			<a href={url} target="_blank" rel="noreferrer">
-				<ShareIcon className="size-3.5 shrink-0" />
-				<span className="font-mono tabular-nums">{share.port}</span>
-				<span className="truncate capitalize text-content-tertiary">
-					{share.share_level}
-				</span>
-				<ExternalLinkIcon className="ml-auto size-3.5 shrink-0 opacity-50" />
-			</a>
-		</DropdownMenuItem>
+		<DropdownMenuItem
+			render={
+				<a href={url} target="_blank" rel="noreferrer">
+					<ShareIcon className="size-3.5 shrink-0" />
+					<span className="font-mono tabular-nums">{share.port}</span>
+					<span className="truncate capitalize text-content-tertiary">
+						{share.share_level}
+					</span>
+					<ExternalLinkIcon className="ml-auto size-3.5 shrink-0 opacity-50" />
+				</a>
+			}
+		></DropdownMenuItem>
 	);
 };

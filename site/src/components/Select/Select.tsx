@@ -1,24 +1,63 @@
-/**
- * Copied from shadc/ui on 13/01/2025
- * @see {@link https://ui.shadcn.com/docs/components/select}
- */
-
+import { Select as SelectPrimitive } from "@base-ui/react/select";
 import { cn } from "cn";
 import {
 	CheckIcon,
 	ChevronUpIcon,
 	ChevronDownIcon as LucideChevronDown,
 } from "lucide-react";
-import { Select as SelectPrimitive } from "radix-ui";
+import { Children, isValidElement } from "react";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 
-export const Select = SelectPrimitive.Root;
+function getSelectItems(
+	children: React.ReactNode,
+): { value: string; label: React.ReactNode }[] {
+	return Children.toArray(children).flatMap((child) => {
+		if (!isValidElement<{ value?: string; children?: React.ReactNode }>(child))
+			return [];
+		if (child.type === SelectItem && child.props.value !== undefined) {
+			return [{ value: child.props.value, label: child.props.children }];
+		}
+		return getSelectItems(child.props.children);
+	});
+}
+
+type SelectProps<Value extends string> = Omit<
+	SelectPrimitive.Root.Props<Value>,
+	"onValueChange"
+> & {
+	onValueChange?: (value: Value) => void;
+};
+
+/** Maps item labels for closed selects and keeps string values for form consumers. */
+export const Select = <Value extends string>({
+	children,
+	items,
+	value,
+	defaultValue,
+	onValueChange,
+	...props
+}: SelectProps<Value>) => (
+	<SelectPrimitive.Root
+		items={items ?? getSelectItems(children)}
+		value={value === "" ? null : value}
+		defaultValue={defaultValue === "" ? null : defaultValue}
+		onValueChange={(value) => {
+			if (value !== null) onValueChange?.(value);
+		}}
+		{...props}
+	>
+		{children}
+	</SelectPrimitive.Root>
+);
 
 export const SelectGroup = SelectPrimitive.Group;
 
 export const SelectValue = SelectPrimitive.Value;
 
-type SelectTriggerProps = React.ComponentProps<typeof SelectPrimitive.Trigger>;
+type SelectTriggerProps = Omit<
+	React.ComponentProps<typeof SelectPrimitive.Trigger>,
+	"className"
+> & { className?: string };
 
 export const SelectTrigger: React.FC<SelectTriggerProps> = ({
 	className,
@@ -37,16 +76,24 @@ export const SelectTrigger: React.FC<SelectTriggerProps> = ({
 		{...props}
 	>
 		{children}
-		<SelectPrimitive.Icon asChild>
-			<ChevronDownIcon className="size-icon-sm cursor-pointer text-content-secondary transition-colors hover:text-content-primary group-hover:text-content-primary" />
-		</SelectPrimitive.Icon>
+		<SelectPrimitive.Icon
+			render={
+				<ChevronDownIcon className="size-icon-sm cursor-pointer text-content-secondary transition-colors hover:text-content-primary group-hover:text-content-primary" />
+			}
+		></SelectPrimitive.Icon>
 	</SelectPrimitive.Trigger>
 );
 
-const SelectScrollUpButton: React.FC<
-	React.ComponentProps<typeof SelectPrimitive.ScrollUpButton>
-> = ({ className, ...props }) => (
-	<SelectPrimitive.ScrollUpButton
+type SelectScrollUpButtonProps = Omit<
+	React.ComponentProps<typeof SelectPrimitive.ScrollUpArrow>,
+	"className"
+> & { className?: string };
+
+const SelectScrollUpButton: React.FC<SelectScrollUpButtonProps> = ({
+	className,
+	...props
+}) => (
+	<SelectPrimitive.ScrollUpArrow
 		className={cn(
 			"flex cursor-default items-center justify-center py-1",
 			className,
@@ -54,14 +101,20 @@ const SelectScrollUpButton: React.FC<
 		{...props}
 	>
 		<ChevronUpIcon className="size-icon-sm" />
-	</SelectPrimitive.ScrollUpButton>
+	</SelectPrimitive.ScrollUpArrow>
 );
 
-const SelectScrollDownButton: React.FC<
-	React.ComponentProps<typeof SelectPrimitive.ScrollDownButton>
-> = ({ className, ...props }) => {
+type SelectScrollDownButtonProps = Omit<
+	React.ComponentProps<typeof SelectPrimitive.ScrollDownArrow>,
+	"className"
+> & { className?: string };
+
+const SelectScrollDownButton: React.FC<SelectScrollDownButtonProps> = ({
+	className,
+	...props
+}) => {
 	return (
-		<SelectPrimitive.ScrollDownButton
+		<SelectPrimitive.ScrollDownArrow
 			className={cn(
 				"flex cursor-default items-center justify-center py-1",
 				className,
@@ -69,65 +122,91 @@ const SelectScrollDownButton: React.FC<
 			{...props}
 		>
 			<LucideChevronDown className="size-icon-sm cursor-pointer text-content-secondary hover:text-content-primary" />
-		</SelectPrimitive.ScrollDownButton>
+		</SelectPrimitive.ScrollDownArrow>
 	);
 };
 
-export const SelectContent: React.FC<
-	React.ComponentProps<typeof SelectPrimitive.Content>
-> = ({ className, children, position = "popper", ...props }) => (
+type SelectContentProps = Omit<SelectPrimitive.Popup.Props, "className"> & {
+	className?: string;
+} & Pick<
+		SelectPrimitive.Positioner.Props,
+		"side" | "sideOffset" | "align" | "alignOffset"
+	>;
+
+export const SelectContent: React.FC<SelectContentProps> = ({
+	className,
+	children,
+	side = "bottom",
+	sideOffset = 4,
+	align = "start",
+	alignOffset,
+	...props
+}) => (
 	<SelectPrimitive.Portal>
-		<SelectPrimitive.Content
-			className={cn(
-				"relative z-50 max-h-96 min-w-32 overflow-hidden rounded-md border ",
-				"border-border border-solid bg-surface-primary text-content-primary shadow-md ",
-				"origin-(--radix-popper-transform-origin) ease-out-strong ",
-				"data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 ",
-				"data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 ",
-				"data-[state=open]:data-[side=bottom]:slide-in-from-top-2 data-[state=open]:data-[side=left]:slide-in-from-right-2 ",
-				"data-[state=open]:data-[side=right]:slide-in-from-left-2 data-[state=open]:data-[side=top]:slide-in-from-bottom-2",
-				// Keep the popper offset in transform so enter animations replace it like Tailwind v3.
-				position === "popper" &&
-					"data-[side=bottom]:[transform:translateY(var(--spacing))] data-[side=left]:[transform:translateX(calc(var(--spacing)*-1))] data-[side=right]:[transform:translateX(var(--spacing))] data-[side=top]:[transform:translateY(calc(var(--spacing)*-1))]",
-				className,
-			)}
-			position={position}
-			{...props}
+		<SelectPrimitive.Positioner
+			side={side}
+			sideOffset={sideOffset}
+			align={align}
+			alignOffset={alignOffset}
+			alignItemWithTrigger={false}
+			className="z-50 outline-hidden"
 		>
-			<SelectScrollUpButton />
-			<SelectPrimitive.Viewport
+			<SelectPrimitive.Popup
 				className={cn(
-					"p-1",
-					position === "popper" &&
-						"h-(--radix-select-trigger-height) w-full min-w-(--radix-select-trigger-width)",
+					"relative min-w-32 max-h-[min(24rem,var(--available-height))] min-w-(--anchor-width) overflow-hidden rounded-md border border-solid border-border bg-surface-primary text-content-primary shadow-md",
+					"origin-(--transform-origin) ease-out-strong",
+					"data-open:animate-in data-closed:animate-out data-closed:fade-out-0 data-open:fade-in-0 data-closed:zoom-out-95 data-open:zoom-in-95",
+					"data-open:data-[side=bottom]:slide-in-from-top-2 data-open:data-[side=left]:slide-in-from-right-2 data-open:data-[side=right]:slide-in-from-left-2 data-open:data-[side=top]:slide-in-from-bottom-2",
+					className,
 				)}
+				{...props}
 			>
-				{children}
-			</SelectPrimitive.Viewport>
-			<SelectScrollDownButton />
-		</SelectPrimitive.Content>
+				<SelectScrollUpButton />
+				<SelectPrimitive.List className="max-h-[min(24rem,var(--available-height))] overflow-y-auto p-1">
+					{children}
+				</SelectPrimitive.List>
+				<SelectScrollDownButton />
+			</SelectPrimitive.Popup>
+		</SelectPrimitive.Positioner>
 	</SelectPrimitive.Portal>
 );
 
-export const SelectLabel: React.FC<
-	React.ComponentProps<typeof SelectPrimitive.Label>
-> = ({ className, ...props }) => {
+type SelectLabelProps = Omit<
+	React.ComponentProps<typeof SelectPrimitive.GroupLabel>,
+	"className"
+> & {
+	className?: string;
+};
+
+export const SelectLabel: React.FC<SelectLabelProps> = ({
+	className,
+	...props
+}) => {
 	return (
-		<SelectPrimitive.Label
+		<SelectPrimitive.GroupLabel
 			className={cn("px-2 py-1.5 text-sm font-semibold", className)}
 			{...props}
 		/>
 	);
 };
 
-export const SelectItem: React.FC<
-	React.ComponentProps<typeof SelectPrimitive.Item>
-> = ({ className, children, ...props }) => (
+type SelectItemProps = Omit<
+	React.ComponentProps<typeof SelectPrimitive.Item>,
+	"className"
+> & {
+	className?: string;
+};
+
+export const SelectItem: React.FC<SelectItemProps> = ({
+	className,
+	children,
+	...props
+}) => (
 	<SelectPrimitive.Item
 		className={cn(
 			"relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 ",
-			"pl-2 pr-8 text-sm text-content-secondary outline-hidden focus:bg-surface-secondary ",
-			"focus:text-content-primary data-disabled:pointer-events-none data-disabled:opacity-50",
+			"pl-2 pr-8 text-sm text-content-secondary outline-hidden data-highlighted:bg-surface-secondary ",
+			"data-highlighted:text-content-primary data-disabled:pointer-events-none data-disabled:opacity-50",
 			"focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 			className,
 		)}

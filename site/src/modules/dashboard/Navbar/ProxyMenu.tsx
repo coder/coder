@@ -74,39 +74,37 @@ export const ProxyMenu: React.FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
-			<DropdownMenuTrigger asChild>
-				<Button variant="outline" size="lg">
-					<span className="sr-only">
-						Latency for {selectedProxy?.display_name ?? "your region"}
-					</span>
+			<DropdownMenuTrigger render={<Button variant="outline" size="lg" />}>
+				<span className="sr-only">
+					Latency for {selectedProxy?.display_name ?? "your region"}
+				</span>
 
-					{selectedProxy ? (
-						<>
-							<RadioIcon
-								aria-hidden="true"
-								className={getLatencyColor(
-									proxyLatencyLoading(selectedProxy)
-										? undefined
-										: latencies?.[selectedProxy.id]?.latencyMS,
-								)}
-							/>
+				{selectedProxy ? (
+					<>
+						<RadioIcon
+							aria-hidden="true"
+							className={getLatencyColor(
+								proxyLatencyLoading(selectedProxy)
+									? undefined
+									: latencies?.[selectedProxy.id]?.latencyMS,
+							)}
+						/>
 
-							<Latency
-								className={
-									latencies?.[selectedProxy.id]?.latencyMS
-										? "text-content-primary"
-										: undefined
-								}
-								latency={latencies?.[selectedProxy.id]?.latencyMS}
-								isLoading={proxyLatencyLoading(selectedProxy)}
-							/>
-						</>
-					) : (
-						"Select Proxy"
-					)}
+						<Latency
+							className={
+								latencies?.[selectedProxy.id]?.latencyMS
+									? "text-content-primary"
+									: undefined
+							}
+							latency={latencies?.[selectedProxy.id]?.latencyMS}
+							isLoading={proxyLatencyLoading(selectedProxy)}
+						/>
+					</>
+				) : (
+					"Select Proxy"
+				)}
 
-					<ChevronDownIcon className="text-content-primary" />
-				</Button>
+				<ChevronDownIcon className="text-content-primary" />
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-80">
 				{proxyContextValue.proxies && proxyContextValue.proxies.length > 1 && (
@@ -140,6 +138,7 @@ export const ProxyMenu: React.FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 									<DropdownMenuRadioItem
 										value={proxy.id}
 										key={proxy.id}
+										closeOnClick={false}
 										onClick={(e) => {
 											e.preventDefault();
 											if (!proxy.healthy) {
@@ -185,14 +184,15 @@ export const ProxyMenu: React.FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 				<DropdownMenuSeparator />
 
 				{Boolean(permissions.editWorkspaceProxies) && (
-					<DropdownMenuItem asChild>
-						<Link to="/deployment/workspace-proxies">
-							<span>Proxy settings</span>
-						</Link>
+					<DropdownMenuItem
+						render={<Link to="/deployment/workspace-proxies" />}
+					>
+						<span>Proxy settings</span>
 					</DropdownMenuItem>
 				)}
 
 				<DropdownMenuItem
+					closeOnClick={false}
 					onClick={(e) => {
 						e.preventDefault();
 						const refetchDate = refreshLatencies();

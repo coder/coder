@@ -265,22 +265,24 @@ const MoreMenu: React.FC<MoreMenuProps> = ({ onRename, onDelete }) => {
 
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button
-					size="icon"
-					variant="subtle"
-					className={cn(
-						"size-6 shrink-0",
-						"opacity-0 transition-opacity",
-						"group-hover/tree-item:opacity-100",
-						"focus-visible:opacity-100",
-						"data-[state=open]:opacity-100",
-					)}
-					onClick={(e) => e.stopPropagation()}
-				>
-					<EllipsisIcon className="size-4" />
-					<span className="sr-only">File actions</span>
-				</Button>
+			<DropdownMenuTrigger
+				render={
+					<Button
+						size="icon"
+						variant="subtle"
+						className={cn(
+							"size-6 shrink-0",
+							"opacity-0 transition-opacity",
+							"group-hover/tree-item:opacity-100",
+							"focus-visible:opacity-100",
+							"data-popup-open:opacity-100",
+						)}
+						onClick={(e) => e.stopPropagation()}
+					/>
+				}
+			>
+				<EllipsisIcon className="size-4" />
+				<span className="sr-only">File actions</span>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end">
 				{onRename && (

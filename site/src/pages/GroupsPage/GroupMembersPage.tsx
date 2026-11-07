@@ -283,11 +283,17 @@ const GroupMemberRow: React.FC<GroupMemberRowProps> = ({
 			<TableCell className="w-1 whitespace-nowrap">
 				{canUpdate && (
 					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button size="icon-lg" variant="subtle" aria-label="Open menu">
-								<EllipsisVerticalIcon aria-hidden="true" />
-								<span className="sr-only">Open menu</span>
-							</Button>
+						<DropdownMenuTrigger
+							render={
+								<Button
+									size="icon-lg"
+									variant="subtle"
+									aria-label="Open menu"
+								/>
+							}
+						>
+							<EllipsisVerticalIcon aria-hidden="true" />
+							<span className="sr-only">Open menu</span>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							{showAIBudget && (

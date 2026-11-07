@@ -106,11 +106,11 @@ export const UserDropdownPremiumTrialCTA: React.FC<
 			? () => reportClick(trackPremiumFunnelClick("direct", "small"))
 			: undefined;
 	return (
-		<DropdownMenuItem asChild>
-			<Link to={PREMIUM_PAGE_PATH} onClick={ctaOnclick}>
-				{cta.kind === "start" ? <BadgeCheckIcon /> : <ClockIcon />}
-				<span>{trialCtaLabel(cta)}</span>
-			</Link>
+		<DropdownMenuItem
+			render={<Link to={PREMIUM_PAGE_PATH} onClick={ctaOnclick} />}
+		>
+			{cta.kind === "start" ? <BadgeCheckIcon /> : <ClockIcon />}
+			<span>{trialCtaLabel(cta)}</span>
 		</DropdownMenuItem>
 	);
 };

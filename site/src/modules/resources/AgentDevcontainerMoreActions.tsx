@@ -22,11 +22,17 @@ export const AgentDevcontainerMoreActions: React.FC<
 
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
-			<DropdownMenuTrigger asChild>
-				<Button size="icon-lg" variant="subtle" aria-controls={menuContentId}>
-					<EllipsisVerticalIcon aria-hidden="true" />
-					<span className="sr-only">Dev Container actions</span>
-				</Button>
+			<DropdownMenuTrigger
+				render={
+					<Button
+						size="icon-lg"
+						variant="subtle"
+						aria-controls={menuContentId}
+					/>
+				}
+			>
+				<EllipsisVerticalIcon aria-hidden="true" />
+				<span className="sr-only">Dev Container actions</span>
 			</DropdownMenuTrigger>
 
 			<DropdownMenuContent id={menuContentId} align="end">

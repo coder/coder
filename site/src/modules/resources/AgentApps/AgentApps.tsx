@@ -7,7 +7,6 @@ import type {
 import {
 	DropdownMenu,
 	DropdownMenuContent,
-	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { AgentButton } from "../AgentButton";
@@ -26,17 +25,19 @@ export const AgentApps: React.FC<AgentAppsProps> = ({
 }) => {
 	return section.group ? (
 		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<AgentButton>
-					<FolderIcon />
-					{section.group}
-				</AgentButton>
+			<DropdownMenuTrigger render={<AgentButton />}>
+				<FolderIcon />
+				{section.group}
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="start">
 				{section.apps.map((app) => (
-					<DropdownMenuItem key={app.slug} asChild>
-						<AppLink grouped app={app} agent={agent} workspace={workspace} />
-					</DropdownMenuItem>
+					<AppLink
+						key={app.slug}
+						grouped
+						app={app}
+						agent={agent}
+						workspace={workspace}
+					/>
 				))}
 			</DropdownMenuContent>
 		</DropdownMenu>

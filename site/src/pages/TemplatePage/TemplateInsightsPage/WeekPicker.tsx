@@ -28,11 +28,9 @@ export const WeekPicker: React.FC<WeekPickerProps> = ({ value, onChange }) => {
 
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button variant="outline">
-					Last {numberOfWeeks} weeks
-					<ChevronDownIcon />
-				</Button>
+			<DropdownMenuTrigger render={<Button variant="outline" />}>
+				Last {numberOfWeeks} weeks
+				<ChevronDownIcon />
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="start">
 				<DropdownMenuRadioGroup

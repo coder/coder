@@ -47,24 +47,26 @@ export const ProjectActionsMenuItems: React.FC<
 	<>
 		{projectPath !== undefined && (
 			<>
-				<Item asChild>
-					<Link
-						to={projectPath}
-						state={onNewChatInPlace ? highlightComposerState : undefined}
-						onClick={onNewChatInPlace}
-					>
-						<SquarePenIcon />
-						New chat
-					</Link>
+				<Item
+					render={
+						<Link
+							to={projectPath}
+							state={onNewChatInPlace ? highlightComposerState : undefined}
+							onClick={onNewChatInPlace}
+						/>
+					}
+				>
+					<SquarePenIcon />
+					New chat
 				</Item>
 				{hasProjectUpdateOrDeleteAction(permissions) && <Separator />}
 			</>
 		)}
-		{permissions.update && <Item onSelect={onEdit}>Edit project</Item>}
+		{permissions.update && <Item onClick={onEdit}>Edit project</Item>}
 		{permissions.delete && (
 			<Item
 				className="text-content-destructive focus:text-content-destructive"
-				onSelect={onDelete}
+				onClick={onDelete}
 			>
 				Delete project
 			</Item>

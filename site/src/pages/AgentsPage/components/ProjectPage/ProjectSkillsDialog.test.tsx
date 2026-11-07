@@ -191,7 +191,7 @@ describe("ProjectSkillsDialog", () => {
 		const { user } = renderDialog();
 
 		await openSkillMenu(user);
-		await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+		await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
 		const body = await screen.findByRole("textbox", { name: "Body" });
 		await user.clear(body);
 		await user.type(body, "Review carefully.");
@@ -214,7 +214,7 @@ describe("ProjectSkillsDialog", () => {
 		const { user } = renderDialog();
 
 		await openSkillMenu(user);
-		await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+		await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
 		await user.click(
 			await screen.findByRole("switch", {
 				name: "Agents can use it automatically",
@@ -252,7 +252,7 @@ describe("ProjectSkillsDialog", () => {
 		);
 
 		await openSkillMenu(user);
-		await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+		await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
 		const body = await screen.findByRole("textbox", { name: "Body" });
 		await user.clear(body);
 		await user.type(body, "Review carefully.");
@@ -292,7 +292,7 @@ describe("ProjectSkillsDialog", () => {
 		});
 
 		await openSkillMenu(user);
-		await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+		await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
 
 		await waitFor(() => expect(getSkills).toHaveBeenCalledTimes(2));
 		// Escape closes the dialog from the list, while the editor keeps it open.
@@ -307,7 +307,7 @@ describe("ProjectSkillsDialog", () => {
 		const { user, onOpenChange } = renderDialog();
 
 		await openSkillMenu(user);
-		await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+		await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
 		const body = await screen.findByRole("textbox", { name: "Body" });
 		await user.clear(body);
 		await user.type(body, "Review carefully.");
@@ -352,7 +352,7 @@ describe("ProjectSkillsDialog", () => {
 		const { user, getSkills } = renderDialog();
 
 		await openSkillMenu(user);
-		await user.click(screen.getByRole("menuitem", { name: /Delete/ }));
+		await user.click(await screen.findByRole("menuitem", { name: /Delete/ }));
 		await user.click(
 			await screen.findByRole("button", { name: "Delete skill" }),
 		);
@@ -378,7 +378,7 @@ describe("ProjectSkillsDialog", () => {
 		const { user, getSkills } = renderDialog({ queryClient });
 
 		await openSkillMenu(user);
-		await user.click(screen.getByRole("menuitem", { name: /Delete/ }));
+		await user.click(await screen.findByRole("menuitem", { name: /Delete/ }));
 		await user.click(
 			await screen.findByRole("button", { name: "Delete skill" }),
 		);
@@ -396,7 +396,7 @@ describe("ProjectSkillsDialog", () => {
 		});
 
 		await openSkillMenu(user);
-		await user.click(screen.getByRole("menuitem", { name: "Download" }));
+		await user.click(await screen.findByRole("menuitem", { name: "Download" }));
 
 		await waitFor(() => expect(getSkills).toHaveBeenCalledTimes(2));
 		expect(saveAs).not.toHaveBeenCalled();
@@ -425,7 +425,7 @@ describe("ProjectSkillsDialog", () => {
 		);
 
 		await openSkillMenu(user);
-		await user.click(screen.getByRole("menuitem", { name: "Edit" }));
+		await user.click(await screen.findByRole("menuitem", { name: "Edit" }));
 		const body = await screen.findByRole("textbox", { name: "Body" });
 		await waitFor(() => expect(getSkill).toHaveBeenCalled());
 		await user.clear(body);
@@ -460,7 +460,7 @@ describe("ProjectSkillsDialog", () => {
 		const { user, getSkill } = renderDialog();
 
 		await openSkillMenu(user);
-		await user.click(screen.getByRole("menuitem", { name: "Download" }));
+		await user.click(await screen.findByRole("menuitem", { name: "Download" }));
 
 		await waitFor(() => expect(saveAs).toHaveBeenCalledTimes(1));
 		expect(getSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer");
@@ -480,7 +480,7 @@ describe("ProjectSkillsDialog", () => {
 		});
 
 		await openSkillMenu(user);
-		await user.click(screen.getByRole("menuitem", { name: "Download" }));
+		await user.click(await screen.findByRole("menuitem", { name: "Download" }));
 
 		await waitFor(() => expect(saveAs).toHaveBeenCalledTimes(1));
 		const [file] = vi.mocked(saveAs).mock.calls[0];
@@ -494,7 +494,7 @@ describe("ProjectSkillsDialog", () => {
 		const { user, getSkill, onOpenChange } = renderDialog({ canEdit: false });
 
 		await openSkillMenu(user);
-		await user.click(screen.getByRole("menuitem", { name: "View" }));
+		await user.click(await screen.findByRole("menuitem", { name: "View" }));
 
 		await waitFor(() =>
 			expect(getSkill).toHaveBeenCalledWith(orgId, projectId, "reviewer"),

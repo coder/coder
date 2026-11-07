@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { userEvent, within } from "storybook/test";
+import { screen, userEvent, within } from "storybook/test";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -14,9 +14,9 @@ const meta: Meta<typeof DropdownMenu> = {
 	args: {
 		children: (
 			<>
-				<DropdownMenuTrigger asChild>
-					<Button variant="outline">Admin Settings</Button>
-				</DropdownMenuTrigger>
+				<DropdownMenuTrigger
+					render={<Button variant="outline">Admin Settings</Button>}
+				></DropdownMenuTrigger>
 				<DropdownMenuContent>
 					<DropdownMenuItem>Deployment</DropdownMenuItem>
 					<DropdownMenuItem>Organizations</DropdownMenuItem>
@@ -39,8 +39,20 @@ export const OpenWithHover: Story = {
 		const canvas = within(canvasElement);
 		const button = canvas.getByText("Admin Settings");
 		await user.click(button);
-		const body = canvasElement.ownerDocument.body;
-		const menuItem = await within(body).findByText("Audit logs");
+		const menuItem = await screen.findByRole("menuitem", {
+			name: "Audit logs",
+		});
 		await user.hover(menuItem);
 	},
+};
+
+export const ScrollablePage: Story = {
+	decorators: [
+		(Story) => (
+			<div className="h-[200vh]">
+				<Story />
+			</div>
+		),
+	],
+	play: OpenWithHover.play,
 };

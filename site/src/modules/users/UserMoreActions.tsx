@@ -30,38 +30,44 @@ export const UserMoreActions: React.FC<UserMoreActionsProps> = ({
 }) => {
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button
-					size="icon-lg"
-					variant="subtle"
-					type="button"
-					aria-label="Open menu"
-				>
-					<EllipsisVerticalIcon aria-hidden="true" />
-				</Button>
+			<DropdownMenuTrigger
+				render={
+					<Button
+						size="icon-lg"
+						variant="subtle"
+						type="button"
+						aria-label="Open menu"
+					/>
+				}
+			>
+				<EllipsisVerticalIcon aria-hidden="true" />
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end">
-				<DropdownMenuItem asChild>
-					<Link
-						to={`/workspaces?filter=${encodeURIComponent(`owner:${user.username}`)}`}
-					>
-						View workspaces
-					</Link>
+				<DropdownMenuItem
+					render={
+						<Link
+							to={`/workspaces?filter=${encodeURIComponent(`owner:${user.username}`)}`}
+						/>
+					}
+				>
+					View workspaces
 				</DropdownMenuItem>
 
 				{canViewActivity && (
-					<DropdownMenuItem asChild>
-						<Link
-							to={`/audit?filter=${encodeURIComponent(`username:${user.username}`)}`}
-						>
-							View activity
-						</Link>
+					<DropdownMenuItem
+						render={
+							<Link
+								to={`/audit?filter=${encodeURIComponent(`username:${user.username}`)}`}
+							/>
+						}
+					>
+						View activity
 					</DropdownMenuItem>
 				)}
 
 				{showEdit && (
-					<DropdownMenuItem asChild>
-						<Link to={user.username}>Edit</Link>
+					<DropdownMenuItem render={<Link to={user.username} />}>
+						Edit
 					</DropdownMenuItem>
 				)}
 

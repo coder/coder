@@ -85,12 +85,10 @@ const AddModelDropdown: React.FC<{
 
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button variant="outline">
-					<PlusIcon />
-					<span>Add model</span>
-					<ChevronDownIcon className="ml-1 size-icon-xs" />
-				</Button>
+			<DropdownMenuTrigger render={<Button variant="outline" />}>
+				<PlusIcon />
+				<span>Add model</span>
+				<ChevronDownIcon className="ml-1 size-icon-xs" />
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align={align} className="min-w-56">
 				<div className="px-2 py-1.5 text-xs font-medium text-content-secondary">
@@ -102,7 +100,7 @@ const AddModelDropdown: React.FC<{
 					manageableProviderStates.map((providerState) => (
 						<DropdownMenuItem
 							key={providerState.key}
-							onSelect={() => {
+							onClick={() => {
 								const next = new URLSearchParams(searchParams);
 								next.set("provider", providerState.key);
 								void navigate(organizationAddModelPath(organization, next));

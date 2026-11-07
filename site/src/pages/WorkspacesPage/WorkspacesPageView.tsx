@@ -123,18 +123,20 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = ({
 						</div>
 
 						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button
-									disabled={isRunningBatchAction}
-									variant="outline"
-									size="sm"
-									className="ml-auto"
-								>
-									Bulk actions
-									<Spinner loading={isRunningBatchAction}>
-										<ChevronDownIcon />
-									</Spinner>
-								</Button>
+							<DropdownMenuTrigger
+								render={
+									<Button
+										disabled={isRunningBatchAction}
+										variant="outline"
+										size="sm"
+										className="ml-auto"
+									/>
+								}
+							>
+								Bulk actions
+								<Spinner loading={isRunningBatchAction}>
+									<ChevronDownIcon />
+								</Spinner>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="end">
 								<DropdownMenuItem

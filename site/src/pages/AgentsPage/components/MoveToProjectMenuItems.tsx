@@ -116,7 +116,7 @@ export const MoveToProjectMenuItems: React.FC<MoveToProjectMenuItemsProps> = ({
 						<Item
 							key={project.id}
 							aria-current={isCurrent ? "true" : undefined}
-							onSelect={isCurrent ? undefined : () => move(project.id)}
+							onClick={isCurrent ? undefined : () => move(project.id)}
 						>
 							<ChatProjectIcon project={project} />
 							<span className="truncate">{project.name}</span>
@@ -127,7 +127,7 @@ export const MoveToProjectMenuItems: React.FC<MoveToProjectMenuItemsProps> = ({
 				{chat.project_id && (
 					<>
 						<Separator />
-						<Item onSelect={() => move(null)}>
+						<Item onClick={() => move(null)}>
 							<FolderMinusIcon />
 							Remove from project
 						</Item>

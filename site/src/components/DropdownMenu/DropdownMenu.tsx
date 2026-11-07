@@ -1,14 +1,7 @@
-/**
- * Copied from shadc/ui on 12/19/2024
- * @see {@link https://ui.shadcn.com/docs/components/dropdown-menu}
- *
- * This component was updated to match the styles from the Figma design:
- * @see {@link https://www.figma.com/design/WfqIgsTFXN2BscBSSyXWF8/Coder-kit?node-id=656-2354&t=CiGt5le3yJEwMH4M-0}
- */
-
+import { Menu as DropdownMenuPrimitive } from "@base-ui/react/menu";
 import { cn } from "cn";
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
-import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
+import { MenuPopup } from "#/components/DropdownMenu/MenuPopup";
 import {
 	menuContentClass,
 	menuItemClass,
@@ -21,23 +14,47 @@ export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
 export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
-export const DropdownMenuContent: React.FC<
-	React.ComponentProps<typeof DropdownMenuPrimitive.Content>
-> = ({ className, sideOffset = 4, ...props }) => {
-	return (
-		<DropdownMenuPrimitive.Portal>
-			<DropdownMenuPrimitive.Content
-				sideOffset={sideOffset}
+type DropdownMenuContentProps = Omit<
+	React.ComponentProps<typeof MenuPopup>,
+	"className" | "onSelect"
+> & { className?: string } & Pick<
+		React.ComponentProps<typeof DropdownMenuPrimitive.Positioner>,
+		"sideOffset" | "alignOffset" | "collisionPadding" | "side" | "align"
+	>;
+
+export const DropdownMenuContent: React.FC<DropdownMenuContentProps> = ({
+	className,
+	side = "bottom",
+	align = "center",
+	sideOffset = 4,
+	alignOffset,
+	collisionPadding,
+	onCloseAutoFocus,
+	...props
+}) => (
+	<DropdownMenuPrimitive.Portal>
+		<DropdownMenuPrimitive.Positioner
+			side={side}
+			align={align}
+			sideOffset={sideOffset}
+			alignOffset={alignOffset}
+			collisionPadding={collisionPadding}
+			data-menu-positioner
+			className="z-50 outline-hidden"
+		>
+			<MenuPopup
 				className={cn(menuContentClass, className)}
+				onCloseAutoFocus={onCloseAutoFocus}
 				{...props}
 			/>
-		</DropdownMenuPrimitive.Portal>
-	);
-};
+		</DropdownMenuPrimitive.Positioner>
+	</DropdownMenuPrimitive.Portal>
+);
 
-type DropdownMenuItemProps = React.ComponentProps<
-	typeof DropdownMenuPrimitive.Item
-> & {
+type DropdownMenuItemProps = Omit<
+	React.ComponentProps<typeof DropdownMenuPrimitive.Item>,
+	"className" | "onSelect"
+> & { className?: string } & {
 	inset?: boolean;
 };
 
@@ -54,34 +71,49 @@ export const DropdownMenuItem: React.FC<DropdownMenuItemProps> = ({
 	);
 };
 
+type DropdownMenuCheckboxItemProps = Omit<
+	React.ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>,
+	"className" | "onSelect"
+> & { className?: string };
+
 export const DropdownMenuCheckboxItem: React.FC<
-	React.ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>
-> = ({ className, children, ...props }) => {
+	DropdownMenuCheckboxItemProps
+> = ({ className, children, closeOnClick = true, ...props }) => {
 	return (
 		<DropdownMenuPrimitive.CheckboxItem
+			closeOnClick={closeOnClick}
 			className={cn(menuItemClass, "relative pr-8", className)}
 			{...props}
 		>
 			{children}
 			<span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
-				<DropdownMenuPrimitive.ItemIndicator>
+				<DropdownMenuPrimitive.CheckboxItemIndicator>
 					<CheckIcon className="size-4" />
-				</DropdownMenuPrimitive.ItemIndicator>
+				</DropdownMenuPrimitive.CheckboxItemIndicator>
 			</span>
 		</DropdownMenuPrimitive.CheckboxItem>
 	);
 };
 
-export const DropdownMenuRadioItem: React.FC<
-	React.ComponentProps<typeof DropdownMenuPrimitive.RadioItem>
-> = ({ className, children, ...props }) => {
+type DropdownMenuRadioItemProps = Omit<
+	React.ComponentProps<typeof DropdownMenuPrimitive.RadioItem>,
+	"className" | "onSelect"
+> & { className?: string };
+
+export const DropdownMenuRadioItem: React.FC<DropdownMenuRadioItemProps> = ({
+	className,
+	children,
+	closeOnClick = true,
+	...props
+}) => {
 	return (
 		<DropdownMenuPrimitive.RadioItem
+			closeOnClick={closeOnClick}
 			className={cn(
 				"relative flex cursor-default select-none items-center rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden transition-colors",
-				"focus:bg-surface-secondary focus:text-content-primary data-disabled:pointer-events-none data-disabled:opacity-50",
+				"data-highlighted:bg-surface-secondary data-highlighted:text-content-primary data-disabled:pointer-events-none data-disabled:opacity-50",
 				"focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
-				"data-[state=checked]:bg-surface-secondary data-[state=checked]:text-content-primary",
+				"data-checked:bg-surface-secondary data-checked:text-content-primary",
 				"font-medium",
 				className,
 			)}
@@ -89,48 +121,86 @@ export const DropdownMenuRadioItem: React.FC<
 		>
 			{children}
 			<span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
-				<DropdownMenuPrimitive.ItemIndicator>
+				<DropdownMenuPrimitive.RadioItemIndicator>
 					<CheckIcon className="size-4" />
-				</DropdownMenuPrimitive.ItemIndicator>
+				</DropdownMenuPrimitive.RadioItemIndicator>
 			</span>
 		</DropdownMenuPrimitive.RadioItem>
 	);
 };
 
-export const DropdownMenuSub = DropdownMenuPrimitive.Sub;
+export const DropdownMenuSub = DropdownMenuPrimitive.SubmenuRoot;
 
-export const DropdownMenuSubTrigger: React.FC<
-	React.ComponentProps<typeof DropdownMenuPrimitive.SubTrigger> & {
-		inset?: boolean;
-	}
-> = ({ className, inset, children, ...props }) => {
+type DropdownMenuSubTriggerProps = Omit<
+	React.ComponentProps<typeof DropdownMenuPrimitive.SubmenuTrigger>,
+	"className" | "onSelect"
+> & { className?: string } & {
+	inset?: boolean;
+};
+
+export const DropdownMenuSubTrigger: React.FC<DropdownMenuSubTriggerProps> = ({
+	className,
+	inset,
+	children,
+	...props
+}) => {
 	return (
-		<DropdownMenuPrimitive.SubTrigger
+		<DropdownMenuPrimitive.SubmenuTrigger
 			className={cn(menuItemClass, inset && "pl-8", className)}
 			{...props}
 		>
 			{children}
 			<ChevronRightIcon className="ml-auto size-3.5" />
-		</DropdownMenuPrimitive.SubTrigger>
+		</DropdownMenuPrimitive.SubmenuTrigger>
 	);
 };
 
-export const DropdownMenuSubContent: React.FC<
-	React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>
-> = ({ className, ...props }) => {
-	return (
-		<DropdownMenuPrimitive.Portal>
-			<DropdownMenuPrimitive.SubContent
+type DropdownMenuSubContentProps = Omit<
+	React.ComponentProps<typeof MenuPopup>,
+	"className" | "onSelect"
+> & { className?: string } & Pick<
+		React.ComponentProps<typeof DropdownMenuPrimitive.Positioner>,
+		"sideOffset" | "alignOffset" | "collisionPadding" | "side" | "align"
+	>;
+
+export const DropdownMenuSubContent: React.FC<DropdownMenuSubContentProps> = ({
+	className,
+	side = "right",
+	align = "start",
+	sideOffset = 0,
+	alignOffset,
+	collisionPadding,
+	onCloseAutoFocus,
+	...props
+}) => (
+	<DropdownMenuPrimitive.Portal>
+		<DropdownMenuPrimitive.Positioner
+			side={side}
+			align={align}
+			sideOffset={sideOffset}
+			alignOffset={alignOffset}
+			collisionPadding={collisionPadding}
+			data-menu-positioner
+			className="z-50 outline-hidden"
+		>
+			<MenuPopup
 				className={cn(menuContentClass, className)}
+				onCloseAutoFocus={onCloseAutoFocus}
 				{...props}
 			/>
-		</DropdownMenuPrimitive.Portal>
-	);
-};
+		</DropdownMenuPrimitive.Positioner>
+	</DropdownMenuPrimitive.Portal>
+);
 
-export const DropdownMenuSeparator: React.FC<
-	React.ComponentProps<typeof DropdownMenuPrimitive.Separator>
-> = ({ className, ...props }) => {
+type DropdownMenuSeparatorProps = Omit<
+	React.ComponentProps<typeof DropdownMenuPrimitive.Separator>,
+	"className" | "onSelect"
+> & { className?: string };
+
+export const DropdownMenuSeparator: React.FC<DropdownMenuSeparatorProps> = ({
+	className,
+	...props
+}) => {
 	return (
 		<DropdownMenuPrimitive.Separator
 			className={cn([menuSeparatorClass], className)}
@@ -139,11 +209,19 @@ export const DropdownMenuSeparator: React.FC<
 	);
 };
 
-export const DropdownMenuLabel: React.FC<
-	React.ComponentProps<typeof DropdownMenuPrimitive.Label>
-> = ({ className, ...props }) => {
+type DropdownMenuLabelProps = Omit<
+	React.ComponentProps<"div">,
+	"className" | "onSelect"
+> & {
+	className?: string;
+};
+
+export const DropdownMenuLabel: React.FC<DropdownMenuLabelProps> = ({
+	className,
+	...props
+}) => {
 	return (
-		<DropdownMenuPrimitive.Label
+		<div
 			className={cn(
 				"px-2 py-1.5 text-xs font-medium text-content-secondary",
 				className,

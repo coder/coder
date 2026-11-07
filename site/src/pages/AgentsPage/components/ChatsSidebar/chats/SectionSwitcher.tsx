@@ -25,15 +25,17 @@ const currentSection = "/agents";
 export const SectionSwitcher: React.FC = () => {
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button
-					variant="subtle"
-					size="sm"
-					className="group h-7 min-w-0 gap-1 px-1.5 text-sm text-content-primary"
-				>
-					Agents
-					<ChevronDownIcon className="text-content-secondary" />
-				</Button>
+			<DropdownMenuTrigger
+				render={
+					<Button
+						variant="subtle"
+						size="sm"
+						className="group h-7 min-w-0 gap-1 px-1.5 text-sm text-content-primary"
+					/>
+				}
+			>
+				Agents
+				<ChevronDownIcon className="text-content-secondary" />
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="start">
 				{sections.map((section) => {
@@ -41,16 +43,16 @@ export const SectionSwitcher: React.FC = () => {
 					return (
 						<DropdownMenuItem
 							key={section.to}
-							asChild
+							render={
+								<Link
+									to={section.to}
+									aria-current={isCurrent ? "page" : undefined}
+								/>
+							}
 							className={isCurrent ? "text-content-primary" : undefined}
 						>
-							<Link
-								to={section.to}
-								aria-current={isCurrent ? "page" : undefined}
-							>
-								{section.label}
-								{isCurrent && <CheckIcon className="ml-auto" />}
-							</Link>
+							{section.label}
+							{isCurrent && <CheckIcon className="ml-auto" />}
 						</DropdownMenuItem>
 					);
 				})}

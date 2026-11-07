@@ -131,32 +131,39 @@ const OrganizationMembersTableBody: React.FC<OrganizationMembersTableProps> = ({
 						<div className="flex justify-end">
 							{member.user_id !== me && canEditMembers && (
 								<DropdownMenu>
-									<DropdownMenuTrigger asChild>
-										<Button
-											size="icon-lg"
-											variant="subtle"
-											aria-label="Open menu"
-										>
-											<EllipsisVerticalIcon aria-hidden="true" />
-											<span className="sr-only">Open menu</span>
-										</Button>
+									<DropdownMenuTrigger
+										render={
+											<Button
+												size="icon-lg"
+												variant="subtle"
+												aria-label="Open menu"
+											/>
+										}
+									>
+										<EllipsisVerticalIcon aria-hidden="true" />
+										<span className="sr-only">Open menu</span>
 									</DropdownMenuTrigger>
 									<DropdownMenuContent align="end">
-										<DropdownMenuItem asChild>
-											<Link
-												to={`/workspaces?filter=${encodeURIComponent(`owner:${member.username} organization:${organizationName}`)}`}
-											>
-												View workspaces
-											</Link>
+										<DropdownMenuItem
+											render={
+												<Link
+													to={`/workspaces?filter=${encodeURIComponent(`owner:${member.username} organization:${organizationName}`)}`}
+												/>
+											}
+										>
+											View workspaces
 										</DropdownMenuItem>
 
 										{canViewActivity && (
-											<DropdownMenuItem asChild disabled={!canViewActivity}>
-												<Link
-													to={`/audit?filter=${encodeURIComponent(`username:${member.username} organization:${organizationName}`)}`}
-												>
-													View activity {!canViewActivity && <PremiumBadge />}
-												</Link>
+											<DropdownMenuItem
+												render={
+													<Link
+														to={`/audit?filter=${encodeURIComponent(`username:${member.username} organization:${organizationName}`)}`}
+													/>
+												}
+												disabled={!canViewActivity}
+											>
+												View activity {!canViewActivity && <PremiumBadge />}
 											</DropdownMenuItem>
 										)}
 

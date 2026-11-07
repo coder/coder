@@ -254,9 +254,9 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 					data-testid={`agents-tree-node-${chat.id}`}
 					className={cn(
 						"group relative -mx-2 flex min-w-0 select-none items-start gap-1.5 rounded-none pl-3 pr-3.5 text-content-secondary",
-						"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary data-[state=open]:bg-surface-tertiary/50 data-[state=open]:text-content-primary has-data-[state=open]:bg-surface-tertiary/50 has-data-[state=open]:text-content-primary",
+						"transition-none [@media(hover:hover)]:hover:bg-surface-tertiary/50 [@media(hover:hover)]:hover:text-content-primary data-popup-open:bg-surface-tertiary/50 data-popup-open:text-content-primary has-data-popup-open:bg-surface-tertiary/50 has-data-popup-open:text-content-primary",
 						// pl-[11px] is pl-3 minus the active border, so content does not shift.
-						"has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:text-content-primary data-[state=open]:has-[[aria-current=page]]:bg-surface-quaternary/50 has-data-[state=open]:has-[[aria-current=page]]:bg-surface-quaternary/50 [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
+						"has-[[aria-current=page]]:border-l has-[[aria-current=page]]:border-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:pl-[11px] has-[[aria-current=page]]:text-content-primary data-popup-open:has-[[aria-current=page]]:bg-surface-quaternary/50 has-data-popup-open:has-[[aria-current=page]]:bg-surface-quaternary/50 [@media(hover:hover)]:has-[[aria-current=page]]:hover:bg-surface-quaternary/50",
 					)}
 				>
 					<div
@@ -318,7 +318,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 										className={cn(
 											"block flex-1 truncate text-[13px] text-content-primary",
 											!isActive &&
-												"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-[state=open]:opacity-100 group-has-data-[state=open]:opacity-100",
+												"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-popup-open:opacity-100 group-has-data-popup-open:opacity-100",
 										)}
 									>
 										{chat.title}
@@ -357,7 +357,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 										"flex items-center justify-end text-xs text-content-secondary/50 tabular-nums",
 										// The timestamp swaps out for the actions trigger on
 										// hover, keyboard focus, or while a menu is open.
-										"[@media(hover:hover)]:group-hover:hidden group-has-focus-visible:hidden group-data-[state=open]:hidden group-has-data-[state=open]:hidden",
+										"[@media(hover:hover)]:group-hover:hidden group-has-focus-visible:hidden group-data-popup-open:hidden group-has-data-popup-open:hidden",
 										isActiveChat && "hidden",
 									)}
 								>
@@ -398,7 +398,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 									size="icon"
 									variant="subtle"
 									className={cn(
-										"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 group-has-focus-visible:opacity-100 data-[state=open]:opacity-100 group-data-[state=open]:opacity-100",
+										"absolute inset-0 flex h-6 w-7 min-w-0 justify-end rounded-none px-0 opacity-0 text-content-secondary hover:text-content-primary [@media(hover:hover)]:group-hover:opacity-100 group-has-focus-visible:opacity-100 data-popup-open:opacity-100 group-data-popup-open:opacity-100",
 										isActiveChat && "opacity-100",
 									)}
 									aria-label={`Open actions for ${chat.title}`}
