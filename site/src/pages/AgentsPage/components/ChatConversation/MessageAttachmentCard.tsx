@@ -88,7 +88,7 @@ const ViewableFileCard: React.FC<ViewableFileCardProps> = ({
 		<div
 			ref={ref}
 			className={cn(
-				"inline-flex h-16 w-full items-center gap-1 rounded-md border border-solid border-border bg-surface-tertiary pr-2 transition-colors has-[>button:focus-visible]:ring-2 has-[>button:focus-visible]:ring-content-link",
+				"inline-flex h-16 w-full items-center gap-1 rounded-md border border-solid bg-surface-tertiary pr-2 transition-colors has-[>button:focus-visible]:ring-2 has-[>button:focus-visible]:ring-content-link",
 				!expired && "has-[>button:hover]:bg-surface-quaternary",
 			)}
 		>

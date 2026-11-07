@@ -35,7 +35,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 				"bg-surface-secondary border border-solid",
 				"cursor-pointer",
 				"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
-				selected ? "border-border-pending" : "border-border",
+				selected && "border-border-pending",
 			)}
 			onClick={() => onSelect?.()}
 			onKeyDown={(e) => {

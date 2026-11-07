@@ -110,7 +110,7 @@ const RoleSelectorList: React.FC<RoleSelectorListProps> = ({
 	disabledReason,
 }) => {
 	return (
-		<div className="border border-border border-solid rounded-md overflow-y-auto max-h-72 p-3 flex flex-col gap-2">
+		<div className="border border-solid rounded-md overflow-y-auto max-h-72 p-3 flex flex-col gap-2">
 			{selectableRoles.map((role) => (
 				<RoleCheckbox
 					key={role.name}
@@ -261,7 +261,7 @@ const ImpliedRoleRow: React.FC<ImpliedRoleRowProps> = ({
 
 const RoleSelectorSkeleton: React.FC = () => {
 	return (
-		<div className="border border-border border-solid rounded-md">
+		<div className="border border-solid rounded-md">
 			<div className="p-3 flex flex-col gap-2">
 				{Array.from({ length: 4 }, (_, i) => (
 					<div key={i} className="flex items-start gap-2">

@@ -194,7 +194,7 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({
 		>
 			<nav
 				aria-label="Emoji categories"
-				className="flex justify-between border-0 border-b border-solid border-border px-1.5"
+				className="flex justify-between border-0 border-b border-solid px-1.5"
 			>
 				{emojiData.categories.map((category, i) => {
 					const isCurrent = search === "" && activeCategory === i;

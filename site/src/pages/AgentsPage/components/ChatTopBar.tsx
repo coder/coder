@@ -334,7 +334,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 						<button
 							type="button"
 							className={cn(
-								"inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-border px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
+								"inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-solid px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
 								panel.showSidebarPanel && "lg:hidden",
 							)}
 						>
@@ -397,7 +397,7 @@ const PrLink: React.FC<PrLinkProps> = ({ status, className }) => {
 			target="_blank"
 			rel="noreferrer"
 			className={cn(
-				"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid border-border px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
+				"inline-flex shrink-0 items-center gap-1.5 rounded-md border border-solid px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
 				className,
 			)}
 		>

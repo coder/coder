@@ -115,7 +115,7 @@ export const ComboboxContent = ({
 		<PopoverContent
 			ref={ref}
 			className={cn(
-				"flex w-auto flex-col overflow-y-hidden border-border text-sm",
+				"flex w-auto flex-col overflow-y-hidden text-sm",
 				className,
 			)}
 			onOpenAutoFocus={(event) => {

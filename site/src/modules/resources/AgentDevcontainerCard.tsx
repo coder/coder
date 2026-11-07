@@ -173,7 +173,7 @@ export const AgentDevcontainerCard: React.FC<AgentDevcontainerCardProps> = ({
 		<div
 			key={devcontainer.id}
 			className={cn(
-				"flex flex-col max-w-full relative py-4 border border-dashed border-border rounded",
+				"flex flex-col max-w-full relative py-4 border border-dashed rounded",
 				devcontainer.error && "border-content-destructive border-solid",
 			)}
 		>

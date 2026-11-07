@@ -485,7 +485,7 @@ export const ContextUsageIndicator: React.FC<{
 						) : (
 							<div
 								role="status"
-								className="mt-2 rounded-lg border border-dashed border-border px-3 py-4 text-center"
+								className="mt-2 rounded-lg border border-dashed px-3 py-4 text-center"
 							>
 								<h3 className="m-0 text-xs font-semibold text-content-primary">
 									Context usage unavailable.
@@ -495,7 +495,7 @@ export const ContextUsageIndicator: React.FC<{
 					) : (
 						<div
 							role="status"
-							className="mt-2 rounded-lg border border-dashed border-border px-3 py-4 text-center"
+							className="mt-2 rounded-lg border border-dashed px-3 py-4 text-center"
 						>
 							<h3 className="m-0 text-xs font-semibold text-content-primary">
 								Usage not available yet

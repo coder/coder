@@ -79,7 +79,7 @@ export const ChartToolbar = (props: React.HTMLProps<HTMLDivElement>) => {
 		<div
 			{...props}
 			className={cn(
-				"flex items-stretch border-b border-border text-xs",
+				"flex items-stretch border-b text-xs",
 				"border-solid border-0 border-b",
 				props.className,
 			)}

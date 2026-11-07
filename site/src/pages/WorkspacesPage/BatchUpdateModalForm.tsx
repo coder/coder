@@ -99,7 +99,7 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({
 	return (
 		<div
 			className={cn(
-				"rounded-md px-4 py-3 border border-solid border-border text-sm",
+				"rounded-md px-4 py-3 border border-solid text-sm",
 				className,
 			)}
 		>
@@ -302,7 +302,7 @@ const WorkspacesListSection: React.FC<WorkspacesListSectionProps> = ({
 				</p>
 			</div>
 
-			<ul className="m-0 list-none p-0 flex flex-col rounded-md border border-solid border-border">
+			<ul className="m-0 list-none p-0 flex flex-col rounded-md border border-solid">
 				{children}
 			</ul>
 		</section>
