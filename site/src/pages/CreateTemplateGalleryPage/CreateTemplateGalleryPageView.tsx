@@ -66,10 +66,7 @@ export const CreateTemplateGalleryPageView: React.FC<
 							className="flex h-[115px] w-[320px] items-center gap-6 rounded-md border border-solid border-border p-4 text-inherit no-underline hover:bg-surface-secondary"
 						>
 							<div className="size-8 shrink-0">
-								<ExternalImage
-									src="/emojis/1f4e1.png"
-									className="h-full w-full"
-								/>
+								<ExternalImage src="/emojis/1f4e1.png" className="size-full" />
 							</div>
 							<div>
 								<h4 className="m-0 mb-1 text-sm font-semibold text-content-secondary">

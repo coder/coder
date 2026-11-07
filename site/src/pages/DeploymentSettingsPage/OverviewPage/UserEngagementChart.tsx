@@ -189,16 +189,14 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 							</ChartContainer>
 						) : (
 							<div
-								className={`
-									w-full h-full flex items-center justify-center
-									text-content-secondary text-sm font-medium
-								`}
+								className={`size-full flex items-center justify-center
+									text-content-secondary text-sm font-medium`}
 							>
 								No data available
 							</div>
 						)
 					) : (
-						<div className="w-full h-full flex items-center justify-center">
+						<div className="size-full flex items-center justify-center">
 							<Spinner loading />
 						</div>
 					)}

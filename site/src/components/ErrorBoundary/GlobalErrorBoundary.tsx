@@ -39,7 +39,7 @@ export const GlobalErrorBoundaryInner: React.FC<
 		error instanceof Error || isRouteErrorResponse(error);
 
 	return (
-		<div className="bg-surface-primary text-center w-full h-full flex justify-center items-center">
+		<div className="bg-surface-primary text-center size-full flex justify-center items-center">
 			<title>{errorPageTitle}</title>
 
 			<main className="flex gap-6 w-full max-w-prose p-4 flex-col flex-nowrap">
