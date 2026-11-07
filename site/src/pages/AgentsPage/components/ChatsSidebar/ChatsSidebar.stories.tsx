@@ -2612,7 +2612,7 @@ export const ActiveChatContextMenuHasNoReadToggle: Story = {
 	},
 };
 
-export const CopySubmenuContextMenu: Story = {
+export const CopySubmenuDropdownMenu: Story = {
 	args: {
 		chats: [
 			buildChat({
@@ -2647,6 +2647,20 @@ export const CopySubmenuContextMenu: Story = {
 			await within(document.body).findByRole("menuitem", { name: "Copy" }),
 		);
 		await within(document.body).findByRole("menuitem", { name: "Copy branch" });
+	},
+};
+
+export const CopySubmenuContextMenu: Story = {
+	...CopySubmenuDropdownMenu,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.pointer({
+			keys: "[MouseRight]",
+			target: canvas.getByText("Copy agent"),
+		});
+		await userEvent.click(
+			await screen.findByRole("menuitem", { name: "Copy" }),
+		);
 	},
 };
 
