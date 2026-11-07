@@ -15,6 +15,9 @@ import {
 	menuSeparatorClass,
 } from "./menuClasses";
 
+const DROPDOWN_TAILWIND_SPACING = 4
+const DROPDOWN_BORDER_WIDTH = 1
+
 export const DropdownMenu = DropdownMenuPrimitive.Root;
 
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
@@ -122,6 +125,8 @@ export const DropdownMenuSubContent: React.FC<
 		<DropdownMenuPrimitive.Portal>
 			<DropdownMenuPrimitive.SubContent
 				className={cn(menuContentClass, className)}
+				sideOffset={(DROPDOWN_TAILWIND_SPACING * 3) + DROPDOWN_BORDER_WIDTH}
+				alignOffset={((DROPDOWN_TAILWIND_SPACING * 2) + DROPDOWN_BORDER_WIDTH) * -1}
 				{...props}
 			/>
 		</DropdownMenuPrimitive.Portal>
