@@ -135,7 +135,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 		>
 			{/* Sizing (floor, growth, natural-width cap) is owned by the
 			 * wrapper in AgentChatInput; this span just fills it. */}
-			<span className="inline-flex w-full min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary">
+			<span className="inline-flex w-full min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs text-content-secondary">
 				<Tooltip
 					open={!inOverflowPopover && tooltipOpen}
 					onOpenChange={(v) => setTooltipOpen(v && !open)}

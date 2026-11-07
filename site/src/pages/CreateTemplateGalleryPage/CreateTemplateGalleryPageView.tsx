@@ -56,7 +56,7 @@ export const CreateTemplateGalleryPageView: React.FC<
 			<div className="flex flex-col gap-16">
 				<div className="flex flex-row gap-8">
 					<div className="w-[202px]">
-						<h2 className="m-0 text-base font-normal text-content-primary">
+						<h2 className="m-0 text-base text-content-primary">
 							Choose a starting point for your new template
 						</h2>
 					</div>

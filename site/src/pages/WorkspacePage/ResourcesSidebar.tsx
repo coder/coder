@@ -62,9 +62,7 @@ export const ResourcesSidebar: React.FC<ResourcesSidebarProps> = ({
 					</div>
 					<div className="flex flex-col">
 						<span>{r.name}</span>
-						<span className="text-sm font-medium text-content-secondary">
-							{r.type}
-						</span>
+						<span className="text-sm text-content-secondary">{r.type}</span>
 					</div>
 				</SidebarItem>
 			))}

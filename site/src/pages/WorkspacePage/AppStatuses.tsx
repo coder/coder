@@ -65,7 +65,7 @@ export const AppStatuses: React.FC<AppStatusesProps> = ({
 				`}
 			>
 				<div className="flex flex-col overflow-hidden">
-					<div className="text-sm font-medium text-content-primary flex items-center gap-2 ">
+					<div className="text-sm text-content-primary flex items-center gap-2">
 						<AppStatusStateIcon state={latestStatus.state} latest />
 						<span className="block flex-1 whitespace-nowrap overflow-hidden text-ellipsis">
 							{latestStatus.message || capitalize(latestStatus.state)}
