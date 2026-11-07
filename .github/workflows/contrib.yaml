@@ -24,12 +24,14 @@ concurrency: pr-${{ github.event.pull_request.number || github.event.issue.numbe
 jobs:
   community-label:
     runs-on: ubuntu-latest
+    environment: main
     permissions:
       pull-requests: write
     if: >-
       ${{
         github.event_name == 'pull_request_target' &&
-        github.event.action == 'opened'
+        github.event.action == 'opened' &&
+        github.event.pull_request.base.ref == 'main'
       }}
     steps:
       - name: Generate app token
@@ -97,11 +99,16 @@ jobs:
 
   cla:
     runs-on: ubuntu-latest
+    environment: main
+    if: >-
+      ${{
+        (github.event_name == 'issue_comment' && (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA')) ||
+        (github.event_name == 'pull_request_target' && github.event.pull_request.base.ref == 'main')
+      }}
     permissions:
       pull-requests: write
     steps:
       - name: cla
-        if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
         uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
