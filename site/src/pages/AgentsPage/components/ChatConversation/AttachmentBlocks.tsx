@@ -279,7 +279,7 @@ const InlineTextAttachmentButton: React.FC<{
 			aria-label={
 				fileName !== "Pasted text" ? `View ${fileName}` : "View text attachment"
 			}
-			className="inline-flex h-16 max-w-sm items-center gap-2 rounded-md border-0 bg-surface-tertiary px-3 py-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+			className="inline-flex h-16 max-w-sm items-center gap-2 rounded-md bg-surface-tertiary px-3 py-2 text-left transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 			onClick={(event) => {
 				event.stopPropagation();
 				void onPreview(event.currentTarget);
@@ -477,7 +477,7 @@ const RemoteImageBlock: React.FC<{
 		<button
 			type="button"
 			aria-label={`View ${displayName}`}
-			className="inline-block rounded-md border-0 bg-transparent p-0"
+			className="inline-block rounded-md bg-transparent p-0"
 			onClick={(event) => {
 				event.stopPropagation();
 				onImageClick(href, event.currentTarget);

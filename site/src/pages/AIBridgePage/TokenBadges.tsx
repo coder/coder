@@ -119,7 +119,7 @@ export const TokenBadges: React.FC<TokenBadgesProps> = ({
 					<TooltipTrigger asChild>
 						<button
 							type="button"
-							className="m-0 flex flex-col items-end gap-1 whitespace-nowrap border-0 bg-transparent p-0 text-inherit rounded-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+							className="m-0 flex flex-col items-end gap-1 whitespace-nowrap bg-transparent p-0 text-inherit rounded-md focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 						>
 							{pairs.map((pair) => (
 								<TokenPairBadge key={pair[0].title} pair={pair} />

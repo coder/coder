@@ -209,12 +209,12 @@ const DERPRegionPage: React.FC = () => {
 							</Table>
 							<Logs
 								lines={logs?.flat() ?? []}
-								className="border-0 border-t border-solid"
+								className="border-t border-solid"
 							/>
 							{report.client_errs.length > 0 && (
 								<Logs
 									lines={report.client_errs.flat()}
-									className="border-0 border-t border-solid bg-surface-destructive text-content-destructive"
+									className="border-t border-solid bg-surface-destructive text-content-destructive"
 								/>
 							)}
 						</section>

@@ -95,7 +95,7 @@ export const RecordingPreview: React.FC<RecordingPreviewProps> = ({
 						<VideoLightbox src={videoSrc} onClose={close} />
 					))
 				}
-				className="absolute inset-0 z-10 flex cursor-pointer items-center justify-center border-0 bg-black/0 p-0 transition-colors hover:bg-black/50"
+				className="absolute inset-0 z-10 flex cursor-pointer items-center justify-center bg-black/0 p-0 transition-colors hover:bg-black/50"
 			>
 				<span className="flex size-10 items-center justify-center rounded-full bg-black/60">
 					<PlayIcon className="size-5 text-white" />

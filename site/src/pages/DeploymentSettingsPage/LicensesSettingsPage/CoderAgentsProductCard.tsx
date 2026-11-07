@@ -52,7 +52,7 @@ const MetricLabel: React.FC<{ label: string; tooltip: string }> = ({
 				<button
 					type="button"
 					aria-label={`${label} information`}
-					className="m-0 inline-flex appearance-none border-0 bg-transparent p-0 text-content-secondary"
+					className="m-0 inline-flex appearance-none bg-transparent p-0 text-content-secondary"
 				>
 					<InfoIcon className="size-3" />
 				</button>

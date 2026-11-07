@@ -451,11 +451,11 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 							)}
 						</div>
 
-						<div className="border-0 border-t border-solid overflow-hidden flex flex-col">
+						<div className="border-t border-solid overflow-hidden flex flex-col">
 							<div
 								className={cn(
 									"flex items-center",
-									selectedTab && "border-0 border-b border-solid",
+									selectedTab && "border-b border-solid",
 								)}
 							>
 								<div className="flex">
@@ -632,7 +632,7 @@ const useLeaveSiteWarning = (enabled: boolean) => {
 
 const tabClassName = (isActive: boolean) =>
 	cn(
-		"p-3 text-[10px] uppercase tracking-[0.5px] font-medium bg-transparent font-[inherit] border-0",
+		"p-3 text-[10px] uppercase tracking-[0.5px] font-medium bg-transparent font-[inherit]",
 		"text-content-secondary transition-all duration-150",
 		"flex gap-2 items-center justify-center relative",
 		"[&_svg]:max-w-3 [&_svg]:max-h-3",

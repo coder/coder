@@ -194,7 +194,7 @@ const InteractiveTooltipTrigger: React.FC<TooltipTriggerProps> = ({
 			aria-controls={context.open ? context.id : undefined}
 			aria-describedby={context.open ? context.id : undefined}
 			className={cn(
-				"m-0 inline-flex items-center border-0 bg-transparent p-0 text-inherit rounded-sm",
+				"m-0 inline-flex items-center bg-transparent p-0 text-inherit rounded-sm",
 				"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 				className,
 			)}

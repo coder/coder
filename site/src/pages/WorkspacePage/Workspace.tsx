@@ -124,7 +124,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
 			<div className="flex flex-1 min-h-0">
 				<div className="flex">
-					<div className="flex flex-col h-full overflow-y-auto border-solid border-0 border-r border-r-border">
+					<div className="flex flex-col h-full overflow-y-auto border-solid border-r border-r-border">
 						<SidebarIconButton
 							isActive={sidebarOption.value === "resources"}
 							onClick={() => {

@@ -64,7 +64,7 @@ export const Provisioner: React.FC<ProvisionerProps> = ({
 				</div>
 			</header>
 
-			<div className="border-solid border-0 border-t flex items-center justify-between py-3 px-6 text-xs text-content-secondary">
+			<div className="border-solid border-t flex items-center justify-between py-3 px-6 text-xs text-content-secondary">
 				{warnings && warnings.length > 0 ? (
 					<div className="flex flex-col">
 						{warnings.map((warning) => (

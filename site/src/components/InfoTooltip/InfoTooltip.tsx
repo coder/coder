@@ -53,7 +53,7 @@ export const InfoTooltip: React.FC<InfoTooltipProps> = ({
 					aria-label={ariaLabel}
 					className={cn(
 						"flex items-center justify-center p-0",
-						"border-0 border-none bg-transparent cursor-default",
+						"border-none bg-transparent cursor-default",
 						"transition-colors",
 						sizeClasses[size],
 						typeIconColor[type],

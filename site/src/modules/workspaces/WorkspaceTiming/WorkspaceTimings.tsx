@@ -130,7 +130,7 @@ export const WorkspaceTimings: React.FC<WorkspaceTimingsProps> = ({
 			{!isLoading && (
 				<CollapsibleContent>
 					<div
-						className="border-solid border-0 border-t flex flex-col"
+						className="border-solid border-t flex flex-col"
 						style={{
 							height: "var(--collapse-body-height, 420px)",
 						}}

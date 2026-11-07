@@ -138,7 +138,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
 	notification,
 }) => {
 	return (
-		<article className="p-5 leading-normal border-0 border-t border-solid first:border-t-0">
+		<article className="p-5 leading-normal border-t border-solid first:border-t-0">
 			<h4 className="m-0 font-medium">{notification.title}</h4>
 			{notification.detail && (
 				<p className="m-0 text-content-secondary leading-relaxed block mt-2">
