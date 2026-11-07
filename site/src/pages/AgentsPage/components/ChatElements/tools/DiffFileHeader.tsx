@@ -29,12 +29,12 @@ export function DiffFileHeader({
 						{file.prevName}
 					</span>
 				)}
-				<span className="truncate text-xs font-medium text-content-primary">
+				<span className="truncate text-xs text-content-primary">
 					{file.name}
 				</span>
 			</div>
 			{stats && (stats.additions > 0 || stats.deletions > 0) && (
-				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs font-medium leading-5">
+				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs leading-5">
 					{stats.deletions > 0 && (
 						<span className="flex items-center bg-surface-git-deleted px-1 text-git-deleted-bright">
 							&minus;{stats.deletions}

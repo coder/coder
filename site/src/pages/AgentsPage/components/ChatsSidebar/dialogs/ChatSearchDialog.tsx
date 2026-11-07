@@ -470,9 +470,7 @@ const FilterDropdown: React.FC<{
 
 	return (
 		<div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-md border border-solid border-border bg-surface-primary p-3 shadow-md">
-			<h3 className="m-0 mb-2 text-xs font-medium text-content-secondary">
-				Filter by
-			</h3>
+			<h3 className="m-0 mb-2 text-xs text-content-secondary">Filter by</h3>
 			<div className="flex flex-wrap gap-2">
 				{FILTER_DEFINITIONS.map((def) => {
 					const Icon = def.icon;

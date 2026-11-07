@@ -28,7 +28,7 @@ const ModelRow: React.FC<{ model: unknown }> = ({ model }) => {
 
 	return (
 		<div className="grid grid-cols-[minmax(0,1fr)_96px_56px] items-center gap-x-2 px-2 py-1">
-			<span className="min-w-0 truncate text-xs font-medium leading-[18px] text-content-primary">
+			<span className="min-w-0 truncate text-xs leading-[18px] text-content-primary">
 				{title}
 			</span>
 			{effortRange ? (

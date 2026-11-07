@@ -238,7 +238,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 						<div
 							role="group"
 							aria-label={includedProductsLabel}
-							className="text-xs font-medium text-content-secondary"
+							className="text-xs text-content-secondary"
 						>
 							{includedProducts.map((product, index) => (
 								<span key={product}>
@@ -253,7 +253,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 				</div>
 			</div>
 
-			<div className="ml-auto flex items-center gap-12 text-xs font-medium">
+			<div className="ml-auto flex items-center gap-12 text-xs">
 				<div className="flex flex-col items-center">
 					<span className="text-content-secondary">Status</span>
 					<span className={statusClassName}>{statusText}</span>
@@ -357,9 +357,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 
 				<CollapsibleContent>
 					<div className="border-0 border-t border-solid border-border bg-surface-primary px-4 py-4">
-						<div className="text-sm font-medium text-content-secondary">
-							Products
-						</div>
+						<div className="text-sm text-content-secondary">Products</div>
 						<div className="mt-3 flex flex-wrap gap-3">
 							<CoderWorkspacesProductCard
 								userLimitActual={userLimitActual}
@@ -377,7 +375,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 						</div>
 						{hasExplicitAiGovernanceAddOn && (
 							<>
-								<div className="mt-4 text-sm font-medium text-content-secondary">
+								<div className="mt-4 text-sm text-content-secondary">
 									Add-ons
 								</div>
 								<div className="mt-3 flex flex-wrap gap-3">
