@@ -45,15 +45,23 @@ describe("IconField", () => {
 		expect(screen.getByRole("img")).toHaveAccessibleName("");
 	});
 
-	it("picks a custom icon found by search", async () => {
+	it.each([
+		["docker", "Docker", "/icon/docker.svg"],
+		["Kubernetes", "Kubernetes", "/icon/k8s.svg"],
+		["k8s", "Kubernetes", "/icon/k8s.svg"],
+		["Fly.io", "Fly.io", "/icon/fly.io.svg"],
+		["aws-dark", "AWS dark", "/icon/aws-dark.svg"],
+		["aws light", "AWS light", "/icon/aws-light.svg"],
+		["gemini-monochrome", "Gemini monochrome", "/icon/gemini-monochrome.svg"],
+	])("picks a custom icon found by %s", async (query, label, value) => {
 		const onPickEmoji = vi.fn();
 		renderComponent(<IconField onPickEmoji={onPickEmoji} />);
 		const { user, search } = await openPicker();
 
-		await user.type(search, "docker");
-		await user.click(await screen.findByRole("gridcell", { name: "docker" }));
+		await user.type(search, query);
+		await user.click(await screen.findByRole("gridcell", { name: label }));
 
-		expect(onPickEmoji).toHaveBeenCalledWith("/icon/docker.svg");
+		expect(onPickEmoji).toHaveBeenCalledWith(value);
 	});
 
 	it("picks a Unicode emoji as its Apple image path", async () => {
@@ -77,7 +85,7 @@ describe("IconField", () => {
 		const { user, search } = await openPicker();
 
 		await user.type(search, "docker");
-		await screen.findByRole("gridcell", { name: "docker" });
+		await screen.findByRole("gridcell", { name: "Docker" });
 		await user.keyboard("{ArrowDown}{Enter}");
 
 		expect(onPickEmoji).toHaveBeenCalledWith("/icon/docker.svg");
@@ -110,7 +118,7 @@ describe("IconField", () => {
 		const { user, search } = await openPicker();
 
 		await user.type(search, "docker");
-		const cell = await screen.findByRole("gridcell", { name: "docker" });
+		const cell = await screen.findByRole("gridcell", { name: "Docker" });
 
 		expect(cell).toHaveAttribute("aria-colindex", "1");
 		expect(screen.getByRole("row")).toHaveAttribute("aria-rowindex", "1");
