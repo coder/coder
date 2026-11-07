@@ -22,11 +22,13 @@ import { ConversationTimeline } from "./ConversationTimeline";
 import { parseMessagesWithMergedTools } from "./messageParsing";
 import {
 	buildLiveStatus,
+	buildQuestionTimelineArgs,
 	buildStreamRenderState,
 	MockAttachmentWorkingMessages,
 	MockBrokenImageAttachmentMessages,
 	MockClearedAttachmentMessages,
 	MockCollapsedStepsPreferences,
+	MockEmptyQuestionState,
 	MockLeadInSearchMessages,
 	MockLongTurnPageLoads,
 	MockMixedAttachmentMessages,
@@ -69,6 +71,7 @@ const meta: Meta<typeof ConversationTimeline> = {
 		chatStatus: null,
 		hasMoreMessages: false,
 		parsedMessages: parseMessagesWithMergedTools(MockWorkingMessages),
+		askUserQuestionState: MockEmptyQuestionState,
 	},
 	decorators: [
 		(Story) => (
@@ -523,7 +526,7 @@ export const QuestionStaysVisible: Story = {
 	args: {
 		isChatCompleted: true,
 		onSendAskUserQuestionResponse: fn(),
-		parsedMessages: parseMessagesWithMergedTools([
+		...buildQuestionTimelineArgs([
 			...MockWorkingMessages.slice(0, 3),
 			MockQuestionCallMessage,
 			{
@@ -543,8 +546,8 @@ export const QuestionStaysVisible: Story = {
 										header: "Deploy",
 										question: "Deploy the workspace?",
 										options: [
-											{ label: "Yes", description: "Deploy now" },
-											{ label: "No", description: "Keep changes local" },
+											{ label: "Yes, deploy now." },
+											{ label: "No, keep the changes local." },
 										],
 									},
 								],
