@@ -198,10 +198,6 @@ export const parseStringList = (value: unknown): string[] | null =>
 		typeof item === "string" ? item.trim() : null,
 	)?.filter(Boolean) ?? null;
 
-/**
- * Returns the ask_user_question result object that holds the questions,
- * read from the result itself or its output, content, or text field.
- */
 export const findAskUserQuestionResultRecord = (
 	result: unknown,
 ): Record<string, unknown> | null => {

@@ -506,6 +506,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				userRowKeys.push(row.key);
 			}
 		}
+
 		// Only the latest user row anchors the scroller, and only while its turn
 		// is active. The scroller never marks initially rendered anchors as
 		// handled, and its fallback for mutations that are neither clean appends
@@ -515,6 +516,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 			hasLiveAssistant || isAwaitingFirstStreamChunk
 				? userRowKeys[userRowKeys.length - 1]
 				: undefined;
+
 		const userNeighborsByKey = new Map<
 			string,
 			{ prevKey?: string; nextKey?: string }
@@ -525,6 +527,7 @@ export const ConversationTimeline = memo<ConversationTimelineProps>(
 				nextKey: i < userRowKeys.length - 1 ? userRowKeys[i + 1] : undefined,
 			});
 		}
+
 		const latestAskUserQuestion = askUserQuestionState.latestTool;
 		const askUserQuestionResponseTextByTool =
 			askUserQuestionState.responseTextByTool.size > 0

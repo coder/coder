@@ -170,6 +170,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	// Only one question is answerable at a time, so one set of refs is enough.
 	const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
 	const otherTextRef = useRef<HTMLInputElement>(null);
+
 	const filteredQuestions = questions.map(filterQuestionOptions);
 	const [formDraft, setFormDraft] = useState<FormDraft>(
 		() =>
@@ -181,10 +182,12 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 				completedQuestionCount: 0,
 			},
 	);
+
 	// Set once the queue or transcript shows the answer. After that, the sent
 	// copy would bring back an answer removed from the queue, and a send error
 	// would describe an answer the server took, so neither shows.
 	const [hasShownAnswer, setHasShownAnswer] = useState(false);
+
 	const submitAnswerMutation = useMutation({
 		mutationFn: async (answerText: string) => {
 			await onSubmitAnswer?.(
@@ -218,6 +221,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 			: undefined;
 	const displayedSubmittedResponseText = answerBody ?? sentResponseText;
 	const hasSubmittedResponse = displayedSubmittedResponseText !== undefined;
+
 	// Questions and their options can stream in after the form mounts, so a
 	// question the user has not answered takes its default from its options now.
 	const drafts = filteredQuestions.map((question, index) => {
@@ -229,6 +233,7 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		formDraft.questionIndex,
 		Math.max(filteredQuestions.length - 1, 0),
 	);
+
 	const isSubmitting = submitAnswerMutation.isPending;
 	// The page withholds onSubmitAnswer while any send is pending, this one included.
 	const isInteractive =
@@ -236,10 +241,12 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	const submitError = hasShownAnswer
 		? undefined
 		: getSubmissionErrorMessage(submitAnswerMutation.error);
+
 	const canAdvanceToNextQuestion = isDraftAnswered(drafts[activeQuestionIndex]);
 	const canSubmitAllAnswers = filteredQuestions.every((_, questionIndex) =>
 		isDraftAnswered(drafts[questionIndex]),
 	);
+
 	const isWizard = filteredQuestions.length > 1;
 	const isFinalQuestion = activeQuestionIndex >= filteredQuestions.length - 1;
 	const isNextStep = isWizard && !isFinalQuestion;
@@ -588,11 +595,6 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	);
 };
 
-/**
- * Shows an ask_user_question call in the transcript, with the async
- * question's announcement. A docked or closed question shows a notice in
- * place of the form.
- */
 export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	questions,
 	status,

@@ -3,7 +3,6 @@ import { asRecord } from "../runtimeTypeUtils";
 import type { AskUserQuestion } from "./AskUserQuestionTool";
 import { parseJSON } from "./utils";
 
-/** One question's unsent answer. */
 export type QuestionDraft = {
 	/** An option's index, the "Other" field, a skipped question, or none yet. */
 	selection: number | "other" | "skipped" | undefined;
@@ -11,7 +10,6 @@ export type QuestionDraft = {
 	otherText: string;
 };
 
-/** The unsent answers to a question set and the question on screen. */
 export type FormDraft = {
 	drafts: QuestionDraft[];
 	questionIndex: number;
@@ -53,7 +51,6 @@ const isQuestionDraft = (
 	);
 };
 
-/** Returns undefined for a malformed draft or one saved for other questions. */
 export const readFormDraft = (
 	draftKey: string,
 	questions: readonly AskUserQuestion[],
@@ -100,7 +97,6 @@ export const saveFormDraft = (
 	}
 };
 
-/** Removes the saved draft, if any. */
 export const removeFormDraft = (draftKey: string): void => {
 	localStorage.removeItem(storageKeyPrefix + draftKey);
 };
