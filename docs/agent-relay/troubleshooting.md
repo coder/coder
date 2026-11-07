@@ -100,6 +100,8 @@ Fix the error in Coder, then delete the workspace.
 
 Agent Relay hands off the workspace when its build succeeds, and the module starts the worker without waiting for startup scripts.
 Order the module after your setup scripts, as described in [Start the worker after workspace setup](./setup.md#start-the-worker-after-workspace-setup).
+With the rule in place, a failed setup fails the session about a minute after the agent reports `start_error`.
+The reaper's sweep log line carries `agent_lifecycle=start_error`, and the session failure names the reason `the workspace agent's startup scripts failed`.
 
 ## Claude Code sessions
 

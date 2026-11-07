@@ -214,8 +214,9 @@ We also recommend that you:
 
 ### Start the worker after workspace setup
 
-Agent Relay hands a workspace to the provider as soon as its build succeeds, not when the workspace agent is ready.
-The provider module starts the worker right away, so the agent can run commands while your startup scripts are still cloning repositories or installing tools.
+Agent Relay hands a workspace to the provider as soon as its build succeeds.
+It reads the workspace agent's lifecycle on every sweep and reports it on the status page, but it doesn't wait for it: the provider module starts the worker as soon as its start script runs.
+Without an ordering rule, the agent can run commands while your startup scripts are still cloning repositories or installing tools.
 
 To make the worker wait, put the setup that sessions need in `coder_script` resources or modules.
 Then add a [`coder_script_order`](../templates/extending-templates/script-ordering.md) rule that runs the Agent Relay module after them:
@@ -239,6 +240,8 @@ data "coder_script_order" "relay_worker" {
 }
 ```
 
+The example templates in the Agent Relay repository under [`example/templates`](https://github.com/coder/agent-relay/tree/main/example/templates) include this rule.
+
 - Set `phase = "start"`, because the module also has a shutdown script.
 - Script ordering requires the Coder Terraform provider v2.20.0 or later.
 - Script ordering also requires Coder v2.39.0 or later for the control plane, provisioners, and workspace agents.
@@ -246,6 +249,7 @@ data "coder_script_order" "relay_worker" {
 - Coder can't order the `startup_script` attribute of `coder_agent`.
   Move setup steps that the worker depends on into `coder_script` resources.
 - If a prerequisite fails, Coder skips the module's scripts and the worker never starts.
+  Agent Relay reads the agent's `start_error` lifecycle and fails the session about a minute later, so the developer isn't left waiting.
   To start the worker even when setup fails, set `requires = "completion"` on the rule.
 - The session waits while prerequisites run.
   Set a `timeout` on each prerequisite, and keep setup well under 15&nbsp;minutes, after which Agent Relay deletes a workspace whose worker hasn't started.
