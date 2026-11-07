@@ -1,8 +1,10 @@
 import {
-	getAttributeFilterOptions,
 	getSelfUserFilterOptions,
-	getStatusFilterOptions,
 	getUserFilterOptions,
+} from "#/components/Filter/userOptions";
+import {
+	getAttributeFilterOptions,
+	getStatusFilterOptions,
 	type OptionsQueryClient,
 } from "./categoryOptions";
 

@@ -3,8 +3,15 @@ import { expect, fn, userEvent, within } from "storybook/test";
 import type * as TypesGen from "#/api/typesGenerated";
 import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
 import type { TemplateFilterState } from "#/pages/TemplatesPage/TemplatesFilter";
-import { MockTemplate, mockApiError } from "#/testHelpers/entities";
-import { withDashboardProvider } from "#/testHelpers/storybook";
+import {
+	MockTemplate,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 const templates = [
@@ -48,14 +55,14 @@ const templates = [
 );
 
 const filterState = getDefaultFilterProps<TemplateFilterState>({
-	menus: {},
 	values: {},
 });
 
 const meta = {
 	title: "pages/AISettingsPage/TemplatesPage/TemplatesPageView",
 	component: TemplatesPageView,
-	decorators: [withDashboardProvider],
+	parameters: { user: MockUserOwner },
+	decorators: [withDashboardProvider, withAuthProvider],
 	args: {
 		filterState,
 		templates,
