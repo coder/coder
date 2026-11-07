@@ -201,6 +201,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		pendingToolCallIDs,
 		liveToolResults: streamState?.toolResults,
 	});
+
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
 	const acpSessions = buildACPSessionDescriptors([
@@ -208,6 +209,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		...streamTools,
 	]);
 	const onRenderProfiler = useOnRenderProfiler();
+
 	const askUserQuestionState = deriveAskUserQuestionState(
 		parsedMessages,
 		showsStreamOutput(liveStatus) ? streamTools : [],

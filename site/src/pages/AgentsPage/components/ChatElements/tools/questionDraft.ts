@@ -60,6 +60,7 @@ export const readFormDraft = (
 	if (!stored) {
 		return undefined;
 	}
+
 	const {
 		questions: savedQuestions,
 		drafts,
@@ -78,6 +79,7 @@ export const readFormDraft = (
 	) {
 		return undefined;
 	}
+
 	return { drafts, questionIndex, completedQuestionCount };
 };
 
