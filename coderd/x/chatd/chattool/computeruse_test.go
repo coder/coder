@@ -851,6 +851,34 @@ func TestComputerUseTool_Run_OmittedCoordinateIsNotTopLeft(t *testing.T) {
 	assert.Nil(t, (*actions)[0].Coordinate)
 }
 
+// Coordinates are forwarded by key presence, so a short or long array must be
+// rejected before it decodes zero-filled into a click at the top-left pixel.
+func TestComputerUseTool_Run_RejectsMalformedCoordinate(t *testing.T) {
+	t.Parallel()
+
+	for _, input := range []string{
+		`{"action":"left_click","coordinate":[]}`,
+		`{"action":"left_click","coordinate":[5]}`,
+		`{"action":"left_click","coordinate":[1,2,3]}`,
+		`{"action":"left_click_drag","start_coordinate":[5],"coordinate":[10,10]}`,
+	} {
+		t.Run(input, func(t *testing.T) {
+			t.Parallel()
+
+			// No expectations: any desktop call fails the test.
+			mockConn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+			resp, err := newOpenAICompatComputerUseTool(t, mockConn).Run(context.Background(), fantasy.ToolCall{
+				ID:    "malformed-coordinate",
+				Name:  "computer",
+				Input: input,
+			})
+			require.NoError(t, err)
+			assert.True(t, resp.IsError)
+			assert.Contains(t, resp.Content, "expected 2 elements")
+		})
+	}
+}
+
 // An OpenAI-compatible step plans every call of the step against one screen,
 // so a failed action halts the later calls of that step, as for Anthropic.
 func TestComputerUseTool_OpenAICompatHaltsStep(t *testing.T) {

@@ -416,8 +416,10 @@ type computerUseSentFields struct {
 // computerUseFieldsSent reports which optional keys the model sent.
 // ComputerUseInput decodes into zero values, so it cannot tell an omitted key
 // from the top-left pixel [0,0], which is a valid target, or from a scroll of
-// zero clicks, which is not. ParseComputerUseInput already rejected malformed
-// input, so a decode failure here only means the keys are absent.
+// zero clicks, which is not. Presence alone is safe because
+// ParseComputerUseInput already rejected malformed input, including a
+// coordinate that is not exactly two values, which would otherwise decode
+// zero-filled. A decode failure here therefore only means the keys are absent.
 func computerUseFieldsSent(input string) computerUseSentFields {
 	var sent computerUseSentFields
 	if err := json.Unmarshal([]byte(input), &sent); err != nil {
