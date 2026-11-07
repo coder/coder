@@ -2920,9 +2920,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)              |
-|-----------------------|
-| `anthropic`, `openai` |
+| Value(s)                               |
+|----------------------------------------|
+| `anthropic`, `openai`, `openai-compat` |
 
 ## codersdk.ChatConfig
 
