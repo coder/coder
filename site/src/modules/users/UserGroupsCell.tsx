@@ -65,7 +65,7 @@ export const UserGroupsCell: React.FC<GroupsCellProps> = ({ userGroups }) => {
 											fallback={groupName}
 										/>
 
-										<span className="m-0 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap leading-none">
+										<span className="m-0 min-w-0 truncate leading-none">
 											{groupName || <em>N/A</em>}
 										</span>
 									</li>
