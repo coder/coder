@@ -212,7 +212,7 @@ export const AgentDevcontainerCard: React.FC<AgentDevcontainerCardProps> = ({
 						/>
 						<span
 							className="flex-1 shrink-0
-							overflow-hidden text-ellipsis whitespace-nowrap
+							truncate
 							text-sm font-semibold text-content-primary"
 						>
 							{subAgent?.name ??
