@@ -246,57 +246,26 @@ func (s *server) Plan(
 		return provisionersdk.PlanErrorf("plan vars: %s", err)
 	}
 
+	// Graph reuses the parsed plan and the graph instead of running
+	// Terraform again, so they must not outlive a later Plan that fails.
+	sessState := s.sessionState(sess.Context(), sess)
+	sessState.plan, sessState.graph = nil, ""
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
-	resp, planConfig, err := e.plan(ctx, killCtx, env, vars, sess, request)
+	result, err := e.plan(ctx, killCtx, env, vars, sess, request)
 	endStage(err)
 	if err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
-	// State JSON omits configuration, so retain the plan configuration needed to
-	// finalize script ordering during post-apply graph conversion.
-	s.cachePlanConfig(sess.Context(), sess, planConfig)
 
+	sessState.plan = result.plan
+	sessState.graph = result.graph
+	if result.graphErr != nil {
+		s.logger.Warn(ctx, "terraform graph failed during plan, the graph stage will retry it", slog.Error(result.graphErr))
+	}
+
+	resp := result.response
 	resp.Timings = e.timings.aggregate()
 	return resp
-}
-
-func (s *server) cachePlanConfig(
-	ctx context.Context, sess *provisionersdk.Session, config *tfjson.Config,
-) {
-	registerCleanup := false
-	s.planConfigsBySessionMu.Lock()
-	if _, cleanupRegistered := s.planConfigsBySession[sess]; cleanupRegistered {
-		s.planConfigsBySession[sess] = config
-	} else if config != nil {
-		if s.planConfigsBySession == nil {
-			s.planConfigsBySession = make(map[*provisionersdk.Session]*tfjson.Config)
-		}
-		s.planConfigsBySession[sess] = config
-		registerCleanup = true
-	}
-	s.planConfigsBySessionMu.Unlock()
-
-	if !registerCleanup {
-		return
-	}
-	context.AfterFunc(ctx, func() {
-		s.planConfigsBySessionMu.Lock()
-		delete(s.planConfigsBySession, sess)
-		s.planConfigsBySessionMu.Unlock()
-	})
-}
-
-func (s *server) loadPlanConfig(
-	sess *provisionersdk.Session,
-) (*tfjson.Config, bool) {
-	s.planConfigsBySessionMu.Lock()
-	defer s.planConfigsBySessionMu.Unlock()
-
-	config, ok := s.planConfigsBySession[sess]
-	if !ok || config == nil {
-		return nil, false
-	}
-	return config, true
 }
 
 func (s *server) Graph(
@@ -314,6 +283,10 @@ func (s *server) Graph(
 	}
 	logTerraformEnvVars(sess)
 
+	// Reuse the parsed plan (plan source) and the graph from this session's
+	// Plan when they are available, instead of running Terraform again.
+	sessState := s.sessionState(sess.Context(), sess)
+
 	modules := []*tfjson.StateModule{}
 	var planConfig *tfjson.Config
 	isStartTransition := request.GetMetadata().GetWorkspaceTransition() ==
@@ -323,11 +296,15 @@ func (s *server) Graph(
 	switch request.Source {
 	case proto.GraphSource_SOURCE_PLAN:
 		scriptOrderSource = proto.GraphSource_SOURCE_PLAN
-		e.mut.Lock()
-		plan, err := e.parsePlan(ctx, killCtx, e.files.PlanFilePath())
-		e.mut.Unlock()
-		if err != nil {
-			return provisionersdk.GraphError("parse plan for graph: %s", err)
+		plan := sessState.plan
+		if plan == nil {
+			var err error
+			e.mut.Lock()
+			plan, err = e.parsePlan(ctx, killCtx, e.files.PlanFilePath())
+			e.mut.Unlock()
+			if err != nil {
+				return provisionersdk.GraphError("parse plan for graph: %s", err)
+			}
 		}
 
 		modules = planModules(plan)
@@ -347,23 +324,38 @@ func (s *server) Graph(
 		}
 		convertScriptOrder = isStartTransition && hasScriptOrderDataSource(modules)
 		if convertScriptOrder {
-			cachedPlanConfig, ok := s.loadPlanConfig(sess)
-			if !ok {
+			// State JSON omits configuration, so script ordering takes it from
+			// this session's plan.
+			plan := sessState.plan
+			if plan == nil || !hasScriptOrderDataSource(planModules(plan)) {
 				return provisionersdk.GraphError(
 					"load plan configuration for script ordering: " +
 						"state graph requires a preceding successful plan",
 				)
 			}
-			planConfig = cachedPlanConfig
+			planConfig = plan.Config
 		}
 	default:
 		return provisionersdk.GraphError("unknown graph source: %q", request.Source.String())
 	}
 
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageGraph)
-	e.mut.Lock()
-	rawGraph, err := e.graph(ctx, killCtx)
-	e.mut.Unlock()
+	rawGraph := sessState.graph
+	if request.Source == proto.GraphSource_SOURCE_STATE && graphHasPriorStateNodes(rawGraph) {
+		// The graph from Plan was built against the state before apply. Nodes
+		// for deposed objects in that state share labels with the
+		// configuration's nodes but have none of their edges, which can leave
+		// an agent without its resource, so build the graph again from the
+		// state apply left behind. Orphaned objects match no resource, but
+		// also no longer exist after apply.
+		rawGraph = ""
+	}
+	var err error
+	if rawGraph == "" {
+		e.mut.Lock()
+		rawGraph, err = e.graph(ctx, killCtx)
+		e.mut.Unlock()
+	}
 	endStage(err)
 	if err != nil {
 		return provisionersdk.GraphError("generate graph: %s", err)
@@ -407,6 +399,15 @@ func (s *server) Graph(
 		return provisionersdk.GraphError("%s", err)
 	}
 	return response
+}
+
+// graphHasPriorStateNodes reports whether a `terraform graph -type=plan`
+// output contains nodes that Terraform derived from the prior state rather
+// than the configuration: orphaned resources, including ones renamed by a
+// moved block, and deposed objects left by an interrupted
+// create_before_destroy replacement.
+func graphHasPriorStateNodes(rawGraph string) bool {
+	return strings.Contains(rawGraph, " (orphan)") || strings.Contains(rawGraph, " (deposed ")
 }
 
 // checkGraphCompleteSize rejects a Graph response that cannot cross the
