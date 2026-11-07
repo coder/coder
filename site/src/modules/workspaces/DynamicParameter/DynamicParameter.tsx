@@ -315,7 +315,7 @@ const ParameterField: React.FC<ParameterFieldProps> = ({
 				parameter.validations[0] ?? {};
 
 			return (
-				<div className="flex flex-row items-baseline gap-3">
+				<div className="flex items-baseline gap-3">
 					<Slider
 						id={id}
 						className="mt-2"
@@ -502,7 +502,7 @@ const MaskableInput: React.FC<MaskableInputProps> = ({
 	const [showMaskedInput, setShowMaskedInput] = useState(false);
 
 	return (
-		<div className="flex flex-row items-center">
+		<div className="flex items-center">
 			<Input
 				id={id}
 				type={masked && showMaskedInput ? "text" : type}
@@ -549,7 +549,7 @@ const MaskableTextArea: React.FC<MaskableInputProps> = ({
 	const [showMaskedInput, setShowMaskedInput] = useState(false);
 
 	return (
-		<div className="flex flex-row items-center">
+		<div className="flex items-center">
 			<Textarea
 				ref={textareaRef}
 				id={id}
@@ -930,7 +930,7 @@ export const Diagnostics: React.FC<DiagnosticsProps> = ({ diagnostics }) => {
 							: "text-content-primary border-border-warning bg-content-warning/15",
 					)}
 				>
-					<div className="flex flex-row items-start">
+					<div className="flex items-start">
 						{diagnostic.severity === "error" && (
 							<CircleAlertIcon
 								className="me-2 inline-flex shrink-0 text-content-destructive size-icon-sm"
