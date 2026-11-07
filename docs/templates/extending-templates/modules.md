@@ -80,6 +80,7 @@ To force Coder to re-download modules on every workspace build instead of using 
 
 > [!WARNING]
 > Disabling module caching makes workspace builds slower and less predictable, since Terraform re-resolves and downloads every module on each build.
+> Builds also stop reusing the [provider lock file](../../workspaces/speed-up-templates.md#template-lock-file) that Coder keeps when you publish the template version.
 > This isn't recommended for production templates.
 
 ## Offline installations

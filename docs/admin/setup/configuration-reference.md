@@ -2144,7 +2144,7 @@ Tune the behavior of the provisioner, which is responsible for creating, updatin
 
 ### Disable Terraform module cache
 
-Disable the reuse of Terraform modules cached at template import for all templates.
+Disable the reuse of Terraform modules and the provider lock file cached at template import for all templates.
 Modules are re-downloaded on every workspace build.
 Individual templates cannot opt back in.
 

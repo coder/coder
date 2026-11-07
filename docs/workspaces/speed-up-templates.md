@@ -86,12 +86,20 @@ Visit the [validated architecture documentation](../install/plan/sizing/index.md
 
 ### Template lock file
 
-On each workspace build, Terraform will examine the providers used by the template and attempt to download the latest version of each provider unless it is constrained to a specific version.
+Without a lock file, `terraform init` selects the latest version of each provider that matches the template's version constraints.
 Terraform exposes a mechanism to build a static list of provider versions, which improves cacheability.
 
 Without caching, Terraform will download each provider on each build, and this can create unnecessary network and disk I/O.
 
 `terraform init` generates a `.terraform.lock.hcl` which instructs Coder provisioners to cache specific versions of your providers.
+
+When Coder imports a template version, it keeps the lock file that `terraform init` produced.
+Builds on a provisioner with the same operating system and architecture as the importing one reuse it: they install the provider versions selected at import and verify cached providers against the lock file instead of fetching checksums and signatures.
+Terraform still asks the provider registry which versions are available.
+If `terraform init` fails with that lock file, for example because the provisioner's provider mirror no longer offers those versions, the build retries with the template's own lock file, or without one, and logs a warning.
+If the warning appears on every build, push a new template version and update workspaces to it.
+Coder doesn't reuse the lock file when [module caching](../templates/extending-templates/modules.md#module-caching) is disabled for the template or the deployment.
+Committing your own lock file also pins provider versions across template pushes.
 
 To use `terraform init` to build the static provider version list:
 
