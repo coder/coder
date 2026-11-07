@@ -116,6 +116,7 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	// Only one question is answerable at a time, so one set of refs is enough.
 	const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
 	const otherTextRef = useRef<HTMLInputElement>(null);
+
 	const filteredQuestions = questions.map(filterQuestionOptions);
 	const [formDraft, setFormDraft] = useState<FormDraft>(
 		() =>
@@ -126,6 +127,7 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 				questionIndex: 0,
 			},
 	);
+
 	const submitAnswerMutation = useMutation({
 		mutationFn: async (answerText: string) => {
 			await onSubmitAnswer?.(answerText);
@@ -457,7 +459,6 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	);
 };
 
-/** Shows an ask_user_question call in the transcript. */
 export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	questions,
 	status,
