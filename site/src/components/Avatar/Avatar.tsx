@@ -125,7 +125,7 @@ export const Avatar: React.FC<AvatarProps> = ({
 				style={getExternalImageStylesFromUrl(externalImages, src)}
 			/>
 			{fallback && (
-				<AvatarPrimitive.Fallback className="flex h-full w-full items-center justify-center rounded-full">
+				<AvatarPrimitive.Fallback className="flex size-full items-center justify-center rounded-full">
 					{fallbackCharacters.slice(0, 2).join("").toUpperCase()}
 				</AvatarPrimitive.Fallback>
 			)}

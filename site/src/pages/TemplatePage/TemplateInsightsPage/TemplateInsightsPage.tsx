@@ -457,7 +457,7 @@ const TemplateUsagePanel: React.FC<TemplateUsagePanelProps> = ({
 											<ExternalImage
 												src={usage.icon}
 												alt=""
-												className="h-full w-full object-contain"
+												className="size-full object-contain"
 											/>
 										) : (
 											<BlocksIcon className="size-icon-sm text-content-secondary" />
@@ -610,7 +610,7 @@ const ParameterUsageLabel: React.FC<ParameterUsageLabelProps> = ({
 						<ExternalImage
 							alt=""
 							src={icon}
-							className="w-full h-full object-contain"
+							className="size-full object-contain"
 							aria-labelledby={ariaId}
 						/>
 					</div>

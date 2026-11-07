@@ -8,7 +8,7 @@ export const Command: React.FC<
 	return (
 		<CommandPrimitive
 			className={cn(
-				"flex h-full w-full flex-col overflow-hidden rounded-md bg-surface-primary text-content-primary",
+				"flex size-full flex-col overflow-hidden rounded-md bg-surface-primary text-content-primary",
 				className,
 			)}
 			{...props}

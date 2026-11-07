@@ -226,7 +226,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 
 									{(!selectedResource.agents ||
 										selectedResource.agents?.length === 0) && (
-										<div className="flex justify-center items-center w-full h-full">
+										<div className="flex justify-center items-center size-full">
 											<div>
 												<h4 className="text-base font-medium">
 													No agents are currently assigned to this resource.
