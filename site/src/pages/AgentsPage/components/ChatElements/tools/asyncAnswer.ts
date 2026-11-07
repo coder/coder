@@ -18,11 +18,9 @@ const asyncAnswerPromptPattern = new RegExp(
 export const isAsyncAnswerPrompt = (text: string): boolean =>
 	asyncAnswerPromptPattern.test(text);
 
-/** Returns the prefix line, newline included, that starts an answer to the call. */
 export const getAsyncAnswerPrefix = (toolCallId: string): string =>
 	`${asyncAnswerLead}${toolCallId}:\n`;
 
-/** The call ID from an answer's prefix line, and the text after that line. */
 export type AsyncAnswer = {
 	toolCallId: string;
 	/** Empty when the prefix line ends the text, as when a chip follows it. */
