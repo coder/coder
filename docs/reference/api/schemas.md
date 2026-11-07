@@ -16541,6 +16541,24 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
 | `updated_at`           | string                                                                      | false    |              |             |
 | `warnings`             | array of [codersdk.TemplateVersionWarning](#codersdktemplateversionwarning) | false    |              |             |
 
+## codersdk.TemplateVersionDocumentation
+
+```json
+{
+  "files": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type   | Required | Restrictions | Description |
+|--------------------|--------|----------|--------------|-------------|
+| `files`            | object | false    |              |             |
+| » `[any property]` | string | false    |              |             |
+
 ## codersdk.TemplateVersionExternalAuth
 
 ```json

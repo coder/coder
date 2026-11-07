@@ -19,7 +19,7 @@ export const TemplateRedirectController: React.FC = () => {
 			<Navigate
 				to={`/templates/${getOrganizationNameByDefault(
 					organizations,
-				)}/${template}${extraPath}${location.search}`}
+				)}/${template}${extraPath}${location.search}${location.hash}`}
 				replace
 			/>
 		);
@@ -35,7 +35,7 @@ export const TemplateRedirectController: React.FC = () => {
 
 		return (
 			<Navigate
-				to={`/templates/${template}${extraPath}${location.search}`}
+				to={`/templates/${template}${extraPath}${location.search}${location.hash}`}
 				replace
 			/>
 		);

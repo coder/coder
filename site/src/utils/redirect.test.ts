@@ -32,8 +32,8 @@ describe("redirect helper functions", () => {
 				sanitizeRedirect("https://www.example.com/bar?baz=1&quux=2"),
 			).toEqual("/bar?baz=1&quux=2");
 		});
-		it("drops the hash", () => {
-			expect(sanitizeRedirect("/foo?a=1#bar")).toEqual("/foo?a=1");
+		it("preserves the hash", () => {
+			expect(sanitizeRedirect("/foo?a=1#bar")).toEqual("/foo?a=1#bar");
 		});
 		it("strips the authority of a protocol-relative url", () => {
 			expect(sanitizeRedirect("//evil.com/path")).toEqual("/path");

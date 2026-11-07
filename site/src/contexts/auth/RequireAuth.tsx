@@ -64,7 +64,7 @@ export const RequireAuth: React.FC<RequireAuthProps> = ({
 		const isHomePage = location.pathname === "/";
 		const navigateTo = isHomePage
 			? "/login"
-			: embedRedirect(`${location.pathname}${location.search}`);
+			: embedRedirect(`${location.pathname}${location.search}${location.hash}`);
 
 		return (
 			<Navigate to={navigateTo} state={{ isRedirect: !isHomePage }} replace />
