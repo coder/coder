@@ -57,11 +57,11 @@ export const AppStatuses: React.FC<AppStatusesProps> = ({
 	const otherStatuses = allStatuses.slice(1);
 
 	return (
-		<div className="flex flex-col border border-solid border-border rounded-lg">
+		<div className="flex flex-col border border-solid rounded-lg">
 			<div
 				className={`
 					flex items-center justify-between px-4 py-3 gap-6
-					border-0 not-last:border-b border-solid border-border
+					border-0 not-last:border-b border-solid
 				`}
 			>
 				<div className="flex flex-col overflow-hidden">
@@ -138,7 +138,7 @@ export const AppStatuses: React.FC<AppStatusesProps> = ({
 								key={status.id}
 								className={`
 							flex items-center justify-between px-4 py-3
-							border-0 not-last:border-b border-solid border-border
+							border-0 not-last:border-b border-solid
 						`}
 							>
 								<div className="flex items-center justify-between w-full text-content-secondary">

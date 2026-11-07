@@ -49,7 +49,7 @@ export const BuildingTemplateLoader: React.FC = () => {
 				{ICONS.map(({ name, icon: Icon, x, y, delay }) => (
 					<motion.div
 						key={name}
-						className="absolute flex size-12 items-center justify-center rounded-md border border-solid border-border bg-surface-secondary"
+						className="absolute flex size-12 items-center justify-center rounded-md border border-solid bg-surface-secondary"
 						style={{
 							left: `calc(50% + ${x}%)`,
 							top: `calc(50% + ${y}%)`,

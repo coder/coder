@@ -80,7 +80,7 @@ const ScrollBar: React.FC<
 		<ScrollAreaPrimitive.ScrollAreaScrollbar
 			orientation={orientation}
 			className={cn(
-				"border-0 border-solid border-border flex touch-none select-none transition-colors",
+				"border-0 border-solid flex touch-none select-none transition-colors",
 				orientation === "vertical" &&
 					"h-full w-2.5 border-l border-l-transparent p-px",
 				orientation === "horizontal" &&

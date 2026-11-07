@@ -22,7 +22,7 @@ type BaseBarProps<T> = Omit<T, "size" | "color"> & {
 };
 
 const barClassName = cn(
-	"relative flex h-[inherit] min-w-6 rounded-lg border border-border bg-surface-primary p-[7px]",
+	"relative flex h-[inherit] min-w-6 rounded-lg border bg-surface-primary p-[7px]",
 	"after:absolute after:inset-y-[-2px] after:left-[-8px] after:right-[-8px] after:content-['']",
 );
 
@@ -60,7 +60,7 @@ export const ClickableBar: React.FC<ClickableBarProps> = ({
 			type="button"
 			{...htmlProps}
 			className={cn(
-				"relative flex h-inherit min-w-[34px] cursor-pointer rounded-lg border border-border bg-surface-primary p-[7px]",
+				"relative flex h-inherit min-w-[34px] cursor-pointer rounded-lg border bg-surface-primary p-[7px]",
 				"after:absolute after:inset-y-[-2px] after:left-[-8px] after:right-[-8px] after:content-['']",
 				"outline-hidden hover:border-content-link focus-visible:border-content-link active:border-content-link",
 				htmlProps.className,

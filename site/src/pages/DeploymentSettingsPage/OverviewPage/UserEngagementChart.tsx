@@ -252,7 +252,7 @@ const UserEngagementTable: React.FC<UserEngagementTableProps> = ({ data }) => (
 						<TableRow key={d.date}>
 							<TableHead
 								scope="row"
-								className="border-0 border-t border-border border-solid font-medium"
+								className="border-0 border-t border-solid font-medium"
 							>
 								{formatDate(new Date(d.date), {
 									hour: undefined,

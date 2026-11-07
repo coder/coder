@@ -12,7 +12,7 @@ export const Input: React.FC<InputProps> = ({ className, type, ...props }) => {
 		<input
 			type={type}
 			className={cn(
-				`flex h-10 w-full rounded-md border border-border border-solid bg-transparent px-3
+				`flex h-10 w-full rounded-md border border-solid bg-transparent px-3
 				text-base shadow-xs transition-colors
 				file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-content-primary
 				placeholder:text-content-secondary

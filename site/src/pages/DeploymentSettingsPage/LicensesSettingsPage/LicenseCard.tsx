@@ -317,7 +317,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 				}
 				confirmLoading={isRemoving}
 			/>
-			<div className="license-card group overflow-hidden rounded-md border border-solid border-border bg-surface-secondary text-sm shadow-xs">
+			<div className="license-card group overflow-hidden rounded-md border border-solid bg-surface-secondary text-sm shadow-xs">
 				<div className="flex items-center gap-6 p-3">
 					<CollapsibleTrigger
 						asChild
@@ -356,7 +356,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 				</div>
 
 				<CollapsibleContent>
-					<div className="border-0 border-t border-solid border-border bg-surface-primary px-4 py-4">
+					<div className="border-0 border-t border-solid bg-surface-primary px-4 py-4">
 						<div className="text-sm font-medium text-content-secondary">
 							Products
 						</div>
