@@ -57,6 +57,7 @@ jobs:
     permissions:
       contents: read
       packages: write # push the dogfood base image to ghcr.io/coder/oss-dogfood-base
+      id-token: write # authenticate to Depot with OIDC
     env:
       # MISE_EXPERIMENTAL opts into the experimental `oci` subcommand.
       MISE_EXPERIMENTAL: "1"
@@ -133,7 +134,6 @@ jobs:
         if: ${{ !github.event.pull_request.head.repo.fork }}
         with:
           project: b4q6ltmpzh
-          token: ${{ secrets.DEPOT_TOKEN }}
           # Context is the repo root so Dockerfile.base can COPY the
           # distro-specific files/ tree. It is the checkout rather than
           # {{defaultContext}}: when Depot's cached git clone lacks a commit
@@ -212,7 +212,6 @@ jobs:
         uses: depot/build-push-action@98e78adca7817480b8185f474a400b451d74e287 # v1.18.0
         with:
           project: b4q6ltmpzh
-          token: ${{ secrets.DEPOT_TOKEN }}
           context: dogfood/vscode-coder
           pull: true
           save: true
