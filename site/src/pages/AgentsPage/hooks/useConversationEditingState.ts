@@ -5,7 +5,12 @@ import { isMobileViewport } from "#/utils/mobile";
 import type { ChatMessageInputRef } from "../components/AgentChatInput";
 import { getEditableContentPayload } from "../components/ChatConversation/messageParsing";
 import type { EditingTarget } from "../components/ChatConversation/types";
+import {
+	getAsyncAnswerPrefix,
+	parseAsyncAnswer,
+} from "../components/ChatElements/tools/asyncAnswer";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
+import type { ChatComposerContentPart } from "../utils/chatInputContent";
 import {
 	draftInputStorageKeyPrefix,
 	getChipNodes,
@@ -18,6 +23,24 @@ export class BuiltInCommandPendingError extends Error {}
 
 export type SendChatTurnOptions = SendChatMessageOptions & {
 	editingTarget?: EditingTarget;
+	/** Content to send in place of the composer's current parts. */
+	composerParts?: readonly ChatComposerContentPart[];
+};
+
+// Returns undefined for an empty composer, so the send falls back to the
+// message text, which already starts with the prefix line.
+const prependAnswerPrefix = (
+	prefix: string,
+	parts: readonly ChatComposerContentPart[],
+): readonly ChatComposerContentPart[] | undefined => {
+	if (parts.length === 0) {
+		return undefined;
+	}
+	const [firstPart, ...restParts] = parts;
+	if (firstPart.type === "text") {
+		return [{ type: "text", text: prefix + firstPart.text }, ...restParts];
+	}
+	return [{ type: "text", text: prefix }, ...parts];
 };
 
 /** The target whose text the editor holds, as loaded. */
@@ -29,6 +52,9 @@ type LoadedTarget = {
 	base: string;
 	// The saved edit text loaded with the target, if any.
 	savedEdit?: ParsedDraft;
+	// The editor shows an async answer without its prefix line, so a send
+	// adds the line back to keep the answer tied to its question.
+	answerPrefix: string;
 };
 
 const noFileBlocks: readonly ChatMessagePart[] = [];
@@ -240,8 +266,10 @@ export function useConversationEditingState(deps: {
 			return;
 		}
 
-		const { text, fileBlocks, editorState } =
-			getEditableContentPayload(targetContent);
+		const payload = getEditableContentPayload(targetContent);
+		const asyncAnswer = parseAsyncAnswer(payload.text);
+		const text = asyncAnswer?.body ?? payload.text;
+		const { fileBlocks, editorState } = payload;
 		if (draftBeforeEdit === null) {
 			// localStorage holds the serialized state handleContentChange
 			// persisted; the initialEditorState React state is stale.
@@ -274,6 +302,9 @@ export function useConversationEditingState(deps: {
 			fileBlocks: fileBlocks ?? noFileBlocks,
 			base,
 			savedEdit: saved,
+			answerPrefix: asyncAnswer
+				? getAsyncAnswerPrefix(asyncAnswer.toolCallId)
+				: "",
 		});
 		targetLoadCountRef.current++;
 	});
@@ -336,11 +367,19 @@ export function useConversationEditingState(deps: {
 	}: SendChatMessageOptions) => {
 		const sendTarget = target ?? undefined;
 		const targetLoadCount = targetLoadCountRef.current;
+		const answerPrefix =
+			sendTarget !== undefined ? (loadedTarget?.answerPrefix ?? "") : "";
 		const sendPromise = onSend({
-			message,
+			message: answerPrefix + message,
 			attachments,
 			workspaceUploads,
 			editingTarget: sendTarget,
+			composerParts: answerPrefix
+				? prependAnswerPrefix(
+						answerPrefix,
+						chatInputRef.current?.getContentParts() ?? [],
+					)
+				: undefined,
 		});
 
 		const rollback =
@@ -352,7 +391,10 @@ export function useConversationEditingState(deps: {
 			if (error instanceof BuiltInCommandPendingError) {
 				return;
 			}
-			rollback?.();
+			// An edit opened during the send keeps its editor.
+			if (targetLoadCountRef.current === targetLoadCount) {
+				rollback?.();
+			}
 			throw error;
 		}
 
@@ -368,6 +410,12 @@ export function useConversationEditingState(deps: {
 			if (!isMobileViewport()) {
 				chatInputRef.current?.focus();
 			}
+			return;
+		}
+		if (
+			sendTarget !== undefined &&
+			targetLoadCountRef.current !== targetLoadCount
+		) {
 			return;
 		}
 		finalizeSuccessfulSend(sendTarget);
