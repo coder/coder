@@ -44,7 +44,7 @@ const severityStyles: Record<ThemeRole, { svgColor: string; border: string }> =
 		},
 		info: {
 			svgColor: "[&_svg]:text-content-secondary",
-			border: "",
+			border: "border-border",
 		},
 		success: {
 			svgColor: "[&_svg]:text-border-success",
@@ -56,7 +56,7 @@ const severityStyles: Record<ThemeRole, { svgColor: string; border: string }> =
 		},
 		inactive: {
 			svgColor: "[&_svg]:text-content-disabled",
-			border: "",
+			border: "border-border",
 		},
 		danger: {
 			svgColor: "[&_svg]:text-border-warning",
