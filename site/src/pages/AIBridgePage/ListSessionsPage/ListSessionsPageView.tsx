@@ -43,7 +43,7 @@ const ThreadTooltip: React.FC<React.PropsWithChildren> = ({ children }) => (
 				<button
 					type="button"
 					aria-label="About threads"
-					className="m-0 flex items-center border-0 bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+					className="m-0 flex items-center bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 				>
 					{children}
 				</button>
@@ -119,7 +119,7 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 												<button
 													type="button"
 													aria-label="About last active time"
-													className="m-0 flex items-center border-0 bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+													className="m-0 flex items-center bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 												>
 													<InfoIcon className="size-icon-xs" />
 												</button>

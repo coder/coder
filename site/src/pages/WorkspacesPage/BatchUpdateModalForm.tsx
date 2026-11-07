@@ -132,7 +132,7 @@ const PanelListItem: React.FC<{ children: React.ReactNode }> = ({
 	children,
 }) => {
 	return (
-		<li className="not-last:border-b-border not-last:border-b not-last:border-solid border-0">
+		<li className="not-last:border-b-border not-last:border-b not-last:border-solid">
 			{children}
 		</li>
 	);
@@ -273,7 +273,7 @@ const ContainerFooter: React.FC<ContainerFooterProps> = ({
 				// Also have to subtract padding here to make sure footer is
 				// full-bleed, and there's no risk of the border getting
 				// confused for the outline of one of the panels
-				"border-0 border-t border-solid border-t-border pt-8 -mx-8 px-8",
+				"border-t border-solid border-t-border pt-8 -mx-8 px-8",
 				className,
 			)}
 		>
@@ -550,7 +550,7 @@ const ReviewForm: React.FC<ReviewFormProps> = ({
 								{dormant.map((ws) => (
 									<li
 										key={ws.id}
-										className="not-last:border-b-border not-last:border-b not-last:border-solid border-0"
+										className="not-last:border-b-border not-last:border-b not-last:border-solid"
 									>
 										<ReviewPanel
 											className="border-none"

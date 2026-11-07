@@ -41,7 +41,7 @@ import { getDisplayWorkspaceStatus } from "#/utils/workspace";
 
 /** Unstyled native button so text-only tooltip triggers are keyboard focusable. */
 const tooltipTriggerClassName =
-	"m-0 border-0 bg-transparent p-0 font-mono text-xs text-inherit cursor-default rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link";
+	"m-0 bg-transparent p-0 font-mono text-xs text-inherit cursor-default rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link";
 
 type DeploymentBannerViewProps = {
 	health?: HealthcheckReport;
@@ -98,7 +98,7 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 	return (
 		<div
 			className="sticky bottom-0 z-1 flex h-9 w-full items-center gap-8
-				overflow-x-auto overflow-y-hidden whitespace-nowrap border-0 border-t border-solid
+				overflow-x-auto overflow-y-hidden whitespace-nowrap border-t border-solid
 				bg-surface-primary pr-4 font-mono text-xs leading-none"
 		>
 			<TooltipProvider delayDuration={100}>

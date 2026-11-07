@@ -64,7 +64,7 @@ export const InboxPopover: React.FC<InboxPopoverProps> = ({
 				>
 					<div
 						className={cn([
-							"flex items-center justify-between p-3 border-0 border-b border-solid",
+							"flex items-center justify-between p-3 border-b border-solid",
 							"sticky top-0 bg-surface-primary z-10 rounded-t",
 						])}
 					>
@@ -101,9 +101,9 @@ export const InboxPopover: React.FC<InboxPopoverProps> = ({
 									role="list"
 									aria-label="Notifications"
 									className={cn([
-										"[&>[role=listitem]]:border-0 [&>[role=listitem]:not(:last-child)]:border-b",
+										"[&>[role=listitem]:not(:last-child)]:border-b",
 										"[&>[role=listitem]]:border-solid",
-										hasMoreNotifications && "border-0 border-b border-solid",
+										hasMoreNotifications && "border-b border-solid",
 									])}
 								>
 									{notifications.map((notification) => (

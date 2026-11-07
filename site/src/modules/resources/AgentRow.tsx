@@ -532,7 +532,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />
 			</div>
 
-			<section className="border-0 border-t border-solid">
+			<section className="border-t border-solid">
 				<Collapsible open={shouldExpandLogs} onOpenChange={setShowLogs}>
 					<div className="px-4 py-2 relative">
 						<CollapsibleTrigger asChild>
@@ -697,7 +697,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 											<div
 												className={cn(
 													"shrink-0 flex items-center gap-2 pl-2 pr-3",
-													"border-solid border-0 border-b border-l",
+													"border-solid border-b border-l",
 												)}
 											>
 												<TooltipProvider>

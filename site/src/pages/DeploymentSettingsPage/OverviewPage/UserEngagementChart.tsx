@@ -91,7 +91,7 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 				</Collapsible>
 			</div>
 
-			<div className="p-6 border-0 border-t border-solid">
+			<div className="p-6 border-t border-solid">
 				<div className="h-64">
 					{data ? (
 						data.length > 0 ? (
@@ -217,7 +217,7 @@ const DisclosureTrigger: React.FC<React.ComponentProps<typeof Button>> = ({
 }) => (
 	<Button
 		className={cn(
-			"h-auto p-0 border-0 bg-transparent font-medium text-content-secondary",
+			"h-auto p-0 bg-transparent font-medium text-content-secondary",
 			"hover:bg-transparent hover:text-content-primary",
 			"[&[data-state=open]_svg]:rotate-90",
 			className,
@@ -252,7 +252,7 @@ const UserEngagementTable: React.FC<UserEngagementTableProps> = ({ data }) => (
 						<TableRow key={d.date}>
 							<TableHead
 								scope="row"
-								className="border-0 border-t border-solid font-medium"
+								className="border-t border-solid font-medium"
 							>
 								{formatDate(new Date(d.date), {
 									hour: undefined,

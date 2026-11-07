@@ -144,7 +144,7 @@ class WorkingBlockContent extends Component<WorkingBlockContentProps> {
 				ref={(content) => {
 					this.content = content;
 				}}
-				className="mt-1.5 flex flex-col gap-2 border-0 border-l border-solid ml-2 pl-4"
+				className="mt-1.5 flex flex-col gap-2 border-l border-solid ml-2 pl-4"
 			>
 				{this.props.children}
 			</div>

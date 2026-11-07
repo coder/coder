@@ -162,7 +162,7 @@ export const WorkspaceIframe: React.FC<WorkspaceIframeProps> = ({
 		<iframe
 			ref={ref}
 			loading="eager"
-			className={cn("w-full h-full border-0", className)}
+			className={cn("w-full h-full", className)}
 			allow="clipboard-read; clipboard-write"
 			{...props}
 		/>

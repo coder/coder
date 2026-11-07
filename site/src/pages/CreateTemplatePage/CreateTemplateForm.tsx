@@ -457,7 +457,7 @@ export const CreateTemplateForm: React.FC<CreateTemplateFormProps> = (
 					<button
 						type="button"
 						onClick={onOpenBuildLogsDrawer}
-						className="cursor-pointer border-0 bg-transparent text-sm font-medium text-content-secondary hover:text-content-primary hover:underline hover:underline-offset-4"
+						className="cursor-pointer bg-transparent text-sm font-medium text-content-secondary hover:text-content-primary hover:underline hover:underline-offset-4"
 					>
 						Show build logs
 					</button>

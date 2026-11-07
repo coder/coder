@@ -169,7 +169,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 					type="button"
 					variant="subtle"
 					className={cn(
-						"h-7 min-w-0 shrink justify-start gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium shadow-none transition-colors hover:bg-surface-tertiary hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link [&>svg]:size-3.5! [&>svg]:p-0 [&>svg]:shrink-0 [&>svg]:transition hover:[&>svg]:text-content-primary [&>img]:size-3! [&>img]:p-0!",
+						"h-7 min-w-0 shrink justify-start gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium shadow-none transition-colors hover:bg-surface-tertiary hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link [&>svg]:size-3.5! [&>svg]:p-0 [&>svg]:shrink-0 [&>svg]:transition hover:[&>svg]:text-content-primary [&>img]:size-3! [&>img]:p-0!",
 						className,
 					)}
 					onTouchStart={onTriggerTouchStart}
@@ -214,7 +214,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 			>
 				<Command
 					shouldFilter={false}
-					className="[&_[cmdk-input-wrapper]]:border-0 [&_[cmdk-input-wrapper]]:border-b [&_[cmdk-input-wrapper]]:border-solid [&_[cmdk-input-wrapper]]:px-3 [&_[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
+					className="[&_[cmdk-input-wrapper]]:border-b [&_[cmdk-input-wrapper]]:border-solid [&_[cmdk-input-wrapper]]:px-3 [&_[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
 				>
 					<CommandInput
 						value={search}
@@ -282,7 +282,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 									}
 									className={cn(
 										"p-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:leading-[18px] [&_[cmdk-group-heading]]:text-content-secondary",
-										index > 0 && "border-0 border-t border-solid",
+										index > 0 && "border-t border-solid",
 									)}
 								>
 									{providerOptions.map((option) => (
@@ -343,7 +343,7 @@ const ReasoningEffortRow: React.FC<ReasoningEffortRowProps> = ({
 	const effortIndex = valueIndex >= 0 ? valueIndex : 0;
 
 	return (
-		<div className="flex items-center gap-3 border-0 border-t border-solid px-3 py-2">
+		<div className="flex items-center gap-3 border-t border-solid px-3 py-2">
 			<div className="flex shrink-0 items-center gap-1">
 				<span className="text-xs font-medium leading-[18px] text-content-secondary">
 					Effort

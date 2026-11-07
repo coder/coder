@@ -36,7 +36,7 @@ export const NetworkCallBadges: React.FC<NetworkCallBadgesProps> = ({
 					<button
 						type="button"
 						aria-label="More info"
-						className="flex items-center whitespace-nowrap border-0 bg-transparent p-0 text-inherit"
+						className="flex items-center whitespace-nowrap bg-transparent p-0 text-inherit"
 					>
 						<Badge className="rounded-e-none">
 							{summary.total.toLocaleString("en-US")}

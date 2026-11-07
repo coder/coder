@@ -52,7 +52,7 @@ export const NavbarView: React.FC<NavbarViewProps> = ({
 	return (
 		<div
 			className={cn(
-				"sticky top-0 bg-surface-primary z-40 border-0 border-b border-solid h-[72px] min-h-[72px] flex items-center leading-none px-6",
+				"sticky top-0 bg-surface-primary z-40 border-b border-solid h-[72px] min-h-[72px] flex items-center leading-none px-6",
 				prerelease &&
 					cn(
 						"[&:before]:content-[''] [&:before]:absolute [&:before]:left-0",

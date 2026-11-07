@@ -147,7 +147,7 @@ const TranscriptTextRow: React.FC<MessageRowProps> = ({ msg, clamp }) => {
 						<button
 							type="button"
 							onClick={() => setExpanded((prev) => !prev)}
-							className="border-0 bg-transparent p-0 text-2xs font-medium text-content-link transition-colors hover:underline"
+							className="bg-transparent p-0 text-2xs font-medium text-content-link transition-colors hover:underline"
 							aria-label={`See ${expanded ? "less" : "more"} of ${msg.role} message`}
 						>
 							{expanded ? "see less" : "see more"}

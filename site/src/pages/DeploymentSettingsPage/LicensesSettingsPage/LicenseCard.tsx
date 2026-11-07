@@ -325,7 +325,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 					>
 						<button
 							type="button"
-							className="m-0 flex min-w-0 flex-1 appearance-none items-center gap-6 border-0 bg-transparent p-0 text-left"
+							className="m-0 flex min-w-0 flex-1 appearance-none items-center gap-6 bg-transparent p-0 text-left"
 						>
 							{headerContent}
 						</button>
@@ -356,7 +356,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 				</div>
 
 				<CollapsibleContent>
-					<div className="border-0 border-t border-solid bg-surface-primary px-4 py-4">
+					<div className="border-t border-solid bg-surface-primary px-4 py-4">
 						<div className="text-sm font-medium text-content-secondary">
 							Products
 						</div>

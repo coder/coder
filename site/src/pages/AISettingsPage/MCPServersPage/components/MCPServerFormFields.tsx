@@ -187,7 +187,7 @@ export const MCPServerFormFields: React.FC<MCPServerFormFieldsProps> = ({
 						description="How users authenticate with this MCP server."
 						open={showAuth}
 						onOpenChange={setShowAuth}
-						className="border-0 border-t border-solid"
+						className="border-t border-solid"
 						contentClassName="space-y-5 pt-5 pl-6"
 					>
 						<MCPServerAuthSection
@@ -203,7 +203,7 @@ export const MCPServerFormFields: React.FC<MCPServerFormFieldsProps> = ({
 						description="Availability, model intent, identity headers, and tool governance."
 						open={showBehavior}
 						onOpenChange={setShowBehavior}
-						className="border-0 border-t border-solid"
+						className="border-t border-solid"
 						contentClassName="space-y-6 pt-5 pl-6"
 					>
 						<MCPServerBehaviorSection

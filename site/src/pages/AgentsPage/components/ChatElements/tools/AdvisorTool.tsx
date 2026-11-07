@@ -73,7 +73,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 						<p className="m-0 whitespace-pre-wrap wrap-break-word text-[13px] italic leading-5 text-content-secondary wrap-anywhere">
 							{questionText}
 						</p>
-						<div className="border-0 border-t border-solid pt-2">
+						<div className="border-t border-solid pt-2">
 							{showError ? (
 								<div role="alert" className="text-sm">
 									<p className="m-0 font-medium text-content-primary">

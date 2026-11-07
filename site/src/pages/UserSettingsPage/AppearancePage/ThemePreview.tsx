@@ -34,7 +34,7 @@ export const ThemePreview: React.FC<ThemePreviewProps> = ({
 				<div className="bg-surface-primary text-content-primary">
 					<div
 						className={cn(
-							"bg-surface-primary flex items-center justify-between border-0 border-b border-solid",
+							"bg-surface-primary flex items-center justify-between border-b border-solid",
 							size === "sm" ? "px-2.5 py-1.5 mb-2" : "px-4 py-2.5 mb-3",
 						)}
 					>
@@ -122,7 +122,7 @@ export const ThemePreview: React.FC<ThemePreviewProps> = ({
 				{label && (
 					<div
 						className={cn(
-							"border-0 border-t border-solid font-medium text-content-primary",
+							"border-t border-solid font-medium text-content-primary",
 							size === "sm" ? "px-2.5 py-1.5 text-xs" : "px-4 py-2 text-sm",
 						)}
 					>

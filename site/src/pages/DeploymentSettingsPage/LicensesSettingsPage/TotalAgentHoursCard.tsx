@@ -157,7 +157,7 @@ export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 									<button
 										type="button"
 										aria-label="Total agent hours information"
-										className="m-0 inline-flex appearance-none border-0 bg-transparent p-0 text-content-secondary"
+										className="m-0 inline-flex appearance-none bg-transparent p-0 text-content-secondary"
 									>
 										<InfoIcon className="size-3" />
 									</button>
@@ -197,7 +197,7 @@ export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 							<>
 								{softMarkerPercent !== undefined && (
 									<div
-										className="absolute inset-y-0 z-0 border-0 border-l-2 border-dotted border-border-warning"
+										className="absolute inset-y-0 z-0 border-l-2 border-dotted border-border-warning"
 										style={{ left: `${softMarkerPercent}%` }}
 									/>
 								)}
