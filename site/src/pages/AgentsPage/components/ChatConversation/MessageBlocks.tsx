@@ -194,6 +194,7 @@ export const BlockList: React.FC<BlockListProps> = ({
 					}
 					case "tool": {
 						const tool = toolByID.get(block.id);
+
 						if (!tool) {
 							if (!isStreaming) {
 								return null;
@@ -215,9 +216,11 @@ export const BlockList: React.FC<BlockListProps> = ({
 								/>
 							);
 						}
+
 						if (tool.name === "read_file") {
 							return <ReadFileTimelineBlock key={tool.id} tools={[tool]} />;
 						}
+
 						return (
 							<Tool
 								organizationId={organizationId}
