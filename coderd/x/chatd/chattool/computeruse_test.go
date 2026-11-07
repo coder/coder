@@ -915,6 +915,92 @@ func TestComputerUseTool_OpenAICompatHaltsStep(t *testing.T) {
 	})
 }
 
+// A failed call halts the rest of the step, so a mouse press whose release was
+// planned for a later call would leave the button pressed. The function tool
+// does not declare press and release, and rejects them before the desktop.
+func TestComputerUseTool_Run_OpenAICompat_RejectsUndeclaredAction(t *testing.T) {
+	t.Parallel()
+
+	for _, action := range []string{"left_mouse_down", "left_mouse_up"} {
+		t.Run(action, func(t *testing.T) {
+			t.Parallel()
+
+			// No expectations: any desktop call fails the test.
+			mockConn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+			resp, err := newOpenAICompatComputerUseTool(t, mockConn).Run(context.Background(), fantasy.ToolCall{
+				ID:    "undeclared-action",
+				Name:  "computer",
+				Input: fmt.Sprintf(`{"action":%q,"coordinate":[10,10]}`, action),
+			})
+			require.NoError(t, err)
+			assert.True(t, resp.IsError)
+			assert.Contains(t, resp.Content, "unsupported action")
+		})
+	}
+}
+
+// The agent scrolls a default amount when scroll_amount is absent, so a zero or
+// negative amount must not reach it looking absent.
+func TestComputerUseTool_Run_ScrollAmount(t *testing.T) {
+	t.Parallel()
+	const screenshotPNG = "aW1hZ2UtZGF0YQ=="
+
+	for _, tc := range []struct {
+		name     string
+		provider codersdk.ChatComputerUseProvider
+		version  fantasyanthropic.ComputerUseToolVersion
+	}{
+		{"Anthropic", codersdk.ChatComputerUseProviderAnthropic, fantasyanthropic.ComputerUse20251124},
+		{"OpenAICompat", codersdk.ChatComputerUseProviderOpenAICompat, ""},
+	} {
+		newTool := func(t *testing.T, conn workspacesdk.AgentConn) fantasy.AgentTool {
+			geometry := workspacesdk.DefaultDesktopGeometry()
+			return chattool.NewComputerUseTool(
+				tc.provider,
+				tc.version,
+				geometry.DeclaredWidth,
+				geometry.DeclaredHeight,
+				func(_ context.Context) (workspacesdk.AgentConn, error) { return conn, nil },
+				nil,
+				quartz.NewReal(),
+				slogtest.Make(t, nil),
+			)
+		}
+		scroll := func(amount int) fantasy.ToolCall {
+			return fantasy.ToolCall{
+				ID:    "scroll",
+				Name:  "computer",
+				Input: fmt.Sprintf(`{"action":"scroll","coordinate":[10,20],"scroll_direction":"down","scroll_amount":%d}`, amount),
+			}
+		}
+
+		t.Run(tc.name+"/RejectsNonpositive", func(t *testing.T) {
+			t.Parallel()
+
+			for _, amount := range []int{0, -2} {
+				// No expectations: any desktop call fails the test.
+				mockConn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+				resp, err := newTool(t, mockConn).Run(context.Background(), scroll(amount))
+				require.NoError(t, err)
+				assert.True(t, resp.IsError, "scroll_amount %d", amount)
+				assert.Contains(t, resp.Content, "scroll_amount must be at least 1")
+			}
+		})
+
+		t.Run(tc.name+"/ForwardsPositive", func(t *testing.T) {
+			t.Parallel()
+
+			mockConn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+			// The scroll and the screenshot that follows it.
+			actions := recordDesktopActions(t, mockConn, workspacesdk.DefaultDesktopGeometry(), 2, screenshotPNG)
+			resp, err := newTool(t, mockConn).Run(context.Background(), scroll(4))
+			require.NoError(t, err)
+			require.False(t, resp.IsError, resp.Content)
+			assertScrollAction(t, (*actions)[0], [2]int{10, 20}, "down", 4)
+		})
+	}
+}
+
 func newOpenAICompatComputerUseTool(t testing.TB, conn workspacesdk.AgentConn) fantasy.AgentTool {
 	t.Helper()
 	geometry := workspacesdk.DefaultDesktopGeometry()

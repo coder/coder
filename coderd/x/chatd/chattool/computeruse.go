@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -54,7 +55,9 @@ const computerUseToolName = "computer"
 // openaiCompatComputerUseActions lists the desktop actions the openai-compat
 // flavor offers. It is the vocabulary the agent desktop implements and the
 // shared action runner decodes, minus zoom, which the desktop has no way to
-// perform.
+// perform, and minus left_mouse_down and left_mouse_up. A failed call halts the
+// rest of the step, so a release planned after a press could never run and the
+// button would stay pressed; left_click_drag does a drag in one call.
 var openaiCompatComputerUseActions = []string{
 	"screenshot",
 	"left_click",
@@ -64,8 +67,6 @@ var openaiCompatComputerUseActions = []string{
 	"triple_click",
 	"mouse_move",
 	"left_click_drag",
-	"left_mouse_down",
-	"left_mouse_up",
 	"type",
 	"key",
 	"hold_key",
@@ -121,6 +122,7 @@ func openaiCompatComputerUseTool(declaredWidth, declaredHeight int) fantasy.Tool
 				},
 				"scroll_amount": map[string]any{
 					"type":        "integer",
+					"minimum":     1,
 					"description": "How many wheel clicks to scroll.",
 				},
 				"duration": map[string]any{
@@ -309,6 +311,22 @@ func (t *computerUseTool) runActionPerCallComputerUse(
 			fmt.Sprintf("invalid computer use input: %v", err),
 		), nil
 	}
+	// An unverified model may send an action the function tool does not
+	// declare, such as a mouse press whose release the halt would skip.
+	if DefaultComputerUseProvider(t.provider) == codersdk.ChatComputerUseProviderOpenAICompat &&
+		!slices.Contains(openaiCompatComputerUseActions, string(input.Action)) {
+		return fantasy.NewTextErrorResponse(fmt.Sprintf(
+			"invalid computer use input: unsupported action %q, supported actions: %s",
+			input.Action, strings.Join(openaiCompatComputerUseActions, ", "),
+		)), nil
+	}
+	sent := computerUseFieldsSent(call.Input)
+	if input.Action == fantasyanthropic.ActionScroll && sent.ScrollAmount != nil && input.ScrollAmount < 1 {
+		return fantasy.NewTextErrorResponse(fmt.Sprintf(
+			"invalid computer use input: scroll_amount must be at least 1, got %d",
+			input.ScrollAmount,
+		)), nil
+	}
 
 	conn, err := t.getWorkspaceConn(ctx)
 	if err != nil {
@@ -332,12 +350,11 @@ func (t *computerUseTool) runActionPerCallComputerUse(
 
 	// Build the action request.
 	action := t.desktopAction(string(input.Action), declaredWidth, declaredHeight)
-	coordinateSent, startCoordinateSent := computerUseCoordinateSent(call.Input)
-	if coordinateSent {
+	if sent.Coordinate != nil {
 		coord := coordinateFromInt64(input.Coordinate[0], input.Coordinate[1])
 		action.Coordinate = &coord
 	}
-	if startCoordinateSent {
+	if sent.StartCoordinate != nil {
 		coord := coordinateFromInt64(input.StartCoordinate[0], input.StartCoordinate[1])
 		action.StartCoordinate = &coord
 	}
@@ -388,20 +405,25 @@ func (t *computerUseTool) runActionPerCallComputerUse(
 	return t.captureScreenshot(ctx, conn, declaredWidth, declaredHeight)
 }
 
-// computerUseCoordinateSent reports which coordinate keys the model sent.
-// ComputerUseInput decodes coordinates into fixed arrays, so a zero value
-// cannot tell an omitted coordinate from the top-left pixel [0,0], which is a
-// valid target. ParseComputerUseInput already rejected malformed input, so a
-// decode failure here only means the keys are absent.
-func computerUseCoordinateSent(input string) (coordinate, startCoordinate bool) {
-	var sent struct {
-		Coordinate      *json.RawMessage `json:"coordinate"`
-		StartCoordinate *json.RawMessage `json:"start_coordinate"`
-	}
+// computerUseSentFields records which optional keys the model sent. A nil
+// field means the key was absent.
+type computerUseSentFields struct {
+	Coordinate      *json.RawMessage `json:"coordinate"`
+	StartCoordinate *json.RawMessage `json:"start_coordinate"`
+	ScrollAmount    *json.RawMessage `json:"scroll_amount"`
+}
+
+// computerUseFieldsSent reports which optional keys the model sent.
+// ComputerUseInput decodes into zero values, so it cannot tell an omitted key
+// from the top-left pixel [0,0], which is a valid target, or from a scroll of
+// zero clicks, which is not. ParseComputerUseInput already rejected malformed
+// input, so a decode failure here only means the keys are absent.
+func computerUseFieldsSent(input string) computerUseSentFields {
+	var sent computerUseSentFields
 	if err := json.Unmarshal([]byte(input), &sent); err != nil {
-		return false, false
+		return computerUseSentFields{}
 	}
-	return sent.Coordinate != nil, sent.StartCoordinate != nil
+	return sent
 }
 
 // anthropicDurationMillis converts an Anthropic duration in seconds to
