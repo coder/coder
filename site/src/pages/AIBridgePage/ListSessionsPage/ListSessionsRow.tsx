@@ -15,6 +15,7 @@ import { ClientsBadge } from "../ClientsBadge";
 import { NetworkCallBadges } from "../NetworkCallBadges";
 import { ProvidersBadge } from "../ProvidersBadge";
 import { TokenBadges } from "../TokenBadges";
+import { getRequestUserAgent, UNKNOWN_CLIENT } from "../utils";
 
 const PROMPT_PREVIEW_MAX_CHARS = 500;
 
@@ -87,7 +88,10 @@ export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 			</TableCell>
 			<TableCell className="w-40 max-w-40">
 				<div className="min-w-0 overflow-hidden">
-					<ClientsBadge clients={[session.client ?? "Unknown"]} />
+					<ClientsBadge
+						clients={[session.client ?? UNKNOWN_CLIENT]}
+						userAgent={getRequestUserAgent(session.metadata)}
+					/>
 				</div>
 			</TableCell>
 			<TableCell className="w-32">

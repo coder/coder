@@ -14,6 +14,19 @@ export const roundDurationDisplay = (duration: number) => {
 	return `${duration.toFixed(0)}ms`;
 };
 
+/** Client label used when AI Gateway cannot infer the client. */
+export const UNKNOWN_CLIENT = "Unknown";
+
+/** Returns the raw request User-Agent recorded in interception metadata. */
+export const getRequestUserAgent = (
+	metadata: Record<string, unknown>,
+): string | undefined => {
+	const userAgent = metadata.request_user_agent;
+	return typeof userAgent === "string" && userAgent !== ""
+		? userAgent
+		: undefined;
+};
+
 export const getProviderDisplayName = (provider: string) => {
 	switch (provider) {
 		case "anthropic":
