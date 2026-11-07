@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/dustin/go-humanize/english"
+	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -479,28 +481,73 @@ func warnSuspiciousTrailingNewline(w io.Writer, value string) {
 }
 
 type secretListRow struct {
-	codersdk.UserSecret `table:"-"`
+	// Secret is the JSON output: a codersdk.UserSecret, or a
+	// codersdk.WorkspaceSecret for a workspace build's secret.
+	Secret any `table:"-"`
 
 	Created     string `json:"-" table:"created"`
 	Name        string `json:"-" table:"name,default_sort"`
 	Updated     string `json:"-" table:"updated"`
+	Source      string `json:"-" table:"source"`
 	Env         string `json:"-" table:"env"`
 	File        string `json:"-" table:"file"`
 	Enabled     string `json:"-" table:"enabled"`
+	ReplacedBy  string `json:"-" table:"replaced by"`
+	Ephemeral   string `json:"-" table:"ephemeral"`
 	Description string `json:"-" table:"description"`
 }
 
-func secretListRowFromSecret(secret codersdk.UserSecret) secretListRow {
+var (
+	secretListColumns      = []string{"name", "created", "updated", "env", "file", "enabled", "description"}
+	secretListBuildColumns = []string{"name", "source", "created", "updated", "env", "file", "enabled", "replaced by", "description"}
+)
+
+// secretListRowFromUserSecret builds a table row for a user secret.
+// replacedBy lists the build secrets that take its targets.
+func secretListRowFromUserSecret(secret codersdk.UserSecret, replacedBy []string) secretListRow {
 	return secretListRow{
-		UserSecret:  secret,
+		Secret:      secret,
 		Created:     humanize.Time(secret.CreatedAt),
 		Name:        secret.Name,
 		Updated:     humanize.Time(secret.UpdatedAt),
+		Source:      "user",
 		Env:         secret.EnvName,
 		File:        secret.FilePath,
 		Enabled:     strconv.FormatBool(secret.Enabled),
+		ReplacedBy:  strings.Join(replacedBy, ", "),
+		Ephemeral:   "false",
 		Description: secret.Description,
 	}
+}
+
+func secretListRowFromBuildSecret(secret codersdk.WorkspaceSecret) secretListRow {
+	row := secretListRowFromUserSecret(secret.UserSecret, nil)
+	row.Secret = secret
+	row.Source = "build"
+	row.Ephemeral = strconv.FormatBool(secret.Ephemeral)
+	return row
+}
+
+// secretListRows builds the listing rows. A user secret's "replaced by"
+// names the build secrets that take its env var or file.
+func secretListRows(userSecrets []codersdk.UserSecret, buildSecrets []codersdk.WorkspaceSecret) []secretListRow {
+	replacedBy := make(map[uuid.UUID][]string)
+	for _, s := range buildSecrets {
+		if s.EnvReplaces != nil {
+			replacedBy[*s.EnvReplaces] = append(replacedBy[*s.EnvReplaces], "env: build/"+s.Name)
+		}
+		if s.FileReplaces != nil {
+			replacedBy[*s.FileReplaces] = append(replacedBy[*s.FileReplaces], "file: build/"+s.Name)
+		}
+	}
+	rows := make([]secretListRow, 0, len(userSecrets)+len(buildSecrets))
+	for _, s := range userSecrets {
+		rows = append(rows, secretListRowFromUserSecret(s, replacedBy[s.ID]))
+	}
+	for _, s := range buildSecrets {
+		rows = append(rows, secretListRowFromBuildSecret(s))
+	}
+	return rows
 }
 
 func (r *RootCmd) secretEnable() *serpent.Command {
@@ -574,12 +621,106 @@ func (r *RootCmd) secretEnabledSetter(state secretEnabledState) *serpent.Command
 	return cmd
 }
 
+// secretListBuildID picks the workspace build whose secrets to include.
+// Explicit flags win; otherwise the current workspace is used when the
+// command runs inside one. uuid.Nil means list user secrets only. fromEnv
+// reports that the build came from the workspace environment rather than a
+// flag.
+func secretListBuildID(inv *serpent.Invocation, client *codersdk.Client, workspace, buildID string) (id uuid.UUID, fromEnv bool, err error) {
+	if buildID != "" {
+		id, err := uuid.Parse(buildID)
+		if err != nil {
+			return uuid.Nil, false, xerrors.Errorf("parse --build-id: %w", err)
+		}
+		return id, false, nil
+	}
+	if workspace != "" {
+		ws, err := client.ResolveWorkspace(inv.Context(), workspace)
+		if err != nil {
+			return uuid.Nil, false, xerrors.Errorf("get workspace %q: %w", workspace, err)
+		}
+		return ws.LatestBuild.ID, false, nil
+	}
+	// Set by the agent inside a workspace.
+	if v := inv.Environ.Get("CODER_WORKSPACE_BUILD_ID"); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			return uuid.Nil, false, xerrors.Errorf("parse CODER_WORKSPACE_BUILD_ID: %w", err)
+		}
+		return id, true, nil
+	}
+	// Agents started before the server sent the build ID only set the
+	// workspace ID, so fall back to the workspace's latest build.
+	if v := inv.Environ.Get("CODER_WORKSPACE_ID"); v != "" {
+		id, err := uuid.Parse(v)
+		if err != nil {
+			return uuid.Nil, false, xerrors.Errorf("parse CODER_WORKSPACE_ID: %w", err)
+		}
+		ws, err := client.Workspace(inv.Context(), id)
+		if isNotFound(err) {
+			warnCurrentWorkspaceNotFound(inv, client)
+			return uuid.Nil, false, nil
+		}
+		if err != nil {
+			return uuid.Nil, false, xerrors.Errorf("get current workspace: %w", err)
+		}
+		return ws.LatestBuild.ID, true, nil
+	}
+	return uuid.Nil, false, nil
+}
+
+func warnCurrentWorkspaceNotFound(inv *serpent.Invocation, client *codersdk.Client) {
+	cliui.Warn(inv.Stderr, fmt.Sprintf("The current workspace is not visible to the logged-in user on %s, so only that user's secrets are listed.", client.URL),
+		"Use --workspace or --build-id to list a workspace's secrets.")
+}
+
+func isNotFound(err error) bool {
+	cerr, ok := codersdk.AsError(err)
+	return ok && cerr.StatusCode() == http.StatusNotFound
+}
+
+// secretListBuildSecrets returns the secrets of the workspace build chosen by
+// secretListBuildID. included is false when only user secrets are listed.
+// Secrets of
+// another user's build are never mixed into the logged-in user's listing: a
+// build from the workspace environment is skipped, and an explicit one fails.
+func secretListBuildSecrets(inv *serpent.Invocation, client *codersdk.Client, workspace, buildID string) (secrets []codersdk.WorkspaceSecret, included bool, err error) {
+	id, fromEnv, err := secretListBuildID(inv, client, workspace, buildID)
+	if err != nil || id == uuid.Nil {
+		return nil, false, err
+	}
+	build, err := client.WorkspaceBuild(inv.Context(), id)
+	if fromEnv && isNotFound(err) {
+		warnCurrentWorkspaceNotFound(inv, client)
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, xerrors.Errorf("get workspace build %s: %w", id, err)
+	}
+	me, err := client.User(inv.Context(), codersdk.Me)
+	if err != nil {
+		return nil, false, xerrors.Errorf("get logged-in user: %w", err)
+	}
+	if build.WorkspaceOwnerID != me.ID {
+		if fromEnv {
+			return nil, false, nil
+		}
+		return nil, false, xerrors.Errorf("workspace build %s belongs to %q, not the logged-in user %q", id, build.WorkspaceOwnerName, me.Username)
+	}
+	secrets, err = client.WorkspaceBuildSecrets(inv.Context(), id)
+	if err != nil {
+		return nil, false, xerrors.Errorf("list workspace build secrets: %w", err)
+	}
+	return secrets, true, nil
+}
+
 func (r *RootCmd) secretList() *serpent.Command {
+	var workspace, buildID string
 	formatter := cliui.NewOutputFormatter(
 		cliui.ChangeFormatterData(
 			cliui.TableFormat(
 				[]secretListRow{},
-				[]string{"name", "created", "updated", "env", "file", "enabled", "description"},
+				secretListColumns,
 			),
 			func(data any) (any, error) {
 				switch rows := data.(type) {
@@ -597,13 +738,13 @@ func (r *RootCmd) secretList() *serpent.Command {
 			func(data any) (any, error) {
 				switch rows := data.(type) {
 				case []secretListRow:
-					secrets := make([]codersdk.UserSecret, len(rows))
+					secrets := make([]any, len(rows))
 					for i := range rows {
-						secrets[i] = rows[i].UserSecret
+						secrets[i] = rows[i].Secret
 					}
 					return secrets, nil
 				case secretListRow:
-					return []codersdk.UserSecret{rows.UserSecret}, nil
+					return []any{rows.Secret}, nil
 				default:
 					return nil, xerrors.Errorf("expected []secretListRow or secretListRow, got %T", data)
 				}
@@ -612,10 +753,15 @@ func (r *RootCmd) secretList() *serpent.Command {
 	)
 
 	cmd := &serpent.Command{
-		Use:        "list [name]",
-		Aliases:    []string{"ls"},
-		Short:      "List secrets, or show one by name",
-		Long:       "Secret values are omitted from the output.",
+		Use:     "list [name]",
+		Aliases: []string{"ls"},
+		Short:   "List secrets, or show one by name",
+		Long: "Secret values are omitted from the output.\n\n" +
+			"When listing all secrets inside a workspace, or with --workspace or --build-id, " +
+			"the workspace build's secrets are included and the source and \"replaced by\" columns " +
+			"are shown by default. If a build secret uses the same env var " +
+			"or file as a user secret, the user secret is not delivered on that target and its " +
+			"\"replaced by\" column names the build secret, for example \"env: build/github-token\".",
 		Middleware: serpent.RequireRangeArgs(0, 1),
 		Handler: func(inv *serpent.Invocation) error {
 			client, err := r.InitClient(inv)
@@ -625,22 +771,35 @@ func (r *RootCmd) secretList() *serpent.Command {
 
 			var data any
 			if len(inv.Args) == 1 {
+				if workspace != "" || buildID != "" {
+					return xerrors.New("--workspace and --build-id cannot be used with a secret name")
+				}
 				secret, err := client.UserSecretByName(inv.Context(), codersdk.Me, inv.Args[0])
 				if err != nil {
 					return xerrors.Errorf("get secret %q: %w", inv.Args[0], err)
 				}
-				data = secretListRowFromSecret(secret)
+				data = secretListRowFromUserSecret(secret, nil)
 			} else {
-				secrets, err := client.UserSecrets(inv.Context(), codersdk.Me)
+				buildSecrets, included, err := secretListBuildSecrets(inv, client, workspace, buildID)
+				if err != nil {
+					return err
+				}
+				if included && !inv.ParsedFlags().Changed("column") {
+					// Show where each secret comes from only when a build's
+					// secrets are listed.
+					if opt := inv.Command.Options.ByFlag("column"); opt != nil {
+						if columns, ok := opt.Value.(*serpent.EnumArray); ok {
+							if err := columns.Replace(secretListBuildColumns); err != nil {
+								return xerrors.Errorf("set columns: %w", err)
+							}
+						}
+					}
+				}
+				userSecrets, err := client.UserSecrets(inv.Context(), codersdk.Me)
 				if err != nil {
 					return xerrors.Errorf("list secrets: %w", err)
 				}
-
-				rows := make([]secretListRow, len(secrets))
-				for i := range secrets {
-					rows[i] = secretListRowFromSecret(secrets[i])
-				}
-				data = rows
+				data = secretListRows(userSecrets, buildSecrets)
 			}
 
 			out, err := formatter.Format(inv.Context(), data)
@@ -654,6 +813,18 @@ func (r *RootCmd) secretList() *serpent.Command {
 
 			_, err = fmt.Fprintln(inv.Stdout, out)
 			return err
+		},
+		Options: serpent.OptionSet{
+			{
+				Flag:        "workspace",
+				Description: "Include the secrets of this workspace's latest build. Inside a workspace, the default is the build the workspace agent was started from.",
+				Value:       serpent.StringOf(&workspace),
+			},
+			{
+				Flag:        "build-id",
+				Description: "Include the secrets of this workspace build. Takes precedence over --workspace.",
+				Value:       serpent.StringOf(&buildID),
+			},
 		},
 	}
 

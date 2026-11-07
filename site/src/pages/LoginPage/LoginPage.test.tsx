@@ -68,7 +68,7 @@ describe("LoginPage", () => {
 		expect(errorMessage).toBeDefined();
 	});
 
-	it("associates email validation errors with the email input", async () => {
+	it("associates validation errors with their inputs", async () => {
 		// When
 		render(<LoginPage />);
 		await waitForLoaderToBeRemoved();
@@ -105,12 +105,32 @@ describe("LoginPage", () => {
 			"Please enter an email address.",
 		);
 
-		expect(passwordInput).not.toHaveAttribute("aria-invalid", "true");
-		expect(passwordInput).not.toHaveAttribute(
-			"aria-describedby",
-			"signin-password-error",
+		expect(passwordInput).toHaveAttribute("aria-invalid", "true");
+		expect(passwordInput).toHaveAccessibleDescription(
+			"Please enter a password.",
 		);
-		expect(document.getElementById("signin-password-error")).toBeNull();
+	});
+
+	it("does not sign in without a password", async () => {
+		const loginRequest = vi.fn();
+		server.use(
+			http.post("/api/v2/users/login", () => {
+				loginRequest();
+				return HttpResponse.json({}, { status: 201 });
+			}),
+		);
+		render(<LoginPage />);
+		await waitForLoaderToBeRemoved();
+
+		await userEvent.type(screen.getByLabelText(/Email/), "test@example.com");
+		await userEvent.click(screen.getByRole("button", { name: "Sign In" }));
+
+		await waitFor(() =>
+			expect(screen.getByLabelText(/Password/)).toHaveAccessibleDescription(
+				"Please enter a password.",
+			),
+		);
+		expect(loginRequest).not.toHaveBeenCalled();
 	});
 
 	it("redirects to the setup page if there is no first user", async () => {

@@ -198,6 +198,8 @@ const (
 	WorkspaceAgentScriptStatusExitFailure   WorkspaceAgentScriptStatus = "exit_failure"
 	WorkspaceAgentScriptStatusTimedOut      WorkspaceAgentScriptStatus = "timed_out"
 	WorkspaceAgentScriptStatusPipesLeftOpen WorkspaceAgentScriptStatus = "pipes_left_open"
+	WorkspaceAgentScriptStatusSkipped       WorkspaceAgentScriptStatus = "skipped"
+	WorkspaceAgentScriptStatusCanceled      WorkspaceAgentScriptStatus = "canceled"
 )
 
 type WorkspaceAgentScript struct {

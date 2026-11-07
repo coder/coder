@@ -1,0 +1,18 @@
+[project]
+name = "harbor-coder"
+version = "0.1.0"
+description = "Harbor environment provider for Coder workspaces and a Harbor agent for Coder Agents."
+requires-python = ">=3.12"
+# Pinned: environment.py uses private BaseEnvironment members, and runs are
+# only comparable on the same Harbor. The full transitive set is hash-pinned
+# in requirements.lock (install.sh uses it with --require-hashes); regenerate
+# with: uv pip compile pyproject.toml --python-version 3.12 --generate-hashes -o requirements.lock
+# litellm is held below 1.107.0, the release compromised on 2026-10-21.
+dependencies = ["harbor==0.24.0", "dockerfile-parse>=2.0", "litellm==1.106.0"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["harbor_coder"]

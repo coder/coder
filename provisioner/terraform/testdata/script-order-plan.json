@@ -1,0 +1,93 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.16.2",
+  "planned_values": {
+    "root_module": {}
+  },
+  "prior_state": {
+    "format_version": "1.0",
+    "terraform_version": "1.16.2",
+    "values": {
+      "root_module": {
+        "resources": [
+          {
+            "address": "data.coder_script_order.order",
+            "mode": "data",
+            "type": "coder_script_order",
+            "name": "order",
+            "provider_name": "registry.terraform.io/coder/coder",
+            "schema_version": 0,
+            "values": {
+              "id": "ea47dfd3-8e9b-4a8f-8529-d93e71dcd474",
+              "rule": [
+                {
+                  "after": [
+                    "coder_script.prerequisite"
+                  ],
+                  "phase": "",
+                  "requires": "success",
+                  "run": [
+                    "coder_script.dependent"
+                  ]
+                }
+              ]
+            },
+            "sensitive_values": {
+              "rule": [
+                {
+                  "after": [
+                    false
+                  ],
+                  "run": [
+                    false
+                  ]
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "configuration": {
+    "provider_config": {
+      "coder": {
+        "name": "coder",
+        "full_name": "registry.terraform.io/coder/coder",
+        "version_constraint": "2.20.0"
+      }
+    },
+    "root_module": {
+      "resources": [
+        {
+          "address": "data.coder_script_order.order",
+          "mode": "data",
+          "type": "coder_script_order",
+          "name": "order",
+          "provider_config_key": "coder",
+          "expressions": {
+            "rule": [
+              {
+                "after": {
+                  "constant_value": [
+                    "coder_script.prerequisite"
+                  ]
+                },
+                "run": {
+                  "constant_value": [
+                    "coder_script.dependent"
+                  ]
+                }
+              }
+            ]
+          },
+          "schema_version": 0
+        }
+      ]
+    }
+  },
+  "timestamp": "2026-10-13T20:44:17Z",
+  "applyable": false,
+  "complete": true,
+  "errored": false
+}

@@ -29,7 +29,6 @@ export const groups = () => {
 	} satisfies UseQueryOptions<Group[]>;
 };
 
-/** Prefix shared by organization group lists and their paginated and spend queries. */
 export const getGroupsByOrganizationQueryKey = (organization: string) => [
 	"organization",
 	organization,

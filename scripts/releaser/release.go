@@ -673,7 +673,9 @@ func runRelease(ctx context.Context, inv *serpent.Invocation, executor ReleaseEx
 	}
 
 	// Container image.
-	imageTag := fmt.Sprintf("ghcr.io/coder/coder:%s", strings.TrimPrefix(newVersion.String(), "v"))
+	// The release workflow tags the image via scripts/image_tag.sh, which
+	// always prefixes the version with "v" (ghcr.io/coder/coder:v2.37.5).
+	imageTag := fmt.Sprintf("ghcr.io/coder/coder:%s", newVersion.String())
 	fmt.Fprintf(&notes, "\n## Container image\n\n- `docker pull %s`\n", imageTag)
 
 	// Install/upgrade links.

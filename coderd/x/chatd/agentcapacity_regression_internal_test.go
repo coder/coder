@@ -273,7 +273,7 @@ func TestRunnerManager_HeartbeatDoesNotReviveStaleLease(t *testing.T) {
 	machine := chatstate.NewChatMachine(f.db, f.pubsub, chatA.ID)
 	require.NoError(t, machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
 		_, err := tx.SendMessage(chatstate.SendMessageInput{
-			Message:      userTextMessage(t, "next", f.user.ID, f.model.ID, f.apiKey.ID),
+			Message:      userTextMessage(t, "next", f.user.ID, f.model.ID),
 			BusyBehavior: chatstate.BusyBehaviorQueue,
 			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
 		})

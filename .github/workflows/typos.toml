@@ -56,6 +56,8 @@ extend-exclude = [
 	"**/*_test.go",
 	"**/*.test.tsx",
 	"**/pnpm-lock.yaml",
+	# pnpm patches of minified bundles contain short identifiers that look like typos
+	"site/patches/**",
 	"tailnet/testdata/**",
 	"site/src/pages/SetupPage/countries.tsx",
 	# Generated upstream emoji names and Unicode code points are not authored prose.

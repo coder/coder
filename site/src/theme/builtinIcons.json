@@ -76,13 +76,17 @@
 	{
 		"name": "AWS",
 		"description": "Amazon Web Services logo",
-		"sources": [
-			"/icon/aws.svg",
-			"/icon/aws-dark.svg",
-			"/icon/aws-light.svg",
-			"/icon/aws-monochrome.svg",
-			"/icon/aws.png"
-		]
+		"sources": ["/icon/aws.svg", "/icon/aws-monochrome.svg", "/icon/aws.png"]
+	},
+	{
+		"name": "AWS dark",
+		"description": "Amazon Web Services logo, dark variant",
+		"sources": ["/icon/aws-dark.svg"]
+	},
+	{
+		"name": "AWS light",
+		"description": "Amazon Web Services logo, light variant",
+		"sources": ["/icon/aws-light.svg"]
 	},
 	{
 		"name": "Azure DevOps",
@@ -272,7 +276,12 @@
 	{
 		"name": "Gemini",
 		"description": "Gemini logo",
-		"sources": ["/icon/gemini.svg", "/icon/gemini-monochrome.svg"]
+		"sources": ["/icon/gemini.svg"]
+	},
+	{
+		"name": "Gemini monochrome",
+		"description": "Gemini logo, monochrome variant",
+		"sources": ["/icon/gemini-monochrome.svg"]
 	},
 	{ "name": "Git", "description": "Git logo", "sources": ["/icon/git.svg"] },
 	{
@@ -427,6 +436,16 @@
 	},
 	{ "name": "Nix", "description": "Nix logo", "sources": ["/icon/nix.svg"] },
 	{
+		"name": "NixOS Rainbow",
+		"description": "NixOS logo in rainbow colors",
+		"sources": ["/icon/nixos-rainbow.svg"]
+	},
+	{
+		"name": "NixOS Trans",
+		"description": "NixOS logo in transgender pride colors",
+		"sources": ["/icon/nixos-trans.svg"]
+	},
+	{
 		"name": "Node.js",
 		"description": "Node.js logo",
 		"sources": ["/icon/nodejs.svg", "/icon/node.svg"]
@@ -560,6 +579,11 @@
 		"name": "RustRover",
 		"description": "RustRover logo",
 		"sources": ["/icon/rustrover.svg"]
+	},
+	{
+		"name": "Selkies",
+		"description": "Selkies logo",
+		"sources": ["/icon/selkies.svg"]
 	},
 	{
 		"name": "Slack",

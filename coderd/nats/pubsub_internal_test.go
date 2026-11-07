@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/util/xnet"
@@ -680,7 +681,11 @@ func clusterTestOptions(t *testing.T) Options {
 
 func newTestPubsub(t *testing.T, opts Options) *Pubsub {
 	t.Helper()
-	logger := slogtest.Make(t, nil)
+	logger := slogtest.Make(t, &slogtest.Options{
+		IgnoreErrorFn: func(ent slog.SinkEntry) bool {
+			return slices.Contains(ent.LoggerNames, "server")
+		},
+	})
 	ctx := testutil.Context(t, testutil.WaitLong)
 	ps, err := New(ctx, logger, opts)
 	require.NoError(t, err)

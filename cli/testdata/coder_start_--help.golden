@@ -42,7 +42,7 @@ OPTIONS:
           pairs for the parameters.
 
       --template-version string
-          Start with a named version of the workspace template.
+          Start with a version of the workspace template, by name or ID.
 
       --use-parameter-defaults bool, $CODER_WORKSPACE_USE_PARAMETER_DEFAULTS
           Automatically accept parameter defaults when no value is provided.

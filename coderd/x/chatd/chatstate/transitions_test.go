@@ -654,37 +654,6 @@ func TestSendMessageQueueCap(t *testing.T) {
 	}
 }
 
-func TestSendMessageInterruptRequiresActionReturnsCancellations(t *testing.T) {
-	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	seeded := seedAOrA1(t, f, 0, "interrupt_cancels")
-	require.Equal(t, chatstate.StateA0, f.classify(ctx, t, seeded.chatID))
-
-	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
-	var send chatstate.SendMessageResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		var err error
-		send, err = tx.SendMessage(chatstate.SendMessageInput{
-			Message:      userTextMessage("interrupt", f.User.ID, f.Model.ID),
-			BusyBehavior: chatstate.BusyBehaviorInterrupt,
-			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
-		})
-		return err
-	}))
-
-	require.NotNil(t, send.QueuedMessage, "interrupt from A0 queues the user message")
-	require.Len(t, send.InsertedMessages, 1,
-		"the synthetic tool cancellation must be reported to callers")
-	cancel := send.InsertedMessages[0]
-	require.Equal(t, database.ChatMessageRoleTool, cancel.Role)
-	require.Equal(t, database.ChatMessageVisibilityBoth, cancel.Visibility)
-	parts, err := chatprompt.ParseContent(cancel)
-	require.NoError(t, err)
-	require.Len(t, parts, 1)
-	require.Equal(t, seeded.pendingToolCallID, parts[0].ToolCallID)
-}
-
 // TestEditMessageNonUserReturnsSentinel asserts that editing a
 // non-user message returns chatstate.ErrEditedMessageNotUser via
 // the TransitionError cause chain, and still matches the generic

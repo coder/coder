@@ -45,7 +45,7 @@ describe("ChatSharingPopover", () => {
 			await screen.findByRole("button", { name: "Search for user or group" }),
 		);
 		await user.click(
-			await screen.findByRole("option", { name: /Banana emoji Design/ }),
+			await screen.findByRole("option", { name: /banana emoji Design/ }),
 		);
 		getACL.mockResolvedValue({
 			users: [],
@@ -58,7 +58,7 @@ describe("ChatSharingPopover", () => {
 			}),
 		);
 
-		const row = await screen.findByRole("row", { name: /Banana emoji Design/ });
+		const row = await screen.findByRole("row", { name: /banana emoji Design/ });
 		await user.click(within(row).getByRole("button", { name: "Open menu" }));
 		await user.click(await screen.findByRole("menuitem", { name: "Remove" }));
 		await waitFor(() =>

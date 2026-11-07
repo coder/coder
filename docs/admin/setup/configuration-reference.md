@@ -71,8 +71,9 @@ Chat requests that include unsafe_dynamic_tools or inline_mcp_servers are reject
 
 ### Disable chat sharing
 
-Disable chat sharing.
-Chat ACL checking is disabled and only owners can access their chats.
+Disable chat and chat project sharing.
+Existing shares stop granting access and new shares are rejected.
+Owners keep access to their own chats and projects, and administrators keep only the access their roles grant.
 
 - Type: `bool`
 - Environment variable: `CODER_DISABLE_CHAT_SHARING`
@@ -2143,7 +2144,7 @@ Tune the behavior of the provisioner, which is responsible for creating, updatin
 
 ### Disable Terraform module cache
 
-Disable the reuse of Terraform modules cached at template import for all templates.
+Disable the reuse of Terraform modules and the provider lock file cached at template import for all templates.
 Modules are re-downloaded on every workspace build.
 Individual templates cannot opt back in.
 
@@ -2275,7 +2276,7 @@ Set to 0 to disable automatic deletion.
 
 Telemetry is critical to our ability to improve Coder.
 We strip all personal information before sending data to our servers.
-Please only disable telemetry when required by your organization's security policy.
+Only disable telemetry when required by your organization's security policy.
 
 ### Enable
 

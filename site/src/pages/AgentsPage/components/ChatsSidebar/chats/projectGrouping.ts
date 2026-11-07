@@ -1,8 +1,10 @@
 import type { Chat, ChatProject, Organization } from "#/api/typesGenerated";
+import { canManageChat } from "../../ChatActionsMenuItems";
 
 type ChatsGroupedByProject = {
 	readonly chatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
 	readonly unfiledChats: readonly Chat[];
+	readonly folderProjectIds: ReadonlySet<string>;
 };
 
 /**
@@ -32,7 +34,85 @@ export const groupChatsByProject = (
 			unfiledChats.push(chat);
 		}
 	}
-	return { chatsByProjectId, unfiledChats };
+	return {
+		chatsByProjectId,
+		unfiledChats,
+		folderProjectIds: loadedProjectIds,
+	};
+};
+
+type MergeProjectFolderChatsOptions = {
+	readonly projectId: string;
+	readonly filedChats: readonly Chat[];
+	/** The folder's own fetch, which reaches chats the sidebar has not loaded. */
+	readonly fetchedChats: readonly Chat[];
+	/** Every chat the sidebar has loaded, whatever section it sits in. */
+	readonly sidebarChatById: ReadonlyMap<string, Chat>;
+	readonly currentUserId: string;
+	readonly archived: boolean;
+};
+
+/**
+ * A fetched row is used only for chats the sidebar has not loaded: the
+ * sidebar sees creates, moves, and pins first, and a collapsed folder's
+ * cached copy can be stale. Fetched rows are checked again because cached
+ * rows change in place after the fetch.
+ */
+export const mergeProjectFolderChats = ({
+	projectId,
+	filedChats,
+	fetchedChats,
+	sidebarChatById,
+	currentUserId,
+	archived,
+}: MergeProjectFolderChatsOptions): readonly Chat[] => {
+	const chatsById = new Map(filedChats.map((chat) => [chat.id, chat]));
+	for (const chat of fetchedChats) {
+		if (
+			!sidebarChatById.has(chat.id) &&
+			chat.project_id === projectId &&
+			chat.pin_order === 0 &&
+			chat.archived === archived &&
+			canManageChat(chat, currentUserId)
+		) {
+			chatsById.set(chat.id, chat);
+		}
+	}
+	return [...chatsById.values()].sort(
+		(a, b) =>
+			Date.parse(b.updated_at) - Date.parse(a.updated_at) ||
+			b.id.localeCompare(a.id),
+	);
+};
+
+type CountProjectFolderPinsOptions = {
+	readonly projectId: string;
+	readonly filedPinnedChats: readonly Chat[];
+	readonly fetchedChats: readonly Chat[];
+	readonly sidebarChatById: ReadonlyMap<string, Chat>;
+	readonly currentUserId: string;
+};
+
+/** The folder's fetch adds pins that the sidebar's loaded pages lack. */
+export const countProjectFolderPins = ({
+	projectId,
+	filedPinnedChats,
+	fetchedChats,
+	sidebarChatById,
+	currentUserId,
+}: CountProjectFolderPinsOptions): number => {
+	const pinnedIds = new Set(filedPinnedChats.map((chat) => chat.id));
+	for (const chat of fetchedChats) {
+		if (
+			!sidebarChatById.has(chat.id) &&
+			chat.project_id === projectId &&
+			chat.pin_order > 0 &&
+			canManageChat(chat, currentUserId)
+		) {
+			pinnedIds.add(chat.id);
+		}
+	}
+	return pinnedIds.size;
 };
 
 /**

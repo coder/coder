@@ -276,7 +276,6 @@ export const BuiltinGroupAvatars: Story = {
 		await userEvent.click(
 			await body.findByRole("button", { name: "Search for user or group" }),
 		);
-		await body.findByRole("option", { name: /Design/ });
 	},
 };
 

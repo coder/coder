@@ -2,7 +2,7 @@
  * Utilities for persisting and restoring chat input drafts.
  *
  * Drafts are stored in localStorage. The current format stores the
- * serialized Lexical editor state JSON so that file-reference chips
+ * serialized Lexical editor state JSON so that file-reference and skill chips
  * survive navigation. Legacy drafts (plain-text strings) are detected
  * and handled transparently on read.
  */
@@ -99,4 +99,43 @@ function extractPlainText(state: { root?: Record<string, unknown> }): string {
 	return extractTextFromNode(
 		state.root as Parameters<typeof extractTextFromNode>[0],
 	);
+}
+
+type SerializedNode = { type?: string; children?: SerializedNode[] };
+
+const chipNodeTypes: ReadonlySet<string> = new Set([
+	"file-reference",
+	"skill-invocation",
+]);
+
+/**
+ * The serialized file-reference and skill chip nodes of a Lexical editor
+ * state, in document order. A plain-text or malformed state has none.
+ */
+export function getChipNodes(
+	editorState: string | undefined,
+): SerializedNode[] {
+	if (!editorState) {
+		return [];
+	}
+
+	let root: SerializedNode | undefined;
+	try {
+		root = JSON.parse(editorState)?.root;
+	} catch {
+		return [];
+	}
+
+	const nodes: SerializedNode[] = [];
+	const collect = (node: SerializedNode) => {
+		if (node.type !== undefined && chipNodeTypes.has(node.type)) {
+			nodes.push(node);
+		}
+		node.children?.forEach(collect);
+	};
+
+	if (root) {
+		collect(root);
+	}
+	return nodes;
 }

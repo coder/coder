@@ -62,10 +62,8 @@ func (t *signalPathTransport) RoundTrip(req *http.Request) (*http.Response, erro
 // TestTools. Subtests run sequentially and share the deployment.
 // nolint:tparallel,paralleltest
 func TestChatTools(t *testing.T) {
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		DeploymentValues:      coderdtest.DeploymentValues(t),
-		ChatProviderAPIKeys:   &providerKeys,
 		ChatFileTokenKeyCache: jwtutils.StaticKey{ID: "1", Key: bytes.Repeat([]byte("k"), 64)},
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client)
@@ -939,8 +937,7 @@ func TestChatTools(t *testing.T) {
 
 func TestCreateChatOrganizationDefaultModel(t *testing.T) {
 	t.Parallel()
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
-	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{ChatProviderAPIKeys: &providerKeys})
+	client, _, api := coderdtest.NewWithAPI(t, nil)
 	owner := coderdtest.CreateFirstUser(t, client)
 	expClient := codersdk.NewExperimentalClient(client)
 	firstModel := coderdtest.CreateOpenAICompatChatModel(t, expClient, "")

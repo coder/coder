@@ -58,7 +58,15 @@ func (s *Service) AggregateRunSummary(
 	if err != nil {
 		return nil, err
 	}
+	return s.summarizeRunSteps(ctx, runID, steps, baseSummary), nil
+}
 
+func (s *Service) summarizeRunSteps(
+	ctx context.Context,
+	runID uuid.UUID,
+	steps []database.ChatDebugStep,
+	baseSummary map[string]any,
+) map[string]any {
 	// Start from a shallow copy of baseSummary to avoid mutating the
 	// caller's map.
 	// Capacity hint: baseSummary entries plus 8 derived keys
@@ -155,7 +163,7 @@ func (s *Service) AggregateRunSummary(
 		result["endpoint_label"] = label
 	}
 
-	return result, nil
+	return result
 }
 
 // attemptLabel is a minimal projection of Attempt used by

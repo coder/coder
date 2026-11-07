@@ -2,6 +2,7 @@ package scriptorder
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -351,6 +352,152 @@ func TestPrepareOrderDefersRuntimeValidationUntilFinalize(t *testing.T) {
 	require.ErrorContains(
 		t, err, "could not be associated with an agent or devcontainer subagent",
 	)
+
+	_, err = prepared.Finalize(map[string]RuntimeBinding{
+		"coder_script.dependent": {
+			Error: "agent_id does not match any workspace agent",
+		},
+	})
+	require.ErrorContains(
+		t, err,
+		`run selector "coder_script.dependent" selects script "coder_script.dependent"`,
+	)
+	require.ErrorContains(
+		t, err,
+		"its agent runtime could not be resolved: agent_id does not match any workspace agent",
+	)
+}
+
+func TestBoundedPhaseFilterWarningSelectors(t *testing.T) {
+	t.Parallel()
+
+	selectors := make([]string, 0, maxPhaseFilterWarningSelectors+2)
+	for i := range maxPhaseFilterWarningSelectors + 1 {
+		selectors = append(selectors, fmt.Sprintf("module.%02d", i))
+	}
+	bounded, omitted := boundedPhaseFilterWarningSelectors(
+		selectors, []string{selectors[0]},
+	)
+	require.Len(t, bounded, maxPhaseFilterWarningSelectors)
+	require.Equal(t, 1, omitted)
+	require.Equal(t, "module.00", bounded[0])
+	require.Equal(t, "module.19", bounded[len(bounded)-1])
+
+	warning := phaseFilterWarning{
+		dataSourceAddress:                "data.coder_script_order.order",
+		inferredPhase:                    PhaseStart,
+		moduleSelectorsWithOmissions:     bounded,
+		additionalModuleSelectorsOmitted: omitted,
+	}
+	require.Contains(t, warning.String(), "… (1 more)")
+}
+
+func TestPrepareOrderBoundsPhaseFilterWarnings(t *testing.T) {
+	t.Parallel()
+
+	rules := make([]ruleAttributes, MaxWarnings+1)
+	for i := range rules {
+		rules[i] = ruleAttributes{
+			Run:   []string{"coder_script.dependent"},
+			After: []string{"module.alpha", "module.beta"},
+		}
+	}
+	module := moduleFilteringFixture("")
+	module.Resources[1] = dataCoderScriptOrder(
+		"data.coder_script_order.order", "order", rules...,
+	)
+	scripts := testScripts(
+		"", PhaseStart,
+		"coder_script.dependent",
+		"module.alpha.coder_script.start",
+		"module.beta.coder_script.start",
+	)
+	scripts["module.alpha.coder_script.stop"] = script{runOnStop: true}
+	scripts["module.beta.coder_script.stop"] = script{runOnStop: true}
+
+	prepared, err := prepareOrderForTest(
+		[]*tfjson.StateModule{module},
+		rootConfigWithModuleCalls("alpha", "beta"),
+		scripts,
+	)
+	require.NoError(t, err)
+	require.Len(t, prepared.Warnings(), MaxWarnings)
+	require.Equal(t, 1, prepared.WarningsOmitted())
+}
+
+func TestPreparedValidateForPlan(t *testing.T) {
+	t.Parallel()
+
+	selector := func(field, address string) []resolvedSelector {
+		return []resolvedSelector{{
+			field:     field,
+			raw:       address,
+			kind:      selectorScript,
+			addresses: []string{address},
+		}}
+	}
+	rule := func(index int, run, after string, requirement Requirement) preparedRule {
+		return preparedRule{
+			identity: ruleIdentity{
+				dataSourceAddress: "data.coder_script_order.order",
+				ruleIndex:         index,
+			},
+			phase:       PhaseStart,
+			requirement: requirement,
+			run:         selector("run", run),
+			after:       selector("after", after),
+		}
+	}
+
+	t.Run("DefersAgentBindingsUntilFinalize", func(t *testing.T) {
+		t.Parallel()
+
+		prepared := &Prepared{rules: []preparedRule{
+			rule(0, "coder_script.dependent", "coder_script.prerequisite", RequirementSuccess),
+		}}
+		require.NoError(t, prepared.ValidateForPlan())
+		_, err := prepared.Finalize(nil)
+		require.ErrorContains(t, err, "could not be associated with an agent or devcontainer subagent")
+	})
+
+	t.Run("SelfDependency", func(t *testing.T) {
+		t.Parallel()
+
+		prepared := &Prepared{rules: []preparedRule{
+			rule(0, "coder_script.same", "coder_script.same", RequirementSuccess),
+		}}
+		err := prepared.ValidateForPlan()
+		require.ErrorContains(t, err, "a script cannot depend on itself")
+	})
+
+	t.Run("ConflictingRequirements", func(t *testing.T) {
+		t.Parallel()
+
+		prepared := &Prepared{rules: []preparedRule{
+			rule(0, "coder_script.dependent", "coder_script.prerequisite", RequirementSuccess),
+			rule(1, "coder_script.dependent", "coder_script.prerequisite", RequirementCompletion),
+		}}
+		err := prepared.ValidateForPlan()
+		require.ErrorContains(t, err, "conflicting with requires")
+	})
+
+	t.Run("Cycle", func(t *testing.T) {
+		t.Parallel()
+
+		prepared := &Prepared{rules: []preparedRule{
+			rule(0, "coder_script.a", "coder_script.b", RequirementSuccess),
+			rule(1, "coder_script.b", "coder_script.a", RequirementSuccess),
+		}}
+		err := prepared.ValidateForPlan()
+		require.ErrorContains(t, err, "dependency cycle")
+	})
+
+	t.Run("Nil", func(t *testing.T) {
+		t.Parallel()
+
+		var prepared *Prepared
+		require.NoError(t, prepared.ValidateForPlan())
+	})
 }
 
 func TestPreparedSelectedScriptAddressesReturnsCopy(t *testing.T) {
