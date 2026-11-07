@@ -24966,6 +24966,10 @@ const docTemplate = `{
                     "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
                     "type": "string"
                 },
+                "display_name": {
+                    "description": "DisplayName is only accepted for project skills. It must be a single\nline of at most MaxSkillDisplayNameLength characters, and surrounding\nwhitespace is trimmed.",
+                    "type": "string"
+                },
                 "model_invocable": {
                     "description": "ModelInvocable defaults to false when the content's frontmatter sets\ndisable-model-invocation: true, and to true otherwise.",
                     "type": "boolean"
@@ -31400,6 +31404,10 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "display_name": {
+                    "description": "DisplayName labels a project skill's action. When it is empty, clients\nshow Name instead. It is always empty for personal and organization\nskills.",
+                    "type": "string"
+                },
                 "enabled": {
                     "type": "boolean"
                 },
@@ -31432,6 +31440,10 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "description": "DisplayName labels a project skill's action. When it is empty, clients\nshow Name instead. It is always empty for personal and organization\nskills.",
                     "type": "string"
                 },
                 "enabled": {
@@ -33358,6 +33370,10 @@ const docTemplate = `{
                 },
                 "content": {
                     "description": "Content must be SKILL.md-format Markdown with YAML frontmatter. The\nfrontmatter must include name, may include description, and must be\nfollowed by a non-empty body.",
+                    "type": "string"
+                },
+                "display_name": {
+                    "description": "DisplayName is only accepted for project skills. An empty value\nclears it.",
                     "type": "string"
                 },
                 "enabled": {

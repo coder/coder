@@ -2509,6 +2509,7 @@ func Skill(skill database.Skill) codersdk.Skill {
 		SkillMetadata: codersdk.SkillMetadata{
 			ID:             skill.ID,
 			Name:           skill.Name,
+			DisplayName:    skill.DisplayName,
 			Description:    skill.Description,
 			Enabled:        skill.Enabled,
 			Action:         skill.Action,
@@ -2528,6 +2529,7 @@ func ProjectSkillMetadataList(rows []database.ListProjectSkillMetadataByProjectI
 		metadata = append(metadata, codersdk.SkillMetadata{
 			ID:             row.ID,
 			Name:           row.Name,
+			DisplayName:    row.DisplayName,
 			Description:    row.Description,
 			Enabled:        row.Enabled,
 			Action:         row.Action,

@@ -19,6 +19,7 @@ const hoursAgo = (hours: number) =>
 const mockActionSkill: SkillMetadata = {
 	...MockSkills[0],
 	action: true,
+	display_name: "Code review",
 	model_invocable: false,
 };
 
@@ -158,6 +159,20 @@ export const New: Story = {
 	},
 };
 
+/** A new action shows its name as the empty display name's placeholder. */
+export const NewAction: Story = {
+	play: async () => {
+		await userEvent.click(await screen.findByRole("button", { name: "New" }));
+		await userEvent.type(
+			screen.getByRole("textbox", { name: "Name" }),
+			"release-notes",
+		);
+		await userEvent.click(
+			screen.getByRole("switch", { name: "Show as action" }),
+		);
+	},
+};
+
 export const Edit: Story = {
 	play: async () => {
 		await userEvent.click(
@@ -166,6 +181,24 @@ export const Edit: Story = {
 		await userEvent.click(
 			await screen.findByRole("menuitem", { name: "Edit" }),
 		);
+	},
+};
+
+/** A display name over the limit shows its error and blocks Save. */
+export const DisplayNameTooLong: Story = {
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Open menu for reviewer" }),
+		);
+		await userEvent.click(
+			await screen.findByRole("menuitem", { name: "Edit" }),
+		);
+		const displayName = await screen.findByRole("textbox", {
+			name: "Display name",
+		});
+		await userEvent.clear(displayName);
+		await userEvent.type(displayName, "a".repeat(65));
+		await userEvent.tab();
 	},
 };
 

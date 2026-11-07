@@ -82,8 +82,8 @@ WHERE id = @id::uuid AND organization_id IS NOT NULL
 RETURNING *;
 
 -- name: InsertProjectSkill :one
-INSERT INTO skills (id, project_id, name, description, content, action, model_invocable)
-VALUES (@id::uuid, @project_id::uuid, @name::text, @description::text, @content::text, COALESCE(sqlc.narg('action')::boolean, false), COALESCE(sqlc.narg('model_invocable')::boolean, true))
+INSERT INTO skills (id, project_id, name, description, content, action, model_invocable, display_name)
+VALUES (@id::uuid, @project_id::uuid, @name::text, @description::text, @content::text, COALESCE(sqlc.narg('action')::boolean, false), COALESCE(sqlc.narg('model_invocable')::boolean, true), COALESCE(sqlc.narg('display_name')::text, ''))
 RETURNING *;
 
 -- name: GetProjectSkillByProjectIDAndName :one
@@ -93,7 +93,7 @@ WHERE project_id = @project_id::uuid AND name = @name;
 
 -- name: ListProjectSkillMetadataByProjectID :many
 SELECT
-    id, project_id, name, description, enabled, action, model_invocable, created_at, updated_at
+    id, project_id, name, display_name, description, enabled, action, model_invocable, created_at, updated_at
 FROM skills
 WHERE project_id = @project_id::uuid
 ORDER BY name ASC;
@@ -106,6 +106,7 @@ SET
     enabled     = COALESCE(sqlc.narg('enabled')::boolean, enabled),
     model_invocable = COALESCE(sqlc.narg('model_invocable')::boolean, model_invocable),
     action      = COALESCE(sqlc.narg('action')::boolean, action),
+    display_name = COALESCE(sqlc.narg('display_name')::text, display_name),
     updated_at  = now()
 WHERE project_id = @project_id::uuid AND name = @name
 RETURNING *;

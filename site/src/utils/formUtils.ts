@@ -90,6 +90,23 @@ export const getFormHelpers =
 		};
 	};
 
+/**
+ * Counts the code points of a trimmed value, as Go's utf8.RuneCountInString
+ * does. Yup's max() and native maxLength count UTF-16 units.
+ */
+export const countCharacters = (value: string): number =>
+	[...value.trim()].length;
+
+/** Limits a trimmed string to max code points, as counted by countCharacters. */
+export const maxCharacters = (label: string, max: number): Yup.StringSchema =>
+	Yup.string()
+		.trim()
+		.test(
+			"max-characters",
+			`${label} cannot be longer than ${max} characters.`,
+			(value = "") => countCharacters(value) <= max,
+		);
+
 export const onChangeTrimmed =
 	<T>(form: FormikContextType<T>, callback?: (value: string) => void) =>
 	(event: React.ChangeEvent<HTMLInputElement>): void => {

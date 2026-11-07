@@ -201,6 +201,8 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 								content,
 								action: values.action,
 								model_invocable: values.modelInvocable,
+								// A hidden display name keeps its stored value.
+								display_name: values.action ? values.displayName : undefined,
 							};
 							const onSuccess = () => {
 								closeEditor();
