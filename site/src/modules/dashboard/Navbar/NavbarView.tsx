@@ -32,7 +32,7 @@ type NavbarViewProps = {
 
 const linkStyles = {
 	default:
-		"text-sm font-medium text-content-secondary no-underline block h-full px-2 items-center hover:text-content-primary transition-colors",
+		"text-sm font-medium text-content-secondary no-underline flex h-full px-2 items-center hover:text-content-primary transition-colors",
 	active: "text-content-primary",
 };
 

@@ -143,9 +143,7 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 						</pre>
 					</div>
 				</div>
-				<div className="*:my-0 *:rounded-none *:border-0">
-					{fallback}
-				</div>
+				<div className="*:my-0 *:rounded-none *:border-0">{fallback}</div>
 			</div>
 		);
 	}

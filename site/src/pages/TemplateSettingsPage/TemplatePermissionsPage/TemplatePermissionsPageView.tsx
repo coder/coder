@@ -160,10 +160,7 @@ const RoleSelect: React.FC<RoleSelectProps> = ({
 						Can read and use this template to create workspaces.
 					</div>
 				</SelectItem>
-				<SelectItem
-					value="admin"
-					className="w-62.5 flex-col items-start py-2"
-				>
+				<SelectItem value="admin" className="w-62.5 flex-col items-start py-2">
 					<div className="text-content-primary">Admin</div>
 					<div className="text-xs leading-[140%] text-content-secondary">
 						Can modify all aspects of this template including permissions,

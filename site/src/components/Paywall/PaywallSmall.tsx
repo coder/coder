@@ -28,10 +28,7 @@ const PaywallSmall = ({
 }: PaywallProps) => {
 	return (
 		<Paywall
-			className={cn(
-				compact && "max-w-192.5 p-4 gap-4.5 min-h-57.5",
-				className,
-			)}
+			className={cn(compact && "max-w-192.5 p-4 gap-4.5 min-h-57.5", className)}
 			{...props}
 		>
 			<PaywallSupergraphic className="bg-size-[auto_140%] bg-position-[50%_50%]" />

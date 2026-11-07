@@ -82,7 +82,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 						</p>
 						<ul>
 							<li className="flex items-center gap-2">
-								<div className="rounded-md bg-highlight-green size-3 inline-block">
+								<div className="rounded-xs bg-highlight-green size-3 inline-block">
 									<span className="sr-only">
 										Legend for active users in the chart
 									</span>

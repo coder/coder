@@ -534,11 +534,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 								{prTitle}
 							</span>
 						</TooltipTrigger>
-						<TooltipContent
-							side="bottom"
-							align="start"
-							className="max-w-65"
-						>
+						<TooltipContent side="bottom" align="start" className="max-w-65">
 							{prTitle}
 						</TooltipContent>
 					</Tooltip>

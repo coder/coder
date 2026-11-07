@@ -152,7 +152,7 @@ describe("matchesNetworkCallSearch", () => {
 		expect(matchesNetworkCallSearch(call, query)).toBe(expected);
 	});
 
-	it("matches an uppercase detail with a query", () => {
+	it("matches an uppercase detail with a lowercase query", () => {
 		const upperDetail = {
 			...MockAIBridgeSessionNetworkCalls[0],
 			detail: MockAIBridgeSessionNetworkCalls[0].detail.toUpperCase(),

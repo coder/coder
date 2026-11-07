@@ -232,7 +232,7 @@ const HeaderButton: React.FC<ToolCallHeaderButtonProps> = ({
 		<TranscriptRow
 			asChild
 			className={cn(
-				"m-0 min-w-0 max-w-full gap-2 border-0 bg-transparent p-0 text-left font-[inherit] text-inherit transition-colors",
+				"m-0 min-w-0 max-w-full gap-2 border-0 bg-transparent p-0 text-left font-[inherit] text-content-secondary transition-colors",
 				collapsible && "cursor-pointer hover:text-content-primary",
 				className,
 			)}

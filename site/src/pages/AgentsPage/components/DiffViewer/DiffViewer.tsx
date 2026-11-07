@@ -338,7 +338,7 @@ function SkeletonFile({ groups }: { groups: readonly (readonly string[])[] }) {
 		<div>
 			<div className="flex h-8 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-2.5">
 				<div className="flex items-center gap-2">
-					<Skeleton className="size-3 rounded-md" />
+					<Skeleton className="size-3 rounded-xs" />
 					<Skeleton className="h-3 w-44" />
 				</div>
 				<Skeleton className="h-5 w-14 rounded-[3px]" />
