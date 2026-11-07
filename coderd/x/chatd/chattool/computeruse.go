@@ -3,6 +3,7 @@ package chattool
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -140,9 +141,9 @@ func openaiCompatComputerUseTool(declaredWidth, declaredHeight int) fantasy.Tool
 	}
 }
 
-// anthropicHaltedActionText answers the Anthropic computer calls of a step
-// that follow a failed one.
-const anthropicHaltedActionText = "Not executed: an earlier computer action in this turn failed."
+// computerUseHaltedActionText answers the computer calls of a step that
+// follow a failed one.
+const computerUseHaltedActionText = "Not executed: an earlier computer action in this turn failed."
 
 // anthropicMaxDurationSeconds caps Anthropic wait and hold_key durations, which
 // the Anthropic schema expresses in seconds.
@@ -254,14 +255,18 @@ func (t *computerUseTool) SetProviderOptions(opts fantasy.ProviderOptions) {
 // because they act on one shared desktop.
 func (*computerUseTool) SerialToolCalls() bool { return true }
 
-// HaltedToolCallError halts the later Anthropic computer calls of a step after
-// one fails. The model batches actions that assume the earlier ones succeeded,
-// so running them could act on the wrong screen.
+// HaltedToolCallError halts the later computer calls of a step after one
+// fails, for the flavors that declare one action per call. The model batches
+// actions that assume the earlier ones succeeded, so running them could act on
+// the wrong screen. The hosted OpenAI flavor is excluded because it sends an
+// array of actions in one call rather than one action per call.
 func (t *computerUseTool) HaltedToolCallError() (string, bool) {
-	if DefaultComputerUseProvider(t.provider) != codersdk.ChatComputerUseProviderAnthropic {
+	switch DefaultComputerUseProvider(t.provider) {
+	case codersdk.ChatComputerUseProviderAnthropic, codersdk.ChatComputerUseProviderOpenAICompat:
+		return computerUseHaltedActionText, true
+	default:
 		return "", false
 	}
-	return anthropicHaltedActionText, true
 }
 
 func (t *computerUseTool) Run(ctx context.Context, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
@@ -341,11 +346,12 @@ func (t *computerUseTool) runActionPerCallComputerUse(
 
 	// Build the action request.
 	action := t.desktopAction(string(input.Action), declaredWidth, declaredHeight)
-	if input.Coordinate != ([2]int64{}) {
+	coordinateSent, startCoordinateSent := computerUseCoordinateSent(call.Input)
+	if coordinateSent {
 		coord := coordinateFromInt64(input.Coordinate[0], input.Coordinate[1])
 		action.Coordinate = &coord
 	}
-	if input.StartCoordinate != ([2]int64{}) {
+	if startCoordinateSent {
 		coord := coordinateFromInt64(input.StartCoordinate[0], input.StartCoordinate[1])
 		action.StartCoordinate = &coord
 	}
@@ -394,6 +400,22 @@ func (t *computerUseTool) runActionPerCallComputerUse(
 		return fantasy.NewTextResponse(output), nil
 	}
 	return t.captureScreenshot(ctx, conn, declaredWidth, declaredHeight)
+}
+
+// computerUseCoordinateSent reports which coordinate keys the model sent.
+// ComputerUseInput decodes coordinates into fixed arrays, so a zero value
+// cannot tell an omitted coordinate from the top-left pixel [0,0], which is a
+// valid target. ParseComputerUseInput already rejected malformed input, so a
+// decode failure here only means the keys are absent.
+func computerUseCoordinateSent(input string) (coordinate, startCoordinate bool) {
+	var sent struct {
+		Coordinate      *json.RawMessage `json:"coordinate"`
+		StartCoordinate *json.RawMessage `json:"start_coordinate"`
+	}
+	if err := json.Unmarshal([]byte(input), &sent); err != nil {
+		return false, false
+	}
+	return sent.Coordinate != nil, sent.StartCoordinate != nil
 }
 
 // anthropicDurationMillis converts an Anthropic duration in seconds to
