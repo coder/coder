@@ -93,10 +93,12 @@ export const runPromoteQueuedMessage = async (params: {
 		clearChatErrorReason,
 		onError,
 	} = params;
+
 	const previousSnapshot = store.getSnapshot();
 	const promotedMessage = previousSnapshot.queuedMessages.find(
 		(message) => message.id === id,
 	);
+
 	store.batch(() => {
 		store.suppressQueuedMessageID(id);
 		if (promotedMessage) {
@@ -109,8 +111,10 @@ export const runPromoteQueuedMessage = async (params: {
 		store.clearStreamError();
 		store.setChatStatus("running");
 	});
+
 	const baselineFence = store.getQueueConvergenceFence();
 	clearChatErrorReason(agentId);
+
 	try {
 		await promoteQueuedMessage(id);
 	} catch (error) {

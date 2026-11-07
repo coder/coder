@@ -643,7 +643,6 @@ const MockAsyncQuestionResultMessage: TypesGen.ChatMessage = {
 	],
 };
 
-/** A transcript whose latest step asked an async question that is still open. */
 export const MockAsyncQuestionMessages: TypesGen.ChatMessage[] = [
 	...MockWorkingMessages.slice(0, 1),
 	MockQuestionCallMessage,
@@ -659,7 +658,6 @@ export const MockQueuedQuestionAnswer: TypesGen.ChatQueuedMessage = {
 	created_at: workingFixtureTime(7),
 };
 
-/** MockAsyncQuestionMessages followed by an exchange that leaves the question open. */
 export const MockAsyncQuestionThenUnrelatedMessages: TypesGen.ChatMessage[] = [
 	...MockAsyncQuestionMessages,
 	{

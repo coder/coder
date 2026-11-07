@@ -175,6 +175,7 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 			: undefined;
 	const displayedSubmittedResponseText = answerBody ?? sentResponseText;
 	const hasSubmittedResponse = displayedSubmittedResponseText !== undefined;
+
 	// Questions and their options can stream in after the form mounts, so a
 	// question the user has not answered takes its default from its options now.
 	const drafts = filteredQuestions.map((question, index) => {
@@ -185,15 +186,18 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		formDraft.questionIndex,
 		Math.max(filteredQuestions.length - 1, 0),
 	);
+
 	const isInteractive = Boolean(onSubmitAnswer) && !hasSubmittedResponse;
 	const isSubmitting = submitAnswerMutation.isPending;
 	const submitError = hasShownAnswer
 		? undefined
 		: getSubmissionErrorMessage(submitAnswerMutation.error);
+
 	const canAdvanceToNextQuestion = isDraftAnswered(drafts[activeQuestionIndex]);
 	const canSubmitAllAnswers = filteredQuestions.every((_, questionIndex) =>
 		isDraftAnswered(drafts[questionIndex]),
 	);
+
 	const isWizard = filteredQuestions.length > 1;
 	const isFinalQuestion = activeQuestionIndex >= filteredQuestions.length - 1;
 	const isNextStep = isWizard && !isFinalQuestion;

@@ -211,10 +211,6 @@ const getWorkspaceQuotaTitle = (
 	return asString(rec.title).trim() || "Workspace quota reached";
 };
 
-/**
- * Reads the questions from the call's raw args, or from its result when the
- * args have none. Returns an empty list when neither has questions.
- */
 const getAskUserQuestions = (
 	args: unknown,
 	result: unknown,
