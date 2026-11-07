@@ -93,7 +93,10 @@ export const PortsMenuItem: React.FC<{
 				<NetworkIcon className="size-3.5" />
 				{label}
 			</DropdownMenuSubTrigger>
-			<DropdownMenuSubContent className="w-56 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:size-3.5!">
+			<DropdownMenuSubContent
+				className="w-56 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:size-3.5!"
+				sideOffset={9}
+			>
 				<PortsList
 					host={host}
 					agent={agent}
