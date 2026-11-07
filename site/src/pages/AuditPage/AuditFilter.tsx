@@ -1,218 +1,212 @@
 import capitalize from "lodash/capitalize";
-import { AuditActions, ResourceTypes } from "#/api/typesGenerated";
 import {
-	Filter,
-	MenuSkeleton,
-	type useFilter,
-} from "#/components/Filter/Filter";
+	ActivityIcon,
+	BoxIcon,
+	Building2Icon,
+	HammerIcon,
+	Settings2Icon,
+	UserIcon,
+} from "lucide-react";
+import { useMemo } from "react";
+import { useQueryClient } from "react-query";
 import {
-	type UseFilterMenuOptions,
-	useFilterMenu,
-} from "#/components/Filter/menu";
+	getValidationErrorMessage,
+	hasError,
+	isApiValidationError,
+} from "#/api/errors";
 import {
-	SelectFilter,
-	type SelectFilterOption,
-} from "#/components/Filter/SelectFilter";
+	AuditActions,
+	BuildReasons,
+	ResourceTypes,
+} from "#/api/typesGenerated";
+import type { UseFilterResult } from "#/components/Filter/Filter";
+import { FilterCombobox } from "#/components/Filter/FilterCombobox/FilterCombobox";
+import type {
+	FilterCategory,
+	FilterOption,
+} from "#/components/Filter/FilterCombobox/types";
+import { getOrganizationFilterOptions } from "#/components/Filter/organizationOptions";
 import {
-	DEFAULT_USER_FILTER_WIDTH,
-	type UserFilterMenu,
-	UserMenu,
-} from "#/components/Filter/UserFilter";
-import {
-	type OrganizationsFilterMenu,
-	OrganizationsMenu,
-} from "#/modules/tableFiltering/options";
-import { docs } from "#/utils/docs";
+	getSelfUserFilterOptions,
+	getUserFilterOptions,
+} from "#/components/Filter/userOptions";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { getBuildReasonLabel } from "#/utils/workspace";
 
-const PRESET_FILTERS = [
+const presets: FilterOption[] = [
 	{
+		label: "Created workspaces",
+		value: "created_workspaces",
+		startIcon: <Settings2Icon />,
 		query: "resource_type:workspace action:create",
-		name: "Created workspaces",
 	},
-	{ query: "resource_type:template action:create", name: "Added templates" },
-	{ query: "resource_type:user action:delete", name: "Deleted users" },
 	{
+		label: "Added templates",
+		value: "added_templates",
+		startIcon: <Settings2Icon />,
+		query: "resource_type:template action:create",
+	},
+	{
+		label: "Deleted users",
+		value: "deleted_users",
+		startIcon: <Settings2Icon />,
+		query: "resource_type:user action:delete",
+	},
+	{
+		label: "Builds started by a user",
+		value: "user_builds",
+		startIcon: <Settings2Icon />,
 		query: "resource_type:workspace_build action:start build_reason:initiator",
-		name: "Builds started by a user",
 	},
 	{
+		label: "User logins",
+		value: "user_logins",
+		startIcon: <Settings2Icon />,
 		query: "resource_type:api_key action:login",
-		name: "User logins",
 	},
 ];
 
-type AuditFilterProps = {
-	filter: ReturnType<typeof useFilter>;
-	error?: unknown;
-	menus: {
-		user: UserFilterMenu;
-		action: ActionFilterMenu;
-		resourceType: ResourceTypeFilterMenu;
-		// The organization menu is only provided in a multi-org setup.
-		organization?: OrganizationsFilterMenu;
-	};
-};
+// These historical actions remain queryable but are no longer recorded.
+const actionOptions: FilterOption[] = AuditActions.filter(
+	(action) => !["connect", "disconnect", "open", "close"].includes(action),
+).map((action) => ({ value: action, label: capitalize(action) }));
 
-export const AuditFilter: React.FC<AuditFilterProps> = ({
-	filter,
-	error,
-	menus,
-}) => {
-	const width = menus.organization ? DEFAULT_USER_FILTER_WIDTH : undefined;
-	return (
-		<Filter
-			learnMoreLink={docs(
-				"/admin/security/audit-logs#how-to-filter-audit-logs",
-			)}
-			presets={PRESET_FILTERS}
-			isLoading={menus.user.isInitializing}
-			filter={filter}
-			error={error}
-			options={
-				<>
-					<ResourceTypeMenu width={width} menu={menus.resourceType} />
-					<ActionMenu width={width} menu={menus.action} />
-					<UserMenu width={width} menu={menus.user} />
-					{menus.organization && (
-						<OrganizationsMenu width={width} menu={menus.organization} />
-					)}
-				</>
-			}
-			optionsSkeleton={
-				<>
-					<MenuSkeleton />
-					<MenuSkeleton />
-					<MenuSkeleton />
-					{menus.organization && <MenuSkeleton />}
-				</>
-			}
-		/>
-	);
-};
+const resourceOptions: FilterOption[] = ResourceTypes.map((type) => {
+	let label: string = capitalize(type);
 
-export const useActionFilterMenu = ({
-	value,
-	onChange,
-}: Pick<UseFilterMenuOptions, "value" | "onChange">) => {
-	const actionOptions: SelectFilterOption[] = AuditActions
-		// TODO(ethanndickson): Logs with these action types are no longer produced.
-		// Until we remove them from the database and API, we shouldn't suggest them
-		// in the filter dropdown.
-		.filter(
-			(action) => !["connect", "disconnect", "open", "close"].includes(action),
-		)
-		.map((action) => ({
-			value: action,
-			label: capitalize(action),
-		}));
-	return useFilterMenu({
-		onChange,
-		value,
-		id: "status",
-		getSelectedOption: async () =>
-			actionOptions.find((option) => option.value === value) ?? null,
-		getOptions: async () => actionOptions,
-	});
-};
-
-type ActionFilterMenu = ReturnType<typeof useActionFilterMenu>;
-
-type ActionMenuProps = {
-	menu: ActionFilterMenu;
-	width?: number;
-};
-
-const ActionMenu: React.FC<ActionMenuProps> = ({ menu, width }) => {
-	return (
-		<SelectFilter
-			label="Select an action"
-			placeholder="All actions"
-			options={menu.searchOptions}
-			onSelect={menu.selectOption}
-			selectedOption={menu.selectedOption ?? undefined}
-			width={width}
-		/>
-	);
-};
-
-export const useResourceTypeFilterMenu = ({
-	value,
-	onChange,
-}: Pick<UseFilterMenuOptions, "value" | "onChange">) => {
-	const actionOptions: SelectFilterOption[] = ResourceTypes.map((type) => {
-		let label: string = capitalize(type);
-
-		if (type === "api_key") {
+	switch (type) {
+		case "api_key":
 			label = "API Key";
-		}
+			break;
 
-		if (type === "git_ssh_key") {
+		case "git_ssh_key":
 			label = "Git SSH Key";
-		}
+			break;
 
-		if (type === "template_version") {
+		case "template_version":
 			label = "Template Version";
-		}
+			break;
 
-		if (type === "workspace_build") {
+		case "workspace_build":
 			label = "Workspace Build";
-		}
+			break;
 
-		if (type === "chat_instruction_settings") {
+		case "chat_instruction_settings":
 			label = "Chat Instruction Settings";
-		}
+			break;
 
-		if (type === "chat_organization_system_prompt") {
+		case "chat_organization_system_prompt":
 			label = "Chat Organization System Prompt";
-		}
+			break;
 
-		if (type === "chat_project_instructions") {
+		case "chat_project_instructions":
 			label = "Chat Project Instructions";
-		}
+			break;
 
-		if (type === "chat_project_skill") {
+		case "chat_project_skill":
 			label = "Chat Project Skill";
-		}
+			break;
 
-		if (type === "chat_operational_settings") {
+		case "chat_operational_settings":
 			label = "Chat Operational Settings";
-		}
+			break;
 
-		if (type === "experiment_rule") {
+		case "experiment_rule":
 			label = "Experiment Rule";
+			break;
+	}
+
+	return {
+		value: type,
+		label,
+	};
+});
+
+type AuditFilterProps = { filter: UseFilterResult; error?: unknown };
+
+export const AuditFilter: React.FC<AuditFilterProps> = ({ filter, error }) => {
+	const { permissions, user: me } = useAuthenticated();
+	const { showOrganizations } = useDashboard();
+	const queryClient = useQueryClient();
+	const categories = useMemo(() => {
+		const next: FilterCategory[] = [
+			{
+				key: "resource_type",
+				optionsKey: "audit.resource_type",
+				label: "Resource type",
+				aliases: ["resource"],
+				icon: <BoxIcon />,
+				getOptions: async () => resourceOptions,
+			},
+			{
+				key: "action",
+				optionsKey: "audit.action",
+				label: "Action",
+				icon: <ActivityIcon />,
+				getOptions: async () => actionOptions,
+			},
+			{
+				key: "username",
+				optionsKey: "audit.username",
+				label: "User",
+				aliases: ["user"],
+				icon: <UserIcon />,
+				getOptions: permissions.viewAllUsers
+					? (query) => getUserFilterOptions(query, me, queryClient)
+					: (query) => getSelfUserFilterOptions(query, me),
+			},
+			{
+				key: "build_reason",
+				optionsKey: "audit.build_reason",
+				label: "Build reason",
+				icon: <HammerIcon />,
+				getOptions: async () =>
+					BuildReasons.map((reason) => ({
+						value: reason,
+						label: getBuildReasonLabel(reason) ?? reason,
+					})),
+			},
+		];
+		if (showOrganizations) {
+			next.push({
+				key: "organization",
+				optionsKey: "audit.organization",
+				label: "Organization",
+				icon: <Building2Icon />,
+				getOptions: (query) =>
+					getOrganizationFilterOptions(query, queryClient, {
+						object: { resource_type: "audit_log" },
+						action: "read",
+					}),
+			});
 		}
-
-		return {
-			value: type,
-			label,
-		};
-	});
-	return useFilterMenu({
-		onChange,
-		value,
-		id: "resourceType",
-		getSelectedOption: async () =>
-			actionOptions.find((option) => option.value === value) ?? null,
-		getOptions: async () => actionOptions,
-	});
-};
-
-type ResourceTypeFilterMenu = ReturnType<typeof useResourceTypeFilterMenu>;
-
-type ResourceTypeMenuProps = {
-	menu: ResourceTypeFilterMenu;
-	width?: number;
-};
-
-const ResourceTypeMenu: React.FC<ResourceTypeMenuProps> = ({ menu, width }) => {
+		next.push({
+			key: "preset",
+			optionsKey: "audit.presets",
+			label: "Presets",
+			chipKeys: [],
+			inlineOptions: true,
+			inlineOptionsLabel: "Show…",
+			inlineOptionsIcons: true,
+			getOptions: async () => presets,
+		});
+		return next.map((category) => ({ ...category, singleSelect: true }));
+	}, [me, permissions.viewAllUsers, queryClient, showOrganizations]);
 	return (
-		<SelectFilter
-			label="Select a resource type"
-			placeholder="All resource types"
-			options={menu.searchOptions}
-			onSelect={menu.selectOption}
-			selectedOption={menu.selectedOption ?? undefined}
-			width={width}
-		/>
+		<div className="mb-6 flex min-w-0 flex-col">
+			<FilterCombobox
+				value={filter.query}
+				onChange={filter.update}
+				categories={categories}
+				placeholder="Search and filter audit logs…"
+				className="w-full min-w-0 self-start sm:w-auto sm:min-w-lg sm:max-w-full"
+				errorMessage={
+					hasError(error) && isApiValidationError(error)
+						? getValidationErrorMessage(error)
+						: undefined
+				}
+			/>
+		</div>
 	);
 };

@@ -165,9 +165,18 @@ describe("AuditPage", () => {
 			const getAuditLogsSpy = vi.spyOn(API, "getAuditLogs");
 			getAuditLogsSpy.mockClear();
 
-			const filterField = screen.getByLabelText("Filter");
+			const filterField = screen.getByRole("combobox", {
+				name: "Search and filter audit logs…",
+			});
 			const query = "resource_type:workspace action:create";
-			await userEvent.type(filterField, query);
+			await userEvent.type(filterField, "resource_type:");
+			await userEvent.click(
+				await screen.findByRole("option", { name: "Workspace" }),
+			);
+			await userEvent.type(filterField, "action:");
+			await userEvent.click(
+				await screen.findByRole("option", { name: "Create" }),
+			);
 
 			await waitFor(() =>
 				expect(getAuditLogsSpy).toHaveBeenCalledWith<[AuditLogsRequest]>({
