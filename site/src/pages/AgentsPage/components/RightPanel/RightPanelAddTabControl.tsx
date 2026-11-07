@@ -116,7 +116,7 @@ export const RightPanelAddTabControl: React.FC<{
 	);
 
 	return (
-		<div className="flex h-6 shrink-0 items-center overflow-hidden rounded-md border border-solid bg-surface-primary text-content-secondary">
+		<div className="flex h-6 shrink-0 items-center overflow-hidden rounded-md border bg-surface-primary text-content-secondary">
 			<Button
 				variant="subtle"
 				size="icon"

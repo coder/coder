@@ -469,7 +469,7 @@ const FilterDropdown: React.FC<{
 	const activeKeys = new Set(filters.map((f) => f.key));
 
 	return (
-		<div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-md border border-solid bg-surface-primary p-3 shadow-md">
+		<div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-md border bg-surface-primary p-3 shadow-md">
 			<h3 className="m-0 mb-2 text-xs font-medium text-content-secondary">
 				Filter by
 			</h3>

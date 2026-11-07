@@ -112,7 +112,7 @@ export const OptionConfig: React.FC<OptionConfigProps> = ({
 		<div
 			{...attrs}
 			className={cn(
-				"inline-flex items-center gap-1.5 rounded border border-solid p-1.5",
+				"inline-flex items-center gap-1.5 rounded border p-1.5",
 				"font-mono text-xs font-semibold leading-none",
 				"border-border-secondary bg-surface-secondary",
 				isSource &&

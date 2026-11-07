@@ -10,48 +10,45 @@ import {
 import { useState } from "react";
 import { Button } from "#/components/Button/Button";
 
-const alertVariants = cva(
-	"relative w-full rounded-lg border border-solid p-4 text-left",
-	{
-		variants: {
-			severity: {
-				info: "",
-				success: "",
-				warning: "",
-				error: "",
-			},
-			prominent: {
-				true: "",
-				false: "",
-			},
+const alertVariants = cva("relative w-full rounded-lg border p-4 text-left", {
+	variants: {
+		severity: {
+			info: "",
+			success: "",
+			warning: "",
+			error: "",
 		},
-		compoundVariants: [
-			{
-				prominent: false,
-				className: "bg-surface-secondary",
-			},
-			{
-				severity: "success",
-				prominent: true,
-				className: "border-border-success bg-surface-green",
-			},
-			{
-				severity: "warning",
-				prominent: true,
-				className: "border-border-warning bg-surface-orange",
-			},
-			{
-				severity: "error",
-				prominent: true,
-				className: "border-border-destructive bg-surface-red",
-			},
-		],
-		defaultVariants: {
-			severity: "info",
-			prominent: false,
+		prominent: {
+			true: "",
+			false: "",
 		},
 	},
-);
+	compoundVariants: [
+		{
+			prominent: false,
+			className: "bg-surface-secondary",
+		},
+		{
+			severity: "success",
+			prominent: true,
+			className: "border-border-success bg-surface-green",
+		},
+		{
+			severity: "warning",
+			prominent: true,
+			className: "border-border-warning bg-surface-orange",
+		},
+		{
+			severity: "error",
+			prominent: true,
+			className: "border-border-destructive bg-surface-red",
+		},
+	],
+	defaultVariants: {
+		severity: "info",
+		prominent: false,
+	},
+});
 
 const severityIcons = {
 	info: { icon: InfoIcon, className: "text-highlight-sky", label: "Info" },

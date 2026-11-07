@@ -26,7 +26,7 @@ export const TemplateExampleCard: React.FC<TemplateExampleCardProps> = ({
 	return (
 		<div
 			className={cn(
-				"flex w-[320px] flex-col rounded-md border border-solid p-6 text-left text-inherit",
+				"flex w-[320px] flex-col rounded-md border p-6 text-left text-inherit",
 				className,
 			)}
 			{...divProps}

@@ -39,7 +39,7 @@ export const ChatSearchInput: React.FC<ChatSearchInputProps> = ({
 	return (
 		<div
 			className={cn(
-				"flex min-h-10 w-full min-w-0 items-start gap-1.5 rounded-md border border-solid bg-surface-primary px-3 py-2",
+				"flex min-h-10 w-full min-w-0 items-start gap-1.5 rounded-md border bg-surface-primary px-3 py-2",
 				"focus-within:ring-2 focus-within:ring-content-link",
 			)}
 		>
@@ -50,7 +50,7 @@ export const ChatSearchInput: React.FC<ChatSearchInputProps> = ({
 				{completedFilters.map((f) => (
 					<span
 						key={f.key}
-						className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-md border border-solid bg-surface-secondary px-2 py-0.5 text-xs text-content-secondary"
+						className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-md border bg-surface-secondary px-2 py-0.5 text-xs text-content-secondary"
 					>
 						<span
 							className="block min-w-0 truncate"

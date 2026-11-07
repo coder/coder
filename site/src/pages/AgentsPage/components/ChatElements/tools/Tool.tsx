@@ -891,7 +891,7 @@ const ToolFileViewer: React.FC<ToolFileViewerProps> = ({
 			</div>
 		)}
 		<ToolCall.Scrollable
-			className="mt-1.5 rounded-md border border-solid text-2xs"
+			className="mt-1.5 rounded-md border text-2xs"
 			viewportClassName="max-h-64"
 			ariaLabel={`Contents of ${file.name}`}
 			orientation="both"

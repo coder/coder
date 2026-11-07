@@ -23,7 +23,7 @@ const tabsListVariants = cva("flex flex-wrap items-center", {
 	variants: {
 		variant: {
 			insideBox: cn(
-				"border-solid border-x-0 border-y",
+				"border-x-0 border-y",
 				"[&_[data-slot=tabs-trigger][data-state=active]]:bg-surface-secondary",
 				"[&_[data-slot=tabs-trigger]]:border-x [&_[data-slot=tabs-trigger]]:border-y-0 [&_[data-slot=tabs-trigger]]:border-solid",
 				"[&_[data-slot=tabs-trigger]]:border-x-transparent [&_[data-slot=tabs-trigger][data-state=active]]:border-x-border",
@@ -32,7 +32,7 @@ const tabsListVariants = cva("flex flex-wrap items-center", {
 				"[&_[data-slot=tabs-trigger][data-state=active]]:text-content-primary",
 			),
 			outsideBox: cn(
-				"border-solid border-b gap-6",
+				"border-b gap-6",
 				"[&_[data-slot=tabs-trigger]]:text-content-secondary [&_[data-slot=tabs-trigger][data-state=active]]:text-content-primary",
 				"[&_[data-slot=tabs-trigger]]:border-y [&_[data-slot=tabs-trigger]]:border-solid",
 				"[&_[data-slot=tabs-trigger]]:border-transparent [&_[data-slot=tabs-trigger][data-state=active]]:border-b-content-primary",
@@ -126,7 +126,7 @@ export const LinkTabs = ({
 		<LinkTabsContext.Provider value={{ active }}>
 			<div
 				data-slot="link-tabs"
-				className={cn("border-b border-solid", className)}
+				className={cn("border-b", className)}
 				{...htmlProps}
 			/>
 		</LinkTabsContext.Provider>

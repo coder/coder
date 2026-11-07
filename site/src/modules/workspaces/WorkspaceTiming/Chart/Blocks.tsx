@@ -40,7 +40,7 @@ export const Blocks: React.FC<BlocksProps> = ({ count }) => {
 					key={n}
 					className={cn(
 						"h-[18px] min-w-5 shrink-0 flex-1 rounded",
-						"border border-solid border-content-link bg-content-link/15",
+						"border border-content-link bg-content-link/15",
 					)}
 				/>
 			))}

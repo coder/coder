@@ -193,7 +193,7 @@ export const ModelFormFields: React.FC<{
 		getVisibleProviderFields(selectedProviderState.provider).length > 0;
 
 	return (
-		<div className="border border-solid p-6 rounded-lg">
+		<div className="border p-6 rounded-lg">
 			<form
 				onSubmit={form.handleSubmit}
 				spellCheck={false}
@@ -308,7 +308,7 @@ export const ModelFormFields: React.FC<{
 					{organizationField}
 				</div>
 
-				<div className="overflow-hidden rounded-lg border border-solid">
+				<div className="overflow-hidden rounded-lg border">
 					<CollapsibleSection
 						title="Cost estimate"
 						description={
@@ -343,7 +343,7 @@ export const ModelFormFields: React.FC<{
 							description="Tune provider-specific behavior like reasoning, tool calling, and web search."
 							open={showProviderConfig}
 							onOpenChange={setShowProviderConfig}
-							className="border-t border-solid"
+							className="border-t"
 							contentClassName="pt-3 pl-6"
 						>
 							<ModelConfigFields
@@ -367,7 +367,7 @@ export const ModelFormFields: React.FC<{
 						description="Low-level parameters like temperature and penalties. Rarely need changing."
 						open={showAdvanced}
 						onOpenChange={setShowAdvanced}
-						className="border-t border-solid"
+						className="border-t"
 						contentClassName="grid grid-cols-2 gap-3 pt-3 pl-6 sm:grid-cols-3"
 					>
 						<GeneralModelConfigFields

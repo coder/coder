@@ -451,12 +451,9 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 							)}
 						</div>
 
-						<div className="border-t border-solid overflow-hidden flex flex-col">
+						<div className="border-t overflow-hidden flex flex-col">
 							<div
-								className={cn(
-									"flex items-center",
-									selectedTab && "border-b border-solid",
-								)}
+								className={cn("flex items-center", selectedTab && "border-b")}
 							>
 								<div className="flex">
 									<button

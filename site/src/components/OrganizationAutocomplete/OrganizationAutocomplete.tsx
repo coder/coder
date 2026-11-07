@@ -190,7 +190,7 @@ const OrganizationValue: React.FC<OrganizationValueProps> = ({
 			role="group"
 			aria-label={`Organization ${label}`}
 			className={cn(
-				"flex h-10 items-center gap-2 rounded-md border border-solid px-3 py-2 text-sm text-content-primary",
+				"flex h-10 items-center gap-2 rounded-md border px-3 py-2 text-sm text-content-primary",
 				className,
 			)}
 		>

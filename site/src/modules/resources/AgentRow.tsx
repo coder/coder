@@ -402,7 +402,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 		<div
 			key={agent.id}
 			className={cn(
-				"flex max-w-full flex-col rounded-lg border border-solid bg-surface-primary text-sm shadow-md overflow-clip",
+				"flex max-w-full flex-col rounded-lg border bg-surface-primary text-sm shadow-md overflow-clip",
 				borderClass,
 			)}
 		>
@@ -532,7 +532,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />
 			</div>
 
-			<section className="border-t border-solid">
+			<section className="border-t">
 				<Collapsible open={shouldExpandLogs} onOpenChange={setShowLogs}>
 					<div className="px-4 py-2 relative">
 						<CollapsibleTrigger asChild>
@@ -600,7 +600,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 								</div>
 							)}
 							{shouldShowLogsTabs && (
-								<div className="border border-solid rounded-md overflow-clip">
+								<div className="border rounded-md overflow-clip">
 									<Tabs
 										className="-mx-px -mt-px"
 										value={selectedLogTab}
@@ -697,7 +697,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 											<div
 												className={cn(
 													"shrink-0 flex items-center gap-2 pl-2 pr-3",
-													"border-solid border-b border-l",
+													"border-b border-l",
 												)}
 											>
 												<TooltipProvider>
