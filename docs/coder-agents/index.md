@@ -262,7 +262,7 @@ Platform tools (`list_templates`, `read_template`, `create_workspace`, `start_wo
 Sub-agents do not have access to these tools and cannot create workspaces or spawn further sub-agents.
 
 `spawn_agent` with `type=computer_use` works only after an administrator enables the [virtual desktop](./platform-controls/virtual-desktop.md) feature.
-It also requires a model from an Anthropic or OpenAI AI provider, or a Claude model from an AWS Bedrock AI provider.
+It also requires a model from an Anthropic, OpenAI, or OpenAI-compatible AI provider, or a Claude model from an AWS Bedrock AI provider.
 `read_skill` and `read_skill_file` are available when the workspace contains skills in its `.agents/skills/` directory.
 
 `propose_plan` and `ask_user_question` are only available while plan mode is active.
