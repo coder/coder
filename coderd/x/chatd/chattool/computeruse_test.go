@@ -54,6 +54,12 @@ func TestDefaultComputerUseDesktopGeometry(t *testing.T) {
 			declaredWidth:  1600,
 			declaredHeight: 900,
 		},
+		{
+			name:           "OpenAICompat",
+			provider:       codersdk.ChatComputerUseProviderOpenAICompat,
+			declaredWidth:  1280,
+			declaredHeight: 720,
+		},
 	}
 
 	for _, tt := range tests {
@@ -129,6 +135,37 @@ func TestComputerUseProviderTool(t *testing.T) {
 		)
 		require.NoError(t, err)
 		assert.True(t, fantasyopenai.IsComputerUseTool(openAITool))
+	})
+
+	t.Run("OpenAICompat", func(t *testing.T) {
+		t.Parallel()
+
+		def, err := chattool.ComputerUseProviderTool(
+			codersdk.ChatComputerUseProviderOpenAICompat,
+			"",
+			geometry.DeclaredWidth,
+			geometry.DeclaredHeight,
+		)
+		require.NoError(t, err)
+		// A hosted computer tool would be dropped by an OpenAI-compatible
+		// server, so this flavor is an ordinary function tool.
+		funcTool, ok := def.(fantasy.FunctionTool)
+		require.True(t, ok, "got %T, want a function tool", def)
+		assert.Equal(t, "computer", funcTool.Name)
+		assert.Contains(t, funcTool.Description,
+			fmt.Sprintf("%d by %d pixel", geometry.DeclaredWidth, geometry.DeclaredHeight))
+
+		properties, ok := funcTool.InputSchema["properties"].(map[string]any)
+		require.True(t, ok)
+		action, ok := properties["action"].(map[string]any)
+		require.True(t, ok)
+		enum, ok := action["enum"].([]string)
+		require.True(t, ok, "the action list must be an enum, got %T", action["enum"])
+		assert.Contains(t, enum, "screenshot")
+		assert.Contains(t, enum, "left_click_drag")
+		// The agent desktop has no zoom action.
+		assert.NotContains(t, enum, "zoom")
+		assert.Equal(t, []string{"action"}, funcTool.InputSchema["required"])
 	})
 
 	t.Run("Unsupported", func(t *testing.T) {
@@ -384,6 +421,76 @@ func TestComputerUseTool_Run_LeftClick(t *testing.T) {
 	attachments, err := chattool.AttachmentsFromMetadata(resp.Metadata)
 	require.NoError(t, err)
 	assert.Empty(t, attachments)
+}
+
+// An OpenAI-compatible server gives no screenshot with an action result, so the
+// runner sends one after every action, and only a requested screenshot is
+// stored as a chat attachment.
+func TestComputerUseTool_Run_OpenAICompat_ScreenshotsAfterEveryAction(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	mockConn := agentconnmock.NewMockAgentConn(ctrl)
+	geometry := workspacesdk.DefaultDesktopGeometry()
+	const screenshotPNG = "aW1hZ2UtZGF0YQ=="
+	// The click, the screenshot that follows it, and the requested screenshot.
+	actions := recordDesktopActions(t, mockConn, geometry, 3, screenshotPNG)
+
+	var storedNames []string
+	tool := chattool.NewComputerUseTool(
+		codersdk.ChatComputerUseProviderOpenAICompat,
+		"",
+		geometry.DeclaredWidth,
+		geometry.DeclaredHeight,
+		func(_ context.Context) (workspacesdk.AgentConn, error) {
+			return mockConn, nil
+		},
+		func(_ context.Context, name string, _ string, _ []byte) (chattool.AttachmentMetadata, error) {
+			storedNames = append(storedNames, name)
+			return chattool.AttachmentMetadata{
+				FileID:    uuid.MustParse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"),
+				MediaType: "image/png",
+				Name:      name,
+			}, nil
+		},
+		quartz.NewReal(),
+		slogtest.Make(t, nil),
+	)
+
+	ctx := context.Background()
+	actionResp, err := tool.Run(ctx, fantasy.ToolCall{
+		ID:    "compat-left-click",
+		Name:  "computer",
+		Input: `{"action":"left_click","coordinate":[100,200]}`,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "image", actionResp.Type)
+	assert.False(t, actionResp.IsError)
+	expectedImage, err := base64.StdEncoding.DecodeString(screenshotPNG)
+	require.NoError(t, err)
+	assert.Equal(t, expectedImage, actionResp.Data)
+	actionAttachments, err := chattool.AttachmentsFromMetadata(actionResp.Metadata)
+	require.NoError(t, err)
+	assert.Empty(t, actionAttachments, "the screenshot after an action is for the model only")
+
+	requestedResp, err := tool.Run(ctx, fantasy.ToolCall{
+		ID:    "compat-screenshot",
+		Name:  "computer",
+		Input: `{"action":"screenshot"}`,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "image", requestedResp.Type)
+	requestedAttachments, err := chattool.AttachmentsFromMetadata(requestedResp.Metadata)
+	require.NoError(t, err)
+	require.Len(t, requestedAttachments, 1)
+
+	require.Len(t, *actions, 3)
+	assertDesktopActionScaled(t, geometry, (*actions)[0])
+	assertDesktopAction(t, (*actions)[0], "left_click", [2]int{100, 200})
+	assert.Equal(t, "screenshot", (*actions)[1].Action)
+	assert.Equal(t, "screenshot", (*actions)[2].Action)
+	require.Len(t, storedNames, 1)
+	assert.Contains(t, storedNames[0], "screenshot-")
 }
 
 func TestComputerUseTool_Run_Wait(t *testing.T) {

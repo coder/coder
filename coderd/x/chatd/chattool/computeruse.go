@@ -47,6 +47,99 @@ func DefaultComputerUseDesktopGeometry(provider codersdk.ChatComputerUseProvider
 	}
 }
 
+// computerUseToolName is the name every computer use flavor declares.
+const computerUseToolName = "computer"
+
+// openaiCompatComputerUseActions lists the desktop actions the openai-compat
+// flavor offers. It is the vocabulary the agent desktop implements and the
+// shared action runner decodes, minus zoom, which the desktop has no way to
+// perform.
+var openaiCompatComputerUseActions = []string{
+	"screenshot",
+	"left_click",
+	"right_click",
+	"middle_click",
+	"double_click",
+	"triple_click",
+	"mouse_move",
+	"left_click_drag",
+	"left_mouse_down",
+	"left_mouse_up",
+	"type",
+	"key",
+	"hold_key",
+	"scroll",
+	"wait",
+}
+
+// openaiCompatComputerUseTool declares the computer use tool for models reached
+// through the OpenAI chat completions API. Those servers accept a hosted
+// computer tool definition and then drop it, so this flavor declares an
+// ordinary function tool and returns a screenshot with every action.
+// declaredWidth and declaredHeight are the model-facing desktop pixels the
+// runner maps coordinates against.
+func openaiCompatComputerUseTool(declaredWidth, declaredHeight int) fantasy.Tool {
+	return fantasy.FunctionTool{
+		Name: computerUseToolName,
+		Description: fmt.Sprintf(
+			"Control a %d by %d pixel desktop. Every call answers with a screenshot of the current screen, "+
+				"so take a screenshot first and act on what it shows. Coordinates are pixels measured from the "+
+				"top-left corner of the screenshot you last saw.",
+			declaredWidth, declaredHeight,
+		),
+		InputSchema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"action": map[string]any{
+					"type":        "string",
+					"enum":        openaiCompatComputerUseActions,
+					"description": "The desktop action to perform.",
+				},
+				"coordinate": map[string]any{
+					"type":        "array",
+					"items":       map[string]any{"type": "integer"},
+					"minItems":    2,
+					"maxItems":    2,
+					"description": "The [x, y] pixel position for actions that act on a place.",
+				},
+				"start_coordinate": map[string]any{
+					"type":        "array",
+					"items":       map[string]any{"type": "integer"},
+					"minItems":    2,
+					"maxItems":    2,
+					"description": "The [x, y] pixel position a drag starts from.",
+				},
+				"text": map[string]any{
+					"type":        "string",
+					"description": "The text to type, the key combination to press, or the key to hold.",
+				},
+				"scroll_direction": map[string]any{
+					"type":        "string",
+					"enum":        []string{"up", "down", "left", "right"},
+					"description": "The direction to scroll.",
+				},
+				"scroll_amount": map[string]any{
+					"type":        "integer",
+					"description": "How many wheel clicks to scroll.",
+				},
+				"duration": map[string]any{
+					"type":        "integer",
+					"minimum":     0,
+					"maximum":     anthropicMaxDurationSeconds,
+					"description": "How many whole seconds to hold a key or wait.",
+				},
+				"repeat": map[string]any{
+					"type":        "integer",
+					"minimum":     1,
+					"maximum":     anthropicMaxKeyRepeat,
+					"description": "How many times to press a key.",
+				},
+			},
+			"required": []string{"action"},
+		},
+	}
+}
+
 // anthropicHaltedActionText answers the Anthropic computer calls of a step
 // that follow a failed one.
 const anthropicHaltedActionText = "Not executed: an earlier computer action in this turn failed."
@@ -102,7 +195,7 @@ func NewComputerUseTool(
 
 func (*computerUseTool) Info() fantasy.ToolInfo {
 	return fantasy.ToolInfo{
-		Name: "computer",
+		Name: computerUseToolName,
 		Description: "Control the desktop: take screenshots, move the mouse, click, type, and scroll. " +
 			"Use an explicit screenshot action when you want to share a screenshot with the user; " +
 			"those screenshots are also attached to the chat.",
@@ -141,6 +234,8 @@ func ComputerUseProviderTool(
 		// dimensions. The declared geometry is applied through screenshot
 		// sizing and desktop action coordinate scaling.
 		return openaicomputeruse.Tool(), nil
+	case codersdk.ChatComputerUseProviderOpenAICompat:
+		return openaiCompatComputerUseTool(declaredWidth, declaredHeight), nil
 	default:
 		return nil, xerrors.Errorf("unsupported computer use provider %q, supported providers: %s", provider,
 			strings.Join(SupportedComputerUseProviders(), ", "))
@@ -175,6 +270,8 @@ func (t *computerUseTool) Run(ctx context.Context, call fantasy.ToolCall) (fanta
 		return t.runAnthropicComputerUse(ctx, call)
 	case codersdk.ChatComputerUseProviderOpenAI:
 		return t.runOpenAIComputerUse(ctx, call)
+	case codersdk.ChatComputerUseProviderOpenAICompat:
+		return t.runOpenAICompatComputerUse(ctx, call)
 	default:
 		return fantasy.NewTextErrorResponse(fmt.Sprintf(
 			"unsupported computer use provider %q, supported providers: %s",
@@ -190,6 +287,30 @@ func (t *computerUseTool) Run(ctx context.Context, call fantasy.ToolCall) (fanta
 func (t *computerUseTool) runAnthropicComputerUse(
 	ctx context.Context,
 	call fantasy.ToolCall,
+) (fantasy.ToolResponse, error) {
+	textResult := t.anthropicToolVersion == fantasyanthropic.ComputerUseToolset20260801
+	return t.runActionPerCallComputerUse(ctx, call, textResult)
+}
+
+// runOpenAICompatComputerUse runs one computer action declared in the chat
+// completions function tool format. Those servers return no screenshot with an
+// action result, and an unverified model cannot be relied on to ask for one, so
+// every action answers with a fresh screenshot, as the tool description states.
+func (t *computerUseTool) runOpenAICompatComputerUse(
+	ctx context.Context,
+	call fantasy.ToolCall,
+) (fantasy.ToolResponse, error) {
+	return t.runActionPerCallComputerUse(ctx, call, false)
+}
+
+// runActionPerCallComputerUse runs one computer action delivered as a single
+// action per call, the shape both the Anthropic computer toolsets and the chat
+// completions function tool declare. When textResult is true, an action other
+// than screenshot answers with text instead of a screenshot.
+func (t *computerUseTool) runActionPerCallComputerUse(
+	ctx context.Context,
+	call fantasy.ToolCall,
+	textResult bool,
 ) (fantasy.ToolResponse, error) {
 	input, err := fantasyanthropic.ParseComputerUseInput(call.Input)
 	if err != nil {
@@ -207,7 +328,6 @@ func (t *computerUseTool) runAnthropicComputerUse(
 
 	declaredWidth, declaredHeight := t.declaredActionDimensions()
 
-	textResult := t.anthropicToolVersion == fantasyanthropic.ComputerUseToolset20260801
 	switch input.Action {
 	case fantasyanthropic.ActionScreenshot:
 		return t.captureSharedScreenshot(ctx, conn, declaredWidth, declaredHeight)

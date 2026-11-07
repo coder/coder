@@ -4261,7 +4261,7 @@ func TestListChatModelConfigs(t *testing.T) {
 			{provider: anthropicProvider, model: "claude-opus-5-5", want: codersdk.ChatComputerUseProviderAnthropic},
 			{provider: bedrockProvider, model: "us.anthropic.claude-opus-5-5", want: codersdk.ChatComputerUseProviderAnthropic},
 			{provider: bedrockProvider, model: "openai.gpt-5.4"},
-			{provider: compatProvider, model: "claude-opus-5-5"},
+			{provider: compatProvider, model: "claude-opus-5-5", want: codersdk.ChatComputerUseProviderOpenAICompat},
 		} {
 			config := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{
 				AIProviderID:   uuid.NullUUID{UUID: tc.provider.ID, Valid: true},
@@ -16246,17 +16246,30 @@ func TestChatModelOverridesComputerUse(t *testing.T) {
 		})
 	}
 
+	t.Run("AcceptsOpenAICompat", func(t *testing.T) {
+		// An OpenAI-compatible model declares computer use as a function tool,
+		// so any model on such a provider is selectable for computer use.
+		model := createAdditionalChatModel(t, adminClient, coderdtest.TestChatProviderOpenAICompat, "computer-use-compat-"+uuid.NewString())
+		require.Equal(t, codersdk.ChatComputerUseProviderOpenAICompat, model.ComputerUseProvider)
+		updated, err := update(codersdk.UpdateChatModelOverrideRequest{ModelConfigID: model.ID.String()})
+		require.NoError(t, err)
+		require.Equal(t, model.ID.String(), updated.ModelConfigID)
+		stored, err := getRow()
+		require.NoError(t, err)
+		require.Equal(t, model.ID, stored.ModelConfigID)
+	})
+
 	t.Run("RejectsUnsupportedProviderType", func(t *testing.T) {
 		valid := createAdditionalChatModel(t, adminClient, "anthropic", "computer-use-valid-"+uuid.NewString())
 		_, err := update(codersdk.UpdateChatModelOverrideRequest{ModelConfigID: valid.ID.String()})
 		require.NoError(t, err)
 		before, err := getRow()
 		require.NoError(t, err)
-		model := createAdditionalChatModel(t, adminClient, coderdtest.TestChatProviderOpenAICompat, "computer-use-compat-"+uuid.NewString())
+		model := createAdditionalChatModel(t, adminClient, "google", "computer-use-google-"+uuid.NewString())
 		_, err = update(codersdk.UpdateChatModelOverrideRequest{ModelConfigID: model.ID.String()})
 		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
 		require.Equal(t, "Computer use requires "+chatprovider.ComputerUseModelRequirement+".", sdkErr.Message)
-		require.Contains(t, sdkErr.Detail, `of type "openai-compat"`)
+		require.Contains(t, sdkErr.Detail, `of type "google"`)
 		after, err := getRow()
 		require.NoError(t, err)
 		require.Equal(t, before.ModelConfigID, after.ModelConfigID)
