@@ -125,6 +125,7 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	// Only one question is answerable at a time, so one set of refs is enough.
 	const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
 	const otherTextRef = useRef<HTMLInputElement>(null);
+
 	const filteredQuestions = questions.map(filterQuestionOptions);
 	const [formDraft, setFormDraft] = useState<FormDraft>(
 		() =>
@@ -135,10 +136,12 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 				questionIndex: 0,
 			},
 	);
+
 	// Set once the queue or transcript shows the answer. After that, the sent
 	// copy would bring back an answer removed from the queue, and a send error
 	// would describe an answer the server took, so neither shows.
 	const [hasShownAnswer, setHasShownAnswer] = useState(false);
+
 	const submitAnswerMutation = useMutation({
 		mutationFn: async (answerText: string) => {
 			await onSubmitAnswer?.(
@@ -480,11 +483,6 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	);
 };
 
-/**
- * Shows an ask_user_question call in the transcript, with the async
- * question's announcement. A closed question shows a notice in place of
- * the form.
- */
 export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	questions,
 	status,
