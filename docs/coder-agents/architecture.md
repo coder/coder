@@ -161,7 +161,7 @@ Workspace MCP tools remain unavailable in plan mode, and plan-mode sub-agents st
 Dynamic, provider-native, and computer-use tools are not available.
 
 In plan mode, `ask_user_question` ends the turn so the user can answer before planning continues.
-In chats created from the Coder dashboard, `ask_user_question` is also exposed outside plan mode.
+In chats created from the Coder dashboard, Coder also exposes `ask_user_question` outside plan mode.
 There it returns at once, and the agent keeps working.
 The answer arrives later as a user message.
 Coder also sends the chat owner a web push notification when such a question opens.
