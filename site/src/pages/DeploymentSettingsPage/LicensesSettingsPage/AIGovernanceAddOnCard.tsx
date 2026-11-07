@@ -50,7 +50,7 @@ export const AIGovernanceAddOnCard: React.FC<AIGovernanceAddOnCardProps> = ({
 						</Tooltip>
 					</div>
 
-					<div className="min-w-[100px] flex-1 pl-8 pr-3">
+					<div className="min-w-25 flex-1 pl-8 pr-3">
 						<div className="text-xs">
 							<div className="font-medium text-content-secondary">{unit}</div>
 							<div className="font-normal text-content-primary">

@@ -4,8 +4,8 @@ import { ChevronRightIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 const collapsibleSummaryVariants = cva(
-	`flex items-center gap-1 p-0 bg-transparent border-0 text-inherit cursor-pointer
-	transition-colors text-content-secondary hover:text-content-primary font-medium
+	`flex items-center gap-1 p-0 bg-transparent border-0 text-content-secondary cursor-pointer
+	transition-colors hover:text-content-primary font-medium
 	whitespace-nowrap`,
 	{
 		variants: {

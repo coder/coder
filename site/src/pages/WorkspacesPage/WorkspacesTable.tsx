@@ -167,7 +167,7 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 					</TableHead>
 				</TableRow>
 			</TableHeader>
-			<TableBody className="[&_td]:h-[72px]">
+			<TableBody className="[&_td]:h-18">
 				{isLoading && <TableLoader />}
 				{isEmpty && (
 					<TableRow>

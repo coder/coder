@@ -554,7 +554,7 @@ const MaskableTextArea: React.FC<MaskableInputProps> = ({
 				ref={textareaRef}
 				id={id}
 				className={cn(
-					"overflow-y-auto max-h-[500px]",
+					"overflow-y-auto max-h-125",
 					masked && !showMaskedInput && "[-webkit-text-security:disc]",
 				)}
 				value={value}

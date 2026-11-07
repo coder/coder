@@ -203,7 +203,7 @@ export const AgentDevcontainerCard: React.FC<AgentDevcontainerCardProps> = ({
 				gap-6 px-4 pl-8 leading-6
 				md:gap-4"
 			>
-				<div className="min-w-[284px] flex items-center gap-6 text-xs text-content-secondary">
+				<div className="min-w-71 flex items-center gap-6 text-xs text-content-secondary">
 					<div className="flex items-center gap-4 w-full">
 						<DevcontainerStatus
 							devcontainer={devcontainer}

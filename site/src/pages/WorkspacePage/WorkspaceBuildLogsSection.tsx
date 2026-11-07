@@ -21,7 +21,7 @@ export const WorkspaceBuildLogsSection: React.FC<
 			>
 				Build logs
 			</header>
-			<div className="h-[400px] overflow-y-auto">
+			<div className="h-100 overflow-y-auto">
 				{logs ? (
 					<WorkspaceBuildLogs
 						sticky
