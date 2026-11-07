@@ -187,7 +187,7 @@ export const TrialRequestForm: React.FC<TrialRequestFormProps> = ({
 				<div className="flex gap-2 items-start text-sm text-content-primary">
 					<Checkbox
 						id={acknowledgementId}
-						className="data-[state=unchecked]:bg-transparent"
+						className="data-unchecked:bg-transparent"
 						checked={form.values.acknowledged}
 						onCheckedChange={(checked) =>
 							form.setFieldValue("acknowledged", checked === true)

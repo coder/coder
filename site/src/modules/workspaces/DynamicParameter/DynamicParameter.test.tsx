@@ -374,21 +374,17 @@ describe("DynamicParameter", () => {
 			],
 		});
 
-		it("renders slider parameter correctly", () => {
-			render(
-				<DynamicParameter
-					parameter={mockSliderParameter}
-					value="50"
-					onChange={mockOnChange}
-				/>,
+		beforeEach(() => {
+			// Edge-aligned thumbs need a nonzero track size, which jsdom cannot measure.
+			vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+				new DOMRect(0, 0, 100, 16),
 			);
-
-			expect(screen.getByText("Slider Parameter")).toBeInTheDocument();
-			const slider = screen.getByRole("slider");
-			expect(slider).toHaveAttribute("aria-valuenow", "50");
 		});
 
-		it("respects min/max constraints from validation_condition", () => {
+		afterEach(() => vi.restoreAllMocks());
+
+		it("reports slider changes as parameter strings", async () => {
+			const user = userEvent.setup();
 			render(
 				<DynamicParameter
 					parameter={mockSliderParameter}
@@ -396,10 +392,27 @@ describe("DynamicParameter", () => {
 					onChange={mockOnChange}
 				/>,
 			);
+			const slider = await screen.findByRole("slider");
+			await user.click(slider);
+			await user.keyboard("{ArrowRight}");
+			expect(mockOnChange).toHaveBeenCalledWith("51");
+		});
 
-			const slider = screen.getByRole("slider");
-			expect(slider).toHaveAttribute("aria-valuemin", "0");
-			expect(slider).toHaveAttribute("aria-valuemax", "100");
+		it("clamps keyboard changes to the validation limits", async () => {
+			const user = userEvent.setup();
+			render(
+				<DynamicParameter
+					parameter={mockSliderParameter}
+					value="50"
+					onChange={mockOnChange}
+				/>,
+			);
+			const slider = await screen.findByRole("slider");
+			await user.click(slider);
+			await user.keyboard("{End}");
+			expect(mockOnChange).toHaveBeenCalledWith("100");
+			await user.keyboard("{Home}");
+			expect(mockOnChange).toHaveBeenCalledWith("0");
 		});
 	});
 

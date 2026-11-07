@@ -1,6 +1,7 @@
+import { Radio } from "@base-ui/react/radio";
+import { RadioGroup } from "@base-ui/react/radio-group";
 import { cn } from "cn";
 import { SearchIcon } from "lucide-react";
-import { RadioGroup } from "radix-ui";
 import { useMemo, useState } from "react";
 import { useQuery } from "react-query";
 import { templateBuilderModules } from "#/api/queries/templateBuilder";
@@ -214,15 +215,17 @@ export const ModuleSelectStep: React.FC<ModuleSelectStepProps> = ({
 				className="my-4"
 			/>
 
-			<RadioGroup.Root
+			<RadioGroup
 				value={selectedCategory}
 				onValueChange={setSelectedCategory}
-				orientation="horizontal"
+				aria-orientation="horizontal"
 				aria-label="Filter modules by category"
 				className="my-4 flex flex-wrap items-center gap-6 border-solid border-0 border-b border-border"
 			>
 				{categoryFilters.map((filter) => (
-					<RadioGroup.Item
+					<Radio.Root
+						nativeButton
+						render={(buttonProps) => <button {...buttonProps} type="button" />}
 						key={filter.value}
 						value={filter.value}
 						className={cn(
@@ -230,13 +233,13 @@ export const ModuleSelectStep: React.FC<ModuleSelectStepProps> = ({
 							"border-0 border-y border-solid border-transparent",
 							"text-sm font-normal text-content-secondary cursor-pointer",
 							"transition-colors duration-150 ease-linear hover:text-content-primary",
-							"data-[state=checked]:text-content-primary data-[state=checked]:border-b-content-primary",
+							"data-checked:text-content-primary data-checked:border-b-content-primary",
 						)}
 					>
 						{filter.value} ({filter.count})
-					</RadioGroup.Item>
+					</Radio.Root>
 				))}
-			</RadioGroup.Root>
+			</RadioGroup>
 
 			{/* Show three rows of cards (sized to the common 214px card height plus
 			    the row gaps) and let any extra rows scroll, so the Continue button
