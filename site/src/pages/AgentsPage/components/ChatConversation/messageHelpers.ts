@@ -184,17 +184,20 @@ export const deriveMessageDisplayState = ({
 	const workspaceFileBlocks = isUser
 		? parsed.blocks.filter(isWorkspaceFileReferenceBlock)
 		: [];
+
 	const workspaceFileReferenceCount = workspaceFileBlocks.length;
 	const hasWorkspaceFileReferences = workspaceFileReferenceCount > 0;
 	const hasFileAttachments = parsed.blocks.some(isFileRenderBlock);
 	const hasUserMessageBody =
 		userInlineContent.length > 0 || Boolean(parsed.markdown.trim());
 	const hasFileBlocks = userFileBlocks.length > 0;
+
 	const { hasThinkingOnlyContent, endsWithResponseBlock } =
 		getRenderableContentState(parsed);
 	const copyText =
 		(isUser ? parseAsyncAnswerContent(message.content)?.body : undefined) ??
 		parsed.markdown;
+
 	// The copy action row renders below the whole message, so assistant
 	// messages only get one when the last visible block is text.
 	// Otherwise the button would sit under a tool call with nothing
@@ -204,6 +207,7 @@ export const deriveMessageDisplayState = ({
 		!hasFileAttachments &&
 		!hasWorkspaceFileReferences &&
 		(isUser || endsWithResponseBlock);
+
 	const needsAssistantBottomSpacer =
 		!hideActions &&
 		!hasActiveStream &&
@@ -211,6 +215,7 @@ export const deriveMessageDisplayState = ({
 		!isUser &&
 		!hasCopyableContent &&
 		(hasThinkingOnlyContent || parsed.sources.length > 0);
+
 	return {
 		shouldHide: shouldHideTimelineEntry({ message, parsed }),
 		userInlineContent,
