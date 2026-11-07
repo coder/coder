@@ -103,7 +103,7 @@ export const ProjectDetailsPanelView: React.FC<
 				Details
 			</h2>
 			<div className="rounded-lg border">
-				<dl className="m-0 flex flex-col gap-2 border-b border-solid p-4 text-sm">
+				<dl className="m-0 flex flex-col gap-2 border-b p-4 text-sm">
 					<DetailRow label="Project owner">
 						{ownerLabel ?? (
 							<>
@@ -260,7 +260,7 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 		<section
 			ref={observeRowWidth}
 			aria-labelledby={headingId}
-			className="flex flex-col gap-3 border-t border-solid p-4"
+			className="flex flex-col gap-3 border-t p-4"
 		>
 			<div className="flex items-center justify-between gap-4">
 				<h3

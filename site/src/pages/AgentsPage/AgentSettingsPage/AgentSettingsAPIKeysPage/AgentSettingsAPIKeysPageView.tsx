@@ -176,10 +176,7 @@ const ProviderKeyPanel: React.FC<ProviderKeyPanelProps> = ({
 	}
 
 	return (
-		<article
-			className="rounded-lg border border-solid p-6"
-			aria-labelledby={headingId}
-		>
+		<article className="rounded-lg border p-6" aria-labelledby={headingId}>
 			<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 				<div className="space-y-2">
 					<h5

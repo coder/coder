@@ -327,7 +327,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 									<div
 										id={errorId}
 										role="alert"
-										className="pointer-events-none absolute inset-x-3 bottom-3 rounded-md border border-solid border-border-destructive bg-surface-primary px-3 py-2 text-sm text-content-destructive shadow-md"
+										className="pointer-events-none absolute inset-x-3 bottom-3 rounded-md border border-border-destructive bg-surface-primary px-3 py-2 text-sm text-content-destructive shadow-md"
 									>
 										{visibleError}
 									</div>

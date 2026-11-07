@@ -6,10 +6,7 @@ export const Sidebar: React.FC<React.ComponentProps<"nav">> = ({
 }) => {
 	return (
 		<nav
-			className={cn(
-				"w-64 shrink-0 border-solid border-r",
-				"h-full py-2 overflow-y-auto",
-			)}
+			className={cn("w-64 shrink-0 border-r", "h-full py-2 overflow-y-auto")}
 			{...attrs}
 		>
 			{children}

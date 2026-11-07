@@ -63,7 +63,7 @@ export const CreateTemplateGalleryPageView: React.FC<
 					<div className="flex h-max flex-wrap gap-8">
 						<RouterLink
 							to="/templates/new"
-							className="flex h-[115px] w-[320px] items-center gap-6 rounded-md border border-solid p-4 text-inherit no-underline hover:bg-surface-secondary"
+							className="flex h-[115px] w-[320px] items-center gap-6 rounded-md border p-4 text-inherit no-underline hover:bg-surface-secondary"
 						>
 							<div className="size-8 shrink-0">
 								<ExternalImage

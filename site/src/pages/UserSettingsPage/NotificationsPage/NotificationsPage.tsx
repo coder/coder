@@ -125,11 +125,11 @@ const NotificationsPage: React.FC = () => {
 
 						return (
 							<article
-								className="border border-solid rounded-lg overflow-hidden"
+								className="border rounded-lg overflow-hidden"
 								key={group}
 							>
 								<div className="flex flex-col">
-									<header className="flex items-center justify-start gap-2 bg-surface-secondary border-b border-solid px-4 py-3">
+									<header className="flex items-center justify-start gap-2 bg-surface-secondary border-b px-4 py-3">
 										<div className="flex items-center gap-2">
 											<Switch
 												id={group}
@@ -180,7 +180,7 @@ const NotificationsPage: React.FC = () => {
 
 										return (
 											<Fragment key={tmpl.id}>
-												<div className="flex items-center justify-between gap-3 px-4 py-3 not-last:border-b border-solid">
+												<div className="flex items-center justify-between gap-3 px-4 py-3 not-last:border-b">
 													<div className="flex items-center gap-2">
 														<Switch
 															id={tmpl.id}

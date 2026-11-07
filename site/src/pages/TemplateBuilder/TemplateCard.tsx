@@ -32,7 +32,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 			tabIndex={0}
 			className={cn(
 				"flex flex-col pt-4 px-4 pb-6 rounded",
-				"bg-surface-secondary border border-solid",
+				"bg-surface-secondary border",
 				"cursor-pointer",
 				"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 				selected && "border-border-pending",
@@ -50,7 +50,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 				<div
 					aria-hidden="true"
 					className={cn(
-						"flex items-center justify-center size-4 rounded-full border border-solid mt-0.5 shrink-0",
+						"flex items-center justify-center size-4 rounded-full border mt-0.5 shrink-0",
 						selected ? "border-content-primary" : "border-content-secondary",
 					)}
 				>

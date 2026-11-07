@@ -157,7 +157,7 @@ export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 				)}
 			</nav>
 			<div className="flex flex-col md:flex-row md:items-start gap-6">
-				<aside className="md:w-80 md:shrink-0 px-3 py-2.5 border border-solid rounded-md flex flex-col gap-1">
+				<aside className="md:w-80 md:shrink-0 px-3 py-2.5 border rounded-md flex flex-col gap-1">
 					<h2 className="text-sm font-semibold flex items-center m-0">
 						Session summary
 						<SessionSummaryTooltip>

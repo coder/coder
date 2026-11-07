@@ -125,7 +125,7 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 };
 
 const stepCircleVariants = cva(
-	"rounded-full size-6 border border-solid flex items-center justify-center text-xs",
+	"rounded-full size-6 border flex items-center justify-center text-xs",
 	{
 		variants: {
 			variant: {
@@ -190,7 +190,7 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
 const dashedDivider =
 	"border-transparent bg-origin-border bg-repeat-y bg-left-top bg-size-[1px_8px] bg-[linear-gradient(var(--color-border)_4px,transparent_4px)]";
 
-const stepDividerVariants = cva("border-l border-solid mx-3 -translate-x-px", {
+const stepDividerVariants = cva("border-l mx-3 -translate-x-px", {
 	variants: {
 		variant: {
 			complete: "border-border-success",

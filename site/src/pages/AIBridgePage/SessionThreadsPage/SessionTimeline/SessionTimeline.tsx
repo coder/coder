@@ -164,11 +164,11 @@ const BracketConnector: React.FC<BracketConnectorProps> = ({
 				: "grid-rows-[2rem_auto]",
 		)}
 	>
-		<div className="row-start-1 col-start-2 border-b border-l border-solid border-border-control rounded-bl-lg">
+		<div className="row-start-1 col-start-2 border-b border-l border-border-control rounded-bl-lg">
 			{/* top rounded line */}
 		</div>
 		{!hideBottomLine && (
-			<div className="row-start-2 col-start-2 border-t border-l border-solid border-border-control rounded-tl-lg -mt-px">
+			<div className="row-start-2 col-start-2 border-t border-l border-border-control rounded-tl-lg -mt-px">
 				{/* bottom rounded line */}
 			</div>
 		)}
@@ -219,7 +219,7 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 	const isOpen = userToggled ?? expandedByDefault;
 
 	return (
-		<BracketConnector contentClassName="mt-2 mr-4 border border-solid border-border-control rounded-md overflow-x-auto">
+		<BracketConnector contentClassName="mt-2 mr-4 border border-border-control rounded-md overflow-x-auto">
 			<div className="flex items-center">
 				<CollapseButton
 					isOpen={isOpen}
@@ -347,7 +347,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 
 	return (
 		<>
-			<div className="border border-solid border-border-control rounded-md flex flex-col items-start w-full lg:w-auto lg:flex-row gap-6 p-2">
+			<div className="border border-border-control rounded-md flex flex-col items-start w-full lg:w-auto lg:flex-row gap-6 p-2">
 				<div className="flex flex-col gap-1 mb-2 min-w-0 flex-1 w-full">
 					{thread.prompt && (
 						<>
@@ -445,7 +445,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 					{agenticLoopOpen && (
 						<>
 							{/* the little top rounded line above the thinking block */}
-							<div className="border-t border-r border-solid border-border-control rounded-tr-lg w-[calc(1rem+1px)] h-[20px]">
+							<div className="border-t border-r border-border-control rounded-tr-lg w-[calc(1rem+1px)] h-[20px]">
 								{/* we need the 1px extra to line up with the left border on the other lines */}
 							</div>
 
@@ -574,12 +574,12 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 				</div>
 
 				{/* row 2: vertical line */}
-				<div className="row-start-2 col-start-3 border-l border-solid border-border-control">
+				<div className="row-start-2 col-start-3 border-l border-border-control">
 					{/* vertical line */}
 				</div>
 
 				{/* row 3: sized intentionally to create the visual space above the timeline border */}
-				<div className="row-start-3 col-start-3 border-l border-t border-solid border-border-control h-6">
+				<div className="row-start-3 col-start-3 border-l border-t border-border-control h-6">
 					{/* vertical line */}
 				</div>
 
@@ -621,7 +621,7 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 				<div className="row-start-4 col-start-2 border-t border-dashed border-surface-green">
 					{/* horizontal border */}
 				</div>
-				<div className="row-start-4 col-start-3 border-l border-solid border-border-control">
+				<div className="row-start-4 col-start-3 border-l border-border-control">
 					{/* vertical line */}
 				</div>
 				<div className="row-start-4 col-start-4 border-t border-dashed border-surface-green">
@@ -703,7 +703,7 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 				<div className="row-start-6 col-start-2 border-b border-dashed border-surface-green">
 					{/* horizontal line */}
 				</div>
-				<div className="row-start-6 col-start-3 border-l border-solid border-border-control">
+				<div className="row-start-6 col-start-3 border-l border-border-control">
 					{/* vertical line */}
 				</div>
 				<div className="row-start-6 col-start-4 col-span-2 border-b border-dashed border-surface-green">
@@ -720,7 +720,7 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 				{!hasNextPage && !isFetchingNextPage && (
 					<>
 						{/* row 7: sized intentionally to create the visual space below the timeline border */}
-						<div className="row-start-7 col-start-3 border-l border-t border-solid border-border-control h-4">
+						<div className="row-start-7 col-start-3 border-l border-t border-border-control h-4">
 							{/* vertical line */}
 						</div>
 

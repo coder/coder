@@ -74,7 +74,7 @@ export const HealthLayout: React.FC = () => {
 
 			<DashboardFullPage>
 				<div className="flex basis-0 flex-1 overflow-hidden">
-					<div className="w-64 shrink-0 text-sm border-solid border-r border-r-border">
+					<div className="w-64 shrink-0 text-sm border-r border-r-border">
 						<div className="flex flex-col gap-4 p-6">
 							<div>
 								<div className="flex items-center justify-between">

@@ -14,7 +14,7 @@ export const UserSidebarFooter: React.FC = () => {
 	const { appearance, buildInfo } = useDashboard();
 
 	return (
-		<div className="hidden border-t border-solid sm:block">
+		<div className="hidden border-t sm:block">
 			{/* This footer is resizable, so child sizing must follow its container width instead of the viewport. */}
 			<div className="flex min-w-0 items-stretch @container">
 				<DropdownMenu>
