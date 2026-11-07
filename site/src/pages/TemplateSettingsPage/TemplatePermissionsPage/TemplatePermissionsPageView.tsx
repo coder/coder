@@ -108,7 +108,7 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
 						setSelectedRole(value as TemplateRole);
 					}}
 				>
-					<SelectTrigger className="w-[100px]">
+					<SelectTrigger className="w-25">
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
@@ -148,13 +148,13 @@ const RoleSelect: React.FC<RoleSelectProps> = ({
 			disabled={disabled}
 			onValueChange={(nextValue) => onValueChange(nextValue as TemplateRole)}
 		>
-			<SelectTrigger className="h-auto w-[200px]">
+			<SelectTrigger className="h-auto w-50">
 				<SelectValue>
 					<span className="capitalize">{value}</span>
 				</SelectValue>
 			</SelectTrigger>
 			<SelectContent>
-				<SelectItem value="use" className="w-[250px] flex-col items-start py-2">
+				<SelectItem value="use" className="w-62.5 flex-col items-start py-2">
 					<div className="text-content-primary">Use</div>
 					<div className="text-xs leading-[140%] text-content-secondary">
 						Can read and use this template to create workspaces.
@@ -162,7 +162,7 @@ const RoleSelect: React.FC<RoleSelectProps> = ({
 				</SelectItem>
 				<SelectItem
 					value="admin"
-					className="w-[250px] flex-col items-start py-2"
+					className="w-62.5 flex-col items-start py-2"
 				>
 					<div className="text-content-primary">Admin</div>
 					<div className="text-xs leading-[140%] text-content-secondary">

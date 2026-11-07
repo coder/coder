@@ -91,7 +91,7 @@ type ChatSummaryBodyProps = {
 };
 
 const ChatSummaryBody: React.FC<ChatSummaryBodyProps> = ({ summary }) => (
-	<div className="w-full break-words font-sans text-sm font-normal leading-6 text-content-primary wrap-anywhere">
+	<div className="w-full wrap-break-word font-sans text-sm font-normal leading-6 text-content-primary">
 		<InlineMarkdown
 			allowedElements={["ul", "ol", "li"]}
 			components={{

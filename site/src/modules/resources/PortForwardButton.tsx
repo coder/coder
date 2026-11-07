@@ -99,7 +99,7 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = ({
 			</PopoverTrigger>
 			<PopoverContent
 				align="end"
-				className="p-0 w-[404px] mt-1 text-content-secondary bg-surface-secondary border-surface-quaternary"
+				className="p-0 w-101 mt-1 text-content-secondary bg-surface-secondary border-surface-quaternary"
 			>
 				<PortForwardPopoverView
 					host={host}
@@ -326,7 +326,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 							>
 								<SelectTrigger
 									aria-label="Listening port protocol"
-									className="h-9 min-w-[100px] w-auto"
+									className="h-9 min-w-25 w-auto"
 								>
 									<SelectValue />
 								</SelectTrigger>

@@ -126,7 +126,7 @@ export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 					Back
 				</Button>
 				{session && (
-					<div className="flex flex-col items-stretch md:items-end gap-1 md:w-[28rem]">
+					<div className="flex flex-col items-stretch md:items-end gap-1 md:w-md">
 						<SearchField
 							value={searchQuery}
 							onChange={setSearchQuery}

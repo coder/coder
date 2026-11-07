@@ -226,7 +226,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 	const headerContent = (
 		<>
 			<div className="flex items-start gap-1.5">
-				<ChevronDownIcon className="license-chevron mt-1 size-4 shrink-0 text-content-secondary transition-colors transition-transform group-hover:text-content-primary" />
+				<ChevronDownIcon className="license-chevron mt-1 size-4 shrink-0 text-content-secondary transition-colors group-hover:text-content-primary" />
 				<span className="text-base font-medium text-content-secondary">
 					#{license.id}
 				</span>
@@ -337,7 +337,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 								size="icon"
 								variant="subtle"
 								onClick={(event) => event.stopPropagation()}
-								className="size-[30px]"
+								className="size-7.5"
 							>
 								<EllipsisVerticalIcon />
 								<span className="sr-only">Show license actions</span>

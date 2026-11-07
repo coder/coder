@@ -410,7 +410,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 				<div className="flex min-w-0 items-center gap-6 text-sm text-content-secondary">
 					<div className="flex min-w-0 w-full items-center gap-4 md:w-auto">
 						<AgentStatus agent={agent} />
-						<span className="block max-w-[260px] overflow-hidden text-ellipsis whitespace-nowrap text-base font-semibold text-content-primary">
+						<span className="block max-w-65 overflow-hidden text-ellipsis whitespace-nowrap text-base font-semibold text-content-primary">
 							{agent.name}
 						</span>
 					</div>
@@ -584,7 +584,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 							*/}
 							{shouldExpandLogs &&
 								!(hasConnectivityIssues || shouldShowLogsTabs) && (
-									<div className="h-[300px] flex items-center justify-center">
+									<div className="h-75 flex items-center justify-center">
 										<Spinner size="lg" loading className="block mx-auto" />
 									</div>
 								)}

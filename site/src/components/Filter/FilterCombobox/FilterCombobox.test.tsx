@@ -1086,7 +1086,7 @@ describe("FilterCombobox", () => {
 		expect(onChange).toHaveBeenLastCalledWith("run");
 	});
 
-	it("applies typed text that could be a filter when switching to the full filter list", async () => {
+	it("applies typed text that could be a filter when switching to the full list", async () => {
 		const { user, onChange, input, filtersButton } = setup([
 			ownerCategory,
 			statusCategory,

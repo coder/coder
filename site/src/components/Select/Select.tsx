@@ -88,7 +88,7 @@ export const SelectContent: React.FC<
 				"data-[state=open]:data-[side=right]:slide-in-from-left-2 data-[state=open]:data-[side=top]:slide-in-from-bottom-2",
 				// Keep the popper offset in transform so enter animations replace it like Tailwind v3.
 				position === "popper" &&
-					"data-[side=bottom]:[transform:translateY(var(--spacing))] data-[side=left]:[transform:translateX(calc(var(--spacing)*-1))] data-[side=right]:[transform:translateX(var(--spacing))] data-[side=top]:[transform:translateY(calc(var(--spacing)*-1))]",
+					"data-[side=bottom]:transform-[translateY(var(--spacing))] data-[side=left]:transform-[translateX(--spacing(-1))] data-[side=right]:transform-[translateX(var(--spacing))] data-[side=top]:transform-[translateY(--spacing(-1))]",
 				className,
 			)}
 			position={position}

@@ -67,7 +67,7 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 
 					<CollapsibleContent
 						className={`
-							pt-2 pl-7 pr-5 space-y-4 font-medium max-w-[720px]
+							pt-2 pl-7 pr-5 space-y-4 font-medium max-w-180
 							[&_p]:m-0 [&_p]:text-sm [&_p]:text-content-secondary
 						`}
 					>

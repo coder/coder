@@ -11,7 +11,7 @@ const meta: Meta<typeof InboxItem> = {
 		return (
 			<div
 				role="list"
-				className="max-w-[460px] border-solid border-border rounded"
+				className="max-w-115 border-solid border-border rounded"
 			>
 				<InboxItem {...args} />
 			</div>

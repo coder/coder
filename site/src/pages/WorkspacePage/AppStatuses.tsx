@@ -71,7 +71,7 @@ export const AppStatuses: React.FC<AppStatusesProps> = ({
 							{latestStatus.message || capitalize(latestStatus.state)}
 						</span>
 					</div>
-					<time className="text-xs text-content-secondary first-letter:uppercase block pl-[26px]">
+					<time className="text-xs text-content-secondary first-letter:uppercase block pl-6.5">
 						{timeFrom(new Date(latestStatus.created_at), comparisonDate)}
 					</time>
 				</div>
@@ -128,7 +128,7 @@ export const AppStatuses: React.FC<AppStatusesProps> = ({
 			</div>
 
 			{displayStatuses && (
-				<ScrollArea className="h-[200px]">
+				<ScrollArea className="h-50">
 					{otherStatuses.map((status) => {
 						const statusTime = new Date(status.created_at);
 						const formattedTimestamp = timeFrom(statusTime, comparisonDate);
@@ -146,11 +146,11 @@ export const AppStatuses: React.FC<AppStatusesProps> = ({
 										<AppStatusStateIcon
 											state={status.state}
 											latest={false}
-											className="size-icon-xs w-[18px]"
+											className="size-icon-xs w-4.5"
 										/>
 										{status.message || capitalize(status.state)}
 									</span>
-									<span className="text-2xs text-content-secondary first-letter:uppercase block pl-[26px]">
+									<span className="text-2xs text-content-secondary first-letter:uppercase block pl-6.5">
 										{formattedTimestamp}
 									</span>
 								</div>
