@@ -39,32 +39,24 @@ type GroupSyncSettings struct {
 	LegacyNameMapping map[string]string `json:"legacy_group_name_mapping,omitempty"`
 }
 
+// GroupIDPSyncSettings returns the settings from
+// GroupIDPSyncSettingsWithWarnings and drops the warnings.
+//
+// Deprecated: Use GroupIDPSyncSettingsWithWarnings, which also returns the
+// warnings. The WithWarnings methods will become the ordinary ones over time.
 func (c *Client) GroupIDPSyncSettings(ctx context.Context, orgID string) (GroupSyncSettings, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/settings/idpsync/groups", orgID), nil)
-	if err != nil {
-		return GroupSyncSettings{}, xerrors.Errorf("make request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return GroupSyncSettings{}, ReadBodyAsError(res)
-	}
-	var resp GroupSyncSettings
-	return resp, ReadBodyAsJSON(res, &resp)
+	resp, err := c.GroupIDPSyncSettingsWithWarnings(ctx, orgID)
+	return resp.GroupSyncSettings, err
 }
 
+// PatchGroupIDPSyncSettings returns the settings from
+// PatchGroupIDPSyncSettingsWithWarnings and drops the warnings.
+//
+// Deprecated: Use PatchGroupIDPSyncSettingsWithWarnings, which also returns the
+// warnings. The WithWarnings methods will become the ordinary ones over time.
 func (c *Client) PatchGroupIDPSyncSettings(ctx context.Context, orgID string, req GroupSyncSettings) (GroupSyncSettings, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/organizations/%s/settings/idpsync/groups", orgID), req)
-	if err != nil {
-		return GroupSyncSettings{}, xerrors.Errorf("make request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return GroupSyncSettings{}, ReadBodyAsError(res)
-	}
-	var resp GroupSyncSettings
-	return resp, ReadBodyAsJSON(res, &resp)
+	resp, err := c.PatchGroupIDPSyncSettingsWithWarnings(ctx, orgID, req)
+	return resp.GroupSyncSettings, err
 }
 
 type PatchGroupIDPSyncConfigRequest struct {
@@ -73,18 +65,14 @@ type PatchGroupIDPSyncConfigRequest struct {
 	AutoCreateMissing bool           `json:"auto_create_missing_groups"`
 }
 
+// PatchGroupIDPSyncConfig returns the settings from
+// PatchGroupIDPSyncConfigWithWarnings and drops the warnings.
+//
+// Deprecated: Use PatchGroupIDPSyncConfigWithWarnings, which also returns the
+// warnings. The WithWarnings methods will become the ordinary ones over time.
 func (c *Client) PatchGroupIDPSyncConfig(ctx context.Context, orgID string, req PatchGroupIDPSyncConfigRequest) (GroupSyncSettings, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/organizations/%s/settings/idpsync/groups/config", orgID), req)
-	if err != nil {
-		return GroupSyncSettings{}, xerrors.Errorf("make request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return GroupSyncSettings{}, ReadBodyAsError(res)
-	}
-	var resp GroupSyncSettings
-	return resp, ReadBodyAsJSON(res, &resp)
+	resp, err := c.PatchGroupIDPSyncConfigWithWarnings(ctx, orgID, req)
+	return resp.GroupSyncSettings, err
 }
 
 // If the same mapping is present in both Add and Remove, Remove will take presidence.
@@ -93,18 +81,14 @@ type PatchGroupIDPSyncMappingRequest struct {
 	Remove []IDPSyncMapping[uuid.UUID]
 }
 
+// PatchGroupIDPSyncMapping returns the settings from
+// PatchGroupIDPSyncMappingWithWarnings and drops the warnings.
+//
+// Deprecated: Use PatchGroupIDPSyncMappingWithWarnings, which also returns the
+// warnings. The WithWarnings methods will become the ordinary ones over time.
 func (c *Client) PatchGroupIDPSyncMapping(ctx context.Context, orgID string, req PatchGroupIDPSyncMappingRequest) (GroupSyncSettings, error) {
-	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/organizations/%s/settings/idpsync/groups/mapping", orgID), req)
-	if err != nil {
-		return GroupSyncSettings{}, xerrors.Errorf("make request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return GroupSyncSettings{}, ReadBodyAsError(res)
-	}
-	var resp GroupSyncSettings
-	return resp, ReadBodyAsJSON(res, &resp)
+	resp, err := c.PatchGroupIDPSyncMappingWithWarnings(ctx, orgID, req)
+	return resp.GroupSyncSettings, err
 }
 
 type RoleSyncSettings struct {

@@ -9587,7 +9587,7 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/codersdk.GroupSyncSettings"
+							"$ref": "#/definitions/codersdk.GroupSyncSettingsResponse"
 						}
 					}
 				},
@@ -9626,7 +9626,7 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/codersdk.GroupSyncSettings"
+							"$ref": "#/definitions/codersdk.GroupSyncSettingsResponse"
 						}
 					}
 				},
@@ -9667,7 +9667,7 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/codersdk.GroupSyncSettings"
+							"$ref": "#/definitions/codersdk.GroupSyncSettingsResponse"
 						}
 					}
 				},
@@ -9708,7 +9708,7 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/codersdk.GroupSyncSettings"
+							"$ref": "#/definitions/codersdk.GroupSyncSettingsResponse"
 						}
 					}
 				},
@@ -24752,6 +24752,37 @@
 			"enum": ["user", "oidc"],
 			"x-enum-varnames": ["GroupSourceUser", "GroupSourceOIDC"]
 		},
+		"codersdk.GroupSyncFindingCode": {
+			"type": "string",
+			"enum": [
+				"field_empty",
+				"empty_mapping_key",
+				"null_array",
+				"nil_uuid",
+				"repeated_uuid",
+				"filter_excluded_key",
+				"legacy_mapping",
+				"organization_deleted",
+				"organization_absent",
+				"missing_group",
+				"outside_group",
+				"everyone_group"
+			],
+			"x-enum-varnames": [
+				"GroupSyncFindingFieldEmpty",
+				"GroupSyncFindingEmptyMappingKey",
+				"GroupSyncFindingNullArray",
+				"GroupSyncFindingNilUUID",
+				"GroupSyncFindingRepeatedUUID",
+				"GroupSyncFindingFilterExcludedKey",
+				"GroupSyncFindingLegacyMapping",
+				"GroupSyncFindingOrganizationDeleted",
+				"GroupSyncFindingOrganizationAbsent",
+				"GroupSyncFindingMissingGroup",
+				"GroupSyncFindingOutsideGroup",
+				"GroupSyncFindingEveryoneGroup"
+			]
+		},
 		"codersdk.GroupSyncSettings": {
 			"type": "object",
 			"properties": {
@@ -24787,6 +24818,84 @@
 							"$ref": "#/definitions/regexp.Regexp"
 						}
 					]
+				}
+			}
+		},
+		"codersdk.GroupSyncSettingsResponse": {
+			"type": "object",
+			"properties": {
+				"auto_create_missing_groups": {
+					"description": "AutoCreateMissing controls whether groups returned by the OIDC provider\nare automatically created in Coder if they are missing.",
+					"type": "boolean"
+				},
+				"field": {
+					"description": "Field is the name of the claim field that specifies what groups a user\nshould be in. If empty, no groups will be synced.",
+					"type": "string"
+				},
+				"legacy_group_name_mapping": {
+					"description": "LegacyNameMapping is deprecated. It remaps an IDP group name to\na Coder group name. Since configuration is now done at runtime,\ngroup IDs are used to account for group renames.\nFor legacy configurations, this config option has to remain.\nDeprecated: Use Mapping instead.",
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"mapping": {
+					"description": "Mapping is a map from OIDC groups to Coder group IDs",
+					"type": "object",
+					"additionalProperties": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					}
+				},
+				"received_settings": {
+					"description": "ReceivedSettings is the settings the warnings refer to: the request for\nthe full-replace endpoint, the merged settings before rewriting for the\nconfig and mapping-diff endpoints, and the stored settings as read for\nGET. It is present exactly when there are warnings.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.GroupSyncSettings"
+						}
+					]
+				},
+				"regex_filter": {
+					"description": "RegexFilter is a regular expression that filters the groups returned by\nthe OIDC provider. Any group not matched by this regex will be ignored.\nIf the group filter is nil, then no group filtering will occur.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/regexp.Regexp"
+						}
+					]
+				},
+				"warnings": {
+					"description": "Warnings holds one warning for each finding the server accepted. Their\npaths point into ReceivedSettings.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.GroupSyncWarning"
+					}
+				}
+			}
+		},
+		"codersdk.GroupSyncWarning": {
+			"type": "object",
+			"properties": {
+				"accepted": {
+					"description": "Accepted is the JSON text of the element in the settings as saved or\nreturned, of the same kind as Received. It is absent when the element\nwas removed, and equal to Received when the settings were not\nrewritten.",
+					"type": "object"
+				},
+				"code": {
+					"description": "Code names the condition violated.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.GroupSyncFindingCode"
+						}
+					]
+				},
+				"path": {
+					"description": "Path is a JSON Pointer (RFC 6901) to the element concerned, in the\nsettings as received. The empty path refers to the whole text.",
+					"type": "string"
+				},
+				"received": {
+					"description": "Received is the JSON text of the element at Path, as received. Its\nkind follows from the element Path names: a UUID string for an element\nof a mapping array, an array or null for a mapping value, the member's\nvalue for a top-level member, and the whole settings object for the\nempty path.",
+					"type": "object"
 				}
 			}
 		},

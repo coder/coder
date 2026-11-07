@@ -10691,6 +10691,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |----------------|
 | `oidc`, `user` |
 
+## codersdk.GroupSyncFindingCode
+
+```json
+"field_empty"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                                                                                                                                                                                                  |
+|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `empty_mapping_key`, `everyone_group`, `field_empty`, `filter_excluded_key`, `legacy_mapping`, `missing_group`, `nil_uuid`, `null_array`, `organization_absent`, `organization_deleted`, `outside_group`, `repeated_uuid` |
+
 ## codersdk.GroupSyncSettings
 
 ```json
@@ -10724,6 +10738,87 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `mapping`                    | object                         | false    |              | Mapping is a map from OIDC groups to Coder group IDs                                                                                                                                                                                                                                   |
 | » `[any property]`           | array of string                | false    |              |                                                                                                                                                                                                                                                                                        |
 | `regex_filter`               | [regexp.Regexp](#regexpregexp) | false    |              | Regex filter is a regular expression that filters the groups returned by the OIDC provider. Any group not matched by this regex will be ignored. If the group filter is nil, then no group filtering will occur.                                                                       |
+
+## codersdk.GroupSyncSettingsResponse
+
+```json
+{
+  "auto_create_missing_groups": true,
+  "field": "string",
+  "legacy_group_name_mapping": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "mapping": {
+    "property1": [
+      "string"
+    ],
+    "property2": [
+      "string"
+    ]
+  },
+  "received_settings": {
+    "auto_create_missing_groups": true,
+    "field": "string",
+    "legacy_group_name_mapping": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "mapping": {
+      "property1": [
+        "string"
+      ],
+      "property2": [
+        "string"
+      ]
+    },
+    "regex_filter": {}
+  },
+  "regex_filter": {},
+  "warnings": [
+    {
+      "accepted": {},
+      "code": "field_empty",
+      "path": "string",
+      "received": {}
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name                         | Type                                                            | Required | Restrictions | Description                                                                                                                                                                                                                                                                            |
+|------------------------------|-----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `auto_create_missing_groups` | boolean                                                         | false    |              | Auto create missing groups controls whether groups returned by the OIDC provider are automatically created in Coder if they are missing.                                                                                                                                               |
+| `field`                      | string                                                          | false    |              | Field is the name of the claim field that specifies what groups a user should be in. If empty, no groups will be synced.                                                                                                                                                               |
+| `legacy_group_name_mapping`  | object                                                          | false    |              | Legacy group name mapping is deprecated. It remaps an IDP group name to a Coder group name. Since configuration is now done at runtime, group IDs are used to account for group renames. For legacy configurations, this config option has to remain. Deprecated: Use Mapping instead. |
+| » `[any property]`           | string                                                          | false    |              |                                                                                                                                                                                                                                                                                        |
+| `mapping`                    | object                                                          | false    |              | Mapping is a map from OIDC groups to Coder group IDs                                                                                                                                                                                                                                   |
+| » `[any property]`           | array of string                                                 | false    |              |                                                                                                                                                                                                                                                                                        |
+| `received_settings`          | [codersdk.GroupSyncSettings](#codersdkgroupsyncsettings)        | false    |              | Received settings is the settings the warnings refer to: the request for the full-replace endpoint, the merged settings before rewriting for the config and mapping-diff endpoints, and the stored settings as read for GET. It is present exactly when there are warnings.            |
+| `regex_filter`               | [regexp.Regexp](#regexpregexp)                                  | false    |              | Regex filter is a regular expression that filters the groups returned by the OIDC provider. Any group not matched by this regex will be ignored. If the group filter is nil, then no group filtering will occur.                                                                       |
+| `warnings`                   | array of [codersdk.GroupSyncWarning](#codersdkgroupsyncwarning) | false    |              | Warnings holds one warning for each finding the server accepted. Their paths point into ReceivedSettings.                                                                                                                                                                              |
+
+## codersdk.GroupSyncWarning
+
+```json
+{
+  "accepted": {},
+  "code": "field_empty",
+  "path": "string",
+  "received": {}
+}
+```
+
+### Properties
+
+| Name       | Type                                                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                                      |
+|------------|----------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `accepted` | object                                                         | false    |              | Accepted is the JSON text of the element in the settings as saved or returned, of the same kind as Received. It is absent when the element was removed, and equal to Received when the settings were not rewritten.                                                                              |
+| `code`     | [codersdk.GroupSyncFindingCode](#codersdkgroupsyncfindingcode) | false    |              | Code names the condition violated.                                                                                                                                                                                                                                                               |
+| `path`     | string                                                         | false    |              | Path is a JSON Pointer (RFC 6901) to the element concerned, in the settings as received. The empty path refers to the whole text.                                                                                                                                                                |
+| `received` | object                                                         | false    |              | Received is the JSON text of the element at Path, as received. Its kind follows from the element Path names: a UUID string for an element of a mapping array, an array or null for a mapping value, the member's value for a top-level member, and the whole settings object for the empty path. |
 
 ## codersdk.HTTPCookieConfig
 
