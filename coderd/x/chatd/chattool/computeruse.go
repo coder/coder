@@ -374,7 +374,7 @@ func (t *computerUseTool) runActionPerCallComputerUse(
 	}
 
 	presses := int64(1)
-	if input.Action == fantasyanthropic.ActionKey && input.Repeat != 0 {
+	if input.Action == fantasyanthropic.ActionKey && sent.Repeat != nil {
 		if input.Repeat < 1 || input.Repeat > anthropicMaxKeyRepeat {
 			return fantasy.NewTextErrorResponse(fmt.Sprintf(
 				"invalid computer use input: repeat must be between 1 and %d, got %d",
@@ -411,12 +411,13 @@ type computerUseSentFields struct {
 	Coordinate      *json.RawMessage `json:"coordinate"`
 	StartCoordinate *json.RawMessage `json:"start_coordinate"`
 	ScrollAmount    *json.RawMessage `json:"scroll_amount"`
+	Repeat          *json.RawMessage `json:"repeat"`
 }
 
 // computerUseFieldsSent reports which optional keys the model sent.
 // ComputerUseInput decodes into zero values, so it cannot tell an omitted key
-// from the top-left pixel [0,0], which is a valid target, or from a scroll of
-// zero clicks, which is not. Presence alone is safe because
+// from the top-left pixel [0,0], which is a valid target, or from a scroll or
+// key repeat of zero, which is not. Presence alone is safe because
 // ParseComputerUseInput already rejected malformed input, including a
 // coordinate that is not exactly two values, which would otherwise decode
 // zero-filled. A decode failure here therefore only means the keys are absent.

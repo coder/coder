@@ -1071,14 +1071,23 @@ func TestComputerUseTool_Run_AnthropicKeyRepeat(t *testing.T) {
 	t.Run("RejectsOutOfRange", func(t *testing.T) {
 		t.Parallel()
 
-		ctrl := gomock.NewController(t)
-		mockConn := agentconnmock.NewMockAgentConn(ctrl)
-
-		tool := newAnthropicComputerUseTool(t, fantasyanthropic.ComputerUseToolset20260801, mockConn)
-		resp, err := tool.Run(context.Background(), anthropicComputerUseCall(`{"action":"key","text":"Down","repeat":101}`))
-		require.NoError(t, err)
-		assert.True(t, resp.IsError)
-		assert.Contains(t, resp.Content, "repeat must be between 1 and 100")
+		// Zero must not read as an omitted repeat and press the key once.
+		for _, repeat := range []int{0, 101} {
+			for name, newTool := range map[string]func(testing.TB, workspacesdk.AgentConn) fantasy.AgentTool{
+				"Anthropic": func(t testing.TB, conn workspacesdk.AgentConn) fantasy.AgentTool {
+					return newAnthropicComputerUseTool(t, fantasyanthropic.ComputerUseToolset20260801, conn)
+				},
+				"OpenAICompat": newOpenAICompatComputerUseTool,
+			} {
+				// No expectations: any desktop call fails the test.
+				mockConn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+				resp, err := newTool(t, mockConn).Run(context.Background(),
+					anthropicComputerUseCall(fmt.Sprintf(`{"action":"key","text":"Down","repeat":%d}`, repeat)))
+				require.NoError(t, err)
+				assert.True(t, resp.IsError, "%s repeat %d", name, repeat)
+				assert.Contains(t, resp.Content, "repeat must be between 1 and 100")
+			}
+		}
 	})
 }
 
