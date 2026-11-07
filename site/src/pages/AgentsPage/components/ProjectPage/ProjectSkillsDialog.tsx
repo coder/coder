@@ -163,22 +163,26 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 	};
 
 	return (
-		<Dialog open={open} onOpenChange={handleOpenChange}>
+		<Dialog
+			open={open}
+			onOpenChange={(nextOpen, details) => {
+				if (
+					!nextOpen &&
+					editor &&
+					canEdit &&
+					(details.reason === "escape-key" ||
+						details.reason === "outside-press")
+				) {
+					details.cancel();
+					if (details.reason === "escape-key") backButtonRef.current?.click();
+					return;
+				}
+				handleOpenChange(nextOpen);
+			}}
+		>
 			<DialogContent
 				className="flex max-w-2xl flex-col gap-0 overflow-hidden p-0"
 				onCloseAutoFocus={onCloseAutoFocus}
-				onEscapeKeyDown={(event) => {
-					// Back asks before it discards unsaved edits.
-					if (editor && canEdit) {
-						event.preventDefault();
-						backButtonRef.current?.click();
-					}
-				}}
-				onInteractOutside={(event) => {
-					if (editor && canEdit) {
-						event.preventDefault();
-					}
-				}}
 			>
 				{editor ? (
 					<ProjectSkillEditorView

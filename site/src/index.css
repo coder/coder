@@ -759,16 +759,10 @@
 		scrollbar-color: hsl(var(--surface-scrollbar)) transparent;
 	}
 
-	/* Prevent layout shift when modals open by maintaining scrollbar width.
-	scrollbar-gutter: stable reserves space for the scrollbar so Radix's
-	scroll-bar compensation (margin-right/padding-right) is unnecessary
-	and causes double spacing. We zero it out with !important to win
-	over Radix's injected !important styles. The @supports guard ensures
-	we only do this on browsers that actually support scrollbar-gutter.
-
-	There’s a related issue on GitHub: Radix UI Primitives Issue #3251
-	https://github.com/radix-ui/primitives/issues/3251
-	*/
+	/* Reserve scrollbar space to prevent layout shifts. Base UI dialogs respect
+	this gutter. Radix menus and selects still need their injected scrollbar
+	compensation disabled to avoid reserving the space twice.
+	https://github.com/radix-ui/primitives/issues/3251 */
 	@supports (scrollbar-gutter: stable) {
 		html {
 			scrollbar-gutter: stable;

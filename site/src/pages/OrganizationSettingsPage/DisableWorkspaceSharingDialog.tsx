@@ -58,34 +58,32 @@ export const DisableWorkspaceSharingDialog: React.FC<
 							? "Restrict sharing to service accounts"
 							: "Disable workspace sharing"}
 					</DialogTitle>
-					<DialogDescription asChild>
-						<div className="flex flex-col gap-4">
-							<p>
-								{isRestrictingToServiceAccounts
-									? "Restricting workspace sharing to service accounts only will immediately unshare any workspaces currently shared by non-service accounts."
-									: "Disabling workspace sharing will immediately remove all existing workspace sharing permissions for all users in this organization."}
+					<DialogDescription render={<div />} className="flex flex-col gap-4">
+						<p>
+							{isRestrictingToServiceAccounts
+								? "Restricting workspace sharing to service accounts only will immediately unshare any workspaces currently shared by non-service accounts."
+								: "Disabling workspace sharing will immediately remove all existing workspace sharing permissions for all users in this organization."}
+						</p>
+						{isLoadingCount ? (
+							<Skeleton className="h-6 w-4/5" />
+						) : sharedCount > 0 ? (
+							<p className="text-content-danger font-medium m-0">
+								This action will affect{" "}
+								<strong className="text-content-primary">
+									{sharedCount} workspace{sharedCount !== 1 ? "s" : ""}
+								</strong>{" "}
+								that {sharedCount !== 1 ? "are" : "is"} currently shared.
 							</p>
-							{isLoadingCount ? (
-								<Skeleton className="h-6 w-4/5" />
-							) : sharedCount > 0 ? (
-								<p className="text-content-danger font-medium m-0">
-									This action will affect{" "}
-									<strong className="text-content-primary">
-										{sharedCount} workspace{sharedCount !== 1 ? "s" : ""}
-									</strong>{" "}
-									that {sharedCount !== 1 ? "are" : "is"} currently shared.
-								</p>
-							) : (
-								<p className="text-content-secondary m-0">
-									No workspaces are currently shared in this organization.
-								</p>
-							)}
-							<p>
-								Re-enabling workspace sharing will{" "}
-								<strong className="text-content-primary">not restore</strong>{" "}
-								these permissions.
+						) : (
+							<p className="text-content-secondary m-0">
+								No workspaces are currently shared in this organization.
 							</p>
-						</div>
+						)}
+						<p>
+							Re-enabling workspace sharing will{" "}
+							<strong className="text-content-primary">not restore</strong>{" "}
+							these permissions.
+						</p>
 					</DialogDescription>
 				</DialogHeader>
 				<DialogFooter>

@@ -1,7 +1,11 @@
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { cva } from "class-variance-authority";
 import { cn } from "cn";
-import { Dialog as DialogPrimitive } from "radix-ui";
 import { createContext, useContext } from "react";
+import {
+	DialogPopup,
+	type DialogPopupProps,
+} from "#/components/Dialog/DialogPopup";
 
 type DrawerDirection = "top" | "bottom" | "left" | "right";
 
@@ -29,16 +33,24 @@ export const DrawerClose = DialogPrimitive.Close;
 
 const DrawerPortal = DialogPrimitive.Portal;
 
-const DrawerOverlay: React.FC<
-	React.ComponentProps<typeof DialogPrimitive.Overlay>
-> = ({ className, ...props }) => {
+type DrawerOverlayProps = Omit<
+	React.ComponentProps<typeof DialogPrimitive.Backdrop>,
+	"className"
+> & {
+	className?: string;
+};
+
+const DrawerOverlay: React.FC<DrawerOverlayProps> = ({
+	className,
+	...props
+}) => {
 	return (
-		<DialogPrimitive.Overlay
+		<DialogPrimitive.Backdrop
 			className={cn(
 				"fixed inset-0 z-50 bg-overlay ease-out-strong",
-				"data-[state=open]:animate-in data-[state=closed]:animate-out",
-				"data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-				"data-[state=open]:duration-300 data-[state=closed]:duration-100",
+				"data-open:animate-in data-closed:animate-out",
+				"data-closed:fade-out-0 data-open:fade-in-0",
+				"data-open:duration-300 data-closed:duration-100",
 				className,
 			)}
 			{...props}
@@ -49,27 +61,27 @@ const DrawerOverlay: React.FC<
 const drawerContentVariants = cva(
 	cn(
 		"fixed z-50 flex h-auto flex-col bg-surface-tertiary outline-hidden will-change-transform ease-out-strong",
-		"data-[state=open]:animate-in data-[state=closed]:animate-out",
-		"data-[state=open]:duration-500 data-[state=closed]:duration-300",
+		"data-open:animate-in data-closed:animate-out",
+		"data-open:duration-500 data-closed:duration-300",
 	),
 	{
 		variants: {
 			direction: {
 				top: cn(
 					"inset-x-0 top-0 max-h-[80vh] w-full border-b border-border",
-					"data-[state=open]:slide-in-from-top data-[state=closed]:slide-out-to-top",
+					"data-open:slide-in-from-top data-closed:slide-out-to-top",
 				),
 				bottom: cn(
 					"inset-x-0 bottom-0 max-h-[80vh] w-full border-t border-border",
-					"data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom",
+					"data-open:slide-in-from-bottom data-closed:slide-out-to-bottom",
 				),
 				left: cn(
 					"inset-y-0 left-0 h-full w-3/4 border-r border-border sm:max-w-sm",
-					"data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left",
+					"data-open:slide-in-from-left data-closed:slide-out-to-left",
 				),
 				right: cn(
 					"inset-y-0 right-0 h-full w-3/4 border-l border-border sm:max-w-sm",
-					"data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right",
+					"data-open:slide-in-from-right data-closed:slide-out-to-right",
 				),
 			},
 		},
@@ -79,20 +91,22 @@ const drawerContentVariants = cva(
 	},
 );
 
-export const DrawerContent: React.FC<
-	React.ComponentProps<typeof DialogPrimitive.Content>
-> = ({ className, children, ...props }) => {
+export const DrawerContent: React.FC<DialogPopupProps> = ({
+	className,
+	children,
+	...props
+}) => {
 	const direction = useContext(DrawerDirectionContext);
 
 	return (
 		<DrawerPortal>
 			<DrawerOverlay />
-			<DialogPrimitive.Content
+			<DialogPopup
 				className={cn(drawerContentVariants({ direction }), className)}
 				{...props}
 			>
 				{children}
-			</DialogPrimitive.Content>
+			</DialogPopup>
 		</DrawerPortal>
 	);
 };
@@ -121,9 +135,17 @@ export const DrawerFooter: React.FC<React.ComponentProps<"div">> = ({
 	);
 };
 
-export const DrawerTitle: React.FC<
-	React.ComponentProps<typeof DialogPrimitive.Title>
-> = ({ className, ...props }) => {
+type DrawerTitleProps = Omit<
+	React.ComponentProps<typeof DialogPrimitive.Title>,
+	"className"
+> & {
+	className?: string;
+};
+
+export const DrawerTitle: React.FC<DrawerTitleProps> = ({
+	className,
+	...props
+}) => {
 	return (
 		<DialogPrimitive.Title
 			className={cn(
@@ -135,9 +157,15 @@ export const DrawerTitle: React.FC<
 	);
 };
 
-export const DrawerDescription: React.FC<
-	React.ComponentProps<typeof DialogPrimitive.Description>
-> = ({ className, ...props }) => {
+type DrawerDescriptionProps = Omit<
+	React.ComponentProps<typeof DialogPrimitive.Description>,
+	"className"
+> & { className?: string };
+
+export const DrawerDescription: React.FC<DrawerDescriptionProps> = ({
+	className,
+	...props
+}) => {
 	return (
 		<DialogPrimitive.Description
 			className={cn("text-sm text-content-secondary", className)}

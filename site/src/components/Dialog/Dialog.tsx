@@ -1,11 +1,11 @@
-/**
- * Copied from shadc/ui on 11/13/2024
- * @see {@link https://ui.shadcn.com/docs/components/dialog}
- */
+import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
-import { Dialog as DialogPrimitive } from "radix-ui";
 import { Button } from "#/components/Button/Button";
+import {
+	DialogPopup,
+	type DialogPopupProps,
+} from "#/components/Dialog/DialogPopup";
 import { Spinner } from "#/components/Spinner/Spinner";
 
 export const Dialog = DialogPrimitive.Root;
@@ -16,15 +16,23 @@ const DialogPortal = DialogPrimitive.Portal;
 
 export const DialogClose = DialogPrimitive.Close;
 
-const DialogOverlay: React.FC<
-	React.ComponentProps<typeof DialogPrimitive.Overlay>
-> = ({ className, ...props }) => {
+type DialogOverlayProps = Omit<
+	React.ComponentProps<typeof DialogPrimitive.Backdrop>,
+	"className"
+> & {
+	className?: string;
+};
+
+const DialogOverlay: React.FC<DialogOverlayProps> = ({
+	className,
+	...props
+}) => {
 	return (
-		<DialogPrimitive.Overlay
+		<DialogPrimitive.Backdrop
 			className={cn(
 				`fixed inset-0 z-50 bg-overlay ease-out-strong
-			data-[state=open]:animate-in data-[state=closed]:animate-out
-			data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0`,
+			data-open:animate-in data-closed:animate-out
+			data-closed:fade-out-0 data-open:fade-in-0`,
 				className,
 			)}
 			{...props}
@@ -36,9 +44,9 @@ const dialogVariants = cva(
 	`fixed left-[50%] top-[50%] z-50 grid max-h-[90vh] w-full max-w-lg gap-6 overflow-y-auto
 	border border-solid bg-surface-primary p-8 shadow-lg duration-200 ease-out-strong sm:rounded-lg
 	-translate-1/2 outline-hidden
-	data-[state=open]:animate-in data-[state=closed]:animate-out
-	data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0
-	data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95`,
+	data-open:animate-in data-closed:animate-out
+	data-closed:fade-out-0 data-open:fade-in-0
+	data-closed:zoom-out-95 data-open:zoom-in-95`,
 	{
 		variants: {
 			variant: {
@@ -52,7 +60,7 @@ const dialogVariants = cva(
 	},
 );
 
-type DialogContentProps = React.ComponentProps<typeof DialogPrimitive.Content> &
+type DialogContentProps = DialogPopupProps &
 	VariantProps<typeof dialogVariants>;
 
 export const DialogContent: React.FC<DialogContentProps> = ({
@@ -64,12 +72,12 @@ export const DialogContent: React.FC<DialogContentProps> = ({
 	return (
 		<DialogPortal>
 			<DialogOverlay />
-			<DialogPrimitive.Content
+			<DialogPopup
 				className={cn(dialogVariants({ variant }), className)}
 				{...props}
 			>
 				{children}
-			</DialogPrimitive.Content>
+			</DialogPopup>
 		</DialogPortal>
 	);
 };
@@ -166,9 +174,17 @@ export const DialogActions: React.FC<DialogActionsProps> = ({
 	);
 };
 
-export const DialogTitle: React.FC<
-	React.ComponentProps<typeof DialogPrimitive.Title>
-> = ({ className, ...props }) => {
+type DialogTitleProps = Omit<
+	React.ComponentProps<typeof DialogPrimitive.Title>,
+	"className"
+> & {
+	className?: string;
+};
+
+export const DialogTitle: React.FC<DialogTitleProps> = ({
+	className,
+	...props
+}) => {
 	return (
 		<DialogPrimitive.Title
 			className={cn(
@@ -180,9 +196,15 @@ export const DialogTitle: React.FC<
 	);
 };
 
-export const DialogDescription: React.FC<
-	React.ComponentProps<typeof DialogPrimitive.Description>
-> = ({ className, ...props }) => {
+type DialogDescriptionProps = Omit<
+	React.ComponentProps<typeof DialogPrimitive.Description>,
+	"className"
+> & { className?: string };
+
+export const DialogDescription: React.FC<DialogDescriptionProps> = ({
+	className,
+	...props
+}) => {
 	return (
 		<DialogPrimitive.Description
 			className={cn("text-sm text-content-secondary font-medium", className)}
