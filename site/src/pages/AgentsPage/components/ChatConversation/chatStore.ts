@@ -378,13 +378,16 @@ export const createChatStore = (): ChatStore => {
 				}
 				nextMessagesByID.set(message.id, message);
 			}
+
 			if (!nextMessagesByID) {
 				return current;
 			}
+
 			const needsReorder = nextMessagesByID.size !== current.messagesByID.size;
 			const nextOrderedMessageIDs = needsReorder
 				? buildOrderedMessageIDs(Array.from(nextMessagesByID.values()))
 				: current.orderedMessageIDs;
+
 			return {
 				...current,
 				messagesByID: nextMessagesByID,
