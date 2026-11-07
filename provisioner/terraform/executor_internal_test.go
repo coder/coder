@@ -220,9 +220,9 @@ func TestSessionStateLifecycle(t *testing.T) {
 	}
 
 	st := s.sessionState(ctx, sess)
-	st.graph = "digraph {}"
+	st.initSkipped = true
 	require.Same(t, st, s.sessionState(ctx, sess), "the RPCs of one session share state")
-	require.Empty(t, s.sessionState(t.Context(), other).graph, "sessions do not share state")
+	require.False(t, s.sessionState(t.Context(), other).initSkipped, "sessions do not share state")
 
 	// The state goes away when its session ends, even if Graph never ran.
 	cancel()

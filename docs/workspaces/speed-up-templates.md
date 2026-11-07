@@ -98,6 +98,10 @@ Builds on a provisioner with the same operating system and architecture as the i
 Terraform still asks the provider registry which versions are available.
 If `terraform init` fails with that lock file, for example because the provisioner's provider mirror no longer offers those versions, the build retries with the template's own lock file, or without one, and logs a warning.
 If the warning appears on every build, push a new template version and update workspaces to it.
+On Linux provisioners, Coder skips `terraform init` when every pinned provider is already cached and no modules need installing.
+Builds that skip `terraform init` don't contact the provider registry, and they don't check that your provider sources still offer the pinned versions.
+To make builds check again, remove those providers from the [cache directory](#cache-directory) of every provisioner.
+To change provider versions, push a new template version and update workspaces to it.
 Coder doesn't reuse the lock file when [module caching](../templates/extending-templates/modules.md#module-caching) is disabled for the template or the deployment.
 Committing your own lock file also pins provider versions across template pushes.
 
