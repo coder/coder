@@ -234,7 +234,7 @@ The agent has access to a set of workspace tools that it uses to accomplish task
 | `start_workspace`                           | Start a stopped workspace for the current chat                                                                                                               |
 | `stop_workspace`                            | Stop the current chat's workspace and wait for the stop build to finish                                                                                      |
 | `propose_plan`                              | Present a Markdown plan file for user review                                                                                                                 |
-| `ask_user_question`                         | Ask the user structured clarification questions during plan mode                                                                                             |
+| `ask_user_question`                         | Ask the user structured clarification questions in plan mode, or outside plan mode without stopping work in chats created from the Coder dashboard           |
 | `read_file`                                 | Read file contents from the workspace                                                                                                                        |
 | `write_file`                                | Write a file to the workspace                                                                                                                                |
 | `edit_files`                                | Replace `old_text` with `new_text` across files                                                                                                              |
@@ -265,7 +265,8 @@ Sub-agents do not have access to these tools and cannot create workspaces or spa
 It also requires a model from an Anthropic or OpenAI AI provider, or a Claude model from an AWS Bedrock AI provider.
 `read_skill` and `read_skill_file` are available when the workspace contains skills in its `.agents/skills/` directory.
 
-`propose_plan` and `ask_user_question` are only available while plan mode is active.
+`propose_plan` is only available while plan mode is active.
+In chats created through the API, `ask_user_question` is also only available while plan mode is active.
 In plan mode, the agent can still inspect the workspace and template metadata, execute shell commands for exploration, and read process output.
 `write_file` and `edit_files` remain available only for the chat-specific plan file under `.coder/plans/`.
 Workspace MCP tools are unavailable in plan mode, and plan-mode sub-agents receive no MCP tools.
