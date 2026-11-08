@@ -28,6 +28,8 @@ describe("built-in image catalog", () => {
 		["/icon/docker-white.svg?color=white#preview", "Docker logo"],
 		["/icon/folder.svg", "Folder icon"],
 		["/icon/fly.io.svg", "Fly.io logo"],
+		["/icon/xum.svg", "Xum logo"],
+		["/icon/mux.svg", "Xum logo"],
 		["/emojis/1f34c.png", "banana emoji"],
 		["/emojis/2764-fe0f.png?version=2", "red heart emoji"],
 		["/emojis/2764.png", "red heart emoji"],

@@ -50,6 +50,7 @@ describe("IconField", () => {
 		["Kubernetes", "Kubernetes", "/icon/k8s.svg"],
 		["k8s", "Kubernetes", "/icon/k8s.svg"],
 		["Fly.io", "Fly.io", "/icon/fly.io.svg"],
+		["xum", "Xum", "/icon/xum.svg"],
 		["aws-dark", "AWS dark", "/icon/aws-dark.svg"],
 		["aws light", "AWS light", "/icon/aws-light.svg"],
 		["gemini-monochrome", "Gemini monochrome", "/icon/gemini-monochrome.svg"],
