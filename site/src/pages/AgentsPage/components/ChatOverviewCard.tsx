@@ -21,7 +21,7 @@ import {
 	ChatOverviewCardView,
 	type OverviewTarget,
 } from "./ChatOverviewCardView";
-import { countRepoChanges, repoBranchLabel } from "./GitPanel/gitViews";
+import { countRepoChanges, repoLabel } from "./GitPanel/gitViews";
 
 type ChatOverviewCardProps = {
 	chat: Chat;
@@ -66,7 +66,8 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 		repos: [...repositories]
 			.map(([root, repo]) => ({
 				root,
-				branch: repoBranchLabel(root, repo),
+				name: repoLabel(root),
+				branch: repo.branch.trim(),
 				...countRepoChanges(repo),
 			}))
 			.sort((a, b) => a.root.localeCompare(b.root)),
