@@ -103,6 +103,7 @@ type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
 	isLatestAskUserQuestion?: boolean;
+	isDockedAskUserQuestion?: boolean;
 	previousResponseText?: string;
 	/** Human-readable intent extracted from the model's tool-call args. */
 	modelIntent?: string;
@@ -140,6 +141,7 @@ type ToolRendererProps = {
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
 	isChatCompleted?: boolean;
 	isLatestAskUserQuestion?: boolean;
+	isDockedAskUserQuestion?: boolean;
 	previousResponseText?: string;
 	mcpServerConfigId?: string;
 	mcpServers: readonly TypesGen.MCPServerConfig[];
@@ -211,7 +213,7 @@ const getWorkspaceQuotaTitle = (
 	return asString(rec.title).trim() || "Workspace quota reached";
 };
 
-const getAskUserQuestions = (
+export const getAskUserQuestions = (
 	args: unknown,
 	result: unknown,
 ): AskUserQuestion[] => {
@@ -681,6 +683,7 @@ const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 	onSendAskUserQuestionResponse,
 	isChatCompleted,
 	isLatestAskUserQuestion,
+	isDockedAskUserQuestion,
 	previousResponseText,
 }) => {
 	const resultRecord = asRecord(result);
@@ -698,6 +701,7 @@ const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 			onSubmitAnswer={onSendAskUserQuestionResponse}
 			isChatCompleted={isChatCompleted}
 			isLatestAskUserQuestion={isLatestAskUserQuestion}
+			isDocked={isDockedAskUserQuestion}
 			previousResponseText={previousResponseText}
 			toolCallId={toolCallId}
 			startedAt={startedAt}
@@ -1216,6 +1220,7 @@ export const Tool = memo(
 		onSendAskUserQuestionResponse,
 		isChatCompleted,
 		isLatestAskUserQuestion,
+		isDockedAskUserQuestion,
 		previousResponseText,
 		modelIntent,
 		parsedCommands,
@@ -1270,6 +1275,7 @@ export const Tool = memo(
 						onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 						isChatCompleted={isChatCompleted}
 						isLatestAskUserQuestion={isLatestAskUserQuestion}
+						isDockedAskUserQuestion={isDockedAskUserQuestion}
 						previousResponseText={previousResponseText}
 						modelIntent={modelIntent}
 						parsedCommands={parsedCommands}

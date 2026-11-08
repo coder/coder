@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -7,7 +7,10 @@ import {
 	createTestQueryClient,
 	renderComponent,
 } from "#/testHelpers/renderHelpers";
-import { AskUserQuestionTool } from "./AskUserQuestionTool";
+import {
+	AskUserQuestionForm,
+	AskUserQuestionTool,
+} from "./AskUserQuestionTool";
 import { getAsyncAnswerPrefix } from "./asyncAnswer";
 
 const questions = [
@@ -520,6 +523,58 @@ describe("AskUserQuestionTool", () => {
 		expect(screen.getByRole("status")).toHaveTextContent("The agent asked");
 	});
 
+	it.each([
+		{
+			change: "skipped",
+			progress: "0/2",
+			leaveQuestion: async (user: ReturnType<typeof userEvent.setup>) => {
+				await user.click(screen.getByRole("button", { name: "Skip" }));
+			},
+		},
+		{
+			change: "changed to an empty Other answer after Back",
+			progress: "0/2",
+			leaveQuestion: async (user: ReturnType<typeof userEvent.setup>) => {
+				await user.click(screen.getByRole("button", { name: "Next" }));
+				await user.click(screen.getByRole("button", { name: "Back" }));
+				await user.click(screen.getByRole("radio", { name: "Other" }));
+			},
+		},
+		{
+			change: "submitted with the rest",
+			progress: "2/2",
+			leaveQuestion: async (user: ReturnType<typeof userEvent.setup>) => {
+				await user.click(screen.getByRole("button", { name: "Next" }));
+				await user.click(screen.getByRole("button", { name: "Submit" }));
+			},
+		},
+	])(
+		"shows $progress answered in the collapsed panel after the first question was $change",
+		async ({ progress, leaveQuestion }) => {
+			const user = userEvent.setup();
+			const queryClient = createTestQueryClient();
+			const renderForm = (isCollapsed: boolean) => (
+				<QueryClientProvider client={queryClient}>
+					<AskUserQuestionForm
+						questions={mockTwoQuestions}
+						showSubmittedAnswer
+						onSubmitAnswer={vi.fn()}
+						isCollapsed={isCollapsed}
+						onToggleCollapsed={vi.fn()}
+					/>
+				</QueryClientProvider>
+			);
+			const { rerender } = renderComponent(renderForm(false));
+
+			await leaveQuestion(user);
+			rerender(renderForm(true));
+
+			expect(
+				screen.getByRole("button", { expanded: false }),
+			).toHaveAccessibleName(new RegExp(`${progress} questions answered`));
+		},
+	);
+
 	it("drops a saved draft once a newer question replaces it and the stream ends", async () => {
 		const user = userEvent.setup();
 		const queryClient = createTestQueryClient();
@@ -553,5 +608,32 @@ describe("AskUserQuestionTool", () => {
 
 		rerender(<DraftQuestion isLatest={false} isChatCompleted />);
 		expect(localStorage).toHaveLength(0);
+	});
+
+	it("keeps its pending send after the page withholds the callback", async () => {
+		const user = userEvent.setup();
+		const queryClient = createTestQueryClient();
+		const pendingSend = createDeferred<undefined>();
+		const onSubmitAnswer = vi.fn(() => pendingSend.promise);
+		const renderForm = (onSubmit?: typeof onSubmitAnswer) => (
+			<QueryClientProvider client={queryClient}>
+				<AskUserQuestionForm
+					questions={questions}
+					showSubmittedAnswer
+					onSubmitAnswer={onSubmit}
+				/>
+			</QueryClientProvider>
+		);
+		const { rerender } = renderComponent(renderForm(onSubmitAnswer));
+
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+		rerender(renderForm());
+		expect(screen.getByRole("button", { name: /submitting/i })).toBeDisabled();
+
+		pendingSend.resolve(undefined);
+		await waitFor(() => expect(screen.queryAllByRole("radio")).toHaveLength(0));
+		expect(onSubmitAnswer).toHaveBeenCalledExactlyOnceWith(
+			"Use a single migration.",
+		);
 	});
 });
