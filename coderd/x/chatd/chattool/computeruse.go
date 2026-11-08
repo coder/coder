@@ -328,14 +328,36 @@ func (t *computerUseTool) runActionPerCallComputerUse(
 		)), nil
 	}
 
+	declaredWidth, declaredHeight := t.declaredActionDimensions()
+	// The desktop clamps an off-screen point to the screen edge, which would
+	// hide a missed target from an unverified model that aimed off the
+	// screenshot.
+	if DefaultComputerUseProvider(t.provider) == codersdk.ChatComputerUseProviderOpenAICompat {
+		for _, point := range []struct {
+			field string
+			sent  *json.RawMessage
+			xy    [2]int64
+		}{
+			{"coordinate", sent.Coordinate, input.Coordinate},
+			{"start_coordinate", sent.StartCoordinate, input.StartCoordinate},
+		} {
+			x, y := point.xy[0], point.xy[1]
+			if point.sent != nil && (x < 0 || y < 0 || x >= int64(declaredWidth) || y >= int64(declaredHeight)) {
+				return fantasy.NewTextErrorResponse(fmt.Sprintf(
+					"invalid computer use input: %s [%d, %d] is outside the %d by %d screenshot, "+
+						"x must be 0 to %d and y must be 0 to %d",
+					point.field, x, y, declaredWidth, declaredHeight, declaredWidth-1, declaredHeight-1,
+				)), nil
+			}
+		}
+	}
+
 	conn, err := t.getWorkspaceConn(ctx)
 	if err != nil {
 		return fantasy.NewTextErrorResponse(
 			fmt.Sprintf("failed to connect to workspace: %v", err),
 		), nil
 	}
-
-	declaredWidth, declaredHeight := t.declaredActionDimensions()
 
 	switch input.Action {
 	case fantasyanthropic.ActionScreenshot:

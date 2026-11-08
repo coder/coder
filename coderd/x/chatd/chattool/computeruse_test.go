@@ -879,6 +879,55 @@ func TestComputerUseTool_Run_RejectsMalformedCoordinate(t *testing.T) {
 	}
 }
 
+// The desktop clamps an off-screen point to the screen edge, so an
+// OpenAI-compatible model that aims off the screenshot learns of the miss
+// instead of acting on the edge.
+func TestComputerUseTool_Run_OpenAICompat_RejectsOffScreenCoordinate(t *testing.T) {
+	t.Parallel()
+
+	geometry := workspacesdk.DefaultDesktopGeometry()
+	right, bottom := geometry.DeclaredWidth, geometry.DeclaredHeight
+	for _, tc := range []struct {
+		input string
+		want  string
+	}{
+		{fmt.Sprintf(`{"action":"left_click","coordinate":[%d,10]}`, right), fmt.Sprintf("coordinate [%d, 10] is outside", right)},
+		{fmt.Sprintf(`{"action":"mouse_move","coordinate":[10,%d]}`, bottom), fmt.Sprintf("coordinate [10, %d] is outside", bottom)},
+		{`{"action":"scroll","coordinate":[-1,10],"scroll_direction":"down","scroll_amount":1}`, "coordinate [-1, 10] is outside"},
+		{`{"action":"left_click_drag","start_coordinate":[10,-5],"coordinate":[20,20]}`, "start_coordinate [10, -5] is outside"},
+	} {
+		t.Run(tc.input, func(t *testing.T) {
+			t.Parallel()
+
+			// No expectations: any desktop call fails the test.
+			mockConn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+			resp, err := newOpenAICompatComputerUseTool(t, mockConn).Run(context.Background(), fantasy.ToolCall{
+				ID:    "off-screen-coordinate",
+				Name:  "computer",
+				Input: tc.input,
+			})
+			require.NoError(t, err)
+			assert.True(t, resp.IsError)
+			assert.Contains(t, resp.Content, tc.want)
+		})
+	}
+
+	t.Run("BottomRightPixel", func(t *testing.T) {
+		t.Parallel()
+
+		mockConn := agentconnmock.NewMockAgentConn(gomock.NewController(t))
+		actions := recordDesktopActions(t, mockConn, geometry, 2, "aW1hZ2UtZGF0YQ==")
+		_, err := newOpenAICompatComputerUseTool(t, mockConn).Run(context.Background(), fantasy.ToolCall{
+			ID:    "bottom-right-click",
+			Name:  "computer",
+			Input: fmt.Sprintf(`{"action":"left_click","coordinate":[%d,%d]}`, right-1, bottom-1),
+		})
+		require.NoError(t, err)
+		require.NotEmpty(t, *actions)
+		assertDesktopAction(t, (*actions)[0], "left_click", [2]int{right - 1, bottom - 1})
+	})
+}
+
 // An OpenAI-compatible step plans every call of the step against one screen,
 // so a failed action halts the later calls of that step, as for Anthropic.
 func TestComputerUseTool_OpenAICompatHaltsStep(t *testing.T) {
