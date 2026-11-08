@@ -8,6 +8,7 @@ import { flushSync } from "react-dom";
 import { useMutation } from "react-query";
 import { Button } from "#/components/Button/Button";
 import { Response } from "../Response";
+import { getAnswerBody, getAsyncAnswerPrefix } from "./asyncAnswer";
 import { QuestionStep } from "./QuestionStep";
 import {
 	filterQuestionOptions,
@@ -47,6 +48,8 @@ type AskUserQuestionToolProps = {
 	previousResponseText?: string;
 	toolCallId?: string;
 	startedAt?: string;
+	/** Set for async questions; their answer names this call. */
+	asyncToolCallId?: string;
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
 };
 
@@ -94,8 +97,9 @@ const AskedQuestions: React.FC<AskedQuestionsProps> = ({ questions }) => {
 
 type AskUserQuestionFormProps = {
 	questions: AskUserQuestion[];
-	/** An answer that the transcript already shows. */
+	/** An answer that the queue or the transcript already shows. */
 	previousResponseText?: string;
+	asyncToolCallId?: string;
 	/** Saves the unsent answers under this key until the form shows an answer. */
 	draftKey?: string;
 	showSubmittedAnswer: boolean;
@@ -103,10 +107,15 @@ type AskUserQuestionFormProps = {
 	onSubmitAnswer?: (message: string) => Promise<void> | void;
 };
 
-/** Sends the answers to a question set as one message. */
+/**
+ * Sends the answers to a question set as one message. With asyncToolCallId,
+ * the message starts with the call's prefix line, and the form strips that
+ * line from the answer it shows.
+ */
 const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	questions,
 	previousResponseText,
+	asyncToolCallId,
 	draftKey,
 	showSubmittedAnswer,
 	onSubmitAnswer,
@@ -128,9 +137,18 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 			},
 	);
 
+	// Set once the queue or transcript shows the answer. After that, the sent
+	// copy would bring back an answer removed from the queue, and a send error
+	// would describe an answer the server took, so neither shows.
+	const [hasShownAnswer, setHasShownAnswer] = useState(false);
+
 	const submitAnswerMutation = useMutation({
 		mutationFn: async (answerText: string) => {
-			await onSubmitAnswer?.(answerText);
+			await onSubmitAnswer?.(
+				asyncToolCallId === undefined
+					? answerText
+					: getAsyncAnswerPrefix(asyncToolCallId) + answerText,
+			);
 		},
 		onSuccess: () => {
 			if (draftKey !== undefined) {
@@ -139,21 +157,25 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		},
 	});
 
+	const answerBody = getAnswerBody(previousResponseText, asyncToolCallId);
+	if (answerBody !== undefined && !hasShownAnswer) {
+		setHasShownAnswer(true);
+	}
 	// An answer can arrive without this form's send, for example as a chat
 	// message, so the saved draft goes once the form shows any answer.
-	const hasShownAnswer = previousResponseText !== undefined;
 	useEffect(() => {
 		if (hasShownAnswer && draftKey !== undefined) {
 			removeFormDraft(draftKey);
 		}
 	}, [hasShownAnswer, draftKey]);
 
-	const sentResponseText = submitAnswerMutation.isSuccess
-		? submitAnswerMutation.variables
-		: undefined;
-	const displayedSubmittedResponseText =
-		previousResponseText ?? sentResponseText;
+	const sentResponseText =
+		submitAnswerMutation.isSuccess && !hasShownAnswer
+			? submitAnswerMutation.variables
+			: undefined;
+	const displayedSubmittedResponseText = answerBody ?? sentResponseText;
 	const hasSubmittedResponse = displayedSubmittedResponseText !== undefined;
+
 	// Questions and their options can stream in after the form mounts, so a
 	// question the user has not answered takes its default from its options now.
 	const drafts = filteredQuestions.map((question, index) => {
@@ -164,13 +186,18 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		formDraft.questionIndex,
 		Math.max(filteredQuestions.length - 1, 0),
 	);
+
 	const isInteractive = Boolean(onSubmitAnswer) && !hasSubmittedResponse;
 	const isSubmitting = submitAnswerMutation.isPending;
-	const submitError = getSubmissionErrorMessage(submitAnswerMutation.error);
+	const submitError = hasShownAnswer
+		? undefined
+		: getSubmissionErrorMessage(submitAnswerMutation.error);
+
 	const canAdvanceToNextQuestion = isDraftAnswered(drafts[activeQuestionIndex]);
 	const canSubmitAllAnswers = filteredQuestions.every((_, questionIndex) =>
 		isDraftAnswered(drafts[questionIndex]),
 	);
+
 	const isWizard = filteredQuestions.length > 1;
 	const isFinalQuestion = activeQuestionIndex >= filteredQuestions.length - 1;
 	const isNextStep = isWizard && !isFinalQuestion;
@@ -264,6 +291,7 @@ const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		}
 
 		resetSubmitState();
+		setHasShownAnswer(false);
 		submitAnswerMutation.mutate(
 			formatOutgoingMessage(filteredQuestions, finalDrafts),
 		);
@@ -469,14 +497,22 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	previousResponseText,
 	toolCallId,
 	startedAt,
+	asyncToolCallId,
 	onSubmitAnswer,
 }) => {
+	const isAsync = asyncToolCallId !== undefined;
 	const isRunning = status === "running";
+	const isCompleted = status === "completed";
+
+	const isAnswered =
+		getAnswerBody(previousResponseText, asyncToolCallId) !== undefined;
 	const isAnswerable =
-		isChatCompleted &&
-		status === "completed" &&
+		(isAsync || isChatCompleted) &&
+		isCompleted &&
 		isLatestAskUserQuestion &&
 		Boolean(onSubmitAnswer);
+	const isClosed =
+		isAsync && isCompleted && !isLatestAskUserQuestion && !isAnswered;
 	const draftKey =
 		toolCallId === undefined
 			? undefined
@@ -490,6 +526,14 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		}
 	}, [isChatCompleted, isLatestAskUserQuestion, draftKey]);
 
+	// The agent keeps working, so the question needs its own announcement.
+	// Screen readers announce only changes to a live region that already
+	// exists, so the region renders before the result streams in.
+	const announcement = (
+		<span role="status" className="sr-only">
+			{isAsync && isAnswerable && !isAnswered && "The agent asked a question."}
+		</span>
+	);
 	const runningHeader = (
 		<ToolCall.Root
 			status={status}
@@ -525,6 +569,7 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 	if (questions.length === 0) {
 		return (
 			<div className="w-full">
+				{announcement}
 				{isRunning ? (
 					runningHeader
 				) : (
@@ -536,16 +581,27 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		);
 	}
 
+	const notice = isClosed ? "This question is closed." : undefined;
+
 	return (
 		<div className="w-full">
+			{announcement}
 			{isRunning && runningHeader}
-			<AskUserQuestionForm
-				questions={questions}
-				previousResponseText={previousResponseText}
-				draftKey={draftKey}
-				showSubmittedAnswer={isLatestAskUserQuestion}
-				onSubmitAnswer={isAnswerable ? onSubmitAnswer : undefined}
-			/>
+			{notice === undefined ? (
+				<AskUserQuestionForm
+					questions={questions}
+					previousResponseText={previousResponseText}
+					asyncToolCallId={asyncToolCallId}
+					draftKey={draftKey}
+					showSubmittedAnswer={isLatestAskUserQuestion}
+					onSubmitAnswer={isAnswerable ? onSubmitAnswer : undefined}
+				/>
+			) : (
+				<>
+					<AskedQuestions questions={questions} />
+					<p className="mt-3 text-[13px] text-content-secondary">{notice}</p>
+				</>
+			)}
 		</div>
 	);
 };

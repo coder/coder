@@ -45,12 +45,13 @@ export const restoreOptimisticRequestSnapshot = (
  * actual user message is delivered via SSE or the messages REST endpoint.
  * Suppress the promoted ID so the transient reordered queue published by
  * the running-case backend does not flash the message back into the
- * visible queue. On API error, the suppression is lifted and the state is
- * restored with restoreOptimisticRequestSnapshot. If a queue update arrived
- * during the request, the queue is then refetched into the store and the
- * messages cache, because that update was filtered through the suppression
- * and lacks the promoted row the server still holds. A failed refetch
- * writes the snapshot instead.
+ * visible queue, and hold the message until the transcript has it. On API
+ * error, the suppression is lifted and the state is restored with
+ * restoreOptimisticRequestSnapshot. If a queue update arrived during the
+ * request, the queue is then refetched into the store and the messages
+ * cache, because that update was filtered through the suppression and lacks
+ * the promoted row the server still holds. A failed refetch writes the
+ * snapshot instead.
  */
 export const runPromoteQueuedMessage = async (params: {
 	id: number;
@@ -63,6 +64,7 @@ export const runPromoteQueuedMessage = async (params: {
 		| "getActiveChatID"
 		| "getQueueConvergenceFence"
 		| "getSnapshot"
+		| "holdPromotingQueuedMessage"
 		| "setChatStatus"
 		| "setQueuedMessages"
 		| "setStreamError"
@@ -91,9 +93,17 @@ export const runPromoteQueuedMessage = async (params: {
 		clearChatErrorReason,
 		onError,
 	} = params;
+
 	const previousSnapshot = store.getSnapshot();
+	const promotedMessage = previousSnapshot.queuedMessages.find(
+		(message) => message.id === id,
+	);
+
 	store.batch(() => {
 		store.suppressQueuedMessageID(id);
+		if (promotedMessage) {
+			store.holdPromotingQueuedMessage(promotedMessage);
+		}
 		store.setQueuedMessages(
 			previousSnapshot.queuedMessages.filter((message) => message.id !== id),
 		);
@@ -101,8 +111,10 @@ export const runPromoteQueuedMessage = async (params: {
 		store.clearStreamError();
 		store.setChatStatus("running");
 	});
+
 	const baselineFence = store.getQueueConvergenceFence();
 	clearChatErrorReason(agentId);
+
 	try {
 		await promoteQueuedMessage(id);
 	} catch (error) {

@@ -45,6 +45,7 @@ import {
 	asString,
 	buildEditDiff,
 	DIFFS_FONT_STYLE,
+	findAskUserQuestionResultRecord,
 	formatModelIntentLabel,
 	formatResultOutput,
 	formatToolInput,
@@ -53,6 +54,7 @@ import {
 	getFileViewerOptionsNoHeader,
 	getWriteFileDiff,
 	humanizeMCPToolName,
+	isAsyncAskUserQuestionResult,
 	mapSubagentStatusToToolStatus,
 	parseArgs,
 	parseArray,
@@ -209,37 +211,18 @@ const getWorkspaceQuotaTitle = (
 	return asString(rec.title).trim() || "Workspace quota reached";
 };
 
-const parseAskUserQuestionResult = (
+const getAskUserQuestions = (
+	args: unknown,
 	result: unknown,
-): AskUserQuestion[] | null => {
-	const parsedResult = parseArgs(result);
-	const directQuestions = parsedResult
-		? parseAskUserQuestions(parsedResult.questions)
-		: null;
-	if (directQuestions) {
-		return directQuestions;
+): AskUserQuestion[] => {
+	const questionsFromArgs = parseAskUserQuestions(parseArgs(args)?.questions);
+	if (questionsFromArgs && questionsFromArgs.length > 0) {
+		return questionsFromArgs;
 	}
-
-	const resultRecord = asRecord(result);
-	if (!resultRecord) {
-		return null;
-	}
-
-	for (const value of [
-		resultRecord.output,
-		resultRecord.content,
-		resultRecord.text,
-	]) {
-		const parsedValue = parseArgs(value);
-		const questions = parsedValue
-			? parseAskUserQuestions(parsedValue.questions)
-			: null;
-		if (questions) {
-			return questions;
-		}
-	}
-
-	return null;
+	return (
+		parseAskUserQuestions(findAskUserQuestionResultRecord(result)?.questions) ??
+		[]
+	);
 };
 
 const ExecuteRenderer: React.FC<ToolRendererProps> = ({
@@ -700,17 +683,6 @@ const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 	isLatestAskUserQuestion,
 	previousResponseText,
 }) => {
-	const parsedArgs = parseArgs(args);
-	const questionsFromArgs = parsedArgs
-		? parseAskUserQuestions(parsedArgs.questions)
-		: null;
-	const questionsFromResult = parseAskUserQuestionResult(result);
-	const questions =
-		questionsFromArgs && questionsFromArgs.length > 0
-			? questionsFromArgs
-			: questionsFromResult && questionsFromResult.length > 0
-				? questionsFromResult
-				: (questionsFromArgs ?? questionsFromResult ?? []);
 	const resultRecord = asRecord(result);
 	const errorMessage =
 		(resultRecord
@@ -719,7 +691,7 @@ const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 
 	return (
 		<AskUserQuestionTool
-			questions={questions}
+			questions={getAskUserQuestions(args, result)}
 			status={status}
 			isError={isError}
 			errorMessage={errorMessage || undefined}
@@ -729,6 +701,9 @@ const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 			previousResponseText={previousResponseText}
 			toolCallId={toolCallId}
 			startedAt={startedAt}
+			asyncToolCallId={
+				isAsyncAskUserQuestionResult(result) ? toolCallId : undefined
+			}
 		/>
 	);
 };
