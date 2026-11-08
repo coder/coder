@@ -442,9 +442,9 @@ func TestSyntheticCancellation_FinishInterruption(t *testing.T) {
 		t.Parallel()
 		testFinishInterruptionI1PromotesQueueHead(t)
 	})
-	t.Run("rejects outstanding dynamic tool calls", func(t *testing.T) {
+	t.Run("closes outstanding dynamic tool calls", func(t *testing.T) {
 		t.Parallel()
-		testFinishInterruptionRejectsOutstandingToolCalls(t)
+		testFinishInterruptionClosesOutstandingToolCalls(t)
 	})
 }
 
@@ -487,16 +487,16 @@ func testFinishInterruptionI1PromotesQueueHead(t *testing.T) {
 	require.Equal(t, chatstate.StateR0, f.classify(ctx, t, created.Chat.ID))
 }
 
-// testFinishInterruptionRejectsOutstandingToolCalls verifies that
-// FinishInterruption fails (TransitionNotAllowed-shaped) when the
-// chat still has an outstanding dynamic tool call after the partial
-// commit. The chat must remain in its prior state.
-func testFinishInterruptionRejectsOutstandingToolCalls(t *testing.T) {
+// testFinishInterruptionClosesOutstandingToolCalls verifies that
+// FinishInterruption answers a dynamic tool call the partial messages
+// leave outstanding with a synthetic cancellation, so the chat lands in
+// waiting with valid history instead of staying interrupting.
+func testFinishInterruptionClosesOutstandingToolCalls(t *testing.T) {
 	t.Helper()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 
-	toolName := "dyn_finish_reject"
+	toolName := "dyn_finish_close"
 	created := createTestChatWithDynamicTools(t, f, toolName)
 	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 
@@ -515,23 +515,25 @@ func testFinishInterruptionRejectsOutstandingToolCalls(t *testing.T) {
 		return err
 	}))
 	require.Equal(t, chatstate.StateI0, f.classify(ctx, t, created.Chat.ID))
-
-	stateBefore := f.classify(ctx, t, created.Chat.ID)
 	historyBefore := historyMessageIDs(ctx, t, f, created.Chat.ID)
-	publishedBefore := len(f.Pub.channels)
 
-	// FinishInterruption with no partial commits should reject
-	// because the dynamic call is still outstanding.
-	err := m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-		_, err := tx.FinishInterruption(chatstate.FinishInterruptionInput{})
+	// FinishInterruption with no partial commits closes the call itself.
+	var finish chatstate.FinishInterruptionResult
+	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
+		var err error
+		finish, err = tx.FinishInterruption(chatstate.FinishInterruptionInput{CancellationReason: "closed by finish"})
 		return err
-	})
-	require.Error(t, err)
-	require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
+	}))
 
-	require.Equal(t, stateBefore, f.classify(ctx, t, created.Chat.ID), "state unchanged")
-	require.Equal(t, historyBefore, historyMessageIDs(ctx, t, f, created.Chat.ID),
-		"history unchanged on rejected finish")
-	require.Equal(t, publishedBefore, len(f.Pub.channels),
-		"failed FinishInterruption publishes nothing")
+	require.Equal(t, chatstate.StateW, f.classify(ctx, t, created.Chat.ID))
+	require.Len(t, finish.CancellationMessages, 1)
+	require.Equal(t, finish.CancellationMessages, finish.InsertedMessages)
+	cancel := requireChatMessageByID(ctx, t, f, finish.CancellationMessages[0].ID)
+	assertToolResultForCall(t, cancel, dynCallID)
+	parts, err := chatprompt.ParseContent(cancel)
+	require.NoError(t, err)
+	require.Len(t, parts, 1)
+	require.True(t, parts[0].IsError)
+	require.JSONEq(t, `"closed by finish"`, string(parts[0].Result))
+	require.Equal(t, append(historyBefore, cancel.ID), historyMessageIDs(ctx, t, f, created.Chat.ID))
 }
