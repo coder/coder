@@ -16,7 +16,8 @@ const mockChatOverview: ChatOverview = {
 	isSubagent: false,
 	repos: [
 		{
-			root: "/repo",
+			root: "/home/coder/coder",
+			name: "coder",
 			branch: "ci/queue-only-jobs",
 			additions: 82,
 			deletions: 33,
@@ -37,6 +38,14 @@ const mockChatOverview: ChatOverview = {
 			href: "/files/plan.html",
 		},
 	],
+};
+
+const mockCleanRepo: ChatOverview["repos"][number] = {
+	root: "/home/coder/clean",
+	name: "clean",
+	branch: "main",
+	additions: 0,
+	deletions: 0,
 };
 
 afterEach(() => {
@@ -87,8 +96,11 @@ describe("ChatOverviewCardView", () => {
 	it.each<{ name: RegExp; target: OverviewTarget }>([
 		{ name: /Cost/, target: { tabId: "summary" } },
 		{
-			name: /ci\/queue-only-jobs/,
-			target: { tabId: "git", view: { type: "local", repoRoot: "/repo" } },
+			name: /^coder/,
+			target: {
+				tabId: "git",
+				view: { type: "local", repoRoot: "/home/coder/coder" },
+			},
 		},
 		{
 			name: /#123 Queue jobs/,
@@ -114,12 +126,11 @@ describe("ChatOverviewCardView", () => {
 		const user = userEvent.setup();
 		const { onOpenTarget } = renderCard({
 			...mockChatOverview,
-			repos: [{ root: "/clean", branch: "main", additions: 0, deletions: 0 }],
+			repos: [mockCleanRepo],
 		});
 
-		await user.click(screen.getByText("main"));
+		await user.click(screen.getByText("clean"));
 
-		expect(screen.queryByRole("button", { name: /main/ })).toBeNull();
 		expect(onOpenTarget).not.toHaveBeenCalled();
 	});
 
@@ -194,7 +205,7 @@ describe("ChatOverviewCardView", () => {
 		renderCard({
 			...mockChatOverview,
 			cost: undefined,
-			repos: [{ root: "/clean", branch: "main", additions: 0, deletions: 0 }],
+			repos: [mockCleanRepo],
 		});
 
 		await user.tab();

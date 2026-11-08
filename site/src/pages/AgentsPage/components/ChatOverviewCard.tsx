@@ -24,7 +24,7 @@ import {
 	ChatOverviewCardView,
 	type OverviewTarget,
 } from "./ChatOverviewCardView";
-import { countRepoChanges, repoBranchLabel } from "./GitPanel/gitViews";
+import { countRepoChanges, repoLabel } from "./GitPanel/gitViews";
 
 /** The card's stored open state and the handler that flips it. */
 export type ChatOverviewToggleProps = {
@@ -95,7 +95,8 @@ export const ChatOverviewCard: React.FC<ChatOverviewCardProps> = ({
 		repos: [...repositories]
 			.map(([root, repo]) => ({
 				root,
-				branch: repoBranchLabel(root, repo),
+				name: repoLabel(root),
+				branch: repo.branch.trim(),
 				...countRepoChanges(repo),
 			}))
 			.sort((a, b) => a.root.localeCompare(b.root)),

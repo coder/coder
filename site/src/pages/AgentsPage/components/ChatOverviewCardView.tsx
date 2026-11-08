@@ -2,6 +2,7 @@ import { cn } from "cn";
 import {
 	CoinsIcon,
 	FileIcon,
+	FolderGit2Icon,
 	GitBranchIcon,
 	type LucideIcon,
 } from "lucide-react";
@@ -39,6 +40,8 @@ const OVERVIEW_MAX_LIST_ROWS = 3;
  * subagents, and the chat tree in the sidebar already lists all of them.
  */
 const OVERVIEW_MAX_SUBAGENT_ROWS = 5;
+const OVERVIEW_CARD_MAX_HEIGHT = "36rem";
+const OVERVIEW_CARD_VIEWPORT_MAX_HEIGHT = "calc(100vh - 6rem)";
 
 /** Where a card row leads: a right panel tab, and for Git its view. */
 export type OverviewTarget =
@@ -47,7 +50,13 @@ export type OverviewTarget =
 
 type OverviewSubagent = Pick<Chat, "id" | "title" | "status">;
 
-type OverviewRepo = DiffStats & { root: string; branch: string };
+type OverviewRepo = DiffStats & {
+	root: string;
+	/** The row label. `root` stays the row's key, so names may repeat. */
+	name: string;
+	/** Empty when HEAD is on no branch, such as a detached HEAD. */
+	branch: string;
+};
 
 /** Card data. Empty lists and an absent cost hide their sections. */
 export type ChatOverview = {
@@ -106,20 +115,23 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 			aria-labelledby={headingId}
 			aria-busy={isLoading}
 			className={cn(
-				"flex max-h-[min(32rem,calc(100vh-10rem))] w-64 flex-col divide-y divide-solid divide-border overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-3 text-sm shadow-md",
+				"flex w-64 flex-col divide-y divide-solid divide-border overflow-y-auto rounded-lg border border-solid border-border bg-surface-primary px-1.5 text-sm shadow-md",
 				className,
 			)}
+			style={{
+				maxHeight: `min(${OVERVIEW_CARD_MAX_HEIGHT}, ${OVERVIEW_CARD_VIEWPORT_MAX_HEIGHT})`,
+			}}
 		>
 			<h2
 				id={headingId}
-				className="m-0 py-2 text-xs font-medium text-content-secondary"
+				className="m-0 px-1.5 py-2 text-xs font-medium text-content-secondary"
 			>
 				Overview
 			</h2>
 
 			{isEmpty &&
 				(isLoading ? (
-					<div role="status" className="flex flex-col gap-2 py-2">
+					<div role="status" className="flex flex-col gap-2 px-1.5 py-2">
 						<span className="sr-only">Loading overview</span>
 						{[0, 1, 2].map((row) => (
 							<div key={row} aria-hidden className="flex items-center gap-2">
@@ -129,9 +141,9 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 						))}
 					</div>
 				) : (
-					<p className="m-0 py-2 text-xs text-content-secondary">
-						Nothing to show yet. Cost, changes, pull requests, subagents, and
-						attachments show up here as the agent works.
+					<p className="m-0 px-1.5 py-2 text-xs text-content-secondary">
+						Nothing to show yet. Cost, repositories, pull requests, subagents,
+						and attachments show up here as the agent works.
 					</p>
 				))}
 
@@ -154,13 +166,14 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 			)}
 
 			<OverviewListSection
-				title="Changes"
+				title="Repositories"
 				items={overview.repos}
 				render={(repo) => (
 					<OverviewRow
 						key={repo.root}
-						icon={GitBranchIcon}
-						label={repo.branch}
+						icon={FolderGit2Icon}
+						label={repo.name}
+						subtitle={repo.branch || "No branch"}
 						detail={<RepoDiffStat {...repo} />}
 						onClick={
 							hasChanges(repo)
@@ -322,7 +335,7 @@ const OverviewSection: React.FC<OverviewSectionProps> = ({
 		<section aria-labelledby={headingId} className="flex flex-col py-2">
 			<h3
 				id={headingId}
-				className="m-0 pb-1 text-xs font-normal text-content-secondary"
+				className="m-0 px-1.5 pb-1 text-xs font-normal text-content-secondary"
 			>
 				{title}
 			</h3>
@@ -362,7 +375,7 @@ const OverviewListSection = <T,>({
 				<button
 					type="button"
 					onClick={() => setExpanded(!expanded)}
-					className="-mx-1.5 rounded-md py-1 pl-7.5 pr-1.5 text-left text-xs text-content-secondary hover:bg-surface-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+					className="rounded-md py-1 pl-7.5 pr-1.5 text-left text-xs text-content-secondary hover:bg-surface-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 				>
 					{expanded
 						? `Show fewer ${title.toLowerCase()}`
@@ -444,7 +457,7 @@ const OverviewRow: React.FC<OverviewRowProps> = ({
 		</>
 	);
 	const className =
-		"-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm text-content-primary";
+		"flex items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm text-content-primary";
 	if (!isInteractive) {
 		return <div className={className}>{content}</div>;
 	}
