@@ -4,6 +4,7 @@ import { getSkillAlias } from "../../utils/skillAliases";
 import type { InlineNode } from "../ChatElements/inlineNodes";
 import { Message, MessageContent } from "../ChatElements/Message";
 import { Response } from "../ChatElements/Response";
+import { parseAsyncAnswer } from "../ChatElements/tools/asyncAnswer";
 import { FileReferenceChip } from "../ChatMessageInput/FileReferenceChip";
 import {
 	getFileReferenceDisplay,
@@ -92,6 +93,25 @@ const getUserMessageParts = (blocks: readonly UserInlineRenderBlock[]) => {
 	);
 };
 
+// An async question answer starts with a line that names the call for the
+// model.
+const splitAsyncAnswer = (
+	blocks: readonly UserInlineRenderBlock[],
+): { isAsyncAnswer: boolean; blocks: readonly UserInlineRenderBlock[] } => {
+	const [firstBlock, ...restBlocks] = blocks;
+	if (firstBlock?.type !== "response") {
+		return { isAsyncAnswer: false, blocks };
+	}
+	const answer = parseAsyncAnswer(firstBlock.text);
+	if (!answer) {
+		return { isAsyncAnswer: false, blocks };
+	}
+	return {
+		isAsyncAnswer: true,
+		blocks: [{ ...firstBlock, text: answer.body }, ...restBlocks],
+	};
+};
+
 export const UserMessageContent: React.FC<{
 	displayState: MessageDisplayState;
 	markdown: string;
@@ -110,6 +130,18 @@ export const UserMessageContent: React.FC<{
 	onTextFileClick,
 	urlTransform,
 }) => {
+	const inlineContent = splitAsyncAnswer(displayState.userInlineContent);
+	const body = (
+		<Response
+			className="whitespace-normal"
+			preserveLineBreaks
+			urlTransform={urlTransform}
+		>
+			{inlineContent.blocks.length > 0
+				? getUserMessageParts(inlineContent.blocks)
+				: markdown}
+		</Response>
+	);
 	return (
 		<Message className="w-fit max-w-[min(80vw,80%)]">
 			<MessageContent
@@ -120,17 +152,17 @@ export const UserMessageContent: React.FC<{
 				)}
 			>
 				<div className="flex flex-col gap-2">
-					{displayState.hasUserMessageBody && (
-						<Response
-							className="whitespace-normal"
-							preserveLineBreaks
-							urlTransform={urlTransform}
-						>
-							{displayState.userInlineContent.length > 0
-								? getUserMessageParts(displayState.userInlineContent)
-								: markdown}
-						</Response>
-					)}
+					{displayState.hasUserMessageBody &&
+						(inlineContent.isAsyncAnswer ? (
+							<div>
+								<span className="block text-xs text-content-secondary">
+									Answer
+								</span>
+								{body}
+							</div>
+						) : (
+							body
+						))}
 					{displayState.hasFileBlocks && (
 						<FileRow>
 							{displayState.userFileBlocks.map((block, index) => (

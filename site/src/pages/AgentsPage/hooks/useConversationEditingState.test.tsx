@@ -691,6 +691,186 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
+	describe("async answers", () => {
+		const answerPrefix = "Answer to ask_user_question call question:\n";
+		const targets: EditingTarget[] = [
+			{ kind: "history", id: 7 },
+			{ kind: "queued", id: 42 },
+		];
+
+		it.each(targets)(
+			"edits a $kind async answer without its prefix line and sends it back with the line",
+			async (target) => {
+				const { result, onSend, unmount, beginEdit } = renderEditing();
+				const mockInput = createMockChatInputHandle();
+				vi.mocked(mockInput.handle.getContentParts).mockReturnValue([
+					{ type: "text", text: "Frontend" },
+				]);
+				result.current.chatInputRef.current = mockInput.handle;
+
+				act(() => {
+					beginEdit(target, `${answerPrefix}Backend`);
+				});
+				expect(result.current.editorInitialValue).toBe("Backend");
+
+				await act(async () => {
+					await result.current.handleSendFromInput({ message: "Frontend" });
+				});
+
+				expect(onSend).toHaveBeenCalledWith({
+					message: `${answerPrefix}Frontend`,
+					attachments: undefined,
+					workspaceUploads: undefined,
+					editingTarget: target,
+					composerParts: [{ type: "text", text: `${answerPrefix}Frontend` }],
+				});
+				unmount();
+			},
+		);
+
+		it.each(targets)(
+			"puts an edited $kind async answer's prefix line before a leading chip",
+			async (target) => {
+				const { result, onSend, unmount, beginEdit } = renderEditing();
+				const mockInput = createMockChatInputHandle();
+				const mockSkill = {
+					type: "skill-invocation",
+					source: "project",
+					name: "triage",
+				} as const;
+				vi.mocked(mockInput.handle.getContentParts).mockReturnValue([
+					mockSkill,
+					{ type: "text", text: " Frontend" },
+				]);
+				result.current.chatInputRef.current = mockInput.handle;
+
+				act(() => {
+					beginEdit(target, "Answer to ask_user_question call question:", [
+						skillPart("triage"),
+						{ type: "text", text: "Backend" },
+					]);
+				});
+				await act(async () => {
+					await result.current.handleSendFromInput({ message: " Frontend" });
+				});
+
+				expect(onSend).toHaveBeenCalledWith(
+					expect.objectContaining({
+						composerParts: [
+							{ type: "text", text: answerPrefix },
+							mockSkill,
+							{ type: "text", text: " Frontend" },
+						],
+					}),
+				);
+				unmount();
+			},
+		);
+
+		it.each(targets)(
+			"keeps a $kind async answer's prefix line for the retry when its edit fails",
+			async (target) => {
+				const { result, onSend, unmount, beginEdit } = renderEditing();
+				onSend.mockRejectedValueOnce(new Error("boom"));
+
+				act(() => {
+					beginEdit(target, `${answerPrefix}Backend`);
+				});
+				await act(async () => {
+					await expect(
+						result.current.handleSendFromInput({ message: "Frontend" }),
+					).rejects.toThrow("boom");
+				});
+				await act(async () => {
+					await result.current.handleSendFromInput({ message: "Frontend" });
+				});
+
+				expect(onSend).toHaveBeenLastCalledWith({
+					message: `${answerPrefix}Frontend`,
+					attachments: undefined,
+					workspaceUploads: undefined,
+					editingTarget: target,
+				});
+				unmount();
+			},
+		);
+
+		it("keeps a newer edit when an earlier edit fails to send", async () => {
+			const { result, onSend, unmount, beginEdit } = renderEditing();
+			let rejectSend: (error: Error) => void = () => {};
+			onSend.mockReturnValueOnce(
+				new Promise<void>((_resolve, reject) => {
+					rejectSend = reject;
+				}),
+			);
+
+			act(() => {
+				beginEdit({ kind: "history", id: 7 }, `${answerPrefix}Backend`);
+			});
+			let firstSend: Promise<void> = Promise.resolve();
+			act(() => {
+				firstSend = result.current.handleSendFromInput({ message: "Frontend" });
+			});
+			act(() => {
+				beginEdit({ kind: "history", id: 8 }, "plain message");
+			});
+			await act(async () => {
+				rejectSend(new Error("boom"));
+				await expect(firstSend).rejects.toThrow("boom");
+			});
+
+			expect(result.current.editorInitialValue).toBe("plain message");
+			await act(async () => {
+				await result.current.handleSendFromInput({ message: "edited" });
+			});
+			expect(onSend).toHaveBeenLastCalledWith({
+				message: "edited",
+				attachments: undefined,
+				workspaceUploads: undefined,
+				editingTarget: { kind: "history", id: 8 },
+			});
+			unmount();
+		});
+
+		it("keeps a newer async answer edit and its prefix line when an earlier edit finishes sending", async () => {
+			const { result, onSend, unmount, beginEdit } = renderEditing();
+			let resolveSend: () => void = () => {};
+			onSend.mockReturnValueOnce(
+				new Promise<void>((resolve) => {
+					resolveSend = resolve;
+				}),
+			);
+
+			act(() => {
+				beginEdit({ kind: "history", id: 7 }, "plain message");
+			});
+			let firstSend: Promise<void> = Promise.resolve();
+			act(() => {
+				firstSend = result.current.handleSendFromInput({ message: "edited" });
+			});
+			act(() => {
+				beginEdit({ kind: "history", id: 8 }, `${answerPrefix}Backend`);
+			});
+			await act(async () => {
+				resolveSend();
+				await firstSend;
+			});
+
+			expect(result.current.editingTarget).toEqual({ kind: "history", id: 8 });
+			expect(result.current.inputValueRef.current).toBe("Backend");
+			await act(async () => {
+				await result.current.handleSendFromInput({ message: "Frontend" });
+			});
+			expect(onSend).toHaveBeenLastCalledWith({
+				message: `${answerPrefix}Frontend`,
+				attachments: undefined,
+				workspaceUploads: undefined,
+				editingTarget: { kind: "history", id: 8 },
+			});
+			unmount();
+		});
+	});
+
 	it("restores the edit draft and file-block seed when an edit submission fails", async () => {
 		const { result, onSend, unmount, beginEdit } = renderEditing();
 		const mockInput = createMockChatInputHandle("edited message");
