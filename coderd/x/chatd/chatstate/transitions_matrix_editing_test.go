@@ -28,11 +28,17 @@ import (
 // so the transition under test is the only one exercised.
 func beginQueuedMessageEdit(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID, id int64) {
 	t.Helper()
-	_, err := f.DB.UpdateChatQueuedMessageEditing(ctx, database.UpdateChatQueuedMessageEditingParams{
-		ChatID:  chatID,
-		ID:      id,
-		Editing: true,
-	})
+	err := f.DB.InTx(func(tx database.Store) error {
+		if _, err := tx.LockChatAndBumpSnapshotVersion(ctx, chatID); err != nil {
+			return err
+		}
+		_, err := tx.UpdateChatQueuedMessageEditing(ctx, database.UpdateChatQueuedMessageEditingParams{
+			ChatID:  chatID,
+			ID:      id,
+			Editing: true,
+		})
+		return err
+	}, nil)
 	require.NoError(t, err)
 }
 
