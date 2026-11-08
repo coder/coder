@@ -2,6 +2,7 @@ import { cn } from "cn";
 import {
 	CoinsIcon,
 	FileIcon,
+	FolderGit2Icon,
 	GitBranchIcon,
 	type LucideIcon,
 } from "lucide-react";
@@ -28,10 +29,10 @@ export type OverviewTarget = { tabId: "summary" } | { tabId: "git" };
 
 type OverviewRepo = {
 	root: string;
-	/** The repository's display name, such as its folder name. */
+	/** The row label. `root` stays the row's key, so names may repeat. */
 	name: string;
-	/** Absent when the repository has no current branch. */
-	branch?: string;
+	/** Empty when HEAD is on no branch, such as a detached HEAD. */
+	branch: string;
 	additions: number;
 	deletions: number;
 };
@@ -139,9 +140,9 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 				render={(repo) => (
 					<OverviewRow
 						key={repo.root}
-						icon={GitBranchIcon}
+						icon={FolderGit2Icon}
 						label={repo.name}
-						subtitle={repo.branch}
+						subtitle={repo.branch || "No branch"}
 						detail={<RepoDiffStat {...repo} />}
 						onClick={
 							hasChanges(repo)

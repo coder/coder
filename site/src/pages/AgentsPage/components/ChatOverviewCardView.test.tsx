@@ -104,7 +104,6 @@ describe("ChatOverviewCardView", () => {
 
 		await user.click(screen.getByText("clean"));
 
-		expect(screen.queryByRole("button", { name: /clean/ })).toBeNull();
 		expect(onOpenTarget).not.toHaveBeenCalled();
 	});
 

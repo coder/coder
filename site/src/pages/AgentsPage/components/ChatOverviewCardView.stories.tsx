@@ -19,7 +19,7 @@ const mockAttachment = (
 
 const mockRepo = (
 	name: string,
-	branch: string | undefined,
+	branch: string,
 	additions: number,
 	deletions: number,
 ): ChatOverview["repos"][number] => ({
@@ -29,6 +29,8 @@ const mockRepo = (
 	additions,
 	deletions,
 });
+
+const mockDetachedRepo = mockRepo("provisioner", "", 1, 1);
 
 const mockChatOverview: ChatOverview = {
 	cost: { total_cost_micros: 23_960_000, unpriced_request_count: 0 },
@@ -66,9 +68,9 @@ const mockLongChatOverview: ChatOverview = {
 	repos: [
 		mockRepo("api", "feat/a-very-long-branch-name-for-api", 120, 0),
 		mockRepo("site", "feat/a-very-long-branch-name-for-site", 240, 9),
+		mockDetachedRepo,
 		mockRepo("docs", "docs/overview-card", 36, 18),
 		mockRepo("agent", "fix/agent-git-watcher", 4, 2),
-		mockRepo("provisioner", undefined, 1, 1),
 	],
 };
 
@@ -131,7 +133,7 @@ export const TruncatedRowTooltip: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.hover(
 			within(canvasElement).getByRole("button", {
-				name: /feat\/a-very-long-branch-name-for-api/,
+				name: /^api/,
 			}),
 		);
 	},
