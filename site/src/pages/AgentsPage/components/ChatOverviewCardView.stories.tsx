@@ -25,10 +25,13 @@ const mockRepo = (
 	deletions: number,
 ): ChatOverview["repos"][number] => ({
 	root: `/home/coder/${name}`,
+	name,
 	branch,
 	additions,
 	deletions,
 });
+
+const mockDetachedRepo = mockRepo("provisioner", "", 1, 1);
 
 const mockChatOverview: ChatOverview = {
 	cost: { total_cost_micros: 23_960_000, unpriced_request_count: 0 },
@@ -71,9 +74,9 @@ const mockLongChatOverview: ChatOverview = {
 	repos: [
 		mockRepo("api", "feat/a-very-long-branch-name-for-api", 120, 0),
 		mockRepo("site", "feat/a-very-long-branch-name-for-site", 240, 9),
+		mockDetachedRepo,
 		mockRepo("docs", "docs/overview-card", 36, 18),
 		mockRepo("agent", "fix/agent-git-watcher", 4, 2),
-		mockRepo("provisioner", "main", 1, 1),
 	],
 };
 
@@ -137,7 +140,7 @@ export const TruncatedRowTooltip: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.hover(
 			within(canvasElement).getByRole("button", {
-				name: /feat\/a-very-long-branch-name-for-api/,
+				name: /^api/,
 			}),
 		);
 	},
@@ -146,7 +149,7 @@ export const TruncatedRowTooltip: Story = {
 export const TruncatedRowKeyboardFocus: Story = {
 	args: { overview: mockLongChatOverview },
 	play: async () => {
-		// The Cost row comes first, then the truncated branch row.
+		// The Cost row comes first, then the row with the truncated branch.
 		await userEvent.tab();
 		await userEvent.tab();
 	},
@@ -159,11 +162,13 @@ export const ManyRows: Story = {
 export const ManyRowsExpanded: Story = {
 	args: { overview: mockLongChatOverview },
 	play: async ({ canvasElement }) => {
-		const changes = within(canvasElement).getByRole("region", {
-			name: "Changes",
+		const repositories = within(canvasElement).getByRole("region", {
+			name: "Repositories",
 		});
 		await userEvent.click(
-			within(changes).getByRole("button", { name: "Show all 5 changes" }),
+			within(repositories).getByRole("button", {
+				name: "Show all 5 repositories",
+			}),
 		);
 	},
 };
