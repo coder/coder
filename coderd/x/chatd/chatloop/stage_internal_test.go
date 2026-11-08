@@ -275,7 +275,7 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 		fixture.requireUnobservedTTFT(t, streamErr.Error())
 	})
 
-	t.Run("WarningsThenContentObservesOnce", func(t *testing.T) {
+	t.Run("WarningsAndKeepalivesThenContentObservesOnce", func(t *testing.T) {
 		t.Parallel()
 		fixture := newStageMetricsFixture(t)
 
@@ -283,6 +283,9 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 			func(context.Context) (fantasy.StreamResponse, error) {
 				return fantasy.StreamResponse(func(yield func(fantasy.StreamPart) bool) {
 					if !yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeWarnings}) {
+						return
+					}
+					if !yield(fantasy.StreamPart{Type: fantasy.StreamPartTypeKeepalive}) {
 						return
 					}
 					fixture.clock.Advance(time.Second)
@@ -301,7 +304,8 @@ func TestGuardedStreamTTFTStage(t *testing.T) {
 		drainStream(attempt.stream)
 		attempt.release()
 
-		// Warnings do not close the window; the first text part does.
+		// Warnings and keepalives do not close the window; the first text
+		// part does.
 		fixture.requireObservedTTFT(t, time.Second)
 	})
 

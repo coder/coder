@@ -1,32 +1,105 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { HttpResponse, http } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { createRef } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
-import type * as ChatAutomationQueries from "#/api/queries/chatAutomations";
-import { chatAutomationNameMap } from "#/api/queries/chatAutomations";
 import type * as TypesGen from "#/api/typesGenerated";
-import {
-	MockChat,
-	MockChatAutomation,
-	MockChatMessage,
-	MockChatQueuedMessage,
-} from "#/testHelpers/chatEntities";
+import { MockChat } from "#/testHelpers/chatEntities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
-import { server } from "#/testHelpers/server";
-import { MessageScroller } from "#/vendor/message-scroller";
+import { MockSkill } from "#/testHelpers/skills";
+import type { ChatMessageInputRef } from "./AgentChatInput";
 import { createChatStore } from "./ChatConversation/chatStore";
-import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
+import { ChatPageInput, workspaceSkillsFromChat } from "./ChatPageContent";
 
-// Wraps the real query options so tests without a rendered outcome can wait
-// until the component has rendered. The dashboard renders children only after
-// it loads the experiments, so by then any automations request has started.
-vi.mock("#/api/queries/chatAutomations", async (importOriginal) => {
-	const actual = await importOriginal<typeof ChatAutomationQueries>();
-	return {
-		...actual,
-		chatAutomationNameMap: vi.fn(actual.chatAutomationNameMap),
-	};
+const skillResource = (
+	name: string,
+	overrides: Partial<TypesGen.ChatContextResource> = {},
+): TypesGen.ChatContextResource => ({
+	source: `/workspace/.agents/skills/${name}`,
+	kind: "skill",
+	size_bytes: 128,
+	skill_name: name,
+	skill_description: `${name} description`,
+	status: "ok",
+	...overrides,
+});
+
+const instructionResource = (): TypesGen.ChatContextResource => ({
+	source: "/workspace/AGENTS.md",
+	kind: "instruction_file",
+	size_bytes: 64,
+	status: "ok",
+});
+
+const chatWithContext = (
+	context: TypesGen.ChatContext | undefined,
+): TypesGen.Chat => ({ ...MockChat, context });
+
+describe("workspaceSkillsFromChat", () => {
+	it("returns undefined while the chat detail is unresolved", () => {
+		expect(workspaceSkillsFromChat(undefined)).toBeUndefined();
+	});
+
+	it("returns an empty authoritative list for a resolved unpinned chat", () => {
+		expect(workspaceSkillsFromChat(chatWithContext(undefined))).toEqual([]);
+		expect(workspaceSkillsFromChat(chatWithContext({ dirty: false }))).toEqual(
+			[],
+		);
+	});
+
+	it("maps healthy skill resources to workspace skills", () => {
+		const chat = chatWithContext({
+			dirty: false,
+			resources: [
+				instructionResource(),
+				skillResource("reviewer"),
+				skillResource("docs"),
+			],
+		});
+		expect(workspaceSkillsFromChat(chat)).toEqual([
+			{ name: "reviewer", description: "reviewer description" },
+			{ name: "docs", description: "docs description" },
+		]);
+	});
+
+	it("keeps the first resource for duplicate skill names, matching read_skill", () => {
+		const chat = chatWithContext({
+			dirty: false,
+			resources: [
+				skillResource("reviewer", {
+					source: "/workspace/.agents/skills/reviewer",
+				}),
+				skillResource("reviewer", {
+					source: "/workspace/other/skills/reviewer",
+					skill_description: "shadowed duplicate",
+				}),
+			],
+		});
+		expect(workspaceSkillsFromChat(chat)).toEqual([
+			{ name: "reviewer", description: "reviewer description" },
+		]);
+	});
+
+	it("omits non-ok skill resources", () => {
+		const chat = chatWithContext({
+			dirty: true,
+			resources: [
+				skillResource("reviewer"),
+				skillResource("broken", { status: "unreadable", skill_name: "" }),
+			],
+		});
+		expect(workspaceSkillsFromChat(chat)).toEqual([
+			{ name: "reviewer", description: "reviewer description" },
+		]);
+	});
+
+	it("returns an empty authoritative list when pinned context has no skills", () => {
+		const chat = chatWithContext({
+			dirty: false,
+			resources: [instructionResource()],
+		});
+		expect(workspaceSkillsFromChat(chat)).toEqual([]);
+	});
 });
 
 const renderChatPageInput = (
@@ -37,7 +110,7 @@ const renderChatPageInput = (
 		<ChatPageInput
 			chat={{ ...MockChat, id: "", organization_id: "" }}
 			store={store}
-			models={[]}
+			modelCatalog={undefined}
 			onSend={vi.fn()}
 			onDeleteQueuedMessage={vi.fn()}
 			onPromoteQueuedMessage={vi.fn()}
@@ -58,8 +131,8 @@ const renderChatPageInput = (
 			]}
 			modelSelectorPlaceholder="Select model"
 			canConfigureAgentSetup={false}
-			isEditing={false}
-			onCancelHistoryEdit={vi.fn()}
+			editingTarget={null}
+			onCancelEdit={vi.fn()}
 			isReadOnly={false}
 			onReasoningEffortChange={vi.fn()}
 			unsupportedProviderNames={[]}
@@ -73,8 +146,8 @@ const renderChatPageInput = (
 			mcpServers={[]}
 			selectedMCPServerIds={[]}
 			onMCPSelectionChange={vi.fn()}
-			onMCPAuthComplete={vi.fn()}
 			isWorkspaceLoading={false}
+			queuedMessageUnderEditID={null}
 			{...overrides}
 		/>,
 	);
@@ -91,28 +164,66 @@ const workspaceFileReference = (
 	workspace_file_media_type: "text/csv",
 });
 
-const mockQueuedAutomationInput: TypesGen.ChatQueuedMessage = {
-	...MockChatQueuedMessage,
-	automation_id: MockChatAutomation.id,
-	input_id: "0b6c4e2a-1f3d-4b5c-8a9e-7d6c5b4a3f2e",
+const mockProjectChat: TypesGen.Chat = {
+	...MockChat,
+	id: "project-chat",
+	organization_id: "org-1",
+	project_id: "project-1",
 };
 
-const mockExperiments = (experiments: TypesGen.Experiment[]) =>
-	server.use(
-		http.get("/api/v2/experiments", () => HttpResponse.json(experiments)),
-	);
-
-const mockChatAutomationsResponse = () => {
-	mockExperiments(["chat-automations"]);
-	server.use(
-		http.get(
-			"/api/experimental/organizations/:organizationId/chat-automations",
-			() => HttpResponse.json([MockChatAutomation]),
-		),
-	);
+const mockSkillRequests = () => {
+	vi.spyOn(API.experimental, "getUserSkills").mockResolvedValue([
+		{ ...MockSkill, name: "compactor" },
+	]);
+	vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+	return vi
+		.spyOn(API.experimental, "getChatProjectSkills")
+		.mockResolvedValue([]);
 };
+
+beforeEach(() => {
+	// jsdom lacks Range geometry, which the slash menu reads to anchor.
+	// The method does not exist to spy on, so add it per test and remove
+	// it afterwards.
+	Range.prototype.getBoundingClientRect = () => new DOMRect(0, 0, 1, 16);
+});
+
+afterEach(() => {
+	vi.restoreAllMocks();
+	Reflect.deleteProperty(Range.prototype, "getBoundingClientRect");
+});
 
 describe("ChatPageInput", () => {
+	it("inserts a project action from More into the chat's composer", async () => {
+		const user = userEvent.setup();
+		const getChatProjectSkills = mockSkillRequests();
+		getChatProjectSkills.mockResolvedValue(
+			["deploy", "lint", "release", "triage"].map((name) => ({
+				...MockSkill,
+				id: `skill-${name}`,
+				name,
+				action: true,
+			})),
+		);
+		const inputRef = createRef<ChatMessageInputRef>();
+
+		renderChatPageInput(createChatStore(), { chat: mockProjectChat, inputRef });
+
+		await user.click(
+			await screen.findByRole("button", { name: "More project actions" }),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "triage" }));
+
+		await waitFor(() =>
+			expect(inputRef.current?.getContentParts()).toContainEqual({
+				type: "skill-invocation",
+				source: "project",
+				name: "triage",
+			}),
+		);
+		expect(screen.getByRole("textbox", { name: "Chat message" })).toHaveFocus();
+	});
+
 	it("routes Stop to onInterrupt while the chat requires action", async () => {
 		const user = userEvent.setup();
 		const onInterrupt = vi.fn();
@@ -137,7 +248,7 @@ describe("ChatPageInput", () => {
 				workspace_id: "ws-1",
 			},
 			onSend,
-			isEditing: true,
+			editingTarget: { kind: "history", id: 1 },
 			initialValue: "edited",
 			editingFileBlocks: [
 				workspaceFileReference("current.csv", "ws-1"),
@@ -158,110 +269,5 @@ describe("ChatPageInput", () => {
 				workspaceId: "ws-1",
 			},
 		]);
-	});
-
-	it("requests the automations list for the chat's organization when the queue has automation input", async () => {
-		mockChatAutomationsResponse();
-		const getChatAutomations = vi.spyOn(API.experimental, "getChatAutomations");
-		const store = createChatStore();
-		store.setQueuedMessages([mockQueuedAutomationInput]);
-
-		renderChatPageInput(store, {
-			chat: { ...MockChat, id: "", organization_id: "test-org-id" },
-		});
-
-		await waitFor(() =>
-			expect(getChatAutomations).toHaveBeenCalledWith("test-org-id"),
-		);
-	});
-
-	it.each<{
-		name: string;
-		experiments: TypesGen.Experiment[];
-		automated: boolean;
-	}>([
-		{
-			name: "the chat has no automation input",
-			experiments: ["chat-automations"],
-			automated: false,
-		},
-		{
-			name: "the chat-automations experiment is off",
-			experiments: [],
-			automated: true,
-		},
-	])(
-		"does not request automations when $name",
-		async ({ experiments, automated }) => {
-			mockExperiments(experiments);
-			const getChatAutomations = vi.spyOn(
-				API.experimental,
-				"getChatAutomations",
-			);
-			const store = createChatStore();
-			store.setQueuedMessages([
-				automated ? mockQueuedAutomationInput : MockChatQueuedMessage,
-			]);
-
-			renderChatPageInput(store, {
-				chat: { ...MockChat, id: "", organization_id: "test-org-id" },
-			});
-
-			await waitFor(() => expect(chatAutomationNameMap).toHaveBeenCalled());
-			expect(getChatAutomations).not.toHaveBeenCalled();
-		},
-	);
-});
-
-const automationInputID = "0b6c4e2a-1f3d-4b5c-8a9e-7d6c5b4a3f2e";
-
-const renderChatPageTimelineWithAutomationInput = () => {
-	const store = createChatStore();
-	store.replaceMessages([
-		{
-			...MockChatMessage,
-			id: 1,
-			automation_id: MockChatAutomation.id,
-			input_id: automationInputID,
-		},
-		{ ...MockChatMessage, id: 2 },
-	]);
-
-	return renderWithAuth(
-		<MessageScroller.Provider autoScroll defaultScrollPosition="end">
-			<ChatPageTimeline
-				organizationId="test-org-id"
-				store={store}
-				persistedError={undefined}
-				hasMoreMessages={false}
-				isFetchingMoreMessages={false}
-				isHydratingMessages={false}
-				hasFetchMoreError={false}
-				onFetchMoreMessages={async () => {}}
-			/>
-		</MessageScroller.Provider>,
-	);
-};
-
-describe("ChatPageTimeline", () => {
-	it("requests the automations list for the chat's organization when history has automation input", async () => {
-		mockChatAutomationsResponse();
-		const getChatAutomations = vi.spyOn(API.experimental, "getChatAutomations");
-
-		renderChatPageTimelineWithAutomationInput();
-
-		await waitFor(() =>
-			expect(getChatAutomations).toHaveBeenCalledWith("test-org-id"),
-		);
-	});
-
-	it("does not request the automations list when the chat-automations experiment is off", async () => {
-		mockExperiments([]);
-		const getChatAutomations = vi.spyOn(API.experimental, "getChatAutomations");
-
-		renderChatPageTimelineWithAutomationInput();
-
-		await waitFor(() => expect(chatAutomationNameMap).toHaveBeenCalled());
-		expect(getChatAutomations).not.toHaveBeenCalled();
 	});
 });

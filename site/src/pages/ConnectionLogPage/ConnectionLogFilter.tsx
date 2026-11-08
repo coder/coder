@@ -1,10 +1,11 @@
 import capitalize from "lodash/capitalize";
 import {
+	type ConnectionLogMethod,
+	ConnectionLogMethods,
 	type ConnectionLogStatus,
 	ConnectionLogStatuses,
-	type ConnectionType,
-	ConnectionTypes,
 } from "#/api/typesGenerated";
+import { Alert } from "#/components/Alert/Alert";
 import {
 	Filter,
 	MenuSkeleton,
@@ -27,12 +28,12 @@ import {
 	type OrganizationsFilterMenu,
 	OrganizationsMenu,
 } from "#/modules/tableFiltering/options";
-import { connectionTypeToFriendlyName } from "#/utils/connection";
 import { docs } from "#/utils/docs";
+import { connectionLogMethodLabels } from "./connectionLogMethodLabels";
 
 type ConnectionLogFilterValues = {
 	status?: ConnectionLogStatus;
-	type?: ConnectionType;
+	method?: ConnectionLogMethod;
 	workspace_owner?: string;
 	organization?: string;
 };
@@ -42,7 +43,7 @@ const buildConnectionLogFilterQuery = (
 ): string => {
 	const parts: string[] = [];
 	if (v.status) parts.push(`status:${v.status}`);
-	if (v.type) parts.push(`type:${v.type}`);
+	if (v.method) parts.push(`method:${v.method}`);
 	if (v.workspace_owner) parts.push(`workspace_owner:${v.workspace_owner}`);
 	if (v.organization) parts.push(`organization:${v.organization}`);
 	return parts.join(" ");
@@ -50,7 +51,7 @@ const buildConnectionLogFilterQuery = (
 
 const CONNECTION_LOG_PRESET_FILTERS = [
 	{
-		query: buildConnectionLogFilterQuery({ status: "ongoing", type: "ssh" }),
+		query: buildConnectionLogFilterQuery({ status: "ongoing", method: "ssh" }),
 		name: "Active SSH connections",
 	},
 ] satisfies { name: string; query: string }[];
@@ -61,7 +62,7 @@ type ConnectionLogFilterProps = {
 	menus: {
 		user: UserFilterMenu;
 		status: StatusFilterMenu;
-		type: TypeFilterMenu;
+		method: MethodFilterMenu;
 		// The organization menu is only provided in a multi-org setup.
 		organization?: OrganizationsFilterMenu;
 	};
@@ -74,33 +75,46 @@ export const ConnectionLogFilter: React.FC<ConnectionLogFilterProps> = ({
 }) => {
 	const width = menus.organization ? DEFAULT_USER_FILTER_WIDTH : undefined;
 	return (
-		<Filter
-			learnMoreLink={docs(
-				"/admin/monitoring/connection-logs#how-to-filter-connection-logs",
+		<>
+			{/* Saved links and bookmarks can still carry the deprecated filter. */}
+			{filter.values.type && (
+				<Alert severity="warning" className="mb-4">
+					The <code>type</code> filter is deprecated and will be removed in a
+					future release. Use <code>method</code> and <code>app</code> instead.
+				</Alert>
 			)}
-			presets={CONNECTION_LOG_PRESET_FILTERS}
-			isLoading={menus.user.isInitializing}
-			filter={filter}
-			error={error}
-			options={
-				<>
-					<UserMenu placeholder="All owners" menu={menus.user} width={width} />
-					<StatusMenu menu={menus.status} width={width} />
-					<TypeMenu menu={menus.type} width={width} />
-					{menus.organization && (
-						<OrganizationsMenu menu={menus.organization} width={width} />
-					)}
-				</>
-			}
-			optionsSkeleton={
-				<>
-					<MenuSkeleton />
-					<MenuSkeleton />
-					<MenuSkeleton />
-					{menus.organization && <MenuSkeleton />}
-				</>
-			}
-		/>
+			<Filter
+				learnMoreLink={docs(
+					"/admin/monitoring/connection-logs#how-to-filter-connection-logs",
+				)}
+				presets={CONNECTION_LOG_PRESET_FILTERS}
+				isLoading={menus.user.isInitializing}
+				filter={filter}
+				error={error}
+				options={
+					<>
+						<UserMenu
+							placeholder="All owners"
+							menu={menus.user}
+							width={width}
+						/>
+						<StatusMenu menu={menus.status} width={width} />
+						<MethodMenu menu={menus.method} width={width} />
+						{menus.organization && (
+							<OrganizationsMenu menu={menus.organization} width={width} />
+						)}
+					</>
+				}
+				optionsSkeleton={
+					<>
+						<MenuSkeleton />
+						<MenuSkeleton />
+						<MenuSkeleton />
+						{menus.organization && <MenuSkeleton />}
+					</>
+				}
+			/>
+		</>
 	);
 };
 
@@ -144,39 +158,38 @@ const StatusMenu: React.FC<StatusMenuProps> = ({ menu, width }) => {
 	);
 };
 
-export const useTypeFilterMenu = ({
+export const useMethodFilterMenu = ({
 	value,
 	onChange,
 }: Pick<UseFilterMenuOptions, "value" | "onChange">) => {
-	const typeOptions: SelectFilterOption[] = ConnectionTypes.map((type) => {
-		const label: string = connectionTypeToFriendlyName(type);
-		return {
-			value: type,
-			label,
-		};
-	});
+	const methodOptions: SelectFilterOption[] = ConnectionLogMethods.map(
+		(method) => ({
+			value: method,
+			label: connectionLogMethodLabels[method],
+		}),
+	);
 	return useFilterMenu({
 		onChange,
 		value,
-		id: "connection_type",
+		id: "connection_method",
 		getSelectedOption: async () =>
-			typeOptions.find((option) => option.value === value) ?? null,
-		getOptions: async () => typeOptions,
+			methodOptions.find((option) => option.value === value) ?? null,
+		getOptions: async () => methodOptions,
 	});
 };
 
-type TypeFilterMenu = ReturnType<typeof useTypeFilterMenu>;
+type MethodFilterMenu = ReturnType<typeof useMethodFilterMenu>;
 
-type TypeMenuProps = {
-	menu: TypeFilterMenu;
+type MethodMenuProps = {
+	menu: MethodFilterMenu;
 	width?: number;
 };
 
-const TypeMenu: React.FC<TypeMenuProps> = ({ menu, width }) => {
+const MethodMenu: React.FC<MethodMenuProps> = ({ menu, width }) => {
 	return (
 		<SelectFilter
-			label="Filter by connection type"
-			placeholder="All types"
+			label="Filter by connection method"
+			placeholder="All methods"
 			options={menu.searchOptions}
 			onSelect={menu.selectOption}
 			selectedOption={menu.selectedOption ?? undefined}

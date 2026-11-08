@@ -157,6 +157,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 		agent.display_apps.includes("vscode") ||
 		agent.display_apps.includes("vscode_insiders");
 	const showVSCode = hasVSCodeApp && !browser_only;
+	const copyLogsLabel = "Copy selected logs";
 
 	const hasStartupFeatures = Boolean(agent.logs_length);
 	const runningScriptsCount = agent.scripts.filter(
@@ -440,11 +441,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 					)}
 
 					{!browser_only && agent.display_apps.includes("ssh_helper") && (
-						<AgentSSHButton
-							workspaceName={workspace.name}
-							agentName={agent.name}
-							workspaceOwnerUsername={workspace.owner_name}
-						/>
+						<AgentSSHButton workspace={workspace} agentName={agent.name} />
 					)}
 					{canShowPortForwarding(agent, proxy.preferredWildcardHostname) && (
 						<PortForwardButton
@@ -550,7 +547,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 									connectivityIssues.length === 0 && (
 										<Badge
 											variant="default"
-											size="xs"
+											size="sm"
 											className="ml-1.5"
 											svgSize="sm"
 										>
@@ -565,7 +562,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 								{hasConnectivityIssues && (
 									<Badge
 										variant={hasWarningConnectivityIssues ? "warning" : "info"}
-										size="xs"
+										size="sm"
 										className="ml-1.5"
 									>
 										{hasWarningConnectivityIssues ? (
@@ -630,7 +627,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 															{tab.error && (
 																<Badge
 																	variant="warning"
-																	size="xs"
+																	size="sm"
 																	className="ml-1.5"
 																>
 																	<TriangleAlertIcon />
@@ -683,7 +680,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 																			{tab.error && (
 																				<Badge
 																					variant="warning"
-																					size="xs"
+																					size="sm"
 																					className="ml-1.5"
 																				>
 																					<TriangleAlertIcon />
@@ -720,12 +717,11 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 																) : (
 																	<CopyIcon />
 																)}
+																<span className="sr-only">{copyLogsLabel}</span>
 															</Button>
 														</TooltipTrigger>
 														<TooltipContent>
-															{showCopiedSuccess
-																? "Copied!"
-																: "Copy selected logs"}
+															{showCopiedSuccess ? "Copied!" : copyLogsLabel}
 														</TooltipContent>
 													</Tooltip>
 												</TooltipProvider>

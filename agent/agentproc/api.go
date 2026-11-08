@@ -106,14 +106,15 @@ func (api *API) handleStartProcess(rw http.ResponseWriter, r *http.Request) {
 
 	// Notify git watchers after the process finishes so that
 	// file changes made by the command are visible in the scan.
-	// If a workdir is provided, track it as a path as well.
+	// The directory the process ran in counts as touched, whether
+	// it was requested or defaulted.
 	if api.pathStore != nil {
 		if chatContext, ok := agentchat.FromContext(ctx); ok {
 			allIDs := append([]uuid.UUID{chatContext.ID}, chatContext.AncestorIDs...)
 			go func() {
 				<-proc.done
-				if req.WorkDir != "" {
-					api.pathStore.AddPaths(allIDs, []string{req.WorkDir})
+				if proc.workDir != "" {
+					api.pathStore.AddPaths(allIDs, []string{proc.workDir})
 				} else {
 					api.pathStore.Notify(allIDs)
 				}

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -32,15 +33,15 @@ const (
 // that handles it. Returns nil if no provider matches.
 type ProviderResolver func(ctx context.Context, origin string) gitprovider.Provider
 
-var ErrNoTokenAvailable error = errors.New("no token available")
+var ErrNoTokenAvailable = xerrors.New("no token available")
 
 // ErrStalePullRequest indicates the row's stored PR belongs to a
 // previous branch and the current branch has none.
-var ErrStalePullRequest error = errors.New("stale pull request")
+var ErrStalePullRequest = xerrors.New("stale pull request")
 
 // ErrRateLimitSkipped indicates that a row was skipped because
 // a prior request in the same group hit a rate limit.
-var ErrRateLimitSkipped error = errors.New("skipped due to rate limit")
+var ErrRateLimitSkipped = xerrors.New("skipped due to rate limit")
 
 // TokenResolver obtains the user's git access token for a given
 // remote origin. Should return nil if no token is available, in
@@ -212,7 +213,7 @@ func (r *Refresher) Refresh(
 				if rl := rateLimitErr.Load(); rl != nil {
 					results[idx] = RefreshResult{
 						Request: requests[idx],
-						Error:   fmt.Errorf("%w: %w", ErrRateLimitSkipped, rl),
+						Error:   rateLimitSkippedError(rl),
 					}
 					return
 				}
@@ -234,7 +235,7 @@ func (r *Refresher) Refresh(
 				if rl := rateLimitErr.Load(); rl != nil {
 					results[idx] = RefreshResult{
 						Request: requests[idx],
-						Error:   fmt.Errorf("%w: %w", ErrRateLimitSkipped, rl),
+						Error:   rateLimitSkippedError(rl),
 					}
 					return
 				}
@@ -256,6 +257,13 @@ func (r *Refresher) Refresh(
 
 	wg.Wait()
 	return results, nil
+}
+
+// rateLimitSkippedError reports a row skipped after rl was hit by an
+// earlier request in its group. Callers match both ErrRateLimitSkipped
+// and *gitprovider.RateLimitError, and xerrors wraps only one error.
+func rateLimitSkippedError(rl *gitprovider.RateLimitError) error {
+	return fmt.Errorf("%w: %w", ErrRateLimitSkipped, rl) //nolint:gocritic // xerrors cannot wrap two errors.
 }
 
 // refreshOne processes a single row using an already-resolved
@@ -302,7 +310,7 @@ func (r *Refresher) refreshOne(
 		}
 		if resolved == nil {
 			// No PR exists yet for this branch.
-			return nil, nil
+			return nil, nil //nolint:nilnil // RefreshResult contract: nil Params and nil Error means no PR yet.
 		}
 		ref = *resolved
 		prURL = provider.BuildPullRequestURL(ref)
@@ -331,6 +339,10 @@ func (r *Refresher) refreshOne(
 		if err != nil {
 			return nil, xerrors.Errorf("fetch pull request status: %w", err)
 		}
+	}
+
+	if status.PRNumber < math.MinInt32 || status.PRNumber > math.MaxInt32 {
+		return nil, xerrors.Errorf("pull request number %d overflows int32", status.PRNumber)
 	}
 
 	now := r.clock.Now().UTC()

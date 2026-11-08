@@ -281,12 +281,10 @@ func newMCPClientWithDatabase(t testing.TB) (client *codersdk.Client, rawDB data
 	t.Helper()
 
 	db, pubsub := dbtestutil.NewDB(t)
-	providerKeys := coderdtest.FakeOpenAICompatProviderAPIKeys(t)
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		Database:            db,
-		Pubsub:              pubsub,
-		DeploymentValues:    mcpDeploymentValues(t),
-		ChatProviderAPIKeys: &providerKeys,
+		Database:         db,
+		Pubsub:           pubsub,
+		DeploymentValues: mcpDeploymentValues(t),
 	})
 	return client, db, api.Database
 }

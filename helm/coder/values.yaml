@@ -171,6 +171,12 @@ coder:
     # the container can gain additional privileges, such as escalating to
     # root. It is recommended to leave this setting disabled in production.
     allowPrivilegeEscalation: false
+    # coder.securityContext.capabilities -- Linux capabilities for the coder
+    # container. Unset by default. Namespaces that enforce the Pod Security
+    # Standards "restricted" profile reject the pod unless it drops all
+    # capabilities:
+    # capabilities:
+    #   drop: ["ALL"]
 
   # coder.podSecurityContext -- Pod-level security context settings that apply
   # to all containers in the pod. This is useful for setting volume ownership

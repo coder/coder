@@ -400,7 +400,7 @@ func collectDecls(file *ast.File, packageStrings map[string]map[string]string) d
 					// String literal: const name = "value"
 					decls.strings[name.Name] = strings.Trim(v.Value, `"`)
 				case *ast.BinaryExpr:
-					// Concatenation: const name = prefix + "suffix"
+					// String concatenation: const name = prefix + "suffix"
 					if resolved := resolveBinaryExpr(v, decls); resolved != "" {
 						decls.strings[name.Name] = resolved
 					}

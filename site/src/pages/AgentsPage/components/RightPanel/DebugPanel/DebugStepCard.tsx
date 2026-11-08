@@ -111,11 +111,11 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 
 	return (
 		<Collapsible>
-			<div className="overflow-hidden rounded-lg border border-solid border-border-default/40 bg-surface-secondary/10">
+			<div className="overflow-hidden rounded-lg border border-solid border-border/40 bg-surface-secondary/10">
 				<CollapsibleTrigger asChild>
 					<button
 						type="button"
-						className="group flex w-full items-center gap-2 border-0 bg-transparent px-3 py-2 text-left transition-colors hover:bg-surface-secondary/25"
+						className="group flex w-full items-center gap-2 border-0 bg-transparent px-3 py-2 text-left transition-colors hover:bg-surface-secondary/25 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
 					>
 						<div className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden">
 							<span className="shrink-0 text-xs font-medium text-content-secondary">
@@ -137,7 +137,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 						</div>
 						<div className="flex shrink-0 items-center gap-1.5">
 							<Badge
-								size="xs"
+								size="sm"
 								variant={getStatusBadgeVariant(step.status)}
 								className="shrink-0"
 							>
@@ -153,7 +153,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 					</button>
 				</CollapsibleTrigger>
 
-				<CollapsibleContent className="space-y-3 border-0 border-t border-solid border-border-default/30 bg-surface-primary/10 px-3 pb-3 pt-3">
+				<CollapsibleContent className="space-y-3 border-0 border-t border-solid border-border/30 bg-surface-primary/10 px-3 pb-3 pt-3">
 					{/* ── Metadata bar ────────────────────────────── */}
 					<div className="flex flex-wrap gap-x-3 gap-y-1 text-xs leading-5 text-content-secondary">
 						{model ? <MetadataItem label="Model" value={model} /> : null}
@@ -230,7 +230,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 							{request.tools.map((tool) => (
 								<div
 									key={tool.name}
-									className="rounded-md border border-solid border-border-default/40 bg-surface-secondary/10 p-2.5"
+									className="rounded-md border border-solid border-border/40 bg-surface-secondary/10 p-2.5"
 								>
 									<ToolBadge label={tool.name} />
 									{tool.description ? (

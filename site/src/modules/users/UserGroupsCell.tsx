@@ -30,7 +30,7 @@ export const UserGroupsCell: React.FC<GroupsCellProps> = ({ userGroups }) => {
 									: `View ${userGroups.length} group${userGroups.length !== 1 ? "s" : ""}`
 							}
 						>
-							<div className="flex flex-row gap-2 items-center">
+							<div className="flex gap-2 items-center">
 								<UsersIcon
 									className={cn([
 										"size-4 opacity-50",

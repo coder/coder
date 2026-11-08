@@ -1,6 +1,7 @@
 package chatstate_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/google/uuid"
@@ -128,7 +129,7 @@ func TestSendMessageInterruptUnownedRunningChat(t *testing.T) {
 		require.False(t, chat.WorkerID.Valid, "the promoted turn must still go through admission")
 	})
 
-	t.Run("QueuedHeadIsPromotedFirst", func(t *testing.T) {
+	t.Run("MessageIsPromotedAheadOfQueue", func(t *testing.T) {
 		t.Parallel()
 		f := newTestFixture(t)
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -139,10 +140,11 @@ func TestSendMessageInterruptUnownedRunningChat(t *testing.T) {
 
 		result := send(t, f, m, "second")
 
-		require.NotNil(t, result.QueuedMessage, "the new message stays queued behind the promoted head")
+		require.Nil(t, result.QueuedMessage, "the message is promoted ahead of the queued message")
 		require.NotEmpty(t, result.InsertedMessages)
-		assertChatMessageText(t, result.InsertedMessages[len(result.InsertedMessages)-1], "first")
-		requireQueuedMessageDeleted(ctx, t, f, created.Chat.ID, first.QueuedMessage.ID)
+		assertChatMessageText(t, result.InsertedMessages[len(result.InsertedMessages)-1], "second")
+		require.Equal(t, []int64{first.QueuedMessage.ID}, queuedIDsByPosition(ctx, t, f, created.Chat.ID),
+			"the earlier queued message stays queued")
 		require.Equal(t, chatstate.StateR1, f.classify(ctx, t, created.Chat.ID))
 		chat := f.readChat(ctx, t, created.Chat.ID)
 		require.False(t, chat.WorkerID.Valid)
@@ -358,5 +360,66 @@ func TestSendMessageInterruptUnownedInterruptingChat(t *testing.T) {
 		require.Empty(t, result.InsertedMessages)
 		require.Equal(t, chatstate.StateI1, f.classify(ctx, t, created.Chat.ID))
 		require.True(t, f.readChat(ctx, t, created.Chat.ID).WorkerID.Valid)
+	})
+}
+
+// Finishing an unowned interruption inline must not promote a queue
+// head under edit: the chat pauses with its queue intact. An interrupt
+// send runs ahead of the edited head instead; see
+// TestEditing_UnownedInterruptRunsAheadOfEditedHead.
+func TestUnownedInterruptBehindEditedHead(t *testing.T) {
+	t.Parallel()
+
+	requirePausedWithQueue := func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, before []int64, wantQueued int) {
+		t.Helper()
+		require.Equal(t, chatstate.StateP, f.classify(ctx, t, seeded.chatID))
+		require.False(t, f.readChat(ctx, t, seeded.chatID).WorkerID.Valid)
+		require.Len(t, historyMessageIDs(ctx, t, f, seeded.chatID), len(before), "the edited head stays queued")
+		queued := queuedIDsByPosition(ctx, t, f, seeded.chatID)
+		require.Len(t, queued, wantQueued)
+		require.Equal(t, seeded.editingQueuedID, queued[0])
+	}
+
+	t.Run("InterruptRunningChat", func(t *testing.T) {
+		t.Parallel()
+		f := newTestFixture(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		seeded := seedBlockedHead(t, f, chatstate.StateR1, 0)
+		require.Equal(t, chatstate.StateR1P, f.classify(ctx, t, seeded.chatID))
+		m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+		before := historyMessageIDs(ctx, t, f, seeded.chatID)
+
+		var result chatstate.InterruptResult
+		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			var err error
+			result, err = tx.Interrupt(chatstate.InterruptInput{Reason: "stop"})
+			return err
+		}))
+
+		requirePausedWithQueue(ctx, t, f, seeded, before, 1)
+		require.True(t, result.FinishedInterruption)
+		require.True(t, result.PromotedQueuedAt.IsZero())
+	})
+
+	t.Run("InterruptInterruptingChat", func(t *testing.T) {
+		t.Parallel()
+		f := newTestFixture(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		seeded := seedBlockedHead(t, f, chatstate.StateR1, 0)
+		m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
+		interruptAndAbandon(t, f, m, seeded.chatID)
+		require.Equal(t, chatstate.StateI1P, f.classify(ctx, t, seeded.chatID))
+		before := historyMessageIDs(ctx, t, f, seeded.chatID)
+
+		var result chatstate.InterruptResult
+		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			var err error
+			result, err = tx.Interrupt(chatstate.InterruptInput{Reason: "stop"})
+			return err
+		}))
+
+		requirePausedWithQueue(ctx, t, f, seeded, before, 1)
+		require.True(t, result.FinishedInterruption)
+		require.True(t, result.PromotedQueuedAt.IsZero())
 	})
 }

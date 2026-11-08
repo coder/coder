@@ -7,8 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -22,10 +20,6 @@ import (
 	"github.com/coder/quartz"
 )
 
-// DefaultStaleThreshold is the fallback stale timeout for debug rows
-// when no caller-provided value is supplied.
-const DefaultStaleThreshold = 5 * time.Minute
-
 // Service persists chat debug rows and fans out lightweight change events.
 type Service struct {
 	db           database.Store
@@ -33,17 +27,6 @@ type Service struct {
 	pubsub       pubsub.Pubsub
 	clock        quartz.Clock
 	alwaysEnable bool
-	// staleAfterNanos stores the stale threshold as nanoseconds in an
-	// atomic.Int64 so SetStaleAfter and FinalizeStale can be called
-	// from concurrent goroutines without a data race.
-	staleAfterNanos atomic.Int64
-
-	// thresholdMu protects thresholdChanged.
-	thresholdMu sync.Mutex
-	// thresholdChanged is closed by SetStaleAfter to wake heartbeat
-	// goroutines so they can re-read the (possibly shorter) interval
-	// immediately instead of waiting for the old ticker to fire.
-	thresholdChanged chan struct{}
 }
 
 // ServiceOption configures optional Service behavior.
@@ -55,17 +38,6 @@ type ServiceOption func(*Service)
 func WithAlwaysEnable(always bool) ServiceOption {
 	return func(s *Service) {
 		s.alwaysEnable = always
-	}
-}
-
-// WithClock overrides the default real clock. Tests inject
-// quartz.NewMock(t) to control time-dependent behavior such as
-// heartbeat tickers and FinalizeStale timestamps.
-func WithClock(c quartz.Clock) ServiceOption {
-	return func(s *Service) {
-		if c != nil {
-			s.clock = c
-		}
 	}
 }
 
@@ -101,7 +73,6 @@ type UpdateRunParams struct {
 type CreateStepParams struct {
 	RunID               uuid.UUID
 	ChatID              uuid.UUID
-	StepNumber          int32
 	Operation           Operation
 	Status              Status
 	HistoryTipMessageID int64
@@ -136,65 +107,15 @@ func NewService(db database.Store, log slog.Logger, ps pubsub.Pubsub, opts ...Se
 	}
 
 	s := &Service{
-		db:               db,
-		log:              log,
-		pubsub:           ps,
-		clock:            quartz.NewReal(),
-		thresholdChanged: make(chan struct{}),
+		db:     db,
+		log:    log,
+		pubsub: ps,
+		clock:  quartz.NewReal(),
 	}
-	s.staleAfterNanos.Store(DefaultStaleThreshold.Nanoseconds())
 	for _, opt := range opts {
 		opt(s)
 	}
 	return s
-}
-
-// SetStaleAfter overrides the in-flight stale threshold used when
-// finalizing abandoned debug rows. Zero or negative durations are
-// ignored, leaving the current threshold (initial or previously
-// overridden) unchanged. Active heartbeat goroutines are woken so
-// they can re-read the (possibly shorter) interval immediately.
-func (s *Service) SetStaleAfter(staleAfter time.Duration) {
-	if s == nil || staleAfter <= 0 {
-		return
-	}
-	s.staleAfterNanos.Store(staleAfter.Nanoseconds())
-
-	// Wake all heartbeat goroutines by closing the current channel
-	// and replacing it with a fresh one for the next update.
-	s.thresholdMu.Lock()
-	close(s.thresholdChanged)
-	s.thresholdChanged = make(chan struct{})
-	s.thresholdMu.Unlock()
-}
-
-// thresholdChan returns the current threshold-change notification
-// channel. Heartbeat goroutines select on this to detect runtime
-// stale-threshold updates.
-func (s *Service) thresholdChan() <-chan struct{} {
-	s.thresholdMu.Lock()
-	defer s.thresholdMu.Unlock()
-	return s.thresholdChanged
-}
-
-// staleThreshold returns the current stale timeout.
-func (s *Service) staleThreshold() time.Duration {
-	ns := s.staleAfterNanos.Load()
-	d := time.Duration(ns)
-	if d <= 0 {
-		return DefaultStaleThreshold
-	}
-	return d
-}
-
-// heartbeatInterval returns a safe ticker interval for stream heartbeats.
-// It is half the stale threshold so at least one touch lands before the
-// stale sweep considers the row abandoned.  The result is clamped to a
-// minimum of 1 ms to prevent panics from time.NewTicker(0) with
-// pathologically small thresholds, while still staying well below any
-// practical stale timeout.
-func (s *Service) heartbeatInterval() time.Duration {
-	return max(s.staleThreshold()/2, time.Millisecond)
 }
 
 func chatdContext(ctx context.Context) context.Context {
@@ -289,6 +210,71 @@ func (s *Service) CreateRun(
 	return run, nil
 }
 
+// createRunTimeout limits how long best-effort debug persistence can delay
+// the call being recorded.
+const createRunTimeout = 5 * time.Second
+
+// BeginRun creates a run independently of ctx's cancellation, bounded by
+// createRunTimeout. Insert failures are logged and reported as false.
+func (s *Service) BeginRun(ctx context.Context, params CreateRunParams) (RunContext, bool) {
+	createCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), createRunTimeout)
+	defer cancel()
+	run, err := s.CreateRun(createCtx, params)
+	if err != nil {
+		s.log.Warn(ctx, "failed to create debug run",
+			slog.F("chat_id", params.ChatID),
+			slog.F("run_kind", params.Kind),
+			slog.F("provider", params.Provider),
+			slog.F("model", params.Model),
+			slog.Error(err),
+		)
+		return RunContext{}, false
+	}
+	return RunContext{
+		RunID:               run.ID,
+		ChatID:              params.ChatID,
+		RootChatID:          params.RootChatID,
+		ParentChatID:        params.ParentChatID,
+		ModelConfigID:       params.ModelConfigID,
+		TriggerMessageID:    params.TriggerMessageID,
+		HistoryTipMessageID: params.HistoryTipMessageID,
+		Provider:            params.Provider,
+		Model:               params.Model,
+	}, true
+}
+
+// StartRun returns ctx carrying the run and a finalizer for the call's error.
+// Finalization is detached from ctx's cancellation. If creation fails, it
+// returns the original ctx and a no-op finalizer.
+func (s *Service) StartRun(
+	ctx context.Context,
+	params CreateRunParams,
+	seedSummary map[string]any,
+	finalizeTimeout time.Duration,
+) (context.Context, func(error)) {
+	params.Summary = seedSummary
+	runContext, ok := s.BeginRun(ctx, params)
+	if !ok {
+		return ctx, func(error) {}
+	}
+	return ContextWithRun(ctx, &runContext), func(runErr error) {
+		if err := s.FinalizeRun(ctx, FinalizeRunParams{
+			RunID:       runContext.RunID,
+			ChatID:      runContext.ChatID,
+			Status:      ClassifyError(runErr),
+			SeedSummary: seedSummary,
+			Timeout:     finalizeTimeout,
+		}); err != nil {
+			s.log.Warn(ctx, "failed to finalize debug run",
+				slog.F("chat_id", runContext.ChatID),
+				slog.F("run_kind", params.Kind),
+				slog.F("run_id", runContext.RunID),
+				slog.Error(err),
+			)
+		}
+	}
+}
+
 // UpdateRun updates an existing debug run and emits a run update event.
 // When a terminal status is set without an explicit FinishedAt, the
 // service auto-fills the timestamp so the row is immediately visible
@@ -331,7 +317,7 @@ func (s *Service) UpdateRun(
 // errRunFinalized is returned by CreateStep when the parent run has
 // already reached a terminal state (finished_at IS NOT NULL). This
 // prevents delayed retries from appending in-progress steps to runs
-// that FinalizeStale already marked as interrupted.
+// that were already finalized.
 var errRunFinalized = xerrors.New("parent run is already finalized")
 
 // errRunNotFound is returned by CreateStep when the parent run cannot
@@ -345,7 +331,7 @@ var errRunNotFound = xerrors.New("parent run not found")
 // or errRunNotFound if the run_id/chat_id pair does not match an
 // existing run. The finalization guard is enforced atomically by the
 // INSERT's CTE, which issues an UPDATE on the parent run (taking a
-// row lock). This prevents concurrent FinalizeStale from setting
+// row lock). This prevents a concurrent finalization from setting
 // finished_at between the check and the INSERT.
 func (s *Service) CreateStep(
 	ctx context.Context,
@@ -354,7 +340,7 @@ func (s *Service) CreateStep(
 	now := s.clock.Now()
 	insert := database.InsertChatDebugStepParams{
 		RunID:               params.RunID,
-		StepNumber:          params.StepNumber,
+		StepNumber:          0, // Zero lets the database number the step.
 		Operation:           string(params.Operation),
 		Status:              string(params.Status),
 		HistoryTipMessageID: nullInt64(params.HistoryTipMessageID),
@@ -371,52 +357,34 @@ func (s *Service) CreateStep(
 		ChatID:              params.ChatID,
 	}
 
-	// Cap retry attempts to prevent infinite loops under
-	// pathological concurrency. Each iteration performs two DB
-	// round-trips (insert + list), so 10 retries is generous.
-	const maxCreateStepRetries = 10
-
-	for range maxCreateStepRetries {
-		if err := ctx.Err(); err != nil {
-			return database.ChatDebugStep{}, err
+	// The insert numbers the step from its statement snapshot, which it
+	// takes before it waits on the run row. Holding the run's step lock
+	// from an earlier statement makes that snapshot include every step
+	// that the previous holder committed.
+	var step database.ChatDebugStep
+	err := s.db.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(chatdContext(ctx), database.LockIDChatDebugRunSteps(params.RunID)); err != nil {
+			return xerrors.Errorf("lock debug run steps: %w", err)
 		}
-
-		step, err := s.db.InsertChatDebugStep(chatdContext(ctx), insert)
-		if err == nil {
-			// The INSERT CTE atomically bumps the parent run's
-			// updated_at, so no separate touch call is needed.
-			s.publishEvent(ctx, step.ChatID, EventKindStepUpdate, step.RunID, step.ID)
-			return step, nil
-		}
-		// The INSERT's locked_run CTE filters on id, chat_id, and
-		// finished_at IS NULL, so sql.ErrNoRows can mean "run not
-		// found", "chat_id mismatch", or "already finalized." Look
-		// the run up to disambiguate instead of conflating
-		// caller-side data bugs with the legitimate terminal case.
-		if errors.Is(err, sql.ErrNoRows) {
-			return database.ChatDebugStep{}, s.classifyMissingRun(ctx, params)
-		}
-		if !database.IsUniqueViolation(err, database.UniqueIndexChatDebugStepsRunStep) {
-			return database.ChatDebugStep{}, err
-		}
-
-		steps, listErr := s.db.GetChatDebugStepsByRunID(chatdContext(ctx), params.RunID)
-		if listErr != nil {
-			return database.ChatDebugStep{}, listErr
-		}
-		nextStepNumber := insert.StepNumber + 1
-		for _, existing := range steps {
-			if existing.StepNumber >= nextStepNumber {
-				nextStepNumber = existing.StepNumber + 1
-			}
-		}
-		insert.StepNumber = nextStepNumber
+		var err error
+		step, err = tx.InsertChatDebugStep(chatdContext(ctx), insert)
+		return err
+	}, nil)
+	// The INSERT's locked_run CTE filters on id, chat_id, and
+	// finished_at IS NULL, so sql.ErrNoRows can mean "run not
+	// found", "chat_id mismatch", or "already finalized." Look
+	// the run up to disambiguate instead of conflating
+	// caller-side data bugs with the legitimate terminal case.
+	if errors.Is(err, sql.ErrNoRows) {
+		return database.ChatDebugStep{}, s.classifyMissingRun(ctx, params)
 	}
-
-	return database.ChatDebugStep{}, xerrors.Errorf(
-		"chatdebug: failed to create step after %d retries (run %s)",
-		maxCreateStepRetries, params.RunID,
-	)
+	if err != nil {
+		return database.ChatDebugStep{}, err
+	}
+	// The INSERT CTE atomically bumps the parent run's
+	// updated_at, so no separate touch call is needed.
+	s.publishEvent(ctx, step.ChatID, EventKindStepUpdate, step.RunID, step.ID)
+	return step, nil
 }
 
 // classifyMissingRun disambiguates the sql.ErrNoRows returned by
@@ -455,8 +423,8 @@ func (s *Service) classifyMissingRun(
 
 // UpdateStep updates an existing debug step and emits a step update event.
 // When a terminal status is set without an explicit FinishedAt, the
-// service auto-fills the timestamp so the stale sweep does not leave
-// terminal rows with finished_at = NULL.
+// service auto-fills the timestamp so terminal rows do not keep
+// finished_at = NULL.
 func (s *Service) UpdateStep(
 	ctx context.Context,
 	params UpdateStepParams,
@@ -486,86 +454,6 @@ func (s *Service) UpdateStep(
 
 	s.publishEvent(ctx, step.ChatID, EventKindStepUpdate, step.RunID, step.ID)
 	return step, nil
-}
-
-// TouchStep bumps the step's and its parent run's updated_at timestamps
-// without changing any other fields. This prevents long-running operations
-// (e.g. streaming) from being prematurely swept by FinalizeStale, which
-// first marks runs stale by chat_debug_runs.updated_at and then cascades
-// to steps whose run_id was just finalized.
-func (s *Service) TouchStep(
-	ctx context.Context,
-	stepID uuid.UUID,
-	runID uuid.UUID,
-	chatID uuid.UUID,
-) error {
-	// Atomically bump both the step and its parent run so
-	// FinalizeStale cannot interleave between the two touches.
-	return s.db.TouchChatDebugStepAndRun(chatdContext(ctx),
-		database.TouchChatDebugStepAndRunParams{
-			Now:    s.clock.Now(),
-			StepID: stepID,
-			RunID:  runID,
-			ChatID: chatID,
-		})
-}
-
-// TouchRun bumps the run's updated_at timestamp without changing any
-// other fields. Runner-owned debug turns use this while no model step is
-// active, such as requires-action waits. It is a no-op when the service
-// is nil or either ID is uuid.Nil, since debug tracking is optional and
-// callers may not have an open run.
-func (s *Service) TouchRun(ctx context.Context, runID uuid.UUID, chatID uuid.UUID) error {
-	if s == nil || runID == uuid.Nil || chatID == uuid.Nil {
-		return nil
-	}
-	return s.db.TouchChatDebugRunUpdatedAt(chatdContext(ctx),
-		database.TouchChatDebugRunUpdatedAtParams{
-			Now:    s.clock.Now(),
-			ID:     runID,
-			ChatID: chatID,
-		})
-}
-
-// LaunchRunHeartbeat starts a goroutine that periodically touches an
-// open run until done is closed or ctx is canceled. It is a no-op when
-// the service is nil, either ID is uuid.Nil, or done is nil, since debug
-// tracking is optional and callers may not have an open run.
-func (s *Service) LaunchRunHeartbeat(ctx context.Context, runID uuid.UUID, chatID uuid.UUID, done <-chan struct{}) {
-	if s == nil || runID == uuid.Nil || chatID == uuid.Nil || done == nil {
-		return
-	}
-	go func() {
-		thresholdCh := s.thresholdChan()
-		interval := s.heartbeatInterval()
-		ticker := s.clock.NewTicker(interval, "chatdebug", "run-heartbeat")
-		defer ticker.Stop()
-		maybeResetTicker := func() {
-			if newInterval := s.heartbeatInterval(); newInterval != interval {
-				interval = newInterval
-				ticker.Reset(interval, "chatdebug", "run-heartbeat")
-			}
-		}
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-done:
-				return
-			case <-thresholdCh:
-				thresholdCh = s.thresholdChan()
-				maybeResetTicker()
-			case <-ticker.C:
-				if err := s.TouchRun(ctx, runID, chatID); err != nil {
-					s.log.Debug(ctx, "run heartbeat touch failed",
-						slog.Error(err),
-						slog.F("run_id", runID),
-					)
-				}
-				maybeResetTicker()
-			}
-		}
-	}()
 }
 
 // DeleteByChatID deletes debug data for a chat and emits a delete event.
@@ -620,28 +508,6 @@ func (s *Service) DeleteAfterMessageID(
 	return deleted, nil
 }
 
-// FinalizeStale finalizes stale in-flight debug rows and emits a broadcast.
-func (s *Service) FinalizeStale(
-	ctx context.Context,
-) (database.FinalizeStaleChatDebugRowsRow, error) {
-	now := s.clock.Now()
-	result, err := s.db.FinalizeStaleChatDebugRows(
-		chatdContext(ctx),
-		database.FinalizeStaleChatDebugRowsParams{
-			Now:           now,
-			UpdatedBefore: now.Add(-s.staleThreshold()),
-		},
-	)
-	if err != nil {
-		return database.FinalizeStaleChatDebugRowsRow{}, err
-	}
-
-	if result.RunsFinalized > 0 || result.StepsFinalized > 0 {
-		s.publishEvent(ctx, uuid.Nil, EventKindFinalize, uuid.Nil, uuid.Nil)
-	}
-	return result, nil
-}
-
 // FinalizeRunParams bundles the arguments for FinalizeRun.
 type FinalizeRunParams struct {
 	RunID       uuid.UUID
@@ -652,12 +518,11 @@ type FinalizeRunParams struct {
 	Timeout time.Duration
 }
 
-// FinalizeRun aggregates the run summary, updates the run status, and
-// cleans up the step counter. It detaches from the parent context's
-// cancellation so finalization succeeds even when the request context
-// is already done. Errors are returned but are always safe to ignore;
-// callers that treat debug instrumentation as best-effort can discard
-// them.
+// FinalizeRun aggregates the run summary and updates the run status.
+// It detaches from the parent context's cancellation so finalization
+// succeeds even when the request context is already done. Errors are
+// returned but are always safe to ignore; callers that treat debug
+// instrumentation as best-effort can discard them.
 func (s *Service) FinalizeRun(ctx context.Context, p FinalizeRunParams) error {
 	timeout := p.Timeout
 	if timeout <= 0 {
@@ -692,10 +557,8 @@ func (s *Service) FinalizeRun(ctx context.Context, p FinalizeRunParams) error {
 		Summary:    finalSummary,
 		FinishedAt: s.clock.Now(),
 	}); err != nil {
-		CleanupStepCounter(p.RunID)
 		return xerrors.Errorf("update debug run: %w", err)
 	}
-	CleanupStepCounter(p.RunID)
 	return nil
 }
 

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -72,23 +73,30 @@ func (r *RootCmd) schedules() *serpent.Command {
 	return scheduleCmd
 }
 
+// newScheduleFormatter returns the output formatter shared by "schedule
+// show", "schedule start", "schedule stop", and "schedule extend" so their
+// table and JSON output (and -c/--column selection) are interchangeable.
+func newScheduleFormatter() *cliui.OutputFormatter {
+	return cliui.NewOutputFormatter(
+		cliui.TableFormat(
+			[]scheduleListRow{},
+			[]string{
+				"workspace",
+				"starts at",
+				"starts next",
+				"stops after",
+				"stops next",
+			},
+		),
+		cliui.JSONFormat(),
+	)
+}
+
 // scheduleShow() is just a wrapper for list() with some different defaults.
 func (r *RootCmd) scheduleShow() *serpent.Command {
 	var (
 		filter    cliui.WorkspaceFilter
-		formatter = cliui.NewOutputFormatter(
-			cliui.TableFormat(
-				[]scheduleListRow{},
-				[]string{
-					"workspace",
-					"starts at",
-					"starts next",
-					"stops after",
-					"stops next",
-				},
-			),
-			cliui.JSONFormat(),
-		)
+		formatter = newScheduleFormatter()
 	)
 	showCmd := &serpent.Command{
 		Use:   "show <workspace | --search <query> | --all>",
@@ -140,6 +148,7 @@ func (r *RootCmd) scheduleShow() *serpent.Command {
 }
 
 func (r *RootCmd) scheduleStart() *serpent.Command {
+	formatter := newScheduleFormatter()
 	cmd := &serpent.Command{
 		Use: "start <workspace-name> { <start-time> [day-of-week] [location] | manual }",
 		Long: scheduleStartDescriptionLong + "\n" + FormatExamples(
@@ -206,15 +215,16 @@ func (r *RootCmd) scheduleStart() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			return displaySchedule(updated, inv.Stdout)
+			return displaySchedule(inv.Context(), formatter, updated, inv.Stdout)
 		},
 	}
-
+	formatter.AttachOptions(&cmd.Options)
 	return cmd
 }
 
 func (r *RootCmd) scheduleStop() *serpent.Command {
-	return &serpent.Command{
+	formatter := newScheduleFormatter()
+	cmd := &serpent.Command{
 		Use: "stop <workspace-name> { <duration> | manual }",
 		Long: scheduleStopDescriptionLong + "\n" + FormatExamples(
 			Example{
@@ -261,12 +271,15 @@ func (r *RootCmd) scheduleStop() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			return displaySchedule(updated, inv.Stdout)
+			return displaySchedule(inv.Context(), formatter, updated, inv.Stdout)
 		},
 	}
+	formatter.AttachOptions(&cmd.Options)
+	return cmd
 }
 
 func (r *RootCmd) scheduleExtend() *serpent.Command {
+	formatter := newScheduleFormatter()
 	extendCmd := &serpent.Command{
 		Use:     "extend <workspace-name> <duration from now>",
 		Aliases: []string{"override-stop"},
@@ -325,17 +338,16 @@ func (r *RootCmd) scheduleExtend() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			return displaySchedule(updated, inv.Stdout)
+			return displaySchedule(inv.Context(), formatter, updated, inv.Stdout)
 		},
 	}
+	formatter.AttachOptions(&extendCmd.Options)
 	return extendCmd
 }
 
-func displaySchedule(ws codersdk.Workspace, out io.Writer) error {
-	rows := []WorkspaceListRow{WorkspaceListRowFromWorkspace(time.Now(), ws)}
-	rendered, err := cliui.DisplayTable(rows, "workspace", []string{
-		"workspace", "starts at", "starts next", "stops after", "stops next",
-	})
+func displaySchedule(ctx context.Context, formatter *cliui.OutputFormatter, ws codersdk.Workspace, out io.Writer) error {
+	rows := []scheduleListRow{scheduleListRowFromWorkspace(time.Now(), ws)}
+	rendered, err := formatter.Format(ctx, rows)
 	if err != nil {
 		return err
 	}

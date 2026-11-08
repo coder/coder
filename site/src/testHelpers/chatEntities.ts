@@ -1,9 +1,11 @@
 import type {
+	AdvisorConfig,
 	Chat,
-	ChatAutomation,
+	ChatAttachment,
 	ChatContext,
 	ChatContextResource,
 	ChatCost,
+	ChatDiffStatus,
 	ChatFileMetadata,
 	ChatMessage,
 	ChatQueuedMessage,
@@ -99,10 +101,91 @@ export const MockChatContextClean: ChatContext = {
 	resources: MockChatContextResources,
 };
 
+export const MockChatContextResourceFailures: ChatContext = {
+	...MockChatContextClean,
+	resources: [
+		{
+			source: "/home/coder/AGENTS.md",
+			kind: "instruction_file",
+			status: "unreadable",
+			size_bytes: 0,
+			error: "Permission denied reading AGENTS.md.",
+		},
+		{
+			source: "/home/coder/skills/review",
+			kind: "skill",
+			status: "invalid",
+			size_bytes: 0,
+			error: "Skill is missing a description.",
+		},
+		{
+			source: "/home/coder/.mcp.json",
+			kind: "mcp_config",
+			status: "invalid",
+			size_bytes: 0,
+			error: "Invalid MCP configuration.",
+		},
+		{
+			source: "storybook",
+			kind: "mcp_server",
+			status: "unreadable",
+			size_bytes: 0,
+			error: "Failed to connect to MCP server.",
+		},
+		{
+			source: "codex",
+			kind: "acp_harness",
+			status: "unreadable",
+			size_bytes: 0,
+			error: "Unable to start coding agent.",
+		},
+	],
+};
+
 export const MockChatContextDirty: ChatContext = {
 	dirty: true,
 	dirty_since: "2024-01-02T00:00:00Z",
 	resources: MockChatContextResources,
+};
+
+export const MockChatContextACPHarnesses: ChatContext = {
+	dirty: false,
+	resources: [
+		{
+			source: "claude-code",
+			source_path: "/home/coder/.coder/acp",
+			kind: "acp_harness",
+			size_bytes: 120,
+			status: "ok",
+		},
+		{
+			source: "codex",
+			source_path: "/home/coder/.coder/acp",
+			kind: "acp_harness",
+			size_bytes: 96,
+			status: "ok",
+		},
+	],
+};
+
+export const MockChatContextACPHarnessIssue: ChatContext = {
+	dirty: false,
+	resources: [
+		...(MockChatContextACPHarnesses.resources ?? []),
+		{
+			source: "broken",
+			kind: "acp_harness",
+			size_bytes: 0,
+			status: "invalid",
+			error: "cannot start harness",
+		},
+	],
+};
+
+export const MockAdvisorConfig: AdvisorConfig = {
+	enabled: true,
+	max_uses_per_run: 5,
+	max_output_tokens: 2048,
 };
 
 export const MockMCPServerConfig: MCPServerConfig = {
@@ -149,6 +232,18 @@ export const MockChatFileMetadata: ChatFileMetadata = {
 	created_at: MOCK_TIMESTAMP,
 };
 
+export const MockChatAttachment: ChatAttachment = {
+	message_id: MockChatMessage.id,
+	part_index: 0,
+	role: "user",
+	file: {
+		type: "file",
+		media_type: MockChatFileMetadata.mime_type,
+		name: MockChatFileMetadata.name,
+		file_id: MockChatFileMetadata.id,
+	},
+};
+
 export const MockChatCompactionMessage: ChatMessage = {
 	...MockChatMessage,
 	id: 3,
@@ -176,33 +271,24 @@ export const MockChatQueuedMessage: ChatQueuedMessage = {
 	created_at: MOCK_TIMESTAMP,
 };
 
-export const MockChatAutomation: ChatAutomation = {
-	id: "7f1c2b9e-4d3a-4c1f-9b2e-5a6d7e8f9a0b",
-	organization_id: "test-org-id",
-	owner_id: MockUserOwner.id,
-	name: "CI heartbeat",
-	kind: "schedule",
-	enabled: true,
-	target_mode: "existing_chat",
-	target_chat_id: "chat-1",
-	when_busy: "queue",
-	webhook_secret_version: 0,
-	prompt: "Check the nightly build.",
-	schedule_cron: "0 9 * * *",
-	schedule_time_zone: "UTC",
-	next_run_times: [],
-	created_at: MOCK_TIMESTAMP,
-	updated_at: MOCK_TIMESTAMP,
+// Spread for variants, such as a merged PR or a branch without a PR
+// yet.
+export const MockChatDiffStatus: ChatDiffStatus = {
+	chat_id: MockChat.id,
+	remote_origin: "https://github.com/coder/coder",
+	git_branch: "feat/example",
+	url: "https://github.com/coder/coder/pull/123",
+	pr_number: 123,
+	pull_request_state: "open",
+	pull_request_title: "fix: resolve race condition",
+	pull_request_draft: false,
+	changes_requested: false,
+	additions: 1,
+	deletions: 0,
+	changed_files: 1,
 };
 
-export const MockWebhookChatAutomation: ChatAutomation = {
-	...MockChatAutomation,
-	id: "2b8e4f6a-1c3d-4e5f-8a9b-0c1d2e3f4a5b",
-	name: "Deploy notifier",
-	kind: "webhook",
-	webhook_use: "multi",
-	webhook_secret_version: 1,
-	prompt: "Summarize the deploy event.",
-	schedule_cron: undefined,
-	schedule_time_zone: undefined,
+export const MockChatQueuedMessageUnderEdit: ChatQueuedMessage = {
+	...MockChatQueuedMessage,
+	editing_since: MOCK_TIMESTAMP,
 };

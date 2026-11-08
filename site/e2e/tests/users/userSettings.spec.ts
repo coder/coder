@@ -39,7 +39,7 @@ test("adjust user theme preference", async ({ page }) => {
 		page.getByRole("combobox", { name: /theme mode/i }),
 	).toContainText("Single theme");
 
-	const singleThemeGroup = page.getByRole("group", { name: "Theme" });
+	const singleThemeGroup = page.getByRole("radiogroup", { name: "Theme" });
 	await expect(singleThemeGroup).toBeVisible();
 	await singleThemeGroup.getByText("Light default", { exact: true }).click();
 

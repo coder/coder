@@ -10,7 +10,8 @@ import {
 export const chatProjectsKey = ["chat-projects"] as const;
 
 /**
- * Lists the current user's chat projects across all organizations.
+ * Lists chat projects the current user owns or that are shared with them,
+ * across all organizations.
  * @public
  */
 export const chatProjects = () =>
@@ -81,4 +82,114 @@ export const deleteChatProject = (queryClient: QueryClient) =>
 						queryKey.length === chatEntitiesFamilyKey.length + 1,
 				}),
 			]),
+	});
+
+export const chatProjectInstructionsKey = (projectId: string) =>
+	[...chatProjectsKey, projectId, "instructions"] as const;
+
+export const chatProjectInstructions = (project: TypesGen.ChatProject) =>
+	queryOptions({
+		queryKey: chatProjectInstructionsKey(project.id),
+		queryFn: () =>
+			API.experimental.getChatProjectInstructions(
+				project.organization_id,
+				project.id,
+			),
+		// Instructions are shared by every editor of the project, so refresh
+		// them when the tab regains focus to avoid editing stale text.
+		refetchOnWindowFocus: true,
+	});
+
+export const chatProjectACLKey = (projectId: string) =>
+	[...chatProjectsKey, projectId, "acl"] as const;
+
+/** Lists a project's owner and the users and groups it is shared with. */
+export const chatProjectACL = (project: TypesGen.ChatProject) =>
+	queryOptions({
+		queryKey: chatProjectACLKey(project.id),
+		queryFn: () =>
+			API.experimental.getChatProjectACL(project.organization_id, project.id),
+	});
+
+type SetChatProjectRoleVariables = {
+	project: TypesGen.ChatProject;
+	principal: { readonly kind: "user" | "group"; readonly id: string };
+	role: TypesGen.ChatProjectRole;
+};
+
+/** Sets a user's or group's project role; an empty role removes access. */
+export const setChatProjectRole = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: ({ project, principal, role }: SetChatProjectRoleVariables) =>
+			API.experimental.updateChatProjectACL(
+				project.organization_id,
+				project.id,
+				{
+					[principal.kind === "group" ? "group_roles" : "user_roles"]: {
+						[principal.id]: role,
+					},
+				},
+			),
+		// Also refresh the project: a change or a 403 can revoke the viewer's admin.
+		onSettled: (_data, _error, { project }) =>
+			Promise.all([
+				queryClient.invalidateQueries({
+					queryKey: chatProjectsKey,
+					exact: true,
+				}),
+				queryClient.invalidateQueries({
+					queryKey: chatProjectACLKey(project.id),
+					exact: true,
+				}),
+			]),
+	});
+
+export const updateChatProjectInstructions = (
+	queryClient: QueryClient,
+	project: TypesGen.ChatProject,
+) =>
+	mutationOptions({
+		mutationFn: (request: TypesGen.UpdateChatProjectInstructionsRequest) =>
+			API.experimental.updateChatProjectInstructions(
+				project.organization_id,
+				project.id,
+				request,
+			),
+		onSuccess: async (instructions) => {
+			// A refetch that started before the write would otherwise
+			// overwrite the saved value with the old one when it lands.
+			await queryClient.cancelQueries({
+				queryKey: chatProjectInstructionsKey(project.id),
+			});
+			queryClient.setQueryData(
+				chatProjectInstructionsKey(project.id),
+				instructions,
+			);
+		},
+	});
+
+export const deleteChatProjectInstructions = (
+	queryClient: QueryClient,
+	project: TypesGen.ChatProject,
+) =>
+	mutationOptions({
+		mutationFn: () =>
+			API.experimental.deleteChatProjectInstructions(
+				project.organization_id,
+				project.id,
+			),
+		onSuccess: async () => {
+			await queryClient.cancelQueries({
+				queryKey: chatProjectInstructionsKey(project.id),
+			});
+			queryClient.setQueryData<TypesGen.ChatProjectInstructions>(
+				chatProjectInstructionsKey(project.id),
+				{
+					project_id: project.id,
+					instructions: "",
+					updated_by: null,
+					updated_at: null,
+				},
+			);
+		},
 	});

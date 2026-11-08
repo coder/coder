@@ -134,7 +134,7 @@ func TestPubsub(t *testing.T) {
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
-		ps, err := nats.New(ctx, logger, nats.Options{})
+		ps, err := nats.New(ctx, logger, nats.Options{ClusterPort: natsserver.RANDOM_PORT})
 		require.NoError(t, err)
 
 		var first, second error

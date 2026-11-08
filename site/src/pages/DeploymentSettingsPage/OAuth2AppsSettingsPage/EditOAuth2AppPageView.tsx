@@ -9,7 +9,6 @@ import {
 	useParams,
 	useSearchParams,
 } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import * as oauth2 from "#/api/queries/oauth2";
 import type * as TypesGen from "#/api/typesGenerated";
@@ -34,6 +33,7 @@ import {
 } from "#/components/Table/Table";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TableLoader } from "#/components/TableLoader/TableLoader";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { createDayString } from "#/utils/createDayString";
 import { pageTitle } from "#/utils/page";
@@ -237,7 +237,7 @@ export const EditOAuth2AppPageView: React.FC = () => {
 
 				{canViewAppSecrets && (
 					<div className="border border-solid p-6 rounded-lg flex flex-col gap-4">
-						<div className="flex flex-row gap-4 items-center justify-between">
+						<div className="flex gap-4 items-center justify-between">
 							<h2 className="m-0 text-xl font-semibold">Client secrets</h2>
 							{!isPublicClient && (
 								<Button

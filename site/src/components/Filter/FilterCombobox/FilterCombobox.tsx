@@ -570,7 +570,9 @@ export function FilterCombobox({
 					) : (
 						<FilterComboboxFlyoutRoot onDismiss={actions.dismiss}>
 							<div
-								className="relative flex items-start gap-1 overflow-visible"
+								// The before/after strips fill the gap to the flyout on
+								// either side, so crossing it does not fire onMouseLeave.
+								className="relative flex items-start gap-1 overflow-visible before:absolute before:inset-y-0 before:right-full before:w-1 after:absolute after:inset-y-0 after:left-full after:w-1"
 								onMouseLeave={() => {
 									updateFlyoutCategory(null);
 									setHighlightedCategoryKey(undefined);
@@ -876,7 +878,7 @@ function MainPanel({
 							<FilterComboboxItem
 								className={cn(
 									OPTION_ITEM_CLASS,
-									(!showIcon || selected) && "text-content-primary",
+									selected && "text-content-primary",
 								)}
 								key={token}
 								value={token}
@@ -1225,7 +1227,7 @@ function FlyoutCategoryPanel({
 					return (
 						<button
 							className={cn(
-								"flex min-h-8.5 w-full items-center gap-2 rounded-sm px-2 py-1.25 text-left text-sm font-normal text-nowrap text-content-secondary hover:bg-surface-secondary hover:text-content-primary",
+								"flex min-h-8.5 w-full items-center gap-2 rounded-sm px-2 py-1.25 text-left text-sm font-normal text-nowrap text-content-secondary hover:bg-surface-secondary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 								selected && "text-content-primary",
 							)}
 							key={token}

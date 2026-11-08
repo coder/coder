@@ -168,12 +168,21 @@ type MessageScrollerRegisterMessage = (
   removedElement?: HTMLElement | null
 ) => void
 
+// LOCAL CHANGE
+type MessageScrollerUserLayoutIntentOptions = {
+  // Once the toggle commits, brings the end of the toggled row into view. At
+  // the last row it also lets the view follow new output again.
+  revealEnd: boolean
+}
+
 // Internal context wiring the parts together. Not part of the public API.
 type MessageScrollerContextValue = {
   handleContentChange: () => void
   handleResize: () => void
   observeVisibility: () => void
   preserveScrollOnPrependRef: React.RefObject<boolean>
+  // LOCAL CHANGE
+  resetBrowserScrollAnchor: () => void
   scrollToEnd: (options?: MessageScrollerScrollOptions) => boolean
   scrollToMessage: (
     messageId: string,
@@ -186,8 +195,16 @@ type MessageScrollerContextValue = {
   setViewportElement: (element: HTMLDivElement | null) => void
   stateStore: MessageScrollerStore<MessageScrollerScrollable>
   syncAfterScroll: () => void
+  // LOCAL CHANGE
+  syncAfterScrollbarPress: (pressScrollTop: number) => void
   unobserveVisibility: () => void
-  userScrollIntent: () => void
+  // LOCAL CHANGE: returns whether a sync at the end may resume following.
+  userScrollIntent: () => boolean
+  // LOCAL CHANGE
+  userLayoutIntent: (
+    target: Element,
+    options: MessageScrollerUserLayoutIntentOptions
+  ) => void
   viewportRef: React.RefObject<HTMLDivElement | null>
   visibilityStore: MessageScrollerVisibilityStore
 }
@@ -237,6 +254,7 @@ export type {
   MessageScrollerScrollOptions,
   MessageScrollerScrollable,
   MessageScrollerStore,
+  MessageScrollerUserLayoutIntentOptions,
   MessageScrollerViewportProps,
   MessageScrollerVisibilityState,
   MessageScrollerVisibilityStore,

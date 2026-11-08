@@ -36,9 +36,10 @@ import (
 // bodyOpensWithContentBanner reports whether the first non-blank line after
 // the front matter of a Markdown page is docgenenv.GeneratedContentBanner,
 // where the doc generators write it. Pages that only quote the banner
-// elsewhere, such as in a code block, don't count.
+// elsewhere, such as in a code block, don't count. CRLF line endings, as in a
+// Windows checkout, are treated as LF.
 func bodyOpensWithContentBanner(page []byte) bool {
-	lines := strings.Split(string(page), "\n")
+	lines := strings.Split(strings.ReplaceAll(string(page), "\r\n", "\n"), "\n")
 	i := 0
 	if len(lines) > 0 && lines[0] == "---" {
 		end := slices.Index(lines[1:], "---")

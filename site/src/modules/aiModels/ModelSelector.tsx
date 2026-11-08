@@ -48,8 +48,6 @@ type ModelSelectorProps = {
 	 * by the selected model's display name or the placeholder.
 	 */
 	triggerAriaLabel?: string;
-	triggerAriaInvalid?: boolean;
-	triggerAriaDescribedBy?: string;
 	disabled?: boolean;
 	placeholder?: string;
 	/**
@@ -71,12 +69,16 @@ type ModelSelectorProps = {
 };
 
 export const formatContextLimit = (tokens: number): string => {
-	if (tokens >= 1_000_000) {
-		const m = tokens / 1_000_000;
-		return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
+	const roundedTokens = Math.round(tokens);
+	if (roundedTokens < 1_000) {
+		return `${roundedTokens}`;
 	}
 	const k = Math.round(tokens / 1_000);
-	return `${k}K`;
+	if (k < 1_000) {
+		return `${k}K`;
+	}
+	const m = tokens / 1_000_000;
+	return `${Number.isInteger(m) ? m : m.toFixed(1)}M`;
 };
 
 const getProviderLabel = (
@@ -100,8 +102,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 	value,
 	onValueChange,
 	triggerAriaLabel,
-	triggerAriaInvalid,
-	triggerAriaDescribedBy,
 	disabled = false,
 	placeholder = "Select model",
 	unsetLabel,
@@ -161,8 +161,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 							? `${triggerAriaLabel}, ${triggerLabel}`
 							: triggerLabel
 					}
-					aria-invalid={triggerAriaInvalid}
-					aria-describedby={triggerAriaDescribedBy}
 					aria-expanded={open}
 					aria-haspopup="listbox"
 					aria-controls={open ? listboxId : undefined}
@@ -200,7 +198,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 				className={cn(
 					enableMobileFullWidthDropdown &&
 						"mobile-full-width-dropdown mobile-full-width-dropdown-above-composer",
-					"w-72 overflow-hidden border-border-default p-0",
+					"w-72 overflow-hidden border-border p-0",
 					contentClassName,
 				)}
 				onOpenAutoFocus={(event) => {
@@ -216,7 +214,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 			>
 				<Command
 					shouldFilter={false}
-					className="[&_[cmdk-input-wrapper]]:border-0 [&_[cmdk-input-wrapper]]:border-border-default [&_[cmdk-input-wrapper]]:border-b [&_[cmdk-input-wrapper]]:border-solid [&_[cmdk-input-wrapper]]:px-3 [&_[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
+					className="[&_[cmdk-input-wrapper]]:border-0 [&_[cmdk-input-wrapper]]:border-border [&_[cmdk-input-wrapper]]:border-b [&_[cmdk-input-wrapper]]:border-solid [&_[cmdk-input-wrapper]]:px-3 [&_[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
 				>
 					<CommandInput
 						value={search}
@@ -284,8 +282,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 									}
 									className={cn(
 										"p-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:leading-[18px] [&_[cmdk-group-heading]]:text-content-secondary",
-										index > 0 &&
-											"border-0 border-t border-solid border-border-default",
+										index > 0 && "border-0 border-t border-solid border-border",
 									)}
 								>
 									{providerOptions.map((option) => (
@@ -346,7 +343,7 @@ const ReasoningEffortRow: React.FC<ReasoningEffortRowProps> = ({
 	const effortIndex = valueIndex >= 0 ? valueIndex : 0;
 
 	return (
-		<div className="flex items-center gap-3 border-0 border-t border-solid border-border-default px-3 py-2">
+		<div className="flex items-center gap-3 border-0 border-t border-solid border-border px-3 py-2">
 			<div className="flex shrink-0 items-center gap-1">
 				<span className="text-xs font-medium leading-[18px] text-content-secondary">
 					Effort

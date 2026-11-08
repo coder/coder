@@ -91,7 +91,7 @@ const AddTemplateUserOrGroup: React.FC<AddTemplateUserOrGroupProps> = ({
 				}
 			}}
 		>
-			<div className="flex flex-row items-center gap-1">
+			<div className="flex items-center gap-1">
 				<UserOrGroupAutocomplete
 					exclude={excludeFromAutocomplete}
 					templateID={templateID}

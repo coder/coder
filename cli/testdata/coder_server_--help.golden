@@ -38,8 +38,10 @@ OPTIONS:
           chats run without their dynamic tools and inline MCP servers.
 
       --disable-chat-sharing bool, $CODER_DISABLE_CHAT_SHARING
-          Disable chat sharing. Chat ACL checking is disabled and only owners
-          can access their chats.
+          Disable chat and chat project sharing. Existing shares stop granting
+          access and new shares are rejected. Owners keep access to their own
+          chats and projects, and administrators keep only the access their
+          roles grant.
 
       --disable-owner-workspace-access bool, $CODER_DISABLE_OWNER_WORKSPACE_ACCESS
           Remove the permission for the 'owner' role to have workspace execution
@@ -269,11 +271,6 @@ Configure the background chat processing daemon.
           earliest-uploaded files, and earlier messages show them as expired. A
           message that includes more files than the limit is rejected with HTTP
           400. Must be at least 1.
-
-      --chat-max-automations-per-owner int, $CODER_CHAT_MAX_AUTOMATIONS_PER_OWNER (default: 50)
-          Maximum number of chat automations one user can own across all
-          organizations. Creating one more fails with HTTP 409. Must be at least
-          1.
 
       --chat-max-concurrent-recording-uploads int, $CODER_CHAT_MAX_CONCURRENT_RECORDING_UPLOADS (default: 25)
           Maximum number of virtual desktop recordings that each Coder server
@@ -574,11 +571,10 @@ NETWORKING / HTTP OPTIONS:
       --disable-password-auth bool, $CODER_DISABLE_PASSWORD_AUTH
           Disable password authentication. This is recommended for security
           purposes in production deployments that rely on an identity provider.
-          Any user with the owner role will be able to sign in with their
-          password regardless of this setting to avoid potential lock out. If
-          you are locked out of your account, you can use the `coder server
-          create-admin` command to create a new admin user directly in the
-          database.
+          This applies to all users, including owners. Ensure an owner can sign
+          in through your identity provider before enabling this. To recover
+          access, unset this option, restart the server, and use `coder server
+          create-admin-user` if needed.
 
       --disable-session-expiry-refresh bool, $CODER_DISABLE_SESSION_EXPIRY_REFRESH
           Disable automatic session expiry bumping due to activity. This forces
@@ -595,10 +591,6 @@ NETWORKING / HTTP OPTIONS:
       --max-admin-token-lifetime duration, $CODER_MAX_ADMIN_TOKEN_LIFETIME (default: 168h0m0s)
           The maximum lifetime duration administrators can specify when creating
           an API token.
-
-      --proxy-health-interval duration, $CODER_PROXY_HEALTH_INTERVAL (default: 1m0s)
-          The interval in which coderd should be checking the status of
-          workspace proxies.
 
       --session-duration duration, $CODER_SESSION_DURATION (default: 24h0m0s)
           The token expiry duration for browser sessions. Sessions may last
@@ -902,9 +894,9 @@ Tune the behavior of the provisioner, which is responsible for creating,
 updating, and deleting workspace resources.
 
       --provisioner-disable-module-cache bool, $CODER_PROVISIONER_DISABLE_MODULE_CACHE (default: false)
-          Disable the reuse of Terraform modules cached at template import for
-          all templates. Modules are re-downloaded on every workspace build.
-          Individual templates cannot opt back in.
+          Disable the reuse of Terraform modules and the provider lock file
+          cached at template import for all templates. Modules are re-downloaded
+          on every workspace build. Individual templates cannot opt back in.
 
       --provisioner-force-cancel-interval duration, $CODER_PROVISIONER_FORCE_CANCEL_INTERVAL (default: 10m0s)
           Time to force cancel provisioning tasks that are stuck.
@@ -958,8 +950,8 @@ that data type.
 
 TELEMETRY OPTIONS: 
 Telemetry is critical to our ability to improve Coder. We strip all personal
-information before sending data to our servers. Please only disable telemetry
-when required by your organization's security policy.
+information before sending data to our servers. Only disable telemetry when
+required by your organization's security policy.
 
       --telemetry bool, $CODER_TELEMETRY_ENABLE (default: false)
           Whether telemetry is enabled or not. Coder collects anonymized usage
@@ -1041,6 +1033,10 @@ These options are only available in the Enterprise Edition.
           operation it is recommended to only set one key unless you are in the
           process of rotating keys with the `coder server dbcrypt rotate`
           command.
+
+      --proxy-health-interval duration, $CODER_PROXY_HEALTH_INTERVAL (default: 1m0s)
+          The interval in which coderd should be checking the status of
+          workspace proxies.
 
       --scim-auth-header string, $CODER_SCIM_AUTH_HEADER
           Enables SCIM and sets the authentication header for the built-in SCIM

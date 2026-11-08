@@ -2,7 +2,6 @@ import { cn } from "cn";
 import { ChevronDownIcon, DownloadIcon } from "lucide-react";
 import { useId, useState } from "react";
 import { useQuery } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { chatDebugRun } from "#/api/queries/chats";
 import type { ChatDebugRunSummary } from "#/api/typesGenerated";
@@ -15,6 +14,8 @@ import {
 	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
+import { clampContent } from "#/utils/text";
 import { DebugStepCard } from "./DebugStepCard";
 import {
 	buildDebugExportBlob,
@@ -23,7 +24,6 @@ import {
 	debugExportFilename,
 } from "./debugExport";
 import {
-	clampContent,
 	coerceRunSummary,
 	compactDuration,
 	computeDurationMs,
@@ -154,11 +154,11 @@ export const DebugRunCard: React.FC<DebugRunCardProps> = ({
 
 	return (
 		<Collapsible open={isExpanded} onOpenChange={setIsExpanded}>
-			<div className="overflow-hidden rounded-lg border border-solid border-border-default/40">
+			<div className="overflow-hidden rounded-lg border border-solid border-border/40">
 				<CollapsibleTrigger asChild>
 					<button
 						type="button"
-						className="group flex w-full items-center gap-2 border-0 bg-transparent px-3 py-0.5 text-left transition-colors hover:bg-surface-secondary/20"
+						className="group flex w-full items-center gap-2 border-0 bg-transparent px-3 py-0.5 text-left transition-colors hover:bg-surface-secondary/20 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
 					>
 						<div className="min-w-0 flex flex-1 items-center gap-2.5 overflow-hidden">
 							<p className="min-w-0 flex-1 truncate text-sm font-semibold text-content-primary">
@@ -223,7 +223,7 @@ export const DebugRunCard: React.FC<DebugRunCardProps> = ({
 							{summaryVm.mcpConnect.length > 0 ? (
 								<section
 									aria-labelledby={mcpConnectHeadingId}
-									className="rounded-md border border-solid border-border-default/40 px-2.5 py-1.5"
+									className="rounded-md border border-solid border-border/40 px-2.5 py-1.5"
 								>
 									<h4
 										id={mcpConnectHeadingId}

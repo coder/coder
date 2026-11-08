@@ -1233,6 +1233,22 @@ func TestServer(t *testing.T) {
 		cancel()
 		require.Error(t, goleak.Find())
 	})
+	t.Run("StartupErrorNoLeak", func(t *testing.T) {
+		t.Parallel()
+
+		inv, cfg := clitest.New(t,
+			"server",
+			dbArg(t),
+			"--http-address", "127.0.0.1:0",
+			"--access-url", "http://example.com",
+			"--cache-dir", t.TempDir(),
+		)
+		// A directory at the URL file path fails startup after coderd is
+		// created; the package goleak check catches a leaked API.
+		require.NoError(t, os.Mkdir(string(cfg.URL()), 0o700))
+		err := inv.WithContext(testutil.Context(t, testutil.WaitLong)).Run()
+		require.ErrorContains(t, err, "write config url")
+	})
 	t.Run("Telemetry", func(t *testing.T) {
 		t.Parallel()
 

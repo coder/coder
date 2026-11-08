@@ -1164,6 +1164,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if err != nil {
 				return xerrors.Errorf("create coder API: %w", err)
 			}
+			// Startup errors below return before the shutdown sequence
+			// closes the API, so close it on every return. The closer is
+			// not safe to call twice.
+			closeCoderAPI := sync.OnceValue(coderAPICloser.Close)
+			defer func() { _ = closeCoderAPI() }()
 			var aibridgeDaemon *aibridged.Server
 
 			// Run after newAPI so provider settings are decrypted by dbcrypt.
@@ -1478,7 +1483,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				_ = aibridgeDaemon.Close()
 			}
 			cliui.Info(inv.Stdout, "Waiting for WebSocket connections to close..."+"\n")
-			_ = coderAPICloser.Close()
+			_ = closeCoderAPI()
 			cliui.Info(inv.Stdout, "Done waiting for WebSocket connections"+"\n")
 
 			// Close tunnel after we no longer have in-flight connections.

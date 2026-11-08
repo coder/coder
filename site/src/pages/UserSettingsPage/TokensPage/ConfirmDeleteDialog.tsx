@@ -1,7 +1,7 @@
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import type { APIKeyWithOwner } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { toast } from "#/components/Toaster/toast";
 import { useDeleteToken } from "./hooks";
 
 type ConfirmDeleteDialogProps = {

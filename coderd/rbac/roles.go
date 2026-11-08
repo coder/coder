@@ -225,6 +225,13 @@ func DefaultOrgMemberRoles() []string {
 	return []string{orgWorkspaceAccess, agentsAccess}
 }
 
+// workspaceSecretUserActions is every workspace secret action except
+// read_secret. Decrypted values are readable only by the workspace secret
+// manager actor, so no built-in user role, including owner, may read them.
+func workspaceSecretUserActions() []policy.Action {
+	return slice.Omit(ResourceWorkspaceSecret.AvailableActions(), policy.ActionReadSecret)
+}
+
 // orgWorkspaceAccessMemberPerms returns the member-scoped permissions
 // granted by the organization-workspace-access role: the ability to
 // create and operate your own workspaces in the organization. The
@@ -235,6 +242,10 @@ func DefaultOrgMemberRoles() []string {
 func orgWorkspaceAccessMemberPerms() []Permission {
 	return Permissions(map[string][]policy.Action{
 		ResourceWorkspace.Type: ResourceWorkspace.AvailableActions(),
+
+		// Members set secrets on their own workspace builds but can never
+		// read the values back.
+		ResourceWorkspaceSecret.Type: workspaceSecretUserActions(),
 
 		// Dormant workspaces share the workspace action set minus the
 		// build, ssh, and exec actions.
@@ -379,6 +390,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			Negate:       true,
 			ResourceType: ResourceChat.Type,
 			Action:       policy.ActionShare,
+		}, Permission{
+			Negate:       true,
+			ResourceType: ResourceChatProject.Type,
+			Action:       policy.ActionShare,
 		})
 	}
 
@@ -404,10 +419,11 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			// Workspace is specifically handled based on the opts.NoOwnerWorkspaceExec.
 			// Owners can inspect and delete personal skills for operability and
 			// abuse handling, but cannot create or edit user-authored instructions.
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUserSecret, ResourceUserSkill, ResourceUsageEvent, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceAIGatewayKey),
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUserSecret, ResourceUserSkill, ResourceUsageEvent, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceAIGatewayKey, ResourceWorkspaceSecret),
 			// This adds back in the Workspace permissions.
 			Permissions(map[string][]policy.Action{
 				ResourceWorkspace.Type:        ownerWorkspaceActions,
+				ResourceWorkspaceSecret.Type:  workspaceSecretUserActions(),
 				ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 				ResourceUserSkill.Type:        {policy.ActionRead, policy.ActionDelete},
 				// Owners manage AI Gateway keys but cannot update them. The
@@ -440,7 +456,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			denyPermissions...,
 		),
 		User: append(
-			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAibridgeInterception, ResourceChat, ResourceChatAutomation, ResourceAiSeat),
+			allPermsExcept(ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceWorkspace, ResourceUser, ResourceOrganizationMember, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAibridgeInterception, ResourceChat, ResourceAiSeat, ResourceWorkspaceSecret),
 			Permissions(map[string][]policy.Action{
 				// Users cannot do create/update/delete on themselves, but they
 				// can read their own details.
@@ -475,9 +491,10 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceOrganization.Type:       {policy.ActionRead},
 			ResourceOrganizationMember.Type: {policy.ActionRead},
 			// Allow auditors to query deployment stats and insights.
-			ResourceDeploymentStats.Type:  {policy.ActionRead},
-			ResourceDeploymentConfig.Type: {policy.ActionRead},
-			ResourceChatModelConfig.Type:  {policy.ActionRead},
+			ResourceDeploymentStats.Type:   {policy.ActionRead},
+			ResourceDeploymentConfig.Type:  {policy.ActionRead},
+			ResourceChatModelConfig.Type:   {policy.ActionRead},
+			ResourceOrganizationSkill.Type: {policy.ActionRead},
 			// Allow auditors to query AI Bridge interceptions.
 			ResourceAibridgeInterception.Type: {policy.ActionRead},
 			// Allow auditors to read boundary logs.
@@ -581,8 +598,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 					// Org admins should not have workspace exec perms.
 					organizationID.String(): {
 						Org: append(
-							allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceWorkspaceBuildOrchestration),
+							allPermsExcept(ResourceWorkspace, ResourceWorkspaceDormant, ResourcePrebuiltWorkspace, ResourceAssignRole, ResourceUserSecret, ResourceBoundaryUsage, ResourceBoundaryLog, ResourceAiSeat, ResourceWorkspaceBuildOrchestration, ResourceWorkspaceSecret),
 							Permissions(map[string][]policy.Action{
+								ResourceWorkspaceSecret.Type:  workspaceSecretUserActions(),
 								ResourceWorkspace.Type:        slice.Omit(ResourceWorkspace.AvailableActions(), policy.ActionApplicationConnect, policy.ActionSSH),
 								ResourceWorkspaceDormant.Type: {policy.ActionRead, policy.ActionDelete, policy.ActionCreate, policy.ActionUpdate, policy.ActionWorkspaceStop, policy.ActionCreateAgent, policy.ActionDeleteAgent, policy.ActionUpdateAgent},
 								// PrebuiltWorkspaces are a subset of Workspaces.
@@ -614,6 +632,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							ResourceOrganization.Type:       {policy.ActionRead},
 							ResourceOrganizationMember.Type: {policy.ActionRead},
 							ResourceChatModelConfig.Type:    {policy.ActionRead},
+							ResourceOrganizationSkill.Type:  {policy.ActionRead},
 						}),
 						Member: []Permission{},
 					},
@@ -730,9 +749,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				},
 			}
 		},
-		// Chat ActionDelete is intentionally excluded because hard-deletion goes
-		// through ResourceSystem in dbpurge. Members manage their own chat
-		// automations in full, including deletion.
+		// ActionDelete is intentionally excluded because hard-deletion goes through
+		// ResourceSystem in dbpurge.
 		agentsAccess: func(organizationID uuid.UUID) Role {
 			return Role{
 				Identifier:  RoleIdentifier{Name: agentsAccess, OrganizationID: organizationID},
@@ -749,15 +767,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 								policy.ActionShare,
 								policy.ActionUpdate,
 							},
-							ResourceChatAutomation.Type: {
-								policy.ActionCreate,
-								policy.ActionRead,
-								policy.ActionUpdate,
-								policy.ActionDelete,
-							},
-							// Projects group a member's own chats, so they follow chat
-							// access. ChatProject.RBACObject sets WithOwner(OwnerID),
-							// which keeps them private to their owner.
+							// ChatProject.RBACObject sets WithOwner(OwnerID), so this
+							// grant reaches only the member's own projects; others
+							// reach a project through its ACL.
 							ResourceChatProject.Type: ResourceChatProject.AvailableActions(),
 							// Memory objects carry the owning project's owner, so this
 							// grant reaches only the member's own projects.

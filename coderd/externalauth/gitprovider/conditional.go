@@ -75,7 +75,7 @@ func (c *responseCache) load(key string) (etag string, body []byte, ok bool) {
 		return "", nil, false
 	}
 	c.ll.MoveToFront(elem)
-	cr := elem.Value.(*cachedResponse)
+	cr := cachedEntry(elem)
 	return cr.etag, cr.body, true
 }
 
@@ -93,7 +93,7 @@ func (c *responseCache) store(key, etag string, body []byte) {
 
 	if elem, found := c.entries[key]; found {
 		c.ll.MoveToFront(elem)
-		cr := elem.Value.(*cachedResponse)
+		cr := cachedEntry(elem)
 		cr.etag = etag
 		// Replace the body slice entirely; never write into the
 		// existing slice in place. A concurrent reader may hold a
@@ -119,7 +119,12 @@ func (c *responseCache) evictOldest() {
 		return
 	}
 	c.ll.Remove(elem)
-	delete(c.entries, elem.Value.(*cachedResponse).key)
+	delete(c.entries, cachedEntry(elem).key)
+}
+
+func cachedEntry(elem *list.Element) *cachedResponse {
+	//nolint:forcetypeassert // Only *cachedResponse values enter c.ll.
+	return elem.Value.(*cachedResponse)
 }
 
 // responseCacheKey derives a cache key that isolates responses by

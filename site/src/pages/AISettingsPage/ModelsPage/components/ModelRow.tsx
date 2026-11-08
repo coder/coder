@@ -16,6 +16,8 @@ type ModelRowProps = {
 	model: ChatModel;
 	providerLabel: string;
 	providerTypeByID: ReadonlyMap<string, string>;
+	/** Icon configured on the model's provider, if any. */
+	providerIcon?: string;
 	hasProvider: boolean;
 	providerEnabled: boolean;
 	onClick: () => void;
@@ -32,12 +34,14 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 	model,
 	providerLabel,
 	providerTypeByID,
+	providerIcon,
 	hasProvider,
 	providerEnabled,
 	onClick,
 }) => {
 	const clickableProps = useClickableTableRow({ onClick });
 	const displayName = model.display_name || model.model;
+	const providerType = providerTypeByID.get(model.ai_provider_id) ?? "";
 	// Models whose provider is missing or disabled cannot be used, so the
 	// status cell surfaces that regardless of the persisted enabled flag.
 	const providerNotice = !hasProvider
@@ -62,9 +66,25 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 							!model.enabled && "opacity-50",
 						)}
 					>
-						<ProviderIcon
-							provider={providerTypeByID.get(model.ai_provider_id) ?? ""}
-						/>
+						{providerType ? (
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<span
+										role="img"
+										aria-label={`Provider type: ${providerType}`}
+										className="flex items-center justify-center"
+									>
+										<ProviderIcon provider={providerType} icon={providerIcon} />
+									</span>
+								</TooltipTrigger>
+								<TooltipContent side="bottom">
+									Provider type:{" "}
+									<code className="font-mono">{providerType}</code>
+								</TooltipContent>
+							</Tooltip>
+						) : (
+							<ProviderIcon provider={providerType} icon={providerIcon} />
+						)}
 					</Avatar>
 					<div className="flex min-w-0 items-center gap-2">
 						<span

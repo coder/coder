@@ -24,13 +24,15 @@ func (*NoopDisconnectionReporter) Disconnect(DisconnectEvent) {}
 
 type ConnectEvent struct {
 	ID              uuid.UUID
-	Type            Connection_Type
+	Method          Connection_Method
 	AppName         string
 	IP              string
 	ClientSessionID string
 }
 
 type DisconnectEvent struct {
-	Code   int
-	Reason string
+	Code    int
+	Reason  string
+	RxBytes int64
+	TxBytes int64
 }

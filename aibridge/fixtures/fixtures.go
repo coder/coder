@@ -106,6 +106,9 @@ var (
 	//go:embed openai/responses/blocking/custom_tool.txtar
 	OaiResponsesBlockingCustomTool []byte
 
+	//go:embed openai/responses/blocking/custom_tool_result.txtar
+	OaiResponsesBlockingCustomToolResult []byte
+
 	//go:embed openai/responses/blocking/web_search.txtar
 	OaiResponsesBlockingWebSearch []byte
 
@@ -158,6 +161,9 @@ var (
 
 	//go:embed openai/responses/streaming/custom_tool.txtar
 	OaiResponsesStreamingCustomTool []byte
+
+	//go:embed openai/responses/streaming/custom_tool_result.txtar
+	OaiResponsesStreamingCustomToolResult []byte
 
 	//go:embed openai/responses/streaming/conversation.txtar
 	OaiResponsesStreamingConversation []byte

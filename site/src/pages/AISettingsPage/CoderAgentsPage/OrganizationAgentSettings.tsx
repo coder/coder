@@ -2,10 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	chatModels,
 	organizationChatModelOverrides,
-	organizationChatSystemPrompt,
 	updateChatModel,
 	updateOrganizationChatModelOverride,
-	updateOrganizationChatSystemPrompt,
 } from "#/api/queries/chats";
 import type {
 	ChatModelOverrideContext,
@@ -26,42 +24,35 @@ const contexts: readonly ChatModelOverrideContext[] = [
 	"title_generation",
 	"compaction",
 	"advisor",
+	"computer_use",
 ];
 
 type OrganizationAgentSettingsProps = {
 	organization: Organization;
 	canEdit: boolean;
-	canViewInstructions: boolean;
-	showAdvisor: boolean;
+	showComputerUse: boolean;
 };
 
 export const OrganizationAgentSettings: React.FC<
 	OrganizationAgentSettingsProps
-> = ({ organization, canEdit, canViewInstructions, showAdvisor }) => (
+> = ({ organization, canEdit, showComputerUse }) => (
 	<OrganizationAgentSettingsContent
 		key={organization.id}
 		organization={organization}
 		canEdit={canEdit}
-		canViewInstructions={canViewInstructions}
-		showAdvisor={showAdvisor}
+		showComputerUse={showComputerUse}
 	/>
 );
 
 const OrganizationAgentSettingsContent: React.FC<
 	OrganizationAgentSettingsProps
-> = ({ organization, canEdit, canViewInstructions, showAdvisor }) => {
+> = ({ organization, canEdit, showComputerUse }) => {
 	const queryClient = useQueryClient();
-	const systemPromptQuery = useQuery({
-		...organizationChatSystemPrompt(organization.id),
-		enabled: canViewInstructions,
-	});
-	const systemPromptMutation = useMutation(
-		updateOrganizationChatSystemPrompt(queryClient, organization.id),
-	);
 	const modelsQuery = useQuery(chatModels(organization.id));
 	const overridesQuery = useQuery(
 		organizationChatModelOverrides(organization.id),
 	);
+
 	const generalMutation = useMutation(
 		updateOrganizationChatModelOverride(
 			queryClient,
@@ -69,6 +60,7 @@ const OrganizationAgentSettingsContent: React.FC<
 			"general",
 		),
 	);
+
 	const exploreMutation = useMutation(
 		updateOrganizationChatModelOverride(
 			queryClient,
@@ -76,6 +68,7 @@ const OrganizationAgentSettingsContent: React.FC<
 			"explore",
 		),
 	);
+
 	const titleMutation = useMutation(
 		updateOrganizationChatModelOverride(
 			queryClient,
@@ -83,6 +76,7 @@ const OrganizationAgentSettingsContent: React.FC<
 			"title_generation",
 		),
 	);
+
 	const compactionMutation = useMutation(
 		updateOrganizationChatModelOverride(
 			queryClient,
@@ -90,6 +84,7 @@ const OrganizationAgentSettingsContent: React.FC<
 			"compaction",
 		),
 	);
+
 	const advisorMutation = useMutation(
 		updateOrganizationChatModelOverride(
 			queryClient,
@@ -97,14 +92,26 @@ const OrganizationAgentSettingsContent: React.FC<
 			"advisor",
 		),
 	);
+
+	const computerUseMutation = useMutation(
+		updateOrganizationChatModelOverride(
+			queryClient,
+			organization.id,
+			"computer_use",
+		),
+	);
+
 	const mutations = [
 		generalMutation,
 		exploreMutation,
 		titleMutation,
 		compactionMutation,
 		advisorMutation,
+		computerUseMutation,
 	] as const;
+
 	const defaultModelMutation = useMutation(updateChatModel(queryClient));
+
 	const providerInfoByID = providerInfoByIDFromDescriptors(
 		modelsQuery.data?.providers,
 	);
@@ -112,11 +119,12 @@ const OrganizationAgentSettingsContent: React.FC<
 		(modelsQuery.data?.models ?? []).filter((model) => model.enabled),
 		providerInfoByID,
 	);
+
 	// Only the overrides request gates the override rows: when the model
 	// catalog fails, the rows must stay rendered with the error inline so a
 	// stale override can still be cleared without the catalog.
 	const { loadError, refetchError } = splitModelQueryErrors(overridesQuery);
-	const systemPromptErrors = splitModelQueryErrors(systemPromptQuery);
+
 	const saveByContext = new Map<ChatModelOverrideContext, SaveModelOverride>();
 	for (const [index, context] of contexts.entries()) {
 		const mutation = mutations[index];
@@ -151,7 +159,7 @@ const OrganizationAgentSettingsContent: React.FC<
 			overridesRefetchError={refetchError}
 			modelsError={modelsQuery.error}
 			canEdit={canEdit}
-			showAdvisor={showAdvisor}
+			showComputerUse={showComputerUse}
 			saveByContext={saveByContext}
 			savingContexts={
 				new Set(contexts.filter((_, index) => mutations[index]?.isPending))
@@ -159,15 +167,6 @@ const OrganizationAgentSettingsContent: React.FC<
 			errorContexts={
 				new Set(contexts.filter((_, index) => mutations[index]?.isError))
 			}
-			canViewInstructions={canViewInstructions}
-			systemPrompt={systemPromptQuery.data?.system_prompt}
-			isSystemPromptLoading={systemPromptQuery.isLoading}
-			systemPromptLoadError={systemPromptErrors.loadError}
-			systemPromptRefetchError={systemPromptErrors.refetchError}
-			onSaveSystemPrompt={systemPromptMutation.mutate}
-			isSavingSystemPrompt={systemPromptMutation.isPending}
-			saveSystemPromptError={systemPromptMutation.error}
-			onResetSaveSystemPrompt={systemPromptMutation.reset}
 		/>
 	);
 };

@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { AlertTriangleIcon, ClipboardPasteIcon, XIcon } from "lucide-react";
-import { toast } from "sonner";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,
@@ -33,15 +33,17 @@ export const isUploadInProgress = (state: UploadState | undefined): boolean =>
 /** Renders an image thumbnail from a pre-created preview URL. */
 export const ImageThumbnail: React.FC<{
 	previewUrl: string;
-	name: string;
+	alt: string;
 	className?: string;
+	loading?: React.ComponentProps<"img">["loading"];
 	onError?: React.ReactEventHandler<HTMLImageElement>;
-}> = ({ previewUrl, name, className, onError }) => (
+}> = ({ previewUrl, alt, className, loading, onError }) => (
 	<img
 		src={previewUrl}
-		alt={name}
+		alt={alt}
+		loading={loading}
 		className={cn(
-			"size-16 rounded-md border border-border-default object-cover",
+			"size-16 rounded-md border border-border object-cover",
 			className,
 		)}
 		onError={onError}
@@ -124,7 +126,7 @@ export const AttachmentPreview: React.FC<{
 	);
 
 	return (
-		<div className="border-b border-border-default/50">
+		<div className="border-b border-border/50">
 			<div className="flex gap-2 overflow-x-auto px-3 py-2">
 				{attachments.map((file, index) => {
 					const uploadState = uploadStates?.get(file);
@@ -148,7 +150,7 @@ export const AttachmentPreview: React.FC<{
 									className="border-0 bg-transparent p-0 cursor-pointer transition-opacity hover:opacity-80"
 									onClick={() => onPreview(previewUrl)}
 								>
-									<ImageThumbnail previewUrl={previewUrl} name={file.name} />
+									<ImageThumbnail previewUrl={previewUrl} alt={file.name} />
 								</button>
 							) : hasTextAttachment ? (
 								<button
@@ -170,7 +172,7 @@ export const AttachmentPreview: React.FC<{
 									</span>
 								</button>
 							) : (
-								<div className="flex size-16 items-center justify-center rounded-md border border-border-default bg-surface-secondary text-xs text-content-secondary">
+								<div className="flex size-16 items-center justify-center rounded-md border border-border bg-surface-secondary text-xs text-content-secondary">
 									{file.name.split(".").pop()?.toUpperCase() || "FILE"}
 								</div>
 							)}

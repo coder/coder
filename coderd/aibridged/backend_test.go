@@ -121,8 +121,9 @@ func waitReady(t *testing.T, srv *aibridged.Server) {
 
 func serveHandler(t *testing.T, h http.Handler, path string) *httptest.ResponseRecorder {
 	t.Helper()
+	ctx := aibridge.AsActor(t.Context(), aibridge.Actor{ID: uuid.New(), APIKeyID: uuid.NewString()})
 	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, path, nil))
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, path, nil).WithContext(ctx))
 	return rec
 }
 
@@ -187,7 +188,7 @@ func TestBackendMode_Interception(t *testing.T) {
 	}
 }
 
-// Proxy mode returns 503 until providers load, then 404 for bridged placeholders.
+// Proxy mode returns 503 until providers load, then 501 for bridged placeholders.
 func TestBackendMode_ProxyWhenNoMCPConfigs(t *testing.T) {
 	t.Parallel()
 
@@ -509,8 +510,7 @@ func TestBackend_ConcurrentUse(t *testing.T) {
 						if err != nil {
 							continue
 						}
-						rec := httptest.NewRecorder()
-						h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", nil))
+						serveHandler(t, h, "/openai/v1/chat/completions")
 					}
 				})
 

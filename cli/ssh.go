@@ -951,21 +951,42 @@ func findWorkspaceAndAgentByHostname(
 
 	ws, agent, otherAgents, err := GetWorkspaceAndAgent(ctx, inv, client, !disableAutostart, hostname)
 	if err != nil && strings.Contains(err.Error(), "multiple agents found") {
+		includeOwner := suggestWithOwner(hostname, ws)
 		var errorMsg strings.Builder
 		_, _ = errorMsg.WriteString(fmt.Sprintf("%s\nTry running:\n", err.Error()))
 		for _, agent := range otherAgents {
-			switch {
-			case config.HostnameSuffix != "":
-				_, _ = errorMsg.WriteString(fmt.Sprintf("	%s\n", cliui.Code(fmt.Sprintf("$ ssh %s.%s.%s.%s", agent.Name, ws.Name, ws.OwnerName, config.HostnameSuffix))))
-			case config.HostnamePrefix != "":
-				_, _ = errorMsg.WriteString(fmt.Sprintf("	%s\n", cliui.Code(fmt.Sprintf("$ ssh %s%s.%s.%s", config.HostnamePrefix, agent.Name, ws.Name, ws.OwnerName))))
-			default:
-				_, _ = errorMsg.WriteString(fmt.Sprintf("	%s\n", cliui.Code(fmt.Sprintf("$ ssh %s.%s.%s", agent.Name, ws.Name, ws.OwnerName))))
-			}
+			_, _ = errorMsg.WriteString(fmt.Sprintf("	%s\n", cliui.Code(agentSSHSuggestion(config, ws, agent, includeOwner))))
 		}
 		return ws, agent, xerrors.New(errorMsg.String())
 	}
 	return ws, agent, err
+}
+
+// agentSSHSuggestion returns a command the user can run to connect to a
+// specific agent. A hostname prefix or suffix is only set when coder ssh runs
+// as an OpenSSH ProxyCommand (see coder config-ssh), so only then is a plain
+// ssh hostname resolvable. Otherwise the user invoked coder ssh directly and
+// must be pointed back to it, including the owner if includeOwner is set.
+func agentSSHSuggestion(config codersdk.SSHConfigResponse, ws codersdk.Workspace, agent codersdk.WorkspaceAgent, includeOwner bool) string {
+	// Prefixes include their separators verbatim; suffixes need a leading dot.
+	switch {
+	case config.HostnameSuffix != "":
+		return fmt.Sprintf("$ ssh %s.%s.%s.%s", agent.Name, ws.Name, ws.OwnerName, config.HostnameSuffix)
+	case config.HostnamePrefix != "":
+		return fmt.Sprintf("$ ssh %s%s.%s.%s", config.HostnamePrefix, agent.Name, ws.Name, ws.OwnerName)
+	case includeOwner:
+		return fmt.Sprintf("$ coder ssh %s/%s.%s", ws.OwnerName, ws.Name, agent.Name)
+	default:
+		return fmt.Sprintf("$ coder ssh %s.%s", ws.Name, agent.Name)
+	}
+}
+
+// suggestWithOwner reports whether commands suggested for ws, which the user
+// identified by identifier, must include its owner to resolve. A bare workspace
+// name only resolves to the user's own workspaces, but an owner/workspace name
+// or a workspace ID can refer to someone else's.
+func suggestWithOwner(identifier string, ws codersdk.Workspace) bool {
+	return identifier != ws.Name
 }
 
 // watchAndClose ensures closer is called if the context is canceled or
@@ -979,6 +1000,7 @@ func findWorkspaceAndAgentByHostname(
 //
 // See: https://github.com/coder/coder/issues/6180
 func watchAndClose(ctx context.Context, closer func() error, logger slog.Logger, client *codersdk.Client, workspace codersdk.Workspace, errCh <-chan error) {
+	var shutdownBuildID uuid.UUID
 	// Ensure session is ended on both context cancellation
 	// and workspace stop.
 	defer func() {
@@ -1012,6 +1034,22 @@ startWatchLoop:
 			case w, ok := <-wsWatch:
 				if !ok {
 					continue startWatchLoop
+				}
+				build := w.LatestBuild
+				stopping := build.Transition == codersdk.WorkspaceTransitionStop ||
+					build.Transition == codersdk.WorkspaceTransitionDelete
+				// Queued, failed, and canceled jobs do not establish a shutdown cause.
+				active := build.Job.Status == codersdk.ProvisionerJobRunning ||
+					build.Job.Status == codersdk.ProvisionerJobSucceeded
+				if stopping && active && build.ID != shutdownBuildID {
+					shutdownBuildID = build.ID
+					logger.Info(ctx, "workspace is shutting down",
+						codersdk.DisconnectReasonWorkspaceStopped.SlogField(),
+						slog.F("workspace_id", w.ID),
+						slog.F("build_id", build.ID),
+						slog.F("build_reason", build.Reason),
+						slog.F("transition", build.Transition),
+					)
 				}
 
 				// Transitioning to stop or delete could mean that
@@ -1087,7 +1125,7 @@ func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 			useParameterDefaults: true,
 		}, buildFlags{
 			reason: string(codersdk.BuildReasonSSHConnection),
-		}, WorkspaceStart)
+		}, WorkspaceStart, uuid.Nil)
 		if cerr, ok := codersdk.AsError(err); ok {
 			switch cerr.StatusCode() {
 			case http.StatusConflict:
@@ -1097,7 +1135,7 @@ func GetWorkspaceAndAgent(ctx context.Context, inv *serpent.Invocation, client *
 			case http.StatusForbidden:
 				_, err = startWorkspace(inv, client, workspace, workspaceParameterFlags{
 					useParameterDefaults: true,
-				}, buildFlags{}, WorkspaceUpdate)
+				}, buildFlags{}, WorkspaceUpdate, uuid.Nil)
 				if err != nil {
 					return codersdk.Workspace{}, codersdk.WorkspaceAgent{}, nil, xerrors.Errorf("start workspace with active template version: %w", err)
 				}

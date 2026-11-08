@@ -40,13 +40,15 @@ type Auditable interface {
 		database.Chat |
 		database.ChatProject |
 		database.ChatProjectMemory |
+		database.AuditableChatProjectInstructions |
 		database.ChatModelConfig |
-		database.ChatAutomation |
 		database.MCPServerConfig |
 		database.AuditableGroupAIBudget |
 		database.AuditableUserAIBudgetOverride |
 		database.UserSecret |
-		database.UserSkill |
+		database.Skill |
+		database.AuditableOrganizationSkill |
+		database.AuditableChatProjectSkill |
 		database.ChatInstructionSettings |
 		database.ChatOperationalSettings |
 		database.ChatOrganizationSystemPrompt |

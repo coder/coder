@@ -59,11 +59,6 @@ const (
 	APIKeyScopeChatRead                            APIKeyScope = "chat:read"
 	APIKeyScopeChatShare                           APIKeyScope = "chat:share"
 	APIKeyScopeChatUpdate                          APIKeyScope = "chat:update"
-	APIKeyScopeChatAutomationAll                   APIKeyScope = "chat_automation:*"
-	APIKeyScopeChatAutomationCreate                APIKeyScope = "chat_automation:create"
-	APIKeyScopeChatAutomationDelete                APIKeyScope = "chat_automation:delete"
-	APIKeyScopeChatAutomationRead                  APIKeyScope = "chat_automation:read"
-	APIKeyScopeChatAutomationUpdate                APIKeyScope = "chat_automation:update"
 	APIKeyScopeChatModelConfigAll                  APIKeyScope = "chat_model_config:*"
 	APIKeyScopeChatModelConfigCreate               APIKeyScope = "chat_model_config:create"
 	APIKeyScopeChatModelConfigDelete               APIKeyScope = "chat_model_config:delete"
@@ -74,6 +69,7 @@ const (
 	APIKeyScopeChatProjectCreate                   APIKeyScope = "chat_project:create"
 	APIKeyScopeChatProjectDelete                   APIKeyScope = "chat_project:delete"
 	APIKeyScopeChatProjectRead                     APIKeyScope = "chat_project:read"
+	APIKeyScopeChatProjectShare                    APIKeyScope = "chat_project:share"
 	APIKeyScopeChatProjectUpdate                   APIKeyScope = "chat_project:update"
 	APIKeyScopeChatProjectMemoryAll                APIKeyScope = "chat_project_memory:*"
 	APIKeyScopeChatProjectMemoryCreate             APIKeyScope = "chat_project_memory:create"
@@ -165,6 +161,12 @@ const (
 	APIKeyScopeOrganizationMemberDelete            APIKeyScope = "organization_member:delete"
 	APIKeyScopeOrganizationMemberRead              APIKeyScope = "organization_member:read"
 	APIKeyScopeOrganizationMemberUpdate            APIKeyScope = "organization_member:update"
+	APIKeyScopeOrganizationSkillAll                APIKeyScope = "organization_skill:*"
+	APIKeyScopeOrganizationSkillCreate             APIKeyScope = "organization_skill:create"
+	APIKeyScopeOrganizationSkillDelete             APIKeyScope = "organization_skill:delete"
+	APIKeyScopeOrganizationSkillRead               APIKeyScope = "organization_skill:read"
+	APIKeyScopeOrganizationSkillShare              APIKeyScope = "organization_skill:share"
+	APIKeyScopeOrganizationSkillUpdate             APIKeyScope = "organization_skill:update"
 	APIKeyScopePrebuiltWorkspaceAll                APIKeyScope = "prebuilt_workspace:*"
 	APIKeyScopePrebuiltWorkspaceDelete             APIKeyScope = "prebuilt_workspace:delete"
 	APIKeyScopePrebuiltWorkspaceUpdate             APIKeyScope = "prebuilt_workspace:update"
@@ -263,6 +265,11 @@ const (
 	APIKeyScopeWorkspaceProxyDelete                APIKeyScope = "workspace_proxy:delete"
 	APIKeyScopeWorkspaceProxyRead                  APIKeyScope = "workspace_proxy:read"
 	APIKeyScopeWorkspaceProxyUpdate                APIKeyScope = "workspace_proxy:update"
+	APIKeyScopeWorkspaceSecretAll                  APIKeyScope = "workspace_secret:*"
+	APIKeyScopeWorkspaceSecretCreate               APIKeyScope = "workspace_secret:create"
+	APIKeyScopeWorkspaceSecretRead                 APIKeyScope = "workspace_secret:read"
+	APIKeyScopeWorkspaceSecretReadSecret           APIKeyScope = "workspace_secret:read_secret"
+	APIKeyScopeWorkspaceSecretUpdate               APIKeyScope = "workspace_secret:update"
 )
 
 // PublicAPIKeyScopes lists all public low-level API key scopes.
@@ -292,6 +299,12 @@ var PublicAPIKeyScopes = []APIKeyScope{
 	APIKeyScopeOrganizationDelete,
 	APIKeyScopeOrganizationRead,
 	APIKeyScopeOrganizationUpdate,
+	APIKeyScopeOrganizationSkillAll,
+	APIKeyScopeOrganizationSkillCreate,
+	APIKeyScopeOrganizationSkillDelete,
+	APIKeyScopeOrganizationSkillRead,
+	APIKeyScopeOrganizationSkillShare,
+	APIKeyScopeOrganizationSkillUpdate,
 	APIKeyScopeTemplateAll,
 	APIKeyScopeTemplateCreate,
 	APIKeyScopeTemplateDelete,

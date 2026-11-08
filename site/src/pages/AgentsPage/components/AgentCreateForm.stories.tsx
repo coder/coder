@@ -10,11 +10,14 @@ import {
 	spyOn,
 	userEvent,
 	waitFor,
+	waitForElementToBeRemoved,
 	within,
 } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { aiProvidersListKey } from "#/api/queries/aiProviders";
+import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	mcpServerConfigsKey,
 	organizationChatModelsKey,
@@ -40,6 +43,7 @@ import {
 	MockWorkspace,
 	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
+import { MockSkills } from "#/testHelpers/skills";
 import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import {
@@ -1803,12 +1807,15 @@ export const RevokedSelectionDoesNotResurrect: Story = {
 		await userEvent.click(
 			await screen.findByRole("option", { name: /My Organization 2/ }),
 		);
-		await canvas.findByRole("button", {
+		const revokedPicker = await canvas.findByRole("button", {
 			name: "Organization: My Organization 2",
 		});
 
 		revocablePermissions[MockOrganization2.id] = false;
-		await revocableQueryClient?.invalidateQueries();
+		void revocableQueryClient?.invalidateQueries();
+		// One permitted org hides the picker. Wait for it to unmount so the
+		// re-permit cannot arrive before the revoked selection is cleared.
+		await waitForElementToBeRemoved(revokedPicker);
 
 		revocablePermissions[MockOrganization2.id] = true;
 		await revocableQueryClient?.invalidateQueries();
@@ -2030,6 +2037,70 @@ export const OrgPickerTightSpacing: Story = {
 			},
 		],
 	},
+};
+
+const pickerProjects: TypesGen.ChatProject[] = [
+	{ ...MockChatProject, icon: "/emojis/1f680.png" },
+	{
+		...MockChatProject,
+		id: "chat-project-incidents",
+		name: "Incident response",
+		icon: "/emojis/1f525.png",
+	},
+	{
+		...MockChatProject,
+		id: "chat-project-org-2",
+		organization_id: MockOrganization2.id,
+		name: "Organization 2 project",
+	},
+];
+
+export const WithProjectPicker: Story = {
+	parameters: {
+		queries: [
+			...defaultQueries,
+			{ key: chatProjectsKey, data: pickerProjects },
+		],
+	},
+};
+
+export const WithOrganizationAndProjectPickers: Story = {
+	parameters: {
+		showOrganizations: true,
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		queries: [
+			...defaultQueries,
+			{
+				key: permittedOrgsKey,
+				data: [MockDefaultOrganization, MockOrganization2],
+			},
+			{ key: chatProjectsKey, data: pickerProjects },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /^Project:/ }),
+		);
+		await screen.findByRole("button", { name: "New project" });
+	},
+};
+
+const mockProjectActionSkills: TypesGen.SkillMetadata[] = MockSkills.map(
+	(skill) => ({ ...skill, action: true }),
+);
+
+export const ProjectComposerWithActions: Story = {
+	parameters: {
+		queries: [
+			...defaultQueries,
+			{
+				key: chatProjectSkillsKey(MockChatProject.id),
+				data: mockProjectActionSkills,
+			},
+		],
+	},
+	args: { project: MockChatProject },
 };
 
 /**

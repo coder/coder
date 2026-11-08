@@ -53,7 +53,7 @@ func NewChatMachine(
 // Tx is the per-transaction handle passed to [ChatMachine.Update]
 // callbacks. It carries the active context, the transactional store,
 // and the chat ID. Tx does not cache mutable chat state across calls:
-// every transition method reads the chat row and queue cardinality
+// every transition method reads the chat row and queue state
 // from the database on entry, so a bundle of transitions inside one
 // Update callback always validates against the latest committed state.
 type Tx struct {
@@ -81,7 +81,7 @@ func (tx *Tx) ChatID() uuid.UUID { return tx.chatID }
 // matrix.
 func (tx *Tx) Store() database.Store { return tx.store }
 
-// loadState reads the current chat row and queue cardinality from the
+// loadState reads the current chat row and queue state from the
 // active transaction, classifies the execution state, and returns the
 // inputs every transition method needs. Returns ErrChatNotFound if
 // the chat row was deleted in this transaction (or never existed).
@@ -93,11 +93,11 @@ func (tx *Tx) loadState() (database.Chat, ExecutionState, error) {
 		}
 		return database.Chat{}, "", xerrors.Errorf("load chat: %w", err)
 	}
-	count, err := tx.store.CountChatQueuedMessages(tx.ctx, tx.chatID)
+	queue, err := LoadQueueState(tx.ctx, tx.store, tx.chatID)
 	if err != nil {
-		return database.Chat{}, "", xerrors.Errorf("count queued messages: %w", err)
+		return database.Chat{}, "", xerrors.Errorf("load queue state: %w", err)
 	}
-	return chat, ClassifyExecutionState(chat, count > 0, true), nil
+	return chat, ClassifyExecutionState(chat, queue, true), nil
 }
 
 // requireFromAllowed loads the current state and validates t against
@@ -144,15 +144,6 @@ func (tx *Tx) requireFromAllowed(t Transition) (database.Chat, ExecutionState, e
 //
 // Callbacks that return an error roll back the transaction (rolling
 // back the automatic snapshot bump) and publish nothing.
-//
-// Lock order is the chat row first, then automations in ascending id
-// order (see [LockAutomations]). When an attempt that took automation
-// locks is aborted by a PostgreSQL deadlock, Update reruns the whole
-// transaction, including fn, up to [maxUpdateAttempts] times. fn must
-// therefore be safe to rerun: it may only do database work through the
-// transaction and assign results. Attempts that took no automation locks
-// are never retried, and neither is an Update nested inside another
-// Update, because the outer transaction is already aborted.
 func (m *ChatMachine) Update(
 	ctx context.Context,
 	fn func(*Tx, database.Store) error,
@@ -163,30 +154,7 @@ func (m *ChatMachine) Update(
 	if m.publisher == nil {
 		return xerrors.New("chatstate: ChatMachine has nil publisher")
 	}
-	if _, nested := updateAttemptFromContext(ctx); nested {
-		// The outer Update owns the transaction, its lock record, and
-		// any retry.
-		return m.updateOnce(ctx, fn)
-	}
-	for attempt := 1; ; attempt++ {
-		state := &updateAttempt{}
-		err := m.updateOnce(context.WithValue(ctx, updateAttemptKey{}, state), fn)
-		if err == nil || attempt >= maxUpdateAttempts ||
-			!state.automationLocks || !database.IsDeadlockError(err) {
-			return err
-		}
-	}
-}
 
-// maxUpdateAttempts bounds the deadlock retries of [ChatMachine.Update].
-const maxUpdateAttempts = 3
-
-// updateOnce runs one Update attempt with its own publish buffer, so an
-// aborted attempt publishes nothing.
-func (m *ChatMachine) updateOnce(
-	ctx context.Context,
-	fn func(*Tx, database.Store) error,
-) error {
 	buffer := NewPublishBuffer(m.publisher)
 	defer buffer.Discard()
 

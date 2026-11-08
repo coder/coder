@@ -100,7 +100,7 @@ export const ThemePreview: React.FC<ThemePreviewProps> = ({
 								className={cn(
 									"rounded-md flex-1",
 									size === "sm" ? "h-6" : "h-10",
-									"bg-surface-git-added border border-solid border-border-default",
+									"bg-surface-git-added border border-solid border-border",
 								)}
 							>
 								<div

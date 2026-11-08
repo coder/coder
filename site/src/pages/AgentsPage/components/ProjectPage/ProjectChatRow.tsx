@@ -1,30 +1,32 @@
 import { cn } from "cn";
 import { EllipsisVerticalIcon } from "lucide-react";
-import { useQuery } from "react-query";
+import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link, useLocation } from "react-router";
-import { chatCost } from "#/api/queries/chats";
+import { getErrorMessage } from "#/api/errors";
+import {
+	archiveChat,
+	chatArchiveMutationKey,
+	chatCost,
+	pinChat,
+	unarchiveChat,
+	unpinChat,
+} from "#/api/queries/chats";
 import type { Chat, User } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuSub,
-	DropdownMenuSubContent,
-	DropdownMenuSubTrigger,
-	DropdownMenuTrigger,
-} from "#/components/DropdownMenu/DropdownMenu";
+import { preventRowContextMenuProps } from "#/components/ContextMenu/ContextMenu";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import { toast } from "#/components/Toaster/toast";
 import { formatCostMicros } from "#/utils/currency";
 import type { AgentsPageOutletContext } from "../../AgentsPageLayout";
 import { buildAgentChatPath } from "../../utils/navigation";
+import { clearPersistedRightPanelState } from "../../utils/rightPanelTabStorage";
+import { clearPersistedSidebarTabId } from "../../utils/sidebarTabStorage";
 import {
-	ChatActionsMenuItems,
+	ChatActionsMenu,
 	canManageChat,
-	chatFamilyAllowsArchive,
+	getArchiveBlockedReason,
 } from "../ChatActionsMenuItems";
 import { getChatCostTreeID } from "../ChatConversation/chatHelpers";
 import { ChatPRStateIcon } from "../ChatDiffStats";
@@ -34,13 +36,7 @@ import { getChatDisplayConfig } from "../ChatsSidebar/tree/statusConfig";
 /** The chat actions a project chat row offers from its menu. */
 export type ProjectChatRowActions = Pick<
 	AgentsPageOutletContext,
-	| "requestArchiveAgent"
-	| "requestUnarchiveAgent"
-	| "requestArchiveAndDeleteWorkspace"
-	| "requestPinAgent"
-	| "requestUnpinAgent"
-	| "onOpenRenameDialog"
-	| "isArchiving"
+	"clearChatErrorReason" | "navigateAfterArchive" | "onOpenRenameDialog"
 >;
 
 type ProjectChatRowProps = {
@@ -63,7 +59,7 @@ const ProjectChatCost: React.FC<{ readonly chat: Chat }> = ({ chat }) => {
 		<Badge
 			asChild
 			size="sm"
-			className="shrink-0 tabular-nums group-hover:border-surface-tertiary group-hover:bg-surface-tertiary group-has-[[data-state=open]]:border-surface-tertiary group-has-[[data-state=open]]:bg-surface-tertiary"
+			className="shrink-0 tabular-nums group-hover:bg-surface-tertiary group-has-[[data-state=open]]:bg-surface-tertiary group-data-[state=open]:bg-surface-tertiary"
 		>
 			<span>{formatCostMicros(costQuery.data.total_cost_micros)}</span>
 		</Badge>
@@ -88,16 +84,80 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 		? currentUser.name || currentUser.username
 		: chat.owner_name || chat.owner_username || "Unknown";
 	const workspaceId = chat.workspace_id;
+	const queryClient = useQueryClient();
+	const mutationKey = chatArchiveMutationKey(chat.id);
+	const pinOptions = pinChat(queryClient);
+	const pinMutation = useMutation({
+		...pinOptions,
+		onError: (error, chatId, context) => {
+			pinOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to pin agent."));
+		},
+	});
+	const unpinOptions = unpinChat(queryClient);
+	const unpinMutation = useMutation({
+		...unpinOptions,
+		onError: (error, chatId, context) => {
+			unpinOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unpin agent."));
+		},
+	});
+	const archiveOptions = archiveChat(queryClient);
+	const archiveMutation = useMutation({
+		...archiveOptions,
+		mutationKey,
+		onSuccess: (data, chatId) => {
+			archiveOptions.onSuccess(data, chatId);
+			clearPersistedSidebarTabId(chatId);
+			clearPersistedRightPanelState(chatId);
+			actions?.clearChatErrorReason(chatId);
+		},
+		onError: (error, chatId, context) => {
+			archiveOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to archive agent."));
+		},
+	});
+	const unarchiveOptions = unarchiveChat(queryClient);
+	const unarchiveMutation = useMutation({
+		...unarchiveOptions,
+		mutationKey,
+		onError: (error, chatId, context) => {
+			unarchiveOptions.onError(error, chatId, context);
+			toast.error(getErrorMessage(error, "Failed to unarchive agent."));
+		},
+	});
 
-	return (
-		<li className="group -mx-2 flex min-w-0 items-center gap-2 rounded-lg pr-2 hover:bg-surface-secondary has-[[data-state=open]]:bg-surface-secondary">
+	const sharedMenuItemProps = {
+		chat,
+		canManage,
+		hasWorkspace: Boolean(workspaceId),
+		archiveBlockedReason: getArchiveBlockedReason(chat.status, chat.children),
+		onPinAgent: () => pinMutation.mutate(chat.id),
+		onUnpinAgent: () => unpinMutation.mutate(chat.id),
+		onArchiveAgent: () => archiveMutation.mutate(chat.id),
+		onUnarchiveAgent: () => unarchiveMutation.mutate(chat.id),
+		onArchived: actions?.navigateAfterArchive,
+		onOpenRenameDialog: actions?.onOpenRenameDialog
+			? () => actions.onOpenRenameDialog?.(chat)
+			: undefined,
+	};
+
+	const row = (
+		<li
+			className={cn(
+				"group -mx-2 flex min-w-0 items-center gap-2 rounded-lg pr-2 hover:bg-surface-secondary has-[[data-state=open]]:bg-surface-secondary",
+				// A long press opens the context menu on touch screens, so it must
+				// not also select text.
+				actions && "select-none data-[state=open]:bg-surface-secondary",
+			)}
+		>
 			<Link
 				// Keeps the sidebar filters, which live in the query string.
 				to={{
 					pathname: buildAgentChatPath({ chatId: chat.id }),
 					search: normalizeLocationSearch(location.search),
 				}}
-				className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-2 text-sm text-content-primary no-underline"
+				className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-2 text-sm text-content-secondary no-underline"
 			>
 				<StatusIcon
 					role="img"
@@ -119,57 +179,32 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 					fallback={ownerName}
 					className={cn(
 						actions &&
-							"[@media(hover:hover)]:group-hover:invisible group-has-focus-visible:invisible group-has-[[data-state=open]]:invisible [@media(hover:none)]:invisible",
+							"[@media(hover:hover)]:group-hover:invisible group-has-focus-visible:invisible group-has-[[data-state=open]]:invisible group-data-[state=open]:invisible [@media(hover:none)]:invisible",
 					)}
 				/>
 				{actions && (
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								variant="subtle"
-								size="icon"
-								className="size-7 opacity-0 [@media(hover:hover)]:group-hover:opacity-100 group-has-focus-visible:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
-								aria-label={`Open chat actions for ${chat.title}`}
-							>
-								<EllipsisVerticalIcon />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<ChatActionsMenuItems
-								Item={DropdownMenuItem}
-								Separator={DropdownMenuSeparator}
-								Sub={DropdownMenuSub}
-								SubTrigger={DropdownMenuSubTrigger}
-								SubContent={DropdownMenuSubContent}
-								chat={chat}
-								canManage={canManage}
-								hasWorkspace={Boolean(workspaceId)}
-								isArchiving={actions.isArchiving}
-								isArchiveBlocked={
-									!chatFamilyAllowsArchive(chat.status, chat.children)
-								}
-								onPinAgent={() => actions.requestPinAgent(chat.id)}
-								onUnpinAgent={() => actions.requestUnpinAgent(chat.id)}
-								onArchiveAgent={() => actions.requestArchiveAgent(chat.id)}
-								onUnarchiveAgent={() => actions.requestUnarchiveAgent(chat.id)}
-								onArchiveAndDeleteWorkspace={() => {
-									if (workspaceId) {
-										actions.requestArchiveAndDeleteWorkspace(
-											chat.id,
-											workspaceId,
-										);
-									}
-								}}
-								onOpenRenameDialog={
-									actions.onOpenRenameDialog
-										? () => actions.onOpenRenameDialog?.(chat)
-										: undefined
-								}
-							/>
-						</DropdownMenuContent>
-					</DropdownMenu>
+					<ChatActionsMenu {...sharedMenuItemProps}>
+						<Button
+							variant="subtle"
+							size="icon"
+							className="size-7 opacity-0 [@media(hover:hover)]:group-hover:opacity-100 group-has-focus-visible:opacity-100 data-[state=open]:opacity-100 group-data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
+							aria-label={`Open chat actions for ${chat.title}`}
+							{...preventRowContextMenuProps}
+						>
+							<EllipsisVerticalIcon />
+						</Button>
+					</ChatActionsMenu>
 				)}
 			</div>
 		</li>
+	);
+
+	if (!actions) {
+		return row;
+	}
+	return (
+		<ChatActionsMenu {...sharedMenuItemProps} variant="context">
+			{row}
+		</ChatActionsMenu>
 	);
 };

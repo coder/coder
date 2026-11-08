@@ -102,18 +102,20 @@ func (m *prMetadataMaps) lookupCommit(fullSHA string, prNumber int) prMetadata {
 }
 
 // loadPRMetadata fetches PR metadata for the given commits via the gh
-// CLI. It never fails: when gh is unavailable or the query errors, a
-// warning is written and empty maps are returned so callers degrade to
-// title-only categorization.
-func loadPRMetadata(w io.Writer, ghAvailable bool, commits []commitEntry) *prMetadataMaps {
-	if ghAvailable {
-		prMeta, err := ghBuildPRMetadataMap(commits)
-		if err != nil {
-			warnf(w, "Failed to fetch PR metadata: %v", err)
-		} else if prMeta != nil {
-			return prMeta
-		}
+// CLI. It never fails: when the query errors, a warning is written and
+// empty maps are returned so callers degrade to title-only
+// categorization.
+func loadPRMetadata(w io.Writer, commits []commitEntry) *prMetadataMaps {
+	prMeta, err := ghBuildPRMetadataMap(commits)
+	if err != nil {
+		warnf(w, "Failed to fetch PR metadata: %v", err)
+	} else if prMeta != nil {
+		return prMeta
 	}
+	return emptyPRMetadata()
+}
+
+func emptyPRMetadata() *prMetadataMaps {
 	return &prMetadataMaps{
 		bySHA:    make(map[string]prMetadata),
 		byNumber: make(map[int]prMetadata),

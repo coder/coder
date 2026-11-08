@@ -362,25 +362,32 @@ const ProvisionerJobsPage = lazy(
 const AgentsPageLayout = lazy(
 	() => import("./pages/AgentsPage/AgentsPageLayout"),
 );
-const AgentChatPage = lazy(() => import("./pages/AgentsPage/AgentChatPage"));
-const AgentAutomationsPage = lazy(
-	() => import("./pages/AgentsPage/AgentAutomationsPage"),
+const AgentChatPage = lazy(
+	() => import("./pages/AgentsPage/AgentChatPage/AgentChatPage"),
 );
-const AgentEmbedPage = lazy(() => import("./pages/AgentsPage/AgentEmbedPage"));
+const AgentEmbedPage = lazy(
+	() => import("./pages/AgentsPage/AgentEmbedPage/AgentEmbedPage"),
+);
 const DesktopPopoutPage = lazy(
-	() => import("./pages/AgentsPage/DesktopPopoutPage"),
+	() => import("./pages/AgentsPage/DesktopPopoutPage/DesktopPopoutPage"),
 );
 const AgentCreatePage = lazy(
-	() => import("./pages/AgentsPage/AgentCreatePage"),
+	() => import("./pages/AgentsPage/AgentCreatePage/AgentCreatePage"),
 );
 const AgentSettingsLayout = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsLayout"),
+	() => import("./pages/AgentsPage/AgentSettingsPage/AgentSettingsLayout"),
 );
 const AgentSettingsGeneralPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsGeneralPage"),
+	() =>
+		import(
+			"./pages/AgentsPage/AgentSettingsPage/AgentSettingsGeneralPage/AgentSettingsGeneralPage"
+		),
 );
 const AgentSettingsCompactionPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsCompactionPage"),
+	() =>
+		import(
+			"./pages/AgentsPage/AgentSettingsPage/AgentSettingsCompactionPage/AgentSettingsCompactionPage"
+		),
 );
 
 const AISettingsLifecyclePage = lazy(
@@ -390,13 +397,28 @@ const CoderAgentsPage = lazy(
 	() => import("./pages/AISettingsPage/CoderAgentsPage/CoderAgentsPage"),
 );
 const AgentSettingsUserAgentsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsUserAgentsPage"),
+	() =>
+		import(
+			"./pages/AgentsPage/AgentSettingsPage/AgentSettingsUserAgentsPage/AgentSettingsUserAgentsPage"
+		),
 );
-const AgentSettingsPersonalSkillsPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsPersonalSkillsPage"),
+const AgentSettingsSkillsPage = lazy(
+	() =>
+		import(
+			"./pages/AgentsPage/AgentSettingsPage/AgentSettingsSkillsPage/AgentSettingsSkillsPage"
+		),
+);
+const AgentSettingsMCPConnectionsPage = lazy(
+	() =>
+		import(
+			"./pages/AgentsPage/AgentSettingsPage/AgentSettingsMCPConnectionsPage/AgentSettingsMCPConnectionsPage"
+		),
 );
 const AgentSettingsAPIKeysPage = lazy(
-	() => import("./pages/AgentsPage/AgentSettingsAPIKeysPage"),
+	() =>
+		import(
+			"./pages/AgentsPage/AgentSettingsPage/AgentSettingsAPIKeysPage/AgentSettingsAPIKeysPage"
+		),
 );
 
 import {
@@ -476,6 +498,10 @@ const AISettingsUpdateMCPServerPage = lazy(
 		import(
 			"./pages/AISettingsPage/MCPServersPage/UpdateMCPServerPage/UpdateMCPServerPage"
 		),
+);
+
+const AISettingsSkillsPage = lazy(
+	() => import("./pages/AISettingsPage/SkillsPage/SkillsPage"),
 );
 
 const GlobalLayout = () => {
@@ -775,6 +801,7 @@ export const router = createBrowserRouter(
 							path="mcp-servers/:serverId"
 							element={<AISettingsUpdateMCPServerPage />}
 						/>
+						<Route path="skills" element={<AISettingsSkillsPage />} />
 						<Route path="providers" element={<AISettingsProvidersPage />} />
 						<Route
 							path="providers/add"
@@ -855,9 +882,14 @@ export const router = createBrowserRouter(
 							path="user-agents"
 							element={<AgentSettingsUserAgentsPage />}
 						/>
+						<Route path="skills" element={<AgentSettingsSkillsPage />} />
+						<Route
+							path="mcp-connections"
+							element={<AgentSettingsMCPConnectionsPage />}
+						/>
 						<Route
 							path="personal-skills"
-							element={<AgentSettingsPersonalSkillsPage />}
+							element={<Navigate to="/agents/settings/skills" replace />}
 						/>
 						<Route
 							path="admin"
@@ -894,14 +926,6 @@ export const router = createBrowserRouter(
 						/>
 					</Route>
 					<Route path="projects/:projectId" element={<AgentCreatePage />} />
-					<Route
-						path="automations"
-						element={
-							<Suspense fallback={<AgentChatPageSkeleton />}>
-								<AgentAutomationsPage />
-							</Suspense>
-						}
-					/>
 					<Route
 						path=":agentId"
 						element={

@@ -14,6 +14,11 @@
 #                     (optional for local runs).
 #   GITHUB_BASE_REF   Base branch for diff-only lint checks (e.g. emdash).
 #                     Set automatically by GitHub Actions for PRs.
+#   GO_LINT_NEW_CODE_BASE
+#                     Revision lint/go/new-code diffs against. Defaults to the
+#                     Makefile's origin/main locally; under GitHub Actions it
+#                     defaults to HEAD^1 for PRs and HEAD otherwise, as in
+#                     ci.yaml.
 #   CI                When set, fmt targets run in check-mode and actionlint
 #                     is excluded from make lint (it runs separately in CI).
 #   STEPS             Space-separated list of steps to run. Defaults to all.
@@ -49,6 +54,20 @@ else
 	log "NOTE: if the container cannot write to the checkout, run: chmod -R a+rwX ."
 fi
 
+# lint/go/new-code only reports lines changed since GO_LINT_NEW_CODE_BASE
+# (Makefile default: origin/main). CI checkouts are shallow and have no
+# origin/main, which makes it report the whole tree, so mirror ci.yaml:
+# PRs check out the merge commit, whose first parent is the base branch
+# tip; other events compare HEAD with itself, so the pass reports nothing.
+if [[ -z "${GO_LINT_NEW_CODE_BASE:-}" && -n "${GITHUB_ACTIONS:-}" ]]; then
+	if [[ "${GITHUB_EVENT_NAME:-}" == "pull_request" ]]; then
+		GO_LINT_NEW_CODE_BASE=HEAD^1
+	else
+		GO_LINT_NEW_CODE_BASE=HEAD
+	fi
+	export GO_LINT_NEW_CODE_BASE
+fi
+
 # Helper: run a make target inside the image.
 #
 # Mounts /home/coder/ as a single named volume to mirror the dogfood
@@ -69,6 +88,7 @@ run_make() {
 		--network=host \
 		--env GITHUB_TOKEN \
 		--env GITHUB_BASE_REF \
+		--env GO_LINT_NEW_CODE_BASE \
 		--env CI \
 		"$IMAGE" \
 		make "$@"

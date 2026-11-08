@@ -26,10 +26,7 @@ import (
 // helper accessors. It is intentionally NOT a generic chatd test
 // fixture; tests outside this package should not depend on it.
 type testFixture struct {
-	DB database.Store
-	// SQLDB is the raw handle behind DB, for test-only writes that have
-	// no production query, such as disabling an automation.
-	SQLDB *sql.DB
+	DB    database.Store
 	Pub   *recordingPubsub
 	User  database.User
 	Org   database.Organization
@@ -38,7 +35,7 @@ type testFixture struct {
 
 func newTestFixture(t *testing.T) *testFixture {
 	t.Helper()
-	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	db, _ := dbtestutil.NewDB(t)
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{
@@ -57,7 +54,6 @@ func newTestFixture(t *testing.T) *testFixture {
 	pub := newRecordingPubsub()
 	return &testFixture{
 		DB:    db,
-		SQLDB: sqlDB,
 		Pub:   pub,
 		User:  user,
 		Org:   org,
@@ -75,14 +71,14 @@ func (f *testFixture) readChat(ctx context.Context, t *testing.T, chatID uuid.UU
 	return chat
 }
 
-// classify reads the chat plus queue cardinality and returns the
-// execution state.
+// classify reads the chat plus queue state and returns the execution
+// state.
 func (f *testFixture) classify(ctx context.Context, t *testing.T, chatID uuid.UUID) chatstate.ExecutionState {
 	t.Helper()
 	chat := f.readChat(ctx, t, chatID)
-	count, err := f.DB.CountChatQueuedMessages(ctx, chatID)
+	queue, err := chatstate.LoadQueueState(ctx, f.DB, chatID)
 	require.NoError(t, err)
-	return chatstate.ClassifyExecutionState(chat, count > 0, true)
+	return chatstate.ClassifyExecutionState(chat, queue, true)
 }
 
 // recordingPubsub captures every Publish call so tests can assert on
