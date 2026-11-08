@@ -28,7 +28,10 @@ export type OverviewTarget = { tabId: "summary" } | { tabId: "git" };
 
 type OverviewRepo = {
 	root: string;
-	branch: string;
+	/** The repository's display name, such as its folder name. */
+	name: string;
+	/** Absent when the repository has no current branch. */
+	branch?: string;
 	additions: number;
 	deletions: number;
 };
@@ -107,8 +110,8 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 					</div>
 				) : (
 					<p className="m-0 px-1.5 py-2 text-xs text-content-secondary">
-						Nothing to show yet. Cost, changes, pull requests, and attachments
-						show up here as the agent works.
+						Nothing to show yet. Cost, repositories, pull requests, and
+						attachments show up here as the agent works.
 					</p>
 				))}
 
@@ -131,13 +134,14 @@ export const ChatOverviewCardView: React.FC<ChatOverviewCardViewProps> = ({
 			)}
 
 			<OverviewListSection
-				title="Changes"
+				title="Repositories"
 				items={overview.repos}
 				render={(repo) => (
 					<OverviewRow
 						key={repo.root}
 						icon={GitBranchIcon}
-						label={repo.branch}
+						label={repo.name}
+						subtitle={repo.branch}
 						detail={<RepoDiffStat {...repo} />}
 						onClick={
 							hasChanges(repo)
