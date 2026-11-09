@@ -215,14 +215,18 @@ func New(providerType string, apiBaseURL string, httpClient *http.Client, opts .
 
 // parseRetryAfter extracts a retry duration from rate-limit response
 // headers. It checks Retry-After (seconds) first, then the named
-// resetHeader (unix timestamp). Returns zero if no recognizable header
-// is present.
+// resetHeader (unix timestamp) only when its remaining header is zero.
+// Returns zero if no recognizable rate-limit headers are present.
 func parseRetryAfter(h http.Header, resetHeader string, clk quartz.Clock) time.Duration {
 	// Retry-After header: seconds until retry.
 	if ra := h.Get("Retry-After"); ra != "" {
 		if secs, err := strconv.Atoi(ra); err == nil {
 			return time.Duration(secs) * time.Second
 		}
+	}
+	remainingHeader := strings.TrimSuffix(resetHeader, "Reset") + "Remaining"
+	if h.Get(remainingHeader) != "0" {
+		return 0
 	}
 	// Reset header: unix timestamp. We compute the duration from now
 	// according to the caller's clock.

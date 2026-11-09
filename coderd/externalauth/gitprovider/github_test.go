@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
+	"github.com/coder/quartz"
 )
 
 func TestGitHubParseRepositoryOrigin(t *testing.T) {
@@ -434,6 +436,7 @@ func TestGitHubRatelimit_403WithResetHeader(t *testing.T) {
 	resetTime := time.Now().Add(60 * time.Second)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("X-Ratelimit-Reset", fmt.Sprintf("%d", resetTime.Unix()))
+		w.Header().Set("X-Ratelimit-Remaining", "0")
 		w.WriteHeader(http.StatusForbidden)
 		_, _ = w.Write([]byte(`{"message": "API rate limit exceeded"}`))
 	}))
@@ -460,6 +463,7 @@ func TestGitHubRatelimit_429WithRetryAfter(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Retry-After", "120")
+		w.Header().Set("X-Ratelimit-Remaining", "4990")
 		w.WriteHeader(http.StatusTooManyRequests)
 		_, _ = w.Write([]byte(`{"message": "secondary rate limit"}`))
 	}))
@@ -486,14 +490,17 @@ func TestGitHubRatelimit_429WithRetryAfter(t *testing.T) {
 
 func TestGitHubRatelimit_403NormalError(t *testing.T) {
 	t.Parallel()
+	clock := quartz.NewMock(t)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-RateLimit-Remaining", "4990")
+		w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(clock.Now().Add(time.Hour).Unix(), 10))
 		w.WriteHeader(http.StatusForbidden)
 		_, _ = w.Write([]byte(`{"message": "Bad credentials"}`))
 	}))
 	defer srv.Close()
 
-	gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+	gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client(), gitprovider.WithClock(clock))
 	require.NoError(t, err)
 	require.NotNil(t, gp)
 

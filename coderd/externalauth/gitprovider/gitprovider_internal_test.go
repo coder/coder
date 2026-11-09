@@ -77,6 +77,7 @@ func TestParseRetryAfter(t *testing.T) {
 		future := clk.Now().Add(90 * time.Second)
 		h := http.Header{}
 		h.Set("X-Ratelimit-Reset", strconv.FormatInt(future.Unix(), 10))
+		h.Set("X-Ratelimit-Remaining", "0")
 		d := parseRetryAfter(h, "X-Ratelimit-Reset", clk)
 		assert.WithinDuration(t, future, clk.Now().Add(d), time.Second)
 	})
@@ -86,6 +87,7 @@ func TestParseRetryAfter(t *testing.T) {
 		future := clk.Now().Add(45 * time.Second)
 		h := http.Header{}
 		h.Set("RateLimit-Reset", strconv.FormatInt(future.Unix(), 10))
+		h.Set("RateLimit-Remaining", "0")
 		d := parseRetryAfter(h, "RateLimit-Reset", clk)
 		assert.WithinDuration(t, future, clk.Now().Add(d), time.Second)
 	})

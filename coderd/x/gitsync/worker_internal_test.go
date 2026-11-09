@@ -92,6 +92,7 @@ func TestWorker_RateLimitBackoff(t *testing.T) {
 							value = strconv.FormatInt(int64(tc.resetAfter/time.Second), 10)
 						}
 						w.Header().Set(tc.header, value)
+						w.Header().Set("X-RateLimit-Remaining", "0")
 						w.WriteHeader(http.StatusTooManyRequests)
 						return
 					}

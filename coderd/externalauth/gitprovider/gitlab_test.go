@@ -314,6 +314,7 @@ func TestGitLabRateLimit(t *testing.T) {
 		resetTime := mClock.Now().Add(60 * time.Second)
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("RateLimit-Reset", fmt.Sprintf("%d", resetTime.Unix()))
+			w.Header().Set("RateLimit-Remaining", "0")
 			w.WriteHeader(http.StatusForbidden)
 			_, _ = w.Write([]byte(`{"message":"rate limit exceeded"}`))
 		}))
