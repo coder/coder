@@ -83,6 +83,25 @@ func TestWorker_CooldownLookupError(t *testing.T) {
 	worker.tick(testutil.Context(t, testutil.WaitShort))
 }
 
+func newCooldownWorkspace(t *testing.T, db database.Store, ownerID, organizationID uuid.UUID) uuid.UUID {
+	t.Helper()
+	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: organizationID,
+		CreatedBy:      ownerID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID:  organizationID,
+		CreatedBy:       ownerID,
+		ActiveVersionID: version.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        ownerID,
+		OrganizationID: organizationID,
+		TemplateID:     template.ID,
+	})
+	return workspace.ID
+}
+
 type branchCallbackProvider struct {
 	gitprovider.Provider
 	resolve func(context.Context, string, gitprovider.BranchRef) (*gitprovider.PRRef, error)
@@ -106,9 +125,11 @@ func TestWorker_CooldownPersistsAfterTickCancellation(t *testing.T) {
 	const origin = "https://github.example/owner/repo"
 	var limitedChat database.Chat
 	for i, userID := range []uuid.UUID{owner.ID, otherOwner.ID} {
+		workspaceID := newCooldownWorkspace(t, db, userID, org.ID)
 		chat := dbgen.Chat(t, db, database.Chat{
 			OwnerID:           userID,
 			OrganizationID:    org.ID,
+			WorkspaceID:       uuid.NullUUID{UUID: workspaceID, Valid: true},
 			LastModelConfigID: model.ID,
 		})
 		_, err := db.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
@@ -179,13 +200,16 @@ func TestWorker_CooldownPersistsAfterTickCancellation(t *testing.T) {
 	require.Len(t, limits, 1)
 	require.Equal(t, retryAfter, limits[0].RetryAfter.UTC())
 
-	otherWorker := newWorker(db)
+	otherStore := &cooldownStoreSpy{Store: db}
+	otherWorker := newWorker(otherStore)
 	otherWorker.MarkStale(ctx, MarkStaleParams{
-		ChatID: limitedChat.ID,
-		Branch: "branch-0",
-		Origin: origin,
+		WorkspaceID: limitedChat.WorkspaceID.UUID,
+		ChatID:      limitedChat.ID,
+		Branch:      "branch-0",
+		Origin:      origin,
 	})
 	otherWorker.tick(ctx)
+	require.Equal(t, 1, otherStore.reads, "MarkStale must make the row eligible for the next worker")
 	require.Equal(t, int32(1), limitedCalls.Load(), "another worker must respect the saved cooldown")
 }
 
@@ -226,9 +250,11 @@ func TestWorker_Cooldown(t *testing.T) {
 			org := dbgen.Organization(t, db, database.Organization{})
 			_ = dbgen.ChatProvider(t, db, database.ChatProvider{})
 			model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+			workspaceID := newCooldownWorkspace(t, db, owner.ID, org.ID)
 			chat := dbgen.Chat(t, db, database.Chat{
 				OwnerID:           owner.ID,
 				OrganizationID:    org.ID,
+				WorkspaceID:       uuid.NullUUID{UUID: workspaceID, Valid: true},
 				LastModelConfigID: model.ID,
 			})
 
@@ -361,10 +387,18 @@ func TestWorker_Cooldown(t *testing.T) {
 			})
 			require.NoError(t, err)
 			worker.MarkStale(ctx, MarkStaleParams{
-				ChatID: chat.ID,
-				Branch: "branch-0",
-				Origin: "https://github.com/owner/repo",
+				WorkspaceID: workspaceID,
+				ChatID:      chat.ID,
+				Branch:      "branch-0",
+				Origin:      "https://github.com/owner/repo",
 			})
+			statuses, err = db.GetChatDiffStatusesByChatIDs(ctx, []uuid.UUID{chat.ID})
+			require.NoError(t, err)
+			markedTimes := make(map[string]time.Time)
+			for _, status := range statuses {
+				markedTimes[status.GitBranch] = status.StaleAt.UTC()
+			}
+			require.Equal(t, clock.Now().Add(-time.Second), markedTimes["branch-0"], "MarkStale must reschedule the tracked ref")
 			addRef(chat.ID, "https://github.com/owner/another-repo", "new-branch")
 			addRef(chat.ID, "git@github.com:owner/repo.git", "ssh-branch")
 			addRef(chat.ID, "https://ghe.example.com/owner/repo", "enterprise")
