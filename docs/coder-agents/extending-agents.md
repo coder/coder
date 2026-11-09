@@ -460,10 +460,8 @@ Tool names are prefixed with the server name as `serverName__toolName` to avoid 
 
 ### Tool results
 
-A tool result can include an image or a PDF, and the model receives it as a file.
-The model receives at most one image or PDF from each tool result.
-An outdated workspace agent drops embedded resources, such as PDFs, from tool results.
-For the provider and size rules, refer to [Tool results](./platform-controls/mcp-servers.md#tool-results).
+A tool result can include images and PDFs.
+For how the model receives them, refer to [Tool results](./platform-controls/mcp-servers.md#tool-results).
 
 ### Timeouts
 
