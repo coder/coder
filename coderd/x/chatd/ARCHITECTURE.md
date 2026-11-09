@@ -1182,8 +1182,7 @@ The generation goroutine supports:
   <!-- TODO(f0ssel): add `consolidate_memory` to this tool list. -->
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
 - file links
-- workspace binding
-  <!-- TODO(deansheather): document that each turn re-checks the chat owner's SSH access to the bound workspace before resolving or dialing its agent, and that a denial fails the turn with a non-retryable access error. -->
+- workspace binding (each turn verifies the chat owner's SSH access to the bound workspace)
 - plan mode
 - respecting model configuration
 - provider-specific tools like web search and computer use
