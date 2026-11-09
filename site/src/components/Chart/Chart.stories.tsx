@@ -97,6 +97,8 @@ export const TooltipHovered: Story = {
 		const canvas = within(canvasElement);
 
 		await step("show the tooltip for the first data point", async () => {
+			// Wait for the chart to mount so it can receive focus.
+			await canvas.findByRole("group", { name: "Users" });
 			await userEvent.tab();
 			await userEvent.keyboard("{ArrowRight}");
 		});
