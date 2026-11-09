@@ -126,7 +126,7 @@ func loadDynamicPostToolUseState(
 	opts SubmitToolResultsOptions,
 ) (dynamicPostToolUseState, error) {
 	var state dynamicPostToolUseState
-	err := machine.ReadLock(ctx, func(store database.Store) error {
+	err := machine.ReadSnapshot(func(store database.Store) error {
 		chat, err := store.GetChatByID(ctx, opts.ChatID)
 		if err != nil {
 			return xerrors.Errorf("load chat: %w", err)
@@ -144,7 +144,7 @@ func loadDynamicPostToolUseState(
 		if err != nil {
 			return xerrors.Errorf("load chat messages: %w", err)
 		}
-		_, pending, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
+		_, pending, _, err := unresolvedToolCallsFromHistory(messages, dynamicToolNamesFromChat(chat))
 		if err != nil {
 			return xerrors.Errorf("load pending dynamic tool calls: %w", err)
 		}

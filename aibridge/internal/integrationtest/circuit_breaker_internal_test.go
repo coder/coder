@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	promtest "github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
@@ -29,6 +30,9 @@ const (
 	anthropicOverloadedError = `{"type":"error","error":{"type":"api_error","message":"Internal server error"}}`
 	openAIOverloadedError    = `{"error":{"message":"Service Unavailable.","type":"cf_service_unavailable","code":503}}`
 )
+
+// circuitBreakerActorID is a fixed actor distinct from defaultActorUUID.
+var circuitBreakerActorID = uuid.MustParse("8d0c2f43-6b7e-4a51-9c3d-2e5f1a7b9c04")
 
 func anthropicSuccessResponse(model string) string {
 	return fmt.Sprintf(`{"id":"msg_01","type":"message","role":"assistant","content":[{"type":"text","text":"Hello!"}],"model":%q,"stop_reason":"end_turn","usage":{"input_tokens":10,"output_tokens":5}}`, model)
@@ -136,7 +140,7 @@ func TestCircuitBreaker_FullRecoveryCycle(t *testing.T) {
 			bridgeServer := newBridgeTestServer(ctx, t, mockUpstream.URL,
 				withCustomProvider(tc.createProvider(mockUpstream.URL, cbConfig)),
 				withMetrics(m),
-				withActor("test-user-id", nil),
+				withActor(circuitBreakerActorID, ""),
 			)
 
 			doRequest := func() int {
@@ -293,7 +297,7 @@ func TestCircuitBreaker_HalfOpenFailure(t *testing.T) {
 			bridgeServer := newBridgeTestServer(ctx, t, mockUpstream.URL,
 				withCustomProvider(tc.createProvider(mockUpstream.URL, cbConfig)),
 				withMetrics(m),
-				withActor("test-user-id", nil),
+				withActor(circuitBreakerActorID, ""),
 			)
 
 			doRequest := func() int {
@@ -441,7 +445,7 @@ func TestCircuitBreaker_HalfOpenMaxRequests(t *testing.T) {
 			bridgeServer := newBridgeTestServer(ctx, t, mockUpstream.URL,
 				withCustomProvider(tc.createProvider(mockUpstream.URL, cbConfig)),
 				withMetrics(m),
-				withActor("test-user-id", nil),
+				withActor(circuitBreakerActorID, ""),
 			)
 
 			doRequest := func() int {
@@ -560,7 +564,7 @@ func TestCircuitBreaker_PerModelIsolation(t *testing.T) {
 			CircuitBreaker: cbConfig,
 		}, nil)),
 		withMetrics(m),
-		withActor("test-user-id", nil),
+		withActor(circuitBreakerActorID, ""),
 	)
 
 	doRequest := func(model string) int {

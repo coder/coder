@@ -128,6 +128,7 @@ export const SelectItem: React.FC<
 			"relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 ",
 			"pl-2 pr-8 text-sm text-content-secondary outline-hidden focus:bg-surface-secondary ",
 			"focus:text-content-primary data-disabled:pointer-events-none data-disabled:opacity-50",
+			"focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 			className,
 		)}
 		{...props}

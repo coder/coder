@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jedib0t/go-pretty/v6/table"
@@ -132,7 +133,14 @@ type userWithOrgNames struct {
 	OrganizationNames []string `json:"organization_names"`
 }
 
-type userShowFormat struct{}
+// userShowColumns are the fields userShowFormat can render, in default
+// display order. Names match the table columns used by "users list" where
+// the fields overlap ("username", "email", "status", "created at").
+var userShowColumns = []string{"id", "username", "name", "email", "status", "created at", "roles", "organizations"}
+
+type userShowFormat struct {
+	columns []string
+}
 
 var _ cliui.OutputFormat = &userShowFormat{}
 
@@ -142,13 +150,28 @@ func (*userShowFormat) ID() string {
 }
 
 // AttachOptions implements OutputFormat.
-func (*userShowFormat) AttachOptions(_ *serpent.OptionSet) {}
+func (f *userShowFormat) AttachOptions(opts *serpent.OptionSet) {
+	*opts = append(*opts,
+		serpent.Option{
+			Flag:          "column",
+			FlagShorthand: "c",
+			Default:       strings.Join(userShowColumns, ","),
+			Value:         serpent.EnumArrayOf(&f.columns, userShowColumns...),
+			Description:   "Columns to display in table output.",
+		},
+	)
+}
 
 // Format implements OutputFormat.
-func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error) {
+func (f *userShowFormat) Format(_ context.Context, out interface{}) (string, error) {
 	user, ok := out.(userWithOrgNames)
 	if !ok {
 		return "", xerrors.Errorf("expected type %T, got %T", user, out)
+	}
+
+	show := make(map[string]bool, len(f.columns))
+	for _, c := range f.columns {
+		show[c] = true
 	}
 
 	tw := cliui.Table()
@@ -162,46 +185,61 @@ func (*userShowFormat) Format(_ context.Context, out interface{}) (string, error
 		})
 	}
 
-	// Add rows for each of the user's fields.
-	addRow("ID", user.ID.String())
-	addRow("Username", user.Username)
-	addRow("Full name", user.Name)
-	addRow("Email", user.Email)
-	addRow("Status", user.Status)
-	addRow("Created At", user.CreatedAt.Format(time.Stamp))
+	if show["id"] {
+		addRow("ID", user.ID.String())
+	}
+	if show["username"] {
+		addRow("Username", user.Username)
+	}
+	if show["name"] {
+		addRow("Full name", user.Name)
+	}
+	if show["email"] {
+		addRow("Email", user.Email)
+	}
+	if show["status"] {
+		addRow("Status", user.Status)
+	}
+	if show["created at"] {
+		addRow("Created At", user.CreatedAt.Format(time.Stamp))
+	}
 
-	addRow("", "")
-	firstRole := true
-	for _, role := range user.Roles {
-		if role.DisplayName == "" {
-			// Skip roles with no display name.
-			continue
+	if show["roles"] {
+		addRow("", "")
+		firstRole := true
+		for _, role := range user.Roles {
+			if role.DisplayName == "" {
+				// Skip roles with no display name.
+				continue
+			}
+
+			key := ""
+			if firstRole {
+				key = "Roles"
+				firstRole = false
+			}
+			addRow(key, role.DisplayName)
 		}
-
-		key := ""
 		if firstRole {
-			key = "Roles"
-			firstRole = false
+			addRow("Roles", "(none)")
 		}
-		addRow(key, role.DisplayName)
-	}
-	if firstRole {
-		addRow("Roles", "(none)")
 	}
 
-	addRow("", "")
-	firstOrg := true
-	for _, orgName := range user.OrganizationNames {
-		key := ""
+	if show["organizations"] {
+		addRow("", "")
+		firstOrg := true
+		for _, orgName := range user.OrganizationNames {
+			key := ""
+			if firstOrg {
+				key = "Organizations"
+				firstOrg = false
+			}
+
+			addRow(key, orgName)
+		}
 		if firstOrg {
-			key = "Organizations"
-			firstOrg = false
+			addRow("Organizations", "(none)")
 		}
-
-		addRow(key, orgName)
-	}
-	if firstOrg {
-		addRow("Organizations", "(none)")
 	}
 
 	return tw.Render(), nil

@@ -1,0 +1,13 @@
+title: Envbuilder
+description: Use Envbuilder to build dev containers from a repository without requiring Docker.
+path: ./admin/integrations/devcontainers/envbuilder/index.md
+children:
+  - title: Add an Envbuilder template
+    description: Add an Envbuilder-compatible template so users can build dev containers from a repository.
+    path: ./admin/integrations/devcontainers/envbuilder/add-envbuilder.md
+  - title: Security and caching
+    description: Configure Envbuilder registry authentication and layer caching for faster, secure builds.
+    path: ./admin/integrations/devcontainers/envbuilder/envbuilder-security-caching.md
+  - title: Releases and known issues
+    description: Learn about Envbuilder's release channels and current known issues before you deploy it.
+    path: ./admin/integrations/devcontainers/envbuilder/envbuilder-releases-known-issues.md

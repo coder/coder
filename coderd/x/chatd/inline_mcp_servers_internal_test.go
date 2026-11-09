@@ -60,7 +60,8 @@ func TestLoadInlineMCPServers(t *testing.T) {
 		t.Parallel()
 
 		ctx := chatdTestContext(t)
-		servers, failures := server.loadInlineMCPServers(ctx, root)
+		servers, failures, err := server.loadInlineMCPServers(ctx, root)
+		require.NoError(t, err)
 		require.Len(t, servers, 2)
 		require.Equal(t, []mcpclient.ConnectSummary{{
 			ConfigID: badHeaders.ID,
@@ -93,7 +94,8 @@ func TestLoadInlineMCPServers(t *testing.T) {
 
 		ctx := chatdTestContext(t)
 		for _, chat := range []database.Chat{child, exploreChild} {
-			servers, failures := server.loadInlineMCPServers(ctx, chat)
+			servers, failures, err := server.loadInlineMCPServers(ctx, chat)
+			require.NoError(t, err)
 			require.Empty(t, failures, "the bad row is root-only, so a child never reads it")
 			require.Len(t, servers, 1, "chat mode %q", chat.Mode.ChatMode)
 			require.Equal(t, shared.ID, servers[0].ID)

@@ -1,8 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { chatModels, createChatModel } from "#/api/queries/chats";
+import { toast } from "#/components/Toaster/toast";
 import {
 	canManageProviderModels,
 	deriveProviderStates,

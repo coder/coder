@@ -37,7 +37,7 @@ export const RBACResourceActions: Partial<
 		create: "create an api key",
 		delete: "delete an api key",
 		read: "read api key details (secrets are not stored)",
-		update: "update an api key, eg expires",
+		update: "update an api key, for example its expiry",
 	},
 	assign_org_role: {
 		assign: "assign org scoped roles",
@@ -79,6 +79,18 @@ export const RBACResourceActions: Partial<
 		read: "read chat model configs",
 		share: "share a chat model config with other users or groups",
 		update: "update a chat model config",
+	},
+	chat_project: {
+		create: "create a new chat project",
+		delete: "delete a chat project",
+		read: "read chat projects",
+		share: "share a chat project with other users or groups",
+		update: "update a chat project",
+	},
+	chat_project_memory: {
+		create: "create a chat project memory",
+		delete: "delete a chat project memory",
+		read: "read chat project memories",
 	},
 	connection_log: {
 		read: "read connection logs",
@@ -177,6 +189,13 @@ export const RBACResourceActions: Partial<
 		read: "read member",
 		update: "update an organization member",
 	},
+	organization_skill: {
+		create: "create an organization skill",
+		delete: "delete an organization skill",
+		read: "read organization skill metadata and content",
+		share: "share an organization skill with other users or groups",
+		update: "update an organization skill",
+	},
 	prebuilt_workspace: {
 		delete: "delete prebuilt workspace",
 		update: "update prebuilt workspace settings",
@@ -254,8 +273,8 @@ export const RBACResourceActions: Partial<
 		read: "read workspace data to view on the UI",
 		share: "share a workspace with other users or groups",
 		ssh: "ssh into a given workspace",
-		start: "allows starting a workspace",
-		stop: "allows stopping a workspace",
+		start: "start a workspace",
+		stop: "stop a workspace",
 		update: "edit workspace settings (scheduling, permissions, parameters)",
 		update_agent: "update an existing workspace agent",
 	},
@@ -282,8 +301,8 @@ export const RBACResourceActions: Partial<
 		read: "read workspace data to view on the UI",
 		share: "share a workspace with other users or groups",
 		ssh: "ssh into a given workspace",
-		start: "allows starting a workspace",
-		stop: "allows stopping a workspace",
+		start: "start a workspace",
+		stop: "stop a workspace",
 		update: "edit workspace settings (scheduling, permissions, parameters)",
 		update_agent: "update an existing workspace agent",
 	},
@@ -292,5 +311,12 @@ export const RBACResourceActions: Partial<
 		delete: "delete a workspace proxy",
 		read: "read and use a workspace proxy",
 		update: "update a workspace proxy",
+	},
+	workspace_secret: {
+		create: "set a workspace secret on a workspace build",
+		read: "read workspace secret metadata, never the value",
+		read_secret:
+			"read decrypted workspace secret values, granted only to the workspace secret manager actor",
+		update: "clear or re-encrypt workspace secret values",
 	},
 };

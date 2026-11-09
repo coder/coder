@@ -44,6 +44,12 @@ const CodernautsSVG = () => (
 	</svg>
 );
 
+// Radix moves focus from an item to the menu on pointerleave, which blurs the
+// item and closes its tooltip before the pointer can reach it (WCAG 1.4.13).
+const keepFocusOnPointerLeave = (event: React.PointerEvent) => {
+	event.preventDefault();
+};
+
 type UserDropdownContentProps = {
 	user: TypesGen.User;
 	buildInfo?: TypesGen.BuildInfoResponse;
@@ -127,27 +133,35 @@ export const UserDropdownContent: React.FC<UserDropdownContentProps> = ({
 			)}
 			{trialCta}
 			<DropdownMenuSeparator />
-			<Tooltip disableHoverableContent>
+			<Tooltip>
 				<TooltipTrigger asChild>
-					<DropdownMenuItem className="text-xs" asChild>
+					<DropdownMenuItem
+						className="text-xs"
+						onPointerLeave={keepFocusOnPointerLeave}
+						asChild
+					>
 						<a
 							href={buildInfo?.external_url}
 							className="flex items-center gap-2"
 							target="_blank"
 							rel="noreferrer"
 						>
-							<span className="flex-1">{buildInfo?.version}</span>
+							<span className="flex-1">
+								{buildInfo?.version}
+								<span className="sr-only"> (opens in new tab)</span>
+							</span>
 							<SquareArrowOutUpRightIcon className="size-icon-xs!" />
 						</a>
 					</DropdownMenuItem>
 				</TooltipTrigger>
-				<TooltipContent side="bottom">Browse the source code</TooltipContent>
+				<TooltipContent side="left">Browse the source code</TooltipContent>
 			</Tooltip>
 			{buildInfo?.deployment_id && (
-				<Tooltip disableHoverableContent>
+				<Tooltip>
 					<TooltipTrigger asChild>
 						<DropdownMenuItem
 							className="text-xs"
+							onPointerLeave={keepFocusOnPointerLeave}
 							onSelect={(e) => {
 								e.preventDefault();
 								copyToClipboard(buildInfo.deployment_id);
@@ -161,7 +175,7 @@ export const UserDropdownContent: React.FC<UserDropdownContentProps> = ({
 							)}
 						</DropdownMenuItem>
 					</TooltipTrigger>
-					<TooltipContent side="bottom">
+					<TooltipContent side="left">
 						{showCopiedSuccess ? "Copied!" : "Copy deployment ID"}
 					</TooltipContent>
 				</Tooltip>

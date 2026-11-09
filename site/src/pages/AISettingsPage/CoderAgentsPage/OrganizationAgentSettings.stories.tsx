@@ -21,7 +21,7 @@ const meta: Meta<typeof OrganizationAgentSettings> = {
 	args: {
 		organization: MockDefaultOrganization,
 		canEdit: true,
-		showAdvisor: true,
+		showComputerUse: false,
 	},
 };
 export default meta;

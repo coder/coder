@@ -212,7 +212,7 @@ func (c *Config) Git() (gitprovider.Provider, error) {
 	if c.gitProvider != nil {
 		return c.gitProvider, nil
 	}
-	p, err := gitprovider.New(norm, c.APIBaseURL, c.HTTPClient)
+	p, err := gitprovider.New(norm, c.APIBaseURL, c.HTTPClient, gitprovider.WithLogger(c.Logger.Named("gitprovider")))
 	if err != nil {
 		return nil, err
 	}

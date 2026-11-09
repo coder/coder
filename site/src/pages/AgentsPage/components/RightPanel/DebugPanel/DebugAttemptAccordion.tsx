@@ -99,7 +99,7 @@ export const DebugAttemptAccordion: React.FC<DebugAttemptAccordionProps> = ({
 					key={`${attempt.attempt_number}-${attempt.started_at ?? index}`}
 					defaultOpen={false}
 				>
-					<div className="border-l border-l-border-default/50">
+					<div className="border-l border-l-border/50">
 						<CollapsibleTrigger asChild>
 							<button
 								type="button"
@@ -119,7 +119,7 @@ export const DebugAttemptAccordion: React.FC<DebugAttemptAccordionProps> = ({
 										) : null}
 										{attempt.response_status ? (
 											<Badge
-												size="xs"
+												size="sm"
 												variant={
 													attempt.response_status < 400
 														? "green"

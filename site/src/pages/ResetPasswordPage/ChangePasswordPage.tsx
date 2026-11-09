@@ -1,7 +1,6 @@
 import { useFormik } from "formik";
 import { useMutation } from "react-query";
 import { Link as RouterLink, useNavigate, useSearchParams } from "react-router";
-import { toast } from "sonner";
 import * as yup from "yup";
 import { isApiValidationError } from "#/api/errors";
 import { changePasswordWithOTP } from "#/api/queries/users";
@@ -11,6 +10,7 @@ import { ProductLogo } from "#/components/Icons/ProductLogo";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 import { getApplicationName } from "#/utils/appearance";
 import { getFormHelpers } from "#/utils/formUtils";
 import { pageTitle } from "#/utils/page";

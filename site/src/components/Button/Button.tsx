@@ -28,7 +28,7 @@ const buttonVariants = cva(
 					disabled:bg-surface-secondary
 					`,
 				outline: `
-					border border-border-default bg-transparent text-content-primary
+					border border-border bg-transparent text-content-primary
 					hover:bg-surface-secondary
 					`,
 				subtle: `

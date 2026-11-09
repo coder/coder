@@ -25,6 +25,7 @@ func (r *RootCmd) rptyCommand() *serpent.Command {
 	var args handleRPTYArgs
 
 	cmd := &serpent.Command{
+		Annotations: serpent.Annotations(workspaceCommand).Mark(annotationClientSessionID, ""),
 		Handler: func(inv *serpent.Invocation) error {
 			if r.disableDirect {
 				return xerrors.New("direct connections are disabled, but you can try websocat ;-)")

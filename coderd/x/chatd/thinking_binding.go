@@ -5,6 +5,7 @@ import (
 	"errors"
 	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 
@@ -23,16 +24,32 @@ const (
 	thinkingBindingDropBlockPath = "thinking.block_binding.prefix_mismatch_behavior"
 )
 
+// Anthropic reports "block_binding: Extra inputs are not permitted" or names
+// the rejected beta in an "Unexpected value(s)" error. Bedrock reports
+// unsupported betas as "invalid beta flag".
+var dropBlockRejections = []string{"block_binding", thinkingBindingBeta, "invalid beta flag"}
+
 // isThinkingBindingError reports whether Anthropic rejected a replayed
 // signed thinking block because the system prompt or tools changed since
 // the block was produced.
 func isThinkingBindingError(err error) bool {
+	text, ok := badRequestText(err)
+	return ok && strings.Contains(text, "bound to a different conversation")
+}
+
+func isDropBlockRejectedError(err error) bool {
+	text, ok := badRequestText(err)
+	return ok && slices.ContainsFunc(dropBlockRejections, func(pattern string) bool {
+		return strings.Contains(text, pattern)
+	})
+}
+
+func badRequestText(err error) (string, bool) {
 	var pe *fantasy.ProviderError
 	if !errors.As(err, &pe) || pe.StatusCode != http.StatusBadRequest {
-		return false
+		return "", false
 	}
-	text := strings.ToLower(pe.Message + string(pe.ResponseBody))
-	return strings.Contains(text, "bound to a different conversation")
+	return strings.ToLower(pe.Message + string(pe.ResponseBody)), true
 }
 
 type thinkingDropBlockKey struct {
@@ -65,14 +82,10 @@ func (p *Server) withThinkingDropBlock(
 	})
 }
 
-// thinkingDropBlockModel makes Anthropic drop stale signed thinking blocks
-// instead of rejecting the request. chatd rebuilds the system prompt and
-// tools for every request, and some models bind signed thinking blocks to
-// that prefix. A hint for each provider and model picks whether the first
-// request sends the drop_block control. A 400 before any output retries
-// once with the other choice, and a successful retry updates the hint. The
-// hint can be wrong, for example when BYOK users of one provider send
-// different keys, so it never removes the fallback.
+// thinkingDropBlockModel makes Anthropic drop stale signed thinking blocks.
+// A hint for each provider and model picks whether to send drop_block first.
+// When hinted, only a drop_block rejection retries, so other errors are not
+// hidden behind a binding error.
 type thinkingDropBlockModel struct {
 	fantasy.LanguageModel
 	logger slog.Logger
@@ -88,10 +101,8 @@ func (m *thinkingDropBlockModel) Stream(ctx context.Context, call fantasy.Call) 
 	retryable, updateHint := isThinkingBindingError, func() { m.hints.Store(m.key, struct{}{}) }
 	_, hinted := m.hints.Load(m.key)
 	if hinted {
-		// The error a provider returns for an unsupported beta is
-		// unknown, so any 400 retries without drop_block.
 		first, fallback = fallback, first
-		retryable, updateHint = isBadRequest, func() { m.hints.Delete(m.key) }
+		retryable, updateHint = isDropBlockRejectedError, func() { m.hints.Delete(m.key) }
 	}
 	stream, err := m.LanguageModel.Stream(ctx, first)
 	if err != nil {
@@ -121,11 +132,6 @@ func (m *thinkingDropBlockModel) Stream(ctx context.Context, call fantasy.Call) 
 		)
 		m.retryStream(ctx, fallback, updateHint, yield)
 	}, nil
-}
-
-func isBadRequest(err error) bool {
-	var pe *fantasy.ProviderError
-	return errors.As(err, &pe) && pe.StatusCode == http.StatusBadRequest
 }
 
 // retryStream streams the fallback request and calls updateHint when the

@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace/noop"
@@ -148,8 +149,9 @@ func TestBuildProviderFromProtoSetsAPIDumpDir(t *testing.T) {
 func TestBuildProviderActorHeaders(t *testing.T) {
 	t.Parallel()
 
+	actorID := uuid.MustParse("6f1d2c3b-4a5e-4f60-8a7b-9c0d1e2f3a4b")
 	const (
-		actorID          = "authenticated-user"
+		actorAPIKeyID    = "authenticated-api-key-id"
 		actorUsername    = "authenticated-username"
 		actorEmail       = "authenticated@example.com"
 		clientID         = "client-user"
@@ -226,14 +228,14 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 			require.NoError(t, err)
 
 			request := httptest.NewRequest(http.MethodPost, provider.RoutePrefix()+"/chat/completions", bytes.NewBufferString(`{"model":"gpt-4","messages":[],"stream":false}`))
-			request = request.WithContext(aibridge.AsActor(request.Context(), actorID, actorEmail, aibridge.Metadata{"Username": actorUsername}))
+			request = request.WithContext(aibridge.AsActor(request.Context(), aibridge.Actor{ID: actorID, APIKeyID: actorAPIKeyID, Username: actorUsername, Email: actorEmail}))
 			request.Header.Set("Authorization", "Bearer client-key")
 			request.Header.Set(headers.ActorIDHeader, clientID)
 			request.Header.Set(headers.ActorMetadataHeader("Username"), clientName)
 
 			interceptor, err := provider.CreateInterceptor(httptest.NewRecorder(), request, noop.NewTracerProvider().Tracer("test"))
 			require.NoError(t, err)
-			interceptor.Setup(slog.Make(), recorder.NewLogRecorder(slog.Make(), "", false, nil), nil)
+			interceptor.Setup(slog.Make(), recorder.NewLogRecorder(slog.Make(), false, nil), nil)
 
 			processRequest := httptest.NewRequest(http.MethodPost, provider.RoutePrefix()+"/chat/completions", bytes.NewBufferString(`{"model":"gpt-4","messages":[],"stream":false}`)).WithContext(request.Context())
 			response := httptest.NewRecorder()
@@ -241,7 +243,7 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 
 			receivedHeaders := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, upstreamHeaders)
 			if tt.wantCustomHeaders {
-				assert.Equal(t, actorID, receivedHeaders.Get(customIDHeader))
+				assert.Equal(t, actorID.String(), receivedHeaders.Get(customIDHeader))
 				assert.Equal(t, actorUsername, receivedHeaders.Get(customNameHeader))
 				assert.Equal(t, actorEmail, receivedHeaders.Get(customMailHeader))
 			} else {
@@ -252,6 +254,9 @@ func TestBuildProviderActorHeaders(t *testing.T) {
 			// Client actor headers never reach the upstream.
 			assert.NotContains(t, receivedHeaders, http.CanonicalHeaderKey(headers.ActorIDHeader))
 			assert.NotContains(t, receivedHeaders, http.CanonicalHeaderKey(headers.ActorMetadataHeader("Username")))
+			for name, values := range receivedHeaders {
+				assert.NotContains(t, values, actorAPIKeyID, "the actor API key ID must never be forwarded in %s", name)
+			}
 		})
 	}
 }

@@ -375,7 +375,7 @@ func TestEnterpriseCreateWithPreset(t *testing.T) {
 
 			t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), prebuildInstances)
 			return len(runningPrebuilds) == prebuildInstances
-		}, testutil.IntervalMedium, "prebuilds not running")
+		}, testutil.IntervalFast, "prebuilds not running")
 
 		return runningPrebuilds
 	}

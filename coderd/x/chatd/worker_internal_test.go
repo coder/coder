@@ -1,4 +1,4 @@
-package chatd //nolint:testpackage // Tests unexported chat worker internals.
+package chatd
 
 import (
 	"context"
@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -207,7 +208,14 @@ func TestWorker_HeartbeatLoopRefreshesActiveRunnerHeartbeat(t *testing.T) {
 	startWorker(t, opts)
 	heartbeatTrap.MustWait(testutil.Context(t, testutil.WaitLong)).MustRelease(testutil.Context(t, testutil.WaitLong))
 	call := starter.waitCall(t, taskKindGeneration, chat.ID)
-	oldHeartbeat := makeHeartbeatStale(t, f, chat.ID, call.input.RunnerID)
+	// Renewal only extends a lease that is still fresh.
+	setHeartbeatAge(t, f, chat.ID, call.input.RunnerID, 10*time.Second)
+	aged, err := f.db.GetChatHeartbeat(testutil.Context(t, testutil.WaitShort), database.GetChatHeartbeatParams{
+		ChatID:   chat.ID,
+		RunnerID: call.input.RunnerID,
+	})
+	require.NoError(t, err)
+	oldHeartbeat := aged.HeartbeatAt
 
 	clock.Advance(time.Minute).MustWait(testutil.Context(t, testutil.WaitLong))
 	testutil.Eventually(testutil.Context(t, testutil.WaitLong), t, func(ctx context.Context) bool {
@@ -350,4 +358,77 @@ func requireTaskCanceled(t *testing.T, call taskCall) {
 	case <-time.After(testutil.WaitLong):
 		t.Fatal("task context was not canceled")
 	}
+}
+
+func TestWorkerRunnerTurnSpan(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		staleOwner       bool
+		wantAcquisitions int
+	}{
+		{name: "Unowned", wantAcquisitions: 1},
+		{name: "StaleOwner", staleOwner: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			f := newWorkerTestFixture(t)
+			chat := f.createRunningChat(t)
+			if tt.staleOwner {
+				deadRunner := uuid.New()
+				acquireChat(t, f, chat.ID, uuid.New(), deadRunner)
+				makeHeartbeatStale(t, f, chat.ID, deadRunner)
+			}
+			tracer, recorder := newStageTestTracer(t)
+			server := newUnstartedServer(t, f.pubsub, f.db)
+			server.stages = tracer
+			starter := newBlockingTaskStarter(false)
+			worker, err := newChatWorker(server, testOptions(t, f, starter))
+			require.NoError(t, err)
+			require.NoError(t, worker.Start(context.Background()))
+
+			call := starter.waitCall(t, taskKindGeneration, chat.ID)
+			require.NotNil(t, call.input.TurnSpan)
+			call.input.TurnSpan.Ensure(ctx, call.input.TaskID, chat, chat.CreatedAt)
+			require.NoError(t, worker.Close())
+
+			turns := turnSpansByStart(t, recorder)
+			require.Len(t, turns, 1)
+			outcome, _ := spanAttribute(t, turns[0], chatloop.AttrTurnOutcome)
+			require.Equal(t, chatloop.TurnOutcomeAbandoned, chatloop.TurnOutcome(outcome.AsString()))
+			require.Len(t, stageSpansByStart(t, recorder, chatloop.StageAcquisition), tt.wantAcquisitions)
+		})
+	}
+}
+
+func TestWorkerRunnerReleasesTurnOnTaskExit(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	f := newWorkerTestFixture(t)
+	chat := f.createRunningChat(t)
+	tracer, recorder := newStageTestTracer(t)
+	server := newUnstartedServer(t, f.pubsub, f.db)
+	server.stages = tracer
+	starter := newBlockingTaskStarter(false)
+	worker, err := newChatWorker(server, testOptions(t, f, starter))
+	require.NoError(t, err)
+	require.NoError(t, worker.Start(context.Background()))
+	t.Cleanup(func() { _ = worker.Close() })
+
+	call := starter.waitCall(t, taskKindGeneration, chat.ID)
+	_, token := call.input.TurnSpan.Ensure(ctx, call.input.TaskID, chat, chat.CreatedAt)
+	require.NotZero(t, token)
+	call.input.TurnSpan.Complete(token)
+	call.input.TurnSpan.Settle(token)
+	require.Empty(t, turnSpansByStart(t, recorder))
+
+	starter.release(t, 0)
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		return len(turnSpansByStart(t, recorder)) == 1
+	}, testutil.IntervalFast)
+	outcome, _ := spanAttribute(t, turnSpansByStart(t, recorder)[0], chatloop.AttrTurnOutcome)
+	require.Equal(t, chatloop.TurnOutcomeCompleted, chatloop.TurnOutcome(outcome.AsString()))
 }

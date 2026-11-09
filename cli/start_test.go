@@ -591,52 +591,79 @@ func TestStart_WithReason(t *testing.T) {
 
 func TestStart_FailedStartCleansUp(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
+	for _, name := range []string{"Default", "TemplateVersion"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
 
-	store, ps := dbtestutil.NewDB(t)
-	client := coderdtest.New(t, &coderdtest.Options{
-		Database:                 store,
-		Pubsub:                   ps,
-		IncludeProvisionerDaemon: true,
-	})
-	owner := coderdtest.CreateFirstUser(t, client)
-	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+			store, ps := dbtestutil.NewDB(t)
+			client := coderdtest.New(t, &coderdtest.Options{
+				Database:                 store,
+				Pubsub:                   ps,
+				IncludeProvisionerDaemon: true,
+			})
+			owner := coderdtest.CreateFirstUser(t, client)
+			memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
-	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
-	workspace := coderdtest.CreateWorkspace(t, memberClient, template.ID)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+			version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+			coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+			template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+			workspace := coderdtest.CreateWorkspace(t, memberClient, template.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-	// Insert a failed start build directly into the database so that
-	// the workspace's latest build is a failed "start" transition.
-	dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
-		ID:             workspace.ID,
-		OwnerID:        member.ID,
-		OrganizationID: owner.OrganizationID,
-		TemplateID:     template.ID,
-	}).
-		Seed(database.WorkspaceBuild{
-			TemplateVersionID: version.ID,
-			Transition:        database.WorkspaceTransitionStart,
-			BuildNumber:       workspace.LatestBuild.BuildNumber + 1,
-		}).
-		Failed().
-		Do()
+			target := version
+			if name == "TemplateVersion" {
+				target = coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil,
+					func(req *codersdk.CreateTemplateVersionRequest) {
+						req.TemplateID = template.ID
+					})
+				coderdtest.AwaitTemplateVersionJobCompleted(t, client, target.ID)
+			}
 
-	inv, root := clitest.New(t, "start", workspace.Name)
-	clitest.SetupConfig(t, memberClient, root)
-	stdout := expecter.NewAttachedToInvocation(t, inv)
-	doneChan := make(chan struct{})
-	go func() {
-		defer close(doneChan)
-		err := inv.Run()
-		assert.NoError(t, err)
-	}()
+			// Insert a failed start build directly into the database so that
+			// the workspace's latest build is a failed "start" transition.
+			failed := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+				ID:             workspace.ID,
+				OwnerID:        member.ID,
+				OrganizationID: owner.OrganizationID,
+				TemplateID:     template.ID,
+			}).
+				Seed(database.WorkspaceBuild{
+					TemplateVersionID: version.ID,
+					Transition:        database.WorkspaceTransitionStart,
+					BuildNumber:       workspace.LatestBuild.BuildNumber + 1,
+				}).
+				Failed().
+				Do()
 
-	// The CLI should detect the failed start and clean up first.
-	stdout.ExpectMatch(ctx, "Cleaning up before retrying")
-	stdout.ExpectMatch(ctx, "workspace has been started")
+			args := []string{"start", workspace.Name}
+			if name == "TemplateVersion" {
+				args = append(args, "--template-version", target.Name)
+			}
+			inv, root := clitest.New(t, args...)
+			clitest.SetupConfig(t, memberClient, root)
+			stdout := expecter.NewAttachedToInvocation(t, inv)
+			doneChan := make(chan struct{})
+			go func() {
+				defer close(doneChan)
+				err := inv.Run()
+				assert.NoError(t, err)
+			}()
 
-	_ = testutil.TryReceive(ctx, t, doneChan)
+			// The CLI should detect the failed start and clean up first.
+			stdout.ExpectMatch(ctx, "Cleaning up before retrying")
+			stdout.ExpectMatch(ctx, "workspace has been started")
+
+			_ = testutil.TryReceive(ctx, t, doneChan)
+			cleanup, err := memberClient.WorkspaceBuildByUsernameAndWorkspaceNameAndBuildNumber(
+				ctx, workspace.OwnerName, workspace.Name, fmt.Sprint(failed.Build.BuildNumber+1))
+			require.NoError(t, err)
+			require.Equal(t, codersdk.WorkspaceTransitionStop, cleanup.Transition)
+			require.Equal(t, version.ID, cleanup.TemplateVersionID)
+			after := coderdtest.MustWorkspace(t, memberClient, workspace.ID)
+			require.Equal(t, failed.Build.BuildNumber+2, after.LatestBuild.BuildNumber)
+			require.Equal(t, codersdk.WorkspaceTransitionStart, after.LatestBuild.Transition)
+			require.Equal(t, target.ID, after.LatestBuild.TemplateVersionID)
+		})
+	}
 }

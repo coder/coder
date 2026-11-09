@@ -3,25 +3,33 @@ package context
 import (
 	"context"
 
-	"github.com/coder/coder/v2/aibridge/recorder"
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 )
 
 type (
 	actorContextKey struct{}
 )
 
+// ErrMissingAPIKeyID indicates that the context has no actor with an API-key ID.
+var ErrMissingAPIKeyID = xerrors.New("missing authenticated API-key ID")
+
+// Actor is the authenticated identity attached to an AI Gateway request.
 type Actor struct {
-	ID string
-	// Email is kept out of Metadata so it is never recorded or logged. It is
-	// only read when forwarding actor headers upstream.
-	Email    string
-	Metadata recorder.Metadata
+	ID       uuid.UUID
+	APIKeyID string
+	Username string
+	// Email is only used for the opt-in email actor header forwarding. It is kept
+	// out of interception recordings.
+	Email string
 }
 
-func AsActor(ctx context.Context, actorID, email string, metadata recorder.Metadata) context.Context {
-	return context.WithValue(ctx, actorContextKey{}, &Actor{ID: actorID, Email: email, Metadata: metadata})
+// AsActor returns a context containing a copy of the authenticated actor.
+func AsActor(ctx context.Context, actor Actor) context.Context {
+	return context.WithValue(ctx, actorContextKey{}, &actor)
 }
 
+// ActorFromContext returns the authenticated actor, or nil when absent.
 func ActorFromContext(ctx context.Context) *Actor {
 	a, ok := ctx.Value(actorContextKey{}).(*Actor)
 	if !ok {
@@ -34,8 +42,18 @@ func ActorFromContext(ctx context.Context) *Actor {
 // ActorIDFromContext safely extracts the actor ID from the context.
 // Returns an empty string if no actor is found.
 func ActorIDFromContext(ctx context.Context) string {
-	if actor := ActorFromContext(ctx); actor != nil {
-		return actor.ID
+	if actor := ActorFromContext(ctx); actor != nil && actor.ID != uuid.Nil {
+		return actor.ID.String()
 	}
 	return ""
+}
+
+// APIKeyIDFromContext returns the actor's API-key ID, or ErrMissingAPIKeyID if
+// the actor is absent or its API-key ID is empty.
+func APIKeyIDFromContext(ctx context.Context) (string, error) {
+	actor := ActorFromContext(ctx)
+	if actor == nil || actor.APIKeyID == "" {
+		return "", ErrMissingAPIKeyID
+	}
+	return actor.APIKeyID, nil
 }

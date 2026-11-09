@@ -28,6 +28,7 @@ const makeQueuedMessage = (
 	({
 		id,
 		chat_id: chatID,
+		busy_behavior: "queue",
 		created_at: "2025-01-01T00:00:00Z",
 		content: [{ type: "text", text }],
 	}) as TypesGen.ChatQueuedMessage;
@@ -68,17 +69,6 @@ describe("replaceMessages", () => {
 		store.replaceMessages([second, first]);
 
 		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2]);
-	});
-
-	it("treats undefined as empty array", () => {
-		const store = createChatStore();
-		store.replaceMessages([makeMessage(1, "user", "hello")]);
-
-		store.replaceMessages(undefined);
-
-		const state = store.getSnapshot();
-		expect(state.messagesByID.size).toBe(0);
-		expect(state.orderedMessageIDs).toEqual([]);
 	});
 
 	it("does not notify subscribers when content is unchanged", () => {
@@ -421,16 +411,7 @@ describe("setQueuedMessages", () => {
 		expect(store.getSnapshot().queuedMessages).toEqual([qm]);
 	});
 
-	it("treats undefined as empty array", () => {
-		const store = createChatStore();
-		store.setQueuedMessages([makeQueuedMessage(1, "q")]);
-
-		store.setQueuedMessages(undefined);
-
-		expect(store.getSnapshot().queuedMessages).toEqual([]);
-	});
-
-	it("does not notify when queued message IDs are unchanged", () => {
+	it("does not notify when queued messages are unchanged", () => {
 		const store = createChatStore();
 		const qm = makeQueuedMessage(10, "queued");
 		store.setQueuedMessages([qm]);
@@ -440,72 +421,41 @@ describe("setQueuedMessages", () => {
 			notified = true;
 		});
 
-		// Different object reference, same ID.
-		store.setQueuedMessages([{ ...qm }]);
+		// Different object reference, same row.
+		store.setQueuedMessages([{ ...qm, content: [...qm.content] }]);
 
 		expect(notified).toBe(false);
 	});
+
+	it("applies a snapshot that only changes editing_since or content", () => {
+		const store = createChatStore();
+		const qm = makeQueuedMessage(10, "queued");
+		store.setQueuedMessages([qm]);
+
+		const editing = { ...qm, editing_since: "2025-01-01T00:01:00Z" };
+		store.applyAuthoritativeQueuedMessages([editing]);
+		expect(store.getSnapshot().queuedMessages).toEqual([editing]);
+
+		const edited: TypesGen.ChatQueuedMessage = {
+			...editing,
+			content: [{ type: "text", text: "edited" }],
+		};
+		store.setQueuedMessages([edited]);
+		expect(store.getSnapshot().queuedMessages).toEqual([edited]);
+	});
 });
 
-// ---------------------------------------------------------------------------
-// suppressQueuedMessageID / applyAuthoritativeQueuedMessages
-// ---------------------------------------------------------------------------
-
-describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
-	it("filters suppressed IDs from authoritative writes and auto-clears", () => {
+describe("applyAuthoritativeQueuedMessages", () => {
+	it("applies a snapshot that only moves a row to another lane", () => {
 		const store = createChatStore();
 		const a = makeQueuedMessage(1, "A");
 		const b = makeQueuedMessage(2, "B");
-		const c = makeQueuedMessage(3, "C");
 
-		store.setQueuedMessages([a, b, c]);
-		store.suppressQueuedMessageID(b.id);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(true);
+		store.applyAuthoritativeQueuedMessages([a, b]);
+		const steered = { ...b, busy_behavior: "steer" } as const;
+		store.applyAuthoritativeQueuedMessages([a, steered]);
 
-		// Running-case promotion only reorders the queue; the backend still reports the row.
-		store.applyAuthoritativeQueuedMessages([b, a, c]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([a.id, c.id]);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(true);
-
-		store.applyAuthoritativeQueuedMessages([a, c]);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(b.id)).toBe(
-			false,
-		);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([a.id, c.id]);
-	});
-
-	it("filters suppressed IDs from REST hydration via applyAuthoritativeQueuedMessages", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-		const c = makeQueuedMessage(3, "C");
-
-		store.suppressQueuedMessageID(b.id);
-		// REST hydration delivers the unfiltered queue [B, A, C].
-		store.applyAuthoritativeQueuedMessages([b, a, c]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([a.id, c.id]);
-	});
-
-	it("still applies newly queued messages while a suppressed message stays queued", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-		const d = makeQueuedMessage(4, "D");
-
-		store.setQueuedMessages([b]);
-		store.suppressQueuedMessageID(a.id);
-
-		store.applyAuthoritativeQueuedMessages([a, b, d]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id, d.id]);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(a.id)).toBe(true);
+		expect(store.getSnapshot().queuedMessages).toEqual([a, steered]);
 	});
 
 	it("ignores stale snapshots that still list a promoted message", () => {
@@ -528,7 +478,6 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 			store.getSnapshot().queuedMessages.map((message) => message.id),
 		).toEqual([b.id, c.id]);
 		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
 	});
 
 	it("records queued IDs the server has reported", () => {
@@ -548,7 +497,7 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		store.setQueuedMessages([b, c]);
 		expect(store.hasObservedQueuedMessageID(c.id)).toBe(false);
 
-		store.clearSuppressedQueuedMessageIDs();
+		store.resetQueuedMessageTracking();
 		expect(store.hasObservedQueuedMessageID(a.id)).toBe(false);
 	});
 
@@ -581,14 +530,36 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 
 		expect(
 			store
-				.applyPromoteRefetchQueuedMessages(testChatID, a.id, [a, b], baseline)
+				.applyPromoteRefetchQueuedMessages(testChatID, [a.id], [a, b], baseline)
 				?.map((message) => message.id),
 		).toEqual([a.id, b.id]);
 		expect(
 			store.getSnapshot().queuedMessages.map((message) => message.id),
 		).toEqual([a.id, b.id]);
 		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.size).toBe(0);
+	});
+
+	it("applies a promote refetch that only changes a row's content", () => {
+		const store = createChatStore();
+		const a = makeQueuedMessage(1, "A");
+		const b = makeQueuedMessage(2, "B");
+
+		store.setActiveChatID(testChatID);
+		store.setQueuedMessages([b]);
+		store.markQueuedMessagePromoted(a.id);
+		const baseline = store.getQueueConvergenceFence();
+
+		const editedB: TypesGen.ChatQueuedMessage = {
+			...b,
+			content: [{ type: "text", text: "edited" }],
+		};
+		store.applyPromoteRefetchQueuedMessages(
+			testChatID,
+			[a.id],
+			[editedB],
+			baseline,
+		);
+		expect(store.getSnapshot().queuedMessages).toEqual([editedB]);
 	});
 
 	it("ignores a promote refetch that a newer snapshot already superseded", () => {
@@ -607,7 +578,7 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		expect(
 			store.applyPromoteRefetchQueuedMessages(
 				testChatID,
-				a.id,
+				[a.id],
 				[a, b],
 				baseline,
 			),
@@ -634,7 +605,7 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		expect(
 			store.applyPromoteRefetchQueuedMessages(
 				testChatID,
-				a.id,
+				[a.id],
 				[b, c],
 				baseline,
 			),
@@ -660,7 +631,7 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		expect(
 			store.applyPromoteRefetchQueuedMessages(
 				testChatID,
-				a.id,
+				[a.id],
 				[a, b],
 				baseline,
 			),
@@ -684,7 +655,7 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		expect(
 			store.applyPromoteRefetchQueuedMessages(
 				testChatID,
-				a.id,
+				[a.id],
 				[a, b],
 				baseline,
 			),
@@ -706,7 +677,7 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		expect(
 			store.applyPromoteRefetchQueuedMessages(
 				"chat-other",
-				a.id,
+				[a.id],
 				[a, b],
 				store.getQueueConvergenceFence(),
 			),
@@ -725,14 +696,14 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		store.setActiveChatID(testChatID);
 		store.setQueuedMessages([b]);
 		store.markQueuedMessagePromoted(a.id);
-		store.suppressQueuedMessageID(c.id);
+		store.markQueuedMessagePromoted(c.id);
 		const baseline = store.getQueueConvergenceFence();
 
 		expect(
 			store
 				.applyPromoteRefetchQueuedMessages(
 					testChatID,
-					a.id,
+					[a.id],
 					[a, b, c],
 					baseline,
 				)
@@ -743,40 +714,13 @@ describe("suppressQueuedMessageID / applyAuthoritativeQueuedMessages", () => {
 		).toEqual([a.id, b.id]);
 	});
 
-	it("unsuppressQueuedMessageID clears a promoted marker after a failed promotion", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-
-		store.markQueuedMessagePromoted(a.id);
-		store.unsuppressQueuedMessageID(a.id);
-		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
-
-		store.applyAuthoritativeQueuedMessages([a, b]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([a.id, b.id]);
-	});
-
-	it("unsuppressQueuedMessageID removes IDs from the suppression set", () => {
-		const store = createChatStore();
-		store.suppressQueuedMessageID(42);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(42)).toBe(true);
-		store.unsuppressQueuedMessageID(42);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(42)).toBe(false);
-	});
-
-	it("setQueuedMessages does not auto-clear suppression", () => {
+	it("setQueuedMessages keeps the promoted IDs", () => {
 		const store = createChatStore();
 		const a = makeQueuedMessage(1, "A");
 
-		store.suppressQueuedMessageID(99);
-		// setQueuedMessages is the optimistic path: it must not
-		// touch the suppression set, otherwise the optimistic write
-		// would lift suppression before the authoritative reordered
-		// queue arrives.
+		store.markQueuedMessagePromoted(99);
 		store.setQueuedMessages([a]);
-		expect(store.getSnapshot().suppressedQueuedMessageIDs.has(99)).toBe(true);
+		expect(store.getSnapshot().promotedQueuedMessageIDs.has(99)).toBe(true);
 	});
 });
 
