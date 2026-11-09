@@ -231,6 +231,7 @@ describe("QueuedMessagesList", () => {
 				| "onEdit"
 				| "onEndEdit"
 				| "isChatPaused"
+				| "isChatActive"
 				| "queuedMessageUnderEditID"
 				| "composerQueuedMessageID"
 			>
@@ -272,7 +273,17 @@ describe("QueuedMessagesList", () => {
 		expect(handlers[handler]).toHaveBeenCalledWith(9);
 	});
 
-	it("hides the row and disables sibling actions while onPromote is pending, and restores them after it fails", async () => {
+	it("keeps Send now on a queue row in an active chat", async () => {
+		const user = userEvent.setup();
+		const { onPromote } = renderList(
+			[{ ...MockChatQueuedMessage, id: 9, busy_behavior: "queue" }],
+			{ isChatActive: true },
+		);
+		await user.click(screen.getByRole("button", { name: "Send now" }));
+		expect(onPromote).toHaveBeenCalledWith(9);
+	});
+
+	it("keeps the row and disables every action while onPromote is pending, and re-enables them after it fails", async () => {
 		const user = userEvent.setup();
 		let rejectPromote: ((error: Error) => void) | undefined;
 		const onPromote = vi.fn(
@@ -289,10 +300,12 @@ describe("QueuedMessagesList", () => {
 			{ onPromote },
 		);
 
-		const [sendHead] = screen.getAllByRole("button", { name: "Send now" });
+		const [sendHead, sendNext] = screen.getAllByRole("button", {
+			name: "Send now",
+		});
 		await user.click(sendHead);
 		expect(onPromote).toHaveBeenCalledWith(7);
-		await user.click(screen.getByRole("button", { name: "Send now" }));
+		await user.click(sendNext);
 		expect(onPromote).toHaveBeenCalledTimes(1);
 
 		const failPromote = rejectPromote;

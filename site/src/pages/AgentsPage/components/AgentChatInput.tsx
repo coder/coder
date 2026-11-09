@@ -96,7 +96,10 @@ import { ImageLightbox } from "./ImageLightbox";
 import { MCPServerIconStack } from "./MCPServerIconStack";
 import { MCPServersMenuContent } from "./MCPServersMenuContent";
 import { ProjectSkillActions } from "./ProjectSkillActions";
-import { QueuedMessagesList } from "./QueuedMessagesList";
+import {
+	canSendQueuedMessageNow,
+	QueuedMessagesList,
+} from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
 import { WorkspaceUploadPreview } from "./WorkspaceUploadPreview";
@@ -195,6 +198,7 @@ type AgentChatInputProps = {
 	// When set, also hides the editor and every control (view-only mode).
 	readOnlyNotice?: string;
 	isChatPaused?: boolean;
+	isChatActive?: boolean;
 	// Editing state, owned by the parent. The kind selects the banner text.
 	editingKind?: EditingTarget["kind"];
 	queuedMessageUnderEditID?: number | null;
@@ -568,6 +572,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	warning,
 	readOnlyNotice,
 	isChatPaused = false,
+	isChatActive = false,
 	editingKind,
 	queuedMessageUnderEditID = null,
 	composerQueuedMessageID = null,
@@ -606,7 +611,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const enterSendsHead =
 		!isEditingMessage &&
 		queuedMessages.length > 0 &&
-		queuedMessages[0].id !== queuedMessageUnderEditID;
+		queuedMessages[0].id !== queuedMessageUnderEditID &&
+		canSendQueuedMessageNow(queuedMessages[0].busy_behavior, isChatActive);
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
@@ -1203,7 +1209,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const handleSubmit = () => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
-		// An empty composer sends the queue head unless the head is under edit.
 		if (
 			!text &&
 			!hasUploadedAttachments &&
@@ -1359,14 +1364,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		applyCycleValue(nextPrompt);
 	};
 
-	let sendButtonLabel = "Send";
-	if (isEditingMessage) {
-		sendButtonLabel = "Save Edit";
-	} else if (isStreaming || isChatPaused || queuedMessages[0]?.editing_since) {
-		// The server queues a send while a turn runs or the queue head is
-		// under edit.
-		sendButtonLabel = "Queue";
-	}
+	const sendButtonLabel = isEditingMessage ? "Save Edit" : "Send";
 	// Stop and the send button are mutually exclusive while streaming; a
 	// non-empty draft or a live recording selects the send button. A live
 	// recording also takes precedence over history editing. A queued edit
@@ -1430,6 +1428,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					onEdit={onEditQueuedMessage}
 					onEndEdit={onEndQueuedMessageEdit}
 					isChatPaused={isChatPaused}
+					isChatActive={isChatActive}
 					queuedMessageUnderEditID={queuedMessageUnderEditID}
 					composerQueuedMessageID={composerQueuedMessageID}
 					showEnterToSendHint={enterSendsHead}
