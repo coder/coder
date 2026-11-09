@@ -4969,8 +4969,9 @@ func (api *API) resolveGitProvider(ctx context.Context, origin string) gitprovid
 
 // resolveChatGitAccessToken returns userID's external-auth access token,
 // preferring the config matching origin and falling back to any config.
-// Tokens passing OAuthToken().Valid() skip provider validation because
-// provider API requests reject invalid tokens.
+// It skips provider validation for tokens passing OAuthToken().Valid(),
+// since that result would not change token selection, and returns the stored
+// token if token refresh fails.
 func (api *API) resolveChatGitAccessToken(
 	ctx context.Context,
 	userID uuid.UUID,
@@ -5052,7 +5053,6 @@ func (api *API) resolveChatGitAccessToken(
 					slog.F("user_id", userID),
 					slog.Error(refreshErr),
 				)
-				// Fall through because the existing token may still work.
 			} else {
 				link = refreshed
 			}
