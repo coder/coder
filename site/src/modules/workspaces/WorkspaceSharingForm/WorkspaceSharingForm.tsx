@@ -224,17 +224,14 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 			workspaceACL.group.length === 0,
 	);
 
-	const headClassName = cn(
-		"py-2",
-		isCompact && "sticky top-0 z-10 bg-surface-primary",
-	);
-
 	const tableHeader = (
-		<TableHeader>
+		<TableHeader
+			className={cn(isCompact && "sticky top-0 z-10 bg-surface-primary")}
+		>
 			<TableRow>
-				<TableHead className={cn("w-[50%]", headClassName)}>Member</TableHead>
-				<TableHead className={cn("w-[40%]", headClassName)}>Role</TableHead>
-				<TableHead className={cn("w-[10%]", headClassName)} />
+				<TableHead className="w-[50%] py-2">Member</TableHead>
+				<TableHead className="w-[40%] py-2">Role</TableHead>
+				<TableHead className="w-[10%] py-2" />
 			</TableRow>
 		</TableHeader>
 	);
@@ -371,7 +368,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 			{/* Screen readers associate headers with cells only within one table. */}
 			<Table
 				aria-label="Shared workspace members and groups"
-				wrapperClassName={cn(isCompact && "max-h-60 overflow-y-auto")}
+				wrapperClassName={cn(isCompact && "max-h-60")}
 			>
 				{tableHeader}
 				{tableBody}

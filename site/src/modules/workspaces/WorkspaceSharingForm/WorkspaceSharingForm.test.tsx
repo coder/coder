@@ -100,7 +100,6 @@ describe("WorkspaceSharingForm", () => {
 		await screen.findByRole("columnheader", { name: "Member" });
 		const tables = screen.getAllByRole("table");
 		expect(tables).toHaveLength(1);
-		// Header row plus one group and one user.
 		expect(within(tables[0]).getAllByRole("row")).toHaveLength(3);
 	});
 });
