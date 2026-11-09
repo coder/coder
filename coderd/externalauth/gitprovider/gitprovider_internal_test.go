@@ -294,7 +294,7 @@ func TestResponseCacheStore(t *testing.T) {
 			body []byte
 		}{
 			{
-				name: "Body",
+				name: "JSONProjection",
 				key:  "large",
 				etag: `"v"`,
 				body: make([]byte, 65),

@@ -10,8 +10,8 @@ import (
 
 const (
 	// defaultResponseCacheEntries bounds entry count, map and LRU list overhead.
-	// It is about 24 times the 2,731 keys observed on dogfood on 2026-11-07
-	// (CODAGT-1543).
+	// It is about 24 times the 2,731 keys derived from the 2026-11-07
+	// dogfood snapshot (CODAGT-1543).
 	defaultResponseCacheEntries = 65536
 
 	// defaultResponseCacheBytes limits the sum of cachedResponse.sizeBytes.
@@ -22,8 +22,8 @@ const (
 	maxCachedBodyBytes = 1 << 20 // 1 MiB
 )
 
-// cachedResponse holds the ETag for If-None-Match and body, the JSON
-// projection used when GitHub returns 304 Not Modified.
+// cachedResponse holds the ETag sent as If-None-Match.
+// Its body field holds the JSON projection decoded after a 304.
 type cachedResponse struct {
 	key  string
 	etag string
