@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net"
 	"net/url"
 	"regexp"
 	"strings"
@@ -47,8 +48,8 @@ var ErrNoTokenAvailable = xerrors.New("no token available")
 // previous branch and the current branch has none.
 var ErrStalePullRequest = xerrors.New("stale pull request")
 
-// ErrRateLimitSkipped indicates that a row was skipped because
-// a prior request in the same batch for the same owner and host hit a rate limit.
+// ErrRateLimitSkipped indicates that a row was skipped because a prior
+// request in the same batch for its owner and host hit a rate limit.
 var ErrRateLimitSkipped = xerrors.New("skipped due to rate limit")
 
 // TokenResolver obtains the user's git access token for a given
@@ -131,7 +132,8 @@ type groupKey struct {
 	origin  string
 }
 
-// cooldownKey identifies an owner and origin host for cooldowns and in-batch skips.
+// cooldownKey identifies an owner and provider web host for cooldowns and
+// in-batch skips.
 type cooldownKey struct {
 	ownerID uuid.UUID
 	host    string
@@ -140,10 +142,29 @@ type cooldownKey struct {
 // scpOriginHost extracts the host from scp-style SSH origins, including IPv6.
 var scpOriginHost = regexp.MustCompile(`^[^@/]+@(\[[^\]]+\]|[^:/]+):`)
 
-// cooldownKeyFor maps URL and scp-style SSH origins to a lowercase host key.
+func isSSHOrigin(origin string) bool {
+	return strings.HasPrefix(strings.ToLower(origin), "ssh://") || scpOriginHost.MatchString(origin)
+}
+
+// resolveCooldownKey looks up the provider only for SSH origins.
+func (r *Refresher) resolveCooldownKey(ctx context.Context, ownerID uuid.UUID, origin string) cooldownKey {
+	var provider gitprovider.Provider
+	if isSSHOrigin(strings.TrimSpace(origin)) {
+		provider = r.providers(ctx, origin)
+	}
+	return cooldownKeyFor(ownerID, origin, provider)
+}
+
+// cooldownKeyFor normalizes origins using the provider's web origin for SSH.
+// Non-default HTTP(S) ports stay distinct; SSH transport ports are ignored.
 // Origins without a parseable host share an empty-host key for that owner.
-func cooldownKeyFor(ownerID uuid.UUID, origin string) cooldownKey {
+func cooldownKeyFor(ownerID uuid.UUID, origin string, provider gitprovider.Provider) cooldownKey {
 	origin = strings.TrimSpace(origin)
+	if provider != nil && isSSHOrigin(origin) {
+		if _, _, normalized, ok := provider.ParseRepositoryOrigin(origin); ok {
+			origin = normalized
+		}
+	}
 	if match := scpOriginHost.FindStringSubmatch(origin); match != nil {
 		origin = "ssh://" + match[1]
 	}
@@ -151,12 +172,28 @@ func cooldownKeyFor(ownerID uuid.UUID, origin string) cooldownKey {
 	parsed, err := url.Parse(origin)
 	if err == nil {
 		host = strings.ToLower(parsed.Hostname())
+		port := parsed.Port()
+		switch strings.ToLower(parsed.Scheme) {
+		case "http":
+			if port == "80" {
+				port = ""
+			}
+		case "https":
+			if port == "443" {
+				port = ""
+			}
+		default:
+			port = ""
+		}
+		if host != "" && port != "" {
+			host = net.JoinHostPort(host, port)
+		}
 	}
 	return cooldownKey{ownerID: ownerID, host: host}
 }
 
-// resolvedGroup holds the pre-resolved provider and token for
-// a group of requests that share the same (owner, origin).
+// resolvedGroup holds a group's resolved provider and token, and its shared
+// rate-limit pointer.
 type resolvedGroup struct {
 	provider     gitprovider.Provider
 	token        string
@@ -223,17 +260,17 @@ func (r *Refresher) Refresh(
 
 		// Share rate-limit errors across this owner's origins on one host
 		// within this batch.
-		limitKey := cooldownKeyFor(key.ownerID, key.origin)
-		rateLimit := rateLimits[limitKey]
-		if rateLimit == nil {
-			rateLimit = new(atomic.Pointer[gitprovider.RateLimitError])
-			rateLimits[limitKey] = rateLimit
+		limitKey := cooldownKeyFor(key.ownerID, key.origin, provider)
+		rateLimitErr := rateLimits[limitKey]
+		if rateLimitErr == nil {
+			rateLimitErr = new(atomic.Pointer[gitprovider.RateLimitError])
+			rateLimits[limitKey] = rateLimitErr
 		}
 		resolved = append(resolved, resolvedGroup{
 			provider:     provider,
 			token:        *token,
 			indices:      indices,
-			rateLimitErr: rateLimit,
+			rateLimitErr: rateLimitErr,
 		})
 	}
 

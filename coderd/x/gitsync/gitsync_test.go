@@ -592,6 +592,9 @@ func TestRefresher_RateLimitSkipsQueuedRowsForOwnerAndHost(t *testing.T) {
 	var limitedCalls, healthyCalls atomic.Int32
 
 	mp := &mockProvider{
+		parseRepositoryOrigin: func(raw string) (string, string, string, bool) {
+			return "org", "repo", "https://github.com/org/repo", strings.HasPrefix(raw, "git@github.com:")
+		},
 		parsePullRequestURL: func(raw string) (gitprovider.PRRef, bool) {
 			return gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1}, raw != ""
 		},

@@ -107,6 +107,28 @@ func TestParseRetryAfter(t *testing.T) {
 		assert.Equal(t, time.Duration(0), d)
 	})
 
+	t.Run("ResetWithoutRemaining", func(t *testing.T) {
+		t.Parallel()
+		h := http.Header{}
+		h.Set("X-Ratelimit-Reset", strconv.FormatInt(clk.Now().Add(time.Hour).Unix(), 10))
+		assert.Zero(t, parseRetryAfter(h, "X-Ratelimit-Reset", "X-Ratelimit-Remaining", clk))
+	})
+
+	t.Run("ExhaustedWithoutReset", func(t *testing.T) {
+		t.Parallel()
+		h := http.Header{}
+		h.Set("X-Ratelimit-Remaining", "0")
+		assert.Zero(t, parseRetryAfter(h, "X-Ratelimit-Reset", "X-Ratelimit-Remaining", clk))
+	})
+
+	t.Run("ExhaustedWithInvalidReset", func(t *testing.T) {
+		t.Parallel()
+		h := http.Header{}
+		h.Set("X-Ratelimit-Remaining", "0")
+		h.Set("X-Ratelimit-Reset", "not-a-timestamp")
+		assert.Zero(t, parseRetryAfter(h, "X-Ratelimit-Reset", "X-Ratelimit-Remaining", clk))
+	})
+
 	t.Run("RetryAfterTakesPrecedence", func(t *testing.T) {
 		t.Parallel()
 		h := http.Header{}

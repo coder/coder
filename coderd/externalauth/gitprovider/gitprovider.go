@@ -124,8 +124,11 @@ const trailingPunctuation = "),;."
 // ErrDiffTooLarge.
 const MaxDiffSize = 4 << 20 // 4 MiB
 
-// RateLimitPadding delays retries after Retry-After and rate-limit reset times.
+// RateLimitPadding delays retries after parsed or fallback retry times.
 const RateLimitPadding = 5 * time.Minute
+
+// defaultRateLimitRetryDelay avoids immediate retries without a usable header.
+const defaultRateLimitRetryDelay = time.Minute
 
 // ErrDiffTooLarge is returned when a diff exceeds MaxDiffSize.
 var ErrDiffTooLarge = xerrors.Errorf("diff exceeds maximum size of %d bytes", MaxDiffSize)
@@ -212,8 +215,9 @@ func New(providerType string, apiBaseURL string, httpClient *http.Client, opts .
 	}
 }
 
-// parseRetryAfter returns Retry-After seconds, or the time until resetHeader
-// when remainingHeader is "0". It returns zero when neither applies.
+// parseRetryAfter returns Retry-After seconds or the time until resetHeader
+// when remainingHeader is "0". Missing or unparsable values return zero;
+// parsed delays can be negative.
 func parseRetryAfter(h http.Header, resetHeader, remainingHeader string, clk quartz.Clock) time.Duration {
 	// Retry-After header: seconds until retry.
 	if ra := h.Get("Retry-After"); ra != "" {
@@ -237,9 +241,8 @@ func parseRetryAfter(h http.Header, resetHeader, remainingHeader string, clk qua
 	return 0
 }
 
-// checkRateLimitError returns a *RateLimitError when resp indicates a
-// rate limit (HTTP 403 or 429) with recognizable retry headers;
-// otherwise nil. A reset header requires remainingHeader to be "0".
+// checkRateLimitError returns a *RateLimitError for 429, or for 403 with usable
+// retry headers. A reset header requires remainingHeader to be "0".
 // A nil resp returns nil.
 func checkRateLimitError(resp *http.Response, clk quartz.Clock, resetHeader, remainingHeader string) error {
 	if resp == nil {
@@ -250,7 +253,10 @@ func checkRateLimitError(resp *http.Response, clk quartz.Clock, resetHeader, rem
 	}
 	retryAfter := parseRetryAfter(resp.Header, resetHeader, remainingHeader, clk)
 	if retryAfter <= 0 {
-		return nil
+		if resp.StatusCode != http.StatusTooManyRequests {
+			return nil
+		}
+		retryAfter = defaultRateLimitRetryDelay
 	}
 	return &RateLimitError{RetryAfter: clk.Now().Add(retryAfter + RateLimitPadding)}
 }

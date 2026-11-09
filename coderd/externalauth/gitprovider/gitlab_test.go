@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -337,39 +338,6 @@ func TestGitLabRateLimit(t *testing.T) {
 		assert.True(t, rlErr.RetryAfter.Equal(expected), "expected %v, got %v", expected, rlErr.RetryAfter)
 	})
 
-	t.Run("429OnRawDiffEndpoint", func(t *testing.T) {
-		t.Parallel()
-
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if strings.Contains(r.URL.Path, "raw_diffs") {
-				w.Header().Set("Retry-After", "60")
-				w.WriteHeader(http.StatusTooManyRequests)
-				return
-			}
-			w.WriteHeader(http.StatusNotFound)
-		}))
-		defer srv.Close()
-
-		mClock := quartz.NewMock(t)
-		mClock.Set(time.Date(2026, 5, 25, 12, 0, 0, 0, time.UTC))
-
-		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client(), gitprovider.WithClock(mClock))
-		require.NoError(t, err)
-
-		_, err = gp.FetchPullRequestDiff(
-			t.Context(),
-			"test-token",
-			gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
-		)
-		require.Error(t, err)
-
-		rlErr, ok := errors.AsType[*gitprovider.RateLimitError](err)
-		require.True(t, ok, "error should be *RateLimitError, got: %T", err)
-
-		expected := mClock.Now().Add(60*time.Second + gitprovider.RateLimitPadding)
-		assert.Equal(t, expected, rlErr.RetryAfter)
-	})
-
 	t.Run("403WithoutRateLimitHeaders", func(t *testing.T) {
 		t.Parallel()
 
@@ -393,6 +361,65 @@ func TestGitLabRateLimit(t *testing.T) {
 		assert.False(t, ok, "error should NOT be *RateLimitError")
 		assert.Contains(t, err.Error(), "403")
 	})
+}
+
+func TestGitLabRateLimitRawDiffEndpoints(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		reset      bool
+		retryDelay time.Duration
+	}{
+		{name: "RetryAfter", retryDelay: 2 * time.Minute},
+		{name: "ResetHeader", reset: true, retryDelay: 30 * time.Minute},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, method := range []string{"PullRequestDiff", "BranchDiff"} {
+				t.Run(method, func(t *testing.T) {
+					t.Parallel()
+					clock := quartz.NewMock(t)
+					clock.Set(time.Date(2026, 5, 25, 12, 0, 0, 0, time.UTC))
+					headers := make(http.Header)
+					status := http.StatusTooManyRequests
+					if tc.reset {
+						headers.Set("RateLimit-Reset", fmt.Sprintf("%d", clock.Now().Add(tc.retryDelay).Unix()))
+						headers.Set("RateLimit-Remaining", "0")
+						status = http.StatusForbidden
+					} else {
+						headers.Set("Retry-After", fmt.Sprintf("%d", int64(tc.retryDelay/time.Second)))
+					}
+					server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						w.Header().Set("Content-Type", "application/json")
+						if strings.Contains(r.URL.Path, "raw_diffs") || strings.HasSuffix(r.URL.Path, "/repository/compare") {
+							for name, values := range headers {
+								w.Header()[name] = values
+							}
+							w.WriteHeader(status)
+							_, _ = w.Write([]byte(`{"message":"rate limit"}`))
+							return
+						}
+						_, _ = w.Write([]byte(`{"default_branch":"main"}`))
+					}))
+					t.Cleanup(server.Close)
+					provider, err := gitprovider.New("gitlab", server.URL, server.Client(), gitprovider.WithClock(clock))
+					require.NoError(t, err)
+					ctx := testutil.Context(t, testutil.WaitLong)
+
+					if method == "PullRequestDiff" {
+						_, err = provider.FetchPullRequestDiff(ctx, "test-token", gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1})
+					} else {
+						_, err = provider.FetchBranchDiff(ctx, "test-token", gitprovider.BranchRef{Owner: "org", Repo: "repo", Branch: "feature"})
+					}
+					require.Error(t, err)
+					rateLimit, ok := errors.AsType[*gitprovider.RateLimitError](err)
+					require.True(t, ok, "error should be *RateLimitError, got: %T", err)
+					require.Equal(t, clock.Now().Add(tc.retryDelay+gitprovider.RateLimitPadding), rateLimit.RetryAfter)
+				})
+			}
+		})
+	}
 }
 
 func TestGitLabSelfHosted(t *testing.T) {

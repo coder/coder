@@ -33,7 +33,8 @@ const (
 	// cooldownBackoffTimeout bounds the post-refresh cooldown stale_at writes.
 	cooldownBackoffTimeout = 5 * time.Second
 
-	// maxCooldown caps one response's cooldown at an hour plus RateLimitPadding.
+	// maxCooldown bounds far-future headers using GitHub's hourly primary
+	// rate-limit window plus RateLimitPadding.
 	maxCooldown = time.Hour + gitprovider.RateLimitPadding
 
 	// NoTokenBackoff is the backoff duration applied to rows
@@ -104,7 +105,8 @@ type Worker struct {
 	tickTimeout               time.Duration
 	done                      chan struct{}
 
-	// cooldowns maps each owner and host to its cooldown end. Only tick uses it.
+	// cooldowns maps each owner/host to its cooldown end.
+	// Only tick reads or writes it.
 	cooldowns map[cooldownKey]time.Time
 }
 
@@ -196,7 +198,7 @@ func (w *Worker) tick(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, w.tickTimeout)
 	defer cancel()
 
-	// Delete expired cooldowns, including owners whose rows are no longer acquired.
+	// Delete expired cooldowns even when their rows are no longer acquired.
 	now := w.clock.Now()
 	for key, end := range w.cooldowns {
 		if !end.After(now) {
@@ -302,13 +304,19 @@ func (w *Worker) tick(ctx context.Context) {
 	}
 }
 
+// requestsOutsideCooldown writes the cooldown end to stale_at for rows in
+// cooldown, and returns requests for the remaining rows.
 func (w *Worker) requestsOutsideCooldown(ctx context.Context, rows []database.AcquireStaleChatDiffStatusesRow, now time.Time) []RefreshRequest {
 	requests := make([]RefreshRequest, 0, len(rows))
 	for _, acquired := range rows {
 		row := chatDiffStatusFromRow(acquired)
-		key := cooldownKeyFor(acquired.OwnerID, row.GitRemoteOrigin)
+		key := w.refresher.resolveCooldownKey(ctx, acquired.OwnerID, row.GitRemoteOrigin)
 		end := w.cooldowns[key]
 		if end.After(now) {
+			w.logger.Debug(ctx, "skip diff-status refresh during cooldown",
+				slog.F("chat_id", row.ChatID),
+				slog.F("host", key.host),
+				slog.F("stale_at", end))
 			w.backoffForCooldown(ctx, row, end)
 			continue
 		}
@@ -329,8 +337,8 @@ func (w *Worker) backoffRateLimitedResults(ctx context.Context, results []Refres
 	ordinary := make([]RefreshResult, 0, len(results))
 	now := w.clock.Now().UTC()
 	for _, res := range results {
-		var rateLimit *gitprovider.RateLimitError
-		if !errors.As(res.Error, &rateLimit) {
+		rateLimit, ok := errors.AsType[*gitprovider.RateLimitError](res.Error)
+		if !ok {
 			ordinary = append(ordinary, res)
 			continue
 		}
@@ -339,7 +347,7 @@ func (w *Worker) backoffRateLimitedResults(ctx context.Context, results []Refres
 			slog.F("chat_id", res.Request.Row.ChatID),
 			slog.Error(res.Error))
 
-		key := cooldownKeyFor(res.Request.OwnerID, res.Request.Row.GitRemoteOrigin)
+		key := w.refresher.resolveCooldownKey(ctx, res.Request.OwnerID, res.Request.Row.GitRemoteOrigin)
 		end := cooldownEnd(now, rateLimit)
 		if end.After(w.cooldowns[key]) {
 			w.cooldowns[key] = end
@@ -356,8 +364,8 @@ func (w *Worker) backoffRateLimitedResults(ctx context.Context, results []Refres
 	defer cancel()
 
 	// Each same-key row must use the latest end collected above.
-	for _, row := range limited {
-		w.backoffForCooldown(backoffCtx, row.row, w.cooldowns[row.key])
+	for _, entry := range limited {
+		w.backoffForCooldown(backoffCtx, entry.row, w.cooldowns[entry.key])
 	}
 	return ordinary
 }
@@ -372,12 +380,13 @@ func (w *Worker) backoffForCooldown(ctx context.Context, row database.ChatDiffSt
 	}); err != nil {
 		w.logger.Warn(ctx, "backoff diff-status row in cooldown",
 			slog.F("chat_id", row.ChatID),
+			slog.F("stale_at", end),
 			slog.Error(err))
 	}
 }
 
-// cooldownEnd caps RetryAfter at maxCooldown from now, or uses DiffStatusTTL
-// when RetryAfter is not in the future.
+// cooldownEnd caps RetryAfter at maxCooldown from now. Expired times use
+// DiffStatusTTL to avoid immediately retrying after a rate limit.
 func cooldownEnd(now time.Time, rateLimit *gitprovider.RateLimitError) time.Time {
 	cooldown := rateLimit.RetryAfter.Sub(now)
 	if cooldown <= 0 {

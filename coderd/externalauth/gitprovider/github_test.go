@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
 
@@ -489,6 +490,101 @@ func TestGitHubRatelimit_429WithRetryAfter(t *testing.T) {
 	assert.WithinDuration(t, expected.Add(gitprovider.RateLimitPadding), rlErr.RetryAfter, 5*time.Second)
 }
 
+func TestGitHubRatelimit_WithoutRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	requests := []struct {
+		name string
+		do   func(context.Context, gitprovider.Provider) error
+	}{
+		{
+			name: "JSON",
+			do: func(ctx context.Context, provider gitprovider.Provider) error {
+				_, err := provider.FetchPullRequestStatus(ctx, "test-token", gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1})
+				return err
+			},
+		},
+		{
+			name: "Diff",
+			do: func(ctx context.Context, provider gitprovider.Provider) error {
+				_, err := provider.FetchPullRequestDiff(ctx, "test-token", gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1})
+				return err
+			},
+		},
+	}
+	for _, tc := range []struct {
+		name           string
+		status         int
+		body           string
+		primaryHeaders bool
+		rateLimited    bool
+	}{
+		{
+			name:           "429WithPrimaryRequestsRemaining",
+			status:         http.StatusTooManyRequests,
+			body:           `{"message":"secondary rate limit"}`,
+			primaryHeaders: true,
+			rateLimited:    true,
+		},
+		{
+			name:        "429WithoutHeaders",
+			status:      http.StatusTooManyRequests,
+			body:        `{"message":"rate limit"}`,
+			rateLimited: true,
+		},
+		{
+			name:           "403SecondaryLimit",
+			status:         http.StatusForbidden,
+			body:           `{"message":"You have exceeded a secondary rate limit. Please wait a few minutes before you try again."}`,
+			primaryHeaders: true,
+			rateLimited:    true,
+		},
+		{
+			name:   "503WithSecondaryMessage",
+			status: http.StatusServiceUnavailable,
+			body:   `{"message":"secondary rate limit"}`,
+		},
+		{
+			name:           "403MalformedBody",
+			status:         http.StatusForbidden,
+			body:           `{"message":"secondary rate limit"`,
+			primaryHeaders: true,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			for _, request := range requests {
+				t.Run(request.name, func(t *testing.T) {
+					t.Parallel()
+					clock := quartz.NewMock(t)
+					resetAt := strconv.FormatInt(clock.Now().Add(time.Hour).Unix(), 10)
+					server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						if tc.primaryHeaders {
+							w.Header().Set("X-RateLimit-Remaining", "4990")
+							w.Header().Set("X-RateLimit-Reset", resetAt)
+						}
+						w.WriteHeader(tc.status)
+						_, _ = w.Write([]byte(tc.body))
+					}))
+					t.Cleanup(server.Close)
+					provider, err := gitprovider.New("github", server.URL+"/api/v3", server.Client(), gitprovider.WithClock(clock))
+					require.NoError(t, err)
+
+					err = request.do(testutil.Context(t, testutil.WaitLong), provider)
+					require.Error(t, err)
+					rateLimit, ok := errors.AsType[*gitprovider.RateLimitError](err)
+					if !tc.rateLimited {
+						require.False(t, ok, "a response without a recognized rate limit must remain an ordinary error")
+						return
+					}
+					require.True(t, ok, "a rate limit without Retry-After must still be classified")
+					require.Equal(t, clock.Now().Add(time.Minute+gitprovider.RateLimitPadding), rateLimit.RetryAfter)
+				})
+			}
+		})
+	}
+}
+
 func TestGitHubRatelimit_403NormalError(t *testing.T) {
 	t.Parallel()
 	clock := quartz.NewMock(t)
@@ -597,28 +693,49 @@ func TestGitHubFetchPullRequestDiff(t *testing.T) {
 func TestFetchPullRequestDiff_Ratelimit(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Retry-After", "60")
-		w.WriteHeader(http.StatusTooManyRequests)
-		_, _ = w.Write([]byte(`{"message": "rate limit"}`))
-	}))
-	defer srv.Close()
+	for _, tc := range []struct {
+		name       string
+		reset      bool
+		retryDelay time.Duration
+	}{
+		{name: "RetryAfter", retryDelay: 2 * time.Minute},
+		{name: "ResetHeader", reset: true, retryDelay: 30 * time.Minute},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			clock := quartz.NewMock(t)
+			clock.Set(time.Date(2026, 5, 25, 12, 0, 0, 0, time.UTC))
+			headers := make(http.Header)
+			status := http.StatusTooManyRequests
+			if tc.reset {
+				headers.Set("X-RateLimit-Reset", strconv.FormatInt(clock.Now().Add(tc.retryDelay).Unix(), 10))
+				headers.Set("X-RateLimit-Remaining", "0")
+				status = http.StatusForbidden
+			} else {
+				headers.Set("Retry-After", strconv.FormatInt(int64(tc.retryDelay/time.Second), 10))
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				for name, values := range headers {
+					w.Header()[name] = values
+				}
+				w.WriteHeader(status)
+				_, _ = w.Write([]byte(`{"message":"rate limit"}`))
+			}))
+			t.Cleanup(server.Close)
+			provider, err := gitprovider.New("github", server.URL+"/api/v3", server.Client(), gitprovider.WithClock(clock))
+			require.NoError(t, err)
 
-	gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
-	require.NoError(t, err)
-	require.NotNil(t, gp)
-
-	_, err = gp.FetchPullRequestDiff(
-		context.Background(),
-		"test-token",
-		gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
-	)
-	require.Error(t, err)
-
-	var rlErr *gitprovider.RateLimitError
-	require.True(t, errors.As(err, &rlErr), "error should be *RateLimitError, got: %T", err)
-	expected := time.Now().Add(60 * time.Second)
-	assert.WithinDuration(t, expected.Add(gitprovider.RateLimitPadding), rlErr.RetryAfter, 5*time.Second)
+			_, err = provider.FetchPullRequestDiff(
+				testutil.Context(t, testutil.WaitLong),
+				"test-token",
+				gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
+			)
+			require.Error(t, err)
+			rateLimit, ok := errors.AsType[*gitprovider.RateLimitError](err)
+			require.True(t, ok, "error should be *RateLimitError, got: %T", err)
+			require.Equal(t, clock.Now().Add(tc.retryDelay+gitprovider.RateLimitPadding), rateLimit.RetryAfter)
+		})
+	}
 }
 
 func TestFetchBranchDiff_Ratelimit(t *testing.T) {

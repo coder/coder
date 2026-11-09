@@ -28,13 +28,58 @@ import (
 	"github.com/coder/quartz"
 )
 
-type acquiredChatDiffStatusesStore struct {
-	Store
-	rows []database.AcquireStaleChatDiffStatusesRow
+func TestCooldownKeyFor(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	for _, tc := range []struct {
+		name   string
+		origin string
+		host   string
+	}{
+		{name: "HTTPS", origin: "https://GitHub.com/o/r.git", host: "github.com"},
+		{name: "HTTPDefaultPort", origin: "http://github.example:80/o/r.git", host: "github.example"},
+		{name: "HTTPSDefaultPort", origin: "https://github.com:443/o/r.git", host: "github.com"},
+		{name: "HTTPSNonDefaultHTTPPort", origin: "https://github.example:80/o/r.git", host: "github.example:80"},
+		{name: "SSHDefaultPort", origin: "ssh://git@GitHub.com:22/o/r.git", host: "github.com"},
+		{name: "SCP", origin: "git@github.com:o/r.git", host: "github.com"},
+		{name: "HTTPNonDefaultPort", origin: "http://gitlab.example:8080/o/r.git", host: "gitlab.example:8080"},
+		{name: "HTTPSNonDefaultPort", origin: "https://github.example:8443/o/r.git", host: "github.example:8443"},
+		{name: "OtherInstancePort", origin: "https://github.example:9443/o/r.git", host: "github.example:9443"},
+		{name: "SSHNonDefaultPort", origin: "ssh://git@github.example:8443/o/r.git", host: "github.example"},
+		{name: "GitLabSSHTransportPort", origin: "ssh://git@gitlab.example:2222/group/repo.git", host: "gitlab.example"},
+		{name: "IPv6SCP", origin: "git@[::1]:o/r.git", host: "::1"},
+		{name: "IPv6DefaultPort", origin: "https://[::1]:443/o/r.git", host: "::1"},
+		{name: "IPv6NonDefaultPort", origin: "https://[::1]:8443/o/r.git", host: "[::1]:8443"},
+		{name: "NoHost", origin: "github.com:o/r"},
+		{name: "PortWithoutHost", origin: "ssh://:8443/o/r"},
+		{name: "Malformed", origin: "://"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, cooldownKey{ownerID: ownerID, host: tc.host}, cooldownKeyFor(ownerID, tc.origin, nil))
+		})
+	}
 }
 
-func (s *acquiredChatDiffStatusesStore) AcquireStaleChatDiffStatuses(context.Context, int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
-	return s.rows, nil
+func TestCooldownEndFallback(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	for _, tc := range []struct {
+		name       string
+		retryAfter time.Time
+	}{
+		{name: "Zero"},
+		{name: "Past", retryAfter: now.Add(-time.Minute)},
+		{name: "Now", retryAfter: now},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := &gitprovider.RateLimitError{RetryAfter: tc.retryAfter}
+			require.Equal(t, now.Add(DiffStatusTTL), cooldownEnd(now, err))
+		})
+	}
 }
 
 type cooldownBackoffCall struct {
@@ -117,6 +162,151 @@ func (p branchCallbackProvider) FetchPullRequestStatus(ctx context.Context, toke
 	return p.Provider.FetchPullRequestStatus(ctx, token, ref)
 }
 
+func newBranchProvider(t *testing.T, clock quartz.Clock) gitprovider.Provider {
+	t.Helper()
+	client := &http.Client{Transport: testutil.RoundTripperFunc(func(*http.Request) (*http.Response, error) {
+		t.Error("unexpected HTTP request")
+		return nil, xerrors.New("unexpected HTTP request")
+	})}
+	provider, err := gitprovider.New("github", "https://github.example", client, gitprovider.WithClock(clock))
+	require.NoError(t, err)
+	return provider
+}
+
+func TestWorker_CooldownSharesGitLabAPIInstance(t *testing.T) {
+	t.Parallel()
+
+	for _, instance := range []struct {
+		name   string
+		origin string
+	}{
+		{name: "DefaultHTTPS", origin: "https://gitlab.example"},
+		{name: "CustomHTTPS", origin: "https://gitlab.example:8443"},
+	} {
+		t.Run(instance.name, func(t *testing.T) {
+			t.Parallel()
+			for _, order := range []struct {
+				name     string
+				sshFirst bool
+				batch    bool
+			}{
+				{name: "HTTPSFirst"},
+				{name: "SSHFirst", sshFirst: true},
+				{name: "SameBatch", batch: true},
+			} {
+				t.Run(order.name, func(t *testing.T) {
+					t.Parallel()
+					ctx := testutil.Context(t, testutil.WaitLong)
+					clock := quartz.NewMock(t)
+					ownerID := uuid.New()
+					end := clock.Now().Add(30 * time.Minute)
+					origins := []string{instance.origin + "/group/repo", "ssh://git@gitlab.example:2222/group/repo.git"}
+					if order.sshFirst {
+						origins[0], origins[1] = origins[1], origins[0]
+					}
+					store := dbmock.NewMockStore(gomock.NewController(t))
+					var rows []database.AcquireStaleChatDiffStatusesRow
+					for _, origin := range origins {
+						rows = append(rows, database.AcquireStaleChatDiffStatusesRow{
+							ChatID:          uuid.New(),
+							OwnerID:         ownerID,
+							GitRemoteOrigin: origin,
+							GitBranch:       "limited",
+						})
+					}
+					if order.batch {
+						store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).Return(rows, nil)
+					} else {
+						var previous *gomock.Call
+						for _, row := range rows {
+							call := store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).Return([]database.AcquireStaleChatDiffStatusesRow{row}, nil)
+							if previous != nil {
+								call.After(previous)
+							}
+							previous = call
+						}
+					}
+					store.EXPECT().BackoffChatDiffStatus(gomock.Any(), gomock.Any()).Return(nil).Times(2)
+					client := &http.Client{Transport: testutil.RoundTripperFunc(func(*http.Request) (*http.Response, error) {
+						t.Error("unexpected HTTP request")
+						return nil, xerrors.New("unexpected HTTP request")
+					})}
+					base, err := gitprovider.New("gitlab", instance.origin+"/api/v4", client, gitprovider.WithClock(clock))
+					require.NoError(t, err)
+					var calls atomic.Int32
+					provider := branchCallbackProvider{
+						Provider: base,
+						resolve: func(context.Context, string, gitprovider.BranchRef) (*gitprovider.PRRef, error) {
+							calls.Add(1)
+							return nil, &gitprovider.RateLimitError{RetryAfter: end}
+						},
+					}
+					providers := func(context.Context, string) gitprovider.Provider { return provider }
+					tokens := func(context.Context, uuid.UUID, string) (*string, error) { return new("test-token"), nil }
+					logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+					refresher := NewRefresher(providers, tokens, logger, clock, WithConcurrency(1))
+					worker := NewWorker(store, refresher, nil, clock, logger)
+
+					worker.tick(ctx)
+					if !order.batch {
+						worker.tick(ctx)
+					}
+
+					require.Equal(t, int32(1), calls.Load(), "HTTPS and a custom SSH transport must share the provider's API cooldown")
+				})
+			}
+		})
+	}
+}
+
+func TestWorker_CooldownBackoffFailureSkipsProvider(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	clock := quartz.NewMock(t)
+	ownerID := uuid.New()
+	const origin = "https://github.example/owner/repo"
+	rows := []database.AcquireStaleChatDiffStatusesRow{
+		{
+			ChatID:          uuid.New(),
+			OwnerID:         ownerID,
+			GitRemoteOrigin: origin,
+			GitBranch:       "limited",
+		},
+		{
+			ChatID:          uuid.New(),
+			OwnerID:         uuid.New(),
+			GitRemoteOrigin: origin,
+			GitBranch:       "healthy",
+		},
+	}
+	store := dbmock.NewMockStore(gomock.NewController(t))
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).Return(rows, nil)
+	store.EXPECT().BackoffChatDiffStatus(gomock.Any(), gomock.Any()).Return(xerrors.New("backoff failed"))
+	var limitedCalls, healthyCalls atomic.Int32
+	provider := branchCallbackProvider{
+		Provider: newBranchProvider(t, clock),
+		resolve: func(_ context.Context, _ string, ref gitprovider.BranchRef) (*gitprovider.PRRef, error) {
+			if ref.Branch == "limited" {
+				limitedCalls.Add(1)
+			} else {
+				healthyCalls.Add(1)
+			}
+			return nil, nil //nolint:nilnil // No PR for this branch.
+		},
+	}
+	providers := func(context.Context, string) gitprovider.Provider { return provider }
+	tokens := func(context.Context, uuid.UUID, string) (*string, error) { return new("test-token"), nil }
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	refresher := NewRefresher(providers, tokens, logger, clock)
+	worker := NewWorker(store, refresher, nil, clock, logger)
+	worker.cooldowns[cooldownKey{ownerID: ownerID, host: "github.example"}] = clock.Now().Add(time.Minute)
+
+	worker.tick(ctx)
+
+	require.Zero(t, limitedCalls.Load(), "a failed stale_at write must not bypass the local cooldown")
+	require.Equal(t, int32(1), healthyCalls.Load(), "other owners must still receive a diff-status refresh")
+}
+
 func TestWorker_CooldownBackoffPrecedesOrdinaryResults(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -164,14 +354,9 @@ func TestWorker_CooldownBackoffPrecedesOrdinaryResults(t *testing.T) {
 	}
 	store.EXPECT().UpsertChatDiffStatus(gomock.Any(), gomock.Any()).DoAndReturn(upsert)
 
-	client := &http.Client{Transport: testutil.RoundTripperFunc(func(*http.Request) (*http.Response, error) {
-		return nil, xerrors.New("unexpected HTTP request")
-	})}
-	baseProvider, err := gitprovider.New("github", "https://github.example", client, gitprovider.WithClock(clock))
-	require.NoError(t, err)
 	successfulFetch := make(chan struct{})
 	provider := branchCallbackProvider{
-		Provider: baseProvider,
+		Provider: newBranchProvider(t, clock),
 		resolve: func(ctx context.Context, _ string, ref gitprovider.BranchRef) (*gitprovider.PRRef, error) {
 			if ref.Branch == "successful" {
 				return &gitprovider.PRRef{Owner: "owner", Repo: "repo", Number: 1}, nil
@@ -254,17 +439,11 @@ func TestWorker_CooldownBackoffSurvivesTickCancellation(t *testing.T) {
 		}
 	}
 
-	client := &http.Client{Transport: testutil.RoundTripperFunc(func(*http.Request) (*http.Response, error) {
-		t.Error("unexpected HTTP request")
-		return nil, xerrors.New("unexpected HTTP request")
-	})}
-	baseProvider, err := gitprovider.New("github", "https://github.example", client, gitprovider.WithClock(clock))
-	require.NoError(t, err)
 	rateLimitObserved := make(chan struct{})
 	slowRequestStarted := make(chan struct{})
 	retryAfter := clock.Now().Add(35 * time.Minute)
 	provider := branchCallbackProvider{
-		Provider: baseProvider,
+		Provider: newBranchProvider(t, clock),
 		resolve: func(ctx context.Context, _ string, ref gitprovider.BranchRef) (*gitprovider.PRRef, error) {
 			if ref.Branch == "limited" {
 				close(rateLimitObserved)
@@ -348,16 +527,10 @@ func TestWorker_CooldownNeverShortens(t *testing.T) {
 	}
 	store.EXPECT().BackoffChatDiffStatus(gomock.Any(), gomock.Any()).DoAndReturn(recordBackoff).Times(2)
 
-	client := &http.Client{Transport: testutil.RoundTripperFunc(func(*http.Request) (*http.Response, error) {
-		t.Error("unexpected HTTP request")
-		return nil, xerrors.New("unexpected HTTP request")
-	})}
-	baseProvider, err := gitprovider.New("github", "https://github.example", client, gitprovider.WithClock(clock))
-	require.NoError(t, err)
 	bothStarted := make(chan struct{})
 	var started atomic.Int32
 	provider := branchCallbackProvider{
-		Provider: baseProvider,
+		Provider: newBranchProvider(t, clock),
 		resolve: func(ctx context.Context, _ string, ref gitprovider.BranchRef) (*gitprovider.PRRef, error) {
 			if started.Add(1) == 2 {
 				close(bothStarted)
@@ -571,19 +744,19 @@ func TestWorker_CooldownRetriesWhenEnded(t *testing.T) {
 			name:       "PrimaryRateLimit",
 			header:     "X-RateLimit-Reset",
 			retryDelay: 30 * time.Minute,
-			cooldown:   35 * time.Minute,
+			cooldown:   30*time.Minute + gitprovider.RateLimitPadding,
 		},
 		{
 			name:       "SecondaryRateLimit",
 			header:     "Retry-After",
 			retryDelay: 15 * time.Minute,
-			cooldown:   20 * time.Minute,
+			cooldown:   15*time.Minute + gitprovider.RateLimitPadding,
 		},
 		{
 			name:       "FarFutureReset",
 			header:     "X-RateLimit-Reset",
 			retryDelay: 365 * 24 * time.Hour,
-			cooldown:   65 * time.Minute,
+			cooldown:   time.Hour + gitprovider.RateLimitPadding,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -626,7 +799,7 @@ func TestWorker_CooldownPerOwnerAndHost(t *testing.T) {
 	worker := f.newWorker(f.db)
 	worker.tick(f.ctx)
 	require.Equal(t, int32(1), f.limitedCalls.Load())
-	end := f.clock.Now().Add(35 * time.Minute)
+	end := f.clock.Now().Add(30*time.Minute + gitprovider.RateLimitPadding)
 
 	f.addRef(f.chat.ID, "https://github.com/owner/another-repo", "new-row")
 	f.addRef(f.chat.ID, "git@github.com:owner/repo.git", "ssh-origin")
@@ -653,7 +826,7 @@ func TestWorker_CooldownSurvivesMarkStale(t *testing.T) {
 	store := &cooldownStoreSpy{Store: f.db}
 	worker := f.newWorker(store)
 	worker.tick(f.ctx)
-	end := f.clock.Now().Add(35 * time.Minute)
+	end := f.clock.Now().Add(30*time.Minute + gitprovider.RateLimitPadding)
 
 	f.markStale(worker)
 	worker.tick(f.ctx)
@@ -669,7 +842,7 @@ func TestWorker_CooldownDefersRowsAcrossReplicas(t *testing.T) {
 	f.addRef(f.chat.ID, cooldownOrigin, "limited")
 	worker := f.newWorker(f.db)
 	worker.tick(f.ctx)
-	end := f.clock.Now().Add(35 * time.Minute)
+	end := f.clock.Now().Add(30*time.Minute + gitprovider.RateLimitPadding)
 	require.Equal(t, end, f.staleAt(f.chat.ID, "limited"))
 
 	replicaStore := &cooldownStoreSpy{Store: f.db}
@@ -682,30 +855,6 @@ func TestWorker_CooldownDefersRowsAcrossReplicas(t *testing.T) {
 	replica.tick(f.ctx)
 	require.Equal(t, 1, replicaStore.acquired)
 	require.Equal(t, int32(2), f.limitedCalls.Load(), "a replica without a cooldown must get its own rate-limit response")
-	require.Equal(t, end, f.staleAt(f.chat.ID, "limited"))
-	require.Equal(t, end, replica.cooldowns[cooldownKey{ownerID: f.ownerID, host: "github.com"}])
-}
-
-func TestWorker_CooldownOnAlreadyAcquiredReplicaRow(t *testing.T) {
-	t.Parallel()
-	f := newCooldownFixture(t, time.Now(), "X-RateLimit-Reset", 30*time.Minute)
-	f.addRef(f.chat.ID, cooldownOrigin, "queued")
-	f.addRef(f.chat.ID, cooldownOrigin, "limited")
-
-	// This replica acquired a row before the other worker's backoff. It has
-	// no cooldown, so its already-acquired row must call the provider once.
-	acquiredRows, err := f.db.AcquireStaleChatDiffStatuses(f.ctx, 1)
-	require.NoError(t, err)
-	require.Len(t, acquiredRows, 1)
-	replica := f.newWorker(&acquiredChatDiffStatusesStore{Store: f.db, rows: acquiredRows})
-	worker := f.newWorker(f.db)
-
-	worker.tick(f.ctx)
-	replica.tick(f.ctx)
-
-	end := f.clock.Now().Add(35 * time.Minute)
-	require.Equal(t, int32(2), f.limitedCalls.Load())
-	require.Equal(t, end, f.staleAt(f.chat.ID, "queued"))
 	require.Equal(t, end, f.staleAt(f.chat.ID, "limited"))
 	require.Equal(t, end, replica.cooldowns[cooldownKey{ownerID: f.ownerID, host: "github.com"}])
 }
