@@ -36,7 +36,9 @@ Also check the pool configuration:
 - An unset `secret_env` variable, or a reserved `template_parameters` name.
 - An `idle_release_timeout` without a unit.
   Claude Code values must be whole minutes, and Cursor values must be whole seconds.
-- Cursor only: more than four pools on one API key, two pools on one key with the same `cursor_pool_name`, or a `dispatch_deadline` longer than `15m`.
+- A `dispatch_deadline` longer than `15m`.
+  Claude Code values must also be whole seconds and at least `10s`.
+- Cursor only: more than four pools on one API key, or two pools on one key with the same `cursor_pool_name`.
 
 ### One pool is degraded and the others are fine
 
@@ -63,8 +65,8 @@ The workspace's build log in Coder has the full output.
 
 ### Builds time out
 
-- Claude Code: the build plus provisioner queue time exceeded the fixed 300-second budget.
-  Speed up the template or add provisioners.
+- Claude Code: the build time plus queue time exceeded the pool's `dispatch_deadline`, `5m` by default.
+  Speed up the template, raise the deadline up to `15m`, or add provisioners.
 - Cursor: the build exceeded `dispatch_deadline` or waited for a provisioner.
   Speed up the template, raise the deadline up to `15m`, use prebuilds, or add provisioners.
 

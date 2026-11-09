@@ -66,10 +66,10 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 					</header>
 
 					<CollapsibleContent
-						className={`
-							pt-2 pl-7 pr-5 space-y-4 font-medium max-w-[720px]
-							[&_p]:m-0 [&_p]:text-sm [&_p]:text-content-secondary
-						`}
+						className={cn(
+							"pt-2 pl-7 pr-5 space-y-4 font-medium max-w-[720px]",
+							"[&_p]:m-0 [&_p]:text-sm [&_p]:text-content-secondary",
+						)}
 					>
 						<p>
 							A user is considered "engaged" if they initiate a connection to
@@ -190,10 +190,10 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 							</ChartContainer>
 						) : (
 							<div
-								className={`
-									w-full h-full flex items-center justify-center
-									text-content-secondary text-sm font-medium
-								`}
+								className={cn(
+									"w-full h-full flex items-center justify-center",
+									"text-content-secondary text-sm font-medium",
+								)}
 							>
 								No data available
 							</div>
