@@ -30,21 +30,24 @@ type TeeBuffer struct {
 	closeErr  error
 }
 
-// NewRequest replaces r.Body and r.GetBody with a replayBody and returns the connected buffer.
+// NewRequest returns a shallow copy of the request and a TeeBuffer that retains
+// the bytes read from the copy's body. The original request is not modified and
+// shares Header, URL, and other fields with the copy.
 // HTTP/1 handlers must enable full duplex, or the server will drain the body before an early reply.
-func NewRequest(r *http.Request) *TeeBuffer {
+func NewRequest(in *http.Request) (*http.Request, *TeeBuffer) {
+	r := *in
 	// HTTP/2 uses ContentLength == 0 instead of nil or http.NoBody.
 	if r.Body == nil || r.Body == http.NoBody || r.ContentLength == 0 {
 		r.Body = http.NoBody
 		r.GetBody = func() (io.ReadCloser, error) { return http.NoBody, nil }
-		return newBuffer(http.NoBody)
+		return &r, newBuffer(http.NoBody)
 	}
 	// The server closes the original body after the handler returns.
 	// Closing the buffer must not close the original body.
 	b := newBuffer(io.NopCloser(r.Body))
 	r.Body = b.newBody()
 	r.GetBody = func() (io.ReadCloser, error) { return b.newBody(), nil }
-	return b
+	return &r, b
 }
 
 // NewResponse replaces response Body with a replayBody and returns the connected buffer.
