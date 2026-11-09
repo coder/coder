@@ -11,11 +11,19 @@ import {
 import { CommandGroup } from "#/components/Command/Command";
 import { timeZones } from "#/utils/timeZones";
 
-const timezoneGroups = Object.entries(
-	Object.groupBy(timeZones, (zone) =>
-		zone.includes("/") ? zone.split("/")[0] : "Other",
-	),
-).sort(([a], [b]) => a.localeCompare(b, "en"));
+const zonesByRegion = new Map<string, string[]>();
+for (const zone of timeZones) {
+	const region = zone.includes("/") ? zone.split("/")[0] : "Other";
+	const zones = zonesByRegion.get(region);
+	if (zones) {
+		zones.push(zone);
+	} else {
+		zonesByRegion.set(region, [zone]);
+	}
+}
+const timezoneGroups = [...zonesByRegion].sort(([a], [b]) =>
+	a.localeCompare(b, "en"),
+);
 
 type TimezoneComboboxProps = {
 	id: string;
@@ -60,7 +68,7 @@ export const TimezoneCombobox = ({
 				<ComboboxEmpty>No timezones found.</ComboboxEmpty>
 				{timezoneGroups.map(([region, zones]) => (
 					<CommandGroup key={region} heading={region} className="p-0">
-						{zones?.map((zone) => (
+						{zones.map((zone) => (
 							<ComboboxItem
 								key={zone}
 								value={zone}
