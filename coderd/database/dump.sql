@@ -3363,14 +3363,14 @@ CREATE TABLE skills (
     CONSTRAINT skills_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
 
-CREATE UNLOGGED TABLE tailnet_coordinators (
+CREATE TABLE tailnet_coordinators (
     id uuid NOT NULL,
     heartbeat_at timestamp with time zone NOT NULL
 );
 
 COMMENT ON TABLE tailnet_coordinators IS 'We keep this separate from replicas in case we need to break the coordinator out into its own service';
 
-CREATE UNLOGGED TABLE tailnet_peers (
+CREATE TABLE tailnet_peers (
     id uuid NOT NULL,
     coordinator_id uuid NOT NULL,
     updated_at timestamp with time zone NOT NULL,
@@ -3378,7 +3378,7 @@ CREATE UNLOGGED TABLE tailnet_peers (
     status tailnet_status DEFAULT 'ok'::tailnet_status NOT NULL
 );
 
-CREATE UNLOGGED TABLE tailnet_tunnels (
+CREATE TABLE tailnet_tunnels (
     coordinator_id uuid NOT NULL,
     src_id uuid NOT NULL,
     dst_id uuid NOT NULL,
