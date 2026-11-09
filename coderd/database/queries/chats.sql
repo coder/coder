@@ -688,9 +688,7 @@ WHERE
         ELSE true
     END
     -- Match chats whose linked diff URL (e.g. a pull request URL)
-    -- equals the given value, case-insensitively. The URL may live on
-    -- a delegated sub-agent's diff status, so we surface the root chat
-    -- when any descendant matches.
+    -- equals the given value, case-insensitively.
     AND CASE
         WHEN sqlc.narg('diff_url')::text IS NOT NULL THEN EXISTS (
             SELECT 1
@@ -728,11 +726,7 @@ WHERE
             chats_expanded.status::text = ANY(@chat_statuses::text[])
         ELSE true
     END
-    -- Filter by pull request status. Unlike the diff_url filter above,
-    -- this intentionally checks only the root chat's own diff status.
-    -- Child chats share the same workspace and git branch as their
-    -- parent, so gitsync populates identical PR state on both; traversing
-    -- descendants would be redundant.
+    -- Filter by pull request status stored on the root chat.
     -- "none" matches chats with no pull request: no diff-status row, or a
     -- row whose pull_request_state is null or empty.
     AND CASE
