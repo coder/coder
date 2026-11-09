@@ -239,7 +239,6 @@ func (w *Worker) tick(ctx context.Context) {
 			w.logger.Debug(ctx, "refresh chat diff status",
 				slog.F("chat_id", res.Request.Row.ChatID),
 				slog.Error(res.Error))
-
 			// Apply a longer backoff for rows whose owner has
 			// no linked token — retrying every 2 minutes is
 			// pointless until the user links their account.
@@ -247,14 +246,13 @@ func (w *Worker) tick(ctx context.Context) {
 			if errors.Is(res.Error, ErrNoTokenAvailable) {
 				backoff = NoTokenBackoff
 			}
-			staleAt := w.clock.Now().UTC().Add(backoff)
 			// Back off so the row isn't retried immediately.
 			if err := w.store.BackoffChatDiffStatus(ctx,
 				database.BackoffChatDiffStatusParams{
 					ChatID:          res.Request.Row.ChatID,
 					GitRemoteOrigin: res.Request.Row.GitRemoteOrigin,
 					GitBranch:       res.Request.Row.GitBranch,
-					StaleAt:         staleAt,
+					StaleAt:         w.clock.Now().UTC().Add(backoff),
 				},
 			); err != nil {
 				w.logger.Warn(ctx, "backoff failed chat diff status",
@@ -352,8 +350,8 @@ func (w *Worker) backoffRateLimitedResults(ctx context.Context, results []Refres
 		return ordinary
 	}
 
-	// Persist cooldown stale_at values after tick cancellation or timeout, before
-	// ordinary writes and publishing can consume this pass's five-second timeout.
+	// Persist cooldown stale_at values even if the tick is canceled, before
+	// slow ordinary processing delays their visibility to other replicas.
 	backoffCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cooldownBackoffTimeout)
 	defer cancel()
 
