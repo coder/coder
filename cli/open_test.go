@@ -708,16 +708,54 @@ func TestOpenApp(t *testing.T) {
 		w.RequireContains("region not found")
 	})
 
-	t.Run("ExternalAppOnTopLevelAgentSubstitutes", func(t *testing.T) {
+	t.Run("ExternalAppOnTopLevelAgentWithTrustedLinkSubstitutes", func(t *testing.T) {
 		t.Parallel()
 
-		// Apps on the top-level (template-defined) agent are trusted, so the
-		// CLI substitutes $SESSION_TOKEN regardless of scheme.
+		// A template-defined app that opens a known Coder IDE handler
+		// pointed at this deployment receives the session token.
+		ownerClient, store := coderdtest.NewWithDatabase(t, nil)
+		ownerClient.SetLogger(testutil.Logger(t).Named("client"))
+		first := coderdtest.CreateFirstUser(t, ownerClient)
+		userClient, user := coderdtest.CreateAnotherUserMutators(t, ownerClient, first.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+			r.Username = "trustedlinkowner"
+		})
+		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
+			Name:           "trustedlinkws",
+			OrganizationID: first.OrganizationID,
+			OwnerID:        user.ID,
+		}).WithAgent().Do()
+		require.NotEmpty(t, r.Agents, "expected at least one workspace agent")
+		_ = dbgen.WorkspaceApp(t, store, database.WorkspaceApp{
+			AgentID:  r.Agents[0].ID,
+			Slug:     "app1",
+			External: true,
+			Url: sql.NullString{
+				Valid:  true,
+				String: "vscode://coder.coder-remote/open?url=" + userClient.URL.String() + "&token=$SESSION_TOKEN",
+			},
+		})
+
+		inv, root := clitest.New(t, "open", "app", r.Workspace.Name, "app1", "--test.open-error")
+		clitest.SetupConfig(t, userClient, root)
+
+		w := clitest.StartWithWaiter(t, inv)
+		w.RequireError()
+		w.RequireContains("test.open-error")
+		w.RequireContains(userClient.SessionToken())
+	})
+
+	t.Run("ExternalAppOnTopLevelAgentWithUntrustedLinkPrintsURLAndDoesNotOpen", func(t *testing.T) {
+		t.Parallel()
+
+		// A template-defined app whose link doesn't point at this
+		// deployment must not receive the session token, matching the
+		// dashboard.
+		const appURL = "vscode://coder.coder-remote/open?url=https://attacker.example&token=$SESSION_TOKEN"
 		client, ws, _ := setupWorkspaceForAgent(t, func(agents []*proto.Agent) []*proto.Agent {
 			agents[0].Apps = []*proto.App{
 				{
 					Slug:     "app1",
-					Url:      "vscode://coder.coder-remote/open?token=$SESSION_TOKEN",
+					Url:      appURL,
 					External: true,
 				},
 			}
@@ -725,11 +763,16 @@ func TestOpenApp(t *testing.T) {
 		})
 		inv, root := clitest.New(t, "open", "app", ws.Name, "app1", "--test.open-error")
 		clitest.SetupConfig(t, client, root)
+		var stdout, stderr bytes.Buffer
+		inv.Stdout = &stdout
+		inv.Stderr = &stderr
 
 		w := clitest.StartWithWaiter(t, inv)
-		w.RequireError()
-		w.RequireContains("test.open-error")
-		w.RequireContains(client.SessionToken())
+		w.RequireSuccess()
+		require.NotContains(t, stderr.String(), "test.open-error")
+		require.Contains(t, stdout.String(), appURL)
+		require.NotContains(t, stdout.String(), client.SessionToken())
+		require.Contains(t, stderr.String(), "isn't trusted")
 	})
 
 	t.Run("ExternalAppOnSubAgentWithPlaceholderPrintsURLAndDoesNotOpen", func(t *testing.T) {
