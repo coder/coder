@@ -156,7 +156,7 @@ export const IdpGroupSyncForm: React.FC<IdpGroupSyncFormProps> = ({
 						</SettingsHeader>
 						<div className="flex flex-col gap-6">
 							<div className="flex flex-col gap-2">
-								<div className="flex flex-row items-end gap-2">
+								<div className="flex items-end gap-2">
 									<div className="flex flex-col gap-2">
 										<Label htmlFor={`${id}-sync-field`}>Group sync field</Label>
 										<Input
@@ -236,7 +236,7 @@ export const IdpGroupSyncForm: React.FC<IdpGroupSyncFormProps> = ({
 								Map IdP groups to Coder groups.
 							</SettingsHeaderDescription>
 						</SettingsHeader>
-						<div className="flex flex-row gap-2 justify-between items-start">
+						<div className="flex gap-2 justify-between items-start">
 							<div className="grid items-center gap-1 w-72">
 								<Label className="text-sm" htmlFor={`${id}-idp-group-name`}>
 									IdP group name
@@ -437,7 +437,7 @@ const GroupRow: React.FC<GroupRowProps> = ({
 	return (
 		<TableRow data-testid={`group-${idpGroup}`}>
 			<TableCell>
-				<div className="flex flex-row items-center gap-2 text-content-primary">
+				<div className="flex items-center gap-2 text-content-primary">
 					{idpGroup}
 					{!exists && <IdpUnseenClaimWarning />}
 				</div>

@@ -7,11 +7,11 @@ import { cn } from "cn";
 import { Slot } from "radix-ui";
 
 const badgeVariants = cva(
-	`
-	inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-nowrap
-	transition-colors [&_svg]:py-0.5 border-solid
-	[&_svg]:pointer-events-none
-	`,
+	cn(
+		"inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-nowrap",
+		"transition-colors [&_svg]:py-0.5 border-solid",
+		"[&_svg]:pointer-events-none",
+	),
 	{
 		variants: {
 			variant: {
@@ -99,7 +99,5 @@ export const Badge: React.FC<BadgeProps> = ({
 };
 
 export const BadgeGroup: React.FC<React.PropsWithChildren> = ({ children }) => {
-	return (
-		<div className="flex flex-row items-center gap-2 mb-4">{children}</div>
-	);
+	return <div className="flex items-center gap-2 mb-4">{children}</div>;
 };

@@ -53,7 +53,7 @@ export const StarterTemplatePageView: React.FC<
 					</>
 				}
 			>
-				<div className="flex flex-row gap-6 items-center">
+				<div className="flex gap-6 items-center">
 					<div className="size-12 flex items-center justify-center [&_img]:w-full">
 						<ExternalImage src={starterTemplate.icon} />
 					</div>

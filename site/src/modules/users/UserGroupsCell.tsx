@@ -30,7 +30,7 @@ export const UserGroupsCell: React.FC<GroupsCellProps> = ({ userGroups }) => {
 									: `View ${userGroups.length} group${userGroups.length !== 1 ? "s" : ""}`
 							}
 						>
-							<div className="flex flex-row gap-2 items-center">
+							<div className="flex gap-2 items-center">
 								<UsersIcon
 									className={cn([
 										"size-4 opacity-50",
@@ -65,7 +65,7 @@ export const UserGroupsCell: React.FC<GroupsCellProps> = ({ userGroups }) => {
 											fallback={groupName}
 										/>
 
-										<span className="m-0 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap leading-none">
+										<span className="m-0 min-w-0 truncate leading-none">
 											{groupName || <em>N/A</em>}
 										</span>
 									</li>

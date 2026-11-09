@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { expect, waitFor, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import {
 	type ChartConfig,
 	ChartContainer,
@@ -62,7 +62,9 @@ const meta: Meta<ChartStoryArgs> = {
 					/>
 					<ChartTooltip
 						cursor={false}
-						content={<ChartTooltipContent indicator={indicator} />}
+						content={(props) => (
+							<ChartTooltipContent {...props} indicator={indicator} />
+						)}
 					/>
 					<Area
 						dataKey="users"
@@ -102,5 +104,22 @@ export const DashedTooltip: Story = {
 		const chart = await canvas.findByRole("group", { name: "Users" });
 		chart.focus();
 		await canvas.findByText("186");
+	},
+};
+
+export const TooltipHovered: Story = {
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("show the tooltip for the first data point", async () => {
+			// Wait for the chart to mount so it can receive focus.
+			await canvas.findByRole("group", { name: "Users" });
+			await userEvent.tab();
+			await userEvent.keyboard("{ArrowRight}");
+		});
+
+		await step("move the pointer onto the tooltip", async () => {
+			await userEvent.hover(await canvas.findByText("February"));
+		});
 	},
 };

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
 import { Link as RouterLink } from "react-router";
 import {
@@ -57,11 +58,11 @@ export const LicenseSeatConsumptionChart: React.FC<
 
 						<CollapsibleTrigger asChild>
 							<Button
-								className={`
-									h-auto p-0 border-0 bg-transparent font-medium text-content-secondary
-									hover:bg-transparent hover:text-content-primary
-									[&[data-state=open]_svg]:rotate-90
-								`}
+								className={cn(
+									"h-auto p-0 border-0 bg-transparent font-medium text-content-secondary",
+									"hover:bg-transparent hover:text-content-primary",
+									"[&[data-state=open]_svg]:rotate-90",
+								)}
 							>
 								<ChevronRightIcon />
 								How we calculate license seat consumption
@@ -70,11 +71,11 @@ export const LicenseSeatConsumptionChart: React.FC<
 					</header>
 
 					<CollapsibleContent
-						className={`
-							pt-2 pl-7 pr-5 space-y-4 font-medium max-w-180
-							text-sm text-content-secondary
-							[&_p]:m-0 [&_ul]:m-0 [&_ul]:p-0 [&_ul]:list-none
-						`}
+						className={cn(
+							"pt-2 pl-7 pr-5 space-y-4 font-medium max-w-180",
+							"text-sm text-content-secondary",
+							"[&_p]:m-0 [&_ul]:m-0 [&_ul]:p-0 [&_ul]:list-none",
+						)}
 					>
 						<p>
 							Licenses are consumed based on the status of user accounts. Only
@@ -184,8 +185,9 @@ export const LicenseSeatConsumptionChart: React.FC<
 									/>
 									<ChartTooltip
 										cursor={false}
-										content={
+										content={(props) => (
 											<ChartTooltipContent
+												{...props}
 												className="font-medium text-content-secondary"
 												labelClassName="text-content-primary"
 												labelFormatter={(_, p) => {
@@ -200,7 +202,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 													});
 												}}
 											/>
-										}
+										)}
 									/>
 									<defs>
 										<linearGradient id="fillUsers" x1="0" y1="0" x2="0" y2="1">
@@ -244,10 +246,10 @@ export const LicenseSeatConsumptionChart: React.FC<
 							</ChartContainer>
 						) : (
 							<div
-								className={`
-									w-full h-full flex items-center justify-center
-									text-content-secondary text-sm font-medium
-								`}
+								className={cn(
+									"w-full h-full flex items-center justify-center",
+									"text-content-secondary text-sm font-medium",
+								)}
 							>
 								No data available
 							</div>
