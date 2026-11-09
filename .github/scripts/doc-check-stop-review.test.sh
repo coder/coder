@@ -2,8 +2,8 @@
 # Tests for doc-check-stop-review.sh against a fake curl, sleep, and date
 # on PATH. The fake sleep and date share a virtual clock, which slow fake
 # requests also advance, so no case waits in real time and every timing
-# assertion counts virtual seconds. A case that polls past CLOCK_LIMIT
-# virtual seconds fails. No CI job runs this file.
+# assertion counts virtual seconds. A case fails if a fake sleep moves the
+# virtual clock past CLOCK_LIMIT. No CI job runs this file.
 #
 # Run: bash .github/scripts/doc-check-stop-review.test.sh
 
@@ -14,6 +14,8 @@ WORK=$(mktemp -d)
 trap 'rm -rf "${WORK}"' EXIT
 
 readonly CLOCK_START=1000
+# Over ten times the 270-second default budget, so only a case whose polling
+# ignores its deadline reaches it.
 readonly CLOCK_LIMIT=$((CLOCK_START + 3000))
 # Real seconds. Only a loop that never sleeps reaches this, because the
 # fake sleep ends polling at CLOCK_LIMIT.
@@ -48,15 +50,21 @@ EOF
 #               queued message, as a turn that ends after the read would
 #   list        chat IDs the label lookup returns
 #   stuck       chat IDs that ignore interrupts
-#   workspaces  id -> {name, transition, statuses, after_stop}; each read
-#               takes the next status and keeps the last, a stop answers
-#               409 while the last status read is a build in progress, and
-#               a stop applies after_stop when it is set
+#   workspaces  id -> {name, transition, statuses, after_stop, current};
+#               each read takes the next status and keeps the last;
+#               current holds the status the last read or stop left, and a
+#               stop fails while it is a build in progress, as coderd
+#               answers 409; a stop applies after_stop when it is set; a
+#               read or stop of an ID with no entry fails, as coderd
+#               answers 400 or 404
 #   fail        paths that answer with an HTTP error
 #   fail_seq    path -> list of booleans, one a call, keeping the last;
 #               true answers with an HTTP error
 #   slow        path -> seconds a request takes on the virtual clock; a
 #               request that takes longer than --max-time times out
+#   timeout_after_apply
+#               paths whose request applies and then times out, as one
+#               that coderd accepts just before curl gives up would
 # An interrupted chat reads as interrupting twice, and a stopping
 # workspace reads as stopping twice, so a case shows whether the script
 # waits for them.
@@ -169,6 +177,7 @@ GET\ /api/v2/chats/*)
 POST\ /api/v2/workspaces/*/builds)
 	id="${path#/api/v2/workspaces/}"
 	id="${id%/builds}"
+	jq -e --arg id "${id}" '.workspaces | has($id)' "${st}" >/dev/null || fail
 	if jq -e --arg id "${id}" '.workspaces[$id] | (.current // .statuses[0]) | IN("pending", "starting", "stopping", "canceling", "deleting")' "${st}" >/dev/null; then
 		fail
 	fi
@@ -178,6 +187,7 @@ POST\ /api/v2/workspaces/*/builds)
 	;;
 GET\ /api/v2/workspaces/*)
 	id="${path#/api/v2/workspaces/}"
+	jq -e --arg id "${id}" '.workspaces | has($id)' "${st}" >/dev/null || fail
 	# coderd answers 410 Gone for a deleted workspace unless the read
 	# includes deleted workspaces. The fake answers an HTTP error.
 	if [[ "$(jq -r --arg id "${id}" '.workspaces[$id].transition' "${st}")" == "delete" && "${qs}" != *include_deleted=true* ]]; then
@@ -191,6 +201,11 @@ GET\ /api/v2/workspaces/*)
 	exit 2
 	;;
 esac
+if jq -e --arg p "${path}" '.timeout_after_apply | index($p)' "${st}" >/dev/null; then
+	echo $(($(cat "${STATE}/clock") + max_time)) >"${STATE}/clock"
+	echo "curl: (28) Operation timed out after ${max_time} seconds" >&2
+	exit 28
+fi
 EOF
 chmod +x "${WORK}/bin/curl" "${WORK}/bin/sleep" "${WORK}/bin/date"
 
@@ -210,7 +225,7 @@ run_case() {
 	# The clock starts away from zero, so a case shows that the script counts
 	# from its own start.
 	echo "${CLOCK_START}" >"${STATE}/clock"
-	jq -n "{chats: {}, list: [], stuck: [], workspaces: {}, fail: [], fail_seq: {}, slow: {}} + ($3)" >"${STATE}/state.json"
+	jq -n "{chats: {}, list: [], stuck: [], workspaces: {}, fail: [], fail_seq: {}, slow: {}, timeout_after_apply: []} + ($3)" >"${STATE}/state.json"
 	local code=0
 	local -a limit=()
 	command -v timeout >/dev/null && limit=(timeout "${REAL_SECONDS_LIMIT}")
@@ -360,7 +375,9 @@ run_case queue-overflow "https://github.com/coder/coder/pull/12" '{
 expect_first_sweep_calls 20 "DELETE /api/v2/chats/r1/queue/"
 expect_output "::warning::Chat r1 still has queued messages after 20 deletes. When its interruption finishes, the next queued message starts it again."
 
-# A failed queue read warns once a sweep and goes on to the interrupt.
+# A failed queue read warns once a chat and goes on to the interrupt. The
+# later sweeps of the interrupting chat read the queue again without a
+# warning.
 run_case queue-read-fails "https://github.com/coder/coder/pull/12" '{
 	list: ["r1"],
 	fail: ["/api/v2/chats/r1/messages"],
@@ -368,7 +385,22 @@ run_case queue-read-fails "https://github.com/coder/coder/pull/12" '{
 }'
 expect_first_sweep_calls 1 "GET /api/v2/chats/r1/messages"
 expect_first_sweep_calls 1 "POST /api/v2/chats/r1/interrupt"
+expect_calls 3 "GET /api/v2/chats/r1/messages"
 expect_output "::warning::Could not read the queue of chat r1. When its interruption finishes, the next queued message starts it again."
+expect_warnings 1
+
+# GitHub keeps only the first 10 warning annotations of a step, so a chat
+# that never stops warns once about its queue, and the warning that it may
+# still be running is not crowded out.
+run_case stuck-chat-queue-read-fails "https://github.com/coder/coder/pull/12" '{
+	list: ["r1"],
+	stuck: ["r1"],
+	fail: ["/api/v2/chats/r1/messages"],
+	chats: {r1: {status: "running", workspace_id: null, children: [], queued: [11]}}
+}'
+expect_output "::warning::Could not read the queue of chat r1."
+expect_output "::warning::Review chat r1 did not stop in time. It may still be running in Coder."
+expect_warnings 2
 
 # A delete answers 404 for a message that chatd promoted after the read,
 # so the script reads the queue again and drops the rest without a warning.
@@ -420,6 +452,23 @@ run_case paused-chat-last-message "https://github.com/coder/coder/pull/12" '{
 expect_calls 1 "DELETE /api/v2/chats/r1/queue/31"
 expect_calls 0 "/interrupt"
 [[ "$(state_of '.chats.r1.status')" == "waiting" ]] || fail_case "paused chat did not return to waiting"
+
+# A chat in error keeps its queue, and the next message sent to it runs the
+# oldest queued one first, so its queue is dropped. It gets no interrupt
+# and no poll.
+run_case error-chats "https://github.com/coder/coder/pull/12" '{
+	list: ["r1"],
+	chats: {
+		r1: {status: "error", workspace_id: null, children: ["c1"], queued: [11]},
+		c1: {status: "error", workspace_id: null, children: [], queued: [21]}
+	}
+}'
+expect_calls 1 "DELETE /api/v2/chats/r1/queue/11"
+expect_calls 1 "DELETE /api/v2/chats/c1/queue/21"
+expect_calls 0 "/interrupt"
+expect_calls 0 "SLEEP"
+expect_no_output "::warning::"
+[[ "$(state_of '[.chats[].queued[]] | length')" == 0 ]] || fail_case "queued messages remain"
 
 run_case stuck-chat "https://github.com/coder/coder/pull/12" '{
 	list: ["r1"],
@@ -492,6 +541,23 @@ expect_calls 2 "POST /api/v2/chats/r1/interrupt"
 expect_output "Could not interrupt chat r1. The next sweep checks it again."
 expect_output "Review chat r1 and its sub-agents are stopped."
 expect_no_output "::warning::"
+
+# A chat whose every interrupt fails warns that it could not be
+# interrupted, and the chat beside it that ignores its interrupts warns
+# that the review did not stop in time.
+run_case interrupt-never-succeeds "https://github.com/coder/coder/pull/12" '{
+	list: ["r1"],
+	stuck: ["r1"],
+	fail: ["/api/v2/chats/c1/interrupt"],
+	chats: {
+		r1: {status: "running", workspace_id: null, children: ["c1"], queued: []},
+		c1: {status: "running", workspace_id: null, children: [], queued: []}
+	}
+}'
+expect_calls 3 "POST /api/v2/chats/c1/interrupt"
+expect_output "::warning::Could not interrupt chat c1. It may still be running in Coder."
+expect_output "::warning::Review chat r1 did not stop in time. It may still be running in Coder."
+expect_warnings 2
 
 # coderd answers a stop with 409 while a build is in progress, so a start
 # build gets its stop after it ends, and a stop or delete build gets none.
@@ -672,6 +738,27 @@ expect_calls 2 "POST /api/v2/workspaces/w1/builds"
 expect_output "Stopped workspace doc-check-pr-12."
 expect_no_output "::warning::"
 
+# A stop request that failed, on a workspace that a build stopped before
+# the next read, ends with the workspace's status and no warning.
+run_case stop-fails-then-stopped "https://github.com/coder/coder/pull/12" '{
+	fail: ["/api/v2/workspaces/w1/builds"],
+	workspaces: {w1: {name: "doc-check-pr-12", transition: "stop", statuses: ["failed", "stopped"]}}
+}'
+expect_calls 1 "POST /api/v2/workspaces/w1/builds"
+expect_output "Workspace doc-check-pr-12 is stopped."
+expect_no_output "Stopped workspace"
+expect_no_output "::warning::"
+
+# A stop request that times out after coderd accepts it is followed by its
+# stop build, which counts as this run's stop.
+run_case stop-times-out-after-apply "https://github.com/coder/coder/pull/12" '{
+	timeout_after_apply: ["/api/v2/workspaces/w1/builds"],
+	workspaces: {w1: {name: "doc-check-pr-12", transition: "start", statuses: ["running"]}}
+}'
+expect_calls 1 "POST /api/v2/workspaces/w1/builds"
+expect_output "Stopped workspace doc-check-pr-12."
+expect_no_output "::warning::"
+
 # A build that starts after a failed stop request, as the 409 for that
 # request means, is reported as a build that did not finish.
 run_case stop-fails-then-build "https://github.com/coder/coder/pull/12" '{
@@ -689,6 +776,7 @@ run_case queue-delete-fails "https://github.com/coder/coder/pull/12" '{
 }'
 expect_first_sweep_calls 1 "DELETE /api/v2/chats/r1/queue/11"
 expect_output "::warning::Could not drop queued message 11 on chat r1."
+expect_warnings 1
 
 # A value written on Windows can carry a trailing carriage return.
 run_case crlf-pr-url $'https://github.com/coder/coder/pull/12\r' '{

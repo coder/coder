@@ -45,12 +45,15 @@ readonly STARTED_AT
 # The second, counted from STARTED_AT, at which the current phase ends.
 deadline=0
 
-# State that sweeps keep between polls. chat_interrupts is keyed by every
-# chat in a review's tree, the other chat_ maps by review chat, and the ws_
-# maps by workspace ID. ws_stop is "sent" once a stop request from this run
-# succeeds, and "failed" while the last one failed and no build has started
-# since.
-declare -A chat_interrupts=() chat_sweeps=() chat_read_ok=()
+# State that sweeps keep between polls. chat_interrupts,
+# chat_interrupt_failed, and chat_queue_warned are keyed by every chat in a
+# review's tree, the other chat_ maps by review chat, and the ws_ maps by
+# workspace ID. chat_last_tree holds each review's tree from its last read.
+# ws_stop is "sent" once a stop request from this run succeeds or a stop
+# build follows a failed one, and "failed" while the last one failed and no
+# later read has shown a build in progress.
+declare -A chat_interrupts=() chat_interrupt_failed=() chat_queue_warned=()
+declare -A chat_sweeps=() chat_read_ok=() chat_last_tree=()
 declare -A ws_name=() ws_stop=() ws_read_ok=()
 
 warn() {
@@ -88,6 +91,20 @@ chat_tree() {
 	jq -r '(., .children[]?) | "\(.id) \(.status)"' <<<"${chat}"
 }
 
+# Warns about a chat's queue once, and prints later warnings for that chat
+# as plain lines. GitHub keeps only the first 10 warning annotations of a
+# step, and a busy chat's queue is dropped again on every sweep.
+warn_queue() {
+	local id="$1"
+	shift
+	if [[ "${chat_queue_warned["${id}"]:-}" == "true" ]]; then
+		echo "$*"
+		return 0
+	fi
+	chat_queue_warned["${id}"]=true
+	warn "$*"
+}
+
 # Drops every queued message on a chat. Deleting one can promote the next,
 # so this reads the queue again after each delete. A delete answers 404
 # when chatd promoted the message after the read, so a failed delete warns
@@ -99,7 +116,7 @@ clear_queue() {
 		# queued_messages holds the whole queue on any read without a
 		# cursor; limit=1 only keeps the message page small.
 		messages=$(api GET "/api/v2/chats/${id}/messages?limit=1") || {
-			warn "Could not read the queue of chat ${id}. ${restarts}"
+			warn_queue "${id}" "Could not read the queue of chat ${id}. ${restarts}"
 			return 0
 		}
 		qid=$(jq -r '.queued_messages[0].id // empty' <<<"${messages}")
@@ -107,7 +124,7 @@ clear_queue() {
 			return 0
 		fi
 		if [[ "${qid}" == "${failed}" ]]; then
-			warn "Could not drop queued message ${qid} on chat ${id}. ${restarts}"
+			warn_queue "${id}" "Could not drop queued message ${qid} on chat ${id}. ${restarts}"
 			return 0
 		fi
 		# The last pass only reads, so a queue that the last delete emptied
@@ -121,16 +138,19 @@ clear_queue() {
 		fi
 		echo "Dropped queued message ${qid} on chat ${id}."
 	done
-	warn "Chat ${id} still has queued messages after ${DELETES_PER_CLEAR} deletes. ${restarts}"
+	warn_queue "${id}" "Chat ${id} still has queued messages after ${DELETES_PER_CLEAR} deletes. ${restarts}"
 }
 
 # Sweeps a review chat once, and returns 0 when it and its sub-agents are
 # idle. Finishing an interruption or leaving a pause promotes the next
 # queued message and starts the chat again, so every chat that is not idle
-# gets its queue dropped before any interrupt. An interrupted chat in
-# requires_action returns to running, so a later sweep interrupts it again.
-# A chat that ends its turn after the read answers an interrupt with 409,
-# so a failed interrupt does not warn; the next sweep reads the chat again.
+# gets its queue dropped before any interrupt. A chat in error keeps its
+# queue, and the next message sent to it runs the oldest queued one first,
+# so it gets its queue dropped too, but it is not busy. An interrupted chat
+# in requires_action returns to running, so a later sweep interrupts it
+# again. A chat that ends its turn after the read answers an interrupt with
+# 409, so a failed interrupt does not warn here; the next sweep reads the
+# chat again, and report_chat warns if it still reads as running.
 sweep_chat() {
 	local root="$1" tree id status sent busy=false
 	chat_sweeps["${root}"]=$((${chat_sweeps["${root}"]:-0} + 1))
@@ -139,12 +159,14 @@ sweep_chat() {
 		return 1
 	fi
 	chat_read_ok["${root}"]=true
+	chat_last_tree["${root}"]="${tree}"
 	while read -r id status <&3; do
 		case "${status}" in
 		running | requires_action | interrupting | paused)
 			busy=true
 			clear_queue "${id}"
 			;;
+		error) clear_queue "${id}" ;;
 		esac
 	done 3<<<"${tree}"
 	if [[ "${busy}" != "true" ]]; then
@@ -164,17 +186,39 @@ sweep_chat() {
 		fi
 		chat_interrupts["${id}"]=$((sent + 1))
 		echo "Interrupting chat ${id} (${status})."
-		api POST "/api/v2/chats/${id}/interrupt" >/dev/null ||
+		if api POST "/api/v2/chats/${id}/interrupt" >/dev/null; then
+			chat_interrupt_failed["${id}"]=false
+		else
+			chat_interrupt_failed["${id}"]=true
 			echo "Could not interrupt chat ${id}. The next sweep checks it again."
+		fi
 	done 3<<<"${tree}"
 	return 1
 }
 
+# Warns about each chat in the review's last read that is running and whose
+# last interrupt failed, and once about the review if any other chat in it
+# was still busy.
 report_chat() {
-	if [[ "${chat_read_ok["$1"]}" == "true" ]]; then
-		warn "Review chat $1 did not stop in time. It may still be running in Coder."
-	else
-		warn "Could not read review chat $1. It may still be running in Coder."
+	local root="$1" id status late=false
+	if [[ "${chat_read_ok["${root}"]}" != "true" ]]; then
+		warn "Could not read review chat ${root}. It may still be running in Coder."
+		return 0
+	fi
+	while read -r id status; do
+		case "${status}" in
+		running | requires_action)
+			if [[ "${chat_interrupt_failed["${id}"]:-}" == "true" ]]; then
+				warn "Could not interrupt chat ${id}. It may still be running in Coder."
+			else
+				late=true
+			fi
+			;;
+		interrupting | paused) late=true ;;
+		esac
+	done <<<"${chat_last_tree["${root}"]}"
+	if [[ "${late}" == "true" ]]; then
+		warn "Review chat ${root} did not stop in time. It may still be running in Coder."
 	fi
 }
 
@@ -198,16 +242,27 @@ sweep_workspace() {
 	status=$(jq -r '.latest_build.status' <<<"${workspace}")
 	case "${transition}/${status}" in
 	*/pending | */starting | */stopping | */canceling | */deleting)
-		# A failed stop request no longer applies once a build has started.
+		# A failed stop request may still have been accepted, as one that
+		# timed out can be, so a stop build after it counts as sent. A start
+		# or delete build means the request did not apply, and the sweep
+		# after that build decides again.
 		if [[ "${ws_stop["${id}"]:-}" == "failed" ]]; then
-			ws_stop["${id}"]=""
+			if [[ "${transition}" == "stop" ]]; then
+				ws_stop["${id}"]=sent
+			else
+				ws_stop["${id}"]=""
+			fi
 		fi
 		return 1
 		;;
 	stop/stopped | delete/deleted)
-		if [[ "${ws_stop["${id}"]:-}" == "sent" ]]; then
-			echo "Stopped workspace ${name}."
-		fi
+		case "${ws_stop["${id}"]:-}" in
+		sent) echo "Stopped workspace ${name}." ;;
+		# The last stop request failed, but the workspace stopped or was
+		# deleted between two reads, by that request if coderd accepted it
+		# before it timed out, or by another build.
+		failed) echo "Workspace ${name} is ${status}." ;;
+		esac
 		return 0
 		;;
 	*)
