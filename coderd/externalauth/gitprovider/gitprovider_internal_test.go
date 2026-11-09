@@ -68,7 +68,7 @@ func TestParseRetryAfter(t *testing.T) {
 		t.Parallel()
 		h := http.Header{}
 		h.Set("Retry-After", "120")
-		d := parseRetryAfter(h, "X-Ratelimit-Reset", clk)
+		d := parseRetryAfter(h, "X-Ratelimit-Reset", "X-Ratelimit-Remaining", clk)
 		assert.Equal(t, 120*time.Second, d)
 	})
 
@@ -78,7 +78,7 @@ func TestParseRetryAfter(t *testing.T) {
 		h := http.Header{}
 		h.Set("X-Ratelimit-Reset", strconv.FormatInt(future.Unix(), 10))
 		h.Set("X-Ratelimit-Remaining", "0")
-		d := parseRetryAfter(h, "X-Ratelimit-Reset", clk)
+		d := parseRetryAfter(h, "x-ratelimit-reset", "X-RATELIMIT-REMAINING", clk)
 		assert.WithinDuration(t, future, clk.Now().Add(d), time.Second)
 	})
 
@@ -88,14 +88,14 @@ func TestParseRetryAfter(t *testing.T) {
 		h := http.Header{}
 		h.Set("RateLimit-Reset", strconv.FormatInt(future.Unix(), 10))
 		h.Set("RateLimit-Remaining", "0")
-		d := parseRetryAfter(h, "RateLimit-Reset", clk)
+		d := parseRetryAfter(h, "RateLimit-Reset", "RateLimit-Remaining", clk)
 		assert.WithinDuration(t, future, clk.Now().Add(d), time.Second)
 	})
 
 	t.Run("NoHeaders", func(t *testing.T) {
 		t.Parallel()
 		h := http.Header{}
-		d := parseRetryAfter(h, "X-Ratelimit-Reset", clk)
+		d := parseRetryAfter(h, "X-Ratelimit-Reset", "X-Ratelimit-Remaining", clk)
 		assert.Equal(t, time.Duration(0), d)
 	})
 
@@ -103,7 +103,7 @@ func TestParseRetryAfter(t *testing.T) {
 		t.Parallel()
 		h := http.Header{}
 		h.Set("Retry-After", "not-a-number")
-		d := parseRetryAfter(h, "X-Ratelimit-Reset", clk)
+		d := parseRetryAfter(h, "X-Ratelimit-Reset", "X-Ratelimit-Remaining", clk)
 		assert.Equal(t, time.Duration(0), d)
 	})
 
@@ -112,7 +112,7 @@ func TestParseRetryAfter(t *testing.T) {
 		h := http.Header{}
 		h.Set("Retry-After", "60")
 		h.Set("X-Ratelimit-Reset", strconv.FormatInt(clk.Now().Add(120*time.Second).Unix(), 10))
-		d := parseRetryAfter(h, "X-Ratelimit-Reset", clk)
+		d := parseRetryAfter(h, "X-Ratelimit-Reset", "X-Ratelimit-Remaining", clk)
 		assert.Equal(t, 60*time.Second, d)
 	})
 }

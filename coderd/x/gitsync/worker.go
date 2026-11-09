@@ -234,7 +234,9 @@ func (w *Worker) tick(ctx context.Context) {
 				GitBranch:       row.GitBranch,
 				StaleAt:         retryAfter,
 			}); err != nil {
-				w.logger.Warn(ctx, "backoff rate limited chat diff status", slog.Error(err))
+				w.logger.Warn(ctx, "backoff rate limited chat diff status",
+					slog.F("chat_id", row.ChatID),
+					slog.Error(err))
 			}
 			continue
 		}
@@ -306,8 +308,6 @@ func (w *Worker) tick(ctx context.Context) {
 			var rateLimit *gitprovider.RateLimitError
 			if errors.As(res.Error, &rateLimit) {
 				staleAt = rateLimits[key]
-			} else if retryAfter := rateLimits[key]; retryAfter.After(staleAt) {
-				staleAt = retryAfter
 			}
 			// Back off so the row isn't retried immediately.
 			if err := w.store.BackoffChatDiffStatus(ctx,

@@ -137,6 +137,7 @@ type rateLimitKey struct {
 
 var scpOriginHost = regexp.MustCompile(`^[^@/]+@(\[[^\]]+\]|[^:/]+):`)
 
+// Origins without a parseable host share an empty-host key for that owner.
 func rateLimitKeyFor(ownerID uuid.UUID, origin string) rateLimitKey {
 	key := rateLimitKey{ownerID: ownerID}
 	origin = strings.TrimSpace(origin)

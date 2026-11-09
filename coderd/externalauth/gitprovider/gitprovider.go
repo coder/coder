@@ -214,14 +214,13 @@ func New(providerType string, apiBaseURL string, httpClient *http.Client, opts .
 
 // parseRetryAfter reads Retry-After for secondary rate limits and the reset
 // timestamp for primary rate limits with zero requests remaining.
-func parseRetryAfter(h http.Header, resetHeader string, clk quartz.Clock) time.Duration {
+func parseRetryAfter(h http.Header, resetHeader, remainingHeader string, clk quartz.Clock) time.Duration {
 	// Retry-After header: seconds until retry.
 	if ra := h.Get("Retry-After"); ra != "" {
 		if secs, err := strconv.Atoi(ra); err == nil {
 			return time.Duration(secs) * time.Second
 		}
 	}
-	remainingHeader := strings.TrimSuffix(resetHeader, "Reset") + "Remaining"
 	if h.Get(remainingHeader) != "0" {
 		return 0
 	}
@@ -238,14 +237,14 @@ func parseRetryAfter(h http.Header, resetHeader string, clk quartz.Clock) time.D
 // checkRateLimitError returns a *RateLimitError when resp indicates a
 // rate limit (HTTP 403 or 429) with recognizable retry headers;
 // otherwise nil. A nil resp returns nil.
-func checkRateLimitError(resp *http.Response, clk quartz.Clock, resetHeader string) error {
+func checkRateLimitError(resp *http.Response, clk quartz.Clock, resetHeader, remainingHeader string) error {
 	if resp == nil {
 		return nil
 	}
 	if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusTooManyRequests {
 		return nil
 	}
-	retryAfter := parseRetryAfter(resp.Header, resetHeader, clk)
+	retryAfter := parseRetryAfter(resp.Header, resetHeader, remainingHeader, clk)
 	if retryAfter <= 0 {
 		return nil
 	}

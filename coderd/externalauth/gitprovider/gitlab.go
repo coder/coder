@@ -253,7 +253,7 @@ func (g *gitlabProvider) FetchPullRequestDiff(
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		if rlErr := checkRateLimitError(resp, g.clock, "RateLimit-Reset"); rlErr != nil {
+		if rlErr := checkRateLimitError(resp, g.clock, "RateLimit-Reset", "RateLimit-Remaining"); rlErr != nil {
 			return "", rlErr
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
@@ -342,7 +342,7 @@ func (g *gitlabProvider) FetchBranchDiff(
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		if rlErr := checkRateLimitError(resp, g.clock, "RateLimit-Reset"); rlErr != nil {
+		if rlErr := checkRateLimitError(resp, g.clock, "RateLimit-Reset", "RateLimit-Remaining"); rlErr != nil {
 			return "", rlErr
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
@@ -586,7 +586,7 @@ func (g *gitlabProvider) BuildPullRequestURL(ref PRRef) string {
 // wrapError converts library errors to our domain errors (e.g. rate limits).
 func (g *gitlabProvider) wrapError(err error, action string) error {
 	if errResp, ok := errors.AsType[*gitlab.ErrorResponse](err); ok {
-		if rlErr := checkRateLimitError(errResp.Response, g.clock, "RateLimit-Reset"); rlErr != nil {
+		if rlErr := checkRateLimitError(errResp.Response, g.clock, "RateLimit-Reset", "RateLimit-Remaining"); rlErr != nil {
 			return rlErr
 		}
 	}

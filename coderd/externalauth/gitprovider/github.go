@@ -436,7 +436,7 @@ func (g *githubProvider) decodeJSON(
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		if rlErr := checkRateLimitError(resp, g.clock, "X-Ratelimit-Reset"); rlErr != nil {
+		if rlErr := checkRateLimitError(resp, g.clock, "X-Ratelimit-Reset", "X-Ratelimit-Remaining"); rlErr != nil {
 			return rlErr
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
@@ -491,7 +491,7 @@ func (g *githubProvider) fetchDiff(
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		if rlErr := checkRateLimitError(resp, g.clock, "X-Ratelimit-Reset"); rlErr != nil {
+		if rlErr := checkRateLimitError(resp, g.clock, "X-Ratelimit-Reset", "X-Ratelimit-Remaining"); rlErr != nil {
 			return "", rlErr
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
