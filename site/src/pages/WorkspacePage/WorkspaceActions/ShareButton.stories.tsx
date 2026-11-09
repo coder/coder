@@ -18,7 +18,7 @@ import {
 } from "#/testHelpers/entities";
 import { ShareButton } from "./ShareButton";
 
-const sharingSettings: WorkspaceSharingSettings = {
+const mockSharingSettings: WorkspaceSharingSettings = {
 	sharing_disabled: false,
 	sharing_globally_disabled: false,
 	shareable_workspace_owners: "everyone",
@@ -40,7 +40,7 @@ const mockWorkspaceUser: WorkspaceUser = {
 	role: "use",
 };
 
-const overflowingACL: WorkspaceACL = {
+const mockOverflowingACL: WorkspaceACL = {
 	users: [mockWorkspaceUserAdmin, mockWorkspaceUser],
 	group: [
 		{ ...MockGroup, role: "use" },
@@ -74,7 +74,7 @@ export const EmptyACL: Story = {
 		queries: [
 			{
 				key: getWorkspaceSharingSettingsKey(MockWorkspace.organization_id),
-				data: sharingSettings,
+				data: mockSharingSettings,
 			},
 			{
 				key: workspaceACLKey(MockWorkspace.id),
@@ -90,9 +90,9 @@ export const OverflowingMembers: Story = {
 		queries: [
 			{
 				key: getWorkspaceSharingSettingsKey(MockWorkspace.organization_id),
-				data: sharingSettings,
+				data: mockSharingSettings,
 			},
-			{ key: workspaceACLKey(MockWorkspace.id), data: overflowingACL },
+			{ key: workspaceACLKey(MockWorkspace.id), data: mockOverflowingACL },
 		],
 	},
 	play: ({ canvasElement }) => openSharing(canvasElement),
