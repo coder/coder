@@ -1,5 +1,4 @@
 import type * as monaco from "monaco-editor";
-import type { Branding } from "./branding";
 import dark from "./dark";
 import darkProtanDeuter from "./darkProtanDeuter";
 import darkTritan from "./darkTritan";
@@ -23,9 +22,6 @@ export type Theme = {
 
 	/** Theme properties that we're testing out but haven't committed to. */
 	experimental: NewTheme;
-
-	/** Theme colors related to marketing */
-	branding: Branding;
 
 	monaco: monaco.editor.IStandaloneThemeData;
 	externalImages: ExternalImageModeStyles;
