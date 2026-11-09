@@ -1,10 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, screen, userEvent, within } from "storybook/test";
-import type { ResourceType } from "#/api/typesGenerated";
-import {
-	getDefaultFilterProps,
-	MockMenu,
-} from "#/components/Filter/storyHelpers";
+import { expect, screen, userEvent, within } from "storybook/test";
+import { permittedOrganizationsKey } from "#/api/queries/organizations";
+import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
 import {
 	mockInitialRenderResult,
 	mockSuccessResult,
@@ -14,34 +11,37 @@ import {
 	MockAuditLog,
 	MockAuditLog2,
 	MockAuditLog3,
+	MockDefaultOrganization,
+	MockOrganization2,
 	MockPermissions,
 	MockUserOwner,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { pixelWithTablet } from "#/testHelpers/pixel";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import { docs } from "#/utils/docs";
-import { useResourceTypeFilterMenu } from "./AuditFilter";
 import { AuditPageView } from "./AuditPageView";
 
 type FilterProps = React.ComponentProps<typeof AuditPageView>["filterProps"];
 
 const defaultFilterProps = getDefaultFilterProps<FilterProps>({
-	query: "owner:me",
+	query: "username:me",
 	values: {
-		username: MockUserOwner.username,
+		username: "me",
 		action: undefined,
 		resource_type: undefined,
 		organization: undefined,
-	},
-	menus: {
-		user: MockMenu,
-		action: MockMenu,
-		resourceType: MockMenu,
 	},
 });
 
 const meta: Meta<typeof AuditPageView> = {
 	title: "pages/AuditPage",
 	component: AuditPageView,
+	decorators: [withDashboardProvider, withAuthProvider],
+	parameters: { user: MockUserOwner },
 	args: {
 		auditLogs: [MockAuditLog, MockAuditLog2, MockAuditLog3],
 		isAuditLogVisible: true,
@@ -110,7 +110,10 @@ export const NotVisible: Story = {
 export const NotVisibleWithoutLicenseAccess: Story = {
 	args: {
 		...NotVisible.args,
-		permissions: { ...MockPermissions, viewAllLicenses: false },
+		permissions: {
+			...MockPermissions,
+			viewAllLicenses: false,
+		},
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -124,72 +127,118 @@ export const NotVisibleWithoutLicenseAccess: Story = {
 	},
 };
 
-const onResourceTypeChange = fn();
-
-// Uses the real resource-type menu so generated resource types and their
-// friendly labels are verified together.
-const resourceTypeFilterStory = (
-	label: string,
-	value: ResourceType,
-): Story => ({
+export const FilterByChatInstructionSettings: Story = {
 	args: {
 		auditsQuery: mockSuccessResult,
+		filterProps: {
+			filter: {
+				...defaultFilterProps.filter,
+				query: "resource_type:chat_instruction_settings",
+				values: { resource_type: "chat_instruction_settings" },
+				used: true,
+			},
+		},
 	},
-	render: function AuditPageViewWithResourceTypeMenu(args) {
-		const resourceTypeMenu = useResourceTypeFilterMenu({
-			value: undefined,
-			onChange: onResourceTypeChange,
-		});
-		return (
-			<AuditPageView
-				{...args}
-				filterProps={{
-					...defaultFilterProps,
-					menus: {
-						...defaultFilterProps.menus,
-						resourceType: resourceTypeMenu,
-					},
-				}}
-			/>
-		);
+};
+
+export const ChatOperationalSettingsFilter: Story = {
+	args: {
+		auditsQuery: mockSuccessResult,
+		filterProps: {
+			filter: {
+				...defaultFilterProps.filter,
+				query: "resource_type:chat_operational_settings",
+				values: { resource_type: "chat_operational_settings" },
+				used: true,
+			},
+		},
 	},
+};
+
+export const FilterMenuOpen: Story = {
+	args: { auditsQuery: mockSuccessResult },
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		onResourceTypeChange.mockClear();
-
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Select a resource type" }),
-		);
-		const option = await screen.findByRole("option", { name: label });
-		await userEvent.click(option);
-
-		await expect(onResourceTypeChange).toHaveBeenCalledWith(
-			expect.objectContaining({ value, label }),
+			within(canvasElement).getByRole("button", { name: "Filters" }),
 		);
 	},
-});
+};
 
-export const FilterByChatInstructionSettings = resourceTypeFilterStory(
-	"Chat Instruction Settings",
-	"chat_instruction_settings",
-);
-
-export const ChatOperationalSettingsFilter = resourceTypeFilterStory(
-	"Chat Operational Settings",
-	"chat_operational_settings",
-);
+export const ResourceTypeMenuOpen: Story = {
+	args: { auditsQuery: mockSuccessResult },
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Filters" }),
+		);
+		await userEvent.hover(
+			await screen.findByRole("option", { name: "Resource type" }),
+		);
+	},
+};
 
 export const MultiOrg: Story = {
-	parameters: { pixel: { matrix: pixelWithTablet } },
+	parameters: {
+		pixel: { matrix: pixelWithTablet },
+		showOrganizations: true,
+		queries: [
+			{
+				key: permittedOrganizationsKey({
+					object: { resource_type: "audit_log" },
+					action: "read",
+				}),
+				data: [MockDefaultOrganization, MockOrganization2],
+			},
+		],
+		organizations: [MockDefaultOrganization, MockOrganization2],
+	},
 	args: {
 		showOrgDetails: true,
 		auditsQuery: mockSuccessResult,
+	},
+};
+
+export const OrganizationMenuOpen: Story = {
+	...MultiOrg,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Filters" }),
+		);
+		await userEvent.hover(
+			await screen.findByRole("option", { name: "Organization" }),
+		);
+	},
+};
+
+export const InvalidFilter: Story = {
+	args: {
+		auditsQuery: mockSuccessResult,
 		filterProps: {
-			...defaultFilterProps,
-			menus: {
-				...defaultFilterProps.menus,
-				organization: MockMenu,
+			filter: {
+				...defaultFilterProps.filter,
+				query: "action:invalid",
+				values: { action: "invalid" },
+				used: true,
 			},
+			error: mockApiError({
+				message: "Invalid audit log query.",
+				validations: [
+					{ field: "action", detail: "Action must be a valid audit action." },
+				],
+			}),
 		},
+	},
+};
+
+export const SelectedPresetMenuOpen: Story = {
+	...FilterMenuOpen,
+	args: {
+		auditsQuery: mockSuccessResult,
+		filterProps: getDefaultFilterProps<FilterProps>({
+			query: "resource_type:workspace action:create",
+			values: {
+				resource_type: "workspace",
+				action: "create",
+			},
+		}),
 	},
 };

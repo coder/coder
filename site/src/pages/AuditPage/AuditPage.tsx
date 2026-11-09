@@ -1,15 +1,12 @@
 import { useSearchParams } from "react-router";
 import { paginatedAudits } from "#/api/queries/audits";
 import { useFilter } from "#/components/Filter/Filter";
-import { useUserFilterMenu } from "#/components/Filter/UserFilter";
 import { isNonInitialPage } from "#/components/PaginationWidget/utils";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
-import { useOrganizationsFilterMenu } from "#/modules/tableFiltering/options";
 import { pageTitle } from "#/utils/page";
-import { useActionFilterMenu, useResourceTypeFilterMenu } from "./AuditFilter";
 import { AuditPageView } from "./AuditPageView";
 
 const AuditPage: React.FC = () => {
@@ -38,42 +35,6 @@ const AuditPage: React.FC = () => {
 		onUpdate: auditsQuery.goToFirstPage,
 	});
 
-	const userMenu = useUserFilterMenu({
-		value: filter.values.username,
-		onChange: (option) =>
-			filter.update({
-				...filter.values,
-				username: option?.value,
-			}),
-	});
-
-	const actionMenu = useActionFilterMenu({
-		value: filter.values.action,
-		onChange: (option) =>
-			filter.update({
-				...filter.values,
-				action: option?.value,
-			}),
-	});
-
-	const resourceTypeMenu = useResourceTypeFilterMenu({
-		value: filter.values.resource_type,
-		onChange: (option) =>
-			filter.update({
-				...filter.values,
-				resource_type: option?.value,
-			}),
-	});
-
-	const organizationsMenu = useOrganizationsFilterMenu({
-		value: filter.values.organization,
-		onChange: (option) =>
-			filter.update({
-				...filter.values,
-				organization: option?.value,
-			}),
-	});
-
 	return (
 		<>
 			<title>{pageTitle("Audit")}</title>
@@ -89,12 +50,6 @@ const AuditPage: React.FC = () => {
 				filterProps={{
 					filter,
 					error: auditsQuery.error,
-					menus: {
-						user: userMenu,
-						action: actionMenu,
-						resourceType: resourceTypeMenu,
-						organization: showOrganizations ? organizationsMenu : undefined,
-					},
 				}}
 			/>
 		</>
