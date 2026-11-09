@@ -1069,7 +1069,8 @@ func TestComputerUseProvider(t *testing.T) {
 		{name: "Azure", providerType: database.AIProviderTypeAzure, model: "gpt-5.4"},
 		{name: "Google", providerType: database.AIProviderTypeGoogle, model: "gemini-2.5-flash"},
 		{name: "Vercel", providerType: database.AIProviderTypeVercel, model: "anthropic/claude-opus-5-5"},
-		{name: "OpenAICompat", providerType: database.AIProviderTypeOpenaiCompat, model: "claude-opus-5-5"},
+		{name: "OpenAICompat", providerType: database.AIProviderTypeOpenaiCompat, model: "claude-opus-5-5", want: codersdk.ChatComputerUseProviderOpenAICompat},
+		{name: "OpenAICompatNonClaudeModel", providerType: database.AIProviderTypeOpenaiCompat, model: "Qwen3.8-Flash-Next", want: codersdk.ChatComputerUseProviderOpenAICompat},
 		{name: "Copilot", providerType: database.AIProviderTypeCopilot, model: "claude-opus-5-5"},
 	}
 	for _, tt := range tests {

@@ -519,21 +519,34 @@ func TestAppendComputerUseProviderTool_Gates(t *testing.T) {
 	}
 }
 
-func TestAppendComputerUseProviderTool_AnthropicHasNoResultMetadata(t *testing.T) {
+// Only the OpenAI flavor needs result metadata on the tool result. The Anthropic
+// toolset and the OpenAI-compatible function tool send the screenshot as an
+// ordinary image result.
+func TestAppendComputerUseProviderTool_HasNoResultMetadata(t *testing.T) {
 	t.Parallel()
 
-	providerTools, err := appendComputerUseProviderTool(
-		nil,
-		computerUseProviderToolOptions{
-			provider:      codersdk.ChatComputerUseProviderAnthropic,
-			isComputerUse: true,
-			logger:        slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-		},
-	)
-	require.NoError(t, err)
-	require.Len(t, providerTools, 1)
-	require.Equal(t, "computer", providerTools[0].Definition.GetName())
-	require.Nil(t, providerTools[0].ResultProviderMetadata)
+	for _, provider := range []codersdk.ChatComputerUseProvider{
+		codersdk.ChatComputerUseProviderAnthropic,
+		codersdk.ChatComputerUseProviderOpenAICompat,
+	} {
+		t.Run(string(provider), func(t *testing.T) {
+			t.Parallel()
+
+			providerTools, err := appendComputerUseProviderTool(
+				nil,
+				computerUseProviderToolOptions{
+					provider:      provider,
+					isComputerUse: true,
+					logger:        slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				},
+			)
+			require.NoError(t, err)
+			require.Len(t, providerTools, 1)
+			require.Equal(t, "computer", providerTools[0].Definition.GetName())
+			require.Equal(t, "computer", providerTools[0].Runner.Info().Name)
+			require.Nil(t, providerTools[0].ResultProviderMetadata)
+		})
+	}
 }
 
 func TestFilterExternalMCPConfigsForTurn(t *testing.T) {

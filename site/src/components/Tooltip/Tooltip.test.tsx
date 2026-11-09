@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { renderComponent } from "#/testHelpers/renderHelpers";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./Tooltip";
 
 const renderInteractive = (onRowClick = vi.fn()) => {
@@ -65,4 +66,38 @@ describe("Tooltip interactive", () => {
 		expect(trigger).toHaveAttribute("aria-expanded", "true");
 		expect(onRowClick).not.toHaveBeenCalled();
 	});
+});
+
+describe("Tooltip delay", () => {
+	beforeEach(() => {
+		vi.useFakeTimers();
+	});
+
+	afterEach(() => {
+		vi.useRealTimers();
+	});
+
+	it.each([
+		{ delayDuration: undefined, expectedDelay: 100 },
+		{ delayDuration: 150, expectedDelay: 150 },
+		{ delayDuration: 300, expectedDelay: 300 },
+	])(
+		"opens after $expectedDelay ms",
+		async ({ delayDuration, expectedDelay }) => {
+			const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+			const onOpenChange = vi.fn();
+			renderComponent(
+				<Tooltip delayDuration={delayDuration} onOpenChange={onOpenChange}>
+					<TooltipTrigger>Details</TooltipTrigger>
+					<TooltipContent>More information</TooltipContent>
+				</Tooltip>,
+			);
+
+			await user.hover(screen.getByRole("button", { name: "Details" }));
+			act(() => vi.advanceTimersByTime(expectedDelay - 1));
+			expect(onOpenChange).not.toHaveBeenCalled();
+			act(() => vi.advanceTimersByTime(1));
+			expect(onOpenChange).toHaveBeenCalledExactlyOnceWith(true);
+		},
+	);
 });

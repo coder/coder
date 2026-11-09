@@ -6,7 +6,9 @@ import {
 	waitFor,
 	within,
 } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import userEvent, {
+	PointerEventsCheckLevel,
+} from "@testing-library/user-event";
 import { createRef } from "react";
 import { createMemoryRouter, MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
@@ -17,13 +19,18 @@ import {
 	organizationSkills,
 } from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import {
 	MockChatQueuedMessage,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
-import { MockChatProject, MockWorkspace } from "#/testHelpers/entities";
+import {
+	MockChatProject,
+	MockUserPreferenceSettings,
+	MockWorkspace,
+} from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import {
 	createTestQueryClient,
@@ -597,7 +604,195 @@ describe("AgentChatInput", () => {
 		);
 	});
 
-	it("swaps Stop for the Queue button once a draft is entered while streaming", async () => {
+	const renderWithEnterSendPreference = (children: React.ReactNode) => {
+		vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
+			MockUserPreferenceSettings,
+		);
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(preferenceSettingsKey, MockUserPreferenceSettings);
+		return render(
+			<AppProviders queryClient={queryClient}>{children}</AppProviders>,
+			{ wrapper: MemoryRouter },
+		);
+	};
+
+	it.each<{
+		name: string;
+		props: Partial<React.ComponentProps<typeof AgentChatInput>>;
+		busyBehavior: TypesGen.ChatBusyBehavior | undefined;
+	}>([
+		{
+			name: "Cmd/Ctrl+Enter sends the draft for after the turn",
+			props: {},
+			busyBehavior: "queue",
+		},
+		{
+			name: "the After turn shortcut saves an edit without a busy behavior",
+			props: { editingKind: "queued" },
+			busyBehavior: undefined,
+		},
+	])("on a busy chat, $name", async ({ props, busyBehavior }) => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+
+		renderWithEnterSendPreference(
+			<AgentChatInput
+				{...inputProps}
+				onSend={onSend}
+				isStreaming
+				onInterrupt={vi.fn()}
+				{...props}
+			/>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("Run the tests after this");
+		await user.keyboard("{Control>}{Enter}{/Control}");
+		expect(onSend).toHaveBeenCalledWith(
+			"Run the tests after this",
+			busyBehavior,
+		);
+	});
+
+	it("on a busy chat, the After turn shortcut sends nothing from an empty composer", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+		const onPromoteQueuedMessage = vi.fn();
+
+		renderWithEnterSendPreference(
+			<AgentChatInput
+				{...inputProps}
+				onSend={onSend}
+				isStreaming
+				onInterrupt={vi.fn()}
+				queuedMessages={[MockChatQueuedMessage]}
+				onPromoteQueuedMessage={onPromoteQueuedMessage}
+			/>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.keyboard("{Control>}{Enter}{/Control}");
+		expect(onSend).not.toHaveBeenCalled();
+		expect(onPromoteQueuedMessage).not.toHaveBeenCalled();
+	});
+
+	it("on a busy chat, a right-click on Send opens a menu that sends after the turn", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				onSend={onSend}
+				isStreaming
+				onInterrupt={vi.fn()}
+				initialValue="Run the tests after this"
+			/>,
+		);
+
+		await user.pointer({
+			keys: "[MouseRight]",
+			target: await screen.findByRole("button", { name: "Send during turn" }),
+		});
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Send after turn" }),
+		);
+		expect(onSend).toHaveBeenCalledWith("Run the tests after this", "queue");
+	});
+
+	it("on a busy chat, Escape closes the send menu and returns focus to Send", async () => {
+		const user = userEvent.setup();
+
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				isStreaming
+				onInterrupt={vi.fn()}
+				initialValue="Run the tests after this"
+			/>,
+		);
+
+		const sendButton = await screen.findByRole("button", {
+			name: "Send during turn",
+		});
+		await user.pointer({ keys: "[MouseRight]", target: sendButton });
+		await screen.findByRole("menu");
+		await user.keyboard("{Escape}");
+		await waitFor(() => expect(sendButton).toHaveFocus());
+	});
+
+	it("on a busy chat, a long press on Send opens the menu and the release does not send", async () => {
+		// Allow the held touch to finish after the menu disables outside pointer events.
+		const user = userEvent.setup({
+			pointerEventsCheck: PointerEventsCheckLevel.Never,
+		});
+		const onSend = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				onSend={onSend}
+				isStreaming
+				onInterrupt={vi.fn()}
+				initialValue="Run the tests after this"
+			/>,
+		);
+
+		const sendButton = await screen.findByRole("button", {
+			name: "Send during turn",
+		});
+		await user.pointer({ keys: "[TouchA>]", target: sendButton });
+		const sendItem = await screen.findByRole("menuitem", {
+			name: "Send during turn",
+		});
+		await user.pointer({ keys: "[/TouchA]", target: sendButton });
+		expect(onSend).not.toHaveBeenCalled();
+
+		await user.click(sendItem);
+		expect(onSend).toHaveBeenCalledWith("Run the tests after this", undefined);
+	});
+
+	it("closes the send menu when the turn ends, so Send sends again", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+		const queryClient = createTestQueryClient();
+		const input = (isStreaming: boolean) => (
+			<AppProviders queryClient={queryClient}>
+				<AgentChatInput
+					{...inputProps}
+					onSend={onSend}
+					isStreaming={isStreaming}
+					onInterrupt={vi.fn()}
+					initialValue="Run the tests after this"
+				/>
+			</AppProviders>
+		);
+		const { rerender } = render(input(true), { wrapper: MemoryRouter });
+
+		await user.pointer({
+			keys: "[MouseRight]",
+			target: await screen.findByRole("button", { name: "Send during turn" }),
+		});
+		await screen.findByRole("menu");
+
+		rerender(input(false));
+		await user.click(screen.getByRole("button", { name: "Send" }));
+		expect(onSend).toHaveBeenCalledWith("Run the tests after this", undefined);
+	});
+
+	it("on an idle chat, a right-click on Send keeps the browser menu", async () => {
+		renderInput(
+			<AgentChatInput {...inputProps} initialValue="Run the tests" />,
+		);
+
+		expect(
+			fireEvent.contextMenu(
+				await screen.findByRole("button", { name: "Send" }),
+			),
+		).toBe(true);
+	});
+
+	it("swaps Stop for the Send button once a draft is entered while streaming", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
 		const onSend = vi.fn();
@@ -625,7 +820,9 @@ describe("AgentChatInput", () => {
 			/>,
 		);
 
-		expect(screen.queryByRole("button", { name: "Queue" })).toBeNull();
+		expect(
+			screen.queryByRole("button", { name: "Send during turn" }),
+		).toBeNull();
 		await user.click(screen.getByRole("button", { name: "Stop" }));
 		expect(onInterrupt).toHaveBeenCalledTimes(1);
 		expect(onSend).not.toHaveBeenCalled();
@@ -637,8 +834,8 @@ describe("AgentChatInput", () => {
 		});
 
 		expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
-		await user.click(screen.getByRole("button", { name: "Queue" }));
-		expect(onSend).toHaveBeenCalledWith("Also update the docs");
+		await user.click(screen.getByRole("button", { name: "Send during turn" }));
+		expect(onSend).toHaveBeenCalledWith("Also update the docs", undefined);
 		expect(onInterrupt).toHaveBeenCalledTimes(1);
 
 		inputRef.current?.clear();
@@ -646,7 +843,9 @@ describe("AgentChatInput", () => {
 			expect(inputRef.current?.getValue()).toBe("");
 		});
 
-		expect(screen.queryByRole("button", { name: "Queue" })).toBeNull();
+		expect(
+			screen.queryByRole("button", { name: "Send during turn" }),
+		).toBeNull();
 		await user.click(screen.getByRole("button", { name: "Stop" }));
 		expect(onInterrupt).toHaveBeenCalledTimes(2);
 	});
@@ -686,7 +885,7 @@ describe("AgentChatInput", () => {
 		},
 	);
 
-	it("shows a disabled Queue button without a spinner while an interrupt is pending", async () => {
+	it("shows a disabled Send button without a spinner while an interrupt is pending", async () => {
 		const user = userEvent.setup();
 		const onSend = vi.fn();
 
@@ -712,10 +911,10 @@ describe("AgentChatInput", () => {
 			/>,
 		);
 
-		const queueButton = screen.getByRole("button", { name: "Queue" });
-		expect(queueButton).toBeDisabled();
-		expect(within(queueButton).queryByTitle("Loading spinner")).toBeNull();
-		await user.click(queueButton);
+		const sendButton = screen.getByRole("button", { name: "Send during turn" });
+		expect(sendButton).toBeDisabled();
+		expect(within(sendButton).queryByTitle("Loading spinner")).toBeNull();
+		await user.click(sendButton);
 		expect(onSend).not.toHaveBeenCalled();
 	});
 
@@ -743,16 +942,16 @@ describe("AgentChatInput", () => {
 		const desktop = renderInput(<AgentChatInput {...props} />);
 		expect(
 			screen
-				.getByRole("button", { name: "Queue" })
+				.getByRole("button", { name: "Send during turn" })
 				.getAttribute("aria-keyshortcuts"),
 		).toMatch(/Enter/);
 		desktop.unmount();
 
 		stubViewport(true);
 		renderInput(<AgentChatInput {...props} />);
-		expect(screen.getByRole("button", { name: "Queue" })).not.toHaveAttribute(
-			"aria-keyshortcuts",
-		);
+		expect(
+			screen.getByRole("button", { name: "Send during turn" }),
+		).not.toHaveAttribute("aria-keyshortcuts");
 	});
 
 	it("keeps Accept and Cancel available while a recording outlives the start of a turn", async () => {
@@ -1234,6 +1433,13 @@ describe("AgentChatInput", () => {
 		[
 			"does not send a queue head whose begin request is pending",
 			{ queuedMessageUnderEditID: MockChatQueuedMessage.id },
+			false,
+		],
+		[
+			"does not send a steer head",
+			{
+				queuedMessages: [{ ...MockChatQueuedMessage, busy_behavior: "steer" }],
+			},
 			false,
 		],
 	] satisfies Array<

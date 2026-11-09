@@ -69,8 +69,8 @@ export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 			clickable={false}
 		>
 			<TableCell className="p-0! border-0">
-				<div className="flex flex-row items-center gap-4 py-4 px-8">
-					<div className="flex flex-row items-center gap-4 flex-1">
+				<div className="flex items-center gap-4 py-4 px-8">
+					<div className="flex items-center gap-4 flex-1">
 						{/* Non-web logs don't have an associated user, so we
 						 * display a default network icon instead */}
 						{connectionLog.web_info?.user ? (
@@ -84,10 +84,10 @@ export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 							</Avatar>
 						)}
 
-						<div className="flex flex-row items-center justify-between w-full">
-							<div className="flex flex-row items-center gap-2 text-base">
+						<div className="flex items-center justify-between w-full">
+							<div className="flex items-center gap-2 text-base">
 								<ConnectionLogDescription connectionLog={connectionLog} />
-								<div className="flex flex-row items-center gap-1">
+								<div className="flex items-center gap-1">
 									<Badge size="sm">{timing.range}</Badge>
 									{timing.duration && (
 										<Badge size="sm">
@@ -103,7 +103,7 @@ export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 								</div>
 							</div>
 
-							<div className="flex flex-row items-center gap-4">
+							<div className="flex items-center gap-4">
 								{code !== undefined && (
 									<StatusBadge
 										code={code}

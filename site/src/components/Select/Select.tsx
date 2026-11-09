@@ -27,11 +27,11 @@ export const SelectTrigger: React.FC<SelectTriggerProps> = ({
 }) => (
 	<SelectPrimitive.Trigger
 		className={cn(
-			`flex h-10 w-full font-medium items-center justify-between whitespace-nowrap rounded-md
-			border border-border border-solid bg-transparent px-3 py-2 text-sm shadow-xs
-			ring-offset-background text-content-secondary placeholder:text-content-secondary
-			disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1
-			focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link group`,
+			"flex h-10 w-full font-medium items-center justify-between whitespace-nowrap rounded-md",
+			"border border-border border-solid bg-transparent px-3 py-2 text-sm shadow-xs",
+			"ring-offset-background text-content-secondary placeholder:text-content-secondary",
+			"disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
+			"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link group",
 			className,
 		)}
 		{...props}

@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import capitalize from "lodash/capitalize";
 import { ExternalLinkIcon, FileIcon, LayoutGridIcon } from "lucide-react";
 import { useState } from "react";
@@ -59,15 +60,15 @@ export const AppStatuses: React.FC<AppStatusesProps> = ({
 	return (
 		<div className="flex flex-col border border-solid border-border rounded-lg">
 			<div
-				className={`
-					flex items-center justify-between px-4 py-3 gap-6
-					border-0 not-last:border-b border-solid border-border
-				`}
+				className={cn(
+					"flex items-center justify-between px-4 py-3 gap-6",
+					"border-0 not-last:border-b border-solid border-border",
+				)}
 			>
 				<div className="flex flex-col overflow-hidden">
 					<div className="text-sm font-medium text-content-primary flex items-center gap-2 ">
 						<AppStatusStateIcon state={latestStatus.state} latest />
-						<span className="block flex-1 whitespace-nowrap overflow-hidden text-ellipsis">
+						<span className="block flex-1 truncate">
 							{latestStatus.message || capitalize(latestStatus.state)}
 						</span>
 					</div>
@@ -136,10 +137,10 @@ export const AppStatuses: React.FC<AppStatusesProps> = ({
 						return (
 							<div
 								key={status.id}
-								className={`
-							flex items-center justify-between px-4 py-3
-							border-0 not-last:border-b border-solid border-border
-						`}
+								className={cn(
+									"flex items-center justify-between px-4 py-3",
+									"border-0 not-last:border-b border-solid border-border",
+								)}
 							>
 								<div className="flex items-center justify-between w-full text-content-secondary">
 									<span className="text-xs flex items-center gap-2">

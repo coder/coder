@@ -543,13 +543,19 @@ func ClientProvider(providerType database.AIProviderType, model string) string {
 
 // ComputerUseModelRequirement describes the models that ComputerUseProvider
 // accepts.
-const ComputerUseModelRequirement = "a model from an Anthropic or OpenAI AI provider, or a Claude model from an AWS Bedrock AI provider"
+const ComputerUseModelRequirement = "a model from an Anthropic or OpenAI AI provider, a Claude model from an AWS Bedrock AI provider, or a model from an OpenAI-compatible AI provider"
 
 // ComputerUseProvider returns the computer use tool flavor for a model on an
-// AI provider of the given type. The flavor follows the client that chatd
-// builds for the model, so a Claude model on AWS Bedrock gets the Anthropic
-// tool. The OpenAI tool is accepted only on OpenAI: it is untested on Bedrock
-// Mantle.
+// AI provider of the given type. The flavor follows the API format of the
+// client that chatd builds for the model:
+//   - Anthropic Messages gets the Anthropic tool, so a Claude model on AWS
+//     Bedrock gets it too.
+//   - OpenAI Responses gets the hosted OpenAI tool, but only on OpenAI: it is
+//     untested on Bedrock Mantle.
+//   - Chat completions has no hosted computer tool, so it gets the
+//     openai-compat flavor, an ordinary function tool, but only on
+//     OpenAI-compatible providers. The other provider types that use this
+//     client stay unsupported until each is verified.
 func ComputerUseProvider(providerType database.AIProviderType, model string) (codersdk.ChatComputerUseProvider, bool) {
 	switch ClientProvider(providerType, model) {
 	case fantasyanthropic.Name:
@@ -557,6 +563,10 @@ func ComputerUseProvider(providerType database.AIProviderType, model string) (co
 	case fantasyopenai.Name:
 		if providerType == database.AIProviderTypeOpenai {
 			return codersdk.ChatComputerUseProviderOpenAI, true
+		}
+	case fantasyopenaicompat.Name:
+		if providerType == database.AIProviderTypeOpenaiCompat {
+			return codersdk.ChatComputerUseProviderOpenAICompat, true
 		}
 	}
 	return "", false
