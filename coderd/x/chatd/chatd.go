@@ -206,6 +206,9 @@ type Server struct {
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
 	thinkingDropBlock sync.Map
+	// quickgenParamRejections records when each provider and model last
+	// rejected a quickgen parameter. See quickgenParamModel.
+	quickgenParamRejections sync.Map
 
 	// Configuration
 	inFlightChatStaleAfter time.Duration
@@ -445,10 +448,9 @@ type SendMessageBusyBehavior string
 const (
 	// SendMessageBusyBehaviorQueue queues user messages while the chat is busy.
 	SendMessageBusyBehaviorQueue SendMessageBusyBehavior = "queue"
-	// SendMessageBusyBehaviorInterrupt interrupts the active run. It persists
-	// the partial response before this message runs ahead of queued messages.
-	// Further messages join the queue tail while the interruption is pending.
-	SendMessageBusyBehaviorInterrupt SendMessageBusyBehavior = "interrupt"
+	// SendMessageBusyBehaviorSteer delivers the message before the next
+	// assistant model call. It is the default.
+	SendMessageBusyBehaviorSteer SendMessageBusyBehavior = "steer"
 )
 
 // SendMessageOptions controls user message insertion with busy-state behavior.
@@ -471,8 +473,11 @@ type SendMessageResult struct {
 	QueuedMessage *database.ChatQueuedMessage
 	Message       database.ChatMessage
 	// InsertedMessages holds every message the send inserted, in
-	// insertion order. A queued send on an errored chat can still
-	// insert messages by promoting the previous queue head.
+	// insertion order. A send to an errored or paused chat can also
+	// insert queued messages: a steer send inserts the queued steer
+	// messages before the new message, and a queue send to an errored
+	// chat inserts the steer lane, or the first queue message when that
+	// lane is empty.
 	InsertedMessages []database.ChatMessage
 	Chat             database.Chat
 	// FirstUserTurn reports that the send inserted the first
@@ -516,14 +521,6 @@ type EditMessageResult struct {
 type PromoteQueuedOptions struct {
 	ChatID          uuid.UUID
 	QueuedMessageID int64
-}
-
-// PromoteQueuedResult contains post-promotion message metadata.
-type PromoteQueuedResult struct {
-	// PromotedMessage is the inserted user message. For a chat that
-	// was running at promote time, the insertion is deferred to the
-	// worker's auto-promote and PromotedMessage is the zero value.
-	PromotedMessage database.ChatMessage
 }
 
 // forcedMCPServerConfigsForOwner filters enabled Force On configs
