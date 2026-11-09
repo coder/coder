@@ -1,4 +1,4 @@
-import { MoonIcon, RefreshCwOffIcon, Share2Icon } from "lucide-react";
+import { MoonIcon, RefreshCwOffIcon } from "lucide-react";
 import type { QueryClient } from "react-query";
 import { permittedOrganizations } from "#/api/queries/organizations";
 import { templates } from "#/api/queries/templates";
@@ -95,9 +95,8 @@ const selfUserOption = (me: UserIdentity): FilterOption => ({
 	startIcon: <Avatar fallback={me.username} src={me.avatar_url} size="sm" />,
 });
 
-// Users who cannot list other users still filter by themselves, so the User
-// and Owner categories stay available (and their keys stay recognized chip
-// keys) with just the "you" option.
+// Users who cannot list other users still filter by themselves, so the Owner
+// category stays available with just the "you" option.
 export const getSelfUserFilterOptions = async (
 	query: string,
 	me: UserIdentity,
@@ -114,7 +113,6 @@ export const getSelfUserFilterOptions = async (
 	return [];
 };
 
-// Shared by the User and Owner categories: both take a username value.
 export const getUserFilterOptions = async (
 	query: string,
 	me: UserIdentity,
@@ -123,6 +121,11 @@ export const getUserFilterOptions = async (
 	const usersRes = await queryClient.fetchQuery(
 		users({ q: query, limit: USER_SUGGESTIONS_LIMIT }),
 	);
+	// The users API also matches name and email, so a result for the current
+	// user keeps its option even when the query is not in its label.
+	const self = usersRes.users.some((user) => user.username === me.username)
+		? [selfUserOption(me)]
+		: await getSelfUserFilterOptions(query, me);
 	const options = usersRes.users
 		.filter((user) => user.username !== me.username)
 		.map<FilterOption>((user) => ({
@@ -133,7 +136,7 @@ export const getUserFilterOptions = async (
 			),
 		}));
 
-	return [selfUserOption(me), ...options];
+	return [...self, ...options];
 };
 
 type AttributeDefinition = {
@@ -156,12 +159,6 @@ const ATTRIBUTE_DEFINITIONS: readonly AttributeDefinition[] = [
 		value: "dormant",
 		icon: <MoonIcon />,
 		requiresDormantEntitlement: true,
-	},
-	{
-		label: "Shared",
-		value: "shared",
-		icon: <Share2Icon />,
-		requiresDormantEntitlement: false,
 	},
 ];
 

@@ -50,6 +50,8 @@ import (
 var bedrockSupportedBetaFlags = map[string]bool{
 	// Supported on Claude 3.7 Sonnet.
 	"computer-use-2025-01-24": true,
+	// Supported on Claude Opus 4.5 and later. Enables computer_20251124.
+	"computer-use-2025-11-24": true,
 	// Supported on Claude 3.7 Sonnet and Claude 4+.
 	"token-efficient-tools-2025-02-19": true,
 	// Supported on Claude 4+ models.
@@ -126,7 +128,7 @@ type interceptionBase struct {
 
 	cfg  intercept.Config
 	cred credential.Credential
-	// bedrock is nil for non-Bedrock providers.
+	// bedrock carries the provider's resolved Bedrock runtime, when applicable.
 	bedrock *BedrockRuntime
 
 	// clientHeaders are the original HTTP headers from the client request.
@@ -162,7 +164,7 @@ func (i *interceptionBase) Setup(logger slog.Logger, rec recorder.Recorder, mcpP
 	i.mcpProxy = mcpProxy
 }
 
-func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, usage anthropic.Usage) {
+func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, providerModel anthropic.Model, usage anthropic.Usage) {
 	var metadata recorder.Metadata
 	if usage.ServiceTier != "" {
 		metadata = recorder.Metadata{
@@ -182,8 +184,10 @@ func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, u
 	}
 
 	usageRecord := recorder.TokenUsageRecord{
+		CreatedAt:             time.Now().UTC(),
 		InterceptionID:        i.ID().String(),
 		MsgID:                 msgID,
+		ProviderModel:         string(providerModel),
 		Input:                 usage.InputTokens,
 		Output:                usage.OutputTokens,
 		CacheReadInputTokens:  usage.CacheReadInputTokens,
@@ -318,8 +322,9 @@ func (*interceptionBase) extractModelThoughts(msg *anthropic.Message) []*recorde
 			continue
 		}
 		thoughtRecords = append(thoughtRecords, &recorder.ModelThoughtRecord{
-			Content:  variant.Thinking,
-			Metadata: recorder.Metadata{"source": recorder.ThoughtSourceThinking},
+			CreatedAt: time.Now().UTC(),
+			Content:   variant.Thinking,
+			Metadata:  recorder.Metadata{"source": recorder.ThoughtSourceThinking},
 		})
 	}
 	return thoughtRecords
@@ -351,13 +356,16 @@ func (i *interceptionBase) newMessagesService(ctx context.Context, opts ...optio
 		}
 	}
 	opts = append(opts, option.WithBaseURL(i.cfg.BaseURL))
+	if i.cfg.HTTPClient != nil {
+		opts = append(opts, option.WithHTTPClient(i.cfg.HTTPClient))
+	}
 
 	// Forward client headers to upstream. This middleware runs after the SDK
 	// has built the request, and replaces the outgoing headers with the sanitized
 	// client headers plus provider auth.
 	if i.clientHeaders != nil {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			req.Header = aibheaders.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg.SendActorHeaders, aibcontext.ActorFromContext(req.Context()))
+			req.Header = aibheaders.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg.ActorHeaderNames, aibcontext.ActorFromContext(req.Context()))
 			return next(req)
 		}))
 	}
@@ -461,16 +469,13 @@ func (i *interceptionBase) withBedrockInvokeModelOptions(ctx context.Context) ([
 }
 
 // withAWSSignedMessagesOptions returns request options for an AWS-signed
-// endpoint that speaks the native Messages wire format: the upstream base URL,
-// any endpoint-specific headers, and SigV4 signing for the named service.
+// endpoint that speaks the native Messages wire format. It is used by the
+// Bedrock mantle path to set its base URL and SigV4 middleware.
 //
 // Credentials come from creds, a shared credentials cache, so the per-request
 // Retrieve is served from that cache and does not re-resolve or re-assume on
 // every request. It is called once here to fail fast before signing.
-//
-// Callers own any service-specific attribution such as the Bedrock PRM
-// user-agent; this helper only routes and signs.
-func withAWSSignedMessagesOptions(ctx context.Context, creds aws.CredentialsProvider, baseURL, region, service string, headers map[string]string) ([]option.RequestOption, error) {
+func withAWSSignedMessagesOptions(ctx context.Context, creds aws.CredentialsProvider, baseURL, region, service string) ([]option.RequestOption, error) {
 	// Fail fast: ensure credentials can be resolved before signing. Served from
 	// the shared cache on most requests (no network); on the cold or refresh
 	// path this performs the actual STS/IMDS call.
@@ -480,16 +485,6 @@ func withAWSSignedMessagesOptions(ctx context.Context, creds aws.CredentialsProv
 
 	var out []option.RequestOption
 	out = append(out, option.WithBaseURL(baseURL))
-	if len(headers) > 0 {
-		// Set after the client-header rebuild and before signing, so the values
-		// are ours rather than the client's and are covered by the signature.
-		out = append(out, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			for name, value := range headers {
-				req.Header.Set(name, value)
-			}
-			return next(req)
-		}))
-	}
 	// Appended last so it runs innermost (right before the HTTP send) and signs
 	// the request after all other headers are set.
 	//nolint:bodyclose // awssig.SignMiddleware reads and closes the request body in order to sign it.
@@ -521,7 +516,7 @@ func (i *interceptionBase) withBedrockMantleOptions(ctx context.Context) ([]opti
 		}),
 	}
 
-	signed, err := withAWSSignedMessagesOptions(ctx, i.bedrock.Creds, cfg.BaseURL, cfg.Region, awssig.ServiceBedrockMantle, nil)
+	signed, err := withAWSSignedMessagesOptions(ctx, i.bedrock.Creds, cfg.BaseURL, cfg.Region, awssig.ServiceBedrockMantle)
 	if err != nil {
 		return nil, err
 	}
@@ -731,14 +726,19 @@ func bedrockModelSupportsAdaptiveThinking(model string) bool {
 
 // bedrockModelRequiresAdaptiveThinking returns true if the given Bedrock model
 // ID only supports the "adaptive" thinking type and rejects the legacy
-// "enabled" + budget_tokens shape with a 400.
+// "enabled" + budget_tokens shape with a 400. The Opus 5, Sonnet 5, Fable 5,
+// and Mythos 5 prefixes also match their point releases.
 //
 // See https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-7.html
+// and https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-adaptive-thinking.html
 func bedrockModelRequiresAdaptiveThinking(model string) bool {
 	return strings.Contains(model, "anthropic.claude-opus-4-7") ||
 		strings.Contains(model, "anthropic.claude-opus-4-8") ||
-		strings.Contains(model, "anthropic.claude-opus-5-5") ||
-		strings.Contains(model, "anthropic.claude-sonnet-5")
+		strings.Contains(model, "anthropic.claude-opus-5") ||
+		strings.Contains(model, "anthropic.claude-sonnet-5") ||
+		strings.Contains(model, "anthropic.claude-haiku-5-5") ||
+		strings.Contains(model, "anthropic.claude-fable-5") ||
+		strings.Contains(model, "anthropic.claude-mythos-5")
 }
 
 // filterBedrockBetaFlags removes unsupported beta flags from the Anthropic-Beta

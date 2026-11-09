@@ -28,10 +28,11 @@ Our primary concern is around an abuse of the Coder application that allows an
 attacker to gain access to another users workspace, or spin up unwanted
 workspaces.
 
-- DOS/DDOS attacks affecting availability --> While we do support rate limiting
-  of requests, we primarily leave this to the owner of the Coder installation.
-  Our rationale is that a DOS attack only affecting availability is not a
-  valuable target for attackers.
+- Volumetric DoS/DDoS attacks --> Attacks that rely on traffic volume (request
+  floods, connection or bandwidth exhaustion) are out of scope and are primarily
+  the responsibility of the installation owner. Application-level DoS, where a
+  single request or a small number of requests can crash, hang, or exhaust
+  resources of a Coder component, is in scope.
 - Abuse of a compromised user credential --> If a user credential is compromised
   outside of the Coder ecosystem, then we consider it beyond the scope of our
   application. However, if an unprivileged user could escalate their permissions

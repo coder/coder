@@ -12,6 +12,7 @@
 	"ignoreBinaries": ["make", "protoc"],
 	"ignoreDependencies": [
 		"@babel/plugin-syntax-typescript",
+		"@shadcn/lint",
 		"@tailwindcss/typography",
 		"@types/react-virtualized-auto-sizer",
 		"tailwindcss",

@@ -1,8 +1,12 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { appendTextBlock } from "./blockUtils";
+import { ACPToolNames } from "../ChatElements/tools/acpToolNames";
+import { mergeACPTranscriptDelta } from "../ChatElements/tools/acpTranscript";
+import { appendResponseText, appendTextBlock } from "./blockUtils";
 import {
 	ensureToolBlock,
 	getToolResultStatus,
+	isHiddenProviderExecutedPart,
+	markTextBeforeProviderTool,
 	parseToolResultIsError,
 } from "./messageParsing";
 import { mergeStreamPayload } from "./streamingJson";
@@ -25,32 +29,37 @@ export const applyMessagePartToStreamState = (
 
 	switch (part.type) {
 		case "text": {
-			// Skip empty and whitespace-only deltas so they don't
-			// create a non-null StreamState with empty blocks, which
-			// would prematurely end the "starting" phase.
-			if (!part.text.trim()) {
+			const blocks = appendResponseText(
+				nextState.blocks,
+				part.text,
+				part.narration,
+			);
+			// Keeps a leading whitespace-only delta from creating a non-null
+			// state with no blocks, which would end the "starting" phase early.
+			if (blocks === nextState.blocks) {
 				return prev;
 			}
-			return {
-				...nextState,
-				blocks: appendTextBlock(nextState.blocks, "response", part.text),
-			};
+			return { ...nextState, blocks };
 		}
 		case "reasoning": {
-			if (!part.text.trim()) {
+			const blocks = appendTextBlock(nextState.blocks, "thinking", part.text);
+			if (blocks === nextState.blocks) {
 				return prev;
 			}
 			return {
 				...nextState,
-				blocks: appendTextBlock(nextState.blocks, "thinking", part.text),
+				startedAt: nextState.startedAt ?? part.created_at,
+				blocks,
 			};
 		}
 		case "tool-call": {
-			// Provider-executed tool calls (e.g. web_search) are
-			// handled natively by the provider — skip rendering them
-			// as tool cards.
-			if (part.provider_executed) {
-				return prev;
+			// Hidden provider-executed calls render no card.
+			if (isHiddenProviderExecutedPart(part)) {
+				const blocks = markTextBeforeProviderTool(nextState.blocks);
+				const startedAt = nextState.startedAt ?? part.created_at;
+				return blocks === nextState.blocks && startedAt === nextState.startedAt
+					? prev
+					: { ...nextState, startedAt, blocks };
 			}
 			const existingByName = Object.values(nextState.toolCalls).find(
 				(call) => call.name === part.tool_name,
@@ -76,6 +85,7 @@ export const applyMessagePartToStreamState = (
 
 			return {
 				...nextState,
+				startedAt: nextState.startedAt ?? part.created_at,
 				blocks: ensureToolBlock(nextState.blocks, toolCallID),
 				toolCalls: {
 					...nextState.toolCalls,
@@ -89,14 +99,21 @@ export const applyMessagePartToStreamState = (
 						modelIntent,
 						parsedCommands: part.parsed_commands ?? existing?.parsedCommands,
 						startedAt: part.created_at ?? existing?.startedAt,
+						providerExecuted:
+							part.provider_executed ?? existing?.providerExecuted,
+						foundPages: existing?.foundPages,
 					},
 				},
 			};
 		}
 		case "tool-result": {
-			// Skip synthetic results for provider-executed tools.
-			if (part.provider_executed) {
-				return prev;
+			// Hidden provider-executed results render no card, but the call
+			// they end is a step. Recording it may create an empty state,
+			// which still shows the Thinking indicator.
+			if (isHiddenProviderExecutedPart(part)) {
+				return nextState.providerToolRan
+					? nextState
+					: { ...nextState, providerToolRan: true };
 			}
 			const existingByName = Object.values(nextState.toolResults).find(
 				(result) => result.name === part.tool_name,
@@ -119,6 +136,7 @@ export const applyMessagePartToStreamState = (
 				delete toolResults[toolCallID];
 				return {
 					...nextState,
+					startedAt: nextState.startedAt ?? part.created_at,
 					blocks: ensureToolBlock(nextState.blocks, toolCallID),
 					toolResults,
 				};
@@ -126,22 +144,36 @@ export const applyMessagePartToStreamState = (
 			if (part.result_delta === "" && !hasDelta && !isFinalResult) {
 				return {
 					...nextState,
+					startedAt: nextState.startedAt ?? part.created_at,
 					blocks: ensureToolBlock(nextState.blocks, toolCallID),
 				};
 			}
 
-			const nextResult = mergeStreamPayload(
-				existing?.result,
-				existing?.resultRaw,
-				part.result,
-				part.result_delta,
-			);
+			const nextToolName =
+				part.tool_name ||
+				existing?.name ||
+				nextState.toolCalls[toolCallID]?.name ||
+				"Tool";
+			const nextResult =
+				nextToolName === ACPToolNames.WaitAgent &&
+				!isFinalResult &&
+				typeof part.result_delta === "string"
+					? mergeACPTranscriptDelta(
+							existing?.result,
+							existing?.resultRaw,
+							part.result_delta,
+						)
+					: mergeStreamPayload(
+							existing?.result,
+							existing?.resultRaw,
+							part.result,
+							part.result_delta,
+						);
 			// Reasoning is transient, so the final result drops it.
 			const nextReasoning = isFinalResult
 				? undefined
 				: `${existing?.reasoning ?? ""}${part.reasoning_delta ?? ""}` ||
 					undefined;
-			const nextToolName = part.tool_name || existing?.name || "Tool";
 			const isStreaming = !isFinalResult && (existing?.isStreaming || hasDelta);
 			const nextIsError =
 				existing?.isError ||
@@ -149,6 +181,7 @@ export const applyMessagePartToStreamState = (
 
 			return {
 				...nextState,
+				startedAt: nextState.startedAt ?? part.created_at,
 				blocks: ensureToolBlock(nextState.blocks, toolCallID),
 				toolResults: {
 					...nextState.toolResults,
@@ -179,6 +212,30 @@ export const applyMessagePartToStreamState = (
 		case "source": {
 			if (!part.url) {
 				return prev;
+			}
+			// A tagged page whose call has not streamed falls through to
+			// the source row instead of being dropped.
+			const call = part.tool_call_id
+				? nextState.toolCalls[part.tool_call_id]
+				: undefined;
+			if (call) {
+				const foundPages = call.foundPages ?? [];
+				if (foundPages.some(({ url }) => url === part.url)) {
+					return prev;
+				}
+				return {
+					...nextState,
+					toolCalls: {
+						...nextState.toolCalls,
+						[call.id]: {
+							...call,
+							foundPages: [
+								...foundPages,
+								{ url: part.url, title: part.title ?? "" },
+							],
+						},
+					},
+				};
 			}
 			const source = { url: part.url, title: part.title || part.url };
 			// Still populate the flat list for backward compat.
@@ -224,6 +281,9 @@ export const applyMessagePartToStreamState = (
 		// workspace-file-reference parts only appear in persisted
 		// user messages, never via SSE streaming.
 		case "workspace-file-reference":
+		// skill-invocation parts only appear in persisted user
+		// messages, never via SSE streaming.
+		case "skill-invocation":
 			return prev;
 		default: {
 			const _exhaustive: never = part;
@@ -265,6 +325,8 @@ export const buildStreamTools = (
 			modelIntent: call.modelIntent,
 			parsedCommands: call.parsedCommands,
 			startedAt: call.startedAt,
+			providerExecuted: call.providerExecuted,
+			foundPages: call.foundPages,
 		});
 	}
 

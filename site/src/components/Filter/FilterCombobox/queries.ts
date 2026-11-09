@@ -1,11 +1,15 @@
 import type { UseQueryOptions } from "react-query";
-import type { FilterOption, SearchResult } from "./types";
+import type { FilterOption } from "./types";
+
+/**
+ * Delay after the last keystroke before typed text is sent to each category's
+ * `getOptions`. `couldBeFilterSearch` decides whether the text then reaches
+ * `onChange`.
+ */
+export const SEARCH_DEBOUNCE_MS = 300;
 
 const filterComboboxOptionsKey = (categoryKey: string, query: string) =>
 	["filterCombobox", "options", categoryKey, query] as const;
-
-const filterComboboxSearchResultsKey = (query: string) =>
-	["filterCombobox", "searchResults", query] as const;
 
 /**
  * react-query options for one category's options at `query`. `getOptions` is
@@ -24,18 +28,4 @@ export const filterComboboxOptions = (
 			getOptions ? getOptions(query) : [],
 		enabled,
 	} satisfies UseQueryOptions<FilterOption[]>;
-};
-
-/** react-query options for the free-text resource preview at `query`. */
-export const filterComboboxSearchResults = (
-	getSearchResults: ((query: string) => Promise<SearchResult[]>) | undefined,
-	query: string,
-	enabled: boolean,
-) => {
-	return {
-		queryKey: filterComboboxSearchResultsKey(query),
-		queryFn: async (): Promise<SearchResult[]> =>
-			getSearchResults ? getSearchResults(query) : [],
-		enabled,
-	} satisfies UseQueryOptions<SearchResult[]>;
 };

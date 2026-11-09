@@ -3,6 +3,7 @@ package oauth2provider
 import (
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -51,8 +52,20 @@ func GetAuthorizationServerMetadata(db database.Store, accessURL *url.URL) http.
 func GetProtectedResourceMetadata(accessURL *url.URL) http.HandlerFunc {
 	return func(rw http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+		resource := accessURL.String()
+		suffix := strings.TrimPrefix(r.URL.Path, "/.well-known/oauth-protected-resource")
+		switch suffix {
+		case "", "/":
+		case codersdk.MCPEndpoint, codersdk.MCPEndpoint + "/":
+			resource = accessURL.JoinPath(suffix).String()
+		default:
+			// Match before joining paths so malformed or unknown resources
+			// cannot be normalized into a supported resource (RFC 9728 §3.1).
+			httpapi.RouteNotFound(rw)
+			return
+		}
 		metadata := codersdk.OAuth2ProtectedResourceMetadata{
-			Resource:             accessURL.String(),
+			Resource:             resource,
 			AuthorizationServers: []string{accessURL.String()},
 			ScopesSupported:      rbac.ExternalScopeNames(),
 			// RFC 6750 Bearer Token methods supported as fallback methods in api key middleware

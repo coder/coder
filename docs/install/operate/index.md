@@ -1,4 +1,6 @@
-# Operate and maintain
+---
+title: Operate and maintain
+---
 
 Day-two operations cover the work that keeps a deployment healthy after it's installed: upgrades, provisioning capacity, and eventual removal.
 

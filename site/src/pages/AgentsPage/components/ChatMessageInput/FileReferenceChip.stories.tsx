@@ -82,7 +82,7 @@ export const Editable: StoryObj<typeof EditableFileReferenceChip> = {
 			name: "Open site/src/components/Button.tsx:L42",
 		});
 		const removeButton = canvas.getByRole("button", {
-			name: "Remove reference",
+			name: "Remove site/src/components/Button.tsx:L42",
 		});
 
 		await userEvent.click(trigger);

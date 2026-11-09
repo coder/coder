@@ -2,7 +2,6 @@ import type { FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
 import { getPathBasename } from "../../../utils/path";
 import { DiffFileHeader } from "./DiffFileHeader";
@@ -27,7 +26,7 @@ export const WriteFileTool: React.FC<{
 	status: ToolStatus;
 	isError: boolean;
 	errorMessage?: string;
-	codeDiffDisplayMode?: TypesGen.AgentDisplayMode;
+	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
 }> = ({ path, diff, status, isError, errorMessage, codeDiffDisplayMode }) => {
 	const theme = useTheme();
 	const isDark = theme.palette.mode === "dark";
@@ -52,7 +51,7 @@ export const WriteFileTool: React.FC<{
 
 	return (
 		<ToolCall.Root
-			key={`${codeDiffDisplayMode ?? "auto"}:${WRITE_FILE_AUTO_DISPLAY_STATE}`}
+			key={`${codeDiffDisplayMode}:${WRITE_FILE_AUTO_DISPLAY_STATE}`}
 			className="w-full"
 			status={status}
 			isError={isError}
@@ -63,22 +62,18 @@ export const WriteFileTool: React.FC<{
 			<ToolCall.Header iconName="write_file" label={label} />
 			<ToolCall.Content>
 				{errorDetail && (
-					<pre className="m-0 mt-1.5 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs leading-5 text-content-destructive">
-						{errorDetail}
-					</pre>
+					<ToolCall.ErrorDetail>{errorDetail}</ToolCall.ErrorDetail>
 				)}
 				{showDiff && (
-					<ScrollArea
+					<ToolCall.Scrollable
 						data-testid="write-file-diff"
-						className="mt-1.5 rounded-md border border-solid border-border-default text-2xs"
+						className="mt-1.5 rounded-md border border-solid border-border text-2xs"
 						viewportClassName={
 							isAgentDisplayFullyExpanded(displayState)
 								? "max-h-[80vh]"
 								: "max-h-64"
 						}
-						viewportTabIndex={0}
-						viewportAriaLabel={`Diff of ${path}`}
-						scrollBarClassName="w-1.5"
+						ariaLabel={`Diff of ${path}`}
 					>
 						<FileDiff
 							fileDiff={stripNoNewline(diff)}
@@ -88,7 +83,7 @@ export const WriteFileTool: React.FC<{
 								<DiffFileHeader file={fileDiff} />
 							)}
 						/>
-					</ScrollArea>
+					</ToolCall.Scrollable>
 				)}
 			</ToolCall.Content>
 		</ToolCall.Root>

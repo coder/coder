@@ -1,6 +1,5 @@
 import { ChevronLeftIcon } from "lucide-react";
 import { Link as RouterLink } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -11,6 +10,7 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { Textarea } from "#/components/Textarea/Textarea";
+import { toast } from "#/components/Toaster/toast";
 import { Fieldset } from "../Fieldset";
 import { DividerWithText } from "./DividerWithText";
 
@@ -50,7 +50,7 @@ export const AddNewLicensePageView: React.FC<AddNewLicenseProps> = ({
 
 	return (
 		<>
-			<div className="flex flex-row gap-4 items-baseline justify-between">
+			<div className="flex gap-4 items-baseline justify-between">
 				<SettingsHeader>
 					<SettingsHeaderTitle>Add a license</SettingsHeaderTitle>
 					<SettingsHeaderDescription>

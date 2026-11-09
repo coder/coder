@@ -8,8 +8,10 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
@@ -22,25 +24,26 @@ func TestRunnerDebugTurnEnsureCreatesOnce(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	runnerCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	chatID := uuid.New()
+	rootChatID := uuid.New()
+	parentChatID := uuid.New()
 	runID := uuid.New()
 	modelConfigID := uuid.New()
 	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
-	turn := newRunnerDebugTurn(runnerCtx, testutil.Logger(t))
+	turn := newRunnerDebugTurn(testutil.Logger(t))
 
 	db.EXPECT().InsertChatDebugRun(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, params database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
-			require.Equal(t, chatID, params.ChatID)
-			require.Equal(t, string(chatdebug.KindChatTurn), params.Kind)
-			require.Equal(t, string(chatdebug.StatusInProgress), params.Status)
-			require.Equal(t, sql.NullInt64{Int64: 123, Valid: true}, params.TriggerMessageID)
-			return database.ChatDebugRun{
-				ID:                  runID,
+		DoAndReturn(func(insertCtx context.Context, params database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
+			require.NoError(t, insertCtx.Err())
+			_, bounded := insertCtx.Deadline()
+			require.True(t, bounded)
+			params.StartedAt, params.UpdatedAt = sql.NullTime{}, sql.NullTime{}
+			require.Equal(t, database.InsertChatDebugRunParams{
 				ChatID:              chatID,
+				RootChatID:          uuid.NullUUID{UUID: rootChatID, Valid: true},
+				ParentChatID:        uuid.NullUUID{UUID: parentChatID, Valid: true},
 				ModelConfigID:       uuid.NullUUID{UUID: modelConfigID, Valid: true},
 				TriggerMessageID:    sql.NullInt64{Int64: 123, Valid: true},
 				HistoryTipMessageID: sql.NullInt64{Int64: 456, Valid: true},
@@ -48,6 +51,20 @@ func TestRunnerDebugTurnEnsureCreatesOnce(t *testing.T) {
 				Status:              string(chatdebug.StatusInProgress),
 				Provider:            sql.NullString{String: "anthropic", Valid: true},
 				Model:               sql.NullString{String: "claude", Valid: true},
+				Summary:             pqtype.NullRawMessage{RawMessage: json.RawMessage(`{"first_message":"hello"}`), Valid: true},
+			}, params)
+			return database.ChatDebugRun{
+				ID:                  runID,
+				ChatID:              chatID,
+				RootChatID:          params.RootChatID,
+				ParentChatID:        params.ParentChatID,
+				ModelConfigID:       params.ModelConfigID,
+				TriggerMessageID:    params.TriggerMessageID,
+				HistoryTipMessageID: params.HistoryTipMessageID,
+				Kind:                params.Kind,
+				Status:              params.Status,
+				Provider:            params.Provider,
+				Model:               params.Model,
 			}, nil
 		}).Times(1)
 
@@ -61,17 +78,61 @@ func TestRunnerDebugTurnEnsureCreatesOnce(t *testing.T) {
 		TriggerLabel:        "hello",
 		ModelConfig:         database.ChatModelConfig{ID: modelConfigID},
 	}
-	chat := database.Chat{ID: chatID}
+	chat := database.Chat{
+		ID:           chatID,
+		RootChatID:   uuid.NullUUID{UUID: rootChatID, Valid: true},
+		ParentChatID: uuid.NullUUID{UUID: parentChatID, Valid: true},
+	}
+	wantRun := chatdebug.RunContext{
+		RunID:               runID,
+		ChatID:              chatID,
+		RootChatID:          rootChatID,
+		ParentChatID:        parentChatID,
+		ModelConfigID:       modelConfigID,
+		TriggerMessageID:    123,
+		HistoryTipMessageID: 456,
+		Provider:            "anthropic",
+		Model:               "claude",
+	}
 
-	firstCtx := turn.Ensure(ctx, chat, debug)
+	canceledCtx, cancelCaller := context.WithCancel(context.Background())
+	cancelCaller()
+	firstCtx := turn.Ensure(canceledCtx, chat, debug)
 	firstRun, ok := chatdebug.RunFromContext(firstCtx)
 	require.True(t, ok)
-	require.Equal(t, runID, firstRun.RunID)
+	require.Equal(t, wantRun, *firstRun)
 
 	secondCtx := turn.Ensure(ctx, chat, debug)
 	secondRun, ok := chatdebug.RunFromContext(secondCtx)
 	require.True(t, ok)
-	require.Equal(t, runID, secondRun.RunID)
+	require.Equal(t, wantRun, *secondRun)
+}
+
+func TestRunnerDebugTurnEnsureCreateFailureDisablesTurn(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
+	turn := newRunnerDebugTurn(testutil.Logger(t))
+	chat := database.Chat{ID: uuid.New()}
+	debug := &generationDebug{
+		Enabled:          true,
+		Service:          svc,
+		TriggerMessageID: 1,
+		ModelConfig:      database.ChatModelConfig{ID: uuid.New()},
+	}
+
+	db.EXPECT().InsertChatDebugRun(gomock.Any(), gomock.Any()).
+		Return(database.ChatDebugRun{}, xerrors.New("insert failed")).
+		Times(1)
+
+	for range 2 {
+		_, ok := chatdebug.RunFromContext(turn.Ensure(ctx, chat, debug))
+		require.False(t, ok)
+	}
+	turn.Finalize(ctx)
 }
 
 func TestRunnerDebugTurnEnsureDisabledFirstAttemptStaysDisabled(t *testing.T) {
@@ -81,7 +142,7 @@ func TestRunnerDebugTurnEnsureDisabledFirstAttemptStaysDisabled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
-	turn := newRunnerDebugTurn(ctx, testutil.Logger(t))
+	turn := newRunnerDebugTurn(testutil.Logger(t))
 	chat := database.Chat{ID: uuid.New()}
 
 	firstCtx := turn.Ensure(ctx, chat, nil)
@@ -101,7 +162,7 @@ func TestRunnerDebugTurnEnsureDisabledFirstAttemptStaysDisabled(t *testing.T) {
 func TestRunnerDebugTurnRecordOutcomePrecedence(t *testing.T) {
 	t.Parallel()
 
-	turn := newRunnerDebugTurn(context.Background(), testutil.Logger(t))
+	turn := newRunnerDebugTurn(testutil.Logger(t))
 	turn.RecordOutcome(chatdebug.StatusCompleted)
 	require.True(t, turn.statusSet)
 	require.Equal(t, chatdebug.StatusCompleted, turn.status)
@@ -120,14 +181,12 @@ func TestRunnerDebugTurnFinalizeOnce(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	runnerCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	chatID := uuid.New()
 	runID := uuid.New()
 	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
-	turn := newRunnerDebugTurn(runnerCtx, testutil.Logger(t))
+	turn := newRunnerDebugTurn(testutil.Logger(t))
 
 	db.EXPECT().InsertChatDebugRun(gomock.Any(), gomock.Any()).
 		Return(database.ChatDebugRun{
@@ -161,15 +220,13 @@ func TestRunnerDebugTurnRecordMCPConnectSummaries(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	runnerCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	chatID := uuid.New()
 	runID := uuid.New()
 	configID := uuid.New()
 	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
-	turn := newRunnerDebugTurn(runnerCtx, testutil.Logger(t))
+	turn := newRunnerDebugTurn(testutil.Logger(t))
 
 	var seededSummary []byte
 	db.EXPECT().InsertChatDebugRun(gomock.Any(), gomock.Any()).
@@ -248,14 +305,12 @@ func TestRunnerDebugTurnBoundsMCPConnectSummaries(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	runnerCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	chatID := uuid.New()
 	runID := uuid.New()
 	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
-	turn := newRunnerDebugTurn(runnerCtx, testutil.Logger(t))
+	turn := newRunnerDebugTurn(testutil.Logger(t))
 
 	var seededSummary []byte
 	db.EXPECT().InsertChatDebugRun(gomock.Any(), gomock.Any()).

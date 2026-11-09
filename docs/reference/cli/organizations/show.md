@@ -17,47 +17,47 @@ coder organizations show [flags] ["selected"|"me"|uuid|org_name]
 ## Description
 
 ```console
-  - coder org show selected:
+  - Show the organization selected with '--org=<org_name>', which the CLI uses:
 
-     $ Shows the organizations selected with '--org=<org_name>'. This organization is the organization used by the cli.
+     $ coder org show selected
 
-  - coder org show me:
+  - List all organizations you are a member of:
 
-     $ List of all organizations you are a member of.
+     $ coder org show me
 
-  - coder org show developers:
+  - Show the organization named 'developers':
 
-     $ Show organization with name 'developers'
+     $ coder org show developers
 
-  - coder org show 90ee1875-3db5-43b3-828e-af3687522e43:
+  - Show the organization with the given ID:
 
-     $ Show organization with the given ID.
+     $ coder org show 90ee1875-3db5-43b3-828e-af3687522e43
 ```
 
 ## Options
 
 ### --only-id
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Only print the organization ID.
 
 ### -c, --column
 
-|         |                                                                                                                     |
-|---------|---------------------------------------------------------------------------------------------------------------------|
-| Type    | <code>[id\|name\|display name\|icon\|description\|created at\|updated at\|default\|default org member roles]</code> |
-| Default | <code>id,name,default</code>                                                                                        |
+| Property | Value                                                                                                               |
+|----------|---------------------------------------------------------------------------------------------------------------------|
+| Type     | <code>[id\|name\|display name\|icon\|description\|created at\|updated at\|default\|default org member roles]</code> |
+| Default  | <code>id,name,default</code>                                                                                        |
 
 Columns to display in table output.
 
 ### -o, --output
 
-|         |                                |
-|---------|--------------------------------|
-| Type    | <code>text\|table\|json</code> |
-| Default | <code>text</code>              |
+| Property | Value                          |
+|----------|--------------------------------|
+| Type     | <code>text\|table\|json</code> |
+| Default  | <code>text</code>              |
 
 Output format.

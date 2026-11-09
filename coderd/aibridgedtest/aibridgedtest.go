@@ -9,9 +9,7 @@ import (
 	"testing"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"go.opentelemetry.io/otel"
 
-	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/aibridged"
@@ -19,13 +17,11 @@ import (
 )
 
 // StartTestAIBridgeDaemon wires an in-process aibridged daemon onto the
-// supplied API, mirroring what cli/server.go does in production. Tests that
-// create AI provider rows with BaseURL pointing at fake upstream HTTP servers
-// (e.g. chattest.NewOpenAI) will have their requests proxied through the real
-// aibridged stack as they would in production.
-//
-// The daemon fetches providers from coderd over the in-memory DRPC, then
-// refreshes on ai_providers change events, exactly like cli.newAIBridgeDaemon.
+// supplied API through [cli.NewAIBridgeDaemon], the same constructor
+// cli/server.go uses. Tests that create AI provider rows with BaseURL pointing
+// at fake upstream HTTP servers (e.g. chattest.NewOpenAI) will have their
+// requests proxied through the real aibridged stack as they would in
+// production, under the API's own deployment configuration.
 //
 // metrics is the registry the daemon reports provider reload events to.
 // The caller owns the metrics instance and can assert on it after the daemon
@@ -53,30 +49,18 @@ func StartTestAIBridgeDaemonWithPubsub(
 ) {
 	t.Helper()
 
-	logger := api.Logger.Named("aibridged").Leveled(slog.LevelDebug)
-	cfg := api.DeploymentValues.AI.BridgeConfig
-	tracer := otel.Tracer("aibridge-test")
-
-	if metrics == nil {
-		metrics = aibridged.NewMetrics(prometheus.NewRegistry())
-	}
-
-	srv, err := aibridged.New(ctx, func(dialCtx context.Context) (aibridged.DRPCClient, error) {
-		return api.CreateInMemoryAIBridgeServer(dialCtx)
-	}, logger, tracer, api.Experiments, nil)
+	srv, unsubscribe, err := cli.NewAIBridgeDaemon(ctx, cli.AIBridgeDaemonOptions{
+		API:             api,
+		Config:          api.DeploymentValues.AI.BridgeConfig,
+		Registerer:      prometheus.NewRegistry(),
+		ProviderMetrics: metrics,
+		Pubsub:          ps,
+	})
 	if err != nil {
 		t.Fatalf("create aibridged server: %v", err)
 	}
-	t.Cleanup(func() { _ = srv.Close() })
-
-	// The reloader fetches providers from coderd over srv's DRPC client; the
-	// subscription drives an initial load and refreshes on change events.
-	reloader := cli.NewProviderRPCReloader(srv.ReplaceProviders, srv.Client, cfg, logger.Named("reloader"), nil, metrics)
-	unsubscribe, err := aibridged.SubscribeProviderReload(ctx, ps, reloader, logger.Named("subscriber"))
-	if err != nil {
-		t.Fatalf("subscribe provider reload: %v", err)
-	}
 	t.Cleanup(unsubscribe)
+	t.Cleanup(func() { _ = srv.Close() })
 
 	api.RegisterInMemoryAIBridgedHTTPHandler(srv)
 }

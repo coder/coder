@@ -54,21 +54,14 @@ const arraysEqual = <T>(left: readonly T[], right: readonly T[]): boolean => {
 	return true;
 };
 
-export const chatQueuedMessagesEqualByID = (
-	left: readonly TypesGen.ChatQueuedMessage[],
-	right: readonly TypesGen.ChatQueuedMessage[],
-): boolean =>
-	left.length === right.length &&
-	left.every((message, index) => message.id === right[index].id);
-
 const retryStatesEqual = (
 	left: RetryState | null,
-	right: RetryState | null,
+	right: RetryState,
 ): boolean => {
 	if (left === right) {
 		return true;
 	}
-	if (!left || !right) {
+	if (!left) {
 		return false;
 	}
 	return (
@@ -82,12 +75,12 @@ const retryStatesEqual = (
 
 const reconnectStatesEqual = (
 	left: ReconnectState | null,
-	right: ReconnectState | null,
+	right: ReconnectState,
 ): boolean => {
 	if (left === right) {
 		return true;
 	}
-	if (!left || !right) {
+	if (!left) {
 		return false;
 	}
 	return (
@@ -108,6 +101,14 @@ export const isActiveChatStatus = (
 	status === "running" ||
 	status === "requires_action" ||
 	status === "interrupting";
+
+/**
+ * A turn completes in `waiting`, or in `paused` when the queue head is under
+ * edit. A turn that ends in `error` did not complete.
+ */
+export const isTurnCompletedChatStatus = (
+	status: TypesGen.ChatStatus,
+): boolean => status === "waiting" || status === "paused";
 
 export type ChatStoreState = {
 	messagesByID: Map<number, TypesGen.ChatMessage>;
@@ -133,9 +134,7 @@ export type ChatStore = {
 	getSnapshot: () => ChatStoreState;
 	subscribe: (listener: () => void) => () => void;
 	batch: (fn: () => void) => void;
-	replaceMessages: (
-		messages: readonly TypesGen.ChatMessage[] | undefined,
-	) => void;
+	replaceMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
 	upsertDurableMessage: (message: TypesGen.ChatMessage) => {
 		isDuplicate: boolean;
 		changed: boolean;
@@ -144,7 +143,7 @@ export type ChatStore = {
 	applyMessagePart: (part: TypesGen.ChatMessagePart) => void;
 	applyMessageParts: (parts: readonly TypesGen.ChatMessagePart[]) => void;
 	setQueuedMessages: (
-		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
+		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
 	) => void;
 	// Server-truthful queue snapshot, filtered through the
 	// suppression set. Use for SSE queue_update and REST hydration;
@@ -161,7 +160,7 @@ export type ChatStore = {
 	applyPromoteRefetchQueuedMessages: (
 		chatID: string,
 		promotedID: number,
-		queuedMessages: readonly TypesGen.ChatQueuedMessage[] | undefined,
+		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
 		baselineFence: number,
 	) => readonly TypesGen.ChatQueuedMessage[] | undefined;
 	suppressQueuedMessageID: (id: number) => void;
@@ -174,16 +173,16 @@ export type ChatStore = {
 	// current value, so a caller can tell that the server spoke during a
 	// request even when the status did not change.
 	getServerChatStatusVersion: () => number;
-	applyServerChatStatus: (status: TypesGen.ChatStatus | null) => void;
+	applyServerChatStatus: (status: TypesGen.ChatStatus) => void;
 	unsuppressQueuedMessageID: (id: number) => void;
 	clearSuppressedQueuedMessageIDs: () => void;
 	setChatStatus: (status: TypesGen.ChatStatus | null) => void;
 	setStreamState: (streamState: StreamState | null) => void;
 	setStreamError: (reason: ChatDetailError | null) => void;
 	clearStreamError: () => void;
-	setRetryState: (state: RetryState | null) => void;
+	setRetryState: (state: RetryState) => void;
 	clearRetryState: () => void;
-	setReconnectState: (state: ReconnectState | null) => void;
+	setReconnectState: (state: ReconnectState) => void;
 	clearReconnectState: () => void;
 	clearStreamState: () => void;
 	resetTransportReplayState: () => void;
@@ -258,12 +257,9 @@ export const createChatStore = (): ChatStore => {
 		}
 	};
 
-	const replaceMessages = (
-		messages: readonly TypesGen.ChatMessage[] | undefined,
-	): void => {
-		const safeMessages = messages ?? [];
-		const nextMessagesByID = buildMessageMap(safeMessages);
-		const nextOrderedMessageIDs = buildOrderedMessageIDs(safeMessages);
+	const replaceMessages = (messages: readonly TypesGen.ChatMessage[]): void => {
+		const nextMessagesByID = buildMessageMap(messages);
+		const nextOrderedMessageIDs = buildOrderedMessageIDs(messages);
 
 		// Fast-path: skip setState entirely when nothing changed.
 		if (
@@ -403,17 +399,11 @@ export const createChatStore = (): ChatStore => {
 		applyMessagePart: (part) => applyMessageParts([part]),
 		applyMessageParts,
 		setQueuedMessages: (queuedMessages) => {
-			const nextQueuedMessages = queuedMessages ?? [];
 			setState((current) => {
-				if (
-					chatQueuedMessagesEqualByID(
-						current.queuedMessages,
-						nextQueuedMessages,
-					)
-				) {
+				if (isEqual(current.queuedMessages, queuedMessages)) {
 					return current;
 				}
-				return { ...current, queuedMessages: nextQueuedMessages };
+				return { ...current, queuedMessages };
 			});
 		},
 		applyAuthoritativeQueuedMessages: (queuedMessages) => {
@@ -453,10 +443,7 @@ export const createChatStore = (): ChatStore => {
 					nextSuppressed.size === 0
 						? incoming
 						: incoming.filter((message) => !nextSuppressed.has(message.id));
-				const sameQueue = chatQueuedMessagesEqualByID(
-					current.queuedMessages,
-					filtered,
-				);
+				const sameQueue = isEqual(current.queuedMessages, filtered);
 				const sameSuppressed =
 					nextSuppressed === current.suppressedQueuedMessageIDs;
 				const nextPromoted =
@@ -491,9 +478,8 @@ export const createChatStore = (): ChatStore => {
 			if (queueConvergenceFence !== baselineFence) {
 				return undefined;
 			}
-			const incoming = queuedMessages ?? [];
 			queueConvergenceFence++;
-			for (const message of incoming) {
+			for (const message of queuedMessages) {
 				observedQueuedMessageIDs.add(message.id);
 			}
 			const suppressed = new Set(state.suppressedQueuedMessageIDs);
@@ -502,14 +488,11 @@ export const createChatStore = (): ChatStore => {
 			promoted.delete(promotedID);
 			const applied =
 				suppressed.size === 0
-					? incoming
-					: incoming.filter((message) => !suppressed.has(message.id));
+					? queuedMessages
+					: queuedMessages.filter((message) => !suppressed.has(message.id));
 			setState((current) => ({
 				...current,
-				queuedMessages: chatQueuedMessagesEqualByID(
-					current.queuedMessages,
-					applied,
-				)
+				queuedMessages: isEqual(current.queuedMessages, applied)
 					? current.queuedMessages
 					: applied,
 				suppressedQueuedMessageIDs: suppressed,
@@ -793,6 +776,23 @@ export const useChatSelector = <T>(
 ): T => {
 	const getSnapshot = () => selector(store.getSnapshot());
 	return useSyncExternalStore(store.subscribe, getSnapshot, getSnapshot);
+};
+
+/** The store's durable messages, oldest first. */
+export const useChatMessages = (store: ChatStore): TypesGen.ChatMessage[] => {
+	const messagesByID = useChatSelector(store, selectMessagesByID);
+	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
+	return orderedMessageIDs.flatMap((messageID) => {
+		const message = messagesByID.get(messageID);
+		if (!message && process.env.NODE_ENV !== "production") {
+			console.warn(
+				`[useChatMessages] orderedMessageIDs contains ID ${messageID} ` +
+					"not found in messagesByID. This may indicate a store/cache " +
+					"desync bug.",
+			);
+		}
+		return message ? [message] : [];
+	});
 };
 
 export { useChatStore } from "./useChatStore";

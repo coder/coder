@@ -303,7 +303,7 @@ export const SurvivesExternalEnabledChanges: Story = {
 
 		return (
 			<div className="flex flex-col gap-6">
-				<div className="flex flex-row gap-4">
+				<div className="flex gap-4">
 					<button type="button" onClick={() => setEnabled(true)}>
 						Enable externally
 					</button>

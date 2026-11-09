@@ -1,0 +1,15 @@
+{
+  "description": "Retrieve output from a tracked process by ID. Use the process_id returned by execute with run_in_background=true or from a timed-out execute's background_process_id. Blocks up to 10s for the process to exit, then returns the output and exit_code. If still running after the timeout, returns the output so far. Use wait_timeout to override the default 10s wait (e.g. '30s', or '0s' for an immediate snapshot without waiting).",
+  "parameters": {
+    "process_id": {
+      "type": "string"
+    },
+    "wait_timeout": {
+      "description": "Override the default 10s block duration. The call blocks until the process exits or this timeout is reached. Set to '0s' for an immediate snapshot without waiting.",
+      "type": "string"
+    }
+  },
+  "required": [
+    "process_id"
+  ]
+}

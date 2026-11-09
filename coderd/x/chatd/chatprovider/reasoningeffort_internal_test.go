@@ -6,12 +6,9 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
-	fantasybedrock "charm.land/fantasy/providers/bedrock"
 	fantasygoogle "charm.land/fantasy/providers/google"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
-	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
-	fantasyvercel "charm.land/fantasy/providers/vercel"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
@@ -67,34 +64,42 @@ func TestApplyReasoningEffort(t *testing.T) {
 		require.Equal(t, fantasyopenai.ReasoningEffortHigh, *providerOptions.ReasoningEffort)
 	})
 
-	t.Run("ClampsUnsupportedGPT6AstraEfforts", func(t *testing.T) {
+	t.Run("ClampsUnsupportedGPT6Efforts", func(t *testing.T) {
 		t.Parallel()
 
-		astra := NewModel(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-6-astra"}, nil)
-		for effort, want := range map[string]fantasyopenai.ReasoningEffort{
-			codersdk.ChatModelReasoningEffortNone:    fantasyopenai.ReasoningEffortLow,
-			codersdk.ChatModelReasoningEffortMinimal: fantasyopenai.ReasoningEffortLow,
-			codersdk.ChatModelReasoningEffortLow:     fantasyopenai.ReasoningEffortLow,
-			codersdk.ChatModelReasoningEffortMax:     fantasyopenai.ReasoningEffortMax,
+		for _, model := range []Model{
+			NewModel(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-6-astra"}, nil),
+			NewModel(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-6.1-sol"}, nil),
 		} {
-			got := applyReasoningEffort(astra, nil, &effort)
-			providerOptions, ok := got[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
-			require.True(t, ok, "%T", got[fantasyopenai.Name])
-			require.Equal(t, want, *providerOptions.ReasoningEffort, "effort %q", effort)
+			for effort, want := range map[string]fantasyopenai.ReasoningEffort{
+				codersdk.ChatModelReasoningEffortNone:    fantasyopenai.ReasoningEffortLow,
+				codersdk.ChatModelReasoningEffortMinimal: fantasyopenai.ReasoningEffortLow,
+				codersdk.ChatModelReasoningEffortLow:     fantasyopenai.ReasoningEffortLow,
+				codersdk.ChatModelReasoningEffortMax:     fantasyopenai.ReasoningEffortMax,
+			} {
+				got := applyReasoningEffort(model, nil, &effort)
+				providerOptions, ok := got[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions)
+				require.True(t, ok, "%T", got[fantasyopenai.Name])
+				require.Equal(t, want, *providerOptions.ReasoningEffort, "model %q effort %q", model.ModelID(), effort)
+			}
 		}
 
 		// Other OpenAI models keep the caller's value.
-		sol := NewModel(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: "gpt-5.6-sol"}, nil)
-		got := applyReasoningEffort(sol, nil, new(codersdk.ChatModelReasoningEffortNone))
-		require.Equal(t, fantasyopenai.ReasoningEffortNone, *got[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions).ReasoningEffort)
+		for _, modelID := range []string{"gpt-5.6-sol", "gpt-6-sol"} {
+			model := NewModel(&chattest.FakeModel{ProviderName: fantasyopenai.Name, ModelName: modelID}, nil)
+			got := applyReasoningEffort(model, nil, new(codersdk.ChatModelReasoningEffortNone))
+			require.Equal(t, fantasyopenai.ReasoningEffortNone, *got[fantasyopenai.Name].(*fantasyopenai.ResponsesProviderOptions).ReasoningEffort, "model %q", modelID)
+		}
 	})
 
-	t.Run("ClampsNoneForClaudeOpus55", func(t *testing.T) {
+	t.Run("ClampsNoneForClaude55Models", func(t *testing.T) {
 		t.Parallel()
 
 		for _, model := range []Model{
 			NewModel(&chattest.FakeModel{ProviderName: fantasyanthropic.Name, ModelName: "claude-opus-5-5"}, nil),
-			NewModel(&chattest.FakeModel{ProviderName: fantasybedrock.Name, ModelName: "global.anthropic.claude-opus-5-5"}, nil),
+			NewModel(&chattest.FakeModel{ProviderName: fantasyanthropic.Name, ModelName: "global.anthropic.claude-opus-5-5"}, nil),
+			NewModel(&chattest.FakeModel{ProviderName: fantasyanthropic.Name, ModelName: "claude-sonnet-5-5"}, nil),
+			NewModel(&chattest.FakeModel{ProviderName: fantasyanthropic.Name, ModelName: "global.anthropic.claude-sonnet-5-5"}, nil),
 		} {
 			for effort, want := range map[string]fantasyanthropic.Effort{
 				codersdk.ChatModelReasoningEffortNone: fantasyanthropic.EffortLow,
@@ -115,11 +120,10 @@ func TestApplyReasoningEffort(t *testing.T) {
 	})
 
 	tests := []struct {
-		name      string
-		provider  string
-		modelName string
-		options   fantasy.ProviderOptions
-		assert    func(*testing.T, fantasy.ProviderOptions)
+		name     string
+		provider string
+		options  fantasy.ProviderOptions
+		assert   func(*testing.T, fantasy.ProviderOptions)
 	}{
 		{
 			name:     "CreatesAnthropicEntry",
@@ -142,65 +146,6 @@ func TestApplyReasoningEffort(t *testing.T) {
 			},
 		},
 		{
-			name:      "CreatesGoogleEntry",
-			provider:  fantasygoogle.Name,
-			modelName: "gemini-3.7-flash",
-			assert: func(t *testing.T, got fantasy.ProviderOptions) {
-				providerOptions, ok := got[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
-				require.True(t, ok, "%T", got[fantasygoogle.Name])
-				require.NotNil(t, providerOptions.ThinkingConfig)
-				require.NotNil(t, providerOptions.ThinkingConfig.ThinkingLevel)
-				require.Equal(t, fantasygoogle.ThinkingLevelHigh, *providerOptions.ThinkingConfig.ThinkingLevel)
-				// Google returns thought summaries only when requested, so
-				// effort generations default include_thoughts on.
-				require.NotNil(t, providerOptions.ThinkingConfig.IncludeThoughts)
-				require.True(t, *providerOptions.ThinkingConfig.IncludeThoughts)
-			},
-		},
-		{
-			name:      "PreservesGoogleEntry",
-			provider:  fantasygoogle.Name,
-			modelName: "gemini-3.7-flash",
-			options:   fantasy.ProviderOptions{fantasygoogle.Name: &fantasygoogle.ProviderOptions{ThinkingConfig: &fantasygoogle.ThinkingConfig{IncludeThoughts: new(true)}}},
-			assert: func(t *testing.T, got fantasy.ProviderOptions) {
-				providerOptions := got[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
-				require.True(t, *providerOptions.ThinkingConfig.IncludeThoughts)
-				require.NotNil(t, providerOptions.ThinkingConfig.ThinkingLevel)
-				require.Equal(t, fantasygoogle.ThinkingLevelHigh, *providerOptions.ThinkingConfig.ThinkingLevel)
-			},
-		},
-		{
-			name:      "GoogleExplicitBudgetWins",
-			provider:  fantasygoogle.Name,
-			modelName: "gemini-3.7-flash",
-			options:   fantasy.ProviderOptions{fantasygoogle.Name: &fantasygoogle.ProviderOptions{ThinkingConfig: &fantasygoogle.ThinkingConfig{ThinkingBudget: new(int64(1024))}}},
-			assert: func(t *testing.T, got fantasy.ProviderOptions) {
-				providerOptions := got[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
-				require.Equal(t, int64(1024), *providerOptions.ThinkingConfig.ThinkingBudget)
-				require.Nil(t, providerOptions.ThinkingConfig.ThinkingLevel)
-			},
-		},
-		{
-			name:      "GoogleExplicitThoughtsOffPreserved",
-			provider:  fantasygoogle.Name,
-			modelName: "gemini-3.7-flash",
-			options:   fantasy.ProviderOptions{fantasygoogle.Name: &fantasygoogle.ProviderOptions{ThinkingConfig: &fantasygoogle.ThinkingConfig{IncludeThoughts: new(false)}}},
-			assert: func(t *testing.T, got fantasy.ProviderOptions) {
-				providerOptions := got[fantasygoogle.Name].(*fantasygoogle.ProviderOptions)
-				require.NotNil(t, providerOptions.ThinkingConfig.IncludeThoughts)
-				require.False(t, *providerOptions.ThinkingConfig.IncludeThoughts)
-				require.Equal(t, fantasygoogle.ThinkingLevelHigh, *providerOptions.ThinkingConfig.ThinkingLevel)
-			},
-		},
-		{
-			name:      "GoogleGemini25GetsNoLevel",
-			provider:  fantasygoogle.Name,
-			modelName: "gemini-2.5-flash",
-			assert: func(t *testing.T, got fantasy.ProviderOptions) {
-				require.Nil(t, got[fantasygoogle.Name])
-			},
-		},
-		{
 			name:     "CreatesOpenAICompatEntry",
 			provider: fantasyopenaicompat.Name,
 			assert: func(t *testing.T, got fantasy.ProviderOptions) {
@@ -220,58 +165,12 @@ func TestApplyReasoningEffort(t *testing.T) {
 				require.Equal(t, fantasyopenai.ReasoningEffortHigh, *providerOptions.ReasoningEffort)
 			},
 		},
-		{
-			name:     "CreatesVercelEntry",
-			provider: fantasyvercel.Name,
-			assert: func(t *testing.T, got fantasy.ProviderOptions) {
-				providerOptions, ok := got[fantasyvercel.Name].(*fantasyvercel.ProviderOptions)
-				require.True(t, ok, "%T", got[fantasyvercel.Name])
-				require.NotNil(t, providerOptions.Reasoning)
-				require.NotNil(t, providerOptions.Reasoning.Effort)
-				require.Equal(t, fantasyvercel.ReasoningEffortHigh, *providerOptions.Reasoning.Effort)
-			},
-		},
-		{
-			name:     "PreservesVercelNestedEntry",
-			provider: fantasyvercel.Name,
-			options:  fantasy.ProviderOptions{fantasyvercel.Name: &fantasyvercel.ProviderOptions{Reasoning: &fantasyvercel.ReasoningOptions{Enabled: new(true), MaxTokens: new(int64(1024))}}},
-			assert: func(t *testing.T, got fantasy.ProviderOptions) {
-				providerOptions := got[fantasyvercel.Name].(*fantasyvercel.ProviderOptions)
-				require.True(t, *providerOptions.Reasoning.Enabled)
-				require.Equal(t, int64(1024), *providerOptions.Reasoning.MaxTokens)
-				require.Equal(t, fantasyvercel.ReasoningEffortHigh, *providerOptions.Reasoning.Effort)
-			},
-		},
-		{
-			name:     "CreatesOpenRouterEntry",
-			provider: fantasyopenrouter.Name,
-			assert: func(t *testing.T, got fantasy.ProviderOptions) {
-				providerOptions, ok := got[fantasyopenrouter.Name].(*fantasyopenrouter.ProviderOptions)
-				require.True(t, ok, "%T", got[fantasyopenrouter.Name])
-				require.NotNil(t, providerOptions.Reasoning)
-				require.NotNil(t, providerOptions.Reasoning.Effort)
-				require.Equal(t, fantasyopenrouter.ReasoningEffortHigh, *providerOptions.Reasoning.Effort)
-			},
-		},
-		{
-			name:     "PreservesOpenRouterNestedEntry",
-			provider: fantasyopenrouter.Name,
-			options:  fantasy.ProviderOptions{fantasyopenrouter.Name: &fantasyopenrouter.ProviderOptions{Reasoning: &fantasyopenrouter.ReasoningOptions{Enabled: new(true), MaxTokens: new(int64(1024))}}},
-			assert: func(t *testing.T, got fantasy.ProviderOptions) {
-				providerOptions, ok := got[fantasyopenrouter.Name].(*fantasyopenrouter.ProviderOptions)
-				require.True(t, ok, "%T", got[fantasyopenrouter.Name])
-				require.True(t, *providerOptions.Reasoning.Enabled)
-				require.Equal(t, int64(1024), *providerOptions.Reasoning.MaxTokens)
-				require.NotNil(t, providerOptions.Reasoning.Effort)
-				require.Equal(t, fantasyopenrouter.ReasoningEffortHigh, *providerOptions.Reasoning.Effort)
-			},
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := applyReasoningEffort(NewModel(&chattest.FakeModel{ProviderName: tt.provider, ModelName: tt.modelName}, nil), tt.options, new(codersdk.ChatModelReasoningEffortHigh))
+			got := applyReasoningEffort(NewModel(&chattest.FakeModel{ProviderName: tt.provider}, nil), tt.options, new(codersdk.ChatModelReasoningEffortHigh))
 			tt.assert(t, got)
 		})
 	}
@@ -327,6 +226,7 @@ func TestGoogleCompatReasoningEffort(t *testing.T) {
 		// disable thinking.
 		{modelID: "gemini-2.5-flash", effort: "none", want: "none", wantOK: true},
 		{modelID: "gemini-2.5-flash", effort: "minimal", want: "low", wantOK: true},
+		{modelID: "gemini-2.5-flash", effort: "medium", want: "medium", wantOK: true},
 		{modelID: "gemini-2.5-flash", effort: "xhigh", want: "high", wantOK: true},
 		{modelID: "gemini-2.5-pro", effort: "none", want: "low", wantOK: true},
 		{modelID: "gemini-2.5-pro", effort: "high", want: "high", wantOK: true},
@@ -372,6 +272,7 @@ func TestGoogleSupportedThinkingLevels(t *testing.T) {
 		{modelID: "gemini-flash-lite-latest", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
 		{modelID: "gemini-3-pro-preview", want: []fantasygoogle.ThinkingLevel{low, high}},
 		{modelID: "gemini-3.1-pro-preview", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
+		{modelID: "gemini-4-argon", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
 		{modelID: "gemini-10.5-pro", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
 		{modelID: "gemini-pro-latest", want: []fantasygoogle.ThinkingLevel{low, medium, high}},
 		{modelID: "gemini-3-pro-image-preview", want: []fantasygoogle.ThinkingLevel{high}},

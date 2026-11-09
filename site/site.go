@@ -34,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -84,6 +85,9 @@ type Options struct {
 	Logger                    slog.Logger
 	AIGatewayEnabled          bool
 	UserSecretFilePathEnabled bool
+	// ExperimentEvaluator decides the experiments embedded for the
+	// signed-in user. When nil, no experiments are embedded.
+	ExperimentEvaluator *experiments.Evaluator
 }
 
 func New(opts *Options) (*Handler, error) {
@@ -152,7 +156,6 @@ type Handler struct {
 	RegionsFetcher func(ctx context.Context) (any, error)
 
 	Entitlements *entitlements.Set
-	Experiments  atomic.Pointer[codersdk.Experiments]
 
 	telemetryHTMLServedOnce sync.Once
 }
@@ -344,7 +347,12 @@ func (h *Handler) serveHTML(resp http.ResponseWriter, request *http.Request, req
 		h.telemetryHTMLServedOnce.Do(func() {
 			go h.reportHTMLFirstServedAt()
 		})
-		http.ServeContent(resp, request, reqPath, time.Time{}, bytes.NewReader(data))
+		// Rendered HTML embeds the CSRF token and the signed-in user's
+		// state, including per-user experiments, so it must not be
+		// cached.
+		httpmw.NoStore(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			http.ServeContent(rw, r, reqPath, time.Time{}, bytes.NewReader(data))
+		})).ServeHTTP(resp, request)
 		return true
 	}
 	return false
@@ -507,10 +515,9 @@ func (h *Handler) populateHTMLState(
 			}
 		})
 	}
-	experiments := h.Experiments.Load()
-	if experiments != nil {
+	if h.opts.ExperimentEvaluator != nil {
 		wg.Go(func() {
-			data, err := json.Marshal(experiments)
+			data, err := json.Marshal(h.opts.ExperimentEvaluator.EnabledExperiments(ctx, user.ID))
 			if err == nil {
 				state.Experiments = html.EscapeString(string(data))
 			}

@@ -1,8 +1,12 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { API } from "#/api/api";
+import type { Workspace } from "#/api/typesGenerated";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import {
+	MockDeletingWorkspace,
+	MockPendingWorkspace,
 	MockStoppedWorkspace,
 	MockTemplate,
 	MockWorkspace,
@@ -43,7 +47,147 @@ const defaultProps = {
 	onActionError: vi.fn(),
 };
 
+const stoppedWorkspace = { ...MockStoppedWorkspace, name: "stopped" };
+const pendingWorkspace = { ...MockPendingWorkspace, name: "pending" };
+const runningWorkspace = { ...MockWorkspace, name: "running" };
+const deletingWorkspace = { ...MockDeletingWorkspace, name: "deleting" };
+
+function renderSelection(
+	initialWorkspaces: readonly Workspace[],
+	refreshedWorkspaces?: readonly Workspace[],
+) {
+	const onCheckChange = vi.fn();
+	const View = () => {
+		const [workspaces, setWorkspaces] = useState(initialWorkspaces);
+		const [checkedWorkspaces, setCheckedWorkspaces] = useState<
+			readonly Workspace[]
+		>([]);
+
+		return (
+			<>
+				{refreshedWorkspaces && (
+					<button
+						type="button"
+						onClick={() => setWorkspaces(refreshedWorkspaces)}
+					>
+						Refresh workspaces
+					</button>
+				)}
+				<WorkspacesPageView
+					{...defaultProps}
+					workspaces={workspaces}
+					count={workspaces.length}
+					checkedWorkspaces={workspaces.filter((workspace) =>
+						checkedWorkspaces.some((selected) => selected.id === workspace.id),
+					)}
+					onCheckChange={(selected) => {
+						onCheckChange(selected);
+						setCheckedWorkspaces(selected);
+					}}
+				/>
+			</>
+		);
+	};
+
+	renderWithAuth(<View />);
+	return onCheckChange;
+}
+
 describe("WorkspacesPageView", () => {
+	it.each([
+		[
+			"mixed eligibility",
+			[stoppedWorkspace, pendingWorkspace, runningWorkspace, deletingWorkspace],
+		],
+		["all eligible", [stoppedWorkspace, runningWorkspace]],
+	])(
+		"selects and deselects eligible workspaces with %s",
+		async (_name, workspaces) => {
+			const user = userEvent.setup();
+			const onCheckChange = renderSelection(workspaces);
+			const selectAll = await screen.findByRole("checkbox", {
+				name: "Select all workspaces",
+			});
+
+			await user.click(
+				screen.getByRole("checkbox", { name: "Select workspace stopped" }),
+			);
+			expect(onCheckChange).toHaveBeenLastCalledWith([stoppedWorkspace]);
+
+			await user.click(selectAll);
+			expect(onCheckChange).toHaveBeenLastCalledWith([
+				stoppedWorkspace,
+				runningWorkspace,
+			]);
+
+			await user.click(
+				screen.getByRole("checkbox", { name: "Select workspace running" }),
+			);
+			expect(onCheckChange).toHaveBeenLastCalledWith([stoppedWorkspace]);
+
+			await user.click(selectAll);
+			expect(onCheckChange).toHaveBeenLastCalledWith([
+				stoppedWorkspace,
+				runningWorkspace,
+			]);
+
+			await user.click(selectAll);
+			expect(onCheckChange).toHaveBeenLastCalledWith([]);
+		},
+	);
+
+	it.each([pendingWorkspace, deletingWorkspace])(
+		"clears a selected workspace after it becomes $name on refresh",
+		async (disabledWorkspace) => {
+			const user = userEvent.setup();
+			const onCheckChange = renderSelection(
+				[runningWorkspace],
+				[
+					{
+						...disabledWorkspace,
+						id: runningWorkspace.id,
+						name: runningWorkspace.name,
+					},
+				],
+			);
+			const selectAll = await screen.findByRole("checkbox", {
+				name: "Select all workspaces",
+			});
+
+			await user.click(selectAll);
+			expect(onCheckChange).toHaveBeenLastCalledWith([runningWorkspace]);
+			await user.click(
+				screen.getByRole("button", { name: "Refresh workspaces" }),
+			);
+			await user.click(selectAll);
+			expect(onCheckChange).toHaveBeenLastCalledWith([]);
+			expect(onCheckChange).toHaveBeenCalledTimes(2);
+
+			await user.click(selectAll);
+			expect(onCheckChange).toHaveBeenCalledTimes(2);
+		},
+	);
+
+	it("does not select workspaces when no rows are eligible", async () => {
+		const user = userEvent.setup();
+		const onCheckChange = renderSelection([
+			pendingWorkspace,
+			deletingWorkspace,
+		]);
+
+		await user.click(
+			await screen.findByRole("checkbox", { name: "Select all workspaces" }),
+		);
+		await user.click(
+			screen.getByRole("checkbox", { name: "Select workspace pending" }),
+		);
+		await user.click(
+			screen.getByRole("checkbox", { name: "Select workspace deleting" }),
+		);
+
+		expect(onCheckChange).not.toHaveBeenCalled();
+	});
+
 	it("hides the New workspace button and explains the missing permission", async () => {
 		renderWithAuth(
 			<WorkspacesPageView {...defaultProps} canCreateWorkspace={false} />,

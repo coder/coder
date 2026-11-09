@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"bytes"
+	"net/http"
 	"testing"
 
 	"github.com/google/uuid"
@@ -211,4 +212,89 @@ func TestStart(t *testing.T) {
 		workspace = coderdtest.MustWorkspace(t, memberClient, workspace.ID)
 		require.Equal(t, codersdk.WorkspaceTransitionStart, workspace.LatestBuild.Transition)
 	})
+}
+
+func TestWorkspaceBuildTemplateVersionPermissions(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		command string
+		admin   bool
+		active  bool
+		denied  bool
+	}{
+		{name: "AdminStartNonActive", command: "start", admin: true},
+		{name: "MemberStartNonActive", command: "start", denied: true},
+		{name: "MemberStartActive", command: "start", active: true},
+		{name: "MemberStopNonActive", command: "stop"},
+		{name: "MemberUpdateNonActive", command: "update", denied: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{IncludeProvisionerDaemon: true},
+				LicenseOptions: &coderdenttest.LicenseOptions{Features: license.Features{
+					codersdk.FeatureAccessControl:              1,
+					codersdk.FeatureTemplateRBAC:               1,
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				}},
+			})
+			member, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+			client := member
+			if tc.admin {
+				client = ownerClient
+			}
+			version := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil)
+			coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, version.ID)
+			template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, version.ID)
+			ws := coderdtest.CreateWorkspace(t, client, template.ID)
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, ownerClient, ws.LatestBuild.ID)
+			if tc.command == "start" {
+				coderdtest.MustTransitionWorkspace(t, client, ws.ID,
+					codersdk.WorkspaceTransitionStart, codersdk.WorkspaceTransitionStop)
+			}
+			active := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil,
+				func(req *codersdk.CreateTemplateVersionRequest) {
+					req.TemplateID = template.ID
+				})
+			coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, active.ID)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			require.NoError(t, ownerClient.UpdateActiveTemplateVersion(ctx, template.ID,
+				codersdk.UpdateActiveTemplateVersion{ID: active.ID}))
+			coderdtest.UpdateTemplateMeta(t, ownerClient, template.ID,
+				codersdk.UpdateTemplateMeta{RequireActiveVersion: new(true)})
+			ws = coderdtest.MustWorkspace(t, client, ws.ID)
+			before := ws.LatestBuild
+			target := version
+			if tc.active {
+				target = active
+			}
+			args := []string{tc.command, ws.Name, "--template-version", target.Name, "-y"}
+			inv, root := newCLI(t, args...)
+			clitest.SetupConfig(t, client, root)
+			var output bytes.Buffer
+			inv.Stdout = &output
+			err := inv.Run()
+			after := coderdtest.MustWorkspace(t, client, ws.ID)
+			if tc.denied {
+				require.Error(t, err)
+				sdkErr, ok := codersdk.AsError(err)
+				require.True(t, ok)
+				require.Equal(t, http.StatusForbidden, sdkErr.StatusCode())
+				require.NotContains(t, output.String(), "Unable to start the workspace with")
+				if tc.command == "update" {
+					require.Contains(t, err.Error(), "workspace is stopped")
+					require.Equal(t, before.BuildNumber+1, after.LatestBuild.BuildNumber)
+					require.Equal(t, codersdk.WorkspaceTransitionStop, after.LatestBuild.Transition)
+					require.Equal(t, version.ID, after.LatestBuild.TemplateVersionID)
+				} else {
+					require.Equal(t, before.ID, after.LatestBuild.ID)
+				}
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, before.BuildNumber+1, after.LatestBuild.BuildNumber)
+			require.Equal(t, target.ID, after.LatestBuild.TemplateVersionID)
+		})
+	}
 }

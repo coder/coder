@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { organizationsPermissions } from "#/api/queries/organizations";
 import { templates, updateTemplateMeta } from "#/api/queries/templates";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { RequirePermission } from "#/modules/permissions/RequirePermission";

@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/openai/openai-go/v3"
@@ -84,7 +85,7 @@ func (i *interceptionBase) newCompletionsService(ctx context.Context) openai.Cha
 	// client headers plus provider auth.
 	if i.clientHeaders != nil {
 		opts = append(opts, option.WithMiddleware(func(req *http.Request, next option.MiddlewareNext) (*http.Response, error) {
-			req.Header = aibheaders.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg.SendActorHeaders, aibcontext.ActorFromContext(req.Context()))
+			req.Header = aibheaders.BuildUpstreamHeaders(req.Header, i.clientHeaders, i.cred.AuthHeader(), i.cfg.ActorHeaderNames, aibcontext.ActorFromContext(req.Context()))
 			return next(req)
 		}))
 	}
@@ -270,15 +271,17 @@ func (i *interceptionBase) hasInjectableTools() bool {
 
 // recordTokenUsage records the token usage for a single completion, accounting
 // for cache read and write tokens included in the prompt token count.
-func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID string, usage openai.CompletionUsage, serviceTier string) {
+func (i *interceptionBase) recordTokenUsage(ctx context.Context, msgID, providerModel string, usage openai.CompletionUsage, serviceTier string) {
 	var metadata recorder.Metadata
 	if serviceTier != "" {
 		metadata = recorder.Metadata{recorder.MetadataKeyServiceTier: serviceTier}
 	}
 
 	_ = i.recorder.RecordTokenUsage(ctx, &recorder.TokenUsageRecord{
+		CreatedAt:             time.Now().UTC(),
 		InterceptionID:        i.ID().String(),
 		MsgID:                 msgID,
+		ProviderModel:         providerModel,
 		Input:                 calculateActualInputTokenUsage(usage),
 		Output:                usage.CompletionTokens,
 		CacheReadInputTokens:  usage.PromptTokensDetails.CachedTokens,

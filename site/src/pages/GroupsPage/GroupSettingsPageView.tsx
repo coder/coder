@@ -35,7 +35,7 @@ type FormData = {
 };
 
 const validationSchema = Yup.object({
-	name: nameValidator("Name"),
+	name: nameValidator("Name", { maxLength: 255 }),
 	quota_allowance: Yup.number().required().min(0).integer(),
 	// Optional: empty means no budget. A value must be within the range; 0 disables.
 	monthly_budget_per_member: Yup.number()
@@ -46,7 +46,9 @@ const validationSchema = Yup.object({
 
 const BudgetDocsLink: React.FC = () => (
 	<Link
-		href={docs("/ai-coder/ai-gateway/cost-controls#effective-group-resolution")}
+		href={docs(
+			"/ai-governance/ai-gateway/cost-controls#effective-group-resolution",
+		)}
 		target="_blank"
 		rel="noreferrer"
 		size="sm"

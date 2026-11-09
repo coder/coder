@@ -1,15 +1,16 @@
 import { cn } from "cn";
 import { Profiler, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import type { UrlTransform } from "streamdown";
 import {
 	chatPromptsQuery,
+	organizationChatModelOverrides,
 	refreshChatContext,
 	userCompactionThresholds,
 } from "#/api/queries/chats";
 import { workspaces } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { getWorkspaceAgents } from "#/utils/workspace";
@@ -25,9 +26,10 @@ import {
 	getChatFileURL,
 	isWorkspaceFileReferencePart,
 } from "../utils/chatAttachments";
+import { resolveChatCompactionThreshold } from "../utils/compactionTriggers";
 import {
 	getProviderForModelOption,
-	resolveCompactionThreshold,
+	providerInfoByIDFromDescriptors,
 } from "../utils/modelOptions";
 import { CHAT_SLASH_COMMANDS } from "../utils/slashCommands";
 import {
@@ -46,13 +48,13 @@ import {
 	selectHasStreamState,
 	selectIsAwaitingFirstStreamChunk,
 	selectMessagesByID,
-	selectOrderedMessageIDs,
 	selectQueuedMessages,
 	selectReconnectState,
 	selectRetryState,
 	selectStreamError,
 	selectStreamState,
 	selectSubagentStatusOverrides,
+	useChatMessages,
 	useChatSelector,
 	type useChatStore,
 } from "./ChatConversation/chatStore";
@@ -70,16 +72,17 @@ import {
 	buildStreamTools,
 	excludeDurableCallResults,
 } from "./ChatConversation/streamState";
+import type { EditingTarget } from "./ChatConversation/types";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
+import {
+	ACPContext,
+	buildACPSessionDescriptors,
+} from "./ChatElements/tools/ACPContext";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
-
-const isChatMessage = (
-	message: TypesGen.ChatMessage | undefined,
-): message is TypesGen.ChatMessage => Boolean(message);
 
 // A resolved chat with no context (unpinned) or no resources authoritatively
 // has no workspace skills; only an unresolved chat leaves them unknown.
@@ -109,7 +112,7 @@ export const workspaceSkillsFromChat = (
 };
 
 type ChatPageTimelineProps = {
-	organizationId: string | undefined;
+	organizationId: string;
 	store: ChatStoreHandle;
 	chatFiles?: readonly TypesGen.ChatFileMetadata[];
 	persistedError: ChatDetailError | undefined;
@@ -119,16 +122,12 @@ type ChatPageTimelineProps = {
 	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
 	onFetchMoreMessages: () => Promise<unknown>;
-	onEditUserMessage?: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
-	) => void;
+	onEditUserMessage?: (messageId: number) => void;
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
-	urlTransform?: UrlTransform;
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
+	urlTransform: UrlTransform;
+	mcpServers: readonly TypesGen.MCPServerConfig[];
 	footer?: React.ReactNode;
 };
 
@@ -153,7 +152,6 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 }) => {
 	const [chatFullWidth] = useChatFullWidth();
 	const messagesByID = useChatSelector(store, selectMessagesByID);
-	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const hasStream = useChatSelector(store, selectHasStreamState);
 	const isAwaitingFirstStreamChunk = useChatSelector(
@@ -186,19 +184,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		liveStreamState?.toolResults,
 	);
 
-	const messages = orderedMessageIDs
-		.map((messageID) => {
-			const message = messagesByID.get(messageID);
-			if (!message && process.env.NODE_ENV !== "production") {
-				console.warn(
-					`[ChatPageContent] orderedMessageIDs contains ID ${messageID} ` +
-						"not found in messagesByID. This may indicate a store/cache " +
-						"desync bug.",
-				);
-			}
-			return message;
-		})
-		.filter(isChatMessage);
+	const messages = useChatMessages(store);
 	const pendingToolCallIDs = getPendingToolCallIDs(messages, chatStatus);
 	const parsedMessages = parseMessagesWithMergedTools(messages, {
 		pendingToolCallIDs,
@@ -206,57 +192,67 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	});
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
+	const acpSessions = buildACPSessionDescriptors([
+		...parsedMessages.flatMap(({ parsed }) => parsed.tools),
+		...streamTools,
+	]);
 	const onRenderProfiler = useOnRenderProfiler();
 
 	return (
-		<Profiler id="AgentChat" onRender={onRenderProfiler}>
-			<ChatMessageScroller
-				hasMoreMessages={hasMoreMessages}
-				isFetchingMoreMessages={isFetchingMoreMessages}
-				isHydratingMessages={isHydratingMessages}
-				hasFetchMoreError={hasFetchMoreError}
-				hasTranscriptRows={parsedMessages.length > 0}
-				onFetchMoreMessages={onFetchMoreMessages}
-			>
-				{/* VNC sessions for completed agents may already be
+		<ACPContext value={acpSessions}>
+			<Profiler id="AgentChat" onRender={onRenderProfiler}>
+				<ChatMessageScroller
+					hasMoreMessages={hasMoreMessages}
+					isFetchingMoreMessages={isFetchingMoreMessages}
+					isHydratingMessages={isHydratingMessages}
+					hasFetchMoreError={hasFetchMoreError}
+					hasTranscriptRows={parsedMessages.length > 0}
+					onFetchMoreMessages={onFetchMoreMessages}
+				>
+					{/* VNC sessions for completed agents may already be
 					   terminated, so inline desktop previews are disabled
 					   via showDesktopPreviews={false} to avoid a perpetual
 					   "disconnected" state. The MonitorIcon variant still
 					   renders correctly. */}
-				<ConversationTimeline
-					organizationId={organizationId}
-					parsedMessages={parsedMessages}
-					chatFiles={chatFiles}
-					initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
-					streamState={liveStreamState}
-					streamTools={streamTools}
-					liveStatus={liveStatus}
-					subagentStatusOverrides={subagentStatusOverrides}
-					subagentTitles={subagentTitles}
-					subagentVariants={subagentVariants}
-					onEditUserMessage={onEditUserMessage}
-					editingMessageId={editingMessageId}
-					onImplementPlan={onImplementPlan}
-					onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-					isChatCompleted={isChatCompleted}
-					hasActiveStream={hasStream}
-					isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-					urlTransform={urlTransform}
-					mcpServers={mcpServers}
-					showDesktopPreviews={false}
-				/>
-				<TerminalStatusRow liveStatus={liveStatus} />
-			</ChatMessageScroller>
-			{/* The empty state sits outside the scroller content, which holds
+					<ConversationTimeline
+						hasMoreMessages={hasMoreMessages}
+						chatStatus={chatStatus}
+						organizationId={organizationId}
+						parsedMessages={parsedMessages}
+						chatFiles={chatFiles}
+						initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
+						streamState={liveStreamState}
+						streamTools={streamTools}
+						liveStatus={liveStatus}
+						subagentStatusOverrides={subagentStatusOverrides}
+						subagentTitles={subagentTitles}
+						subagentVariants={subagentVariants}
+						onEditUserMessage={onEditUserMessage}
+						editingMessageId={editingMessageId}
+						onImplementPlan={onImplementPlan}
+						onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+						isChatCompleted={isChatCompleted}
+						hasActiveStream={hasStream}
+						isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+						urlTransform={urlTransform}
+						mcpServers={mcpServers}
+						showDesktopPreviews={false}
+					/>
+					<TerminalStatusRow liveStatus={liveStatus} />
+				</ChatMessageScroller>
+				{/* The empty state sits outside the scroller content, which holds
 			    transcript rows only. */}
-			<div className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}>
-				<LiveStreamTailContent
-					isTranscriptEmpty={parsedMessages.length === 0}
-					liveStatus={liveStatus}
-				/>
-				{footer}
-			</div>
-		</Profiler>
+				<div
+					className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}
+				>
+					<LiveStreamTailContent
+						isTranscriptEmpty={parsedMessages.length === 0}
+						liveStatus={liveStatus}
+					/>
+					{footer}
+				</div>
+			</Profiler>
+		</ACPContext>
 	);
 };
 
@@ -284,13 +280,16 @@ export type SendChatMessageOptions = {
 type ChatPageInputProps = {
 	chat: TypesGen.Chat;
 	store: ChatStoreHandle;
-	models: readonly TypesGen.ChatModel[] | undefined;
+	modelCatalog: TypesGen.OrganizationChatModelsResponse | undefined;
 	onSend: (options: SendChatMessageOptions) => Promise<void> | void;
 	onDeleteQueuedMessage: (id: number) => Promise<void>;
 	onPromoteQueuedMessage: (id: number) => Promise<void>;
+	onEditQueuedMessage?: (id: number) => void;
+	onEndQueuedMessageEdit?: (id: number) => Promise<void>;
 	onInterrupt: () => void;
 	isInputDisabled: boolean;
-	isReadOnly?: boolean;
+	isReadOnly: boolean;
+	readOnlyNotice?: string;
 	isSendPending: boolean;
 	isInterruptPending: boolean;
 	hasModelOptions: boolean;
@@ -300,40 +299,39 @@ type ChatPageInputProps = {
 	modelSelectorPlaceholder: string;
 	modelSelectorHelp?: React.ReactNode;
 	reasoningEffort?: string;
-	onReasoningEffortChange?: (value: string) => void;
+	onReasoningEffortChange: (value: string) => void;
 	canConfigureAgentSetup: boolean;
 	providerCount?: number;
 	modelCount?: number;
-	unsupportedProviderNames?: readonly string[];
+	unsupportedProviderNames: readonly string[];
 	aiGatewayDisabled?: boolean;
-	onPlanModeToggle?: (enabled: boolean) => void;
-	isModelCatalogLoading?: boolean;
+	onPlanModeToggle: (enabled: boolean) => void;
+	isModelCatalogLoading: boolean;
 	// Imperative editor handle plus the one-time initial draft,
 	// owned by the conversation component.
-	inputRef?: React.Ref<ChatMessageInputRef>;
-	initialValue?: string;
+	inputRef: React.RefObject<ChatMessageInputRef | null>;
+	initialValue: string;
 	initialEditorState?: string;
-	remountKey?: number;
-	onContentChange?: (
+	remountKey: number;
+	onContentChange: (
 		content: string,
 		serializedEditorState: string,
 		hasFileReferences: boolean,
 	) => void;
-	isEditing: boolean;
-	onCancelHistoryEdit: () => void;
+	editingTarget: EditingTarget | null;
+	queuedMessageUnderEditID: number | null;
+	onCancelEdit: () => void;
 	// File parts from the message being edited, converted to
 	// File objects and pre-populated into attachments.
-	editingFileBlocks?: readonly TypesGen.ChatMessagePart[];
+	editingFileBlocks: readonly TypesGen.ChatMessagePart[];
 	// MCP server picker state.
-	mcpServers?: readonly TypesGen.MCPServerConfig[];
-	selectedMCPServerIds?: readonly string[];
-	onMCPSelectionChange?: (ids: string[]) => void;
-	onMCPAuthComplete?: (serverId: string) => void;
+	mcpServers: readonly TypesGen.MCPServerConfig[];
+	selectedMCPServerIds: readonly string[];
+	onMCPSelectionChange: (ids: string[]) => void;
 	onWorkspaceChange?: (workspaceId: string | null) => void;
-	isWorkspaceLoading?: boolean;
+	isWorkspaceLoading: boolean;
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
-	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
 };
@@ -341,13 +339,16 @@ type ChatPageInputProps = {
 export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	chat,
 	store,
-	models,
+	modelCatalog,
 	onSend,
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
+	onEditQueuedMessage,
+	onEndQueuedMessageEdit,
 	onInterrupt,
 	isInputDisabled,
-	isReadOnly = false,
+	isReadOnly,
+	readOnlyNotice,
 	isSendPending,
 	isInterruptPending,
 	hasModelOptions,
@@ -364,24 +365,23 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 	unsupportedProviderNames,
 	aiGatewayDisabled,
 	onPlanModeToggle,
-	isModelCatalogLoading = false,
+	isModelCatalogLoading,
 	inputRef,
 	initialValue,
 	initialEditorState,
 	remountKey,
 	onContentChange,
-	isEditing,
-	onCancelHistoryEdit,
+	editingTarget,
+	queuedMessageUnderEditID,
+	onCancelEdit,
 	editingFileBlocks,
 	mcpServers,
 	selectedMCPServerIds,
 	onMCPSelectionChange,
-	onMCPAuthComplete,
 	onWorkspaceChange,
-	isWorkspaceLoading = false,
+	isWorkspaceLoading,
 	workspace,
 	workspaceAgent,
-	sshCommand,
 	attachedWorkspace,
 	folder,
 }) => {
@@ -399,32 +399,25 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		currentUser.id,
 	);
 	const thresholdsQuery = useQuery(userCompactionThresholds());
-	const compressionThreshold = resolveCompactionThreshold(
-		chat.last_model_config_id,
-		thresholdsQuery.data?.thresholds,
-		models,
+	const modelOverridesQuery = useQuery(
+		organizationChatModelOverrides(organizationId),
 	);
-	const messagesByID = useChatSelector(store, selectMessagesByID);
-	const orderedMessageIDs = useChatSelector(store, selectOrderedMessageIDs);
+	const compactionThreshold = modelOverridesQuery.isPending
+		? undefined
+		: resolveChatCompactionThreshold(
+				chat.last_model_config_id,
+				thresholdsQuery.data?.thresholds,
+				modelCatalog?.models,
+				providerInfoByIDFromDescriptors(modelCatalog?.providers),
+				modelOverridesQuery,
+			);
 	const hasStreamState = useChatSelector(store, selectHasStreamState);
 	const chatStatus = useChatSelector(store, selectChatStatus);
 	const queuedMessages = useChatSelector(store, selectQueuedMessages);
 
-	const messages = orderedMessageIDs
-		.map((messageID) => {
-			const message = messagesByID.get(messageID);
-			if (!message && process.env.NODE_ENV !== "production") {
-				console.warn(
-					`[ChatPageContent] orderedMessageIDs contains ID ${messageID} ` +
-						"not found in messagesByID. This may indicate a store/cache " +
-						"desync bug.",
-				);
-			}
-			return message;
-		})
-		.filter(isChatMessage);
+	const messages = useChatMessages(store);
 	// Source the composer's prompt-history cycle from the dedicated /prompts endpoint.
-	const { data: promptsData } = useQuery(chatPromptsQuery(chatId ?? ""));
+	const { data: promptsData } = useQuery(chatPromptsQuery(chatId));
 	const userPromptHistory: readonly string[] =
 		promptsData?.prompts.map((prompt) => prompt.text) ?? [];
 
@@ -432,25 +425,20 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		messages,
 		modelOptions.find((option) => option.id === selectedModel)?.contextLimit,
 	);
-	const latestContextUsage =
-		rawUsage || chatContext
-			? {
-					...(rawUsage ?? {}),
-					compressionThreshold,
-					context: chatContext,
-				}
-			: rawUsage;
+	const latestContextUsage = {
+		...rawUsage,
+		compactionThreshold,
+		context: chatContext,
+	};
 	const queryClient = useQueryClient();
 	const refreshContextMutation = useMutation(
-		refreshChatContext(queryClient, chatId ?? ""),
+		refreshChatContext(queryClient, chatId),
 	);
-	const handleRefreshContext = chatId
-		? () =>
-				refreshContextMutation.mutate(undefined, {
-					onSuccess: () => toast.success("Context refreshed."),
-					onError: () => toast.error("Failed to refresh context."),
-				})
-		: undefined;
+	const handleRefreshContext = () =>
+		refreshContextMutation.mutate(undefined, {
+			onSuccess: () => toast.success("Context refreshed."),
+			onError: () => toast.error("Failed to refresh context."),
+		});
 	const composeAttachments = useChatDraftAttachments(organizationId, chatId, {
 		provider: getProviderForModelOption(modelOptions, selectedModel),
 	});
@@ -480,6 +468,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		setUploadStates: setEditUploadStates,
 		resetAttachments: resetEditAttachments,
 	} = editAttachments;
+	const isEditing = editingTarget !== null;
 	const wasEditingRef = useRef(isEditing);
 	const modeAttachments = isEditing ? editAttachments : composeAttachments;
 	const {
@@ -529,7 +518,7 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 		if (!isEditing) {
 			return;
 		}
-		if (!editingFileBlocks || editingFileBlocks.length === 0) {
+		if (editingFileBlocks.length === 0) {
 			setEditAttachments([]);
 			setEditUploadStates(new Map());
 			setEditPreviewUrls(new Map());
@@ -810,11 +799,19 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			queuedMessages={queuedMessages}
 			onDeleteQueuedMessage={onDeleteQueuedMessage}
 			onPromoteQueuedMessage={onPromoteQueuedMessage}
-			isEditingHistoryMessage={isEditing}
-			onCancelHistoryEdit={onCancelHistoryEdit}
+			onEditQueuedMessage={onEditQueuedMessage}
+			onEndQueuedMessageEdit={onEndQueuedMessageEdit}
+			isChatPaused={chatStatus === "paused"}
+			queuedMessageUnderEditID={queuedMessageUnderEditID}
+			composerQueuedMessageID={
+				editingTarget?.kind === "queued" ? editingTarget.id : null
+			}
+			editingKind={editingTarget?.kind}
+			onCancelEdit={onCancelEdit}
 			userPromptHistory={userPromptHistory}
 			isDisabled={isInputDisabled}
 			isReadOnly={isReadOnly}
+			readOnlyNotice={readOnlyNotice}
 			isLoading={isSendPending}
 			isStreaming={isStreaming}
 			onInterrupt={onInterrupt}
@@ -834,18 +831,18 @@ export const ChatPageInput: React.FC<ChatPageInputProps> = ({
 			isModelCatalogLoading={isModelCatalogLoading}
 			workspaceOptions={workspaceOptions}
 			chatOrganizationId={organizationId}
+			chatProjectId={chat.project_id}
+			showProjectActions
 			selectedWorkspaceId={selectedWorkspaceId}
 			onWorkspaceChange={onWorkspaceChange}
 			isWorkspaceLoading={workspacesQuery.isLoading || isWorkspaceLoading}
 			mcpServers={mcpServers}
 			selectedMCPServerIds={selectedMCPServerIds}
 			onMCPSelectionChange={onMCPSelectionChange}
-			onMCPAuthComplete={onMCPAuthComplete}
 			workspaceSkills={workspaceSkills}
 			workspace={workspace}
 			workspaceAgent={workspaceAgent}
 			chatId={chatId}
-			sshCommand={sshCommand}
 			attachedWorkspace={attachedWorkspace}
 			folder={folder}
 			canConfigureAgentSetup={canConfigureAgentSetup}

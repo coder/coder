@@ -225,13 +225,33 @@ newStream:
 		// sent any event downstream.
 		var iterationStarted bool
 
-		for stream.Next() {
+		// accumulateErr is the first accumulation failure in this iteration.
+		// Events are still relayed, but injected tools cannot trust the input.
+		var accumulateErr error
+		var messageStopped bool
+
+		for {
+			if !stream.Next() {
+				// An upstream that closes cleanly before message_stop leaves the
+				// client without a terminal event, so the accumulation failure
+				// must be reported.
+				if accumulateErr != nil && !messageStopped {
+					lastErr = xerrors.Errorf("accumulate event: %w", accumulateErr)
+				}
+				break
+			}
 			iterationStarted = true
 			event := stream.Current()
-			if err := message.Accumulate(event); err != nil {
+			if err := message.Accumulate(event); err != nil && accumulateErr == nil {
 				logger.Warn(ctx, "failed to accumulate streaming events", slog.Error(err), slog.F("event", event), slog.F("msg", message.RawJSON()))
-				lastErr = xerrors.Errorf("accumulate event: %w", err)
-				break
+				accumulateErr = err
+			}
+			if event.Type == string(constant.ValueOf[constant.MessageStop]()) {
+				messageStopped = true
+				if accumulateErr != nil && len(pendingToolCalls) > 0 {
+					lastErr = xerrors.Errorf("accumulate event: %w", accumulateErr)
+					break
+				}
 			}
 
 			// Tool-related handling.
@@ -264,7 +284,7 @@ newStream:
 				start := event.AsMessageStart()
 				serviceTier = start.Message.Usage.ServiceTier
 				accumulateUsage(&cumulativeUsage, start.Message.Usage)
-				i.recordTokenUsage(streamCtx, message.ID, start.Message.Usage)
+				i.recordTokenUsage(streamCtx, message.ID, message.Model, start.Message.Usage)
 
 				if !isFirst {
 					// Don't send message_start unless first message!
@@ -277,10 +297,17 @@ newStream:
 				accumulateUsage(&cumulativeUsage, delta.Usage)
 
 				// Only output tokens should change in message_delta.
-				i.recordTokenUsage(streamCtx, message.ID, anthropic.Usage{
+				i.recordTokenUsage(streamCtx, message.ID, message.Model, anthropic.Usage{
 					OutputTokens: delta.Usage.OutputTokens,
 					ServiceTier:  serviceTier,
 				})
+
+				// A turn that stopped for another reason (e.g. max_tokens) may carry
+				// truncated tool input, so injected tools must not run. An empty
+				// stop reason marks an interim delta.
+				if stopReason := delta.Delta.StopReason; stopReason != "" && stopReason != anthropic.StopReasonToolUse {
+					clear(pendingToolCalls)
+				}
 
 				// Don't relay message_delta events which indicate injected tool use.
 				if len(pendingToolCalls) > 0 && i.mcpProxy != nil && i.mcpProxy.GetTool(lastToolName) != nil {
@@ -315,6 +342,7 @@ newStream:
 				// Capture any thinking blocks that were returned.
 				for _, t := range i.extractModelThoughts(&message) {
 					_ = i.recorder.RecordModelThought(ctx, &recorder.ModelThoughtRecord{
+						CreatedAt:      time.Now().UTC(),
 						InterceptionID: i.ID().String(),
 						Content:        t.Content,
 						Metadata:       t.Metadata,
@@ -366,6 +394,7 @@ newStream:
 						res, err := tool.Call(streamCtx, input, i.tracer)
 
 						_ = i.recorder.RecordToolUsage(streamCtx, &recorder.ToolUsageRecord{
+							CreatedAt:       time.Now().UTC(),
 							InterceptionID:  i.ID().String(),
 							MsgID:           message.ID,
 							ToolCallID:      id,
@@ -489,12 +518,19 @@ newStream:
 							continue
 						}
 
+						// A failed accumulation leaves the block's raw JSON, and so
+						// variant.Input, stale; block.Input holds the streamed input.
+						var args recorder.ToolArgs = block.Input
+						if !json.Valid(block.Input) {
+							args = string(block.Input)
+						}
 						_ = i.recorder.RecordToolUsage(streamCtx, &recorder.ToolUsageRecord{
+							CreatedAt:      time.Now().UTC(),
 							InterceptionID: i.ID().String(),
 							MsgID:          message.ID,
 							ToolCallID:     variant.ID,
 							Tool:           variant.Name,
-							Args:           variant.Input,
+							Args:           args,
 							Injected:       false,
 						})
 					}
@@ -521,6 +557,7 @@ newStream:
 
 		if promptFound {
 			_ = i.recorder.RecordPromptUsage(ctx, &recorder.PromptUsageRecord{
+				CreatedAt:      time.Now().UTC(),
 				InterceptionID: i.ID().String(),
 				MsgID:          message.ID,
 				Prompt:         prompt,

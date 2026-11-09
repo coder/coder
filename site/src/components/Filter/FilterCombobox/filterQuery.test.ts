@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-	categoryPreview,
 	chipDisplay,
 	collectValueSuggestions,
 	composeFilterQuery,
@@ -108,6 +107,21 @@ describe("filterQuery", () => {
 		).toEqual(["owner:alice", "status:running"]);
 	});
 
+	it("keeps owner and user tokens as separate chips", () => {
+		const chipKeys = ["owner", "user", "status"];
+		const query = "user:me owner:alice status:running";
+
+		expect(queryToChips(query, chipKeys)).toEqual([
+			"user:me",
+			"owner:alice",
+			"status:running",
+		]);
+		expect(extractFreeText(query, chipKeys)).toBe("");
+		expect(
+			composeFilterQuery(["user:me", "owner:alice"], chipKeys, "dev"),
+		).toBe("user:me owner:alice dev");
+	});
+
 	it("matches typed category prefixes by key, label, and alias", () => {
 		const categories = [
 			{ key: "owner", label: "Owner", aliases: ["user"] },
@@ -116,16 +130,19 @@ describe("filterQuery", () => {
 
 		expect(parseTypedCategoryPrefix("owner:me", categories)).toEqual({
 			categoryKey: "owner",
+			typedKey: "owner",
 			query: "me",
 			freeText: "",
 		});
 		expect(parseTypedCategoryPrefix("user:", categories)).toEqual({
 			categoryKey: "owner",
+			typedKey: "user",
 			query: "",
 			freeText: "",
 		});
 		expect(parseTypedCategoryPrefix("Status:running", categories)).toEqual({
 			categoryKey: "status",
+			typedKey: "status",
 			query: "running",
 			freeText: "",
 		});
@@ -141,6 +158,7 @@ describe("filterQuery", () => {
 			]),
 		).toEqual({
 			categoryKey: "owner",
+			typedKey: "owner",
 			query: "al",
 			freeText: "has-agent:connected",
 		});
@@ -151,6 +169,7 @@ describe("filterQuery", () => {
 
 		expect(parseTypedCategoryPrefix("pink owner:", categories)).toEqual({
 			categoryKey: "owner",
+			typedKey: "owner",
 			query: "",
 			freeText: "pink",
 		});
@@ -158,6 +177,7 @@ describe("filterQuery", () => {
 			parseTypedCategoryPrefix("pink-mockingbird-23 user:al", categories),
 		).toEqual({
 			categoryKey: "owner",
+			typedKey: "user",
 			query: "al",
 			freeText: "pink-mockingbird-23",
 		});
@@ -225,7 +245,12 @@ describe("filterQuery", () => {
 			collectValueSuggestions("test", categories, optionsByKey, [
 				"owner:testuser01",
 			]),
-		).toEqual([]);
+		).toEqual([
+			expect.objectContaining({
+				selected: true,
+				token: "owner:testuser01",
+			}),
+		]);
 	});
 
 	it("uses an option's explicit token when suggesting values", () => {
@@ -245,12 +270,16 @@ describe("filterQuery", () => {
 				(suggestion) => suggestion.token,
 			),
 		).toEqual(["outdated:true"]);
-		// An already-applied attribute chip is filtered out by its token.
 		expect(
 			collectValueSuggestions("dormant", categories, optionsByKey, [
 				"dormant:true",
 			]),
-		).toEqual([]);
+		).toEqual([
+			expect.objectContaining({
+				selected: true,
+				token: "dormant:true",
+			}),
+		]);
 	});
 });
 
@@ -259,6 +288,25 @@ describe("chipDisplay", () => {
 		{ key: "owner" },
 		{ key: "attribute", chipKeys: ["outdated", "dormant", "shared"] },
 	];
+
+	it("displays widened user tokens using the Owner category", () => {
+		expect(
+			chipDisplay("user:alice", [
+				{
+					key: "owner",
+					chipKeys: ["owner", "user"],
+					scopeToggle: {
+						label: (value: string | undefined) => `Include ${value}`,
+						widenedKey: "user",
+						pillLabel: "include shared",
+						pillRemoveLabel: (owner: string) =>
+							`Hide workspaces shared with ${owner}`,
+						searchPhrase: "shared with owner",
+					},
+				},
+			]),
+		).toEqual({ key: "owner", value: "alice" });
+	});
 
 	it("shows single-key chips as-is", () => {
 		expect(chipDisplay("owner:me", categories)).toEqual({
@@ -283,75 +331,5 @@ describe("chipDisplay", () => {
 			key: "",
 			value: "plain",
 		});
-	});
-});
-
-describe("categoryPreview", () => {
-	const statusOptions = [
-		{ label: "Running", value: "running" },
-		{ label: "Stopped", value: "stopped" },
-		{ label: "Failed", value: "failed" },
-		{ label: "Pending", value: "pending" },
-		{ label: "Starting", value: "starting" },
-	];
-
-	it("samples the first options when nothing is applied", () => {
-		expect(
-			categoryPreview({ key: "status" }, ["owner:me"], statusOptions),
-		).toEqual({ selected: [], hint: "Running, Stopped, Failed, Pending" });
-	});
-
-	it("prefers a fixed category hint over the options sample", () => {
-		expect(
-			categoryPreview(
-				{ key: "owner", hint: "me" },
-				[],
-				[{ label: "alice", value: "alice" }],
-			),
-		).toEqual({ selected: [], hint: "me" });
-	});
-
-	it("has no hint while options are still loading", () => {
-		expect(categoryPreview({ key: "template" }, [], undefined).hint).toBe("");
-	});
-
-	it("shows applied chips by option label", () => {
-		expect(
-			categoryPreview({ key: "status" }, ["status:stopped"], statusOptions)
-				.selected,
-		).toEqual(["Stopped"]);
-	});
-
-	it("prefers an option's applied label", () => {
-		expect(
-			categoryPreview(
-				{ key: "owner" },
-				["owner:me"],
-				[{ label: "admin (you)", appliedLabel: "me", value: "me" }],
-			).selected,
-		).toEqual(["me"]);
-	});
-
-	it("shows the raw value when the chip has no matching option", () => {
-		expect(
-			categoryPreview(
-				{ key: "owner" },
-				["owner:me"],
-				[{ label: "alice", value: "alice" }],
-			).selected,
-		).toEqual(["me"]);
-	});
-
-	it("lists every applied chip of a multi-key category", () => {
-		expect(
-			categoryPreview(
-				{ key: "attribute", chipKeys: ["outdated", "dormant"] },
-				["outdated:true", "dormant:true"],
-				[
-					{ label: "Outdated", value: "outdated", token: "outdated:true" },
-					{ label: "Dormant", value: "dormant", token: "dormant:true" },
-				],
-			).selected,
-		).toEqual(["Outdated", "Dormant"]);
 	});
 });

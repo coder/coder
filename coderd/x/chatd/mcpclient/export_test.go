@@ -79,8 +79,11 @@ const MaxInlineHTTPResponseBytesForTest = maxInlineHTTPResponseBytes
 // tests.
 var BuildAuthHeadersForTest = buildAuthHeaders
 
-// SummaryErrorForTest exposes summaryError for external tests.
-var SummaryErrorForTest = summaryError
+// SummaryErrorForTest renders err as an org server's persisted connect
+// error.
+func SummaryErrorForTest(err error) string {
+	return summaryError(connectionKindOrg, secretRedactor{}, err)
+}
 
 // MaxSummaryErrorLenForTest exposes the persisted-error byte cap for
 // external tests.

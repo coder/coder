@@ -35,6 +35,10 @@ OPTIONS:
           The path for the agent firewall log proxy server Unix socket. Agent
           firewall should write audit logs to this socket.
 
+      --agent-flight-recorder-size int, $CODER_AGENT_FLIGHT_RECORDER_SIZE (default: 1000)
+          Number of log entries below the current log level to keep in memory
+          and emit on errors. Set to 0 to disable the flight recorder.
+
       --agent-header string-array, $CODER_AGENT_HEADER
           Additional HTTP headers added to all requests. Provide as key=value.
           Can be specified multiple times.

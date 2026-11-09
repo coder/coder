@@ -40,9 +40,15 @@ import (
 	"github.com/coder/serpent"
 )
 
-func workspaceAgent() *serpent.Command {
+// defaultAgentFlightRecorderSize is the default number of log entries below the
+// current log level that the agent keeps in memory and emits when it logs an
+// error, such as losing its connection to coderd.
+const defaultAgentFlightRecorderSize = 1000
+
+func (r *RootCmd) workspaceAgent() *serpent.Command {
 	var (
 		logDir                          string
+		flightRecorderSize              int64
 		scriptDataDir                   string
 		pprofAddress                    string
 		noReap                          bool
@@ -167,7 +173,16 @@ func workspaceAgent() *serpent.Command {
 			defer logWriter.Close()
 
 			sinks = append(sinks, sloghuman.Sink(logWriter))
-			logger := inv.Logger.AppendSinks(sinks...).Leveled(slog.LevelDebug)
+			// Run at Info (Debug with -v) and always attach a flight recorder.
+			// Below-level (debug) entries are kept in a rolling in-memory history and
+			// emitted when an error is logged (see agent.runLoop), so the detail
+			// leading up to a failure is available without logging debug during
+			// normal operation. At Debug the recorder has nothing to record.
+			level := slog.LevelInfo
+			if r.verbose {
+				level = slog.LevelDebug
+			}
+			logger := inv.Logger.AppendSinks(sinks...).Leveled(level).FlightRecorder(int(flightRecorderSize))
 
 			// Handle interrupt signals to allow for graceful shutdown,
 			// note that calling stopNotify disables the signal handler
@@ -495,6 +510,14 @@ func workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_LOGGING_STACKDRIVER",
 			Default:     "",
 			Value:       serpent.StringOf(&slogStackdriverPath),
+		},
+		{
+			Flag:    "agent-flight-recorder-size",
+			Env:     "CODER_AGENT_FLIGHT_RECORDER_SIZE",
+			Default: strconv.Itoa(defaultAgentFlightRecorderSize),
+			Description: "Number of log entries below the current log level to keep " +
+				"in memory and emit on errors. Set to 0 to disable the flight recorder.",
+			Value: serpent.Int64Of(&flightRecorderSize),
 		},
 		{
 			Flag:        "block-file-transfer",

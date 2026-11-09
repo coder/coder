@@ -99,7 +99,7 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = ({
 				}
 			>
 				<PageHeaderTitle>
-					<div className="flex flex-row gap-2 items-center">
+					<div className="flex gap-2 items-center">
 						<span>Workspaces</span>
 						<WorkspaceHelpPopover />
 					</div>
@@ -179,7 +179,10 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = ({
 				) : (
 					!pageNumberIsInvalid && (
 						<PaginationAmount
-							paginationUnitLabel="workspaces"
+							paginationUnitLabel={{
+								singular: "workspace",
+								plural: "workspaces",
+							}}
 							limit={limit}
 							totalRecords={count}
 							currentOffsetStart={(page - 1) * limit + 1}

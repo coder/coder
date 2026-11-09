@@ -6,13 +6,36 @@
       "00000000-0000-0000-0000-000000000001"
     ],
     "active_users": 2,
+    "usage_total_seconds": 8940,
     "apps_usage": [
       {
         "template_ids": [
           "00000000-0000-0000-0000-000000000001"
         ],
-        "type": "builtin",
-        "display_name": "Visual Studio Code",
+        "method": "ssh",
+        "display_name": "JetBrains",
+        "slug": "jetbrains",
+        "icon": "/icon/jetbrains.svg",
+        "seconds": 120,
+        "times_used": 0
+      },
+      {
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001"
+        ],
+        "method": "ssh",
+        "display_name": "SSH",
+        "slug": "ssh",
+        "icon": "/icon/terminal.svg",
+        "seconds": 7920,
+        "times_used": 0
+      },
+      {
+        "template_ids": [
+          "00000000-0000-0000-0000-000000000001"
+        ],
+        "method": "ssh",
+        "display_name": "VS Code",
         "slug": "vscode",
         "icon": "/icon/code.svg",
         "seconds": 3600,
@@ -22,47 +45,7 @@
         "template_ids": [
           "00000000-0000-0000-0000-000000000001"
         ],
-        "type": "builtin",
-        "display_name": "JetBrains",
-        "slug": "jetbrains",
-        "icon": "/icon/intellij.svg",
-        "seconds": 120,
-        "times_used": 0
-      },
-      {
-        "template_ids": [],
-        "type": "builtin",
-        "display_name": "Web Terminal",
-        "slug": "reconnecting-pty",
-        "icon": "/icon/terminal.svg",
-        "seconds": 0,
-        "times_used": 0
-      },
-      {
-        "template_ids": [
-          "00000000-0000-0000-0000-000000000001"
-        ],
-        "type": "builtin",
-        "display_name": "SSH",
-        "slug": "ssh",
-        "icon": "/icon/terminal.svg",
-        "seconds": 7920,
-        "times_used": 0
-      },
-      {
-        "template_ids": [],
-        "type": "builtin",
-        "display_name": "SFTP",
-        "slug": "sftp",
-        "icon": "/icon/terminal.svg",
-        "seconds": 0,
-        "times_used": 0
-      },
-      {
-        "template_ids": [
-          "00000000-0000-0000-0000-000000000001"
-        ],
-        "type": "app",
+        "method": "workspace_app",
         "display_name": "app1",
         "slug": "app1",
         "icon": "/icon1.png",
@@ -73,7 +56,7 @@
         "template_ids": [
           "00000000-0000-0000-0000-000000000001"
         ],
-        "type": "app",
+        "method": "workspace_app",
         "display_name": "app3",
         "slug": "app3",
         "icon": "/icon2.png",

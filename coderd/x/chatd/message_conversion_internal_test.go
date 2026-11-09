@@ -1,6 +1,8 @@
 package chatd
 
 import (
+	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -8,9 +10,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
+	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestBuildAssistantParts_PromotesToolAttachments(t *testing.T) {
@@ -237,4 +245,97 @@ func TestBuildAssistantParts_MissingReasoningTimestamps(t *testing.T) {
 	require.Equal(t, codersdk.ChatMessagePartTypeReasoning, parts[0].Type)
 	require.Nil(t, parts[0].CreatedAt)
 	require.Nil(t, parts[0].CompletedAt)
+}
+
+func TestACPResultProjectionsCommit(t *testing.T) {
+	t.Parallel()
+	model := json.RawMessage(`{"response":"answer"}`)
+	user := json.RawMessage(`{"messages":[{"role":"assistant","content":[{"type":"reasoning","text":"private reasoning"}]}]}`)
+	response := chattool.WithUserResult(fantasy.NewTextResponse(string(model)), user)
+	result := fantasy.ToolResultContent{ToolCallID: "wait", ToolName: "acp_wait_agent", Result: fantasy.ToolResultOutputContentText{Text: string(model)}, ClientMetadata: response.Metadata}
+	call := fantasy.ToolCallContent{ToolCallID: "wait", ToolName: "acp_wait_agent", Input: `{"harness_id":"test","session_id":"x","working_directory":"/work"}`}
+	commit, err := buildCommitStepMessages(buildCommitStepMessagesInput{logger: slog.Make(), contentVersion: chatprompt.CurrentContentVersion, step: stepData{Content: []fantasy.Content{call, result}}})
+	require.NoError(t, err)
+	require.Len(t, commit.Messages, 3)
+	require.Equal(t, database.ChatMessageVisibilityUser, commit.Messages[1].Visibility)
+	require.Equal(t, database.ChatMessageVisibilityModel, commit.Messages[2].Visibility)
+	require.Contains(t, string(commit.Messages[1].Content.RawMessage), "private reasoning")
+	require.NotContains(t, string(commit.Messages[2].Content.RawMessage), "private reasoning")
+	require.JSONEq(t, string(model), string(parseMessageParts(t, commit.Messages[2].Role, commit.Messages[2].Content)[0].Result))
+	// Generation and compaction both consume this conversion of prompt rows.
+	rows := make([]database.ChatMessage, 0, len(commit.Messages))
+	for _, message := range commit.Messages {
+		rows = append(rows, database.ChatMessage{Role: message.Role, Content: message.Content, Visibility: message.Visibility, ContentVersion: message.ContentVersion})
+	}
+	prompt, err := chatprompt.ConvertMessagesWithFiles(context.Background(), rows, nil, slog.Make(), nil, uuid.NullUUID{})
+	require.NoError(t, err)
+	encoded, err := json.Marshal(prompt)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "private reasoning")
+	require.Contains(t, string(encoded), "answer")
+}
+
+func TestACPResultProjectionsInterrupt(t *testing.T) {
+	t.Parallel()
+
+	model := json.RawMessage(`{"response":"answer"}`)
+	user := json.RawMessage(`{"messages":[{"role":"assistant","content":[{"type":"reasoning","text":"private reasoning"}]}]}`)
+	tool := fantasy.NewAgentTool("acp_wait_agent", "test tool", func(context.Context, struct{}, fantasy.ToolCall) (fantasy.ToolResponse, error) {
+		return chattool.WithUserResult(fantasy.NewTextResponse(string(model)), user), nil
+	})
+	clock := quartz.NewMock(t)
+	buffer := messagepartbuffer.New(messagepartbuffer.Options{Clock: clock})
+	t.Cleanup(buffer.Close)
+	key := messagepartbuffer.Key{ChatID: uuid.New(), HistoryVersion: 1, GenerationAttempt: 1}
+	require.NoError(t, buffer.CreateEpisode(key))
+	args := json.RawMessage(`{"harness_id":"test","session_id":"x","working_directory":"/work"}`)
+	require.NoError(t, buffer.AddPart(key, codersdk.ChatMessageRoleAssistant, codersdk.ChatMessageToolCall("wait", "acp_wait_agent", args)))
+	_, err := chatloop.ExecuteLocalTools(t.Context(), chatloop.ExecuteLocalToolsOptions{
+		Clock:       clock,
+		Tools:       []fantasy.AgentTool{tool},
+		ActiveTools: []string{"acp_wait_agent"},
+		ToolCalls:   []fantasy.ToolCallContent{{ToolCallID: "wait", ToolName: "acp_wait_agent", Input: string(args)}},
+		PublishMessagePart: func(role codersdk.ChatMessageRole, part codersdk.ChatMessagePart) {
+			require.NoError(t, buffer.AddPart(key, role, part))
+		},
+		Logger: testutil.Logger(t),
+	})
+	require.NoError(t, err)
+
+	// Interrupt after the result is published but before the step commits.
+	require.NoError(t, buffer.CloseEpisode(key))
+	parts, err := buffer.GetParts(key)
+	require.NoError(t, err)
+	require.Len(t, parts, 2)
+	require.JSONEq(t, string(user), string(parts[1].MessagePart.Result))
+	partial, err := bufferedPartsToPartialMessages(bufferedPartsToPartialMessagesInput{
+		parts:          parts,
+		contentVersion: chatprompt.CurrentContentVersion,
+		logger:         testutil.Logger(t),
+		interruptedAt:  clock.Now(),
+	})
+	require.NoError(t, err)
+	require.Len(t, partial, 3)
+	require.Equal(t, database.ChatMessageVisibilityUser, partial[1].Visibility)
+	userPart := parseMessageParts(t, partial[1].Role, partial[1].Content)[0]
+	require.JSONEq(t, string(user), string(userPart.Result))
+	require.False(t, userPart.IsError)
+	require.Equal(t, database.ChatMessageVisibilityModel, partial[2].Visibility)
+	modelPart := parseMessageParts(t, partial[2].Role, partial[2].Content)[0]
+	require.Equal(t, "wait", modelPart.ToolCallID)
+	require.Equal(t, "acp_wait_agent", modelPart.ToolName)
+	require.True(t, modelPart.IsError)
+	require.JSONEq(t, `{"error":"tool call was interrupted"}`, string(modelPart.Result))
+	require.Equal(t, userPart.CreatedAt, modelPart.CreatedAt)
+
+	rows := make([]database.ChatMessage, 0, len(partial))
+	for _, message := range partial {
+		rows = append(rows, database.ChatMessage{Role: message.Role, Content: message.Content, Visibility: message.Visibility, ContentVersion: message.ContentVersion})
+	}
+	prompt, err := chatprompt.ConvertMessagesWithFiles(t.Context(), rows, nil, testutil.Logger(t), nil, uuid.NullUUID{})
+	require.NoError(t, err)
+	encoded, err := json.Marshal(prompt)
+	require.NoError(t, err)
+	require.NotContains(t, string(encoded), "private reasoning")
+	require.Contains(t, string(encoded), "tool call was interrupted")
 }

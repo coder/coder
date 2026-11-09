@@ -1,7 +1,6 @@
 import { saveAs } from "file-saver";
 import { ChevronDownIcon, DownloadIcon, PackageIcon } from "lucide-react";
 import { useState } from "react";
-import { toast } from "sonner";
 import { getErrorDetail } from "#/api/errors";
 import { Button } from "#/components/Button/Button";
 import {
@@ -10,6 +9,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { toast } from "#/components/Toaster/toast";
 
 type DownloadableLogSet = {
 	label: string;

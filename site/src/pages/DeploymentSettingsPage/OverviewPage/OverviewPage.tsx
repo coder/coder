@@ -5,6 +5,7 @@ import {
 	experiments,
 	isKnownExperiment,
 } from "#/api/queries/experiments";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
 import { useDeploymentConfig } from "#/modules/management/DeploymentConfigProvider";
 import { pageTitle } from "#/utils/page";
@@ -14,8 +15,9 @@ const OverviewPage: React.FC = () => {
 	const { deploymentConfig } = useDeploymentConfig();
 	const safeExperimentsQuery = useQuery(availableExperiments());
 
+	const { user } = useAuthenticated();
 	const { metadata } = useEmbeddedMetadata();
-	const enabledExperimentsQuery = useQuery(experiments(metadata.experiments));
+	const enabledExperimentsQuery = useQuery(experiments(user.id, metadata));
 
 	const safeExperiments = safeExperimentsQuery.data?.safe ?? [];
 	const invalidExperiments =
