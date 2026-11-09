@@ -1056,8 +1056,7 @@ const DetachWorkspaceDialog: React.FC<DetachWorkspaceDialogProps> = ({
 				not stopped or deleted, and you can attach it again later.
 			</p>
 		}
-		type="info"
-		hideCancel={false}
+		type="delete"
 		confirmText="Detach"
 		onConfirm={onConfirm}
 		onClose={onClose}
