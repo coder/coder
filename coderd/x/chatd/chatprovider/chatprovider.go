@@ -509,6 +509,69 @@ func IsAnthropicFamilyModelID(modelID string) bool {
 		strings.Contains(normalized, "claude")
 }
 
+// bedrockIsAnthropicModel reports whether a model ID on a bedrock provider
+// uses the Anthropic Messages wire shape. InvokeModel configurations can use a
+// client-facing Claude alias while remapping it to an AWS model ID upstream.
+func bedrockIsAnthropicModel(model string) bool {
+	return strings.HasPrefix(model, "claude-") ||
+		strings.HasPrefix(model, "anthropic.") ||
+		strings.Contains(model, ".anthropic.") ||
+		strings.Contains(model, "/anthropic.")
+}
+
+// ClientProvider returns the fantasy provider whose client chatd builds for a
+// model on an AI provider of the given type. Bedrock serves Claude models in
+// the Anthropic Messages format and other models through the OpenAI Responses
+// API.
+func ClientProvider(providerType database.AIProviderType, model string) string {
+	switch providerType {
+	case database.AIProviderTypeAnthropic:
+		return fantasyanthropic.Name
+	case database.AIProviderTypeBedrock:
+		// Bedrock Mantle serves both Anthropic Messages and OpenAI Responses
+		// shapes; the model ID vendor prefix picks the wire format.
+		if bedrockIsAnthropicModel(model) {
+			return fantasyanthropic.Name
+		}
+		return fantasyopenai.Name
+	case database.AIProviderTypeOpenai:
+		return fantasyopenai.Name
+	default:
+		return fantasyopenaicompat.Name
+	}
+}
+
+// ComputerUseModelRequirement describes the models that ComputerUseProvider
+// accepts.
+const ComputerUseModelRequirement = "a model from an Anthropic or OpenAI AI provider, a Claude model from an AWS Bedrock AI provider, or a model from an OpenAI-compatible AI provider"
+
+// ComputerUseProvider returns the computer use tool flavor for a model on an
+// AI provider of the given type. The flavor follows the API format of the
+// client that chatd builds for the model:
+//   - Anthropic Messages gets the Anthropic tool, so a Claude model on AWS
+//     Bedrock gets it too.
+//   - OpenAI Responses gets the hosted OpenAI tool, but only on OpenAI: it is
+//     untested on Bedrock Mantle.
+//   - Chat completions has no hosted computer tool, so it gets the
+//     openai-compat flavor, an ordinary function tool, but only on
+//     OpenAI-compatible providers. The other provider types that use this
+//     client stay unsupported until each is verified.
+func ComputerUseProvider(providerType database.AIProviderType, model string) (codersdk.ChatComputerUseProvider, bool) {
+	switch ClientProvider(providerType, model) {
+	case fantasyanthropic.Name:
+		return codersdk.ChatComputerUseProviderAnthropic, true
+	case fantasyopenai.Name:
+		if providerType == database.AIProviderTypeOpenai {
+			return codersdk.ChatComputerUseProviderOpenAI, true
+		}
+	case fantasyopenaicompat.Name:
+		if providerType == database.AIProviderTypeOpenaiCompat {
+			return codersdk.ChatComputerUseProviderOpenAICompat, true
+		}
+	}
+	return "", false
+}
+
 func isChatModelForProvider(provider, modelID string) bool {
 	normalizedProvider := NormalizeProvider(provider)
 	normalizedModel := strings.ToLower(strings.TrimSpace(modelID))

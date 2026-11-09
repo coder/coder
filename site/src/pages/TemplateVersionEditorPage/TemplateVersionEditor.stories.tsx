@@ -15,6 +15,7 @@ import {
 	MockWorkspaceResourceMultipleAgents,
 	MockWorkspaceResourceSensitive,
 	MockWorkspaceVolumeResource,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { withDashboardProvider } from "#/testHelpers/storybook";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
@@ -170,6 +171,25 @@ export const WithError = {
 export const PublishDialog: Story = {
 	args: {
 		isAskingPublishParameters: true,
+	},
+};
+
+export const PublishDialogDuplicateName: Story = {
+	args: {
+		isAskingPublishParameters: true,
+		publishingError: mockApiError({
+			message: "template version name must be unique for a template",
+			validations: [{ field: "name", detail: "Name is already used" }],
+		}),
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		const dialog = await body.findByRole("dialog", {
+			name: "Publish new version",
+		});
+		await userEvent.click(
+			within(dialog).getByRole("button", { name: "Publish" }),
+		);
 	},
 };
 

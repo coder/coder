@@ -147,47 +147,6 @@ export const EditingQueuedMessage: Story = {
 	},
 };
 
-export const ChatPaused: Story = {
-	args: {
-		queuedMessageUnderEditID: MockChatQueuedMessageUnderEdit.id,
-		isChatPaused: true,
-		queuedMessages: [
-			MockChatQueuedMessageUnderEdit,
-			{ ...MockChatQueuedMessage, id: 2 },
-		],
-		onEditQueuedMessage: fn(),
-		onEndQueuedMessageEdit: fn(),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.type(
-			canvas.getByRole("textbox", { name: "Chat message" }),
-			"Also update the docs",
-		);
-		await userEvent.hover(canvas.getByRole("button", { name: "Queue" }));
-	},
-};
-
-// The queue head is under edit on a chat that is not paused, for example
-// one in error.
-export const QueueHeadUnderEdit: Story = {
-	args: {
-		queuedMessageUnderEditID: MockChatQueuedMessageUnderEdit.id,
-		queuedMessages: [
-			MockChatQueuedMessageUnderEdit,
-			{ ...MockChatQueuedMessage, id: 2 },
-		],
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await userEvent.type(
-			canvas.getByRole("textbox", { name: "Chat message" }),
-			"Also update the docs",
-		);
-		await userEvent.hover(canvas.getByRole("button", { name: "Queue" }));
-	},
-};
-
 export const DisablesSendUntilInput: Story = {};
 
 export const SendsAndClearsInput: Story = {
@@ -213,7 +172,7 @@ export const SendsAndClearsInput: Story = {
 		await userEvent.click(sendButton);
 
 		await waitFor(() => {
-			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests", undefined);
 		});
 	},
 };
@@ -234,9 +193,14 @@ export const EnterSendsByDefault: Story = {
 		await userEvent.keyboard("{Enter}");
 
 		await waitFor(() => {
-			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests", undefined);
 		});
 	},
+};
+
+const mockModifierEnterPreferenceSettings: TypesGen.UserPreferenceSettings = {
+	...MockUserPreferenceSettings,
+	agent_chat_send_shortcut: "modifier_enter",
 };
 
 export const ModifierEnterSendsWhenRequired: Story = {
@@ -244,10 +208,7 @@ export const ModifierEnterSendsWhenRequired: Story = {
 		queries: [
 			{
 				key: preferenceSettingsKey,
-				data: {
-					...MockUserPreferenceSettings,
-					agent_chat_send_shortcut: "modifier_enter",
-				},
+				data: mockModifierEnterPreferenceSettings,
 			},
 		],
 	},
@@ -271,7 +232,7 @@ export const ModifierEnterSendsWhenRequired: Story = {
 
 		await userEvent.keyboard("{Control>}{Enter}{/Control}");
 		await waitFor(() => {
-			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests", undefined);
 		});
 	},
 };
@@ -348,6 +309,53 @@ export const Streaming: Story = {
 		initialValue: "",
 		onAttach: fn(),
 		onRemoveAttachment: fn(),
+	},
+};
+
+export const StreamingWithDraftShowsAfterTurnShortcut: Story = {
+	args: {
+		...Streaming.args,
+		initialValue: "Then run the linter",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			await canvas.findByRole("button", { name: "Send during turn" }),
+		);
+		await screen.findByRole("tooltip");
+	},
+};
+
+export const StreamingSendMenuOpen: Story = {
+	args: StreamingWithDraftShowsAfterTurnShortcut.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.pointer({
+			keys: "[MouseRight]",
+			target: await canvas.findByRole("button", { name: "Send during turn" }),
+		});
+		await screen.findByRole("menu");
+	},
+};
+
+export const StreamingSendMenuOpenMobile: Story = {
+	...StreamingSendMenuOpen,
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	beforeEach: () => setupMatchMedia({ "(pointer: coarse)": true }).restore,
+};
+
+export const AfterTurnShortcutWhenModifierRequired: Story = {
+	...StreamingWithDraftShowsAfterTurnShortcut,
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: mockModifierEnterPreferenceSettings,
+			},
+		],
 	},
 };
 

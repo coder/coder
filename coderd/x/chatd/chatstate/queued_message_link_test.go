@@ -39,8 +39,8 @@ func TestQueuedMessageLinkIdenticalContent(t *testing.T) {
 			return err
 		})
 		require.NoError(t, err)
-		require.NotNil(t, finish.PromotedMessage)
-		promoted = append(promoted, requireChatMessageByID(ctx, t, f, finish.PromotedMessage.ID))
+		require.Len(t, finish.PromotedMessages, 1)
+		promoted = append(promoted, requireChatMessageByID(ctx, t, f, finish.PromotedMessages[0].ID))
 	}
 	require.Equal(t, chatstate.StateR0, f.classify(ctx, t, created.Chat.ID))
 
@@ -70,15 +70,15 @@ func TestQueuedMessageLinkEditReplacementUnlinked(t *testing.T) {
 		return err
 	})
 	require.NoError(t, err)
-	require.NotNil(t, finish.PromotedMessage)
-	requireQueuedMessageLink(t, *finish.PromotedMessage, queued.QueuedMessage.ID)
+	require.Len(t, finish.PromotedMessages, 1)
+	requireQueuedMessageLink(t, finish.PromotedMessages[0], queued.QueuedMessage.ID)
 	require.Equal(t, chatstate.StateR0, f.classify(ctx, t, created.Chat.ID))
 
 	var edit chatstate.EditMessageResult
 	_, err = m.Update(ctx, func(tx *chatstate.Tx, _ database.Store, _ *chatstate.ChatSnapshot) error {
 		var err error
 		edit, err = tx.EditMessage(chatstate.EditMessageInput{
-			MessageID: finish.PromotedMessage.ID,
+			MessageID: finish.PromotedMessages[0].ID,
 			CreatedBy: f.User.ID,
 			Content: mustMarshalParts(t, []codersdk.ChatMessagePart{
 				codersdk.ChatMessageText("edited"),
@@ -88,7 +88,7 @@ func TestQueuedMessageLinkEditReplacementUnlinked(t *testing.T) {
 	})
 	require.NoError(t, err)
 	replacement := requireChatMessageByID(ctx, t, f, edit.ReplacementMessage.ID)
-	require.NotEqual(t, finish.PromotedMessage.ID, replacement.ID)
+	require.NotEqual(t, finish.PromotedMessages[0].ID, replacement.ID)
 	require.False(t, replacement.QueuedMessageID.Valid,
 		"edit replacements are not promoted from the queue")
 }

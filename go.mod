@@ -562,7 +562,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/bedrock v1.73.0
 	github.com/aymanbagabas/go-udiff v0.4.1
 	github.com/brianvoe/gofakeit/v7 v7.18.0
-	github.com/coder/aisdk-go v0.0.9
 	github.com/coder/boundary v0.11.0
 	github.com/coder/preview v1.0.10-0.20261027154125-155f674f1c7b
 	github.com/coder/safedial v0.2.0
@@ -583,7 +582,6 @@ require (
 	github.com/sony/gobreaker/v2 v2.4.0
 	github.com/tidwall/sjson v1.2.5
 	gitlab.com/gitlab-org/api/client-go v1.46.0
-	gonum.org/v1/gonum v0.17.0
 	gopkg.in/dnaeon/go-vcr.v4 v4.0.6
 	mvdan.cc/sh/v3 v3.14.0
 )
@@ -684,7 +682,6 @@ require (
 	github.com/nats-io/nkeys v0.4.16 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
-	github.com/openai/openai-go v1.12.0 // indirect
 	github.com/package-url/packageurl-go v0.1.3 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10 // indirect

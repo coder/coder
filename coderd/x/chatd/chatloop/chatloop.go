@@ -271,7 +271,8 @@ type GenerateCompactionOptions struct {
 	Logger slog.Logger
 }
 
-// ProviderTool pairs a provider-native tool definition with an
+// ProviderTool pairs a tool definition that chatd builds for one
+// provider, either provider-native or a plain function tool, with an
 // optional local executor. When Runner is nil the tool is fully
 // provider-executed (e.g. web search). When Runner is non-nil
 // the definition is sent to the API but execution is handled

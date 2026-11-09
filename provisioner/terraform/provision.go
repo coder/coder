@@ -92,6 +92,15 @@ func (s *server) Init(
 		return provisionersdk.InitErrorf("extract template archive: %s", err)
 	}
 
+	// The captured lock file only speeds up init, so failing to restore it
+	// isn't fatal.
+	restored, err := restoreImportedLockFile(sess.Files, request.ModuleArchive)
+	if err != nil {
+		s.logger.Warn(ctx, "failed to restore lock file captured during template import", slog.Error(err))
+	} else if restored {
+		s.logger.Debug(ctx, "using lock file captured during template import", slog.F("platform", terraformPlatform()))
+	}
+
 	err = CleanStaleTerraformPlugins(sess.Context(), s.cachePath, afero.NewOsFs(), time.Now(), s.logger)
 	if err != nil {
 		return provisionersdk.InitErrorf("unable to clean stale Terraform plugins: %s", err)
@@ -100,6 +109,9 @@ func (s *server) Init(
 	s.logger.Debug(ctx, "running terraform initialization")
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageInit)
 	err = e.init(ctx, killCtx, sess)
+	if err != nil && restored && ctx.Err() == nil {
+		err = s.initWithTemplateLockFile(ctx, killCtx, e, sess, err)
+	}
 	endStage(err)
 	if err != nil {
 		s.logger.Debug(ctx, "init failed", slog.Error(err))
@@ -166,6 +178,28 @@ func (s *server) Init(
 		ModuleFiles:     moduleFiles,
 		ModuleFilesHash: nil,
 	}
+}
+
+// initWithTemplateLockFile retries a failed init with the template's own lock
+// file, or none, as builds did before the captured lock file was reused. This
+// covers provisioners that can't install the captured versions, for example
+// after an air-gapped image upgrade.
+func (s *server) initWithTemplateLockFile(ctx, killCtx context.Context, e *executor, sess *provisionersdk.Session, initErr error) error {
+	s.logger.Warn(ctx, "terraform init failed with the lock file captured during template import, retrying without it",
+		slog.Error(initErr))
+	sess.ProvisionLog(proto.LogLevel_WARN,
+		"Retrying terraform init without the provider versions selected when this template version was imported.")
+
+	if err := restoreTemplateLockFile(sess.Files); err != nil {
+		return errors.Join(initErr, err)
+	}
+	err := e.init(ctx, killCtx, sess)
+	if err == nil {
+		sess.ProvisionLog(proto.LogLevel_WARN,
+			"If this warning appears on every build, push a new template version and update workspaces to it "+
+				"so builds reuse provider versions again.")
+	}
+	return err
 }
 
 func (s *server) Plan(

@@ -222,11 +222,11 @@ func TestChatMachine_Update_ValidatesFromSnapshot(t *testing.T) {
 		wantGetChatByID int
 		wantQueueHead   int
 	}{
-		// The publication read, plus queue reads after the lock, in
-		// FinishTurn's queue advance, and for publication.
-		{name: "WithSnapshot", passSnapshot: true, wantGetChatByID: 1, wantQueueHead: 3},
+		// The publication read, plus queue head reads after the lock
+		// and for publication.
+		{name: "WithSnapshot", passSnapshot: true, wantGetChatByID: 1, wantQueueHead: 2},
 		// Without a snapshot the transition reads the chat itself.
-		{name: "WithoutSnapshot", passSnapshot: false, wantGetChatByID: 2, wantQueueHead: 4},
+		{name: "WithoutSnapshot", passSnapshot: false, wantGetChatByID: 2, wantQueueHead: 3},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

@@ -510,10 +510,7 @@ WHERE datname = current_database()
 						return err
 					})
 					require.NoError(t, err)
-					_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-						Content:      []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "stop"}},
-						BusyBehavior: codersdk.ChatBusyBehaviorInterrupt,
-					})
+					_, err = client.InterruptChat(ctx, chat.ID)
 					require.NoError(t, err)
 					return chat
 				},

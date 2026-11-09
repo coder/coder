@@ -1936,6 +1936,16 @@ export const WithMultiplePRs: Story = {
 	},
 };
 
+export const WithMultiplePRsSelected: Story = {
+	args: WithMultiplePRs.args,
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/multi-pr" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
 // Enough PRs to show the submenu's height limit.
 export const WithManyPRs: Story = {
 	args: {
