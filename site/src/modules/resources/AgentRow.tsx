@@ -48,7 +48,6 @@ import { useKebabMenu } from "#/components/Tabs/utils/useKebabMenu";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useProxy } from "#/contexts/ProxyContext";
@@ -700,31 +699,24 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 													"border-solid border-0 border-b border-l",
 												)}
 											>
-												<TooltipProvider>
-													<Tooltip>
-														<TooltipTrigger asChild>
-															<Button
-																variant="subtle"
-																size="sm"
-																className="min-w-0"
-																disabled={!hasSelectedLogs}
-																onClick={() =>
-																	copyToClipboard(selectedLogsText)
-																}
-															>
-																{showCopiedSuccess ? (
-																	<CheckIcon />
-																) : (
-																	<CopyIcon />
-																)}
-																<span className="sr-only">{copyLogsLabel}</span>
-															</Button>
-														</TooltipTrigger>
-														<TooltipContent>
-															{showCopiedSuccess ? "Copied!" : copyLogsLabel}
-														</TooltipContent>
-													</Tooltip>
-												</TooltipProvider>
+												<Tooltip delayDuration={700}>
+													<TooltipTrigger asChild>
+														<Button
+															variant="subtle"
+															size="sm"
+															className="min-w-0"
+															disabled={!hasSelectedLogs}
+															onClick={() => copyToClipboard(selectedLogsText)}
+														>
+															{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
+															<span className="sr-only">{copyLogsLabel}</span>
+														</Button>
+													</TooltipTrigger>
+													<TooltipContent>
+														{showCopiedSuccess ? "Copied!" : copyLogsLabel}
+													</TooltipContent>
+												</Tooltip>
+
 												<DownloadSelectedAgentLogsButton
 													agentName={agent.name}
 													logSets={downloadableLogSets}
