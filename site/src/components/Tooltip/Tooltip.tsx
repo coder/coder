@@ -20,8 +20,7 @@ import {
 export const TooltipProvider = TooltipPrimitive.Provider;
 
 /**
- * Shared open delay (ms) for tooltips. Used by the app-wide provider and by
- * self-contained tooltips such as InfoTooltip so hover timing stays consistent.
+ * Shared open delay (ms) for the app-wide provider and interactive tooltips.
  */
 export const TOOLTIP_DELAY_DURATION = 100;
 
