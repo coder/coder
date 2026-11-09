@@ -1266,7 +1266,8 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 					mu.Unlock()
 					if strings.HasSuffix(r.URL.Path, "/data.json") {
 						w.Header().Set("Content-Type", "application/json")
-						_, _ = w.Write([]byte(`{"ok":true}`))
+						_, err := w.Write([]byte(`{"ok":true}`))
+						assert.NoError(t, err)
 						return
 					}
 					// Like any well-behaved app, revalidate rather than resend.
@@ -1276,7 +1277,8 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 					}
 					w.Header().Set("Content-Type", "text/html; charset=utf-8")
 					w.Header().Set("ETag", htmlETag)
-					_, _ = w.Write([]byte(htmlBody))
+					_, err := w.Write([]byte(htmlBody))
+					assert.NoError(t, err)
 				}),
 			})
 			return appDetails, &last
