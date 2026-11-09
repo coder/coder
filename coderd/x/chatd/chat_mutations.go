@@ -75,7 +75,7 @@ func (p *Server) SendMessage(
 		busyBehavior = SendMessageBusyBehaviorQueue
 	}
 	switch busyBehavior {
-	case SendMessageBusyBehaviorQueue, SendMessageBusyBehaviorInterrupt:
+	case SendMessageBusyBehaviorQueue, SendMessageBusyBehaviorSteer, SendMessageBusyBehaviorInterrupt:
 	default:
 		return SendMessageResult{}, xerrors.Errorf("invalid busy behavior %q", opts.BusyBehavior)
 	}
