@@ -31,7 +31,10 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/promoauth"
@@ -45,6 +48,8 @@ import (
 
 func TestResolveChatGitAccessToken(t *testing.T) {
 	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
 
 	for _, lookup := range []struct {
 		name   string
@@ -109,42 +114,28 @@ func TestResolveChatGitAccessToken(t *testing.T) {
 						RefreshGroup: new(singleflight.Group),
 					}
 
-					link := database.ExternalAuthLink{
+					user := dbgen.User(t, db, database.User{})
+					now := dbtime.Now()
+					var expiry time.Time
+					if tc.expiresIn != 0 {
+						expiry = now.Add(tc.expiresIn)
+					}
+					link, err := db.InsertExternalAuthLink(ctx, database.InsertExternalAuthLinkParams{
 						ProviderID:        config.ID,
-						UserID:            uuid.New(),
+						UserID:            user.ID,
+						CreatedAt:         now,
+						UpdatedAt:         now,
 						OAuthAccessToken:  "stored-access-token",
 						OAuthRefreshToken: "stored-refresh-token",
-					}
-					if tc.expiresIn != 0 {
-						link.OAuthExpiry = time.Now().Add(tc.expiresIn)
-					}
-
-					db := dbmock.NewMockStore(gomock.NewController(t))
-					db.EXPECT().GetExternalAuthLink(gomock.Any(), database.GetExternalAuthLinkParams{
-						ProviderID: config.ID,
-						UserID:     link.UserID,
-					}).Return(link, nil)
+						OAuthExpiry:       expiry,
+					})
+					require.NoError(t, err)
 
 					wantToken := link.OAuthAccessToken
 					var wantRequests int64
 					if tc.wantRefresh {
 						wantToken = "refreshed-access-token"
 						wantRequests = 1
-						leasedLink := link
-						leasedLink.RefreshLeaseExpiresAt = sql.NullTime{Time: time.Now().Add(time.Minute), Valid: true}
-						db.EXPECT().AcquireExternalAuthLinkRefreshLease(gomock.Any(), gomock.Any()).Return(leasedLink, nil)
-						db.EXPECT().UpdateExternalAuthLink(gomock.Any(), gomock.Any()).DoAndReturn(
-							func(_ context.Context, params database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
-								assert.Equal(t, "refreshed-access-token", params.OAuthAccessToken)
-								assert.Equal(t, "refreshed-refresh-token", params.OAuthRefreshToken)
-								updated := leasedLink
-								updated.OAuthAccessToken = params.OAuthAccessToken
-								updated.OAuthRefreshToken = params.OAuthRefreshToken
-								updated.OAuthExpiry = params.OAuthExpiry
-								return updated, nil
-							},
-						)
-						db.EXPECT().ReleaseExternalAuthLinkRefreshLease(gomock.Any(), gomock.Any()).Return(nil)
 					}
 
 					api := &API{Options: &Options{
@@ -157,7 +148,18 @@ func TestResolveChatGitAccessToken(t *testing.T) {
 					require.NotNil(t, token)
 					assert.Equal(t, wantToken, *token)
 					assert.Equal(t, wantRequests, refreshRequests.Load())
-					assert.Equal(t, wantRequests, validateRequests.Load())
+					if !tc.wantRefresh {
+						assert.Zero(t, validateRequests.Load())
+						return
+					}
+
+					stored, err := db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
+						ProviderID: config.ID,
+						UserID:     link.UserID,
+					})
+					require.NoError(t, err)
+					assert.Equal(t, wantToken, stored.OAuthAccessToken)
+					assert.Equal(t, "refreshed-refresh-token", stored.OAuthRefreshToken)
 				})
 			}
 		})
