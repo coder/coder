@@ -506,10 +506,13 @@ func TestWorker_RateLimitBackoff(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			clock := quartz.NewMock(t)
 			ownerID := uuid.New()
+
+			// Two rows cover the direct limit and in-batch skip.
 			rows := []database.AcquireStaleChatDiffStatusesRow{
 				makeAcquiredRowWithBranch(uuid.New(), ownerID, "feature"),
 				makeAcquiredRowWithBranch(uuid.New(), ownerID, "feature"),
 			}
+
 			store := dbmock.NewMockStore(gomock.NewController(t))
 			store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).Return(rows, nil)
 			var backoffs []database.BackoffChatDiffStatusParams
@@ -523,6 +526,7 @@ func TestWorker_RateLimitBackoff(t *testing.T) {
 					return nil
 				},
 			).Times(len(rows))
+
 			var calls atomic.Int32
 			provider := &mockProvider{
 				parseRepositoryOrigin: func(string) (string, string, string, bool) {
@@ -533,11 +537,21 @@ func TestWorker_RateLimitBackoff(t *testing.T) {
 					return nil, &gitprovider.RateLimitError{RetryAfter: clock.Now().Add(tc.retryDelay)}
 				},
 			}
+
+			providers := func(context.Context, string) gitprovider.Provider {
+				return provider
+			}
+			tokens := func(context.Context, uuid.UUID, string) (*string, error) {
+				return new("test-token"), nil
+			}
+
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 			refresher := gitsync.NewRefresher(
-				func(context.Context, string) gitprovider.Provider { return provider },
-				func(context.Context, uuid.UUID, string) (*string, error) { return new("test-token"), nil },
-				logger, clock, gitsync.WithConcurrency(1),
+				providers,
+				tokens,
+				logger,
+				clock,
+				gitsync.WithConcurrency(1),
 			)
 			worker := gitsync.NewWorker(store, refresher, nil, clock, logger)
 

@@ -464,7 +464,8 @@ func TestGitHubRatelimit_429WithRetryAfter(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Retry-After", "120")
-		// Secondary limits can occur while primary requests remain.
+		// A secondary rate limit can occur while the primary rate limit
+		// still has requests remaining.
 		w.Header().Set("X-RateLimit-Remaining", "4990")
 		w.WriteHeader(http.StatusTooManyRequests)
 		_, _ = w.Write([]byte(`{"message": "secondary rate limit"}`))
@@ -600,11 +601,11 @@ func TestFetchPullRequestDiff_Ratelimit(t *testing.T) {
 
 	for _, tc := range []struct {
 		name       string
-		reset      bool
+		primary    bool
 		retryDelay time.Duration
 	}{
 		{name: "RetryAfter", retryDelay: 2 * time.Minute},
-		{name: "ResetHeader", reset: true, retryDelay: 30 * time.Minute},
+		{name: "ResetHeader", primary: true, retryDelay: 30 * time.Minute},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -612,7 +613,7 @@ func TestFetchPullRequestDiff_Ratelimit(t *testing.T) {
 			clock.Set(time.Date(2026, 5, 25, 12, 0, 0, 0, time.UTC))
 			headers := make(http.Header)
 			status := http.StatusTooManyRequests
-			if tc.reset {
+			if tc.primary {
 				headers.Set("X-RateLimit-Reset", strconv.FormatInt(clock.Now().Add(tc.retryDelay).Unix(), 10))
 				headers.Set("X-RateLimit-Remaining", "0")
 				status = http.StatusForbidden

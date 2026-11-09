@@ -1,6 +1,7 @@
 package gitprovider_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -368,28 +369,58 @@ func TestGitLabRateLimitRawDiffEndpoints(t *testing.T) {
 
 	for _, tc := range []struct {
 		name       string
-		reset      bool
+		primary    bool
 		retryDelay time.Duration
 	}{
 		{name: "RetryAfter", retryDelay: 2 * time.Minute},
-		{name: "ResetHeader", reset: true, retryDelay: 30 * time.Minute},
+		{name: "ResetHeader", primary: true, retryDelay: 30 * time.Minute},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			for _, method := range []string{"PullRequestDiff", "BranchDiff"} {
-				t.Run(method, func(t *testing.T) {
+			for _, method := range []struct {
+				name  string
+				fetch func(context.Context, gitprovider.Provider) error
+			}{
+				{
+					name: "PullRequestDiff",
+					fetch: func(ctx context.Context, provider gitprovider.Provider) error {
+						ref := gitprovider.PRRef{
+							Owner:  "org",
+							Repo:   "repo",
+							Number: 1,
+						}
+						_, err := provider.FetchPullRequestDiff(ctx, "test-token", ref)
+						return err
+					},
+				},
+				{
+					name: "BranchDiff",
+					fetch: func(ctx context.Context, provider gitprovider.Provider) error {
+						ref := gitprovider.BranchRef{
+							Owner:  "org",
+							Repo:   "repo",
+							Branch: "feature",
+						}
+						_, err := provider.FetchBranchDiff(ctx, "test-token", ref)
+						return err
+					},
+				},
+			} {
+				t.Run(method.name, func(t *testing.T) {
 					t.Parallel()
 					clock := quartz.NewMock(t)
 					clock.Set(time.Date(2026, 5, 25, 12, 0, 0, 0, time.UTC))
+
 					headers := make(http.Header)
 					status := http.StatusTooManyRequests
-					if tc.reset {
+					if tc.primary {
 						headers.Set("RateLimit-Reset", fmt.Sprintf("%d", clock.Now().Add(tc.retryDelay).Unix()))
 						headers.Set("RateLimit-Remaining", "0")
 						status = http.StatusForbidden
 					} else {
 						headers.Set("Retry-After", fmt.Sprintf("%d", int64(tc.retryDelay/time.Second)))
 					}
+
 					server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 						w.Header().Set("Content-Type", "application/json")
 						if strings.Contains(r.URL.Path, "raw_diffs") || strings.HasSuffix(r.URL.Path, "/repository/compare") {
@@ -403,15 +434,13 @@ func TestGitLabRateLimitRawDiffEndpoints(t *testing.T) {
 						_, _ = w.Write([]byte(`{"default_branch":"main"}`))
 					}))
 					t.Cleanup(server.Close)
+
 					provider, err := gitprovider.New("gitlab", server.URL, server.Client(), gitprovider.WithClock(clock))
 					require.NoError(t, err)
 					ctx := testutil.Context(t, testutil.WaitLong)
 
-					if method == "PullRequestDiff" {
-						_, err = provider.FetchPullRequestDiff(ctx, "test-token", gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1})
-					} else {
-						_, err = provider.FetchBranchDiff(ctx, "test-token", gitprovider.BranchRef{Owner: "org", Repo: "repo", Branch: "feature"})
-					}
+					err = method.fetch(ctx, provider)
+
 					require.Error(t, err)
 					rateLimit, ok := errors.AsType[*gitprovider.RateLimitError](err)
 					require.True(t, ok, "error should be *RateLimitError, got: %T", err)

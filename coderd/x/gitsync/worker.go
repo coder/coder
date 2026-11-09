@@ -30,6 +30,12 @@ const (
 	// of concurrent HTTP calls has enough headroom to complete.
 	defaultTickTimeout = 30 * time.Second
 
+	// maxRateLimitBackoff caps the total delay, including
+	// gitprovider.RateLimitPadding, to bound far-future headers.
+	// GitHub's primary rate limit resets within an hour, so a capped retry
+	// is never earlier than a real primary reset.
+	maxRateLimitBackoff = time.Hour
+
 	// NoTokenBackoff is the backoff duration applied to rows
 	// whose owner has no linked external-auth token. Much longer
 	// than DiffStatusTTL because the user must manually link
@@ -225,17 +231,22 @@ func (w *Worker) tick(ctx context.Context) {
 			w.logger.Debug(ctx, "refresh chat diff status",
 				slog.F("chat_id", res.Request.Row.ChatID),
 				slog.Error(res.Error))
-			// Apply a longer backoff for rows whose owner has
-			// no linked token — retrying every 2 minutes is
-			// pointless until the user links their account.
+
 			now := w.clock.Now().UTC()
-			backoff := DiffStatusTTL
-			if errors.Is(res.Error, ErrNoTokenAvailable) {
+			rateLimit, isRateLimited := errors.AsType[*gitprovider.RateLimitError](res.Error)
+			var backoff time.Duration
+			switch {
+			case errors.Is(res.Error, ErrNoTokenAvailable):
+				// The owner must link an account.
 				backoff = NoTokenBackoff
-			} else if rateLimit, ok := errors.AsType[*gitprovider.RateLimitError](res.Error); ok {
-				// Bound delays from far-future headers.
-				backoff = min(rateLimit.RetryAfter.Sub(now), time.Hour)
+			case isRateLimited:
+				// Skipped rows share the retry time.
+				backoff = min(rateLimit.RetryAfter.Sub(now), maxRateLimitBackoff)
+			default:
+				// Other errors retain the normal TTL.
+				backoff = DiffStatusTTL
 			}
+
 			// Back off so the row isn't retried immediately.
 			if err := w.store.BackoffChatDiffStatus(ctx,
 				database.BackoffChatDiffStatusParams{
