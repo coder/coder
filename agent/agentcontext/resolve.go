@@ -295,15 +295,27 @@ func deduplicateSkills(resources []Resource) []Resource {
 // top-level instruction files and .mcp.json plus skills from the
 // fixed container locations under it. The walk goes no deeper.
 func (r *Resolver) discoverIn(root ScanRoot, out *[]Resource, seenID map[string]int) {
-	info, err := os.Stat(root.Path)
+	// Lstat (not Stat) so a symlinked single-file root keeps its
+	// symlink mode and resolveReadTarget enforces the boundary.
+	info, err := os.Lstat(root.Path)
 	if err != nil {
 		// Missing roots silently fall through. The user either
 		// added a path that does not exist yet or removed it
 		// later; the watcher surfaces re-creation as a change.
 		return
 	}
+	if info.Mode()&fs.ModeSymlink != 0 {
+		// A symlink to a directory is scanned as a directory root.
+		// Its entries are bounded by the resolved directory.
+		if tgtInfo, err := os.Stat(root.Path); err == nil && tgtInfo.IsDir() {
+			info = tgtInfo
+		}
+	}
 	if !info.IsDir() {
-		if res, ok := r.classifyFile(root.Path, root.Path, info, root.UserSource); ok {
+		// A single-file root is bounded by its parent directory, so
+		// a symlinked AGENTS.md may point at a sibling but not at a
+		// file elsewhere on disk.
+		if res, ok := r.classifyFile(filepath.Dir(root.Path), root.Path, info, root.UserSource); ok {
 			appendResource(out, seenID, res)
 		}
 		return
@@ -418,7 +430,8 @@ func resolveReadTarget(path string, info fs.FileInfo, scanRoot string) (readPath
 // classifyFile inspects a single-file scan root and produces a
 // Resource when the basename matches a recognized convention.
 // Directory roots are handled by discoverIn; this is reached only
-// for sources that point directly at a file.
+// for sources that point directly at a file. scanRoot is the
+// boundary for symlink targets.
 func (r *Resolver) classifyFile(scanRoot, path string, info fs.FileInfo, userSource string) (Resource, bool) {
 	name := info.Name()
 	switch {
