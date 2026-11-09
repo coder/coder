@@ -605,6 +605,21 @@ func seedSteerHeadUnderEdit(t *testing.T, f *testFixture, from chatstate.Executi
 	return seed(t, f, readyHeadOf[from])
 }
 
+// seedSteerEditBehindHead seeds the blocked-head state from with two
+// steer rows and a queue row, with an edit on the second steer row.
+func seedSteerEditBehindHead(t *testing.T, f *testFixture, from chatstate.ExecutionState) seededChat {
+	t.Helper()
+	seed := withEditingRow(seedQueueWith(chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorQueue), 1)
+	return seed(t, f, readyHeadOf[from])
+}
+
+// seedPausedSteerEditBehindHead seeds P with the queue of
+// seedSteerEditBehindHead.
+func seedPausedSteerEditBehindHead(t *testing.T, f *testFixture, _ chatstate.ExecutionState) seededChat {
+	t.Helper()
+	return pauseSeeded(t, f, seedSteerEditBehindHead(t, f, chatstate.StateR1P))
+}
+
 func assertPromotedRows(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, promoted []database.ChatMessage, idx []int) []int64 {
 	t.Helper()
 	require.Len(t, promoted, len(idx), "unexpected promoted message count")
@@ -949,6 +964,7 @@ func matrixCases() []transitionCaseSpec {
 		sendMessageSteerCase(chatstate.StateE1P, chatstate.StateR1P, queueSeed{}),
 		withSeed(sendMessageSteerCase(chatstate.StateE1P, chatstate.StateE1P, queueSeed{}), scenarioEditSteerHead, seedSteerHeadUnderEdit),
 		sendMessageSteerCase(chatstate.StateP, chatstate.StateR1P, queueSeed{}),
+		withSeed(sendMessageSteerCase(chatstate.StateP, chatstate.StateP, queueSeed{}), scenarioSteerEditBehindHead, seedPausedSteerEditBehindHead),
 		sendMessageSteerCase(chatstate.StateR0, chatstate.StateR1, queueSeed{}),
 		sendMessageSteerCase(chatstate.StateR1, chatstate.StateR1, queueSeed{}),
 		sendMessageSteerCase(chatstate.StateR1P, chatstate.StateR1, queueSeed{}),
@@ -1077,13 +1093,15 @@ func matrixCases() []transitionCaseSpec {
 			behaviors: []chatstate.BusyBehavior{chatstate.BusyBehaviorQueue, chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorQueue},
 			promoted:  []int{1},
 		}),
-		// Delivery stops at a steer row under edit: rows ahead of it go
-		// out, and the edited row becomes a blocked head.
+		// The steer lane goes out ahead of a queue row under edit, which
+		// becomes a blocked head.
 		withSeed(deliverSteerMessagesCase(chatstate.StateR1, chatstate.StateR1P, queueSeed{promoted: []int{0}}),
-			scenarioSteerEditBehindHead,
-			withEditingRow(seedQueueWith(chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorQueue), 1)),
+			scenarioEditBehindHead,
+			withEditingRow(seedQueueWith(chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorQueue), 1)),
 		deliverSteerMessagesCase(chatstate.StateR1P, chatstate.StateR1P, queueSeed{}),
 		withSeed(deliverSteerMessagesCase(chatstate.StateR1P, chatstate.StateR1P, queueSeed{}), scenarioEditSteerHead, seedSteerHeadUnderEdit),
+		// A steer row under edit holds the steer rows ahead of it too.
+		withSeed(deliverSteerMessagesCase(chatstate.StateR1P, chatstate.StateR1P, queueSeed{}), scenarioSteerEditBehindHead, seedSteerEditBehindHead),
 		deliverSteerMessagesRejectsOutstandingToolCallCase(),
 
 		// CommitStep cases: from-state preserved, history grows by
@@ -1133,8 +1151,6 @@ func matrixCases() []transitionCaseSpec {
 			promoted:  []int{1, 3},
 		}),
 		withSeed(finishTurnCase(chatstate.StateR1, chatstate.StateR1P, queueSeed{promoted: []int{0}}), scenarioEditBehindHead, multiEditingBehind),
-		withSeed(finishTurnCase(chatstate.StateR1, chatstate.StateR1P, queueSeed{promoted: []int{0}}), scenarioSteerEditBehindHead,
-			withEditingRow(seedQueueWith(chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorSteer, chatstate.BusyBehaviorQueue), 1)),
 
 		// FinishError cases.
 		finishErrorCase(chatstate.StateR0, chatstate.StateE0),

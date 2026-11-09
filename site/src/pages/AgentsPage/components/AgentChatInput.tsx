@@ -198,7 +198,6 @@ type AgentChatInputProps = {
 	// When set, also hides the editor and every control (view-only mode).
 	readOnlyNotice?: string;
 	isChatPaused?: boolean;
-	isChatActive?: boolean;
 	// Editing state, owned by the parent. The kind selects the banner text.
 	editingKind?: EditingTarget["kind"];
 	queuedMessageUnderEditID?: number | null;
@@ -572,7 +571,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	warning,
 	readOnlyNotice,
 	isChatPaused = false,
-	isChatActive = false,
 	editingKind,
 	queuedMessageUnderEditID = null,
 	composerQueuedMessageID = null,
@@ -612,7 +610,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		!isEditingMessage &&
 		queuedMessages.length > 0 &&
 		queuedMessages[0].id !== queuedMessageUnderEditID &&
-		canSendQueuedMessageNow(queuedMessages[0].busy_behavior, isChatActive);
+		canSendQueuedMessageNow(queuedMessages[0].busy_behavior);
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
@@ -1428,7 +1426,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					onEdit={onEditQueuedMessage}
 					onEndEdit={onEndQueuedMessageEdit}
 					isChatPaused={isChatPaused}
-					isChatActive={isChatActive}
 					queuedMessageUnderEditID={queuedMessageUnderEditID}
 					composerQueuedMessageID={composerQueuedMessageID}
 					showEnterToSendHint={enterSendsHead}

@@ -100,8 +100,9 @@ func queuePaused(head database.ChatQueuedMessage) bool {
 	return head.EditingSince.Valid
 }
 
-// LoadQueueState reads the queue head in the caller's transaction. An
-// empty queue yields the zero value.
+// LoadQueueState reads the queue head in the caller's transaction. A
+// steer row under edit counts as the head, because it holds the whole
+// steer lane. An empty queue yields the zero value.
 func LoadQueueState(ctx context.Context, store database.Store, chatID uuid.UUID) (QueueState, error) {
 	head, err := store.GetChatQueuedMessageHead(ctx, chatID)
 	if errors.Is(err, sql.ErrNoRows) {

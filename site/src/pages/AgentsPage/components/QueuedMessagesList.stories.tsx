@@ -184,8 +184,10 @@ export const AttachmentsOnly: Story = {
 	},
 };
 
+// Steer rows offer no Send now, and a steer head gets no Enter-to-send hint.
 export const GroupedByLane: Story = {
 	args: {
+		showEnterToSendHint: false,
 		messages: [
 			{
 				...buildMessage(1, textContent("Also check the error logs")),
@@ -197,15 +199,6 @@ export const GroupedByLane: Story = {
 			},
 			buildMessage(3, textContent("Then open a pull request")),
 		],
-	},
-};
-
-// Steer rows while the turn runs.
-export const GroupedByLaneWhileActive: Story = {
-	args: {
-		...GroupedByLane.args,
-		isChatActive: true,
-		showEnterToSendHint: false,
 	},
 };
 
@@ -266,6 +259,33 @@ export const WaitingBehindHeadUnderEdit: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.hover(canvas.getByRole("button", { name: "Waiting" }));
+	},
+};
+
+// A steer row under edit holds every steer row, so the steer row above it
+// waits too. Its Waiting badge shows its tooltip.
+export const SteerRowUnderEditHoldsLane: Story = {
+	args: {
+		queuedMessageUnderEditID: 2,
+		showEnterToSendHint: false,
+		messages: [
+			{
+				...buildMessage(1, textContent("Also check the error logs")),
+				busy_behavior: "steer",
+			},
+			{
+				...MockChatQueuedMessageUnderEdit,
+				id: 2,
+				busy_behavior: "steer",
+				content: textContent("Skip the flaky test"),
+			},
+			buildMessage(3, textContent("Then open a pull request")),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const [waitingAbove] = canvas.getAllByRole("button", { name: "Waiting" });
+		await userEvent.hover(waitingAbove);
 	},
 };
 
