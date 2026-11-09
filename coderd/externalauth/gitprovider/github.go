@@ -62,7 +62,7 @@ func newGitHub(apiBaseURL string, httpClient *http.Client, clock quartz.Clock) (
 		webBaseURL: webBaseURL,
 		httpClient: httpClient,
 		clock:      clock,
-		cache:      newResponseCache(defaultResponseCacheEntries),
+		cache:      newResponseCache(defaultResponseCacheEntries, defaultResponseCacheBytes),
 		pullRequestPathPattern: regexp.MustCompile(
 			`^https://` + escapedHost + `/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/pull/([0-9]+)(?:[/?#].*)?$`,
 		),

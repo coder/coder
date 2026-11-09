@@ -5,20 +5,19 @@ import (
 	"container/list"
 	"crypto/sha256"
 	"encoding/hex"
+	"strings"
 	"sync"
 )
 
-// Defaults for the conditional-request response cache. These bound
-// the memory used by cached GitHub responses while still covering a
-// realistic working set of actively-polled pull requests.
+// Defaults for the conditional-request response cache.
 const (
-	// defaultResponseCacheEntries is the maximum number of cached
-	// responses retained. Once exceeded, the least-recently-used
-	// entry is evicted. Sized above the gitsync worker's steady-state
-	// working set: defaultBatchSize (50) rows re-acquired every
-	// DiffStatusTTL (120s) over defaultInterval (10s) ticks, at 2-3
-	// cache keys per row. See coderd/x/gitsync.
-	defaultResponseCacheEntries = 2048
+	// defaultResponseCacheEntries bounds map and LRU metadata independently
+	// of response sizes.
+	defaultResponseCacheEntries = 8192
+
+	// defaultResponseCacheBytes bounds cached keys, ETags and body buffers.
+	// A 128 MiB budget covers thousands of responses sized in tens of KiB.
+	defaultResponseCacheBytes = 128 << 20 // 128 MiB
 
 	// maxCachedBodyBytes is the largest response body that will be
 	// cached. Larger bodies are still returned to the caller but are
@@ -36,7 +35,11 @@ type cachedResponse struct {
 	body []byte
 }
 
-// responseCache is a small, concurrency-safe LRU cache of GitHub
+func (r *cachedResponse) sizeBytes() int {
+	return len(r.key) + len(r.etag) + cap(r.body)
+}
+
+// responseCache is a concurrency-safe LRU cache of GitHub
 // responses keyed by request URL and auth scope. It enables
 // conditional requests (ETag / If-None-Match): when GitHub replies
 // 304 Not Modified the cached body is reused, avoiding a full
@@ -44,22 +47,29 @@ type cachedResponse struct {
 // count against the primary REST rate limit, which matters for the
 // diff-status worker that polls open PRs on a short interval.
 type responseCache struct {
-	mu      sync.Mutex
-	maxSize int
-	ll      *list.List
-	entries map[string]*list.Element
+	mu        sync.Mutex
+	maxSize   int
+	maxBytes  int
+	sizeBytes int
+	ll        *list.List
+	entries   map[string]*list.Element
 }
 
-// newResponseCache constructs an empty cache retaining at most
-// maxSize entries. A non-positive maxSize falls back to the default.
-func newResponseCache(maxSize int) *responseCache {
+// newResponseCache constructs an empty cache retaining at most maxSize
+// entries and maxBytes of keys, ETags and body buffers. Non-positive limits
+// fall back to the defaults.
+func newResponseCache(maxSize, maxBytes int) *responseCache {
 	if maxSize <= 0 {
 		maxSize = defaultResponseCacheEntries
 	}
+	if maxBytes <= 0 {
+		maxBytes = defaultResponseCacheBytes
+	}
 	return &responseCache{
-		maxSize: maxSize,
-		ll:      list.New(),
-		entries: make(map[string]*list.Element),
+		maxSize:  maxSize,
+		maxBytes: maxBytes,
+		ll:       list.New(),
+		entries:  make(map[string]*list.Element),
 	}
 }
 
@@ -79,34 +89,42 @@ func (c *responseCache) load(key string) (etag string, body []byte, ok bool) {
 	return cr.etag, cr.body, true
 }
 
-// store records the ETag and body for key, evicting the
-// least-recently-used entry when the cache is full. Empty ETags and
-// bodies larger than maxCachedBodyBytes are not stored.
+// store records the ETag and body for key, evicting least-recently-used
+// entries until both limits are met. Empty ETags, bodies larger than
+// maxCachedBodyBytes and entries exceeding the byte budget are not stored.
 func (c *responseCache) store(key, etag string, body []byte) {
 	if etag == "" || len(body) > maxCachedBodyBytes {
 		return
 	}
 
 	stored := bytes.Clone(body)
+	sizeBytes := len(key) + len(etag) + cap(stored)
+	if sizeBytes > c.maxBytes {
+		return
+	}
+
+	etag = strings.Clone(etag)
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if elem, found := c.entries[key]; found {
 		c.ll.MoveToFront(elem)
 		cr := cachedEntry(elem)
+		c.sizeBytes -= cr.sizeBytes()
 		cr.etag = etag
 		// Replace the body slice entirely; never write into the
 		// existing slice in place. A concurrent reader may hold a
 		// reference to the old slice while json.Unmarshal is reading
 		// it.
 		cr.body = stored
-		return
+		c.sizeBytes += cr.sizeBytes()
+	} else {
+		elem := c.ll.PushFront(&cachedResponse{key: key, etag: etag, body: stored})
+		c.entries[key] = elem
+		c.sizeBytes += sizeBytes
 	}
 
-	elem := c.ll.PushFront(&cachedResponse{key: key, etag: etag, body: stored})
-	c.entries[key] = elem
-
-	if c.ll.Len() > c.maxSize {
+	for c.ll.Len() > c.maxSize || c.sizeBytes > c.maxBytes {
 		c.evictOldest()
 	}
 }
@@ -119,7 +137,9 @@ func (c *responseCache) evictOldest() {
 		return
 	}
 	c.ll.Remove(elem)
-	delete(c.entries, cachedEntry(elem).key)
+	cr := cachedEntry(elem)
+	delete(c.entries, cr.key)
+	c.sizeBytes -= cr.sizeBytes()
 }
 
 func cachedEntry(elem *list.Element) *cachedResponse {

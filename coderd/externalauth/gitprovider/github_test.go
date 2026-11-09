@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -976,6 +978,88 @@ func TestEscapePathPreserveSlashes(t *testing.T) {
 
 func TestConditionalRequestReuse(t *testing.T) {
 	t.Parallel()
+
+	t.Run("WorkingSetAcrossReplicas", func(t *testing.T) {
+		t.Parallel()
+
+		const (
+			pullRequests = 1201
+			branches     = 329
+			replicas     = 3
+			cacheKeys    = 2*pullRequests + branches
+		)
+		pullPadding := strings.Repeat("p", 26<<10)
+		reviewPadding := strings.Repeat("r", 20<<10)
+		branchPadding := strings.Repeat("b", 38<<10)
+		var fullResponses atomic.Int64
+		var notModifiedResponses atomic.Int64
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			etag := strconv.Quote(r.URL.RequestURI())
+			w.Header().Set("ETag", etag)
+			if conditional := r.Header.Get("If-None-Match"); conditional != "" {
+				assert.Equal(t, etag, conditional)
+				notModifiedResponses.Add(1)
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+
+			fullResponses.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			switch {
+			case strings.HasSuffix(r.URL.Path, "/reviews"):
+				_, _ = fmt.Fprintf(w, `[{"id":1,"state":"APPROVED","user":{"login":"reviewer"},"body":%q}]`, reviewPadding)
+			case r.URL.Query().Get("head") != "":
+				htmlURL := fmt.Sprintf("https://%s/owner/repo/pull/42", r.Host)
+				_, _ = fmt.Fprintf(w, `[{"html_url":%q,"number":42,"body":%q}]`, htmlURL, branchPadding)
+			default:
+				segment := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
+				number, err := strconv.Atoi(segment)
+				assert.NoError(t, err)
+				_, _ = fmt.Fprintf(w, `{"number":%d,"title":"PR %d","state":"open","body":%q}`, number, number, pullPadding)
+			}
+		}))
+		defer srv.Close()
+
+		providers := make([]gitprovider.Provider, replicas)
+		for i := range providers {
+			provider, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+			require.NoError(t, err)
+			providers[i] = provider
+		}
+
+		// Move each row between replicas until all have fetched it once,
+		// then verify that subsequent polls only revalidate cached bodies.
+		for round := range replicas + 2 {
+			for i := range pullRequests {
+				provider := providers[(i+round)%replicas]
+				status, err := provider.FetchPullRequestStatus(t.Context(), "test-token", gitprovider.PRRef{
+					Owner: "owner", Repo: "repo", Number: i + 1,
+				})
+				require.NoError(t, err)
+				require.Equal(t, fmt.Sprintf("PR %d", i+1), status.Title)
+				require.True(t, status.Approved)
+			}
+
+			for i := range branches {
+				provider := providers[(i+round)%replicas]
+				ref, err := provider.ResolveBranchPullRequest(t.Context(), "test-token", gitprovider.BranchRef{
+					Owner: "owner", Repo: "repo", Branch: fmt.Sprintf("branch-%d", i),
+				})
+				require.NoError(t, err)
+				require.NotNil(t, ref)
+				require.Equal(t, 42, ref.Number)
+			}
+
+			if round < replicas {
+				require.EqualValues(t, cacheKeys, fullResponses.Swap(0), "cold round %d", round)
+				require.Zero(t, notModifiedResponses.Swap(0), "cold round %d", round)
+			} else {
+				require.Zero(t, fullResponses.Swap(0), "warm round %d must not fetch unchanged bodies", round)
+				require.EqualValues(t, cacheKeys, notModifiedResponses.Swap(0), "warm round %d", round)
+			}
+		}
+	})
 
 	t.Run("NotModifiedReusesCachedBody", func(t *testing.T) {
 		t.Parallel()

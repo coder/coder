@@ -3,6 +3,7 @@ package gitprovider
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -124,7 +125,7 @@ func TestResponseCacheStore(t *testing.T) {
 	t.Run("UpdateReplacesBody", func(t *testing.T) {
 		t.Parallel()
 
-		cache := newResponseCache(4)
+		cache := newResponseCache(4, 0)
 		const key = "k"
 
 		buf := []byte(`{"v":1}`)
@@ -158,7 +159,7 @@ func TestResponseCacheStore(t *testing.T) {
 	t.Run("EvictsLeastRecentlyUsed", func(t *testing.T) {
 		t.Parallel()
 
-		cache := newResponseCache(2)
+		cache := newResponseCache(2, 0)
 		cache.store("a", `"etag-a"`, []byte(`{"k":"a"}`))
 		cache.store("b", `"etag-b"`, []byte(`{"k":"b"}`))
 		// Access "a" so "b" becomes the least-recently-used entry.
@@ -182,12 +183,96 @@ func TestResponseCacheStore(t *testing.T) {
 		assert.Equal(t, `{"k":"c"}`, string(body))
 	})
 
+	t.Run("EvictsToByteBudget", func(t *testing.T) {
+		t.Parallel()
+
+		cache := newResponseCache(8, 256)
+		for _, key := range []string{"a", "b", "c"} {
+			cache.store(key, `"v"`, make([]byte, 80))
+		}
+
+		_, _, ok := cache.load("a")
+		require.True(t, ok)
+		cache.store("d", `"v"`, make([]byte, 160))
+
+		for _, key := range []string{"b", "c"} {
+			_, _, ok := cache.load(key)
+			require.False(t, ok, "multiple least-recently-used entries must be evicted")
+		}
+
+		var retainedBytes int
+		for _, key := range []string{"a", "d"} {
+			etag, body, ok := cache.load(key)
+			require.True(t, ok)
+			retainedBytes += len(key) + len(etag) + cap(body)
+		}
+		require.LessOrEqual(t, retainedBytes, 256)
+		require.Equal(t, retainedBytes, cache.sizeBytes)
+	})
+
+	t.Run("ReplacementRespectsByteBudget", func(t *testing.T) {
+		t.Parallel()
+
+		cache := newResponseCache(8, 256)
+		for _, key := range []string{"a", "b", "c"} {
+			cache.store(key, `"v"`, make([]byte, 80))
+		}
+
+		cache.store("a", `"updated"`, make([]byte, 160))
+		_, _, ok := cache.load("b")
+		require.False(t, ok, "a larger replacement must evict older entries")
+		etag, body, ok := cache.load("a")
+		require.True(t, ok)
+		require.Equal(t, `"updated"`, etag)
+		require.Len(t, body, 160)
+
+		cache.store("a", `"v"`, make([]byte, 16))
+		cache.store("d", `"v"`, make([]byte, 128))
+
+		var retainedBytes int
+		for _, key := range []string{"a", "c", "d"} {
+			etag, body, ok := cache.load(key)
+			require.True(t, ok, "a smaller replacement must release its byte budget")
+			retainedBytes += len(key) + len(etag) + cap(body)
+		}
+		require.LessOrEqual(t, retainedBytes, 256)
+		require.Equal(t, retainedBytes, cache.sizeBytes)
+	})
+
+	t.Run("EntryExceedingByteBudgetNotStored", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tt := range []struct {
+			name string
+			key  string
+			etag string
+			body []byte
+		}{
+			{name: "Body", key: "large", etag: `"v"`, body: make([]byte, 65)},
+			{name: "Key", key: strings.Repeat("k", 65), etag: `"v"`, body: []byte("{}")},
+			{name: "ETag", key: "large", etag: strings.Repeat("e", 65), body: []byte("{}")},
+		} {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				cache := newResponseCache(8, 64)
+				cache.store("a", `"v"`, []byte("{}"))
+				cache.store(tt.key, tt.etag, tt.body)
+
+				_, _, ok := cache.load(tt.key)
+				require.False(t, ok)
+				_, _, ok = cache.load("a")
+				require.True(t, ok, "an uncacheable entry must not evict cached responses")
+			})
+		}
+	})
+
 	// Bodies larger than maxCachedBodyBytes are not stored, so a
 	// single oversized response cannot unbound the cache.
 	t.Run("OversizedBodyNotStored", func(t *testing.T) {
 		t.Parallel()
 
-		cache := newResponseCache(4)
+		cache := newResponseCache(4, 0)
 		cache.store("big", `"etag-big"`, make([]byte, maxCachedBodyBytes+1))
 
 		_, _, ok := cache.load("big")
