@@ -2374,6 +2374,7 @@ WITH acquired AS (
                 AND cds.git_remote_origin != ''
                 AND cds.git_branch != ''
                 AND c.archived = FALSE
+                AND c.parent_chat_id IS NULL
             ORDER BY
                 cds.stale_at ASC
             FOR UPDATE OF cds

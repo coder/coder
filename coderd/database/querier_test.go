@@ -18032,6 +18032,64 @@ func TestDeleteChatDebugDataByChatIDStartedBeforeFiltersNewerRuns(t *testing.T) 
 	require.Equal(t, newRun.ID, remaining.ID)
 }
 
+func TestAcquireStaleChatDiffStatusesRootChatsOnly(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	store, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, store, database.User{})
+	org := dbgen.Organization(t, store, database.Organization{})
+	model := dbgen.ChatModelConfig(t, store, database.ChatModelConfig{OrganizationID: org.ID})
+	newChat := func(parentID, rootID uuid.NullUUID) database.Chat {
+		t.Helper()
+		return dbgen.Chat(t, store, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			LastModelConfigID: model.ID,
+			ParentChatID:      parentID,
+			RootChatID:        rootID,
+		})
+	}
+	root := newChat(uuid.NullUUID{}, uuid.NullUUID{})
+	rootID := uuid.NullUUID{UUID: root.ID, Valid: true}
+	child := newChat(rootID, rootID)
+	grandchild := newChat(uuid.NullUUID{UUID: child.ID, Valid: true}, rootID)
+	archived := newChat(uuid.NullUUID{}, uuid.NullUUID{})
+	_, err := store.ArchiveChatByID(ctx, archived.ID)
+	require.NoError(t, err)
+
+	var unpolled []database.ChatDiffStatus
+	for _, chat := range []database.Chat{child, grandchild, archived, root} {
+		status, err := store.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
+			ChatID:          chat.ID,
+			GitRemoteOrigin: "https://github.com/coder/coder",
+			GitBranch:       "feature",
+			StaleAt:         dbtime.Now().Add(-time.Minute),
+		})
+		require.NoError(t, err)
+		if chat.ID != root.ID {
+			unpolled = append(unpolled, status)
+		}
+	}
+
+	rows, err := store.AcquireStaleChatDiffStatuses(ctx, 1)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	require.Equal(t, root.ID, rows[0].ChatID)
+	require.Equal(t, user.ID, rows[0].OwnerID)
+	require.True(t, rows[0].StaleAt.After(dbtime.Now()))
+
+	rows, err = store.AcquireStaleChatDiffStatuses(ctx, 50)
+	require.NoError(t, err)
+	require.Empty(t, rows)
+
+	for _, want := range unpolled {
+		statuses, err := store.GetChatDiffStatusesByChatID(ctx, want.ChatID)
+		require.NoError(t, err)
+		require.Equal(t, []database.ChatDiffStatus{want}, statuses)
+	}
+}
+
 func TestGetChatsFilter(t *testing.T) {
 	t.Parallel()
 
