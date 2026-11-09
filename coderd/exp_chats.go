@@ -4967,8 +4967,10 @@ func (api *API) resolveGitProvider(ctx context.Context, origin string) gitprovid
 	return gp
 }
 
-// resolveChatGitAccessToken returns the owner's token for the git origin.
-// Provider API requests check access, so unexpired tokens need no validation.
+// resolveChatGitAccessToken returns userID's external-auth access token,
+// preferring the config matching origin and falling back to any config.
+// Tokens passing OAuthToken().Valid() skip provider validation because
+// provider API requests reject invalid tokens.
 func (api *API) resolveChatGitAccessToken(
 	ctx context.Context,
 	userID uuid.UUID,
@@ -5002,6 +5004,7 @@ func (api *API) resolveChatGitAccessToken(
 					link = refreshed
 				}
 			}
+
 			token := strings.TrimSpace(link.OAuthAccessToken)
 			if token != "" {
 				return new(token), nil
@@ -5039,7 +5042,8 @@ func (api *API) resolveChatGitAccessToken(
 			continue
 		}
 
-		if cfg, ok := configs[providerID]; ok && !link.OAuthToken().Valid() {
+		cfg, hasConfig := configs[providerID]
+		if hasConfig && !link.OAuthToken().Valid() {
 			//nolint:gocritic // System context carried through for token refresh.
 			refreshed, refreshErr := cfg.RefreshToken(dbauthz.AsSystemRestricted(ctx), api.Database, link)
 			if refreshErr != nil {
