@@ -275,7 +275,7 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 							<TableCell>
 								<AvatarData
 									title={
-										<span className="whitespace-nowrap block max-w-52 text-ellipsis overflow-hidden">
+										<span className="truncate block max-w-52">
 											{getDisplayWorkspaceTemplateName(workspace)}
 										</span>
 									}
