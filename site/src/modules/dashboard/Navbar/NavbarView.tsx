@@ -70,7 +70,7 @@ export const NavbarView: React.FC<NavbarViewProps> = ({
 			}}
 		>
 			<NavLink to="/workspaces">
-				<ProductLogo className="h-7" />
+				<ProductLogo className="h-7" ghost />
 			</NavLink>
 
 			<NavItems className="ml-4 hidden md:flex" canCreateChat={canCreateChat} />
