@@ -2369,6 +2369,8 @@ WITH acquired AS (
                 AND cds.git_remote_origin != ''
                 AND cds.git_branch != ''
                 AND c.archived = FALSE
+                -- Match Chat.IsSubChat when a deleted parent leaves
+                -- only root_chat_id set.
                 AND c.parent_chat_id IS NULL
                 AND c.root_chat_id IS NULL
             ORDER BY

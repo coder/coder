@@ -195,7 +195,7 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 	fallbackStatus := seedStatus(withoutRootID, "fallback", origin, refreshedAt, reportedAt)
 
 	// A subagent chat without parent_chat_id still uses its root.
-	rootIDStatus := seedStatus(withoutParentID, "root-id-only", origin, refreshedAt, reportedAt)
+	withoutParentIDStatus := seedStatus(withoutParentID, "root-id-only", origin, refreshedAt, reportedAt)
 
 	// Refs from archived subagent chats also move to the root chat.
 	archivedStatus := seedStatus(archivedChild, "archived", origin, refreshedAt, reportedAt)
@@ -209,6 +209,8 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 	}
 
 	// When refreshed_at is NULL for both rows, retain the later updated_at.
+	// The higher chat_id has the later updated_at so chat_id alone selects
+	// the older row.
 	seedReference(lowerChatID, "no-pr", origin, reportedAt)
 	noPRStatus := seedReference(higherChatID, "no-pr", origin, reportedAt.Add(time.Minute))
 
@@ -225,7 +227,7 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 		movedTo(root, subagentStatus),
 		movedTo(root, otherOriginStatus),
 		movedTo(root, fallbackStatus),
-		movedTo(root, rootIDStatus),
+		movedTo(root, withoutParentIDStatus),
 		movedTo(archivedRoot, archivedStatus),
 		otherRootStatus,
 		movedTo(root, noPRStatus),
