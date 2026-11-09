@@ -61,6 +61,7 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 	grandchild := newChat(child, root)
 	referenceOnlyChild := newChat(root, root)
 	withoutRootID := newChat(root, uuid.Nil)
+	withoutParentID := newChat(uuid.Nil, root)
 
 	otherRoot := newChat(uuid.Nil, uuid.Nil)
 
@@ -193,6 +194,9 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 	// A subagent chat without root_chat_id uses its parent.
 	fallbackStatus := seedStatus(withoutRootID, "fallback", origin, refreshedAt, reportedAt)
 
+	// A subagent chat without parent_chat_id still uses its root.
+	rootIDStatus := seedStatus(withoutParentID, "root-id-only", origin, refreshedAt, reportedAt)
+
 	// Refs from archived subagent chats also move to the root chat.
 	archivedStatus := seedStatus(archivedChild, "archived", origin, refreshedAt, reportedAt)
 
@@ -221,6 +225,7 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 		movedTo(root, subagentStatus),
 		movedTo(root, otherOriginStatus),
 		movedTo(root, fallbackStatus),
+		movedTo(root, rootIDStatus),
 		movedTo(archivedRoot, archivedStatus),
 		otherRootStatus,
 		movedTo(root, noPRStatus),

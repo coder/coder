@@ -18055,6 +18055,8 @@ func TestAcquireStaleChatDiffStatusesRootChatsOnly(t *testing.T) {
 	root := newChat(uuid.Nil, uuid.Nil)
 	child := newChat(root.ID, root.ID)
 	grandchild := newChat(child.ID, root.ID)
+	withoutRootID := newChat(root.ID, uuid.Nil)
+	withoutParentID := newChat(uuid.Nil, root.ID)
 
 	// Archived root chats remain excluded from diff-status refresh.
 	archived := newChat(uuid.Nil, uuid.Nil)
@@ -18080,6 +18082,8 @@ func TestAcquireStaleChatDiffStatusesRootChatsOnly(t *testing.T) {
 	excluded := []database.ChatDiffStatus{
 		seedRef(child, olderStaleAt),
 		seedRef(grandchild, olderStaleAt),
+		seedRef(withoutRootID, olderStaleAt),
+		seedRef(withoutParentID, olderStaleAt),
 		seedRef(archived, olderStaleAt),
 	}
 	seedRef(root, rootStaleAt)
