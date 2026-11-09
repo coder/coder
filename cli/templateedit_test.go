@@ -559,7 +559,7 @@ func TestTemplateEdit(t *testing.T) {
 					httpapi.Write(r.Context(), w, http.StatusOK, res)
 					return
 				}
-				if strings.HasPrefix(r.URL.Path, "/api/v2/templates/") {
+				if r.Method == http.MethodPatch && strings.HasPrefix(r.URL.Path, "/api/v2/templates/") {
 					body, err := io.ReadAll(r.Body)
 					require.NoError(t, err)
 					_ = r.Body.Close()
@@ -816,7 +816,7 @@ func TestTemplateEdit(t *testing.T) {
 					httpapi.Write(r.Context(), w, http.StatusOK, res)
 					return
 				}
-				if strings.HasPrefix(r.URL.Path, "/api/v2/templates/") {
+				if r.Method == http.MethodPatch && strings.HasPrefix(r.URL.Path, "/api/v2/templates/") {
 					body, err := io.ReadAll(r.Body)
 					require.NoError(t, err)
 					_ = r.Body.Close()

@@ -21,10 +21,11 @@ const defaultAutostopRequirementWeeks = 1
 
 // templateEditWorkspaceImpactingChanges describes requested changes that act on
 // existing workspaces without a new build (dormancy, failure TTL, active
-// version, autostop and autostart requirements, and TTL overrides when user
-// autostop is disabled), so they need confirmation. Settings that only affect
-// future builds or new workspaces are excluded. A nil field in req leaves the
-// setting unchanged, so it falls back to the template's current value.
+// version, autostop and autostart requirements, user autostart, and TTL
+// overrides when user autostop is disabled), so they need confirmation.
+// Settings that only affect future builds or new workspaces are excluded. A nil
+// field in req leaves the setting unchanged, so it falls back to the template's
+// current value.
 func templateEditWorkspaceImpactingChanges(template codersdk.Template, req codersdk.UpdateTemplateMeta) []string {
 	autostopRequirement := ptr.NilToDefault(req.AutostopRequirement, template.AutostopRequirement)
 	autostartRequirement := ptr.NilToDefault(req.AutostartRequirement, template.AutostartRequirement)
@@ -38,6 +39,7 @@ func templateEditWorkspaceImpactingChanges(template codersdk.Template, req coder
 		autostopRequirementWeeks      = autostopRequirement.Weeks
 		autostartDaysOfWeek           = autostartRequirement.DaysOfWeek
 		defaultTTL                    = time.Duration(ptr.NilToDefault(req.DefaultTTLMillis, template.DefaultTTLMillis)) * time.Millisecond
+		allowUserAutostart            = ptr.NilToDefault(req.AllowUserAutostart, template.AllowUserAutostart)
 		allowUserAutostop             = ptr.NilToDefault(req.AllowUserAutostop, template.AllowUserAutostop)
 	)
 
@@ -80,6 +82,12 @@ func templateEditWorkspaceImpactingChanges(template codersdk.Template, req coder
 	// every existing workspace.
 	if from, to, changed := weekdaysChanged(template.AutostartRequirement.DaysOfWeek, autostartDaysOfWeek); changed {
 		changes = append(changes, fmt.Sprintf("Autostart requirement days: %v -> %v", from, to))
+	}
+
+	// Existing workspaces only autostart while user autostart is allowed, so
+	// changing it pauses or resumes every existing autostart schedule.
+	if allowUserAutostart != template.AllowUserAutostart {
+		changes = append(changes, fmt.Sprintf("Allow user autostart: %t -> %t", template.AllowUserAutostart, allowUserAutostart))
 	}
 
 	// While user autostop is disabled, the server overwrites the TTL of every
@@ -329,6 +337,17 @@ func (r *RootCmd) templateEdit() *serpent.Command {
 				})
 				if err != nil {
 					return err
+				}
+
+				// req carries the template's earlier values for every flag the
+				// user didn't set, so applying it after another edit made
+				// while the prompt waited would silently revert that edit.
+				latest, err := client.Template(inv.Context(), template.ID)
+				if err != nil {
+					return xerrors.Errorf("get workspace template: %w", err)
+				}
+				if !latest.UpdatedAt.Equal(template.UpdatedAt) {
+					return xerrors.Errorf("template %q was modified while waiting for confirmation, run the command again to review the current values", template.Name)
 				}
 			}
 

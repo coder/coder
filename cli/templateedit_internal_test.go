@@ -18,6 +18,7 @@ func Test_templateEditWorkspaceImpactingChanges(t *testing.T) {
 			TimeTilDormantAutoDeleteMillis: new(int64),
 			RequireActiveVersion:           new(bool),
 			DefaultTTLMillis:               new(int64),
+			AllowUserAutostart:             new(true),
 			AllowUserAutostop:              new(true),
 			AutostartRequirement: &codersdk.TemplateAutostartRequirement{
 				DaysOfWeek: []string{"monday", "tuesday"},
@@ -34,7 +35,8 @@ func Test_templateEditWorkspaceImpactingChanges(t *testing.T) {
 	}
 
 	template := codersdk.Template{
-		AllowUserAutostop: true,
+		AllowUserAutostart: true,
+		AllowUserAutostop:  true,
 		AutostartRequirement: codersdk.TemplateAutostartRequirement{
 			DaysOfWeek: []string{"tuesday", "monday"},
 		},
@@ -60,6 +62,7 @@ func Test_templateEditWorkspaceImpactingChanges(t *testing.T) {
 		tmpl.TimeTilDormantAutoDeleteMillis = 180000
 		tmpl.RequireActiveVersion = true
 		tmpl.DefaultTTLMillis = 3600000
+		tmpl.AllowUserAutostart = false
 		tmpl.AllowUserAutostop = false
 		tmpl.AutostopRequirement.Weeks = 2
 
@@ -142,6 +145,29 @@ func Test_templateEditWorkspaceImpactingChanges(t *testing.T) {
 
 		changes := templateEditWorkspaceImpactingChanges(template, req)
 		assert.Equal(t, []string{"Autostop requirement days: [] -> [saturday sunday]"}, changes)
+	})
+
+	t.Run("AllowUserAutostartDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		req := newReq(func(r *codersdk.UpdateTemplateMeta) {
+			r.AllowUserAutostart = new(false)
+		})
+
+		changes := templateEditWorkspaceImpactingChanges(template, req)
+		assert.Equal(t, []string{"Allow user autostart: true -> false"}, changes)
+	})
+
+	t.Run("AllowUserAutostartEnabled", func(t *testing.T) {
+		t.Parallel()
+
+		// Enabling user autostart resumes existing autostart schedules, so it
+		// also needs confirmation.
+		disabled := template
+		disabled.AllowUserAutostart = false
+
+		changes := templateEditWorkspaceImpactingChanges(disabled, newReq(nil))
+		assert.Equal(t, []string{"Allow user autostart: false -> true"}, changes)
 	})
 
 	t.Run("AllowUserAutostopDisabled", func(t *testing.T) {

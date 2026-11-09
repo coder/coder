@@ -358,6 +358,55 @@ func TestTemplateEdit(t *testing.T) {
 		require.Equal(t, (48 * time.Hour).Milliseconds(), template.TimeTilDormantMillis)
 	})
 
+	t.Run("AbortWhenTemplateChangesDuringPrompt", func(t *testing.T) {
+		t.Parallel()
+
+		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureAdvancedTemplateScheduling: 1,
+				},
+			},
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+		})
+
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, templateAdmin, owner.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
+		template := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, version.ID)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv, conf := newCLI(t, "templates", "edit", template.Name, "--dormancy-threshold", "48h")
+		clitest.SetupConfig(t, templateAdmin, conf)
+
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, testutil.Logger(t).Named("stdin"), inv)
+
+		execDone := make(chan error, 1)
+		go func() {
+			execDone <- inv.WithContext(ctx).Run()
+		}()
+
+		stdout.ExpectMatch(ctx, "Apply these changes?")
+
+		// Another admin edits the template while the prompt waits.
+		_, err := templateAdmin.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			Description: new("edited concurrently"),
+		})
+		require.NoError(t, err)
+
+		stdin.WriteLine("yes")
+		require.ErrorContains(t, <-execDone, "modified while waiting for confirmation")
+
+		// The concurrent edit survives and the confirmed change isn't applied.
+		template, err = templateAdmin.Template(ctx, template.ID)
+		require.NoError(t, err)
+		require.Equal(t, "edited concurrently", template.Description)
+		require.Zero(t, template.TimeTilDormantMillis)
+	})
+
 	t.Run("SkipPromptWithYes", func(t *testing.T) {
 		t.Parallel()
 
