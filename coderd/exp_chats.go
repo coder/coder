@@ -4968,7 +4968,7 @@ func (api *API) resolveGitProvider(ctx context.Context, origin string) gitprovid
 }
 
 // resolveChatGitAccessToken returns the owner's token for the git origin.
-// Git requests check access, so unexpired tokens need no validation here.
+// Provider API requests check access, so unexpired tokens need no validation.
 func (api *API) resolveChatGitAccessToken(
 	ctx context.Context,
 	userID uuid.UUID,
