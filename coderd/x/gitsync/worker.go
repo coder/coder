@@ -30,6 +30,8 @@ const (
 	// of concurrent HTTP calls has enough headroom to complete.
 	defaultTickTimeout = 30 * time.Second
 
+	cooldownPersistenceTimeout = 5 * time.Second
+
 	// maxCooldown allows the primary rate limit's hourly window and
 	// the provider's padding.
 	maxCooldown = time.Hour + gitprovider.RateLimitPadding
@@ -265,13 +267,16 @@ func (w *Worker) tick(ctx context.Context) {
 			rateLimits[key] = retryAfter
 		}
 	}
+	// A slow request must not discard another account's observed cooldown.
+	cooldownCtx, cancelCooldown := context.WithTimeout(context.WithoutCancel(ctx), cooldownPersistenceTimeout)
+	defer cancelCooldown()
 	for key, retryAfter := range rateLimits {
-		if err := w.store.UpsertChatGitSyncRateLimit(ctx, database.UpsertChatGitSyncRateLimitParams{
+		if err := w.store.UpsertChatGitSyncRateLimit(cooldownCtx, database.UpsertChatGitSyncRateLimitParams{
 			UserID:     key.ownerID,
 			Host:       key.host,
 			RetryAfter: retryAfter,
 		}); err != nil {
-			w.logger.Warn(ctx, "store git sync rate limit",
+			w.logger.Warn(cooldownCtx, "store git sync rate limit",
 				slog.F("user_id", key.ownerID), slog.F("host", key.host), slog.Error(err))
 		}
 	}

@@ -41,6 +41,9 @@ type cooldownStoreSpy struct {
 	Store
 	reads, writes int
 	owners        []uuid.UUID
+	writeError    error
+	writeBudget   time.Duration
+	hasDeadline   bool
 }
 
 func (s *cooldownStoreSpy) GetChatGitSyncRateLimitsByUserIDs(ctx context.Context, owners []uuid.UUID) ([]database.ChatGitSyncRateLimit, error) {
@@ -51,6 +54,12 @@ func (s *cooldownStoreSpy) GetChatGitSyncRateLimitsByUserIDs(ctx context.Context
 
 func (s *cooldownStoreSpy) UpsertChatGitSyncRateLimit(ctx context.Context, arg database.UpsertChatGitSyncRateLimitParams) error {
 	s.writes++
+	s.writeError = ctx.Err()
+	deadline, ok := ctx.Deadline()
+	s.hasDeadline = ok
+	if ok {
+		s.writeBudget = time.Until(deadline)
+	}
 	return s.Store.UpsertChatGitSyncRateLimit(ctx, arg)
 }
 
@@ -72,6 +81,112 @@ func TestWorker_CooldownLookupError(t *testing.T) {
 	}, nil, logger, clock)
 	worker := NewWorker(store, refresher, nil, clock, logger)
 	worker.tick(testutil.Context(t, testutil.WaitShort))
+}
+
+type branchCallbackProvider struct {
+	gitprovider.Provider
+	resolve func(context.Context, string, gitprovider.BranchRef) (*gitprovider.PRRef, error)
+}
+
+func (p branchCallbackProvider) ResolveBranchPullRequest(ctx context.Context, token string, ref gitprovider.BranchRef) (*gitprovider.PRRef, error) {
+	return p.resolve(ctx, token, ref)
+}
+
+func TestWorker_CooldownPersistsAfterTickCancellation(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	owner := dbgen.User(t, db, database.User{})
+	otherOwner := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	_ = dbgen.ChatProvider(t, db, database.ChatProvider{})
+	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	clock := quartz.NewMock(t)
+	clock.Set(time.Now().UTC().Truncate(time.Second)).MustWait(ctx)
+	const origin = "https://github.example/owner/repo"
+	var limitedChat database.Chat
+	for i, userID := range []uuid.UUID{owner.ID, otherOwner.ID} {
+		chat := dbgen.Chat(t, db, database.Chat{
+			OwnerID:           userID,
+			OrganizationID:    org.ID,
+			LastModelConfigID: model.ID,
+		})
+		_, err := db.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
+			ChatID:          chat.ID,
+			GitRemoteOrigin: origin,
+			GitBranch:       fmt.Sprintf("branch-%d", i),
+			StaleAt:         clock.Now().Add(-time.Minute),
+		})
+		require.NoError(t, err)
+		if i == 0 {
+			limitedChat = chat
+		}
+	}
+
+	client := &http.Client{Transport: testutil.RoundTripperFunc(func(*http.Request) (*http.Response, error) {
+		t.Error("unexpected HTTP request")
+		return nil, xerrors.New("unexpected HTTP request")
+	})}
+	baseProvider, err := gitprovider.New("github", "https://github.example", client, gitprovider.WithClock(clock))
+	require.NoError(t, err)
+	rateLimitObserved := make(chan struct{})
+	slowRequestStarted := make(chan struct{})
+	var limitedCalls atomic.Int32
+	retryAfter := clock.Now().Add(35 * time.Minute)
+	provider := branchCallbackProvider{
+		Provider: baseProvider,
+		resolve: func(ctx context.Context, _ string, ref gitprovider.BranchRef) (*gitprovider.PRRef, error) {
+			if ref.Branch == "branch-0" {
+				if limitedCalls.Add(1) == 1 {
+					close(rateLimitObserved)
+				}
+				return nil, &gitprovider.RateLimitError{RetryAfter: retryAfter}
+			}
+			close(slowRequestStarted)
+			<-ctx.Done()
+			return nil, ctx.Err()
+		},
+	}
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	newWorker := func(store Store) *Worker {
+		refresher := NewRefresher(
+			func(context.Context, string) gitprovider.Provider { return provider },
+			func(context.Context, uuid.UUID, string) (*string, error) { return new("test-token"), nil },
+			logger, clock, WithConcurrency(2),
+		)
+		return NewWorker(store, refresher, nil, clock, logger)
+	}
+	store := &cooldownStoreSpy{Store: db}
+	worker := newWorker(store)
+	tickCtx, cancelTick := context.WithCancel(ctx)
+	defer cancelTick()
+	tickDone := make(chan struct{})
+	go func() {
+		defer close(tickDone)
+		worker.tick(tickCtx)
+	}()
+	testutil.TryReceive(ctx, t, rateLimitObserved)
+	testutil.TryReceive(ctx, t, slowRequestStarted)
+	cancelTick()
+	testutil.TryReceive(ctx, t, tickDone)
+
+	require.NoError(t, store.writeError, "the cooldown write must outlive tick cancellation")
+	require.True(t, store.hasDeadline, "cooldown persistence must have its own timeout")
+	require.Positive(t, store.writeBudget)
+	require.LessOrEqual(t, store.writeBudget, 5*time.Second)
+	limits, err := db.GetChatGitSyncRateLimitsByUserIDs(ctx, []uuid.UUID{owner.ID})
+	require.NoError(t, err)
+	require.Len(t, limits, 1)
+	require.Equal(t, retryAfter, limits[0].RetryAfter.UTC())
+
+	otherWorker := newWorker(db)
+	otherWorker.MarkStale(ctx, MarkStaleParams{
+		ChatID: limitedChat.ID,
+		Branch: "branch-0",
+		Origin: origin,
+	})
+	otherWorker.tick(ctx)
+	require.Equal(t, int32(1), limitedCalls.Load(), "another worker must respect the saved cooldown")
 }
 
 func TestWorker_Cooldown(t *testing.T) {
