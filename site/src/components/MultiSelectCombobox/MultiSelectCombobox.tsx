@@ -459,11 +459,11 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 			} // When onSearch is provided, we don't want to filter the options. You can still override it.
 			filter={commandFilter()}
 		>
-			{/* biome-ignore lint/a11y/useKeyWithClickEvents: onKeyDown is not needed here */}
+			{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- Click focuses the keyboard-accessible input. */}
 			<div
 				className={cn(
-					`flex min-h-10 flex-col justify-center rounded-md border border-solid border-border text-sm pr-3
-						focus-within:ring-2 focus-within:ring-content-link [&>svg]:p-0.5`,
+					"flex min-h-10 flex-col justify-center rounded-md border border-solid border-border text-sm pr-3",
+					"focus-within:ring-2 focus-within:ring-content-link [&>svg]:p-0.5",
 					{
 						"pl-3 py-1": selected.length !== 0,
 						"cursor-text": !disabled && selected.length !== 0,
@@ -492,7 +492,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 									<div className="flex items-center gap-1">
 										{option.icon && (
 											<Avatar
-												size="sm"
+												size="xs"
 												src={option.icon}
 												fallback={option.label}
 											/>
@@ -503,8 +503,8 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 										type="button"
 										data-testid="clear-option-button"
 										className={cn(
-											`ml-1 pr-0 rounded-sm bg-transparent border-none outline-hidden
-												focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ml-2.5 focus-visible:pl-0 cursor-pointer`,
+											"ml-1 pr-0 rounded-sm bg-transparent border-none outline-hidden",
+											"focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ml-2.5 focus-visible:pl-0 cursor-pointer",
 											(disabled || option.fixed) && "hidden",
 										)}
 										onKeyDown={(e) => {
@@ -541,7 +541,9 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 							}}
 							onFocus={(event) => {
 								setOpen(true);
-								triggerSearchOnFocus && onSearch?.(debouncedSearchTerm);
+								if (triggerSearchOnFocus) {
+									onSearch?.(debouncedSearchTerm);
+								}
 								inputProps?.onFocus?.(event);
 							}}
 							placeholder={
@@ -598,10 +600,12 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 				{open && (
 					<CommandList
 						ref={listRef}
-						className={`absolute top-1 z-10 w-full rounded-md
-								border border-solid border-border
-								bg-surface-primary text-content-primary shadow-md outline-hidden
-								animate-in origin-top scroll-mt-44 scroll-mb-10`}
+						className={cn(
+							"absolute top-1 z-10 w-full rounded-md",
+							"border border-solid border-border",
+							"bg-surface-primary text-content-primary shadow-md outline-hidden",
+							"animate-in origin-top scroll-mt-44 scroll-mb-10",
+						)}
 						onPointerLeave={() => {
 							setOnScrollbar(false);
 						}}

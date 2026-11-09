@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"slices"
 	"time"
@@ -18,6 +19,8 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw/loggermw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	markdown "github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/websocket"
@@ -149,6 +152,12 @@ func (api *API) watchInboxNotifications(rw http.ResponseWriter, r *http.Request)
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "starting_before query parameter should be any of 'all', 'read', 'unread'.",
 		})
+		return
+	}
+
+	// Authorize before websocket.Accept: after the upgrade, a refusal can only
+	// be sent as a close frame, not a 403.
+	if !api.authorizeInbox(rw, r, apikey.UserID, policy.ActionRead) {
 		return
 	}
 
@@ -322,6 +331,10 @@ func (api *API) listInboxNotifications(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if !api.authorizeInbox(rw, r, apikey.UserID, policy.ActionRead) {
+		return
+	}
+
 	createdBefore := dbtime.Now()
 	if startingBefore != uuid.Nil {
 		lastNotif, err := api.Database.GetInboxNotificationByID(ctx, startingBefore)
@@ -391,18 +404,32 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	err := api.Database.UpdateInboxNotificationReadStatus(ctx, database.UpdateInboxNotificationReadStatusParams{
-		ID: notificationID,
-		ReadAt: func() sql.NullTime {
-			if body.IsRead {
-				return sql.NullTime{
-					Time:  dbtime.Now(),
-					Valid: true,
-				}
-			}
+	// Check read too: the notification is read before it is updated.
+	if !api.authorizeInbox(rw, r, apikey.UserID, policy.ActionUpdate, policy.ActionRead) {
+		return
+	}
 
-			return sql.NullTime{}
-		}(),
+	// RBAC may grant access to other users' inboxes; only act on the caller's.
+	notification, err := api.Database.GetInboxNotificationByID(ctx, notificationID)
+	if httpapi.Is404Error(err) || (err == nil && notification.UserID != apikey.UserID) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if err != nil {
+		api.Logger.Error(ctx, "failed to get notification by id", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to get notification by id.",
+		})
+		return
+	}
+
+	readAt := sql.NullTime{}
+	if body.IsRead {
+		readAt = sql.NullTime{Time: dbtime.Now(), Valid: true}
+	}
+	err = api.Database.UpdateInboxNotificationReadStatus(ctx, database.UpdateInboxNotificationReadStatusParams{
+		ID:     notificationID,
+		ReadAt: readAt,
 	})
 	if err != nil {
 		api.Logger.Error(ctx, "failed to update inbox notification read status", slog.Error(err))
@@ -411,6 +438,7 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 		})
 		return
 	}
+	notification.ReadAt = readAt
 
 	unreadCount, err := api.Database.CountUnreadInboxNotificationsByUserID(ctx, apikey.UserID)
 	if err != nil {
@@ -421,17 +449,8 @@ func (api *API) updateInboxNotificationReadStatus(rw http.ResponseWriter, r *htt
 		return
 	}
 
-	updatedNotification, err := api.Database.GetInboxNotificationByID(ctx, notificationID)
-	if err != nil {
-		api.Logger.Error(ctx, "failed to get notification by id", slog.Error(err))
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get notification by id.",
-		})
-		return
-	}
-
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UpdateInboxNotificationReadStatusResponse{
-		Notification: convertInboxNotificationResponse(ctx, api.Logger, updatedNotification),
+		Notification: convertInboxNotificationResponse(ctx, api.Logger, notification),
 		UnreadCount:  int(unreadCount),
 	})
 }
@@ -449,6 +468,10 @@ func (api *API) markAllInboxNotificationsAsRead(rw http.ResponseWriter, r *http.
 		apikey = httpmw.APIKey(r)
 	)
 
+	if !api.authorizeInbox(rw, r, apikey.UserID, policy.ActionUpdate) {
+		return
+	}
+
 	err := api.Database.MarkAllInboxNotificationsAsRead(ctx, database.MarkAllInboxNotificationsAsReadParams{
 		UserID: apikey.UserID,
 		ReadAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
@@ -462,4 +485,20 @@ func (api *API) markAllInboxNotificationsAsRead(rw http.ResponseWriter, r *http.
 	}
 
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// authorizeInbox writes a 403 naming the first refused action's scope unless
+// the caller may perform every action on their own inbox.
+func (api *API) authorizeInbox(rw http.ResponseWriter, r *http.Request, userID uuid.UUID, actions ...policy.Action) bool {
+	inbox := rbac.ResourceInboxNotification.WithOwner(userID.String())
+	for _, action := range actions {
+		if !api.Authorize(r, action, inbox) {
+			httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
+				Message: "Forbidden.",
+				Detail:  fmt.Sprintf("This request requires the %s:%s scope.", inbox.Type, action),
+			})
+			return false
+		}
+	}
+	return true
 }

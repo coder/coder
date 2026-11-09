@@ -1,7 +1,11 @@
 import type {
+	AdvisorConfig,
 	Chat,
+	ChatAttachment,
 	ChatContext,
 	ChatContextResource,
+	ChatCost,
+	ChatDiffStatus,
 	ChatFileMetadata,
 	ChatMessage,
 	ChatQueuedMessage,
@@ -19,6 +23,8 @@ export const MockChat: Chat = {
 	owner_name: MockUserOwner.name,
 	last_model_config_id: "model-config-1",
 	title: "Agent",
+	title_source: "generated",
+	title_updated_at: MOCK_TIMESTAMP,
 	status: "waiting",
 	last_turn_summary: null,
 	summary: null,
@@ -33,6 +39,16 @@ export const MockChat: Chat = {
 	client_type: "ui",
 	children: [],
 };
+
+export const mockChatCost = (
+	chatId: string,
+	totalCostMicros = 0,
+): ChatCost => ({
+	chat_id: chatId,
+	total_cost_micros: totalCostMicros,
+	request_count: 3,
+	unpriced_request_count: 0,
+});
 
 // Pinned workspace-context resources the prompt is built from.
 const MockChatContextResources: ChatContextResource[] = [
@@ -85,10 +101,105 @@ export const MockChatContextClean: ChatContext = {
 	resources: MockChatContextResources,
 };
 
+export const MockChatContextResourceFailures: ChatContext = {
+	...MockChatContextClean,
+	resources: [
+		{
+			source: "/home/coder/AGENTS.md",
+			kind: "instruction_file",
+			status: "unreadable",
+			size_bytes: 0,
+			error: "Permission denied reading AGENTS.md.",
+		},
+		{
+			source: "/home/coder/skills/review",
+			kind: "skill",
+			status: "invalid",
+			size_bytes: 0,
+			error: "Skill is missing a description.",
+		},
+		{
+			source: "/home/coder/.mcp.json",
+			kind: "mcp_config",
+			status: "invalid",
+			size_bytes: 0,
+			error: "Invalid MCP configuration.",
+		},
+		{
+			source: "storybook",
+			kind: "mcp_server",
+			status: "unreadable",
+			size_bytes: 0,
+			error: "Failed to connect to MCP server.",
+		},
+		{
+			source: "codex",
+			kind: "acp_harness",
+			status: "unreadable",
+			size_bytes: 0,
+			error: "Unable to start coding agent.",
+		},
+	],
+};
+
+/** A pinned context whose only resources are disconnected MCP servers. */
+export const MockChatContextMCPServerFailures: ChatContext = {
+	...MockChatContextClean,
+	resources: ["storybook", "playwright", "github"].map<ChatContextResource>(
+		(source) => ({
+			source,
+			kind: "mcp_server",
+			status: "unreadable",
+			size_bytes: 0,
+			error: "Failed to connect to MCP server.",
+		}),
+	),
+};
+
 export const MockChatContextDirty: ChatContext = {
 	dirty: true,
 	dirty_since: "2024-01-02T00:00:00Z",
 	resources: MockChatContextResources,
+};
+
+export const MockChatContextACPHarnesses: ChatContext = {
+	dirty: false,
+	resources: [
+		{
+			source: "claude-code",
+			source_path: "/home/coder/.coder/acp",
+			kind: "acp_harness",
+			size_bytes: 120,
+			status: "ok",
+		},
+		{
+			source: "codex",
+			source_path: "/home/coder/.coder/acp",
+			kind: "acp_harness",
+			size_bytes: 96,
+			status: "ok",
+		},
+	],
+};
+
+export const MockChatContextACPHarnessIssue: ChatContext = {
+	dirty: false,
+	resources: [
+		...(MockChatContextACPHarnesses.resources ?? []),
+		{
+			source: "broken",
+			kind: "acp_harness",
+			size_bytes: 0,
+			status: "invalid",
+			error: "cannot start harness",
+		},
+	],
+};
+
+export const MockAdvisorConfig: AdvisorConfig = {
+	enabled: true,
+	max_uses_per_run: 5,
+	max_output_tokens: 2048,
 };
 
 export const MockMCPServerConfig: MCPServerConfig = {
@@ -135,6 +246,18 @@ export const MockChatFileMetadata: ChatFileMetadata = {
 	created_at: MOCK_TIMESTAMP,
 };
 
+export const MockChatAttachment: ChatAttachment = {
+	message_id: MockChatMessage.id,
+	part_index: 0,
+	role: "user",
+	file: {
+		type: "file",
+		media_type: MockChatFileMetadata.mime_type,
+		name: MockChatFileMetadata.name,
+		file_id: MockChatFileMetadata.id,
+	},
+};
+
 export const MockChatCompactionMessage: ChatMessage = {
 	...MockChatMessage,
 	id: 3,
@@ -159,5 +282,34 @@ export const MockChatQueuedMessage: ChatQueuedMessage = {
 	id: 1,
 	chat_id: "chat-1",
 	content: [{ type: "text", text: "Queued message" }],
+	busy_behavior: "queue",
 	created_at: MOCK_TIMESTAMP,
+};
+
+export const MockChatQueuedMessageNotFoundError = {
+	isAxiosError: true,
+	status: 404,
+	response: { status: 404, data: { message: "Queued message not found." } },
+};
+
+// Spread for variants, such as a merged PR or a branch without a PR
+// yet.
+export const MockChatDiffStatus: ChatDiffStatus = {
+	chat_id: MockChat.id,
+	remote_origin: "https://github.com/coder/coder",
+	git_branch: "feat/example",
+	url: "https://github.com/coder/coder/pull/123",
+	pr_number: 123,
+	pull_request_state: "open",
+	pull_request_title: "fix: resolve race condition",
+	pull_request_draft: false,
+	changes_requested: false,
+	additions: 1,
+	deletions: 0,
+	changed_files: 1,
+};
+
+export const MockChatQueuedMessageUnderEdit: ChatQueuedMessage = {
+	...MockChatQueuedMessage,
+	editing_since: MOCK_TIMESTAMP,
 };

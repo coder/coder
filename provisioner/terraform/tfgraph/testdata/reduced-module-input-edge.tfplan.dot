@@ -1,0 +1,19 @@
+digraph {
+	compound = "true"
+	newrank = "true"
+	subgraph "root" {
+		"[root] provider[\"terraform.io/builtin/terraform\"]" [label = "provider[\"terraform.io/builtin/terraform\"]", shape = "diamond"]
+		"[root] terraform_data.agent (expand)" [label = "terraform_data.agent", shape = "box"]
+		"[root] module.tool (close)" -> "[root] module.tool.output.agent_id (expand)"
+		"[root] module.tool (close)" -> "[root] module.tool.output.unrelated_id (expand)"
+		"[root] module.tool (expand)" -> "[root] terraform_data.agent (expand)"
+		"[root] module.tool.output.agent_id (expand)" -> "[root] module.tool.var.agent_id (expand)"
+		"[root] module.tool.output.unrelated_id (expand)" -> "[root] module.tool.var.unrelated_id (expand)"
+		"[root] module.tool.var.agent_id (expand)" -> "[root] module.tool (expand)"
+		"[root] module.tool.var.unrelated_id (expand)" -> "[root] module.tool (expand)"
+		"[root] provider[\"terraform.io/builtin/terraform\"] (close)" -> "[root] terraform_data.agent (expand)"
+		"[root] root" -> "[root] module.tool (close)"
+		"[root] root" -> "[root] provider[\"terraform.io/builtin/terraform\"] (close)"
+		"[root] terraform_data.agent (expand)" -> "[root] provider[\"terraform.io/builtin/terraform\"]"
+	}
+}

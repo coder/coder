@@ -23,4 +23,6 @@ var GoleakOptions []goleak.Option = []goleak.Option{
 	goleak.IgnoreAnyFunction("github.com/Microsoft/go-winio.ioCompletionProcessor"),
 	// The stall detector started from TestMain runs until the process exits.
 	goleak.IgnoreTopFunction("github.com/coder/coder/v2/testutil.StartStallDetector.func1"),
+	// Same for the memory guard.
+	goleak.IgnoreTopFunction("github.com/coder/coder/v2/testutil.watchMemory.func1"),
 }

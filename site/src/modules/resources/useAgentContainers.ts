@@ -1,6 +1,5 @@
 import { useEffect, useEffectEvent } from "react";
 import { useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { watchAgentContainers } from "#/api/api";
 import {
 	workspaceAgentContainers,
@@ -11,6 +10,7 @@ import type {
 	WorkspaceAgentDevcontainer,
 	WorkspaceAgentListContainersResponse,
 } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 
 export function useAgentContainers(
 	agent: WorkspaceAgent,

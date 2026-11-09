@@ -11,15 +11,20 @@ import (
 
 // extractContext reads chat identity headers from the request.
 // Returns zero values if headers are absent (non-chat request).
-func extractContext(r *http.Request) (chatID uuid.UUID, ancestorIDs []uuid.UUID, ok bool) {
+func extractContext(r *http.Request) (chatCtx Context, ok bool) {
 	raw := r.Header.Get(workspacesdk.CoderChatIDHeader)
 	if raw == "" {
-		return uuid.Nil, nil, false
+		return Context{}, false
 	}
 	chatID, err := uuid.Parse(raw)
 	if err != nil {
-		return uuid.Nil, nil, false
+		return Context{}, false
 	}
+	toolCallID, err := uuid.Parse(r.Header.Get(workspacesdk.CoderToolCallIDHeader))
+	if err != nil {
+		toolCallID = uuid.Nil
+	}
+	ancestorIDs := []uuid.UUID{}
 	rawAncestors := r.Header.Get(workspacesdk.CoderAncestorChatIDsHeader)
 	if rawAncestors != "" {
 		var ids []string
@@ -31,5 +36,5 @@ func extractContext(r *http.Request) (chatID uuid.UUID, ancestorIDs []uuid.UUID,
 			}
 		}
 	}
-	return chatID, ancestorIDs, true
+	return Context{ID: chatID, AncestorIDs: ancestorIDs, ToolCallID: toolCallID}, true
 }

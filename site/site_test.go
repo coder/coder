@@ -35,6 +35,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -521,6 +522,58 @@ func TestUserSecretFilePathEnabledMetadata(t *testing.T) {
 	}
 }
 
+func TestExperimentsMetadata(t *testing.T) {
+	t.Parallel()
+
+	// GIVEN: a site handler whose experiments come from stored rules, and
+	// a template that renders only the experiments metadata.
+	siteFS := fstest.MapFS{
+		"index.html": &fstest.MapFile{
+			Data: []byte("{{ .Experiments }}"),
+		},
+	}
+	db, _ := dbtestutil.NewDB(t)
+	evaluator, err := experiments.New(testutil.Logger(t), experiments.NewDBStore(db), codersdk.Experiments{"foo"})
+	require.NoError(t, err)
+	handler, err := site.New(&site.Options{
+		Telemetry:           telemetry.NewNoop(),
+		Database:            db,
+		SiteFS:              siteFS,
+		ExperimentEvaluator: evaluator,
+	})
+	require.NoError(t, err)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	eligible := dbgen.User(t, db, database.User{})
+	other := dbgen.User(t, db, database.User{})
+	_, _, changed, err := experiments.WriteRule(ctx, db, eligible.ID, codersdk.ExperimentExample, experiments.Rule{
+		Mode:      experiments.ModeCondition,
+		Condition: fmt.Sprintf("user.username == %q", eligible.Username),
+	}, 0)
+	require.NoError(t, err)
+	require.True(t, changed)
+
+	fetchExperiments := func(t *testing.T, userID uuid.UUID) codersdk.Experiments {
+		t.Helper()
+		_, token := dbgen.APIKey(t, db, database.APIKey{
+			UserID:    userID,
+			ExpiresAt: time.Now().Add(time.Hour),
+		})
+		r := httptest.NewRequest("GET", "/", nil)
+		r.Header.Set(codersdk.SessionTokenHeader, token)
+		rw := httptest.NewRecorder()
+		handler.ServeHTTP(rw, r)
+		require.Equal(t, http.StatusOK, rw.Code)
+		var got codersdk.Experiments
+		require.NoError(t, json.Unmarshal([]byte(html.UnescapeString(rw.Body.String())), &got))
+		return got
+	}
+
+	// THEN: the metadata reflects the signed-in user's rules.
+	require.Equal(t, codersdk.Experiments{"foo", codersdk.ExperimentExample}, fetchExperiments(t, eligible.ID))
+	require.Equal(t, codersdk.Experiments{"foo"}, fetchExperiments(t, other.ID))
+}
+
 func TestCaching(t *testing.T) {
 	t.Parallel()
 
@@ -556,19 +609,21 @@ func TestCaching(t *testing.T) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancelFunc()
 
+	const immutable = "public, max-age=31536000, immutable"
 	testCases := []struct {
-		path             string
-		isExpectingCache bool
+		path      string
+		wantCache string
 	}{
-		{"/bundle.js", true},
-		{"/image.png", true},
-		{"/static/image.png", true},
-		{"/favicon.ico", true},
+		{"/bundle.js", immutable},
+		{"/image.png", immutable},
+		{"/static/image.png", immutable},
+		{"/favicon.ico", immutable},
 
-		{"/", false},
-		{"/service-worker.js", false},
-		{"/index.html", false},
-		{"/double/nested/terminal.html", false},
+		{"/service-worker.js", ""},
+		// Rendered HTML embeds per-user state and must not be stored.
+		{"/", "no-store"},
+		{"/index.html", "no-store"},
+		{"/double/nested/terminal.html", "no-store"},
 	}
 
 	for _, testCase := range testCases {
@@ -578,12 +633,7 @@ func TestCaching(t *testing.T) {
 		res, err := srv.Client().Do(req)
 		require.NoError(t, err, "get index")
 
-		cache := res.Header.Get("Cache-Control")
-		if testCase.isExpectingCache {
-			require.Equalf(t, "public, max-age=31536000, immutable", cache, "expected %w file to have immutable cache", testCase.path)
-		} else {
-			require.Equalf(t, "", cache, "expected %w file to not have immutable cache header", testCase.path)
-		}
+		require.Equalf(t, testCase.wantCache, res.Header.Get("Cache-Control"), "Cache-Control of %s", testCase.path)
 
 		require.NoError(t, res.Body.Close(), "closing response")
 	}

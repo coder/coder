@@ -3,7 +3,6 @@ import { ArrowLeftIcon } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link, Navigate, useNavigate, useParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorMessage } from "#/api/errors";
 import {
 	aiProvider,
@@ -18,6 +17,7 @@ import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { Loader } from "#/components/Loader/Loader";
 import { SettingsHeaderTitle } from "#/components/SettingsHeader/SettingsHeader";
 import { Switch } from "#/components/Switch/Switch";
+import { toast } from "#/components/Toaster/toast";
 import { getProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { pageTitle } from "#/utils/page";
 import { ProviderForm } from "../components/ProviderForm";
@@ -45,8 +45,8 @@ const UpdateProviderPageView: React.FC = () => {
 	});
 
 	const provider = providerQuery.data;
-	// Copilot has no stored credential, and Bedrock keeps its secrets in
-	// settings, so only the remaining types surface the api_keys UI.
+	// Claude Platform has no stored AWS credential fields. Its API key pool
+	// is the only optional persisted credential and is detected directly.
 	const providerUsesApiKeys =
 		provider !== undefined &&
 		!isBedrockProvider(provider) &&
@@ -114,11 +114,7 @@ const UpdateProviderPageView: React.FC = () => {
 		return <Navigate to={BACK_HREF} replace />;
 	}
 
-	const openAiAnthropicSavedApiKey =
-		providerUsesApiKeys && provider.api_keys.length > 0;
-	const openAiAnthropicMaskedApiKey = providerUsesApiKeys
-		? provider.api_keys[0]?.masked
-		: undefined;
+	const hasSavedApiKey = providerUsesApiKeys && provider.api_keys.length > 0;
 
 	return (
 		<>
@@ -160,12 +156,17 @@ const UpdateProviderPageView: React.FC = () => {
 				<div className="flex items-center justify-between w-full">
 					<p className="text-sm text-content-secondary m-0">
 						Add or update models for this provider.{" "}
-						<a
-							href="/ai/settings/models"
+						<Link
+							to={{
+								pathname: "/ai/settings/models",
+								search: new URLSearchParams({
+									provider: provider.id,
+								}).toString(),
+							}}
 							className="text-content-link no-underline hover:underline"
 						>
 							Model settings
-						</a>
+						</Link>
 					</p>
 					<div className="flex items-center gap-2">
 						<Switch
@@ -196,12 +197,12 @@ const UpdateProviderPageView: React.FC = () => {
 					<ProviderForm
 						editing
 						key={provider.id}
-						bedrockSavedAccessCredentials={hasBedrockStoredCredentials(
-							provider,
-						)}
-						bedrockExternalId={bedrockExternalId(provider)}
-						openAiAnthropicSavedApiKey={openAiAnthropicSavedApiKey}
-						openAiAnthropicMaskedApiKey={openAiAnthropicMaskedApiKey}
+						awsSavedAccessCredentials={hasBedrockStoredCredentials(provider)}
+						awsExternalId={bedrockExternalId(provider)}
+						hasSavedApiKey={hasSavedApiKey}
+						// The single-key field shows only the first key; entering a replacement replaces the whole pool.
+						// TODO: Support per-key editing: https://linear.app/codercom/issue/AIGOV-419
+						savedApiKeyMask={provider.api_keys[0]?.masked}
 						initialValues={aiProviderToFormValues(provider)}
 						isLoading={updateMutation.isPending}
 						submitError={updateMutation.error}

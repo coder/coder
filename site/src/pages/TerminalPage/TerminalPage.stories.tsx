@@ -5,6 +5,7 @@ import {
 	reactRouterParameters,
 } from "storybook-addon-remix-react-router";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
+import { experimentsKey } from "#/api/queries/experiments";
 import { workspaceByOwnerAndNameKey } from "#/api/queries/workspaces";
 import type { Workspace, WorkspaceAgentLifecycle } from "#/api/typesGenerated";
 import { AuthProvider } from "#/contexts/auth/AuthProvider";
@@ -24,6 +25,7 @@ import {
 	MockWorkspaceAgent,
 } from "#/testHelpers/entities";
 import { withWebSocket } from "#/testHelpers/storybook";
+import terminalSymbolGlyphSets from "#/theme/fonts/terminal-symbols-glyphs.json";
 import { isMac } from "#/utils/platform";
 import TerminalPage from "./TerminalPage";
 
@@ -46,6 +48,50 @@ const createWorkspaceWithAgent = (lifecycle: WorkspaceAgentLifecycle) => {
 			},
 		} satisfies Workspace,
 	};
+};
+
+const GLYPH_CHART_COLUMNS = 32;
+
+const renderGlyphChart = () => {
+	const columnHeader = Array.from(
+		{ length: GLYPH_CHART_COLUMNS },
+		(_, column) => column.toString(16).toUpperCase().padStart(2, "0"),
+	).join(" ");
+	const lines = [
+		"\x1b[1mTerminal Symbols glyph chart\x1b[0m",
+		// scripts/gen_terminal_symbols_font.sh leaves these out of the font.
+		"Left to system fonts: \u26a1 U+26A1  \u2665 U+2665",
+	];
+	for (const { name, ranges } of terminalSymbolGlyphSets) {
+		const included = new Set<number>();
+		for (const [start, end] of ranges) {
+			for (let codepoint = start; codepoint <= end; codepoint++) {
+				included.add(codepoint);
+			}
+		}
+		const rowStarts = new Set(
+			[...included].map(
+				(codepoint) => codepoint - (codepoint % GLYPH_CHART_COLUMNS),
+			),
+		);
+		lines.push(
+			"",
+			`\x1b[1;36m${name}\x1b[0m (${included.size} glyphs)`,
+			`\x1b[2m${" ".repeat(9)}${columnHeader}\x1b[0m`,
+		);
+		for (const rowStart of rowStarts) {
+			const label = `U+${rowStart.toString(16).toUpperCase().padStart(4, "0")}`;
+			let row = `\x1b[2m${label.padEnd(9)}\x1b[0m`;
+			for (let column = 0; column < GLYPH_CHART_COLUMNS; column++) {
+				const codepoint = rowStart + column;
+				row += included.has(codepoint) ? String.fromCodePoint(codepoint) : " ";
+				// Nerd Font glyphs can overflow their own cell.
+				row += "  ";
+			}
+			lines.push(row.trimEnd());
+		}
+	}
+	return lines.join("\r\n");
 };
 
 const meta = {
@@ -73,7 +119,7 @@ const meta = {
 			{ key: ["hasFirstUser"], data: true },
 			{ key: ["buildInfo"], data: MockBuildInfo },
 			{ key: ["entitlements"], data: MockEntitlements },
-			{ key: ["experiments"], data: MockExperiments },
+			{ key: experimentsKey(MockUserOwner.id), data: MockExperiments },
 			{ key: ["appearance"], data: MockAppearanceConfig },
 			{ key: ["organizations"], data: [MockDefaultOrganization] },
 			{
@@ -166,6 +212,51 @@ export const Ready: Story = {
 			},
 		],
 		queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],
+	},
+};
+
+export const NerdFontGlyphs: Story = {
+	decorators: [withWebSocket],
+	parameters: {
+		...meta.parameters,
+		webSocket: [
+			{
+				event: "message",
+				// A prompt with glyphs from the Powerline, Octicons, Devicons,
+				// Codicons, Font Awesome, Font Logos, and Material Design subsets,
+				// which each load from their own font file.
+				data: "\x1b[34m\ue0b6\x1b[30;44m \uf418 main \x1b[34;42m\ue0b0\x1b[30m \ue718 22 \x1b[32;43m\ue0b0\x1b[30m \ueb99 \uf17c \uf31b \u{f0004} \x1b[33;49m\ue0b0\x1b[0m ",
+			},
+		],
+		queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],
+	},
+};
+
+export const NerdFontGlyphChart: Story = {
+	decorators: [withWebSocket],
+	parameters: {
+		...meta.parameters,
+		webSocket: [{ event: "message", data: renderGlyphChart() }],
+		queries: [...meta.parameters.queries, createWorkspaceWithAgent("ready")],
+	},
+	// xterm writes the chart over several frames and overrides earlier scrolls,
+	// so wait for the scrollback to stop growing before scrolling to the top.
+	play: async ({ canvasElement }) => {
+		let previousScrollHeight = 0;
+		const viewport = await waitFor(
+			() => {
+				const element = canvasElement.querySelector(".xterm-viewport");
+				const scrollHeight = element?.scrollHeight ?? 0;
+				const isGrowing = scrollHeight !== previousScrollHeight;
+				previousScrollHeight = scrollHeight;
+				if (!element || element.scrollTop === 0 || isGrowing) {
+					throw new Error("terminal is still writing the chart");
+				}
+				return element;
+			},
+			{ interval: 200, timeout: 10_000 },
+		);
+		viewport.scrollTop = 0;
 	},
 };
 

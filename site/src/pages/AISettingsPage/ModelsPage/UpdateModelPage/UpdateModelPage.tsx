@@ -2,7 +2,6 @@ import { isAxiosError } from "axios";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Navigate, useNavigate, useParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	chatModel,
@@ -11,6 +10,7 @@ import {
 	updateChatModel,
 } from "#/api/queries/chats";
 import { Loader } from "#/components/Loader/Loader";
+import { toast } from "#/components/Toaster/toast";
 import { deriveProviderStates } from "#/modules/aiModels/providerStates";
 import { pageTitle } from "#/utils/page";
 import {

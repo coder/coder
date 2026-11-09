@@ -1,7 +1,6 @@
 import { cn } from "cn";
 import { ContainerIcon, ExternalLinkIcon } from "lucide-react";
 import { useMutation, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
@@ -27,6 +26,7 @@ import {
 } from "#/components/Dialog/Dialog";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,
@@ -178,10 +178,12 @@ export const AgentDevcontainerCard: React.FC<AgentDevcontainerCardProps> = ({
 			)}
 		>
 			<div
-				className="absolute -top-2 left-5
-				flex items-center gap-2
-				bg-surface-primary px-2
-				text-xs text-content-secondary"
+				className={cn(
+					"absolute -top-2 left-5",
+					"flex items-center gap-2",
+					"bg-surface-primary px-2",
+					"text-xs text-content-secondary",
+				)}
 			>
 				<ContainerIcon size={12} className="mr-1.5" />
 				{devcontainer.subagent_id ? (
@@ -199,9 +201,11 @@ export const AgentDevcontainerCard: React.FC<AgentDevcontainerCardProps> = ({
 				)}
 			</div>
 			<header
-				className="flex items-center justify-between flex-wrap
-				gap-6 px-4 pl-8 leading-6
-				md:gap-4"
+				className={cn(
+					"flex items-center justify-between flex-wrap",
+					"gap-6 px-4 pl-8 leading-6",
+					"md:gap-4",
+				)}
 			>
 				<div className="min-w-[284px] flex items-center gap-6 text-xs text-content-secondary">
 					<div className="flex items-center gap-4 w-full">
@@ -211,9 +215,11 @@ export const AgentDevcontainerCard: React.FC<AgentDevcontainerCardProps> = ({
 							agent={subAgent}
 						/>
 						<span
-							className="flex-1 shrink-0
-							overflow-hidden text-ellipsis whitespace-nowrap
-							text-sm font-semibold text-content-primary"
+							className={cn(
+								"flex-1 shrink-0",
+								"truncate",
+								"text-sm font-semibold text-content-primary",
+							)}
 						>
 							{subAgent?.name ??
 								(devcontainer.name || devcontainer.config_path)}
@@ -255,11 +261,7 @@ export const AgentDevcontainerCard: React.FC<AgentDevcontainerCardProps> = ({
 					</Button>
 
 					{showDevcontainerControls && displayApps.includes("ssh_helper") && (
-						<AgentSSHButton
-							workspaceName={workspace.name}
-							agentName={subAgent.name}
-							workspaceOwnerUsername={workspace.owner_name}
-						/>
+						<AgentSSHButton workspace={workspace} agentName={subAgent.name} />
 					)}
 					{showDevcontainerControls &&
 						displayApps.includes("port_forwarding_helper") &&

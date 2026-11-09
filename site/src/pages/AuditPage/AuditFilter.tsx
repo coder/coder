@@ -162,8 +162,24 @@ export const useResourceTypeFilterMenu = ({
 			label = "Chat Instruction Settings";
 		}
 
+		if (type === "chat_organization_system_prompt") {
+			label = "Chat Organization System Prompt";
+		}
+
+		if (type === "chat_project_instructions") {
+			label = "Chat Project Instructions";
+		}
+
+		if (type === "chat_project_skill") {
+			label = "Chat Project Skill";
+		}
+
 		if (type === "chat_operational_settings") {
 			label = "Chat Operational Settings";
+		}
+
+		if (type === "experiment_rule") {
+			label = "Experiment Rule";
 		}
 
 		return {

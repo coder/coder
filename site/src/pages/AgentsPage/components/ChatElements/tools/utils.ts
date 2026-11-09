@@ -6,6 +6,25 @@ import { asRecord, asString, isValid } from "../runtimeTypeUtils";
 
 export type ToolStatus = "completed" | "error" | "running";
 
+/**
+ * Scrolls a log viewport to its newest line if the reader was at the end
+ * before the new lines landed. Returns the scrollHeight for the next call.
+ * It sets scrollTop directly: scrollIntoView also scrolls the chat transcript.
+ */
+export const followLogEnd = (
+	viewport: Pick<Element, "scrollTop" | "clientHeight" | "scrollHeight"> | null,
+	previousScrollHeight: number,
+): number => {
+	if (!viewport) {
+		return 0;
+	}
+	// 8px matches the message scroller's end threshold.
+	if (viewport.scrollTop + viewport.clientHeight >= previousScrollHeight - 8) {
+		viewport.scrollTop = viewport.scrollHeight;
+	}
+	return viewport.scrollHeight;
+};
+
 export type EditFilesFileEntry = {
 	path: string;
 	edits: Array<{ search: string; replace: string }>;
@@ -53,55 +72,6 @@ export const formatModelIntentLabel = (
 	}
 	return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
 };
-
-const trailingDurationPattern =
-	/(^|\s+)for\s+\d+(?:\.\d+)?\s*(?:ms|s|m|h)\s*$/i;
-
-export const sanitizeExecuteModelIntent = (
-	modelIntent: string | undefined,
-	command: string,
-): string => {
-	const label = formatModelIntentLabel(modelIntent);
-	const withoutCommand = stripRedundantUsingSuffix(label, command);
-	return stripTrailingDuration(withoutCommand);
-};
-
-const stripRedundantUsingSuffix = (label: string, command: string): string => {
-	const usingMatches = Array.from(label.matchAll(/(^|\s+)using\s+/gi));
-	for (let i = usingMatches.length - 1; i >= 0; i--) {
-		const match = usingMatches[i];
-		if (match.index === undefined) {
-			continue;
-		}
-
-		const suffix = stripTrailingDuration(
-			label.slice(match.index + match[0].length),
-		);
-		if (isCommandReference(suffix, command)) {
-			return label.slice(0, match.index).trim();
-		}
-	}
-	return label;
-};
-
-const stripTrailingDuration = (label: string): string =>
-	label.replace(trailingDurationPattern, "").trim();
-
-const isCommandReference = (value: string, command: string): boolean => {
-	const normalizedValue = normalizeCommandReference(value);
-	const normalizedCommand = normalizeCommandReference(command);
-	if (!normalizedValue || !normalizedCommand) {
-		return false;
-	}
-	return (
-		normalizedValue === normalizedCommand ||
-		normalizedCommand.startsWith(`${normalizedValue} `) ||
-		normalizedValue.startsWith(`${normalizedCommand} `)
-	);
-};
-
-const normalizeCommandReference = (value: string): string =>
-	value.trim().toLowerCase().replace(/\s+/g, " ");
 
 const roundToTenths = (value: number): number => Number(value.toFixed(1));
 
@@ -158,6 +128,10 @@ export const mapSubagentStatusToToolStatus = (
 	subagentStatus: string,
 	fallback: ToolStatus,
 ): ToolStatus => {
+	// A failed call stays failed even if its child keeps running or later succeeds.
+	if (fallback === "error") {
+		return "error";
+	}
 	const normalized = normalizeStatus(subagentStatus);
 	if (!normalized) {
 		return fallback;
@@ -175,6 +149,7 @@ export const mapSubagentStatusToToolStatus = (
 	switch (normalized) {
 		case "waiting":
 		case "terminated":
+		case "paused":
 			return "completed";
 		case "error":
 			return "error";
@@ -183,20 +158,45 @@ export const mapSubagentStatusToToolStatus = (
 	}
 };
 
+/** JSON.parse that returns undefined for invalid JSON. */
+const parseJSON = (text: string): unknown => {
+	try {
+		return JSON.parse(text);
+	} catch {
+		return undefined;
+	}
+};
+
 export const parseArgs = (args: unknown): Record<string, unknown> | null => {
 	if (!args) {
 		return null;
 	}
-	if (typeof args === "string") {
-		try {
-			const parsed = JSON.parse(args);
-			return asRecord(parsed);
-		} catch {
-			return null;
-		}
-	}
-	return asRecord(args);
+	return asRecord(typeof args === "string" ? parseJSON(args) : args);
 };
+
+/**
+ * Parses value, or its JSON encoding, as an array whose items all pass
+ * parseItem. Returns null otherwise. The JSON form exists because the
+ * generated tool-call args type is a string map, so typed fixtures
+ * encode arrays.
+ */
+export const parseArray = <T>(
+	value: unknown,
+	parseItem: (item: unknown) => T | null,
+): T[] | null => {
+	const array = typeof value === "string" ? parseJSON(value) : value;
+	if (!Array.isArray(array)) {
+		return null;
+	}
+	const items = array.map(parseItem);
+	return items.every((item): item is T => item !== null) ? items : null;
+};
+
+/** Trimmed, non-empty strings of a string array, or null for other values. */
+export const parseStringList = (value: unknown): string[] | null =>
+	parseArray(value, (item) =>
+		typeof item === "string" ? item.trim() : null,
+	)?.filter(Boolean) ?? null;
 
 const getToolInputPayload = (args: unknown): unknown => {
 	const rec = asRecord(args);
@@ -417,17 +417,25 @@ export function getFileViewerOptionsMinimal(isDark: boolean) {
 export const stripSvnIndexHeaders = (patch: string): string =>
 	patch.replace(/^Index: .*\n={3,}\n/gm, "");
 
-export const DIFFS_FONT_STYLE = {
-	"--diffs-font-family": '"Geist Mono Variable", monospace, monospace',
-	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
-	"--diffs-font-size": "11px",
-	"--diffs-line-height": "1.5",
+/**
+ * Diff addition and deletion colors from the dashboard theme, so diffs follow
+ * the active theme variant, including the colorblind ones.
+ */
+export const DIFFS_GIT_COLOR_STYLE = {
 	"--diffs-addition-color-override": "hsl(var(--git-added))",
 	"--diffs-deletion-color-override": "hsl(var(--git-deleted))",
 	"--diffs-bg-addition-override": "hsl(var(--surface-git-added))",
 	"--diffs-bg-deletion-override": "hsl(var(--surface-git-deleted))",
 	"--diffs-bg-addition-number-override": "hsl(var(--surface-git-added))",
 	"--diffs-bg-deletion-number-override": "hsl(var(--surface-git-deleted))",
+};
+
+export const DIFFS_FONT_STYLE = {
+	"--diffs-font-family": '"Geist Mono Variable", monospace, monospace',
+	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
+	"--diffs-font-size": "11px",
+	"--diffs-line-height": "1.5",
+	...DIFFS_GIT_COLOR_STYLE,
 	"--diffs-bg-selection-override": "hsl(var(--content-link) / 0.08)",
 	"--diffs-bg-selection-number-override": "hsl(var(--content-link) / 0.13)",
 	"--diffs-selection-number-fg": "hsl(var(--content-link))",

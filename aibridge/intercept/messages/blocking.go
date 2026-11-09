@@ -142,6 +142,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 
 		if prompt != nil {
 			_ = i.recorder.RecordPromptUsage(ctx, &recorder.PromptUsageRecord{
+				CreatedAt:      time.Now().UTC(),
 				InterceptionID: i.ID().String(),
 				MsgID:          resp.ID,
 				Prompt:         *prompt,
@@ -149,13 +150,14 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 			prompt = nil
 		}
 
-		i.recordTokenUsage(ctx, resp.ID, resp.Usage)
+		i.recordTokenUsage(ctx, resp.ID, resp.Model, resp.Usage)
 
 		accumulateUsage(&cumulativeUsage, resp.Usage)
 
 		// Capture any thinking blocks that were returned.
 		for _, t := range i.extractModelThoughts(resp) {
 			_ = i.recorder.RecordModelThought(ctx, &recorder.ModelThoughtRecord{
+				CreatedAt:      time.Now().UTC(),
 				InterceptionID: i.ID().String(),
 				Content:        t.Content,
 				Metadata:       t.Metadata,
@@ -177,6 +179,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 
 			// If tool is not injected, track it since the client will be handling it.
 			_ = i.recorder.RecordToolUsage(ctx, &recorder.ToolUsageRecord{
+				CreatedAt:      time.Now().UTC(),
 				InterceptionID: i.ID().String(),
 				MsgID:          resp.ID,
 				ToolCallID:     toolUse.ID,
@@ -213,6 +216,7 @@ func (i *BlockingInterception) ProcessRequest(w http.ResponseWriter, r *http.Req
 			res, err := tool.Call(ctx, tc.Input, i.tracer)
 
 			_ = i.recorder.RecordToolUsage(ctx, &recorder.ToolUsageRecord{
+				CreatedAt:       time.Now().UTC(),
 				InterceptionID:  i.ID().String(),
 				MsgID:           resp.ID,
 				ToolCallID:      tc.ID,

@@ -3,7 +3,6 @@ package chatopenai_test
 import (
 	"testing"
 
-	fantasyazure "charm.land/fantasy/providers/azure"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
 	"github.com/stretchr/testify/require"
@@ -36,8 +35,6 @@ func TestTransportFor(t *testing.T) {
 		{"OpenAIGPT6AstraDefaultsToResponses", fantasyopenai.Name, "gpt-6-astra", nil, chatopenai.TransportResponses},
 		{"OpenAIGPT6AstraSnapshotDefaultsToResponses", fantasyopenai.Name, "gpt-6-astra-2026-09-03", nil, chatopenai.TransportResponses},
 		{"OpenAIGPT6AstraForceCompletions", fantasyopenai.Name, "gpt-6-astra", &forceCompletions, chatopenai.TransportChatCompletions},
-		{"AzureIgnoresOverride", fantasyazure.Name, responsesModel, &forceCompletions, chatopenai.TransportResponses},
-		{"AzureKnownModelList", fantasyazure.Name, nonResponsesModel, nil, chatopenai.TransportChatCompletions},
 		{"OpenAICompat", fantasyopenaicompat.Name, responsesModel, &forceResponses, chatopenai.TransportChatCompletions},
 		{"Anthropic", "anthropic", "claude-sonnet-4-5", &forceResponses, chatopenai.TransportNotApplicable},
 	}
@@ -57,6 +54,15 @@ func TestIsGPT6Astra(t *testing.T) {
 	require.True(t, chatopenai.IsGPT6Astra("GPT-6-Astra-2026-09-03"))
 	require.False(t, chatopenai.IsGPT6Astra("gpt-5.6-sol"))
 	require.False(t, chatopenai.IsGPT6Astra("gpt-6"))
+}
+
+func TestIsGPT61Sol(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, chatopenai.IsGPT61Sol("gpt-6.1-sol"))
+	require.True(t, chatopenai.IsGPT61Sol("GPT-6.1-Sol-2026-09-24"))
+	require.False(t, chatopenai.IsGPT61Sol("gpt-6-sol"))
+	require.False(t, chatopenai.IsGPT61Sol("gpt-6.1"))
 }
 
 func TestTransportUsesResponses(t *testing.T) {

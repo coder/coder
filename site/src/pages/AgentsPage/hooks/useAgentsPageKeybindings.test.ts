@@ -98,6 +98,7 @@ describe("useAgentsPageKeybindings", () => {
 		renderHook(() =>
 			useAgentsPageKeybindings({
 				onNewAgent,
+				onToggleSearch: vi.fn(),
 				onOpenSettings,
 			}),
 		);

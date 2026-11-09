@@ -1,29 +1,24 @@
 import { cn } from "cn";
 import {
 	ArrowLeftIcon,
-	ArrowUpIcon,
 	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
-	LockIcon,
+	InfoIcon,
 	MicIcon,
 	MonitorIcon,
 	PaperclipIcon,
 	PencilIcon,
+	PlugIcon,
 	PlusIcon,
-	ServerIcon,
 	SquareIcon,
 	TriangleAlertIcon,
-	UnlinkIcon,
 	XIcon,
 } from "lucide-react";
 import type React from "react";
 import { useEffect, useId, useImperativeHandle, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Link } from "react-router";
-import { toast } from "sonner";
-import { getErrorMessage } from "#/api/errors";
-import { disconnectMCPServerOAuth2 } from "#/api/queries/chats";
+import { useQuery } from "react-query";
+import { Link, useLocation, useNavigate } from "react-router";
 import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
@@ -37,8 +32,6 @@ import {
 	CommandItem,
 	CommandList,
 } from "#/components/Command/Command";
-import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
-import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import {
 	Popover,
 	PopoverContent,
@@ -47,49 +40,42 @@ import {
 } from "#/components/Popover/Popover";
 import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { Spinner } from "#/components/Spinner/Spinner";
-import { Switch } from "#/components/Switch/Switch";
+import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useMediaQuery } from "#/hooks/useMediaQuery";
 import {
 	ModelSelector,
 	type ModelSelectorOption,
 } from "#/modules/aiModels/ModelSelector";
+import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
-import {
-	isBelowMdViewport,
-	isMobileViewport,
-	mobileViewportMediaQuery,
-} from "#/utils/mobile";
+import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
-import { useMCPOAuthFlow } from "../hooks/useMCPOAuthFlow";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import {
 	isWorkspaceUploadInProgress,
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
-import {
-	getAgentChatSendShortcut,
-	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
-} from "../utils/agentChatSendShortcut";
+import { getAgentChatSendShortcut } from "../utils/agentChatSendShortcut";
 import {
 	chatAttachmentAcceptAttribute,
 	isChatAttachmentFile,
 	shouldRouteFileToWorkspace,
 } from "../utils/chatAttachments";
 import type { ChatSlashCommand } from "../utils/slashCommands";
+import { AgentChatSendButton } from "./AgentChatSendButton";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 import {
 	AttachmentPreview,
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
+import type { EditingTarget } from "./ChatConversation/types";
 import {
 	ChatMessageInput,
 	type ChatMessageInputRef,
@@ -99,7 +85,12 @@ import type { AgentContextUsage } from "./ContextUsageIndicator";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 import { ImageLightbox } from "./ImageLightbox";
 import { MCPServerIconStack } from "./MCPServerIconStack";
-import { QueuedMessagesList } from "./QueuedMessagesList";
+import { MCPServersMenuContent } from "./MCPServersMenuContent";
+import { ProjectSkillActions } from "./ProjectSkillActions";
+import {
+	canSendQueuedMessageNow,
+	QueuedMessagesList,
+} from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
 import { WorkspaceUploadPreview } from "./WorkspaceUploadPreview";
@@ -134,7 +125,7 @@ const workspaceUploadPendingSendMessage =
 	"Wait for the current message to finish sending, then add the file again.";
 
 type AgentChatInputProps = {
-	onSend: (message: string) => void;
+	onSend: (message: string, busyBehavior?: TypesGen.ChatBusyBehavior) => void;
 	placeholder?: string;
 	isDisabled: boolean;
 	isReadOnly?: boolean;
@@ -142,17 +133,17 @@ type AgentChatInputProps = {
 	// Ref for the Lexical editor, exposed for imperative access.
 	inputRef?: React.Ref<ChatMessageInputRef>;
 	// Initial text to seed the editor on first mount only.
-	initialValue?: string;
+	initialValue: string;
 	// Serialized Lexical editor state for restoring drafts with
 	// file-reference chips. Takes precedence over initialValue.
 	initialEditorState?: string;
 	// Monotonic counter to force editor remount.
 	remountKey?: number;
 	// Called on every content change inside the editor.
-	onContentChange?: (
+	onContentChange: (
 		content: string,
 		serializedEditorState: string,
-		hasFileReferences: boolean,
+		hasChips: boolean,
 	) => void;
 	// Model selector.
 	selectedModel: string;
@@ -162,9 +153,9 @@ type AgentChatInputProps = {
 	hasModelOptions: boolean;
 	reasoningEffort?: string;
 	onReasoningEffortChange?: (value: string) => void;
-	planModeEnabled?: boolean;
-	onPlanModeToggle?: (enabled: boolean) => void;
-	isModelCatalogLoading?: boolean;
+	planModeEnabled: boolean;
+	onPlanModeToggle: (enabled: boolean) => void;
+	isModelCatalogLoading: boolean;
 	// Streaming controls (optional, for the detail page).
 	isStreaming?: boolean;
 	onInterrupt?: () => void;
@@ -181,23 +172,35 @@ type AgentChatInputProps = {
 	// Organization ID of the current chat. When set, workspaces from
 	// other organizations are shown as disabled in the picker.
 	chatOrganizationId?: string;
+	// Project of the chat, whose skills the "/" menu offers.
+	chatProjectId?: string;
 	isWorkspaceLoading?: boolean;
+	// Opts in to project action skills above the composer, which also need
+	// a composer the user can send from.
+	showProjectActions?: boolean;
 	// Queued user messages rendered above the textarea.
 	queuedMessages?: readonly ChatQueuedMessage[];
 	onDeleteQueuedMessage?: (id: number) => Promise<void> | void;
 	onPromoteQueuedMessage?: (id: number) => Promise<void> | void;
+	onEditQueuedMessage?: (id: number) => void;
+	onEndQueuedMessageEdit?: (id: number) => Promise<void> | void;
 	// Caution shown at the top of the composer, owned by the parent.
 	warning?: string;
-	// History editing state, owned by the parent.
-	isEditingHistoryMessage?: boolean;
-	onCancelHistoryEdit?: () => void;
+	// When set, also hides the editor and every control (view-only mode).
+	readOnlyNotice?: string;
+	isChatPaused?: boolean;
+	// Editing state, owned by the parent. The kind selects the banner text.
+	editingKind?: EditingTarget["kind"];
+	queuedMessageUnderEditID?: number | null;
+	composerQueuedMessageID?: number | null;
+	onCancelEdit?: () => void;
 	// Newest-first list of non-empty user prompts for local history cycling.
 	userPromptHistory?: readonly string[];
 
 	// Optional context-usage summary shown to the left of the send button.
-	// Pass `null` to render fallback values (e.g. when limit is unknown).
+	// Fields the provider has not reported render as fallback values.
 	// Omit entirely to hide the indicator.
-	contextUsage?: AgentContextUsage | null;
+	contextUsage?: AgentContextUsage;
 	// Re-pins the chat to the workspace's latest context snapshot,
 	// surfaced by the context indicator when the pinned context has
 	// drifted.
@@ -213,18 +216,16 @@ type AgentChatInputProps = {
 	onTextPreview?: (
 		content: string,
 		fileName: string,
-		mediaType?: string,
+		mediaType: string,
 	) => void;
 	// MCP Server picker.
 	mcpServers?: readonly TypesGen.MCPServerConfig[];
 	selectedMCPServerIds?: readonly string[];
 	onMCPSelectionChange?: (ids: string[]) => void;
-	onMCPAuthComplete?: (serverId: string) => void;
 	workspaceSkills?: readonly SkillMetadata[];
 	workspace?: TypesGen.Workspace;
 	workspaceAgent?: TypesGen.WorkspaceAgent;
 	chatId?: string;
-	sshCommand?: string;
 	attachedWorkspace?: AttachedWorkspaceInfo;
 	folder?: string;
 	canConfigureAgentSetup: boolean;
@@ -237,6 +238,8 @@ type AgentChatInputProps = {
 	// Built-in commands offered by the "/" trigger menu ahead of
 	// personal skills.
 	slashCommands?: readonly ChatSlashCommand[];
+	fillWidth?: boolean;
+	highlightKey?: string;
 };
 
 export type AttachedWorkspaceInfo = {
@@ -251,6 +254,12 @@ export type AttachedWorkspaceInfo = {
 // label's natural width. Below the floor the +N overflow takes over.
 const pillSizingClasses =
 	"grow shrink-0 basis-[calc(8ch_+_3.125rem)] max-w-max";
+
+const pillFocusRingClasses =
+	"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link";
+
+const pillFocusWithinRingClasses =
+	"has-focus-visible:ring-2 has-focus-visible:ring-inset has-focus-visible:ring-content-link";
 
 // Pills clamp to the popover width so a long name truncates instead
 // of pushing its X out of view.
@@ -272,15 +281,12 @@ const BadgePopoverContent: React.FC<PopoverContentProps> = ({
 type ToolBadgeData =
 	| { kind: "workspace"; name: string }
 	| ({ kind: "attached-workspace" } & AttachedWorkspaceInfo)
-	| { kind: "mcp"; server: TypesGen.MCPServerConfig }
 	| { kind: "mcp-group"; servers: readonly TypesGen.MCPServerConfig[] }
 	| { kind: "planning" };
 
 // Non-MCP badges can share a kind, so their keys are position-qualified.
 const badgeKey = (badge: ToolBadgeData, index: number) => {
 	switch (badge.kind) {
-		case "mcp":
-			return badge.server.id;
 		case "mcp-group":
 			return badge.kind;
 		default:
@@ -301,10 +307,10 @@ const BadgeDismissButton: React.FC<{
 		type="button"
 		onClick={onClick}
 		disabled={isDisabled}
-		className="group -mx-1 -my-1 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-content-secondary disabled:cursor-not-allowed disabled:opacity-50"
+		className="group -mx-1 -my-1 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-content-secondary focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
 		aria-label={ariaLabel}
 	>
-		<span className="inline-flex size-3.5 items-center justify-center rounded-full transition-colors group-hover:bg-surface-tertiary group-hover:text-content-primary">
+		<span className="inline-flex size-3.5 items-center justify-center rounded-full transition-colors group-hover:bg-surface-tertiary group-hover:text-content-primary group-focus-visible:bg-surface-tertiary group-focus-visible:text-content-primary">
 			<XIcon className="size-2.5!" />
 		</span>
 	</button>
@@ -312,19 +318,22 @@ const BadgeDismissButton: React.FC<{
 
 type MCPGroupBadgeProps = {
 	servers: readonly TypesGen.MCPServerConfig[];
-	onRemoveMcp?: (serverId: string) => void;
-	isDisabled?: boolean;
+	menu: React.ReactNode;
 	className: string;
 };
 
 const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
 	servers,
-	onRemoveMcp,
-	isDisabled,
+	menu,
 	className,
 }) => {
 	const [open, setOpen] = useState(false);
-	const label = `${servers.length} MCPs`;
+	let label = `${servers.length} MCPs`;
+	if (servers.length === 0) {
+		label = "Add MCPs";
+	} else if (servers.length === 1) {
+		label = "1 MCP";
+	}
 
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
@@ -335,49 +344,70 @@ const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
 					className={cn(
 						className,
 						"cursor-pointer border-0 transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+						pillFocusRingClasses,
 					)}
 				>
-					<MCPServerIconStack servers={servers} />
+					{servers.length === 0 ? (
+						<PlugIcon className="size-3 shrink-0" />
+					) : (
+						<MCPServerIconStack servers={servers} />
+					)}
 					{label}
 					<ChevronDownIcon
 						className={cn("size-3 transition-transform", open && "rotate-180")}
 					/>
 				</button>
 			</PopoverTrigger>
-			<BadgePopoverContent>
-				{servers.map((server) => (
-					<ToolBadge
-						key={server.id}
-						badge={{ kind: "mcp", server }}
-						onRemoveMcp={onRemoveMcp}
-						isDisabled={isDisabled}
-					/>
-				))}
-			</BadgePopoverContent>
+			<PopoverContent side="top" align="start" className="w-72 p-1">
+				{menu}
+			</PopoverContent>
 		</Popover>
 	);
 };
 
+type MCPServersMenuRowContentProps = {
+	activeCount: number;
+	isOpen?: boolean;
+};
+
+const MCPServersMenuRowContent: React.FC<MCPServersMenuRowContentProps> = ({
+	activeCount,
+	isOpen,
+}) => (
+	<>
+		<PlugIcon className="size-3.5 shrink-0" />
+		<span>MCP servers</span>
+		<span className="ml-auto">{activeCount} on</span>
+		<ChevronRightIcon
+			className={cn(
+				"size-icon-sm transition-transform",
+				isOpen && "rotate-180",
+			)}
+		/>
+	</>
+);
+
 const ToolBadge: React.FC<{
 	badge: ToolBadgeData;
 	onRemoveWorkspace?: () => void;
-	onRemoveMcp?: (serverId: string) => void;
 	onRemovePlanning?: () => void;
-	isDisabled?: boolean;
+	mcpMenu: React.ReactNode;
+	isDisabled: boolean;
 	className?: string;
 	// The overflow popover auto-focuses badges; suppress the tooltip there.
 	disableTooltip?: boolean;
 }> = ({
 	badge,
 	onRemoveWorkspace,
-	onRemoveMcp,
 	onRemovePlanning,
+	mcpMenu,
 	isDisabled,
 	className,
 	disableTooltip,
 }) => {
 	const badgeCls = cn(
 		"inline-flex shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary",
+		pillFocusWithinRingClasses,
 		className,
 	);
 
@@ -411,7 +441,7 @@ const ToolBadge: React.FC<{
 							to={badge.route}
 							target="_blank"
 							rel="noreferrer"
-							className="inline-flex min-w-0 items-center gap-1 text-inherit no-underline"
+							className="inline-flex min-w-0 items-center gap-1 text-inherit no-underline focus-visible:outline-hidden"
 						>
 							{badge.statusIcon}
 							<span className="truncate">{badge.name}</span>
@@ -451,47 +481,47 @@ const ToolBadge: React.FC<{
 		);
 	}
 
-	if (badge.kind === "mcp-group") {
-		return (
-			<MCPGroupBadge
-				servers={badge.servers}
-				onRemoveMcp={onRemoveMcp}
-				isDisabled={isDisabled}
-				className={badgeCls}
-			/>
-		);
-	}
-
-	const isForceOn = badge.server.availability === "force_on";
 	return (
-		<span className={badgeCls}>
-			{badge.server.icon_url ? (
-				<ExternalImage
-					src={badge.server.icon_url}
-					alt=""
-					className="size-3 rounded-sm"
-				/>
-			) : (
-				<ServerIcon className="size-3" />
-			)}
-			<span className="truncate">{badge.server.display_name}</span>
-			{isForceOn ? (
-				<>
-					<LockIcon className="size-3 shrink-0" />
-					<span className="sr-only">Always on</span>
-				</>
-			) : (
-				onRemoveMcp && (
-					<BadgeDismissButton
-						onClick={() => onRemoveMcp(badge.server.id)}
-						ariaLabel={`Remove ${badge.server.display_name}`}
-						isDisabled={isDisabled}
-					/>
-				)
-			)}
-		</span>
+		<MCPGroupBadge
+			servers={badge.servers}
+			menu={mcpMenu}
+			className={badgeCls}
+		/>
 	);
 };
+
+type PlusMenuSubmenu = "workspace" | "mcp";
+
+// Below md, swapping the plus menu's views unmounts the focused control.
+// A callback ref moves focus to its replacement, because biome's
+// lint/a11y/noAutofocus rule rejects autoFocus on native buttons.
+const focusOnMount = (element: HTMLElement | null) => {
+	element?.focus();
+};
+
+type PlusMenuSubmenuPanelProps = {
+	onBack: () => void;
+	children: React.ReactNode;
+};
+
+const PlusMenuSubmenuPanel: React.FC<PlusMenuSubmenuPanelProps> = ({
+	onBack,
+	children,
+}) => (
+	<div className="p-0">
+		<button
+			ref={focusOnMount}
+			type="button"
+			onClick={onBack}
+			className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+		>
+			<ArrowLeftIcon className="size-3.5 shrink-0" />
+			<span>Back</span>
+		</button>
+		<Separator className="my-1" />
+		{children}
+	</div>
+);
 
 export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	onSend,
@@ -511,9 +541,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	hasModelOptions,
 	reasoningEffort,
 	onReasoningEffortChange,
-	planModeEnabled = false,
+	planModeEnabled,
 	onPlanModeToggle,
-	isModelCatalogLoading = false,
+	isModelCatalogLoading,
 	isStreaming = false,
 	onInterrupt,
 	isInterruptPending = false,
@@ -521,13 +551,21 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	selectedWorkspaceId,
 	onWorkspaceChange,
 	chatOrganizationId,
+	chatProjectId,
 	isWorkspaceLoading,
+	showProjectActions = false,
 	queuedMessages = [],
 	onDeleteQueuedMessage,
 	onPromoteQueuedMessage,
+	onEditQueuedMessage,
+	onEndQueuedMessageEdit,
 	warning,
-	isEditingHistoryMessage = false,
-	onCancelHistoryEdit,
+	readOnlyNotice,
+	isChatPaused = false,
+	editingKind,
+	queuedMessageUnderEditID = null,
+	composerQueuedMessageID = null,
+	onCancelEdit,
 	userPromptHistory = [],
 	contextUsage,
 	onRefreshContext,
@@ -543,12 +581,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	mcpServers,
 	selectedMCPServerIds,
 	onMCPSelectionChange,
-	onMCPAuthComplete,
 	workspaceSkills,
 	workspace,
 	workspaceAgent,
 	chatId,
-	sshCommand,
 	attachedWorkspace,
 	folder,
 	canConfigureAgentSetup,
@@ -557,7 +593,15 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	unsupportedProviderNames = [],
 	aiGatewayDisabled,
 	slashCommands,
+	fillWidth = false,
+	highlightKey,
 }) => {
+	const isEditingMessage = editingKind !== undefined;
+	const enterSendsHead =
+		!isEditingMessage &&
+		queuedMessages.length > 0 &&
+		queuedMessages[0].id !== queuedMessageUnderEditID &&
+		canSendQueuedMessageNow(queuedMessages[0].busy_behavior);
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
@@ -565,7 +609,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		preferencesQuery.isLoading,
 	);
 	const [chatFullWidth] = useChatFullWidth();
-	const isMobile = useMediaQuery(mobileViewportMediaQuery);
 	const { organizations } = useDashboard();
 	const chatOrganization = organizations.find(
 		(organization) => organization.id === chatOrganizationId,
@@ -578,6 +621,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				(providerCount === 0 || modelCount === 0)
 			: modelCount !== undefined && modelCount === 0);
 	const internalRef = useRef<ChatMessageInputRef>(null);
+	useEffect(() => {
+		if (highlightKey !== undefined) {
+			internalRef.current?.focus();
+		}
+	}, [highlightKey]);
 	const [previewImage, setPreviewImage] = useState<string | null>(null);
 	const [previewText, setPreviewText] = useState<string | null>(null);
 	const [previewTextFileName, setPreviewTextFileName] = useState<string | null>(
@@ -587,35 +635,18 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		string | null
 	>(null);
 	const [plusMenuOpen, setPlusMenuOpen] = useState(false);
-	const [plusMenuView, setPlusMenuView] = useState<"main" | "workspace">(
+	const [plusMenuView, setPlusMenuView] = useState<"main" | PlusMenuSubmenu>(
 		"main",
 	);
+	// The submenu that Back closed, so the main view focuses its row.
+	const [lastPlusMenuSubmenu, setLastPlusMenuSubmenu] =
+		useState<PlusMenuSubmenu | null>(null);
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
-	const { connectingServerId: mcpConnectingId, connect: connectMCPServer } =
-		useMCPOAuthFlow({
-			organizationId: chatOrganizationId,
-			onAuthComplete: onMCPAuthComplete,
-			onFlowSuccess: (serverID) => {
-				if (
-					onMCPSelectionChange &&
-					selectedMCPServerIds &&
-					mcpServers?.some(
-						(server) => server.id === serverID && server.enabled,
-					) &&
-					!selectedMCPServerIds.includes(serverID)
-				) {
-					onMCPSelectionChange([...selectedMCPServerIds, serverID]);
-				}
-			},
-		});
-	const [mcpDisconnectTarget, setMcpDisconnectTarget] =
-		useState<TypesGen.MCPServerConfig | null>(null);
-	const queryClient = useQueryClient();
-	const mcpDisconnectMutation = useMutation(
-		disconnectMCPServerOAuth2(queryClient),
-	);
+	const [mcpMenuOpen, setMcpMenuOpen] = useState(false);
+	const navigate = useNavigate();
+	const location = useLocation();
 
-	const [hasFileReferences, setHasFileReferences] = useState(false);
+	const [hasChips, setHasChips] = useState(false);
 	const [cycleIndex, setCycleIndex] = useState<number | null>(null);
 	const [cycleSavedDraft, setCycleSavedDraft] = useState<string | null>(null);
 	const cycleHistorySnapshotRef = useRef<readonly string[] | null>(null);
@@ -642,7 +673,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		previousRemountKeyRef.current = remountKey;
 		// Inlined resetPromptCycle body. Calling resetPromptCycle directly
 		// would force it into the dep array; the React Compiler stabilises
-		// callbacks but biome's react-hooks lint does not.
+		// callbacks but the exhaustive-deps lint does not.
 		setCycleIndex(null);
 		setCycleSavedDraft(null);
 		cycleHistorySnapshotRef.current = null;
@@ -651,20 +682,18 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	}, [remountKey]);
 
 	const speech = useSpeechRecognition();
-	const [preRecordingValue, setPreRecordingValue] = useState<string>("");
+	// The draft, including skill chips, as it was when recording started.
+	const [preRecordingState, setPreRecordingState] = useState<string | null>(
+		null,
+	);
 
 	useEffect(() => {
-		if (!speech.isRecording) return;
-		const editor = internalRef.current;
-		if (!editor) return;
-		editor.clear();
-		const combined = preRecordingValue
-			? `${preRecordingValue} ${speech.transcript}`
-			: speech.transcript;
-		if (combined) {
-			editor.insertText(combined);
-		}
-	}, [speech.transcript, speech.isRecording, preRecordingValue]);
+		if (!speech.isRecording || preRecordingState === null) return;
+		internalRef.current?.restoreEditorState(
+			preRecordingState,
+			speech.transcript,
+		);
+	}, [speech.transcript, speech.isRecording, preRecordingState]);
 
 	// Forward a stable delegating handle to the parent-supplied inputRef.
 	// Delegates lazily to internalRef.current so methods see the current
@@ -679,6 +708,15 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			focus: () => internalRef.current?.focus(),
 			getValue: () => internalRef.current?.getValue() ?? "",
 			addFileReference: (ref) => internalRef.current?.addFileReference(ref),
+			insertSkill: (source, name) =>
+				internalRef.current?.insertSkill(source, name),
+			removeSkills: (sources) => internalRef.current?.removeSkills(sources),
+			getEditorState: () => internalRef.current?.getEditorState() ?? "",
+			restoreEditorState: (serializedEditorState, appendText) =>
+				internalRef.current?.restoreEditorState(
+					serializedEditorState,
+					appendText,
+				),
 			getContentParts: () => internalRef.current?.getContentParts() ?? [],
 		}),
 		[],
@@ -693,28 +731,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				selectedMCPServerIds.filter((id) => id !== serverId),
 			);
 		}
-	};
-
-	const handleMcpDisconnectConfirm = () => {
-		if (!mcpDisconnectTarget) {
-			return;
-		}
-		const name = mcpDisconnectTarget.display_name;
-		mcpDisconnectMutation.mutate(mcpDisconnectTarget.id, {
-			onSuccess: (response) => {
-				setMcpDisconnectTarget(null);
-				if (response.token_revocation_error) {
-					toast.warning(`Disconnected ${name}.`, {
-						description: response.token_revocation_error,
-					});
-				} else {
-					toast.success(`Disconnected ${name}.`);
-				}
-			},
-			onError: (error) => {
-				toast.error(getErrorMessage(error, `Failed to disconnect ${name}.`));
-			},
-		});
 	};
 
 	// Only a chat-bound workspace counts: an unbound selection (new chat
@@ -734,6 +750,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		? selectedWorkspace.id !== linkedWorkspaceId
 		: false;
 
+	const isReadOnlyView = readOnlyNotice !== undefined;
 	const enabledMcpServers = mcpServers?.filter((s) => s.enabled) ?? [];
 	const activeMcpServers = enabledMcpServers.filter(
 		(s) =>
@@ -768,31 +785,85 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	if (shouldShowSelectedWorkspaceBadge && selectedWorkspace) {
 		allBadges.push({ kind: "workspace", name: selectedWorkspace.name });
 	}
-	if (activeMcpServers.length >= 3) {
+	// Read-only chats cannot add servers, so they show the pill only for
+	// servers already in use.
+	if (
+		activeMcpServers.length > 0 ||
+		(enabledMcpServers.length > 0 && !isReadOnlyView)
+	) {
 		allBadges.push({ kind: "mcp-group", servers: activeMcpServers });
-	} else {
-		for (const server of activeMcpServers) {
-			allBadges.push({ kind: "mcp", server });
-		}
 	}
 
 	const overflowCount = useOverflowCount(badgeContainerRef, allBadges.length);
 	const visibleCount = Math.max(0, allBadges.length - overflowCount);
 	const overflowBadges = allBadges.slice(visibleCount);
 
-	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
-	const removeWorkspaceHandler = onWorkspaceChange
-		? handleRemoveWorkspace
+	const readOnlyModel = isReadOnlyView
+		? modelOptions.find((option) => option.id === selectedModel)
 		: undefined;
-	const handleRemoveMcp = (serverId: string) =>
-		handleMcpToggle(serverId, false);
+	const handleRemoveWorkspace = () => onWorkspaceChange?.(null);
+	const removeWorkspaceHandler =
+		onWorkspaceChange && !isReadOnlyView ? handleRemoveWorkspace : undefined;
+
+	const closePlusMenuSubmenu = (submenu: PlusMenuSubmenu) => {
+		setLastPlusMenuSubmenu(submenu);
+		setPlusMenuView("main");
+	};
+	const plusMenuRowRef = (submenu: PlusMenuSubmenu) =>
+		lastPlusMenuSubmenu === submenu ? focusOnMount : undefined;
+
+	const handleManageConnections = () => {
+		setMcpMenuOpen(false);
+		setPlusMenuOpen(false);
+		setPlusMenuView("main");
+		navigate("/agents/settings/mcp-connections", {
+			state: {
+				from: location.pathname + location.search,
+				organizationId: chatOrganizationId,
+			},
+		});
+	};
+	const mcpMenuContent = (
+		<MCPServersMenuContent
+			servers={enabledMcpServers}
+			selectedServerIds={selectedMCPServerIds}
+			isDisabled={isDisabled}
+			onToggle={isReadOnlyView ? undefined : handleMcpToggle}
+			onManageConnections={isReadOnlyView ? undefined : handleManageConnections}
+		/>
+	);
+
+	let plusMenuSubmenuPanel: React.ReactNode = null;
+	if (plusMenuView === "mcp") {
+		plusMenuSubmenuPanel = (
+			<PlusMenuSubmenuPanel onBack={() => closePlusMenuSubmenu("mcp")}>
+				{mcpMenuContent}
+			</PlusMenuSubmenuPanel>
+		);
+	} else if (plusMenuView === "workspace") {
+		plusMenuSubmenuPanel = (
+			<PlusMenuSubmenuPanel onBack={() => closePlusMenuSubmenu("workspace")}>
+				<WorkspacePickerList
+					workspaceOptions={workspaceOptions}
+					selectedWorkspaceId={selectedWorkspaceId}
+					chatOrganizationId={chatOrganizationId}
+					onSelect={(id) => {
+						onWorkspaceChange?.(id);
+						setPlusMenuOpen(false);
+					}}
+				/>
+			</PlusMenuSubmenuPanel>
+		);
+	}
 
 	const handlePlanModeToggle = () => {
-		onPlanModeToggle?.(!planModeEnabled);
+		onPlanModeToggle(!planModeEnabled);
 		setPlusMenuOpen(false);
 	};
 
-	const handleDisablePlanMode = () => onPlanModeToggle?.(false);
+	const handleDisablePlanMode = isReadOnlyView
+		? undefined
+		: () => onPlanModeToggle(false);
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [composerElement, setComposerElement] = useState<HTMLDivElement | null>(
@@ -1018,14 +1089,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const handleTextPreview = (
 		content: string,
 		fileName: string,
-		mediaType?: string,
+		mediaType: string,
 	) => {
 		if (onTextPreview) {
 			onTextPreview(content, fileName, mediaType);
 		} else {
 			setPreviewText(content);
 			setPreviewTextFileName(fileName);
-			setPreviewTextMediaType(mediaType ?? null);
+			setPreviewTextMediaType(mediaType);
 		}
 	};
 
@@ -1055,17 +1126,17 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	// Track whether the editor has content so we can gate the
 	// send button without a controlled value prop.
 	const [hasContent, setHasContent] = useState(() =>
-		Boolean(initialValue?.trim()),
+		Boolean(initialValue.trim()),
 	);
 
 	const [invisibleCharCount, setInvisibleCharCount] = useState(() =>
-		countInvisibleCharacters(initialValue ?? ""),
+		countInvisibleCharacters(initialValue),
 	);
 
 	const handleContentChange = (
 		content: string,
 		serializedEditorState: string,
-		hasRefs: boolean,
+		hasChipsInEditor: boolean,
 	) => {
 		// Lexical fires onChange synchronously from editor.setValue().
 		// While cycling, compare incoming content to currentCycleValueRef,
@@ -1078,9 +1149,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			resetPromptCycle();
 		}
 		setHasContent(Boolean(content.trim()));
-		setHasFileReferences(hasRefs);
+		setHasChips(hasChipsInEditor);
 		setInvisibleCharCount(countInvisibleCharacters(content));
-		onContentChange?.(content, serializedEditorState, hasRefs);
+		onContentChange(content, serializedEditorState, hasChipsInEditor);
 	};
 
 	// Re-focus the editor after a send completes (isLoading goes
@@ -1113,10 +1184,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		hasContent ||
 		attachments.length > 0 ||
 		workspaceUploadEntries.length > 0 ||
-		hasFileReferences;
+		hasChips;
 	const isComposerEffectivelyEmpty = !hasDraftContext;
-	const hasSendableContent =
-		hasContent || hasUploadedAttachments || hasFileReferences;
+	const hasSendableContent = hasContent || hasUploadedAttachments || hasChips;
 	const canSend =
 		!isDisabled &&
 		!isReadOnly &&
@@ -1124,20 +1194,19 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		hasModelOptions &&
 		hasSendableContent &&
 		!hasActiveUploads;
-	const handleSubmit = () => {
+	const submit = (busyBehavior?: TypesGen.ChatBusyBehavior) => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
-		// If the input is empty and there are queued messages,
-		// promote the first one instead of submitting.
 		if (
+			!busyBehavior &&
 			!text &&
 			!hasUploadedAttachments &&
-			!hasFileReferences &&
+			!hasChips &&
 			!isDisabled &&
 			!isReadOnly &&
 			!isLoading &&
 			!hasActiveUploads &&
-			queuedMessages.length > 0 &&
+			enterSendsHead &&
 			onPromoteQueuedMessage
 		) {
 			void onPromoteQueuedMessage(queuedMessages[0].id);
@@ -1145,7 +1214,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		}
 
 		if (
-			(!text && !hasUploadedAttachments && !hasFileReferences) ||
+			(!text && !hasUploadedAttachments && !hasChips) ||
 			isDisabled ||
 			isReadOnly ||
 			isLoading ||
@@ -1155,15 +1224,18 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			return;
 		}
 
-		onSend(text);
+		onSend(text, busyBehavior);
 		resetPromptCycle();
 		if (!isMobileViewport()) {
 			internalRef.current?.focus();
 		}
 	};
+	const handleSubmit = () => submit();
+	const offersSendAfterTurn = isStreaming && !isEditingMessage;
+	const handleSubmitAfterTurn = () => submit("queue");
 	const handleStartRecording = () => {
 		resetPromptCycle();
-		setPreRecordingValue(internalRef.current?.getValue()?.trim() ?? "");
+		setPreRecordingState(internalRef.current?.getEditorState() ?? null);
 		speech.start();
 	};
 
@@ -1175,26 +1247,26 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	};
 
 	const handleCancelRecording = () => {
-		const original = preRecordingValue;
 		speech.cancel();
 		const editor = internalRef.current;
 		if (editor) {
-			editor.clear();
-			if (original) {
-				editor.insertText(original);
+			if (preRecordingState !== null) {
+				editor.restoreEditorState(preRecordingState);
 			}
 			if (!isMobileViewport()) {
 				editor.focus();
 			}
 		}
-		setPreRecordingValue("");
+		setPreRecordingState(null);
 	};
 
 	const handleComposerKeyDown = (e: React.KeyboardEvent) => {
-		if (e.key === "Escape") {
-			if (isEditingHistoryMessage) {
+		// React bubbles keydown from portaled popovers (MCP servers, model
+		// selector) through the composer; Escape there only closes the popover.
+		if (e.key === "Escape" && e.currentTarget.contains(e.target as Node)) {
+			if (isEditingMessage) {
 				e.preventDefault();
-				onCancelHistoryEdit?.();
+				onCancelEdit?.();
 			} else if (isStreaming && onInterrupt && !isInterruptPending) {
 				e.preventDefault();
 				onInterrupt();
@@ -1221,7 +1293,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		// streaming so the user can prepare the next prompt. Escape is
 		// cycle-aware so it does not accidentally interrupt streaming.
 		const isPromptCyclingSuppressed =
-			isEditingHistoryMessage || isReadOnly || isLoading;
+			isEditingMessage || isReadOnly || isLoading;
 		if (isPromptCyclingSuppressed) {
 			return;
 		}
@@ -1284,59 +1356,65 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		applyCycleValue(nextPrompt);
 	};
 
-	const sendButtonLabel = isEditingHistoryMessage
-		? "Save Edit"
-		: isStreaming
-			? "Queue"
-			: "Send";
+	const sendButtonLabel = isEditingMessage ? "Save Edit" : "Send";
 	// Stop and the send button are mutually exclusive while streaming; a
 	// non-empty draft or a live recording selects the send button. A live
-	// recording also takes precedence over history editing.
+	// recording also takes precedence over history editing. A queued edit
+	// does not start a turn, so it takes the slot like a draft.
 	const draftOccupiesSlot =
 		hasSendableContent || hasActiveUploads || speech.isRecording;
-	const editingHoldsStop = isEditingHistoryMessage && !speech.isRecording;
+	const editingHoldsStop = editingKind === "history" && !speech.isRecording;
+	const canShowProjectActions =
+		showProjectActions &&
+		!isReadOnly &&
+		!isReadOnlyView &&
+		!isLoading &&
+		!isDisabled &&
+		hasModelOptions &&
+		!aiGatewayDisabled;
 	const showStopButton =
+		!isReadOnlyView &&
 		isStreaming &&
 		onInterrupt !== undefined &&
 		(!draftOccupiesSlot || editingHoldsStop);
 	const showSendButton =
-		!isStreaming || (draftOccupiesSlot && !editingHoldsStop);
-	// Mobile viewports advertise no send shortcut.
-	const sendShortcutLabel = isMobile
-		? undefined
-		: sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
-			? "Cmd/Ctrl+Enter"
-			: "Enter";
-	const sendButtonKeyShortcuts = isMobile
-		? undefined
-		: sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
-			? "Control+Enter Meta+Enter"
-			: "Enter";
-	const sendButtonTooltip = sendShortcutLabel
-		? `${sendButtonLabel}: ${sendShortcutLabel}`
-		: sendButtonLabel;
+		!isReadOnlyView &&
+		(!isStreaming || (draftOccupiesSlot && !editingHoldsStop));
 
 	const content = (
 		<div
 			className={cn(
-				"mx-auto w-full pb-0 sm:pb-4",
-				chatWidthClass(chatFullWidth),
-				isEditingHistoryMessage && "pt-1",
+				"mx-auto w-full",
+				fillWidth
+					? "max-w-full"
+					: [chatWidthClass(chatFullWidth), "pb-0 sm:pb-4"],
+				isEditingMessage && "pt-1",
 			)}
 		>
+			{canShowProjectActions && chatOrganizationId && chatProjectId && (
+				<ProjectSkillActions
+					organizationId={chatOrganizationId}
+					projectId={chatProjectId}
+					onInvoke={(name) => internalRef.current?.insertSkill("project", name)}
+				/>
+			)}
 			{queuedMessages.length > 0 && (
 				<QueuedMessagesList
 					messages={queuedMessages}
 					onDelete={(id) => onDeleteQueuedMessage?.(id)}
 					onPromote={(id) => onPromoteQueuedMessage?.(id)}
+					onEdit={onEditQueuedMessage}
+					onEndEdit={onEndQueuedMessageEdit}
+					isChatPaused={isChatPaused}
+					queuedMessageUnderEditID={queuedMessageUnderEditID}
+					composerQueuedMessageID={composerQueuedMessageID}
+					showEnterToSendHint={enterSendsHead}
 					className="mb-2"
 				/>
 			)}
 			{showAgentSetupNotice && (
 				<div className="relative z-0 -mb-10">
-					{(aiGatewayDisabled ||
-						(providerCount !== undefined && modelCount !== undefined)) &&
-					canConfigureAgentSetup ? (
+					{canConfigureAgentSetup ? (
 						<AgentSetupNotice
 							isAdmin
 							providerCount={providerCount ?? 0}
@@ -1364,36 +1442,49 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					"relative z-10 rounded-2xl bg-surface-secondary sm:bg-surface-secondary/45 p-1 shadow-xs has-[textarea:focus]:ring-2 has-[textarea:focus]:ring-content-link/40",
 					showAgentSetupNotice && "sm:bg-surface-secondary",
 					isDragging && "ring-2 ring-content-link/40",
-					(isEditingHistoryMessage || warning) &&
+					(isEditingMessage || warning) &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
+					isReadOnlyView && "border border-solid border-border",
 				)}
 				onKeyDown={handleComposerKeyDown}
 				onDragOver={onAttach ? handleDragOver : undefined}
 				onDragLeave={onAttach ? handleDragLeave : undefined}
 				onDrop={onAttach ? handleDrop : undefined}
 			>
+				{highlightKey !== undefined && (
+					<span
+						key={highlightKey}
+						aria-hidden="true"
+						className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 ring-2 ring-content-link animate-flash"
+					/>
+				)}
 				{warning && (
 					<div
 						id={warningId}
-						className="flex items-start gap-1.5 border-b border-border-default/70 px-3 py-1.5 text-xs font-medium text-content-warning"
+						className="flex items-start gap-1.5 border-b border-border/70 px-3 py-1.5 text-xs font-medium text-content-warning"
 					>
 						<TriangleAlertIcon className="mt-px size-3.5 shrink-0" />
 						{warning}
 					</div>
 				)}
-				{isEditingHistoryMessage && (
-					<div className="flex items-center justify-between border-b border-border-default/70 px-3 py-1.5">
+				{isEditingMessage && (
+					<div className="flex items-center justify-between border-b border-border/70 px-3 py-1.5">
 						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
 							<PencilIcon className="size-3.5" />
-							Editing will delete all subsequent messages and restart the
-							conversation here.
+							{editingKind === "queued"
+								? "Editing a queued message. It is not sent until you save or cancel."
+								: "Editing will delete all subsequent messages and restart the conversation here."}
 						</span>
 						<Button
 							type="button"
 							variant="subtle"
 							size="icon"
-							aria-label="Cancel editing"
-							onClick={onCancelHistoryEdit}
+							aria-label={
+								editingKind === "queued" && isChatPaused
+									? "Cancel edit and send unchanged"
+									: "Cancel editing"
+							}
+							onClick={onCancelEdit}
 							disabled={isLoading}
 							className="size-6 rounded text-content-warning hover:text-content-primary"
 						>
@@ -1419,29 +1510,43 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						onRemove={workspaceUploads.onRemove}
 					/>
 				)}
-				<ChatMessageInput
-					ref={internalRef}
-					onFilePaste={onAttach ? handleFilePaste : undefined}
-					acceptFilePasteWhileDisabled={isLoading && !isReadOnly}
-					onPaste={resetPromptCycle}
-					aria-label="Chat message"
-					aria-describedby={warning ? warningId : undefined}
-					className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
-					placeholder={placeholder}
-					initialValue={initialValue}
-					initialEditorState={initialEditorState}
-					remountKey={remountKey}
-					onChange={handleContentChange}
-					onKeyDown={handleEditorKeyDown}
-					onEnter={handleSubmit}
-					sendShortcut={sendShortcut}
-					disabled={isReadOnly || isLoading}
-					hasWorkspace={hasSkillsWorkspace}
-					workspaceSkills={workspaceSkills}
-					autoFocus
-					slashCommands={slashCommands}
-					skillsMenuAnchor={composerElement}
-				/>
+				{isReadOnlyView ? (
+					<div
+						role="status"
+						className="flex items-center gap-2 px-3 py-2 text-[13px] text-content-primary"
+					>
+						<InfoIcon className="size-4 shrink-0 text-content-link" />
+						{readOnlyNotice}
+					</div>
+				) : (
+					<ChatMessageInput
+						ref={internalRef}
+						onFilePaste={onAttach ? handleFilePaste : undefined}
+						acceptFilePasteWhileDisabled={isLoading && !isReadOnly}
+						onPaste={resetPromptCycle}
+						aria-label="Chat message"
+						aria-describedby={warning ? warningId : undefined}
+						className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+						placeholder={placeholder}
+						initialValue={initialValue}
+						initialEditorState={initialEditorState}
+						remountKey={remountKey}
+						onChange={handleContentChange}
+						onKeyDown={handleEditorKeyDown}
+						onEnter={handleSubmit}
+						onSendAfterTurn={
+							offersSendAfterTurn ? handleSubmitAfterTurn : undefined
+						}
+						sendShortcut={sendShortcut}
+						disabled={isReadOnly || isLoading}
+						hasWorkspace={hasSkillsWorkspace}
+						organizationId={chatOrganizationId}
+						projectId={chatProjectId}
+						workspaceSkills={workspaceSkills}
+						slashCommands={slashCommands}
+						skillsMenuAnchor={composerElement}
+					/>
+				)}
 				{/* Warn about invisible Unicode in the message text.
 				 * Unlike the admin/user prompt textareas (which strip
 				 * invisible chars server-side on save), the chat input
@@ -1488,7 +1593,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							open={plusMenuOpen}
 							onOpenChange={(open) => {
 								setPlusMenuOpen(open);
-								if (!open) setPlusMenuView("main");
+								setLastPlusMenuSubmenu(null);
+								if (!open) {
+									setPlusMenuView("main");
+									setMcpMenuOpen(false);
+								}
 							}}
 						>
 							{" "}
@@ -1497,7 +1606,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									type="button"
 									variant="subtle"
 									size="icon"
-									className="size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0"
+									className={cn(
+										"size-7 shrink-0 rounded-full [&>svg]:size-icon-sm! [&>svg]:p-0",
+										isReadOnlyView && "hidden",
+									)}
 									disabled={
 										isDisabled &&
 										!showAgentSetupNotice &&
@@ -1513,27 +1625,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 								align="start"
 								className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto min-w-[200px] p-1"
 							>
-								{plusMenuView === "workspace" ? (
-									<div className="p-0">
-										<button
-											type="button"
-											onClick={() => setPlusMenuView("main")}
-											className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
-										>
-											<ArrowLeftIcon className="size-3.5 shrink-0" />
-											<span>Back</span>
-										</button>
-										<Separator className="my-1" />
-										<WorkspacePickerList
-											workspaceOptions={workspaceOptions}
-											selectedWorkspaceId={selectedWorkspaceId}
-											chatOrganizationId={chatOrganizationId}
-											onSelect={(id) => {
-												onWorkspaceChange?.(id);
-												setPlusMenuOpen(false);
-											}}
-										/>
-									</div>
+								{plusMenuView !== "main" ? (
+									plusMenuSubmenuPanel
 								) : (
 									<>
 										{onAttach && (
@@ -1550,28 +1643,27 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 												Attach file
 											</button>
 										)}
-										{onPlanModeToggle && (
-											<button
-												type="button"
-												role="menuitemcheckbox"
-												aria-checked={planModeEnabled}
-												onClick={handlePlanModeToggle}
-												disabled={isDisabled}
-												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
-											>
-												<PencilIcon className="size-3.5 shrink-0" />
-												<span>Plan first</span>
-												{planModeEnabled && (
-													<CheckIcon className="ml-auto size-icon-sm shrink-0" />
-												)}
-											</button>
-										)}
+										<button
+											type="button"
+											role="menuitemcheckbox"
+											aria-checked={planModeEnabled}
+											onClick={handlePlanModeToggle}
+											disabled={isDisabled}
+											className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
+										>
+											<PencilIcon className="size-3.5 shrink-0" />
+											<span>Plan first</span>
+											{planModeEnabled && (
+												<CheckIcon className="ml-auto size-icon-sm shrink-0" />
+											)}
+										</button>
 										{workspaceOptions &&
 											onWorkspaceChange &&
 											(isBelowMdViewport() ? (
 												<button
 													type="button"
 													disabled={!canUseWorkspacePicker}
+													ref={plusMenuRowRef("workspace")}
 													onClick={() => setPlusMenuView("workspace")}
 													className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 												>
@@ -1622,94 +1714,43 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 										{enabledMcpServers.length > 0 && (
 											<>
 												<Separator className="my-1" />
-												{enabledMcpServers.map((server) => {
-													const isForceOn = server.availability === "force_on";
-													const isSelected =
-														isForceOn ||
-														(selectedMCPServerIds?.includes(server.id) ??
-															false);
-													const needsAuth =
-														server.auth_type === "oauth2" &&
-														!server.auth_connected;
-													const isConnecting = mcpConnectingId === server.id;
-													return (
-														<div
-															key={server.id}
-															className="flex items-center gap-1.5 px-1 py-1.5"
-														>
-															{server.icon_url ? (
-																<ExternalImage
-																	src={server.icon_url}
-																	alt=""
-																	className="size-3.5 shrink-0 rounded-sm"
+												{isBelowMdViewport() ? (
+													<button
+														type="button"
+														ref={plusMenuRowRef("mcp")}
+														onClick={() => setPlusMenuView("mcp")}
+														className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+													>
+														<MCPServersMenuRowContent
+															activeCount={activeMcpServers.length}
+														/>
+													</button>
+												) : (
+													<Popover
+														open={mcpMenuOpen}
+														onOpenChange={setMcpMenuOpen}
+													>
+														<PopoverTrigger asChild>
+															<button
+																type="button"
+																className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+															>
+																<MCPServersMenuRowContent
+																	activeCount={activeMcpServers.length}
+																	isOpen={mcpMenuOpen}
 																/>
-															) : (
-																<ServerIcon className="size-3.5 shrink-0 text-content-secondary" />
-															)}
-															<span className="min-w-0 flex-1 truncate text-xs text-content-secondary">
-																{server.display_name}
-															</span>
-															{isForceOn && (
-																<LockIcon className="size-3 shrink-0 text-content-secondary" />
-															)}
-															{needsAuth ? (
-																<>
-																	{isForceOn && (
-																		<span className="sr-only">Always on</span>
-																	)}
-																	<Button
-																		variant="outline"
-																		size="sm"
-																		className="h-6 shrink-0 px-2 text-[10px] leading-none"
-																		onClick={() => connectMCPServer(server.id)}
-																		disabled={
-																			isDisabled || mcpConnectingId !== null
-																		}
-																	>
-																		{isConnecting ? (
-																			<Spinner
-																				loading
-																				className="h-2.5 w-2.5"
-																			/>
-																		) : null}
-																		Auth
-																	</Button>
-																</>
-															) : (
-																<>
-																	{server.auth_type === "oauth2" && (
-																		<Button
-																			variant="subtle"
-																			size="icon"
-																			className="size-6 shrink-0 text-content-secondary [&>svg]:size-3"
-																			onClick={() => {
-																				setPlusMenuOpen(false);
-																				setMcpDisconnectTarget(server);
-																			}}
-																			disabled={isDisabled}
-																			aria-label={`Disconnect ${server.display_name}`}
-																		>
-																			<UnlinkIcon />
-																		</Button>
-																	)}
-																	<Switch
-																		size="sm"
-																		checked={isSelected}
-																		onCheckedChange={(checked) =>
-																			handleMcpToggle(server.id, checked)
-																		}
-																		disabled={isDisabled || isForceOn}
-																		aria-label={
-																			isForceOn
-																				? `${server.display_name} always on`
-																				: `${isSelected ? "Disable" : "Enable"} ${server.display_name}`
-																		}
-																	/>
-																</>
-															)}
-														</div>
-													);
-												})}
+															</button>
+														</PopoverTrigger>
+														<PopoverContent
+															side="right"
+															align="end"
+															sideOffset={8}
+															className="w-72 p-1"
+														>
+															{mcpMenuContent}
+														</PopoverContent>
+													</Popover>
+												)}
 											</>
 										)}
 									</>
@@ -1718,6 +1759,19 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						</Popover>
 						{isModelCatalogLoading ? (
 							<Skeleton className="h-6 w-24 rounded" />
+						) : isReadOnlyView ? (
+							<span className="inline-flex min-w-0 shrink items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary">
+								{readOnlyModel && (
+									<ProviderIcon
+										provider={readOnlyModel.provider}
+										icon={readOnlyModel.providerIcon}
+										className="size-3 shrink-0"
+									/>
+								)}
+								<span className="truncate">
+									{readOnlyModel?.displayName ?? modelSelectorPlaceholder}
+								</span>
+							</span>
 						) : (
 							<ModelSelector
 								value={selectedModel}
@@ -1725,7 +1779,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 								options={modelOptions}
 								disabled={isDisabled}
 								placeholder={modelSelectorPlaceholder}
-								className={cn(pillSizingClasses, "md:h-auto")}
+								className={cn(
+									pillSizingClasses,
+									"md:h-auto focus-visible:ring-inset",
+								)}
 								dropdownSide="top"
 								dropdownAlign="start"
 								enableMobileFullWidthDropdown
@@ -1736,11 +1793,14 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						{planModeEnabled && !shouldOverflowPlanningBadge && (
 							<span
 								data-testid="planning-badge"
-								className="hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex"
+								className={cn(
+									"hidden shrink-0 items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary sm:inline-flex",
+									pillFocusWithinRingClasses,
+								)}
 							>
 								<PencilIcon className="size-3" />
 								Planning
-								{onPlanModeToggle && (
+								{handleDisablePlanMode && (
 									<BadgeDismissButton
 										onClick={handleDisablePlanMode}
 										ariaLabel="Disable plan mode"
@@ -1777,7 +1837,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 												workspace={workspace}
 												agent={workspaceAgent}
 												chatId={chatId}
-												sshCommand={sshCommand}
 												folder={folder}
 												onRemoveWorkspace={removeWorkspaceHandler}
 											/>
@@ -1789,10 +1848,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 										key={badgeKey(badge, i)}
 										badge={badge}
 										onRemoveWorkspace={removeWorkspaceHandler}
-										onRemoveMcp={handleRemoveMcp}
-										onRemovePlanning={
-											onPlanModeToggle ? handleDisablePlanMode : undefined
-										}
+										onRemovePlanning={handleDisablePlanMode}
+										mcpMenu={mcpMenuContent}
 										isDisabled={isDisabled}
 										className={isOverflow ? "hidden" : undefined}
 									/>
@@ -1807,6 +1864,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 										type="button"
 										className={cn(
 											"inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+											pillFocusRingClasses,
 											overflowCount === 0 && "invisible",
 										)}
 										aria-label={`${overflowCount} more item${overflowCount !== 1 ? "s" : ""}`}
@@ -1849,7 +1907,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 														workspace={workspace}
 														agent={workspaceAgent}
 														chatId={chatId}
-														sshCommand={sshCommand}
 														folder={folder}
 														onRemoveWorkspace={removeWorkspaceHandler}
 														inOverflowPopover
@@ -1862,10 +1919,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 												key={badgeKey(badge, visibleCount + i)}
 												badge={badge}
 												onRemoveWorkspace={removeWorkspaceHandler}
-												onRemoveMcp={handleRemoveMcp}
-												onRemovePlanning={
-													onPlanModeToggle ? handleDisablePlanMode : undefined
-												}
+												onRemovePlanning={handleDisablePlanMode}
+												mcpMenu={mcpMenuContent}
 												isDisabled={isDisabled}
 												disableTooltip
 											/>
@@ -1876,7 +1931,24 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						</div>
 					</div>
 					<div className="flex shrink-0 items-center gap-2">
-						{speech.isSupported && (
+						{contextUsage !== undefined && (
+							<div
+								className={cn(
+									"flex",
+									speech.isSupported && !speech.error && "-ml-2",
+								)}
+							>
+								<ContextUsageIndicator
+									usage={contextUsage}
+									onRefreshContext={onRefreshContext}
+									isRefreshingContext={isRefreshingContext}
+									onManageServers={
+										isReadOnlyView ? undefined : handleManageConnections
+									}
+								/>
+							</div>
+						)}
+						{speech.isSupported && !isReadOnlyView && (
 							<>
 								<Button
 									type="button"
@@ -1911,53 +1983,18 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 								)}
 							</>
 						)}
-						{contextUsage !== undefined && (
-							<div
-								className={cn(
-									"flex",
-									speech.isSupported && !speech.error && "-ml-2",
-								)}
-							>
-								<ContextUsageIndicator
-									usage={contextUsage}
-									onRefreshContext={onRefreshContext}
-									isRefreshingContext={isRefreshingContext}
-								/>
-							</div>
-						)}
 						{showSendButton && (
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Button
-										size="icon"
-										variant="default"
-										className="size-7 rounded-full transition-colors [&>svg]:size-5! [&>svg]:p-0"
-										onClick={
-											speech.isRecording ? handleAcceptRecording : handleSubmit
-										}
-										disabled={speech.isRecording ? false : !canSend}
-										aria-keyshortcuts={sendButtonKeyShortcuts}
-									>
-										{isLoading && !isInterruptPending ? (
-											<Spinner size="sm" loading aria-hidden="true" />
-										) : speech.isRecording ? (
-											<CheckIcon />
-										) : (
-											<ArrowUpIcon />
-										)}
-										<span className="sr-only">
-											{speech.isRecording
-												? "Accept voice input"
-												: sendButtonLabel}
-										</span>
-									</Button>
-								</TooltipTrigger>
-								<TooltipContent side="top">
-									{speech.isRecording
-										? "Accept voice input"
-										: sendButtonTooltip}
-								</TooltipContent>
-							</Tooltip>
+							<AgentChatSendButton
+								label={sendButtonLabel}
+								sendShortcut={sendShortcut}
+								canSend={canSend}
+								offersSendAfterTurn={offersSendAfterTurn}
+								isRecording={speech.isRecording}
+								isSending={isLoading && !isInterruptPending}
+								onSend={handleSubmit}
+								onSendAfterTurn={handleSubmitAfterTurn}
+								onAcceptRecording={handleAcceptRecording}
+							/>
 						)}
 						{showStopButton && (
 							<Tooltip>
@@ -2011,16 +2048,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					}}
 				/>
 			)}
-			<ConfirmDialog
-				open={mcpDisconnectTarget !== null}
-				title={`Disconnect ${mcpDisconnectTarget?.display_name ?? "MCP server"}?`}
-				description="This removes your credentials for this MCP server from Coder. You can authenticate again later."
-				type="delete"
-				confirmText="Disconnect"
-				confirmLoading={mcpDisconnectMutation.isPending}
-				onConfirm={handleMcpDisconnectConfirm}
-				onClose={() => setMcpDisconnectTarget(null)}
-			/>
 		</>
 	);
 };

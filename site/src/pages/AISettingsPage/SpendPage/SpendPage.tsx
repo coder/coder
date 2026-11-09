@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "react-query";
 import { useSearchParams } from "react-router";
 import {
+	aiBridgeProviders,
 	aiSpendOrganizations,
 	paginatedOrganizationAISpend,
 } from "#/api/queries/aiBridge";
@@ -10,22 +11,25 @@ import type { DateTimeRangeValue } from "#/components/DateTimeRangePicker/dateTi
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
+import { useClientFilterMenu } from "#/pages/AIBridgePage/filters/ClientFilter";
+import { useModelFilterMenu } from "#/pages/AIBridgePage/filters/ModelFilter";
+import { useProviderFilterMenu } from "#/pages/AIBridgePage/filters/ProviderFilter";
 import { getAIBridgePermissions } from "#/pages/AIBridgePage/getAIBridgePermissions";
 import {
 	modelOrganizationSearchParam,
 	selectModelOrganization,
 } from "#/pages/AISettingsPage/ModelsPage/organizationModels";
 import { pageTitle } from "#/utils/page";
-import {
-	queryToSpendFilter,
-	type SpendDimensions,
-	spendFilterToQuery,
-} from "./components/spendFilterQuery";
 import { SpendPageView } from "./SpendPageView";
 import { defaultSpendPeriod } from "./spendPeriod";
 
 const startDateSearchParam = "startDate";
 const endDateSearchParam = "endDate";
+
+type SpendDimensions = Pick<
+	OrganizationAISpendFilter,
+	"provider_name" | "client" | "model"
+>;
 
 /** Extracts an explicit period from the URL, or null if absent or invalid. */
 const parsePeriod = (
@@ -105,23 +109,30 @@ const SpendPage: React.FC<SpendPageProps> = ({ now }) => {
 				model: searchParams.get("model") || undefined,
 			}
 		: {};
-	const [unsupportedText, setUnsupportedText] = useState("");
-	const filterQuery = spendFilterToQuery(dimensions, unsupportedText);
-	const onFilterQueryChange = (query: string) => {
-		const { dimensions: next, search } = queryToSpendFilter(query);
-		setUnsupportedText(search);
-		if (
-			next.provider_name !== dimensions.provider_name ||
-			next.client !== dimensions.client ||
-			next.model !== dimensions.model
-		) {
-			setFilterParams({
-				provider_name: next.provider_name,
-				client: next.client,
-				model: next.model,
-			});
-		}
+	const filterMenus = {
+		provider: useProviderFilterMenu({
+			value: dimensions.provider_name,
+			onChange: (option) => setFilterParams({ provider_name: option?.value }),
+			enabled: isSpendAvailable && canFilterDimensions,
+		}),
+		client: useClientFilterMenu({
+			value: dimensions.client,
+			onChange: (option) => setFilterParams({ client: option?.value }),
+			enabled: isSpendAvailable && canFilterDimensions,
+		}),
+		model: useModelFilterMenu({
+			value: dimensions.model,
+			onChange: (option) => setFilterParams({ model: option?.value }),
+			enabled: isSpendAvailable && canFilterDimensions,
+		}),
 	};
+
+	// Spend rows list configured provider names; the provider list resolves
+	// them to display names and icons for viewers allowed to read it.
+	const providersQuery = useQuery({
+		...aiBridgeProviders(),
+		enabled: isSpendAvailable && canFilterDimensions,
+	});
 
 	// The default period lives in memory, not the URL, so a shared link
 	// resolves relative to the viewer's current time. It is fixed per mount so
@@ -178,31 +189,24 @@ const SpendPage: React.FC<SpendPageProps> = ({ now }) => {
 
 	return (
 		<>
-			<title>{pageTitle("User spend", "AI Settings")}</title>
+			<title>{pageTitle("Spend", "AI Settings")}</title>
 			<SpendPageView
 				isEntitled={isEntitled}
 				isEnabled={isEnabled}
 				now={now}
 				organizations={organizationsQuery.data ?? []}
 				organization={organization}
-				onOrganizationChange={(next) => {
-					setUnsupportedText("");
-					setFilterParams({ [modelOrganizationSearchParam]: next.name });
-				}}
+				onOrganizationChange={(next) =>
+					setFilterParams({ [modelOrganizationSearchParam]: next.name })
+				}
 				isOrganizationsLoading={organizationsQuery.isLoading}
 				organizationsError={organizationsQuery.error}
 				period={{ ...period, preset }}
 				minDate={minDate}
 				onPeriodChange={onPeriodChange}
-				canFilterDimensions={canFilterDimensions}
-				filterQuery={filterQuery}
-				onFilterQueryChange={onFilterQueryChange}
-				filterError={
-					unsupportedText
-						? "Free-text search isn't supported. Results reflect only the provider, client, and model filters."
-						: undefined
-				}
+				filterMenus={canFilterDimensions ? filterMenus : undefined}
 				reportQuery={reportQuery}
+				providers={providersQuery.data}
 			/>
 		</>
 	);

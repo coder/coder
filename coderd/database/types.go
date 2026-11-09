@@ -77,9 +77,20 @@ type ChatOperationalSettings struct {
 	ChatDebugRetentionDays        string    `db:"chat_debug_retention_days" json:"chat_debug_retention_days"`
 	ChatAutoArchiveDays           string    `db:"chat_auto_archive_days" json:"chat_auto_archive_days"`
 	WorkspaceTTL                  string    `db:"workspace_ttl" json:"workspace_ttl"`
-	ComputerUseProvider           string    `db:"computer_use_provider" json:"computer_use_provider"`
 	DebugLoggingAllowUsers        string    `db:"debug_logging_allow_users" json:"debug_logging_allow_users"`
 	PersonalModelOverridesEnabled string    `db:"personal_model_overrides_enabled" json:"personal_model_overrides_enabled"`
+}
+
+// ExperimentRule is the audited form of one runtime experiment rule. The
+// rule itself is stored as JSON in site_configs. ID is derived from the
+// experiment name (experiments.AuditRecord) so that audit history groups by
+// experiment.
+type ExperimentRule struct {
+	ID         uuid.UUID `db:"id" json:"id"`
+	Experiment string    `db:"experiment" json:"experiment"`
+	Mode       string    `db:"mode" json:"mode"`
+	Condition  string    `db:"condition" json:"condition"`
+	Revision   int64     `db:"revision" json:"revision"`
 }
 
 type Actions []policy.Action

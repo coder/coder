@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -807,22 +808,19 @@ func TestChatMessage_PreservesProviderExecutedOnToolResults(t *testing.T) {
 		ProviderExecuted: true,
 	}
 
-	tcJSON, err := json.Marshal(toolCall)
+	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		chatprompt.PartFromContent(toolCall),
+		chatprompt.PartFromContent(toolResult),
+	})
 	require.NoError(t, err)
-	trJSON, err := json.Marshal(toolResult)
-	require.NoError(t, err)
-
-	rawContent := json.RawMessage("[" + string(tcJSON) + "," + string(trJSON) + "]")
 
 	dbMsg := database.ChatMessage{
-		ID:     1,
-		ChatID: uuid.New(),
-		Role:   database.ChatMessageRoleAssistant,
-		Content: pqtype.NullRawMessage{
-			RawMessage: rawContent,
-			Valid:      true,
-		},
-		CreatedAt: time.Now(),
+		ID:             1,
+		ChatID:         uuid.New(),
+		Role:           database.ChatMessageRoleAssistant,
+		Content:        content,
+		ContentVersion: chatprompt.CurrentContentVersion,
+		CreatedAt:      time.Now(),
 	}
 
 	result := db2sdk.ChatMessage(dbMsg)
@@ -897,6 +895,8 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		LastModelConfigID:   uuid.New(),
 		LastReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true},
 		Title:               "all-fields-test",
+		TitleSource:         database.ChatTitleSourceUser,
+		TitleUpdatedAt:      now,
 		Status:              database.ChatStatusRunning,
 		ClientType:          database.ChatClientTypeUi,
 		LastError:           pqtype.NullRawMessage{RawMessage: lastErrorRaw, Valid: true},
@@ -916,6 +916,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		},
 		// Pinned-context columns drive codersdk.Chat.Context. Set all of
 		// them so the converted sub-struct's fields are non-zero too.
+		ProjectID:            uuid.NullUUID{UUID: uuid.New(), Valid: true},
 		ContextAggregateHash: []byte{0x01, 0x02, 0x03},
 		ContextDirtySince:    sql.NullTime{Time: now, Valid: true},
 		ContextError:         "context boom",
@@ -927,6 +928,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 	diffStatus := &database.ChatDiffStatus{
 		ChatID: input.ID,
 	}
+	diffStatuses := []database.ChatDiffStatus{*diffStatus}
 
 	fileRows := []database.GetChatFileMetadataByChatIDRow{
 		{
@@ -939,7 +941,7 @@ func TestChat_AllFieldsPopulated(t *testing.T) {
 		},
 	}
 
-	got := db2sdk.Chat(input, diffStatus, fileRows)
+	got := db2sdk.ChatWithDiffStatuses(input, diffStatus, diffStatuses, fileRows)
 
 	require.Equal(t, &lastErrorPayload, got.LastError)
 
@@ -1075,6 +1077,28 @@ func TestChat_NilFilesOmitted(t *testing.T) {
 
 	result := db2sdk.Chat(chat, nil, nil)
 	require.Empty(t, result.Files)
+}
+
+func TestPrimaryChatDiffStatus(t *testing.T) {
+	t.Parallel()
+
+	require.Nil(t, db2sdk.PrimaryChatDiffStatus(nil))
+
+	older := dbtime.Now()
+	newer := older.Add(time.Minute)
+	// The primary is not first in the list. Equal report times go to
+	// the lowest origin, then the lowest branch.
+	statuses := []database.ChatDiffStatus{
+		{GitRemoteOrigin: "https://github.com/a/r", GitBranch: "first", UpdatedAt: older},
+		{GitRemoteOrigin: "https://github.com/b/r", GitBranch: "main", UpdatedAt: newer},
+		{GitRemoteOrigin: "https://github.com/a/r", GitBranch: "z", UpdatedAt: newer},
+		{GitRemoteOrigin: "https://github.com/a/r", GitBranch: "y", UpdatedAt: newer},
+	}
+
+	primary := db2sdk.PrimaryChatDiffStatus(statuses)
+	require.NotNil(t, primary)
+	require.Equal(t, "https://github.com/a/r", primary.GitRemoteOrigin)
+	require.Equal(t, "y", primary.GitBranch)
 }
 
 func TestChat_LastErrorFallback(t *testing.T) {
@@ -1216,4 +1240,31 @@ func TestChatQueuedMessage_MalformedContent(t *testing.T) {
 	})
 
 	require.Empty(t, queued.Content)
+}
+
+func TestConnectionLogType(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		method  database.ConnectionLogMethod
+		appName string
+		want    string
+	}{
+		{"VSCodeFamily", database.ConnectionLogMethodSSH, "cursor", "vscode"},
+		{"JetBrainsFamily", database.ConnectionLogMethodSSH, "goland", "jetbrains"},
+		{"Normalized", database.ConnectionLogMethodSSH, "Code-Server", "vscode"},
+		// Every other SSH app name, including an absent one, is plain SSH.
+		{"Absent", database.ConnectionLogMethodSSH, "", "ssh"},
+		{"SSHFamily", database.ConnectionLogMethodSSH, "zed", "ssh"},
+		{"Unregistered", database.ConnectionLogMethodSSH, "an_unregistered_ide", "ssh"},
+		// Other methods report themselves, whatever the app.
+		{"ReconnectingPTY", database.ConnectionLogMethodReconnectingPTY, "cursor", "reconnecting_pty"},
+		{"WorkspaceApp", database.ConnectionLogMethodWorkspaceApp, "vscode", "workspace_app"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, db2sdk.ConnectionLogType(tc.method, tc.appName))
+		})
+	}
 }

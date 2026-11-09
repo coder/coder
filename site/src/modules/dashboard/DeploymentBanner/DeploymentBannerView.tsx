@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import dayjs from "dayjs";
 import {
 	AppWindowIcon,
@@ -15,6 +16,7 @@ import {
 import prettyBytes from "pretty-bytes";
 import { Fragment, memo, useEffect, useMemo, useState } from "react";
 import { Link as RouterLink } from "react-router";
+import { appFamilyDisplayNames } from "#/api/appFamiliesGenerated";
 import {
 	type AppFamilyName,
 	AppFamilyNames,
@@ -29,13 +31,15 @@ import { ExternalImage } from "#/components/ExternalImage/ExternalImage";
 import { HelpPopoverTitle } from "#/components/HelpPopover/HelpPopover";
 import { Link } from "#/components/Link/Link";
 import {
-	TOOLTIP_DELAY_DURATION,
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { getDisplayWorkspaceStatus } from "#/utils/workspace";
+
+/** Unstyled native button so text-only tooltip triggers are keyboard focusable. */
+const tooltipTriggerClassName =
+	"m-0 border-0 bg-transparent p-0 font-mono text-xs text-inherit cursor-default rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link";
 
 type DeploymentBannerViewProps = {
 	health?: HealthcheckReport;
@@ -84,72 +88,67 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 		};
 	}, [fetchStats, stats]);
 
-	const lastAggregated = useMemo(() => {
-		if (!stats) {
-			return;
-		}
-		if (!fetchStats) {
-			// Storybook!
-			return "just now";
-		}
-		return dayjs().to(dayjs(stats.collected_at));
-	}, [timeUntilRefresh, stats, fetchStats]);
+	const lastAggregated = formatLastAggregated(stats, Boolean(fetchStats));
 
 	const healthErrors = health ? getHealthErrors(health) : [];
 	const displayLatency = stats?.workspaces.connection_latency_ms.P50 || -1;
 
 	return (
 		<div
-			className="sticky bottom-0 z-1 flex h-9 w-full items-center gap-8
-		 		overflow-x-auto overflow-y-hidden whitespace-nowrap border-0 border-t border-solid border-border
-				bg-surface-primary pr-4 font-mono text-xs leading-none"
+			className={cn(
+				"sticky bottom-0 z-1 flex h-9 w-full items-center gap-8",
+				"overflow-x-auto overflow-y-hidden whitespace-nowrap border-0 border-t border-solid border-border",
+				"bg-surface-primary pr-4 font-mono text-xs leading-none",
+			)}
 		>
-			<TooltipProvider delayDuration={100}>
-				<Tooltip>
-					<TooltipTrigger asChild>
-						{healthErrors.length > 0 ? (
-							<Link
-								asChild
-								className="flex p-3 bg-content-destructive"
-								showExternalIcon={false}
-							>
-								<RouterLink
-									to="/health"
-									data-testid="deployment-health-trigger"
-								>
-									<CircleAlertIcon className="text-content-primary" />
-								</RouterLink>
-							</Link>
-						) : (
-							<div
-								className="flex h-full items-center justify-center pl-3"
-								data-testid="deployment-health-trigger"
-							>
-								<RocketIcon className="size-icon-sm" />
+			<Tooltip>
+				<TooltipTrigger asChild>
+					{healthErrors.length > 0 ? (
+						<Link
+							asChild
+							className="flex p-3 bg-content-destructive"
+							showExternalIcon={false}
+						>
+							<RouterLink to="/health" data-testid="deployment-health-trigger">
+								<CircleAlertIcon className="text-content-primary" />
+							</RouterLink>
+						</Link>
+					) : (
+						<button
+							type="button"
+							aria-label="Deployment status"
+							className={cn(
+								tooltipTriggerClassName,
+								"ml-3 flex items-center justify-center",
+							)}
+							data-testid="deployment-health-trigger"
+						>
+							<RocketIcon className="size-icon-sm" />
+						</button>
+					)}
+				</TooltipTrigger>
+				<TooltipContent
+					className={cn(
+						"ml-3 mb-1 p-4 text-sm text-content-primary",
+						"border border-solid border-border pointer-events-none",
+					)}
+				>
+					{healthErrors.length > 0 ? (
+						<>
+							<HelpPopoverTitle>
+								We have detected problems with your Coder deployment.
+							</HelpPopoverTitle>
+							<div className="flex flex-col gap-1">
+								{healthErrors.map((error) => (
+									<HealthIssue key={error}>{error}</HealthIssue>
+								))}
 							</div>
-						)}
-					</TooltipTrigger>
-					<TooltipContent
-						className="ml-3 mb-1 p-4 text-sm text-content-primary
-							border border-solid border-border pointer-events-none"
-					>
-						{healthErrors.length > 0 ? (
-							<>
-								<HelpPopoverTitle>
-									We have detected problems with your Coder deployment.
-								</HelpPopoverTitle>
-								<div className="flex flex-col gap-1">
-									{healthErrors.map((error) => (
-										<HealthIssue key={error}>{error}</HealthIssue>
-									))}
-								</div>
-							</>
-						) : (
-							"Status of your Coder deployment. Only visible for admins!"
-						)}
-					</TooltipContent>
-				</Tooltip>
-			</TooltipProvider>
+						</>
+					) : (
+						"Status of your Coder deployment. Only visible for admins!"
+					)}
+				</TooltipContent>
+			</Tooltip>
 
 			<div className="flex items-center">
 				<div className="mr-4 text-content-primary">Workspaces</div>
@@ -182,141 +181,152 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 			</div>
 
 			<div className="flex items-center">
-				<TooltipProvider delayDuration={100}>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<button
+							type="button"
+							className={cn(
+								tooltipTriggerClassName,
+								"mr-4 text-content-primary",
+							)}
+						>
+							Transmission
+						</button>
+					</TooltipTrigger>
+					<TooltipContent>
+						{`Activity in the last ~${aggregatedMinutes} minutes`}
+					</TooltipContent>
+				</Tooltip>
+
+				<div className="flex gap-2 text-content-secondary">
 					<Tooltip>
 						<TooltipTrigger asChild>
-							<div className="mr-4 text-content-primary">Transmission</div>
+							<button
+								type="button"
+								className={cn(
+									tooltipTriggerClassName,
+									"flex items-center gap-1",
+								)}
+							>
+								<CloudDownloadIcon className="size-icon-xs" />
+								{stats ? prettyBytes(stats.workspaces.rx_bytes) : "-"}
+							</button>
+						</TooltipTrigger>
+						<TooltipContent>Data sent to workspaces</TooltipContent>
+					</Tooltip>
+
+					<ValueSeparator />
+
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<button
+								type="button"
+								className={cn(
+									tooltipTriggerClassName,
+									"flex items-center gap-1",
+								)}
+							>
+								<CloudUploadIcon className="size-icon-xs" />
+								{stats ? prettyBytes(stats.workspaces.tx_bytes) : "-"}
+							</button>
+						</TooltipTrigger>
+						<TooltipContent>Data sent from workspaces</TooltipContent>
+					</Tooltip>
+
+					<ValueSeparator />
+
+					<Tooltip>
+						<TooltipTrigger asChild>
+							<button
+								type="button"
+								className={cn(
+									tooltipTriggerClassName,
+									"flex items-center gap-1",
+								)}
+							>
+								<GaugeIcon className="size-icon-xs" />
+								{displayLatency > 0 ? `${displayLatency?.toFixed(2)} ms` : "-"}
+							</button>
 						</TooltipTrigger>
 						<TooltipContent>
-							{`Activity in the last ~${aggregatedMinutes} minutes`}
+							{displayLatency < 0
+								? "No recent workspace connections have been made"
+								: "The average latency of user connections to workspaces"}
 						</TooltipContent>
 					</Tooltip>
-				</TooltipProvider>
-				<div className="flex gap-2 text-content-secondary">
-					<TooltipProvider delayDuration={100}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
-									<CloudDownloadIcon className="size-icon-xs" />
-									{stats ? prettyBytes(stats.workspaces.rx_bytes) : "-"}
-								</div>
-							</TooltipTrigger>
-							<TooltipContent>Data sent to workspaces</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-					<ValueSeparator />
-					<TooltipProvider delayDuration={100}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
-									<CloudUploadIcon className="size-icon-xs" />
-									{stats ? prettyBytes(stats.workspaces.tx_bytes) : "-"}
-								</div>
-							</TooltipTrigger>
-							<TooltipContent>Data sent from workspaces</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
-					<ValueSeparator />
-					<TooltipProvider delayDuration={100}>
-						<Tooltip>
-							<TooltipTrigger asChild>
-								<div className="flex items-center gap-1">
-									<GaugeIcon className="size-icon-xs" />
-									{displayLatency > 0
-										? `${displayLatency?.toFixed(2)} ms`
-										: "-"}
-								</div>
-							</TooltipTrigger>
-							<TooltipContent>
-								{displayLatency < 0
-									? "No recent workspace connections have been made"
-									: "The average latency of user connections to workspaces"}
-							</TooltipContent>
-						</Tooltip>
-					</TooltipProvider>
 				</div>
 			</div>
 
 			<ActiveConnections sessionCount={stats?.session_count} />
 
 			<div className="ml-auto flex mr-3 items-center gap-8 pl-8 text-content-primary">
-				<TooltipProvider delayDuration={100}>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<div className="flex items-center gap-1">
-								<GitCompareArrowsIcon className="size-icon-xs" />
-								{lastAggregated}
-							</div>
-						</TooltipTrigger>
-						<TooltipContent
-							className="max-w-xs"
-							collisionPadding={{ right: 20 }}
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<button
+							type="button"
+							className={cn(tooltipTriggerClassName, "flex items-center gap-1")}
 						>
-							The last time stats were aggregated. Workspaces report statistics
-							periodically, so it may take a bit for these to update!
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+							<GitCompareArrowsIcon className="size-icon-xs" />
+							{lastAggregated}
+						</button>
+					</TooltipTrigger>
+					<TooltipContent className="max-w-xs" collisionPadding={{ right: 20 }}>
+						The last time stats were aggregated. Workspaces report statistics
+						periodically, so it may take a bit for these to update!
+					</TooltipContent>
+				</Tooltip>
 
-				<TooltipProvider delayDuration={100}>
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								className="font-mono [&_svg]:mr-1"
-								onClick={() => {
-									if (fetchStats) {
-										fetchStats();
-									}
-								}}
-								variant="subtle"
-								size="icon"
-							>
-								<RotateCwIcon />
-								{timeUntilRefresh}s
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent
-							className="max-w-xs"
-							collisionPadding={{ right: 20 }}
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							className="font-mono [&_svg]:mr-1"
+							onClick={() => {
+								if (fetchStats) {
+									fetchStats();
+								}
+							}}
+							variant="subtle"
+							size="icon"
 						>
-							A countdown until stats are fetched again. Click to refresh!
-						</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
+							<RotateCwIcon />
+							{timeUntilRefresh}s
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent className="max-w-xs" collisionPadding={{ right: 20 }}>
+						A countdown until stats are fetched again. Click to refresh!
+					</TooltipContent>
+				</Tooltip>
 			</div>
 		</div>
 	);
 };
 
 /**
- * Banner slots in bar order. A family added in Go fails typecheck until it
- * gets a slot here, or null to total under Other.
+ * Banner slot icons in bar order. A family added in Go fails typecheck until
+ * it gets a slot here, or null to total under Other.
  */
 const SESSION_FAMILIES = {
-	vscode: {
-		name: "Visual Studio Code",
-		icon: <ExternalImage src="/icon/code.svg" className="size-icon-xs" />,
-	},
-	jetbrains: {
-		name: "JetBrains",
-		icon: <ExternalImage src="/icon/jetbrains.svg" className="size-icon-xs" />,
-	},
-	ssh: { name: "SSH", icon: <SquareTerminalIcon className="size-icon-xs" /> },
-	reconnecting_pty: {
-		name: "Web Terminal",
-		icon: <AppWindowIcon className="size-icon-xs" />,
-	},
-	unknown: { name: "Other", icon: <BlocksIcon className="size-icon-xs" /> },
+	vscode: <ExternalImage src="/icon/code.svg" className="size-icon-xs" />,
+	jetbrains: (
+		<ExternalImage src="/icon/jetbrains.svg" className="size-icon-xs" />
+	),
+	ssh: <SquareTerminalIcon className="size-icon-xs" />,
+	reconnecting_pty: <AppWindowIcon className="size-icon-xs" />,
+	unknown: <BlocksIcon className="size-icon-xs" />,
 	sftp: null,
-} satisfies Record<
-	AppFamilyName,
-	{ name: string; icon: React.ReactNode } | null
->;
+	port_forwarding: null,
+} satisfies Record<AppFamilyName, React.ReactNode>;
 
 const FAMILY_SLOTS = Object.entries(SESSION_FAMILIES).flatMap(
-	([name, slot]) => {
+	([name, icon]) => {
 		const key = AppFamilyNames.find((family) => family === name);
-		return key && slot ? [{ key, ...slot }] : [];
+		if (!key || !icon) {
+			return [];
+		}
+		// The unknown slot also totals the families without a slot, so it is
+		// labeled as a catch-all rather than with the Unknown family name.
+		const label = key === "unknown" ? "Other" : appFamilyDisplayNames[key];
+		return [{ key, name: label, icon }];
 	},
 );
 
@@ -351,64 +361,56 @@ const ActiveConnections = memo(
 		const groups = groupSessionApps(sessionCount?.apps);
 
 		return (
-			<TooltipProvider delayDuration={TOOLTIP_DELAY_DURATION}>
-				<div className="flex items-center">
-					<div className="mr-4 text-content-primary">Active Connections</div>
-					<div className="flex gap-2 text-content-secondary">
-						{FAMILY_SLOTS.map(({ key, name, icon }, index) => {
-							const apps = groups.get(key) ?? [];
-							const count = apps.reduce((sum, app) => sum + app.count, 0);
-							return (
-								<Fragment key={key}>
-									{index > 0 && <ValueSeparator />}
-									<Tooltip>
-										<TooltipTrigger asChild>
-											<Button
-												variant="subtle"
-												size="xs"
-												aria-label={
-													sessionCount
-														? `${name}: ${count} active connections`
-														: `${name}: - loading active connections`
-												}
-												className="min-w-0 gap-1 p-0 font-mono text-xs [&>img]:p-0 [&>svg]:p-0"
-											>
-												{icon}
-												{sessionCount ? count : "-"}
-											</Button>
-										</TooltipTrigger>
-										<TooltipContent className="p-3 font-sans text-xs">
-											<div className="mb-2 font-medium text-content-primary">
-												{name}
-											</div>
-											{!sessionCount ? (
-												<div>Loading active connections</div>
-											) : apps.length === 0 ? (
-												<div>No active connections</div>
-											) : (
-												<ul className="m-0 grid max-h-64 list-none gap-2 overflow-y-auto p-0">
-													{apps.map((app) => (
-														<li
-															key={app.id}
-															className="flex items-center gap-2"
-														>
-															<AppLabel
-																icon={app.icon}
-																name={app.display_name}
-															/>
-															<span className="font-mono">{app.count}</span>
-														</li>
-													))}
-												</ul>
-											)}
-										</TooltipContent>
-									</Tooltip>
-								</Fragment>
-							);
-						})}
-					</div>
+			<div className="flex items-center">
+				<div className="mr-4 text-content-primary">Active Connections</div>
+				<div className="flex gap-2 text-content-secondary">
+					{FAMILY_SLOTS.map(({ key, name, icon }, index) => {
+						const apps = groups.get(key) ?? [];
+						const count = apps.reduce((sum, app) => sum + app.count, 0);
+						return (
+							<Fragment key={key}>
+								{index > 0 && <ValueSeparator />}
+								<Tooltip>
+									<TooltipTrigger asChild>
+										<Button
+											variant="subtle"
+											size="xs"
+											aria-label={
+												sessionCount
+													? `${name}: ${count} active connections`
+													: `${name}: - loading active connections`
+											}
+											className="min-w-0 gap-1 p-0 font-mono text-xs [&>img]:p-0 [&>svg]:p-0"
+										>
+											{icon}
+											{sessionCount ? count : "-"}
+										</Button>
+									</TooltipTrigger>
+									<TooltipContent className="p-3 font-sans text-xs">
+										<div className="mb-2 font-medium text-content-primary">
+											{name}
+										</div>
+										{!sessionCount ? (
+											<div>Loading active connections</div>
+										) : apps.length === 0 ? (
+											<div>No active connections</div>
+										) : (
+											<ul className="m-0 grid max-h-64 list-none gap-2 overflow-y-auto p-0">
+												{apps.map((app) => (
+													<li key={app.id} className="flex items-center gap-2">
+														<AppLabel icon={app.icon} name={app.display_name} />
+														<span className="font-mono">{app.count}</span>
+													</li>
+												))}
+											</ul>
+										)}
+									</TooltipContent>
+								</Tooltip>
+							</Fragment>
+						);
+					})}
 				</div>
-			</TooltipProvider>
+			</div>
 		);
 	},
 );
@@ -446,23 +448,21 @@ const WorkspaceBuildValue: React.FC<WorkspaceBuildValueProps> = ({
 	}
 
 	return (
-		<TooltipProvider delayDuration={100}>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<Link asChild showExternalIcon={false}>
-						<RouterLink
-							to={`/workspaces?filter=${encodeURIComponent(`status:${status}`)}`}
-						>
-							<div className="flex items-center gap-1 text-xs">
-								{icon}
-								{typeof count === "undefined" ? "-" : count}
-							</div>
-						</RouterLink>
-					</Link>
-				</TooltipTrigger>
-				<TooltipContent>{`${statusText} Workspaces`}</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+		<Tooltip>
+			<TooltipTrigger asChild>
+				<Link asChild showExternalIcon={false}>
+					<RouterLink
+						to={`/workspaces?filter=${encodeURIComponent(`status:${status}`)}`}
+					>
+						<div className="flex items-center gap-1 text-xs">
+							{icon}
+							{typeof count === "undefined" ? "-" : count}
+						</div>
+					</RouterLink>
+				</Link>
+			</TooltipTrigger>
+			<TooltipContent>{`${statusText} Workspaces`}</TooltipContent>
+		</Tooltip>
 	);
 };
 
@@ -477,6 +477,19 @@ const HealthIssue: React.FC<React.PropsWithChildren> = ({ children }) => {
 			{children}
 		</div>
 	);
+};
+
+const formatLastAggregated = (
+	stats: DeploymentStats | undefined,
+	isLive: boolean,
+): string | undefined => {
+	if (!stats) {
+		return undefined;
+	}
+	if (!isLive) {
+		return "just now";
+	}
+	return dayjs().to(dayjs(stats.collected_at));
 };
 
 const getHealthErrors = (health: HealthcheckReport) => {

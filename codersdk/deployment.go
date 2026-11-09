@@ -20,6 +20,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/google/uuid"
 	"golang.org/x/mod/semver"
+	"golang.org/x/net/http/httpguts"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"golang.org/x/xerrors"
@@ -614,6 +615,42 @@ var PostgresAuthDrivers = []string{
 // PostgresConnMaxIdleAuto is the value for auto-computing max idle connections
 // based on max open connections.
 const PostgresConnMaxIdleAuto = "auto"
+
+// AIStructuredLoggingSource selects which process emits AI Gateway
+// interception records when structured logging is enabled. Both processes
+// produce the same format; the gateway cannot resolve thread_parent_id and
+// thread_root_id, which are looked up in the database by coderd.
+type AIStructuredLoggingSource string
+
+const (
+	// AIStructuredLoggingSourceCoderd emits from coderd, as records arrive
+	// over DRPC. Records the gateway does not send are not reported.
+	AIStructuredLoggingSourceCoderd AIStructuredLoggingSource = "coderd"
+	// AIStructuredLoggingSourceGateway emits from the AI Gateway, where the
+	// records originate, so that records which are never persisted are still
+	// reported. A standalone gateway must be configured to emit them, and its
+	// logs shipped, rather than coderd's.
+	AIStructuredLoggingSourceGateway AIStructuredLoggingSource = "gateway"
+	// AIStructuredLoggingSourceBoth emits from both, for verifying a move
+	// from one to the other. Records that reach coderd are reported twice.
+	AIStructuredLoggingSourceBoth AIStructuredLoggingSource = "both"
+)
+
+var AIStructuredLoggingSources = []string{
+	string(AIStructuredLoggingSourceCoderd),
+	string(AIStructuredLoggingSourceGateway),
+	string(AIStructuredLoggingSourceBoth),
+}
+
+// NewAIStructuredLoggingSourceFromString converts s to an
+// AIStructuredLoggingSource, falling back to AIStructuredLoggingSourceCoderd
+// when s is empty or not a recognized source.
+func NewAIStructuredLoggingSourceFromString(s string) AIStructuredLoggingSource {
+	if slices.Contains(AIStructuredLoggingSources, s) {
+		return AIStructuredLoggingSource(s)
+	}
+	return AIStructuredLoggingSourceCoderd
+}
 
 // AIBudgetPolicy determines how the effective group is selected when a user
 // belongs to multiple groups with AI budgets configured.
@@ -1633,7 +1670,7 @@ communicating directly.`,
 			Name: "Telemetry",
 			YAML: "telemetry",
 			Description: `Telemetry is critical to our ability to improve Coder. We strip all personal
- information before sending data to our servers. Please only disable telemetry
+ information before sending data to our servers. Only disable telemetry
  when required by your organization's security policy.`,
 		}
 		deploymentGroupProvisioning = serpent.Group{
@@ -2002,6 +2039,26 @@ communicating directly.`,
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "structured_logging",
 	}
+	aiGatewayStructuredLoggingSource := serpent.Option{
+		Name:        "AI Gateway Structured Logging Source",
+		Description: "Which process emits AI Gateway interception records when structured logging is enabled: coderd, the gateway, or both. The gateway emits records that are never persisted, such as those dropped by --ai-gateway-disable-content-recording, but cannot report thread_parent_id or thread_root_id. Use both to verify a move from one to the other; records reaching coderd are then reported twice. A standalone gateway must be configured to emit its own records, and its logs shipped rather than coderd's.",
+		Flag:        "ai-gateway-structured-logging-source",
+		Env:         "CODER_AI_GATEWAY_STRUCTURED_LOGGING_SOURCE",
+		Value:       serpent.EnumOf(&c.AI.BridgeConfig.StructuredLoggingSource, AIStructuredLoggingSources...),
+		Default:     string(AIStructuredLoggingSourceCoderd),
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "structured_logging_source",
+	}
+	aiGatewayDisableContentRecording := serpent.Option{
+		Name:        "AI Gateway Disable Content Recording",
+		Description: "Stop recording the content of intercepted conversations. No user prompt, tool call or model reasoning record is stored, including tool names and the arguments they were called with. Interceptions and token usage are still recorded, so cost controls, budget enforcement and spend reporting are unaffected. Sessions show no conversation detail, prompt and tool call telemetry report zero, and interceptions are no longer grouped into threads for clients that do not send their own session ID. Combine with --ai-gateway-structured-logging-source=gateway to keep exporting these records to a SIEM instead.",
+		Flag:        "ai-gateway-disable-content-recording",
+		Env:         "CODER_AI_GATEWAY_DISABLE_CONTENT_RECORDING",
+		Value:       &c.AI.BridgeConfig.DisableContentRecording,
+		Default:     "false",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "disable_content_recording",
+	}
 	aiGatewayAPIDumpDir := serpent.Option{
 		Name:        "AI Gateway API Dump Directory",
 		Description: "Base directory for dumping AI Gateway request/response pairs to disk for debugging. When set, each provider writes under a subdirectory named after the provider. Sensitive headers are redacted. Leave empty to disable.",
@@ -2012,11 +2069,42 @@ communicating directly.`,
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "api_dump_dir",
 	}
+	aiGatewayActorHeaderID := serpent.Option{
+		Name:        "AI Gateway Actor Header ID",
+		Description: "Header name for the authenticated user's ID. Empty disables this header. Requires AI Gateway actor headers to be enabled.",
+		Flag:        "ai-gateway-actor-header-id",
+		Env:         "CODER_AI_GATEWAY_ACTOR_HEADER_ID",
+		Value:       &c.AI.BridgeConfig.ActorHeaderID,
+		Default:     "X-AI-Bridge-Actor-ID",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "actor_header_id",
+	}
+	aiGatewayActorHeaderUsername := serpent.Option{
+		Name:        "AI Gateway Actor Header Username",
+		Description: "Header name for the authenticated user's username. Empty disables this header. Requires AI Gateway actor headers to be enabled.",
+		Flag:        "ai-gateway-actor-header-username",
+		Env:         "CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME",
+		Value:       &c.AI.BridgeConfig.ActorHeaderUsername,
+		Default:     "X-AI-Bridge-Actor-Metadata-Username",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "actor_header_username",
+	}
+	aiGatewayActorHeaderEmail := serpent.Option{
+		Name:        "AI Gateway Actor Header Email",
+		Description: "Header name for the authenticated user's email address. Empty disables this header. Requires AI Gateway actor headers to be enabled. Applies to every configured provider; email is personal information.",
+		Flag:        "ai-gateway-actor-header-email",
+		Env:         "CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL",
+		Value:       &c.AI.BridgeConfig.ActorHeaderEmail,
+		Default:     "",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "actor_header_email",
+	}
 	aiGatewaySendActorHeaders := serpent.Option{
 		Name: "AI Gateway Send Actor Headers",
-		Description: "Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Gateway. " +
-			"This is only needed if you are using a proxy between AI Gateway and an upstream AI provider. " +
-			"This will send X-Ai-Bridge-Actor-Id (the ID of the user making the request) and X-Ai-Bridge-Actor-Metadata-Username (their username).",
+		Description: "Add configured headers identifying the authenticated user to intercepted upstream requests. " +
+			"Use this when a proxy between AI Gateway and an upstream AI provider needs user identity. " +
+			"When enabled, removes client-supplied headers at configured actor-header destinations before adding authenticated values. " +
+			"Client headers starting with X-AI-Bridge-Actor are always removed.",
 		Flag:    "ai-gateway-send-actor-headers",
 		Env:     "CODER_AI_GATEWAY_SEND_ACTOR_HEADERS",
 		Value:   &c.AI.BridgeConfig.SendActorHeaders,
@@ -3249,7 +3337,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "Disable Terraform Module Cache",
-			Description: "Disable the reuse of Terraform modules cached at template import for all templates. Modules are re-downloaded on every workspace build. Individual templates cannot opt back in.",
+			Description: "Disable the reuse of Terraform modules and the provider lock file cached at template import for all templates. Modules are re-downloaded on every workspace build. Individual templates cannot opt back in.",
 			Flag:        "provisioner-disable-module-cache",
 			Env:         "CODER_PROVISIONER_DISABLE_MODULE_CACHE",
 			Default:     "false",
@@ -3743,7 +3831,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "Disable Chat Sharing",
-			Description: "Disable chat sharing. Chat ACL checking is disabled and only owners can access their chats.",
+			Description: "Disable chat and chat project sharing. Existing shares stop granting access and new shares are rejected. Owners keep access to their own chats and projects, and administrators keep only the access their roles grant.",
 			Flag:        "disable-chat-sharing",
 			Env:         "CODER_DISABLE_CHAT_SHARING",
 
@@ -3800,7 +3888,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "Disable Password Authentication",
-			Description: "Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. Any user with the owner role will be able to sign in with their password regardless of this setting to avoid potential lock out. If you are locked out of your account, you can use the `coder server create-admin` command to create a new admin user directly in the database.",
+			Description: "Disable password authentication. This is recommended for security purposes in production deployments that rely on an identity provider. This applies to all users, including owners. Ensure an owner can sign in through your identity provider before enabling this. To recover access, unset this option, restart the server, and use `coder server create-admin-user` if needed.",
 			Flag:        "disable-password-auth",
 			Env:         "CODER_DISABLE_PASSWORD_AUTH",
 
@@ -3914,7 +4002,9 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.ProxyHealthStatusInterval,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "proxyHealthInterval",
-			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Annotations: serpent.Annotations{}.
+				Mark(annotationEnterpriseKey, "true").
+				Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Default Quiet Hours Schedule",
@@ -4416,7 +4506,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Max Queued Messages Per Chat",
-			Description: "Maximum number of messages that can be queued in a chat. Sending a message to a chat whose queue is full fails with HTTP 429. Must be at least 1.",
+			Description: "Maximum number of messages that can be queued in a chat. Sending a message that would make a full queue longer fails with HTTP 429. Must be at least 1.",
 			Flag:        "chat-max-queued-messages-per-chat",
 			Env:         "CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT",
 			Value:       &c.AI.Chat.MaxQueuedMessagesPerChat,
@@ -4556,6 +4646,8 @@ Write out the current server config as YAML to stdout.`,
 			UseInstead:  serpent.OptionSet{aiGatewayStructuredLogging},
 		},
 		aiGatewayStructuredLogging,
+		aiGatewayStructuredLoggingSource,
+		aiGatewayDisableContentRecording,
 		{
 			Name: "AI Bridge Send Actor Headers",
 			Description: "Deprecated: use --ai-gateway-send-actor-headers or CODER_AI_GATEWAY_SEND_ACTOR_HEADERS instead. Once enabled, extra headers will be added to upstream requests to identify the user (actor) making requests to AI Bridge. " +
@@ -4571,6 +4663,9 @@ Write out the current server config as YAML to stdout.`,
 			UseInstead: serpent.OptionSet{aiGatewaySendActorHeaders},
 		},
 		aiGatewaySendActorHeaders,
+		aiGatewayActorHeaderID,
+		aiGatewayActorHeaderUsername,
+		aiGatewayActorHeaderEmail,
 		aiGatewayAPIDumpDir,
 		{
 			Name:        "AI Bridge Allow BYOK",
@@ -4920,8 +5015,14 @@ type AIBridgeConfig struct {
 	MaxConcurrency      serpent.Int64    `json:"max_concurrency" typescript:",notnull"`
 	RateLimit           serpent.Int64    `json:"rate_limit" typescript:",notnull"`
 	StructuredLogging   serpent.Bool     `json:"structured_logging" typescript:",notnull"`
-	SendActorHeaders    serpent.Bool     `json:"send_actor_headers" typescript:",notnull"`
-	AllowBYOK           serpent.Bool     `json:"allow_byok" typescript:",notnull"`
+	// StructuredLoggingSource selects which process emits the records that
+	// StructuredLogging enables. See AIStructuredLoggingSource.
+	StructuredLoggingSource string         `json:"structured_logging_source,omitempty" typescript:",notnull"`
+	SendActorHeaders        serpent.Bool   `json:"send_actor_headers" typescript:",notnull"`
+	ActorHeaderID           serpent.String `json:"actor_header_id" typescript:",notnull"`
+	ActorHeaderUsername     serpent.String `json:"actor_header_username" typescript:",notnull"`
+	ActorHeaderEmail        serpent.String `json:"actor_header_email" typescript:",notnull"`
+	AllowBYOK               serpent.Bool   `json:"allow_byok" typescript:",notnull"`
 	// Budget settings for AI Governance cost controls.
 	BudgetPolicy string `json:"budget_policy,omitempty" typescript:",notnull"`
 	BudgetPeriod string `json:"budget_period,omitempty" typescript:",notnull"`
@@ -4936,6 +5037,22 @@ type AIBridgeConfig struct {
 	// request/response dumps are written, in a subdirectory named after
 	// the provider. Empty disables dumping.
 	APIDumpDir serpent.String `json:"api_dump_dir" typescript:",notnull"`
+	// DisableContentRecording stops user prompts, tool calls and model
+	// reasoning from being recorded, including tool names and their arguments.
+	// Interceptions and token usage are still recorded, so cost controls,
+	// budget enforcement and spend reporting are unaffected.
+	DisableContentRecording serpent.Bool `json:"disable_content_recording" typescript:",notnull"`
+}
+
+// EmitsStructuredLogs reports whether source should emit AI Gateway
+// interception records. Both processes consult this, so that exactly the
+// configured one emits and a record is not reported twice by accident.
+func (c AIBridgeConfig) EmitsStructuredLogs(source AIStructuredLoggingSource) bool {
+	if !c.StructuredLogging.Value() {
+		return false
+	}
+	configured := NewAIStructuredLoggingSourceFromString(c.StructuredLoggingSource)
+	return configured == source || configured == AIStructuredLoggingSourceBoth
 }
 
 type AIBridgeProxyConfig struct {
@@ -5035,9 +5152,56 @@ type LinkConfig struct {
 	Location string `json:"location,omitempty" yaml:"location,omitempty" enums:"navbar,dropdown"`
 }
 
+// ValidateActorHeaderNames checks the configurable destinations for trusted
+// actor identity before any upstream requests can be sent.
+func (c AIBridgeConfig) ValidateActorHeaderNames() error {
+	headers := []struct {
+		env      string
+		name     string
+		standard string
+	}{
+		{"CODER_AI_GATEWAY_ACTOR_HEADER_ID", c.ActorHeaderID.Value(), "X-AI-Bridge-Actor-ID"},
+		{"CODER_AI_GATEWAY_ACTOR_HEADER_USERNAME", c.ActorHeaderUsername.Value(), "X-AI-Bridge-Actor-Metadata-Username"},
+		{"CODER_AI_GATEWAY_ACTOR_HEADER_EMAIL", c.ActorHeaderEmail.Value(), "X-AI-Bridge-Actor-Metadata-Email"},
+	}
+	seen := make(map[string]string, len(headers))
+	for _, header := range headers {
+		if header.name == "" {
+			continue
+		}
+		if !httpguts.ValidHeaderFieldName(header.name) {
+			return xerrors.Errorf("invalid AI Gateway actor header name %q for %s", header.name, header.env)
+		}
+		canonical := http.CanonicalHeaderKey(header.name)
+		if prior, ok := seen[canonical]; ok {
+			return xerrors.Errorf("duplicate AI Gateway actor header name %q for %s and %s", header.name, prior, header.env)
+		}
+		seen[canonical] = header.env
+		if strings.EqualFold(header.name, header.standard) {
+			continue
+		}
+		switch canonical {
+		case "Authorization", "X-Api-Key", "Proxy-Authorization", "Proxy-Authenticate",
+			"Cookie", "Set-Cookie", "Host", "User-Agent", "Content-Length", "Content-Type", "Content-Encoding", "Accept-Encoding",
+			"Connection", "Keep-Alive", "Te", "Trailer", "Transfer-Encoding", "Upgrade",
+			"Forwarded", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "X-Forwarded-Port",
+			"Coder-Session-Token", "X-Coder-Ai-Governance-Token", "X-Coder-Ai-Governance-Request-Id",
+			"X-Coder-Agent-Firewall-Session-Id", "X-Coder-Agent-Firewall-Sequence-Number":
+			return xerrors.Errorf("reserved AI Gateway actor header name %q", header.name)
+		}
+		if strings.HasPrefix(canonical, "X-Ai-Bridge-Actor") {
+			return xerrors.Errorf("reserved AI Gateway actor header name %q", header.name)
+		}
+	}
+	return nil
+}
+
 // Validate checks cross-field constraints for deployment values.
 // It must be called after all values are loaded from flags/env/YAML.
 func (c *DeploymentValues) Validate() error {
+	if err := c.AI.BridgeConfig.ValidateActorHeaderNames(); err != nil {
+		return err
+	}
 	// For OAuth2, access tokens (API keys) issued via the authorization code/refresh flows
 	// use Sessions.DefaultDuration as their lifetime, while refresh tokens use
 	// Sessions.RefreshDefaultDuration (falling back to DefaultDuration when set to 0).
@@ -5337,29 +5501,27 @@ type Experiment string
 const (
 	// Add new experiments here!
 	ExperimentExample                   Experiment = "example"                     // This isn't used for anything.
-	ExperimentAutoFillParameters        Experiment = "auto-fill-parameters"        // This should not be taken out of experiments until we have redesigned the feature.
 	ExperimentNotifications             Experiment = "notifications"               // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage            Experiment = "workspace-usage"             // Enables the new workspace usage tracking.
 	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
-	ExperimentMCPToolSearch             Experiment = "mcp-tool-search"             // Defers MCP tool schemas behind a searchable catalog in agent chats.
 	ExperimentWorkspaceBuildUpdates     Experiment = "workspace-build-updates"     // Enables publishing workspace build updates to the all builds pubsub channel.
 	ExperimentNoNATSPubsub              Experiment = "no_nats_pubsub"              // Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
 	ExperimentAIGatewayReverseProxy     Experiment = "ai-gateway-reverse-proxy"    // Uses stateless reverse proxy routing when MCP injection is not configured.
-	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
-	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
+	ExperimentChatProjectSharing        Experiment = "chat-project-sharing"        // Enables sharing agent chat projects with other users and groups.
+	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
 	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
+	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
+	ExperimentChatACPSubagents          Experiment = "chat-acp-subagents"          // Enables workspace-local ACP subagent tools in root chats.
 )
 
 func (e Experiment) DisplayName() string {
 	switch e {
 	case ExperimentExample:
 		return "Example Experiment"
-	case ExperimentAutoFillParameters:
-		return "Auto-fill Template Parameters"
 	case ExperimentNotifications:
 		return "SMTP and Webhook Notifications"
 	case ExperimentWorkspaceUsage:
@@ -5376,8 +5538,8 @@ func (e Experiment) DisplayName() string {
 		return "AI Gateway Seat Exclusion"
 	case ExperimentAIGatewayReverseProxy:
 		return "AI Gateway Reverse Proxy"
-	case ExperimentChatAdvisor:
-		return "Chat Advisor"
+	case ExperimentChatProjectSharing:
+		return "Chat Project Sharing"
 	case ExperimentChatVirtualDesktop:
 		return "Chat Virtual Desktop"
 	case ExperimentAgentLifecycleHooks:
@@ -5386,6 +5548,8 @@ func (e Experiment) DisplayName() string {
 		return "Chat Inline MCP Servers"
 	case ExperimentEnableAIWorkspaceDebug:
 		return "AI Workspace Debugging"
+	case ExperimentChatACPSubagents:
+		return "Chat ACP Subagents"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5397,28 +5561,38 @@ func (e Experiment) DisplayName() string {
 // ExperimentsKnown should include all experiments defined above.
 var ExperimentsKnown = Experiments{
 	ExperimentExample,
-	ExperimentAutoFillParameters,
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
 	ExperimentMCPServerHTTP,
-	ExperimentMCPToolSearch,
 	ExperimentNoNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentWorkspaceCapableLicensing,
 	ExperimentAIGatewaySeatExclusion,
 	ExperimentAIGatewayReverseProxy,
-	ExperimentChatAdvisor,
+	ExperimentChatProjectSharing,
 	ExperimentChatVirtualDesktop,
 	ExperimentAgentLifecycleHooks,
 	ExperimentChatInlineMCPServers,
 	ExperimentEnableAIWorkspaceDebug,
+	ExperimentChatStageMetrics,
+	ExperimentChatACPSubagents,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsSafe = Experiments{}
+var ExperimentsSafe = Experiments{
+	ExperimentChatStageMetrics,
+	ExperimentChatProjectSharing,
+}
+
+// ExperimentsUserScoped lists the experiments that accept runtime rules
+// evaluated per user. Experiments not listed here are read only from the
+// startup list and need a restart to change.
+var ExperimentsUserScoped = Experiments{
+	ExperimentExample,
+}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.

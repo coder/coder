@@ -1,0 +1,21 @@
+# Coder.AcronymPeriods - flag capitalized acronyms written with periods,
+# such as "A.P.I." or "U.S.". Write them without periods: "API", "US".
+#
+# The token matches two or more consecutive capital-letter-and-period pairs.
+# Lowercase Latin abbreviations such as "e.g." and "i.e." never match because
+# the pattern is case-sensitive and accepts capital letters only. A single
+# initial with a period ("J. Smith") never matches either, because two pairs
+# are required. Code spans and fenced code blocks are skipped, so placeholders
+# such as `X.Y.Z` in code font stay untouched.
+#
+# Level: warning. A version placeholder such as X.Y.Z in plain prose matches
+# (as "X.Y."); the style guide asks for code font on placeholders, which Vale
+# skips.
+extends: existence
+message: "Write the acronym '%s' without periods. Refer to capitalization-and-punctuation.md#no-periods-in-acronyms."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/capitalization-and-punctuation.md#no-periods-in-acronyms
+level: warning
+ignorecase: false
+nonword: true
+tokens:
+  - '\b(?:[A-Z]\.){2,}'

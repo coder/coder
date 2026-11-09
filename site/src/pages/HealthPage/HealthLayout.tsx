@@ -21,11 +21,11 @@ import { pageTitle } from "#/utils/page";
 import { HealthIcon } from "./Content";
 
 const linkStyles = {
-	normal: `
-		text-content-secondary border-none text-sm w-full flex items-center gap-3
-		text-left h-9 px-6 cursor-pointer no-underline transition-colors
-		hover:bg-surface-secondary hover:text-content-primary
-	`,
+	normal: cn(
+		"text-content-secondary border-none text-sm w-full flex items-center gap-3",
+		"text-left h-9 px-6 cursor-pointer no-underline transition-colors",
+		"hover:bg-surface-secondary hover:text-content-primary",
+	),
 	active: "bg-surface-secondary text-content-primary",
 };
 
@@ -92,7 +92,11 @@ export const HealthLayout: React.FC = () => {
 												}}
 											>
 												{isRefreshing ? (
-													<Spinner size="sm" loading />
+													<Spinner
+														size="sm"
+														loading
+														className="text-content-secondary"
+													/>
 												) : (
 													<RotateCcwIcon className="size-5" />
 												)}

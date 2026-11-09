@@ -57,7 +57,7 @@ Headings deeper than `###` are detail inside a section, not rules.
 A Markdown file that has no footers and no coverage row, such as `editor-setup.md`, isn't a rule section and isn't scanned.
 
 - **Documentation-only**: the annotation declares the section `Documentation-only`. This wins over everything else, so a section that only cross-references a rule another section owns counts under that other section and no rule is counted twice. The match is case-sensitive; a lowercase "documentation-only" describes part of a section, not the section.
-- **Tool-checked**: cites as active an enabled Coder rule, a third-party rule whose style `.vale.ini` loads, `markdownlint`, an `MD###` rule, or `scripts/check_emdash.sh`. A Coder rule that exists but is disabled everywhere doesn't count: it checks no file.
+- **Tool-checked**: cites as active an enabled Coder rule, a third-party rule whose style `.vale.ini` loads, `markdownlint`, an `MD###` rule, `scripts/check_emdash.sh`, or `scripts/docshtmlcheck`. A Coder rule that exists but is disabled everywhere doesn't count: it checks no file.
 - **Planned**: cites only planned checkers.
 
 ## Usage

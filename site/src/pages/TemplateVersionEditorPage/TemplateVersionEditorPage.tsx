@@ -6,7 +6,6 @@ import {
 	useQueryClient,
 } from "react-query";
 import { useNavigate, useParams, useSearchParams } from "react-router";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import { getErrorDetail } from "#/api/errors";
 import { file, uploadFile } from "#/api/queries/files";
@@ -23,6 +22,7 @@ import type {
 	TemplateVersion,
 } from "#/api/typesGenerated";
 import { Loader } from "#/components/Loader/Loader";
+import { toast } from "#/components/Toaster/toast";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { useWatchVersionLogs } from "#/modules/templates/useWatchVersionLogs";
 import { existsFile, type FileTree, traverse } from "#/utils/filetree";
@@ -168,23 +168,29 @@ const TemplateVersionEditorPage: React.FC = () => {
 					onCancelPublish={() => {
 						setIsPublishingDialogOpen(false);
 					}}
-					onConfirmPublish={async ({ isActiveVersion, ...data }) => {
-						await publishVersionMutation.mutateAsync({
-							isActiveVersion,
-							data,
-							version: activeTemplateVersion,
-						});
-						const publishedVersion = {
-							...activeTemplateVersion,
-							...data,
-						};
-						setIsPublishingDialogOpen(false);
-						setLastSuccessfulPublishedVersion(publishedVersion);
-						queryClient.setQueryData(
-							templateVersionOptions.queryKey,
-							publishedVersion,
+					onConfirmPublish={({ isActiveVersion, ...data }) => {
+						publishVersionMutation.mutate(
+							{
+								isActiveVersion,
+								data,
+								version: activeTemplateVersion,
+							},
+							{
+								onSuccess: () => {
+									const publishedVersion = {
+										...activeTemplateVersion,
+										...data,
+									};
+									setIsPublishingDialogOpen(false);
+									setLastSuccessfulPublishedVersion(publishedVersion);
+									queryClient.setQueryData(
+										templateVersionOptions.queryKey,
+										publishedVersion,
+									);
+									navigateToVersion(publishedVersion);
+								},
+							},
 						);
-						navigateToVersion(publishedVersion);
 					}}
 					isAskingPublishParameters={isPublishingDialogOpen}
 					isPublishing={publishVersionMutation.isPending}
@@ -338,21 +344,16 @@ const publishVersion = async (options: {
 	const { version, data, isActiveVersion } = options;
 	const haveChanges =
 		data.name !== version.name || data.message !== version.message;
-	const publishActions: Promise<unknown>[] = [];
 
 	if (haveChanges) {
-		publishActions.push(API.patchTemplateVersion(version.id, data));
+		await API.patchTemplateVersion(version.id, data);
 	}
 
 	if (version.template_id && isActiveVersion) {
-		publishActions.push(
-			API.updateActiveTemplateVersion(version.template_id, {
-				id: version.id,
-			}),
-		);
+		await API.updateActiveTemplateVersion(version.template_id, {
+			id: version.id,
+		});
 	}
-
-	return Promise.all(publishActions);
 };
 
 const defaultMainTerraformFile = "main.tf";

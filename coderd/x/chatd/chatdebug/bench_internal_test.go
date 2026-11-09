@@ -61,17 +61,12 @@ func (noopStore) UpdateChatDebugStep(
 	}, nil
 }
 
-// TouchChatDebugStepAndRun and GetChatDebugStepsByRunID aren't on the
-// hot path these benchmarks exercise (heartbeat interval and step
-// retry-collision handling respectively), but overriding them avoids
-// a nil-dereference panic if a future benchmark configuration change
-// reaches them through the embedded nil database.Store.
-func (noopStore) TouchChatDebugStepAndRun(context.Context, database.TouchChatDebugStepAndRunParams) error {
-	return nil
+func (s noopStore) InTx(fn func(database.Store) error, _ *database.TxOptions) error {
+	return fn(s)
 }
 
-func (noopStore) GetChatDebugStepsByRunID(context.Context, uuid.UUID) ([]database.ChatDebugStep, error) {
-	return nil, nil
+func (noopStore) AcquireLock(context.Context, int64) error {
+	return nil
 }
 
 var _ database.Store = noopStore{}

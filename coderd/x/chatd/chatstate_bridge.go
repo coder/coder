@@ -47,8 +47,8 @@ func userMessage(rawContent pqtype.NullRawMessage, modelConfigID, createdBy uuid
 // by the server API to the chatstate variant.
 func busyBehaviorToChatState(b SendMessageBusyBehavior) chatstate.BusyBehavior {
 	switch b {
-	case SendMessageBusyBehaviorInterrupt:
-		return chatstate.BusyBehaviorInterrupt
+	case SendMessageBusyBehaviorSteer:
+		return chatstate.BusyBehaviorSteer
 	default:
 		return chatstate.BusyBehaviorQueue
 	}

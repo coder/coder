@@ -18,7 +18,8 @@ type Config struct {
 	// APIDumpDir is the directory for dumping API requests and responses,
 	// or empty when API dumping is disabled.
 	APIDumpDir string
-	// SendActorHeaders reports whether actor identity headers should be
-	// forwarded to the upstream provider.
-	SendActorHeaders bool
+	// ActorHeaderNames selects the destinations for id, username, and email.
+	// Nil turns forwarding off; an empty map enables cleanup without injection.
+	// Attributes without a destination are not forwarded.
+	ActorHeaderNames map[string]string
 }

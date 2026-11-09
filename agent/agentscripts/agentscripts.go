@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/quartz"
 )
 
 var (
@@ -43,6 +44,9 @@ var (
 	parser = cron.NewParser(cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.DowOptional)
 )
 
+// reportTimeout bounds each timing report to coderd.
+const reportTimeout = 30 * time.Second
+
 type ScriptLogger interface {
 	Send(ctx context.Context, log ...agentsdk.Log) error
 	Flush(context.Context) error
@@ -56,10 +60,17 @@ type Options struct {
 	SSHServer       *agentssh.Server
 	Filesystem      afero.Fs
 	GetScriptLogger func(logSourceID uuid.UUID) ScriptLogger
+	// Clock drives the periodic "Waiting for dependencies" line for
+	// ordered scripts, so a test can advance it. Script timeouts keep
+	// using the context deadline.
+	Clock quartz.Clock
 }
 
 // New creates a runner for the provided scripts.
 func New(opts Options) *Runner {
+	if opts.Clock == nil {
+		opts.Clock = quartz.NewReal()
+	}
 	cronCtx, cronCtxCancel := context.WithCancel(context.Background())
 	return &Runner{
 		Options:       opts,
@@ -84,7 +95,9 @@ type Runner struct {
 	cronCtx         context.Context
 	cronCtxCancel   context.CancelFunc
 	cmdCloseWait    sync.WaitGroup
+	executeWait     sync.WaitGroup
 	closed          chan struct{}
+	closing         bool
 	closeMutex      sync.Mutex
 	cron            *cron.Cron
 	scripts         []codersdk.WorkspaceAgentScript
@@ -161,29 +174,19 @@ func (r *Runner) Init(scripts []codersdk.WorkspaceAgentScript, scriptCompleted S
 	return nil
 }
 
-// StartCron starts the cron scheduler.
-// This is done async to allow for the caller to execute scripts prior.
+// StartCron starts the cron scheduler. It does nothing once Close has
+// begun.
 func (r *Runner) StartCron() {
-	// cron.Start() and cron.Stop() does not guarantee that the cron goroutine
-	// has exited by the time the `cron.Stop()` context returns, so we need to
-	// track it manually.
-	err := r.trackCommandGoroutine(func() {
-		// Since this is run async, in quick unit tests, it is possible the
-		// Close() function gets called before we even start the cron.
-		// In these cases, the Run() will never end.
-		// So if we are closed, we just return, and skip the Run() entirely.
-		select {
-		case <-r.cronCtx.Done():
-			// The cronCtx is canceled before cron.Close() happens. So if the ctx is
-			// canceled, then Close() will be called, or it is about to be called.
-			// So do nothing!
-		default:
-			r.cron.Run()
-		}
-	})
-	if err != nil {
-		r.Logger.Warn(context.Background(), "start cron failed", slog.Error(err))
+	r.closeMutex.Lock()
+	defer r.closeMutex.Unlock()
+	if r.closing {
+		return
 	}
+	// cron.Stop does nothing unless the scheduler is already running, so
+	// the scheduler must be started under the same lock that Close holds
+	// when it calls Stop. Otherwise a start that lands between the two
+	// leaves a loop that nothing ever stops.
+	r.cron.Start()
 }
 
 // ExecuteOption describes what scripts we want to execute.
@@ -211,7 +214,16 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 		return initErr
 	}
 
-	var eg errgroup.Group
+	r.closeMutex.Lock()
+	if r.closing {
+		r.closeMutex.Unlock()
+		return xerrors.New("execute: closed")
+	}
+	r.executeWait.Add(1)
+	r.closeMutex.Unlock()
+	defer r.executeWait.Done()
+
+	var scripts []codersdk.WorkspaceAgentScript
 	for _, script := range r.scripts {
 		runScript := (option == ExecuteStartScripts && script.RunOnStart) ||
 			(option == ExecuteStopScripts && script.RunOnStop) ||
@@ -221,16 +233,89 @@ func (r *Runner) Execute(ctx context.Context, option ExecuteOption) error {
 		if !runScript {
 			continue
 		}
+		scripts = append(scripts, script)
+	}
 
+	if (option == ExecuteStartScripts || option == ExecuteStopScripts) && anyOrdered(scripts) {
+		executor := lifecycleExecutor{
+			clock:           r.Clock,
+			logger:          r.Logger,
+			getScriptLogger: r.GetScriptLogger,
+			run:             r.runTracked,
+			reportUnstarted: r.reportUnstarted,
+		}
+		return executor.execute(ctx, scripts, option)
+	}
+
+	var eg errgroup.Group
+	for _, script := range scripts {
 		eg.Go(func() error {
-			err := r.trackRun(ctx, script, option)
-			if err != nil {
-				return xerrors.Errorf("run agent script %q: %w", script.LogSourceID, err)
-			}
-			return nil
+			return r.runTracked(ctx, script, option)
 		})
 	}
 	return eg.Wait()
+}
+
+// runTracked runs one script and wraps its error the same way for both the
+// ordered and the unordered path.
+func (r *Runner) runTracked(ctx context.Context, script codersdk.WorkspaceAgentScript, option ExecuteOption) error {
+	err := r.trackRun(ctx, script, option)
+	if err != nil {
+		return xerrors.Errorf("run agent script %q: %w", script.LogSourceID, err)
+	}
+	return nil
+}
+
+func anyOrdered(scripts []codersdk.WorkspaceAgentScript) bool {
+	for _, script := range scripts {
+		if len(script.Dependencies) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// reportUnstarted sends the one timing for a startup script that never
+// ran, because it was skipped or canceled while waiting.
+func (r *Runner) reportUnstarted(ctx context.Context, script codersdk.WorkspaceAgentScript, option ExecuteOption, status proto.Timing_Status) {
+	// Nothing reads a shutdown outcome, and the dashboard draws the start
+	// stage only.
+	if option != ExecuteStartScripts {
+		return
+	}
+	logger := r.Logger.With(
+		slog.F("log_source_id", script.LogSourceID),
+		slog.F("resource_address", script.ResourceAddress),
+		slog.F("status", status.String()),
+	)
+	if r.scriptCompleted == nil {
+		logger.Debug(ctx, "r.scriptCompleted unexpectedly nil")
+		return
+	}
+
+	at := r.Clock.Now("agent_scripts", "unstarted_timing").UTC()
+	err := r.trackCommandGoroutine(func() {
+		// The execution's context may already be canceled.
+		reportCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), reportTimeout)
+		defer cancel()
+
+		_, err := r.scriptCompleted(reportCtx, &proto.WorkspaceAgentScriptCompletedRequest{
+			Timing: &proto.Timing{
+				ScriptId: script.ID[:],
+				Start:    timestamppb.New(at),
+				End:      timestamppb.New(at),
+				ExitCode: 0,
+				Stage:    proto.Timing_START,
+				Status:   status,
+			},
+		})
+		if err != nil {
+			logger.Warn(ctx, "reporting unstarted script", slog.Error(err))
+		}
+	})
+	if err != nil {
+		logger.Warn(ctx, "reporting unstarted script: track command goroutine", slog.Error(err))
+	}
 }
 
 // trackRun wraps "run" with metrics.
@@ -361,9 +446,12 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 			return
 		}
 
-		// We want to check this outside of the goroutine to avoid a race condition
+		// We want to check these outside of the goroutine to avoid a race condition
 		timedOut := errors.Is(err, ErrTimeout)
 		pipesLeftOpen := errors.Is(err, ErrOutputPipesOpen)
+		// Start executions only: nothing reads a shutdown outcome and nothing
+		// draws a cron one, so those keep reporting EXIT_FAILURE.
+		canceled := option == ExecuteStartScripts && err != nil && ctx.Err() != nil
 
 		err = r.trackCommandGoroutine(func() {
 			var stage proto.Timing_Stage
@@ -382,13 +470,14 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 				status = proto.Timing_TIMED_OUT
 			case pipesLeftOpen:
 				status = proto.Timing_PIPES_LEFT_OPEN
+			case canceled:
+				status = proto.Timing_CANCELED
 			case exitCode != 0:
 				status = proto.Timing_EXIT_FAILURE
 			default:
 				status = proto.Timing_OK
 			}
 
-			reportTimeout := 30 * time.Second
 			reportCtx, cancel := context.WithTimeout(context.Background(), reportTimeout)
 			defer cancel()
 
@@ -457,7 +546,20 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 	return err
 }
 
+// Close waits for in-flight Execute calls to return, then stops the cron
+// scheduler and the tracked goroutines. Cancel the contexts passed to
+// Execute first, otherwise Close blocks until those scripts exit. Once Close
+// has begun, Execute fails and StartCron does nothing.
 func (r *Runner) Close() error {
+	r.closeMutex.Lock()
+	r.closing = true
+	r.closeMutex.Unlock()
+
+	// In-flight Execute calls still report their timings through
+	// trackCommandGoroutine, which takes closeMutex and refuses once
+	// closed is closed, so this wait runs with the mutex released.
+	r.executeWait.Wait()
+
 	r.closeMutex.Lock()
 	defer r.closeMutex.Unlock()
 	if r.isClosed() {

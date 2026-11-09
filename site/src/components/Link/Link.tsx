@@ -4,11 +4,13 @@ import { SquareArrowOutUpRightIcon } from "lucide-react";
 import { Slot } from "radix-ui";
 
 const linkVariants = cva(
-	`relative inline-flex items-center no-underline font-medium text-content-link hover:cursor-pointer
-	 hover:after:content-[''] hover:after:absolute hover:after:left-0 hover:after:w-full hover:after:h-px hover:after:bg-current hover:after:bottom-px
-	 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
-	 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-primary focus-visible:rounded-sm
-	 visited:text-content-link pl-0.5`, //pl-0.5 adjusts the underline spacing to align with the icon on the right.
+	cn(
+		"relative inline-flex items-center no-underline font-medium text-content-link hover:cursor-pointer",
+		"hover:after:content-[''] hover:after:absolute hover:after:left-0 hover:after:w-full hover:after:h-px hover:after:bg-current hover:after:bottom-px",
+		"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+		"focus-visible:ring-offset-2 focus-visible:ring-offset-surface-primary focus-visible:rounded-sm",
+		"visited:text-content-link pl-0.5",
+	), //pl-0.5 adjusts the underline spacing to align with the icon on the right.
 	{
 		variants: {
 			size: {
@@ -41,6 +43,11 @@ export const Link: React.FC<LinkProps> = ({
 		<Comp className={cn(linkVariants({ size }), className)} {...props}>
 			<Slot.Slottable>{children}</Slot.Slottable>
 			{showExternalIcon && <SquareArrowOutUpRightIcon />}
+			{showExternalIcon && props.target === "_blank" && <NewTabLabel />}
 		</Comp>
 	);
 };
+
+export const NewTabLabel: React.FC = () => (
+	<span className="sr-only"> (opens in new tab)</span>
+);

@@ -17,7 +17,7 @@ import (
 
 func (r *RootCmd) features() *serpent.Command {
 	cmd := &serpent.Command{
-		Short:   "List Enterprise features",
+		Short:   "List license features and entitlements",
 		Use:     "features",
 		Aliases: []string{"feature"},
 		Handler: func(inv *serpent.Invocation) error {
@@ -49,7 +49,7 @@ func (r *RootCmd) featuresList() *serpent.Command {
 			entitlements, err := client.Entitlements(inv.Context())
 			var apiError *codersdk.Error
 			if errors.As(err, &apiError) && apiError.StatusCode() == http.StatusNotFound {
-				return xerrors.New("You are on the AGPL licensed version of Coder that does not have Enterprise functionality!")
+				return xerrors.New("You are on the AGPL licensed version of Coder, which does not support licensed features.")
 			}
 			if err != nil {
 				return err

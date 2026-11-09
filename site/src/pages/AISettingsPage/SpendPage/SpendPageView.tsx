@@ -13,7 +13,7 @@ import {
 } from "#/components/SettingsHeader/SettingsHeader";
 import { PremiumPaywallAIGovernance } from "#/modules/paywall/PremiumPaywallAIGovernance";
 import { AIBridgeSetupAlert } from "#/pages/AIBridgePage/AIBridgeSetupAlert";
-import { SpendFilters } from "./components/SpendFilters";
+import { type SpendFilterMenus, SpendFilters } from "./components/SpendFilters";
 import {
 	type SpendReportQuery,
 	SpendUsersTable,
@@ -31,11 +31,9 @@ type SpendPageViewProps = {
 	period: DateTimeRangeValue;
 	minDate: Date | undefined;
 	onPeriodChange: (value: DateTimeRangeValue) => void;
-	canFilterDimensions: boolean;
-	filterQuery: string;
-	onFilterQueryChange: (query: string) => void;
-	filterError: string | undefined;
+	filterMenus: SpendFilterMenus | undefined;
 	reportQuery: SpendReportQuery;
+	providers?: readonly TypesGen.AIBridgeProvider[];
 };
 
 export const SpendPageView: React.FC<SpendPageViewProps> = ({
@@ -57,7 +55,7 @@ export const SpendPageView: React.FC<SpendPageViewProps> = ({
 		<div className="flex max-w-[1100px] flex-col gap-4">
 			<SettingsHeader>
 				<SettingsHeaderTitle tooltip={<ExperimentalBadge />}>
-					User spend
+					Spend
 				</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
 					Monitor total and per-user AI Gateway spend for the selected
@@ -88,11 +86,9 @@ const SpendPageContent: React.FC<SpendPageContentProps> = ({
 	period,
 	minDate,
 	onPeriodChange,
-	canFilterDimensions,
-	filterQuery,
-	onFilterQueryChange,
-	filterError,
+	filterMenus,
 	reportQuery,
+	providers,
 }) => {
 	if (isOrganizationsLoading) {
 		return <Loader />;
@@ -119,6 +115,7 @@ const SpendPageContent: React.FC<SpendPageContentProps> = ({
 				{refetchErrorAlert}
 				<OrganizationAutocomplete
 					value={null}
+					ariaLabel="Organization"
 					options={organizations}
 					required
 					triggerClassName="w-60"
@@ -143,16 +140,13 @@ const SpendPageContent: React.FC<SpendPageContentProps> = ({
 				organizations={organizations}
 				organization={organization}
 				onOrganizationChange={onOrganizationChange}
-				canFilterDimensions={canFilterDimensions}
-				filterQuery={filterQuery}
-				onFilterQueryChange={onFilterQueryChange}
-				filterError={filterError}
+				menus={filterMenus}
 				now={now}
 				period={period}
 				minDate={minDate}
 				onPeriodChange={onPeriodChange}
 			/>
-			<SpendUsersTable reportQuery={reportQuery} />
+			<SpendUsersTable reportQuery={reportQuery} providers={providers} />
 		</>
 	);
 };

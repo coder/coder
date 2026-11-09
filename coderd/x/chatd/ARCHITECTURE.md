@@ -25,10 +25,10 @@ The core state machine describes how a chat's execution state in the database ca
 
 We say that the following data constitutes a chat's **execution state**:
 
-- chat status on the `chats` table, such as `waiting`, `running`, `interrupting`, `requires_action`, or `error`;
+- chat status on the `chats` table, such as `waiting`, `running`, `interrupting`, `requires_action`, `error`, or `paused`;
 - the `archived` marker on the `chats` table;
 - message history in the `chat_messages` table, including the `revision` field;
-- queued user messages in the `chat_queued_messages` table, including the `position` and `created_by` fields;
+- queued user messages in the `chat_queued_messages` table, including the `position`, `created_by`, and `busy_behavior` fields;
 - `worker_id` and `runner_id` fields on the `chats` table (ownership fields);
 - the `last_error` field on the `chats` table (last error message from the agent loop);
 - the `retry_state` field on the `chats` table, a JSONB object that stores the last error message encountered by the agent loop, and information about when the next retry will be attempted;
@@ -43,28 +43,36 @@ There is other data that is held in the database and is associated with a chat, 
 - workspace binding;
 - model configuration;
 - plan mode;
+- project binding;
+- project memory;
 - file links.
 
 We call it **metadata**. The core state machine concerns itself with **execution state**. As a general guideline, a piece of data is execution state if the core state machine needs it to decide what the next state transition may be, or if it's directly modified by a state transition. For example, a queued message is part of the execution state because it impacts what the next action of the agent loop can be. If the agent loop finishes processing a user message and would otherwise stop, but there's a queued message, the agent loop will start processing the queued message instead. On the other hand, a chat's title does not impact the agent loop at all - it's just a label that helps the user identify the chat.
+
+Each title has a source: `fallback` for a title derived from the first prompt or the default title of a chat created without one, `generated` for a title written by automatic title generation, and `user` for a title the caller supplied. A title write applies only when the current source ranks the same as or lower than the incoming one, in the order `fallback`, `generated`, `user`. Title writes set `title_updated_at` and do not change `updated_at`; clients order title events by `title_updated_at`.
 
 File links are metadata, but they are written inside transitions: if a transition persists message content that references uploaded files (chat create, message send, queued send, or message edit), it records the file links in the same transaction. Two invariants are enforced when links are written. A file belongs to at most one chat: attaching a file that another chat already holds is refused in the same way as attaching a file that no longer exists. There is an upper bound on the number of files a chat holds, set by the `CODER_CHAT_MAX_ATTACHMENTS_PER_CHAT` deployment option (50 by default). The core state machine does not read deployment configuration: every caller that writes links passes the cap in, and a cap below 1 fails the write instead of selecting a default. When a message's files would push the chat over the cap, the chat's earliest-uploaded files are deleted to make room, and their links go with them. Files in the same message are never evicted by that message, so only a message that is on its own larger than the cap is rejected. Files created by tools during a run take the same path, so a tool's attachment can evict a user's upload and vice versa. Desktop recordings and their thumbnails are linked to the parent chat the same way, one file per transaction; with a cap of 1 the thumbnail is skipped so it cannot evict its own recording.
 
 Eviction means that a persisted message may reference a file that no longer exists. That's expected: the UI shows the attachment as expired, and when the history is sent to the model, an evicted user upload is replaced with a short placeholder saying the content has expired, while evicted assistant and tool files are dropped. Editing a message that still references an evicted file is refused until the attachment is removed from the edit.
 
-TODO (#27079): messages can now carry a `workspace-file-reference` part (path, name, size, media type, workspace ID) for files uploaded into the chat's workspace. It is metadata only: no file link is written, coderd validates that the path is scoped to the chat's upload directory and that the workspace ID matches the chat's current binding, and prompt conversion renders the reference as text (`[workspace file: <name> (<size>) at <path>]`) so the bytes never reach the model. Describe this here.
+Files uploaded into the chat's workspace through `POST /api/v2/chats/{chat}/workspace-files` get no file links, so they don't count toward the cap and are never evicted. Their bytes live in the workspace, not in coderd, and a message refers to one with a `workspace-file-reference` part that describes the file, including its path and the workspace it was uploaded to. A message can include a reference only if its path names a file in this chat's upload directory and its workspace is the one the chat is currently bound to. The model gets the description as text, never the bytes, and reads the file with its workspace tools. After the chat's workspace binding changes, existing references are shown to the model as no longer accessible.
+
+Project instructions are optional context injected into all chats in a project. Stored in `chat_project_instructions`. Subagents have no `project_id`, so they use the root chat's project. A root chat can move into a project, between projects, or out of its project after it's created. The move is written inside the `SetProject` transition so that it happens only while no step of the chat runs.
+
+Project skills are the project's enabled skills, which every chat in the project gets as a project skill source alongside personal, organization, and workspace skills. Each turn checks ChatProjectUsableBy once for the chat owner, and that one result gates both project instructions and skills, so a chat gets both or neither. Skills are then read as chatd, so role grants do not count. Subagents use the root chat's project. If loading fails, the turn continues without them.
 
 If the distinction isn't completely clear to you at this point, don't worry. It should become clearer as you learn more about the core state machine.
 
 ## Execution states
 
-A chat's execution state lets the chat worker and the HTTP endpoints decide what they can do with the chat. In total, there are 13 execution states. The states are decided by what's in the database:
+A chat's execution state lets the chat worker and the HTTP endpoints decide what they can do with the chat. In total, there are 19 execution states. The states are decided by what's in the database:
 
 - By whether a chat exists;
-- By all the chat statuses on the `chats` table: `waiting`, `running`, `interrupting`, `requires_action`, and `error`;
+- By all the chat statuses on the `chats` table: `waiting`, `running`, `interrupting`, `requires_action`, `error`, and `paused`;
 - By the `archived` marker on the `chats` table;
 - By the queued messages in the `chat_queued_messages` table.
 
-The shorthands in the table below use the convention that the first 1 or 2 letters indicate the status, and then `1` or `0` indicate the presence or absence of queued messages.
+The shorthands in the table below use the convention that the first 1 or 2 letters indicate the status, then `1` or `0` indicate the presence or absence of queued messages, and a trailing `P` indicates that the queue head is blocked. The head is blocked while a pause condition holds for it. A `steer` message under edit counts as the head, because it holds the whole `steer` lane. The only pause condition is `editing_since`, set while the owner edits the row; at most one queued message per chat is under edit. A blocked head is not promoted: the turn that would promote it ends in `paused`, and the chat stays `paused` until the head's edit ends or the head is promoted or removed.
 
 | Shorthand | Status | Queue | Archived | Meaning |
 | --- | --- | --- | --- | --- |
@@ -72,15 +80,21 @@ The shorthands in the table below use the convention that the first 1 or 2 lette
 | `W` | `waiting` | empty | `false` | There's no work to be done by the chat worker |
 | `E0` | `error` | empty | `false` | The worker encountered an unrecoverable error while processing the chat. There's no more work to be done by the chat worker |
 | `E1` | `error` | non-empty | `false` | The worker encountered an unrecoverable error while processing the chat, and there's currently no work to be done by the chat worker. There's a queued message that should be processed once the error is cleared |
+| `E1P` | `error` | non-empty, head blocked | `false` | The worker encountered an unrecoverable error while processing the chat, and the queue head is under edit. There's no work to be done by the chat worker |
 | `R0` | `running` | empty | `false` | Running state with no queued messages: a chat worker should be processing the chat |
 | `R1` | `running` | non-empty | `false` | Running state with queued messages: a chat worker should be processing the chat, and there's a queued message that should be processed next |
+| `R1P` | `running` | non-empty, head blocked | `false` | Running state with the queue head under edit: a chat worker should be processing the chat. When the turn finishes, the chat enters `paused` |
 | `I0` | `interrupting` | empty | `false` | The chat was interrupted by the user, and the chat worker should commit any partial message that had been generated before the interruption |
 | `I1` | `interrupting` | non-empty | `false` | The chat was interrupted by the user, and the chat worker should commit any partial message that had been generated before the interruption, and there's a queued message that should be processed next |
+| `I1P` | `interrupting` | non-empty, head blocked | `false` | The chat was interrupted by the user, the chat worker should commit any partial message that had been generated before the interruption, and the queue head is under edit. When the interruption finishes, the chat enters `paused` |
 | `A0` | `requires_action` | empty | `false` | The chat worker is waiting until the user submits tool results; this state is used only by the “dynamic tools” feature |
 | `A1` | `requires_action` | non-empty | `false` | The chat worker is waiting until the user submits tool results, and there's a queued message that should be processed next; this state is used only by the “dynamic tools” feature |
+| `A1P` | `requires_action` | non-empty, head blocked | `false` | The chat worker is waiting until the user submits tool results, and the queue head is under edit. Tool results or their cancellation continue the current turn and leave the head queued; this state is used only by the “dynamic tools” feature |
+| `P` | `paused` | non-empty, head blocked | `false` | A turn finished while the queue head was under edit. There's no work to be done by the chat worker |
 | `XW` | `waiting` | empty | `true` | The chat was archived while it was in the `waiting` state, it will go back to `waiting` once unarchived |
 | `XE0` | `error` | empty | `true` | The chat was archived while it was in the `error` state, it will go back to `error` once unarchived |
 | `XE1` | `error` | non-empty | `true` | The chat was archived while it was in the `error` state, it will go back to `error` once unarchived, and there's a queued message that should be processed once the error is cleared |
+| `XE1P` | `error` | non-empty, head blocked | `true` | The chat was archived while it was in the `error` state with the queue head under edit; it will go back to `E1P` once unarchived |
 
 If these states seem arbitrary and abstract at this point, that's expected. Each one of these states is needed by some runtime component of chatd for some specific use case, and their purpose will emerge as we discuss the implementation of the HTTP endpoints and the chat worker.
 
@@ -112,16 +126,27 @@ Queue changes update `queue_version` automatically via Postgres triggers describ
 
 I don't recommend reading the rest of section thoroughly if this is your first time reading this document. It's an information dump that only makes sense once you pair it with a specific runtime component of chatd. Give it a cursory look, and treat it as a reference that you can return to later when you're analyzing how an HTTP endpoint or a chat worker implements a specific feature.
 
+### Queued message lanes
+
+Queued messages wait in two lanes. These rules apply to every transition that queues or delivers them:
+
+1. `busy_behavior` names the lane, `steer` or `queue`. Inside a lane, `position` gives the order.
+2. The whole `steer` lane goes first, in position order, then the `queue` lane. Every queue list shows this delivery order: the HTTP API, the `queue_update` stream event, and the `coder_get_chat_messages` MCP tool.
+3. Queued messages go into history only at delivery points. Before each assistant LLM API call, the whole `steer` lane goes in, and never a `queue` message. At `FinishTurn` and `FinishInterruption`, the whole `steer` lane goes in; if it is empty, the first `queue` message goes in. Delivery stops at a message under edit: it and every message behind it wait, and a `steer` message under edit also holds the `steer` messages ahead of it. In an errored or paused chat with queued messages, each send or `SteerQueuedMessage` is a delivery point with the same rule; a `steer` send delivers the `steer` lane with the new message at its end. When one delivery inserts several messages, the chat takes the model and the reasoning effort of the last message that sets each (`InsertChatMessages`).
+4. `SendMessage` and `SteerQueuedMessage` never interrupt.
+
 ### Transitions used by the HTTP endpoints
 
-- `Create(initialMessages)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `running`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
-- TODO (#27111): `Create(initialMessages)` now lands in `waiting` instead of `running` when the initial history carries no user message (system messages only); such a chat enters `running` through its first `SendMessage`. The state diagram below needs the matching `N --> W: Create` edge. Describe this here.
+- `Create(initialMessages, initialStatus)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `initialStatus`. The initial status defaults to `running`; a caller can request `waiting` instead to create an idle chat, which starts running with its first `SendMessage`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
+- When `Create(initialMessages, initialStatus)` creates a child chat, it first locks the family's root chat row with `FOR SHARE` and fails if the root is archived, so a new child never joins an archived family.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
-- `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` must be either `queue` or `interrupt`. With `busy_behavior=interrupt`, it also requests interruption or cancels a pending dynamic-tool action as needed.
+- `SetProject(project)` sets or clears the project of one chat without changing its execution state. A move of a root chat applies it to the root and each descendant in one transaction, and fails without changing any chat if one of them isn't in `W`, `E0`, `E1`, `E1P` or `P`. Only the root's `project_id` changes; subagents go through `SetProject` only so that their execution state is checked too. As in a family archive, the root row is locked first, so a concurrent child creation either joins the move or waits for it. A move to the root's current project applies no transition.
+- `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` names the lane and must be `queue` or `steer` (see [Queued message lanes](#queued-message-lanes)). Outside `E1`, a busy send stores `m` in its lane and keeps the status, except a `steer` send from `E1P` or `P`. From `E1`, `E1P`, and `P`, `busy_behavior=steer` inserts the queued `steer` messages and then `m` into history, and `queue` messages stay queued. From `E1`, `busy_behavior=queue` queues `m` as a `queue` message and promotes the next messages. A `queue` send never runs before a message under edit.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
-- `DeleteQueuedMessage(qid)` removes one queued message without changing the active history.
-- `PromoteQueuedMessage(qid)` makes a queued message the next message to process. It reorders the queue, interrupts active work, cancels pending dynamic-tool action, or promotes into history immediately as required by the input state.
-- `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog.
+- `DeleteQueuedMessage(qid)` removes one queued message without changing the active history. From `P`, removing the head promotes the message behind it and reaches `running`, or reaches `waiting` when the head was the last queued message.
+- `SteerQueuedMessage(qid)` moves a queued message to the end of the `steer` lane. A `steer` message keeps its place. Steering a message under edit ends its edit. From `E1`, `E1P`, and `P`, it closes open tool calls with synthetic cancellation results, delivers the whole `steer` lane into history, and reaches `running`. When another `steer` message under edit is the head, nothing is delivered and the chat keeps its state. From the other states it keeps the chat status, and the `steer` lane waits for the next delivery point.
+- `EditQueuedMessage(qid, content?, editing?)` rewrites a queued message's content, begins or ends its edit, or both. Beginning an edit ends any other edit on the chat. From `P`, ending the head's edit promotes it and reaches `running`; beginning an edit on a different message is refused.
+- `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog. When no worker owns a `running` or `interrupting` chat, nothing is generating, so the same transaction also applies `FinishInterruption`, passing synthetic cancellation results for any outstanding tool calls as the interrupted suffix. In `W`, `E0`, `E1`, `E1P`, and `P` no turn is active, and an owned `I0`, `I1`, or `I1P` chat is left for the chat worker to finish. In these states there is nothing to interrupt, so it succeeds and changes no execution state.
 - `CompleteRequiresAction(results)` inserts submitted tool-result messages followed by any caller-provided suffix messages, clears `requires_action_deadline_at`, and lands in `running`. It preserves queued messages.
 - `RequestCompaction` records a manual compaction request on an idle or errored chat by setting `compaction_requested_at` and landing in `running` without inserting any message. It clears `last_error` per the leave-error rule, advances `history_version` to the transaction's new `snapshot_version`, and resets `generation_attempt`, so the compaction turn gets a full retry budget and message part episode keys that cannot collide with episodes retained from the previous turn. The chat worker picks the chat up like any other running chat and consumes the request. See [Manual compaction](#manual-compaction).
 - `ClearContext(messages)` commits a manual context reset synchronously, without involving the chat worker. It inserts the caller-built compressed clear boundary triplet (a hidden model-only sentinel user row, plus visible synthetic `chat_cleared` tool-call and tool-result messages), clears `last_error` and any pending `compaction_requested_at`, leaves ownership untouched, and lands in `waiting`. No worker turn or model call follows; the message insert trigger advances `history_version` and resets `generation_attempt`. `E1` is rejected because no waiting-with-queue state exists and a synchronous clear has no turn after which the queue would drain.
@@ -132,10 +157,11 @@ I don't recommend reading the rest of section thoroughly if this is your first t
 - `Abandon` clears `worker_id` and `runner_id` on the chat row.
 - `CommitStep(step)` inserts one durable message suffix while remaining `running`. A committed step may insert ordinary assistant/tool messages, and a compaction step may insert a compressed summary boundary plus visible compaction tool-call and tool-result messages, optionally followed by uncompressed model-only user rows replaying the pending-user segment (see [Manual compaction](#manual-compaction)).
 - `EnterRequiresAction` records a pending-action episode by relying on the committed assistant tool-call messages as the durable call set, sets `requires_action_deadline_at`, which is a timestamp 5 minutes in the future, and lands in `requires_action`.
-- `FinishInterruption(optionalPartialStep)` inserts one final interrupted assistant/tool suffix if present, or finalizes interruption without a suffix if none is available, clears the interrupting state, and lands in `waiting` if no queued message is promoted. If interrupt finalization also promotes the queue head, it inserts the promoted queued message into history and lands in `running`.
+- `FinishInterruption(optionalPartialStep)` inserts one final interrupted assistant/tool suffix if present, or finalizes interruption without a suffix if none is available, clears the interrupting state, and reaches `waiting` when the queue is empty, `paused` when the queue head is blocked, or `running` after promoting every `steer` message, or the queue head if there are none, into history.
 - `RecordGenerationAttempt` verifies the chat is still `running`, increments `generation_attempt`, and returns the updated chat snapshot.
+- `DeliverSteerMessages` verifies the chat is still `running`, removes the `steer` messages from the queue, inserts them into history in queue order, and stays in `running`. `queue` messages stay queued.
 - `RecordRetryState(payload)` verifies the chat is still `running`, stores the retry payload sent to clients as `retry_state`, and returns the updated chat snapshot.
-- `FinishTurn` completes the current generation turn atomically. If the queue is empty, it lands in `waiting`. If the queue is non-empty, it removes the queue head, inserts it into history as a user turn, and lands in `running`.
+- `FinishTurn` completes the current generation turn atomically. If the queue is empty, it reaches `waiting`. If the queue head is blocked, it reaches `paused` with the queue intact. Otherwise it removes every `steer` message, or the queue head if there are none, inserts them into history as a user turn, and reaches `running`.
 - `FinishError(err)` parks the chat in `error` and persists `last_error = err`, replacing any previously stored error. It is allowed when an unarchived chat is waiting or running.
 - `CancelRequiresAction(reason)` closes pending dynamic tool calls with synthetic cancellation tool results, satisfies the pending-action projection, clears `requires_action_deadline_at`, and lands in `running`.
 - `ReconcileInvalidState` reconciles a chat in an invalid state by setting it to a valid state. Defined in the [Invalid states](#invalid-states) section.
@@ -154,92 +180,197 @@ stateDiagram-v2
 
     [*] --> N
 
-    N --> R0: Create
+    N --> R0: Create(running)
+    N --> W: Create(waiting)
 
     W --> R0: SendMessage
     W --> R0: EditMessage
     W --> R0: RequestCompaction
     W --> W: ClearContext
+    W --> W: Interrupt
     W --> E0: FinishError
     W --> XW: SetArchived(true)
+    W --> W: SetProject
 
     E0 --> R0: SendMessage
     E0 --> R0: EditMessage
     E0 --> R0: RequestCompaction
     E0 --> W: ClearContext
+    E0 --> E0: Interrupt
     E0 --> XE0: SetArchived(true)
+    E0 --> E0: SetProject
 
-    E1 --> R1: SendMessage
+    E1 --> R1: SendMessage(queue)
+    E1 --> R0: SendMessage(steer) / promoted last queued
+    E1 --> R1: SendMessage(steer) / queue still non-empty
+    E1 --> R1P: SendMessage / new head under edit
     E1 --> R0: EditMessage
     E1 --> R1: RequestCompaction
     E1 --> E0: DeleteQueuedMessage / removed last queued
     E1 --> E1: DeleteQueuedMessage / queue still non-empty
-    E1 --> R0: PromoteQueuedMessage / promoted last queued
-    E1 --> R1: PromoteQueuedMessage / queue still non-empty
+    E1 --> E1P: DeleteQueuedMessage / new head under edit
+    E1 --> R0: SteerQueuedMessage / promoted last queued
+    E1 --> R1: SteerQueuedMessage / queue still non-empty
+    E1 --> R1P: SteerQueuedMessage / new head under edit
+    E1 --> E1: EditQueuedMessage / content edit or edit behind head
+    E1 --> E1P: EditQueuedMessage / begin edit on head
+    E1 --> E1: Interrupt
     E1 --> XE1: SetArchived(true)
+    E1 --> E1: SetProject
+
+    E1P --> E1P: SendMessage(queue)
+    E1P --> R1P: SendMessage(steer)
+    E1P --> E1P: SetProject
+    E1P --> R0: EditMessage
+    E1P --> R1P: RequestCompaction
+    E1P --> E0: DeleteQueuedMessage / removed last queued
+    E1P --> E1: DeleteQueuedMessage / new head ready
+    E1P --> E1P: DeleteQueuedMessage / removed row behind head
+    E1P --> R0: SteerQueuedMessage / promoted last queued
+    E1P --> R1: SteerQueuedMessage / queue still non-empty
+    E1P --> R1P: SteerQueuedMessage / steered row behind head
+    E1P --> E1P: EditQueuedMessage / content edit
+    E1P --> E1: EditQueuedMessage / end head edit or begin edit behind head
+    E1P --> E1P: Interrupt
+    E1P --> XE1P: SetArchived(true)
 
     R0 --> R0: RecordGenerationAttempt
     R0 --> R0: RecordRetryState
     R0 --> R0: CommitStep
     R0 --> A0: EnterRequiresAction
     R0 --> I0: Interrupt
-    R0 --> I1: SendMessage(interrupt)
     R0 --> R0: EditMessage
     R0 --> W: FinishTurn / queue empty
     R0 --> E0: FinishError
     R0 --> R1: SendMessage(queue)
+    R0 --> R1: SendMessage(steer)
+    R0 --> R0: DeliverSteerMessages
 
     R1 --> R1: RecordGenerationAttempt
     R1 --> R1: RecordRetryState
     R1 --> R1: CommitStep
     R1 --> A1: EnterRequiresAction
     R1 --> I1: Interrupt
-    R1 --> I1: SendMessage(interrupt)
     R1 --> R0: EditMessage
     R1 --> E1: FinishError
     R1 --> R1: SendMessage(queue)
+    R1 --> R1: SendMessage(steer)
+    R1 --> R0: DeliverSteerMessages / promoted last queued
+    R1 --> R1: DeliverSteerMessages / queue still non-empty
     R1 --> R0: DeleteQueuedMessage / removed last queued
     R1 --> R1: DeleteQueuedMessage / queue still non-empty
-    R1 --> I1: PromoteQueuedMessage
+    R1 --> R1P: DeleteQueuedMessage / new head under edit
+    R1 --> R1: SteerQueuedMessage
+    R1 --> R1: EditQueuedMessage / content edit or edit behind head
+    R1 --> R1P: EditQueuedMessage / begin edit on head
     R1 --> R0: FinishTurn / promoted last queued
-    R1 --> R1: FinishTurn / queue still non-empty after promoting head
+    R1 --> R1: FinishTurn / queue still non-empty after promoting
+    R1 --> R1P: FinishTurn / new head under edit
+
+    R1P --> R1P: RecordGenerationAttempt
+    R1P --> R1P: RecordRetryState
+    R1P --> R1P: CommitStep
+    R1P --> A1P: EnterRequiresAction
+    R1P --> I1P: Interrupt
+    R1P --> R0: EditMessage
+    R1P --> E1P: FinishError
+    R1P --> R1P: SendMessage(queue)
+    R1P --> R1: SendMessage(steer)
+    R1P --> R0: DeleteQueuedMessage / removed last queued
+    R1P --> R1: DeleteQueuedMessage / new head ready
+    R1P --> R1P: DeleteQueuedMessage / removed row behind head
+    R1P --> R1: SteerQueuedMessage
+    R1P --> R1P: EditQueuedMessage / content edit
+    R1P --> R1: EditQueuedMessage / end head edit or begin edit behind head
+    R1P --> P: FinishTurn
 
     I0 --> I1: SendMessage
     I0 --> R0: EditMessage
+    I0 --> I0: Interrupt
     I0 --> W: FinishInterruption
 
     I1 --> I1: SendMessage
     I1 --> R0: EditMessage
     I1 --> I0: DeleteQueuedMessage / removed last queued
     I1 --> I1: DeleteQueuedMessage / queue still non-empty
-    I1 --> I1: PromoteQueuedMessage
+    I1 --> I1P: DeleteQueuedMessage / new head under edit
+    I1 --> I1: SteerQueuedMessage
+    I1 --> I1: EditQueuedMessage / content edit or edit behind head
+    I1 --> I1P: EditQueuedMessage / begin edit on head
+    I1 --> I1: Interrupt
     I1 --> R0: FinishInterruption / promoted last queued
-    I1 --> R1: FinishInterruption / queue still non-empty after promoting head
+    I1 --> R1: FinishInterruption / queue still non-empty after promoting
+    I1 --> R1P: FinishInterruption / new head under edit
+
+    I1P --> I1P: SendMessage(queue)
+    I1P --> I1: SendMessage(steer)
+    I1P --> R0: EditMessage
+    I1P --> I0: DeleteQueuedMessage / removed last queued
+    I1P --> I1: DeleteQueuedMessage / new head ready
+    I1P --> I1P: DeleteQueuedMessage / removed row behind head
+    I1P --> I1: SteerQueuedMessage
+    I1P --> I1P: EditQueuedMessage / content edit
+    I1P --> I1: EditQueuedMessage / end head edit or begin edit behind head
+    I1P --> I1P: Interrupt
+    I1P --> P: FinishInterruption
 
     A0 --> R0: CompleteRequiresAction
     A0 --> R0: Interrupt
     A0 --> R0: CancelRequiresAction
     A0 --> A1: SendMessage(queue)
-    A0 --> R1: SendMessage(interrupt)
+    A0 --> A1: SendMessage(steer)
     A0 --> R0: EditMessage
 
     A1 --> R1: CompleteRequiresAction
     A1 --> R1: Interrupt
     A1 --> R1: CancelRequiresAction
     A1 --> A1: SendMessage(queue)
-    A1 --> R1: SendMessage(interrupt)
+    A1 --> A1: SendMessage(steer)
     A1 --> R0: EditMessage
     A1 --> A0: DeleteQueuedMessage / removed last queued
     A1 --> A1: DeleteQueuedMessage / queue still non-empty
-    A1 --> R0: PromoteQueuedMessage / promoted last queued
-    A1 --> R1: PromoteQueuedMessage / queue still non-empty
+    A1 --> A1P: DeleteQueuedMessage / new head under edit
+    A1 --> A1: SteerQueuedMessage
+    A1 --> A1: EditQueuedMessage / content edit or edit behind head
+    A1 --> A1P: EditQueuedMessage / begin edit on head
+
+    A1P --> R1P: CompleteRequiresAction
+    A1P --> R1P: Interrupt
+    A1P --> R1P: CancelRequiresAction
+    A1P --> A1P: SendMessage(queue)
+    A1P --> A1: SendMessage(steer)
+    A1P --> R0: EditMessage
+    A1P --> A0: DeleteQueuedMessage / removed last queued
+    A1P --> A1: DeleteQueuedMessage / new head ready
+    A1P --> A1P: DeleteQueuedMessage / removed row behind head
+    A1P --> A1: SteerQueuedMessage
+    A1P --> A1P: EditQueuedMessage / content edit
+    A1P --> A1: EditQueuedMessage / end head edit or begin edit behind head
+
+    P --> P: SendMessage(queue)
+    P --> R1P: SendMessage(steer)
+    P --> P: SetProject
+    P --> R0: EditMessage
+    P --> W: DeleteQueuedMessage / removed last queued
+    P --> R0: DeleteQueuedMessage / removed head, promoted last queued
+    P --> R1: DeleteQueuedMessage / removed head, queue still non-empty after promoting next
+    P --> P: DeleteQueuedMessage / removed row behind head
+    P --> R0: SteerQueuedMessage / promoted last queued
+    P --> R1: SteerQueuedMessage / queue still non-empty
+    P --> R1P: SteerQueuedMessage / steered row behind head
+    P --> P: EditQueuedMessage / content edit
+    P --> R0: EditQueuedMessage / end head edit, promoted last queued
+    P --> R1: EditQueuedMessage / end head edit, queue still non-empty
+    P --> P: Interrupt
 
     XW --> W: SetArchived(false)
     XE0 --> E0: SetArchived(false)
     XE1 --> E1: SetArchived(false)
+    XE1P --> E1P: SetArchived(false)
 
     [Invalid] --> E0: ReconcileInvalidState / no queued messages
-    [Invalid] --> E1: ReconcileInvalidState / queued messages
+    [Invalid] --> E1: ReconcileInvalidState / ready head
+    [Invalid] --> E1P: ReconcileInvalidState / head under edit
 ```
 
 ### Ownership state transition diagram
@@ -261,13 +392,13 @@ Notice that the `Acquire` and `Abandon` transitions only affect ownership state,
 
 ### Miscellaneous transition rules
 
-- Any transition that's not `CompleteRequiresAction` which supports `A0` or `A1` as input states, and lands in output states different from `A0` and `A1`, must insert synthetic, cancellation tool-call results for pending dynamic tool calls to avoid corrupting the message history.
+- Any transition that's not `CompleteRequiresAction` which supports `A0`, `A1`, or `A1P` as input states, and lands in output states different from `A0`, `A1`, or `A1P`, must insert synthetic, cancellation tool-call results for pending dynamic tool calls to avoid corrupting the message history.
 - Any transition that inserts a new user message into active history must answer outstanding tool calls in active history before inserting the user message. It may do this by inserting synthetic cancellation tool-call results.
-- Any transition leaving `E0` or `E1` (except `SetArchived(true)`) should clear the `last_error` field.
+- Any transition leaving `E0`, `E1`, or `E1P` (except `SetArchived(true)`) should clear the `last_error` field.
 
 ### Invalid states
 
-Right after the refactor described in this document is complete, some chats may be in invalid states. For example, a chat may have `archived` set to `true` and status to `running`, which isn't allowed by the new state machine. To get the chat out of an invalid state, the `ReconcileInvalidState` transition is used, which does the following:
+Right after the refactor described in this document is complete, some chats may be in invalid states. For example, a chat may have `archived` set to `true` and status to `running`, which isn't allowed by the new state machine, or a chat may have status `paused` while its queue is empty or its queue head is not under edit. To get the chat out of an invalid state, the `ReconcileInvalidState` transition is used, which does the following:
 
 1. Increment `snapshot_version` by 1.
 2. Set `archived = false`.
@@ -276,7 +407,7 @@ Right after the refactor described in this document is complete, some chats may 
 5. Set `requires_action_deadline_at = null`.
 6. If the chat has pending dynamic tool calls, insert synthetic cancellation results for them.
 
-This will land the chat in either `E0` or `E1`, depending on whether it has any queued messages.
+This reaches `E0`, `E1`, or `E1P`, depending on whether it has queued messages and whether the queue head is under edit.
 
 Users can reconcile a chat's state by calling the `POST /api/v2/chats/{chat}/reconcile-invalid` endpoint.
 
@@ -380,7 +511,7 @@ FOR EACH ROW
 EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update
-AFTER UPDATE OF content, model_config_id, position, created_by
+AFTER UPDATE OF content, model_config_id, position, created_by, editing_since
 ON chat_queued_messages
 FOR EACH ROW
 EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
@@ -396,6 +527,8 @@ EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 `chats.retry_state_version` stores the latest `snapshot_version` in which `retry_state` changed. It starts at `0`, remains unchanged for transitions that do not affect retry state, and is set to the current `snapshot_version` whenever `retry_state` changes. A newly created chat starts with `retry_state = null` and `retry_state_version = 0`.
 
 Retry state is scoped to the current generation attempt. Whenever `generation_attempt` changes, `retry_state` is cleared automatically. If that clear changes the value of `retry_state`, `retry_state_version` is set to the current `snapshot_version`.
+
+Retry state is also scoped to the running turn. `UpdateChatExecutionState` clears `retry_state` whenever it writes a status other than `running`, so transitions that leave `running` (for example `Interrupt`, `EnterRequiresAction`, and `FinishError`) drop a pending retry. The same trigger then sets `retry_state_version` to the current `snapshot_version`.
 
 A single `BEFORE UPDATE` trigger handles both clearing `retry_state` on generation-attempt changes and bumping `retry_state_version` on retry-state changes. The trigger mutates `NEW` directly and does not run an `UPDATE chats ...` statement, so it does not recursively trigger itself:
 
@@ -430,7 +563,7 @@ EXECUTE FUNCTION sync_chat_retry_state();
 
 This section maps the public endpoints that mutate chat state to the transitions they use.
 
-Chat routes are registered by `registerChatAPIRoutes` and mounted under `/api/v2`. The routes that were not promoted are registered by `registerExperimentalChatRoutes` and answer only on `/api/experimental`: the `computer-use-provider` and `advisor` routes under `/chats/config`, `GET /chats/{chat}/stream/desktop`, and `GET /chats/{chat}/debug/runs` with `GET /chats/{chat}/debug/runs/{debugRun}`. The `/api/v2` mount reserves `/chats/model-configs` so it returns 404 instead of matching the `{chat}` wildcard and failing UUID parsing.
+Chat routes are registered by `registerChatAPIRoutes` and mounted under `/api/v2`. The routes that were not promoted are registered by `registerExperimentalChatRoutes` and answer only on `/api/experimental`: `GET /chats/{chat}/stream/desktop` and `GET /chats/{chat}/debug/runs` with `GET /chats/{chat}/debug/runs/{debugRun}`. The `/api/v2` mount reserves `/chats/model-configs` so it returns 404 instead of matching the `{chat}` wildcard and failing UUID parsing.
 
 ### Organization-scoped model discovery
 
@@ -446,63 +579,75 @@ The write paths maintain exactly one default whenever an organization has at lea
 
 ### `POST /api/v2/chats`
 
-This endpoint uses `Create(initialMessages)`:
+This endpoint uses `Create(initialMessages, initialStatus)`:
 
-- `N -> Create(initialMessages) -> R0`
+- `N -> Create(initialMessages, running) -> R0` if `content` is non-empty
+- `N -> Create(initialMessages, waiting) -> W` if `content` is empty
 
-TODO (#27111): a request with an empty `content` array now takes `N -> Create(initialMessages) -> W`: the chat is created idle with system messages only and no worker picks it up, so clients can use the chat ID (for example for workspace file uploads) before the first `POST /api/v2/chats/{chat}/messages` starts generation. Describe this here.
+With empty `content`, the chat starts idle with only system messages. This lets a client get the chat ID before the first turn, for example to upload files into the chat's workspace, and then start generation with its first `POST /api/v2/chats/{chat}/messages`.
 
 No other input states are supported.
+
+If the request sets `title`, the chat is created with a `user` title and automatic title generation does not run. Otherwise the chat is created with a `fallback` title derived from the prompt, after any `UserPromptSubmit` override, and automatic title generation starts; the response does not wait for the title model call. With an empty `content` array the `fallback` title is `New Chat`, and both steps happen at the first `POST /api/v2/chats/{chat}/messages` instead.
 
 ### `PATCH /api/v2/chats/{chat}`
 
 When archiving or unarchiving a root chat, the operation applies `SetArchived(archived)` to the root and all descendants atomically. If any chat in the family cannot apply the requested archived-state transition, the whole operation fails without changing any chat. Unarchiving an individual child chat remains guarded: it must fail while its parent is archived
+
+The family update locks the root chat row first, and creating a child chat takes a shared lock on the same row. A concurrent child creation therefore either commits first and is included in the family update, or waits for it and fails if the root is now archived.
 
 For `archived` updates, the supported input and output states are:
 
 - `W -> SetArchived(true) -> XW`
 - `E0 -> SetArchived(true) -> XE0`
 - `E1 -> SetArchived(true) -> XE1`
+- `E1P -> SetArchived(true) -> XE1P`
 - `XW -> SetArchived(false) -> W`
 - `XE0 -> SetArchived(false) -> E0`
 - `XE1 -> SetArchived(false) -> E1`
+- `XE1P -> SetArchived(false) -> E1P`
 
-If the request does not change `archived`, this endpoint doesn't emit any state transitions.
+If the request changes neither `archived` nor `project_id`, this endpoint doesn't emit any state transitions.
 
-Other execution-state classes are not supported for archive/unarchive.
+Other execution-state classes are not supported for archive/unarchive. Archiving is refused while the chat or a member of its family is `paused`.
+
+Setting `project_id` on a root chat moves it into that project, and the nil UUID moves it out of its project. The move applies `SetProject(project)` to the root and all descendants atomically, with the same root-first lock as an archive. It's the request's last write, so a refused move keeps the request's other changes. The supported input and output states are:
+
+- `W -> SetProject(project) -> W`
+- `E0 -> SetProject(project) -> E0`
+- `E1 -> SetProject(project) -> E1`
+- `E1P -> SetProject(project) -> E1P`
+- `P -> SetProject(project) -> P`
+
+A move to the chat's current project succeeds without a transition, even while the chat runs. Child chats and archived chats can't be moved, and neither can a chat that the same request archives.
+
+Setting `title` writes a `user` title. The write happens even when the text is unchanged, unless the title is already a `user` title.
 
 ### `POST /api/v2/chats/{chat}/messages`
+
+`busy_behavior` must be `steer` or `queue`. If the request omits it, the endpoint uses `steer`. The endpoint rejects `busy_behavior=interrupt` with a 400 error.
 
 For `busy_behavior=queue`, `SendMessage(m, queue)` supports:
 
 - `W -> SendMessage(m, queue) -> R0`
 - `E0 -> SendMessage(m, queue) -> R0`
-- `E1 -> SendMessage(m, queue) -> R1`: this appends `m` to the end of the queue, promotes the current queue head, and clears the error. The scenario where this happens is:
+- `E1 -> SendMessage(m, queue) -> R1` (or `R1P` when the message behind the promoted head is under edit): this appends `m` to the end of the queue, promotes every `steer` message, or the current queue head if there are none, and clears the error. The scenario where this happens is:
   - the user queued some messages
   - the chat ran into an error and stopped, for example because of an unretriable problem with the LLM provider
-  - the user then sends a new message, but there is a non-empty queue. As defined here, the UX will be “add the new message to the end of the queue and promote the queue head.” Arguably, a better UX could be “add the new message to the chat immediately and start running it, even though there's a non-empty queue.” I think the former is better because it's more consistent with the behavior of the endpoint in other cases.
+  - the user then sends a new message, but there is a non-empty queue. As defined here, the UX will be “add the new message to the end of the queue and promote every `steer` message, or the queue head if there are none.” With `busy_behavior=steer`, the default, the endpoint instead adds the new message to the chat immediately and starts running it, after the queued `steer` messages.
+- `E1P -> SendMessage(m, queue) -> E1P`
 - `R0 -> SendMessage(m, queue) -> R1`
 - `R1 -> SendMessage(m, queue) -> R1`
+- `R1P -> SendMessage(m, queue) -> R1P`
 - `I0 -> SendMessage(m, queue) -> I1`
 - `I1 -> SendMessage(m, queue) -> I1`
+- `I1P -> SendMessage(m, queue) -> I1P`
 - `A0 -> SendMessage(m, queue) -> A1`
 - `A1 -> SendMessage(m, queue) -> A1`
+- `A1P -> SendMessage(m, queue) -> A1P`
+- `P -> SendMessage(m, queue) -> P`
 
-For `busy_behavior=interrupt`, `SendMessage(m, interrupt)` supports:
-
-- `W -> SendMessage(m, interrupt) -> R0`
-- `E0 -> SendMessage(m, interrupt) -> R0`
-- `E1 -> SendMessage(m, interrupt) -> R1`
-- `R0 -> SendMessage(m, interrupt) -> I1`
-- `R1 -> SendMessage(m, interrupt) -> I1`
-- `I0 -> SendMessage(m, interrupt) -> I1`
-- `I1 -> SendMessage(m, interrupt) -> I1`
-- `A0 -> SendMessage(m, interrupt) -> R1`
-- `A1 -> SendMessage(m, interrupt) -> R1`
-
-When `SendMessage(m, interrupt)` lands in `I1`, the queued message is promoted later by `FinishInterruption(partial?)` after the interrupted suffix is finalized.
-
-The promoted head in `messages` carries the old head's queue ID in `queued_message_id`. `queued_message` is the new tail, so the two IDs differ.
+For `busy_behavior=steer`, `SendMessage(m, steer)` supports the same input states as `queue`, with the same output states except from `E1`, `E1P`, `R1P`, `I1P`, `A1P`, and `P`. From `E1`, it inserts the queued `steer` messages and then `m` into history, keeps `queue` messages queued, and clears the error: `E1 -> SendMessage(m, steer) -> R0` if no queued messages remain, or `R1` if `queue` messages remain (or `R1P` when the first of them is under edit). `E1P` and `P` take the same path and reach `R1P`. From the busy states, it stores `m` in the `steer` lane. From `R1P`, `I1P`, and `A1P`, `m` becomes the queue head, so the chat lands in `R1`, `I1`, and `A1`. When the message under edit is a `steer` message, `m` waits behind it, and the chat keeps its state.
 
 Other input states are not supported.
 
@@ -513,12 +658,17 @@ This endpoint uses `EditMessage(k, replacement)`:
 - `W -> EditMessage(k, replacement) -> R0`
 - `E0 -> EditMessage(k, replacement) -> R0`
 - `E1 -> EditMessage(k, replacement) -> R0`
+- `E1P -> EditMessage(k, replacement) -> R0`
 - `R0 -> EditMessage(k, replacement) -> R0`
 - `R1 -> EditMessage(k, replacement) -> R0`
+- `R1P -> EditMessage(k, replacement) -> R0`
 - `I0 -> EditMessage(k, replacement) -> R0`
 - `I1 -> EditMessage(k, replacement) -> R0`
+- `I1P -> EditMessage(k, replacement) -> R0`
 - `A0 -> EditMessage(k, replacement) -> R0`
 - `A1 -> EditMessage(k, replacement) -> R0`
+- `A1P -> EditMessage(k, replacement) -> R0`
+- `P -> EditMessage(k, replacement) -> R0`
 
 `EditMessage` clears queued messages, cancels or obsoletes active work without preserving partial output, clears pending dynamic-tool action if present, marks the truncated active-history suffix as deleted, inserts the replacement turn, and lands in `running`.
 
@@ -530,29 +680,67 @@ This endpoint uses `DeleteQueuedMessage(qid)`:
 
 - `E1 -> DeleteQueuedMessage(qid) -> E0` if removing the last queued message
 - `E1 -> DeleteQueuedMessage(qid) -> E1` if the queue remains non-empty
+- `E1 -> DeleteQueuedMessage(qid) -> E1P` if the message behind the removed head is under edit
+- `E1P -> DeleteQueuedMessage(qid) -> E0 | E1 | E1P`: `E0` if removing the last queued message, `E1` if removing the head, `E1P` if removing a message behind the head
 - `R1 -> DeleteQueuedMessage(qid) -> R0` if removing the last queued message
 - `R1 -> DeleteQueuedMessage(qid) -> R1` if the queue remains non-empty
+- `R1 -> DeleteQueuedMessage(qid) -> R1P` if the message behind the removed head is under edit
+- `R1P -> DeleteQueuedMessage(qid) -> R0 | R1 | R1P`: `R0` if removing the last queued message, `R1` if removing the head, `R1P` if removing a message behind the head
 - `I1 -> DeleteQueuedMessage(qid) -> I0` if removing the last queued message
 - `I1 -> DeleteQueuedMessage(qid) -> I1` if the queue remains non-empty
+- `I1 -> DeleteQueuedMessage(qid) -> I1P` if the message behind the removed head is under edit
+- `I1P -> DeleteQueuedMessage(qid) -> I0 | I1 | I1P`: `I0` if removing the last queued message, `I1` if removing the head, `I1P` if removing a message behind the head
 - `A1 -> DeleteQueuedMessage(qid) -> A0` if removing the last queued message
 - `A1 -> DeleteQueuedMessage(qid) -> A1` if the queue remains non-empty
+- `A1 -> DeleteQueuedMessage(qid) -> A1P` if the message behind the removed head is under edit
+- `A1P -> DeleteQueuedMessage(qid) -> A0 | A1 | A1P`: `A0` if removing the last queued message, `A1` if removing the head, `A1P` if removing a message behind the head
+- `P -> DeleteQueuedMessage(qid) -> W` if removing the last queued message
+- `P -> DeleteQueuedMessage(qid) -> R0 | R1` if removing the head: the message behind it is promoted into history, and the queue is then empty (`R0`) or not (`R1`)
+- `P -> DeleteQueuedMessage(qid) -> P` if removing a message behind the head
 
-No other input states are supported.
+The endpoint is owner-only because removing the head from `P` promotes the message behind it, which runs LLM inference with the owner's delegated credentials.
+
+No other input states are supported. In the other unarchived states the queue is empty, so the endpoint returns `404`, as it does for a missing `qid`. An archived chat returns `400`.
 
 ### `POST /api/v2/chats/{chat}/queue/{queuedMessage}/promote`
 
-This endpoint uses `PromoteQueuedMessage(qid)`:
+This endpoint is "Send now". It applies `SteerQueuedMessage(qid)` and never interrupts:
 
-- `E1 -> PromoteQueuedMessage(qid) -> R0` if promoting the last queued message
-- `E1 -> PromoteQueuedMessage(qid) -> R1` if the queue remains non-empty
-- `R1 -> PromoteQueuedMessage(qid) -> I1`
-- `I1 -> PromoteQueuedMessage(qid) -> I1`
-- `A1 -> PromoteQueuedMessage(qid) -> R0` if promoting the last queued message
-- `A1 -> PromoteQueuedMessage(qid) -> R1` if the queue remains non-empty
+- `E1 -> SteerQueuedMessage(qid) -> R0 | R1 | R1P`
+- `E1P -> SteerQueuedMessage(qid) -> E1P | R0 | R1 | R1P`
+- `R1 -> SteerQueuedMessage(qid) -> R1`
+- `R1P -> SteerQueuedMessage(qid) -> R1 | R1P`
+- `I1 -> SteerQueuedMessage(qid) -> I1`
+- `I1P -> SteerQueuedMessage(qid) -> I1 | I1P`
+- `A1 -> SteerQueuedMessage(qid) -> A1`
+- `A1P -> SteerQueuedMessage(qid) -> A1 | A1P`
+- `P -> SteerQueuedMessage(qid) -> P | R0 | R1 | R1P`
 
-`PromoteQueuedMessage` reorders `qid` to the queue head internally when needed. From `E1` and `A1`, it removes the queued message and inserts it into history immediately. From `R1` and `I1`, it leaves the message queued at the head so `FinishInterruption(partial?)` can promote it after finalizing the interrupted suffix.
+`SteerQueuedMessage` moves `qid` to the end of the `steer` lane with a new, highest `position`. If `qid` is already a `steer` message, it keeps its place. From `E1`, `E1P`, and `P`, it closes open tool calls with synthetic cancellation results and delivers the whole `steer` lane into history: `R0` if no queued messages remain, or `R1` if `queue` messages remain (or `R1P` when the first of them is under edit). From the other states it keeps the chat status. The state keeps its `P` when `qid` waits behind a `steer` message under edit.
 
-Either way, the resulting history message has `queued_message_id = qid`.
+From `R1`, `R1P`, `I1`, `I1P`, `A1`, and `A1P`, the `steer` lane goes in at the next delivery point: `DeliverSteerMessages` before the next LLM API call, `FinishTurn`, or `FinishInterruption`.
+
+When `qid` goes into history, the history message has `queued_message_id = qid`.
+
+No other input states are supported. In the other unarchived states the queue is empty, so the endpoint returns `404`, as it does for a missing `qid`. An archived chat returns `400`.
+
+### `PATCH /api/v2/chats/{chat}/queue/{queuedMessage}`
+
+This endpoint uses `EditQueuedMessage(qid, content?, editing?)`. It is owner-only because ending the head's edit from `P` promotes it, which runs LLM inference with the owner's delegated credentials. The request accepts any of `content`, `model_config_id`, `reasoning_effort`, and `editing`; at least one of `content` or `editing` is required, and empty `content` is rejected. `content` goes through the same input validation, skill resolution, `user_prompt_submit` hook, model and effort checks, and file linking as `POST /api/v2/chats/{chat}/messages`. The response is `204`; the outcome arrives through the stream as a `queue_update` event and, when the status changes, a status event.
+
+- `E1 -> EditQueuedMessage(qid, content?, editing?) -> E1P` if `qid` is the head and its edit begins, otherwise `E1`
+- `R1 -> EditQueuedMessage(qid, content?, editing?) -> R1P` if `qid` is the head and its edit begins, otherwise `R1`
+- `I1 -> EditQueuedMessage(qid, content?, editing?) -> I1P` if `qid` is the head and its edit begins, otherwise `I1`
+- `A1 -> EditQueuedMessage(qid, content?, editing?) -> A1P` if `qid` is the head and its edit begins, otherwise `A1`
+- `E1P -> EditQueuedMessage(qid, content?, editing?) -> E1` if the head's edit ends, otherwise `E1P`
+- `R1P -> EditQueuedMessage(qid, content?, editing?) -> R1` if the head's edit ends, otherwise `R1P`
+- `I1P -> EditQueuedMessage(qid, content?, editing?) -> I1` if the head's edit ends, otherwise `I1P`
+- `A1P -> EditQueuedMessage(qid, content?, editing?) -> A1` if the head's edit ends, otherwise `A1P`
+- `P -> EditQueuedMessage(qid, content?, editing=false) -> R0 | R1` when the head's edit ends: the head is promoted into history, and the queue is then empty (`R0`) or not (`R1`)
+- `P -> EditQueuedMessage(qid, content) -> P` for content edits
+- From `P`, beginning an edit on a message other than the head is refused with `409`: it would end the head's edit and promote the head.
+
+Clients begin an edit with `{"editing": true}`, save with `{"content": ..., "editing": false}`, and cancel with `{"editing": false}`. A `404` means the queued message no longer exists: it was promoted into history or removed.
 
 No other input states are supported.
 
@@ -562,10 +750,27 @@ This endpoint uses `Interrupt(user_cancel)`:
 
 - `R0 -> Interrupt(user_cancel) -> I0`
 - `R1 -> Interrupt(user_cancel) -> I1`
+- `R1P -> Interrupt(user_cancel) -> I1P`
 - `A0 -> Interrupt(user_cancel) -> R0`
 - `A1 -> Interrupt(user_cancel) -> R1`
+- `A1P -> Interrupt(user_cancel) -> R1P`
 
-When `Interrupt(user_cancel)` lands in `I0` or `I1`, the chat is later picked up by a `ChatRunner` to apply `FinishInterruption(partial?)`.
+When `Interrupt(user_cancel)` reaches `I0`, `I1`, or `I1P`, the chat is later picked up by a `ChatRunner` to apply `FinishInterruption(partial?)`.
+
+When no worker owns the chat (`worker_id` is null), for example because it is waiting for capacity, nothing is generating and no runner would finish the interruption without first taking a capacity slot. The endpoint therefore applies `FinishInterruption` in the same transaction: `R0` lands in `W`, `R1` promotes every `steer` message, or the queue head if there are none, and lands in `R0`, `R1`, or `R1P` without an owner, so the promoted turn still goes through capacity admission, and `R1P` lands in `P`.
+
+The endpoint also accepts an unowned chat that is already in `I0`, `I1`, or `I1P`, for example after a worker acquired the chat and then abandoned it. It applies `FinishInterruption` in the same transaction: `I0` lands in `W`, `I1` promotes every `steer` message, or the queue head if there are none, and lands in `R0`, `R1`, or `R1P` without an owner, and `I1P` lands in `P`.
+
+When there is nothing to interrupt, for example because the turn already ended, the endpoint returns the chat unchanged:
+
+- `W -> Interrupt(user_cancel) -> W`
+- `E0 -> Interrupt(user_cancel) -> E0`
+- `E1 -> Interrupt(user_cancel) -> E1`
+- `E1P -> Interrupt(user_cancel) -> E1P`
+- `I0 -> Interrupt(user_cancel) -> I0` if a worker owns the chat
+- `I1 -> Interrupt(user_cancel) -> I1` if a worker owns the chat
+- `I1P -> Interrupt(user_cancel) -> I1P` if a worker owns the chat
+- `P -> Interrupt(user_cancel) -> P`
 
 No other input states are supported.
 
@@ -575,6 +780,7 @@ This endpoint uses `CompleteRequiresAction(results)`:
 
 - `A0 -> CompleteRequiresAction(results) -> R0`
 - `A1 -> CompleteRequiresAction(results) -> R1`
+- `A1P -> CompleteRequiresAction(results) -> R1P`
 
 No other input states are supported.
 
@@ -585,6 +791,7 @@ This endpoint uses `RequestCompaction`:
 - `W -> RequestCompaction -> R0`
 - `E0 -> RequestCompaction -> R0`
 - `E1 -> RequestCompaction -> R1`
+- `E1P -> RequestCompaction -> R1P`
 
 No other input states are supported: generating chats get a conflict error, and archived chats are rejected. Requesting compaction from an error state clears `last_error`, so a context-overflowed chat can recover by compacting instead of re-running the same oversized prompt. The endpoint is owner-only because the compaction runs LLM inference with the owner's delegated credentials. Inside the same transaction, after the transition succeeds, the endpoint verifies there is at least one uncompressed assistant message after the latest compaction boundary and rolls back with a "nothing to compact" conflict otherwise, so no LLM call is ever started for an empty or already-compacted chat. See [Manual compaction](#manual-compaction) for how the worker consumes the request.
 
@@ -599,7 +806,7 @@ No other input states are supported: generating chats and chats with queued mess
 
 ### `POST /api/v2/chats/{chat}/workspace-files`
 
-TODO (#27079): this owner-only endpoint uses no transition. It streams the raw request body to the chat's workspace agent (`/api/v0/upload-chat-file`), preferring the bound agent and otherwise falling back to `agentselect.FindChatAgent` without persisting a binding, and returns the final path so the client can attach a `workspace-file-reference` part to its next message. Describe this here.
+This endpoint uses no transition and writes nothing to the chat. Only the chat owner can upload, and they must have SSH access to the chat's workspace. It rejects archived chats and works in every other execution state, including while a turn is running. It streams the request body into the chat's workspace through a workspace agent and returns the file's path for the client to reference from a later message. The upload prefers the agent the chat is bound to. Otherwise it picks one with the chat worker's deterministic agent selection without binding the chat, so the file lands on the agent whose tools will read it.
 
 ## Pubsub
 
@@ -645,7 +852,7 @@ The chat worker is responsible for:
 
 - acquiring chats when the chat is in a runnable state and no worker owns it, by listening to `chat:ownership` notifications and doing periodical checks via database queries;
 - spawning a chat runner for each acquired chat: the chat runner is scoped to a single chat and is responsible for driving a chat forward by calling the LLM API and executing tools;
-- upserting heartbeat rows in `chat_heartbeats` for runners owned by the worker;
+- renewing heartbeat rows in `chat_heartbeats` for runners owned by the worker;
 - maintaining in-memory buffers of in-flight message parts for each chat;
 - cleaning up runners when a chat is no longer owned by the runner, which it detects by inspecting `chat:update:{chat_id}` notifications and database sync results.
 
@@ -666,7 +873,7 @@ The acquisition loop is a simple component that greedily acquires unowned or lea
 
 It finds suitable chats by fetching every chat that:
 
-- is in a runnable execution state, meaning one of: `R0`, `R1`, `I0`, `I1`, `A0`, `A1`; and
+- is in a runnable execution state, meaning one of: `R0`, `R1`, `R1P`, `I0`, `I1`, `I1P`, `A0`, `A1`, `A1P`; and
 - doesn't have an owner, meaning `worker_id` is null, or its heartbeat is expired (older than 30 seconds).
 
 For every matching chat, it locks it, checks if the chat still meets the aforementioned conditions, and performs the `Acquire(worker_id, runner_id)` transition on it. The `runner_id` is a random UUID generated by the acquisition loop.
@@ -734,17 +941,27 @@ CREATE INDEX chat_heartbeats_heartbeat_at_idx
     ON chat_heartbeats (heartbeat_at);
 ```
 
-For every runner registered with the runner manager, the heartbeat loop upserts the corresponding row in `chat_heartbeats` every 9 seconds. Rows are keyed by `(chat_id, runner_id)`. 9 seconds is chosen so that a worker must miss 3 heartbeats before its lease on the chat expires, and the acquisition loop on another replica can acquire its chat.
+For every runner registered with the runner manager, the heartbeat loop renews the corresponding row in `chat_heartbeats` every 9 seconds. Rows are keyed by `(chat_id, runner_id)`. 9 seconds is chosen so that a worker must miss 3 heartbeats before its lease on the chat expires, and the acquisition loop on another replica can acquire its chat. The initial row is inserted by `Acquire`.
 
-The loop uses this query:
+The loop runs this query in a transaction that holds the capacity admission lock (see [Concurrent agent limiter](#concurrent-agent-limiter)):
 
 ```sql
-INSERT INTO chat_heartbeats (chat_id, runner_id, heartbeat_at)
-SELECT chat_id, runner_id, now()
+UPDATE chat_heartbeats hb
+SET heartbeat_at = statement_timestamp()
 FROM unnest($1::uuid[], $2::uuid[]) AS runners(chat_id, runner_id)
-ON CONFLICT (chat_id, runner_id)
-DO UPDATE SET heartbeat_at = EXCLUDED.heartbeat_at;
+JOIN chats c
+  ON c.id = runners.chat_id
+ AND c.runner_id = runners.runner_id
+ AND c.worker_id IS NOT NULL
+WHERE hb.chat_id = runners.chat_id
+  AND hb.runner_id = runners.runner_id
+  AND hb.heartbeat_at > statement_timestamp() - interval '30 seconds'
+RETURNING hb.chat_id, hb.runner_id;
 ```
+
+It renews only leases that are still fresh and whose chat is still owned by that runner. A stale lease is never revived: capacity admission may already have given its slot to another chat. `statement_timestamp()` is read after the lock is granted, so a lease that an admission counted as stale cannot be renewed afterwards. The runner manager cleans up every runner whose lease was not renewed, which stops its generation. The chat stays owned by the stale lease until an admitted worker takes it over.
+
+Each tick times out after a third of the stale threshold, and its wait for the lock is bounded by `lock_timeout`. A tick that fails or times out renews nothing and cleans up no runners; the next tick retries.
 
 Updating heartbeat rows does not advance `snapshot_version` and does not emit pubsub notifications.
 
@@ -796,6 +1013,64 @@ State updates processed by the loop come from:
 
 The runner is responsible for subscribing to the `chat:update:{chat_id}` pubsub channel. During bootstrap, it must first subscribe to the channel and then fetch the initial state of the chat from the database to avoid missing any updates.
 
+### Lifecycle tracing
+
+The runner owns a `chat_turn` trace span for each turn it runs, implemented by `runnerTurnSpan` in `turn_trace.go`. The span and the stages inside it are emitted through `chatloop.StageTracer`, which produces an OpenTelemetry span and an observation on the `coderd_chatd_stage_duration_seconds{stage, scope, chat_kind}` histogram from a single `End` call, so wherever both exist the trace and metric durations cannot disagree. The stages that are the provider's work on a model (`stream` and `provider_attempt`) are observed a second time on `coderd_chatd_model_stage_duration_seconds{stage, provider_type, chat_kind, model}`, the only stage family that carries the model, so the series count scales with the number of models only where the model explains the duration. Only turn-scoped stages are observed on the model family; background model calls appear in `coderd_chatd_stage_duration_seconds{scope="background"}` without a model. Per-model time to first token is `coderd_chatd_ttft_seconds`, which observes the same elapsed time as the `time_to_first_token` stage. Failed windows are observed like successful ones, except `time_to_first_token` and `chat_turn`: a `chat_turn` is observed only when its turn completed, so the histogram measures how long a reply takes, and every other outcome is on the span only. Every closed turn, whatever its outcome, is counted once in `coderd_chatd_turn_outcomes_total{outcome, chat_kind}` with the same value as its `turn_outcome` attribute. Tracing is enabled by the `TracerProvider` server option. A nil provider disables spans without disabling the histogram. The stage metric families are registered only when the `chat-stage-metrics` experiment is enabled; spans are emitted either way.
+
+`chat_turn` is a standalone trace root. The HTTP request that triggered the turn ran on a different goroutine, and often a different replica, from the worker that runs it, and no trace context is persisted with the message, so there is nothing to parent the span to.
+
+#### Turn span lifecycle
+
+One `chat_turn` span covers one prompt, not one runner. A runner keeps ownership of a chat across queued-message promotions, and runners are also spawned for abandon, interrupt, and timeout tasks that run no turn, so the span is started lazily by the first generation task and replaced when the turn finishes.
+
+- Start: every iteration of the generation loop calls `Ensure` with its task ID, which returns a context parented to the current turn and a `turnToken` identifying it, and records the task as holding the turn. When no turn is current, `Ensure` starts one with its start timestamp backdated to the trigger time and records an `acquisition` stage from that instant to now, covering the time between the trigger and a worker picking the chat up. The trigger time is the latest of the last user prompt's `created_at`, the `created_at` of a dynamic tool's result message after that prompt, and the chat's `compaction_requested_at`. A turn started by `/compact` is therefore anchored at the request, and a turn resumed by submitted tool results at the result message. A chat with neither a user prompt nor a compaction request has no trigger time, and its turn opens at now with no `acquisition` stage.
+- Stale trigger: the anchor always follows the anchor of the previous turn on the same runner. A trigger at or before it opens the turn at now with no `acquisition` stage and is counted under `coderd_chatd_stage_anomalies_total{reason="stale_anchor"}`.
+- Takeover: a runner that acquired its chat from an owner whose heartbeat went stale (`spawnRunnerRequest.TakenOver`) opens its first turn at now with no `acquisition` stage, so the previous owner's work is not reported as pickup delay. The flag is also set when the owner of a chat in `requires_action` died before the results arrived, so that turn records no `acquisition` either.
+- Newer prompt: if `Ensure` is called on the current turn with a trigger after that turn's trigger, it closes that turn and opens a new one for the newer prompt. The closed turn is `abandoned` unless the task that ran it records an outcome before releasing it (see Emission below). A trigger that lands while the previous turn is still running keeps its own trigger as the anchor.
+- Invalidate: `Invalidate` records an outcome and an error for the open turn. The first call is kept, and a call after `Complete` is ignored: the finishing transition has committed, so a later failure in the same step does not change the outcome. A step whose `FinishError` transition commits, including a step that fails closed, records `error` with the failure. Every other failed step records nothing. A failure the task runner retries keeps the same trigger, so the retry's `Ensure` continues the same turn. A step that exits with an expected, non-retryable error (a fence or history mismatch), or whose task context is done, leaves the turn open for the interrupt task, a newer prompt's `Ensure`, or runner exit to close. A step that commits after a stop has committed but before the runner cancels its task fails the fence check this way, and the interrupt task then closes its turn as `interrupted`.
+- Interrupt: the interrupt task confirms the chat is `interrupting`, then invalidates the open turn as `interrupted` before `FinishInterruption` commits, so a queued prompt the commit promotes cannot close it first. `OpenToken`, like `Ensure`, returns the zero token once the task's context is done, so a canceled interrupt task cannot mark a turn its successor opened. After the commit, including a commit whose `Update` call reported an error, it settles the turn and records the promoted prompt's `queue_wait`; settling closes the turn even when no generation task holds it, for example when the interrupt lands between two steps. `interrupted` therefore means an interrupt request stopped the turn: a user or API client stopping the chat, or a parent agent calling `interrupt_agent`.
+- Complete: after the `FinishTurn` or `EnterRequiresAction` transition commits, the generation step calls `Complete`. This marks the turn finished but leaves the span open. A chat waiting in `requires_action` is therefore outside any turn; the generation resumed by its tool results opens a new one.
+- Settle: when the step returns to the generation loop, after the step's own `generation_step` stage has ended, the loop calls `Settle`, which closes a finished or invalidated turn. Closing in two steps ensures the finishing step is counted inside the turn.
+- Emission: closing a turn fixes its end time and stops `Ensure` from joining it, but its span is emitted only once every task that joined it has called `Release`. `runTask` calls `Release` after the task's function returns, so every stage the task started has ended by then. A closed turn that no task holds, such as one the interrupt task settles after its generation task exited, is emitted at once.
+- Promotion: a promoting transition (`FinishTurn`, `FinishInterruption`, `DeliverSteerMessages`, a message sent to an errored chat, or `PromoteQueued`) returns the first promoted message's queued `created_at`. After the transition commits, its caller passes that time to `recordQueueWait`, which records a standalone, turn-scoped `queue_wait` stage from it to now. Editing a queued message does not change its `created_at`, so `queue_wait` includes time the message spent under edit. The promoted message's `created_at` is the promotion time, so the next `Ensure` opens the promoted turn there and records its `acquisition` from it.
+- Next prompt: if a new prompt starts a generation task while a finished or invalidated turn is still open, `Ensure` closes the old turn first and then opens a new one.
+- Runner exit: after waiting for its tasks, the runner closes the current turn and emits every turn not yet emitted, as `abandoned` unless the turn finished or was invalidated. This covers server shutdown and loss of ownership, whose canceled tasks record no outcome. When a replica hands a chat off during shutdown, the time between that close and the next owner's pickup is in no turn.
+
+When the span is emitted it ends at the turn's end time and carries exactly one `turn_outcome` attribute: the outcome `Invalidate` recorded when there is one; otherwise `completed` for a turn `Complete` marked finished, and `abandoned` for a turn closed before it finished. Only an `error` turn's span ends with an error, the failure that stopped it, so the trace root reports error status only for real failures. `interrupted` and `abandoned` turns leave the status unset; `turn_outcome` says why they closed.
+
+The runner cancels the active task and spawns its replacement without waiting for the old goroutine to exit (see [Event processing](#event-processing)), so an old task can still be unwinding while the new one calls `Ensure` and replaces the turn. Each task carries the `turnToken` returned by its own `Ensure` call, and `Complete`, `Invalidate`, and `Settle` act only on the turn that token identifies, until that turn is emitted. A stale task therefore cannot close the turn that replaced its own, and an outcome it records while unwinding reaches its own turn: a `FinishTurn` that commits and publishes a promoted prompt before the finishing task calls `Complete` still counts the turn as `completed`, because the finishing task holds the turn until it returns. These late outcomes are accurate because `Complete` and `Invalidate` follow a committed transition, and the task fences reject transitions from a task that was replaced. A task canceled before its `Ensure` call gets the zero token, which no turn matches, so it cannot join a turn its replacement opened, and a task canceled after `Ensure` records no outcome. A message edit is a newer prompt: the replacement task's `Ensure` closes the edited turn, which is emitted as `abandoned`. A stage of the old task that ends after its turn closed keeps its own end time, so its span can extend past its `chat_turn` parent's end.
+
+Known limitations of the step and interrupt ordering:
+
+- A turn left open by a step that recorded nothing, such as one that exited on a fence mismatch, stays open until the interrupt task, a newer prompt's `Ensure`, or runner exit closes it, so its span covers that wait. When the next task has the same trigger, it continues the same turn instead.
+- An edit sent while the chat is `interrupting` closes the stopped turn as `interrupted` when the interrupt task marks it first, and as `abandoned` when the edit's generation task opens its turn first. Which one runs first depends on the runner's scheduling.
+
+Work detached from the turn, such as title, summary, and status label generation, runs on a context with the span context stripped and `scope=background`, so its stages start their own trace roots and are separable from turn-scoped stages in the histogram.
+
+#### Stages
+
+Every stage carries `scope` (`turn` or `background`) and `chat_kind` (`root` or `subagent`) as metric labels and span attributes; `chat_kind` is empty for stages recorded without a known chat. `turn` is latency attributable to a prompt: the stages inside the prompt's `chat_turn` span, and its `queue_wait`, which is recorded before the turn opens as a standalone span. `background` is work detached from the turn. `withStageIdentity` puts the scope and chat kind on a context. Once the model is resolved, the spans of the stages that run on it also carry `provider`, `provider_type`, `model`, and `reasoning_effort` from `chatloop.StageModel`: `generation_step`, `prepare` (stamped when preparation resolves the model), `stream`, `time_to_first_token`, `provider_attempt`, `thinking`, and `tool_call`. `compaction` carries the model that runs the summary. `chat_turn`, `acquisition`, `queue_wait`, `mcp_connect`, `commit`, and `retry_backoff` carry no model attributes; a turn can use more than one model, so read the model from its child spans. `provider` is the model's wire protocol (`Model.Provider()`). Of these only `provider_type` and `model` are metric labels, and only on `coderd_chatd_model_stage_duration_seconds`. `provider_type` is the configured type of the model's AI provider (`bedrock`, `azure`, ...), the same value the AI Gateway metrics report under that label; the `provider` label on the pre-existing chatd metrics is the wire protocol the client speaks and differs from it for Bedrock and the OpenAI-compatible provider types. Like the AI Gateway and pre-existing chatd families, no chatd stage metric carries an organization label.
+
+The histogram observes `chat_turn`, `queue_wait`, `acquisition`, `mcp_connect`, `stream`, `time_to_first_token`, `provider_attempt`, `tool_call`, `commit`, and `retry_backoff`. `generation_step`, `prepare`, `thinking`, and `compaction` are span-only.
+
+Live stages wrap a section of code and end when it returns:
+
+- `generation_step`: one iteration of the generation loop, from loading state to applying a transition. It carries `generation_action`; the attempt number is carried by the `commit` stage inside it, which observes it after the step increments it.
+- `prepare`: generation preparation, including model resolution and tool assembly.
+- `mcp_connect`: connecting to the configured MCP servers, inside `prepare`. The span carries the number of servers that connected and that failed, and is marked errored only when none connected.
+- `provider_attempt`: one HTTP round trip to the model provider, emitted by the transport, so a retried request produces one stage per attempt. It ends when response headers arrive and is marked errored for HTTP status 400 and above.
+- `stream`: the provider stream, from opening the request to consuming the last part.
+- `time_to_first_token`: nested in `stream`, from opening the request to the first streamed output part, including block start markers such as `text_start`; warnings and finish parts do not close it. The span is emitted for every attempt, but only a window closed by an output part is observed on the histograms. A failed attempt, including one whose first part is an error part, ends the span with the error and records no observation, as does a stream released before any output part arrives. A silence timeout before the first part is recorded as the span's error.
+- `retry_backoff`: the wait before retrying a failed LLM API call.
+- `tool_call`: one per local tool call that runs, started in `chatloop` just before the tool runs and carrying `tool_name`. Calls that never run record no stage: calls to an inactive or unknown tool, calls rejected by the exclusive-tool policy, and calls denied by a pre-tool-use hook. The tool runs on the stage's context, so its own spans nest under it. The span ends in error only when the tool fails to execute (a `Run` error or panic), not when it returns an error result to the model. The `advisor` tool's nested model call runs inside its `tool_call` and is not instrumented as `stream` or `time_to_first_token`; the tool call is its only stage.
+- `commit`: the `CommitStep` transaction.
+- `compaction`: a compaction pass.
+
+Reconstructed stages are recorded after the fact from timestamps captured elsewhere:
+
+- `acquisition` and `queue_wait`: described above.
+- `thinking`: one per reasoning part, from the part's start to its completion timestamp in the persisted step.
+
 ### Event shape
 
 Every event that the runner loop processes has the following shape:
@@ -839,10 +1114,10 @@ The runner processes one event at a time. We call processing an event a **loop i
 3. If the event's `HistoryVersion` is equal to the runner's latest processed event's `HistoryVersion`, and if the event's `Status` is equal to the runner's latest processed event's `Status`, stop.
 4. If the event's `HistoryVersion` is greater than the runner's latest processed event's `HistoryVersion`, or if the event's `Status` is different from the runner's latest processed event's `Status`, cancel the currently running goroutine if there is one, remove its ID from the active goroutine ID, and continue to the next step. Do not wait for the goroutine to finish.
 5. Iterate through the goroutine list and remove all goroutines that have finished. This will likely not include the goroutine that may have just been cancelled: that's okay, a future loop iteration will clean it up.
-6. If the event's `Archived` is `true` (core state machine is in `XW`, `XE0`, or `XE1`), spawn a goroutine to abandon the chat, mark it as active, and stop. We call this the **abandon chat goroutine**.
-7. If the event's `Status` is `running` (`R0` or `R1`), spawn a goroutine to call the LLM API and execute tools, and mark it as active. We call this the **generation goroutine**.
-8. If the event's `Status` is `interrupting` (`I0` or `I1`), spawn a goroutine to handle the interrupt, and mark it as active. We call this the **interrupt goroutine**.
-9. If the event's `Status` is `requires_action` (`A0` or `A1`), spawn a goroutine to wait for the dynamic tool timeout to pass, and mark it as active. We call this the **dynamic tools timeout goroutine**.
+6. If the event's `Archived` is `true` (core state machine is in `XW`, `XE0`, `XE1`, or `XE1P`), spawn a goroutine to abandon the chat, mark it as active, and stop. We call this the **abandon chat goroutine**.
+7. If the event's `Status` is `running` (`R0`, `R1`, or `R1P`), spawn a goroutine to call the LLM API and execute tools, and mark it as active. We call this the **generation goroutine**.
+8. If the event's `Status` is `interrupting` (`I0`, `I1`, or `I1P`), spawn a goroutine to handle the interrupt, and mark it as active. We call this the **interrupt goroutine**.
+9. If the event's `Status` is `requires_action` (`A0`, `A1`, or `A1P`), spawn a goroutine to wait for the dynamic tool timeout to pass, and mark it as active. We call this the **dynamic tools timeout goroutine**.
 10. Otherwise, spawn an **abandon chat goroutine** and mark it as active.
 
 After stopping, the iteration updates the runner's local state to the event's values, unless it ignored the event because of a stale `SnapshotVersion`.
@@ -881,18 +1156,21 @@ It inspects the chat's message history, and decides what's the next step to take
 - `FinishTurn`: applied when the chat processing logic determines that there's no more work to do for the current message history (no pending tool calls, user message is not the last message in the history, etc.).
 - `FinishError`: applied when the LLM API call fails and the retry limit is reached, determined by the `generation_attempt` value.
 - `EnterRequiresAction`: applied when there are pending dynamic tool calls.
+- `DeliverSteerMessages`: applied when `steer` messages are queued before an assistant LLM API call. The step then ends without the call.
 
 The retry limit is the `CODER_CHAT_MAX_GENERATION_RETRIES` deployment option (25 by default). When an attempt fails with a retryable error and `generation_attempt` exceeds the limit, the goroutine applies `FinishError` instead of retrying, so the default allows 26 attempts. A non-retryable error applies `FinishError` immediately. Because `generation_attempt` resets whenever `history_version` changes, the limit counts consecutive failed attempts since the last history change, and every committed step restores the full budget. Advisor calls and the background generation of chat titles, summaries, and turn status labels retry through `chatretry` with the same limit. Each of those calls has its own budget, which `generation_attempt` does not track. An advisor call that runs out of retries returns an error tool result, and background generation that runs out leaves the chat status unchanged.
 
 The step limit is the `CODER_CHAT_MAX_STEPS_PER_TURN` deployment option (1200 by default). A step is one committed assistant response; compressed compaction and clear messages do not count. The count starts after the latest user message that is not model-only, so hook context and replayed compaction input do not restart it. After the tool calls requested by the last response have run, the goroutine checks the count, and once it reaches the limit, the goroutine finishes the turn the way it finishes a completed one instead of calling the LLM API again. The chat shows no error and gets no final assistant reply. With lifecycle hooks enabled, that finish dispatches the `stop` hook first, and a `stop` response with model context can continue the turn once, so a turn can exceed the limit by one response.
 
-The generation goroutine also applies the `RecordGenerationAttempt` transition every time before calling the LLM API. It may apply this transition multiple times in case of retries. When an LLM API call fails with a retryable error and the goroutine will retry after a backoff, it applies `RecordRetryState(payload)` with the retry payload that should be sent to clients.
+The generation goroutine also applies the `RecordGenerationAttempt` transition every time before calling the LLM API. It may apply this transition multiple times in case of retries. Before each assistant LLM API call, it first applies `DeliverSteerMessages`. Compaction calls don't apply it. When an LLM API call fails with a retryable error and the goroutine will retry after a backoff, it applies `RecordRetryState(payload)` with the retry payload that should be sent to clients.
 
 When receiving streaming message parts from the LLM API, the generation goroutine adds them to the [Message part buffer](#message-part-buffer) in real time. Whenever it starts a new generation attempt, it must start a new episode in the buffer, and mark it as closed when the attempt is finished; either because the LLM API call returned a response, or the attempt was cancelled. If `AddPart` returns an error, the goroutine ignores it. Storing parts in the buffer is best-effort: if the buffer is full, or the episode is closed, the parts are dropped. A stale generation goroutine may keep on adding parts to the buffer until it is cancelled or exits.
 
 Since the runner doesn't wait for goroutines to finish when it cancels them, and spawns new goroutines to perform new work immediately, the runner does not guarantee that any interrupted tool calls are fully stopped before continuing. Tool call interrupts are best-effort.
 
-Tool calls have at least once semantics: if the goroutine executes a tool call, and the replica crashes before the result is persisted, another replica will execute the tool call again later. Future work may include adding a mechanism to ensure at most once semantics.
+Tool calls have at least once semantics: if the goroutine executes a tool call, and the replica crashes before the result is persisted, another replica will execute the tool call again later. Exception: the workspace agent runs `execute`, `edit_files`, and `write_file` calls once, unless it restarts. Future work may include adding a mechanism to ensure at most once semantics.
+
+If a turn starts with a user message and there are deleted assistant messages between it and the previous user message, the goroutine sends the workspace agent a cancel request for each unresolved `execute`, `edit_files`, and `write_file` call in the last deleted assistant message. A failed request does not fail the turn.
 
 Parallel tool call results must be inserted in bulk after all parallel tool calls finish in a single `CommitStep` transition so that the generation goroutine only increments `history_version` once, since a change to the `history_version` interrupts the gorotuine. This is consistent with the existing chatd implementation.
 
@@ -900,8 +1178,9 @@ The generation goroutine supports:
 
 - chat compaction (automatic and manual, see [Manual compaction](#manual-compaction))
 - MCP tools
+- memory tools (`read_memory`, `save_memory`, `delete_memory`) for root chats in a project, see [Project memory](#project-memory)
+  <!-- TODO(f0ssel): add `consolidate_memory` to this tool list. -->
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
-  - `close_agent` is a deprecated alias that dispatches to `interrupt_agent`, so historical tool calls in chat history still resolve
 - file links
 - workspace binding
 - plan mode
@@ -909,6 +1188,33 @@ The generation goroutine supports:
 - provider-specific tools like web search and computer use
 - turn limit after a user message (the LLM shouldn't be able to spin forever in loop)
 - and other things
+
+##### Project memory
+
+Root chats in a project share durable memory; other chats have none. The agent saves memory itself with `save_memory`; there is no background extraction. The system prompt gets only the memory guidance block; the live index lives in the `read_memory` tool description so the prompt prefix stays cacheable. Saves and deletes take a per-project advisory lock, and a project holds at most 200 memories. There is no background cleanup: from 180 memories `save_memory` results carry a reminder to prune, and at the cap a save of a new name fails with an error telling the agent to delete or fold in the same turn.
+
+<!-- TODO(f0ssel): memories are now immutable (no update or upsert; save fails on an existing name). Consolidation is agent-driven via `consolidate_memory`, which deletes and saves in one transaction under the per-project advisory lock and rolls back on a missing delete, duplicate name, or result over the cap. The nudge now fires from 160 memories (80%) and asks the agent to get under 140 (70%), mirroring Claude Code's memory index nudge. -->
+
+<!-- TODO(f0ssel): the memory index no longer lives in the `read_memory` tool description. At turn start the generation loop commits a model-only user row: a full `<project-memory-index>` snapshot when the prompt has none (first turn, or after compaction), otherwise a `<project-memory-index-update>` listing changes since the model last saw it. Tool definitions and the system prompt carry no memory state, so memory writes no longer invalidate the provider's cached prefix. Mid-turn only a snapshot dropped by compaction is restored, and never between an assistant step and its tool results. -->
+
+A moved root chat uses the instructions and memory of its new project from its next turn. The index it saw stays in its history, so that turn starts with an index update from the old index to the new project's. A chat that leaves its project, or whose project is deleted, has an empty index, and the update removes every memory it saw.
+
+Project instructions are loaded on every turn, so edits show up in existing chats on their next turn. They're loaded alongside the rest of the turn setup, sanitized again, and added to the system prompt by `buildSystemPrompt` as a `<project-instructions>` block, after the memory guidance and before the user prompt. Subagents get them from their root chat.
+
+###### Project sharing
+
+Owners share a project with users, groups, or the Everyone group (ID = organization ID). Chats in a shared project stay private to their owners.
+
+| Role    | Project and instructions | Memories   | ACL  | Delete |
+|---------|--------------------------|------------|------|--------|
+| `use`   | read                     | read/write | read | no     |
+| `admin` | read/write               | read/write | edit | no     |
+
+Only the owner and administrators with `chat_project` delete can delete a project. Project responses include the caller's `permissions` (update, delete, share), role grants included.
+
+Memory tools, instruction loading and skill loading run as chatd, so `ChatProjectUsableBy` gates them. It allows the owner and users with an ACL read grant (direct, group, or Everyone). Role grants do not count, so an administrator cannot attach a chat to an unshared project. An administrator with `share` can still grant themselves access; this is accepted to keep access control simple.
+
+Chat creation checks `ChatProjectUsableBy` for the chat owner, and `resolveProjectMemory` check it on every turn. If the check fails, for example after the owner's grant is removed or for non-owner chats under `--disable-chat-sharing`, the chat stays in the project but its next turn gets no memory or instructions. Content already in the chat history stays.
 
 ##### Reasoning effort
 
@@ -922,6 +1228,8 @@ Subagent model and effort resolution follows this precedence:
 2. Personal member override. When personal overrides are enabled, Chatd reads the row for the chat owner, organization, and subagent context. Mode `chat_default` stops override resolution and preserves the subagent type's default or inheritance behavior. Mode `model` selects the row's model and optional effort; if that selection becomes unusable, resolution falls through softly to the organization admin override. Mode `deployment_default` retains its legacy name but also defers to the organization admin override.
 3. Organization admin override. Chatd reads the row for the chat's organization and the `general` or `explore` context. An unset or unusable row falls through softly to the subagent type's default.
 4. Subagent type default. Both `general` and `explore` subagents inherit the parent chat's current model.
+
+`computer_use` subagents resolve their model separately: the organization admin defines `computer_use` model or the default chat model gets used. Personal overrides do not apply to this subagent type. The resolved model must come from an Anthropic, OpenAI, or OpenAI-compatible AI provider, or be a Claude model from a Bedrock AI provider (because it selects the computer use tool flavor). If a different model is selected - the spawn fails with a tool error that names the reason. An override whose model became unusable or unsupported by `computer_use` falls back to the default model.
 
 During generation preparation, the effective effort is resolved as the chat's `last_reasoning_effort` if set, else the config's `default`; clamped to the config's `max` on the global scale `none < minimal < low < medium < high < xhigh < max`; and passed through to the provider. The provider verifies whether the configured value is valid for that model at runtime. If the model config has no `reasoning_effort`, any user-selected value is ignored. The resolved value is injected into the provider-native options by `chatprovider.ProviderOptionsForCall`, which converts the model config and applies the effort in one step. For Anthropic, the fantasy provider converts effort into enabled budget thinking on models older than Claude 4.6, which reject adaptive thinking.
 
@@ -943,9 +1251,7 @@ Request preparation reads the transport from the model instead of recomputing it
 
 The first two happen together in `chatprovider.ProviderOptionsForCall`, the only entry point in `chatprovider` that builds provider options for a call; it delegates transport-aware OpenAI conversion to `chatopenai.ProviderOptionsFromChatConfig`. Config conversion and effort injection cannot pick different option types because one function owns both.
 
-Debug recording replaces the wrapped client and preserves the resolved transport. Computer-use turns substitute a hardcoded default model that has no config of its own; it carries its own transport, so the chat model's `openai_config` does not follow it.
-
-Azure is deliberately exempt: its provider always enables the Responses API for known models and exposes no equivalent per-model hook, so the transport keeps following the known-model list for Azure. Ignoring the override there is what keeps the decisions above in agreement with the Azure client. The exemption is narrower than it appears, because chatd never builds an azure-typed provider as a fantasy azure client: `fantasyConfigForAIBridge` folds every provider type other than anthropic, bedrock, and openai into openai-compat, which always speaks Chat Completions. Bedrock is the exception within that set: its fantasy client depends on the model ID, so `anthropic.*` bedrock models fold to the Anthropic Messages client while non-anthropic bedrock models fold to the OpenAI Responses client.
+`TransportFor` has no Azure case, because chatd never builds an azure-typed provider as a fantasy azure client: `fantasyConfigForAIBridge` folds every provider type other than anthropic, bedrock, and openai into openai-compat, which always speaks Chat Completions. Bedrock is the exception within that set: its fantasy client depends on the model ID, so `anthropic.*` bedrock models fold to the Anthropic Messages client while non-anthropic bedrock models fold to the OpenAI Responses client.
 
 Both transports read the same `provider_options.openai` config, but not every field applies to both wire formats. The table below records, per field, which transport honors it; `TestProviderOptionsTransportParity` fails when a field is honored on one transport and silently ignored on the other without being recorded there as intentional.
 
@@ -986,12 +1292,17 @@ By default the summary is generated with the chat model. Organization admins can
 
 Details that follow from the override:
 
-- Context limits: the compaction trigger uses the stricter of the chat model's and the compaction model's context limits, because the history must also fit the summarizer's window.
-  The post-compaction "still over limit" check uses that same stricter limit; otherwise a smaller compaction-model window could trigger repeated compactions instead of a terminal error.
+- Triggers: automatic compaction has two independent triggers, and whichever token point is lower binds, with ties going to the chat trigger.
+  The chat trigger is the owner's personal threshold, or the chat model's `compression_threshold`, against the chat model's context limit. A threshold of 100 disables only this trigger.
+  The organization trigger exists only while an override resolves, and fires at a fixed 80% of the override model's context limit (`compactionOverrideWindowPercent`); the override model's own `compression_threshold` is ignored. The remaining 20% is a target margin for the summary prompt and the summary, not a guarantee, because the trigger reads the previous step's prompt usage. An organization point beyond the chat model's window never fires, so a chat whose chat trigger is disabled then does not compact automatically.
+  The binding trigger's threshold and limit drive the automatic compaction gate, and every summary, automatic or manual, records them in its `chat_summarized` result as `threshold_percent` and `trigger_context_limit_tokens`; `context_limit_tokens` records the chat model's window.
+- Summary cap: the summary's output cap is bounded by the summarizer's own window (the override model's when one resolves), not by the binding trigger's limit.
+- Still over limit: the post-compaction check compares the first assistant usage after the latest summary with the binding trigger; checking any other limit could trigger repeated compactions instead of a terminal error.
+  A summary recorded under a different threshold or trigger limit than the current binding trigger is not a failed compaction, so the chat compacts again. The check skips a 0% threshold ("always compact"), which would otherwise end every compaction with the error.
+  The error names what can clear it: the owner's threshold when the chat trigger binds, an override model with a larger window when the organization trigger binds, and both when the usage also reaches the other enabled trigger.
 - Failure semantics: an unset override uses the chat model.
-  A stored config that later becomes deleted or disabled, whose provider becomes disabled, or whose required credentials become unavailable is logged and falls back to the chat model during generation preparation.
+  A stored config that later becomes deleted or disabled, whose provider becomes disabled, or whose required credentials become unavailable is logged and falls back to the chat model during generation preparation, leaving only the chat trigger.
   Failure to read the override row or load provider credentials stops preparation.
-  A failure while resolving the referenced model config or provider is logged and falls back to the chat model.
   A usable override that fails at use (route or client construction, provider call failure) fails the generation visibly through the normal error path; there is no silent fallback.
   The override model client is constructed inside the compact generation action, not at prepare time, so a broken override cannot fail turns that finish without compacting (including turns over the threshold whose last assistant step already completed).
 - Prompt safety: the prompt is built and sanitized for the chat model, so when the override points at a different provider the compaction copy of the prompt is re-sanitized: provider-executed tool history is flattened into plain text parts (keeping its content while dropping the provider-specific wire shape), file parts the compaction model rejects are replaced with text placeholders, and Anthropic provider-tool sanitization is re-run for the compaction provider. The assistant generation prompt is never mutated.
@@ -1006,7 +1317,8 @@ The goroutine does the following in order:
 1. It fetches the generation attempt number from the database.
 2. It closes the episode corresponding to its history version and generation attempt by calling the `CloseEpisode` method on the [Message part buffer](#message-part-buffer).
 3. It reads the buffered parts for that episode by calling the `GetParts` method on the message part buffer.
-4. It applies the `FinishInterruption(partial?)` transition on the core state machine. If there are no buffered parts for that episode, or the episode is not found, it passes `nil` as the `partial` argument.
+4. It sends a cancel request to the workspace agent for each unresolved `execute`, `edit_files`, and `write_file` call, and waits up to 30 seconds for the responses.
+5. It applies the `FinishInterruption(partial?)` transition on the core state machine. If there are no buffered parts for that episode, or the episode is not found, it passes `nil` as the `partial` argument.
 
 #### Dynamic tools timeout goroutine
 
@@ -1024,24 +1336,32 @@ When the manager cleans up a runner, the runner must cancel all goroutines it ha
 
 By default, chatd runs up to five top-level chats and ten subagent chats at once. Each limit applies across the entire deployment. Enterprise deployments can remove these limits when their plan permits it. Extra chats wait for capacity, but users can still interrupt active chats.
 
+When the limits apply, admission runs inside the acquisition transaction, before `Acquire`, under a Postgres advisory lock held until the transaction commits. A chat holds a slot in its pool while a worker owns it with a fresh heartbeat, whatever its execution state. Admission therefore applies to every runnable state, and an owned chat keeps its slot until it releases ownership, so later transitions back to `running`, such as finishing an interruption or resolving a pending action, stay within the limit. A refused chat stays unowned until a later acquisition pass admits it. A takeover of a chat whose lease expired rechecks the lease under the lock, because a heartbeat renewal may have extended it since. Admission waits at most 5 seconds for the lock.
+
+Interrupting a running chat that no worker owns finishes the interruption without a slot (see `POST /api/v2/chats/{chat}/interrupt`). A chat that is `interrupting` or `requires_action` without a fresh lease, for example after its replica died, waits for a slot before a runner resumes it, which also delays its action deadline.
+
 ## Auto-archive loop
 
 The worker periodically archives old, unused chats.
 
+Each tick reads a batch of candidate root chats without holding locks. A candidate is unarchived, unpinned, not `running`, `interrupting` or `requires_action`, created before the cutoff, and the newest non-deleted message in its family is older than the cutoff. The cutoff is 00:00 UTC of the current day minus the configured number of auto-archive days.
+
+Each candidate is archived the same way as an archive through `PATCH /api/v2/chats/{chat}`: `SetArchived(true)` applies to the root and all descendants in one transaction. Before any chat changes, that transaction locks the root and then every descendant, and rechecks the candidate conditions. A chat that no longer qualifies, for example because a message arrived after the candidate read, is skipped. Only messages count as activity, so a chat that is unarchived without a new message is archived again on the next tick.
+
 ## Manual compaction
 
-Compaction reduces the LLM prompt size by summarizing older history into a compressed boundary. It normally runs automatically: while preparing a generation, the worker compares the latest known token usage against the model's compaction threshold, and when the threshold is exceeded it makes a non-streaming LLM call to produce a summary and commits it as a compressed message triplet (a hidden model-only summary boundary, a visible `chat_summarized` tool call, and its tool result). Prompt queries prune history at the newest boundary.
+Compaction reduces the LLM prompt size by summarizing older history into a compressed boundary. It normally runs automatically: while preparing a generation, the worker compares the latest known token usage against the binding compaction trigger (see [Compaction model selection](#compaction-model-selection)), and when usage reaches it the worker makes a non-streaming LLM call to produce a summary and commits it as a compressed message triplet (a hidden model-only summary boundary, a visible `chat_summarized` tool call, and its tool result). Prompt queries prune history at the newest boundary.
 
 Trailing user messages the assistant has not answered yet are not summarized: they are excluded from the summarizer's input and re-committed after the triplet as model-only user rows, so the pruned prompt keeps them verbatim instead of relying on summary fidelity.
 
 Users can also request a compaction on demand via `POST /api/v2/chats/{chat}/compact` (surfaced in the web UI as the `/compact` slash command). Manual compaction is a durable one-shot request executed through the normal worker loop rather than synchronously in the HTTP handler. This reuses the worker's lock fencing, retry accounting, streamed "Summarizing..." progress parts, metrics, and debug runs, and it survives replica crashes. The flow:
 
-1. The endpoint applies the `RequestCompaction` transition: allowed from `W`, `E0`, and `E1`, it sets `chats.compaction_requested_at = now()`, clears `last_error`, lands in `R0` (or `R1` from `E1`, preserving the queue) without inserting any message, and publishes a status-change pubsub event to wake workers. Because the transition inserts no history, it advances `history_version` to the transaction's new `snapshot_version` and resets `generation_attempt` itself, granting the fresh retry budget and episode keys a history change would otherwise provide. A timestamp is used instead of a boolean for debuggability. AI Gateway attribution needs no per-request key: generation preparation resolves the owner's synthetic API key like any other turn.
+1. The endpoint applies the `RequestCompaction` transition: allowed from `W`, `E0`, `E1`, and `E1P`, it sets `chats.compaction_requested_at = now()`, clears `last_error`, lands in `R0` (or `R1` from `E1` and `R1P` from `E1P`, preserving the queue) without inserting any message, and publishes a status-change pubsub event to wake workers. Because the transition inserts no history, it advances `history_version` to the transaction's new `snapshot_version` and resets `generation_attempt` itself, granting the fresh retry budget and episode keys a history change would otherwise provide. A timestamp is used instead of a boolean for debuggability. AI Gateway attribution needs no per-request key: generation preparation resolves the owner's synthetic API key like any other turn.
 2. The generation goroutine's decision logic checks `compaction_requested_at` after the unresolved local/dynamic tool guards but before the history-completeness check (an idle chat's history is otherwise complete, which would end the turn). If the marker is set and at least one uncompressed assistant message exists after the latest compaction boundary, it selects a forced compaction; if there is nothing to compact, the marker is ignored and the turn finishes normally, clearing it.
 3. A forced compaction bypasses the automatic threshold gates (usage below threshold, unknown context window, and the threshold=100 disable) and stamps `source: "manual"` instead of `source: "automatic"` into the `chat_summarized` tool call arguments, tool result JSON, and streamed parts so clients can render manual compactions distinctly.
-4. The compaction `CommitStep` consumes the request by clearing `compaction_requested_at` in the same transaction that commits the summary triplet. The next decision pass finds the history complete and finishes the turn, so a chat with an empty queue returns to `waiting` with no assistant follow-up; a chat compacted from `E1` proceeds to its queued messages instead. A `post_compact` hook effect is the one exception: because the decision reads user-visible history, an effect that commits a user-visible message leaves the history incomplete and the turn continues with an assistant response. A model-only effect such as `model_context` reaches the model without resuming generation.
+4. The compaction `CommitStep` consumes the request by clearing `compaction_requested_at` in the same transaction that commits the summary triplet. The next decision pass finds the history complete and finishes the turn, so a chat with an empty queue returns to `waiting` with no assistant follow-up; a chat compacted from `E1` proceeds to its queued messages instead, and one compacted from `E1P` pauses. A `post_compact` hook effect is the one exception: because the decision reads user-visible history, an effect that commits a user-visible message leaves the history incomplete and the turn continues with an assistant response. A model-only effect such as `model_context` reaches the model without resuming generation.
 
-The `compaction_requested_at` marker is one-shot: transitions that keep an active turn alive (`Acquire`, `Abandon`, `SetArchived`, queueing a message on a busy chat) carry it forward, while every other transition that rewrites the execution state (`FinishTurn`, `FinishError`, `Interrupt`, `EditMessage`, `PromoteQueuedMessage`, `CancelRequiresAction`, `ReconcileInvalidState`, and so on) clears it by construction, so a stale request can never replay on a later turn.
+The `compaction_requested_at` marker is one-shot: transitions that keep an active turn alive (`Acquire`, `Abandon`, `SetArchived`, queueing a message on a busy chat, `SteerQueuedMessage` on a busy chat) carry it forward, while every other transition that rewrites the execution state (`FinishTurn`, `FinishError`, `Interrupt`, `EditMessage`, `CancelRequiresAction`, `ReconcileInvalidState`, and so on) clears it by construction, so a stale request can never replay on a later turn.
 
 # Lifecycle hooks
 
@@ -1073,8 +1393,9 @@ The following chat stream events, delivered to the client over WebSocket, are su
 - `queue_update`: the full current queued-message list.
 - `action_required`: a dynamic tool call was issued by the chat worker, the client must execute it and submit the result.
 - `retry`: emitted when the chat worker is waiting before retrying a failed generation attempt.
-- `preview_reset`: a reset of the stream's preview state (message parts), emitted when the worker's LLM call fails mid-way for whatever reason.
+- `preview_reset`: a reset of the stream's preview state (message parts), emitted when the history version changes or a new generation attempt starts.
 - `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history.
+  - TODO (#29808): on the first sync with an `after_id`, this is emitted only when message `after_id` is deleted or missing. Describe this here.
 
 ## Endpoint lifecycle
 
@@ -1108,6 +1429,7 @@ The stream loop stores:
 - latest `worker_id`;
 - latest `generation_attempt`;
 - last accepted preview part `seq`;
+- whether the current generation attempt is retired (`attempt_retired`);
 
 Initial null state:
 
@@ -1119,6 +1441,7 @@ Initial null state:
 - last sent error history version is `0`;
 - action-required cursor is `0`;
 - preview part sequence is `0`;
+- `attempt_retired` is false;
 
 ## Stream loop operations
 
@@ -1127,7 +1450,7 @@ The loop has two operations:
 | Operation | Description |
 | --- | --- |
 | `Sync(hints)` | Maybe fetch database state. If newer state is observed, emit required client events, update local cursors, and configure the relay target. Triggered by pubsub notifications and the sync poller. |
-| `Part(history_version, generation_attempt, seq, content)` | Emit one live preview part. The operation succeeds only if the part matches local watermarks (history version, generation attempt, and seq). Triggered by the relay forwarder. |
+| `Part(history_version, generation_attempt, seq, content)` | Emit one live preview part. The operation succeeds only if the part matches local watermarks (history version, generation attempt, and seq) and the attempt is not retired. Triggered by the relay forwarder. |
 
 The loop processes one operation at a time. It must not process another input halfway through a `Sync` or `Part`.
 
@@ -1168,9 +1491,10 @@ Applying the database result means, in deterministic order:
 4. If `db.status = error` and `db.history_version > local.error_history_version`, run error synchronization.
 5. If `db.status = requires_action` and `db.history_version > local.action_required_history_version`, run action-required synchronization.
 6. If `db.retry_state_version > local.retry_state_version`, run retry-state synchronization.
-7. If `db.history_version != local.history_version` or (`db.generation_attempt != local.generation_attempt` and `db.generation_attempt != 0`), set last accepted preview part `seq = 0` and emit `preview_reset`. (`generation_attempt = 0` is the initial value for the `generation_attempt` field after the message history changes, and there are never any preview parts associated with it. Episodes created by the [Generation goroutine](#generation-goroutine) always have a generation attempt number greater than 0.)
-8. If `db.generation_attempt > 0`, configure the relay forwarder with `db.worker_id`, `db.history_version`, and `db.generation_attempt`.
-9. Save `snapshot_version`, `history_version`, `queue_version`, `retry_state_version`, `status`, `worker_id`, and `generation_attempt` from the db to local state.
+7. If `db.history_version != local.history_version` or `db.generation_attempt != local.generation_attempt`, set `attempt_retired = false`. Then, if `db.retry_state` is non-null, `db.status = error`, or `db.retry_state_version > local.retry_state_version` while the history version and generation attempt are unchanged, set `attempt_retired = true`: the current generation attempt failed, so its remaining preview parts are dropped. It stays set if the retry is later cancelled. An errored chat records a new generation attempt before it streams again.
+8. If `db.history_version != local.history_version` or (`db.generation_attempt != local.generation_attempt` and `db.generation_attempt != 0`), set last accepted preview part `seq = 0` and emit `preview_reset`. (`generation_attempt = 0` is the initial value for the `generation_attempt` field after the message history changes, and there are never any preview parts associated with it. Episodes created by the [Generation goroutine](#generation-goroutine) always have a generation attempt number greater than 0.)
+9. If `db.generation_attempt > 0`, configure the relay forwarder with `db.worker_id`, `db.history_version`, and `db.generation_attempt`.
+10. Save `snapshot_version`, `history_version`, `queue_version`, `retry_state_version`, `status`, `worker_id`, and `generation_attempt` from the db to local state.
 
 If `Sync` fetches from the database, all database reads for that `Sync` must happen in the same read transaction. This includes reading the chat row, changed messages, full-history refresh messages, queued messages, retry state, error data, and pending dynamic tool-call data.
 
@@ -1236,6 +1560,8 @@ If any fetched row is soft-deleted, mirror the current stream endpoint's full-re
 3. Resend all messages as `message` events.
 4. Replace the known-message revision map with the revisions from the resent messages.
 
+TODO (#29808): the first sync with an `after_id` fetches every row, including soft-deleted ones. It resets only when message `after_id` is deleted or missing; otherwise it skips soft-deleted rows and sends only live rows above `after_id`. This relies on messages being deleted only as a suffix of the chat (an edit deletes the edited message and every later one). Describe this here and add that invariant to the list below.
+
 Required invariant:
 
 - every client-visible message-history change advances the changed row revision and chat `history_version`.
@@ -1253,6 +1579,7 @@ Flow:
 Required invariant:
 
 - every client-visible queue insert, update, reorder, or delete advances `queue_version`.
+- `editing_since` changes are client-visible queue updates: they advance `queue_version` and the `queue_update` snapshot carries the field.
 
 ### Retry-state synchronization
 
@@ -1261,8 +1588,8 @@ Retry-state sync happens inside `Sync`.
 Flow:
 
 1. `Sync` observes `db.retry_state_version > local.retry_state_version`.
-2. If `db.retry_state` is null, emit nothing.
-3. If `db.retry_state` is non-null, emit one `retry` event with `db.retry_state` as the payload.
+2. If `db.retry_state` is null or `db.status != running`, emit nothing.
+3. Otherwise emit one `retry` event with `db.retry_state` as the payload.
 
 Required invariant:
 
@@ -1402,6 +1729,7 @@ The operation succeeds only if:
 ```
 history_version == local.history_version
 generation_attempt == local.generation_attempt
+local.attempt_retired == false
 seq == local.last_part_seq + 1
 ```
 
@@ -1412,7 +1740,7 @@ emit message_part
 local.last_part_seq = seq
 ```
 
-If any check fails, the operation is rejected.
+If any check fails, the operation is rejected. Parts of a retired attempt are rejected before the sequence check, so they never count as a gap.
 
 A sequence gap is an invariant violation because the parts endpoint must enforce contiguous delivery for each requested episode.
 
