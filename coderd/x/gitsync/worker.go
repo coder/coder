@@ -30,10 +30,10 @@ const (
 	// of concurrent HTTP calls has enough headroom to complete.
 	defaultTickTimeout = 30 * time.Second
 
+	// cooldownBackoffTimeout bounds the post-refresh cooldown stale_at writes.
 	cooldownBackoffTimeout = 5 * time.Second
 
-	// maxCooldown allows the primary rate limit's hourly window and
-	// the provider's padding.
+	// maxCooldown caps one response's cooldown at an hour plus RateLimitPadding.
 	maxCooldown = time.Hour + gitprovider.RateLimitPadding
 
 	// NoTokenBackoff is the backoff duration applied to rows
@@ -102,8 +102,10 @@ type Worker struct {
 	batchSize                 int32
 	interval                  time.Duration
 	tickTimeout               time.Duration
-	cooldowns                 map[rateLimitKey]time.Time
 	done                      chan struct{}
+
+	// cooldowns maps each owner and host to its cooldown end. Only tick uses it.
+	cooldowns map[cooldownKey]time.Time
 }
 
 // WorkerOption configures a Worker.
@@ -127,7 +129,7 @@ func NewWorker(
 		batchSize:                 defaultBatchSize,
 		interval:                  defaultInterval,
 		tickTimeout:               defaultTickTimeout,
-		cooldowns:                 make(map[rateLimitKey]time.Time),
+		cooldowns:                 make(map[cooldownKey]time.Time),
 		done:                      make(chan struct{}),
 	}
 	for _, o := range opts {
@@ -194,10 +196,10 @@ func (w *Worker) tick(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, w.tickTimeout)
 	defer cancel()
 
-	// Do not retain expired entries for users whose rows stop being acquired.
+	// Delete expired cooldowns, including owners whose rows are no longer acquired.
 	now := w.clock.Now()
-	for key, retryAfter := range w.cooldowns {
-		if !retryAfter.After(now) {
+	for key, end := range w.cooldowns {
+		if !end.After(now) {
 			delete(w.cooldowns, key)
 		}
 	}
@@ -212,24 +214,7 @@ func (w *Worker) tick(ctx context.Context) {
 		return
 	}
 
-	filterBackoffCtx, cancelFilterBackoff := context.WithTimeout(context.WithoutCancel(ctx), cooldownBackoffTimeout)
-	defer cancelFilterBackoff()
-
-	// Build refresh requests directly from acquired rows.
-	requests := make([]RefreshRequest, 0, len(acquiredRows))
-	for _, row := range acquiredRows {
-		key := rateLimitKeyFor(row.OwnerID, row.GitRemoteOrigin)
-		if retryAfter := w.cooldowns[key]; retryAfter.After(w.clock.Now()) {
-			w.backoffCooldown(filterBackoffCtx, chatDiffStatusFromRow(row), retryAfter)
-			continue
-		}
-		requests = append(requests, RefreshRequest{
-			Row:     chatDiffStatusFromRow(row),
-			OwnerID: row.OwnerID,
-		})
-	}
-
-	cancelFilterBackoff()
+	requests := w.requestsOutsideCooldown(ctx, acquiredRows, w.clock.Now())
 	if len(requests) == 0 {
 		return
 	}
@@ -240,23 +225,8 @@ func (w *Worker) tick(ctx context.Context) {
 		return
 	}
 
-	for _, res := range results {
-		var rateLimit *gitprovider.RateLimitError
-		if !errors.As(res.Error, &rateLimit) {
-			continue
-		}
-
-		retryAfter := rateLimitRetryAfter(w.clock.Now().UTC(), rateLimit)
-		key := rateLimitKeyFor(res.Request.OwnerID, res.Request.Row.GitRemoteOrigin)
-		if retryAfter.After(w.cooldowns[key]) {
-			w.cooldowns[key] = retryAfter
-		}
-	}
-	// Preserve the shared stale_at signal even if another request canceled the tick.
-	resultBackoffCtx, cancelResultBackoff := context.WithTimeout(context.WithoutCancel(ctx), cooldownBackoffTimeout)
-	defer cancelResultBackoff()
-
-	for _, res := range results {
+	ordinaryResults := w.backoffRateLimitedResults(ctx, results)
+	for _, res := range ordinaryResults {
 		if errors.Is(res.Error, ErrStalePullRequest) {
 			if err := w.clearStalePR(ctx, res.Request.Row); err != nil {
 				w.logger.Warn(ctx, "clear stale chat diff status PR",
@@ -269,12 +239,7 @@ func (w *Worker) tick(ctx context.Context) {
 			w.logger.Debug(ctx, "refresh chat diff status",
 				slog.F("chat_id", res.Request.Row.ChatID),
 				slog.Error(res.Error))
-			var rateLimit *gitprovider.RateLimitError
-			if errors.As(res.Error, &rateLimit) {
-				key := rateLimitKeyFor(res.Request.OwnerID, res.Request.Row.GitRemoteOrigin)
-				w.backoffCooldown(resultBackoffCtx, res.Request.Row, w.cooldowns[key])
-				continue
-			}
+
 			// Apply a longer backoff for rows whose owner has
 			// no linked token — retrying every 2 minutes is
 			// pointless until the user links their account.
@@ -339,19 +304,83 @@ func (w *Worker) tick(ctx context.Context) {
 	}
 }
 
-func (w *Worker) backoffCooldown(ctx context.Context, row database.ChatDiffStatus, retryAfter time.Time) {
+func (w *Worker) requestsOutsideCooldown(ctx context.Context, rows []database.AcquireStaleChatDiffStatusesRow, now time.Time) []RefreshRequest {
+	requests := make([]RefreshRequest, 0, len(rows))
+	for _, acquired := range rows {
+		row := chatDiffStatusFromRow(acquired)
+		key := cooldownKeyFor(acquired.OwnerID, row.GitRemoteOrigin)
+		end := w.cooldowns[key]
+		if end.After(now) {
+			w.backoffForCooldown(ctx, row, end)
+			continue
+		}
+
+		requests = append(requests, RefreshRequest{Row: row, OwnerID: acquired.OwnerID})
+	}
+	return requests
+}
+
+// backoffRateLimitedResults records cooldowns and writes their stale_at values
+// before returning results that need ordinary processing.
+func (w *Worker) backoffRateLimitedResults(ctx context.Context, results []RefreshResult) []RefreshResult {
+	type limitedRow struct {
+		row database.ChatDiffStatus
+		key cooldownKey
+	}
+	var limited []limitedRow
+	ordinary := make([]RefreshResult, 0, len(results))
+	now := w.clock.Now().UTC()
+	for _, res := range results {
+		var rateLimit *gitprovider.RateLimitError
+		if !errors.As(res.Error, &rateLimit) {
+			ordinary = append(ordinary, res)
+			continue
+		}
+
+		w.logger.Debug(ctx, "refresh chat diff status",
+			slog.F("chat_id", res.Request.Row.ChatID),
+			slog.Error(res.Error))
+
+		key := cooldownKeyFor(res.Request.OwnerID, res.Request.Row.GitRemoteOrigin)
+		end := cooldownEnd(now, rateLimit)
+		if end.After(w.cooldowns[key]) {
+			w.cooldowns[key] = end
+		}
+		limited = append(limited, limitedRow{row: res.Request.Row, key: key})
+	}
+	if len(limited) == 0 {
+		return ordinary
+	}
+
+	// Persist cooldown stale_at values after tick cancellation or timeout, before
+	// ordinary writes and publishing can consume this pass's five-second timeout.
+	backoffCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cooldownBackoffTimeout)
+	defer cancel()
+
+	// Each same-key row must use the latest end collected above.
+	for _, row := range limited {
+		w.backoffForCooldown(backoffCtx, row.row, w.cooldowns[row.key])
+	}
+	return ordinary
+}
+
+// backoffForCooldown sets a diff-status row's stale_at to its cooldown end.
+func (w *Worker) backoffForCooldown(ctx context.Context, row database.ChatDiffStatus, end time.Time) {
 	if err := w.store.BackoffChatDiffStatus(ctx, database.BackoffChatDiffStatusParams{
 		ChatID:          row.ChatID,
 		GitRemoteOrigin: row.GitRemoteOrigin,
 		GitBranch:       row.GitBranch,
-		StaleAt:         retryAfter,
+		StaleAt:         end,
 	}); err != nil {
 		w.logger.Warn(ctx, "backoff diff-status row in cooldown",
-			slog.F("chat_id", row.ChatID), slog.Error(err))
+			slog.F("chat_id", row.ChatID),
+			slog.Error(err))
 	}
 }
 
-func rateLimitRetryAfter(now time.Time, rateLimit *gitprovider.RateLimitError) time.Time {
+// cooldownEnd caps RetryAfter at maxCooldown from now, or uses DiffStatusTTL
+// when RetryAfter is not in the future.
+func cooldownEnd(now time.Time, rateLimit *gitprovider.RateLimitError) time.Time {
 	cooldown := rateLimit.RetryAfter.Sub(now)
 	if cooldown <= 0 {
 		cooldown = DiffStatusTTL

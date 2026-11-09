@@ -584,12 +584,12 @@ func TestRefresher_StaleAtByPRState(t *testing.T) {
 	}
 }
 
-func TestRefresher_CooldownSkipsRemainingForAccount(t *testing.T) {
+func TestRefresher_RateLimitSkipsQueuedRowsForOwnerAndHost(t *testing.T) {
 	t.Parallel()
 
 	ownerID := uuid.New()
 	clock := quartz.NewMock(t)
-	var callCount, healthyCalls atomic.Int32
+	var limitedCalls, healthyCalls atomic.Int32
 
 	mp := &mockProvider{
 		parsePullRequestURL: func(raw string) (gitprovider.PRRef, bool) {
@@ -600,7 +600,7 @@ func TestRefresher_CooldownSkipsRemainingForAccount(t *testing.T) {
 				healthyCalls.Add(1)
 				return &gitprovider.PRStatus{State: gitprovider.PRStateOpen}, nil
 			}
-			callCount.Add(1)
+			limitedCalls.Add(1)
 			return nil, &gitprovider.RateLimitError{
 				RetryAfter: clock.Now().Add(time.Minute),
 			}
@@ -608,8 +608,11 @@ func TestRefresher_CooldownSkipsRemainingForAccount(t *testing.T) {
 	}
 
 	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
+	isLimited := func(id uuid.UUID, origin string) bool {
+		return id == ownerID && !strings.Contains(origin, "ghe.example.com") && !strings.Contains(origin, "gitlab.com")
+	}
 	tokens := func(_ context.Context, id uuid.UUID, origin string) (*string, error) {
-		if id != ownerID || strings.Contains(origin, "ghe.example.com") || strings.Contains(origin, "gitlab.com") {
+		if !isLimited(id, origin) {
 			return new("other-token"), nil
 		}
 		return new("test-token"), nil
@@ -661,18 +664,18 @@ func TestRefresher_CooldownSkipsRemainingForAccount(t *testing.T) {
 		{
 			Row: database.ChatDiffStatus{
 				ChatID:          uuid.New(),
+				Url:             sql.NullString{String: "https://ghe.example.com/org/repo/pull/5", Valid: true},
 				GitRemoteOrigin: "https://ghe.example.com/org/repo",
 				GitBranch:       "enterprise",
-				Url:             sql.NullString{String: "https://ghe.example.com/org/repo/pull/5", Valid: true},
 			},
 			OwnerID: ownerID,
 		},
 		{
 			Row: database.ChatDiffStatus{
 				ChatID:          uuid.New(),
+				Url:             sql.NullString{String: "https://gitlab.com/org/repo/-/merge_requests/6", Valid: true},
 				GitRemoteOrigin: "https://gitlab.com/org/repo",
 				GitBranch:       "gitlab",
-				Url:             sql.NullString{String: "https://gitlab.com/org/repo/-/merge_requests/6", Valid: true},
 			},
 			OwnerID: ownerID,
 		},
@@ -686,9 +689,7 @@ func TestRefresher_CooldownSkipsRemainingForAccount(t *testing.T) {
 	// and skipped rows instead of asserting which row hits the limit.
 	var directCount, skippedCount int
 	for _, res := range results {
-		origin := res.Request.Row.GitRemoteOrigin
-		healthyHost := strings.Contains(origin, "ghe.example.com") || strings.Contains(origin, "gitlab.com")
-		if res.Request.OwnerID != ownerID || healthyHost {
+		if !isLimited(res.Request.OwnerID, res.Request.Row.GitRemoteOrigin) {
 			require.NoError(t, res.Error)
 			require.NotNil(t, res.Params)
 			continue
@@ -708,7 +709,7 @@ func TestRefresher_CooldownSkipsRemainingForAccount(t *testing.T) {
 		"exactly one row should be directly rate-limited")
 	assert.Equal(t, 2, skippedCount,
 		"two rows should be skipped due to rate limit")
-	assert.Equal(t, int32(1), callCount.Load(),
+	assert.Equal(t, int32(1), limitedCalls.Load(),
 		"FetchPullRequestStatus should be called exactly once for the limited owner")
 	assert.Equal(t, int32(3), healthyCalls.Load(), "other owners and hosts should still get a diff-status refresh")
 }
