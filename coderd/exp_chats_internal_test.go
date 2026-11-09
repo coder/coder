@@ -61,7 +61,8 @@ func TestResolveChatGitAccessToken(t *testing.T) {
 		t.Run(lookup.name, func(t *testing.T) {
 			t.Parallel()
 
-			// OAuthToken().Valid() includes OAuth2's 10-second early-expiry margin.
+			// OAuthToken().Valid() treats tokens within 10 seconds of expiry as expired.
+			// A token with no expiry counts as valid if its access token is non-empty.
 			for _, tc := range []struct {
 				name             string
 				expiresIn        time.Duration
