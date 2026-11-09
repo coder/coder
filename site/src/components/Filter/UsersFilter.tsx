@@ -20,34 +20,36 @@ const userFilterQuery = {
 	all: "",
 };
 
+/** Account statuses available when filtering users and organization members. */
+export const userStatusOptions: SelectFilterOption[] = [
+	{
+		value: "active",
+		label: "Active",
+		startIcon: <StatusIndicatorDot variant="success" />,
+	},
+	{
+		value: "dormant",
+		label: "Dormant",
+		startIcon: <StatusIndicatorDot variant="warning" />,
+	},
+	{
+		value: "suspended",
+		label: "Suspended",
+		startIcon: <StatusIndicatorDot variant="inactive" />,
+	},
+];
+
 export const useStatusFilterMenu = ({
 	value,
 	onChange,
 }: Pick<UseFilterMenuOptions, "value" | "onChange">) => {
-	const statusOptions: SelectFilterOption[] = [
-		{
-			value: "active",
-			label: "Active",
-			startIcon: <StatusIndicatorDot variant="success" />,
-		},
-		{
-			value: "dormant",
-			label: "Dormant",
-			startIcon: <StatusIndicatorDot variant="warning" />,
-		},
-		{
-			value: "suspended",
-			label: "Suspended",
-			startIcon: <StatusIndicatorDot variant="inactive" />,
-		},
-	];
 	return useFilterMenu({
 		onChange,
 		value,
 		id: "status",
 		getSelectedOption: async () =>
-			statusOptions.find((option) => option.value === value) ?? null,
-		getOptions: async () => statusOptions,
+			userStatusOptions.find((option) => option.value === value) ?? null,
+		getOptions: async () => userStatusOptions,
 	});
 };
 
