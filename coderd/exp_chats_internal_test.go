@@ -9,15 +9,21 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"testing/iotest"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/oauth2"
+	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -26,7 +32,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -34,6 +42,127 @@ import (
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
+
+func TestResolveChatGitAccessToken(t *testing.T) {
+	t.Parallel()
+
+	for _, lookup := range []struct {
+		name   string
+		origin string
+	}{
+		{name: "MatchingOrigin", origin: "https://git.example.com/owner/repo.git"},
+		{name: "Fallback", origin: ""},
+	} {
+		t.Run(lookup.name, func(t *testing.T) {
+			t.Parallel()
+
+			for _, tc := range []struct {
+				name        string
+				expiresIn   time.Duration
+				wantRefresh bool
+			}{
+				{name: "Unexpired", expiresIn: time.Hour},
+				{name: "NoExpiry"},
+				{name: "Expired", expiresIn: -time.Hour, wantRefresh: true},
+				// OAuth2 treats tokens within 10 seconds of expiry as expired.
+				{name: "NearExpiry", expiresIn: 5 * time.Second, wantRefresh: true},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					t.Parallel()
+
+					ctx := testutil.Context(t, testutil.WaitLong)
+					var refreshRequests, validateRequests atomic.Int64
+					idp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						w.Header().Set("Content-Type", "application/json")
+						switch r.URL.Path {
+						case "/token":
+							refreshRequests.Add(1)
+							assert.Equal(t, http.MethodPost, r.Method)
+							assert.NoError(t, r.ParseForm())
+							assert.Equal(t, "refresh_token", r.Form.Get("grant_type"))
+							assert.Equal(t, "stored-refresh-token", r.Form.Get("refresh_token"))
+							_, _ = io.WriteString(w, `{"access_token":"refreshed-access-token","refresh_token":"refreshed-refresh-token","token_type":"Bearer","expires_in":3600}`)
+						case "/validate":
+							validateRequests.Add(1)
+							_, _ = io.WriteString(w, `{}`)
+						default:
+							t.Errorf("unexpected provider request: %s", r.URL.Path)
+							http.NotFound(w, r)
+						}
+					}))
+					t.Cleanup(idp.Close)
+
+					instrument := promoauth.NewFactory(prometheus.NewRegistry())
+					config := &externalauth.Config{
+						ID:   "git-test",
+						Type: "github",
+						InstrumentedOAuth2Config: instrument.New("git-test", &oauth2.Config{
+							ClientID: "test-client",
+							Endpoint: oauth2.Endpoint{
+								AuthURL:   idp.URL + "/auth",
+								TokenURL:  idp.URL + "/token",
+								AuthStyle: oauth2.AuthStyleInParams,
+							},
+						}),
+						Regex:        regexp.MustCompile(`^https://git\.example\.com/`),
+						ValidateURL:  idp.URL + "/validate",
+						RefreshGroup: new(singleflight.Group),
+					}
+
+					link := database.ExternalAuthLink{
+						ProviderID:        config.ID,
+						UserID:            uuid.New(),
+						OAuthAccessToken:  "stored-access-token",
+						OAuthRefreshToken: "stored-refresh-token",
+					}
+					if tc.expiresIn != 0 {
+						link.OAuthExpiry = time.Now().Add(tc.expiresIn)
+					}
+
+					db := dbmock.NewMockStore(gomock.NewController(t))
+					db.EXPECT().GetExternalAuthLink(gomock.Any(), database.GetExternalAuthLinkParams{
+						ProviderID: config.ID,
+						UserID:     link.UserID,
+					}).Return(link, nil)
+
+					wantToken := link.OAuthAccessToken
+					var wantRequests int64
+					if tc.wantRefresh {
+						wantToken = "refreshed-access-token"
+						wantRequests = 1
+						leasedLink := link
+						leasedLink.RefreshLeaseExpiresAt = sql.NullTime{Time: time.Now().Add(time.Minute), Valid: true}
+						db.EXPECT().AcquireExternalAuthLinkRefreshLease(gomock.Any(), gomock.Any()).Return(leasedLink, nil)
+						db.EXPECT().UpdateExternalAuthLink(gomock.Any(), gomock.Any()).DoAndReturn(
+							func(_ context.Context, params database.UpdateExternalAuthLinkParams) (database.ExternalAuthLink, error) {
+								assert.Equal(t, "refreshed-access-token", params.OAuthAccessToken)
+								assert.Equal(t, "refreshed-refresh-token", params.OAuthRefreshToken)
+								updated := leasedLink
+								updated.OAuthAccessToken = params.OAuthAccessToken
+								updated.OAuthRefreshToken = params.OAuthRefreshToken
+								updated.OAuthExpiry = params.OAuthExpiry
+								return updated, nil
+							},
+						)
+						db.EXPECT().ReleaseExternalAuthLinkRefreshLease(gomock.Any(), gomock.Any()).Return(nil)
+					}
+
+					api := &API{Options: &Options{
+						Database:            db,
+						ExternalAuthConfigs: []*externalauth.Config{config},
+						Logger:              testutil.Logger(t),
+					}}
+					token, err := api.resolveChatGitAccessToken(ctx, link.UserID, lookup.origin)
+					require.NoError(t, err)
+					require.NotNil(t, token)
+					assert.Equal(t, wantToken, *token)
+					assert.Equal(t, wantRequests, refreshRequests.Load())
+					assert.Equal(t, wantRequests, validateRequests.Load())
+				})
+			}
+		})
+	}
+}
 
 func TestAuditedChatOperationalSettingWriteNoOpTransactionFailure(t *testing.T) {
 	t.Parallel()
