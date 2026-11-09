@@ -12,7 +12,7 @@ export function DiffFileHeader({
 	const stats = isDiff ? countChangedLines(file) : null;
 
 	return (
-		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-0 border-b border-l border-solid border-border bg-transparent py-2 pr-1.5 pl-2.5 font-sans text-sm">
+		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-b border-solid border-border bg-transparent py-2 pr-1.5 pl-2.5 font-sans text-sm">
 			<div className="flex min-w-0 flex-1 items-baseline gap-2 truncate">
 				{isDiff && (
 					<span
