@@ -3,7 +3,7 @@ WITH subagent_statuses AS (
     DELETE FROM chat_diff_statuses cds
     USING chats c
     WHERE cds.chat_id = c.id
-        AND c.parent_chat_id IS NOT NULL
+        AND (c.root_chat_id IS NOT NULL OR c.parent_chat_id IS NOT NULL)
     RETURNING cds.*, COALESCE(c.root_chat_id, c.parent_chat_id) AS root_chat_id
 )
 INSERT INTO chat_diff_statuses (
