@@ -1032,7 +1032,8 @@ func TestConditionalRequestReuse(t *testing.T) {
 			branches     = 329
 			cacheKeys    = 2*pullRequests + branches
 		)
-		// Padding approximates the full-response sizes from the same snapshot.
+		// Padding approximates full-response sizes from the same snapshot and is
+		// omitted from projections. TestGitHubCachedProjection checks raw-body caching.
 		const (
 			pullPaddingBytes   = 26 << 10
 			reviewPaddingBytes = 20 << 10
