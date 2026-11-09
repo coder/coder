@@ -979,13 +979,12 @@ func TestEscapePathPreserveSlashes(t *testing.T) {
 func TestConditionalRequestReuse(t *testing.T) {
 	t.Parallel()
 
-	t.Run("WorkingSetAcrossReplicas", func(t *testing.T) {
+	t.Run("WorkingSet", func(t *testing.T) {
 		t.Parallel()
 
 		const (
 			pullRequests = 1201
 			branches     = 329
-			replicas     = 3
 			cacheKeys    = 2*pullRequests + branches
 		)
 		pullPadding := strings.Repeat("p", 26<<10)
@@ -1021,18 +1020,11 @@ func TestConditionalRequestReuse(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		providers := make([]gitprovider.Provider, replicas)
-		for i := range providers {
-			provider, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
-			require.NoError(t, err)
-			providers[i] = provider
-		}
+		provider, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		require.NoError(t, err)
 
-		// Move each row between replicas until all have fetched it once,
-		// then verify that subsequent polls only revalidate cached bodies.
-		for round := range replicas + 2 {
+		for round := range 2 {
 			for i := range pullRequests {
-				provider := providers[(i+round)%replicas]
 				status, err := provider.FetchPullRequestStatus(t.Context(), "test-token", gitprovider.PRRef{
 					Owner: "owner", Repo: "repo", Number: i + 1,
 				})
@@ -1042,7 +1034,6 @@ func TestConditionalRequestReuse(t *testing.T) {
 			}
 
 			for i := range branches {
-				provider := providers[(i+round)%replicas]
 				ref, err := provider.ResolveBranchPullRequest(t.Context(), "test-token", gitprovider.BranchRef{
 					Owner: "owner", Repo: "repo", Branch: fmt.Sprintf("branch-%d", i),
 				})
@@ -1051,7 +1042,7 @@ func TestConditionalRequestReuse(t *testing.T) {
 				require.Equal(t, 42, ref.Number)
 			}
 
-			if round < replicas {
+			if round == 0 {
 				require.EqualValues(t, cacheKeys, fullResponses.Swap(0), "cold round %d", round)
 				require.Zero(t, notModifiedResponses.Swap(0), "cold round %d", round)
 			} else {

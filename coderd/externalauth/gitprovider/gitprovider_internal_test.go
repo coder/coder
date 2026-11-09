@@ -1,9 +1,12 @@
 package gitprovider
 
 import (
+	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -119,6 +122,34 @@ func TestParseRetryAfter(t *testing.T) {
 func TestResponseCacheStore(t *testing.T) {
 	t.Parallel()
 
+	t.Run("WorkingSetGrowth", func(t *testing.T) {
+		t.Parallel()
+
+		const keys = 10 * 2731
+		cache := newResponseCache(0, 0)
+		var dest struct {
+			Title  string `json:"title"`
+			State  string `json:"state"`
+			Number int    `json:"number"`
+		}
+		body := []byte(`{"title":"` + strings.Repeat("t", 256) + `","state":"open","number":42}`)
+		cacheKeys := make([]responseKey, keys)
+		for i := range keys {
+			requestURL := fmt.Sprintf("http://localhost/repos/owner/repo/pulls/%d", i)
+			key := responseCacheKey(requestURL, "test-token", &dest)
+			cacheKeys[i] = key
+			cache.store(key, `"v"`, body)
+		}
+
+		for _, key := range cacheKeys {
+			_, cachedBody, ok := cache.load(key)
+			require.True(t, ok, "a tenfold working set must survive a full scan")
+			require.Equal(t, body, cachedBody)
+		}
+		require.Less(t, cache.sizeBytes, 16<<20)
+		t.Logf("retained %d keys using %d bytes", keys, cache.sizeBytes)
+	})
+
 	// Stores the same key twice using a buffer the caller mutates
 	// between stores, and verifies load returns the bodies passed at
 	// store time rather than the mutated buffer.
@@ -126,7 +157,7 @@ func TestResponseCacheStore(t *testing.T) {
 		t.Parallel()
 
 		cache := newResponseCache(4, 0)
-		const key = "k"
+		key := responseKey{scope: "k"}
 
 		buf := []byte(`{"v":1}`)
 		cache.store(key, `"etag-1"`, buf)
@@ -160,24 +191,24 @@ func TestResponseCacheStore(t *testing.T) {
 		t.Parallel()
 
 		cache := newResponseCache(2, 0)
-		cache.store("a", `"etag-a"`, []byte(`{"k":"a"}`))
-		cache.store("b", `"etag-b"`, []byte(`{"k":"b"}`))
+		cache.store(responseKey{scope: "a"}, `"etag-a"`, []byte(`{"k":"a"}`))
+		cache.store(responseKey{scope: "b"}, `"etag-b"`, []byte(`{"k":"b"}`))
 		// Access "a" so "b" becomes the least-recently-used entry.
-		_, _, ok := cache.load("a")
+		_, _, ok := cache.load(responseKey{scope: "a"})
 		require.True(t, ok)
 		// This third store exceeds maxSize and must evict "b",
 		// not the older "a".
-		cache.store("c", `"etag-c"`, []byte(`{"k":"c"}`))
+		cache.store(responseKey{scope: "c"}, `"etag-c"`, []byte(`{"k":"c"}`))
 
-		_, _, ok = cache.load("b")
+		_, _, ok = cache.load(responseKey{scope: "b"})
 		assert.False(t, ok, "least-recently-used entry must be evicted")
 
-		etag, body, ok := cache.load("a")
+		etag, body, ok := cache.load(responseKey{scope: "a"})
 		require.True(t, ok, "recently-accessed entry must survive eviction")
 		assert.Equal(t, `"etag-a"`, etag)
 		assert.Equal(t, `{"k":"a"}`, string(body))
 
-		etag, body, ok = cache.load("c")
+		etag, body, ok = cache.load(responseKey{scope: "c"})
 		require.True(t, ok)
 		assert.Equal(t, `"etag-c"`, etag)
 		assert.Equal(t, `{"k":"c"}`, string(body))
@@ -188,21 +219,21 @@ func TestResponseCacheStore(t *testing.T) {
 
 		cache := newResponseCache(8, 256)
 		for _, key := range []string{"a", "b", "c"} {
-			cache.store(key, `"v"`, make([]byte, 80))
+			cache.store(responseKey{scope: key}, `"v"`, make([]byte, 80))
 		}
 
-		_, _, ok := cache.load("a")
+		_, _, ok := cache.load(responseKey{scope: "a"})
 		require.True(t, ok)
-		cache.store("d", `"v"`, make([]byte, 160))
+		cache.store(responseKey{scope: "d"}, `"v"`, make([]byte, 160))
 
 		for _, key := range []string{"b", "c"} {
-			_, _, ok := cache.load(key)
+			_, _, ok := cache.load(responseKey{scope: key})
 			require.False(t, ok, "multiple least-recently-used entries must be evicted")
 		}
 
 		var retainedBytes int
 		for _, key := range []string{"a", "d"} {
-			etag, body, ok := cache.load(key)
+			etag, body, ok := cache.load(responseKey{scope: key})
 			require.True(t, ok)
 			retainedBytes += len(key) + len(etag) + cap(body)
 		}
@@ -215,23 +246,23 @@ func TestResponseCacheStore(t *testing.T) {
 
 		cache := newResponseCache(8, 256)
 		for _, key := range []string{"a", "b", "c"} {
-			cache.store(key, `"v"`, make([]byte, 80))
+			cache.store(responseKey{scope: key}, `"v"`, make([]byte, 80))
 		}
 
-		cache.store("a", `"updated"`, make([]byte, 160))
-		_, _, ok := cache.load("b")
+		cache.store(responseKey{scope: "a"}, `"updated"`, make([]byte, 160))
+		_, _, ok := cache.load(responseKey{scope: "b"})
 		require.False(t, ok, "a larger replacement must evict older entries")
-		etag, body, ok := cache.load("a")
+		etag, body, ok := cache.load(responseKey{scope: "a"})
 		require.True(t, ok)
 		require.Equal(t, `"updated"`, etag)
 		require.Len(t, body, 160)
 
-		cache.store("a", `"v"`, make([]byte, 16))
-		cache.store("d", `"v"`, make([]byte, 128))
+		cache.store(responseKey{scope: "a"}, `"v"`, make([]byte, 16))
+		cache.store(responseKey{scope: "d"}, `"v"`, make([]byte, 128))
 
 		var retainedBytes int
 		for _, key := range []string{"a", "c", "d"} {
-			etag, body, ok := cache.load(key)
+			etag, body, ok := cache.load(responseKey{scope: key})
 			require.True(t, ok, "a smaller replacement must release its byte budget")
 			retainedBytes += len(key) + len(etag) + cap(body)
 		}
@@ -256,12 +287,12 @@ func TestResponseCacheStore(t *testing.T) {
 				t.Parallel()
 
 				cache := newResponseCache(8, 64)
-				cache.store("a", `"v"`, []byte("{}"))
-				cache.store(tt.key, tt.etag, tt.body)
+				cache.store(responseKey{scope: "a"}, `"v"`, []byte("{}"))
+				cache.store(responseKey{scope: tt.key}, tt.etag, tt.body)
 
-				_, _, ok := cache.load(tt.key)
+				_, _, ok := cache.load(responseKey{scope: tt.key})
 				require.False(t, ok)
-				_, _, ok = cache.load("a")
+				_, _, ok = cache.load(responseKey{scope: "a"})
 				require.True(t, ok, "an uncacheable entry must not evict cached responses")
 			})
 		}
@@ -273,11 +304,58 @@ func TestResponseCacheStore(t *testing.T) {
 		t.Parallel()
 
 		cache := newResponseCache(4, 0)
-		cache.store("big", `"etag-big"`, make([]byte, maxCachedBodyBytes+1))
+		cache.store(responseKey{scope: "big"}, `"etag-big"`, make([]byte, maxCachedBodyBytes+1))
 
-		_, _, ok := cache.load("big")
+		_, _, ok := cache.load(responseKey{scope: "big"})
 		assert.False(t, ok, "bodies exceeding maxCachedBodyBytes must not be cached")
 	})
+}
+
+func TestGitHubCachedProjection(t *testing.T) {
+	t.Parallel()
+
+	var fullResponses atomic.Int64
+	var notModifiedResponses atomic.Int64
+	padding := strings.Repeat("p", 26<<10)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("ETag", `"v"`)
+		if r.Header.Get("If-None-Match") != "" {
+			notModifiedResponses.Add(1)
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+
+		fullResponses.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprintf(w, `{"title":"example","number":42,"body":%q}`, padding)
+	}))
+	defer srv.Close()
+
+	provider, err := newGitHub(srv.URL, srv.Client(), quartz.NewMock(t))
+	require.NoError(t, err)
+	github, ok := provider.(*githubProvider)
+	require.True(t, ok)
+
+	for range 2 {
+		var title struct {
+			Title string `json:"title"`
+		}
+		err := github.decodeJSON(t.Context(), srv.URL, "test-token", &title)
+		require.NoError(t, err)
+		require.Equal(t, "example", title.Title)
+		require.Less(t, github.cache.sizeBytes, 1024, "unused response fields must not consume the cache budget")
+
+		var number struct {
+			Number int `json:"number"`
+		}
+		err = github.decodeJSON(t.Context(), srv.URL, "test-token", &number)
+		require.NoError(t, err)
+		require.Equal(t, 42, number.Number, "each destination type needs its own projection")
+	}
+
+	require.EqualValues(t, 2, fullResponses.Load())
+	require.EqualValues(t, 2, notModifiedResponses.Load())
+	t.Logf("retained two typed projections using %d bytes", github.cache.sizeBytes)
 }
 
 func TestMapGitLabState(t *testing.T) {

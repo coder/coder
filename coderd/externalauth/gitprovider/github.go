@@ -26,7 +26,7 @@ type githubProvider struct {
 	httpClient *http.Client
 	clock      quartz.Clock
 
-	// cache stores ETags and response bodies so JSON reads can be
+	// cache stores ETags and JSON projections so JSON reads can be
 	// issued as conditional requests, letting unchanged pull
 	// requests return 304 Not Modified instead of a full body.
 	cache *responseCache
@@ -411,7 +411,7 @@ func (g *githubProvider) decodeJSON(
 	// URL + auth scope. GitHub replies 304 Not Modified when nothing
 	// changed, which is cheaper than a full body and does not count
 	// against the primary REST rate limit.
-	cacheKey := responseCacheKey(requestURL, token)
+	cacheKey := responseCacheKey(requestURL, token, dest)
 	var (
 		cachedBody []byte
 		haveCached bool
@@ -462,9 +462,13 @@ func (g *githubProvider) decodeJSON(
 		return xerrors.Errorf("decode github response: %w", err)
 	}
 
-	// Only cache bodies we could successfully decode, so a malformed
-	// response does not poison the cache.
-	g.cache.store(cacheKey, resp.Header.Get("ETag"), body)
+	// Retain only the fields decoded by this caller, rather than the full
+	// response. A cache encoding failure must not fail a successful fetch.
+	if etag := resp.Header.Get("ETag"); etag != "" {
+		if projected, err := json.Marshal(dest); err == nil {
+			g.cache.store(cacheKey, etag, projected)
+		}
+	}
 	return nil
 }
 
