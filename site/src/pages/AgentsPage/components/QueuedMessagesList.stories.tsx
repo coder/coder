@@ -184,6 +184,24 @@ export const AttachmentsOnly: Story = {
 	},
 };
 
+// Steer rows offer no Send now, and a steer head gets no Enter-to-send hint.
+export const GroupedByLane: Story = {
+	args: {
+		showEnterToSendHint: false,
+		messages: [
+			{
+				...buildMessage(1, textContent("Also check the error logs")),
+				busy_behavior: "steer",
+			},
+			{
+				...buildMessage(2, textContent("Skip the flaky test")),
+				busy_behavior: "steer",
+			},
+			buildMessage(3, textContent("Then open a pull request")),
+		],
+	},
+};
+
 // One row with every action.
 export const HeadRowActions: Story = {
 	args: {
@@ -241,6 +259,33 @@ export const WaitingBehindHeadUnderEdit: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.hover(canvas.getByRole("button", { name: "Waiting" }));
+	},
+};
+
+// A steer row under edit holds every steer row, so the steer row above it
+// waits too. Its Waiting badge shows its tooltip.
+export const SteerRowUnderEditHoldsLane: Story = {
+	args: {
+		queuedMessageUnderEditID: 2,
+		showEnterToSendHint: false,
+		messages: [
+			{
+				...buildMessage(1, textContent("Also check the error logs")),
+				busy_behavior: "steer",
+			},
+			{
+				...MockChatQueuedMessageUnderEdit,
+				id: 2,
+				busy_behavior: "steer",
+				content: textContent("Skip the flaky test"),
+			},
+			buildMessage(3, textContent("Then open a pull request")),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const [waitingAbove] = canvas.getAllByRole("button", { name: "Waiting" });
+		await userEvent.hover(waitingAbove);
 	},
 };
 
@@ -313,6 +358,21 @@ export const EndRequestPending: Story = {
 			},
 			buildMessage(2, textContent("Open the browser")),
 		],
+	},
+};
+
+export const SendNowPending: Story = {
+	args: {
+		messages: [
+			buildMessage(1, textContent("First queued")),
+			buildMessage(2, textContent("Second queued")),
+		],
+		onPromote: () => new Promise<void>(() => {}),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const sendNowButtons = canvas.getAllByRole("button", { name: "Send now" });
+		await userEvent.click(sendNowButtons[0]);
 	},
 };
 

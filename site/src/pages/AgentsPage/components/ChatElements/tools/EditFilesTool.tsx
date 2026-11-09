@@ -77,8 +77,8 @@ export const EditFilesTool: React.FC<{
 								className="rounded-md border border-solid border-border text-2xs"
 								viewportClassName={
 									isAgentDisplayFullyExpanded(displayState)
-										? "max-h-[80vh]"
-										: "max-h-64"
+										? "max-h-[80vh] [&>div]:block!"
+										: "max-h-64 [&>div]:block!"
 								}
 								ariaLabel={`Diff of ${files[i].path}`}
 							>

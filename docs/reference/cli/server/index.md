@@ -1831,7 +1831,7 @@ Maximum number of consecutive retries after a model generation fails with a tran
 | YAML        | <code>chat.maxQueuedMessagesPerChat</code>            |
 | Default     | <code>20</code>                                       |
 
-Maximum number of messages that can be queued in a chat. Sending a message to a chat whose queue is full fails with HTTP 429. Must be at least 1.
+Maximum number of messages that can be queued in a chat. Sending a message that would make a full queue longer fails with HTTP 429. Must be at least 1.
 
 ### --chat-max-attachments-per-chat
 

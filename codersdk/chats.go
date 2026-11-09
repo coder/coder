@@ -993,18 +993,17 @@ type UpdateChatRequest struct {
 	PlanMode *ChatPlanMode `json:"plan_mode,omitempty"`
 }
 
-// ChatBusyBehavior controls what happens when a user sends a message
-// while the chat is already processing.
+// ChatBusyBehavior controls when a message sent to a busy chat reaches
+// the model. A waiting chat receives the message at once for every value.
 type ChatBusyBehavior string
 
 const (
-	// ChatBusyBehaviorQueue queues the message for processing after
-	// the current run finishes.
+	// ChatBusyBehaviorSteer delivers the message before the next model
+	// call. This is the default.
+	ChatBusyBehaviorSteer ChatBusyBehavior = "steer"
+	// ChatBusyBehaviorQueue delivers the message after the active turn
+	// ends.
 	ChatBusyBehaviorQueue ChatBusyBehavior = "queue"
-	// ChatBusyBehaviorInterrupt interrupts the active run. It persists
-	// the partial response before this message runs ahead of queued messages.
-	// Further messages join the queue tail while the interruption is pending.
-	ChatBusyBehaviorInterrupt ChatBusyBehavior = "interrupt"
 )
 
 // ChatPlanMode represents the persistent plan mode state of a chat.
@@ -1023,7 +1022,10 @@ type CreateChatMessageRequest struct {
 	// InlineMCPServers replaces the inline MCP servers.
 	// nil: no change, empty: remove all.
 	InlineMCPServers *[]InlineMCPServerRequest `json:"inline_mcp_servers,omitempty"`
-	BusyBehavior     ChatBusyBehavior          `json:"busy_behavior,omitempty" enums:"queue,interrupt"`
+	// BusyBehavior controls when the message reaches the agent if the
+	// chat is busy. "steer", the default, delivers it before the next
+	// model call. "queue" delivers it after the active turn ends.
+	BusyBehavior ChatBusyBehavior `json:"busy_behavior,omitempty" enums:"steer,queue"`
 	// PlanMode switches the chat's persistent plan mode.
 	// nil: no change, ptr to "plan": enable, ptr to "": clear.
 	PlanMode        *ChatPlanMode `json:"plan_mode,omitempty"`
@@ -1048,8 +1050,11 @@ type EditChatMessageRequest struct {
 type CreateChatMessageResponse struct {
 	Message *ChatMessage `json:"message,omitempty"`
 	// Messages contains all user-visible messages inserted by the send, in
-	// insertion order. A queued send on an errored chat may promote the
-	// previous queue head, so clients must upsert the full batch.
+	// insertion order. A send to an errored or paused chat can also insert
+	// queued messages: a steer send inserts the queued steer messages
+	// before the new message, and a queue send to an errored chat inserts
+	// the steer lane, or the first queue message when that lane is empty.
+	// Clients must upsert the full batch.
 	Messages      []ChatMessage      `json:"messages,omitempty"`
 	QueuedMessage *ChatQueuedMessage `json:"queued_message,omitempty"`
 	Queued        bool               `json:"queued"`
@@ -1103,7 +1108,9 @@ type UploadChatWorkspaceFileResponse struct {
 
 // ChatMessagesResponse contains the messages and queued messages for a chat.
 type ChatMessagesResponse struct {
-	Messages       []ChatMessage       `json:"messages"`
+	Messages []ChatMessage `json:"messages"`
+	// QueuedMessages lists the queued messages in delivery order: steer
+	// messages first, then queue messages.
 	QueuedMessages []ChatQueuedMessage `json:"queued_messages"`
 	HasMore        bool                `json:"has_more"`
 	// TurnStartID is the ID of the user prompt that starts the turn
@@ -1403,17 +1410,22 @@ type UpdateAdvisorConfigRequest struct {
 // ChatComputerUseProvider identifies the computer use tool flavor. Chatd
 // derives it from the API format of the client for the model that a computer
 // use chat runs on, so a Claude model on AWS Bedrock uses the Anthropic tool.
+// Each value names that client. The openai-compat client speaks the chat
+// completions API, which has no hosted computer tool, so its flavor is an
+// ordinary function tool.
 type ChatComputerUseProvider string
 
 const (
-	ChatComputerUseProviderAnthropic ChatComputerUseProvider = "anthropic"
-	ChatComputerUseProviderOpenAI    ChatComputerUseProvider = "openai"
+	ChatComputerUseProviderAnthropic    ChatComputerUseProvider = "anthropic"
+	ChatComputerUseProviderOpenAI       ChatComputerUseProvider = "openai"
+	ChatComputerUseProviderOpenAICompat ChatComputerUseProvider = "openai-compat"
 )
 
 // AllChatComputerUseProviders contains every ChatComputerUseProvider value.
 var AllChatComputerUseProviders = []ChatComputerUseProvider{
 	ChatComputerUseProviderAnthropic,
 	ChatComputerUseProviderOpenAI,
+	ChatComputerUseProviderOpenAICompat,
 }
 
 // Valid reports whether p is a supported computer use provider.
@@ -2087,15 +2099,20 @@ const (
 
 // ChatQueuedMessage represents a queued message waiting to be processed.
 type ChatQueuedMessage struct {
-	ID              int64             `json:"id"`
-	ChatID          uuid.UUID         `json:"chat_id" format:"uuid"`
-	ModelConfigID   *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
-	Content         []ChatMessagePart `json:"content"`
-	CreatedAt       time.Time         `json:"created_at" format:"date-time"`
-	ReasoningEffort *string           `json:"reasoning_effort,omitempty"`
+	ID            int64             `json:"id"`
+	ChatID        uuid.UUID         `json:"chat_id" format:"uuid"`
+	ModelConfigID *uuid.UUID        `json:"model_config_id,omitempty" format:"uuid"`
+	Content       []ChatMessagePart `json:"content"`
+	// BusyBehavior is the lane of the message. Steer messages go in
+	// before the next model call, and queue messages go in after the
+	// turn ends.
+	BusyBehavior    ChatBusyBehavior `json:"busy_behavior" enums:"steer,queue"`
+	CreatedAt       time.Time        `json:"created_at" format:"date-time"`
+	ReasoningEffort *string          `json:"reasoning_effort,omitempty"`
 	// EditingSince is set while the owner edits the message. A message
-	// under edit and every message behind it wait until the edit ends; a
-	// turn that ends at a message under edit pauses the chat.
+	// under edit and every message behind it wait until the edit ends. A
+	// steer message under edit also holds the steer messages ahead of
+	// it. A turn that ends at a message under edit pauses the chat.
 	EditingSince *time.Time `json:"editing_since,omitempty" format:"date-time"`
 }
 
@@ -2335,13 +2352,15 @@ type ChatWatchEvent struct {
 
 // ChatStreamEvent represents a real-time update for chat streaming.
 type ChatStreamEvent struct {
-	Type           ChatStreamEventType       `json:"type"`
-	ChatID         uuid.UUID                 `json:"chat_id" format:"uuid"`
-	Message        *ChatMessage              `json:"message,omitempty"`
-	MessagePart    *ChatStreamMessagePart    `json:"message_part,omitempty"`
-	Status         *ChatStreamStatus         `json:"status,omitempty"`
-	Error          *ChatError                `json:"error,omitempty"`
-	Retry          *ChatStreamRetry          `json:"retry,omitempty"`
+	Type        ChatStreamEventType    `json:"type"`
+	ChatID      uuid.UUID              `json:"chat_id" format:"uuid"`
+	Message     *ChatMessage           `json:"message,omitempty"`
+	MessagePart *ChatStreamMessagePart `json:"message_part,omitempty"`
+	Status      *ChatStreamStatus      `json:"status,omitempty"`
+	Error       *ChatError             `json:"error,omitempty"`
+	Retry       *ChatStreamRetry       `json:"retry,omitempty"`
+	// QueuedMessages lists the queued messages in delivery order: steer
+	// messages first, then queue messages.
 	QueuedMessages []ChatQueuedMessage       `json:"queued_messages,omitempty"`
 	ActionRequired *ChatStreamActionRequired `json:"action_required,omitempty"`
 }

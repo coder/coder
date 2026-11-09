@@ -62,6 +62,57 @@ type Story = StoryObj<typeof Response>;
 
 export const MarkdownAndLinks: Story = {};
 
+const listsMarkdown = `
+Wrapped bullets keep their text aligned:
+
+- A bullet long enough to wrap onto a second line, so the wrapped text should line up with the first word and not with the marker.
+- A short bullet.
+  - A nested bullet that also runs long enough to wrap onto another line in a narrow column.
+
+1. An ordered item long enough to wrap onto a second line in a narrow column.
+2. A short ordered item.
+
+Loose list, with blank lines between items:
+
+- First loose item.
+
+- Second loose item that runs long enough to wrap onto a second line.
+
+  A second paragraph in the same item.
+
+3. An ordered list that starts at three.
+4. Its next item.
+
+Workflow:
+
+- [x] A finished task.
+- [ ] An open task.
+  - [ ] A nested task.
+- A plain item in a task list.
+`;
+
+export const Lists: Story = {
+	args: { children: listsMarkdown },
+	decorators: [
+		(Story) => (
+			<div className="max-w-[420px]">
+				<Story />
+			</div>
+		),
+	],
+};
+
+export const TableColumnAlignment: Story = {
+	args: {
+		children: [
+			"| Left | Center | Right |",
+			"| :--- | :----: | ----: |",
+			"| one | two | three |",
+			"| a longer cell | b | c |",
+		].join("\n"),
+	},
+};
+
 export const FencedFileBlock: Story = {
 	args: {
 		children: sampleFileMarkdown,
