@@ -390,9 +390,10 @@ func (g *githubProvider) FetchBranchDiff(
 	return g.fetchDiff(ctx, requestURL, token)
 }
 
-// decodeJSON fetches JSON into dest. dest must round-trip through
-// encoding/json without loss: on a 304, decodeJSON decodes the cached
-// JSON projection into dest.
+// decodeJSON fetches JSON into dest and caches its JSON projection. Each
+// request URL must always be decoded into the same destination type, and dest
+// must round-trip through encoding/json without loss: on a 304, decodeJSON
+// decodes the cached JSON projection into dest.
 func (g *githubProvider) decodeJSON(
 	ctx context.Context,
 	requestURL string,
@@ -410,11 +411,10 @@ func (g *githubProvider) decodeJSON(
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
-	// Issue a conditional request when we have a cached ETag for this URL,
-	// token and destination type. GitHub replies 304 Not Modified when nothing
-	// changed, which avoids a full response and does not count against the
-	// primary rate limit.
-	cacheKey := responseCacheKey(requestURL, token, dest)
+	// Issue a conditional request when we have a cached ETag for this URL and
+	// token hash. GitHub replies 304 Not Modified when nothing changed, which
+	// avoids a full response and does not count against the primary rate limit.
+	cacheKey := responseCacheKey(requestURL, token)
 	var (
 		cachedBody []byte
 		haveCached bool

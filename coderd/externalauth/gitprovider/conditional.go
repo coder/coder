@@ -5,7 +5,6 @@ import (
 	"container/list"
 	"crypto/sha256"
 	"encoding/hex"
-	"reflect"
 	"sync"
 )
 
@@ -25,36 +24,29 @@ const (
 	maxCachedBodyBytes = 1 << 20 // 1 MiB
 )
 
-// responseKey identifies a JSON projection by URL, token hash and
-// destination type. scope combines the URL and token hash.
-type responseKey struct {
-	scope    string
-	destType reflect.Type
-}
-
 // cachedResponse holds the ETag for If-None-Match and body, the JSON
 // projection used when GitHub returns 304 Not Modified.
 type cachedResponse struct {
-	key  responseKey
+	key  string
 	etag string
 	body []byte
 }
 
 func (r *cachedResponse) sizeBytes() int {
-	return len(r.key.scope) + len(r.etag) + cap(r.body)
+	return len(r.key) + len(r.etag) + cap(r.body)
 }
 
 // responseCache stores JSON projections in a concurrency-safe LRU, keyed by
-// request URL, token hash and destination type. The provider decodes a cached
-// JSON projection after a 304 Not Modified response, which GitHub does not
-// count against the primary rate limit.
+// request URL and token hash. The provider decodes a cached JSON projection
+// after a 304 Not Modified response, which GitHub does not count against the
+// primary rate limit.
 type responseCache struct {
 	mu        sync.Mutex
 	maxSize   int
 	maxBytes  int
 	usedBytes int
 	ll        *list.List
-	entries   map[responseKey]*list.Element
+	entries   map[string]*list.Element
 }
 
 // newResponseCache constructs an empty cache retaining at most maxSize
@@ -71,14 +63,14 @@ func newResponseCache(maxSize, maxBytes int) *responseCache {
 		maxSize:  maxSize,
 		maxBytes: maxBytes,
 		ll:       list.New(),
-		entries:  make(map[responseKey]*list.Element),
+		entries:  make(map[string]*list.Element),
 	}
 }
 
 // load returns the cached ETag and body for key, if present, and
 // marks the entry as most-recently-used. The returned body aliases
 // the cache's copy and must not be mutated.
-func (c *responseCache) load(key responseKey) (etag string, body []byte, ok bool) {
+func (c *responseCache) load(key string) (etag string, body []byte, ok bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -95,7 +87,7 @@ func (c *responseCache) load(key responseKey) (etag string, body []byte, ok bool
 // least-recently-used entries until both limits are met. Empty ETags,
 // projections larger than maxCachedBodyBytes and entries exceeding the byte
 // limit are not stored.
-func (c *responseCache) store(key responseKey, etag string, body []byte) {
+func (c *responseCache) store(key, etag string, body []byte) {
 	if etag == "" || len(body) > maxCachedBodyBytes {
 		return
 	}
@@ -161,12 +153,9 @@ func cachedEntry(elem *list.Element) *cachedResponse {
 	return elem.Value.(*cachedResponse)
 }
 
-// responseCacheKey isolates JSON projections by request URL, token hash
-// and destination type without retaining the raw token.
-func responseCacheKey(requestURL, token string, dest any) responseKey {
+// responseCacheKey isolates JSON projections by request URL and token hash
+// without retaining the raw token.
+func responseCacheKey(requestURL, token string) string {
 	sum := sha256.Sum256([]byte(token))
-	return responseKey{
-		scope:    requestURL + "\x00" + hex.EncodeToString(sum[:]),
-		destType: reflect.TypeOf(dest),
-	}
+	return requestURL + "\x00" + hex.EncodeToString(sum[:])
 }
