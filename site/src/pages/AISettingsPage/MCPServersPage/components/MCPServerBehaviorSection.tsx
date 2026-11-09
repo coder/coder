@@ -164,7 +164,7 @@ const SwitchField: React.FC<{
 			<TooltipTrigger asChild>
 				<InfoIcon className="size-3 text-content-secondary" />
 			</TooltipTrigger>
-			<TooltipContent side="top" className="max-w-[260px]">
+			<TooltipContent side="top" className="max-w-65">
 				{tooltip}
 			</TooltipContent>
 		</Tooltip>

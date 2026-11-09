@@ -47,7 +47,7 @@ export const LifecycleSettingLayout: React.FC<LifecycleSettingLayoutProps> = ({
 				disabled={disabled}
 				className="mt-0.5"
 			/>
-			<div className="flex max-w-[980px] flex-1 flex-col">
+			<div className="flex max-w-245 flex-1 flex-col">
 				<h3 className="m-0 text-sm font-normal leading-6 text-content-primary">
 					{title}
 				</h3>
@@ -74,7 +74,7 @@ export const LifecycleSettingLayout: React.FC<LifecycleSettingLayoutProps> = ({
 									size="lg"
 									type="submit"
 									disabled={saveDisabled}
-									className="h-10 min-w-[88px]"
+									className="h-10 min-w-22"
 								>
 									{isSaving && <Spinner loading className="size-4" />}
 									Save
@@ -136,7 +136,7 @@ export const DaysField: React.FC<DaysFieldProps> = ({
 				disabled={disabled}
 				className="min-w-0 w-full border-none bg-transparent p-0 text-sm font-medium leading-6 text-content-placeholder outline-hidden disabled:cursor-not-allowed [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield]"
 			/>
-			<span className="shrink-0 text-xs font-normal leading-[18px] text-content-placeholder">
+			<span className="shrink-0 text-xs font-normal leading-4.5 text-content-placeholder">
 				Days
 			</span>
 		</label>

@@ -426,7 +426,7 @@ const AppLabel: React.FC<{ icon?: string; name: string }> = ({
 		) : (
 			<AppWindowIcon className="size-icon-xs shrink-0" />
 		)}
-		<span className="min-w-0 flex-1 break-words">{name}</span>
+		<span className="min-w-0 flex-1 wrap-break-word">{name}</span>
 	</>
 );
 

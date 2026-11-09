@@ -386,7 +386,7 @@ export const ModelFormFields: React.FC<{
 									<TooltipTrigger asChild>
 										<InfoIcon className="size-3 text-content-secondary" />
 									</TooltipTrigger>
-									<TooltipContent side="top" className="max-w-[240px]">
+									<TooltipContent side="top" className="max-w-60">
 										Percentage at which context is compressed.
 									</TooltipContent>
 								</Tooltip>

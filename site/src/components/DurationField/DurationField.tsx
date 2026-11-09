@@ -132,7 +132,7 @@ export const DurationField: React.FC<DurationFieldProps> = ({
 					}}
 					disabled={disabled}
 				>
-					<SelectTrigger className="w-[120px] flex-none" aria-label="Time unit">
+					<SelectTrigger className="w-30 flex-none" aria-label="Time unit">
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>

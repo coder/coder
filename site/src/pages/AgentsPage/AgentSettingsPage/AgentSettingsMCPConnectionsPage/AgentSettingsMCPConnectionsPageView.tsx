@@ -133,7 +133,7 @@ const AvailableConnectorCard: React.FC<AvailableConnectorCardProps> = ({
 				</span>
 			</div>
 			<p
-				className="m-0 line-clamp-2 text-sm text-content-secondary break-words"
+				className="m-0 line-clamp-2 text-sm text-content-secondary wrap-break-word"
 				title={server.description || undefined}
 			>
 				{server.description || (

@@ -150,7 +150,7 @@ const OrganizationProvisionerJobsPageView: React.FC<
 							});
 						}}
 					>
-						<SelectTrigger className="w-[180px]" data-testid="status-filter">
+						<SelectTrigger className="w-45" data-testid="status-filter">
 							<SelectValue placeholder="All statuses" />
 						</SelectTrigger>
 						<SelectContent>
