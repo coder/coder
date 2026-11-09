@@ -16,13 +16,17 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/exp/slices"
 	"golang.org/x/oauth2"
+	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -186,6 +190,40 @@ func TestAPIKey(t *testing.T) {
 		res := rw.Result()
 		defer res.Body.Close()
 		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+	})
+
+	t.Run("GetAPIKeyByIDInternalError", func(t *testing.T) {
+		t.Parallel()
+		ctrl := gomock.NewController(t)
+		db := dbmock.NewMockStore(ctrl)
+		id, secret, _ := randomAPIKeyParts()
+		r := httptest.NewRequest("GET", "/", nil)
+		rw := httptest.NewRecorder()
+		r.Header.Set(codersdk.SessionTokenHeader, fmt.Sprintf("%s-%s", id, secret))
+
+		// Database error details are logged, not returned to the client.
+		const connURL = "postgres://coder:password@db.internal:5432/coder"
+		db.EXPECT().GetAPIKeyByID(gomock.Any(), id).Return(database.APIKey{}, xerrors.Errorf("dial %s: connection refused", connURL))
+
+		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
+			DB:              db,
+			Logger:          slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+			RedirectToLogin: false,
+		})(successHandler).ServeHTTP(rw, r)
+		res := rw.Result()
+		defer res.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, res.StatusCode)
+
+		body, err := io.ReadAll(res.Body)
+		require.NoError(t, err)
+		require.NotContains(t, string(body), connURL)
+		require.NotContains(t, string(body), "db.internal")
+		require.NotContains(t, string(body), "connection refused")
+
+		var resp codersdk.Response
+		require.NoError(t, json.Unmarshal(body, &resp))
+		require.NotEqual(t, httpmw.SignedOutErrorMessage, resp.Message)
+		require.Contains(t, resp.Detail, "Internal error fetching API key by id")
 	})
 
 	t.Run("UserLinkNotFound", func(t *testing.T) {
