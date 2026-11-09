@@ -240,7 +240,7 @@ data "coder_script_order" "relay_worker" {
 }
 ```
 
-The example templates in the Agent Relay repository under [`example/templates`](https://github.com/coder/agent-relay/tree/main/example/templates) include this rule.
+The module READMEs for [`coder/agent-relay-claude-code`](https://registry.coder.com/modules/coder/agent-relay-claude-code) and [`coder/agent-relay-cursor`](https://registry.coder.com/modules/coder/agent-relay-cursor) show this rule with a full example.
 
 - Set `phase = "start"`, because the module also has a shutdown script.
 - Script ordering requires the Coder Terraform provider v2.20.0 or later.
@@ -249,7 +249,9 @@ The example templates in the Agent Relay repository under [`example/templates`](
 - Coder can't order the `startup_script` attribute of `coder_agent`.
   Move setup steps that the worker depends on into `coder_script` resources.
 - If a prerequisite fails, Coder skips the module's scripts and the worker never starts.
-  Agent Relay reads the agent's `start_error` lifecycle and fails the session about a minute later, so the developer isn't left waiting.
+  Agent Relay reads the agent's `start_error` or `start_timeout` lifecycle and acts about a minute later.
+  A Cursor request fails.
+  A Claude Code work order is handed back to Anthropic once, which rebuilds the workspace, and the session fails when that second setup fails too.
   To start the worker even when setup fails, set `requires = "completion"` on the rule.
 - The session waits while prerequisites run.
   Set a `timeout` on each prerequisite, and keep setup well under 15&nbsp;minutes, after which Agent Relay deletes a workspace whose worker hasn't started.

@@ -100,8 +100,11 @@ Fix the error in Coder, then delete the workspace.
 
 Agent Relay hands off the workspace when its build succeeds, and the module starts the worker without waiting for startup scripts.
 Order the module after your setup scripts, as described in [Start the worker after workspace setup](./setup.md#start-the-worker-after-workspace-setup).
-With the rule in place, a failed setup fails the session about a minute after the agent reports `start_error`.
-The reaper's sweep log line carries `agent_lifecycle=start_error`, and the session failure names the reason `the workspace agent's startup scripts failed`.
+With the rule in place, Agent Relay notices a failed setup about a minute after the agent reports `start_error`.
+Cursor fails the request then, and Claude Code retries once on a new workspace before failing the session.
+In the relay logs, the reaper's `session did not finish cleanly, reporting and deleting` line carries `reason="the workspace agent's startup scripts failed"` and `agent_lifecycle=start_error`.
+Only Claude Code sessions receive that reason in their error.
+Cursor users see a fixed message that the worker stopped before serving the request.
 
 ## Claude Code sessions
 
