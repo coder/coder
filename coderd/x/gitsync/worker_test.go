@@ -1063,6 +1063,19 @@ func TestWorker_MarkStale_SubagentChatID_UsesRootChat(t *testing.T) {
 		Origin:      "https://github.com/o/r",
 		ChatID:      child.ID,
 	})
+	// Rebinding the root leaves the child on the old workspace. The
+	// old workspace must not reach the rebound root through the child.
+	_, err := db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{
+		ID:          root.ID,
+		WorkspaceID: boundTo(otherWorkspaceID),
+	})
+	require.NoError(t, err)
+	worker.MarkStale(ctx, gitsync.MarkStaleParams{
+		WorkspaceID: workspaceID,
+		Branch:      "stale-binding-branch",
+		Origin:      "https://github.com/o/r",
+		ChatID:      child.ID,
+	})
 
 	statuses, err := db.GetChatDiffStatusesByChatIDs(ctx, []uuid.UUID{root.ID, child.ID, grandchild.ID})
 	require.NoError(t, err)
