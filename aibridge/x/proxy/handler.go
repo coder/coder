@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -28,7 +29,6 @@ import (
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/utils"
-	"github.com/coder/coder/v2/aibridge/x/proxy/replaybody"
 	"github.com/coder/quartz"
 )
 
@@ -37,9 +37,9 @@ type forwardingHandler struct {
 	baseURL  *url.URL
 	logger   slog.Logger
 	tracer   trace.Tracer
-	// connections holds the provider's upstream connections.
-	connections *http.Transport
-	// transport sends forwarded requests over connections.
+	errorLog *log.Logger
+	// transport is shared by the per-request proxies so they reuse upstream
+	// connections.
 	transport http.RoundTripper
 	inflight  *aibridge.InflightGate
 	recorder  recorder.Recorder
@@ -48,9 +48,7 @@ type forwardingHandler struct {
 
 var _ http.Handler = (*forwardingHandler)(nil)
 
-// newForwardingHandler constructs one forwarding engine per provider snapshot.
-// The handler owns its upstream connections. Call CloseIdleConnections when
-// the snapshot is retired.
+// newForwardingHandler constructs one handler per provider snapshot.
 func newForwardingHandler(prov provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate, rec recorder.Recorder) (*forwardingHandler, error) {
 	if rec == nil {
 		return nil, xerrors.New("recorder is required")
@@ -59,21 +57,21 @@ func newForwardingHandler(prov provider.Provider, logger slog.Logger, m *metrics
 	if err != nil {
 		return nil, xerrors.Errorf("configure provider %q base URL: %w", prov.Name(), err)
 	}
-	connections := utils.NewStreamingTransport()
+	transport := utils.NewStreamingTransport()
 	// Forwarding passes the client's Accept-Encoding and the response bytes
 	// through unchanged, so the transport must not negotiate or decode gzip.
-	connections.DisableCompression = true
+	transport.DisableCompression = true
 	h := &forwardingHandler{
-		provider:    prov,
-		baseURL:     baseURL,
-		logger:      logger.With(slog.F("provider", prov.Name())),
-		tracer:      tracer,
-		connections: connections,
-		transport:   apidump.NewPassthroughMiddleware(connections, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),
-		inflight:    inflight,
-		recorder:    rec,
-		breaker:     circuitbreaker.NewProviderCircuitBreakers(prov.Name(), prov.CircuitBreakerConfig(), logger, m),
+		provider:  prov,
+		baseURL:   baseURL,
+		logger:    logger.With(slog.F("provider", prov.Name())),
+		tracer:    tracer,
+		transport: apidump.NewPassthroughMiddleware(transport, prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),
+		inflight:  inflight,
+		recorder:  rec,
+		breaker:   circuitbreaker.NewProviderCircuitBreakers(prov.Name(), prov.CircuitBreakerConfig(), logger, m),
 	}
+	h.errorLog = slog.Stdlib(context.Background(), h.logger, slog.LevelWarn)
 	return h, nil
 }
 
@@ -85,14 +83,8 @@ func (h *forwardingHandler) newProxy(cred credential.Credential) *httputil.Rever
 		},
 		Transport:     h.transport,
 		FlushInterval: -1,
-		ErrorLog:      slog.Stdlib(context.Background(), h.logger, slog.LevelWarn),
+		ErrorLog:      h.errorLog,
 	}
-}
-
-// CloseIdleConnections closes upstream connections that are not in use.
-// Requests in flight keep their connections until they finish.
-func (h *forwardingHandler) CloseIdleConnections() {
-	h.connections.CloseIdleConnections()
 }
 
 func rewriteForwardingURL(pr *httputil.ProxyRequest, routePrefix string, baseURL *url.URL) {
@@ -100,7 +92,7 @@ func rewriteForwardingURL(pr *httputil.ProxyRequest, routePrefix string, baseURL
 	if pr.In.URL.RawPath != "" {
 		pr.Out.URL.RawPath = strings.TrimPrefix(pr.In.URL.RawPath, routePrefix)
 	}
-	// ReverseProxy may sanitize query parameters; forwarding preserves the bytes.
+	// Keep the client's query bytes. ReverseProxy rewrites queries it cannot parse.
 	pr.Out.URL.RawQuery = pr.In.URL.RawQuery
 	pr.SetURL(baseURL)
 }
@@ -150,7 +142,7 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	route := strings.TrimPrefix(r.URL.Path, "/"+h.provider.Name())
 	err = h.breaker.Execute(route, "", w, func(rw http.ResponseWriter) error {
 		// Capture stays dormant until lifecycle recording activates forwarding.
-		return h.forward(rw, r.Clone(ctx), logger)
+		return h.forward(rw, r, logger)
 	})
 }
 
@@ -240,12 +232,6 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 	}
 
 	return logger, ir, cred
-}
-
-func (*forwardingHandler) prepareForwarding(w http.ResponseWriter, r *http.Request, _ slog.Logger) (http.ResponseWriter, *http.Request, *replaybody.TeeBuffer) {
-	r = r.Clone(r.Context())
-	body := replaybody.NewRequest(r)
-	return w, r, body
 }
 
 func (*forwardingHandler) forward(w http.ResponseWriter, _ *http.Request, _ slog.Logger) error {

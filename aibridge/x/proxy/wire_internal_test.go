@@ -52,8 +52,8 @@ func (b *trackedBody) Close() error {
 	return nil
 }
 
-// newTestForwardingHandler constructs a forwarding handler and closes its idle
-// connections after the test.
+// newTestForwardingHandler constructs a forwarding handler and shuts down its
+// inflight gate after the test.
 func newTestForwardingHandler(t *testing.T, prov provider.Provider, m *metrics.Metrics) *forwardingHandler {
 	t.Helper()
 	logger := slogtest.Make(t, nil)
@@ -64,27 +64,22 @@ func newTestForwardingHandler(t *testing.T, prov provider.Provider, m *metrics.M
 	})
 	h, err := newForwardingHandler(prov, logger, m, noop.NewTracerProvider().Tracer(t.Name()), gate, &struct{ recorder.Recorder }{})
 	require.NoError(t, err)
-	t.Cleanup(h.CloseIdleConnections)
 	return h
 }
 
-// prepareAndProxy validates r, prepares it with the resolved credential, and
-// serves it through the handler's reverse proxy without response observation.
-// It returns the prepared request and its replay buffer.
+// prepareAndProxy validates r, captures its body for replay, and serves it
+// through a proxy bound to the resolved credential, without response
+// observation. It returns the forwarded request and its replay buffer.
 func prepareAndProxy(t *testing.T, h *forwardingHandler, w http.ResponseWriter, r *http.Request) (*http.Request, *replaybody.TeeBuffer) {
 	t.Helper()
-	logger, record, cred := h.checkRequest(w, r)
+	_, record, cred := h.checkRequest(w, r)
 	require.NotNil(t, record, "request must pass validation")
-	rw, outbound, body := h.prepareForwarding(w, r, logger)
-	if body != nil {
-		t.Cleanup(func() { _ = body.Close() })
-	}
-	h.newProxy(cred).ServeHTTP(rw, outbound)
-	if body != nil {
-		require.NoError(t, body.Close())
-		_, err := body.Wait(codertestutil.Context(t, codertestutil.WaitLong))
-		require.NoError(t, err)
-	}
+	outbound, body := replaybody.NewRequest(r)
+	t.Cleanup(func() { _ = body.Close() })
+	h.newProxy(cred).ServeHTTP(w, outbound)
+	require.NoError(t, body.Close())
+	_, err := body.Wait(codertestutil.Context(t, codertestutil.WaitLong))
+	require.NoError(t, err)
 	return outbound, body
 }
 
@@ -329,7 +324,6 @@ func TestRouterBridgedTransportReuse(t *testing.T) {
 	})
 	router, err := NewRouter(t.Context(), []provider.Provider{provider.NewOpenAI(config.OpenAI{BaseURL: upstream.URL})}, logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, &struct{ recorder.Recorder }{})
 	require.NoError(t, err)
-	t.Cleanup(router.CloseIdleConnections)
 
 	ctx := codertestutil.Context(t, codertestutil.WaitShort)
 	var shared *forwardingHandler
@@ -357,6 +351,4 @@ func TestRouterBridgedTransportReuse(t *testing.T) {
 	}
 	first := send("/openai/v1/chat/completions", "first-key")
 	require.Equal(t, first, send("/openai/v1/responses", "second-key"), "bridged routes must reuse the provider connection")
-	router.CloseIdleConnections()
-	require.NotEqual(t, first, send("/openai/v1/chat/completions", "third-key"), "closing idle connections must force a new connection")
 }
