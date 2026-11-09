@@ -3261,16 +3261,16 @@ func (api *API) sendChatMessage(
 		sendPlanMode = &resolvedPlanMode
 	}
 
-	busyBehavior := chatd.SendMessageBusyBehaviorQueue
+	var busyBehavior chatd.SendMessageBusyBehavior
 	switch req.BusyBehavior {
-	case codersdk.ChatBusyBehaviorInterrupt:
-		busyBehavior = chatd.SendMessageBusyBehaviorInterrupt
-	case codersdk.ChatBusyBehaviorQueue, "":
-		// Default to queue.
+	case "", codersdk.ChatBusyBehaviorSteer:
+		busyBehavior = chatd.SendMessageBusyBehaviorSteer
+	case codersdk.ChatBusyBehaviorQueue:
+		busyBehavior = chatd.SendMessageBusyBehaviorQueue
 	default:
 		return codersdk.CreateChatMessageResponse{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid busy_behavior value.",
-			Detail:  `Must be "queue" or "interrupt".`,
+			Detail:  `Must be "steer" or "queue".`,
 		})
 	}
 
@@ -3341,8 +3341,9 @@ func (api *API) sendChatMessage(
 	} else {
 		response.Message = new(db2sdk.ChatMessage(sendResult.Message))
 	}
-	// Return the full user-visible inserted batch. A queued send on an errored
-	// chat can promote the previous queue head, which clients must cache.
+	// Return the full user-visible inserted batch, which clients must cache.
+	// A send to an errored or paused chat can also insert queued messages
+	// (see chatd.SendMessageResult.InsertedMessages).
 	for _, inserted := range sendResult.InsertedMessages {
 		if inserted.Visibility == database.ChatMessageVisibilityModel {
 			continue
@@ -4079,6 +4080,8 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Success 200 {object} codersdk.Chat
 // @Router /api/v2/chats/{chat}/interrupt [post]
+// @Description Interrupts the active turn of a chat.
+// @Description If the chat has nothing to interrupt, for example because its turn already ended, the endpoint returns the chat unchanged.
 func (api *API) postChatInterrupt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat, err := api.interruptChat(ctx, httpmw.ChatParam(r))
@@ -4099,7 +4102,7 @@ func (api *API) interruptChat(ctx context.Context, chat database.Chat) (codersdk
 		return codersdk.Chat{}, httperror.ErrResourceNotFound
 	}
 
-	updated, err := api.chatDaemon.InterruptChat(ctx, chat)
+	updated, _, err := api.chatDaemon.InterruptChat(ctx, chat)
 	if err != nil {
 		if mutationErr := commonChatMutationError(err, "Cannot interrupt an archived chat."); mutationErr != nil {
 			return codersdk.Chat{}, mutationErr

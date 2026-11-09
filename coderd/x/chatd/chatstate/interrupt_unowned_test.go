@@ -38,6 +38,7 @@ func TestInterruptUnownedRunningChat(t *testing.T) {
 		}))
 
 		require.Equal(t, chatstate.StateW, f.classify(ctx, t, created.Chat.ID))
+		require.True(t, result.Interrupted)
 		chat := f.readChat(ctx, t, created.Chat.ID)
 		require.False(t, chat.WorkerID.Valid)
 		require.False(t, chat.RunnerID.Valid)
@@ -200,6 +201,7 @@ func TestInterruptUnownedInterruptingChat(t *testing.T) {
 
 		require.Equal(t, chatstate.StateW, f.classify(ctx, t, created.Chat.ID))
 		require.False(t, f.readChat(ctx, t, created.Chat.ID).WorkerID.Valid)
+		require.True(t, result.Interrupted)
 		require.True(t, result.FinishedInterruption)
 		require.True(t, result.PromotedQueuedAt.IsZero())
 		require.Len(t, result.CancellationMessages, 1)
@@ -233,30 +235,6 @@ func TestInterruptUnownedInterruptingChat(t *testing.T) {
 			"the result reports the promoted head's queue time")
 		require.Len(t, historyMessageIDs(ctx, t, f, created.Chat.ID), len(before)+1)
 		requireQueuedMessageDeleted(ctx, t, f, created.Chat.ID, queued.QueuedMessage.ID)
-	})
-
-	t.Run("OwnedChatIsRejected", func(t *testing.T) {
-		t.Parallel()
-		f := newTestFixture(t)
-		ctx := testutil.Context(t, testutil.WaitShort)
-		created := createTestChat(t, f)
-		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
-			if err := ownChat(ctx, tx, store, created.Chat.ID); err != nil {
-				return err
-			}
-			_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "stop"})
-			return err
-		}))
-
-		err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-			_, err := tx.Interrupt(chatstate.InterruptInput{Reason: "stop"})
-			return err
-		})
-
-		require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
-		require.Equal(t, chatstate.StateI0, f.classify(ctx, t, created.Chat.ID))
-		require.True(t, f.readChat(ctx, t, created.Chat.ID).WorkerID.Valid)
 	})
 }
 
