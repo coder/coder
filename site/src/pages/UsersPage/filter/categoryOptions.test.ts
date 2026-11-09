@@ -7,11 +7,12 @@ import {
 	getStatusFilterOptions,
 	getUserTypeFilterOptions,
 } from "./categoryOptions";
+import type { OptionsQueryClient } from "#/utils/filters";
 
 const labelsAndValues = (options: readonly FilterOption[]) =>
 	options.map(({ label, value }) => ({ label, value }));
 
-const queryClientWithRoles = (roles: readonly Role[]) => ({
+const queryClientWithRoles = (roles: readonly Role[]): OptionsQueryClient => ({
 	fetchQuery: vi.fn().mockResolvedValue(roles),
 });
 

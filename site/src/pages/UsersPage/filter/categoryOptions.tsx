@@ -1,10 +1,8 @@
-import type { QueryClient } from "react-query";
 import { roles } from "#/api/queries/roles";
 import type { UserStatus } from "#/api/typesGenerated";
 import type { FilterOption } from "#/components/Filter/FilterCombobox/types";
 import { StatusIndicatorDot } from "#/components/StatusIndicator/StatusIndicator";
-
-type OptionsQueryClient = Pick<QueryClient, "fetchQuery">;
+import type { OptionsQueryClient } from "#/utils/filters";
 
 const doesOptionMatchQuery = (option: FilterOption, query: string): boolean => {
 	const normalized = query.trim().toLowerCase();
