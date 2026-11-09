@@ -11205,9 +11205,9 @@ WHERE
         WHEN $9::jsonb IS NOT NULL THEN chats_expanded.labels @> $9::jsonb
         ELSE true
     END
-    -- Match chats whose linked diff URL (e.g. a pull request URL)
-    -- equals the given value, case-insensitively. The match includes
-    -- URLs on their subagent chats.
+    -- Match linked diff URLs (e.g. pull request URLs) case-insensitively.
+    -- Include rows on a chat's subagent chats because the schema does not
+    -- enforce root-only diff-status ownership.
     AND CASE
         WHEN $10::text IS NOT NULL THEN EXISTS (
             SELECT 1
