@@ -68,7 +68,7 @@ export const ChartContent: React.FC<React.HTMLProps<HTMLDivElement>> = (
 			{props.children}
 			<div
 				aria-hidden="true"
-				className="pointer-events-none absolute inset-x-0 z-1 h-[100px] transition-opacity duration-200 bottom-[calc(-1*var(--scroll-top,0px))] opacity-(--scroll-mask-opacity) [background:linear-gradient(180deg,rgba(0,0,0,0)_0%,var(--surface-primary)_81.93%)]"
+				className="pointer-events-none absolute inset-x-0 z-1 h-25 transition-opacity duration-200 -bottom-(--scroll-top,0px) opacity-(--scroll-mask-opacity) [background:linear-gradient(180deg,rgba(0,0,0,0)_0%,var(--surface-primary)_81.93%)]"
 			/>
 		</div>
 	);
@@ -157,7 +157,7 @@ export const ChartLegends: React.FC<ChartLegendsProps> = ({ legends }) => {
 					className="flex items-center gap-2 font-medium leading-none"
 				>
 					<div
-						className="size-[18px] rounded border border-solid bg-surface-primary"
+						className="size-icon-sm rounded border border-solid bg-surface-primary"
 						style={{
 							borderColor: l.colors?.stroke,
 							backgroundColor: l.colors?.fill,

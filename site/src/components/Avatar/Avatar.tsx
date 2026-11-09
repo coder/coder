@@ -52,7 +52,7 @@ const avatarVariants = cva(
 			{
 				size: "sm",
 				variant: "icon",
-				className: "p-[3px]",
+				className: "p-0.75",
 			},
 			{
 				size: "xs",

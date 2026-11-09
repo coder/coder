@@ -42,7 +42,7 @@ const meta: Meta<typeof TemplateFileTree> = {
 	decorators: [
 		(Story) => {
 			return (
-				<div className="max-w-[260px] rounded-lg border border-solid border-border">
+				<div className="max-w-65 rounded-lg border border-solid border-border">
 					<Story />
 				</div>
 			);

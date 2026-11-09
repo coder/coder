@@ -16,7 +16,7 @@ export const Checkbox: React.FC<
 	return (
 		<CheckboxPrimitive.Root
 			className={cn(
-				"peer size-[18px] shrink-0 rounded-xs border border-border-control border-solid m-1",
+				"peer size-icon-sm shrink-0 rounded-xs border border-border-control border-solid m-1",
 				"focus-visible:outline-hidden focus-visible:ring-2 relative",
 				"focus-visible:ring-content-link focus-visible:ring-offset-[3px] focus-visible:ring-offset-surface-primary",
 				"disabled:cursor-not-allowed",

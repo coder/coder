@@ -234,7 +234,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 		>
 			<ContextMenu>
 				<ContextMenuTrigger asChild>
-					<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary group-data-[drop=unavailable]/drop:opacity-50 hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary">
+					<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary group-data-[drop=unavailable]/drop:opacity-50 hover:bg-surface-tertiary/50 hover:text-content-primary has-aria-[current=page]:bg-surface-quaternary/50 has-aria-[current=page]:text-content-primary">
 						<Button
 							ref={toggleRef}
 							variant="subtle"
@@ -321,7 +321,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 				</ContextMenuContent>
 			</ContextMenu>
 			{expanded && (
-				<div className="ml-[15.5px] flex flex-col gap-0.5 border-0 border-l border-solid border-border pl-[7px] pr-2">
+				<div className="ml-[15.5px] flex flex-col gap-0.5 border-0 border-l border-solid border-border pl-1.75 pr-2">
 					<ProjectFolderChats
 						projectId={project.id}
 						projectLabel={projectLabel}

@@ -115,7 +115,7 @@ const BaseSkeleton: React.FC<SkeletonProps> = ({
 };
 
 export const MenuSkeleton: React.FC = () => {
-	return <BaseSkeleton className="min-w-[200px] shrink-0" />;
+	return <BaseSkeleton className="min-w-50 shrink-0" />;
 };
 
 type FilterProps = React.ComponentProps<"div"> & {

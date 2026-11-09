@@ -222,7 +222,7 @@ export const ProjectDetailsPanelView: React.FC<
 								<div className="flex items-start gap-2 rounded-lg border border-border p-3">
 									<p
 										className={cn(
-											"m-0 min-w-0 flex-1 whitespace-pre-wrap break-words text-sm text-content-primary",
+											"m-0 min-w-0 flex-1 whitespace-pre-wrap wrap-break-word text-sm text-content-primary",
 											// Without the editor, this is the only place the full text shows.
 											onEditInstructions && "line-clamp-3",
 										)}
@@ -373,7 +373,7 @@ const MemberTile: React.FC<MemberTileProps> = ({
 			</TooltipTrigger>
 			<TooltipContent
 				side="bottom"
-				className="pointer-events-none max-w-[min(20rem,calc(100vw-2rem))] break-words [[data-radix-popper-content-wrapper]:has(>&)]:pointer-events-none"
+				className="pointer-events-none max-w-[min(20rem,calc(100vw-2rem))] wrap-break-word [[data-radix-popper-content-wrapper]:has(>&)]:pointer-events-none"
 			>
 				{tooltip}
 			</TooltipContent>

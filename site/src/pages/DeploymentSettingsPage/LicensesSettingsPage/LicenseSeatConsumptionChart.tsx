@@ -72,7 +72,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 
 					<CollapsibleContent
 						className={cn(
-							"pt-2 pl-7 pr-5 space-y-4 font-medium max-w-[720px]",
+							"pt-2 pl-7 pr-5 space-y-4 font-medium max-w-180",
 							"text-sm text-content-secondary",
 							"[&_p]:m-0 [&_ul]:m-0 [&_ul]:p-0 [&_ul]:list-none",
 						)}
@@ -83,7 +83,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 						</p>
 						<ul>
 							<li className="flex items-center gap-2">
-								<div className="rounded-[2px] bg-highlight-green size-3 inline-block">
+								<div className="rounded-xs bg-highlight-green size-3 inline-block">
 									<span className="sr-only">
 										Legend for active users in the chart
 									</span>

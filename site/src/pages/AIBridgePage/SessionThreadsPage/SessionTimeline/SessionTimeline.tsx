@@ -237,7 +237,7 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 						timestamp={timestamp}
 						serverURL={serverURL}
 					/>
-					<pre className="flex gap-4 bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto m-0">
+					<pre className="flex gap-4 bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto">
 						<span>
 							<HighlightText text={tool} highlight={highlight} />
 						</span>
@@ -442,7 +442,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 					{agenticLoopOpen && (
 						<>
 							{/* the little top rounded line above the thinking block */}
-							<div className="border-0 border-t border-r border-solid border-border-control rounded-tr-lg w-[calc(1rem+1px)] h-[20px]">
+							<div className="border-0 border-t border-r border-solid border-border-control rounded-tr-lg w-4.25 h-5">
 								{/* we need the 1px extra to line up with the left border on the other lines */}
 							</div>
 

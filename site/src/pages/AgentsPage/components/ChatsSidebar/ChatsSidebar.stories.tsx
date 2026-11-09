@@ -3247,7 +3247,7 @@ export const ProjectFolderChatsLoadingNextPage: Story = {
 	// end to scroll into view.
 	decorators: [
 		(Story) => (
-			<div className="h-[500px] w-[360px]">
+			<div className="h-125 w-90">
 				<Story />
 			</div>
 		),
