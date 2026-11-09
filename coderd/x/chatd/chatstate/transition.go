@@ -98,7 +98,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionInterrupt:           {StateE1P},
 	},
 	StateR0: {
-		TransitionSendMessage:             {StateR1, StateI1},
+		TransitionSendMessage:             {StateR1},
 		TransitionEditMessage:             {StateR0},
 		TransitionInterrupt:               {StateI0},
 		TransitionRecordGenerationAttempt: {StateR0},
@@ -110,7 +110,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionFinishError:             {StateE0},
 	},
 	StateR1: {
-		TransitionSendMessage:             {StateR1, StateI1},
+		TransitionSendMessage:             {StateR1},
 		TransitionEditMessage:             {StateR0},
 		TransitionDeleteQueuedMessage:     {StateR0, StateR1, StateR1P},
 		TransitionSteerQueuedMessage:      {StateR1},
@@ -125,7 +125,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionFinishError:             {StateE1},
 	},
 	StateR1P: {
-		TransitionSendMessage:             {StateR1, StateR1P, StateI1, StateI1P},
+		TransitionSendMessage:             {StateR1, StateR1P},
 		TransitionEditMessage:             {StateR0},
 		TransitionDeleteQueuedMessage:     {StateR0, StateR1, StateR1P},
 		TransitionSteerQueuedMessage:      {StateR1, StateR1P},
@@ -164,14 +164,14 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionFinishInterruption:  {StateP},
 	},
 	StateA0: {
-		TransitionSendMessage:            {StateA1, StateR0},
+		TransitionSendMessage:            {StateA1},
 		TransitionEditMessage:            {StateR0},
 		TransitionInterrupt:              {StateR0},
 		TransitionCompleteRequiresAction: {StateR0},
 		TransitionCancelRequiresAction:   {StateR0},
 	},
 	StateA1: {
-		TransitionSendMessage:            {StateA1, StateR1},
+		TransitionSendMessage:            {StateA1},
 		TransitionEditMessage:            {StateR0},
 		TransitionDeleteQueuedMessage:    {StateA0, StateA1, StateA1P},
 		TransitionSteerQueuedMessage:     {StateA1},
@@ -181,7 +181,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionCancelRequiresAction:   {StateR1},
 	},
 	StateA1P: {
-		TransitionSendMessage:            {StateA1, StateA1P, StateR1P},
+		TransitionSendMessage:            {StateA1, StateA1P},
 		TransitionEditMessage:            {StateR0},
 		TransitionDeleteQueuedMessage:    {StateA0, StateA1, StateA1P},
 		TransitionSteerQueuedMessage:     {StateA1, StateA1P},

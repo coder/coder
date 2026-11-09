@@ -7,7 +7,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -66,61 +65,29 @@ func TestEditing_WhileRunning(t *testing.T) {
 	require.Equal(t, ids[3:], queuedIDsByPosition(ctx, t, f, chatID))
 }
 
-// TestEditing_UnownedInterruptRunsAheadOfEditedHead: an interrupt sent
-// to an unowned running chat whose head is under edit is promoted at
-// once, ahead of that row, which stays queued and blocked. The chat
-// pauses at that row when the interrupt's turn ends. Owned chats and
-// the other paused states are matrix cells.
-func TestEditing_UnownedInterruptRunsAheadOfEditedHead(t *testing.T) {
-	t.Parallel()
-	f := newTestFixture(t)
-	ctx := testutil.Context(t, testutil.WaitShort)
-	seeded := seedBlockedHead(t, f, chatstate.StateR1, 0)
-	m := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID)
-
-	var res chatstate.SendMessageResult
-	require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-		var err error
-		res, err = tx.SendMessage(chatstate.SendMessageInput{
-			Message:      userTextMessage("interrupt", f.User.ID, f.Model.ID),
-			BusyBehavior: chatstate.BusyBehaviorInterrupt,
-			MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
-		})
-		return err
-	}))
-	require.True(t, res.FinishedInterruption)
-	require.Nil(t, res.QueuedMessage, "the interrupt was promoted, so it is no longer queued")
-
-	require.Equal(t, chatstate.StateR1P, f.classify(ctx, t, seeded.chatID))
-	history := historyMessageIDs(ctx, t, f, seeded.chatID)
-	assertChatMessageText(t, requireChatMessageByID(ctx, t, f, history[len(history)-1]), "interrupt")
-	require.Equal(t, seeded.queuedMessageIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID))
-	assertQueueEditMarkers(ctx, t, f, seeded.chatID, seeded.editingQueuedID)
-
-	require.Empty(t, finishTurn(t, m).PromotedMessages, "the row under edit is not promoted")
-	require.Equal(t, chatstate.StateP, f.classify(ctx, t, seeded.chatID))
-	require.Equal(t, seeded.queuedMessageIDs, queuedIDsByPosition(ctx, t, f, seeded.chatID))
-}
-
 // TestEditing_SendCapacityInPausedStates fills the queue of each paused
-// state. A queued send is refused; an interrupt that runs ahead of the
-// queue does not add to it and is accepted.
+// state. A queue send is refused. A steer send to E1P or P behind a queue
+// head is delivered at once, so it fits; behind a steer head, or in a
+// busy state, it waits and is refused.
 func TestEditing_SendCapacityInPausedStates(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	for _, tc := range []struct {
-		state chatstate.ExecutionState
-		seed  func(t *testing.T) seededChat
-		// interruptQueues is true where an interrupt joins the queue.
-		interruptQueues bool
+		state     chatstate.ExecutionState
+		seed      func(t *testing.T) seededChat
+		steerFits bool
 	}{
-		{chatstate.StateE1P, func(t *testing.T) seededChat { return seedBlockedHead(t, f, chatstate.StateE1, 1) }, false},
+		{chatstate.StateE1P, func(t *testing.T) seededChat { return seedBlockedHead(t, f, chatstate.StateE1, 1) }, true},
+		{chatstate.StateE1P, func(t *testing.T) seededChat { return seedSteerHeadUnderEdit(t, f, chatstate.StateE1P) }, false},
 		{chatstate.StateA1P, func(t *testing.T) seededChat { return seedBlockedHead(t, f, chatstate.StateA1, 1) }, false},
-		{chatstate.StateP, func(t *testing.T) seededChat { return seedPaused(t, f, 1) }, false},
-		{chatstate.StateR1P, func(t *testing.T) seededChat { return seedBlockedHead(t, f, chatstate.StateR1, 1) }, true},
-		{chatstate.StateI1P, func(t *testing.T) seededChat { return seedBlockedHead(t, f, chatstate.StateI1, 1) }, true},
+		{chatstate.StateP, func(t *testing.T) seededChat { return seedPaused(t, f, 1) }, true},
+		{chatstate.StateP, func(t *testing.T) seededChat {
+			return pauseSeeded(t, f, seedSteerHeadUnderEdit(t, f, chatstate.StateR1P))
+		}, false},
+		{chatstate.StateR1P, func(t *testing.T) seededChat { return seedBlockedHead(t, f, chatstate.StateR1, 1) }, false},
+		{chatstate.StateI1P, func(t *testing.T) seededChat { return seedBlockedHead(t, f, chatstate.StateI1, 1) }, false},
 	} {
 		seeded := tc.seed(t)
 		chat := f.readChat(ctx, t, seeded.chatID)
@@ -130,13 +97,27 @@ func TestEditing_SendCapacityInPausedStates(t *testing.T) {
 		full := int64(len(seeded.queuedMessageIDs))
 
 		var queueFull *chatstate.MessageQueueFullError
-		err = chatstate.CheckSendMessageQueueCapacity(chat, queue, full, chatstate.BusyBehaviorQueue, int(full))
-		require.ErrorAs(t, err, &queueFull, "%s: a queued send to a full queue", tc.state)
-		err = chatstate.CheckSendMessageQueueCapacity(chat, queue, full, chatstate.BusyBehaviorInterrupt, int(full))
-		if tc.interruptQueues {
-			require.ErrorAs(t, err, &queueFull, "%s: an interrupt joins the full queue", tc.state)
+		err = chatstate.CheckSendMessageQueueCapacity(chat, queue, chatstate.BusyBehaviorQueue, full, int(full))
+		require.ErrorAs(t, err, &queueFull, "%s: a queue send to a full queue", tc.state)
+		err = chatstate.CheckSendMessageQueueCapacity(chat, queue, chatstate.BusyBehaviorSteer, full, int(full))
+		var sent chatstate.SendMessageResult
+		sendErr := chatstate.NewChatMachine(f.DB, f.Pub, seeded.chatID).Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			var err error
+			sent, err = tx.SendMessage(chatstate.SendMessageInput{
+				Message:      userTextMessage("steer at the cap", f.User.ID, f.Model.ID),
+				BusyBehavior: chatstate.BusyBehaviorSteer,
+				MaxQueueSize: int(full),
+			})
+			return err
+		})
+		if tc.steerFits {
+			require.NoError(t, err, "%s: a steer send behind a queue head", tc.state)
+			require.NoError(t, sendErr, "%s: a steer send behind a queue head", tc.state)
+			require.Nil(t, sent.QueuedMessage, "%s: the steer send is delivered at once", tc.state)
+			require.NotEmpty(t, sent.InsertedMessages)
 		} else {
-			require.NoError(t, err, "%s: an interrupt runs ahead of the full queue", tc.state)
+			require.ErrorAs(t, err, &queueFull, "%s: a steer send that waits", tc.state)
+			require.ErrorAs(t, sendErr, &queueFull, "%s: a steer send that waits", tc.state)
 		}
 	}
 }
