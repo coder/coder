@@ -223,7 +223,7 @@ Connections relayed through DERP are not affected.
 Increase the MTU of the affected interface to 1378 or higher, or use a different network interface.
 Virtual private network (VPN) tunnel interfaces often have a low MTU.
 
-If you can't change the MTU or use another interface, disable direct connections so that all traffic is relayed through DERP.
+If you can't change the MTU or use another interface, you can block direct connections so that all traffic is relayed through DERP.
 To do this, set the [`--block-direct-connections`](../../reference/cli/server/index.md#--block-direct-connections) flag or `CODER_BLOCK_DIRECT` environment variable on the control plane.
 
 For more information, refer to [Low MTU](../networking/troubleshooting.md#low-mtu) in the networking troubleshooting guide.
