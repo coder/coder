@@ -1942,6 +1942,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									usage={contextUsage}
 									onRefreshContext={onRefreshContext}
 									isRefreshingContext={isRefreshingContext}
+									onManageServers={
+										isReadOnlyView ? undefined : handleManageConnections
+									}
 								/>
 							</div>
 						)}
