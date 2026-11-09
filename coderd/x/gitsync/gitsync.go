@@ -6,10 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"net"
-	"net/url"
-	"regexp"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -33,8 +29,8 @@ const (
 	// pick up metadata edits such as titles and reviews.
 	MergedDiffStatusTTL = time.Hour
 
-	// defaultConcurrency is the maximum number of diff-status rows
-	// refreshed in parallel during a single Refresh batch.
+	// defaultConcurrency is the maximum number of HTTP calls
+	// made in parallel during a single Refresh batch.
 	defaultConcurrency = 10
 )
 
@@ -48,8 +44,8 @@ var ErrNoTokenAvailable = xerrors.New("no token available")
 // previous branch and the current branch has none.
 var ErrStalePullRequest = xerrors.New("stale pull request")
 
-// ErrRateLimitSkipped indicates that a row was skipped because a prior
-// request in the same batch for its owner and host hit a rate limit.
+// ErrRateLimitSkipped indicates that a row was skipped because
+// a prior request in the same group hit a rate limit.
 var ErrRateLimitSkipped = xerrors.New("skipped due to rate limit")
 
 // TokenResolver obtains the user's git access token for a given
@@ -64,9 +60,8 @@ type TokenResolver func(
 // RefresherOption configures a Refresher.
 type RefresherOption func(*Refresher)
 
-// WithConcurrency sets the maximum number of concurrent diff-status row
-// refreshes per batch. Each row can make multiple HTTP calls.
-// Defaults to defaultConcurrency.
+// WithConcurrency sets the maximum number of concurrent HTTP
+// calls per Refresh batch. Defaults to defaultConcurrency.
 func WithConcurrency(n int) RefresherOption {
 	return func(r *Refresher) {
 		if n > 0 {
@@ -132,80 +127,19 @@ type groupKey struct {
 	origin  string
 }
 
-// cooldownKey identifies an owner and provider web host for cooldowns and
-// in-batch skips.
-type cooldownKey struct {
-	ownerID uuid.UUID
-	host    string
-}
-
-// scpOriginHost extracts the host from scp-style SSH origins, including IPv6.
-var scpOriginHost = regexp.MustCompile(`^[^@/]+@(\[[^\]]+\]|[^:/]+):`)
-
-func isSSHOrigin(origin string) bool {
-	return strings.HasPrefix(strings.ToLower(origin), "ssh://") || scpOriginHost.MatchString(origin)
-}
-
-// resolveCooldownKey looks up the provider only for SSH origins.
-func (r *Refresher) resolveCooldownKey(ctx context.Context, ownerID uuid.UUID, origin string) cooldownKey {
-	var provider gitprovider.Provider
-	if isSSHOrigin(strings.TrimSpace(origin)) {
-		provider = r.providers(ctx, origin)
-	}
-	return cooldownKeyFor(ownerID, origin, provider)
-}
-
-// cooldownKeyFor normalizes origins using the provider's web origin for SSH.
-// Non-default HTTP(S) ports stay distinct; SSH transport ports are ignored.
-// Origins without a parseable host share an empty-host key for that owner.
-func cooldownKeyFor(ownerID uuid.UUID, origin string, provider gitprovider.Provider) cooldownKey {
-	origin = strings.TrimSpace(origin)
-	if provider != nil && isSSHOrigin(origin) {
-		if _, _, normalized, ok := provider.ParseRepositoryOrigin(origin); ok {
-			origin = normalized
-		}
-	}
-	if match := scpOriginHost.FindStringSubmatch(origin); match != nil {
-		origin = "ssh://" + match[1]
-	}
-	var host string
-	parsed, err := url.Parse(origin)
-	if err == nil {
-		host = strings.ToLower(parsed.Hostname())
-		port := parsed.Port()
-		switch strings.ToLower(parsed.Scheme) {
-		case "http":
-			if port == "80" {
-				port = ""
-			}
-		case "https":
-			if port == "443" {
-				port = ""
-			}
-		default:
-			port = ""
-		}
-		if host != "" && port != "" {
-			host = net.JoinHostPort(host, port)
-		}
-	}
-	return cooldownKey{ownerID: ownerID, host: host}
-}
-
-// resolvedGroup holds a group's resolved provider and token, and its shared
-// rate-limit pointer.
+// resolvedGroup holds the pre-resolved provider and token for
+// a group of requests that share the same (owner, origin).
 type resolvedGroup struct {
-	provider     gitprovider.Provider
-	token        string
-	indices      []int
-	rateLimitErr *atomic.Pointer[gitprovider.RateLimitError]
+	provider gitprovider.Provider
+	token    string
+	indices  []int
 }
 
 // Refresh fetches fresh PR data for a batch of stale rows.
 // Rows are grouped internally by (ownerID, origin) so that
-// provider and token resolution happen once per group. Row refreshes within
-// and across groups run concurrently, bounded by the Refresher's concurrency
-// limit. This bounds rows in flight, not the total HTTP request count.
+// provider and token resolution happen once per group. HTTP
+// calls within and across groups run concurrently, bounded by
+// the Refresher's concurrency limit.
 //
 // A top-level error is returned only when the entire batch
 // fails catastrophically. Per-row outcomes are in the
@@ -234,7 +168,6 @@ func (r *Refresher) Refresh(
 	// fast (DB + in-memory config lookups) and avoids
 	// duplicate resolution for rows in the same group.
 	var resolved []resolvedGroup
-	rateLimits := make(map[cooldownKey]*atomic.Pointer[gitprovider.RateLimitError])
 	for key, indices := range groups {
 		provider := r.providers(ctx, key.origin)
 		if provider == nil {
@@ -258,30 +191,37 @@ func (r *Refresher) Refresh(
 			continue
 		}
 
-		// Share rate-limit errors across this owner's origins on one host
-		// within this batch.
-		limitKey := cooldownKeyFor(key.ownerID, key.origin, provider)
-		rateLimitErr := rateLimits[limitKey]
-		if rateLimitErr == nil {
-			rateLimitErr = new(atomic.Pointer[gitprovider.RateLimitError])
-			rateLimits[limitKey] = rateLimitErr
-		}
 		resolved = append(resolved, resolvedGroup{
-			provider:     provider,
-			token:        *token,
-			indices:      indices,
-			rateLimitErr: rateLimitErr,
+			provider: provider,
+			token:    *token,
+			indices:  indices,
 		})
 	}
 
+	// Process all HTTP calls concurrently with a shared
+	// semaphore. Each group tracks rate-limit errors
+	// independently so that a limit hit on one provider
+	// doesn't stall requests to other providers.
 	sem := make(chan struct{}, r.concurrency)
 	var wg sync.WaitGroup
 
 	for _, grp := range resolved {
+		var rateLimitErr atomic.Pointer[gitprovider.RateLimitError]
+
 		for _, idx := range grp.indices {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
+
+				// Best-effort rate-limit check before acquiring
+				// the semaphore to avoid unnecessary blocking.
+				if rl := rateLimitErr.Load(); rl != nil {
+					results[idx] = RefreshResult{
+						Request: requests[idx],
+						Error:   rateLimitSkippedError(rl),
+					}
+					return
+				}
 
 				// Acquire semaphore slot.
 				select {
@@ -295,8 +235,9 @@ func (r *Refresher) Refresh(
 					return
 				}
 
-				// A request may have hit a limit while this row was queued.
-				if rl := grp.rateLimitErr.Load(); rl != nil {
+				// Best-effort rate-limit check after acquiring
+				// in case it was set while we waited.
+				if rl := rateLimitErr.Load(); rl != nil {
 					results[idx] = RefreshResult{
 						Request: requests[idx],
 						Error:   rateLimitSkippedError(rl),
@@ -313,7 +254,7 @@ func (r *Refresher) Refresh(
 
 				var rlErr *gitprovider.RateLimitError
 				if errors.As(err, &rlErr) {
-					grp.rateLimitErr.Store(rlErr)
+					rateLimitErr.Store(rlErr)
 				}
 			}()
 		}
@@ -323,9 +264,9 @@ func (r *Refresher) Refresh(
 	return results, nil
 }
 
-// rateLimitSkippedError wraps the error that caused an in-batch skip.
-// Callers match both ErrRateLimitSkipped and *gitprovider.RateLimitError,
-// and xerrors wraps only one error.
+// rateLimitSkippedError reports a row skipped after rl was hit by an
+// earlier request in its group. Callers match both ErrRateLimitSkipped
+// and *gitprovider.RateLimitError, and xerrors wraps only one error.
 func rateLimitSkippedError(rl *gitprovider.RateLimitError) error {
 	return fmt.Errorf("%w: %w", ErrRateLimitSkipped, rl) //nolint:gocritic // xerrors cannot wrap two errors.
 }

@@ -446,9 +446,6 @@ func (g *githubProvider) decodeJSON(
 				resp.StatusCode,
 			)
 		}
-		if rlErr := g.secondaryRateLimitError(resp.StatusCode, body); rlErr != nil {
-			return rlErr
-		}
 		return xerrors.Errorf(
 			"github request failed with status %d: %s",
 			resp.StatusCode,
@@ -501,9 +498,6 @@ func (g *githubProvider) fetchDiff(
 		if readErr != nil {
 			return "", xerrors.Errorf("github diff request failed with status %d", resp.StatusCode)
 		}
-		if rlErr := g.secondaryRateLimitError(resp.StatusCode, body); rlErr != nil {
-			return "", rlErr
-		}
 		return "", xerrors.Errorf(
 			"github diff request failed with status %d: %s",
 			resp.StatusCode,
@@ -522,23 +516,6 @@ func (g *githubProvider) fetchDiff(
 		return "", ErrDiffTooLarge
 	}
 	return string(buf), nil
-}
-
-// secondaryRateLimitError recognizes GitHub's secondary-limit 403 message.
-func (g *githubProvider) secondaryRateLimitError(status int, body []byte) error {
-	if status != http.StatusForbidden {
-		return nil
-	}
-	var apiError struct {
-		Message string `json:"message"`
-	}
-	if err := json.Unmarshal(body, &apiError); err != nil {
-		return nil
-	}
-	if !strings.Contains(strings.ToLower(apiError.Message), "secondary rate limit") {
-		return nil
-	}
-	return &RateLimitError{RetryAfter: g.clock.Now().Add(defaultRateLimitRetryDelay + RateLimitPadding)}
 }
 
 // reviewStats holds aggregated review statistics for a PR.

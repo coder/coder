@@ -490,6 +490,69 @@ func TestWorker_RefresherError_BacksOffRow(t *testing.T) {
 	assert.Equal(t, int32(1), publishCount.Load())
 }
 
+func TestWorker_RateLimitBackoff(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name        string
+		retryDelay  time.Duration
+		wantBackoff time.Duration
+	}{
+		{name: "RetryAfter", retryDelay: 30 * time.Minute, wantBackoff: 30 * time.Minute},
+		{name: "CappedAtOneHour", retryDelay: 24 * time.Hour, wantBackoff: time.Hour},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			clock := quartz.NewMock(t)
+			ownerID := uuid.New()
+			rows := []database.AcquireStaleChatDiffStatusesRow{
+				makeAcquiredRowWithBranch(uuid.New(), ownerID, "feature"),
+				makeAcquiredRowWithBranch(uuid.New(), ownerID, "feature"),
+			}
+			store := dbmock.NewMockStore(gomock.NewController(t))
+			store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).Return(rows, nil)
+			var backoffs []database.BackoffChatDiffStatusParams
+			tickDone := make(chan struct{})
+			store.EXPECT().BackoffChatDiffStatus(gomock.Any(), gomock.Any()).DoAndReturn(
+				func(_ context.Context, arg database.BackoffChatDiffStatusParams) error {
+					backoffs = append(backoffs, arg)
+					if len(backoffs) == len(rows) {
+						close(tickDone)
+					}
+					return nil
+				},
+			).Times(len(rows))
+			var calls atomic.Int32
+			provider := &mockProvider{
+				parseRepositoryOrigin: func(string) (string, string, string, bool) {
+					return "owner", "repo", rows[0].GitRemoteOrigin, true
+				},
+				resolveBranchPR: func(context.Context, string, gitprovider.BranchRef) (*gitprovider.PRRef, error) {
+					calls.Add(1)
+					return nil, &gitprovider.RateLimitError{RetryAfter: clock.Now().Add(tc.retryDelay)}
+				},
+			}
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			refresher := gitsync.NewRefresher(
+				func(context.Context, string) gitprovider.Provider { return provider },
+				func(context.Context, uuid.UUID, string) (*string, error) { return new("test-token"), nil },
+				logger, clock, gitsync.WithConcurrency(1),
+			)
+			worker := gitsync.NewWorker(store, refresher, nil, clock, logger)
+
+			tickOnce(ctx, t, clock, worker, tickDone)
+
+			require.Equal(t, int32(1), calls.Load(), "the other row must be skipped within its group")
+			require.Len(t, backoffs, len(rows))
+			for i, backoff := range backoffs {
+				require.Equal(t, rows[i].ChatID, backoff.ChatID)
+				require.Equal(t, clock.Now().UTC().Add(tc.wantBackoff), backoff.StaleAt)
+			}
+		})
+	}
+}
+
 func TestWorker_UpsertError_ContinuesNextRow(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)

@@ -464,7 +464,7 @@ func TestGitHubRatelimit_429WithRetryAfter(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Retry-After", "120")
-		// A secondary limit does not require an exhausted primary rate limit.
+		// Secondary limits can occur while primary requests remain.
 		w.Header().Set("X-RateLimit-Remaining", "4990")
 		w.WriteHeader(http.StatusTooManyRequests)
 		_, _ = w.Write([]byte(`{"message": "secondary rate limit"}`))
@@ -488,101 +488,6 @@ func TestGitHubRatelimit_429WithRetryAfter(t *testing.T) {
 	// Retry-After: 120 means ~120s from now.
 	expected := time.Now().Add(120 * time.Second)
 	assert.WithinDuration(t, expected.Add(gitprovider.RateLimitPadding), rlErr.RetryAfter, 5*time.Second)
-}
-
-func TestGitHubRatelimit_WithoutRetryAfter(t *testing.T) {
-	t.Parallel()
-
-	requests := []struct {
-		name string
-		do   func(context.Context, gitprovider.Provider) error
-	}{
-		{
-			name: "JSON",
-			do: func(ctx context.Context, provider gitprovider.Provider) error {
-				_, err := provider.FetchPullRequestStatus(ctx, "test-token", gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1})
-				return err
-			},
-		},
-		{
-			name: "Diff",
-			do: func(ctx context.Context, provider gitprovider.Provider) error {
-				_, err := provider.FetchPullRequestDiff(ctx, "test-token", gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1})
-				return err
-			},
-		},
-	}
-	for _, tc := range []struct {
-		name           string
-		status         int
-		body           string
-		primaryHeaders bool
-		rateLimited    bool
-	}{
-		{
-			name:           "429WithPrimaryRequestsRemaining",
-			status:         http.StatusTooManyRequests,
-			body:           `{"message":"secondary rate limit"}`,
-			primaryHeaders: true,
-			rateLimited:    true,
-		},
-		{
-			name:        "429WithoutHeaders",
-			status:      http.StatusTooManyRequests,
-			body:        `{"message":"rate limit"}`,
-			rateLimited: true,
-		},
-		{
-			name:           "403SecondaryLimit",
-			status:         http.StatusForbidden,
-			body:           `{"message":"You have exceeded a secondary rate limit. Please wait a few minutes before you try again."}`,
-			primaryHeaders: true,
-			rateLimited:    true,
-		},
-		{
-			name:   "503WithSecondaryMessage",
-			status: http.StatusServiceUnavailable,
-			body:   `{"message":"secondary rate limit"}`,
-		},
-		{
-			name:           "403MalformedBody",
-			status:         http.StatusForbidden,
-			body:           `{"message":"secondary rate limit"`,
-			primaryHeaders: true,
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			for _, request := range requests {
-				t.Run(request.name, func(t *testing.T) {
-					t.Parallel()
-					clock := quartz.NewMock(t)
-					resetAt := strconv.FormatInt(clock.Now().Add(time.Hour).Unix(), 10)
-					server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-						if tc.primaryHeaders {
-							w.Header().Set("X-RateLimit-Remaining", "4990")
-							w.Header().Set("X-RateLimit-Reset", resetAt)
-						}
-						w.WriteHeader(tc.status)
-						_, _ = w.Write([]byte(tc.body))
-					}))
-					t.Cleanup(server.Close)
-					provider, err := gitprovider.New("github", server.URL+"/api/v3", server.Client(), gitprovider.WithClock(clock))
-					require.NoError(t, err)
-
-					err = request.do(testutil.Context(t, testutil.WaitLong), provider)
-					require.Error(t, err)
-					rateLimit, ok := errors.AsType[*gitprovider.RateLimitError](err)
-					if !tc.rateLimited {
-						require.False(t, ok, "a response without a recognized rate limit must remain an ordinary error")
-						return
-					}
-					require.True(t, ok, "a rate limit without Retry-After must still be classified")
-					require.Equal(t, clock.Now().Add(time.Minute+gitprovider.RateLimitPadding), rateLimit.RetryAfter)
-				})
-			}
-		})
-	}
 }
 
 func TestGitHubRatelimit_403NormalError(t *testing.T) {

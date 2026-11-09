@@ -30,13 +30,6 @@ const (
 	// of concurrent HTTP calls has enough headroom to complete.
 	defaultTickTimeout = 30 * time.Second
 
-	// cooldownBackoffTimeout bounds the post-refresh cooldown stale_at writes.
-	cooldownBackoffTimeout = 5 * time.Second
-
-	// maxCooldown bounds far-future headers using GitHub's hourly primary
-	// rate-limit window plus RateLimitPadding.
-	maxCooldown = time.Hour + gitprovider.RateLimitPadding
-
 	// NoTokenBackoff is the backoff duration applied to rows
 	// whose owner has no linked external-auth token. Much longer
 	// than DiffStatusTTL because the user must manually link
@@ -104,10 +97,6 @@ type Worker struct {
 	interval                  time.Duration
 	tickTimeout               time.Duration
 	done                      chan struct{}
-
-	// cooldowns maps each owner/host to its cooldown end.
-	// Only tick reads or writes it.
-	cooldowns map[cooldownKey]time.Time
 }
 
 // WorkerOption configures a Worker.
@@ -131,7 +120,6 @@ func NewWorker(
 		batchSize:                 defaultBatchSize,
 		interval:                  defaultInterval,
 		tickTimeout:               defaultTickTimeout,
-		cooldowns:                 make(map[cooldownKey]time.Time),
 		done:                      make(chan struct{}),
 	}
 	for _, o := range opts {
@@ -198,14 +186,6 @@ func (w *Worker) tick(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, w.tickTimeout)
 	defer cancel()
 
-	// Delete expired cooldowns even when their rows are no longer acquired.
-	now := w.clock.Now()
-	for key, end := range w.cooldowns {
-		if !end.After(now) {
-			delete(w.cooldowns, key)
-		}
-	}
-
 	acquiredRows, err := w.store.AcquireStaleChatDiffStatuses(ctx, w.batchSize)
 	if err != nil {
 		w.logger.Warn(ctx, "acquire stale chat diff statuses",
@@ -216,10 +196,15 @@ func (w *Worker) tick(ctx context.Context) {
 		return
 	}
 
-	requests := w.requestsOutsideCooldown(ctx, acquiredRows, w.clock.Now())
-	if len(requests) == 0 {
-		return
+	// Build refresh requests directly from acquired rows.
+	requests := make([]RefreshRequest, 0, len(acquiredRows))
+	for _, row := range acquiredRows {
+		requests = append(requests, RefreshRequest{
+			Row:     chatDiffStatusFromRow(row),
+			OwnerID: row.OwnerID,
+		})
 	}
+
 	results, err := w.refresher.Refresh(ctx, requests)
 	if err != nil {
 		w.logger.Warn(ctx, "batch refresh chat diff statuses",
@@ -227,8 +212,7 @@ func (w *Worker) tick(ctx context.Context) {
 		return
 	}
 
-	ordinaryResults := w.backoffRateLimitedResults(ctx, results)
-	for _, res := range ordinaryResults {
+	for _, res := range results {
 		if errors.Is(res.Error, ErrStalePullRequest) {
 			if err := w.clearStalePR(ctx, res.Request.Row); err != nil {
 				w.logger.Warn(ctx, "clear stale chat diff status PR",
@@ -244,9 +228,13 @@ func (w *Worker) tick(ctx context.Context) {
 			// Apply a longer backoff for rows whose owner has
 			// no linked token — retrying every 2 minutes is
 			// pointless until the user links their account.
+			now := w.clock.Now().UTC()
 			backoff := DiffStatusTTL
 			if errors.Is(res.Error, ErrNoTokenAvailable) {
 				backoff = NoTokenBackoff
+			} else if rateLimit, ok := errors.AsType[*gitprovider.RateLimitError](res.Error); ok {
+				// Bound delays from far-future headers.
+				backoff = min(rateLimit.RetryAfter.Sub(now), time.Hour)
 			}
 			// Back off so the row isn't retried immediately.
 			if err := w.store.BackoffChatDiffStatus(ctx,
@@ -254,7 +242,7 @@ func (w *Worker) tick(ctx context.Context) {
 					ChatID:          res.Request.Row.ChatID,
 					GitRemoteOrigin: res.Request.Row.GitRemoteOrigin,
 					GitBranch:       res.Request.Row.GitBranch,
-					StaleAt:         w.clock.Now().UTC().Add(backoff),
+					StaleAt:         now.Add(backoff),
 				},
 			); err != nil {
 				w.logger.Warn(ctx, "backoff failed chat diff status",
@@ -302,97 +290,6 @@ func (w *Worker) tick(ctx context.Context) {
 			}
 		}
 	}
-}
-
-// requestsOutsideCooldown writes the cooldown end to stale_at for rows in
-// cooldown, and returns requests for the remaining rows.
-func (w *Worker) requestsOutsideCooldown(ctx context.Context, rows []database.AcquireStaleChatDiffStatusesRow, now time.Time) []RefreshRequest {
-	requests := make([]RefreshRequest, 0, len(rows))
-	for _, acquired := range rows {
-		row := chatDiffStatusFromRow(acquired)
-		key := w.refresher.resolveCooldownKey(ctx, acquired.OwnerID, row.GitRemoteOrigin)
-		end := w.cooldowns[key]
-		if end.After(now) {
-			w.logger.Debug(ctx, "skip diff-status refresh during cooldown",
-				slog.F("chat_id", row.ChatID),
-				slog.F("host", key.host),
-				slog.F("stale_at", end))
-			w.backoffForCooldown(ctx, row, end)
-			continue
-		}
-
-		requests = append(requests, RefreshRequest{Row: row, OwnerID: acquired.OwnerID})
-	}
-	return requests
-}
-
-// backoffRateLimitedResults records cooldowns and writes their stale_at values
-// before returning results that need ordinary processing.
-func (w *Worker) backoffRateLimitedResults(ctx context.Context, results []RefreshResult) []RefreshResult {
-	type limitedRow struct {
-		row database.ChatDiffStatus
-		key cooldownKey
-	}
-	var limited []limitedRow
-	ordinary := make([]RefreshResult, 0, len(results))
-	now := w.clock.Now().UTC()
-	for _, res := range results {
-		rateLimit, ok := errors.AsType[*gitprovider.RateLimitError](res.Error)
-		if !ok {
-			ordinary = append(ordinary, res)
-			continue
-		}
-
-		w.logger.Debug(ctx, "refresh chat diff status",
-			slog.F("chat_id", res.Request.Row.ChatID),
-			slog.Error(res.Error))
-
-		key := w.refresher.resolveCooldownKey(ctx, res.Request.OwnerID, res.Request.Row.GitRemoteOrigin)
-		end := cooldownEnd(now, rateLimit)
-		if end.After(w.cooldowns[key]) {
-			w.cooldowns[key] = end
-		}
-		limited = append(limited, limitedRow{row: res.Request.Row, key: key})
-	}
-	if len(limited) == 0 {
-		return ordinary
-	}
-
-	// Persist cooldown stale_at values even if the tick is canceled, before
-	// slow ordinary processing delays their visibility to other replicas.
-	backoffCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cooldownBackoffTimeout)
-	defer cancel()
-
-	// Each same-key row must use the latest end collected above.
-	for _, entry := range limited {
-		w.backoffForCooldown(backoffCtx, entry.row, w.cooldowns[entry.key])
-	}
-	return ordinary
-}
-
-// backoffForCooldown sets a diff-status row's stale_at to its cooldown end.
-func (w *Worker) backoffForCooldown(ctx context.Context, row database.ChatDiffStatus, end time.Time) {
-	if err := w.store.BackoffChatDiffStatus(ctx, database.BackoffChatDiffStatusParams{
-		ChatID:          row.ChatID,
-		GitRemoteOrigin: row.GitRemoteOrigin,
-		GitBranch:       row.GitBranch,
-		StaleAt:         end,
-	}); err != nil {
-		w.logger.Warn(ctx, "backoff diff-status row in cooldown",
-			slog.F("chat_id", row.ChatID),
-			slog.F("stale_at", end),
-			slog.Error(err))
-	}
-}
-
-// cooldownEnd caps RetryAfter at maxCooldown from now. Expired times use
-// DiffStatusTTL to avoid immediately retrying after a rate limit.
-func cooldownEnd(now time.Time, rateLimit *gitprovider.RateLimitError) time.Time {
-	cooldown := rateLimit.RetryAfter.Sub(now)
-	if cooldown <= 0 {
-		cooldown = DiffStatusTTL
-	}
-	return now.Add(min(cooldown, maxCooldown))
 }
 
 // MarkStaleParams holds the arguments for Worker.MarkStale.
