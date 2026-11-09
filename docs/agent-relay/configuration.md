@@ -280,7 +280,15 @@ The Helm chart always binds to `0.0.0.0` on `prometheus.port`.
 ## Workspace reaper
 
 The reaper is the process that deletes relay workspaces when their sessions end or fail.
-For what it does and which setting to change, refer to [Workspace lifecycle](./setup.md#workspace-lifecycle).
+Two options control when it deletes a workspace:
+
+- `--reap-startup-grace` applies while a workspace starts.
+  It sets how long a new workspace has to build and start its worker before the reaper deletes it.
+- `--reap-delay` applies after the reaper decides to delete a workspace.
+  It sets how long the reaper keeps the workspace first, so you can inspect it.
+
+The other options in this section limit how many workspaces the reaper handles at once and tune when it extends an attached workspace's autostop deadline.
+For how the reaper works and which setting to change, refer to [Workspace lifecycle](./setup.md#workspace-lifecycle).
 
 ### `--reap-startup-grace`
 
@@ -292,17 +300,17 @@ For what it does and which setting to change, refer to [Workspace lifecycle](./s
 | Helm        | <code>reapStartupGrace</code>                      |
 | Default     | <code>15m0s</code>                                 |
 
-How long the reaper waits for a workspace to build and start its worker, measured from when the latest build was created.
+How long a new workspace has to build and start its worker before the reaper deletes it.
+The grace starts when the latest build is created, so it includes the time spent building.
 Must be positive.
 
 - If a build is still pending or starting after the longer of this grace and the pool's `dispatch_deadline`, the reaper deletes the workspace.
-- A workspace where the build finished but the worker still reports no status, or `pending`, fails after this grace.
-  The grace includes the time spent building.
+- A workspace where the build succeeded but the worker still reports no status, or `pending`, fails after this grace.
 - A short grace can fail workspaces where the agent connects slowly or the worker starts slowly.
   Unless you run an isolated test deployment, keep the default.
 
-The reaper sweeps about every 30&nbsp;seconds, so cleanup isn't exact to the second.
-Raise it when a template legitimately takes longer than 15&nbsp;minutes to build and start its worker.
+The reaper acts on the first [sweep](./setup.md#workspace-lifecycle) after the grace passes, which can be 30&nbsp;seconds or more later.
+Raise the grace when a working template takes longer than 15&nbsp;minutes to build and start its worker.
 Refer to [Choose cleanup settings](./setup.md#choose-cleanup-settings).
 
 ### `--reap-delay`
@@ -314,9 +322,11 @@ Refer to [Choose cleanup settings](./setup.md#choose-cleanup-settings).
 | YAML        | <code>reapDelay</code>                     |
 | Default     | <code>0s</code>                            |
 
-How long the reaper waits after the latest workspace build completes before it deletes a workspace where its worker exited cleanly, or where its build failed or was canceled.
-For a failed worker, the reaper also waits this long before it reports the failure to the provider and deletes the workspace.
-The delay postpones provider retries and the failure messages that users see.
+How long the reaper keeps a workspace after it decides to delete it, so you can inspect the workspace first.
+The delay counts from when the latest build finished, whether that build succeeded, failed, or was canceled.
+It doesn't count from when the worker exits, so a session that runs longer than the delay gets no extra time.
+The delay applies when a worker exits cleanly, when a worker fails, and when a build fails or is canceled.
+For a failed worker, the reaper also waits before it reports the failure to the provider, which postpones provider retries and the failure messages that developers see.
 Must not be negative.
 A pool's `reap_delay` overrides this option.
 
@@ -324,10 +334,12 @@ A pool's `reap_delay` overrides this option.
 - If autostop could stop the workspace before the delay ends, the reaper deletes it right away.
 - A worker that never starts fails after the startup grace, so its delay might already have passed.
 - If the provider sends the session again and Agent Relay rebuilds the workspace, the delay starts over from the new build.
-- On each sweep that holds a workspace, the reaper counts a `delayed` verdict.
-  Set `--log-level` to `debug` to log held workspaces and when the reaper deletes them.
+- While the reaper keeps a workspace, each sweep counts a `delayed` verdict instead of `delete` or `failed`.
+  When the delay passes, the next sweep counts `delete` or `failed` and acts.
+  With `--log-level` set to `debug`, each kept workspace logs `workspace awaiting reap` with `reap_at`, the time when the delay ends.
 
-Use it while you debug failed sessions, so you can open the workspace and read its logs before Agent Relay deletes it.
+Set a delay while you debug a worker that fails soon after it starts, so you can open the workspace and read its logs before Agent Relay deletes it.
+To keep a workspace where the worker fails later in a session, set a delay longer than the time between the build finishing and the worker failing.
 Refer to [Choose cleanup settings](./setup.md#choose-cleanup-settings).
 The Helm chart has no dedicated value for this option.
 Set it with [`extraEnv`](#helm-values).

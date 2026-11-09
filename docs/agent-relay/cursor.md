@@ -340,7 +340,7 @@ The module reports the worker's state through `agent_relay_status`, and Agent Re
 | `done <exitcode>` | The worker exited with that status. `0` is a normal release.                       | Delete on `0`, fail on anything else.                           |
 | `failed <reason>` | The worker couldn't start, such as `runner-agent-missing` when the CLI is absent.  | Fail.                                                           |
 
-Both delete and fail remove the workspace.
+Both delete and fail remove the workspace, after the [reap delay](./configuration.md#--reap-delay) if you set one.
 A failure is also recorded in logs and metrics, and ends the developer's turn in Cursor with an error if the turn is still waiting.
 
 After each turn, the worker waits for a follow-up for the pool's `idle_release_timeout`, then exits, and Agent Relay deletes the workspace.
