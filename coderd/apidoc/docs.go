@@ -22042,11 +22042,13 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "anthropic",
-                "openai"
+                "openai",
+                "openai-compat"
             ],
             "x-enum-varnames": [
                 "ChatComputerUseProviderAnthropic",
-                "ChatComputerUseProviderOpenAI"
+                "ChatComputerUseProviderOpenAI",
+                "ChatComputerUseProviderOpenAICompat"
             ]
         },
         "codersdk.ChatConfig": {
