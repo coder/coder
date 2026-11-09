@@ -1254,9 +1254,24 @@ func TestWorker_MarkStale_MergedPR(t *testing.T) {
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	template := dbgen.Template(t, db, database.Template{
+		CreatedBy:       user.ID,
+		OrganizationID:  org.ID,
+		ActiveVersionID: templateVersion.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OwnerID:        user.ID,
+		OrganizationID: org.ID,
+		TemplateID:     template.ID,
+	})
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
+		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
 		LastModelConfigID: modelCfg.ID,
 	})
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -1302,9 +1317,10 @@ func TestWorker_MarkStale_MergedPR(t *testing.T) {
 	worker := gitsync.NewWorker(db, refresher, pub, mClock, logger)
 
 	worker.MarkStale(ctx, gitsync.MarkStaleParams{
-		ChatID: chat.ID,
-		Origin: "https://github.com/o/r",
-		Branch: "feature",
+		WorkspaceID: workspace.ID,
+		ChatID:      chat.ID,
+		Origin:      "https://github.com/o/r",
+		Branch:      "feature",
 	})
 
 	statuses, err := db.GetChatDiffStatusesByChatID(ctx, chat.ID)
