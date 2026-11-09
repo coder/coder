@@ -74,16 +74,18 @@ export const ModelFormHeader: React.FC<{
 					editingModel &&
 					(onDeleteModel || onDuplicate || onShareModel) && (
 						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button
-									variant="subtle"
-									size="icon"
-									type="button"
-									disabled={isSaving}
-									aria-label="Model actions"
-								>
-									<EllipsisVerticalIcon />
-								</Button>
+							<DropdownMenuTrigger
+								render={
+									<Button
+										variant="subtle"
+										size="icon"
+										type="button"
+										disabled={isSaving}
+										aria-label="Model actions"
+									/>
+								}
+							>
+								<EllipsisVerticalIcon />
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="end">
 								{onShareModel && (

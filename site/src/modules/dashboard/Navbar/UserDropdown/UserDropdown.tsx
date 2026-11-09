@@ -81,26 +81,30 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
 
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<button
-					type="button"
-					aria-label={indicator ? `User menu. ${indicator.label}` : "User menu"}
-					className="relative bg-transparent border-0 cursor-pointer p-0"
-				>
-					<Avatar fallback={user.username} src={user.avatar_url} size="lg" />
-					{indicator && (
-						<span
-							className={cn(
-								"absolute -top-2 -right-2 flex size-[18px] items-center",
-								"justify-center rounded",
-								indicator.badge,
-							)}
-						>
-							{indicator.icon}
-						</span>
-					)}
-				</button>
-			</DropdownMenuTrigger>
+			<DropdownMenuTrigger
+				render={
+					<button
+						type="button"
+						aria-label={
+							indicator ? `User menu. ${indicator.label}` : "User menu"
+						}
+						className="relative bg-transparent border-0 cursor-pointer p-0"
+					>
+						<Avatar fallback={user.username} src={user.avatar_url} size="lg" />
+						{indicator && (
+							<span
+								className={cn(
+									"absolute -top-2 -right-2 flex size-[18px] items-center",
+									"justify-center rounded",
+									indicator.badge,
+								)}
+							>
+								{indicator.icon}
+							</span>
+						)}
+					</button>
+				}
+			></DropdownMenuTrigger>
 
 			<DropdownMenuContent align="end" className="w-[260px]">
 				<UserDropdownContent

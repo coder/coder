@@ -162,7 +162,7 @@ type ChatActionsMenuProps = Omit<
 	| "SubContent"
 	| "onArchiveAndDeleteWorkspace"
 > & {
-	readonly children: React.ReactNode;
+	readonly children: React.ReactElement;
 	readonly variant?: "dropdown" | "context";
 	readonly align?: "start" | "end";
 	readonly contentClassName?: string;
@@ -275,19 +275,18 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 	return (
 		<>
 			{variant === "context" ? (
-				<ContextMenu>
-					<ContextMenuTrigger asChild disabled={disabled}>
-						{children}
-					</ContextMenuTrigger>
+				<ContextMenu disabled={disabled}>
+					<ContextMenuTrigger render={children}></ContextMenuTrigger>
 					<ContextMenuContent className={contentClassName}>
 						{menuItems}
 					</ContextMenuContent>
 				</ContextMenu>
 			) : (
 				<DropdownMenu>
-					<DropdownMenuTrigger asChild disabled={disabled}>
-						{children}
-					</DropdownMenuTrigger>
+					<DropdownMenuTrigger
+						disabled={disabled}
+						render={children}
+					></DropdownMenuTrigger>
 					<DropdownMenuContent
 						align={align}
 						className={contentClassName}
@@ -371,7 +370,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	const isMoveBlocked = archiveBlockedReason === "active";
 
 	const subagentToggle = showSubagentsToggle ? (
-		<Item onSelect={onToggleSubagents}>
+		<Item onClick={onToggleSubagents}>
 			<BotIcon className="size-3.5" />
 			{isSubagentsExpanded
 				? "Hide subagents"
@@ -382,7 +381,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	const readToggle = showReadToggle ? (
 		<Item
 			disabled={isUpdatingReadState}
-			onSelect={chat.has_unread ? onMarkRead : onMarkUnread}
+			onClick={chat.has_unread ? onMarkRead : onMarkUnread}
 		>
 			{chat.has_unread ? (
 				<>
@@ -401,7 +400,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	const copyItems = [
 		<Item
 			key="id"
-			onSelect={async () => {
+			onClick={async () => {
 				if (await copyToClipboard(chat.id)) {
 					toast.success("Chat ID copied to clipboard.");
 				}
@@ -415,7 +414,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 		copyItems.push(
 			<Item
 				key="branch"
-				onSelect={async () => {
+				onClick={async () => {
 					if (await copyToClipboard(branch)) {
 						toast.success("Branch name copied to clipboard.");
 					}
@@ -465,7 +464,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	return (
 		<>
 			{showPinAction && (
-				<Item onSelect={isPinned ? onUnpinAgent : onPinAgent}>
+				<Item onClick={isPinned ? onUnpinAgent : onPinAgent}>
 					{isPinned ? (
 						<>
 							<PinOffIcon className="size-3.5" />
@@ -482,7 +481,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 			{isArchived ? (
 				showUnarchiveAction && (
 					<>
-						<Item disabled={isArchiving} onSelect={onUnarchiveAgent}>
+						<Item disabled={isArchiving} onClick={onUnarchiveAgent}>
 							<ArchiveRestoreIcon className="size-3.5" />
 							Unarchive agent
 						</Item>
@@ -493,7 +492,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 			) : (
 				<>
 					{onOpenRenameDialog && (
-						<Item onSelect={onOpenRenameDialog}>
+						<Item onClick={onOpenRenameDialog}>
 							<SquarePenIcon className="size-3.5" />
 							Rename chat
 						</Item>
@@ -524,7 +523,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 						className="text-content-destructive focus:text-content-destructive"
 						aria-describedby={archiveBlockedDescribedBy}
 						disabled={isArchiving || isArchiveBlocked}
-						onSelect={onArchiveAgent}
+						onClick={onArchiveAgent}
 					>
 						<ArchiveIcon className="size-3.5" />
 						Archive agent
@@ -534,7 +533,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 							className="text-content-destructive focus:text-content-destructive"
 							aria-describedby={archiveBlockedDescribedBy}
 							disabled={isArchiving || isArchiveBlocked}
-							onSelect={onArchiveAndDeleteWorkspace}
+							onClick={onArchiveAndDeleteWorkspace}
 						>
 							<Trash2Icon className="size-3.5" />
 							Archive & delete workspace

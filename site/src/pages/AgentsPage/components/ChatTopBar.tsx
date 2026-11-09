@@ -330,19 +330,21 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 			   which already shows PR info. */}
 			{hasMultiplePRs ? (
 				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<button
-							type="button"
-							className={cn(
-								"inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-border px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
-								panel.showSidebarPanel && "lg:hidden",
-							)}
-						>
-							<GitPullRequestArrowIcon className="size-3.5 shrink-0" />
-							<span className="tabular-nums">{prStatuses.length} PRs</span>
-							<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
-						</button>
-					</DropdownMenuTrigger>
+					<DropdownMenuTrigger
+						render={
+							<button
+								type="button"
+								className={cn(
+									"inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md border border-solid border-border px-2 py-0.5 text-xs font-medium text-content-secondary no-underline transition-colors hover:bg-surface-secondary hover:text-content-primary",
+									panel.showSidebarPanel && "lg:hidden",
+								)}
+							>
+								<GitPullRequestArrowIcon className="size-3.5 shrink-0" />
+								<span className="tabular-nums">{prStatuses.length} PRs</span>
+								<ChevronDownIcon className="size-3 shrink-0 opacity-70" />
+							</button>
+						}
+					></DropdownMenuTrigger>
 					<DropdownMenuContent align="start" className={prMenuContentClassName}>
 						<PRMenuLinks prStatuses={prStatuses} Item={DropdownMenuItem} />
 					</DropdownMenuContent>

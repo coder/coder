@@ -98,32 +98,44 @@ const TemplateMenu: React.FC<TemplateMenuProps> = ({
 	return (
 		<>
 			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<ShadcnButton size="icon-lg" variant="subtle" aria-label="Open menu">
-						<EllipsisVerticalIcon aria-hidden="true" />
-						<span className="sr-only">Open menu</span>
-					</ShadcnButton>
+				<DropdownMenuTrigger
+					render={
+						<ShadcnButton
+							size="icon-lg"
+							variant="subtle"
+							aria-label="Open menu"
+						/>
+					}
+				>
+					<EllipsisVerticalIcon aria-hidden="true" />
+					<span className="sr-only">Open menu</span>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end">
-					<DropdownMenuItem asChild>
-						<RouterLink to={`${templateLink}/settings`}>
-							<SettingsIcon className="size-icon-sm" />
-							Settings
-						</RouterLink>
+					<DropdownMenuItem
+						render={<RouterLink to={`${templateLink}/settings`} />}
+					>
+						<SettingsIcon className="size-icon-sm" />
+						Settings
 					</DropdownMenuItem>
 
-					<DropdownMenuItem asChild>
-						<RouterLink to={`${templateLink}/versions/${templateVersion}/edit`}>
-							<EditIcon />
-							Edit files
-						</RouterLink>
+					<DropdownMenuItem
+						render={
+							<RouterLink
+								to={`${templateLink}/versions/${templateVersion}/edit`}
+							/>
+						}
+					>
+						<EditIcon />
+						Edit files
 					</DropdownMenuItem>
 
-					<DropdownMenuItem asChild>
-						<RouterLink to={`/templates/new?fromTemplate=${templateId}`}>
-							<CopyIcon className="size-icon-sm" />
-							Duplicate&hellip;
-						</RouterLink>
+					<DropdownMenuItem
+						render={
+							<RouterLink to={`/templates/new?fromTemplate=${templateId}`} />
+						}
+					>
+						<CopyIcon className="size-icon-sm" />
+						Duplicate&hellip;
 					</DropdownMenuItem>
 
 					<DropdownMenuItem onClick={() => handleExport()}>

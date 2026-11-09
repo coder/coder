@@ -386,20 +386,22 @@ export const SkillsTableView: React.FC<SkillsTableViewProps> = ({
 				</TableCell>
 				<TableCell className="text-right">
 					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								size="icon"
-								variant="subtle"
-								aria-label="Open menu"
-								onPointerDown={rememberTrigger}
-								onKeyDown={rememberTrigger}
-							>
-								{downloadingSkillName === skill.name ? (
-									<Spinner className="size-4" loading />
-								) : (
-									<EllipsisVerticalIcon aria-hidden="true" />
-								)}
-							</Button>
+						<DropdownMenuTrigger
+							render={
+								<Button
+									size="icon"
+									variant="subtle"
+									aria-label="Open menu"
+									onPointerDown={rememberTrigger}
+									onKeyDown={rememberTrigger}
+								/>
+							}
+						>
+							{downloadingSkillName === skill.name ? (
+								<Spinner className="size-4" loading />
+							) : (
+								<EllipsisVerticalIcon aria-hidden="true" />
+							)}
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem

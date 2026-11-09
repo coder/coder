@@ -1,14 +1,8 @@
-/**
- * Adapted from `DropdownMenu.tsx` to wrap Radix's ContextMenu primitive.
- * Shares menu styling with DropdownMenu via `menuClasses.ts` so the
- * click-triggered and right-click-triggered menus stay in visual sync
- * by construction.
- * @see {@link https://www.radix-ui.com/primitives/docs/components/context-menu}
- */
-
+import { ContextMenu as ContextMenuPrimitive } from "@base-ui/react/context-menu";
+import { Menu } from "@base-ui/react/menu";
 import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
-import { ContextMenu as ContextMenuPrimitive } from "radix-ui";
+import { MenuPopup } from "#/components/DropdownMenu/MenuPopup";
 import {
 	menuContentClass,
 	menuItemClass,
@@ -45,22 +39,43 @@ export const ContextMenuGroup = ContextMenuPrimitive.Group;
 /** @public */
 export const ContextMenuRadioGroup = ContextMenuPrimitive.RadioGroup;
 
-export const ContextMenuContent: React.FC<
-	React.ComponentProps<typeof ContextMenuPrimitive.Content>
-> = ({ className, ...props }) => {
-	return (
-		<ContextMenuPrimitive.Portal>
-			<ContextMenuPrimitive.Content
+type ContextMenuContentProps = Omit<
+	React.ComponentProps<typeof MenuPopup>,
+	"className" | "onSelect"
+> & { className?: string } & Pick<
+		React.ComponentProps<typeof ContextMenuPrimitive.Positioner>,
+		"sideOffset" | "alignOffset" | "collisionPadding"
+	>;
+
+export const ContextMenuContent: React.FC<ContextMenuContentProps> = ({
+	className,
+	sideOffset = 4,
+	alignOffset,
+	collisionPadding,
+	onCloseAutoFocus,
+	...props
+}) => (
+	<ContextMenuPrimitive.Portal>
+		<ContextMenuPrimitive.Positioner
+			sideOffset={sideOffset}
+			alignOffset={alignOffset}
+			collisionPadding={collisionPadding}
+			data-menu-positioner
+			className="z-50 outline-hidden"
+		>
+			<MenuPopup
 				className={cn(menuContentClass, className)}
+				onCloseAutoFocus={onCloseAutoFocus}
 				{...props}
 			/>
-		</ContextMenuPrimitive.Portal>
-	);
-};
+		</ContextMenuPrimitive.Positioner>
+	</ContextMenuPrimitive.Portal>
+);
 
-type ContextMenuItemProps = React.ComponentProps<
-	typeof ContextMenuPrimitive.Item
-> & {
+type ContextMenuItemProps = Omit<
+	React.ComponentProps<typeof ContextMenuPrimitive.Item>,
+	"className" | "onSelect"
+> & { className?: string } & {
 	inset?: boolean;
 };
 
@@ -77,40 +92,78 @@ export const ContextMenuItem: React.FC<ContextMenuItemProps> = ({
 	);
 };
 
-export const ContextMenuSub = ContextMenuPrimitive.Sub;
+export const ContextMenuSub = ContextMenuPrimitive.SubmenuRoot;
 
-export const ContextMenuSubTrigger: React.FC<
-	React.ComponentProps<typeof ContextMenuPrimitive.SubTrigger> & {
-		inset?: boolean;
-	}
-> = ({ className, inset, children, ...props }) => {
+type ContextMenuSubTriggerProps = Omit<
+	React.ComponentProps<typeof ContextMenuPrimitive.SubmenuTrigger>,
+	"className" | "onSelect"
+> & { className?: string } & {
+	inset?: boolean;
+};
+
+export const ContextMenuSubTrigger: React.FC<ContextMenuSubTriggerProps> = ({
+	className,
+	inset,
+	children,
+	...props
+}) => {
 	return (
-		<ContextMenuPrimitive.SubTrigger
+		<ContextMenuPrimitive.SubmenuTrigger
 			className={cn(menuItemClass, inset && "pl-8", className)}
 			{...props}
 		>
 			{children}
 			<ChevronRightIcon className="ml-auto size-3.5" />
-		</ContextMenuPrimitive.SubTrigger>
+		</ContextMenuPrimitive.SubmenuTrigger>
 	);
 };
 
-export const ContextMenuSubContent: React.FC<
-	React.ComponentProps<typeof ContextMenuPrimitive.SubContent>
-> = ({ className, ...props }) => {
-	return (
-		<ContextMenuPrimitive.Portal>
-			<ContextMenuPrimitive.SubContent
+type ContextMenuSubContentProps = Omit<
+	React.ComponentProps<typeof MenuPopup>,
+	"className" | "onSelect"
+> & { className?: string } & Pick<
+		React.ComponentProps<typeof Menu.Positioner>,
+		"sideOffset" | "alignOffset" | "collisionPadding" | "side" | "align"
+	>;
+
+export const ContextMenuSubContent: React.FC<ContextMenuSubContentProps> = ({
+	className,
+	side = "right",
+	align = "start",
+	sideOffset = 0,
+	alignOffset,
+	collisionPadding,
+	onCloseAutoFocus,
+	...props
+}) => (
+	<ContextMenuPrimitive.Portal>
+		<Menu.Positioner
+			side={side}
+			align={align}
+			sideOffset={sideOffset}
+			alignOffset={alignOffset}
+			collisionPadding={collisionPadding}
+			data-menu-positioner
+			className="z-50 outline-hidden"
+		>
+			<MenuPopup
 				className={cn(menuContentClass, className)}
+				onCloseAutoFocus={onCloseAutoFocus}
 				{...props}
 			/>
-		</ContextMenuPrimitive.Portal>
-	);
-};
+		</Menu.Positioner>
+	</ContextMenuPrimitive.Portal>
+);
 
-export const ContextMenuSeparator: React.FC<
-	React.ComponentProps<typeof ContextMenuPrimitive.Separator>
-> = ({ className, ...props }) => {
+type ContextMenuSeparatorProps = Omit<
+	React.ComponentProps<typeof ContextMenuPrimitive.Separator>,
+	"className" | "onSelect"
+> & { className?: string };
+
+export const ContextMenuSeparator: React.FC<ContextMenuSeparatorProps> = ({
+	className,
+	...props
+}) => {
 	return (
 		<ContextMenuPrimitive.Separator
 			className={cn([menuSeparatorClass], className)}

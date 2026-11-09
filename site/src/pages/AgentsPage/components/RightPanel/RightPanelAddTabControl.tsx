@@ -129,20 +129,19 @@ export const RightPanelAddTabControl: React.FC<{
 				<PlusIcon className="size-3.5" />
 			</Button>
 			<DropdownMenu open={open} onOpenChange={setOpen}>
-				<DropdownMenuTrigger asChild>
-					<Button
-						variant="subtle"
-						size="icon"
-						aria-label="Add panel"
-						className="size-6 rounded-none border-0 bg-transparent p-0 text-content-secondary hover:bg-surface-secondary hover:text-content-primary focus-visible:ring-inset"
-					>
-						<ChevronDownIcon
-							className={cn(
-								"size-3 transition-transform",
-								open && "rotate-180",
-							)}
+				<DropdownMenuTrigger
+					render={
+						<Button
+							variant="subtle"
+							size="icon"
+							aria-label="Add panel"
+							className="size-6 rounded-none border-0 bg-transparent p-0 text-content-secondary hover:bg-surface-secondary hover:text-content-primary focus-visible:ring-inset"
 						/>
-					</Button>
+					}
+				>
+					<ChevronDownIcon
+						className={cn("size-3 transition-transform", open && "rotate-180")}
+					/>
 				</DropdownMenuTrigger>
 				<DropdownMenuContent
 					align="end"
@@ -155,7 +154,7 @@ export const RightPanelAddTabControl: React.FC<{
 								<DropdownMenuCheckboxItem
 									key={entry.id}
 									checked={visibleSingletonTabs.includes(entry.id)}
-									onSelect={() => onToggleSingletonTab(entry.id)}
+									onClick={() => onToggleSingletonTab(entry.id)}
 								>
 									{entry.icon}
 									{entry.label}
@@ -166,7 +165,7 @@ export const RightPanelAddTabControl: React.FC<{
 					)}
 
 					<DropdownMenuItem
-						onSelect={onNewTerminal}
+						onClick={onNewTerminal}
 						disabled={!canCreateTerminal}
 					>
 						<SquareTerminalIcon />
@@ -181,7 +180,7 @@ export const RightPanelAddTabControl: React.FC<{
 									return (
 										<DropdownMenuItem
 											key={app.id}
-											onSelect={() => onOpenCommandApp(app)}
+											onClick={() => onOpenCommandApp(app)}
 											disabled={!isRunning}
 										>
 											{app.icon ? (
@@ -201,7 +200,7 @@ export const RightPanelAddTabControl: React.FC<{
 									return (
 										<DropdownMenuItem
 											key={app.id}
-											onSelect={() => onOpenWorkspaceApp(app)}
+											onClick={() => onOpenWorkspaceApp(app)}
 											disabled={!isRunning}
 										>
 											{app.icon ? (

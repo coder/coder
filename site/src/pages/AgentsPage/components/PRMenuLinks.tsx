@@ -35,25 +35,28 @@ export const PRMenuLinks: React.FC<PRMenuLinksProps> = ({
 		const title = status.pull_request_title.trim();
 
 		return (
-			<Item key={`${status.remote_origin}/${status.git_branch}`} asChild>
-				<a href={status.url} target="_blank" rel="noreferrer">
-					{config && (
-						<config.icon
-							role="img"
-							aria-label={config.label}
-							className={config.className}
-						/>
-					)}
-					<span className="shrink-0 text-content-primary">
-						{repo && `${repo} · `}
-						{number ? `PR #${number}` : "Pull request"}
-					</span>
-					{title && (
-						<span className="min-w-0 truncate font-normal">{title}</span>
-					)}
-					<ExternalLinkIcon className="ml-auto size-3.5!" />
-				</a>
-			</Item>
+			<Item
+				key={`${status.remote_origin}/${status.git_branch}`}
+				render={
+					<a href={status.url} target="_blank" rel="noreferrer">
+						{config && (
+							<config.icon
+								role="img"
+								aria-label={config.label}
+								className={config.className}
+							/>
+						)}
+						<span className="shrink-0 text-content-primary">
+							{repo && `${repo} · `}
+							{number ? `PR #${number}` : "Pull request"}
+						</span>
+						{title && (
+							<span className="min-w-0 truncate font-normal">{title}</span>
+						)}
+						<ExternalLinkIcon className="ml-auto size-3.5!" />
+					</a>
+				}
+			></Item>
 		);
 	});
 };

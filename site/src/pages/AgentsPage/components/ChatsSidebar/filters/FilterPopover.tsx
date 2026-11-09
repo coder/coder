@@ -81,18 +81,13 @@ const haveSameSelections = <T extends string>(
 	);
 };
 
-// Selecting a value would otherwise dismiss the menu before the next toggle.
-const keepMenuOpen = (event: Event) => {
-	event.preventDefault();
-};
-
 const FilterSubmenuCheckboxItem: React.FC<
 	React.ComponentProps<typeof DropdownMenuCheckboxItem>
 > = ({ className, ...props }) => (
 	<DropdownMenuCheckboxItem
 		className={cn(
 			"pl-9 pr-2 [&>span]:left-2 [&>span]:right-auto [&>span]:size-[18px] [&>span]:rounded-xs [&>span]:border [&>span]:border-solid [&>span]:border-border-control [&>span]:bg-surface-primary",
-			"data-[state=checked]:[&>span]:border-surface-invert-primary data-[state=checked]:[&>span]:bg-surface-invert-primary data-[state=checked]:[&>span]:text-content-invert",
+			"data-checked:[&>span]:border-surface-invert-primary data-checked:[&>span]:bg-surface-invert-primary data-checked:[&>span]:text-content-invert",
 			"[&>span_svg]:stroke-[2.5]",
 			className,
 		)}
@@ -198,10 +193,12 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button variant="subtle" size="icon" aria-label="Filter agents">
-					<FilterIcon />
-				</Button>
+			<DropdownMenuTrigger
+				render={
+					<Button variant="subtle" size="icon" aria-label="Filter agents" />
+				}
+			>
+				<FilterIcon />
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="start"
@@ -230,7 +227,7 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 										key={option.value}
 										value={option.value}
 										className="gap-2 [&>svg]:size-icon-sm"
-										onSelect={keepMenuOpen}
+										closeOnClick={false}
 									>
 										<Icon />
 										{option.label}
@@ -257,7 +254,7 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 							onCheckedChange={(checked) =>
 								setPRStatus(status, checked === true)
 							}
-							onSelect={keepMenuOpen}
+							closeOnClick={false}
 						>
 							{PR_STATUS_LABELS[status]}
 						</FilterSubmenuCheckboxItem>
@@ -272,7 +269,7 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 							onCheckedChange={(checked) =>
 								setChatStatus(option.value, checked === true)
 							}
-							onSelect={keepMenuOpen}
+							closeOnClick={false}
 						>
 							{option.label}
 						</FilterSubmenuCheckboxItem>
@@ -287,7 +284,7 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 							onCheckedChange={(checked) =>
 								setSource(option.value, checked === true)
 							}
-							onSelect={keepMenuOpen}
+							closeOnClick={false}
 						>
 							{option.label}
 						</FilterSubmenuCheckboxItem>
@@ -299,7 +296,7 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 					onCheckedChange={(checked) =>
 						onFiltersChange({ ...filters, unread: checked === true })
 					}
-					onSelect={keepMenuOpen}
+					closeOnClick={false}
 					className="[&>span]:right-3.5"
 				>
 					Unread
@@ -318,8 +315,8 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 						<DropdownMenuRadioItem
 							key={status}
 							value={status}
-							onSelect={keepMenuOpen}
-							className="flex-1 justify-center rounded-sm px-2 py-0.5 data-[state=checked]:bg-surface-tertiary focus-visible:ring-2 focus-visible:ring-content-link [&>span]:hidden"
+							closeOnClick={false}
+							className="flex-1 justify-center rounded-sm px-2 py-0.5 data-checked:bg-surface-tertiary focus-visible:ring-2 focus-visible:ring-content-link [&>span]:hidden"
 						>
 							{status === "active" ? "Active" : "Archived"}
 						</DropdownMenuRadioItem>
@@ -329,8 +326,8 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 				<DropdownMenuItem
 					className="justify-center"
 					disabled={modifiedFilterCount === 0}
-					onSelect={(event) => {
-						keepMenuOpen(event);
+					closeOnClick={false}
+					onClick={() => {
 						onFiltersChange({
 							...DEFAULT_AGENT_SIDEBAR_FILTERS,
 							groupBy: filters.groupBy,

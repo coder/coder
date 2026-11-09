@@ -65,27 +65,38 @@ export const MobileMenu: React.FC<MobileMenuProps> = ({
 			{open && (
 				<div className="fixed inset-0 top-[72px] z-10 bg-surface-primary" />
 			)}
-			<DropdownMenuTrigger asChild>
-				<Button
-					aria-label={open ? "Close menu" : "Open menu"}
-					size="icon-lg"
-					variant="subtle"
-				>
-					{open ? <XIcon /> : <MenuIcon />}
-				</Button>
+			<DropdownMenuTrigger
+				render={
+					<Button
+						aria-label={open ? "Close menu" : "Open menu"}
+						size="icon-lg"
+						variant="subtle"
+					/>
+				}
+			>
+				{open ? <XIcon /> : <MenuIcon />}
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				className="w-screen border-0 border-b border-solid p-0 py-2"
 				sideOffset={17}
 			>
-				<DropdownMenuItem asChild className={itemStyles.default}>
-					<Link to="/workspaces">Workspaces</Link>
+				<DropdownMenuItem
+					render={<Link to="/workspaces" />}
+					className={itemStyles.default}
+				>
+					Workspaces
 				</DropdownMenuItem>
-				<DropdownMenuItem asChild className={itemStyles.default}>
-					<Link to="/templates">Templates</Link>
+				<DropdownMenuItem
+					render={<Link to="/templates" />}
+					className={itemStyles.default}
+				>
+					Templates
 				</DropdownMenuItem>
-				<DropdownMenuItem asChild className={itemStyles.default}>
-					<Link to="/agents">Agents</Link>
+				<DropdownMenuItem
+					render={<Link to="/agents" />}
+					className={itemStyles.default}
+				>
+					Agents
 				</DropdownMenuItem>
 				<DropdownMenuSeparator />
 				<ProxySettingsSub proxyContextValue={proxyContextValue} />
@@ -129,6 +140,7 @@ const ProxySettingsSub: React.FC<ProxySettingsSubProps> = ({
 			<CollapsibleTrigger asChild>
 				<DropdownMenuItem
 					className={cn(itemStyles.default, open && itemStyles.open)}
+					closeOnClick={false}
 					onClick={(e) => {
 						e.preventDefault();
 						setOpen((prev) => !prev);
@@ -166,6 +178,7 @@ const ProxySettingsSub: React.FC<ProxySettingsSubProps> = ({
 							<DropdownMenuItem
 								className={cn(itemStyles.default, itemStyles.sub)}
 								key={p.id}
+								closeOnClick={false}
 								onClick={(e) => {
 									e.preventDefault();
 
@@ -196,10 +209,10 @@ const ProxySettingsSub: React.FC<ProxySettingsSubProps> = ({
 					})}
 				<DropdownMenuSeparator />
 				<DropdownMenuItem
-					asChild
+					render={<Link to="/deployment/workspace-proxies" />}
 					className={cn(itemStyles.default, itemStyles.sub)}
 				>
-					<Link to="/deployment/workspace-proxies">Proxy settings</Link>
+					Proxy settings
 				</DropdownMenuItem>
 				<DropdownMenuItem
 					className={cn(itemStyles.default, itemStyles.sub)}
@@ -227,6 +240,7 @@ const AdminSettingsSub: React.FC<AdminSettingsSubProps> = ({ permissions }) => {
 			<CollapsibleTrigger asChild>
 				<DropdownMenuItem
 					className={cn(itemStyles.default, open && itemStyles.open)}
+					closeOnClick={false}
 					onClick={(e) => {
 						e.preventDefault();
 						setOpen((prev) => !prev);
@@ -266,6 +280,7 @@ const UserSettingsSub: React.FC<UserSettingsSubProps> = ({
 			<CollapsibleTrigger asChild>
 				<DropdownMenuItem
 					className={cn(itemStyles.default, open && itemStyles.open)}
+					closeOnClick={false}
 					onClick={(e) => {
 						e.preventDefault();
 						setOpen((prev) => !prev);
@@ -283,10 +298,10 @@ const UserSettingsSub: React.FC<UserSettingsSubProps> = ({
 			</CollapsibleTrigger>
 			<CollapsibleContent>
 				<DropdownMenuItem
-					asChild
+					render={<Link to="/settings/account" />}
 					className={cn(itemStyles.default, itemStyles.sub)}
 				>
-					<Link to="/settings/account">Account</Link>
+					Account
 				</DropdownMenuItem>
 				<DropdownMenuItem
 					className={cn(itemStyles.default, itemStyles.sub)}
@@ -300,17 +315,17 @@ const UserSettingsSub: React.FC<UserSettingsSubProps> = ({
 						{supportLinks?.map((l) => (
 							<DropdownMenuItem
 								key={l.name}
-								asChild
+								render={
+									<a
+										href={includeOrigin(l.target)}
+										target="_blank"
+										rel="noreferrer"
+									>
+										{l.name}
+									</a>
+								}
 								className={cn(itemStyles.default, itemStyles.sub)}
-							>
-								<a
-									href={includeOrigin(l.target)}
-									target="_blank"
-									rel="noreferrer"
-								>
-									{l.name}
-								</a>
-							</DropdownMenuItem>
+							></DropdownMenuItem>
 						))}
 					</>
 				)}

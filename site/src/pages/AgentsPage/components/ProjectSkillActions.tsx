@@ -65,15 +65,17 @@ export const ProjectSkillActions: React.FC<ProjectSkillActionsProps> = ({
 			))}
 			{menuActions.length > 0 && (
 				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button
-							size="sm"
-							variant="outline"
-							aria-label="More project actions"
-						>
-							More
-							<ChevronDownIcon aria-hidden="true" />
-						</Button>
+					<DropdownMenuTrigger
+						render={
+							<Button
+								size="sm"
+								variant="outline"
+								aria-label="More project actions"
+							/>
+						}
+					>
+						More
+						<ChevronDownIcon aria-hidden="true" />
 					</DropdownMenuTrigger>
 					<DropdownMenuContent
 						align="start"
@@ -91,7 +93,7 @@ export const ProjectSkillActions: React.FC<ProjectSkillActionsProps> = ({
 							<DropdownMenuItem
 								key={skill.id}
 								className="flex-col items-start gap-0.5"
-								onSelect={() => {
+								onClick={() => {
 									menuSelectionRef.current = skill.name;
 								}}
 							>

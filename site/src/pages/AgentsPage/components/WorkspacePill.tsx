@@ -141,26 +141,31 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 					onOpenChange={(v) => setTooltipOpen(v && !open)}
 				>
 					<TooltipTrigger asChild>
-						<DropdownMenuTrigger asChild>
-							<button
-								type="button"
-								aria-label={`${workspace.name} workspace menu`}
-								className={cn(
-									"inline-flex min-w-0 cursor-pointer items-center justify-start gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
-									// Heights match the model selector trigger.
-									"h-7 w-full px-2 py-0.5 md:h-auto",
-								)}
-							>
-								<StatusIcon type={effectiveType} className="size-3 shrink-0" />
-								<span className="min-w-0 truncate">{workspace.name}</span>
-								<ChevronDownIcon
+						<DropdownMenuTrigger
+							render={
+								<button
+									type="button"
+									aria-label={`${workspace.name} workspace menu`}
 									className={cn(
-										"size-3.5 shrink-0 transition-transform",
-										open && "rotate-180",
+										"inline-flex min-w-0 cursor-pointer items-center justify-start gap-1 rounded-full border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
+										// Heights match the model selector trigger.
+										"h-7 w-full px-2 py-0.5 md:h-auto",
 									)}
-								/>
-							</button>
-						</DropdownMenuTrigger>
+								>
+									<StatusIcon
+										type={effectiveType}
+										className="size-3 shrink-0"
+									/>
+									<span className="min-w-0 truncate">{workspace.name}</span>
+									<ChevronDownIcon
+										className={cn(
+											"size-3.5 shrink-0 transition-transform",
+											open && "rotate-180",
+										)}
+									/>
+								</button>
+							}
+						></DropdownMenuTrigger>
 					</TooltipTrigger>
 					{/* Hidden below md: touch focus would stick the tooltip open. */}
 					<TooltipContent className="hidden md:block">
@@ -260,11 +265,11 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 							)}
 
 							{sshCommand && <CopySSHMenuItem sshCommand={sshCommand} />}
-							<DropdownMenuItem asChild>
-								<Link to={route} target="_blank" rel="noreferrer">
-									<MonitorIcon className="size-3.5" />
-									View Workspace
-								</Link>
+							<DropdownMenuItem
+								render={<Link to={route} target="_blank" rel="noreferrer" />}
+							>
+								<MonitorIcon className="size-3.5" />
+								View Workspace
 							</DropdownMenuItem>
 							{onRemoveWorkspace && (
 								<>
@@ -333,7 +338,7 @@ const VSCodeMenuItem: React.FC<{
 
 	return (
 		<DropdownMenuItem
-			onSelect={handleClick}
+			onClick={handleClick}
 			disabled={isGeneratingKey || !isRunning}
 		>
 			<ExternalImage
@@ -357,25 +362,28 @@ const AppMenuItem: React.FC<{
 	const link = useAppLink(app, { workspace, agent });
 
 	return (
-		<DropdownMenuItem asChild disabled={!isRunning || link.isLoading}>
-			<a
-				href={isRunning ? link.href : undefined}
-				onClick={link.onClick}
-				target="_blank"
-				rel="noreferrer"
-			>
-				{app.icon ? (
-					<ExternalImage
-						src={app.icon}
-						alt=""
-						className="size-3.5 rounded-sm"
-					/>
-				) : (
-					<LayoutGridIcon className="size-3.5" />
-				)}
-				{link.label}
-			</a>
-		</DropdownMenuItem>
+		<DropdownMenuItem
+			render={
+				<a
+					href={isRunning ? link.href : undefined}
+					onClick={link.onClick}
+					target="_blank"
+					rel="noreferrer"
+				>
+					{app.icon ? (
+						<ExternalImage
+							src={app.icon}
+							alt=""
+							className="size-3.5 rounded-sm"
+						/>
+					) : (
+						<LayoutGridIcon className="size-3.5" />
+					)}
+					{link.label}
+				</a>
+			}
+			disabled={!isRunning || link.isLoading}
+		></DropdownMenuItem>
 	);
 };
 
@@ -392,7 +400,7 @@ const TerminalMenuItem: React.FC<{
 
 	return (
 		<DropdownMenuItem
-			onSelect={() => {
+			onClick={() => {
 				openAppInNewWindow(href);
 			}}
 			disabled={!isRunning}
@@ -410,7 +418,7 @@ const CopySSHMenuItem: React.FC<{
 
 	return (
 		<DropdownMenuItem
-			onSelect={() => {
+			onClick={() => {
 				void copyToClipboard(sshCommand);
 			}}
 		>

@@ -88,15 +88,17 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 				actions={
 					hasProjectUpdateOrDeleteAction(project.permissions) && (
 						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button
-									ref={actionsButtonRef}
-									variant="subtle"
-									size="icon"
-									aria-label="Project actions"
-								>
-									<EllipsisVerticalIcon />
-								</Button>
+							<DropdownMenuTrigger
+								render={
+									<Button
+										ref={actionsButtonRef}
+										variant="subtle"
+										size="icon"
+										aria-label="Project actions"
+									/>
+								}
+							>
+								<EllipsisVerticalIcon />
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="end">
 								<ProjectActionsMenuItems

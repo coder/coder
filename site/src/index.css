@@ -361,7 +361,7 @@
 			  height the `-above-composer` variant can grow to without
 			  extending past the visible viewport top.
 		*/
-		[data-radix-popper-content-wrapper]:has(> &) {
+		:is([data-radix-popper-content-wrapper], [data-menu-positioner]):has(> &) {
 			position: fixed !important;
 			left: var(--mobile-dropdown-left, 1rem) !important;
 			width: var(--mobile-dropdown-width, calc(100vw - 2rem)) !important;
@@ -378,7 +378,7 @@
 
 @utility mobile-full-width-dropdown-top {
 	@media (max-width: 767px) {
-		[data-radix-popper-content-wrapper]:has(> &) {
+		:is([data-radix-popper-content-wrapper], [data-menu-positioner]):has(> &) {
 			bottom: auto !important;
 			top: var(--mobile-dropdown-top, 3.5rem) !important;
 		}
@@ -387,7 +387,7 @@
 
 @utility mobile-full-width-dropdown-top-below-header {
 	@media (max-width: 767px) {
-		[data-radix-popper-content-wrapper]:has(> &) {
+		:is([data-radix-popper-content-wrapper], [data-menu-positioner]):has(> &) {
 			bottom: auto !important;
 			top: 5rem !important;
 		}
@@ -396,7 +396,7 @@
 
 @utility mobile-full-width-dropdown-above-composer {
 	@media (max-width: 767px) {
-		[data-radix-popper-content-wrapper]:has(> &) {
+		:is([data-radix-popper-content-wrapper], [data-menu-positioner]):has(> &) {
 			bottom: var(--mobile-dropdown-above-composer-bottom, 9rem) !important;
 			top: auto !important;
 			max-height: var(
@@ -759,32 +759,20 @@
 		scrollbar-color: hsl(var(--surface-scrollbar)) transparent;
 	}
 
-	/* Reserve scrollbar space to prevent layout shifts. Base UI dialogs respect
-	this gutter. Radix menus and selects still need their injected scrollbar
-	compensation disabled to avoid reserving the space twice.
-	https://github.com/radix-ui/primitives/issues/3251 */
+	/* Reserve scrollbar space so locking page scroll does not shift the layout. */
 	@supports (scrollbar-gutter: stable) {
 		html {
 			scrollbar-gutter: stable;
 		}
-
-		html body[data-scroll-locked] {
-			--removed-body-scroll-bar-size: 0 !important;
-			margin-right: 0 !important;
-			overflow-y: scroll !important;
-		}
 	}
 
-	/* Kept outside the @supports guard on purpose: the overflow rules apply
-	regardless of scrollbar-gutter support. Must stay in this layer, since a
-	layered !important beats an unlayered one. */
+	/* The Agents layout scrolls its panels instead of the document. */
 	html[data-agents-layout] {
 		overflow: hidden;
 		scrollbar-gutter: auto;
 	}
 
-	html[data-agents-layout] body,
-	html[data-agents-layout] body[data-scroll-locked] {
+	html[data-agents-layout] body {
 		overflow: hidden !important;
 	}
 

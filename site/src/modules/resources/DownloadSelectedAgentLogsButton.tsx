@@ -54,19 +54,21 @@ export const DownloadSelectedAgentLogsButton: React.FC<
 
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button
-					variant="subtle"
-					size="sm"
-					disabled={disabled || isDownloading}
-					className="min-w-0"
-				>
-					<DownloadIcon />
-					<span className="sr-only">
-						{isDownloading ? "Downloading..." : "Download agent logs"}
-					</span>
-					<ChevronDownIcon className="size-icon-sm" />
-				</Button>
+			<DropdownMenuTrigger
+				render={
+					<Button
+						variant="subtle"
+						size="sm"
+						disabled={disabled || isDownloading}
+						className="min-w-0"
+					/>
+				}
+			>
+				<DownloadIcon />
+				<span className="sr-only">
+					{isDownloading ? "Downloading..." : "Download agent logs"}
+				</span>
+				<ChevronDownIcon className="size-icon-sm" />
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				side="bottom"
@@ -75,7 +77,7 @@ export const DownloadSelectedAgentLogsButton: React.FC<
 			>
 				<DropdownMenuItem
 					disabled={!hasAllLogs}
-					onSelect={() => {
+					onClick={() => {
 						downloadLogs(allLogsText, "all-logs");
 					}}
 				>
@@ -86,7 +88,7 @@ export const DownloadSelectedAgentLogsButton: React.FC<
 					<DropdownMenuItem
 						key={logSet.filenameSuffix}
 						disabled={logSet.logsText.length === 0}
-						onSelect={() => {
+						onClick={() => {
 							downloadLogs(logSet.logsText, logSet.filenameSuffix);
 						}}
 					>

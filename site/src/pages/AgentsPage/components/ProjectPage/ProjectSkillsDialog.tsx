@@ -641,21 +641,23 @@ const ProjectSkillRow: React.FC<ProjectSkillRowProps> = ({
 		</TableCell>
 		<TableCell className="text-right">
 			<DropdownMenu>
-				<DropdownMenuTrigger asChild>
-					<Button
-						size="icon"
-						variant="subtle"
-						aria-label={`Open menu for ${skill.name}`}
-						autoFocus={autoFocus}
-						onPointerDown={onTriggerInteraction}
-						onKeyDown={onTriggerInteraction}
-					>
-						{isDownloading ? (
-							<Spinner loading />
-						) : (
-							<EllipsisVerticalIcon aria-hidden="true" />
-						)}
-					</Button>
+				<DropdownMenuTrigger
+					render={
+						<Button
+							size="icon"
+							variant="subtle"
+							aria-label={`Open menu for ${skill.name}`}
+							autoFocus={autoFocus}
+							onPointerDown={onTriggerInteraction}
+							onKeyDown={onTriggerInteraction}
+						/>
+					}
+				>
+					{isDownloading ? (
+						<Spinner loading />
+					) : (
+						<EllipsisVerticalIcon aria-hidden="true" />
+					)}
 				</DropdownMenuTrigger>
 				<DropdownMenuContent align="end">
 					<DropdownMenuItem onClick={onDownload} disabled={isDownloading}>

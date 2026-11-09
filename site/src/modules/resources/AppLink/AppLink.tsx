@@ -205,7 +205,10 @@ export const AppLink: React.FC<AppLinkProps> = ({
 	);
 
 	const button = grouped ? (
-		<DropdownMenuItem asChild>{trigger}</DropdownMenuItem>
+		<DropdownMenuItem
+			nativeButton={opensViaClick}
+			render={trigger}
+		></DropdownMenuItem>
 	) : (
 		<AgentButton asChild>{trigger}</AgentButton>
 	);

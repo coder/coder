@@ -285,19 +285,21 @@ const SecretRowActions: React.FC<SecretRowActionsProps> = ({
 
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button
-					ref={triggerRef}
-					size="icon"
-					variant="subtle"
-					aria-label={label}
-				>
-					<EllipsisVerticalIcon aria-hidden="true" />
-				</Button>
+			<DropdownMenuTrigger
+				render={
+					<Button
+						ref={triggerRef}
+						size="icon"
+						variant="subtle"
+						aria-label={label}
+					/>
+				}
+			>
+				<EllipsisVerticalIcon aria-hidden="true" />
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end">
 				<DropdownMenuItem
-					onSelect={() => onEditSecret(secret, triggerRef.current)}
+					onClick={() => onEditSecret(secret, triggerRef.current)}
 				>
 					<PencilIcon className="size-icon-xs" />
 					Edit secret
@@ -305,7 +307,7 @@ const SecretRowActions: React.FC<SecretRowActionsProps> = ({
 				<DropdownMenuSeparator />
 				<DropdownMenuItem
 					className="text-content-destructive focus:text-content-destructive"
-					onSelect={() => onDeleteSecret(secret)}
+					onClick={() => onDeleteSecret(secret)}
 				>
 					<TrashIcon className="size-icon-xs" />
 					Delete

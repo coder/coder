@@ -72,15 +72,17 @@ const MemberRowMenu: React.FC<MemberRowMenuProps> = ({
 	onRemove,
 }) => (
 	<DropdownMenu>
-		<DropdownMenuTrigger asChild>
-			<Button
-				size="icon-lg"
-				variant="subtle"
-				aria-label="Open menu"
-				disabled={disabled}
-			>
-				<EllipsisVerticalIcon aria-hidden="true" />
-			</Button>
+		<DropdownMenuTrigger
+			render={
+				<Button
+					size="icon-lg"
+					variant="subtle"
+					aria-label="Open menu"
+					disabled={disabled}
+				/>
+			}
+		>
+			<EllipsisVerticalIcon aria-hidden="true" />
 		</DropdownMenuTrigger>
 		<DropdownMenuContent align="end">
 			<DropdownMenuItem

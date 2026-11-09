@@ -163,31 +163,36 @@ export const AgentPageHeader: React.FC<AgentPageHeaderProps> = ({
 			{/* Mobile: meatball menu with all actions */}
 			{!mobileBack && !isDesktop && (
 				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button
-							variant="subtle"
-							size="icon"
-							aria-label="More options"
-							className="size-7 text-content-secondary hover:text-content-primary sm:hidden"
-						>
-							<EllipsisIcon />
-						</Button>
+					<DropdownMenuTrigger
+						render={
+							<Button
+								variant="subtle"
+								size="icon"
+								aria-label="More options"
+								className="size-7 text-content-secondary hover:text-content-primary sm:hidden"
+							/>
+						}
+					>
+						<EllipsisIcon />
 					</DropdownMenuTrigger>
 					<DropdownMenuContent
 						align="end"
 						className="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-sm"
 					>
-						<DropdownMenuItem asChild>
-							<Link
-								to="/agents/settings"
-								state={{ from: location.pathname + location.search }}
-							>
-								<SettingsIcon className="size-icon-sm" />
-								Settings
-							</Link>
+						<DropdownMenuItem
+							render={
+								<Link
+									to="/agents/settings"
+									state={{ from: location.pathname + location.search }}
+								/>
+							}
+						>
+							<SettingsIcon className="size-icon-sm" />
+							Settings
 						</DropdownMenuItem>
 						<DropdownMenuItem
-							onSelect={(e) => {
+							closeOnClick={false}
+							onClick={(e) => {
 								e.preventDefault();
 								handleChimeToggle();
 							}}
@@ -201,7 +206,8 @@ export const AgentPageHeader: React.FC<AgentPageHeaderProps> = ({
 						</DropdownMenuItem>
 						{webPush.enabled && (
 							<DropdownMenuItem
-								onSelect={(e) => {
+								closeOnClick={false}
+								onClick={(e) => {
 									e.preventDefault();
 									void handleNotificationToggle();
 								}}

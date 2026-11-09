@@ -332,16 +332,18 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 					</CollapsibleTrigger>
 
 					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								size="icon"
-								variant="subtle"
-								onClick={(event) => event.stopPropagation()}
-								className="size-[30px]"
-							>
-								<EllipsisVerticalIcon />
-								<span className="sr-only">Show license actions</span>
-							</Button>
+						<DropdownMenuTrigger
+							render={
+								<Button
+									size="icon"
+									variant="subtle"
+									onClick={(event) => event.stopPropagation()}
+									className="size-[30px]"
+								/>
+							}
+						>
+							<EllipsisVerticalIcon />
+							<span className="sr-only">Show license actions</span>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem

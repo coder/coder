@@ -664,26 +664,28 @@ const GitViewSwitcher: React.FC<GitViewSwitcherProps> = ({
 
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<button
-					type="button"
-					className="inline-flex h-6 min-w-0 max-w-full cursor-pointer items-stretch overflow-hidden rounded-md border border-solid border-border bg-surface-primary text-xs transition-colors hover:bg-surface-secondary"
-					data-testid="git-panel-view-switcher"
-					aria-label="Switch git view"
-				>
-					{triggerContent}
-				</button>
-			</DropdownMenuTrigger>
+			<DropdownMenuTrigger
+				render={
+					<button
+						type="button"
+						className="inline-flex h-6 min-w-0 max-w-full cursor-pointer items-stretch overflow-hidden rounded-md border border-solid border-border bg-surface-primary text-xs transition-colors hover:bg-surface-secondary"
+						data-testid="git-panel-view-switcher"
+						aria-label="Switch git view"
+					>
+						{triggerContent}
+					</button>
+				}
+			></DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="start"
-				className="w-(--radix-dropdown-menu-trigger-width) min-w-[240px] p-1"
+				className="w-(--anchor-width) min-w-[240px] p-1"
 			>
 				{items.map((item) => {
 					const isActive = item.id === activeItem.id;
 					return (
 						<DropdownMenuItem
 							key={item.id}
-							onSelect={() => onSelect(item)}
+							onClick={() => onSelect(item)}
 							className={cn(
 								"flex items-center gap-2 rounded-sm px-2 py-1.5 text-xs",
 								// Nest local entries under the remote/PR entry

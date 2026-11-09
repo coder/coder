@@ -67,14 +67,16 @@ export const VSCodeDesktopButton: React.FC<VSCodeDesktopButtonProps> = (
 				open={isVariantMenuOpen}
 				onOpenChange={setIsVariantMenuOpen}
 			>
-				<DropdownMenuTrigger asChild>
-					<AgentButton
-						aria-controls={isVariantMenuOpen ? menuContentId : undefined}
-						aria-label="select VSCode variant"
-						size="icon-lg"
-					>
-						<ChevronDownIcon open={isVariantMenuOpen} />
-					</AgentButton>
+				<DropdownMenuTrigger
+					render={
+						<AgentButton
+							aria-controls={isVariantMenuOpen ? menuContentId : undefined}
+							aria-label="select VSCode variant"
+							size="icon-lg"
+						/>
+					}
+				>
+					<ChevronDownIcon open={isVariantMenuOpen} />
 				</DropdownMenuTrigger>
 
 				<DropdownMenuContent

@@ -59,7 +59,7 @@ const ProjectChatCost: React.FC<{ readonly chat: Chat }> = ({ chat }) => {
 		<Badge
 			asChild
 			size="sm"
-			className="shrink-0 tabular-nums group-hover:bg-surface-tertiary group-has-[[data-state=open]]:bg-surface-tertiary group-data-[state=open]:bg-surface-tertiary"
+			className="shrink-0 tabular-nums group-hover:bg-surface-tertiary group-has-data-popup-open:bg-surface-tertiary group-data-popup-open:bg-surface-tertiary"
 		>
 			<span>{formatCostMicros(costQuery.data.total_cost_micros)}</span>
 		</Badge>
@@ -145,10 +145,10 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 	const row = (
 		<li
 			className={cn(
-				"group -mx-2 flex min-w-0 items-center gap-2 rounded-lg pr-2 hover:bg-surface-secondary has-[[data-state=open]]:bg-surface-secondary",
+				"group -mx-2 flex min-w-0 items-center gap-2 rounded-lg pr-2 hover:bg-surface-secondary has-data-popup-open:bg-surface-secondary",
 				// A long press opens the context menu on touch screens, so it must
 				// not also select text.
-				actions && "select-none data-[state=open]:bg-surface-secondary",
+				actions && "select-none data-popup-open:bg-surface-secondary",
 			)}
 		>
 			<Link
@@ -179,7 +179,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 					fallback={ownerName}
 					className={cn(
 						actions &&
-							"[@media(hover:hover)]:group-hover:invisible group-has-focus-visible:invisible group-has-[[data-state=open]]:invisible group-data-[state=open]:invisible [@media(hover:none)]:invisible",
+							"[@media(hover:hover)]:group-hover:invisible group-has-focus-visible:invisible group-has-data-popup-open:invisible group-data-popup-open:invisible [@media(hover:none)]:invisible",
 					)}
 				/>
 				{actions && (
@@ -187,7 +187,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 						<Button
 							variant="subtle"
 							size="icon"
-							className="size-7 opacity-0 [@media(hover:hover)]:group-hover:opacity-100 group-has-focus-visible:opacity-100 data-[state=open]:opacity-100 group-data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
+							className="size-7 opacity-0 [@media(hover:hover)]:group-hover:opacity-100 group-has-focus-visible:opacity-100 data-popup-open:opacity-100 group-data-popup-open:opacity-100 [@media(hover:none)]:opacity-100"
 							aria-label={`Open chat actions for ${chat.title}`}
 							{...preventRowContextMenuProps}
 						>

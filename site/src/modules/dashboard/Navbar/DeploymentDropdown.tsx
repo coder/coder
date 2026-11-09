@@ -17,11 +17,9 @@ export const AdminSettingsDropdown: React.FC<AdminSettingsDropdownProps> = ({
 }) => {
 	return (
 		<DropdownMenu>
-			<DropdownMenuTrigger asChild>
-				<Button variant="outline" size="lg">
-					Admin settings
-					<ChevronDownIcon className="text-content-primary" />
-				</Button>
+			<DropdownMenuTrigger render={<Button variant="outline" size="lg" />}>
+				Admin settings
+				<ChevronDownIcon className="text-content-primary" />
 			</DropdownMenuTrigger>
 
 			<DropdownMenuContent align="end" className="w-[180px]">

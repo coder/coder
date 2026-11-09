@@ -637,28 +637,34 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 													))}
 													{overflowLogTabs.length > 0 && (
 														<DropdownMenu>
-															<DropdownMenuTrigger asChild>
-																<button
-																	type="button"
-																	data-slot="tabs-trigger"
-																	data-log-overflow-trigger
-																	data-state={
-																		overflowLogTabValuesSet.has(selectedLogTab)
-																			? "active"
-																			: "inactive"
-																	}
-																	aria-label="More log tabs"
-																	className={cn(
-																		"cursor-pointer -mb-px",
-																		"inline-flex items-center justify-center",
-																		"border-none py-3 bg-transparent text-inherit",
-																		"transition-colors duration-150 ease-linear",
-																	)}
-																>
-																	<EllipsisIcon className="size-icon-sm" />
-																	<span className="sr-only">More log tabs</span>
-																</button>
-															</DropdownMenuTrigger>
+															<DropdownMenuTrigger
+																render={
+																	<button
+																		type="button"
+																		data-slot="tabs-trigger"
+																		data-log-overflow-trigger
+																		data-state={
+																			overflowLogTabValuesSet.has(
+																				selectedLogTab,
+																			)
+																				? "active"
+																				: "inactive"
+																		}
+																		aria-label="More log tabs"
+																		className={cn(
+																			"cursor-pointer -mb-px",
+																			"inline-flex items-center justify-center",
+																			"border-none py-3 bg-transparent text-inherit",
+																			"transition-colors duration-150 ease-linear",
+																		)}
+																	>
+																		<EllipsisIcon className="size-icon-sm" />
+																		<span className="sr-only">
+																			More log tabs
+																		</span>
+																	</button>
+																}
+															></DropdownMenuTrigger>
 															<DropdownMenuContent
 																align="end"
 																className="max-h-56 overflow-y-auto"

@@ -75,22 +75,30 @@ export const WorkspaceAppFrame: React.FC<WorkspaceAppFrameProps> = ({
 					<div className="w-full" />
 
 					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button size="icon" variant="subtle" aria-label="More options">
-								<EllipsisVerticalIcon aria-hidden="true" />
-								<span className="sr-only">More options</span>
-							</Button>
+						<DropdownMenuTrigger
+							render={
+								<Button
+									size="icon"
+									variant="subtle"
+									aria-label="More options"
+								/>
+							}
+						>
+							<EllipsisVerticalIcon aria-hidden="true" />
+							<span className="sr-only">More options</span>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
-							<DropdownMenuItem asChild>
-								<RouterLink
-									to={link.href ?? ""}
-									target="_blank"
-									rel="noreferrer"
-								>
-									<ExternalLinkIcon />
-									Open app in new tab
-								</RouterLink>
+							<DropdownMenuItem
+								render={
+									<RouterLink
+										to={link.href ?? ""}
+										target="_blank"
+										rel="noreferrer"
+									/>
+								}
+							>
+								<ExternalLinkIcon />
+								Open app in new tab
 							</DropdownMenuItem>
 						</DropdownMenuContent>
 					</DropdownMenu>
