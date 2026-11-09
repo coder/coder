@@ -420,3 +420,8 @@ export class JobError extends Error {
 		this.version = version;
 	}
 }
+
+export const templateVersionDocs = (versionId: string) => ({
+	queryKey: [templateVersionRoot, versionId, "docs"],
+	queryFn: () => API.getTemplateVersionDocs(versionId),
+});

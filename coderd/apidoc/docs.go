@@ -12704,6 +12704,41 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/templateversions/{templateversion}/docs": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template version documentation",
+                "operationId": "get-template-version-documentation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.TemplateVersionDocumentation"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
         "/api/v2/templateversions/{templateversion}/dry-run": {
             "post": {
                 "consumes": [
@@ -32528,6 +32563,17 @@ const docTemplate = `{
                             "DEPRECATED_PARAMETERS"
                         ],
                         "$ref": "#/definitions/codersdk.TemplateVersionWarning"
+                    }
+                }
+            }
+        },
+        "codersdk.TemplateVersionDocumentation": {
+            "type": "object",
+            "properties": {
+                "files": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
                     }
                 }
             }

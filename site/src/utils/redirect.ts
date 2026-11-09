@@ -36,7 +36,7 @@ export const sanitizeRedirect = (redirectTo: string): string => {
 	const fallbackRedirect = "/";
 	try {
 		const url = new URL(redirectTo, location.origin);
-		const candidate = url.pathname + url.search;
+		const candidate = url.pathname + url.search + url.hash;
 		const resolved = new URL(candidate, location.origin);
 		if (resolved.origin !== location.origin) {
 			return fallbackRedirect;

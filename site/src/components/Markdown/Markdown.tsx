@@ -26,15 +26,17 @@ type MarkdownProps = {
 	 * Can override the behavior of the generated elements
 	 */
 	components?: Options["components"];
+	rehypePlugins?: Options["rehypePlugins"];
 };
 
 export const Markdown: React.FC<MarkdownProps> = (props) => {
-	const { children, className, components = {} } = props;
+	const { children, className, components = {}, rehypePlugins } = props;
 
 	return (
 		<ReactMarkdown
 			className={cn(markdownClassName, className)}
 			remarkPlugins={[gfm]}
+			rehypePlugins={rehypePlugins}
 			components={{
 				a: ({ href, children }) => {
 					const isExternal = href?.startsWith("http");

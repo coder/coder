@@ -115,6 +115,25 @@ func (c *Client) TemplateVersion(ctx context.Context, id uuid.UUID) (TemplateVer
 	return version, ReadBodyAsJSON(res, &version)
 }
 
+// TemplateVersionDocumentation contains root-level Markdown files from a template.
+type TemplateVersionDocumentation struct {
+	Files map[string]string `json:"files"`
+}
+
+// TemplateVersionDocs returns documentation readable by template users.
+func (c *Client) TemplateVersionDocs(ctx context.Context, id uuid.UUID) (TemplateVersionDocumentation, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/docs", id), nil)
+	if err != nil {
+		return TemplateVersionDocumentation{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return TemplateVersionDocumentation{}, ReadBodyAsError(res)
+	}
+	var docs TemplateVersionDocumentation
+	return docs, ReadBodyAsJSON(res, &docs)
+}
+
 // CancelTemplateVersion marks a template version job as canceled.
 func (c *Client) CancelTemplateVersion(ctx context.Context, version uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/templateversions/%s/cancel", version), nil)

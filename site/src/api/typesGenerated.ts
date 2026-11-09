@@ -10718,6 +10718,14 @@ export interface TemplateVersion {
 }
 
 // From codersdk/templateversions.go
+/**
+ * TemplateVersionDocumentation contains root-level Markdown files from a template.
+ */
+export interface TemplateVersionDocumentation {
+	readonly files: Record<string, string>;
+}
+
+// From codersdk/templateversions.go
 export interface TemplateVersionExternalAuth {
 	readonly id: string;
 	readonly type: string;
