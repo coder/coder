@@ -55,6 +55,11 @@ linters:
           deny:
             - pkg: log/slog
               desc: use cdr.dev/slog/v3 instead
+        single_jwt_library:
+          list-mode: lax
+          deny:
+            - pkg: github.com/golang-jwt/jwt
+              desc: use github.com/go-jose/go-jose/v4 so JWTs are handled by a single library
     dupl:
       threshold: 412
     exhaustruct:

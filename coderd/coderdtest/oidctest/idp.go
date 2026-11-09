@@ -27,7 +27,7 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-jose/go-jose/v4"
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -190,8 +190,8 @@ type FakeIDP struct {
 	// Refresh Token -> Email
 	refreshTokensUsed    *syncmap.Map[string, bool]
 	refreshTokens        *syncmap.Map[string, string]
-	stateToIDTokenClaims *syncmap.Map[string, jwt.MapClaims]
-	refreshIDTokenClaims *syncmap.Map[string, jwt.MapClaims]
+	stateToIDTokenClaims *syncmap.Map[string, map[string]any]
+	refreshIDTokenClaims *syncmap.Map[string, map[string]any]
 	// Device flow
 	deviceCode *syncmap.Map[string, deviceFlow]
 
@@ -203,13 +203,13 @@ type FakeIDP struct {
 	// IDP -> Application. Almost all IDPs have the concept of
 	// "Authorized Redirect URLs". This can be used to emulate that.
 	hookValidRedirectURL    func(redirectURL string) error
-	hookUserInfo            func(email string) (jwt.MapClaims, error)
+	hookUserInfo            func(email string) (map[string]any, error)
 	hookRevokeToken         HookRevokeTokenFn
 	revokeTokenGitHubFormat bool // GitHub doesn't follow token revocation RFC spec
-	hookAccessTokenJWT      func(email string, exp time.Time) jwt.MapClaims
+	hookAccessTokenJWT      func(email string, exp time.Time) map[string]any
 	// defaultIDClaims is if a new client connects and we didn't preset
 	// some claims.
-	defaultIDClaims jwt.MapClaims
+	defaultIDClaims map[string]any
 	hookMutateToken func(token map[string]interface{})
 	hookOnRefresh   func(email string) error
 	// Custom authentication for the client. This is useful if you want
@@ -256,7 +256,7 @@ func WithMiddlewares(mws ...func(http.Handler) http.Handler) func(*FakeIDP) {
 	}
 }
 
-func WithAccessTokenJWTHook(hook func(email string, exp time.Time) jwt.MapClaims) func(*FakeIDP) {
+func WithAccessTokenJWTHook(hook func(email string, exp time.Time) map[string]any) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.hookAccessTokenJWT = hook
 	}
@@ -328,9 +328,9 @@ func WithLogger(logger slog.Logger) func(*FakeIDP) {
 
 // WithStaticUserInfo is optional, but will return the same user info for
 // every user on the /userinfo endpoint.
-func WithStaticUserInfo(info jwt.MapClaims) func(*FakeIDP) {
+func WithStaticUserInfo(info map[string]any) func(*FakeIDP) {
 	return func(f *FakeIDP) {
-		f.hookUserInfo = func(_ string) (jwt.MapClaims, error) {
+		f.hookUserInfo = func(_ string) (map[string]any, error) {
 			return info, nil
 		}
 	}
@@ -349,13 +349,13 @@ func WithRevokeTokenGitHub(revokeFunc HookRevokeTokenFn) func(*FakeIDP) {
 	}
 }
 
-func WithDefaultIDClaims(claims jwt.MapClaims) func(*FakeIDP) {
+func WithDefaultIDClaims(claims map[string]any) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.defaultIDClaims = claims
 	}
 }
 
-func WithDynamicUserInfo(userInfoFunc func(email string) (jwt.MapClaims, error)) func(*FakeIDP) {
+func WithDynamicUserInfo(userInfoFunc func(email string) (map[string]any, error)) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.hookUserInfo = userInfoFunc
 	}
@@ -468,11 +468,11 @@ func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 		accessTokens:         syncmap.New[string, token](),
 		refreshTokens:        syncmap.New[string, string](),
 		refreshTokensUsed:    syncmap.New[string, bool](),
-		stateToIDTokenClaims: syncmap.New[string, jwt.MapClaims](),
-		refreshIDTokenClaims: syncmap.New[string, jwt.MapClaims](),
+		stateToIDTokenClaims: syncmap.New[string, map[string]any](),
+		refreshIDTokenClaims: syncmap.New[string, map[string]any](),
 		deviceCode:           syncmap.New[string, deviceFlow](),
 		hookOnRefresh:        func(_ string) error { return nil },
-		hookUserInfo:         func(_ string) (jwt.MapClaims, error) { return jwt.MapClaims{}, nil },
+		hookUserInfo:         func(_ string) (map[string]any, error) { return map[string]any{}, nil },
 		hookValidRedirectURL: func(_ string) error { return nil },
 		defaultExpire:        time.Minute * 5,
 	}
@@ -569,7 +569,7 @@ func (f *FakeIDP) realServer(t testing.TB) *httptest.Server {
 
 // GenerateAuthenticatedToken skips all oauth2 flows, and just generates a
 // valid token for some given claims.
-func (f *FakeIDP) GenerateAuthenticatedToken(claims jwt.MapClaims) (*oauth2.Token, error) {
+func (f *FakeIDP) GenerateAuthenticatedToken(claims map[string]any) (*oauth2.Token, error) {
 	state := uuid.NewString()
 	f.stateToIDTokenClaims.Store(state, claims)
 
@@ -589,7 +589,7 @@ func (f *FakeIDP) GenerateAuthenticatedToken(claims jwt.MapClaims) (*oauth2.Toke
 //
 // The client passed in is just to get the url of the Coder instance.
 // The actual client that is used is 100% unauthenticated and fresh.
-func (f *FakeIDP) Login(t testing.TB, client *codersdk.Client, idTokenClaims jwt.MapClaims, opts ...func(r *http.Request)) (*codersdk.Client, *http.Response) {
+func (f *FakeIDP) Login(t testing.TB, client *codersdk.Client, idTokenClaims map[string]any, opts ...func(r *http.Request)) (*codersdk.Client, *http.Response) {
 	t.Helper()
 
 	client, resp := f.AttemptLogin(t, client, idTokenClaims, opts...)
@@ -603,7 +603,7 @@ func (f *FakeIDP) Login(t testing.TB, client *codersdk.Client, idTokenClaims jwt
 	return client, resp
 }
 
-func (f *FakeIDP) AttemptLogin(t testing.TB, client *codersdk.Client, idTokenClaims jwt.MapClaims, opts ...func(r *http.Request)) (*codersdk.Client, *http.Response) {
+func (f *FakeIDP) AttemptLogin(t testing.TB, client *codersdk.Client, idTokenClaims map[string]any, opts ...func(r *http.Request)) (*codersdk.Client, *http.Response) {
 	t.Helper()
 	var err error
 
@@ -625,7 +625,7 @@ func (f *FakeIDP) AttemptLogin(t testing.TB, client *codersdk.Client, idTokenCla
 // cookies will be used. This should be an unauthenticated client in most cases.
 //
 // This is a niche case, but it is needed for testing ConvertLoginType.
-func (f *FakeIDP) LoginWithClient(t testing.TB, client *codersdk.Client, idTokenClaims jwt.MapClaims, opts ...func(r *http.Request)) (*codersdk.Client, *http.Response) {
+func (f *FakeIDP) LoginWithClient(t testing.TB, client *codersdk.Client, idTokenClaims map[string]any, opts ...func(r *http.Request)) (*codersdk.Client, *http.Response) {
 	t.Helper()
 	path := "/api/v2/users/oidc/callback"
 	if f.callbackPath != "" {
@@ -699,7 +699,7 @@ func (f *FakeIDP) ExternalLogin(t testing.TB, client *codersdk.Client, opts ...c
 		// Store the idTokenClaims to the specific state request. This ties
 		// the claims 1:1 with a given authentication flow.
 		state := req.URL.Query().Get("state")
-		f.stateToIDTokenClaims.Store(state, jwt.MapClaims{})
+		f.stateToIDTokenClaims.Store(state, map[string]any{})
 		return nil
 	}
 
@@ -756,7 +756,7 @@ func (*FakeIDP) DeviceLogin(t testing.TB, client *codersdk.Client, externalAuthI
 func (f *FakeIDP) CreateAuthCode(t testing.TB, state string) string {
 	// We need to store some claims, because this is also an OIDC provider, and
 	// it expects some claims to be present.
-	f.stateToIDTokenClaims.Store(state, jwt.MapClaims{})
+	f.stateToIDTokenClaims.Store(state, map[string]any{})
 
 	code, err := OAuth2GetCode(f.locked.Config().AuthCodeURL(state), func(req *http.Request) (*http.Response, error) {
 		rw := httptest.NewRecorder()
@@ -773,7 +773,7 @@ func (f *FakeIDP) CreateAuthCode(t testing.TB, state string) string {
 // something.
 // Essentially this is used to fake the Coderd side of the exchange.
 // The flow starts at the user hitting the OIDC login page.
-func (f *FakeIDP) OIDCCallback(t testing.TB, state string, idTokenClaims jwt.MapClaims) *http.Response {
+func (f *FakeIDP) OIDCCallback(t testing.TB, state string, idTokenClaims map[string]any) *http.Response {
 	t.Helper()
 	if f.serve {
 		panic("cannot use OIDCCallback with WithServing. This is only for the in memory usage")
@@ -897,7 +897,7 @@ func (f *FakeIDP) authenticateOIDCClientRequest(t testing.TB, req *http.Request)
 }
 
 // encodeClaims is a helper func to convert claims to a valid JWT.
-func (f *FakeIDP) encodeClaims(t testing.TB, claims jwt.MapClaims) string {
+func (f *FakeIDP) encodeClaims(t testing.TB, claims map[string]any) string {
 	t.Helper()
 
 	if _, ok := claims["exp"]; !ok {
@@ -923,7 +923,12 @@ func (f *FakeIDP) encodeClaims(t testing.TB, claims jwt.MapClaims) string {
 		}
 	}
 
-	signed, err := jwt.NewWithClaims(jwt.SigningMethodRS256, claims).SignedString(f.locked.PrivateKey())
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.RS256,
+		Key:       f.locked.PrivateKey(),
+	}, (&jose.SignerOptions{}).WithType("JWT"))
+	require.NoError(t, err)
+	signed, err := jwt.Signed(signer).Claims(claims).Serialize()
 	require.NoError(t, err)
 
 	return signed
@@ -1041,7 +1046,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			httpError(rw, http.StatusBadRequest, err)
 			return
 		}
-		getEmail := func(claims jwt.MapClaims) string {
+		getEmail := func(claims map[string]any) string {
 			email, ok := claims["email"]
 			if !ok {
 				return "unknown"
@@ -1053,7 +1058,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			return emailStr
 		}
 
-		var claims jwt.MapClaims
+		var claims map[string]any
 		switch values.Get("grant_type") {
 		case "authorization_code":
 			code := values.Get("code")
@@ -1156,7 +1161,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			}
 
 			// Would be nice to get an actual email here.
-			claims = jwt.MapClaims{
+			claims = map[string]any{
 				"email": "unknown-dev-auth",
 			}
 		default:
@@ -1506,7 +1511,7 @@ func (f *FakeIDP) RefreshUsed(refreshToken string) bool {
 // UpdateRefreshClaims allows the caller to change what claims are returned
 // for a given refresh token. By default, all refreshes use the same claims as
 // the original IDToken issuance.
-func (f *FakeIDP) UpdateRefreshClaims(refreshToken string, claims jwt.MapClaims) {
+func (f *FakeIDP) UpdateRefreshClaims(refreshToken string, claims map[string]any) {
 	// no mutex because it's a sync.Map
 	f.refreshIDTokenClaims.Store(refreshToken, claims)
 }
@@ -1737,7 +1742,7 @@ func (f *FakeIDP) internalOIDCConfig(ctx context.Context, t testing.TB, scopes [
 	return cfg
 }
 
-func (f *FakeIDP) getClaims(m *syncmap.Map[string, jwt.MapClaims], key string) (jwt.MapClaims, bool) {
+func (f *FakeIDP) getClaims(m *syncmap.Map[string, map[string]any], key string) (map[string]any, bool) {
 	v, ok := m.Load(key)
 	if !ok || v == nil {
 		if f.defaultIDClaims != nil {

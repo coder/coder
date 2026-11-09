@@ -7,7 +7,6 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -37,7 +36,7 @@ func TestParseGroupClaims(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		params, err := s.ParseGroupClaims(ctx, jwt.MapClaims{})
+		params, err := s.ParseGroupClaims(ctx, map[string]any{})
 		require.Nil(t, err)
 
 		require.False(t, params.SyncEntitled)
@@ -58,14 +57,14 @@ func TestParseGroupClaims(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		// Invalid group
-		_, err := s.ParseGroupClaims(ctx, jwt.MapClaims{
+		_, err := s.ParseGroupClaims(ctx, map[string]any{
 			"groups": []string{"bar"},
 		})
 		require.NotNil(t, err)
 		require.Equal(t, 403, err.Code)
 
 		// No groups
-		_, err = s.ParseGroupClaims(ctx, jwt.MapClaims{})
+		_, err = s.ParseGroupClaims(ctx, map[string]any{})
 		require.NotNil(t, err)
 		require.Equal(t, 403, err.Code)
 	})
@@ -84,7 +83,7 @@ func TestParseGroupClaims(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
-		claims := jwt.MapClaims{
+		claims := map[string]any{
 			"groups": []string{"foo", "bar"},
 		}
 		params, err := s.ParseGroupClaims(ctx, claims)
@@ -97,7 +96,7 @@ func TestParseGroupClaims(t *testing.T) {
 func TestGroupSyncTable(t *testing.T) {
 	t.Parallel()
 
-	userClaims := jwt.MapClaims{
+	userClaims := map[string]any{
 		"groups": []string{
 			"foo", "bar", "baz",
 			"create-bar", "create-baz",
@@ -438,7 +437,7 @@ func TestSyncDisabled(t *testing.T) {
 	// Do the group sync!
 	err := s.SyncGroups(ctx, db, user, idpsync.GroupParams{
 		SyncEntitled: false,
-		MergedClaims: jwt.MapClaims{
+		MergedClaims: map[string]any{
 			"groups": []string{"baz", "bop"},
 		},
 	})
@@ -600,7 +599,7 @@ func TestSyncGroupsOutsideOrganization(t *testing.T) {
 
 			err := s.SyncGroups(ctx, db, user, idpsync.GroupParams{
 				SyncEntitled: true,
-				MergedClaims: jwt.MapClaims{"groups": []string{"x"}},
+				MergedClaims: map[string]any{"groups": []string{"x"}},
 			})
 			require.NoError(t, err)
 

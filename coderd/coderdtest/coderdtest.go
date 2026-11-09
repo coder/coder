@@ -34,7 +34,8 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/go-chi/chi/v5"
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/prometheus/client_golang/prometheus"
@@ -1610,7 +1611,7 @@ func RequestExternalAuthCallback(t testing.TB, providerID string, client *coders
 func NewGoogleInstanceIdentity(t testing.TB, instanceID string, expired bool, audience string) (*idtoken.Validator, *metadata.Client) {
 	keyID, err := cryptorand.String(12)
 	require.NoError(t, err)
-	claims := jwt.MapClaims{
+	claims := map[string]any{
 		"aud": audience,
 		"google": map[string]interface{}{
 			"compute_engine": map[string]string{
@@ -1621,11 +1622,14 @@ func NewGoogleInstanceIdentity(t testing.TB, instanceID string, expired bool, au
 	if !expired {
 		claims["exp"] = time.Now().AddDate(1, 0, 0).Unix()
 	}
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	token.Header["kid"] = keyID
 	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
-	signedKey, err := token.SignedString(privateKey)
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.RS256,
+		Key:       privateKey,
+	}, (&jose.SignerOptions{}).WithType("JWT").WithHeader("kid", keyID))
+	require.NoError(t, err)
+	signedKey, err := jwt.Signed(signer).Claims(claims).Serialize()
 	require.NoError(t, err)
 
 	// Taken from: https://github.com/googleapis/google-api-go-client/blob/4bb729045d611fa77bdbeb971f6a1204ba23161d/idtoken/validate.go#L57-L75

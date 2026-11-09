@@ -18,7 +18,6 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-jose/go-jose/v4"
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -82,7 +81,7 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 	})
 
 	const username = "alice"
-	claims := jwt.MapClaims{
+	claims := map[string]any{
 		"email":              "alice@coder.com",
 		"email_verified":     true,
 		"preferred_username": username,
@@ -984,7 +983,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		// This causes the email change to fail.
 		client := codersdk.New(owner.URL)
 
-		client, _ = fake.Login(t, client, jwt.MapClaims{})
+		client, _ = fake.Login(t, client, map[string]any{})
 		deleted, err := client.User(ctx, "me")
 		require.NoError(t, err)
 
@@ -1008,7 +1007,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		require.ErrorContains(t, err, "Cannot create user_link for deleted user")
 
 		// Create the user again.
-		client, _ = fake.Login(t, client, jwt.MapClaims{})
+		client, _ = fake.Login(t, client, map[string]any{})
 		user, err := client.User(ctx, "me")
 		require.NoError(t, err)
 		userID := user.ID
@@ -1018,7 +1017,7 @@ func TestUserOAuth2Github(t *testing.T) {
 		coderEmail.Primary = github.Bool(false)
 		gmailEmail.Primary = github.Bool(true)
 
-		client, _ = fake.Login(t, client, jwt.MapClaims{})
+		client, _ = fake.Login(t, client, map[string]any{})
 		user, err = client.User(ctx, "me")
 		require.NoError(t, err)
 
@@ -1034,7 +1033,7 @@ func TestUserOAuth2Github(t *testing.T) {
 				Verified: github.Bool(true),
 			},
 		}
-		client, _ = fake.Login(t, client, jwt.MapClaims{})
+		client, _ = fake.Login(t, client, map[string]any{})
 		user, err = client.User(ctx, "me")
 		require.NoError(t, err)
 
@@ -1139,9 +1138,9 @@ func TestUserOIDC(t *testing.T) {
 
 	for _, tc := range []struct {
 		Name                string
-		IDTokenClaims       jwt.MapClaims
-		UserInfoClaims      jwt.MapClaims
-		AccessTokenClaims   jwt.MapClaims
+		IDTokenClaims       map[string]any
+		UserInfoClaims      map[string]any
+		AccessTokenClaims   map[string]any
 		AllowSignups        bool
 		EmailDomain         []string
 		AssertUser          func(t testing.TB, u codersdk.User)
@@ -1154,7 +1153,7 @@ func TestUserOIDC(t *testing.T) {
 	}{
 		{
 			Name: "NoSub",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email": "kyle@kwc.io",
 			},
 			AllowSignups: true,
@@ -1162,10 +1161,10 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "AccessTokenMerge",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"sub": uuid.NewString(),
 			},
-			AccessTokenClaims: jwt.MapClaims{
+			AccessTokenClaims: map[string]any{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
 			},
@@ -1179,7 +1178,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "AccessTokenMergeNotJWT",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"sub": uuid.NewString(),
 			},
 			IgnoreUserInfo: true,
@@ -1189,7 +1188,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "EmailOnly",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
 				"sub":            uuid.NewString(),
@@ -1202,7 +1201,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "EmailVerifiedAsStringTrue",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "kyle@kwc.io",
 				"email_verified": "true",
 				"sub":            uuid.NewString(),
@@ -1215,7 +1214,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "EmailVerifiedAsStringFalse",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "kyle@kwc.io",
 				"email_verified": "false",
 				"sub":            uuid.NewString(),
@@ -1225,7 +1224,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "EmailNotVerified",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "kyle@kwc.io",
 				"email_verified": false,
 				"sub":            uuid.NewString(),
@@ -1246,7 +1245,7 @@ func TestUserOIDC(t *testing.T) {
 			},
 		},
 		{
-			Name: "EmailNotAString", IDTokenClaims: jwt.MapClaims{
+			Name: "EmailNotAString", IDTokenClaims: map[string]any{
 				"email":          3.14159,
 				"email_verified": false,
 				"sub":            uuid.NewString(),
@@ -1256,7 +1255,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "EmailNotVerifiedIgnored",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "kyle@kwc.io",
 				"email_verified": false,
 				"sub":            uuid.NewString(),
@@ -1270,7 +1269,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "NotInRequiredEmailDomain",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
 				"sub":            uuid.NewString(),
@@ -1295,7 +1294,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "EmailDomainWithLeadingAt",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "cian@coder.com",
 				"email_verified": true,
 				"sub":            uuid.NewString(),
@@ -1308,7 +1307,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "EmailDomainForbiddenWithLeadingAt",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
 				"sub":            uuid.NewString(),
@@ -1333,7 +1332,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "EmailDomainCaseInsensitive",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "kyle@KWC.io",
 				"email_verified": true,
 				"sub":            uuid.NewString(),
@@ -1349,7 +1348,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "EmailDomainSubset",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "colin@gmail.com",
 				"email_verified": true,
 				"sub":            uuid.NewString(),
@@ -1362,13 +1361,13 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name:          "EmptyClaims",
-			IDTokenClaims: jwt.MapClaims{},
+			IDTokenClaims: map[string]any{},
 			AllowSignups:  true,
 			StatusCode:    http.StatusBadRequest,
 		},
 		{
 			Name: "NoSignups",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
 				"sub":            uuid.NewString(),
@@ -1378,7 +1377,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "FirstSignup",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
 				"sub":            uuid.NewString(),
@@ -1387,7 +1386,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "UsernameFromEmail",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
 				"sub":            uuid.NewString(),
@@ -1400,7 +1399,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "UsernameFromClaims",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":              "kyle@kwc.io",
 				"email_verified":     true,
 				"preferred_username": "hotdog",
@@ -1414,7 +1413,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "FullNameFromClaims",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
 				"name":           "Hot Dog",
@@ -1428,7 +1427,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "InvalidFullNameFromClaims",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
 				// Full names must be less or equal to than 128 characters in length.
@@ -1445,7 +1444,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "FullNameWhitespace",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
 				// Full names must not have leading or trailing whitespace, but this is a
@@ -1463,7 +1462,7 @@ func TestUserOIDC(t *testing.T) {
 			// Services like Okta return the email as the username:
 			// https://developer.okta.com/docs/reference/api/oidc/#base-claims-always-present
 			Name: "UsernameAsEmail",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":              "kyle@kwc.io",
 				"email_verified":     true,
 				"name":               "Kylium Carbonate",
@@ -1479,7 +1478,7 @@ func TestUserOIDC(t *testing.T) {
 		{
 			// See: https://github.com/coder/coder/issues/4472
 			Name: "UsernameIsEmail",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email_verified":     true,
 				"preferred_username": "kyle@kwc.io",
 				"sub":                uuid.NewString(),
@@ -1493,7 +1492,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "WithPicture",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":              "kyle@kwc.io",
 				"email_verified":     true,
 				"preferred_username": "kyle",
@@ -1509,12 +1508,12 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "WithUserInfoClaims",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
 				"sub":            uuid.NewString(),
 			},
-			UserInfoClaims: jwt.MapClaims{
+			UserInfoClaims: map[string]any{
 				"preferred_username": "potato",
 				"picture":            "/example.png",
 				"name":               "Kylium Carbonate",
@@ -1529,7 +1528,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "GroupsDoesNothing",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "coolin@coder.com",
 				"email_verified": true,
 				"groups":         []string{"pingpong"},
@@ -1540,12 +1539,12 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "UserInfoOverridesIDTokenClaims",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "internaluser@internal.domain",
 				"email_verified": false,
 				"sub":            uuid.NewString(),
 			},
-			UserInfoClaims: jwt.MapClaims{
+			UserInfoClaims: map[string]any{
 				"email":              "externaluser@external.domain",
 				"email_verified":     true,
 				"preferred_username": "user",
@@ -1559,12 +1558,12 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "InvalidUserInfo",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "internaluser@internal.domain",
 				"email_verified": false,
 				"sub":            uuid.NewString(),
 			},
-			UserInfoClaims: jwt.MapClaims{
+			UserInfoClaims: map[string]any{
 				"email": 1,
 			},
 			AllowSignups:        true,
@@ -1573,14 +1572,14 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "IgnoreUserInfo",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":              "user@internal.domain",
 				"email_verified":     true,
 				"name":               "User McName",
 				"preferred_username": "user",
 				"sub":                uuid.NewString(),
 			},
-			UserInfoClaims: jwt.MapClaims{
+			UserInfoClaims: map[string]any{
 				"email":              "user.mcname@external.domain",
 				"name":               "Mr. User McName",
 				"preferred_username": "Mr. User McName",
@@ -1595,7 +1594,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "HugeIDToken",
-			IDTokenClaims: inflateClaims(t, jwt.MapClaims{
+			IDTokenClaims: inflateClaims(t, map[string]any{
 				"email":          "user@domain.tld",
 				"email_verified": true,
 				"sub":            uuid.NewString(),
@@ -1608,12 +1607,12 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "HugeClaims",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"email":          "user@domain.tld",
 				"email_verified": true,
 				"sub":            uuid.NewString(),
 			},
-			UserInfoClaims: inflateClaims(t, jwt.MapClaims{}, 65536),
+			UserInfoClaims: inflateClaims(t, map[string]any{}, 65536),
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "user", u.Username)
 			},
@@ -1622,7 +1621,7 @@ func TestUserOIDC(t *testing.T) {
 		},
 		{
 			Name: "IssuerMismatch",
-			IDTokenClaims: jwt.MapClaims{
+			IDTokenClaims: map[string]any{
 				"iss":            "https://mismatch.com",
 				"email":          "user@domain.tld",
 				"email_verified": true,
@@ -1648,7 +1647,7 @@ func TestUserOIDC(t *testing.T) {
 			}
 
 			if len(tc.AccessTokenClaims) > 0 {
-				opts = append(opts, oidctest.WithAccessTokenJWTHook(func(email string, exp time.Time) jwt.MapClaims {
+				opts = append(opts, oidctest.WithAccessTokenJWTHook(func(email string, exp time.Time) map[string]any {
 					return tc.AccessTokenClaims
 				}))
 			}
@@ -1724,7 +1723,7 @@ func TestUserOIDC(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			OIDCConfig: cfg,
 		})
-		_, resp := fake.AttemptLogin(t, client, jwt.MapClaims{
+		_, resp := fake.AttemptLogin(t, client, map[string]any{
 			"email": "kyle@kwc.io",
 			"sub":   uuid.NewString(),
 		})
@@ -1747,7 +1746,7 @@ func TestUserOIDC(t *testing.T) {
 		client := coderdtest.New(t, &coderdtest.Options{
 			OIDCConfig: cfg,
 		})
-		userClient, _ := fake.Login(t, client, jwt.MapClaims{
+		userClient, _ := fake.Login(t, client, map[string]any{
 			"email": "kyle@kwc.io",
 			"sub":   uuid.NewString(),
 		})
@@ -1785,7 +1784,7 @@ func TestUserOIDC(t *testing.T) {
 		})
 		auditor.ResetLogs()
 
-		client, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+		client, resp := fake.AttemptLogin(t, owner, map[string]any{
 			"email":          user.Email,
 			"email_verified": true,
 			"sub":            uuid.NewString(),
@@ -1851,7 +1850,7 @@ func TestUserOIDC(t *testing.T) {
 				// Attacker tries to login with a different subject but the
 				// same email. The email fallback is blocked because the victim
 				// already has a user_link with a different linked_id.
-				_, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+				_, resp := fake.AttemptLogin(t, owner, map[string]any{
 					"email": victim.Email,
 					"sub":   "attacker-subject",
 				})
@@ -1901,7 +1900,7 @@ func TestUserOIDC(t *testing.T) {
 		// Login with a new OIDC subject and matching email.
 		// This should succeed because no user_link exists.
 		sub := uuid.NewString()
-		client, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+		client, resp := fake.AttemptLogin(t, owner, map[string]any{
 			"email": user.Email,
 			"sub":   sub,
 		})
@@ -1958,7 +1957,7 @@ func TestUserOIDC(t *testing.T) {
 		})
 
 		sub := uuid.NewString()
-		client, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+		client, resp := fake.AttemptLogin(t, owner, map[string]any{
 			"email": user.Email,
 			"sub":   sub,
 		})
@@ -2022,7 +2021,7 @@ func TestUserOIDC(t *testing.T) {
 
 		// Login presents the same subject but the current issuer, so the
 		// computed linked_id differs from the stored one and is blocked.
-		_, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+		_, resp := fake.AttemptLogin(t, owner, map[string]any{
 			"email": user.Email,
 			"sub":   sub,
 		})
@@ -2080,7 +2079,7 @@ func TestUserOIDC(t *testing.T) {
 		// for the same user) but the same email. With EmailFallback
 		// enabled the email match resolves the login despite the linked_id
 		// mismatch.
-		client, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+		client, resp := fake.AttemptLogin(t, owner, map[string]any{
 			"email": user.Email,
 			"sub":   "second-connection-sub",
 		})
@@ -2142,7 +2141,7 @@ func TestUserOIDC(t *testing.T) {
 		})
 
 		// Fallback login with a different subject.
-		_, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+		_, resp := fake.AttemptLogin(t, owner, map[string]any{
 			"email": user.Email,
 			"sub":   "second-connection-sub",
 		})
@@ -2150,7 +2149,7 @@ func TestUserOIDC(t *testing.T) {
 
 		// Subsequent login with the original subject must hit the primary
 		// linked_id match and succeed.
-		client, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+		client, resp := fake.AttemptLogin(t, owner, map[string]any{
 			"email": user.Email,
 			"sub":   originalSub,
 		})
@@ -2201,7 +2200,7 @@ func TestUserOIDC(t *testing.T) {
 
 		// New email, no existing user. Signups are disabled, so the
 		// fallback flag must not let the login through.
-		_, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+		_, resp := fake.AttemptLogin(t, owner, map[string]any{
 			"email": "stranger@example.com",
 			"sub":   "stranger-subject",
 		})
@@ -2235,7 +2234,7 @@ func TestUserOIDC(t *testing.T) {
 			Status:    database.UserStatusSuspended,
 		})
 
-		_, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+		_, resp := fake.AttemptLogin(t, owner, map[string]any{
 			"email": user.Email,
 			"sub":   uuid.NewString(),
 		})
@@ -2279,7 +2278,7 @@ func TestUserOIDC(t *testing.T) {
 		user, userData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		require.Equal(t, codersdk.LoginTypePassword, userData.LoginType)
 
-		claims := jwt.MapClaims{
+		claims := map[string]any{
 			"email":          userData.Email,
 			"email_verified": true,
 			"sub":            uuid.NewString(),
@@ -2351,7 +2350,7 @@ func TestUserOIDC(t *testing.T) {
 		owner := coderdtest.CreateFirstUser(t, client)
 		user, userData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-		claims := jwt.MapClaims{
+		claims := map[string]any{
 			"email":          userData.Email,
 			"email_verified": true,
 			"sub":            uuid.NewString(),
@@ -2423,7 +2422,7 @@ func TestUserOIDC(t *testing.T) {
 		})
 
 		numLogs := len(auditor.AuditLogs())
-		claims := jwt.MapClaims{
+		claims := map[string]any{
 			"email":          "jon@coder.com",
 			"email_verified": true,
 			"sub":            uuid.NewString(),
@@ -2439,7 +2438,7 @@ func TestUserOIDC(t *testing.T) {
 
 		// Pass a different subject field so that we prompt creating a
 		// new user
-		userClient, _ = fake.Login(t, client, jwt.MapClaims{
+		userClient, _ = fake.Login(t, client, map[string]any{
 			"email":          "jon@example2.com",
 			"email_verified": true,
 			"sub":            "diff",
@@ -2485,7 +2484,7 @@ func TestUserOIDC(t *testing.T) {
 			OIDCConfig: cfg,
 		})
 
-		_, resp := fake.AttemptLogin(t, client, jwt.MapClaims{})
+		_, resp := fake.AttemptLogin(t, client, map[string]any{})
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 
@@ -2512,7 +2511,7 @@ func TestUserOIDC(t *testing.T) {
 			OIDCConfig: cfg,
 		})
 
-		_, resp := fake.AttemptLogin(t, client, jwt.MapClaims{})
+		_, resp := fake.AttemptLogin(t, client, map[string]any{})
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	})
 
@@ -2545,7 +2544,7 @@ func TestUserOIDC(t *testing.T) {
 			return http.ErrUseLastResponse
 		}
 
-		claims := jwt.MapClaims{
+		claims := map[string]any{
 			"email":          "user@example.com",
 			"email_verified": true,
 			"sub":            uuid.NewString(),
@@ -2718,7 +2717,7 @@ func TestOIDCDomainErrorMessage(t *testing.T) {
 		fake, client := setup()
 
 		// Prepare claims with email from unauthorized domain
-		claims := jwt.MapClaims{
+		claims := map[string]any{
 			"email":          "user@unauthorized.com",
 			"email_verified": true,
 			"sub":            uuid.NewString(),
@@ -2753,7 +2752,7 @@ func TestOIDCDomainErrorMessage(t *testing.T) {
 		fake, client := setup()
 
 		// Prepare claims with an invalid email format (no @ symbol)
-		claims := jwt.MapClaims{
+		claims := map[string]any{
 			"email":          "invalid-email-without-domain",
 			"email_verified": true,
 			"sub":            uuid.NewString(),
@@ -2789,7 +2788,7 @@ func TestOIDCSkipIssuer(t *testing.T) {
 
 	fake := oidctest.NewFakeIDP(t,
 		oidctest.WithServing(),
-		oidctest.WithDefaultIDClaims(jwt.MapClaims{}),
+		oidctest.WithDefaultIDClaims(map[string]any{}),
 		oidctest.WithHookWellKnown(func(r *http.Request, j *oidctest.ProviderJSON) error {
 			assert.NotEqual(t, r.URL.Host, primaryURL.Host, "request went to wrong host")
 			j.Issuer = primaryURLString
@@ -2806,7 +2805,7 @@ func TestOIDCSkipIssuer(t *testing.T) {
 	// User can login and use their token.
 	ctx := testutil.Context(t, testutil.WaitShort)
 	//nolint:bodyclose
-	userClient, _ := fake.Login(t, owner, jwt.MapClaims{
+	userClient, _ := fake.Login(t, owner, map[string]any{
 		"iss":            secondaryURLString,
 		"email":          "alice@coder.com",
 		"email_verified": true,
@@ -3188,9 +3187,9 @@ func authCookieValue(cookies []*http.Cookie) string {
 	return ""
 }
 
-// inflateClaims 'inflates' a jwt.MapClaims from a seed by
+// inflateClaims 'inflates' a map[string]any from a seed by
 // adding a ridiculously large key-value pair of length size.
-func inflateClaims(t testing.TB, seed jwt.MapClaims, size int) jwt.MapClaims {
+func inflateClaims(t testing.TB, seed map[string]any, size int) map[string]any {
 	t.Helper()
 	junk, err := cryptorand.String(size)
 	require.NoError(t, err)

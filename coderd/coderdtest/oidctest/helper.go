@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
@@ -43,7 +42,7 @@ func NewLoginHelper(client *codersdk.Client, fake *FakeIDP) *LoginHelper {
 // Login just helps by making an unauthenticated client and logging in with
 // the given claims. All Logins should be unauthenticated, so this is a
 // convenience method.
-func (h *LoginHelper) Login(t *testing.T, idTokenClaims jwt.MapClaims) (*codersdk.Client, *http.Response) {
+func (h *LoginHelper) Login(t *testing.T, idTokenClaims map[string]any) (*codersdk.Client, *http.Response) {
 	t.Helper()
 	unauthenticatedClient := codersdk.New(h.client.URL)
 
@@ -51,7 +50,7 @@ func (h *LoginHelper) Login(t *testing.T, idTokenClaims jwt.MapClaims) (*codersd
 }
 
 // AttemptLogin does not assert a successful login.
-func (h *LoginHelper) AttemptLogin(t *testing.T, idTokenClaims jwt.MapClaims) (*codersdk.Client, *http.Response) {
+func (h *LoginHelper) AttemptLogin(t *testing.T, idTokenClaims map[string]any) (*codersdk.Client, *http.Response) {
 	t.Helper()
 	unauthenticatedClient := codersdk.New(h.client.URL)
 
@@ -100,7 +99,7 @@ func (*LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *code
 // the API Key middleware to refresh the oauth token.
 //
 // A unit test assertion makes sure the refresh token is used.
-func (h *LoginHelper) ForceRefresh(t *testing.T, db database.Store, user *codersdk.Client, idToken jwt.MapClaims) {
+func (h *LoginHelper) ForceRefresh(t *testing.T, db database.Store, user *codersdk.Client, idToken map[string]any) {
 	t.Helper()
 
 	link := h.ExpireOauthToken(t, db, user)

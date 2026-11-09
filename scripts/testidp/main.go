@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -85,7 +84,7 @@ func RunIDP() func(t *testing.T) {
 	return func(t *testing.T) {
 		idp := oidctest.NewFakeIDP(t,
 			oidctest.WithServing(),
-			oidctest.WithStaticUserInfo(jwt.MapClaims{
+			oidctest.WithStaticUserInfo(map[string]any{
 				// This is a static set of auth fields. Might be beneficial to make flags
 				// to allow different values here. This is only required for using the
 				// testIDP as primary auth. External auth does not ever fetch these fields.
@@ -96,7 +95,7 @@ func RunIDP() func(t *testing.T) {
 				"groups":             []string{"testidp", "qa", "engineering"},
 				"roles":              []string{"testidp", "admin", "higher_power"},
 			}),
-			oidctest.WithDefaultIDClaims(jwt.MapClaims{
+			oidctest.WithDefaultIDClaims(map[string]any{
 				"sub": uuid.MustParse("26c6a19c-b9b8-493b-a991-88a4c3310314"),
 			}),
 			oidctest.WithDefaultExpire(*expiry),
