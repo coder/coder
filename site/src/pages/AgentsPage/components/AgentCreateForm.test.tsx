@@ -465,7 +465,7 @@ describe("AgentCreateForm workspace file uploads", () => {
 		await attachZipFile();
 		await user().click(screen.getByRole("button", { name: "More options" }));
 		await user().click(
-			await screen.findByRole("button", { name: /Attach workspace/ }),
+			await screen.findByRole("menuitem", { name: /Attach workspace/ }),
 		);
 		await user().click(await screen.findByText("stopped-project"));
 
@@ -582,7 +582,7 @@ describe("AgentCreateForm organization lock", () => {
 
 		await user().click(screen.getByRole("button", { name: "More options" }));
 		await user().click(
-			await screen.findByRole("button", { name: /Attach workspace/ }),
+			await screen.findByRole("menuitem", { name: /Attach workspace/ }),
 		);
 		await user().click(
 			await screen.findByRole("option", {
@@ -632,7 +632,7 @@ describe("AgentCreateForm organization lock", () => {
 		});
 		await user().click(screen.getByRole("button", { name: "More options" }));
 		await user().click(
-			await screen.findByRole("button", { name: /Attach workspace/ }),
+			await screen.findByRole("menuitem", { name: /Attach workspace/ }),
 		);
 		await user().click(
 			await screen.findByRole("option", { name: /project-workspace/ }),
@@ -707,10 +707,10 @@ describe("AgentCreateForm organization lock", () => {
 		);
 		await user().click(screen.getByRole("button", { name: "More options" }));
 		await user().click(
-			await screen.findByRole("button", { name: /MCP servers/ }),
+			await screen.findByRole("menuitem", { name: /MCP servers/ }),
 		);
 		await user().click(
-			await screen.findByRole("switch", { name: "Enable Notion" }),
+			await screen.findByRole("menuitemcheckbox", { name: "Notion" }),
 		);
 
 		await submitMessage("hello project");

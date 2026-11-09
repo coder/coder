@@ -104,6 +104,12 @@ const inputProps = {
 	isModelCatalogLoading: false,
 } satisfies React.ComponentProps<typeof AgentChatInput>;
 
+const mockAnotherWorkspace = {
+	...MockWorkspace,
+	id: "another-workspace",
+	name: "another-workspace",
+};
+
 const mockSentryMCP: TypesGen.MCPServerConfig = {
 	...MockMCPServerConfig,
 	id: "mcp-sentry",
@@ -405,18 +411,75 @@ describe("AgentChatInput", () => {
 
 		await user.click(screen.getByRole("button", { name: "3 MCPs" }));
 		await user.click(
-			within(screen.getByRole("dialog")).getByRole("switch", {
-				name: "Disable Linear",
+			within(screen.getByRole("menu")).getByRole("menuitemcheckbox", {
+				name: "Linear",
 			}),
 		);
 		expect(onMCPSelectionChange).toHaveBeenCalledWith([
 			mockSentryMCP.id,
 			mockGitHubMCP.id,
 		]);
+		await user.keyboard("{ArrowDown}{Enter}");
+		expect(onMCPSelectionChange).toHaveBeenLastCalledWith([
+			mockSentryMCP.id,
+			mockLinearMCP.id,
+		]);
+	});
+
+	it("toggles plan mode from the plus menu with the keyboard", async () => {
+		const user = userEvent.setup();
+		const onPlanModeToggle = vi.fn();
+		renderInput(
+			<AgentChatInput {...inputProps} onPlanModeToggle={onPlanModeToggle} />,
+		);
+		await user.click(screen.getByRole("button", { name: "More options" }));
+		await user.keyboard("{ArrowDown}{Enter}");
+		expect(onPlanModeToggle).toHaveBeenCalledWith(true);
+	});
+
+	it.each([false, true])(
+		"filters and selects a workspace with the keyboard (already selected: %s)",
+		async (alreadySelected) => {
+			const user = userEvent.setup();
+			const onWorkspaceChange = vi.fn();
+			renderInput(
+				<AgentChatInput
+					{...inputProps}
+					workspaceOptions={[MockWorkspace, mockAnotherWorkspace]}
+					selectedWorkspaceId={alreadySelected ? MockWorkspace.id : null}
+					onWorkspaceChange={onWorkspaceChange}
+				/>,
+			);
+			await user.click(screen.getByRole("button", { name: "More options" }));
+			await user.keyboard("{ArrowDown}{ArrowDown}{ArrowRight}");
+			await user.keyboard(MockWorkspace.name);
+			await user.keyboard("{Enter}");
+			expect(onWorkspaceChange).toHaveBeenCalledWith(
+				alreadySelected ? null : MockWorkspace.id,
+			);
+		},
+	);
+
+	it("returns from workspace search with a single Left Arrow", async () => {
+		const user = userEvent.setup();
+		const onPlanModeToggle = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				workspaceOptions={[MockWorkspace]}
+				onWorkspaceChange={vi.fn()}
+				onPlanModeToggle={onPlanModeToggle}
+			/>,
+		);
+		await user.click(screen.getByRole("button", { name: "More options" }));
+		await user.keyboard("{ArrowDown}{ArrowDown}{ArrowRight}");
+		await user.keyboard("{ArrowLeft}{ArrowUp}{Enter}");
+		expect(onPlanModeToggle).toHaveBeenCalledWith(true);
 	});
 
 	it("keeps keyboard focus in the menu through the below-md submenus", async () => {
 		const user = userEvent.setup();
+		const onWorkspaceChange = vi.fn();
 		stubViewport(true, belowMdViewportMediaQuery);
 		renderInput(
 			<AgentChatInput
@@ -425,24 +488,28 @@ describe("AgentChatInput", () => {
 				selectedMCPServerIds={mockSelectedMCPServerIds}
 				onMCPSelectionChange={vi.fn()}
 				workspaceOptions={[MockWorkspace]}
-				onWorkspaceChange={vi.fn()}
+				onWorkspaceChange={onWorkspaceChange}
 			/>,
 		);
 
 		await user.click(screen.getByRole("button", { name: "More options" }));
-		(await screen.findByRole("button", { name: /MCP servers/ })).focus();
+		(await screen.findByRole("menuitem", { name: /MCP servers/ })).focus();
 		await user.keyboard("{Enter}");
-		expect(await screen.findByRole("button", { name: "Back" })).toHaveFocus();
-		await user.keyboard("{Enter}");
-		expect(screen.getByRole("button", { name: /MCP servers/ })).toHaveFocus();
+		await screen.findByRole("menu", { name: "MCP servers" });
+		await user.keyboard("{ArrowLeft}");
+		expect(screen.getByRole("menuitem", { name: /MCP servers/ })).toHaveFocus();
 
-		screen.getByRole("button", { name: "Attach workspace" }).focus();
+		screen.getByRole("menuitem", { name: "Attach workspace" }).focus();
 		await user.keyboard("{Enter}");
 		expect(await screen.findByRole("button", { name: "Back" })).toHaveFocus();
 		await user.keyboard("{Enter}");
 		expect(
-			screen.getByRole("button", { name: "Attach workspace" }),
+			screen.getByRole("menuitem", { name: "Attach workspace" }),
 		).toHaveFocus();
+		await user.keyboard("{Enter}{Tab}");
+		await user.keyboard(MockWorkspace.name);
+		await user.keyboard("{Enter}");
+		expect(onWorkspaceChange).toHaveBeenCalledWith(MockWorkspace.id);
 	});
 
 	it("enables an unselected MCP server from the MCP servers submenu", async () => {
@@ -459,11 +526,13 @@ describe("AgentChatInput", () => {
 
 		await user.click(screen.getByRole("button", { name: "More options" }));
 		await user.click(
-			await screen.findByRole("button", { name: /MCP servers/ }),
+			await screen.findByRole("menuitem", { name: /MCP servers/ }),
 		);
-		await user.click(
-			await screen.findByRole("switch", { name: "Enable Notion" }),
-		);
+		const notion = await screen.findByRole("menuitemcheckbox", {
+			name: "Notion",
+		});
+		act(() => notion.focus());
+		await user.keyboard("{Enter}");
 		expect(onMCPSelectionChange).toHaveBeenCalledWith([
 			mockSentryMCP.id,
 			mockLinearMCP.id,
@@ -472,7 +541,8 @@ describe("AgentChatInput", () => {
 		]);
 	});
 
-	it("announces a disconnected always-on server as always on", async () => {
+	it("does not toggle a disconnected always-on server", async () => {
+		const onMCPSelectionChange = vi.fn();
 		const user = userEvent.setup();
 		const mockDisconnectedSentryMCP = {
 			...mockSentryMCP,
@@ -483,19 +553,19 @@ describe("AgentChatInput", () => {
 				{...inputProps}
 				mcpServers={[mockDisconnectedSentryMCP, mockLinearMCP]}
 				selectedMCPServerIds={[mockDisconnectedSentryMCP.id, mockLinearMCP.id]}
-				onMCPSelectionChange={vi.fn()}
+				onMCPSelectionChange={onMCPSelectionChange}
 			/>,
 		);
 
 		await user.click(screen.getByRole("button", { name: "More options" }));
 		await user.click(
-			await screen.findByRole("button", { name: /MCP servers/ }),
+			await screen.findByRole("menuitem", { name: /MCP servers/ }),
 		);
-		const menu = await screen.findByRole("group", { name: "MCP servers" });
-		expect(menu).toHaveTextContent(/Sentry\s*Always on/);
-		expect(
-			within(menu).getByRole("img", { name: "Not connected" }),
-		).toBeInTheDocument();
+		const menu = await screen.findByRole("menu", { name: "MCP servers" });
+		await user.click(
+			within(menu).getByRole("menuitemcheckbox", { name: /Sentry/ }),
+		);
+		expect(onMCPSelectionChange).not.toHaveBeenCalled();
 	});
 
 	it("turns a server on from the empty MCP pill", async () => {
@@ -512,8 +582,8 @@ describe("AgentChatInput", () => {
 
 		await user.click(screen.getByRole("button", { name: "Add MCPs" }));
 		await user.click(
-			within(screen.getByRole("dialog")).getByRole("switch", {
-				name: "Enable Linear",
+			within(screen.getByRole("menu")).getByRole("menuitemcheckbox", {
+				name: "Linear",
 			}),
 		);
 		expect(onMCPSelectionChange).toHaveBeenCalledWith([mockLinearMCP.id]);
@@ -551,8 +621,8 @@ describe("AgentChatInput", () => {
 
 		await user.click(screen.getByRole("button", { name: "3 MCPs" }));
 		await user.click(
-			within(screen.getByRole("dialog")).getByRole("switch", {
-				name: "Disable Linear",
+			within(screen.getByRole("menu")).getByRole("menuitemcheckbox", {
+				name: "Linear",
 			}),
 		);
 		expect(onMCPSelectionChange).not.toHaveBeenCalled();
@@ -591,11 +661,13 @@ describe("AgentChatInput", () => {
 
 		await user.click(screen.getByRole("button", { name: "More options" }));
 		await user.click(
-			await screen.findByRole("button", { name: /MCP servers/ }),
+			await screen.findByRole("menuitem", { name: /MCP servers/ }),
 		);
-		await user.click(
-			await screen.findByRole("button", { name: "Manage MCP connections" }),
-		);
+		const manageConnections = await screen.findByRole("menuitem", {
+			name: "Manage MCP connections",
+		});
+		act(() => manageConnections.focus());
+		await user.keyboard("{Enter}");
 		await waitFor(() =>
 			expect(onSettingsState).toHaveBeenCalledWith({
 				from: "/agents/chat-1?tab=git",
@@ -1043,9 +1115,8 @@ describe("AgentChatInput", () => {
 			);
 
 			await user.click(screen.getByRole("button", { name: "3 MCPs" }));
-			await screen.findByRole("dialog");
+			await screen.findByRole("menu");
 			await user.keyboard("{Escape}");
-			await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 			expect(callback).not.toHaveBeenCalled();
 
 			await user.click(screen.getByRole("textbox", { name: "Chat message" }));

@@ -1,41 +1,36 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { fn, screen, userEvent, within } from "storybook/test";
 import type { Organization } from "#/api/typesGenerated";
+import { MockOrganization } from "#/testHelpers/entities";
 import { CompactOrgSelector } from "./CompactOrgSelector";
 
 const mockOrgs: Organization[] = [
 	{
+		...MockOrganization,
 		id: "org-coder",
 		name: "coder",
 		display_name: "Coder",
 		icon: "/icon/coder.svg",
 		description: "Main engineering organization",
-		created_at: "2024-01-01T00:00:00Z",
-		updated_at: "2024-06-01T00:00:00Z",
 		is_default: true,
-		default_org_member_roles: ["organization-workspace-access"],
 	},
 	{
+		...MockOrganization,
 		id: "org-acme",
 		name: "acme-corp",
 		display_name: "Acme Corp",
 		icon: "",
 		description: "Acme Corporation",
-		created_at: "2024-02-01T00:00:00Z",
-		updated_at: "2024-06-01T00:00:00Z",
 		is_default: false,
-		default_org_member_roles: ["organization-workspace-access"],
 	},
 	{
+		...MockOrganization,
 		id: "org-globex",
 		name: "globex",
 		display_name: "Globex Inc",
 		icon: "",
 		description: "Globex Incorporated",
-		created_at: "2024-03-01T00:00:00Z",
-		updated_at: "2024-06-01T00:00:00Z",
 		is_default: false,
-		default_org_member_roles: ["organization-workspace-access"],
 	},
 ];
 
@@ -64,5 +59,43 @@ export const Disabled: Story = {
 export const NoSelection: Story = {
 	args: {
 		value: null,
+	},
+};
+
+export const Open: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Organization: Coder",
+			}),
+		);
+	},
+};
+
+export const Filtered: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Organization: Coder",
+			}),
+		);
+		await userEvent.type(
+			screen.getByRole("combobox", { name: "Search organizations" }),
+			"Acme",
+		);
+	},
+};
+
+export const EmptySearch: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Organization: Coder",
+			}),
+		);
+		await userEvent.type(
+			screen.getByRole("combobox", { name: "Search organizations" }),
+			"missing",
+		);
 	},
 };

@@ -23,6 +23,7 @@ import { preferenceSettings } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import type { ChatQueuedMessage } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import {
 	Command,
@@ -32,6 +33,17 @@ import {
 	CommandItem,
 	CommandList,
 } from "#/components/Command/Command";
+import {
+	DropdownMenu,
+	DropdownMenuCheckboxItem,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
+	DropdownMenuTrigger,
+} from "#/components/DropdownMenu/DropdownMenu";
 import {
 	Popover,
 	PopoverContent,
@@ -336,8 +348,8 @@ const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
 	}
 
 	return (
-		<Popover open={open} onOpenChange={setOpen}>
-			<PopoverTrigger asChild>
+		<DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
+			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
 					aria-label={label}
@@ -357,35 +369,19 @@ const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
 						className={cn("size-3 transition-transform", open && "rotate-180")}
 					/>
 				</button>
-			</PopoverTrigger>
-			<PopoverContent side="top" align="start" className="w-72 p-1">
+			</DropdownMenuTrigger>
+			<DropdownMenuContent
+				aria-label="MCP servers"
+				className="w-72 max-w-[calc(100vw-2rem)]"
+				aria-labelledby={undefined}
+				side="bottom"
+				align="start"
+			>
 				{menu}
-			</PopoverContent>
-		</Popover>
+			</DropdownMenuContent>
+		</DropdownMenu>
 	);
 };
-
-type MCPServersMenuRowContentProps = {
-	activeCount: number;
-	isOpen?: boolean;
-};
-
-const MCPServersMenuRowContent: React.FC<MCPServersMenuRowContentProps> = ({
-	activeCount,
-	isOpen,
-}) => (
-	<>
-		<PlugIcon className="size-3.5 shrink-0" />
-		<span>MCP servers</span>
-		<span className="ml-auto">{activeCount} on</span>
-		<ChevronRightIcon
-			className={cn(
-				"size-icon-sm transition-transform",
-				isOpen && "rotate-180",
-			)}
-		/>
-	</>
-);
 
 const ToolBadge: React.FC<{
 	badge: ToolBadgeData;
@@ -490,7 +486,7 @@ const ToolBadge: React.FC<{
 	);
 };
 
-type PlusMenuSubmenu = "workspace" | "mcp";
+type PlusMenuSubmenu = "workspace";
 
 // Below md, swapping the plus menu's views unmounts the focused control.
 // A callback ref moves focus to its replacement, because biome's
@@ -508,12 +504,17 @@ const PlusMenuSubmenuPanel: React.FC<PlusMenuSubmenuPanelProps> = ({
 	onBack,
 	children,
 }) => (
-	<div className="p-0">
+	<div
+		className="p-0"
+		onKeyDown={(event) => {
+			if (event.key === "Tab") event.stopPropagation();
+		}}
+	>
 		<button
 			ref={focusOnMount}
 			type="button"
 			onClick={onBack}
-			className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+			className="flex h-9 w-full cursor-pointer items-center gap-2 rounded-sm border-none bg-transparent px-2 text-sm text-content-secondary outline-hidden transition-colors hover:bg-surface-secondary hover:text-content-primary focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
 		>
 			<ArrowLeftIcon className="size-3.5 shrink-0" />
 			<span>Back</span>
@@ -642,6 +643,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const [lastPlusMenuSubmenu, setLastPlusMenuSubmenu] =
 		useState<PlusMenuSubmenu | null>(null);
 	const [workspacePickerOpen, setWorkspacePickerOpen] = useState(false);
+	const workspaceSearchInputRef = useRef<HTMLInputElement>(null);
 	const [mcpMenuOpen, setMcpMenuOpen] = useState(false);
 	const navigate = useNavigate();
 	const location = useLocation();
@@ -834,13 +836,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	);
 
 	let plusMenuSubmenuPanel: React.ReactNode = null;
-	if (plusMenuView === "mcp") {
-		plusMenuSubmenuPanel = (
-			<PlusMenuSubmenuPanel onBack={() => closePlusMenuSubmenu("mcp")}>
-				{mcpMenuContent}
-			</PlusMenuSubmenuPanel>
-		);
-	} else if (plusMenuView === "workspace") {
+	if (plusMenuView === "workspace") {
 		plusMenuSubmenuPanel = (
 			<PlusMenuSubmenuPanel onBack={() => closePlusMenuSubmenu("workspace")}>
 				<WorkspacePickerList
@@ -1588,7 +1584,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					{/* flex-1 routes free row space to the growing pills. */}
 					<div className="flex min-w-0 flex-1 items-center gap-1">
 						{/* Plus menu */}
-						<Popover
+						<DropdownMenu
 							modal={false}
 							open={plusMenuOpen}
 							onOpenChange={(open) => {
@@ -1601,7 +1597,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							}}
 						>
 							{" "}
-							<PopoverTrigger asChild>
+							<DropdownMenuTrigger asChild>
 								<Button
 									type="button"
 									variant="subtle"
@@ -1619,86 +1615,73 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 								>
 									<PlusIcon />
 								</Button>
-							</PopoverTrigger>
-							<PopoverContent
+							</DropdownMenuTrigger>
+							<DropdownMenuContent
 								side="bottom"
 								align="start"
-								className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto min-w-[200px] p-1"
+								aria-label="More options"
+								className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-56"
 							>
 								{plusMenuView !== "main" ? (
 									plusMenuSubmenuPanel
 								) : (
 									<>
 										{onAttach && (
-											<button
-												type="button"
-												onClick={() => {
+											<DropdownMenuItem
+												onSelect={() => {
 													resetPromptCycle();
 													setPlusMenuOpen(false);
 													fileInputRef.current?.click();
 												}}
-												className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
 											>
-												<PaperclipIcon className="size-3.5 shrink-0" />
+												<PaperclipIcon />
 												Attach file
-											</button>
+											</DropdownMenuItem>
 										)}
-										<button
-											type="button"
-											role="menuitemcheckbox"
-											aria-checked={planModeEnabled}
-											onClick={handlePlanModeToggle}
+										<DropdownMenuCheckboxItem
+											checked={planModeEnabled}
+											onSelect={handlePlanModeToggle}
 											disabled={isDisabled}
-											className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
 										>
-											<PencilIcon className="size-3.5 shrink-0" />
+											<PencilIcon />
 											<span>Plan first</span>
-											{planModeEnabled && (
-												<CheckIcon className="ml-auto size-icon-sm shrink-0" />
-											)}
-										</button>
+										</DropdownMenuCheckboxItem>
 										{workspaceOptions &&
 											onWorkspaceChange &&
 											(isBelowMdViewport() ? (
-												<button
-													type="button"
+												<DropdownMenuItem
 													disabled={!canUseWorkspacePicker}
 													ref={plusMenuRowRef("workspace")}
-													onClick={() => setPlusMenuView("workspace")}
-													className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
+													onSelect={(event) => {
+														event.preventDefault();
+														setPlusMenuView("workspace");
+													}}
 												>
-													<MonitorIcon className="size-3.5 shrink-0" />
+													<MonitorIcon />
 													<span>Attach workspace</span>
 													<ChevronRightIcon className="ml-auto size-icon-sm" />
-												</button>
+												</DropdownMenuItem>
 											) : (
-												<Popover
+												<DropdownMenuSub
 													open={workspacePickerOpen}
 													onOpenChange={setWorkspacePickerOpen}
 												>
-													<PopoverTrigger asChild>
-														<button
-															type="button"
-															disabled={!canUseWorkspacePicker}
-															className="group flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary disabled:cursor-not-allowed disabled:opacity-50"
-														>
-															<MonitorIcon className="size-3.5 shrink-0" />
-															<span>Attach workspace</span>
-															<ChevronRightIcon
-																className={cn(
-																	"ml-auto size-icon-sm transition-transform",
-																	workspacePickerOpen && "rotate-180",
-																)}
-															/>
-														</button>
-													</PopoverTrigger>
-													<PopoverContent
-														side="right"
-														align="start"
-														sideOffset={8}
-														className="w-64 p-0"
+													<DropdownMenuSubTrigger
+														disabled={!canUseWorkspacePicker}
+													>
+														<MonitorIcon />
+														<span>Attach workspace</span>
+													</DropdownMenuSubTrigger>
+
+													<DropdownMenuSubContent
+														onFocus={(event) => {
+															if (event.target === event.currentTarget)
+																workspaceSearchInputRef.current?.focus();
+														}}
+														className="w-72 max-w-[calc(100vw-2rem)] p-0"
 													>
 														<WorkspacePickerList
+															searchInputRef={workspaceSearchInputRef}
 															workspaceOptions={workspaceOptions}
 															selectedWorkspaceId={selectedWorkspaceId}
 															chatOrganizationId={chatOrganizationId}
@@ -1708,55 +1691,35 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 																setPlusMenuOpen(false);
 															}}
 														/>
-													</PopoverContent>
-												</Popover>
+													</DropdownMenuSubContent>
+												</DropdownMenuSub>
 											))}
 										{enabledMcpServers.length > 0 && (
 											<>
-												<Separator className="my-1" />
-												{isBelowMdViewport() ? (
-													<button
-														type="button"
-														ref={plusMenuRowRef("mcp")}
-														onClick={() => setPlusMenuView("mcp")}
-														className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
+												<DropdownMenuSeparator className="my-1" />
+												<DropdownMenuSub
+													open={mcpMenuOpen}
+													onOpenChange={setMcpMenuOpen}
+												>
+													<DropdownMenuSubTrigger>
+														<PlugIcon />
+														<span>MCP servers</span>
+													</DropdownMenuSubTrigger>
+
+													<DropdownMenuSubContent
+														aria-label="MCP servers"
+														className="w-72 max-w-[calc(100vw-2rem)]"
+														aria-labelledby={undefined}
 													>
-														<MCPServersMenuRowContent
-															activeCount={activeMcpServers.length}
-														/>
-													</button>
-												) : (
-													<Popover
-														open={mcpMenuOpen}
-														onOpenChange={setMcpMenuOpen}
-													>
-														<PopoverTrigger asChild>
-															<button
-																type="button"
-																className="flex h-8 w-full cursor-pointer items-center gap-1.5 border-none bg-transparent px-1 text-xs text-content-secondary shadow-none transition-colors hover:text-content-primary"
-															>
-																<MCPServersMenuRowContent
-																	activeCount={activeMcpServers.length}
-																	isOpen={mcpMenuOpen}
-																/>
-															</button>
-														</PopoverTrigger>
-														<PopoverContent
-															side="right"
-															align="end"
-															sideOffset={8}
-															className="w-72 p-1"
-														>
-															{mcpMenuContent}
-														</PopoverContent>
-													</Popover>
-												)}
+														{mcpMenuContent}
+													</DropdownMenuSubContent>
+												</DropdownMenuSub>
 											</>
 										)}
 									</>
 								)}
-							</PopoverContent>
-						</Popover>
+							</DropdownMenuContent>
+						</DropdownMenu>
 						{isModelCatalogLoading ? (
 							<Skeleton className="h-6 w-24 rounded" />
 						) : isReadOnlyView ? (
@@ -1783,7 +1746,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									pillSizingClasses,
 									"md:h-auto focus-visible:ring-inset",
 								)}
-								dropdownSide="top"
+								dropdownSide="bottom"
 								dropdownAlign="start"
 								enableMobileFullWidthDropdown
 								reasoningEffort={reasoningEffort}
@@ -2056,6 +2019,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
  * can still be cleared.
  */
 type WorkspacePickerListProps = {
+	searchInputRef?: React.Ref<HTMLInputElement>;
 	workspaceOptions:
 		| ReadonlyArray<{
 				id: string;
@@ -2069,16 +2033,25 @@ type WorkspacePickerListProps = {
 };
 
 const WorkspacePickerList: React.FC<WorkspacePickerListProps> = ({
+	searchInputRef,
 	workspaceOptions,
 	selectedWorkspaceId,
 	chatOrganizationId,
 	onSelect,
 }) => {
 	return (
-		<Command loop>
-			<CommandInput placeholder="Search workspaces..." className="text-xs" />
+		<Command
+			label="Search workspaces"
+			loop
+			onKeyDown={(event) => {
+				if (event.key !== "Escape" && event.key !== "ArrowLeft") {
+					event.stopPropagation();
+				}
+			}}
+		>
+			<CommandInput ref={searchInputRef} placeholder="Search workspaces..." />
 			<CommandList>
-				<CommandEmpty className="text-xs">No workspaces found</CommandEmpty>
+				<CommandEmpty>No workspaces found</CommandEmpty>
 				<CommandGroup>
 					{workspaceOptions?.map((workspace) => {
 						const isCrossOrg =
@@ -2090,7 +2063,7 @@ const WorkspacePickerList: React.FC<WorkspacePickerListProps> = ({
 						const item = (
 							<CommandItem
 								className={cn(
-									"text-xs font-normal",
+									isSelected && "bg-surface-secondary",
 									isUnavailable &&
 										"cursor-not-allowed opacity-50 data-[disabled=true]:pointer-events-auto",
 								)}
@@ -2103,7 +2076,8 @@ const WorkspacePickerList: React.FC<WorkspacePickerListProps> = ({
 									}
 								}}
 							>
-								{workspace.name}
+								<Avatar aria-hidden size="sm" fallback={workspace.name} />
+								<span className="min-w-0 truncate">{workspace.name}</span>
 								{isSelected && (
 									<CheckIcon className="ml-auto size-icon-sm shrink-0" />
 								)}

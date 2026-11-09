@@ -198,7 +198,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 				className={cn(
 					enableMobileFullWidthDropdown &&
 						"mobile-full-width-dropdown mobile-full-width-dropdown-above-composer",
-					"w-72 overflow-hidden border-border p-0",
+					"w-72 max-w-[calc(100vw-2rem)] overflow-hidden border-border p-0",
 					contentClassName,
 				)}
 				onOpenAutoFocus={(event) => {
@@ -212,44 +212,37 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 					}
 				}}
 			>
-				<Command
-					shouldFilter={false}
-					className="[&_[cmdk-input-wrapper]]:border-0 [&_[cmdk-input-wrapper]]:border-border [&_[cmdk-input-wrapper]]:border-b [&_[cmdk-input-wrapper]]:border-solid [&_[cmdk-input-wrapper]]:px-3 [&_[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
-				>
+				<Command label="Search models" shouldFilter={false}>
 					<CommandInput
 						value={search}
 						onValueChange={setSearch}
 						placeholder="Search..."
 						aria-label="Search models"
-						className="h-auto py-0 text-xs font-normal leading-[18px] text-content-primary placeholder:text-content-disabled"
 					/>
 					<CommandList
 						id={listboxId}
 						role="listbox"
 						className={cn(
-							"max-h-80 border-t-0",
+							"max-h-72",
 							enableMobileFullWidthDropdown &&
 								"mobile-full-width-dropdown-scroll-area",
 						)}
 					>
-						<CommandEmpty className="py-3 text-xs font-normal leading-[18px] text-content-secondary">
+						<CommandEmpty className="text-content-secondary">
 							{emptyMessage}
 						</CommandEmpty>
 						{unsetLabel &&
 							(!query || unsetLabel.toLowerCase().includes(query)) && (
-								<CommandGroup className="p-1">
+								<CommandGroup>
 									<CommandItem
 										value="__unset__"
 										onSelect={() => {
 											onValueChange("");
 											handleOpenChange(false);
 										}}
-										className={cn(
-											"gap-2 px-2 py-1 font-medium text-content-secondary data-[selected=true]:bg-surface-tertiary",
-											!value && "bg-surface-secondary",
-										)}
+										className={cn(!value && "bg-surface-secondary")}
 									>
-										<span className="min-w-0 truncate text-left text-xs font-medium leading-[18px] text-content-secondary">
+										<span className="min-w-0 truncate text-left">
 											{unsetLabel}
 										</span>
 										<CheckIcon
@@ -281,7 +274,6 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 										</span>
 									}
 									className={cn(
-										"p-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:leading-[18px] [&_[cmdk-group-heading]]:text-content-secondary",
 										index > 0 && "border-0 border-t border-solid border-border",
 									)}
 								>
@@ -343,9 +335,9 @@ const ReasoningEffortRow: React.FC<ReasoningEffortRowProps> = ({
 	const effortIndex = valueIndex >= 0 ? valueIndex : 0;
 
 	return (
-		<div className="flex items-center gap-3 border-0 border-t border-solid border-border px-3 py-2">
+		<div className="flex items-center gap-3 border-0 border-t border-solid border-border bg-surface-secondary/40 px-3 py-2">
 			<div className="flex shrink-0 items-center gap-1">
-				<span className="text-xs font-medium leading-[18px] text-content-secondary">
+				<span className="text-sm font-medium text-content-secondary">
 					Effort
 				</span>
 				<Tooltip>
@@ -385,7 +377,7 @@ const ReasoningEffortRow: React.FC<ReasoningEffortRowProps> = ({
 					<span
 						key={effort}
 						className={cn(
-							"[grid-area:1/1] rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-medium leading-[18px] text-content-secondary",
+							"[grid-area:1/1] rounded bg-surface-secondary px-1.5 py-0.5 text-sm font-medium text-content-secondary",
 							index !== effortIndex && "invisible",
 						)}
 					>
@@ -412,16 +404,11 @@ const ModelOptionItem: React.FC<ModelOptionItemProps> = ({
 		<CommandItem
 			value={option.id}
 			onSelect={onSelect}
-			className={cn(
-				"gap-2 px-2 py-1 font-medium text-content-secondary data-[selected=true]:bg-surface-tertiary",
-				isSelected && "bg-surface-secondary",
-			)}
+			className={cn(isSelected && "bg-surface-secondary")}
 		>
-			<span className="min-w-0 truncate text-left text-xs font-medium leading-[18px] text-content-secondary">
-				{option.displayName}
-			</span>
+			<span className="min-w-0 truncate text-left">{option.displayName}</span>
 			{option.contextLimit != null && option.contextLimit > 0 && (
-				<span className="shrink-0 truncate text-left text-xs font-medium leading-[18px] text-content-secondary">
+				<span className="shrink-0 truncate text-left text-content-secondary">
 					({formatContextLimit(option.contextLimit)})
 				</span>
 			)}
