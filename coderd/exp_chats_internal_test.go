@@ -76,7 +76,7 @@ func TestResolveChatGitAccessToken(t *testing.T) {
 					t.Parallel()
 
 					ctx := testutil.Context(t, testutil.WaitLong)
-					fixture := newChatGitAuthFixture(t, ctx, db, tc.expiresIn)
+					fixture := newChatGitAuthFixture(ctx, t, db, tc.expiresIn)
 
 					token, err := fixture.api.resolveChatGitAccessToken(ctx, fixture.link.UserID, lookup.origin)
 					require.NoError(t, err)
@@ -113,8 +113,8 @@ type chatGitAuthFixture struct {
 }
 
 func newChatGitAuthFixture(
-	t *testing.T,
 	ctx context.Context,
+	t *testing.T,
 	db database.Store,
 	expiresIn time.Duration,
 ) *chatGitAuthFixture {
