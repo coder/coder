@@ -28,7 +28,7 @@ export const WorkspaceBuildData: React.FC<WorkspaceBuildDataProps> = ({
 			: undefined;
 
 	return (
-		<div className="flex flex-row items-center gap-3 leading-normal">
+		<div className="flex items-center gap-3 leading-normal">
 			<BuildIcon transition={build.transition} jobStatus={build.job.status} />
 			<div className="overflow-hidden flex flex-col">
 				<div
@@ -69,7 +69,7 @@ export const WorkspaceBuildData: React.FC<WorkspaceBuildDataProps> = ({
 
 export const WorkspaceBuildDataSkeleton = () => {
 	return (
-		<div className="flex flex-row items-center gap-3 leading-normal">
+		<div className="flex items-center gap-3 leading-normal">
 			<Skeleton variant="circular" width={16} height={16} />
 			<div className="flex flex-col">
 				<Skeleton variant="text" width={94} height={10} />

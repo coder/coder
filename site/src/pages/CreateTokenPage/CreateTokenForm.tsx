@@ -115,7 +115,7 @@ export const CreateTokenForm: React.FC<CreateTokenFormProps> = ({
 				classes={{ sectionInfo: "min-w-[300px]" }}
 			>
 				<FormFields>
-					<div className="flex flex-row gap-4">
+					<div className="flex gap-4">
 						<div className="flex flex-col gap-2 flex-1">
 							<Label htmlFor={lifetimeId}>
 								Lifetime{" "}
