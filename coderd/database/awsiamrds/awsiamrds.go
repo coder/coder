@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"net/url"
 
@@ -65,7 +66,7 @@ func (d *awsIamRdsDriver) Open(name string) (driver.Conn, error) {
 	// make connection
 	conn, err := d.parent.Open(nURL)
 	if err != nil {
-		return nil, xerrors.Errorf("opening connection with %s: %w", nURL, err)
+		return nil, xerrors.Errorf("opening connection: %w", err)
 	}
 
 	return conn, nil
@@ -84,6 +85,12 @@ func (d *awsIamRdsDriver) Connector(name string) (driver.Connector, error) {
 func getAuthenticatedURL(cfg aws.Config, dbURL string) (string, error) {
 	nURL, err := url.Parse(dbURL)
 	if err != nil {
+		// url.Error includes the full input URL. Return only the
+		// underlying cause so errors contain no connection details.
+		var urlErr *url.Error
+		if errors.As(err, &urlErr) {
+			err = urlErr.Err
+		}
 		return "", xerrors.Errorf("parsing dbURL: %w", err)
 	}
 
