@@ -20,12 +20,12 @@ export const TerminalCommandConsentDialog: React.FC<
 	TerminalCommandConsentDialogProps
 > = ({ open, command, onConfirm, onDeny }) => {
 	return (
-		<Dialog open={open}>
-			<DialogContent
-				onPointerDownOutside={(e) => e.preventDefault()}
-				onEscapeKeyDown={(e) => e.preventDefault()}
-				className="max-w-2xl overflow-hidden min-w-0"
-			>
+		<Dialog
+			open={open}
+			disablePointerDismissal
+			onOpenChange={(_, details) => details.cancel()}
+		>
+			<DialogContent className="max-w-2xl overflow-hidden min-w-0">
 				<DialogHeader>
 					<DialogTitle>
 						<TriangleAlertIcon className="size-icon-lg text-content-warning inline-block align-text-bottom mr-2" />

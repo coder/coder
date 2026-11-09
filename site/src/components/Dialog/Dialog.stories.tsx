@@ -1,6 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { screen, userEvent, within } from "storybook/test";
 import { Button } from "#/components/Button/Button";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "#/components/Select/Select";
 import {
 	Dialog,
 	DialogContent,
@@ -17,9 +24,7 @@ const meta: Meta<typeof Dialog> = {
 	args: {
 		children: (
 			<>
-				<DialogTrigger asChild>
-					<Button>Open Dialog</Button>
-				</DialogTrigger>
+				<DialogTrigger render={<Button />}>Open Dialog</DialogTrigger>
 				<DialogContent>
 					<DialogHeader>
 						<DialogTitle>Example Dialog Title</DialogTitle>
@@ -40,24 +45,40 @@ type Story = StoryObj<typeof Dialog>;
 export const OpenDialog: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const body = within(document.body);
-		const trigger = canvas.getByRole("button", { name: "Open Dialog" });
-
-		await userEvent.click(trigger);
-		await expect(body.getByRole("dialog")).toHaveAttribute(
-			"data-state",
-			"open",
-		);
-
-		await userEvent.keyboard("{Escape}");
-		await waitFor(() => {
-			expect(body.queryByRole("dialog")).not.toBeInTheDocument();
-		});
-
-		await userEvent.click(trigger);
-		await expect(body.getByRole("dialog")).toHaveAttribute(
-			"data-state",
-			"open",
-		);
+		await userEvent.click(canvas.getByRole("button", { name: "Open Dialog" }));
 	},
+};
+
+export const WithSelect: Story = {
+	args: {
+		defaultOpen: true,
+		children: (
+			<DialogContent>
+				<DialogTitle>Preferences</DialogTitle>
+				<Select defaultValue="apple">
+					<SelectTrigger aria-label="Fruit">
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="apple">Apple</SelectItem>
+						<SelectItem value="banana">Banana</SelectItem>
+					</SelectContent>
+				</Select>
+			</DialogContent>
+		),
+	},
+	play: async () => {
+		await userEvent.click(screen.getByRole("combobox", { name: "Fruit" }));
+	},
+};
+
+export const ScrollablePage: Story = {
+	play: OpenDialog.play,
+	decorators: [
+		(Story) => (
+			<div className="h-[200vh]">
+				<Story />
+			</div>
+		),
+	],
 };

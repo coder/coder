@@ -240,10 +240,11 @@ const ContainerBody: React.FC<ContainerBodyProps> = ({
 		// covering up content when the container gets tall enough to overflow
 		<div className="overflow-y-auto flex flex-col gap-3 -mx-8 -mt-8 p-8">
 			<div className="flex flex-col gap-3">
-				<DialogTitle asChild>
-					<h3 className="text-3xl font-semibold m-0 leading-tight">
-						{headerText}
-					</h3>
+				<DialogTitle
+					render={(headingProps) => <h3 {...headingProps}>{headerText}</h3>}
+					className="text-3xl font-semibold m-0 leading-tight"
+				>
+					{headerText}
 				</DialogTitle>
 
 				<DialogDescription

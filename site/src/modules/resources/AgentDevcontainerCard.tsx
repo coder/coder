@@ -433,9 +433,7 @@ const DevcontainerDeleteErrorDialog: React.FC<
 					)}
 				</DialogHeader>
 				<DialogFooter>
-					<DialogClose asChild>
-						<Button>Ok</Button>
-					</DialogClose>
+					<DialogClose render={<Button />}>Ok</DialogClose>
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>

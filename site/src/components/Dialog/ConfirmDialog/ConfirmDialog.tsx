@@ -53,12 +53,7 @@ export type ConfirmDialogProps = {
 	 */
 	readonly hideCancel?: boolean;
 	readonly onOpenAutoFocus?: (event: Event) => void;
-	/**
-	 * Forwarded to Radix. This dialog renders no `DialogTrigger`, so Radix has
-	 * nothing to return focus to on close and it lands on `<body>`. Callers that
-	 * open it from a control the user should return to can preventDefault here
-	 * and focus that control instead.
-	 */
+	/** Overrides where focus returns when the dialog closes. */
 	readonly onCloseAutoFocus?: (event: Event) => void;
 };
 
@@ -102,10 +97,11 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 			>
 				<DialogHeader>
 					<DialogTitle>{title}</DialogTitle>
-					<DialogDescription asChild>
-						<div className="text-sm text-content-secondary font-medium [&_strong]:text-content-primary [&_p]:m-0 [&_p+p]:mt-2">
-							{description}
-						</div>
+					<DialogDescription
+						render={<div />}
+						className="text-sm text-content-secondary font-medium [&_strong]:text-content-primary [&_p]:m-0 [&_p+p]:mt-2"
+					>
+						{description}
 					</DialogDescription>
 				</DialogHeader>
 

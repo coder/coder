@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { BannerConfig } from "#/api/typesGenerated";
 import { render } from "#/testHelpers/renderHelpers";
@@ -20,6 +20,10 @@ describe("AnnouncementBannerDialog", () => {
 				onCancel={() => undefined}
 				onUpdate={onUpdate}
 			/>,
+		);
+
+		await waitFor(() =>
+			expect(screen.getByRole("textbox", { name: "Message" })).toHaveFocus(),
 		);
 
 		const message = screen.getByRole("textbox", { name: "Message" });
@@ -44,6 +48,10 @@ describe("AnnouncementBannerDialog", () => {
 			/>,
 		);
 
+		await waitFor(() =>
+			expect(screen.getByRole("textbox", { name: "Message" })).toHaveFocus(),
+		);
+
 		const hex = screen.getByRole("textbox", { name: "Hex" });
 		await user.clear(hex);
 		await user.type(hex, "abc");
@@ -66,6 +74,10 @@ describe("AnnouncementBannerDialog", () => {
 				onCancel={() => undefined}
 				onUpdate={onUpdate}
 			/>,
+		);
+
+		await waitFor(() =>
+			expect(screen.getByRole("textbox", { name: "Message" })).toHaveFocus(),
 		);
 
 		const hex = screen.getByRole("textbox", { name: "Hex" });
