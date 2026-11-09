@@ -601,6 +601,22 @@ describe("submitChatTurn", () => {
 		expect(setCachedChatPlanMode).toHaveBeenCalledWith("chat-1", undefined);
 	});
 
+	it("sends the busy behavior only when the caller sets it", async () => {
+		const sendMessage = vi.fn().mockResolvedValue({ queued: true });
+
+		await submitChatTurn(buildParams({ sendMessage, busyBehavior: "queue" }));
+		await submitChatTurn(buildParams({ sendMessage }));
+
+		expect(sendMessage).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({ busy_behavior: "queue" }),
+		);
+		expect(sendMessage).toHaveBeenNthCalledWith(
+			2,
+			expect.not.objectContaining({ busy_behavior: expect.anything() }),
+		);
+	});
+
 	it("leaves plan mode untouched on an ordinary send", async () => {
 		const sendMessage = vi.fn().mockResolvedValue({ queued: false });
 		const setCachedChatPlanMode = vi.fn();
