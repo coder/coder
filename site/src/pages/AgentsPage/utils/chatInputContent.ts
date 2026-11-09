@@ -3,6 +3,7 @@ import type {
 	PendingAttachment,
 	PendingWorkspaceUpload,
 } from "../components/ChatPageContent";
+import type { SkillSource } from "./skillAliases";
 
 export type ChatComposerContentPart =
 	| { readonly type: "text"; readonly text: string }
@@ -14,6 +15,11 @@ export type ChatComposerContentPart =
 				readonly endLine: number;
 				readonly content: string;
 			};
+	  }
+	| {
+			readonly type: "skill-invocation";
+			readonly source: SkillSource;
+			readonly name: string;
 	  };
 
 export const buildAttachmentMediaTypes = (
@@ -40,8 +46,8 @@ export const toWorkspaceFileReferencePart = (
 });
 
 /**
- * When `composerParts` is provided, file-reference chips stay in document
- * order. Omit it to send `message` as text only.
+ * When `composerParts` is provided, file-reference and skill chips stay in
+ * document order. Omit it to send `message` as text only.
  */
 export const buildChatInputContent = ({
 	message,
@@ -62,6 +68,12 @@ export const buildChatInputContent = ({
 				if (part.text.trim()) {
 					content.push({ type: "text", text: part.text });
 				}
+			} else if (part.type === "skill-invocation") {
+				content.push({
+					type: "skill-invocation",
+					skill_source: part.source,
+					skill_name: part.name,
+				});
 			} else {
 				const reference = part.reference;
 				content.push({

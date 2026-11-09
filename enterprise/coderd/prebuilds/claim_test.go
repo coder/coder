@@ -23,7 +23,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/files"
 	agplprebuilds "github.com/coder/coder/v2/coderd/prebuilds"
-	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -132,18 +131,10 @@ func TestClaimPrebuild(t *testing.T) {
 
 				// Setup
 				clock := quartz.NewMock(t)
-				acquirerClock := quartz.NewMock(t)
 				clock.Set(dbtime.Now())
 				ctx := testutil.Context(t, testutil.WaitSuperLong)
 				db, pubsub := dbtestutil.NewDB(t)
 				logger := testutil.Logger(t)
-				acquirer := provisionerdserver.NewAcquirer(
-					ctx,
-					logger.Named("acquirer"),
-					db,
-					pubsub,
-					provisionerdserver.WithClock(acquirerClock),
-				)
 
 				spy := newStoreSpy(db, tc.claimingErr)
 				expectedPrebuildsCount := desiredInstances * presetCount
@@ -153,7 +144,6 @@ func TestClaimPrebuild(t *testing.T) {
 						Database: spy,
 						Pubsub:   pubsub,
 						Clock:    clock,
-						Acquirer: acquirer,
 					},
 					LicenseOptions: &coderdenttest.LicenseOptions{
 						Features: license.Features{
@@ -170,18 +160,10 @@ func TestClaimPrebuild(t *testing.T) {
 					orgID = secondOrg.ID
 				}
 
-				acquirerTickerTrap := acquirerClock.Trap().NewTicker("acquirer", "backup_poll")
-				defer acquirerTickerTrap.Close()
 				provisionerCloser := coderdenttest.NewExternalProvisionerDaemon(t, client, orgID, map[string]string{
 					provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 				})
 				defer provisionerCloser.Close()
-				acquirerTickerTrap.MustWait(ctx).MustRelease(ctx)
-				secondAcquirerTickerReady := make(chan struct{})
-				go func() {
-					acquirerTickerTrap.MustWait(ctx).MustRelease(ctx)
-					close(secondAcquirerTickerReady)
-				}()
 
 				cache := files.New(prometheus.NewRegistry(), &coderdtest.FakeAuthorizer{})
 				reconciler := prebuilds.NewStoreReconciler(
@@ -194,6 +176,10 @@ func TestClaimPrebuild(t *testing.T) {
 					10,
 					nil,
 				)
+				go reconciler.Run(ctx)
+				t.Cleanup(func() {
+					reconciler.Stop(testutil.Context(t, testutil.WaitShort), nil)
+				})
 				var claimer agplprebuilds.Claimer = prebuilds.NewEnterpriseClaimer()
 				api.AGPL.PrebuildsClaimer.Store(&claimer)
 
@@ -224,7 +210,6 @@ func TestClaimPrebuild(t *testing.T) {
 
 				// Given: a set of running, eligible prebuilds eventually starts up.
 				runningPrebuilds := make(map[uuid.UUID]database.GetRunningPrebuiltWorkspacesRow, desiredInstances*presetCount)
-				advancedAcquirerClock := false
 				require.Eventually(t, func() bool {
 					rows, err := spy.GetRunningPrebuiltWorkspaces(ctx)
 					if err != nil {
@@ -257,19 +242,10 @@ func TestClaimPrebuild(t *testing.T) {
 						}
 					}
 
-					if !advancedAcquirerClock {
-						select {
-						case <-secondAcquirerTickerReady:
-							acquirerClock.Advance(30 * time.Second).MustWait(ctx)
-							advancedAcquirerClock = true
-						default:
-						}
-					}
-
 					t.Logf("found %d running prebuilds so far, want %d", len(runningPrebuilds), expectedPrebuildsCount)
 
 					return len(runningPrebuilds) == expectedPrebuildsCount
-				}, testutil.WaitSuperLong, testutil.IntervalSlow)
+				}, testutil.WaitSuperLong, testutil.IntervalFast)
 
 				// When: a user creates a new workspace with a preset for which prebuilds are configured.
 				workspaceName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
@@ -380,8 +356,8 @@ func TestClaimPrebuild(t *testing.T) {
 
 					t.Logf("found %d running prebuilds so far, want %d", len(rows), expectedPrebuildsCount)
 
-					return len(runningPrebuilds) == expectedPrebuildsCount
-				}, testutil.WaitSuperLong, testutil.IntervalSlow)
+					return len(rows) == expectedPrebuildsCount
+				}, testutil.WaitSuperLong, testutil.IntervalFast)
 
 				// Then: when restarting the created workspace (which claimed a prebuild), it should not try and claim a new prebuild.
 				// Prebuilds should ONLY be used for net-new workspaces.

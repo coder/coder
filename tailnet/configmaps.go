@@ -494,9 +494,15 @@ func (c *configMaps) updatePeerLocked(update *proto.CoordinateResponse_PeerUpdat
 			lc.readyForHandshakeTimer.Stop()
 		}
 		if lc.node != nil {
-			old := lc.node.KeepAlive
-			lc.node.KeepAlive = c.nodeKeepalive(lc, status, lc.node)
-			dirty = dirty || (old != lc.node.KeepAlive)
+			// Replace rather than mutate: a stored node is shared outside c.L
+			// (log entries in a flight recorder, peer diagnostics), so it must not
+			// change after it is stored.
+			if keepAlive := c.nodeKeepalive(lc, status, lc.node); keepAlive != lc.node.KeepAlive {
+				next := lc.node.Clone()
+				next.KeepAlive = keepAlive
+				lc.node = next
+				dirty = true
+			}
 		}
 		logger.Debug(context.Background(), "peer ready for handshake")
 		// only force a reconfig if the node populated
@@ -650,11 +656,18 @@ func (c *configMaps) fillPeerDiagnostics(d *PeerDiagnostics, peerID uuid.UUID) {
 	}
 
 	d.ReceivedNode = lc.node
+	d.Lost = lc.lost
 	ps, ok := status.Peer[lc.node.Key]
 	if !ok {
 		return
 	}
-	d.LastWireguardHandshake = ps.LastHandshake
+	// WireGuard reports a peer with no handshake as the Unix epoch. Use the
+	// zero time so callers can check IsZero.
+	if ps.LastHandshake.Unix() > 0 {
+		d.LastWireguardHandshake = ps.LastHandshake
+	}
+	d.TxBytes = ps.TxBytes
+	d.RxBytes = ps.RxBytes
 }
 
 func (c *configMaps) knownPeerIDs() []uuid.UUID {

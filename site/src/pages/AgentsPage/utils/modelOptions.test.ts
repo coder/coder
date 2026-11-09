@@ -11,7 +11,6 @@ import {
 	MockChatProviderConfig,
 } from "#/testHelpers/chatModels";
 import {
-	compactionTriggerTokens,
 	countConfiguredProviderConfigs,
 	filterModelsWithEnabledProvider,
 	formatProviderLabel,
@@ -25,9 +24,6 @@ import {
 	isUnsetModelRef,
 	NIL_UUID,
 	providerInfoByIDFromUserConfigs,
-	providerTypeByIDFromUserConfigs,
-	resolveCompactionContextLimit,
-	resolveCompactionThreshold,
 	resolveModelOptionId,
 	resolveModelSelector,
 } from "./modelOptions";
@@ -1037,31 +1033,6 @@ describe("providerInfoByIDFromUserConfigs", () => {
 	});
 });
 
-describe("providerTypeByIDFromUserConfigs", () => {
-	it("maps UserChatProviderConfig.provider_id to its provider type", () => {
-		const map = providerTypeByIDFromUserConfigs([
-			{
-				provider_id: "prov-openai",
-				provider: "openai",
-				display_name: "OpenAI",
-				icon: "",
-				enabled: true,
-				has_user_api_key: false,
-				has_central_api_key_fallback: true,
-				byok_enabled: true,
-			},
-		]);
-
-		expect(map.get("prov-openai")).toBe("openai");
-		expect(map.size).toBe(1);
-	});
-
-	it("returns an empty map for nullish input", () => {
-		expect(providerTypeByIDFromUserConfigs(undefined).size).toBe(0);
-		expect(providerTypeByIDFromUserConfigs(null).size).toBe(0);
-	});
-});
-
 describe("getUnsupportedProviderNames", () => {
 	const unsupportedCopilot: OrganizationChatModelsResponse["unsupported_providers"] =
 		[
@@ -1173,128 +1144,5 @@ describe("resolveModelSelector", () => {
 				contextLimit: 128_000,
 			},
 		]);
-	});
-});
-
-describe("resolveCompactionThreshold", () => {
-	const models = [
-		createConfig({
-			id: "config-1",
-			ai_provider_id: "prov-openai",
-			model: "gpt-4o",
-			compression_threshold: 70,
-		}),
-	];
-
-	it("returns the user override when one is stored for the model", () => {
-		expect(
-			resolveCompactionThreshold(
-				"config-1",
-				[{ model_config_id: "config-1", threshold_percent: 60 }],
-				models,
-			),
-		).toBe(60);
-	});
-
-	it("returns the model threshold when no override is stored", () => {
-		expect(resolveCompactionThreshold("config-1", [], models)).toBe(70);
-	});
-
-	it("returns the threshold for a disabled historical model", () => {
-		const historicalModels = [{ ...models[0], enabled: false }];
-
-		expect(resolveCompactionThreshold("config-1", [], historicalModels)).toBe(
-			70,
-		);
-	});
-
-	it("returns undefined when the model is not in the catalog", () => {
-		expect(resolveCompactionThreshold("missing", [], models)).toBe(undefined);
-	});
-});
-
-describe("resolveCompactionContextLimit", () => {
-	const chatModel = createConfig({
-		id: "chat",
-		ai_provider_id: "prov-openai",
-		model: "gpt-4o",
-		context_limit: 1_000,
-	});
-	const smallSummarizer = createConfig({
-		id: "small",
-		ai_provider_id: "prov-openai",
-		model: "gpt-4o-mini",
-		context_limit: 100,
-	});
-	const largeSummarizer = createConfig({
-		id: "large",
-		ai_provider_id: "prov-anthropic",
-		model: "claude",
-		context_limit: 5_000,
-	});
-	const models = [chatModel, smallSummarizer, largeSummarizer];
-
-	it("uses the chat model window without an override", () => {
-		expect(resolveCompactionContextLimit(chatModel, models, new Map())).toBe(
-			1_000,
-		);
-	});
-
-	it("uses the override window when it is smaller", () => {
-		expect(
-			resolveCompactionContextLimit(
-				chatModel,
-				models,
-				new Map([[testOrganizationID, "small"]]),
-			),
-		).toBe(100);
-	});
-
-	it("keeps the chat model window when the override is larger", () => {
-		expect(
-			resolveCompactionContextLimit(
-				chatModel,
-				models,
-				new Map([[testOrganizationID, "large"]]),
-			),
-		).toBe(1_000);
-	});
-
-	it("falls back to the override window when the chat window is unknown", () => {
-		expect(
-			resolveCompactionContextLimit(
-				{ ...chatModel, context_limit: 0 },
-				models,
-				new Map([[testOrganizationID, "small"]]),
-			),
-		).toBe(100);
-	});
-
-	it("ignores overrides for other organizations and unknown models", () => {
-		expect(
-			resolveCompactionContextLimit(
-				chatModel,
-				models,
-				new Map([
-					["other-org", "small"],
-					[testOrganizationID, "missing"],
-				]),
-			),
-		).toBe(1_000);
-	});
-});
-
-describe("compactionTriggerTokens", () => {
-	it("scales the window by the threshold", () => {
-		expect(compactionTriggerTokens(128_000, 80)).toBe(102_400);
-		expect(compactionTriggerTokens(1_000, 70)).toBe(700);
-	});
-
-	it("returns undefined when the window is unknown", () => {
-		expect(compactionTriggerTokens(0, 80)).toBe(undefined);
-	});
-
-	it("returns undefined at 100% because compaction never triggers", () => {
-		expect(compactionTriggerTokens(128_000, 100)).toBe(undefined);
 	});
 });

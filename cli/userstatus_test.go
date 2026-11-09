@@ -67,4 +67,35 @@ func TestUserStatus(t *testing.T) {
 		require.NoError(t, err, "fetch active user")
 		require.Equal(t, codersdk.UserStatusActive, otherUser.Status, "active user")
 	})
+
+	t.Run("SkipPromptFlag", func(t *testing.T) {
+		t.Parallel()
+
+		client := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, client)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleUserAdmin())
+		other, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		otherUser, err := other.User(context.Background(), codersdk.Me)
+		require.NoError(t, err, "fetch user")
+
+		// No stdin is attached, so the command would block or fail if it tried to
+		// prompt.
+		inv, root := clitest.New(t, "users", "suspend", otherUser.Username, "-y")
+		clitest.SetupConfig(t, userAdmin, root)
+		err = inv.Run()
+		require.NoError(t, err, "suspend user")
+
+		otherUser, err = client.User(context.Background(), otherUser.Username)
+		require.NoError(t, err, "fetch suspended user")
+		require.Equal(t, codersdk.UserStatusSuspended, otherUser.Status, "suspended user")
+
+		inv, root = clitest.New(t, "users", "activate", otherUser.Username, "--yes")
+		clitest.SetupConfig(t, userAdmin, root)
+		err = inv.Run()
+		require.NoError(t, err, "activate user")
+
+		otherUser, err = client.User(context.Background(), otherUser.Username)
+		require.NoError(t, err, "fetch active user")
+		require.Equal(t, codersdk.UserStatusActive, otherUser.Status, "active user")
+	})
 }

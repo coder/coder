@@ -111,7 +111,7 @@ export const SingleOrganization: Story = {
 export const OrganizationMenu: Story = {
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
-			within(canvasElement).getByRole("button", {
+			within(canvasElement).getByRole("combobox", {
 				name: `Organization ${MockOrganization.display_name}`,
 			}),
 		);

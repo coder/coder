@@ -9,8 +9,10 @@ export const AIBudgetUsage: React.FC<{
 	if (spendLimit === null) {
 		return (
 			<span className="whitespace-nowrap">
-				{formatBudgetUSD(currentSpend)}{" "}
-				<span className="text-content-disabled">/ Unlimited USD</span>
+				<span className="text-content-primary">
+					{formatBudgetUSD(currentSpend)}
+				</span>{" "}
+				<span className="text-content-secondary">/ Unlimited USD</span>
 			</span>
 		);
 	}
@@ -18,10 +20,9 @@ export const AIBudgetUsage: React.FC<{
 	return (
 		<span className="whitespace-nowrap">
 			<AIBudgetAmount spend={currentSpend} limit={spendLimit} />{" "}
-			<span className="text-content-primary">
-				/ {formatBudgetUSD(spendLimit)}
-			</span>{" "}
-			<span className="text-content-disabled">USD</span>
+			<span className="text-content-secondary">
+				/ {formatBudgetUSD(spendLimit)} USD
+			</span>
 		</span>
 	);
 };

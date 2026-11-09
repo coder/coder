@@ -1,11 +1,11 @@
 import { BellIcon, BellOffIcon } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { healthSettings, updateHealthSettings } from "#/api/queries/debug";
 import type { HealthSection } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
+import { toast } from "#/components/Toaster/toast";
 
 export const MuteWarningsButton = (props: { healthcheck: HealthSection }) => {
 	const queryClient = useQueryClient();

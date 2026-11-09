@@ -37,17 +37,32 @@ test("update template schedule settings without override other settings", async 
 	await page.goto(`${baseURL}/templates/${template.name}/settings/schedule`, {
 		waitUntil: "domcontentloaded",
 	});
-	await page.getByLabel("Default autostop (hours)").fill("48");
-	await page.getByRole("button", { name: /save/i }).click();
-	await expect(page.getByText(/schedule updated successfully/)).toBeVisible();
+	for (const { defaultHours, bumpHours } of [
+		{ defaultHours: 48, bumpHours: 2 },
+		{ defaultHours: 0, bumpHours: 0 },
+	]) {
+		await test.step(`persist autostop ${defaultHours}h and activity bump ${bumpHours}h`, async () => {
+			// Clear the bump before disabling autostop, which can disable its input.
+			await page.getByLabel("Activity bump (hours)").fill(String(bumpHours));
+			await page
+				.getByLabel("Default autostop (hours)")
+				.fill(String(defaultHours));
+			const saved = page.waitForResponse(
+				(response) =>
+					response.url().endsWith(`/api/v2/templates/${template.id}`) &&
+					response.request().method() === "PATCH",
+			);
+			await page.getByRole("button", { name: /save/i }).click();
+			expect((await saved).ok()).toBe(true);
 
-	const updatedTemplate = await API.getTemplate(template.id);
-	// Validate that the template data remains consistent, with the exception of
-	// the 'default_ttl_ms' field (updated during the test) and the 'updated at'
-	// field (automatically updated by the backend).
-	expect({
-		...template,
-		default_ttl_ms: 48 * 60 * 60 * 1000,
-		updated_at: updatedTemplate.updated_at,
-	}).toStrictEqual(updatedTemplate);
+			const updatedTemplate = await API.getTemplate(template.id);
+			expect(updatedTemplate).toStrictEqual({
+				...template,
+				default_ttl_ms: defaultHours * 60 * 60 * 1000,
+				activity_bump_ms: bumpHours * 60 * 60 * 1000,
+				updated_at: updatedTemplate.updated_at,
+			});
+			await page.reload({ waitUntil: "domcontentloaded" });
+		});
+	}
 });

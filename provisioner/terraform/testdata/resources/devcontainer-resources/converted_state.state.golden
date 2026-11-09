@@ -42,7 +42,8 @@
                 {
                   "display_name": "Devcontainer Script",
                   "script": "echo devcontainer",
-                  "run_on_start": true
+                  "run_on_start": true,
+                  "resource_address": "coder_script.devcontainer-script"
                 }
               ],
               "envs": [

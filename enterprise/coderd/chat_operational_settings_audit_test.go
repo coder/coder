@@ -35,7 +35,6 @@ type chatOperationalSettingAuditCase struct {
 	key              string
 	diffField        string
 	oldValue         string
-	oldValueAbsent   bool
 	newValue         string
 	effectiveDefault string
 	write            func(context.Context, *codersdk.ExperimentalClient, string) error
@@ -52,9 +51,6 @@ func newChatOperationalSettingsAuditFixture(t *testing.T) chatOperationalSetting
 			Database: db,
 			Pubsub:   ps,
 			Auditor:  auditor,
-			DeploymentValues: coderdtest.DeploymentValues(t, func(values *codersdk.DeploymentValues) {
-				values.Experiments = []string{string(codersdk.ExperimentChatVirtualDesktop)}
-			}),
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{codersdk.FeatureAuditLog: 1},
@@ -171,20 +167,6 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 			},
 		},
 		{
-			name:             "ComputerUseProvider",
-			key:              "agents_computer_use_provider",
-			diffField:        "computer_use_provider",
-			oldValue:         string(codersdk.ChatComputerUseProviderAnthropic),
-			oldValueAbsent:   true,
-			newValue:         string(codersdk.ChatComputerUseProviderOpenAI),
-			effectiveDefault: string(codersdk.ChatComputerUseProviderAnthropic),
-			write: func(ctx context.Context, client *codersdk.ExperimentalClient, value string) error {
-				return client.UpdateChatComputerUseProvider(ctx, codersdk.UpdateChatComputerUseProviderRequest{
-					Provider: codersdk.ChatComputerUseProvider(value),
-				})
-			},
-		},
-		{
 			name:             "DebugLogging",
 			key:              "agents_chat_debug_logging_allow_users",
 			diffField:        "debug_logging_allow_users",
@@ -224,12 +206,10 @@ func TestChatOperationalSettingsAudit(t *testing.T) {
 			t.Parallel()
 
 			fixture := newChatOperationalSettingsAuditFixture(t)
-			if !setting.oldValueAbsent {
-				require.NoError(t, fixture.db.UpsertRuntimeConfig(fixture.systemCtx, database.UpsertRuntimeConfigParams{
-					Key:   setting.key,
-					Value: setting.oldValue,
-				}))
-			}
+			require.NoError(t, fixture.db.UpsertRuntimeConfig(fixture.systemCtx, database.UpsertRuntimeConfigParams{
+				Key:   setting.key,
+				Value: setting.oldValue,
+			}))
 			require.NoError(t, setting.write(fixture.ctx, fixture.client, setting.newValue))
 
 			log := fixture.onlyAuditLog(t)

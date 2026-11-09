@@ -1,9 +1,9 @@
-import { toast } from "sonner";
 import type { CreateChatMessageRequestWithClearablePlanMode } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
 import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
 import { planModeFieldsForCreateMessage } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { BuiltInCommandPendingError } from "../../hooks/useConversationEditingState";
 import {
@@ -25,12 +25,13 @@ import type {
 } from "../ChatPageContent";
 import {
 	buildInactiveChatQueueReconciliation,
-	reconcilePromotedQueueHead,
+	reconcilePromotedQueuedMessages,
 	restoreOptimisticRequestSnapshot,
-	settlePromotedQueueHead,
+	settlePromotedQueuedMessages,
 	submitEdit,
 } from "./chatQueueReconciliation";
 import type { ChatStore } from "./chatStore";
+import type { EditingTarget } from "./types";
 
 /** "busy" is retryable; "unavailable" requires content or model availability. */
 export type SubmitChatTurnResult = "sent" | "busy" | "unavailable";
@@ -39,13 +40,17 @@ export type SubmitChatTurnParams = {
 	message: string;
 	attachments?: readonly PendingAttachment[];
 	workspaceUploads?: readonly PendingWorkspaceUpload[];
-	editedMessageID?: number;
+	editingTarget?: EditingTarget;
 	composerParts?: readonly ChatComposerContentPart[];
 	clearPlanMode?: boolean;
+	busyBehavior?: TypesGen.ChatBusyBehavior;
 	isSubmissionPending: boolean;
 	hasModelOptions: boolean;
 	isEditReasoningEffortDirtyRef: { current: boolean };
+	isEditModelDirtyRef: { current: boolean };
 	personalSkills: readonly { name: string }[] | undefined;
+	organizationSkills: readonly { name: string }[] | undefined;
+	projectSkills: readonly { name: string }[] | undefined;
 	workspaceSkills: readonly { name: string }[] | undefined;
 	compact: () => Promise<unknown>;
 	clearChatContext: () => Promise<unknown>;
@@ -63,6 +68,10 @@ export type SubmitChatTurnParams = {
 		optimisticMessage?: TypesGen.ChatMessage;
 		req: TypesGen.EditChatMessageRequest;
 	}) => Promise<unknown>;
+	saveQueuedMessage: (
+		queuedMessageId: number,
+		req: TypesGen.EditChatQueuedMessageRequest,
+	) => Promise<unknown>;
 	sendMessage: (
 		req: CreateChatMessageRequestWithClearablePlanMode,
 	) => Promise<TypesGen.CreateChatMessageResponse>;
@@ -84,6 +93,33 @@ export type SubmitChatTurnParams = {
 		planMode?: TypesGen.ChatPlanMode,
 	) => void;
 };
+
+/**
+ * The model and reasoning effort a history edit sends. Each is omitted
+ * when the backend keeps the original: the model unless
+ * resolveEditModelConfigID picks one, the effort unless the user changed
+ * it for this edit.
+ */
+const buildEditModelOverrides = ({
+	pickerModelConfigID,
+	originalModelConfigID,
+	modelOptions,
+	reasoningEffort,
+	isReasoningEffortDirty,
+}: {
+	pickerModelConfigID: string | undefined;
+	originalModelConfigID: string | undefined;
+	modelOptions: readonly ModelSelectorOption[];
+	reasoningEffort: string | undefined;
+	isReasoningEffortDirty: boolean;
+}): { model_config_id?: string; reasoning_effort?: string } => ({
+	model_config_id: resolveEditModelConfigID({
+		pickerModelConfigID,
+		originalModelConfigID,
+		modelOptions,
+	}),
+	reasoning_effort: isReasoningEffortDirty ? reasoningEffort : undefined,
+});
 
 /** @internal Exported for testing. */
 export const resolveEditModelConfigID = ({
@@ -119,11 +155,11 @@ export const resolveEditModelConfigID = ({
 
 const findBuiltInChatCommand = (
 	content: readonly TypesGen.ChatInputPart[],
-	editedMessageID: number | undefined,
+	editingTarget: EditingTarget | undefined,
 ): (typeof CHAT_SLASH_COMMANDS)[number] | undefined => {
-	// Built-ins only intercept new, text-only sends. A personal or workspace
-	// skill with the same name takes precedence at availability resolution.
-	if (editedMessageID !== undefined || content.length !== 1) {
+	// Built-ins only intercept new, text-only sends. A skill with the same
+	// name takes precedence at availability resolution.
+	if (editingTarget !== undefined || content.length !== 1) {
 		return undefined;
 	}
 	const [part] = content;
@@ -156,6 +192,7 @@ const runBuiltInChatCommand = async ({
 			// Set running before awaiting so the worker's streamed waiting status
 			// cannot be overwritten if it arrives before the POST resolves.
 			const previousSnapshot = store.getSnapshot();
+			const baselineFence = store.getQueueConvergenceFence();
 			clearChatErrorReason(agentId);
 			store.clearStreamError();
 			store.clearStreamState();
@@ -163,7 +200,11 @@ const runBuiltInChatCommand = async ({
 			try {
 				await compact();
 			} catch (error) {
-				restoreOptimisticRequestSnapshot(store, previousSnapshot);
+				restoreOptimisticRequestSnapshot(
+					store,
+					previousSnapshot,
+					baselineFence,
+				);
 				toast.error(getErrorMessage(error, "Failed to compact chat."));
 				throw error;
 			}
@@ -179,13 +220,12 @@ const runBuiltInChatCommand = async ({
 	}
 };
 
-const applyQueuedSendReconciliation = ({
+const applyPromotedQueueReconciliation = ({
 	store,
 	agentId,
 	isActiveChat,
-	insertedMessages,
+	promotedIDs,
 	queuedMessagesBeforeSend,
-	queueHeadIDBeforeSend,
 	statusVersionBeforeSend,
 	queuedTail,
 	getCacheQueuedMessages,
@@ -195,9 +235,8 @@ const applyQueuedSendReconciliation = ({
 	store: ChatStore;
 	agentId: string;
 	isActiveChat: boolean;
-	insertedMessages: readonly TypesGen.ChatMessage[];
+	promotedIDs: readonly number[];
 	queuedMessagesBeforeSend: readonly TypesGen.ChatQueuedMessage[];
-	queueHeadIDBeforeSend: number | undefined;
 	statusVersionBeforeSend: number;
 	queuedTail: TypesGen.ChatQueuedMessage | undefined;
 	getCacheQueuedMessages: SubmitChatTurnParams["getCacheQueuedMessages"];
@@ -205,44 +244,36 @@ const applyQueuedSendReconciliation = ({
 	fetchQueueConvergence: SubmitChatTurnParams["fetchQueueConvergence"];
 }): void => {
 	const reconciledQueue = isActiveChat
-		? reconcilePromotedQueueHead(
-				store,
-				insertedMessages,
-				queueHeadIDBeforeSend,
-				queuedTail,
-			)
+		? reconcilePromotedQueuedMessages(store, promotedIDs, queuedTail)
 		: buildInactiveChatQueueReconciliation(
 				getCacheQueuedMessages(),
 				queuedMessagesBeforeSend,
-				insertedMessages,
-				queueHeadIDBeforeSend,
+				promotedIDs,
 				queuedTail,
 			);
 	if (!reconciledQueue) {
 		return;
 	}
 	setCacheQueuedMessages(reconciledQueue);
-	// A promoted head starts a turn, but any server status received during
+	if (!isActiveChat) {
+		return;
+	}
+	// Promoted rows start a turn, but any server status received during
 	// the request is newer and must win.
-	if (
-		isActiveChat &&
-		store.getServerChatStatusVersion() === statusVersionBeforeSend
-	) {
+	if (store.getServerChatStatusVersion() === statusVersionBeforeSend) {
 		store.clearStreamState();
 		store.setChatStatus("running");
 	}
-	if (isActiveChat && queueHeadIDBeforeSend !== undefined) {
-		void settlePromotedQueueHead(
-			store,
-			agentId,
-			queueHeadIDBeforeSend,
-			fetchQueueConvergence,
-		).then((settled) => {
-			if (settled) {
-				setCacheQueuedMessages(settled);
-			}
-		});
-	}
+	void settlePromotedQueuedMessages(
+		store,
+		agentId,
+		promotedIDs,
+		fetchQueueConvergence,
+	).then((settled) => {
+		if (settled) {
+			setCacheQueuedMessages(settled);
+		}
+	});
 };
 
 /** Submits a turn or built-in command, returning why no submission occurred; request failures still throw. */
@@ -253,12 +284,15 @@ export async function submitChatTurn(
 		message,
 		attachments,
 		workspaceUploads,
-		editedMessageID,
+		editingTarget,
 		composerParts,
 		clearPlanMode = false,
+		busyBehavior,
 		isSubmissionPending,
 		hasModelOptions,
 		personalSkills,
+		organizationSkills,
+		projectSkills,
 		workspaceSkills,
 		compact,
 		clearChatContext,
@@ -271,8 +305,10 @@ export async function submitChatTurn(
 		modelOptions,
 		effectiveReasoningEffort,
 		isEditReasoningEffortDirtyRef,
+		isEditModelDirtyRef,
 		mcpServerIds,
 		editMessage,
+		saveQueuedMessage,
 		sendMessage,
 		onRequestError,
 		invalidateChat,
@@ -297,13 +333,14 @@ export async function submitChatTurn(
 		return "busy";
 	}
 
-	const builtInCommand = findBuiltInChatCommand(content, editedMessageID);
+	const builtInCommand = findBuiltInChatCommand(content, editingTarget);
 	const builtInCommandResolution = builtInCommand
-		? resolveChatSlashCommandAvailability(
-				builtInCommand,
-				personalSkills,
-				workspaceSkills,
-			)
+		? resolveChatSlashCommandAvailability(builtInCommand, [
+				{ source: "personal", skills: personalSkills },
+				{ source: "org", skills: organizationSkills },
+				{ source: "project", skills: projectSkills },
+				{ source: "workspace", skills: workspaceSkills },
+			])
 		: undefined;
 	if (builtInCommandResolution === "pending" && builtInCommand) {
 		const triggerText = chatSlashCommandTriggerText(builtInCommand);
@@ -324,22 +361,39 @@ export async function submitChatTurn(
 		return "sent";
 	}
 
-	if (editedMessageID !== undefined) {
-		const originalEditedMessage = chatMessages?.find(
-			(existingMessage) => existingMessage.id === editedMessageID,
-		);
-		const editSelectedModelConfigID = resolveEditModelConfigID({
-			pickerModelConfigID: effectiveSelectedModel || undefined,
-			originalModelConfigID: originalEditedMessage?.model_config_id,
-			modelOptions,
-		});
-		const request: TypesGen.EditChatMessageRequest = {
+	if (editingTarget?.kind === "queued") {
+		const queuedMessageID = editingTarget.id;
+		// A queued row keeps its model and effort unless the user changes
+		// them during this edit; the picker otherwise shows the chat's model,
+		// not the row's.
+		const request: TypesGen.EditChatQueuedMessageRequest = {
 			content,
-			model_config_id: editSelectedModelConfigID,
-			// Omit so the backend preserves the original effort.
+			model_config_id: isEditModelDirtyRef.current
+				? effectiveSelectedModel || undefined
+				: undefined,
 			reasoning_effort: isEditReasoningEffortDirtyRef.current
 				? effectiveReasoningEffort
 				: undefined,
+			editing: false,
+		};
+		await saveQueuedMessage(queuedMessageID, request);
+		return "sent";
+	}
+
+	if (editingTarget?.kind === "history") {
+		const editedMessageID = editingTarget.id;
+		const originalEditedMessage = chatMessages?.find(
+			(existingMessage) => existingMessage.id === editedMessageID,
+		);
+		const request: TypesGen.EditChatMessageRequest = {
+			content,
+			...buildEditModelOverrides({
+				pickerModelConfigID: effectiveSelectedModel || undefined,
+				originalModelConfigID: originalEditedMessage?.model_config_id,
+				modelOptions,
+				reasoningEffort: effectiveReasoningEffort,
+				isReasoningEffortDirty: isEditReasoningEffortDirtyRef.current,
+			}),
 			mcp_server_ids: [...mcpServerIds],
 		};
 		const optimisticMessage = originalEditedMessage
@@ -350,6 +404,7 @@ export async function submitChatTurn(
 				})
 			: undefined;
 		const previousSnapshot = store.getSnapshot();
+		const baselineFence = store.getQueueConvergenceFence();
 		clearChatErrorReason(agentId);
 		store.clearStreamError();
 		store.batch(() => {
@@ -365,7 +420,11 @@ export async function submitChatTurn(
 				req: request,
 			},
 			onError: (error) => {
-				restoreOptimisticRequestSnapshot(store, previousSnapshot);
+				restoreOptimisticRequestSnapshot(
+					store,
+					previousSnapshot,
+					baselineFence,
+				);
 				onRequestError(error);
 				// Hook dispatch failures can park an idle chat in error before
 				// returning the request error.
@@ -384,14 +443,12 @@ export async function submitChatTurn(
 		reasoning_effort: effectiveReasoningEffort,
 		mcp_server_ids: [...mcpServerIds],
 		...planModeFieldsForCreateMessage(clearPlanMode),
+		busy_behavior: busyBehavior,
 	};
 	clearChatErrorReason(agentId);
 	store.clearStreamError();
 
-	// An errored-chat send may promote the queue head that existed when
-	// the request began.
 	const queuedMessagesBeforeSend = store.getSnapshot().queuedMessages;
-	const queueHeadIDBeforeSend = queuedMessagesBeforeSend[0]?.id;
 	const statusVersionBeforeSend = store.getServerChatStatusVersion();
 
 	// Don't clear stream state before the POST completes. For queued sends
@@ -417,8 +474,8 @@ export async function submitChatTurn(
 		// instead, the WebSocket event overrides this optimistic value.
 		store.setChatStatus("running");
 	}
-	// Upsert the full batch because a queued send can insert a promoted
-	// head below the highest cached ID, which a reconnect would skip.
+	// Upsert the full batch because an errored-chat send can insert promoted
+	// queued rows below the highest cached ID, which a reconnect would skip.
 	const insertedMessages =
 		response.messages ?? (response.message ? [response.message] : []);
 	if (insertedMessages.length > 0) {
@@ -426,21 +483,22 @@ export async function submitChatTurn(
 		if (isActiveChat) {
 			store.upsertDurableMessages(insertedMessages);
 		}
-		if (response.queued) {
-			applyQueuedSendReconciliation({
-				store,
-				agentId,
-				isActiveChat,
-				insertedMessages,
-				queuedMessagesBeforeSend,
-				queueHeadIDBeforeSend,
-				statusVersionBeforeSend,
-				queuedTail: response.queued_message,
-				getCacheQueuedMessages,
-				setCacheQueuedMessages,
-				fetchQueueConvergence,
-			});
-		}
+		applyPromotedQueueReconciliation({
+			store,
+			agentId,
+			isActiveChat,
+			promotedIDs: insertedMessages.flatMap((message) =>
+				message.queued_message_id === undefined
+					? []
+					: [message.queued_message_id],
+			),
+			queuedMessagesBeforeSend,
+			statusVersionBeforeSend,
+			queuedTail: response.queued_message,
+			getCacheQueuedMessages,
+			setCacheQueuedMessages,
+			fetchQueueConvergence,
+		});
 	}
 	if (clearPlanMode) {
 		setCachedChatPlanMode(agentId, undefined);

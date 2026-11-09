@@ -20,17 +20,19 @@ type RuntimeConfig struct {
 	// MaxRetries is the maximum number of retries after a transient
 	// provider error within one advisor call. It must be positive.
 	MaxRetries int
+	// PriorUses is the number of successful advisor calls already made
+	// in the current turn. chatd builds a new Runtime for every model
+	// step, so the per-turn quota is seeded from history.
+	PriorUses int
 }
 
 // Runtime executes nested, tool-less advisor runs against the configured
 // language model.
 //
-// Each Runtime instance is scoped to a single outer chat run. The
-// MaxUsesPerRun counter increments on every successful advisor call and
-// is never reset, so callers must construct a fresh Runtime (via
-// NewRuntime) for each outer run. There is intentionally no Reset method:
-// the per-run quota is a safety bound on a single run, not a rolling
-// window.
+// The MaxUsesPerRun counter starts at PriorUses, increments on every
+// successful advisor call, and is never reset. There is intentionally no
+// Reset method: the quota is a safety bound on a single turn, not a
+// rolling window.
 type Runtime struct {
 	cfg  RuntimeConfig
 	used atomic.Int64
@@ -64,7 +66,9 @@ func NewRuntime(cfg RuntimeConfig) (*Runtime, error) {
 	maxOutputTokens := cfg.MaxOutputTokens
 	normalized.CallTemplate.MaxOutputTokens = &maxOutputTokens
 
-	return &Runtime{cfg: normalized}, nil
+	rt := &Runtime{cfg: normalized}
+	rt.used.Store(int64(cfg.PriorUses))
+	return rt, nil
 }
 
 // cloneProviderOptions returns a copy of opts with pointer entries for
@@ -121,28 +125,6 @@ func (rt *Runtime) RemainingUses() int {
 	return int(remaining)
 }
 
-// MaxOutputTokens reports the resolved output-token cap applied to each
-// advisor call. NewRuntime validates that this value is positive and that
-// it matches ModelConfig.MaxOutputTokens when both are set, so the
-// accessor always returns the value the runtime will actually send.
-func (rt *Runtime) MaxOutputTokens() int64 {
-	if rt == nil {
-		return 0
-	}
-	return rt.cfg.MaxOutputTokens
-}
-
-// ProviderOptions reports the resolved provider options applied to each
-// advisor call. NewRuntime clones the supplied options so the returned
-// map reflects what nested calls will actually receive; callers must not
-// mutate the map or its entries.
-func (rt *Runtime) ProviderOptions() fantasy.ProviderOptions {
-	if rt == nil {
-		return nil
-	}
-	return rt.cfg.CallTemplate.ProviderOptions
-}
-
 func (rt *Runtime) tryAcquire() bool {
 	for {
 		used := rt.used.Load()
@@ -158,7 +140,7 @@ func (rt *Runtime) tryAcquire() bool {
 // release returns a previously acquired use to the pool. Callers must
 // invoke this at most once per successful tryAcquire when the advisor
 // call did not complete successfully, so a transient provider failure
-// does not permanently consume quota for the run.
+// does not permanently consume quota for the turn.
 func (rt *Runtime) release() {
 	rt.used.Add(-1)
 }

@@ -1,0 +1,10 @@
+title: Notifications
+description: Configure how Coder sends notifications for deployment events over email and webhooks.
+path: ./admin/monitoring/notifications/index.md
+children:
+  - title: Slack notifications
+    description: Set up a Slack integration to deliver Coder notifications to your channels.
+    path: ./admin/monitoring/notifications/slack.md
+  - title: Microsoft Teams notifications
+    description: Set up a Microsoft Teams integration to deliver Coder notifications to your channels.
+    path: ./admin/monitoring/notifications/teams.md

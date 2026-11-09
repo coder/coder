@@ -23,13 +23,13 @@ const newSecurityFormValues = {
 };
 
 const fillAndSubmitSecurityForm = () => {
-	fireEvent.change(screen.getByLabelText("Old Password"), {
+	fireEvent.change(screen.getByLabelText("Old password"), {
 		target: { value: newSecurityFormValues.old_password },
 	});
-	fireEvent.change(screen.getByLabelText("New Password"), {
+	fireEvent.change(screen.getByLabelText("New password"), {
 		target: { value: newSecurityFormValues.password },
 	});
-	fireEvent.change(screen.getByLabelText("Confirm Password"), {
+	fireEvent.change(screen.getByLabelText("Confirm password"), {
 		target: { value: newSecurityFormValues.confirm_password },
 	});
 	fireEvent.click(screen.getByText("Update password"));
@@ -40,6 +40,11 @@ beforeEach(() => {
 	vi.spyOn(API, "getUserLoginType").mockResolvedValue({
 		login_type: "password",
 	});
+});
+
+test("sets a page title that identifies the page", async () => {
+	await renderPage();
+	expect(document.title).toBe("Security - Settings - Coder");
 });
 
 test("update password successfully", async () => {

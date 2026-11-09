@@ -1,8 +1,8 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { toast } from "sonner";
 import { describe, expect, it, vi } from "vitest";
 import type { AnnotatorToHostMessage } from "#/annotator/protocol";
+import { toast } from "#/components/Toaster/toast";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockWorkspace,
@@ -15,7 +15,9 @@ import type { UserRightPanelTab } from "../../utils/rightPanelTabs";
 import type { SubmitChatTurnResult } from "../ChatConversation/submitChatTurn";
 import { PortPreviewPanel } from "./PortPreviewPanel";
 
-vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
+vi.mock("#/components/Toaster/toast", () => ({
+	toast: { success: vi.fn(), error: vi.fn() },
+}));
 
 const tab: Extract<UserRightPanelTab, { kind: "port" }> = {
 	id: "port-3000",

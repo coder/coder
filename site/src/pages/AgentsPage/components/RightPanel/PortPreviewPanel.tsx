@@ -11,7 +11,6 @@ import {
 	useRef,
 	useState,
 } from "react";
-import { toast } from "sonner";
 import { formatAnnotations } from "#/annotator/formatAnnotations";
 import {
 	type AnnotationSubmission,
@@ -20,6 +19,7 @@ import {
 import { getErrorMessage, isApiError } from "#/api/errors";
 import type { Workspace, WorkspaceAgent } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { toast } from "#/components/Toaster/toast";
 import { WorkspaceIframe } from "#/modules/apps/WorkspaceAppFrame";
 import { portForwardURL } from "#/utils/portForward";
 import { useAnnotatorBridge } from "../../hooks/useAnnotatorBridge";
@@ -233,24 +233,25 @@ export const PortPreviewPanel: React.FC<{
 	// accepted while the request stands, so the button reads "on" whenever
 	// they might be. Escape leaves annotate mode from either side, listened
 	// for here in case focus is outside the preview.
+	const { requested: pickingRequested, setPicking } = bridge;
 	useEffect(() => {
-		if (!bridge.requested) {
+		if (!pickingRequested) {
 			return;
 		}
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key === "Escape" && !event.defaultPrevented) {
-				bridge.setPicking(false);
+				setPicking(false);
 			}
 		};
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [bridge.requested, bridge.setPicking]);
+	}, [pickingRequested, setPicking]);
 
 	const showAnnotate = canAnnotate && canSendMessage && frameUrl !== undefined;
 
 	return (
 		<div className="flex h-full min-h-0 flex-col">
-			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border-default bg-surface-secondary px-2 py-1 text-xs text-content-secondary">
+			<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border bg-surface-secondary px-2 py-1 text-xs text-content-secondary">
 				<NetworkIcon className="size-3.5 shrink-0" />
 				<span className="min-w-0 truncate text-content-primary">
 					{tab.label}

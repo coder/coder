@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -1754,6 +1755,83 @@ func TestCompleteJob(t *testing.T) {
 		require.ErrorContains(t, err, "you don't own this job")
 	})
 
+	// Identical module archives share one files row. Imports that complete
+	// at the same time with the same archive must all succeed instead of
+	// racing on the unique hash constraint.
+	t.Run("TemplateImportConcurrentModuleFiles", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		srv, db, _, pd := setup(t, false, &overrides{})
+		user := dbgen.User(t, db, database.User{})
+
+		const imports = 10
+		versionIDs := make([]uuid.UUID, imports)
+		jobIDs := make([]uuid.UUID, imports)
+		for i := range imports {
+			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				CreatedBy:      user.ID,
+				OrganizationID: pd.OrganizationID,
+				JobID:          uuid.New(),
+			})
+			job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+				ID:             version.JobID,
+				OrganizationID: pd.OrganizationID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
+					TemplateVersionID: version.ID,
+				})),
+				StorageMethod: database.ProvisionerStorageMethodFile,
+				Type:          database.ProvisionerJobTypeTemplateVersionImport,
+				Tags:          pd.Tags,
+			})
+			require.NoError(t, err)
+			// Acquire each job before inserting the next so the daemon
+			// acquires exactly this job.
+			acquired, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+				OrganizationID:  pd.OrganizationID,
+				WorkerID:        uuid.NullUUID{UUID: pd.ID, Valid: true},
+				Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+				ProvisionerTags: must(json.Marshal(job.Tags)),
+				StartedAt:       sql.NullTime{Time: job.CreatedAt, Valid: true},
+			})
+			require.NoError(t, err)
+			require.Equal(t, job.ID, acquired.ID)
+			versionIDs[i] = version.ID
+			jobIDs[i] = job.ID
+		}
+
+		moduleFiles := []byte("identical module archive")
+		start := make(chan struct{})
+		var eg errgroup.Group
+		for _, jobID := range jobIDs {
+			eg.Go(func() error {
+				<-start
+				_, err := srv.CompleteJob(ctx, &proto.CompletedJob{
+					JobId: jobID.String(),
+					Type: &proto.CompletedJob_TemplateImport_{
+						TemplateImport: &proto.CompletedJob_TemplateImport{
+							ModuleFiles: moduleFiles,
+						},
+					},
+				})
+				return err
+			})
+		}
+		close(start)
+		require.NoError(t, eg.Wait())
+
+		var fileIDs []uuid.UUID
+		for _, versionID := range versionIDs {
+			values, err := db.GetTemplateVersionTerraformValues(ctx, versionID)
+			require.NoError(t, err)
+			require.True(t, values.CachedModuleFiles.Valid)
+			fileIDs = append(fileIDs, values.CachedModuleFiles.UUID)
+		}
+		for _, fileID := range fileIDs {
+			require.Equal(t, fileIDs[0], fileID, "all imports should share one module archive")
+		}
+	})
+
 	// Test for verifying transaction behavior on the extracted methods
 	t.Run("TransactionBehavior", func(t *testing.T) {
 		t.Parallel()
@@ -1803,7 +1881,10 @@ func TestCompleteJob(t *testing.T) {
 							Name: "test-resource",
 							Type: "aws_instance",
 						}},
-						Plan: []byte("{}"),
+						Plan: []byte(`{"configuration":{"root_module":{"resources":[
+							{"mode":"data","type":"coder_script_order","expressions":{"rule":[{},{}]}},
+							{"mode":"data","type":"coder_script_order","expressions":{"rule":[{}]}}
+						]}}}`),
 					},
 				},
 			})
@@ -1819,6 +1900,12 @@ func TestCompleteJob(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, resources, 1, "Expected one resource to be created")
 			require.Equal(t, "test-resource", resources[0].Name)
+
+			// Verify script-order counts were persisted.
+			version, err := db.GetTemplateVersionByID(ctx, versionID)
+			require.NoError(t, err)
+			require.Equal(t, int32(2), version.ScriptOrderDataSourceCount)
+			require.Equal(t, int32(3), version.ScriptOrderRuleCount)
 		})
 
 		// Test TemplateDryRun transaction
@@ -1979,8 +2066,7 @@ func TestCompleteJob(t *testing.T) {
 								Source:   "test-source2",
 								Resource: "test-resource2",
 								Action:   "test-action2",
-								// Start: omitted
-								// End: omitted
+								// Start and End are omitted.
 							},
 							{
 								Stage:    "test3",
@@ -3265,6 +3351,112 @@ func TestCompleteJob(t *testing.T) {
 		}
 	})
 
+	t.Run("WorkspaceBuildRejectsBadScriptDependency", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		srv, db, ps, pd := setup(t, false, &overrides{})
+
+		user := dbgen.User(t, db, database.User{})
+		template := dbgen.Template(t, db, database.Template{
+			CreatedBy:      user.ID,
+			Name:           "template",
+			Provisioner:    database.ProvisionerTypeEcho,
+			OrganizationID: pd.OrganizationID,
+		})
+		file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+		workspaceTable := dbgen.Workspace(t, db, database.WorkspaceTable{
+			TemplateID:     template.ID,
+			OwnerID:        user.ID,
+			OrganizationID: pd.OrganizationID,
+		})
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			CreatedBy:      user.ID,
+			OrganizationID: pd.OrganizationID,
+			TemplateID: uuid.NullUUID{
+				UUID:  template.ID,
+				Valid: true,
+			},
+			JobID: uuid.New(),
+		})
+		buildID := uuid.New()
+		job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+			FileID:      file.ID,
+			InitiatorID: user.ID,
+			Type:        database.ProvisionerJobTypeWorkspaceBuild,
+			Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+				WorkspaceBuildID: buildID,
+			})),
+			OrganizationID: pd.OrganizationID,
+		})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			ID:                buildID,
+			JobID:             job.ID,
+			WorkspaceID:       workspaceTable.ID,
+			InitiatorID:       user.ID,
+			TemplateVersionID: version.ID,
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonInitiator,
+		})
+		_, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			OrganizationID: pd.OrganizationID,
+			WorkerID: uuid.NullUUID{
+				UUID:  pd.ID,
+				Valid: true,
+			},
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			ProvisionerTags: must(json.Marshal(job.Tags)),
+			StartedAt:       sql.NullTime{Time: job.CreatedAt, Valid: true},
+		})
+		require.NoError(t, err)
+
+		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
+			JobId: job.ID.String(),
+			Type: &proto.CompletedJob_WorkspaceBuild_{
+				WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+					State: []byte{},
+					Resources: []*sdkproto.Resource{
+						{
+							Name: "vm-ok",
+							Type: "aws_instance",
+							Agents: []*sdkproto.Agent{{
+								Name: "main",
+								Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+								Scripts: []*sdkproto.Script{
+									{DisplayName: "Clone repo", ResourceAddress: "coder_script.clone_repo"},
+								},
+							}},
+						},
+						{
+							Name: "vm-bad",
+							Type: "aws_instance",
+							Agents: []*sdkproto.Agent{{
+								Name: "other",
+								Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+								Scripts: []*sdkproto.Script{
+									{
+										DisplayName:     "Install tools",
+										ResourceAddress: "coder_script.install_tools",
+										Dependencies: []*sdkproto.ScriptDependency{{
+											PrerequisiteResourceAddress: "coder_script.clone_repo",
+											// Requirement is left at UNSPECIFIED on purpose.
+										}},
+									},
+								},
+							}},
+						},
+					},
+				},
+			},
+		})
+		require.ErrorContains(t, err, `script "coder_script.install_tools" dependencies: dependency 0: unsupported requirement`)
+
+		// The first resource was valid, but the whole job rolls back.
+		resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
+		require.NoError(t, err)
+		require.Empty(t, resources, "the transaction must roll back every row of the job")
+	})
+
 	t.Run("PrebuiltWorkspaceClaimWithResourceReplacements", func(t *testing.T) {
 		t.Parallel()
 
@@ -3765,6 +3957,24 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		})
 		require.ErrorContains(t, err, `app slug "Dev" does not match regex`)
 	})
+	t.Run("ExternalAppURLInvalid", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		err := insert(db, job.ID, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "dev",
+				Apps: []*sdkproto.App{{
+					Slug:     "evil",
+					External: true,
+					Url:      "javascript://x/%0aalert(1)",
+				}},
+			}},
+		})
+		require.ErrorContains(t, err, `invalid external url "javascript://x/%0aalert(1)" for app "evil"`)
+	})
 	t.Run("DuplicateAgentNames", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
@@ -3851,10 +4061,26 @@ func TestInsertWorkspaceResource(t *testing.T) {
 						Value: "I laugh in the face of danger.",
 					},
 				},
-				Scripts: []*sdkproto.Script{{
-					DisplayName: "Startup",
-					Icon:        "/test.png",
-				}},
+				Scripts: []*sdkproto.Script{
+					{
+						// A legacy inline startup_script has no Terraform
+						// address of its own.
+						DisplayName: "Startup",
+						Icon:        "/test.png",
+					},
+					{
+						DisplayName:     "Clone repo",
+						ResourceAddress: "coder_script.clone_repo",
+					},
+					{
+						DisplayName:     "Install tools",
+						ResourceAddress: "coder_script.install_tools",
+						Dependencies: []*sdkproto.ScriptDependency{{
+							PrerequisiteResourceAddress: "coder_script.clone_repo",
+							Requirement:                 sdkproto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_SUCCESS,
+						}},
+					},
+				},
 				DisplayApps: &sdkproto.DisplayApps{
 					Vscode:               true,
 					PortForwardingHelper: true,
@@ -3887,6 +4113,48 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			database.DisplayAppSSHHelper,
 			database.DisplayAppVscode,
 		}, agent.DisplayApps)
+
+		scripts, err := db.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{agent.ID})
+		require.NoError(t, err)
+		require.Len(t, scripts, 3)
+		byName := make(map[string]database.GetWorkspaceAgentScriptsByAgentIDsRow, len(scripts))
+		for _, script := range scripts {
+			byName[script.DisplayName] = script
+		}
+		require.Equal(t, "", byName["Startup"].ResourceAddress)
+		require.JSONEq(t, `[]`, string(byName["Startup"].Dependencies))
+		require.Equal(t, "coder_script.clone_repo", byName["Clone repo"].ResourceAddress)
+		require.JSONEq(t, `[]`, string(byName["Clone repo"].Dependencies))
+		require.Equal(t, "coder_script.install_tools", byName["Install tools"].ResourceAddress)
+		require.JSONEq(t,
+			`[{"prerequisite_resource_address":"coder_script.clone_repo","requirement":"success"}]`,
+			string(byName["Install tools"].Dependencies),
+		)
+	})
+
+	t.Run("RejectsBadDependency", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		err := insert(db, job.ID, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "dev",
+				Scripts: []*sdkproto.Script{
+					{DisplayName: "Clone repo", ResourceAddress: "coder_script.clone_repo"},
+					{
+						DisplayName:     "Install tools",
+						ResourceAddress: "coder_script.install_tools",
+						Dependencies: []*sdkproto.ScriptDependency{{
+							PrerequisiteResourceAddress: "coder_script.clone_repo",
+							// Requirement is left at UNSPECIFIED on purpose.
+						}},
+					},
+				},
+			}},
+		})
+		require.ErrorContains(t, err, `script "coder_script.install_tools" dependencies: dependency 0: unsupported requirement`)
 	})
 
 	t.Run("AllDisplayApps", func(t *testing.T) {
@@ -4117,6 +4385,89 @@ func TestInsertWorkspaceResource(t *testing.T) {
 					} else {
 						assert.Equal(t, subAgent.ID, devcontainers[0].SubagentID.UUID)
 					}
+				},
+			},
+			{
+				name: "SubAgentWithOrderedScripts",
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "repo",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							Scripts: []*sdkproto.Script{
+								{DisplayName: "a", ResourceAddress: "coder_script.a", RunOnStart: true},
+								{
+									DisplayName:     "b",
+									ResourceAddress: "coder_script.b",
+									RunOnStart:      true,
+									Dependencies: []*sdkproto.ScriptDependency{{
+										PrerequisiteResourceAddress: "coder_script.a",
+										Requirement:                 sdkproto.ScriptDependencyRequirement_SCRIPT_DEPENDENCY_REQUIREMENT_COMPLETION,
+									}},
+								},
+							},
+						}},
+					}},
+				},
+				expectSubAgentCount: 1,
+				check: func(t *testing.T, db database.Store, parentAgent database.WorkspaceAgent, subAgents []database.WorkspaceAgent, _ bool) {
+					require.Len(t, subAgents, 1)
+
+					// The devcontainer's own scripts live under the subagent.
+					scripts, err := db.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{subAgents[0].ID})
+					require.NoError(t, err)
+					require.Len(t, scripts, 2)
+					byName := make(map[string]database.GetWorkspaceAgentScriptsByAgentIDsRow, len(scripts))
+					for _, script := range scripts {
+						byName[script.DisplayName] = script
+					}
+					assert.Equal(t, "coder_script.a", byName["a"].ResourceAddress)
+					assert.JSONEq(t, `[]`, string(byName["a"].Dependencies))
+					assert.Equal(t, "coder_script.b", byName["b"].ResourceAddress)
+					assert.JSONEq(t,
+						`[{"prerequisite_resource_address":"coder_script.a","requirement":"completion"}]`,
+						string(byName["b"].Dependencies),
+					)
+
+					// The start script coderd adds to the parent has no
+					// address and nothing can order it.
+					parentScripts, err := db.GetWorkspaceAgentScriptsByAgentIDs(ctx, []uuid.UUID{parentAgent.ID})
+					require.NoError(t, err)
+					require.Len(t, parentScripts, 1)
+					assert.Equal(t, "Dev Container (repo)", parentScripts[0].DisplayName)
+					assert.Equal(t, "", parentScripts[0].ResourceAddress)
+					assert.JSONEq(t, `[]`, string(parentScripts[0].Dependencies))
+				},
+			},
+			{
+				name:    "SubAgentRejectsBadDependency",
+				wantErr: `script "coder_script.b" dependencies: dependency 0: unsupported requirement`,
+				resource: &sdkproto.Resource{
+					Name: "something",
+					Type: "aws_instance",
+					Agents: []*sdkproto.Agent{{
+						Id:   agentID.String(),
+						Name: "dev",
+						Devcontainers: []*sdkproto.Devcontainer{{
+							Id:              devcontainerID.String(),
+							Name:            "repo",
+							WorkspaceFolder: "/workspace",
+							SubagentId:      subAgentID.String(),
+							Scripts: []*sdkproto.Script{{
+								DisplayName:     "b",
+								ResourceAddress: "coder_script.b",
+								Dependencies: []*sdkproto.ScriptDependency{{
+									PrerequisiteResourceAddress: "coder_script.a",
+								}},
+							}},
+						}},
+					}},
 				},
 			},
 			{

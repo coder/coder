@@ -1,0 +1,43 @@
+# Coder.InclusiveLanguage - substitute industry-standard inclusive terms for
+# terms the style guide retires: whitelist, blacklist, slave, master branch,
+# dummy, sanity check, and grandfathered. Refer to
+# accessibility-and-inclusion.md#inclusive-language-substitutions for the table
+# and the history behind "grandfathered".
+#
+# Bare "master" is deliberately not in the swap list. The word has many
+# legitimate technical uses, such as `master key` and Git branch names, so the
+# guide leaves it to reviewers. Only "master branch" and "master controller",
+# the two senses the guide table names, are flagged.
+#
+# Vale skips code spans and fenced code blocks, so literal identifiers such as
+# a `master` branch name or a `dummy` flag stay untouched when they sit in code
+# font.
+#
+# Bare "grandfather" is not flagged, so a family member or a "grandfather
+# clock" never matches. The inflections and "grandfather clause" are.
+#
+# Level: warning. Each term has legitimate quoted or proper-noun uses, such as a
+# third-party product name, so the fix is a judgment call.
+extends: substitution
+message: "Use '%s' instead of '%s'. Refer to accessibility-and-inclusion.md#inclusive-language-substitutions."
+link: https://github.com/coder/coder/blob/main/docs/.style/style-guide/accessibility-and-inclusion.md#inclusive-language-substitutions
+level: warning
+ignorecase: true
+nonword: false
+action:
+  name: replace
+swap:
+  '(?:white[-\s]?list)': "allowlist"
+  '(?:white[-\s]?lists)': "allowlists"
+  '(?:white[-\s]?listed)': "allowlisted"
+  '(?:white[-\s]?listing)': "allowlisting"
+  '(?:black[-\s]?list)': "blocklist, denylist"
+  '(?:black[-\s]?lists)': "blocklists, denylists"
+  '(?:black[-\s]?listed)': "blocklisted, denylisted"
+  '(?:black[-\s]?listing)': "blocklisting, denylisting"
+  'master (?:branch|controller)': "primary, main"
+  'master (?:branches|controllers)': "primary, main"
+  'slaves?': "replica, secondary"
+  'dummy': "placeholder, sample, mock"
+  'sanity[-\s](?:checks?|tests?|testing)': "smoke testing, confidence testing, acceptance testing"
+  'grandfather(?:s|ed|ing)(?:[-\s]clauses?)?|grandfather[-\s]clauses?': "legacy, pre-existing, exempt"

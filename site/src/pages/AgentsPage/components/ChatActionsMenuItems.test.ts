@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import { MockUserOwner } from "#/testHelpers/entities";
-import { canManageChat, chatHasMenuActions } from "./ChatActionsMenuItems";
+import { canManageChat, getArchiveBlockedReason } from "./ChatActionsMenuItems";
 
 const sharedByAnotherUser = {
 	...MockChat,
@@ -16,29 +17,41 @@ describe("canManageChat", () => {
 	});
 });
 
-describe("chatHasMenuActions", () => {
-	it("hides the menu from viewers unless the subagents toggle is available", () => {
-		expect(chatHasMenuActions(sharedByAnotherUser, { canManage: false })).toBe(
-			false,
-		);
+const childWithStatus = (status: TypesGen.ChatStatus): TypesGen.Chat => ({
+	...MockChat,
+	id: `child-${status}`,
+	status,
+});
+
+describe("getArchiveBlockedReason", () => {
+	it("returns undefined when the whole family is waiting", () => {
 		expect(
-			chatHasMenuActions(sharedByAnotherUser, {
-				canManage: false,
-				hasSubagentsToggle: true,
-			}),
-		).toBe(true);
+			getArchiveBlockedReason("waiting", [childWithStatus("waiting")]),
+		).toBeUndefined();
 	});
 
-	it("hides the menu from owners only for archived child chats", () => {
-		expect(chatHasMenuActions(MockChat, { canManage: true })).toBe(true);
+	it("returns paused for a paused child on a waiting root", () => {
 		expect(
-			chatHasMenuActions({ ...MockChat, archived: true }, { canManage: true }),
-		).toBe(true);
+			getArchiveBlockedReason("waiting", [childWithStatus("paused")]),
+		).toBe("paused");
+	});
+
+	it("returns undefined for an errored root with a waiting child", () => {
 		expect(
-			chatHasMenuActions(
-				{ ...MockChat, archived: true, parent_chat_id: "parent-chat" },
-				{ canManage: true },
-			),
-		).toBe(false);
+			getArchiveBlockedReason("error", [childWithStatus("waiting")]),
+		).toBeUndefined();
+	});
+
+	it("returns paused for a paused chat with no children", () => {
+		expect(getArchiveBlockedReason("paused", undefined)).toBe("paused");
+	});
+
+	it("prefers active over paused", () => {
+		expect(
+			getArchiveBlockedReason("paused", [childWithStatus("running")]),
+		).toBe("active");
+		expect(
+			getArchiveBlockedReason("running", [childWithStatus("paused")]),
+		).toBe("active");
 	});
 });

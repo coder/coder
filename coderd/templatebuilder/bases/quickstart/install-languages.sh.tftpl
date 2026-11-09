@@ -85,7 +85,10 @@ if has_language java; then
 fi
 
 if has_language cpp; then
-  if command -v gcc >/dev/null 2>&1; then
+  # Guard on every tool the install below provides, not just gcc: the base
+  # image ships gcc but not cmake.
+  if command -v gcc >/dev/null 2>&1 && command -v g++ >/dev/null 2>&1 \
+    && command -v make >/dev/null 2>&1 && command -v cmake >/dev/null 2>&1; then
     echo "C/C++: $(gcc --version | head -1)"
   else
     echo "Installing C/C++ toolchain..."

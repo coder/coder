@@ -77,31 +77,6 @@ func TestWrapModel_NilService(t *testing.T) {
 	require.Same(t, model, wrapped)
 }
 
-func TestNextStepNumber_Concurrent(t *testing.T) {
-	t.Parallel()
-
-	const n = 256
-
-	runID := uuid.New()
-	t.Cleanup(func() { CleanupStepCounter(runID) })
-
-	results := make([]int, n)
-	var wg sync.WaitGroup
-
-	for i := range n {
-		wg.Go(func() {
-			results[i] = int(nextStepNumber(runID))
-		})
-	}
-
-	wg.Wait()
-
-	slices.Sort(results)
-	for i := range n {
-		require.Equal(t, i+1, results[i])
-	}
-}
-
 func TestStepFinalizeContext_StripsCancellation(t *testing.T) {
 	t.Parallel()
 
@@ -115,16 +90,6 @@ func TestStepFinalizeContext_StripsCancellation(t *testing.T) {
 	require.NoError(t, finalizeCtx.Err())
 	_, hasDeadline := finalizeCtx.Deadline()
 	require.True(t, hasDeadline)
-}
-
-func TestSyncStepCounter_AdvancesCounter(t *testing.T) {
-	t.Parallel()
-
-	runID := uuid.New()
-	t.Cleanup(func() { CleanupStepCounter(runID) })
-
-	syncStepCounter(runID, 7)
-	require.Equal(t, int32(8), nextStepNumber(runID))
 }
 
 func TestStepHandleFinish_NilHandle(t *testing.T) {
@@ -152,7 +117,7 @@ func TestBeginStep_FallsBackToRunChatID(t *testing.T) {
 	runChatID := uuid.New()
 	ownerID := uuid.New()
 	expectDebugLoggingEnabled(t, db, ownerID)
-	expectCreateStepNumberWithRequestValidity(t, db, runID, runChatID, 1, OperationGenerate, false)
+	expectCreateStepWithRequestValidity(t, db, runID, runChatID, OperationGenerate, false)
 
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: runChatID})
 	svc := NewService(db, testutil.Logger(t), nil)
