@@ -1247,13 +1247,14 @@ func TestWorker(t *testing.T) {
 	assert.WithinDuration(t, expectedStaleAt, status.StaleAt, time.Second)
 }
 
-func TestWorker_MarkStale_MergedPR(t *testing.T) {
+func TestWorker_MarkStaleRefreshesMergedPR(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
 	user := dbgen.User(t, db, database.User{})
 	org := dbgen.Organization(t, db, database.Organization{})
 	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+
 	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
@@ -1263,21 +1264,27 @@ func TestWorker_MarkStale_MergedPR(t *testing.T) {
 		OrganizationID:  org.ID,
 		ActiveVersionID: templateVersion.ID,
 	})
+
 	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID:        user.ID,
 		OrganizationID: org.ID,
 		TemplateID:     template.ID,
 	})
+
 	chat := dbgen.Chat(t, db, database.Chat{
 		OrganizationID:    org.ID,
 		OwnerID:           user.ID,
 		WorkspaceID:       uuid.NullUUID{UUID: workspace.ID, Valid: true},
 		LastModelConfigID: modelCfg.ID,
 	})
+
 	ctx := testutil.Context(t, testutil.WaitLong)
 
+	// PostgreSQL stores timestamps at microsecond precision.
+	now := time.Now().UTC().Truncate(time.Microsecond)
 	mClock := quartz.NewMock(t)
-	mClock.Set(time.Now().UTC().Truncate(time.Microsecond))
+	mClock.Set(now)
+
 	prURL := "https://github.com/o/r/pull/1"
 	_, err := db.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
 		ChatID:           chat.ID,
@@ -1286,14 +1293,14 @@ func TestWorker_MarkStale_MergedPR(t *testing.T) {
 		Url:              sql.NullString{String: prURL, Valid: true},
 		PullRequestState: sql.NullString{String: string(gitprovider.PRStateMerged), Valid: true},
 		PullRequestTitle: "Original title",
-		RefreshedAt:      mClock.Now(),
-		StaleAt:          mClock.Now().Add(time.Hour),
+		RefreshedAt:      now,
+		StaleAt:          now.Add(time.Hour),
 	})
 	require.NoError(t, err)
 
 	acquired, err := db.AcquireStaleChatDiffStatuses(ctx, 1)
 	require.NoError(t, err)
-	require.Empty(t, acquired)
+	require.Empty(t, acquired, "a fresh merged diff-status row must not be acquired")
 
 	refresher := newTestRefresher(t, mClock, func(cfg *testRefresherCfg) {
 		cfg.fetchPRStatus = func(context.Context, string, gitprovider.PRRef) (*gitprovider.PRStatus, error) {
@@ -1304,11 +1311,14 @@ func TestWorker_MarkStale_MergedPR(t *testing.T) {
 			}, nil
 		}
 	})
+
+	// MarkStale publishes once; the diff-status refresh publishes again.
+	const wantPublishes int32 = 2
 	tickDone := make(chan struct{})
 	var publishCount atomic.Int32
 	pub := func(_ context.Context, chatID uuid.UUID, _ codersdk.DiffStatusRef) error {
 		assert.Equal(t, chat.ID, chatID)
-		if publishCount.Add(1) == 2 {
+		if publishCount.Add(1) == wantPublishes {
 			close(tickDone)
 		}
 		return nil
@@ -1316,6 +1326,7 @@ func TestWorker_MarkStale_MergedPR(t *testing.T) {
 	logger := slogtest.Make(t, nil)
 	worker := gitsync.NewWorker(db, refresher, pub, mClock, logger)
 
+	// MarkStale makes the merged diff-status row eligible immediately.
 	worker.MarkStale(ctx, gitsync.MarkStaleParams{
 		WorkspaceID: workspace.ID,
 		ChatID:      chat.ID,
@@ -1331,6 +1342,7 @@ func TestWorker_MarkStale_MergedPR(t *testing.T) {
 	assert.Equal(t, string(gitprovider.PRStateMerged), statuses[0].PullRequestState.String)
 	require.Equal(t, int32(1), publishCount.Load())
 
+	// The next tick updates metadata and sets stale_at using the hourly TTL.
 	tickOnce(ctx, t, mClock, worker, tickDone)
 
 	statuses, err = db.GetChatDiffStatusesByChatID(ctx, chat.ID)
@@ -1339,7 +1351,7 @@ func TestWorker_MarkStale_MergedPR(t *testing.T) {
 	assert.Equal(t, "Updated title", statuses[0].PullRequestTitle)
 	assert.Equal(t, mClock.Now(), statuses[0].RefreshedAt.Time.UTC())
 	assert.Equal(t, mClock.Now().Add(time.Hour), statuses[0].StaleAt.UTC())
-	require.Equal(t, int32(2), publishCount.Load())
+	require.Equal(t, wantPublishes, publishCount.Load())
 }
 
 func TestWorker_RefreshDoesNotReorderPrimary(t *testing.T) {

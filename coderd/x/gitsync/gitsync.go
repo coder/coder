@@ -20,12 +20,12 @@ import (
 )
 
 const (
-	// DiffStatusTTL is the default duration a successfully refreshed
-	// diff status remains fresh before becoming stale again.
+	// DiffStatusTTL is the TTL after a successful diff-status refresh,
+	// unless the PR is merged.
 	DiffStatusTTL = 120 * time.Second
 
-	// mergedDiffStatusTTL allows occasional metadata updates for PRs
-	// that cannot reopen.
+	// mergedDiffStatusTTL is the TTL after a successful diff-status refresh
+	// of a merged PR. Periodic diff-status refreshes pick up metadata edits.
 	mergedDiffStatusTTL = time.Hour
 
 	// defaultConcurrency is the maximum number of HTTP calls

@@ -504,28 +504,28 @@ func TestRefresher_StaleAtByPRState(t *testing.T) {
 
 	tests := []struct {
 		name string
-		// Vary the stored state to catch scheduling from cached data.
-		storedState gitprovider.PRState
-		state       gitprovider.PRState
-		ttl         time.Duration
+		// The fetched PR state determines the TTL, not the stored PR state.
+		storedState  gitprovider.PRState
+		fetchedState gitprovider.PRState
+		wantTTL      time.Duration
 	}{
 		{
-			name:        "open",
-			storedState: gitprovider.PRStateClosed,
-			state:       gitprovider.PRStateOpen,
-			ttl:         gitsync.DiffStatusTTL,
+			name:         "open",
+			storedState:  gitprovider.PRStateClosed,
+			fetchedState: gitprovider.PRStateOpen,
+			wantTTL:      gitsync.DiffStatusTTL,
 		},
 		{
-			name:        "closed",
-			storedState: gitprovider.PRStateClosed,
-			state:       gitprovider.PRStateClosed,
-			ttl:         gitsync.DiffStatusTTL,
+			name:         "closed",
+			storedState:  gitprovider.PRStateClosed,
+			fetchedState: gitprovider.PRStateClosed,
+			wantTTL:      gitsync.DiffStatusTTL,
 		},
 		{
-			name:        "merged",
-			storedState: gitprovider.PRStateOpen,
-			state:       gitprovider.PRStateMerged,
-			ttl:         time.Hour,
+			name:         "merged",
+			storedState:  gitprovider.PRStateOpen,
+			fetchedState: gitprovider.PRStateMerged,
+			wantTTL:      time.Hour,
 		},
 	}
 
@@ -542,7 +542,7 @@ func TestRefresher_StaleAtByPRState(t *testing.T) {
 					return gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 42}, true
 				},
 				fetchPullRequestStatus: func(_ context.Context, _ string, _ gitprovider.PRRef) (*gitprovider.PRStatus, error) {
-					return &gitprovider.PRStatus{State: tt.state}, nil
+					return &gitprovider.PRStatus{State: tt.fetchedState}, nil
 				},
 			}
 
@@ -571,9 +571,9 @@ func TestRefresher_StaleAtByPRState(t *testing.T) {
 			require.NoError(t, res.Error)
 			require.NotNil(t, res.Params)
 
-			assert.Equal(t, string(tt.state), res.Params.PullRequestState.String)
+			assert.Equal(t, string(tt.fetchedState), res.Params.PullRequestState.String)
 			assert.Equal(t, fixedTime, res.Params.RefreshedAt)
-			assert.Equal(t, fixedTime.Add(tt.ttl), res.Params.StaleAt)
+			assert.Equal(t, fixedTime.Add(tt.wantTTL), res.Params.StaleAt)
 		})
 	}
 }
