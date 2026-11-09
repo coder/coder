@@ -1296,9 +1296,9 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 			require.Equal(t, 1, strings.Count(body, "/annotator.js"), body)
 			require.Contains(t, body, `data-coder-origin="`+appDetails.SDKClient.URL.Scheme+"://"+appDetails.SDKClient.URL.Host+`"`)
-			require.True(t, strings.HasPrefix(body, "<html><body><p>app</p>"), body)
-			require.True(t, strings.HasSuffix(body, "</body></html>"), body)
-			require.Equal(t, strconv.Itoa(len(body)), headers.Get("Content-Length"))
+			require.True(t, strings.HasPrefix(body, "<html><script "), body)
+			require.True(t, strings.HasSuffix(body, "<body><p>app</p></body></html>"), body)
+			require.Empty(t, headers.Get("Content-Length"), "streaming injection can be declined after headers are sent")
 			require.Empty(t, headers.Get("Content-Encoding"))
 			require.Empty(t, headers.Get("ETag"), "validators describe the upstream bytes, not the rewritten page")
 			require.NotContains(t, last.rawQuery, workspaceapps.AnnotationQueryParam, "marker param must not reach the app")

@@ -45,49 +45,127 @@ func TestInjectAnnotationScript(t *testing.T) {
 		{
 			name:        "BodyWithoutHead",
 			statusCode:  http.StatusOK,
-			contentType: "text/html",
+			contentType: "text/html; charset=utf-8",
 			body:        "<HTML><BODY>content</BODY></HTML>",
-			want:        "<HTML><BODY>content" + scriptTag + "</BODY></HTML>",
+			want:        "<HTML>" + scriptTag + "<BODY>content</BODY></HTML>",
 			wantChanged: true,
 		},
 		{
 			name:        "HTMLOnly",
 			statusCode:  http.StatusOK,
-			contentType: "text/html",
+			contentType: "text/html; charset=utf-8",
 			body:        "<html>content</html>",
-			want:        "<html>content" + scriptTag + "</html>",
+			want:        "<html>content</html>",
 			wantChanged: true,
 		},
 		{
 			name:        "NoMarkers",
 			statusCode:  http.StatusOK,
-			contentType: "text/html",
+			contentType: "text/html; charset=utf-8",
 			body:        "<p>fragment</p>",
-			want:        "<p>fragment</p>" + scriptTag,
+			want:        "<p>fragment</p>",
 			wantChanged: true,
 		},
 		{
 			name:        "Empty",
 			statusCode:  http.StatusOK,
-			contentType: "text/html",
+			contentType: "text/html; charset=utf-8",
 			body:        "",
-			want:        scriptTag,
+			want:        "",
 			wantChanged: true,
 		},
 		{
 			name:        "NonASCIIBeforeMarker",
 			statusCode:  http.StatusOK,
-			contentType: "text/html",
-			body:        "<html><head>İİİ</head><body>ß</body></html>",
-			want:        "<html><head>İİİ" + scriptTag + "</head><body>ß</body></html>",
+			contentType: "text/html; charset=utf-8",
+			body:        "<html><head><title>İİİ</title></head><body>ß</body></html>",
+			want:        "<html><head><title>İİİ</title>" + scriptTag + "</head><body>ß</body></html>",
 			wantChanged: true,
 		},
 		{
 			name:        "LargeBody",
 			statusCode:  http.StatusOK,
-			contentType: "text/html",
+			contentType: "text/html; charset=utf-8",
 			body:        longBody,
 			want:        strings.Replace(longBody, "</head>", scriptTag+"</head>", 1),
+			wantChanged: true,
+		},
+		{
+			name:        "JSONScript",
+			statusCode:  http.StatusOK,
+			contentType: "text/html; charset=utf-8",
+			body:        `<html><head><script type="application/json">{"name":"</head><img src=x onerror=alert(1)>"}</script></head><body></body></html>`,
+			want:        `<html><head><script type="application/json">{"name":"</head><img src=x onerror=alert(1)>"}</script>` + scriptTag + `</head><body></body></html>`,
+			wantChanged: true,
+		},
+		{
+			name:        "InlineScript",
+			statusCode:  http.StatusOK,
+			contentType: "text/html; charset=utf-8",
+			body:        `<html><head><script>const value = "</head><img src=x onerror=alert(1)>";</script></head></html>`,
+			want:        `<html><head><script>const value = "</head><img src=x onerror=alert(1)>";</script>` + scriptTag + `</head></html>`,
+			wantChanged: true,
+		},
+		{
+			name:        "HeadTextContexts",
+			statusCode:  http.StatusOK,
+			contentType: "text/html; charset=utf-8",
+			body:        `<html><head><!-- </head> --><title></body></title><style>p::before { content: "</html>"; }</style><meta name="test" content="</head>"></head></html>`,
+			want:        `<html><head><!-- </head> --><title></body></title><style>p::before { content: "</html>"; }</style><meta name="test" content="</head>">` + scriptTag + `</head></html>`,
+			wantChanged: true,
+		},
+		{
+			name:        "UnterminatedScript",
+			statusCode:  http.StatusOK,
+			contentType: "text/html; charset=utf-8",
+			body:        `<html><head><script type="application/json">{"name":"</head><img src=x onerror=alert(1)>"}`,
+			want:        `<html><head><script type="application/json">{"name":"</head><img src=x onerror=alert(1)>"}`,
+			wantChanged: true,
+		},
+		{
+			name:        "ForeignContent",
+			statusCode:  http.StatusOK,
+			contentType: "text/html; charset=utf-8",
+			body:        `<html><head><svg><title><script type="application/json">{"name":"</title></head><img src=x onerror=alert(1)>"}</script></title></svg></head></html>`,
+			want:        `<html><head><svg><title><script type="application/json">{"name":"</title></head><img src=x onerror=alert(1)>"}</script></title></svg></head></html>`,
+			wantChanged: true,
+		},
+		{
+			name:        "NoCharset",
+			statusCode:  http.StatusOK,
+			contentType: "text/html",
+			body:        "<html><head></head><body></body></html>",
+			want:        "<html><head></head><body></body></html>",
+		},
+		{
+			name:        "OtherCharset",
+			statusCode:  http.StatusOK,
+			contentType: "text/html; charset=iso-2022-jp",
+			body:        "<html><head></head><body></body></html>",
+			want:        "<html><head></head><body></body></html>",
+		},
+		{
+			name:        "ImplicitHead",
+			statusCode:  http.StatusOK,
+			contentType: "text/html; charset=UTF-8",
+			body:        "<!doctype html><meta charset=utf-8><title>Title</title><body>content</body>",
+			want:        "<!doctype html><meta charset=utf-8><title>Title</title>" + scriptTag + "<body>content</body>",
+			wantChanged: true,
+		},
+		{
+			name:        "UTF8BOM",
+			statusCode:  http.StatusOK,
+			contentType: "text/html; charset=utf8",
+			body:        "\xef\xbb\xbf<!doctype html>\r\n<HTML><HEAD><META content='A&amp;B'></HEAD></HTML>",
+			want:        "\xef\xbb\xbf<!doctype html>\r\n<HTML><HEAD><META content='A&amp;B'>" + scriptTag + "</HEAD></HTML>",
+			wantChanged: true,
+		},
+		{
+			name:        "CSPMeta",
+			statusCode:  http.StatusOK,
+			contentType: "text/html; charset=utf-8",
+			body:        `<head><meta http-equiv="Content-Security-Policy" content="script-src 'none'"></head><body></body>`,
+			want:        `<head><meta http-equiv="Content-Security-Policy" content="script-src 'none'">` + scriptTag + `</head><body></body>`,
 			wantChanged: true,
 		},
 		{
@@ -100,7 +178,7 @@ func TestInjectAnnotationScript(t *testing.T) {
 		{
 			name:        "Encoded",
 			statusCode:  http.StatusOK,
-			contentType: "text/html",
+			contentType: "text/html; charset=utf-8",
 			encoding:    "gzip",
 			body:        "<html><body>content</body></html>",
 			want:        "<html><body>content</body></html>",
@@ -108,7 +186,7 @@ func TestInjectAnnotationScript(t *testing.T) {
 		{
 			name:        "Non200",
 			statusCode:  http.StatusCreated,
-			contentType: "text/html",
+			contentType: "text/html; charset=utf-8",
 			body:        "<html><body>content</body></html>",
 			want:        "<html><body>content</body></html>",
 		},
@@ -116,7 +194,7 @@ func TestInjectAnnotationScript(t *testing.T) {
 			name:        "HeadRequest",
 			method:      http.MethodHead,
 			statusCode:  http.StatusOK,
-			contentType: "text/html",
+			contentType: "text/html; charset=utf-8",
 			body:        "",
 			want:        "",
 		},
@@ -131,11 +209,13 @@ func TestInjectAnnotationScript(t *testing.T) {
 			resp := &http.Response{
 				StatusCode:    tc.statusCode,
 				Header:        http.Header{},
-				Body:          io.NopCloser(strings.NewReader(tc.body)),
+				Body:          io.NopCloser(iotest.OneByteReader(strings.NewReader(tc.body))),
 				ContentLength: int64(len(tc.body)),
 				Request:       httptest.NewRequest(method, "https://app.example.com/", nil),
 			}
 			resp.Header.Set("Content-Type", tc.contentType)
+			resp.Header.Set("Content-Length", strconv.Itoa(len(tc.body)))
+			resp.Header.Set("Content-Security-Policy", "default-src 'self'")
 			resp.Header.Set("ETag", `"abc"`)
 			resp.Header.Set("Last-Modified", "Mon, 01 Jan 2024 00:00:00 GMT")
 			if tc.encoding != "" {
@@ -143,19 +223,67 @@ func TestInjectAnnotationScript(t *testing.T) {
 			}
 
 			require.NoError(t, injectAnnotationScript(resp, scriptTag))
-			// Small reads exercise the pending buffer and carry paths.
+			// Small reads exercise buffering on both sides of the transformer.
 			got, err := io.ReadAll(iotest.OneByteReader(resp.Body))
 			require.NoError(t, err)
 			require.Equal(t, tc.want, string(got))
+			require.Equal(t, "default-src 'self'", resp.Header.Get("Content-Security-Policy"))
 			if tc.wantChanged {
-				require.Equal(t, int64(len(tc.want)), resp.ContentLength)
-				require.Equal(t, strconv.Itoa(len(tc.want)), resp.Header.Get("Content-Length"))
+				require.Equal(t, int64(-1), resp.ContentLength)
+				require.Empty(t, resp.Header.Get("Content-Length"))
 				require.Empty(t, resp.Header.Get("ETag"), "validators for the upstream bytes must go")
 				require.Empty(t, resp.Header.Get("Last-Modified"), "validators for the upstream bytes must go")
 			} else {
+				require.Equal(t, int64(len(tc.body)), resp.ContentLength)
+				require.Equal(t, strconv.Itoa(len(tc.body)), resp.Header.Get("Content-Length"))
 				require.Equal(t, `"abc"`, resp.Header.Get("ETag"))
 				require.NotEmpty(t, resp.Header.Get("Last-Modified"))
 			}
+		})
+	}
+}
+
+func TestInjectAnnotationScriptPassthrough(t *testing.T) {
+	t.Parallel()
+
+	const scriptTag = `<script src="https://dashboard.example.com/annotator.js"></script>`
+	for _, tc := range []struct {
+		name string
+		body string
+	}{
+		{"UnterminatedComment", `<head><!-- </head><body>`},
+		{"UnterminatedAttribute", `<head><meta content="</head><body>`},
+		{"Template", `<head><template><head></head></template></head>`},
+		{"Noscript", `<head><noscript></head></noscript></head>`},
+		{"Select", `<head><select><style><script>"</style></head>"</script></select>`},
+		{"MathML", `<head><math><annotation-xml><head></head></annotation-xml></math></head>`},
+		{"SelfClosingScript", `<head><script/>"</head>"</script></head>`},
+		{"ImplicitBodyText", `<head>body text</head><body>`},
+		{"UnicodeWhitespace", "<head>\u00a0</head><body>"},
+		{"EarlyHTMLClose", `<html></html><head></head>`},
+		{"RepeatedHead", `<head><head></head>`},
+		{"NUL", "<head>\x00</head>"},
+		{"InvalidUTF8", "<head><title>\xff</title></head>"},
+		{"UTF16BOM", "\xff\xfe<\x00h\x00t\x00m\x00l\x00>\x00"},
+		{"OversizedScript", `<head><script>` + strings.Repeat("x", annotationMaxTokenBytes) + `</script></head>`},
+		{"OversizedAttribute", `<head><meta content="` + strings.Repeat("x", annotationMaxTokenBytes) + `"></head>`},
+		{"OversizedComment", `<head><!--` + strings.Repeat("x", annotationMaxTokenBytes) + `--></head>`},
+		{"PrefixBudget", `<head>` + strings.Repeat("<meta>", annotationMaxPrefixBytes/len("<meta>")) + `</head>`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			resp := &http.Response{
+				StatusCode:    http.StatusOK,
+				Header:        http.Header{"Content-Type": {"text/html; charset=utf-8"}},
+				Body:          io.NopCloser(strings.NewReader(tc.body)),
+				ContentLength: int64(len(tc.body)),
+				Request:       httptest.NewRequest(http.MethodGet, "https://app.example.com/", nil),
+			}
+			require.NoError(t, injectAnnotationScript(resp, scriptTag))
+			got, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, tc.body, string(got), "unsupported contexts must pass through byte for byte")
 		})
 	}
 }
@@ -164,19 +292,37 @@ func TestInjectAnnotationScriptMarkerAcrossReads(t *testing.T) {
 	t.Parallel()
 
 	const scriptTag = `<script src="https://dashboard.example.com/annotator.js"></script>`
-	for _, tag := range []string{"head", "body", "html"} {
-		prefix := "<" + tag + ">content"
-		marker := "</" + tag + ">"
-		for split := 1; split < len(marker); split++ {
-			t.Run(tag+"/"+strconv.Itoa(split), func(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "Head",
+			body: "<html><head><title>Title</title></head><body>content</body></html>",
+			want: "<html><head><title>Title</title>" + scriptTag + "</head><body>content</body></html>",
+		},
+		{
+			name: "Body",
+			body: "<html><body>content</body></html>",
+			want: "<html>" + scriptTag + "<body>content</body></html>",
+		},
+		{
+			name: "Script",
+			body: `<head><script type="application/json">{"name":"</head><img src=x onerror=alert(1)>"}</script></head>`,
+			want: `<head><script type="application/json">{"name":"</head><img src=x onerror=alert(1)>"}</script>` + scriptTag + `</head>`,
+		},
+	} {
+		for split := 1; split < len(tc.body); split++ {
+			t.Run(tc.name+"/"+strconv.Itoa(split), func(t *testing.T) {
 				t.Parallel()
 
 				resp := &http.Response{
 					StatusCode: http.StatusOK,
-					Header:     http.Header{"Content-Type": {"text/html"}},
+					Header:     http.Header{"Content-Type": {"text/html; charset=utf-8"}},
 					Body: io.NopCloser(io.MultiReader(
-						strings.NewReader(prefix+marker[:split]),
-						strings.NewReader(marker[split:]),
+						strings.NewReader(tc.body[:split]),
+						strings.NewReader(tc.body[split:]),
 					)),
 					ContentLength: -1,
 					Request:       httptest.NewRequest(http.MethodGet, "https://app.example.com/", nil),
@@ -185,7 +331,7 @@ func TestInjectAnnotationScriptMarkerAcrossReads(t *testing.T) {
 
 				got, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
-				require.Equal(t, prefix+scriptTag+marker, string(got))
+				require.Equal(t, tc.want, string(got))
 			})
 		}
 	}
@@ -199,7 +345,7 @@ func TestInjectAnnotationScriptDataWithEOF(t *testing.T) {
 	const scriptTag = `<script src="https://dashboard.example.com/annotator.js"></script>`
 	resp := &http.Response{
 		StatusCode:    http.StatusOK,
-		Header:        http.Header{"Content-Type": {"text/html"}},
+		Header:        http.Header{"Content-Type": {"text/html; charset=utf-8"}},
 		Body:          io.NopCloser(iotest.DataErrReader(strings.NewReader("<html><body>x</body></html>"))),
 		ContentLength: -1,
 		Request:       httptest.NewRequest(http.MethodGet, "https://app.example.com/", nil),
@@ -207,43 +353,71 @@ func TestInjectAnnotationScriptDataWithEOF(t *testing.T) {
 	require.NoError(t, injectAnnotationScript(resp, scriptTag))
 	got, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
-	require.Equal(t, "<html><body>x"+scriptTag+"</body></html>", string(got))
+	require.Equal(t, "<html>"+scriptTag+"<body>x</body></html>", string(got))
 }
 
 func TestInjectAnnotationScriptStreams(t *testing.T) {
 	t.Parallel()
 
 	const scriptTag = `<script src="https://dashboard.example.com/annotator.js"></script>`
+	longScript := "<html><head><script>" + strings.Repeat("x", 2*annotationMaxTokenBytes)
+	for _, tc := range []struct {
+		name      string
+		first     string
+		wantFirst string
+		tail      string
+	}{
+		{
+			name:      "Head",
+			first:     "<html><head></head><body>",
+			wantFirst: "<html><head>" + scriptTag + "</head><body>",
+			tail:      "tail</body></html>",
+		},
+		{
+			name:      "OversizedToken",
+			first:     longScript,
+			wantFirst: longScript,
+			tail:      "</script></head><body>tail</body></html>",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	// The upstream writes the head, then stalls. The proxy must hand the
-	// rewritten head to the client without waiting for the rest.
-	pr, pw := io.Pipe()
-	resp := &http.Response{
-		StatusCode:    http.StatusOK,
-		Header:        http.Header{"Content-Type": {"text/html"}},
-		Body:          pr,
-		ContentLength: -1,
-		Request:       httptest.NewRequest(http.MethodGet, "https://app.example.com/", nil),
+			// The upstream stalls after its first flush. Both injection and
+			// oversized-token passthrough must progress without waiting for EOF.
+			pr, pw := io.Pipe()
+			t.Cleanup(func() {
+				_ = pr.Close()
+				_ = pw.Close()
+			})
+			resp := &http.Response{
+				StatusCode:    http.StatusOK,
+				Header:        http.Header{"Content-Type": {"text/html; charset=utf-8"}},
+				Body:          pr,
+				ContentLength: -1,
+				Request:       httptest.NewRequest(http.MethodGet, "https://app.example.com/", nil),
+			}
+			require.NoError(t, injectAnnotationScript(resp, scriptTag))
+			require.Equal(t, int64(-1), resp.ContentLength)
+			require.Empty(t, resp.Header.Get("Content-Length"))
+
+			go func() {
+				_, _ = pw.Write([]byte(tc.first))
+			}()
+			first := make([]byte, len(tc.wantFirst))
+			_, err := io.ReadFull(resp.Body, first)
+			require.NoError(t, err)
+			require.Equal(t, tc.wantFirst, string(first))
+
+			go func() {
+				_, _ = pw.Write([]byte(tc.tail))
+				_ = pw.Close()
+			}()
+			rest, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, tc.tail, string(rest))
+		})
 	}
-	require.NoError(t, injectAnnotationScript(resp, scriptTag))
-	require.Equal(t, int64(-1), resp.ContentLength)
-	require.Empty(t, resp.Header.Get("Content-Length"))
-
-	go func() {
-		_, _ = pw.Write([]byte("<html><head></head><body>"))
-	}()
-	first := make([]byte, 1024)
-	n, err := resp.Body.Read(first)
-	require.NoError(t, err)
-	require.Equal(t, "<html><head>"+scriptTag+"</head><body>", string(first[:n]))
-
-	go func() {
-		_, _ = pw.Write([]byte("tail</body></html>"))
-		_ = pw.Close()
-	}()
-	rest, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-	require.Equal(t, "tail</body></html>", string(rest))
 }
 
 // errAfterReader returns its whole payload together with an error, the
@@ -256,7 +430,7 @@ type errAfterReader struct {
 
 func (r *errAfterReader) Read(p []byte) (int, error) {
 	if r.done {
-		return 0, r.err
+		return 0, io.EOF
 	}
 	r.done = true
 	return copy(p, r.data), r.err
@@ -267,20 +441,29 @@ func TestInjectAnnotationScriptUpstreamError(t *testing.T) {
 
 	const scriptTag = `<script src="https://dashboard.example.com/annotator.js"></script>`
 	errUpstream := xerrors.New("upstream reset")
-	resp := &http.Response{
-		StatusCode:    http.StatusOK,
-		Header:        http.Header{"Content-Type": {"text/html"}},
-		Body:          io.NopCloser(&errAfterReader{data: "<html><body>partial", err: errUpstream}),
-		ContentLength: -1,
-		Request:       httptest.NewRequest(http.MethodGet, "https://app.example.com/", nil),
-	}
-	require.NoError(t, injectAnnotationScript(resp, scriptTag))
+	for _, body := range []string{
+		"<html><body>partial",
+		"<html><head></head><body>partial",
+	} {
+		t.Run(body, func(t *testing.T) {
+			t.Parallel()
 
-	// The bytes that arrived are delivered untouched, then the error; the
-	// tag is never appended to a body that did not finish.
-	got, err := io.ReadAll(resp.Body)
-	require.ErrorIs(t, err, errUpstream)
-	require.Equal(t, "<html><body>partial", string(got))
+			resp := &http.Response{
+				StatusCode:    http.StatusOK,
+				Header:        http.Header{"Content-Type": {"text/html; charset=utf-8"}},
+				Body:          io.NopCloser(&errAfterReader{data: body, err: errUpstream}),
+				ContentLength: -1,
+				Request:       httptest.NewRequest(http.MethodGet, "https://app.example.com/", nil),
+			}
+			require.NoError(t, injectAnnotationScript(resp, scriptTag))
+
+			// Deliver all bytes, then the original error, even if a later source
+			// read returns EOF instead of repeating the error.
+			got, err := io.ReadAll(resp.Body)
+			require.ErrorIs(t, err, errUpstream)
+			require.Equal(t, body, string(got))
+		})
+	}
 }
 
 func TestAnnotationScriptTag(t *testing.T) {
