@@ -208,7 +208,14 @@ func TestWorker_HeartbeatLoopRefreshesActiveRunnerHeartbeat(t *testing.T) {
 	startWorker(t, opts)
 	heartbeatTrap.MustWait(testutil.Context(t, testutil.WaitLong)).MustRelease(testutil.Context(t, testutil.WaitLong))
 	call := starter.waitCall(t, taskKindGeneration, chat.ID)
-	oldHeartbeat := makeHeartbeatStale(t, f, chat.ID, call.input.RunnerID)
+	// Renewal only extends a lease that is still fresh.
+	setHeartbeatAge(t, f, chat.ID, call.input.RunnerID, 10*time.Second)
+	aged, err := f.db.GetChatHeartbeat(testutil.Context(t, testutil.WaitShort), database.GetChatHeartbeatParams{
+		ChatID:   chat.ID,
+		RunnerID: call.input.RunnerID,
+	})
+	require.NoError(t, err)
+	oldHeartbeat := aged.HeartbeatAt
 
 	clock.Advance(time.Minute).MustWait(testutil.Context(t, testutil.WaitLong))
 	testutil.Eventually(testutil.Context(t, testutil.WaitLong), t, func(ctx context.Context) bool {

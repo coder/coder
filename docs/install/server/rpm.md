@@ -2,10 +2,10 @@
 title: Install Coder on RHEL-family Linux
 ---
 
-This guide is for a Coder deployment administrator who runs the Coder control plane on a single Red Hat Enterprise Linux host or another RHEL-family distribution.
+This guide is for a Coder deployment administrator who runs the Coder control plane on a single Red Hat Enterprise Linux (RHEL) host or another RHEL-family distribution.
 Coder publishes an RPM with every release, and `systemd` manages the server like any other service.
 For a multi-replica deployment, refer to [Kubernetes](./kubernetes/index.md) or [OpenShift](./openshift.md) instead.
-To install the CLI on a client machine that connects to an existing deployment, refer to [Install the Coder CLI](../cli.md).
+To install the CLI on a client machine that connects to an existing deployment, visit the [Coder downloads page](https://coder.com/downloads).
 
 ## Supported distributions
 
@@ -33,7 +33,7 @@ Each release publishes RPMs for `amd64`, `arm64`, and `armv7`.
   For production sizing, refer to the [Coder Validated Architecture](../plan/sizing/index.md).
 - `root` or `sudo` access.
 - An external PostgreSQL database for anything beyond a proof of concept.
-  Refer to [Using an external database](../../tutorials/external-database.md).
+  Refer to [Using an external database](external-database.md).
 
 ## Install the package
 
@@ -54,7 +54,8 @@ Pass `--dry-run` to print the commands without running them.
 
 ### dnf
 
-1. Download the RPM for your version and architecture from [GitHub releases](https://github.com/coder/coder/releases).
+1. Download the RPM for your architecture from the [Coder downloads page](https://coder.com/downloads).
+   For a specific older version, use [GitHub releases](https://github.com/coder/coder/releases).
 2. Install the package.
 
    ```sh
@@ -123,11 +124,11 @@ To test a configuration change without the service manager, run `coder server` i
 ## SELinux and container runtimes in workspaces
 
 SELinux affects workspaces that run their own container runtime.
-If your templates run Docker or Podman inside a workspace on a RHEL-family node, refer to [Docker in workspaces](../../admin/templates/extending-templates/docker-in-workspaces.md) for the runtime requirements.
+If your templates run Docker or Podman inside a workspace on a RHEL-family node, refer to [Docker in workspaces](../../templates/extending-templates/docker-in-workspaces.md) for the runtime requirements.
 
 ## Hardened base images
 
-Coder publishes a container image built on Red Hat's UBI9-minimal base through [Iron Bank](https://ironbank.dso.mil/), the Department of Defense hardened container registry.
+Coder publishes a container image built on Red Hat's Universal Base Image 9 (UBI9)-minimal base through [Iron Bank](https://ironbank.dso.mil/), the Department of Defense hardened container registry.
 Choose that image when your compliance program requires an accredited base image.
 The Iron Bank image is a container image, so deploy it with [Kubernetes](./kubernetes/index.md) or [OpenShift](./openshift.md) rather than through the RPM.
 
@@ -135,6 +136,6 @@ The Iron Bank image is a container image, so deploy it with [Kubernetes](./kuber
 
 - [Validate your deployment](../validate/index.md)
 - [Set up your control plane](../../admin/setup/index.md)
-- [Create your first template](../../tutorials/template-from-scratch.md)
+- [Create your first template](../../templates/template-from-scratch.md)
 - [Upgrade Coder](../operate/upgrade.md)
 - [Uninstall Coder](../operate/uninstall.md)

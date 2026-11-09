@@ -44,6 +44,29 @@ export const WithProvider: Story = {
 	},
 };
 
+// An unmapped provider type falls back to the generic icon, so the icon's
+// tooltip is what tells it apart from other providers.
+export const UnmappedProviderType: Story = {
+	args: {
+		providerLabel: "Internal Gateway",
+		providerTypeByID: new Map([["prov-openai", "openai-compat"]]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			canvas.getByRole("img", { name: "Provider type: openai-compat" }),
+		);
+		await within(document.body).findByRole("tooltip");
+	},
+};
+
+export const ConfiguredProviderIcon: Story = {
+	args: {
+		providerLabel: "DeepSeek",
+		providerIcon: "/icon/widgets.svg",
+	},
+};
+
 // A missing (soft-deleted) provider shows "Unset" plus the "Unavailable"
 // notice even though the persisted model.enabled flag is true.
 export const WithoutProviderForcesDisabled: Story = {

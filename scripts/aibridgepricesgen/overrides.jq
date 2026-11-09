@@ -15,6 +15,18 @@ else
   error("overrides.jq: claude-sonnet-4-5 gone from upstream; drop or update its context pin")
 end
 
+# gemini-4-argon: models.dev lists 32,768 output tokens, but Google documents
+# 65,536 as the default synchronous limit. The limit includes thinking tokens,
+# so the lower value cuts long coding turns short.
+# Ref: https://ai.google.dev/gemini-api/docs/models/gemini-4-argon
+| if (.google.models | has("gemini-4-argon") | not) then
+    error("overrides.jq: google/gemini-4-argon gone from upstream; drop its output pin")
+  elif .google.models."gemini-4-argon".limit.output != 32768 then
+    error("overrides.jq: google/gemini-4-argon output limit changed upstream; review or drop its output pin")
+  else
+    .google.models."gemini-4-argon".limit.output = 65536
+  end
+
 # claude-mythos-5: not listed on models.dev. Anthropic documents it as sharing
 # claude-fable-5's specs and pricing, so inject it as a copy with its own
 # id and display name.
@@ -44,23 +56,6 @@ end
       .anthropic.models."claude-fable-5-1"
       | .id = "claude-mythos-5-1"
       | .name = "Claude Mythos 5.1"
-    )
-  end
-
-# anthropic.claude-sonnet-5-5: bedrock-runtime serves this model only through
-# the global inference profile, which is all models.dev lists. bedrock-mantle
-# takes the bare ID, and models.dev prices bare Claude IDs like their global
-# profiles, so inject the bare ID as a copy of the global entry.
-# Ref: https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-sonnet-5-5.html
-| if (."amazon-bedrock".models | has("global.anthropic.claude-sonnet-5-5") | not) then
-    error("overrides.jq: global.anthropic.claude-sonnet-5-5 gone from upstream; the anthropic.claude-sonnet-5-5 copy has no source")
-  elif (."amazon-bedrock".models | has("anthropic.claude-sonnet-5-5")) then
-    error("overrides.jq: anthropic.claude-sonnet-5-5 now present upstream; drop the injection")
-  else
-    ."amazon-bedrock".models."anthropic.claude-sonnet-5-5" = (
-      ."amazon-bedrock".models."global.anthropic.claude-sonnet-5-5"
-      | .id = "anthropic.claude-sonnet-5-5"
-      | .name = "Claude Sonnet 5.5"
     )
   end
 

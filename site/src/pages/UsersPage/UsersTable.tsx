@@ -54,13 +54,13 @@ export const UsersTable: React.FC<UsersTableProps> = (props) => {
 				<TableRow>
 					<TableHead className="w-max">User</TableHead>
 					<TableHead className="w-1/6">
-						<div className="flex flex-row gap-2 items-center">
+						<div className="flex gap-2 items-center">
 							<span>Roles</span>
 							<RolesHelpPopover />
 						</div>
 					</TableHead>
 					<TableHead className="w-1/6">
-						<div className="flex flex-row gap-2 items-center">
+						<div className="flex gap-2 items-center">
 							<span>Groups</span>
 							<GroupsHelpPopover />
 						</div>
@@ -96,13 +96,13 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 
 	return users.map((user) => (
 		<TableRow key={user.id} data-testid={`user-${user.id}`}>
-			<TableCell>
+			<TableHead scope="row">
 				<AvatarData
 					title={user.username}
 					subtitle={user.is_service_account ? "Service Account" : user.email}
 					src={user.avatar_url}
 				/>
-			</TableCell>
+			</TableHead>
 
 			<UserRoleCell roles={user.roles} />
 

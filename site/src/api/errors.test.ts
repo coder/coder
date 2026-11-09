@@ -3,6 +3,7 @@ import {
 	getErrorMessage,
 	getValidationErrorMessage,
 	isApiError,
+	isWorkspaceNotFound,
 	mapApiErrorToFieldErrors,
 } from "./errors";
 
@@ -99,5 +100,61 @@ describe("getValidationErrorMessage", () => {
 				"Something went wrong.",
 			),
 		).toBe("Something went wrong.");
+	});
+});
+
+describe("isWorkspaceNotFound", () => {
+	it("returns true for Axios-style 404 Not Found errors", () => {
+		const error = {
+			isAxiosError: true,
+			response: {
+				status: 404,
+				data: { message: "Workspace not found" },
+			},
+		};
+
+		expect(isWorkspaceNotFound(error)).toBe(true);
+	});
+
+	it("returns true for Axios-style 410 errors", () => {
+		const error = {
+			isAxiosError: true,
+			response: {
+				status: 410,
+				data: { message: "Workspace gone" },
+			},
+		};
+
+		expect(isWorkspaceNotFound(error)).toBe(true);
+	});
+
+	it("returns false for Axios-style non-404-or-410 errors", () => {
+		const error = {
+			isAxiosError: true,
+			response: {
+				status: 500,
+				data: { message: "Internal server error" },
+			},
+		};
+
+		expect(isWorkspaceNotFound(error)).toBe(false);
+	});
+
+	it("returns false for axios errors without a response (network error)", () => {
+		const error = {
+			isAxiosError: true,
+			response: undefined,
+		};
+
+		expect(isWorkspaceNotFound(error)).toBe(false);
+	});
+
+	it("returns false for plain Error objects", () => {
+		expect(isWorkspaceNotFound(new Error("Workspace not found"))).toBe(false);
+	});
+
+	it("returns false for non-error values", () => {
+		expect(isWorkspaceNotFound("nope")).toBe(false);
+		expect(isWorkspaceNotFound(null)).toBe(false);
 	});
 });

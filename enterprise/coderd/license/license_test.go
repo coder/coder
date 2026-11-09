@@ -3623,8 +3623,6 @@ func TestAIGovernanceAddon(t *testing.T) {
 		aibridgeFeature := entitlements.Features[codersdk.FeatureAIBridge]
 		require.True(t, aibridgeFeature.Enabled, "AI Bridge should be enabled when addon is present and enablements are set")
 
-		// require.Equal(t, codersdk.EntitlementEntitled, aibridgeFeature.Entitlement, "AI Bridge should be entitled when addon is present")
-
 		// TODO: Readd this test once Boundary is enforced as an add-on license.
 		// boundaryFeature := entitlements.Features[codersdk.FeatureBoundary]
 		// require.True(t, boundaryFeature.Enabled, "Boundary should be enabled when addon is present and enablements are set")

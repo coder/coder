@@ -2,76 +2,51 @@ import type { QueryClient } from "react-query";
 import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 
-const userSkillsKey = (user = "me") => ["user-skills", user] as const;
+export const userSkillsKey = (user = "me") => ["user-skills", user] as const;
 
 const userSkillKey = (name: string, user = "me") =>
 	[...userSkillsKey(user), name] as const;
 
-const toUserSkillMetadata = (
-	skill: TypesGen.UserSkill,
-): TypesGen.UserSkillMetadata => ({
-	id: skill.id,
-	name: skill.name,
-	description: skill.description,
-	created_at: skill.created_at,
-	updated_at: skill.updated_at,
-});
-
-const sortUserSkillMetadata = (
-	skills: TypesGen.UserSkillMetadata[],
-): TypesGen.UserSkillMetadata[] =>
-	skills.toSorted((a, b) => a.name.localeCompare(b.name, "en-US"));
-
-const upsertUserSkillMetadata = (
-	skills: TypesGen.UserSkillMetadata[] | undefined,
-	skill: TypesGen.UserSkillMetadata,
-): TypesGen.UserSkillMetadata[] => {
-	const withoutSkill = skills?.filter(({ name }) => name !== skill.name) ?? [];
-	return sortUserSkillMetadata([...withoutSkill, skill]);
-};
-
 export const userSkills = (user = "me") => ({
 	queryKey: userSkillsKey(user),
-	queryFn: (): Promise<TypesGen.UserSkillMetadata[]> =>
+	queryFn: (): Promise<TypesGen.SkillMetadata[]> =>
 		API.experimental.getUserSkills(user),
 });
 
 export const userSkill = (name: string, user = "me") => ({
 	queryKey: userSkillKey(name, user),
-	queryFn: (): Promise<TypesGen.UserSkill> =>
+	queryFn: (): Promise<TypesGen.Skill> =>
 		API.experimental.getUserSkillByName(user, name),
 });
 
 export const createUserSkill = (queryClient: QueryClient, user = "me") => ({
-	mutationFn: (req: TypesGen.CreateUserSkillRequest) =>
+	mutationFn: (req: TypesGen.CreateSkillRequest) =>
 		API.experimental.createUserSkill(user, req),
-	onSuccess: (skill: TypesGen.UserSkill) => {
-		queryClient.setQueryData<TypesGen.UserSkillMetadata[]>(
-			userSkillsKey(user),
-			(skills) => upsertUserSkillMetadata(skills, toUserSkillMetadata(skill)),
-		);
-		queryClient.setQueryData(userSkillKey(skill.name, user), skill);
-	},
+	onSuccess: () =>
+		queryClient.invalidateQueries({
+			queryKey: userSkillsKey(user),
+			exact: true,
+		}),
 });
 
 type UpdateUserSkillArgs = {
 	name: string;
-	req: TypesGen.UpdateUserSkillRequest;
+	req: TypesGen.UpdateSkillRequest;
 };
 
 export const updateUserSkill = (queryClient: QueryClient, user = "me") => ({
 	mutationFn: ({ name, req }: UpdateUserSkillArgs) =>
 		API.experimental.updateUserSkill(user, name, req),
-	onSuccess: (skill: TypesGen.UserSkill, { name }: UpdateUserSkillArgs) => {
+	// Invalidation refetches only active queries, so write the PATCH response
+	// to keep a cached detail no editor observes from showing old content.
+	onSuccess: (skill: TypesGen.Skill, { name }: UpdateUserSkillArgs) => {
 		queryClient.setQueryData(userSkillKey(name, user), skill);
-		queryClient.setQueryData<TypesGen.UserSkillMetadata[]>(
-			userSkillsKey(user),
-			(skills) =>
-				skills
-					? upsertUserSkillMetadata(skills, toUserSkillMetadata(skill))
-					: skills,
-		);
 	},
+	onSettled: () =>
+		queryClient.invalidateQueries({
+			queryKey: userSkillsKey(user),
+			exact: true,
+		}),
 });
 
 export const deleteUserSkill = (queryClient: QueryClient, user = "me") => ({
@@ -81,9 +56,9 @@ export const deleteUserSkill = (queryClient: QueryClient, user = "me") => ({
 			queryKey: userSkillKey(name, user),
 			exact: true,
 		});
-		queryClient.setQueryData<TypesGen.UserSkillMetadata[]>(
-			userSkillsKey(user),
-			(skills) => skills?.filter((skill) => skill.name !== name),
-		);
+		return queryClient.invalidateQueries({
+			queryKey: userSkillsKey(user),
+			exact: true,
+		});
 	},
 });

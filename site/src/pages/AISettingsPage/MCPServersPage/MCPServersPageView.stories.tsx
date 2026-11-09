@@ -89,7 +89,7 @@ export const MultipleOrganizations: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const picker = canvas.getByRole("button", {
+		const picker = canvas.getByRole("combobox", {
 			name: `Organization ${MockDefaultOrganization.display_name}`,
 		});
 		await expect(picker).toBeVisible();

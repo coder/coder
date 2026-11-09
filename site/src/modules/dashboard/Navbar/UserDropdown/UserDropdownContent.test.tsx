@@ -1,10 +1,11 @@
 import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
-import { MockUserOwner } from "#/testHelpers/entities";
+import { MockBuildInfo, MockUserOwner } from "#/testHelpers/entities";
 import { render, waitForLoaderToBeRemoved } from "#/testHelpers/renderHelpers";
 import { UserDropdownContent } from "./UserDropdownContent";
 
@@ -18,6 +19,7 @@ const renderUserDropdownContent = (props: {
 			<DropdownMenuContent>
 				<UserDropdownContent
 					user={MockUserOwner}
+					buildInfo={MockBuildInfo}
 					onSignOut={props.onSignOut}
 					profileExtra={props.profileExtra}
 					supportLinks={[]}
@@ -38,6 +40,31 @@ describe("UserDropdownContent", () => {
 		}
 
 		expect(link.getAttribute("href")).toBe("/settings/account");
+	});
+
+	it("announces that the version link opens in a new tab", async () => {
+		renderUserDropdownContent({ onSignOut: vi.fn() });
+		await waitForLoaderToBeRemoved();
+
+		const link = screen.getByRole("menuitem", {
+			name: /opens in new tab/,
+		});
+		expect(link).toHaveTextContent(MockBuildInfo.version);
+		expect(link).toHaveAttribute("target", "_blank");
+		expect(link).toHaveAttribute("href", MockBuildInfo.external_url);
+	});
+
+	it("keeps focus on the version item when the pointer leaves it", async () => {
+		// The modal menu sets pointer-events: none on the body.
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		renderUserDropdownContent({ onSignOut: vi.fn() });
+		await waitForLoaderToBeRemoved();
+
+		const item = screen.getByRole("menuitem", { name: /opens in new tab/ });
+		await user.hover(item);
+		expect(item).toHaveFocus();
+		await user.unhover(item);
+		expect(item).toHaveFocus();
 	});
 
 	it("calls the onSignOut function", async () => {

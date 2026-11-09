@@ -4,11 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"iter"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
-	"time"
+	"testing/synctest"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -20,7 +23,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/quartz"
 )
 
 type testError struct{ message string }
@@ -38,12 +40,11 @@ func expectDebugLoggingEnabled(
 	db.EXPECT().GetUserChatDebugLoggingEnabled(gomock.Any(), ownerID).Return(true, nil)
 }
 
-func expectCreateStepNumberWithRequestValidity(
+func expectCreateStepWithRequestValidity(
 	t *testing.T,
 	db *dbmock.MockStore,
 	runID uuid.UUID,
 	chatID uuid.UUID,
-	stepNumber int32,
 	op Operation,
 	normalizedRequestValid bool,
 ) uuid.UUID {
@@ -51,51 +52,29 @@ func expectCreateStepNumberWithRequestValidity(
 
 	stepID := uuid.New()
 
+	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(f func(database.Store) error, _ *database.TxOptions) error { return f(db) })
+	db.EXPECT().AcquireLock(gomock.Any(), database.LockIDChatDebugRunSteps(runID)).Return(nil)
 	db.EXPECT().
 		InsertChatDebugStep(gomock.Any(), gomock.AssignableToTypeOf(database.InsertChatDebugStepParams{})).
 		DoAndReturn(func(_ context.Context, params database.InsertChatDebugStepParams) (database.ChatDebugStep, error) {
 			require.Equal(t, runID, params.RunID)
 			require.Equal(t, chatID, params.ChatID)
-			require.Equal(t, stepNumber, params.StepNumber)
+			require.Zero(t, params.StepNumber, "the database numbers the step")
 			require.Equal(t, string(op), params.Operation)
 			require.Equal(t, string(StatusInProgress), params.Status)
 			require.Equal(t, normalizedRequestValid, params.NormalizedRequest.Valid)
 
 			return database.ChatDebugStep{
-				ID:         stepID,
-				RunID:      runID,
-				ChatID:     chatID,
-				StepNumber: params.StepNumber,
-				Operation:  params.Operation,
-				Status:     params.Status,
+				ID:        stepID,
+				RunID:     runID,
+				ChatID:    chatID,
+				Operation: params.Operation,
+				Status:    params.Status,
 			}, nil
 		})
 
-	// The INSERT CTE atomically bumps the parent run's updated_at,
-	// so no separate TouchChatDebugRunUpdatedAt call is needed.
-
 	return stepID
-}
-
-func expectCreateStepNumber(
-	t *testing.T,
-	db *dbmock.MockStore,
-	runID uuid.UUID,
-	chatID uuid.UUID,
-	stepNumber int32,
-	op Operation,
-) uuid.UUID {
-	t.Helper()
-
-	return expectCreateStepNumberWithRequestValidity(
-		t,
-		db,
-		runID,
-		chatID,
-		stepNumber,
-		op,
-		true,
-	)
 }
 
 func expectCreateStep(
@@ -107,7 +86,7 @@ func expectCreateStep(
 ) uuid.UUID {
 	t.Helper()
 
-	return expectCreateStepNumber(t, db, runID, chatID, 1, op)
+	return expectCreateStepWithRequestValidity(t, db, runID, chatID, op, true)
 }
 
 func expectUpdateStep(
@@ -252,7 +231,6 @@ func TestDebugModel_Generate(t *testing.T) {
 		svc:   svc,
 		opts:  RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	resp, err := model.Generate(ctx, call)
@@ -327,7 +305,6 @@ func TestDebugModel_GeneratePersistsAttemptsWithoutResponseClose(t *testing.T) {
 		svc:   svc,
 		opts:  RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	resp, err := model.Generate(ctx, fantasy.Call{})
@@ -370,7 +347,6 @@ func TestDebugModel_GenerateError(t *testing.T) {
 		svc:  svc,
 		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	resp, err := model.Generate(ctx, fantasy.Call{})
@@ -433,7 +409,6 @@ func TestDebugModel_GenerateRetryClearsError(t *testing.T) {
 		svc:  svc,
 		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 
 	ctx := ReuseStep(ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID}))
 
@@ -507,6 +482,7 @@ func TestDebugModel_Stream(t *testing.T) {
 		require.NoError(t, json.Unmarshal(params.NormalizedResponse.RawMessage, &resp))
 		require.Equal(t, "stop", resp.FinishReason)
 		require.NotEmpty(t, resp.Content, "stream response should capture content parts")
+		require.Equal(t, "hel", resp.Content[0].Text, "stream response should capture the streamed text")
 
 		// Verify error payload comes from the stream error part.
 		var errPayload normalizedErrorPayload
@@ -535,7 +511,6 @@ func TestDebugModel_Stream(t *testing.T) {
 		svc:  svc,
 		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	seq, err := model.Stream(ctx, fantasy.Call{})
@@ -611,7 +586,6 @@ func TestDebugModel_StreamObject(t *testing.T) {
 		svc:  svc,
 		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	seq, err := model.StreamObject(ctx, fantasy.ObjectCall{})
@@ -658,7 +632,6 @@ func TestDebugModel_StreamCompletedAfterFinish(t *testing.T) {
 		svc:  svc,
 		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	seq, err := model.Stream(ctx, fantasy.Call{})
@@ -707,7 +680,6 @@ func TestDebugModel_StreamInterruptedBeforeFinish(t *testing.T) {
 		svc:  svc,
 		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	seq, err := model.Stream(ctx, fantasy.Call{})
@@ -728,92 +700,79 @@ func TestDebugModel_StreamInterruptedBeforeFinish(t *testing.T) {
 func TestDebugModel_StreamRejectsNilSequence(t *testing.T) {
 	t.Parallel()
 
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	chatID := uuid.New()
-	ownerID := uuid.New()
-	runID := uuid.New()
+	tests := []struct {
+		name  string
+		inner *chattest.FakeModel
 
-	expectDebugLoggingEnabled(t, db, ownerID)
-	stepID := expectCreateStep(t, db, runID, chatID, OperationStream)
-	expectUpdateStep(t, db, stepID, chatID, StatusError, func(params database.UpdateChatDebugStepParams) {
-		require.False(t, params.NormalizedResponse.Valid)
-		require.False(t, params.Usage.Valid)
-		require.True(t, params.Attempts.Valid)
-		require.True(t, params.Error.Valid)
-		require.False(t, params.Metadata.Valid)
-
-		var errPayload normalizedErrorPayload
-		require.NoError(t, json.Unmarshal(params.Error.RawMessage, &errPayload))
-		require.Contains(t, errPayload.Message, "nil")
-	})
-
-	svc := NewService(db, testutil.Logger(t), nil)
-	model := &debugModel{
-		inner: &chattest.FakeModel{
-			StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
-				var nilStream fantasy.StreamResponse
-				return nilStream, nil
+		stream       func(context.Context, *debugModel) (bool, error)
+		wantMetadata map[string]any
+	}{
+		{
+			name: "Stream",
+			inner: &chattest.FakeModel{
+				StreamFn: func(context.Context, fantasy.Call) (fantasy.StreamResponse, error) {
+					var nilStream fantasy.StreamResponse
+					return nilStream, nil
+				},
+			},
+			stream: func(ctx context.Context, model *debugModel) (bool, error) {
+				seq, err := model.Stream(ctx, fantasy.Call{})
+				return seq == nil, err
 			},
 		},
-		svc:  svc,
-		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
-	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
-
-	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
-
-	seq, err := model.Stream(ctx, fantasy.Call{})
-	require.Nil(t, seq)
-	require.ErrorIs(t, err, ErrNilModelResult)
-}
-
-func TestDebugModel_StreamObjectRejectsNilSequence(t *testing.T) {
-	t.Parallel()
-
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	chatID := uuid.New()
-	ownerID := uuid.New()
-	runID := uuid.New()
-
-	expectDebugLoggingEnabled(t, db, ownerID)
-	stepID := expectCreateStep(t, db, runID, chatID, OperationStream)
-	expectUpdateStep(t, db, stepID, chatID, StatusError, func(params database.UpdateChatDebugStepParams) {
-		require.False(t, params.NormalizedResponse.Valid)
-		require.False(t, params.Usage.Valid)
-		require.True(t, params.Attempts.Valid)
-		require.True(t, params.Error.Valid)
-		require.True(t, params.Metadata.Valid)
-
-		var errPayload normalizedErrorPayload
-		require.NoError(t, json.Unmarshal(params.Error.RawMessage, &errPayload))
-		require.Contains(t, errPayload.Message, "nil")
-
-		// Object stream always passes structured_output metadata.
-		var meta map[string]any
-		require.NoError(t, json.Unmarshal(params.Metadata.RawMessage, &meta))
-		require.Equal(t, true, meta["structured_output"])
-	})
-
-	svc := NewService(db, testutil.Logger(t), nil)
-	model := &debugModel{
-		inner: &chattest.FakeModel{
-			StreamObjectFn: func(context.Context, fantasy.ObjectCall) (fantasy.ObjectStreamResponse, error) {
-				var nilStream fantasy.ObjectStreamResponse
-				return nilStream, nil
+		{
+			name: "StreamObject",
+			inner: &chattest.FakeModel{
+				StreamObjectFn: func(context.Context, fantasy.ObjectCall) (fantasy.ObjectStreamResponse, error) {
+					var nilStream fantasy.ObjectStreamResponse
+					return nilStream, nil
+				},
 			},
+			stream: func(ctx context.Context, model *debugModel) (bool, error) {
+				seq, err := model.StreamObject(ctx, fantasy.ObjectCall{})
+				return seq == nil, err
+			},
+			wantMetadata: map[string]any{"structured_output": true},
 		},
-		svc:  svc,
-		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 
-	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	seq, err := model.StreamObject(ctx, fantasy.ObjectCall{})
-	require.Nil(t, seq)
-	require.ErrorIs(t, err, ErrNilModelResult)
+			db := dbmock.NewMockStore(gomock.NewController(t))
+			chatID, ownerID, runID := uuid.New(), uuid.New(), uuid.New()
+			expectDebugLoggingEnabled(t, db, ownerID)
+			stepID := expectCreateStep(t, db, runID, chatID, OperationStream)
+			expectUpdateStep(t, db, stepID, chatID, StatusError, func(params database.UpdateChatDebugStepParams) {
+				require.False(t, params.NormalizedResponse.Valid)
+				require.False(t, params.Usage.Valid)
+				require.True(t, params.Attempts.Valid)
+				require.True(t, params.Error.Valid)
+				var errPayload normalizedErrorPayload
+				require.NoError(t, json.Unmarshal(params.Error.RawMessage, &errPayload))
+				require.Contains(t, errPayload.Message, "nil")
+
+				require.Equal(t, tc.wantMetadata != nil, params.Metadata.Valid)
+				if tc.wantMetadata != nil {
+					var meta map[string]any
+					require.NoError(t, json.Unmarshal(params.Metadata.RawMessage, &meta))
+					require.Equal(t, tc.wantMetadata, meta)
+				}
+			})
+
+			model := &debugModel{
+				inner: tc.inner,
+				svc:   NewService(db, testutil.Logger(t), nil),
+				opts:  RecorderOptions{ChatID: chatID, OwnerID: ownerID},
+			}
+			ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
+
+			gotNil, err := tc.stream(ctx, model)
+			require.True(t, gotNil)
+			require.ErrorIs(t, err, ErrNilModelResult)
+		})
+	}
 }
 
 func TestDebugModel_StreamEarlyStop(t *testing.T) {
@@ -865,7 +824,6 @@ func TestDebugModel_StreamEarlyStop(t *testing.T) {
 		svc:  svc,
 		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	seq, err := model.Stream(ctx, fantasy.Call{})
@@ -988,7 +946,6 @@ func TestDebugModel_GenerateObject(t *testing.T) {
 		svc:   svc,
 		opts:  RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	resp, err := model.GenerateObject(ctx, call)
@@ -1036,7 +993,6 @@ func TestDebugModel_GenerateObjectError(t *testing.T) {
 		svc:  svc,
 		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	resp, err := model.GenerateObject(ctx, fantasy.ObjectCall{})
@@ -1082,7 +1038,6 @@ func TestDebugModel_GenerateObjectRejectsNilResponse(t *testing.T) {
 		svc:  svc,
 		opts: RecorderOptions{ChatID: chatID, OwnerID: ownerID},
 	}
-	t.Cleanup(func() { CleanupStepCounter(runID) })
 	ctx := ContextWithRun(context.Background(), &RunContext{RunID: runID, ChatID: chatID})
 
 	resp, err := model.GenerateObject(ctx, fantasy.ObjectCall{})
@@ -1090,261 +1045,218 @@ func TestDebugModel_GenerateObjectRejectsNilResponse(t *testing.T) {
 	require.ErrorIs(t, err, ErrNilModelResult)
 }
 
-func TestWrapStreamSeq_CompletedNotDowngradedByCtxCancel(t *testing.T) {
-	t.Parallel()
-
-	handle := &stepHandle{
-		stepCtx: &StepContext{StepID: uuid.New(), RunID: uuid.New(), ChatID: uuid.New()},
-		sink:    &attemptSink{},
-	}
-
-	// Create a context that we cancel after the stream finishes.
-	ctx, cancel := context.WithCancel(context.Background())
-
-	parts := []fantasy.StreamPart{
-		{Type: fantasy.StreamPartTypeTextDelta, Delta: "hello"},
-		{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop, Usage: fantasy.Usage{InputTokens: 5, OutputTokens: 1, TotalTokens: 6}},
-	}
-	seq := wrapStreamSeq(ctx, handle, partsToSeq(parts))
-
-	//nolint:revive // Intentionally consuming iterator to trigger side-effects.
-	for range seq {
-	}
-
-	// Cancel the context after the stream has been fully consumed
-	// and finalized. The status should remain completed.
-	cancel()
-
-	handle.mu.Lock()
-	status := handle.status
-	handle.mu.Unlock()
-	require.Equal(t, StatusCompleted, status)
+type streamWrapperParts[P any] struct {
+	delta, finish, errorPart P
+	withError                func(P, error) P
+	isFinish                 func(P) bool
 }
 
-func TestWrapObjectStreamSeq_CompletedNotDowngradedByCtxCancel(t *testing.T) {
+func TestStreamWrapperStatus(t *testing.T) {
 	t.Parallel()
 
-	handle := &stepHandle{
-		stepCtx: &StepContext{StepID: uuid.New(), RunID: uuid.New(), ChatID: uuid.New()},
-		sink:    &attemptSink{},
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	parts := []fantasy.ObjectStreamPart{
-		{Type: fantasy.ObjectStreamPartTypeTextDelta, Delta: "obj"},
-		{Type: fantasy.ObjectStreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop, Usage: fantasy.Usage{InputTokens: 3, OutputTokens: 1, TotalTokens: 4}},
-	}
-	seq := wrapObjectStreamSeq(ctx, handle, objectPartsToSeq(parts))
-
-	//nolint:revive // Intentionally consuming iterator to trigger side-effects.
-	for range seq {
-	}
-
-	cancel()
-
-	handle.mu.Lock()
-	status := handle.status
-	handle.mu.Unlock()
-	require.Equal(t, StatusCompleted, status)
+	usage := fantasy.Usage{InputTokens: 3, OutputTokens: 1, TotalTokens: 4, ReasoningTokens: 2, CacheCreationTokens: 5, CacheReadTokens: 6}
+	t.Run("Stream", func(t *testing.T) {
+		t.Parallel()
+		runStreamWrapperStatusCases(t, wrapStreamSeq, streamWrapperParts[fantasy.StreamPart]{
+			delta:     fantasy.StreamPart{Type: fantasy.StreamPartTypeTextDelta, Delta: "hello"},
+			finish:    fantasy.StreamPart{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop, Usage: usage},
+			errorPart: fantasy.StreamPart{Type: fantasy.StreamPartTypeError},
+			withError: func(part fantasy.StreamPart, err error) fantasy.StreamPart {
+				part.Error = err
+				return part
+			},
+			isFinish: func(part fantasy.StreamPart) bool { return part.Type == fantasy.StreamPartTypeFinish },
+		})
+	})
+	t.Run("StreamObject", func(t *testing.T) {
+		t.Parallel()
+		runStreamWrapperStatusCases(t, wrapObjectStreamSeq, streamWrapperParts[fantasy.ObjectStreamPart]{
+			delta:     fantasy.ObjectStreamPart{Type: fantasy.ObjectStreamPartTypeTextDelta, Delta: "obj"},
+			finish:    fantasy.ObjectStreamPart{Type: fantasy.ObjectStreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop, Usage: usage},
+			errorPart: fantasy.ObjectStreamPart{Type: fantasy.ObjectStreamPartTypeError},
+			withError: func(part fantasy.ObjectStreamPart, err error) fantasy.ObjectStreamPart {
+				part.Error = err
+				return part
+			},
+			isFinish: func(part fantasy.ObjectStreamPart) bool { return part.Type == fantasy.ObjectStreamPartTypeFinish },
+		})
+	})
 }
 
-func TestWrapStreamSeq_DroppedStreamFinalizedOnCtxCancel(t *testing.T) {
-	t.Parallel()
+func runStreamWrapperStatusCases[P any](
+	t *testing.T,
+	wrap func(context.Context, *stepHandle, iter.Seq[P]) iter.Seq[P],
+	parts streamWrapperParts[P],
+) {
+	t.Helper()
 
-	handle := &stepHandle{
+	failed := parts.withError(parts.errorPart, xerrors.New("chunk failed"))
+	usage := &normalizedUsage{InputTokens: 3, OutputTokens: 1, TotalTokens: 4, ReasoningTokens: 2, CacheCreationTokens: 5, CacheReadTokens: 6}
+	finished := streamRecord{Status: StatusCompleted, FinishReason: "stop", Usage: usage, Summarized: true}
+	failedThenFinished := streamRecord{Status: StatusError, FinishReason: "stop", Usage: usage, ErrorCount: 1, LastError: "chunk failed", HadError: true, Summarized: true}
+	interrupted := streamRecord{Status: StatusInterrupted, Summarized: true}
+	// The safety net finalizes without a response, usage or summary.
+	abandoned := streamRecord{Status: StatusInterrupted}
+	tests := []struct {
+		name                string
+		parts               []P
+		stopAfter, cancelAt int
+		dropped             bool
+		want                streamRecord
+	}{
+		{name: "Finished", parts: []P{parts.delta, parts.finish}, want: finished},
+		{name: "StoppedAfterFinish", parts: []P{parts.finish, parts.delta}, stopAfter: 1, want: finished},
+		{name: "StoppedBeforeFinish", parts: []P{parts.delta, parts.finish}, stopAfter: 1, want: interrupted},
+		{name: "EndedWithoutFinish", parts: []P{parts.delta}, want: interrupted},
+		{name: "ErrorPart", parts: []P{failed, parts.finish}, want: failedThenFinished},
+		{name: "ErrorOnOtherPart", parts: []P{parts.withError(parts.delta, xerrors.New("chunk failed")), parts.finish}, want: failedThenFinished},
+		{name: "ErrorPartWithoutError", parts: []P{parts.errorPart}, want: streamRecord{Status: StatusError, ErrorCount: 1, LastError: "stream error part with nil error", HadError: true, Summarized: true}},
+		{name: "StoppedAfterErrorPart", parts: []P{failed, parts.finish}, stopAfter: 1, want: streamRecord{Status: StatusError, ErrorCount: 1, LastError: "chunk failed", HadError: true, Summarized: true}},
+		{name: "CanceledErrorPart", parts: []P{parts.withError(parts.errorPart, context.Canceled)}, want: streamRecord{Status: StatusInterrupted, ErrorCount: 1, LastError: "context canceled", HadError: true, Summarized: true}},
+		{name: "CanceledWhileYieldingFinish", parts: []P{parts.delta, parts.finish}, cancelAt: 2, want: finished},
+		{name: "CanceledBeforeFinish", parts: []P{parts.delta, parts.finish}, cancelAt: 1, want: abandoned},
+		{name: "DroppedThenCanceled", parts: []P{parts.delta, parts.finish}, dropped: true, want: abandoned},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			synctest.Test(t, func(t *testing.T) {
+				handle, store := newRecordedStep(t)
+				ctx, cancel := context.WithCancel(context.Background())
+				defer cancel()
+				cancelAndWait := func() {
+					cancel()
+					synctest.Wait()
+				}
+
+				seq := wrap(ctx, handle, slices.Values(tc.parts))
+				if !tc.dropped {
+					held := 0
+					for range seq {
+						held++
+						if held == tc.cancelAt {
+							cancelAndWait()
+						}
+						if held == tc.stopAfter {
+							break
+						}
+					}
+				}
+				cancelAndWait()
+
+				require.Equal(t, tc.want, recordedStream(t, handle, store))
+			})
+		})
+	}
+
+	// The consumer stops right after cancel, so the safety net and the
+	// consumer race to finalize. Either may win, but only one may write.
+	t.Run("StoppedRightAfterCancel", func(t *testing.T) {
+		t.Parallel()
+
+		synctest.Test(t, func(t *testing.T) {
+			handle, store := newRecordedStep(t)
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+
+			seq := wrap(ctx, handle, slices.Values([]P{parts.delta, parts.finish}))
+			cancel()
+			for range seq {
+				break
+			}
+			synctest.Wait()
+
+			require.Equal(t, StatusInterrupted, recordedStream(t, handle, store).Status)
+		})
+	})
+}
+
+// stepWriteStore records the step updates that reach the database.
+type stepWriteStore struct {
+	database.Store
+	mu      sync.Mutex
+	updates []database.UpdateChatDebugStepParams
+}
+
+func (s *stepWriteStore) UpdateChatDebugStep(_ context.Context, params database.UpdateChatDebugStepParams) (database.ChatDebugStep, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.updates = append(s.updates, params)
+	return database.ChatDebugStep{ID: params.ID, ChatID: params.ChatID}, nil
+}
+
+func newRecordedStep(t *testing.T) (*stepHandle, *stepWriteStore) {
+	t.Helper()
+
+	store := &stepWriteStore{}
+	return &stepHandle{
 		stepCtx: &StepContext{StepID: uuid.New(), RunID: uuid.New(), ChatID: uuid.New()},
 		sink:    &attemptSink{},
+		svc:     NewService(store, testutil.Logger(t), nil),
+	}, store
+}
+
+type streamRecord struct {
+	Status       Status
+	FinishReason string
+	// Usage is the stored usage column, nil when it is NULL.
+	Usage      *normalizedUsage
+	ErrorCount int
+	LastError  string
+	HadError   bool
+	// Summarized is false when the safety net, not the wrapper,
+	// finalized the step and recorded no stream summary.
+	Summarized bool
+}
+
+func recordedStream(t *testing.T, handle *stepHandle, store *stepWriteStore) streamRecord {
+	t.Helper()
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	require.Len(t, store.updates, 1, "the step must be finalized exactly once")
+	stored := store.updates[0]
+
+	handle.mu.Lock()
+	defer handle.mu.Unlock()
+	var resp struct {
+		FinishReason string          `json:"finish_reason"`
+		Usage        normalizedUsage `json:"usage"`
 	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	parts := []fantasy.StreamPart{
-		{Type: fantasy.StreamPartTypeTextDelta, Delta: "hello"},
-		{Type: fantasy.StreamPartTypeFinish, FinishReason: fantasy.FinishReasonStop},
+	var meta struct {
+		Summary struct {
+			FinishReason string `json:"finish_reason"`
+			ErrorCount   int    `json:"error_count"`
+			LastError    string `json:"last_error"`
+		} `json:"stream_summary"`
 	}
-
-	// Create the wrapped stream but never iterate it.
-	_ = wrapStreamSeq(ctx, handle, partsToSeq(parts))
-
-	// Cancel the context; the AfterFunc safety net should finalize
-	// the step as interrupted.
-	cancel()
-
-	// AfterFunc fires asynchronously; give it a moment.
-	require.Eventually(t, func() bool {
-		handle.mu.Lock()
-		defer handle.mu.Unlock()
-		return handle.status == StatusInterrupted
-	}, testutil.WaitShort, testutil.IntervalFast)
+	for dst, src := range map[any]any{&resp: handle.response, &meta: handle.metadata} {
+		raw, err := json.Marshal(src)
+		require.NoError(t, err)
+		require.NoError(t, json.Unmarshal(raw, dst))
+	}
+	require.Equal(t, resp.FinishReason, meta.Summary.FinishReason)
+	var usage *normalizedUsage
+	if stored.Usage.Valid {
+		usage = &normalizedUsage{}
+		require.NoError(t, json.Unmarshal(stored.Usage.RawMessage, usage))
+		require.Equal(t, *usage, resp.Usage, "the response usage must match the stored usage")
+	} else {
+		require.Zero(t, resp.Usage)
+	}
+	return streamRecord{
+		Status:       handle.status,
+		FinishReason: resp.FinishReason,
+		Usage:        usage,
+		ErrorCount:   meta.Summary.ErrorCount,
+		LastError:    meta.Summary.LastError,
+		HadError:     handle.hadError,
+		Summarized:   handle.metadata != nil,
+	}
 }
 
 func int64Ptr(v int64) *int64 { return &v }
 
 func float64Ptr(v float64) *float64 { return &v }
-
-func TestLaunchHeartbeat(t *testing.T) {
-	t.Parallel()
-
-	t.Run("fires_touch_step_on_tick", func(t *testing.T) {
-		t.Parallel()
-
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		mClock := quartz.NewMock(t)
-
-		// Use a small stale threshold so the heartbeat interval is
-		// short enough to test easily (threshold/2 = 5s, clamped ≥1s).
-		svc := NewService(db, testutil.Logger(t), nil,
-			WithClock(mClock),
-		)
-		svc.SetStaleAfter(10 * time.Second)
-
-		stepID := uuid.New()
-		runID := uuid.New()
-		chatID := uuid.New()
-
-		done := make(chan struct{})
-		defer close(done)
-
-		// Trap the ticker creation so we can control it.
-		tickerTrap := mClock.Trap().NewTicker("chatdebug", "heartbeat")
-		defer tickerTrap.Close()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// Expect atomic TouchStep calls via TouchChatDebugStepAndRun.
-		touchCalled := make(chan struct{}, 5)
-		db.EXPECT().
-			TouchChatDebugStepAndRun(gomock.Any(), gomock.Any()).
-			DoAndReturn(func(_ context.Context, params database.TouchChatDebugStepAndRunParams) error {
-				require.Equal(t, stepID, params.StepID)
-				require.Equal(t, runID, params.RunID)
-				require.Equal(t, chatID, params.ChatID)
-				select {
-				case touchCalled <- struct{}{}:
-				default:
-				}
-				return nil
-			}).
-			AnyTimes()
-
-		launchHeartbeat(ctx, svc, stepID, runID, chatID, done)
-
-		// Wait for the ticker to be created.
-		tickerTrap.MustWait(ctx).MustRelease(ctx)
-
-		// Advance the clock past one heartbeat interval (5s for a
-		// 10s stale threshold) and verify TouchStep fires.
-		mClock.Advance(5 * time.Second).MustWait(ctx)
-
-		select {
-		case <-touchCalled:
-		case <-ctx.Done():
-			t.Fatal("timed out waiting for first heartbeat touch")
-		}
-
-		// Advance again to verify repeated heartbeats.
-		mClock.Advance(5 * time.Second).MustWait(ctx)
-
-		select {
-		case <-touchCalled:
-		case <-ctx.Done():
-			t.Fatal("timed out waiting for second heartbeat touch")
-		}
-	})
-
-	t.Run("stops_on_done_channel", func(t *testing.T) {
-		t.Parallel()
-
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		mClock := quartz.NewMock(t)
-
-		svc := NewService(db, testutil.Logger(t), nil,
-			WithClock(mClock),
-		)
-		svc.SetStaleAfter(10 * time.Second)
-
-		stepID := uuid.New()
-		runID := uuid.New()
-		chatID := uuid.New()
-
-		done := make(chan struct{})
-
-		tickerTrap := mClock.Trap().NewTicker("chatdebug", "heartbeat")
-		defer tickerTrap.Close()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		launchHeartbeat(ctx, svc, stepID, runID, chatID, done)
-		tickerTrap.MustWait(ctx).MustRelease(ctx)
-
-		// Close done to signal the heartbeat to stop.
-		close(done)
-
-		// Give the goroutine a moment to observe the close.
-		// No TouchStep calls should happen after done is closed.
-		// (gomock would fail if TouchChatDebugStepAndRun was
-		// called without a matching expectation.)
-	})
-
-	t.Run("nil_service_noop", func(t *testing.T) {
-		t.Parallel()
-
-		done := make(chan struct{})
-		defer close(done)
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		// Should not panic.
-		launchHeartbeat(ctx, nil, uuid.New(), uuid.New(), uuid.New(), done)
-	})
-
-	t.Run("resets_ticker_on_threshold_change", func(t *testing.T) {
-		t.Parallel()
-
-		ctrl := gomock.NewController(t)
-		db := dbmock.NewMockStore(ctrl)
-		mClock := quartz.NewMock(t)
-
-		svc := NewService(db, testutil.Logger(t), nil,
-			WithClock(mClock),
-		)
-		svc.SetStaleAfter(60 * time.Second)
-
-		stepID := uuid.New()
-		runID := uuid.New()
-		chatID := uuid.New()
-
-		done := make(chan struct{})
-		defer close(done)
-
-		tickerTrap := mClock.Trap().NewTicker("chatdebug", "heartbeat")
-		defer tickerTrap.Close()
-		resetTrap := mClock.Trap().TickerReset("chatdebug", "heartbeat")
-		defer resetTrap.Close()
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-
-		launchHeartbeat(ctx, svc, stepID, runID, chatID, done)
-
-		// Confirm the ticker was created with the original
-		// threshold/2 interval.
-		newCall := tickerTrap.MustWait(ctx)
-		require.Equal(t, 30*time.Second, newCall.Duration)
-
-		// Reduce the threshold while NewTicker is trapped. This
-		// simulates SetStaleAfter racing with heartbeat startup before
-		// the goroutine can select on thresholdCh.
-		svc.SetStaleAfter(10 * time.Second)
-		newCall.MustRelease(ctx)
-
-		// The heartbeat must still reset to newThreshold/2 without
-		// advancing the mock clock.
-		resetCall := resetTrap.MustWait(ctx)
-		require.Equal(t, 5*time.Second, resetCall.Duration,
-			"ticker should reset to newThreshold/2 when SetStaleAfter"+
-				" shrinks the threshold")
-		resetCall.MustRelease(ctx)
-	})
-}

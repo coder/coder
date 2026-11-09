@@ -529,7 +529,12 @@ func (u *updater) convertAgentsLocked(agents []*agentWithPing) []*Agent {
 		}
 		if u.conn != nil {
 			diags := u.conn.GetPeerDiagnostics(agent.ID)
-			protoAgent.LastHandshake = timestamppb.New(diags.LastWireguardHandshake)
+			// Clients read an unset timestamp as no handshake yet. The zero
+			// time would encode as year 1, which the Windows client shows as
+			// connecting.
+			if !diags.LastWireguardHandshake.IsZero() {
+				protoAgent.LastHandshake = timestamppb.New(diags.LastWireguardHandshake)
+			}
 		}
 		out = append(out, protoAgent)
 	}

@@ -1,7 +1,7 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { toast } from "sonner";
 import { API } from "#/api/api";
+import { toast } from "#/components/Toaster/toast";
 import {
 	MockTemplate,
 	MockTemplateVersion,

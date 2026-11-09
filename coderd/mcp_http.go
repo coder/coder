@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/mcp"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -39,9 +41,17 @@ func (api *API) mcpHTTPHandler() http.Handler {
 			})
 			return
 		}
-		// Extract the original session token from the request
+		// Keep tool requests in-process. The private transport carries the
+		// originating MCP audience without granting external REST access.
+		transport, closeTransport := newMCPDelegatedTransport(api.Logger, api.RootHandler, api.AccessURL, httpmw.APIKey(r).ID)
+		defer closeTransport()
+		// The MCP SDK detaches tool cancellation and waits for in-flight tools
+		// before returning, so close their transport independently on disconnect.
+		stopClose := context.AfterFunc(r.Context(), closeTransport)
+		defer stopClose()
 		authenticatedClient := codersdk.New(api.AccessURL,
-			codersdk.WithSessionToken(httpmw.APITokenFromRequest(r)))
+			codersdk.WithSessionToken(httpmw.APITokenFromRequest(r)),
+			codersdk.WithHTTPClient(&http.Client{Transport: transport}))
 
 		// Wrap the agent connection function to enforce ActionSSH
 		// on the workspace. Without this check, a user who can read
@@ -66,7 +76,13 @@ func (api *API) mcpHTTPHandler() http.Handler {
 			if !api.Authorize(r, policy.ActionSSH, workspace) {
 				return nil, nil, xerrors.New("unauthorized: you do not have SSH access to this workspace")
 			}
-			return api.agentProvider.AgentConn(ctx, agentID)
+			conn, release, err := api.agentProvider.AgentConn(ctx, agentID)
+			if unreachable, ok := errors.AsType[*workspaceapps.AgentUnreachableError](err); ok {
+				// Tool errors are sent with HTTP 200, so the request log
+				// line is written at debug level.
+				api.Logger.Warn(ctx, "agent is unreachable", append(unreachable.Fields, slog.Error(err))...)
+			}
+			return conn, release, err
 		})
 
 		toolset := MCPToolset(r.URL.Query().Get("toolset"))

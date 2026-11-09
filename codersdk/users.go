@@ -171,7 +171,8 @@ type CreateUserRequest struct {
 	Password string `json:"password"`
 	// UserLoginType defaults to LoginTypePassword.
 	UserLoginType LoginType `json:"login_type"`
-	// UserStatus defaults to UserStatusDormant.
+	// UserStatus defaults to UserStatusDormant. Service accounts default to
+	// UserStatusActive and can't be dormant.
 	UserStatus *UserStatus `json:"user_status"`
 	// OrganizationIDs is a list of organization IDs that the user should be a member of.
 	OrganizationIDs []uuid.UUID `json:"organization_ids" validate:"" format:"uuid"`
@@ -451,27 +452,6 @@ type OIDCClaimsResponse struct {
 	// are the union of the ID token claims and the userinfo claims,
 	// where userinfo claims take precedence on conflict.
 	Claims map[string]interface{} `json:"claims"`
-}
-
-type UserParameter struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-}
-
-// UserAutofillParameters returns all recently used parameters for the given user.
-func (c *Client) UserAutofillParameters(ctx context.Context, user string, templateID uuid.UUID) ([]UserParameter, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/autofill-parameters?template_id=%s", user, templateID), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-
-	var params []UserParameter
-	return params, ReadBodyAsJSON(res, &params)
 }
 
 // HasFirstUser returns whether the first user has been created.

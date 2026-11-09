@@ -14,6 +14,7 @@ const meta: Meta<typeof AttachmentPreview> = {
 		onRemove: fn(),
 		onPreview: fn(),
 		onTextPreview: fn(),
+		onInlineText: fn(),
 	},
 };
 

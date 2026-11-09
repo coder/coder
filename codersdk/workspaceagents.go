@@ -198,21 +198,57 @@ const (
 	WorkspaceAgentScriptStatusExitFailure   WorkspaceAgentScriptStatus = "exit_failure"
 	WorkspaceAgentScriptStatusTimedOut      WorkspaceAgentScriptStatus = "timed_out"
 	WorkspaceAgentScriptStatusPipesLeftOpen WorkspaceAgentScriptStatus = "pipes_left_open"
+	WorkspaceAgentScriptStatusSkipped       WorkspaceAgentScriptStatus = "skipped"
+	WorkspaceAgentScriptStatusCanceled      WorkspaceAgentScriptStatus = "canceled"
 )
 
 type WorkspaceAgentScript struct {
-	ID               uuid.UUID                   `json:"id" format:"uuid"`
-	LogSourceID      uuid.UUID                   `json:"log_source_id" format:"uuid"`
-	LogPath          string                      `json:"log_path"`
-	Script           string                      `json:"script"`
-	Cron             string                      `json:"cron"`
-	RunOnStart       bool                        `json:"run_on_start"`
-	RunOnStop        bool                        `json:"run_on_stop"`
-	StartBlocksLogin bool                        `json:"start_blocks_login"`
-	Timeout          time.Duration               `json:"timeout"`
-	DisplayName      string                      `json:"display_name"`
-	ExitCode         *int32                      `json:"exit_code,omitempty"`
-	Status           *WorkspaceAgentScriptStatus `json:"status,omitempty"`
+	ID               uuid.UUID     `json:"id" format:"uuid"`
+	LogSourceID      uuid.UUID     `json:"log_source_id" format:"uuid"`
+	LogPath          string        `json:"log_path"`
+	Script           string        `json:"script"`
+	Cron             string        `json:"cron"`
+	RunOnStart       bool          `json:"run_on_start"`
+	RunOnStop        bool          `json:"run_on_stop"`
+	StartBlocksLogin bool          `json:"start_blocks_login"`
+	Timeout          time.Duration `json:"timeout"`
+	DisplayName      string        `json:"display_name"`
+	// ResourceAddress is the full Terraform address of the coder_script
+	// resource, for example "module.git_clone.coder_script.clone". It is
+	// empty for scripts that are not coder_script resources.
+	ResourceAddress string `json:"resource_address"`
+	// Dependencies lists the scripts this one waits for, as the
+	// provisioner resolved them. It is omitted when empty.
+	Dependencies []WorkspaceAgentScriptDependency `json:"dependencies,omitempty"`
+	ExitCode     *int32                           `json:"exit_code,omitempty"`
+	Status       *WorkspaceAgentScriptStatus      `json:"status,omitempty"`
+}
+
+// WorkspaceAgentScriptDependencyRequirement is the outcome a prerequisite
+// must reach before the dependent script may run.
+type WorkspaceAgentScriptDependencyRequirement string
+
+const (
+	WorkspaceAgentScriptDependencyRequirementSuccess    WorkspaceAgentScriptDependencyRequirement = "success"
+	WorkspaceAgentScriptDependencyRequirementCompletion WorkspaceAgentScriptDependencyRequirement = "completion"
+)
+
+// Valid reports whether the requirement is one of the two supported values.
+func (r WorkspaceAgentScriptDependencyRequirement) Valid() bool {
+	switch r {
+	case WorkspaceAgentScriptDependencyRequirementSuccess,
+		WorkspaceAgentScriptDependencyRequirementCompletion:
+		return true
+	default:
+		return false
+	}
+}
+
+// WorkspaceAgentScriptDependency names a prerequisite script and the
+// outcome it must reach.
+type WorkspaceAgentScriptDependency struct {
+	PrerequisiteResourceAddress string                                    `json:"prerequisite_resource_address"`
+	Requirement                 WorkspaceAgentScriptDependencyRequirement `json:"requirement"`
 }
 
 type WorkspaceAgentHealth struct {

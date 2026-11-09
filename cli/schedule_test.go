@@ -337,6 +337,24 @@ func TestScheduleModify(t *testing.T) {
 		// Then: the updated schedule should be shown
 		stdout.ExpectMatch(ctx, ws[0].OwnerName+"/"+ws[0].Name)
 	})
+
+	t.Run("SetStart_JSON", func(t *testing.T) {
+		inv, root := clitest.New(t,
+			"schedule", "start", ws[3].OwnerName+"/"+ws[3].Name, "7:30AM", "Mon-Fri", "Europe/Dublin", "-o", "json",
+		)
+		//nolint:gocritic // this workspace is not owned by the same user
+		clitest.SetupConfig(t, ownerClient, root)
+		var buf bytes.Buffer
+		inv.Stdout = &buf
+		require.NoError(t, inv.Run())
+
+		var rows []map[string]any
+		require.NoError(t, json.Unmarshal(buf.Bytes(), &rows), "unmarshal JSON output")
+		require.Len(t, rows, 1)
+		require.Equal(t, ws[3].OwnerName+"/"+ws[3].Name, rows[0]["workspace"])
+		require.Equal(t, sched.Humanize(), rows[0]["starts_at"])
+		require.Equal(t, sched.Next(now).In(loc).Format(time.RFC3339), rows[0]["starts_next"])
+	})
 }
 
 //nolint:paralleltest // t.Setenv

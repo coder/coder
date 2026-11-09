@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { toast } from "sonner";
 import { watchWorkspaceAgentLogs } from "#/api/api";
 import type { WorkspaceAgentLog } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 
 type UseAgentLogsOptions = Readonly<{
 	agentId: string;

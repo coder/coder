@@ -7,6 +7,7 @@ const meta: Meta<typeof AgentSetupNotice> = {
 	component: AgentSetupNotice,
 	args: {
 		organization: MockDefaultOrganization,
+		unsupportedProviderNames: [],
 	},
 };
 

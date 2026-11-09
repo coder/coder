@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, within } from "storybook/test";
 import {
 	chatPromptsKey,
+	organizationChatModelOverridesKey,
 	userCompactionThresholdsKey,
 } from "#/api/queries/chats";
 import { preferenceSettingsKey } from "#/api/queries/users";
@@ -13,7 +14,10 @@ import {
 	MockChatMessage,
 	MockChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
-import { MockChatModel } from "#/testHelpers/chatModels";
+import {
+	MockChatModel,
+	MockChatModelProviderDescriptor,
+} from "#/testHelpers/chatModels";
 import {
 	MockUserChatCompactionThresholds,
 	MockUserOwner,
@@ -43,6 +47,8 @@ const StoryChatPageTimeline: React.FC<{
 			isHydratingMessages={false}
 			hasFetchMoreError={false}
 			onFetchMoreMessages={async () => {}}
+			urlTransform={(url) => url}
+			mcpServers={[]}
 		/>
 	</MessageScroller.Provider>
 );
@@ -88,12 +94,11 @@ const mockUserChatCompactionThresholdsWithOverride: TypesGen.UserChatCompactionT
 		],
 	};
 
-const mockCompactionModels: readonly TypesGen.ChatModel[] = [
-	{
-		...MockChatModel,
-		id: MockChat.last_model_config_id,
-	},
-];
+const mockCompactionModelCatalog: TypesGen.OrganizationChatModelsResponse = {
+	models: [{ ...MockChatModel, id: MockChat.last_model_config_id }],
+	providers: [MockChatModelProviderDescriptor],
+	unsupported_providers: [],
+};
 
 // Renders only the composer half of the chat page. Empty chat id and
 // organization keep the prompt-history and draft attachment queries disabled.
@@ -106,7 +111,7 @@ const StoryChatPageInput: React.FC<{
 		<ChatPageInput
 			chat={{ ...MockChat, id: "", organization_id: "" }}
 			store={store}
-			models={[]}
+			modelCatalog={undefined}
 			onSend={fn()}
 			onDeleteQueuedMessage={fn()}
 			onPromoteQueuedMessage={fn()}
@@ -128,8 +133,23 @@ const StoryChatPageInput: React.FC<{
 			]}
 			modelSelectorPlaceholder="Select model"
 			canConfigureAgentSetup={false}
-			isEditing={false}
-			onCancelHistoryEdit={fn()}
+			editingTarget={null}
+			onCancelEdit={fn()}
+			isReadOnly={false}
+			onReasoningEffortChange={fn()}
+			unsupportedProviderNames={[]}
+			onPlanModeToggle={fn()}
+			isModelCatalogLoading={false}
+			inputRef={{ current: null }}
+			initialValue=""
+			remountKey={0}
+			onContentChange={fn()}
+			editingFileBlocks={[]}
+			mcpServers={[]}
+			selectedMCPServerIds={[]}
+			onMCPSelectionChange={fn()}
+			isWorkspaceLoading={false}
+			queuedMessageUnderEditID={null}
 		/>
 	</div>
 );
@@ -385,6 +405,8 @@ export const InterruptingShowsBusyComposer: Story = {
 						isHydratingMessages={false}
 						hasFetchMoreError={false}
 						onFetchMoreMessages={async () => {}}
+						urlTransform={(url) => url}
+						mcpServers={[]}
 					/>
 					<StoryChatPageInput
 						store={store}
@@ -401,7 +423,9 @@ export const InterruptingShowsBusyComposer: Story = {
 		expect(canvas.getByRole("status")).toHaveTextContent(
 			"Interrupting. Waiting for the agent to stop.",
 		);
-		expect(canvas.queryByRole("button", { name: "Queue" })).toBeNull();
+		expect(
+			canvas.queryByRole("button", { name: "Send during turn" }),
+		).toBeNull();
 		expect(canvas.getByText("Interrupting")).toBeInTheDocument();
 		expect(canvas.queryByText("Thinking")).toBeNull();
 
@@ -442,7 +466,7 @@ const CompactionChatPageInput: React.FC = () => {
 			<ChatPageInput
 				chat={MockChat}
 				store={store}
-				models={mockCompactionModels}
+				modelCatalog={mockCompactionModelCatalog}
 				onSend={fn()}
 				onDeleteQueuedMessage={fn()}
 				onPromoteQueuedMessage={fn()}
@@ -456,8 +480,23 @@ const CompactionChatPageInput: React.FC = () => {
 				modelOptions={[]}
 				modelSelectorPlaceholder="Select model"
 				canConfigureAgentSetup={false}
-				isEditing={false}
-				onCancelHistoryEdit={fn()}
+				editingTarget={null}
+				onCancelEdit={fn()}
+				isReadOnly={false}
+				onReasoningEffortChange={fn()}
+				unsupportedProviderNames={[]}
+				onPlanModeToggle={fn()}
+				isModelCatalogLoading={false}
+				inputRef={{ current: null }}
+				initialValue=""
+				remountKey={0}
+				onContentChange={fn()}
+				editingFileBlocks={[]}
+				mcpServers={[]}
+				selectedMCPServerIds={[]}
+				onMCPSelectionChange={fn()}
+				isWorkspaceLoading={false}
+				queuedMessageUnderEditID={null}
 			/>
 		</div>
 	);
@@ -474,6 +513,10 @@ export const CompactsAtUserOverride: Story = {
 			{
 				key: userCompactionThresholdsKey,
 				data: mockUserChatCompactionThresholdsWithOverride,
+			},
+			{
+				key: organizationChatModelOverridesKey(MockChat.organization_id),
+				data: { overrides: [] },
 			},
 			{
 				key: chatPromptsKey(MockChat.id),
@@ -502,6 +545,10 @@ export const CompactsAtHistoricalModelDefault: Story = {
 			{
 				key: userCompactionThresholdsKey,
 				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: organizationChatModelOverridesKey(MockChat.organization_id),
+				data: { overrides: [] },
 			},
 			{
 				key: chatPromptsKey(MockChat.id),

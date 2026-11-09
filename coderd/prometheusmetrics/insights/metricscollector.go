@@ -20,7 +20,7 @@ import (
 
 var (
 	templatesActiveUsersDesc     = prometheus.NewDesc("coderd_insights_templates_active_users", "The number of active users of the template.", []string{"template_name", "organization_name"}, nil)
-	applicationsUsageSecondsDesc = prometheus.NewDesc("coderd_insights_applications_usage_seconds", "The application usage per template.", []string{"template_name", "application_name", "slug", "organization_name"}, nil)
+	applicationsUsageSecondsDesc = prometheus.NewDesc("coderd_insights_applications_usage_seconds", "The app usage per template. connection_method is workspace_app for template apps, or ssh, reconnecting_pty, or port_forwarding for built-in apps, which have one series per app name in slug. Overlapping apps each count their own minutes.", []string{"template_name", "display_name", "slug", "connection_method", "organization_name"}, nil)
 	parametersDesc               = prometheus.NewDesc("coderd_insights_parameters", "The parameter usage per template.", []string{"template_name", "parameter_name", "parameter_type", "parameter_value", "organization_name"}, nil)
 )
 
@@ -34,20 +34,15 @@ type MetricsCollector struct {
 }
 
 type insightsData struct {
-	templates []templateInsightsRow
+	templates []database.GetTemplateInsightsByTemplateRow
 	apps      []database.GetTemplateAppInsightsByTemplateRow
 	params    []parameterRow
+	// sessionApps holds built-in app seconds by template and app, after the
+	// series limit.
+	sessionApps map[uuid.UUID]map[string]int64
 
 	templateNames     map[uuid.UUID]string
 	organizationNames map[uuid.UUID]string // template ID → org name
-}
-
-// templateInsightsRow is a GetTemplateInsightsByTemplateRow with its session
-// usage decoded and grouped into families.
-type templateInsightsRow struct {
-	templateID           uuid.UUID
-	activeUsers          int64
-	usageSecondsByFamily map[codersdk.AppFamilyName]int64
 }
 
 type parameterRow struct {
@@ -71,7 +66,6 @@ func NewMetricsCollector(db database.Store, logger slog.Logger, timeWindow time.
 	if tickInterval == 0 {
 		tickInterval = timeWindow
 	}
-
 	return &MetricsCollector{
 		database:     db,
 		logger:       logger.Named("insights_metrics_collector"),
@@ -99,21 +93,20 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 		eg, egCtx := errgroup.WithContext(ctx)
 		eg.SetLimit(3)
 
-		var templateInsights []templateInsightsRow
+		var templateInsights []database.GetTemplateInsightsByTemplateRow
 		var appInsights []database.GetTemplateAppInsightsByTemplateRow
 		var paramInsights []parameterRow
 
 		eg.Go(func() error {
-			rows, err := mc.database.GetTemplateInsightsByTemplate(egCtx, database.GetTemplateInsightsByTemplateParams{
+			var err error
+			templateInsights, err = mc.database.GetTemplateInsightsByTemplate(egCtx, database.GetTemplateInsightsByTemplateParams{
 				StartTime: startTime,
 				EndTime:   endTime,
 			})
 			if err != nil {
 				mc.logger.Error(ctx, "unable to fetch template insights from database", slog.Error(err))
-				return err
 			}
-			templateInsights = convertTemplateInsights(rows)
-			return nil
+			return err
 		})
 		eg.Go(func() error {
 			var err error
@@ -185,10 +178,16 @@ func (mc *MetricsCollector) Run(ctx context.Context) (func(), error) {
 		}
 
 		// Refresh the collector state
+		sessionApps := make(map[uuid.UUID]map[string]int64, len(templateInsights))
+		for _, row := range templateInsights {
+			codersdk.FoldUnregisteredSessionApps(row.SessionAppUsageSeconds)
+			sessionApps[row.TemplateID] = row.SessionAppUsageSeconds
+		}
 		mc.data.Store(&insightsData{
-			templates: templateInsights,
-			apps:      appInsights,
-			params:    paramInsights,
+			templates:   templateInsights,
+			apps:        appInsights,
+			params:      paramInsights,
+			sessionApps: sessionApps,
 
 			templateNames:     templateNames,
 			organizationNames: organizationNames,
@@ -228,44 +227,27 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 		return // insights data not loaded yet
 	}
 
-	// Custom apps
+	// Template apps
 	for _, appRow := range data.apps {
 		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue, float64(appRow.UsageSeconds), data.templateNames[appRow.TemplateID],
-			appRow.DisplayName, appRow.SlugOrPort, data.organizationNames[appRow.TemplateID])
+			appRow.DisplayName, appRow.SlugOrPort, string(codersdk.ConnectionLogMethodWorkspaceApp), data.organizationNames[appRow.TemplateID])
 	}
 
-	// Built-in apps
-	for _, templateRow := range data.templates {
-		orgName := data.organizationNames[templateRow.templateID]
-
-		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
-			float64(templateRow.usageSecondsByFamily[codersdk.AppFamilyVSCode]),
-			data.templateNames[templateRow.templateID],
-			codersdk.TemplateBuiltinAppDisplayNameVSCode,
-			"", orgName)
-
-		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
-			float64(templateRow.usageSecondsByFamily[codersdk.AppFamilyJetBrains]),
-			data.templateNames[templateRow.templateID],
-			codersdk.TemplateBuiltinAppDisplayNameJetBrains,
-			"", orgName)
-
-		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
-			float64(templateRow.usageSecondsByFamily[codersdk.AppFamilyReconnectingPTY]),
-			data.templateNames[templateRow.templateID],
-			codersdk.TemplateBuiltinAppDisplayNameWebTerminal,
-			"", orgName)
-
-		metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
-			float64(templateRow.usageSecondsByFamily[codersdk.AppFamilySSH]),
-			data.templateNames[templateRow.templateID],
-			codersdk.TemplateBuiltinAppDisplayNameSSH,
-			"", orgName)
+	// Built-in apps. connection_method keeps an app name apart from a
+	// template app with the same slug.
+	for templateID, byApp := range data.sessionApps {
+		templateName := data.templateNames[templateID]
+		orgName := data.organizationNames[templateID]
+		for appName, seconds := range byApp {
+			displayName, _, _ := codersdk.SessionAppPresentation(appName)
+			metricsCh <- prometheus.MustNewConstMetric(applicationsUsageSecondsDesc, prometheus.GaugeValue,
+				float64(seconds), templateName, displayName, appName, string(codersdk.SessionAppMethod(appName)), orgName)
+		}
 	}
 
 	// Templates
 	for _, templateRow := range data.templates {
-		metricsCh <- prometheus.MustNewConstMetric(templatesActiveUsersDesc, prometheus.GaugeValue, float64(templateRow.activeUsers), data.templateNames[templateRow.templateID], data.organizationNames[templateRow.templateID])
+		metricsCh <- prometheus.MustNewConstMetric(templatesActiveUsersDesc, prometheus.GaugeValue, float64(templateRow.ActiveUsers), data.templateNames[templateRow.TemplateID], data.organizationNames[templateRow.TemplateID])
 	}
 
 	// Parameters
@@ -276,10 +258,10 @@ func (mc *MetricsCollector) Collect(metricsCh chan<- prometheus.Metric) {
 
 // Helper functions below.
 
-func uniqueTemplateIDs(templateInsights []templateInsightsRow, appInsights []database.GetTemplateAppInsightsByTemplateRow, paramInsights []parameterRow) []uuid.UUID {
+func uniqueTemplateIDs(templateInsights []database.GetTemplateInsightsByTemplateRow, appInsights []database.GetTemplateAppInsightsByTemplateRow, paramInsights []parameterRow) []uuid.UUID {
 	tids := map[uuid.UUID]bool{}
 	for _, t := range templateInsights {
-		tids[t.templateID] = true
+		tids[t.TemplateID] = true
 	}
 	for _, t := range appInsights {
 		tids[t.TemplateID] = true
@@ -303,20 +285,6 @@ func onlyTemplateNames(templates []database.Template) map[uuid.UUID]string {
 		m[t.ID] = t.Name
 	}
 	return m
-}
-
-// convertTemplateInsights groups each row's per-app session usage into
-// families.
-func convertTemplateInsights(rows []database.GetTemplateInsightsByTemplateRow) []templateInsightsRow {
-	converted := make([]templateInsightsRow, 0, len(rows))
-	for _, row := range rows {
-		converted = append(converted, templateInsightsRow{
-			templateID:           row.TemplateID,
-			activeUsers:          row.ActiveUsers,
-			usageSecondsByFamily: codersdk.SumByFamily(row.SessionAppUsageSeconds),
-		})
-	}
-	return converted
 }
 
 func convertParameterInsights(rows []database.GetTemplateParameterInsightsRow) []parameterRow {

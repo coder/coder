@@ -1,6 +1,5 @@
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { uploadFile } from "#/api/queries/files";
 import {
@@ -8,6 +7,7 @@ import {
 	templateVersionLogs,
 	templateVersionVariables,
 } from "#/api/queries/templates";
+import { toast } from "#/components/Toaster/toast";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import type { CreateTemplatePageViewProps } from "./types";

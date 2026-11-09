@@ -43,6 +43,8 @@ type SubagentModelOverrideSettingsProps = {
 	saveErrorMessage: string;
 	unsetPlaceholder?: string;
 	unavailableModelWarning?: string;
+	renderSelectedModelAlert?: (modelID: string) => React.ReactNode;
+	renderSelectorAdornment?: (modelID: string) => React.ReactNode;
 	disabled?: boolean;
 };
 
@@ -62,6 +64,8 @@ export const SubagentModelOverrideSettings: React.FC<
 	saveErrorMessage,
 	unsetPlaceholder = "Use chat default",
 	unavailableModelWarning = "The saved model is no longer enabled and will be ignored until you choose a new override.",
+	renderSelectedModelAlert,
+	renderSelectorAdornment,
 	disabled = false,
 }) => {
 	const { isSavedVisible, showSavedState } = useTemporarySavedState();
@@ -111,6 +115,13 @@ export const SubagentModelOverrideSettings: React.FC<
 	const isUnavailableSavedModel =
 		form.values.model_config_id !== "" && selectedModelOption === undefined;
 
+	let placeholder = unsetPlaceholder;
+	if (isLoading) {
+		placeholder = "Loading models...";
+	} else if (isUnavailableSavedModel) {
+		placeholder = "Unavailable model";
+	}
+
 	return (
 		<AgentSettingLayout
 			title={title}
@@ -125,45 +136,49 @@ export const SubagentModelOverrideSettings: React.FC<
 			}
 		>
 			<div className="flex w-88 max-w-full flex-col gap-2">
-				<ModelSelector
-					options={enabledModelOptions}
-					value={form.values.model_config_id}
-					onValueChange={(value) => {
-						const option = enabledModelOptions.find(
-							(option) => option.id === value,
-						);
-						void form.setValues({
-							model_config_id: value,
-							reasoning_effort:
-								pickReasoningEffort(
-									"",
-									option?.reasoningEfforts ?? [],
-									option?.reasoningEffortDefault,
-								) ?? "",
-						});
-					}}
-					triggerAriaLabel={title}
-					disabled={isFormDisabled}
-					placeholder={
-						isLoading
-							? "Loading models..."
-							: isUnavailableSavedModel
-								? "Unavailable model"
-								: unsetPlaceholder
-					}
-					emptyMessage="No enabled models found."
-					className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm"
-					contentClassName="min-w-72"
-					reasoningEffort={selectedReasoningEffort}
-					onReasoningEffortChange={(value) =>
-						void form.setFieldValue("reasoning_effort", value)
-					}
-				/>
+				<div className="flex items-center gap-2">
+					<ModelSelector
+						options={enabledModelOptions}
+						value={form.values.model_config_id}
+						onValueChange={(value) => {
+							const option = enabledModelOptions.find(
+								(option) => option.id === value,
+							);
+							void form.setValues({
+								model_config_id: value,
+								reasoning_effort:
+									pickReasoningEffort(
+										"",
+										option?.reasoningEfforts ?? [],
+										option?.reasoningEffortDefault,
+									) ?? "",
+							});
+						}}
+						triggerAriaLabel={title}
+						disabled={isFormDisabled}
+						placeholder={placeholder}
+						emptyMessage="No enabled models found."
+						className="h-10 w-full justify-between rounded-md border border-border border-solid bg-transparent px-3 text-sm"
+						contentClassName="min-w-72"
+						reasoningEffort={selectedReasoningEffort}
+						onReasoningEffortChange={(value) =>
+							void form.setFieldValue("reasoning_effort", value)
+						}
+					/>
+					{renderSelectorAdornment && (
+						// Reserves the slot so the selector keeps its width as the adornment toggles.
+						<div className="flex w-4 shrink-0 items-center">
+							{renderSelectorAdornment(form.values.model_config_id)}
+						</div>
+					)}
+				</div>
 				<ModelOverrideAlerts
 					isUnavailableSavedModel={isUnavailableSavedModel}
 					unavailableMessage={unavailableModelWarning}
 					modelsError={modelsError}
-				/>
+				>
+					{renderSelectedModelAlert?.(form.values.model_config_id)}
+				</ModelOverrideAlerts>
 			</div>
 			<Button
 				size="lg"

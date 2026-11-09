@@ -1,5 +1,5 @@
 title: Customize your template
-description: Add a language, install command-line tools, and authenticate to GitHub
+description: Add a language, install command-line tools, and authenticate to GitHub.
 path: ./get-started/customize-your-template/index.md
 children:
   - title: Add a programming language

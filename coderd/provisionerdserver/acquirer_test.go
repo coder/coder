@@ -678,7 +678,7 @@ func TestAcquirer_MatchTags(t *testing.T) {
 
 	t.Run("GenTable", func(t *testing.T) {
 		t.Parallel()
-		// Generate a table that can be copy-pasted into docs/admin/provisioners/index.md
+		// Generate a table that can be copy-pasted into docs/install/operate/provisioners/index.md
 		lines := []string{
 			"\n",
 			"| Provisioner Tags | Job Tags | Same Org | Can Run Job? |",
@@ -707,7 +707,7 @@ func TestAcquirer_MatchTags(t *testing.T) {
 			s := fmt.Sprintf("| %s | %s | %s | %s |", kvs(tt.acquireJobTags), kvs(tt.provisionerJobTags), sameOrg, acquire)
 			lines = append(lines, s)
 		}
-		t.Log("You can paste this into docs/admin/provisioners/index.md")
+		t.Log("You can paste this into docs/install/operate/provisioners/index.md")
 		t.Log(strings.Join(lines, "\n"))
 	})
 }

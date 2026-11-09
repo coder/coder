@@ -149,8 +149,8 @@ type CreateTemplateRequest struct {
 	// DisplayName is the displayed name of the template.
 	DisplayName string `json:"display_name,omitempty" validate:"template_display_name"`
 	// Description is a description of what the template contains. It must be
-	// less than 128 bytes.
-	Description string `json:"description,omitempty" validate:"lt=128"`
+	// no longer than 128 Unicode code points.
+	Description string `json:"description,omitempty" validate:"lte=128"`
 	// Icon is a relative path or external URL that specifies
 	// an icon to be displayed in the dashboard.
 	Icon string `json:"icon,omitempty"`
@@ -175,10 +175,10 @@ type CreateTemplateRequest struct {
 	// workspaces created from this template. Defaults to 0 (disabled).
 	TimeTilAutostopNotifyMillis *int64 `json:"time_til_autostop_notify_ms,omitempty"`
 	// AutostopRequirement allows optionally specifying the autostop requirement
-	// for workspaces created from this template. This is an enterprise feature.
+	// for workspaces created from this template. This is a Premium feature.
 	AutostopRequirement *TemplateAutostopRequirement `json:"autostop_requirement,omitempty"`
 	// AutostartRequirement allows optionally specifying the autostart allowed days
-	// for workspaces created from this template. This is an enterprise feature.
+	// for workspaces created from this template. This is a Premium feature.
 	AutostartRequirement *TemplateAutostartRequirement `json:"autostart_requirement,omitempty"`
 
 	// Allow users to cancel in-progress workspace jobs.
@@ -186,14 +186,14 @@ type CreateTemplateRequest struct {
 	AllowUserCancelWorkspaceJobs *bool `json:"allow_user_cancel_workspace_jobs"`
 
 	// AllowUserAutostart allows users to set a schedule for autostarting their
-	// workspace. By default this is true. This can only be disabled when using
-	// an enterprise license.
+	// workspace. By default this is true. This can only be disabled with a
+	// Premium license.
 	AllowUserAutostart *bool `json:"allow_user_autostart,omitempty"`
 
 	// AllowUserAutostop allows users to set a custom workspace TTL to use in
 	// place of the template's DefaultTTL field. By default this is true. If
-	// false, the DefaultTTL will always be used. This can only be disabled when
-	// using an enterprise license.
+	// false, the DefaultTTL will always be used. This can only be disabled with a
+	// Premium license.
 	AllowUserAutostop *bool `json:"allow_user_autostop,omitempty"`
 
 	// FailureTTLMillis allows optionally specifying the max lifetime before Coder
@@ -262,9 +262,11 @@ type CreateWorkspaceRequest struct {
 	TTLMillis         *int64    `json:"ttl_ms,omitempty"`
 	// RichParameterValues allows for additional parameters to be provided
 	// during the initial provision.
-	RichParameterValues     []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
-	AutomaticUpdates        AutomaticUpdates          `json:"automatic_updates,omitempty"`
-	TemplateVersionPresetID uuid.UUID                 `json:"template_version_preset_id,omitempty" format:"uuid"`
+	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
+	// Secrets sets the workspace's initial secrets.
+	Secrets                 []WorkspaceSecretInput `json:"secrets,omitempty"`
+	AutomaticUpdates        AutomaticUpdates       `json:"automatic_updates,omitempty"`
+	TemplateVersionPresetID uuid.UUID              `json:"template_version_preset_id,omitempty" format:"uuid"`
 }
 
 func (c *Client) OrganizationByName(ctx context.Context, name string) (Organization, error) {
@@ -674,6 +676,10 @@ func (c *Client) CreateWorkspace(ctx context.Context, _ uuid.UUID, user string, 
 
 // CreateUserWorkspace creates a new workspace for the template specified.
 func (c *Client) CreateUserWorkspace(ctx context.Context, user string, request CreateWorkspaceRequest) (Workspace, error) {
+	// Validate before URL resolution can interpret user input as a path or query.
+	if err := validateWorkspacePathSegment(user); err != nil {
+		return Workspace{}, xerrors.Errorf("invalid user: %w", err)
+	}
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/workspaces", user), request)
 	if err != nil {
 		return Workspace{}, err

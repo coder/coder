@@ -71,6 +71,7 @@ endif
 	site/src/api/typesGenerated.ts \
 	site/e2e/provisionerGenerated.ts \
 	site/src/api/chatModelOptionsGenerated.json \
+	site/src/api/appFamiliesGenerated.ts \
 	site/src/api/rbacresourcesGenerated.ts \
 	site/src/api/countriesGenerated.ts \
 	site/src/theme/icons.json \
@@ -81,12 +82,14 @@ endif
 	docs/admin/integrations/prometheus.md \
 	docs/admin/security/audit-logs.md \
 	docs/admin/setup/configuration-reference.md \
+	docs/reference/api-key-scopes.md \
 	docs/reference/cli/index.md \
 	coderd/apidoc/swagger.json \
 	coderd/rbac/object_gen.go \
 	coderd/rbac/scopes_constants_gen.go \
 	codersdk/rbacresources_gen.go \
-	codersdk/apikey_scopes_gen.go
+	codersdk/apikey_scopes_gen.go \
+	codersdk/dbenums_gen.go
 
 # atomic_write runs a command, captures stdout into a temp file, and
 # atomically replaces $@. An optional second argument is a formatting
@@ -196,6 +199,12 @@ _gen/bin/gensite: $(wildcard scripts/gensite/*.go) | _gen
 _gen/bin/apikeyscopesgen: $(wildcard scripts/apikeyscopesgen/*.go) $(RBAC_GO_FILES) | _gen
 	@mkdir -p _gen/bin
 	go build -o $@ ./scripts/apikeyscopesgen
+
+# scopesdocgen reads the RBAC scope catalog to produce the API key scopes
+# reference page.
+_gen/bin/scopesdocgen: $(wildcard scripts/scopesdocgen/*.go) $(wildcard scripts/docgenenv/*.go) $(RBAC_GO_FILES) | _gen
+	@mkdir -p _gen/bin
+	go build -o $@ ./scripts/scopesdocgen
 
 _gen/bin/aibridgepricesgen: $(wildcard scripts/aibridgepricesgen/*.go) scripts/aibridgepricesgen/curation.json | _gen
 	@mkdir -p _gen/bin
@@ -353,7 +362,9 @@ site/out/bin/coder.sha1: $(CODER_SLIM_BINARIES)
 
 build/coder-slim_$(VERSION).tar: build/coder-slim_$(VERSION)_checksums.sha1 $(CODER_SLIM_BINARIES)
 	pushd ./site/out/bin
-		tar cf "../../../build/$(@F)" coder-*
+		# Group binaries by architecture so that zstd's long-distance matching
+		# window can deduplicate code shared across operating systems.
+		tar cf "../../../build/$(@F)" $$(ls coder-* | sort -t- -k3)
 	popd
 
 	# delete the uncompressed binaries from the embedded dir
@@ -586,24 +597,25 @@ $(foreach chart,$(charts),build/$(chart)_helm_$(VERSION).tgz): build/%_helm_$(VE
 		--chart $* \
 		--output "$@"
 
-node_modules/.installed: package.json pnpm-lock.yaml
+node_modules/.installed: package.json pnpm-lock.yaml pnpm-workspace.yaml
 	./scripts/pnpm_install.sh
 	touch "$@"
 
-offlinedocs/node_modules/.installed: offlinedocs/package.json offlinedocs/pnpm-lock.yaml
+offlinedocs/node_modules/.installed: offlinedocs/package.json offlinedocs/pnpm-lock.yaml offlinedocs/pnpm-workspace.yaml
 	(cd offlinedocs/ && ../scripts/pnpm_install.sh)
 	touch "$@"
 
-site/node_modules/.installed: site/package.json site/pnpm-lock.yaml
+site/node_modules/.installed: site/package.json site/pnpm-lock.yaml site/pnpm-workspace.yaml
 	(cd site/ && ../scripts/pnpm_install.sh)
 	touch "$@"
 
-scripts/apidocgen/node_modules/.installed: scripts/apidocgen/package.json scripts/apidocgen/pnpm-lock.yaml
+scripts/apidocgen/node_modules/.installed: scripts/apidocgen/package.json scripts/apidocgen/pnpm-lock.yaml scripts/apidocgen/pnpm-workspace.yaml
 	(cd scripts/apidocgen && ../../scripts/pnpm_install.sh)
 	touch "$@"
 
 SITE_GEN_FILES := \
 	site/src/api/typesGenerated.ts \
+	site/src/api/appFamiliesGenerated.ts \
 	site/src/api/rbacresourcesGenerated.ts \
 	site/src/api/countriesGenerated.ts \
 	site/src/api/chatModelOptionsGenerated.json \
@@ -773,11 +785,11 @@ gen/docs-manifest: fmt/docs-manifest site/node_modules/.installed | _gen
 # GitHub Actions linters are run in a separate CI job (lint-actions) that only
 # triggers when workflow files change, so we skip them here when CI=true.
 LINT_ACTIONS_TARGETS := $(if $(CI),,lint/actions/actionlint)
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/docs-manifest lint/style-claims lint/check-scopes lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions $(LINT_ACTIONS_TARGETS)
+lint: lint/shellcheck lint/go lint/go/new-code lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/docs-html lint/docs-manifest lint/docs-redirects lint/style-claims lint/check-scopes lint/check-experiment-keys lint/migrations lint/bootstrap lint/architecture lint/emdash lint/agents lint/mise-versions lint/docs-gen-filter $(LINT_ACTIONS_TARGETS)
 .PHONY: lint
 
 # Fast lint subset for lightweight hooks. Some targets use mise-managed tools.
-lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash lint/style-claims lint/mise-versions
+lint-light: lint/shellcheck lint/markdown lint/helm lint/bootstrap lint/migrations lint/actions/actionlint lint/typos lint/emdash lint/docs-redirects lint/style-claims lint/mise-versions
 .PHONY: lint-light
 
 lint/site-icons:
@@ -793,11 +805,27 @@ lint/ts: site/node_modules/.installed
 GO_LINT_CONCURRENCY := $(shell n=$$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1); echo $$(( n < 8 ? n : 8 )))
 GO_LINT_MEMLIMIT ?= 8GiB
 
+# --allow-serial-runners makes lint/go and lint/go/new-code wait for each
+# other's golangci-lint lock when `make -j lint` starts them together.
 lint/go:
-	GOMEMLIMIT="$${GOMEMLIMIT:-$(GO_LINT_MEMLIMIT)}" golangci-lint run --concurrency="$(GO_LINT_CONCURRENCY)"
+	./scripts/check_golangci_exclusions.sh
+	GOMEMLIMIT="$${GOMEMLIMIT:-$(GO_LINT_MEMLIMIT)}" golangci-lint run --allow-serial-runners --concurrency="$(GO_LINT_CONCURRENCY)"
 	paralleltestctx -custom-funcs="testutil.Context,chatdTestContext" ./...
 	go run ./scripts/intxcheck ./...
 .PHONY: lint/go
+
+# Revision whose merge base with HEAD bounds the lines lint/go/new-code checks.
+GO_LINT_NEW_CODE_BASE ?= origin/main
+
+# Rules the existing tree does not pass yet, applied only to changed lines.
+# golangci-lint matches changed lines against symlink-resolved file paths
+# made relative to PWD, so a checkout reached through a symlink would
+# silently report nothing; `pwd -P` resolves the working directory first.
+lint/go/new-code:
+	cd "$$(pwd -P)"
+	GOMEMLIMIT="$${GOMEMLIMIT:-$(GO_LINT_MEMLIMIT)}" golangci-lint run --allow-serial-runners --concurrency="$(GO_LINT_CONCURRENCY)" \
+		--config=.golangci.new-code.yaml --new-from-merge-base="$(GO_LINT_NEW_CODE_BASE)"
+.PHONY: lint/go/new-code
 
 lint/examples: | _gen/bin/examplegen
 	_gen/bin/examplegen -lint
@@ -820,19 +848,33 @@ lint/emdash:
 # Fails when docs Markdown contains invalid inline HTML the docs site drops or
 # mangles: swallowed angle-bracket placeholders (e.g. <region>), void-element
 # end tags (</br>), capitalized or unregistered component tags (e.g. <Image>),
-# and unclosed container tags.
+# and unclosed container tags. Also fails on table header cells with no text.
 lint/docs-html:
-	echo "--- check for invalid inline HTML in docs"
+	echo "--- check for invalid inline HTML and empty table headers in docs"
 	go run ./scripts/docshtmlcheck
 .PHONY: lint/docs-html
 
 # Fails when the YAML sidebar sources under docs/manifest are unformatted or
 # invalid: unknown or misordered keys, missing pages, overlays that match no
-# generated route, or source files that nothing references.
+# generated route, source files that nothing references, or a page description
+# (in the sources, a generated fragment, or page front matter) that doesn't end
+# with a period.
 lint/docs-manifest: _gen/bin/docsmanifestgen
 	echo "--- check docs sidebar sources"
 	_gen/bin/docsmanifestgen check
 .PHONY: lint/docs-manifest
+
+# Fails when docs/redirects.json, the redirects the docs site applies for pages
+# that moved or were removed, is malformed, points at a page that is not in
+# docs/manifest.json, hides a live page, or has duplicate, chained, or looping
+# rules. Also fails when a route that worked on the base branch or on the live
+# site for the target branch no longer resolves. The live page list needs
+# network access; pass -offline to skip it. Passes when the file does not
+# exist. See scripts/docsredirectscheck/README.md.
+lint/docs-redirects:
+	echo "--- check docs/redirects.json"
+	go run ./scripts/docsredirectscheck
+.PHONY: lint/docs-redirects
 
 # Fails when the style guide claims a prose rule is enforced by tooling that is
 # not enabled, when an enabled rule has no style guide section, or when the
@@ -844,6 +886,13 @@ lint/style-claims:
 	echo "--- check docs style guide enforcement claims"
 	go run ./scripts/styleclaims
 .PHONY: lint/style-claims
+
+# Fails when documented --experiments and CODER_EXPERIMENTS values are not in
+# codersdk.ExperimentsKnown.
+lint/check-experiment-keys:
+	echo "--- check documented experiment keys"
+	go run ./scripts/checkexperimentkeys
+.PHONY: lint/check-experiment-keys
 
 lint/architecture:
 	./scripts/check_architecture.sh
@@ -886,6 +935,12 @@ lint/actions/zizmor:
 lint/mise-versions:
 	./scripts/check_mise_versions.sh
 .PHONY: lint/mise-versions
+
+# Fails when the docs-gen filter in .github/workflows/ci.yaml misses a docs
+# file make gen writes.
+lint/docs-gen-filter:
+	go run ./scripts/docsgenfiltercheck $(GEN_FILES)
+.PHONY: lint/docs-gen-filter
 
 # Verify api_key_scope enum contains all RBAC <resource>:<action> values.
 lint/check-scopes: coderd/database/dump.sql | _gen/bin/check-scopes
@@ -1068,10 +1123,12 @@ GEN_FILES := \
 	codersdk/rbacresources_gen.go \
 	coderd/rbac/scopes_constants_gen.go \
 	codersdk/apikey_scopes_gen.go \
+	codersdk/dbenums_gen.go \
 	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
 	docs/admin/setup/configuration-reference.md \
+	docs/reference/api-key-scopes.md \
 	coderd/apidoc/swagger.json \
 	docs/manifest.json \
 	docs/manifest/generated/cli.json \
@@ -1088,7 +1145,10 @@ GEN_FILES := \
 	codersdk/workspacesdk/agentconnmock/agentconnmock.go \
 	$(AIBRIDGED_MOCKS)
 
-# all gen targets should be added here and to gen/mark-fresh
+# all gen targets should be added here and to gen/mark-fresh. Generated files
+# and inputs under any path in the docs filter in .github/workflows/ci.yaml
+# must also match its docs-gen filter, or CI skips gen for docs-only PRs that
+# edit them. lint/docs-gen-filter checks generated files but not inputs.
 # Set GEN_SKIP_GOLDEN=1 to skip gen/golden-files (which needs Docker to
 # start PostgreSQL via testcontainers).
 GEN_SKIP_GOLDEN ?=
@@ -1118,7 +1178,7 @@ coderd/aibridge/prices/data/prices.json: _gen/bin/aibridgepricesgen _gen/models-
 # snapshot joined with the editorial curation in
 # scripts/aibridgepricesgen/curation.json. Kept out of `make gen` for the
 # same live-upstream-data reason as prices.json.
-site/src/modules/aiModels/knownModels/knownModelsGenerated.json: _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
+site/src/modules/aiModels/knownModels/knownModelsGenerated.json: site/node_modules/.installed _gen/bin/aibridgepricesgen _gen/models-dev.json | _gen
 	$(call atomic_write,_gen/bin/aibridgepricesgen -format=catalog -upstream _gen/models-dev.json,./scripts/biome_format.sh)
 .PHONY: site/src/modules/aiModels/knownModels/knownModelsGenerated.json
 
@@ -1131,6 +1191,7 @@ gen/golden-files: \
 	agent/unit/testdata/.gen-golden \
 	cli/testdata/.gen-golden \
 	coderd/.gen-golden \
+	coderd/mcp/testdata/.gen-golden \
 	coderd/notifications/.gen-golden \
 	enterprise/cli/testdata/.gen-golden \
 	enterprise/tailnet/testdata/.gen-golden \
@@ -1165,6 +1226,8 @@ gen/mark-fresh:
 		codersdk/rbacresources_gen.go \
 		coderd/rbac/scopes_constants_gen.go \
 		codersdk/apikey_scopes_gen.go \
+		codersdk/dbenums_gen.go \
+		site/src/api/appFamiliesGenerated.ts \
 		site/src/api/rbacresourcesGenerated.ts \
 		site/src/api/countriesGenerated.ts \
 		site/src/api/chatModelOptionsGenerated.json \
@@ -1172,6 +1235,7 @@ gen/mark-fresh:
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
 		docs/admin/setup/configuration-reference.md \
+		docs/reference/api-key-scopes.md \
 		coderd/apidoc/swagger.json \
 		docs/manifest.json \
 		docs/manifest/generated/cli.json \
@@ -1361,6 +1425,11 @@ codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/m
 	$(call atomic_write,_gen/bin/typegen rbac codersdk)
 	touch "$@"
 
+# Reads coderd/database/models.go, which generate.sh writes with querier.go.
+codersdk/dbenums_gen.go: scripts/typegen/dbenums.gotmpl scripts/typegen/main.go coderd/database/querier.go | _gen _gen/bin/typegen
+	$(call atomic_write,_gen/bin/typegen dbenums)
+	touch "$@"
+
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
 # the generator build compiles coderd/rbac which includes both.
 codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scopes_catalog.go coderd/rbac/scopes.go \
@@ -1368,6 +1437,9 @@ codersdk/apikey_scopes_gen.go: scripts/apikeyscopesgen/main.go coderd/rbac/scope
 	# Generate SDK constants for external API key scopes.
 	$(call atomic_write,_gen/bin/apikeyscopesgen)
 	touch "$@"
+
+site/src/api/appFamiliesGenerated.ts: site/node_modules/.installed scripts/typegen/appfamilies.tstmpl scripts/typegen/main.go codersdk/appname.go | _gen _gen/bin/typegen
+	$(call atomic_write,_gen/bin/typegen appfamilies,./scripts/biome_format.sh)
 
 # NOTE: depends on object_gen.go and scopes_constants_gen.go because
 # the generator build compiles coderd/rbac which includes both.
@@ -1378,7 +1450,7 @@ site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typ
 site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go | _gen _gen/bin/typegen
 	$(call atomic_write,_gen/bin/typegen countries,./scripts/biome_format.sh)
 
-site/src/api/chatModelOptionsGenerated.json: scripts/modeloptionsgen/main.go codersdk/chats.go | _gen _gen/bin/modeloptionsgen
+site/src/api/chatModelOptionsGenerated.json: site/node_modules/.installed scripts/modeloptionsgen/main.go codersdk/chats.go | _gen _gen/bin/modeloptionsgen
 	$(call atomic_write,_gen/bin/modeloptionsgen | tail -n +2,./scripts/biome_format.sh)
 
 scripts/metricsdocgen/generated_metrics: $(GO_SRC_FILES) | _gen _gen/bin/metricsdocgen-scanner
@@ -1417,9 +1489,18 @@ docs/admin/setup/configuration-reference.md: node_modules/.installed $(wildcard 
 		pnpm exec markdown-table-formatter "$$tmpfile" && \
 		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
 
+docs/reference/api-key-scopes.md: node_modules/.installed $(wildcard scripts/scopesdocgen/*.go) $(RBAC_GO_FILES) $(DOCS_MANIFEST_SOURCES) _gen/bin/scopesdocgen | _gen
+	tmpdir=$$(mktemp -d -p _gen) && tmpfile=$$(realpath "$$tmpdir")/$(notdir $@) && \
+		_gen/bin/scopesdocgen --out="$$tmpfile" && \
+		pnpm exec markdownlint-cli2 --fix "$$tmpfile" && \
+		pnpm exec markdown-table-formatter "$$tmpfile" && \
+		mv "$$tmpfile" "$@" && rm -rf "$$tmpdir"
+
 coderd/apidoc/.gen: \
 	node_modules/.installed \
+	site/node_modules/.installed \
 	scripts/apidocgen/node_modules/.installed \
+	site/node_modules/.installed \
 	$(wildcard coderd/*.go) \
 	$(wildcard enterprise/coderd/*.go) \
 	$(wildcard codersdk/*.go) \
@@ -1540,6 +1621,10 @@ helm/ai-gateway/tests/testdata/.gen-golden: $(wildcard helm/ai-gateway/tests/tes
 
 coderd/.gen-golden: $(wildcard coderd/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/*_test.go)
 	TZ=UTC go test ./coderd -run="Test.*Golden$$" -update
+	touch "$@"
+
+coderd/mcp/testdata/.gen-golden: $(wildcard coderd/mcp/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/mcp/*_test.go)
+	TZ=UTC go test ./coderd/mcp -run="Test.*Golden$$" -update
 	touch "$@"
 
 coderd/notifications/.gen-golden: $(wildcard coderd/notifications/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/notifications/*_test.go)

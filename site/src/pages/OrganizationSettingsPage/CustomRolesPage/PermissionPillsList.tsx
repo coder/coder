@@ -21,7 +21,7 @@ export const PermissionPillsList: React.FC<PermissionPillsListProps> = ({
 	const resourceTypes = getUniqueResourceTypes(permissions);
 
 	return (
-		<div className="flex flex-row gap-2">
+		<div className="flex gap-2">
 			{permissions.length > 0 ? (
 				<PermissionsPill
 					resource={resourceTypes[0]}

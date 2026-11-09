@@ -14,6 +14,7 @@ import {
 	ChartContainer,
 	ChartTooltip,
 	ChartTooltipContent,
+	getDailyChartDescription,
 } from "#/components/Chart/Chart";
 import {
 	Collapsible,
@@ -139,6 +140,13 @@ export const LicenseSeatConsumptionChart: React.FC<
 							>
 								<AreaChart
 									accessibilityLayer
+									role="group"
+									aria-roledescription="chart"
+									title="License seat consumption"
+									desc={getDailyChartDescription(
+										"Daily license seats used",
+										data.map((d) => d.date),
+									)}
 									data={data}
 									margin={{
 										top: 5,
@@ -176,8 +184,9 @@ export const LicenseSeatConsumptionChart: React.FC<
 									/>
 									<ChartTooltip
 										cursor={false}
-										content={
+										content={(props) => (
 											<ChartTooltipContent
+												{...props}
 												className="font-medium text-content-secondary"
 												labelClassName="text-content-primary"
 												labelFormatter={(_, p) => {
@@ -192,7 +201,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 													});
 												}}
 											/>
-										}
+										)}
 									/>
 									<defs>
 										<linearGradient id="fillUsers" x1="0" y1="0" x2="0" y2="1">

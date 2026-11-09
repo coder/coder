@@ -37,7 +37,8 @@ func Compare(reg prometheus.Gatherer, compare string, metricNames ...string) err
 	return ptestutil.GatherAndCompare(reg, strings.NewReader(compare), metricNames...)
 }
 
-// HistogramValue returns the value of a histogram metric with the given name and labels.
+// HistogramValue returns the value of a histogram metric with the given name
+// and labels. Each call gathers separately; see [MetricValue].
 func HistogramValue(t testing.TB, reg prometheus.Gatherer, metricName string, labels prometheus.Labels) *io_prometheus_client.Histogram {
 	t.Helper()
 
@@ -46,7 +47,8 @@ func HistogramValue(t testing.TB, reg prometheus.Gatherer, metricName string, la
 	return labeled.GetHistogram()
 }
 
-// GaugeValue returns the value of a gauge metric with the given name and labels.
+// GaugeValue returns the value of a gauge metric with the given name and
+// labels. Each call gathers separately; see [MetricValue].
 func GaugeValue(t testing.TB, reg prometheus.Gatherer, metricName string, labels prometheus.Labels) int {
 	t.Helper()
 
@@ -55,7 +57,8 @@ func GaugeValue(t testing.TB, reg prometheus.Gatherer, metricName string, labels
 	return int(labeled.GetGauge().GetValue())
 }
 
-// CounterValue returns the value of a counter metric with the given name and labels.
+// CounterValue returns the value of a counter metric with the given name and
+// labels. Each call gathers separately; see [MetricValue].
 func CounterValue(t testing.TB, reg prometheus.Gatherer, metricName string, labels prometheus.Labels) int {
 	t.Helper()
 
@@ -64,6 +67,9 @@ func CounterValue(t testing.TB, reg prometheus.Gatherer, metricName string, labe
 	return int(labeled.GetCounter().GetValue())
 }
 
+// MetricValue returns the metric with the given name and labels, or nil if
+// it is not found. Each call gathers `reg` separately, as does each call to
+// testutil.ToFloat64; see the package documentation.
 func MetricValue(t testing.TB, reg prometheus.Gatherer, metricName string, labels prometheus.Labels) *io_prometheus_client.Metric {
 	t.Helper()
 
