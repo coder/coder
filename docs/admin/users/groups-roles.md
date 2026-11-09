@@ -36,7 +36,7 @@ Refer to [Organization roles](#organization-roles) for more information.
 | Execute and use **ALL** Workspaces                                       |         |            |                | ✅     |
 | View all user operation [Audit Logs](../security/audit-logs.md)          | ✅       |            |                | ✅     |
 
-A user may have one or more roles.
+A user can have one or more roles.
 Every user also holds an implicit Member role that covers their own account, such as reading their profile and managing their tokens.
 
 The Member role doesn't grant workspace access on its own.

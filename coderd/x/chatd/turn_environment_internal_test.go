@@ -387,6 +387,15 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 			wantProvider: codersdk.ChatComputerUseProviderOpenAI,
 		},
 		{
+			// An OpenAI-compatible server drops the hosted computer tool, so the
+			// turn declares the function tool and the model keeps the chat
+			// completions transport.
+			name:         "OpenAICompat",
+			providerType: database.AIProviderTypeOpenaiCompat,
+			model:        "custom-openai-compat-model",
+			wantProvider: codersdk.ChatComputerUseProviderOpenAICompat,
+		},
+		{
 			name:            "OpenAIResponsesDisabled",
 			providerType:    database.AIProviderTypeOpenai,
 			model:           "gpt-4o-mini",

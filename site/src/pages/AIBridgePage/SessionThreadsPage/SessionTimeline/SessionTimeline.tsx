@@ -461,7 +461,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 
 							{/* Agentic loop completed */}
 							<BracketConnector contentClassName="py-4 -my-px" hideBottomLine>
-								<div className="flex flex-row items-center ml-2">
+								<div className="flex items-center ml-2">
 									<StatusIndicatorDot variant="success" />
 									<span className="text-content-success font-normal ml-2 text-sm py-1">
 										Agentic loop completed

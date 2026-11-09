@@ -22,7 +22,7 @@ Templates can prompt users for their dotfiles repo URL, which will personalize y
 
 ## Personalize script
 
-Templates may be configured to support executing a `~/personalize` script on startup which users can populate with commands to customize their workspaces.
+Templates can be configured to support executing a `~/personalize` script on startup which users can populate with commands to customize their workspaces.
 
 You can even fill `personalize` with `coder dotfiles <repo>`, but those looking for a simpler approach can inline commands like so:
 

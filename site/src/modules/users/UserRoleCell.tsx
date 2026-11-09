@@ -28,7 +28,7 @@ export const UserRoleCell: React.FC<UserRoleCellProps> = ({
 
 	return (
 		<TableCell>
-			<div className="flex flex-row gap-1 items-center">
+			<div className="flex gap-1 items-center">
 				<RoleBadge role={mainDisplayRole} />
 
 				{extraRoles.length > 0 && <MoreRolePill roles={extraRoles} />}

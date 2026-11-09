@@ -51,7 +51,7 @@ It does not intentionally collect source code, terminal contents, tokens, or cre
 
 The exact events vary by extension version.
 For a comprehensive list of current events, properties, and attributes, see the [extension event reference](https://github.com/coder/vscode-coder/blob/main/src/instrumentation/EVENTS.md).
-The following categories summarize the diagnostic signals the extension may record:
+The following categories summarize the diagnostic signals the extension might record:
 
 | Area                           | Examples                                                                                     |
 |--------------------------------|----------------------------------------------------------------------------------------------|

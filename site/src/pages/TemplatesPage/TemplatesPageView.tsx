@@ -1,4 +1,3 @@
-import { cn } from "cn";
 import { ArrowRightIcon, PlusIcon, TriangleAlertIcon } from "lucide-react";
 import { Link as RouterLink, useNavigate } from "react-router";
 import { hasError, isApiValidationError } from "#/api/errors";
@@ -37,7 +36,6 @@ import {
 	TableRowSkeleton,
 } from "#/components/TableLoader/TableLoader";
 import { TooltipMessage, TooltipTitle } from "#/components/Tooltip/Tooltip";
-import { useClickableTableRow } from "#/hooks/useClickableTableRow";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 import type { WorkspacePermissions } from "#/modules/permissions/workspaces";
 import { createDayString } from "#/utils/createDayString";
@@ -191,22 +189,30 @@ const TemplateRow: React.FC<TemplateRowProps> = ({
 		template.active_user_count,
 	);
 
-	const clickableRow = useClickableTableRow({
-		onClick: () => navigate(templatePageLink),
-	});
-
 	return (
 		<TableRow
 			key={template.id}
 			data-testid={`template-${template.id}`}
-			{...clickableRow}
-			className={cn("group", clickableRow.className)}
+			hover
+			onClick={() => navigate(templatePageLink)}
+			className="group"
 		>
 			<TableHead scope="row">
 				<AvatarData
 					title={
-						<span className="flex flex-row items-center gap-2">
-							{template.display_name || template.name}
+						<span className="flex items-center gap-2">
+							<Link
+								asChild
+								showExternalIcon={false}
+								className="pl-0 font-semibold text-inherit visited:text-inherit"
+							>
+								<RouterLink
+									to={templatePageLink}
+									onClick={(e) => e.stopPropagation()}
+								>
+									{template.display_name || template.name}
+								</RouterLink>
+							</Link>
 							{canUpdateTemplate && template.use_classic_parameter_flow && (
 								<Badge variant="warning" size="sm">
 									<TriangleAlertIcon aria-hidden="true" />
@@ -324,7 +330,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 				}
 			>
 				<PageHeaderTitle>
-					<div className="flex flex-row gap-2 items-center">
+					<div className="flex gap-2 items-center">
 						Templates
 						<TemplateHelpPopover />
 					</div>

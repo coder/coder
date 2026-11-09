@@ -60,7 +60,7 @@ You can view these templates in the [exectrace repo](https://github.com/coder/ex
 
 If you have an existing Kubernetes or Kubernetes with `envbox` template that you would like to add workspace process logging to, follow these steps:
 
-1. Ensure the image used in your template has `curl` installed.
+1. Make sure the image used in your template has `curl` installed.
 
 1. Add the following section to your template's `main.tf` file:
 
@@ -282,9 +282,9 @@ fields @timestamp, log_processed.fields.cmdline
 
 ## Usage considerations
 
-- The sidecar attached to each workspace is a privileged container, so you may need to review your organization's security policies before enabling this feature.
+- The sidecar attached to each workspace is a privileged container, so you might need to review your organization's security policies before enabling this feature.
   Enabling workspace process logging does _not_ grant extra privileges to the workspace container itself, however.
 - `exectrace` will log processes from nested Docker containers (including deeply nested containers) correctly, but Coder does not distinguish between processes started in the workspace and processes started in a child container in the logs.
 - With `envbox` workspaces, this feature will detect and log startup processes begun in the outer container (including container initialization processes).
 - Because this feature logs **all** processes in the workspace, high levels of usage (for example, during a `make` run) will result in an abundance of output in the sidecar container.
-  Depending on how your Kubernetes cluster is configured, you may incur extra charges from your cloud provider to store the additional logs.
+  Depending on how your Kubernetes cluster is configured, you might incur extra charges from your cloud provider to store the additional logs.

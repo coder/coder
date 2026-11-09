@@ -237,7 +237,7 @@ export const EditOAuth2AppPageView: React.FC = () => {
 
 				{canViewAppSecrets && (
 					<div className="border border-solid p-6 rounded-lg flex flex-col gap-4">
-						<div className="flex flex-row gap-4 items-center justify-between">
+						<div className="flex gap-4 items-center justify-between">
 							<h2 className="m-0 text-xl font-semibold">Client secrets</h2>
 							{!isPublicClient && (
 								<Button

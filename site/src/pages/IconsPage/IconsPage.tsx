@@ -133,7 +133,7 @@ const IconsPage: React.FC = () => {
 					)}
 				</div>
 
-				<div className="flex flex-row gap-2 justify-center flex-wrap max-w-full mt-8">
+				<div className="flex gap-2 justify-center flex-wrap max-w-full mt-8">
 					{searchedIcons.length === 0 && (
 						<EmptyState message="No results matched your search" />
 					)}

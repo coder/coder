@@ -63,15 +63,15 @@ You use this inventory to build templates and to confirm that nothing was left b
 
 Collect the following from the Ona dashboard, the [Ona CLI](https://ona.com/docs/ona/integrations/cli), or your Ona Terraform configuration:
 
-- **Runners**: cloud, account, region, VPC, network mode (such as AWS PrivateLink or an internal load balancer), proxy, and custom CA settings.
+- **Runners**: cloud, account, region, VPC, network mode (such as AWS PrivateLink or an internal load balancer), proxy, and custom certificate authority (CA) settings.
 - **Environment classes**: the instance type, disk size, and GPU settings for each runner.
 - **Projects**: repository, default branch, Dev Container path, tasks and services path, allowed environment classes, recommended editors, and who the project is shared with.
 - **Secrets**: the name, scope (organization, project, or user), and type (environment variable, file, or container registry) of each secret.
   Collect secret values from their source of truth, such as your secret manager, instead of from Ona.
 - **Policies**: every setting under **Settings** > **Organization** > **Policies**.
-- **Identity**: SSO providers, verified domains, SCIM configuration, groups, teams, organization roles, and service accounts.
+- **Identity**: SSO providers, verified domains, System for Cross-domain Identity Management (SCIM) configuration, groups, teams, organization roles, and service accounts.
 - **Git providers**: each Git host configured on each runner, and whether it uses OAuth, personal access tokens, or both.
-- **Agents**: model access configuration, LLM integrations, MCP integrations, and any `AGENTS.md` files and skills in your repositories.
+- **Agents**: model access configuration, LLM integrations, Model Context Protocol (MCP) integrations, and any `AGENTS.md` files and skills in your repositories.
 - **Automations**: each Automation's trigger, steps, target repositories, and the identity it runs as.
   If you manage [Automations as code](https://ona.com/docs/ona/automations/automations-as-code), the YAML files in your repositories already capture this.
 
@@ -82,7 +82,7 @@ Workspaces then reach the same internal services, package registries, and databa
 
 1. Size the deployment with the [Coder validated architectures](./sizing/index.md).
 1. Install the control plane on [Kubernetes](../server/kubernetes/index.md) or on a [cloud VM](../server/cloud/index.md).
-1. Connect an [external PostgreSQL database](../server/external-database.md), such as Amazon RDS or Cloud SQL.
+1. Connect an [external PostgreSQL database](../server/external-database.md), such as [Amazon RDS](https://aws.amazon.com/rds/) or Cloud SQL.
 1. Set the [access URL and wildcard access URL](../../admin/setup/index.md) to replace the Ona custom domain.
 1. If developers depend on the deployment for daily work, run multiple replicas for [high availability](../../admin/networking/high-availability.md).
 
@@ -276,7 +276,7 @@ Refer to [Speed up your workspaces](../../workspaces/speed-up-templates.md) for 
 Ona has secrets at 3 scopes.
 Move each scope as follows:
 
-- **Organization and project secrets**: give the workspace compute a cloud identity, such as an IAM role or service account, and read values from your secret manager at startup.
+- **Organization and project secrets**: give the workspace compute a cloud identity, such as an Identity and Access Management (IAM) role or service account, and read values from your secret manager at startup.
   Alternatively, use [dynamic secrets](../../admin/security/secrets.md#dynamic-secrets) that the template creates for each workspace.
   Do not put secret values in template code or template parameters, because users with template or workspace access can read them.
 - **User secrets**: ask developers to recreate them as Coder [user secrets](../../workspaces/user-secrets.md).
