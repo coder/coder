@@ -1410,8 +1410,9 @@ type UpdateAdvisorConfigRequest struct {
 // ChatComputerUseProvider identifies the computer use tool flavor. Chatd
 // derives it from the API format of the client for the model that a computer
 // use chat runs on, so a Claude model on AWS Bedrock uses the Anthropic tool.
-// The OpenAI-compatible flavor names the tool in the chat completions format,
-// which every provider that format serves accepts.
+// Each value names that client. The openai-compat client speaks the chat
+// completions API, which has no hosted computer tool, so its flavor is an
+// ordinary function tool.
 type ChatComputerUseProvider string
 
 const (

@@ -546,27 +546,27 @@ func ClientProvider(providerType database.AIProviderType, model string) string {
 const ComputerUseModelRequirement = "a model from an Anthropic or OpenAI AI provider, a Claude model from an AWS Bedrock AI provider, or a model from an OpenAI-compatible AI provider"
 
 // ComputerUseProvider returns the computer use tool flavor for a model on an
-// AI provider of the given type. The flavor follows the client that chatd
-// builds for the model, so a Claude model on AWS Bedrock gets the Anthropic
-// tool. The OpenAI tool is accepted only on OpenAI: it is untested on Bedrock
-// Mantle.
+// AI provider of the given type. The flavor follows the API format of the
+// client that chatd builds for the model:
+//   - Anthropic Messages gets the Anthropic tool, so a Claude model on AWS
+//     Bedrock gets it too.
+//   - OpenAI Responses gets the hosted OpenAI tool, but only on OpenAI: it is
+//     untested on Bedrock Mantle.
+//   - Chat completions has no hosted computer tool, so it gets the
+//     openai-compat flavor, an ordinary function tool, but only on
+//     OpenAI-compatible providers. The other provider types that use this
+//     client stay unsupported until each is verified.
 func ComputerUseProvider(providerType database.AIProviderType, model string) (codersdk.ChatComputerUseProvider, bool) {
-	// OpenAI-compatible providers use the chat completions client, which has
-	// no hosted computer tool: self-hosted servers accept the tool definition
-	// and then drop it, so the model never sees a way to act. These models get
-	// the plain function tool instead. Provider types that reuse the chat
-	// completions client without being OpenAI-compatible (Azure, Google,
-	// OpenRouter, Vercel, Copilot) stay unsupported until each is verified.
-	if providerType == database.AIProviderTypeOpenaiCompat {
-		return codersdk.ChatComputerUseProviderOpenAICompat, true
-	}
-
 	switch ClientProvider(providerType, model) {
 	case fantasyanthropic.Name:
 		return codersdk.ChatComputerUseProviderAnthropic, true
 	case fantasyopenai.Name:
 		if providerType == database.AIProviderTypeOpenai {
 			return codersdk.ChatComputerUseProviderOpenAI, true
+		}
+	case fantasyopenaicompat.Name:
+		if providerType == database.AIProviderTypeOpenaiCompat {
+			return codersdk.ChatComputerUseProviderOpenAICompat, true
 		}
 	}
 	return "", false

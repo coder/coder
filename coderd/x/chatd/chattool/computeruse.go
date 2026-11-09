@@ -52,34 +52,68 @@ func DefaultComputerUseDesktopGeometry(provider codersdk.ChatComputerUseProvider
 // computerUseToolName is the name every computer use flavor declares.
 const computerUseToolName = "computer"
 
-// openaiCompatComputerUseActions lists the desktop actions the openai-compat
-// flavor offers. It is the vocabulary the agent desktop implements and the
-// shared action runner decodes, minus zoom, which the desktop has no way to
-// perform, and minus left_mouse_down and left_mouse_up. A failed call halts the
-// rest of the step, so a release planned after a press could never run and the
-// button would stay pressed; left_click_drag does a drag in one call.
-var openaiCompatComputerUseActions = []string{
-	"screenshot",
-	"left_click",
-	"right_click",
-	"middle_click",
-	"double_click",
-	"triple_click",
-	"mouse_move",
-	"left_click_drag",
-	"type",
-	"key",
-	"hold_key",
-	"scroll",
-	"wait",
+// computerUseActionCursorPosition reports the pointer position. The fantasy
+// fork declares no constant for it.
+const computerUseActionCursorPosition fantasyanthropic.ComputerAction = "cursor_position"
+
+// anthropicComputerUseActions lists the Anthropic computer actions that the
+// runner performs. It omits zoom because the agent desktop cannot zoom.
+var anthropicComputerUseActions = []fantasyanthropic.ComputerAction{
+	fantasyanthropic.ActionScreenshot,
+	fantasyanthropic.ActionLeftClick,
+	fantasyanthropic.ActionRightClick,
+	fantasyanthropic.ActionMiddleClick,
+	fantasyanthropic.ActionDoubleClick,
+	fantasyanthropic.ActionTripleClick,
+	fantasyanthropic.ActionMouseMove,
+	fantasyanthropic.ActionLeftClickDrag,
+	fantasyanthropic.ActionLeftMouseDown,
+	fantasyanthropic.ActionLeftMouseUp,
+	fantasyanthropic.ActionType,
+	fantasyanthropic.ActionKey,
+	fantasyanthropic.ActionHoldKey,
+	fantasyanthropic.ActionScroll,
+	fantasyanthropic.ActionWait,
+	computerUseActionCursorPosition,
+}
+
+// openaiCompatComputerUseActions lists the actions that the openai-compat
+// function tool declares. It omits these Anthropic actions:
+//   - cursor_position, because every function call answers with a screenshot,
+//     which cannot carry the position.
+//   - left_mouse_down and left_mouse_up. A failed call halts the rest of the
+//     step, so a release planned after a press could never run and the button
+//     would stay pressed. left_click_drag does a drag in one call.
+var openaiCompatComputerUseActions = []fantasyanthropic.ComputerAction{
+	fantasyanthropic.ActionScreenshot,
+	fantasyanthropic.ActionLeftClick,
+	fantasyanthropic.ActionRightClick,
+	fantasyanthropic.ActionMiddleClick,
+	fantasyanthropic.ActionDoubleClick,
+	fantasyanthropic.ActionTripleClick,
+	fantasyanthropic.ActionMouseMove,
+	fantasyanthropic.ActionLeftClickDrag,
+	fantasyanthropic.ActionType,
+	fantasyanthropic.ActionKey,
+	fantasyanthropic.ActionHoldKey,
+	fantasyanthropic.ActionScroll,
+	fantasyanthropic.ActionWait,
+}
+
+// computerUseActionNames returns the names of actions.
+func computerUseActionNames(actions []fantasyanthropic.ComputerAction) []string {
+	names := make([]string, len(actions))
+	for i, action := range actions {
+		names[i] = string(action)
+	}
+	return names
 }
 
 // openaiCompatComputerUseTool declares the computer use tool for models reached
-// through the OpenAI chat completions API. Those servers accept a hosted
-// computer tool definition and then drop it, so this flavor declares an
-// ordinary function tool and returns a screenshot with every action.
-// declaredWidth and declaredHeight are the model-facing desktop pixels the
-// runner maps coordinates against.
+// through the OpenAI chat completions API. That API has no hosted computer
+// tool, so this flavor declares an ordinary function tool and returns a
+// screenshot with every action. declaredWidth and declaredHeight are the
+// model-facing desktop pixels the runner maps coordinates against.
 func openaiCompatComputerUseTool(declaredWidth, declaredHeight int) fantasy.Tool {
 	return fantasy.FunctionTool{
 		Name: computerUseToolName,
@@ -94,7 +128,7 @@ func openaiCompatComputerUseTool(declaredWidth, declaredHeight int) fantasy.Tool
 			"properties": map[string]any{
 				"action": map[string]any{
 					"type":        "string",
-					"enum":        openaiCompatComputerUseActions,
+					"enum":        computerUseActionNames(openaiCompatComputerUseActions),
 					"description": "The desktop action to perform.",
 				},
 				"coordinate": map[string]any{
@@ -128,13 +162,13 @@ func openaiCompatComputerUseTool(declaredWidth, declaredHeight int) fantasy.Tool
 				"duration": map[string]any{
 					"type":        "integer",
 					"minimum":     0,
-					"maximum":     anthropicMaxDurationSeconds,
+					"maximum":     computerUseMaxDurationSeconds,
 					"description": "How many whole seconds to hold a key or wait.",
 				},
 				"repeat": map[string]any{
 					"type":        "integer",
 					"minimum":     1,
-					"maximum":     anthropicMaxKeyRepeat,
+					"maximum":     computerUseMaxKeyRepeat,
 					"description": "How many times to press a key.",
 				},
 			},
@@ -147,13 +181,13 @@ func openaiCompatComputerUseTool(declaredWidth, declaredHeight int) fantasy.Tool
 // follow a failed one.
 const computerUseHaltedActionText = "Not executed: an earlier computer action in this turn failed."
 
-// anthropicMaxDurationSeconds caps Anthropic wait and hold_key durations, which
-// the Anthropic schema expresses in seconds.
-const anthropicMaxDurationSeconds = 300
+// computerUseMaxDurationSeconds caps wait and hold_key durations, which the
+// one-action-per-call flavors express in seconds.
+const computerUseMaxDurationSeconds = 300
 
-// anthropicMaxKeyRepeat is the largest key repeat count the Anthropic
-// computer use toolset accepts.
-const anthropicMaxKeyRepeat = 100
+// computerUseMaxKeyRepeat is the largest key repeat count. It is the limit of
+// the Anthropic computer use toolset.
+const computerUseMaxKeyRepeat = 100
 
 // computerUseTool implements fantasy.AgentTool and chatloop.ToolDefiner.
 type computerUseTool struct {
@@ -305,51 +339,20 @@ func (t *computerUseTool) runActionPerCallComputerUse(
 	ctx context.Context,
 	call fantasy.ToolCall,
 ) (fantasy.ToolResponse, error) {
-	input, err := fantasyanthropic.ParseComputerUseInput(call.Input)
+	actions := anthropicComputerUseActions
+	if DefaultComputerUseProvider(t.provider) == codersdk.ChatComputerUseProviderOpenAICompat {
+		actions = openaiCompatComputerUseActions
+	}
+	declaredWidth, declaredHeight := t.declaredActionDimensions()
+	var input computerUseInput
+	err := json.Unmarshal([]byte(call.Input), &input)
+	if err == nil {
+		err = input.validate(actions, declaredWidth, declaredHeight)
+	}
 	if err != nil {
 		return fantasy.NewTextErrorResponse(
 			fmt.Sprintf("invalid computer use input: %v", err),
 		), nil
-	}
-	// An unverified model may send an action the function tool does not
-	// declare, such as a mouse press whose release the halt would skip.
-	if DefaultComputerUseProvider(t.provider) == codersdk.ChatComputerUseProviderOpenAICompat &&
-		!slices.Contains(openaiCompatComputerUseActions, string(input.Action)) {
-		return fantasy.NewTextErrorResponse(fmt.Sprintf(
-			"invalid computer use input: unsupported action %q, supported actions: %s",
-			input.Action, strings.Join(openaiCompatComputerUseActions, ", "),
-		)), nil
-	}
-	sent := computerUseFieldsSent(call.Input)
-	if input.Action == fantasyanthropic.ActionScroll && sent.ScrollAmount != nil && input.ScrollAmount < 1 {
-		return fantasy.NewTextErrorResponse(fmt.Sprintf(
-			"invalid computer use input: scroll_amount must be at least 1, got %d",
-			input.ScrollAmount,
-		)), nil
-	}
-
-	declaredWidth, declaredHeight := t.declaredActionDimensions()
-	// The desktop clamps an off-screen point to the screen edge, which would
-	// hide a missed target from an unverified model that aimed off the
-	// screenshot.
-	if DefaultComputerUseProvider(t.provider) == codersdk.ChatComputerUseProviderOpenAICompat {
-		for _, point := range []struct {
-			field string
-			sent  *json.RawMessage
-			xy    [2]int64
-		}{
-			{"coordinate", sent.Coordinate, input.Coordinate},
-			{"start_coordinate", sent.StartCoordinate, input.StartCoordinate},
-		} {
-			x, y := point.xy[0], point.xy[1]
-			if point.sent != nil && (x < 0 || y < 0 || x >= int64(declaredWidth) || y >= int64(declaredHeight)) {
-				return fantasy.NewTextErrorResponse(fmt.Sprintf(
-					"invalid computer use input: %s [%d, %d] is outside the %d by %d screenshot, "+
-						"x must be 0 to %d and y must be 0 to %d",
-					point.field, x, y, declaredWidth, declaredHeight, declaredWidth-1, declaredHeight-1,
-				)), nil
-			}
-		}
 	}
 
 	conn, err := t.getWorkspaceConn(ctx)
@@ -363,7 +366,7 @@ func (t *computerUseTool) runActionPerCallComputerUse(
 	case fantasyanthropic.ActionScreenshot:
 		return t.captureSharedScreenshot(ctx, conn, declaredWidth, declaredHeight)
 	case fantasyanthropic.ActionWait:
-		t.wait(ctx, anthropicDurationMillis(input.Duration))
+		t.wait(ctx, computerUseDurationMillis(input.Duration))
 		if t.computerUseAnswersWithText() {
 			return fantasy.NewTextResponse("wait action performed"), nil
 		}
@@ -372,38 +375,29 @@ func (t *computerUseTool) runActionPerCallComputerUse(
 
 	// Build the action request.
 	action := t.desktopAction(string(input.Action), declaredWidth, declaredHeight)
-	if sent.Coordinate != nil {
-		coord := coordinateFromInt64(input.Coordinate[0], input.Coordinate[1])
-		action.Coordinate = &coord
+	if input.Coordinate != nil {
+		action.Coordinate = &[2]int{input.Coordinate[0], input.Coordinate[1]}
 	}
-	if sent.StartCoordinate != nil {
-		coord := coordinateFromInt64(input.StartCoordinate[0], input.StartCoordinate[1])
-		action.StartCoordinate = &coord
+	if input.StartCoordinate != nil {
+		action.StartCoordinate = &[2]int{input.StartCoordinate[0], input.StartCoordinate[1]}
 	}
 	if input.Text != "" {
 		action.Text = &input.Text
 	}
 	if input.Duration > 0 {
-		d := int(anthropicDurationMillis(input.Duration))
+		d := int(computerUseDurationMillis(input.Duration))
 		action.Duration = &d
 	}
-	if input.ScrollAmount > 0 {
-		s := int(input.ScrollAmount)
-		action.ScrollAmount = &s
+	if input.ScrollAmount != nil && *input.ScrollAmount > 0 {
+		action.ScrollAmount = input.ScrollAmount
 	}
 	if input.ScrollDirection != "" {
 		action.ScrollDirection = &input.ScrollDirection
 	}
 
-	presses := int64(1)
-	if input.Action == fantasyanthropic.ActionKey && sent.Repeat != nil {
-		if input.Repeat < 1 || input.Repeat > anthropicMaxKeyRepeat {
-			return fantasy.NewTextErrorResponse(fmt.Sprintf(
-				"invalid computer use input: repeat must be between 1 and %d, got %d",
-				anthropicMaxKeyRepeat, input.Repeat,
-			)), nil
-		}
-		presses = input.Repeat
+	presses := 1
+	if input.Action == fantasyanthropic.ActionKey && input.Repeat != nil {
+		presses = *input.Repeat
 	}
 	var actionResp workspacesdk.DesktopActionResponse
 	for range presses {
@@ -427,38 +421,73 @@ func (t *computerUseTool) runActionPerCallComputerUse(
 	return t.captureScreenshot(ctx, conn, declaredWidth, declaredHeight)
 }
 
-// computerUseSentFields records which optional keys the model sent. A nil
-// field means the key was absent.
-type computerUseSentFields struct {
-	Coordinate      *json.RawMessage `json:"coordinate"`
-	StartCoordinate *json.RawMessage `json:"start_coordinate"`
-	ScrollAmount    *json.RawMessage `json:"scroll_amount"`
-	Repeat          *json.RawMessage `json:"repeat"`
+// computerUseInput is the input of one action in the one-action-per-call
+// flavors. A nil Coordinate, StartCoordinate, ScrollAmount, or Repeat means
+// the model omitted the key or sent null, so the top-left pixel [0, 0] and a
+// zero count stay distinct from an absent value.
+type computerUseInput struct {
+	Action          fantasyanthropic.ComputerAction `json:"action"`
+	Coordinate      []int                           `json:"coordinate"`
+	StartCoordinate []int                           `json:"start_coordinate"`
+	Text            string                          `json:"text"`
+	ScrollDirection string                          `json:"scroll_direction"`
+	ScrollAmount    *int                            `json:"scroll_amount"`
+	Duration        int64                           `json:"duration"`
+	Repeat          *int                            `json:"repeat"`
 }
 
-// computerUseFieldsSent reports which optional keys the model sent.
-// ComputerUseInput decodes into zero values, so it cannot tell an omitted key
-// from the top-left pixel [0,0], which is a valid target, or from a scroll or
-// key repeat of zero, which is not. Presence alone is safe because
-// ParseComputerUseInput already rejected malformed input, including a
-// coordinate that is not exactly two values, which would otherwise decode
-// zero-filled. A decode failure here therefore only means the keys are absent.
-func computerUseFieldsSent(input string) computerUseSentFields {
-	var sent computerUseSentFields
-	if err := json.Unmarshal([]byte(input), &sent); err != nil {
-		return computerUseSentFields{}
+// validate rejects input that the desktop would misread. It rejects an action
+// that is not in actions, because the desktop also performs actions that leave
+// input held, such as key_down. It rejects a point outside the screenshot,
+// because the desktop clamps the point to the screen edge, which would hide a
+// missed target from the model.
+func (in computerUseInput) validate(
+	actions []fantasyanthropic.ComputerAction,
+	declaredWidth, declaredHeight int,
+) error {
+	if !slices.Contains(actions, in.Action) {
+		return xerrors.Errorf("unsupported action %q, supported actions: %s",
+			in.Action, strings.Join(computerUseActionNames(actions), ", "))
 	}
-	return sent
+	for _, point := range []struct {
+		field string
+		xy    []int
+	}{
+		{"coordinate", in.Coordinate},
+		{"start_coordinate", in.StartCoordinate},
+	} {
+		if point.xy == nil {
+			continue
+		}
+		if len(point.xy) != 2 {
+			return xerrors.Errorf("%s: expected 2 elements, got %d", point.field, len(point.xy))
+		}
+		x, y := point.xy[0], point.xy[1]
+		if x < 0 || y < 0 || x >= declaredWidth || y >= declaredHeight {
+			return xerrors.Errorf(
+				"%s [%d, %d] is outside the %d by %d screenshot, x must be 0 to %d and y must be 0 to %d",
+				point.field, x, y, declaredWidth, declaredHeight, declaredWidth-1, declaredHeight-1,
+			)
+		}
+	}
+	if in.Action == fantasyanthropic.ActionScroll && in.ScrollAmount != nil && *in.ScrollAmount < 1 {
+		return xerrors.Errorf("scroll_amount must be at least 1, got %d", *in.ScrollAmount)
+	}
+	if in.Action == fantasyanthropic.ActionKey && in.Repeat != nil &&
+		(*in.Repeat < 1 || *in.Repeat > computerUseMaxKeyRepeat) {
+		return xerrors.Errorf("repeat must be between 1 and %d, got %d", computerUseMaxKeyRepeat, *in.Repeat)
+	}
+	return nil
 }
 
-// anthropicDurationMillis converts an Anthropic duration in seconds to
-// milliseconds, capped at anthropicMaxDurationSeconds. Zero and negative
+// computerUseDurationMillis converts a duration in seconds to
+// milliseconds, capped at computerUseMaxDurationSeconds. Zero and negative
 // durations stay zero so callers apply their defaults.
-func anthropicDurationMillis(seconds int64) int64 {
+func computerUseDurationMillis(seconds int64) int64 {
 	if seconds <= 0 {
 		return 0
 	}
-	return min(seconds, anthropicMaxDurationSeconds) * 1000
+	return min(seconds, computerUseMaxDurationSeconds) * 1000
 }
 
 func (t *computerUseTool) runOpenAIComputerUse(
@@ -567,10 +596,6 @@ func (t *computerUseTool) wait(ctx context.Context, durationMillis int64) {
 	case <-ctx.Done():
 	case <-timer.C:
 	}
-}
-
-func coordinateFromInt64(x, y int64) [2]int {
-	return [2]int{int(x), int(y)}
 }
 
 func (t *computerUseTool) captureScreenshot(
