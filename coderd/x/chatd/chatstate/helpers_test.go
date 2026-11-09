@@ -94,9 +94,6 @@ func queuedIDsByPosition(ctx context.Context, t *testing.T, f *testFixture, chat
 	return ids
 }
 
-// historyMessageIDs returns the chat history message IDs ordered by
-// row id. Used to assert that PromoteQueuedMessage from R1/I1 does NOT
-// insert any history rows.
 func historyMessageIDs(ctx context.Context, t *testing.T, f *testFixture, chatID uuid.UUID) []int64 {
 	t.Helper()
 	msgs, err := f.DB.GetChatMessagesByChatID(ctx, database.GetChatMessagesByChatIDParams{

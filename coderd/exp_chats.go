@@ -3608,6 +3608,10 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 	err = api.chatDaemon.DeleteQueued(ctx, chatID, queuedMessageID)
 	if err != nil {
 		switch {
+		case xerrors.Is(err, chatd.ErrChatArchived):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot delete queued messages in an archived chat.",
+			})
 		case xerrors.Is(err, chatstate.ErrQueuedMessageNotFound), xerrors.Is(err, sql.ErrNoRows):
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Queued message not found.",
@@ -3620,7 +3624,7 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 			// response already written
 		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat has no queued messages to delete.",
+				Message: "Cannot delete this queued message in the chat's current state.",
 				Detail:  err.Error(),
 			})
 		default:
@@ -3687,7 +3691,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	_, txErr := api.chatDaemon.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+	txErr := api.chatDaemon.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chatID,
 		QueuedMessageID: queuedMessageID,
 	})
@@ -3710,7 +3714,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 			// response already written
 		case errors.Is(txErr, chatstate.ErrTransitionNotAllowed):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat has no queued messages to promote.",
+				Message: "Cannot promote this queued message in the chat's current state.",
 				Detail:  txErr.Error(),
 			})
 		default:
@@ -3844,9 +3848,7 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot edit queued messages in an archived chat.",
 			})
-		case errors.Is(err, chatstate.ErrQueuedMessageNotFound), errors.Is(err, chatstate.ErrTransitionNotAllowed):
-			// Every unarchived, valid state that refuses EditQueuedMessage
-			// has an empty queue, so the row no longer exists.
+		case errors.Is(err, chatstate.ErrQueuedMessageNotFound):
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Queued message not found.",
 			})
@@ -3860,6 +3862,11 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 			httpapi.ResourceNotFound(rw)
 		case writeChatInvalidState(ctx, rw, err):
 			// response already written
+		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Cannot edit this queued message in the chat's current state.",
+				Detail:  err.Error(),
+			})
 		case errors.Is(err, chatstate.ErrPausedQueuedHeadUnderEdit):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "The chat is paused at a queued message under edit. Finish editing, send, or remove it before editing another.",
