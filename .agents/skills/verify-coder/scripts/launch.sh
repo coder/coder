@@ -211,13 +211,17 @@ run_develop() {
 
 # develop.sh creates the first user, the owner, through the unauthenticated
 # /api/v2/users/first route once the server is healthy, and its Vite dev
-# server serves files of the checkout, .coderv2/session included. So develop
-# listens on 127.0.0.1 only.
+# server serves files of the checkout, .coderv2/session included. So the
+# API, Vite and metrics listen on 127.0.0.1 only. coder server's tailnet
+# still opens WireGuard UDP sockets on every interface, which answer only
+# peers that hold a key.
 # develop.sh reuses a saved CLI session without signing in, even one of
-# another user, and the journeys would then run as that user. Without it,
-# develop signs in as the admin with the launch password and saves that
-# session.
-rm -f "$VC_CONFIG_DIR/session"
+# another user, and the journeys would then run as that user. launch.sh moves
+# a saved session into the private run state, so develop signs in as the
+# admin and saves its own session, and cleanup.sh puts the caller's back.
+if [[ -f "$VC_CONFIG_DIR/session" ]]; then
+	mv "$VC_CONFIG_DIR/session" "$VC_RUN/caller-session"
+fi
 log="$VC_RUN/develop.log"
 run_develop --bind-address 127.0.0.1 "${args[@]}"
 if ((new_database && !password_saved)); then

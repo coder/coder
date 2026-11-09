@@ -24,7 +24,7 @@ Preconditions:
 - `scripts/doctor.sh` passes, and `vc_coder templates list --output json | jq -r '.[].Template.name'` prints `docker`.
 - `docker info` works for the user that runs the instance.
 
-- **Whole journey.** Run `journeys/workspace.sh`. It covers every sub-feature below, ends with `workspace: 10/10 checks passed` in about 2 minutes with a cached image, and writes evidence to `build/verify-coder/evidence/<stamp>-workspace/`.
+- **Whole journey.** Run `journeys/workspace.sh`. It covers every sub-feature below, ends with `workspace: 10/10 checks passed` in about 2 minutes with a cached image, and writes evidence to `build/verify-coder/evidence/<stamp>-workspace-<random>/`.
 - **Create in the CLI.** `vc_coder create <name> --template docker --parameter 'jetbrains_ides=[]' --yes </dev/null`. It streams the build and prints `The <name> workspace has been created`.
 - **Build state.** `vc_api /api/v2/users/admin/workspace/<name>` has `latest_build.transition` and `latest_build.status`. A finished start reads `start`/`running`, a finished stop `stop`/`stopped`, a failure `.../failed`.
 - **Agent connected.** Poll until `latest_build.resources[].agents[]` has `status` `connected` and `lifecycle_state` `ready` (agent name `main`): `for _ in $(seq 150); do vc_api /api/v2/users/admin/workspace/<name> | jq -e '[.latest_build.resources[].agents[]? | select(.status == "connected" and .lifecycle_state == "ready")] | length == 1' >/dev/null && break; sleep 2; done`. That gives up after about 5 minutes, so check the state again afterwards, and stop early when `latest_build.status` reads `failed`. `docker ps` then lists `coder-admin-<name>` from image `codercom/example-base:ubuntu`.
@@ -41,9 +41,9 @@ Preconditions:
 
 - Every build runs `terraform init`, which downloads the `coder/coder` and `kreuzwerker/docker` providers from GitHub releases. A GitHub 504 fails the build with `Failed to install provider`. Read the cause with `grep level=ERROR "$VC_LOG"` and report it as an environment failure.
 - The `docker` template has one parameter, `jetbrains_ides` (`list(string)`, a multi-select). Without `--parameter`, `coder create` prompts for it, and with no TTY the prompt sends a value that fails `terraform plan` with `When using list(string) type, value must be a json encoded list of strings`.
-- The template rewrites `127.0.0.1` in the agent URL to `host.docker.internal`, mapped to the Docker bridge gateway. develop listens on 127.0.0.1 only, so `scripts/launch.sh` runs `scripts/docker-forward.py`, which carries only the API port from the gateway to 127.0.0.1. Agents of a local Docker daemon (`unix:///var/run/docker.sock`) connect through it. A remote daemon was not tested.
+- The template rewrites `127.0.0.1` in the agent URL to `host.docker.internal`, mapped to the Docker bridge gateway. The API, Vite and metrics listen on 127.0.0.1 only, so `scripts/launch.sh` runs `scripts/docker-forward.py`, which carries only the API port from the gateway to 127.0.0.1. Agents of a local Docker daemon (`unix:///var/run/docker.sock`) connect through it. A remote daemon was not tested.
 - The first workspace pulls `codercom/example-base:ubuntu`. Allow several minutes.
 - The agent name in the `docker` template is `main`.
 - About 6 seconds into a build, the workspace page scrolls down 72 px to follow the build log. The header buttons (`Stop`, `Start`, the options button) then sit under the sticky navbar, and a click lands on the navbar. Run `vc_ab eval 'window.scrollTo(0, 0)'` before clicking them.
-- `scripts/cleanup.sh` deletes only recorded workspaces. Run `vc_record_workspace admin/<name>` before you create one by hand.
+- `scripts/cleanup.sh` deletes only recorded workspaces. Run `vc_record_workspace admin/<name>` before you create one by hand. Record only workspaces of the local Docker daemon, such as ones from the `docker` template.
 - Workspace containers and home volumes outlive a stopped server. Delete workspaces before `scripts/cleanup.sh` stops the server, or let it do so.

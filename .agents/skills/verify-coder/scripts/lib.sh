@@ -13,6 +13,20 @@ VC_ADMIN_EMAIL="admin@coder.com"
 VC_ADMIN_PASSWORD="${CODER_DEV_ADMIN_PASSWORD:-SomeSecurePassword!}"
 export VC_ROOT VC_STATE VC_RUN VC_EVIDENCE VC_CONFIG_DIR VC_SKILL_SCRIPTS VC_ADMIN_EMAIL VC_ADMIN_PASSWORD
 
+# curl sends requests to 127.0.0.1 through http_proxy or ALL_PROXY too, and
+# they carry the admin password and session token, so loopback requests and
+# the Docker bridge forward bypass any proxy. Sourcing lib.sh therefore
+# changes NO_PROXY and no_proxy.
+for _vc_host in 127.0.0.1 localhost ::1 172.17.0.1; do
+	case ",${NO_PROXY:-}," in
+	*",$_vc_host,"*) ;;
+	*) NO_PROXY="${NO_PROXY:+$NO_PROXY,}$_vc_host" ;;
+	esac
+done
+unset _vc_host
+no_proxy="$NO_PROXY"
+export NO_PROXY no_proxy
+
 vc_fail() {
 	echo "error: $*" >&2
 	exit 1
@@ -162,7 +176,9 @@ vc_coder() {
 }
 
 # vc_record_workspace marks <owner>/<name> as created by the harness, so
-# cleanup.sh deletes it. Record a workspace before you create it.
+# cleanup.sh deletes it. Record a workspace before you create it. Only local
+# Docker workspaces qualify: with the server down, cleanup can find leftovers
+# of those alone.
 vc_record_workspace() {
 	echo "$1" >>"$VC_RUN/workspaces"
 }
@@ -226,8 +242,10 @@ vc_stop_develop() {
 	echo "develop session $pid stopped"
 }
 
+# vc_port_listener_pid prints the pid that listens on 127.0.0.1:<port>.
+# docker-forward.py listens on the same port on the Docker bridge gateway.
 vc_port_listener_pid() {
-	ss -Hltnp "sport = :$1" | { grep -o 'pid=[0-9]*' || true; } | head -n 1 | cut -d= -f2
+	ss -Hltnp "src 127.0.0.1 and sport = :$1" | { grep -o 'pid=[0-9]*' || true; } | head -n 1 | cut -d= -f2
 }
 
 vc_port_busy() {
@@ -274,6 +292,30 @@ vc_api_status() {
 	vc_curl -sS -o /dev/null -w '%{http_code}' --max-time 10 "$VC_API_URL$1"
 }
 
+# vc_wait_agent <owner>/<workspace> waits up to 5 minutes until the
+# workspace's one agent is connected and ready. It stops early when the
+# workspace cannot be read or its build failed, because the agent can then
+# never connect.
+vc_wait_agent() {
+	local ws="$1" json
+	for _ in $(seq 150); do
+		json="$(vc_api "/api/v2/users/${ws%%/*}/workspace/${ws#*/}")" || {
+			echo "workspace $ws cannot be read, so its agent cannot connect"
+			return 1
+		}
+		if jq -e '[.latest_build.resources[].agents[]? | select(.status == "connected" and .lifecycle_state == "ready")] | length == 1' <<<"$json" >/dev/null; then
+			return 0
+		fi
+		if [[ "$(jq -r .latest_build.status <<<"$json")" == failed ]]; then
+			echo "the build of $ws failed, so its agent cannot connect"
+			return 1
+		fi
+		sleep 2
+	done
+	echo "agent of $ws did not reach connected and ready"
+	return 1
+}
+
 # vc_capture_failure saves the page, URL, page errors and console a failed
 # browser step left.
 vc_capture_failure() {
@@ -300,6 +342,13 @@ vc_ab() {
 # sets no fixed csrf_token cookie (site/vite.config.mts), and every POST then
 # fails with a CSRF 400. The unique query forces a fresh response there and
 # costs nothing on the embedded frontend.
+# vc_fill_secret <locator words...> fills the element with VC_SECRET through
+# agent-browser batch on stdin, so the value stays out of the process list.
+# Example: VC_SECRET="$password" vc_fill_secret find label Password fill
+vc_fill_secret() {
+	jq -cn --args '[$ARGS.positional + [env.VC_SECRET]]' "$@" | vc_ab batch --bail >/dev/null
+}
+
 vc_browser_login() {
 	local email="${1:-$VC_ADMIN_EMAIL}" password="${2:-$VC_ADMIN_PASSWORD}"
 	vc_ab cookies clear >/dev/null
@@ -309,8 +358,7 @@ vc_browser_login() {
 	vc_ab find label "Email" fill "$email" >/dev/null
 	# batch reads the command from stdin, so the password stays out of the
 	# process list.
-	VC_LOGIN_PASSWORD="$password" jq -cn '[["find", "label", "Password", "fill", env.VC_LOGIN_PASSWORD]]' |
-		vc_ab batch --bail >/dev/null
+	VC_SECRET="$password" vc_fill_secret find label Password fill
 	# Sign-in renders a client-side redirect and also sets location.href
 	# (site/src/pages/LoginPage/LoginPage.tsx), so the workspaces page can
 	# appear before the hard reload replaces it. The marker lives only on the

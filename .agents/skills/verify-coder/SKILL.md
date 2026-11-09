@@ -48,7 +48,7 @@ source scripts/lib.sh && vc_load_run
 
 ## 4. Evidence
 
-- Journeys write `build/verify-coder/evidence/<UTC stamp>-<journey>/` with screenshots, read-backs, `result.txt` and `steps.log`. For hand-driven checks, follow "Hand-driven checks" in `reference.md`.
+- Journeys write `build/verify-coder/evidence/<UTC stamp>-<journey>-<random>/` with screenshots, read-backs, `result.txt` and `steps.log`. For hand-driven checks, follow "Hand-driven checks" in `reference.md`.
 - Prove the real user path, the UI form or the CLI command, and check the side effect through a second view such as the API.
 - Never screenshot a form after typing a real secret, and never save output that echoes one.
 - Mock only where a production boundary already isolates the external system, such as an LLM provider.

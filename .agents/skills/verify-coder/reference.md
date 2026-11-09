@@ -9,7 +9,7 @@ Details behind the steps in `SKILL.md`. Paths are relative to this skill's direc
 - It starts develop with `--port-offset`, develop's per-checkout offset (`.claude/docs/DEV_ISOLATION.md`), and reads the ports from develop's `resolved listen ports` log line. `CODER_DEV_PORT` and `CODER_DEV_WEB_PORT` set explicit ports instead.
 - It starts develop through `vc_start_develop`, which removes every `CODER_*` variable of the calling shell, `BASH_ENV`, `ENV` and the `ANTHROPIC_*` and `OPENAI_*` keys. A `CODER_PG_CONNECTION_URL` or `CODER_DEV_DB_RESET` in your shell therefore never reaches the instance, and nothing spends real tokens.
 - It holds `build/verify-coder/launch.lock`, so a second `launch.sh` in the same checkout stops at once. It refuses to start while `build/verify-coder/run/env` records an instance.
-- It starts develop with `--bind-address 127.0.0.1`, so the API, Vite and metrics listen on 127.0.0.1 only. develop creates the owner through the unauthenticated `/api/v2/users/first` route, and Vite serves files of the checkout, `.coderv2/session` included, so neither may face the network. It removes a saved `.coderv2/session` first, so develop signs in as the admin with the launch password and saves that session.
+- It starts develop with `--bind-address 127.0.0.1`, so the API, Vite and metrics listen on 127.0.0.1 only. coder server's tailnet still opens WireGuard UDP sockets on every interface, which answer only peers that hold a key. develop creates the owner through the unauthenticated `/api/v2/users/first` route, and Vite serves files of the checkout, `.coderv2/session` included, so neither may face the network. It moves a saved `.coderv2/session` into `build/verify-coder/run/caller-session` first, so develop signs in as the admin with the launch password and saves that session. Cleanup puts the saved session back when it keeps `.coderv2`.
 - Ready means develop printed `Coder is now running in development mode` in its log. Then `launch.sh` checks the admin password.
 - When `docker info` works, it starts `scripts/docker-forward.py` on the Docker bridge gateway (`172.17.0.1` by default) for the API port only, because the `docker` template's workspace agents reach the server through `host.docker.internal`. Containers on this host can then reach the API, which needs the admin password. Vite and metrics stay on 127.0.0.1. Then it runs the doctor.
 - `launch.sh` refuses `CODER_BUILD_AGPL` set to anything but empty, `0` or `false`, because `make` would reuse an existing enterprise binary.
@@ -33,7 +33,7 @@ Details behind the steps in `SKILL.md`. Paths are relative to this skill's direc
 
 `doctor.sh` checks that:
 
-- the recorded pid is this checkout's `build/.bin/develop` session leader, and both ports belong to that session;
+- the recorded pid is this checkout's `build/.bin/develop` session leader, and the 127.0.0.1 listeners on both ports belong to that session;
 - `/healthz` answers and the `/api/v2/buildinfo` version (`-devel+<short sha>`) is `HEAD`. It compares commits only, so relaunch after uncommitted edits too;
 - the CLI session in `.coderv2/session` is the admin;
 - the API port serves the embedded frontend and the Vite port proxies `/api`;
@@ -58,7 +58,9 @@ It changes nothing apart from those two refused sign-ins.
 - that a Docker error, or a missing docker CLI while a daemon is configured, fails cleanup's leftover inventory;
 - that `docker-forward.py` carries its port to 127.0.0.1 and cleanup recognizes it as a helper;
 - that the default password check covers the admin and the member, and counts any answer but 401 as accepted;
-- that `vc_browser_login` passes the password to agent-browser on stdin.
+- that `vc_browser_login` and `vc_fill_secret` pass secrets to agent-browser on stdin;
+- that a sign-in request to 127.0.0.1 bypasses a configured proxy;
+- that cleanup puts the caller's CLI session back.
 
 ## Drive
 
@@ -76,7 +78,7 @@ It changes nothing apart from those two refused sign-ins.
 - Record each check with `vc_check <name> <command> [args]` and `VC_RESULT_FILE=<folder>/result.txt`. End with `echo "<sub-feature id>: $VC_PASS/$VC_TOTAL checks passed" >>"$VC_RESULT_FILE"`.
 - `vc_check` runs its arguments as one command with errexit and pipefail, not as a shell string. Put pipes and redirects inside a function and pass the function. It always returns 0 and prints PASS or FAIL.
 - Its counters start at 0 each time `lib.sh` is sourced, so run one sub-feature in one shell.
-- Before you create a workspace by hand, run `vc_record_workspace <owner>/<name>`, so cleanup deletes it.
+- Before you create a workspace by hand, run `vc_record_workspace <owner>/<name>`, so cleanup deletes it. Record only workspaces of a local Docker daemon. With the server down, cleanup can find leftovers of those alone, so delete a workspace of any other provisioner yourself before cleanup.
 
 ## Cleanup
 
@@ -94,4 +96,5 @@ It changes nothing apart from those two refused sign-ins.
 - Inside a Coder workspace (`CODER_AGENT_URL` set), the dev build names the session cookie `dev_coder_session_token` instead of `coder_session_token` (`scripts/build_go.sh`). Sign in through the form instead of setting cookies by hand.
 - After `agent-browser cookies clear`, a cached `/login` breaks CSRF in the dev site and every POST answers 400. `vc_browser_login` loads `/login` with a unique query to avoid it. See `features/sign-in.md`.
 - At a load average near 30 on 8 cores, pages sometimes took more than 25 seconds to render, which is agent-browser's default timeout. `vc_ab` raises it to 90 seconds (`VERIFY_CODER_BROWSER_TIMEOUT_MS`). A failed journey step saves `fail-<step>.png` and its page errors, console and network requests next to `steps.log`.
-- `vc_browser_login` fills the password through `agent-browser batch` on stdin. Other `vc_ab fill` calls put their text in the process list, so use them only for throwaway values.
+- `vc_browser_login` fills the password through `agent-browser batch` on stdin. For any other secret, use `VC_SECRET=<value> vc_fill_secret <locator words> fill`, for example `vc_fill_secret fill 'input[name=password]'`. Other `vc_ab fill` calls put their text in the process list, so use them only for throwaway values.
+- Sourcing `lib.sh` adds 127.0.0.1, localhost, ::1 and 172.17.0.1 to `NO_PROXY`, because curl would send the password and session token to 127.0.0.1 through a configured proxy.

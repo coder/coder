@@ -11,8 +11,10 @@ source "$scripts/lib.sh"
 vc_load_run
 "$scripts/doctor.sh" >/dev/null || vc_fail "doctor failed, run $scripts/doctor.sh"
 
-out="$VC_EVIDENCE/$(date -u +%Y%m%dT%H%M%SZ)-coder-agents"
-mkdir -p "$out"
+mkdir -p "$VC_EVIDENCE"
+# mktemp keeps two runs that start in the same second apart.
+out="$(mktemp -d "$VC_EVIDENCE/$(date -u +%Y%m%dT%H%M%SZ)-coder-agents-XXXX")"
+chmod 755 "$out"
 VC_CHECK_LOG="$out/steps.log"
 VC_RESULT_FILE="$out/result.txt"
 vc_on_fail() {
@@ -173,7 +175,8 @@ vc_send() {
 }
 
 # restore archives the chat, gives the default back to the model that had it
-# before, and deletes the journey's model and provider.
+# before while the journey's model still has it, and deletes the journey's
+# model and provider.
 restore() {
 	local model_id chat_id
 	if [[ -f "$out/06-chat-url.txt" ]]; then
@@ -184,10 +187,13 @@ restore() {
 		fi
 		vc_api "/api/v2/chats/$chat_id" | jq -e '.archived == true' >/dev/null
 	fi
-	if [[ -n "$old_default" ]]; then
+	model_id="$(vc_api "/api/v2/organizations/$org/chats/models" | jq -r --arg d "$model_display" '[.models[] | select(.display_name == $d)][0].id // empty')"
+	# Another admin can have picked a newer default meanwhile, so the old
+	# default comes back only while the journey's model still has it.
+	if [[ -n "$old_default" && -n "$model_id" ]] &&
+		vc_api "/api/v2/organizations/$org/chats/models" | jq -e --arg m "$model_id" '[.models[] | select(.is_default)][0].id == $m' >/dev/null; then
 		vc_send PATCH "/api/v2/organizations/$org/chats/models/$old_default" '{"is_default": true}'
 	fi
-	model_id="$(vc_api "/api/v2/organizations/$org/chats/models" | jq -r --arg d "$model_display" '[.models[] | select(.display_name == $d)][0].id // empty')"
 	if [[ -n "$model_id" ]]; then
 		vc_send DELETE "/api/v2/organizations/$org/chats/models/$model_id"
 	fi

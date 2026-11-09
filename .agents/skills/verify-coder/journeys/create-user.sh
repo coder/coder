@@ -10,8 +10,10 @@ source "$scripts/lib.sh"
 vc_load_run
 "$scripts/doctor.sh" >/dev/null || vc_fail "doctor failed, run $scripts/doctor.sh"
 
-out="$VC_EVIDENCE/$(date -u +%Y%m%dT%H%M%SZ)-create-user"
-mkdir -p "$out"
+mkdir -p "$VC_EVIDENCE"
+# mktemp keeps two runs that start in the same second apart.
+out="$(mktemp -d "$VC_EVIDENCE/$(date -u +%Y%m%dT%H%M%SZ)-create-user-XXXX")"
+chmod 755 "$out"
 # The random suffix keeps two runs that start in the same second apart.
 username="vc-$(date +%s)-$RANDOM"
 email="$username@coder.com"
@@ -46,7 +48,7 @@ fill_form() {
 	vc_ab fill 'input[name=name]' "Verify $username" >/dev/null
 	vc_ab find label "Email" fill "$email" >/dev/null
 	vc_ab screenshot "$out/03-new-user-form.png" >/dev/null
-	vc_ab fill 'input[name=password]' "$password" >/dev/null
+	VC_SECRET="$password" vc_fill_secret fill 'input[name=password]'
 	echo "filled the form for $username (login type was '$login_type')"
 }
 

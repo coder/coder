@@ -6,8 +6,10 @@
 # Postgres still runs from, the launch lock, how
 # vc_start_develop passes the environment, that a Docker error or a missing
 # docker CLI fails the leftover inventory, the default password check for
-# admin and member, that docker-forward.py carries its port, and that
-# vc_browser_login keeps the password out of the process arguments.
+# admin and member, that docker-forward.py carries its port, that secrets
+# reach agent-browser on stdin only, that loopback requests bypass a proxy,
+# that cleanup restores the caller's CLI session, and that vc_wait_agent stops
+# early.
 # Usage: selftest.sh   (prints one line per check and a count line)
 set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
@@ -185,6 +187,10 @@ setup_binds_loopback() {
 		}
 		if [[ -e "$scratch_config/session" ]]; then
 			echo "$kind: develop started with a saved CLI session, so it would not sign in as the admin"
+			return 1
+		fi
+		if [[ "$kind" == reused-data && "$(cat "$scratch_run/caller-session" 2>/dev/null)" != selftest-other-user-token ]]; then
+			echo "reused-data: launch.sh did not keep the caller's session for cleanup"
 			return 1
 		fi
 		[[ "$(wc -l <"$tmp/develop-argv")" == 1 && " $(cat "$tmp/develop-argv") " == *" --bind-address 127.0.0.1 "* ]] || {
@@ -463,6 +469,118 @@ docker_forward_carries_port() {
 	echo "docker-forward.py carries its port to 127.0.0.1, and cleanup recognizes it"
 }
 vc_check docker-forward docker_forward_carries_port
+
+# create-user.sh fills the new user's password with vc_fill_secret, which
+# must keep the value out of the agent-browser arguments.
+journey_fill_keeps_secret_off_argv() {
+	local marker="selftest-$RANDOM-$RANDOM"
+	# shellcheck disable=SC2016 # The pattern is the literal journey line.
+	grep -qF 'VC_SECRET="$password" vc_fill_secret fill' "$here/../journeys/create-user.sh" || {
+		echo "create-user.sh does not fill the password with vc_fill_secret"
+		return 1
+	}
+	VC_SECRET="$marker" VC_BROWSER_SESSION=verify-coder-selftest PATH="$tmp/bin:$PATH" \
+		vc_fill_secret fill 'input[name=password]'
+	if grep -qF "$marker" "$tmp/argv"; then
+		echo "the secret appears in agent-browser arguments"
+		return 1
+	fi
+	grep -qF "$marker" "$tmp/stdin" || {
+		echo "the secret never reached agent-browser stdin"
+		return 1
+	}
+	echo "vc_fill_secret passes the secret on stdin only"
+}
+vc_check fill-secret journey_fill_keeps_secret_off_argv
+
+# Requests to the instance carry the admin password and session token, so
+# they must bypass a configured proxy. A listener stands in for the proxy and
+# records whether anything connected.
+loopback_bypasses_proxy() {
+	local port="" proxy
+	python3 -u -c '
+import socket, sys
+s = socket.socket(); s.bind(("127.0.0.1", 0)); s.listen()
+print("port", s.getsockname()[1], flush=True)
+c, _ = s.accept(); print("connected", flush=True)
+' >"$tmp/proxy.log" 2>&1 &
+	proxy=$!
+	for _ in $(seq 50); do
+		port="$(sed -n 's/^port //p' "$tmp/proxy.log")"
+		[[ -z "$port" ]] || break
+		sleep 0.1
+	done
+	[[ -n "$port" ]] || {
+		kill "$proxy" 2>/dev/null || true
+		echo "the stand-in proxy did not start"
+		return 1
+	}
+	VC_API_URL=http://127.0.0.1:1 http_proxy="http://127.0.0.1:$port" HTTP_PROXY="http://127.0.0.1:$port" ALL_PROXY="http://127.0.0.1:$port" \
+		vc_password_accepted "selftest-$RANDOM" || true
+	sleep 0.5
+	kill "$proxy" 2>/dev/null || true
+	if grep -q connected "$tmp/proxy.log"; then
+		echo "a sign-in request to 127.0.0.1 went through the proxy"
+		return 1
+	fi
+	echo "sign-in requests to 127.0.0.1 bypass a configured proxy"
+}
+vc_check no-proxy loopback_bypasses_proxy
+
+# launch.sh moves the caller's saved CLI session aside, and cleanup.sh puts it
+# back when .coderv2 stays.
+cleanup_restores_caller_session() {
+	local dead flags
+	for flags in "" --keep-data; do
+		scratch_reset
+		mkdir -p "$scratch_run" "$repo/build/verify-coder/evidence" "$scratch_config"
+		if [[ -n "$flags" ]]; then
+			touch "$scratch_config/.verify-coder-created"
+		fi
+		echo selftest-caller-session >"$scratch_run/caller-session"
+		echo selftest-admin-session >"$scratch_config/session"
+		true &
+		dead=$!
+		wait "$dead"
+		printf 'VC_PID=%q\nVC_LOG=%q\nVC_STARTED_AT=%q\nVC_ADMIN_PASSWORD=x\n' "$dead" "$scratch_run/develop.log" "$(date -u +%FT%TZ)" >"$scratch_run/env"
+		scratch_run_script cleanup.sh "" $flags
+		[[ "$rc" == 0 && "$(cat "$scratch_config/session" 2>/dev/null)" == selftest-caller-session ]] || {
+			echo "cleanup.sh ${flags:-without flags} exited $rc and did not restore the caller's session: ${out##*$'\n'}"
+			return 1
+		}
+	done
+	echo "cleanup.sh puts the caller's CLI session back, with and without --keep-data"
+}
+vc_check caller-session cleanup_restores_caller_session
+
+# vc_wait_agent must give up at once on a missing workspace or a failed
+# build instead of polling for five minutes. A stand-in vc_api answers.
+wait_agent_stops_early() {
+	local case want
+	for case in missing failed; do
+		case "$case" in
+		missing) want="cannot be read" ;;
+		failed) want="build of admin/ws failed" ;;
+		esac
+		out="$(
+			vc_api() {
+				[[ "$case" == failed ]] || return 22
+				echo '{"latest_build": {"status": "failed", "resources": []}}'
+			}
+			sleep() { echo "slept"; }
+			vc_wait_agent admin/ws
+		)" && {
+			echo "$case: vc_wait_agent succeeded"
+			return 1
+		}
+		[[ "$out" == *"$want"* && "$out" != *slept* ]] || {
+			echo "$case: vc_wait_agent kept polling: ${out:0:120}"
+			return 1
+		}
+	done
+	echo "vc_wait_agent stops at once on a missing workspace or a failed build"
+}
+vc_check wait-agent wait_agent_stops_early
 
 login_keeps_password_off_argv() {
 	local marker="selftest-$RANDOM-$RANDOM"

@@ -12,8 +12,10 @@ vc_load_run
 "$scripts/doctor.sh" >/dev/null || vc_fail "doctor failed, run $scripts/doctor.sh"
 docker info >/dev/null 2>&1 || vc_fail "docker info failed, this journey needs a local Docker daemon"
 
-out="$VC_EVIDENCE/$(date -u +%Y%m%dT%H%M%SZ)-workspace"
-mkdir -p "$out"
+mkdir -p "$VC_EVIDENCE"
+# mktemp keeps two runs that start in the same second apart.
+out="$(mktemp -d "$VC_EVIDENCE/$(date -u +%Y%m%dT%H%M%SZ)-workspace-XXXX")"
+chmod 755 "$out"
 VC_CHECK_LOG="$out/steps.log"
 VC_RESULT_FILE="$out/result.txt"
 vc_on_fail() {
@@ -46,28 +48,6 @@ wait_state() {
 		sleep 2
 	done
 	echo "$ws is $got, wanted $want after ${i}x2s, see grep level=ERROR \$VC_LOG"
-	return 1
-}
-
-# wait_agent stops early when the workspace is missing or its build failed,
-# because its agent can then never connect.
-wait_agent() {
-	local ws="$1" json i
-	for i in $(seq 150); do
-		json="$(ws_json "$ws")" || {
-			echo "workspace $ws cannot be read, so its agent cannot connect"
-			return 1
-		}
-		if jq -e '[.latest_build.resources[].agents[]? | select(.status == "connected" and .lifecycle_state == "ready")] | length == 1' <<<"$json" >/dev/null; then
-			return 0
-		fi
-		if [[ "$(jq -r .latest_build.status <<<"$json")" == failed ]]; then
-			echo "the build of $ws failed, so its agent cannot connect"
-			return 1
-		fi
-		sleep 2
-	done
-	echo "agent of $ws did not reach connected and ready"
 	return 1
 }
 
@@ -108,7 +88,7 @@ cli_create() {
 }
 
 cli_agent() {
-	wait_agent "$cli_ws"
+	vc_wait_agent "admin/$cli_ws"
 	ws_json "$cli_ws" | jq '{name, status: .latest_build.status, agents: [.latest_build.resources[].agents[]? | {name, status, lifecycle_state}]}' >"$out/02-cli-api.json"
 	[[ "$(container_count "$cli_ws")" == 1 ]] || {
 		echo "docker ps has no running coder-admin-$cli_ws"
@@ -159,7 +139,7 @@ ui_create() {
 }
 
 ui_agent() {
-	wait_agent "$ui_ws"
+	vc_wait_agent "admin/$ui_ws"
 	vc_ab wait '[data-testid=agent-status-ready]' >/dev/null
 	ui_status Running
 	vc_ab screenshot "$out/07-ui-running.png" >/dev/null
@@ -175,9 +155,13 @@ ui_terminal() {
 	vc_ab click '.xterm' >/dev/null
 	vc_ab keyboard type "echo verify-web-terminal-ok > /tmp/verify-web-terminal" >/dev/null
 	vc_ab press Enter >/dev/null
-	sleep 2
+	# Under load the terminal can take a while to run the command.
+	for _ in $(seq 30); do
+		got="$(vc_coder ssh "$ui_ws" -- cat /tmp/verify-web-terminal 2>/dev/null)" || true
+		[[ "$got" != verify-web-terminal-ok ]] || break
+		sleep 2
+	done
 	vc_ab screenshot "$out/08-ui-terminal.png" >/dev/null
-	got="$(vc_coder ssh "$ui_ws" -- cat /tmp/verify-web-terminal 2>/dev/null)"
 	[[ "$got" == verify-web-terminal-ok ]] || {
 		echo "the file the terminal wrote holds '$got'"
 		return 1

@@ -151,15 +151,26 @@ postgres_running() {
 	[[ "${exe##*/}" == postgres && "/proc/$pid/cwd" -ef "$data" ]]
 }
 
+# restore_caller_session puts back the CLI session that launch.sh moved
+# aside, in place of the admin session that develop saved.
+restore_caller_session() {
+	if [[ -f "$VC_RUN/caller-session" ]]; then
+		mv "$VC_RUN/caller-session" "$VC_CONFIG_DIR/session"
+		echo "restored the CLI session that was in $VC_CONFIG_DIR before the launch"
+	fi
+}
+
 # --keep-data hands the folder over: without the marker, a later cleanup keeps
 # it, because the folder can then hold a developer's own work.
 remove_data() {
 	if ((keep_data)); then
+		restore_caller_session
 		rm -f "$VC_CONFIG_DIR/.verify-coder-created"
 		echo "kept $VC_CONFIG_DIR, a later cleanup keeps it too"
 		return 0
 	fi
 	if [[ ! -f "$VC_CONFIG_DIR/.verify-coder-created" ]]; then
+		restore_caller_session
 		echo "kept $VC_CONFIG_DIR (launch.sh did not create it)"
 		return 0
 	fi

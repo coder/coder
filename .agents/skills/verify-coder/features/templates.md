@@ -23,7 +23,7 @@ Preconditions:
 
 - `scripts/doctor.sh` passes. Its `starter-template` check fails when Docker works but the `docker` template is missing. Without Docker the list is empty and that check passes, so `journeys/templates.sh` stops before its checks when `docker info` fails.
 
-- **Whole journey.** Run `journeys/templates.sh`. It ends with `templates: 4/4 checks passed` in 10 to 35 seconds and writes evidence to `build/verify-coder/evidence/<stamp>-templates/`.
+- **Whole journey.** Run `journeys/templates.sh`. It ends with `templates: 4/4 checks passed` in 10 to 35 seconds and writes evidence to `build/verify-coder/evidence/<stamp>-templates-<random>/`.
 - **List.** `vc_ab open "$VC_WEB_URL/templates"` and wait with `vc_ab wait --fn 'document.title === "Templates - Coder"'`. The table has a row button named `Docker Containers ... Create Workspace`, and `vc_ab wait 'a[href="/templates/docker/workspace"]'` finds its link. The empty-state text `Create your first template` is absent. `vc_coder templates list --output json | jq -r '.[].Template.name'` prints `docker`.
 - **Template page.** `vc_ab open "$VC_WEB_URL/templates/docker"` redirects to `/templates/docker/docs`. The page has a `Create Workspace` link.
 - **Create from a starter.** `vc_ab open "$VC_WEB_URL/starter-templates/docker"` (title `Docker Containers - Coder`), then `vc_ab find role link click --name "Use template"`. The URL becomes `/templates/new?exampleId=docker` (title `Create Template - Coder`). Wait for `input[name=name]`, fill it with a new name, and click `Save`. The import takes a few seconds, then the URL becomes `/templates/<name>/files`. Second view: `vc_api /api/v2/templates` lists the name.
