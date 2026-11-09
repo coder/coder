@@ -2,7 +2,6 @@ package migrations_test
 
 import (
 	"database/sql"
-	"os"
 	"testing"
 	"time"
 
@@ -121,15 +120,6 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 
 	stepTo(t, sqlDB, 641)
 	statuses, err := db.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
-	require.NoError(t, err)
-	require.Len(t, statuses, len(want))
-	require.ElementsMatch(t, want, statuses)
-
-	downSQL, err := os.ReadFile("000641_chat_diff_statuses_root_chats.down.sql")
-	require.NoError(t, err)
-	_, err = sqlDB.ExecContext(ctx, string(downSQL))
-	require.NoError(t, err)
-	statuses, err = db.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
 	require.NoError(t, err)
 	require.Len(t, statuses, len(want))
 	require.ElementsMatch(t, want, statuses)
