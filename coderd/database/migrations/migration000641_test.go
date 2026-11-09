@@ -1,15 +1,13 @@
 package migrations_test
 
 import (
-	"database/sql"
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -20,112 +18,194 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 	sqlDB := testSQLDB(t)
 	stepTo(t, sqlDB, 640)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	db := database.New(sqlDB)
-	user := dbgen.User(t, db, database.User{})
-	org := dbgen.Organization(t, db, database.Organization{})
-	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: org.ID})
 
-	newChat := func(parentID, rootID uuid.UUID) database.Chat {
+	// Historical fixtures must not depend on current sqlc column lists.
+	root, _ := seedChatWithStatus(ctx, t, sqlDB, "waiting")
+	newChat := func(parentID, rootID uuid.UUID) uuid.UUID {
 		t.Helper()
-		return dbgen.Chat(t, db, database.Chat{
-			OrganizationID:    org.ID,
-			OwnerID:           user.ID,
-			LastModelConfigID: model.ID,
-			ParentChatID:      uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
-			RootChatID:        uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
-		})
+		row := sqlDB.QueryRowContext(ctx, `
+			INSERT INTO chats (
+				id,
+				owner_id,
+				organization_id,
+				last_model_config_id,
+				title,
+				status,
+				parent_chat_id,
+				root_chat_id
+			)
+			SELECT
+				$1,
+				owner_id,
+				organization_id,
+				last_model_config_id,
+				'fixture-chat',
+				'waiting',
+				$2,
+				$3
+			FROM chats
+			WHERE id = $4
+			RETURNING id`,
+			uuid.New(),
+			uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
+			uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
+			root,
+		)
+		var chatID uuid.UUID
+		err := row.Scan(&chatID)
+		require.NoError(t, err)
+		return chatID
 	}
 
-	root := newChat(uuid.Nil, uuid.Nil)
-	child := newChat(root.ID, root.ID)
-	grandchild := newChat(child.ID, root.ID)
-	withoutRootID := newChat(root.ID, uuid.Nil)
+	child := newChat(root, root)
+	grandchild := newChat(child, root)
+	referenceOnlyChild := newChat(root, root)
+	withoutRootID := newChat(root, uuid.Nil)
 
 	otherRoot := newChat(uuid.Nil, uuid.Nil)
 
 	archivedRoot := newChat(uuid.Nil, uuid.Nil)
-	archivedChild := newChat(archivedRoot.ID, archivedRoot.ID)
-	_, err := db.ArchiveChatByID(ctx, archivedRoot.ID)
+	archivedChild := newChat(archivedRoot, archivedRoot)
+	_, err := sqlDB.ExecContext(ctx,
+		`UPDATE chats SET archived = true WHERE id = $1 OR root_chat_id = $1`, archivedRoot)
 	require.NoError(t, err)
 
-	chatIDs := []uuid.UUID{
-		root.ID,
-		child.ID,
-		grandchild.ID,
-		withoutRootID.ID,
-		otherRoot.ID,
-		archivedRoot.ID,
-		archivedChild.ID,
+	// Compare every historical status field, with the owner asserted separately.
+	type diffStatusRow struct {
+		chatID uuid.UUID
+		fields map[string]any
+	}
+	decodeStatus := func(chatID uuid.UUID, raw []byte) diffStatusRow {
+		t.Helper()
+		var fields map[string]any
+		err := json.Unmarshal(raw, &fields)
+		require.NoError(t, err)
+		return diffStatusRow{chatID: chatID, fields: fields}
+	}
+
+	seedStatus := func(chatID uuid.UUID, branch, remoteOrigin string, refreshed, reported time.Time) diffStatusRow {
+		t.Helper()
+		row := sqlDB.QueryRowContext(ctx, `
+			INSERT INTO chat_diff_statuses (
+				chat_id,
+				git_remote_origin,
+				git_branch,
+				url,
+				pull_request_state,
+				pull_request_title,
+				pull_request_draft,
+				changes_requested,
+				additions,
+				deletions,
+				changed_files,
+				author_login,
+				author_avatar_url,
+				base_branch,
+				head_branch,
+				pr_number,
+				commits,
+				approved,
+				reviewer_count,
+				refreshed_at,
+				stale_at,
+				created_at,
+				updated_at
+			) VALUES (
+				$1,
+				$2,
+				$3,
+				'https://github.com/coder/coder/pull/1',
+				'open',
+				$4,
+				true,
+				true,
+				10,
+				3,
+				2,
+				'author',
+				'https://example.com/avatar',
+				'main',
+				$3,
+				1,
+				5,
+				true,
+				2,
+				$5,
+				$5::timestamptz + INTERVAL '1 minute',
+				$6::timestamptz - INTERVAL '24 hours',
+				$6
+			)
+			RETURNING chat_id, to_jsonb(chat_diff_statuses) - 'chat_id'`,
+			chatID, remoteOrigin, branch, chatID.String(), refreshed, reported)
+		var owner uuid.UUID
+		var raw []byte
+		err := row.Scan(&owner, &raw)
+		require.NoError(t, err)
+		return decodeStatus(owner, raw)
+	}
+
+	seedReference := func(chatID uuid.UUID, branch, remoteOrigin string, reported time.Time) diffStatusRow {
+		t.Helper()
+		row := sqlDB.QueryRowContext(ctx, `
+			INSERT INTO chat_diff_statuses (
+				chat_id,
+				git_remote_origin,
+				git_branch,
+				stale_at,
+				created_at,
+				updated_at
+			) VALUES (
+				$1,
+				$2,
+				$3,
+				$4,
+				$4::timestamptz - INTERVAL '24 hours',
+				$4
+			)
+			RETURNING chat_id, to_jsonb(chat_diff_statuses) - 'chat_id'`,
+			chatID, remoteOrigin, branch, reported)
+		var owner uuid.UUID
+		var raw []byte
+		err := row.Scan(&owner, &raw)
+		require.NoError(t, err)
+		return decodeStatus(owner, raw)
 	}
 
 	origin := "https://github.com/coder/coder"
-	refreshedAt := dbtime.Now().Add(-time.Hour)
-	seedStatus := func(chat database.Chat, branch, remoteOrigin string, refreshed time.Time) database.ChatDiffStatus {
-		t.Helper()
-		status, err := db.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
-			ChatID:           chat.ID,
-			GitRemoteOrigin:  remoteOrigin,
-			GitBranch:        branch,
-			Url:              sql.NullString{String: "https://github.com/coder/coder/pull/1", Valid: true},
-			PullRequestState: sql.NullString{String: "open", Valid: true},
-			PullRequestTitle: chat.ID.String(),
-			PullRequestDraft: true,
-			ChangesRequested: true,
-			Additions:        10,
-			Deletions:        3,
-			ChangedFiles:     2,
-			AuthorLogin:      sql.NullString{String: "author", Valid: true},
-			AuthorAvatarUrl:  sql.NullString{String: "https://example.com/avatar", Valid: true},
-			BaseBranch:       sql.NullString{String: "main", Valid: true},
-			HeadBranch:       sql.NullString{String: branch, Valid: true},
-			PrNumber:         sql.NullInt32{Int32: 1, Valid: true},
-			Commits:          sql.NullInt32{Int32: 5, Valid: true},
-			Approved:         sql.NullBool{Bool: true, Valid: true},
-			ReviewerCount:    sql.NullInt32{Int32: 2, Valid: true},
-			RefreshedAt:      refreshed,
-			StaleAt:          refreshed.Add(time.Minute),
-		})
-		require.NoError(t, err)
-		return status
-	}
+	reportedAt := dbtime.Now().Add(-2 * time.Hour)
+	refreshedAt := reportedAt.Add(time.Hour)
 
-	// Keep existing root metadata even if a subagent chat's row was refreshed
-	// later.
-	rootStatus := seedStatus(root, "shared", origin, refreshedAt.Add(-time.Hour))
-	seedStatus(child, "shared", origin, refreshedAt)
-	seedStatus(grandchild, "shared", origin, refreshedAt)
+	// Keep existing root metadata even if a subagent chat's row is newer.
+	rootStatus := seedStatus(root, "shared", origin, refreshedAt.Add(-time.Hour), reportedAt)
+	seedStatus(child, "shared", origin, refreshedAt, reportedAt.Add(time.Minute))
+	seedStatus(grandchild, "shared", origin, refreshedAt, reportedAt.Add(2*time.Minute))
 
-	// Without a root row, keep the most recently refreshed row from a
-	// subagent chat.
-	seedStatus(child, "subagent-only", origin, refreshedAt.Add(-time.Hour))
-	subagentStatus := seedStatus(grandchild, "subagent-only", origin, refreshedAt)
+	// The freshest row was reported first. A later reference-only report
+	// must not replace its PR metadata, even though its report time is newest.
+	subagentStatus := seedStatus(grandchild, "subagent-only", origin, refreshedAt, reportedAt)
+	seedStatus(child, "subagent-only", origin, refreshedAt.Add(-time.Hour), reportedAt.Add(time.Minute))
+	seedReference(referenceOnlyChild, "subagent-only", origin, reportedAt.Add(2*time.Minute))
 
 	// The same branch on another origin is a separate ref.
-	otherOriginStatus := seedStatus(child, "shared", "https://github.com/coder/other", refreshedAt)
+	otherOriginStatus := seedStatus(child, "shared", "https://github.com/coder/other", refreshedAt, reportedAt)
 
 	// A subagent chat without root_chat_id uses its parent.
-	fallbackStatus := seedStatus(withoutRootID, "fallback", origin, refreshedAt)
+	fallbackStatus := seedStatus(withoutRootID, "fallback", origin, refreshedAt, reportedAt)
 
 	// Refs from archived subagent chats also move to the root chat.
-	archivedStatus := seedStatus(archivedChild, "archived", origin, refreshedAt)
+	archivedStatus := seedStatus(archivedChild, "archived", origin, refreshedAt, reportedAt)
 
 	// An unrelated root chat retains its row for the same ref.
-	otherRootStatus := seedStatus(otherRoot, "shared", origin, refreshedAt)
+	otherRootStatus := seedStatus(otherRoot, "shared", origin, refreshedAt, reportedAt)
 
 	// Refs without PR metadata also move to the root chat.
-	noPRStatus, err := db.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
-		ChatID:          child.ID,
-		GitRemoteOrigin: origin,
-		GitBranch:       "no-pr",
-		StaleAt:         refreshedAt,
-	})
-	require.NoError(t, err)
+	noPRStatus := seedReference(child, "no-pr", origin, reportedAt)
 
-	movedTo := func(chat database.Chat, status database.ChatDiffStatus) database.ChatDiffStatus {
-		status.ChatID = chat.ID
+	movedTo := func(chatID uuid.UUID, status diffStatusRow) diffStatusRow {
+		status.chatID = chatID
 		return status
 	}
-	want := []database.ChatDiffStatus{
+	want := []diffStatusRow{
 		rootStatus,
 		movedTo(root, subagentStatus),
 		movedTo(root, otherOriginStatus),
@@ -137,7 +217,20 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 
 	stepTo(t, sqlDB, 641)
 
-	statuses, err := db.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
+	// Read the complete table so unexpected rows cannot be omitted by an ID filter.
+	rows, err := sqlDB.QueryContext(ctx,
+		`SELECT chat_id, to_jsonb(chat_diff_statuses) - 'chat_id' FROM chat_diff_statuses`)
 	require.NoError(t, err)
+	defer rows.Close()
+
+	var statuses []diffStatusRow
+	for rows.Next() {
+		var chatID uuid.UUID
+		var raw []byte
+		err := rows.Scan(&chatID, &raw)
+		require.NoError(t, err)
+		statuses = append(statuses, decodeStatus(chatID, raw))
+	}
+	require.NoError(t, rows.Err())
 	require.ElementsMatch(t, want, statuses)
 }
