@@ -1,2 +1,3 @@
--- Root chat refs remain valid on downgrade. Subagent ownership and discarded
--- duplicate rows cannot be recovered.
+-- Refs moved to root chats stay there on downgrade. The up migration does
+-- not record which subagent chat owned each row and discards duplicates,
+-- so the original rows cannot be restored.
