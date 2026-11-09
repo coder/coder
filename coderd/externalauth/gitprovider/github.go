@@ -390,8 +390,9 @@ func (g *githubProvider) FetchBranchDiff(
 	return g.fetchDiff(ctx, requestURL, token)
 }
 
-// decodeJSON fetches JSON into dest. The destination must round-trip through
-// encoding/json without loss because a 304 decodes its cached projection.
+// decodeJSON fetches JSON into dest. dest must round-trip through
+// encoding/json without loss: on a 304, decodeJSON decodes the cached
+// JSON projection into dest.
 func (g *githubProvider) decodeJSON(
 	ctx context.Context,
 	requestURL string,
@@ -412,7 +413,7 @@ func (g *githubProvider) decodeJSON(
 	// Issue a conditional request when we have a cached ETag for this URL,
 	// token and destination type. GitHub replies 304 Not Modified when nothing
 	// changed, which avoids a full response and does not count against the
-	// primary REST rate limit.
+	// primary rate limit.
 	cacheKey := responseCacheKey(requestURL, token, dest)
 	var (
 		cachedBody []byte
@@ -429,7 +430,7 @@ func (g *githubProvider) decodeJSON(
 	}
 	defer resp.Body.Close()
 
-	// Nothing changed since the cached response: reuse the stored body.
+	// Nothing changed: decode the cached JSON projection.
 	if resp.StatusCode == http.StatusNotModified && haveCached {
 		if err := json.Unmarshal(cachedBody, dest); err != nil {
 			return xerrors.Errorf("decode cached github response: %w", err)
@@ -464,13 +465,19 @@ func (g *githubProvider) decodeJSON(
 		return xerrors.Errorf("decode github response: %w", err)
 	}
 
-	// Retain only the fields decoded by this caller, rather than the full
-	// response. A cache encoding failure must not fail a successful fetch.
-	if etag := resp.Header.Get("ETag"); etag != "" {
-		if projected, err := json.Marshal(dest); err == nil {
-			g.cache.store(cacheKey, etag, projected)
-		}
+	etag := resp.Header.Get("ETag")
+	if etag == "" {
+		return nil
 	}
+
+	// Cache the JSON projection re-encoded from the decoded destination.
+	projection, err := json.Marshal(dest)
+	if err != nil {
+		// The response was decoded successfully, so only caching is skipped.
+		return nil
+	}
+
+	g.cache.store(cacheKey, etag, projection)
 	return nil
 }
 

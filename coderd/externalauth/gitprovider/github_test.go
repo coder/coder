@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -817,8 +818,11 @@ func TestFetchPullRequestStatus(t *testing.T) {
 			assert.Equal(t, int32(3), status.DiffStats.ChangedFiles)
 			assert.False(t, status.FetchedAt.IsZero())
 			assert.Equal(t, clock.Now().UTC(), status.FetchedAt)
-			require.Zero(t, conditionalRequests.Load())
 
+			require.Zero(t, conditionalRequests.Load(), "first fetch must not be conditional")
+
+			// The second fetch receives 304 for both requests and must reproduce
+			// every PRStatus field from their JSON projections.
 			warm, err := gp.FetchPullRequestStatus(
 				context.Background(),
 				"test-token",
@@ -1018,9 +1022,11 @@ func TestEscapePathPreserveSlashes(t *testing.T) {
 func TestConditionalRequestReuse(t *testing.T) {
 	t.Parallel()
 
-	t.Run("WorkingSet", func(t *testing.T) {
+	t.Run("SecondPassReturnsNotModified", func(t *testing.T) {
 		t.Parallel()
 
+		// Dogfood on 2026-11-07 (CODAGT-1543): two keys per chat-owner/PR
+		// pair plus one per chat-owner/branch lookup.
 		const (
 			pullRequests = 1201
 			branches     = 329
@@ -1051,8 +1057,7 @@ func TestConditionalRequestReuse(t *testing.T) {
 				htmlURL := fmt.Sprintf("https://%s/owner/repo/pull/42", r.Host)
 				_, _ = fmt.Fprintf(w, `[{"html_url":%q,"number":42,"body":%q}]`, htmlURL, branchPadding)
 			default:
-				segment := r.URL.Path[strings.LastIndex(r.URL.Path, "/")+1:]
-				number, err := strconv.Atoi(segment)
+				number, err := strconv.Atoi(path.Base(r.URL.Path))
 				assert.NoError(t, err)
 				_, _ = fmt.Fprintf(w, `{"number":%d,"title":"PR %d","state":"open","body":%q}`, number, number, pullPadding)
 			}
@@ -1062,33 +1067,51 @@ func TestConditionalRequestReuse(t *testing.T) {
 		provider, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
 		require.NoError(t, err)
 
-		for round := range 2 {
+		pollWorkingSet := func() {
+			t.Helper()
+
 			for i := range pullRequests {
-				status, err := provider.FetchPullRequestStatus(t.Context(), "test-token", gitprovider.PRRef{
-					Owner: "owner", Repo: "repo", Number: i + 1,
-				})
+				pullRef := gitprovider.PRRef{
+					Owner:  "owner",
+					Repo:   "repo",
+					Number: i + 1,
+				}
+
+				status, err := provider.FetchPullRequestStatus(t.Context(), "test-token", pullRef)
 				require.NoError(t, err)
-				require.Equal(t, fmt.Sprintf("PR %d", i+1), status.Title)
+
+				require.Equal(t, fmt.Sprintf("PR %d", pullRef.Number), status.Title)
 				require.True(t, status.Approved)
 			}
 
 			for i := range branches {
-				ref, err := provider.ResolveBranchPullRequest(t.Context(), "test-token", gitprovider.BranchRef{
-					Owner: "owner", Repo: "repo", Branch: fmt.Sprintf("branch-%d", i),
-				})
+				branchRef := gitprovider.BranchRef{
+					Owner:  "owner",
+					Repo:   "repo",
+					Branch: fmt.Sprintf("branch-%d", i),
+				}
+
+				ref, err := provider.ResolveBranchPullRequest(t.Context(), "test-token", branchRef)
 				require.NoError(t, err)
 				require.NotNil(t, ref)
+
 				require.Equal(t, 42, ref.Number)
 			}
-
-			if round == 0 {
-				require.EqualValues(t, cacheKeys, fullResponses.Swap(0), "cold round %d", round)
-				require.Zero(t, notModifiedResponses.Swap(0), "cold round %d", round)
-			} else {
-				require.Zero(t, fullResponses.Swap(0), "warm round %d must not fetch unchanged bodies", round)
-				require.EqualValues(t, cacheKeys, notModifiedResponses.Swap(0), "warm round %d", round)
-			}
 		}
+
+		pollWorkingSet()
+		coldFullResponseCount := fullResponses.Swap(0)
+		coldNotModifiedResponseCount := notModifiedResponses.Swap(0)
+
+		require.EqualValues(t, cacheKeys, coldFullResponseCount, "first pass fetches every response body")
+		require.Zero(t, coldNotModifiedResponseCount)
+
+		pollWorkingSet()
+		warmFullResponseCount := fullResponses.Load()
+		warmNotModifiedResponseCount := notModifiedResponses.Load()
+
+		require.Zero(t, warmFullResponseCount, "second pass must use only conditional requests")
+		require.EqualValues(t, cacheKeys, warmNotModifiedResponseCount)
 	})
 
 	t.Run("NotModifiedReusesCachedBody", func(t *testing.T) {
