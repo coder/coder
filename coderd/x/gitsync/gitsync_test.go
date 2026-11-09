@@ -516,6 +516,12 @@ func TestRefresher_StaleAtByPRState(t *testing.T) {
 			wantTTL:      gitsync.DiffStatusTTL,
 		},
 		{
+			name:         "open after merged",
+			storedState:  gitprovider.PRStateMerged,
+			fetchedState: gitprovider.PRStateOpen,
+			wantTTL:      gitsync.DiffStatusTTL,
+		},
+		{
 			name:         "closed",
 			storedState:  gitprovider.PRStateClosed,
 			fetchedState: gitprovider.PRStateClosed,
@@ -857,6 +863,7 @@ func TestRefresher_PRURLBranchMismatch(t *testing.T) {
 		wantURL     string
 		wantCleared bool
 		wantResolve bool
+		wantTTL     time.Duration
 	}{
 		{
 			name:        "branch mismatch resolves current branch",
@@ -864,6 +871,7 @@ func TestRefresher_PRURLBranchMismatch(t *testing.T) {
 			resolveTo:   &gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 43},
 			wantURL:     "https://github.com/org/repo/pull/43",
 			wantResolve: true,
+			wantTTL:     gitsync.DiffStatusTTL,
 		},
 		{
 			name:        "branch mismatch without PR clears stale URL",
@@ -878,12 +886,14 @@ func TestRefresher_PRURLBranchMismatch(t *testing.T) {
 			headBranch:  "feature-b",
 			wantURL:     "https://github.com/org/repo/pull/42",
 			wantResolve: false,
+			wantTTL:     time.Hour,
 		},
 		{
 			name:        "empty head branch keeps stored URL",
 			headBranch:  "",
 			wantURL:     "https://github.com/org/repo/pull/42",
 			wantResolve: false,
+			wantTTL:     time.Hour,
 		},
 	}
 
@@ -908,7 +918,7 @@ func TestRefresher_PRURLBranchMismatch(t *testing.T) {
 					switch ref.Number {
 					case 42:
 						return &gitprovider.PRStatus{
-							State:      gitprovider.PRStateOpen,
+							State:      gitprovider.PRStateMerged,
 							HeadBranch: tt.headBranch,
 							Title:      "Old PR",
 						}, nil
@@ -961,6 +971,7 @@ func TestRefresher_PRURLBranchMismatch(t *testing.T) {
 			require.NotNil(t, res.Params)
 			require.True(t, res.Params.Url.Valid)
 			assert.Equal(t, tt.wantURL, res.Params.Url.String)
+			assert.Equal(t, clock.Now().Add(tt.wantTTL), res.Params.StaleAt)
 		})
 	}
 }

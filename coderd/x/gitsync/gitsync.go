@@ -21,11 +21,12 @@ import (
 
 const (
 	// DiffStatusTTL is the TTL after a successful diff-status refresh,
-	// unless the PR is merged.
+	// unless the PR is merged. It is also the ordinary error backoff.
 	DiffStatusTTL = 120 * time.Second
 
 	// mergedDiffStatusTTL is the TTL after a successful diff-status refresh
-	// of a merged PR. Periodic diff-status refreshes pick up metadata edits.
+	// of a merged PR. Merged PRs cannot reopen; periodic diff-status refreshes
+	// pick up metadata edits such as titles and reviews.
 	mergedDiffStatusTTL = time.Hour
 
 	// defaultConcurrency is the maximum number of HTTP calls

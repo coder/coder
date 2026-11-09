@@ -1281,7 +1281,10 @@ func TestWorker_MarkStaleRefreshesMergedPR(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	// PostgreSQL stores timestamps at microsecond precision.
-	now := time.Now().UTC().Truncate(time.Microsecond)
+	wallNow := time.Now().UTC().Truncate(time.Microsecond)
+
+	// Keep invalidation behind PostgreSQL NOW() despite small clock skew.
+	now := wallNow.Add(-time.Minute)
 	mClock := quartz.NewMock(t)
 	mClock.Set(now)
 
