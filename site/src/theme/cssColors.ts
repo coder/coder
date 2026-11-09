@@ -24,7 +24,10 @@ export function readThemeColors(
 		return Object.fromEntries(
 			properties.map((property) => {
 				const color = styles.getPropertyValue(property).trim();
-				if (!context || /^#[0-9a-f]{6}$/i.test(color)) {
+				if (
+					!context ||
+					/^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(color)
+				) {
 					return [property, color];
 				}
 				// Canvas converts CSS colors, including Tailwind's OKLCH palette, to sRGB bytes.

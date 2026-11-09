@@ -25,6 +25,32 @@ describe("native API theme colors", () => {
 		expect(getContext).not.toHaveBeenCalled();
 	});
 
+	it.each([
+		["#abc", "#abc"],
+		["#ABCD", "#ABCD"],
+		["#aBcDeF", "#aBcDeF"],
+		["#123456aB", "#123456aB"],
+		["#ab", "#0110ff"],
+		["#abcde", "#0110ff"],
+		["#abcdef0", "#0110ff"],
+		["#abcdef012", "#0110ff"],
+		["#abg", "#0110ff"],
+		["abc", "#0110ff"],
+		["prefix#abc", "#0110ff"],
+		["#abcsuffix", "#0110ff"],
+	])("resolves %s to %s in hex format", (color, expected) => {
+		const style = document.createElement("style");
+		style.textContent = `.dark { --test-color: ${color}; }`;
+		document.head.append(style);
+		try {
+			expect(readThemeColors("dark", ["--test-color"], "hex")).toEqual({
+				"--test-color": expected,
+			});
+		} finally {
+			style.remove();
+		}
+	});
+
 	it.each(["dark", "light"] as const)(
 		"resolves %s Tailwind colors through canvas independently of the root theme",
 		(mode) => {
