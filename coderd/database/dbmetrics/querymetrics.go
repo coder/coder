@@ -5,7 +5,6 @@ package dbmetrics
 
 import (
 	"context"
-	"database/sql"
 	"slices"
 	"time"
 
@@ -137,7 +136,7 @@ func (m queryMetricsStore) AcquireProvisionerJob(ctx context.Context, arg databa
 	return r0, r1
 }
 
-func (m queryMetricsStore) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal database.AcquireStaleChatDiffStatusesParams) ([]database.AcquireStaleChatDiffStatusesRow, error) {
+func (m queryMetricsStore) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.AcquireStaleChatDiffStatuses(ctx, limitVal)
 	m.queryLatencies.WithLabelValues("AcquireStaleChatDiffStatuses").Observe(time.Since(start).Seconds())
@@ -198,14 +197,6 @@ func (m queryMetricsStore) BackoffChatDiffStatus(ctx context.Context, arg databa
 	r0 := m.s.BackoffChatDiffStatus(ctx, arg)
 	m.queryLatencies.WithLabelValues("BackoffChatDiffStatus").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "BackoffChatDiffStatus").Inc()
-	return r0
-}
-
-func (m queryMetricsStore) BackoffChatGitSync(ctx context.Context, arg database.BackoffChatGitSyncParams) error {
-	start := time.Now()
-	r0 := m.s.BackoffChatGitSync(ctx, arg)
-	m.queryLatencies.WithLabelValues("BackoffChatGitSync").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "BackoffChatGitSync").Inc()
 	return r0
 }
 
@@ -1697,11 +1688,11 @@ func (m queryMetricsStore) GetChatGatewayAPIKey(ctx context.Context, arg databas
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatGitSyncRetryAfter(ctx context.Context, ownerID uuid.UUID) (sql.NullTime, error) {
+func (m queryMetricsStore) GetChatGitSyncRateLimitsByUserIDs(ctx context.Context, userIds []uuid.UUID) ([]database.ChatGitSyncRateLimit, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetChatGitSyncRetryAfter(ctx, ownerID)
-	m.queryLatencies.WithLabelValues("GetChatGitSyncRetryAfter").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatGitSyncRetryAfter").Inc()
+	r0, r1 := m.s.GetChatGitSyncRateLimitsByUserIDs(ctx, userIds)
+	m.queryLatencies.WithLabelValues("GetChatGitSyncRateLimitsByUserIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatGitSyncRateLimitsByUserIDs").Inc()
 	return r0, r1
 }
 
@@ -6832,6 +6823,14 @@ func (m queryMetricsStore) UpsertChatDiffStatusReference(ctx context.Context, ar
 	m.queryLatencies.WithLabelValues("UpsertChatDiffStatusReference").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatDiffStatusReference").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpsertChatGitSyncRateLimit(ctx context.Context, arg database.UpsertChatGitSyncRateLimitParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertChatGitSyncRateLimit(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertChatGitSyncRateLimit").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatGitSyncRateLimit").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) UpsertChatHeartbeat(ctx context.Context, arg database.UpsertChatHeartbeatParams) error {

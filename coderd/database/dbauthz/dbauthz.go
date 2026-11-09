@@ -1864,7 +1864,7 @@ func (q *querier) AcquireProvisionerJob(ctx context.Context, arg database.Acquir
 	return q.db.AcquireProvisionerJob(ctx, arg)
 }
 
-func (q *querier) AcquireStaleChatDiffStatuses(ctx context.Context, arg database.AcquireStaleChatDiffStatusesParams) ([]database.AcquireStaleChatDiffStatusesRow, error) {
+func (q *querier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
 	// This is a system-level batch operation used by the gitsync
 	// background worker. Per-object authorization is impractical
 	// for a SKIP LOCKED acquisition query; callers must use
@@ -1872,7 +1872,7 @@ func (q *querier) AcquireStaleChatDiffStatuses(ctx context.Context, arg database
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return nil, err
 	}
-	return q.db.AcquireStaleChatDiffStatuses(ctx, arg)
+	return q.db.AcquireStaleChatDiffStatuses(ctx, limitVal)
 }
 
 func (q *querier) ActivityBumpWorkspace(ctx context.Context, arg database.ActivityBumpWorkspaceParams) error {
@@ -1935,13 +1935,6 @@ func (q *querier) BackoffChatDiffStatus(ctx context.Context, arg database.Backof
 		return err
 	}
 	return q.db.BackoffChatDiffStatus(ctx, arg)
-}
-
-func (q *querier) BackoffChatGitSync(ctx context.Context, arg database.BackoffChatGitSyncParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
-		return err
-	}
-	return q.db.BackoffChatGitSync(ctx, arg)
 }
 
 func (q *querier) BatchDeleteChatHeartbeats(ctx context.Context, arg database.BatchDeleteChatHeartbeatsParams) (int64, error) {
@@ -3588,11 +3581,11 @@ func (q *querier) GetChatGatewayAPIKey(ctx context.Context, arg database.GetChat
 	return fetch(q.log, q.auth, q.db.GetChatGatewayAPIKey)(ctx, arg)
 }
 
-func (q *querier) GetChatGitSyncRetryAfter(ctx context.Context, ownerID uuid.UUID) (sql.NullTime, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
-		return sql.NullTime{}, err
+func (q *querier) GetChatGitSyncRateLimitsByUserIDs(ctx context.Context, userIDs []uuid.UUID) ([]database.ChatGitSyncRateLimit, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return nil, err
 	}
-	return q.db.GetChatGitSyncRetryAfter(ctx, ownerID)
+	return q.db.GetChatGitSyncRateLimitsByUserIDs(ctx, userIDs)
 }
 
 func (q *querier) GetChatHeartbeat(ctx context.Context, arg database.GetChatHeartbeatParams) (database.ChatHeartbeat, error) {
@@ -9583,6 +9576,13 @@ func (q *querier) UpsertChatDiffStatusReference(ctx context.Context, arg databas
 		return database.ChatDiffStatus{}, err
 	}
 	return q.db.UpsertChatDiffStatusReference(ctx, arg)
+}
+
+func (q *querier) UpsertChatGitSyncRateLimit(ctx context.Context, arg database.UpsertChatGitSyncRateLimitParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return err
+	}
+	return q.db.UpsertChatGitSyncRateLimit(ctx, arg)
 }
 
 func (q *querier) UpsertChatHeartbeat(ctx context.Context, arg database.UpsertChatHeartbeatParams) error {

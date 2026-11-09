@@ -523,7 +523,6 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 			&i.IsSystem,
 			&i.IsServiceAccount,
 			&i.ChatSpendLimitMicros,
-			&i.GitSyncRetryAfter,
 			&i.Count,
 		); err != nil {
 			return nil, err

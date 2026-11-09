@@ -6,6 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"net/url"
+	"regexp"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -45,7 +48,7 @@ var ErrNoTokenAvailable = xerrors.New("no token available")
 var ErrStalePullRequest = xerrors.New("stale pull request")
 
 // ErrRateLimitSkipped indicates that a row was skipped because
-// a prior request for the same owner hit a rate limit.
+// a prior request for the same owner and host hit a rate limit.
 var ErrRateLimitSkipped = xerrors.New("skipped due to rate limit")
 
 // TokenResolver obtains the user's git access token for a given
@@ -79,12 +82,6 @@ type Refresher struct {
 	logger      slog.Logger
 	clock       quartz.Clock
 	concurrency int
-	rateLimits  rateLimitStore
-}
-
-type rateLimitStore interface {
-	GetChatGitSyncRetryAfter(ctx context.Context, ownerID uuid.UUID) (sql.NullTime, error)
-	BackoffChatGitSync(ctx context.Context, arg database.BackoffChatGitSyncParams) error
 }
 
 // NewRefresher creates a Refresher with the given dependency
@@ -133,6 +130,26 @@ type groupKey struct {
 	origin  string
 }
 
+type rateLimitKey struct {
+	ownerID uuid.UUID
+	host    string
+}
+
+var scpOriginHost = regexp.MustCompile(`^[^@/]+@(\[[^\]]+\]|[^:/]+):`)
+
+func rateLimitKeyFor(ownerID uuid.UUID, origin string) rateLimitKey {
+	key := rateLimitKey{ownerID: ownerID}
+	origin = strings.TrimSpace(origin)
+	if match := scpOriginHost.FindStringSubmatch(origin); match != nil {
+		origin = "ssh://" + match[1]
+	}
+	parsed, err := url.Parse(origin)
+	if err == nil {
+		key.host = strings.ToLower(parsed.Hostname())
+	}
+	return key
+}
+
 // resolvedGroup holds the pre-resolved provider and token for
 // a group of requests that share the same (owner, origin).
 type resolvedGroup struct {
@@ -175,15 +192,8 @@ func (r *Refresher) Refresh(
 	// fast (DB + in-memory config lookups) and avoids
 	// duplicate resolution for rows in the same group.
 	var resolved []resolvedGroup
-	rateLimits := make(map[uuid.UUID]*atomic.Pointer[gitprovider.RateLimitError])
+	rateLimits := make(map[rateLimitKey]*atomic.Pointer[gitprovider.RateLimitError])
 	for key, indices := range groups {
-		if err := r.checkRateLimit(ctx, key.ownerID); err != nil {
-			for _, i := range indices {
-				results[i].Error = err
-			}
-			continue
-		}
-
 		provider := r.providers(ctx, key.origin)
 		if provider == nil {
 			err := xerrors.Errorf("no provider for origin %q", key.origin)
@@ -206,19 +216,19 @@ func (r *Refresher) Refresh(
 			continue
 		}
 
-		if rateLimits[key.ownerID] == nil {
-			rateLimits[key.ownerID] = new(atomic.Pointer[gitprovider.RateLimitError])
+		limitKey := rateLimitKeyFor(key.ownerID, key.origin)
+		if rateLimits[limitKey] == nil {
+			rateLimits[limitKey] = new(atomic.Pointer[gitprovider.RateLimitError])
 		}
 		resolved = append(resolved, resolvedGroup{
 			provider:     provider,
 			token:        *token,
 			indices:      indices,
-			rateLimitErr: rateLimits[key.ownerID],
+			rateLimitErr: rateLimits[limitKey],
 		})
 	}
 
-	// Rate limits apply across repositories. Stop queued requests for
-	// the same owner, including requests in other origin groups.
+	// Share a rate limit across the owner's repositories on the same host.
 	sem := make(chan struct{}, r.concurrency)
 	var wg sync.WaitGroup
 
@@ -227,16 +237,6 @@ func (r *Refresher) Refresh(
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-
-				// Best-effort rate-limit check before acquiring
-				// the semaphore to avoid unnecessary blocking.
-				if rl := grp.rateLimitErr.Load(); rl != nil {
-					results[idx] = RefreshResult{
-						Request: requests[idx],
-						Error:   rateLimitSkippedError(rl),
-					}
-					return
-				}
 
 				// Acquire semaphore slot.
 				select {
@@ -250,8 +250,7 @@ func (r *Refresher) Refresh(
 					return
 				}
 
-				// Best-effort rate-limit check after acquiring
-				// in case it was set while we waited.
+				// A request may have hit a limit while this row was queued.
 				if rl := grp.rateLimitErr.Load(); rl != nil {
 					results[idx] = RefreshResult{
 						Request: requests[idx],
@@ -260,7 +259,7 @@ func (r *Refresher) Refresh(
 					return
 				}
 
-				params, err := r.refreshOne(ctx, grp.provider, grp.token, requests[idx].Row, requests[idx].OwnerID)
+				params, err := r.refreshOne(ctx, grp.provider, grp.token, requests[idx].Row)
 				results[idx] = RefreshResult{
 					Request: requests[idx],
 					Params:  params,
@@ -270,14 +269,6 @@ func (r *Refresher) Refresh(
 				var rlErr *gitprovider.RateLimitError
 				if errors.As(err, &rlErr) {
 					grp.rateLimitErr.Store(rlErr)
-					if r.rateLimits != nil && !errors.Is(err, ErrRateLimitSkipped) {
-						if err := r.rateLimits.BackoffChatGitSync(ctx, database.BackoffChatGitSyncParams{
-							OwnerID:    requests[idx].OwnerID,
-							RetryAfter: rateLimitRetryAfter(r.clock.Now().UTC(), rlErr),
-						}); err != nil {
-							r.logger.Warn(ctx, "persist git provider rate limit", slog.Error(err))
-						}
-					}
 				}
 			}()
 		}
@@ -288,34 +279,10 @@ func (r *Refresher) Refresh(
 }
 
 // rateLimitSkippedError reports a row skipped after rl was hit by an
-// earlier request for its owner. Callers match both ErrRateLimitSkipped
+// earlier request for its owner and host. Callers match both ErrRateLimitSkipped
 // and *gitprovider.RateLimitError, and xerrors wraps only one error.
 func rateLimitSkippedError(rl *gitprovider.RateLimitError) error {
 	return fmt.Errorf("%w: %w", ErrRateLimitSkipped, rl) //nolint:gocritic // xerrors cannot wrap two errors.
-}
-
-// Recheck shared state because another replica may have acquired rows
-// before the rate limit was recorded.
-func (r *Refresher) checkRateLimit(ctx context.Context, ownerID uuid.UUID) error {
-	if r.rateLimits == nil {
-		return nil
-	}
-	retryAfter, err := r.rateLimits.GetChatGitSyncRetryAfter(ctx, ownerID)
-	if err != nil {
-		return xerrors.Errorf("get git provider rate limit: %w", err)
-	}
-	if retryAfter.Valid && retryAfter.Time.After(r.clock.Now()) {
-		return rateLimitSkippedError(&gitprovider.RateLimitError{RetryAfter: retryAfter.Time})
-	}
-	return nil
-}
-
-func rateLimitRetryAfter(now time.Time, rateLimit *gitprovider.RateLimitError) time.Time {
-	backoff := rateLimit.RetryAfter.Sub(now)
-	if backoff <= 0 {
-		backoff = DiffStatusTTL
-	}
-	return now.Add(min(backoff, maxRateLimitBackoff))
 }
 
 // refreshOne processes a single row using an already-resolved
@@ -325,12 +292,8 @@ func (r *Refresher) refreshOne(
 	provider gitprovider.Provider,
 	token string,
 	row database.ChatDiffStatus,
-	ownerID uuid.UUID,
 ) (*database.UpsertChatDiffStatusParams, error) {
 	resolveByBranch := func() (*gitprovider.PRRef, error) {
-		if err := r.checkRateLimit(ctx, ownerID); err != nil {
-			return nil, err
-		}
 		owner, repo, _, ok := provider.ParseRepositoryOrigin(row.GitRemoteOrigin)
 		if !ok {
 			return nil, xerrors.Errorf("parse repository origin %q", row.GitRemoteOrigin)
@@ -372,9 +335,6 @@ func (r *Refresher) refreshOne(
 		prURL = provider.BuildPullRequestURL(ref)
 	}
 
-	if err := r.checkRateLimit(ctx, ownerID); err != nil {
-		return nil, err
-	}
 	status, err := provider.FetchPullRequestStatus(ctx, token, ref)
 	if err != nil {
 		return nil, xerrors.Errorf("fetch pull request status: %w", err)
@@ -394,9 +354,6 @@ func (r *Refresher) refreshOne(
 		ref = *resolved
 		prURL = provider.BuildPullRequestURL(ref)
 
-		if err := r.checkRateLimit(ctx, ownerID); err != nil {
-			return nil, err
-		}
 		status, err = provider.FetchPullRequestStatus(ctx, token, ref)
 		if err != nil {
 			return nil, xerrors.Errorf("fetch pull request status: %w", err)

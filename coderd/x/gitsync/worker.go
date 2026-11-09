@@ -61,9 +61,10 @@ const (
 
 // Store is the narrow DB interface the Worker needs.
 type Store interface {
-	rateLimitStore
+	GetChatGitSyncRateLimitsByUserIDs(ctx context.Context, userIDs []uuid.UUID) ([]database.ChatGitSyncRateLimit, error)
+	UpsertChatGitSyncRateLimit(ctx context.Context, arg database.UpsertChatGitSyncRateLimitParams) error
 	AcquireStaleChatDiffStatuses(
-		ctx context.Context, arg database.AcquireStaleChatDiffStatusesParams,
+		ctx context.Context, limitVal int32,
 	) ([]database.AcquireStaleChatDiffStatusesRow, error)
 	BackoffChatDiffStatus(
 		ctx context.Context, arg database.BackoffChatDiffStatusParams,
@@ -116,12 +117,9 @@ func NewWorker(
 	logger slog.Logger,
 	opts ...WorkerOption,
 ) *Worker {
-	// Keep the supplied refresher usable with another worker's store.
-	workerRefresher := *refresher
-	workerRefresher.rateLimits = store
 	w := &Worker{
 		store:                     store,
-		refresher:                 &workerRefresher,
+		refresher:                 refresher,
 		publishDiffStatusChangeFn: publisher,
 		clock:                     clock,
 		logger:                    logger,
@@ -194,10 +192,7 @@ func (w *Worker) tick(ctx context.Context) {
 	ctx, cancel := context.WithTimeout(ctx, w.tickTimeout)
 	defer cancel()
 
-	acquiredRows, err := w.store.AcquireStaleChatDiffStatuses(ctx, database.AcquireStaleChatDiffStatusesParams{
-		Now:      w.clock.Now().UTC(),
-		LimitVal: w.batchSize,
-	})
+	acquiredRows, err := w.store.AcquireStaleChatDiffStatuses(ctx, w.batchSize)
 	if err != nil {
 		w.logger.Warn(ctx, "acquire stale chat diff statuses",
 			slog.Error(err))
@@ -207,15 +202,49 @@ func (w *Worker) tick(ctx context.Context) {
 		return
 	}
 
+	owners := make([]uuid.UUID, 0, len(acquiredRows))
+	seenOwners := make(map[uuid.UUID]bool)
+	for _, row := range acquiredRows {
+		if !seenOwners[row.OwnerID] {
+			owners = append(owners, row.OwnerID)
+			seenOwners[row.OwnerID] = true
+		}
+	}
+	storedLimits, err := w.store.GetChatGitSyncRateLimitsByUserIDs(ctx, owners)
+	if err != nil {
+		w.logger.Warn(ctx, "get git sync rate limits", slog.Error(err))
+		return
+	}
+	cooldowns := make(map[rateLimitKey]time.Time, len(storedLimits))
+	for _, limit := range storedLimits {
+		key := rateLimitKey{ownerID: limit.UserID, host: limit.Host}
+		cooldowns[key] = limit.RetryAfter
+	}
+
 	// Build refresh requests directly from acquired rows.
 	requests := make([]RefreshRequest, 0, len(acquiredRows))
 	for _, row := range acquiredRows {
+		key := rateLimitKeyFor(row.OwnerID, row.GitRemoteOrigin)
+		if retryAfter := cooldowns[key]; retryAfter.After(w.clock.Now()) {
+			if err := w.store.BackoffChatDiffStatus(ctx, database.BackoffChatDiffStatusParams{
+				ChatID:          row.ChatID,
+				GitRemoteOrigin: row.GitRemoteOrigin,
+				GitBranch:       row.GitBranch,
+				StaleAt:         retryAfter,
+			}); err != nil {
+				w.logger.Warn(ctx, "backoff rate limited chat diff status", slog.Error(err))
+			}
+			continue
+		}
 		requests = append(requests, RefreshRequest{
 			Row:     chatDiffStatusFromRow(row),
 			OwnerID: row.OwnerID,
 		})
 	}
 
+	if len(requests) == 0 {
+		return
+	}
 	results, err := w.refresher.Refresh(ctx, requests)
 	if err != nil {
 		w.logger.Warn(ctx, "batch refresh chat diff statuses",
@@ -223,7 +252,7 @@ func (w *Worker) tick(ctx context.Context) {
 		return
 	}
 
-	rateLimits := make(map[uuid.UUID]time.Time)
+	rateLimits := make(map[rateLimitKey]time.Time)
 	for _, res := range results {
 		var rateLimit *gitprovider.RateLimitError
 		if !errors.As(res.Error, &rateLimit) {
@@ -231,18 +260,19 @@ func (w *Worker) tick(ctx context.Context) {
 		}
 
 		retryAfter := rateLimitRetryAfter(w.clock.Now().UTC(), rateLimit)
-		ownerID := res.Request.OwnerID
-		if retryAfter.After(rateLimits[ownerID]) {
-			rateLimits[ownerID] = retryAfter
+		key := rateLimitKeyFor(res.Request.OwnerID, res.Request.Row.GitRemoteOrigin)
+		if retryAfter.After(rateLimits[key]) {
+			rateLimits[key] = retryAfter
 		}
 	}
-	for ownerID, retryAfter := range rateLimits {
-		if err := w.store.BackoffChatGitSync(ctx, database.BackoffChatGitSyncParams{
-			OwnerID:    ownerID,
+	for key, retryAfter := range rateLimits {
+		if err := w.store.UpsertChatGitSyncRateLimit(ctx, database.UpsertChatGitSyncRateLimitParams{
+			UserID:     key.ownerID,
+			Host:       key.host,
 			RetryAfter: retryAfter,
 		}); err != nil {
-			w.logger.Warn(ctx, "backoff rate limited chat owner",
-				slog.F("owner_id", ownerID), slog.Error(err))
+			w.logger.Warn(ctx, "store git sync rate limit",
+				slog.F("user_id", key.ownerID), slog.F("host", key.host), slog.Error(err))
 		}
 	}
 
@@ -267,10 +297,11 @@ func (w *Worker) tick(ctx context.Context) {
 				backoff = NoTokenBackoff
 			}
 			staleAt := w.clock.Now().UTC().Add(backoff)
+			key := rateLimitKeyFor(res.Request.OwnerID, res.Request.Row.GitRemoteOrigin)
 			var rateLimit *gitprovider.RateLimitError
 			if errors.As(res.Error, &rateLimit) {
-				staleAt = rateLimits[res.Request.OwnerID]
-			} else if retryAfter := rateLimits[res.Request.OwnerID]; retryAfter.After(staleAt) {
+				staleAt = rateLimits[key]
+			} else if retryAfter := rateLimits[key]; retryAfter.After(staleAt) {
 				staleAt = retryAfter
 			}
 			// Back off so the row isn't retried immediately.
@@ -327,6 +358,14 @@ func (w *Worker) tick(ctx context.Context) {
 			}
 		}
 	}
+}
+
+func rateLimitRetryAfter(now time.Time, rateLimit *gitprovider.RateLimitError) time.Time {
+	backoff := rateLimit.RetryAfter.Sub(now)
+	if backoff <= 0 {
+		backoff = DiffStatusTTL
+	}
+	return now.Add(min(backoff, maxRateLimitBackoff))
 }
 
 // MarkStaleParams holds the arguments for Worker.MarkStale.

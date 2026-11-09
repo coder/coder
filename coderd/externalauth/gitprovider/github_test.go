@@ -496,7 +496,7 @@ func TestGitHubRatelimit_403NormalError(t *testing.T) {
 		w.Header().Set("X-RateLimit-Remaining", "4990")
 		w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(clock.Now().Add(time.Hour).Unix(), 10))
 		w.WriteHeader(http.StatusForbidden)
-		_, _ = w.Write([]byte(`{"message": "Bad credentials"}`))
+		_, _ = w.Write([]byte(`{"message": "Resource not accessible by integration"}`))
 	}))
 	defer srv.Close()
 
@@ -506,7 +506,7 @@ func TestGitHubRatelimit_403NormalError(t *testing.T) {
 
 	_, err = gp.FetchPullRequestStatus(
 		context.Background(),
-		"bad-token",
+		"test-token",
 		gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
 	)
 	require.Error(t, err)

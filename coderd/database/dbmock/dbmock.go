@@ -11,7 +11,6 @@ package dbmock
 
 import (
 	context "context"
-	sql "database/sql"
 	reflect "reflect"
 	time "time"
 
@@ -105,18 +104,18 @@ func (mr *MockStoreMockRecorder) AcquireProvisionerJob(ctx, arg any) *gomock.Cal
 }
 
 // AcquireStaleChatDiffStatuses mocks base method.
-func (m *MockStore) AcquireStaleChatDiffStatuses(ctx context.Context, arg database.AcquireStaleChatDiffStatusesParams) ([]database.AcquireStaleChatDiffStatusesRow, error) {
+func (m *MockStore) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "AcquireStaleChatDiffStatuses", ctx, arg)
+	ret := m.ctrl.Call(m, "AcquireStaleChatDiffStatuses", ctx, limitVal)
 	ret0, _ := ret[0].([]database.AcquireStaleChatDiffStatusesRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // AcquireStaleChatDiffStatuses indicates an expected call of AcquireStaleChatDiffStatuses.
-func (mr *MockStoreMockRecorder) AcquireStaleChatDiffStatuses(ctx, arg any) *gomock.Call {
+func (mr *MockStoreMockRecorder) AcquireStaleChatDiffStatuses(ctx, limitVal any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireStaleChatDiffStatuses", reflect.TypeOf((*MockStore)(nil).AcquireStaleChatDiffStatuses), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "AcquireStaleChatDiffStatuses", reflect.TypeOf((*MockStore)(nil).AcquireStaleChatDiffStatuses), ctx, limitVal)
 }
 
 // ActivityBumpWorkspace mocks base method.
@@ -220,20 +219,6 @@ func (m *MockStore) BackoffChatDiffStatus(ctx context.Context, arg database.Back
 func (mr *MockStoreMockRecorder) BackoffChatDiffStatus(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackoffChatDiffStatus", reflect.TypeOf((*MockStore)(nil).BackoffChatDiffStatus), ctx, arg)
-}
-
-// BackoffChatGitSync mocks base method.
-func (m *MockStore) BackoffChatGitSync(ctx context.Context, arg database.BackoffChatGitSyncParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "BackoffChatGitSync", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// BackoffChatGitSync indicates an expected call of BackoffChatGitSync.
-func (mr *MockStoreMockRecorder) BackoffChatGitSync(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BackoffChatGitSync", reflect.TypeOf((*MockStore)(nil).BackoffChatGitSync), ctx, arg)
 }
 
 // BatchDeleteChatHeartbeats mocks base method.
@@ -3190,19 +3175,19 @@ func (mr *MockStoreMockRecorder) GetChatGatewayAPIKey(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatGatewayAPIKey", reflect.TypeOf((*MockStore)(nil).GetChatGatewayAPIKey), ctx, arg)
 }
 
-// GetChatGitSyncRetryAfter mocks base method.
-func (m *MockStore) GetChatGitSyncRetryAfter(ctx context.Context, ownerID uuid.UUID) (sql.NullTime, error) {
+// GetChatGitSyncRateLimitsByUserIDs mocks base method.
+func (m *MockStore) GetChatGitSyncRateLimitsByUserIDs(ctx context.Context, userIds []uuid.UUID) ([]database.ChatGitSyncRateLimit, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatGitSyncRetryAfter", ctx, ownerID)
-	ret0, _ := ret[0].(sql.NullTime)
+	ret := m.ctrl.Call(m, "GetChatGitSyncRateLimitsByUserIDs", ctx, userIds)
+	ret0, _ := ret[0].([]database.ChatGitSyncRateLimit)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetChatGitSyncRetryAfter indicates an expected call of GetChatGitSyncRetryAfter.
-func (mr *MockStoreMockRecorder) GetChatGitSyncRetryAfter(ctx, ownerID any) *gomock.Call {
+// GetChatGitSyncRateLimitsByUserIDs indicates an expected call of GetChatGitSyncRateLimitsByUserIDs.
+func (mr *MockStoreMockRecorder) GetChatGitSyncRateLimitsByUserIDs(ctx, userIds any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatGitSyncRetryAfter", reflect.TypeOf((*MockStore)(nil).GetChatGitSyncRetryAfter), ctx, ownerID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatGitSyncRateLimitsByUserIDs", reflect.TypeOf((*MockStore)(nil).GetChatGitSyncRateLimitsByUserIDs), ctx, userIds)
 }
 
 // GetChatHeartbeat mocks base method.
@@ -12868,6 +12853,20 @@ func (m *MockStore) UpsertChatDiffStatusReference(ctx context.Context, arg datab
 func (mr *MockStoreMockRecorder) UpsertChatDiffStatusReference(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatDiffStatusReference", reflect.TypeOf((*MockStore)(nil).UpsertChatDiffStatusReference), ctx, arg)
+}
+
+// UpsertChatGitSyncRateLimit mocks base method.
+func (m *MockStore) UpsertChatGitSyncRateLimit(ctx context.Context, arg database.UpsertChatGitSyncRateLimitParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertChatGitSyncRateLimit", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertChatGitSyncRateLimit indicates an expected call of UpsertChatGitSyncRateLimit.
+func (mr *MockStoreMockRecorder) UpsertChatGitSyncRateLimit(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatGitSyncRateLimit", reflect.TypeOf((*MockStore)(nil).UpsertChatGitSyncRateLimit), ctx, arg)
 }
 
 // UpsertChatHeartbeat mocks base method.

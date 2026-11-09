@@ -584,12 +584,12 @@ func TestRefresher_StaleAtByPRState(t *testing.T) {
 	}
 }
 
-func TestRefresher_RateLimitSkipsRemainingForOwner(t *testing.T) {
+func TestRefresher_RateLimitSkipsRemainingForAccount(t *testing.T) {
 	t.Parallel()
 
 	ownerID := uuid.New()
 	clock := quartz.NewMock(t)
-	var callCount, otherOwnerCalls atomic.Int32
+	var callCount, healthyCalls atomic.Int32
 
 	mp := &mockProvider{
 		parsePullRequestURL: func(raw string) (gitprovider.PRRef, bool) {
@@ -597,7 +597,7 @@ func TestRefresher_RateLimitSkipsRemainingForOwner(t *testing.T) {
 		},
 		fetchPullRequestStatus: func(_ context.Context, token string, _ gitprovider.PRRef) (*gitprovider.PRStatus, error) {
 			if token == "other-token" {
-				otherOwnerCalls.Add(1)
+				healthyCalls.Add(1)
 				return &gitprovider.PRStatus{State: gitprovider.PRStateOpen}, nil
 			}
 			callCount.Add(1)
@@ -608,8 +608,8 @@ func TestRefresher_RateLimitSkipsRemainingForOwner(t *testing.T) {
 	}
 
 	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
-	tokens := func(_ context.Context, id uuid.UUID, _ string) (*string, error) {
-		if id != ownerID {
+	tokens := func(_ context.Context, id uuid.UUID, origin string) (*string, error) {
+		if id != ownerID || strings.Contains(origin, "ghe.example.com") || strings.Contains(origin, "gitlab.com") {
 			return new("other-token"), nil
 		}
 		return new("test-token"), nil
@@ -658,17 +658,37 @@ func TestRefresher_RateLimitSkipsRemainingForOwner(t *testing.T) {
 			},
 			OwnerID: uuid.New(),
 		},
+		{
+			Row: database.ChatDiffStatus{
+				ChatID:          uuid.New(),
+				GitRemoteOrigin: "https://ghe.example.com/org/repo",
+				GitBranch:       "enterprise",
+				Url:             sql.NullString{String: "https://ghe.example.com/org/repo/pull/5", Valid: true},
+			},
+			OwnerID: ownerID,
+		},
+		{
+			Row: database.ChatDiffStatus{
+				ChatID:          uuid.New(),
+				GitRemoteOrigin: "https://gitlab.com/org/repo",
+				GitBranch:       "gitlab",
+				Url:             sql.NullString{String: "https://gitlab.com/org/repo/-/merge_requests/6", Valid: true},
+			},
+			OwnerID: ownerID,
+		},
 	}
 
 	results, err := r.Refresh(context.Background(), requests)
 	require.NoError(t, err)
-	require.Len(t, results, 4)
+	require.Len(t, results, 6)
 
 	// Semaphore acquisition order is nondeterministic, so count limited
 	// and skipped rows instead of asserting which row hits the limit.
 	var directCount, skippedCount int
 	for _, res := range results {
-		if res.Request.OwnerID != ownerID {
+		origin := res.Request.Row.GitRemoteOrigin
+		healthyHost := strings.Contains(origin, "ghe.example.com") || strings.Contains(origin, "gitlab.com")
+		if res.Request.OwnerID != ownerID || healthyHost {
 			require.NoError(t, res.Error)
 			require.NotNil(t, res.Params)
 			continue
@@ -690,7 +710,7 @@ func TestRefresher_RateLimitSkipsRemainingForOwner(t *testing.T) {
 		"two rows should be skipped due to rate limit")
 	assert.Equal(t, int32(1), callCount.Load(),
 		"FetchPullRequestStatus should be called exactly once for the limited owner")
-	assert.Equal(t, int32(1), otherOwnerCalls.Load(), "another owner in the same batch should still refresh")
+	assert.Equal(t, int32(3), healthyCalls.Load(), "other owners and hosts in the same batch should still refresh")
 }
 
 func TestRefresher_CorrectTokenPerOrigin(t *testing.T) {

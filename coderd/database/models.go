@@ -5535,6 +5535,13 @@ type ChatFileLink struct {
 	FileID uuid.UUID `db:"file_id" json:"file_id"`
 }
 
+// Provider cooldowns shared by gitsync workers for each user and origin host.
+type ChatGitSyncRateLimit struct {
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	Host       string    `db:"host" json:"host"`
+	RetryAfter time.Time `db:"retry_after" json:"retry_after"`
+}
+
 // Ephemeral runner ownership leases for runnable chats. The table is unlogged because losing heartbeat rows after a crash is safe: missing heartbeats are treated as stale ownership and cause workers to reacquire runnable chats.
 type ChatHeartbeat struct {
 	ChatID      uuid.UUID `db:"chat_id" json:"chat_id"`
@@ -6734,8 +6741,6 @@ type User struct {
 	// Determines if a user is an admin-managed account that cannot login
 	IsServiceAccount     bool          `db:"is_service_account" json:"is_service_account"`
 	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
-	// The earliest time gitsync may refresh this user after a provider rate limit.
-	GitSyncRetryAfter sql.NullTime `db:"git_sync_retry_after" json:"git_sync_retry_after"`
 }
 
 // Per-user AI spend override that supersedes group budget resolution.

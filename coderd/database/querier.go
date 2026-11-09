@@ -6,7 +6,6 @@ package database
 
 import (
 	"context"
-	"database/sql"
 	"time"
 
 	"github.com/google/uuid"
@@ -40,7 +39,7 @@ type sqlcQuerier interface {
 	// multiple provisioners from acquiring the same jobs. See:
 	// https://www.postgresql.org/docs/9.5/sql-select.html#SQL-FOR-UPDATE-SHARE
 	AcquireProvisionerJob(ctx context.Context, arg AcquireProvisionerJobParams) (ProvisionerJob, error)
-	AcquireStaleChatDiffStatuses(ctx context.Context, arg AcquireStaleChatDiffStatusesParams) ([]AcquireStaleChatDiffStatusesRow, error)
+	AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int32) ([]AcquireStaleChatDiffStatusesRow, error)
 	// Bumps the workspace deadline by the template's configured "activity_bump"
 	// duration (default 1h). If the workspace bump will cross an autostart
 	// threshold, then the bump is autostart + TTL. This is the deadline behavior if
@@ -77,7 +76,6 @@ type sqlcQuerier interface {
 	// NULL means "pending", empty tsvector means "backfilled, no text".
 	BackfillChatMessagesSearchTsv(ctx context.Context, batchSize int32) (int64, error)
 	BackoffChatDiffStatus(ctx context.Context, arg BackoffChatDiffStatusParams) error
-	BackoffChatGitSync(ctx context.Context, arg BackoffChatGitSyncParams) error
 	// Deletes heartbeat rows for the supplied (chat_id, runner_id) pairs.
 	BatchDeleteChatHeartbeats(ctx context.Context, arg BatchDeleteChatHeartbeatsParams) (int64, error)
 	BatchUpdateWorkspaceAgentMetadata(ctx context.Context, arg BatchUpdateWorkspaceAgentMetadataParams) error
@@ -503,7 +501,7 @@ type sqlcQuerier interface {
 	GetChatFileMetadataByChatID(ctx context.Context, chatID uuid.UUID) ([]GetChatFileMetadataByChatIDRow, error)
 	GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error)
 	GetChatGatewayAPIKey(ctx context.Context, arg GetChatGatewayAPIKeyParams) (APIKey, error)
-	GetChatGitSyncRetryAfter(ctx context.Context, ownerID uuid.UUID) (sql.NullTime, error)
+	GetChatGitSyncRateLimitsByUserIDs(ctx context.Context, userIds []uuid.UUID) ([]ChatGitSyncRateLimit, error)
 	GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatParams) (ChatHeartbeat, error)
 	// GetChatIncludeDefaultSystemPrompt preserves the legacy default
 	// for deployments created before the explicit include-default toggle.
@@ -1845,6 +1843,7 @@ type sqlcQuerier interface {
 	UpsertChatDesktopEnabled(ctx context.Context, enableDesktop bool) error
 	UpsertChatDiffStatus(ctx context.Context, arg UpsertChatDiffStatusParams) (ChatDiffStatus, error)
 	UpsertChatDiffStatusReference(ctx context.Context, arg UpsertChatDiffStatusReferenceParams) (ChatDiffStatus, error)
+	UpsertChatGitSyncRateLimit(ctx context.Context, arg UpsertChatGitSyncRateLimitParams) error
 	// Upserts a heartbeat row for the (chat_id, runner_id) lease. Uses
 	// database time so callers do not depend on a local clock.
 	UpsertChatHeartbeat(ctx context.Context, arg UpsertChatHeartbeatParams) error

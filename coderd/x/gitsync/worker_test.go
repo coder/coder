@@ -30,7 +30,7 @@ import (
 
 func newTestStore(ctrl *gomock.Controller) *dbmock.MockStore {
 	store := dbmock.NewMockStore(ctrl)
-	store.EXPECT().GetChatGitSyncRetryAfter(gomock.Any(), gomock.Any()).Return(sql.NullTime{}, nil).AnyTimes()
+	store.EXPECT().GetChatGitSyncRateLimitsByUserIDs(gomock.Any(), gomock.Any()).Return(nil, nil).AnyTimes()
 	return store
 }
 
@@ -161,7 +161,7 @@ func TestWorker_SkipsFreshRows(t *testing.T) {
 	store := newTestStore(ctrl)
 
 	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(context.Context, database.AcquireStaleChatDiffStatusesParams) ([]database.AcquireStaleChatDiffStatusesRow, error) {
+		DoAndReturn(func(context.Context, int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
 			// No stale rows — tick returns immediately.
 			close(tickDone)
 			return nil, nil
@@ -194,8 +194,8 @@ func TestWorker_LimitsToNRows(t *testing.T) {
 	store := newTestStore(ctrl)
 
 	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, arg database.AcquireStaleChatDiffStatusesParams) ([]database.AcquireStaleChatDiffStatusesRow, error) {
-			capturedLimit.Store(arg.LimitVal)
+		DoAndReturn(func(_ context.Context, limitVal int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
+			capturedLimit.Store(limitVal)
 			return rows, nil
 		})
 	store.EXPECT().UpsertChatDiffStatus(gomock.Any(), gomock.Any()).
@@ -781,7 +781,7 @@ func TestWorker_TickStoreError(t *testing.T) {
 	store := newTestStore(ctrl)
 
 	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(context.Context, database.AcquireStaleChatDiffStatusesParams) ([]database.AcquireStaleChatDiffStatusesRow, error) {
+		DoAndReturn(func(context.Context, int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
 			close(tickDone)
 			return nil, xerrors.New("database unavailable")
 		})
@@ -1210,7 +1210,6 @@ func TestWorker(t *testing.T) {
 
 	// 5. Mock refresher returns a canned PR status.
 	mClock := quartz.NewMock(t)
-	mClock.Set(time.Now()).MustWait(ctx)
 	refresher := newTestRefresher(t, mClock)
 
 	// 6. Track publish calls.
@@ -1410,7 +1409,6 @@ func TestWorker_RefreshDoesNotReorderPrimary(t *testing.T) {
 	require.Equal(t, "new", db2sdk.PrimaryChatDiffStatus(before).GitBranch)
 
 	mClock := quartz.NewMock(t)
-	mClock.Set(time.Now()).MustWait(ctx)
 	tickDone := make(chan struct{})
 	pub := func(context.Context, uuid.UUID, codersdk.DiffStatusRef) error {
 		close(tickDone)
