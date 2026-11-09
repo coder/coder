@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -37,6 +38,7 @@ type forwardingHandler struct {
 	baseURL  *url.URL
 	logger   slog.Logger
 	tracer   trace.Tracer
+	errorLog *log.Logger
 	// connections holds the provider's upstream connections.
 	connections *http.Transport
 	// transport sends forwarded requests over connections.
@@ -74,6 +76,7 @@ func newForwardingHandler(prov provider.Provider, logger slog.Logger, m *metrics
 		recorder:    rec,
 		breaker:     circuitbreaker.NewProviderCircuitBreakers(prov.Name(), prov.CircuitBreakerConfig(), logger, m),
 	}
+	h.errorLog = slog.Stdlib(context.Background(), h.logger, slog.LevelWarn)
 	return h, nil
 }
 
@@ -85,7 +88,7 @@ func (h *forwardingHandler) newProxy(cred credential.Credential) *httputil.Rever
 		},
 		Transport:     h.transport,
 		FlushInterval: -1,
-		ErrorLog:      slog.Stdlib(context.Background(), h.logger, slog.LevelWarn),
+		ErrorLog:      h.errorLog,
 	}
 }
 
