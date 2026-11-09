@@ -570,10 +570,13 @@ type sqlcQuerier interface {
 	// Pool fullness distinguishes capacity waits from worker pickup delays.
 	GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error)
 	GetChatQueuedMessageByID(ctx context.Context, arg GetChatQueuedMessageByIDParams) (ChatQueuedMessage, error)
-	// Returns the queue head (lowest position, then lowest id).
+	// Returns the queue head: the first row in GetChatQueuedMessages order.
+	// A steer row under edit comes first instead, because it holds the
+	// whole steer lane.
 	GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error)
-	// Returns the queue in promotion order (position ASC, id ASC), the same
-	// order chatstate uses to pick the head. Clients read the queue through
+	// Returns the queue in promotion order (steer lane first, then the queue
+	// lane, each by position ASC, id ASC), the same order chatstate uses to
+	// pick the head. Clients read the queue through
 	// this query, so it must not order by created_at: promoting a message
 	// changes only its position, and concurrent senders can commit with
 	// created_at and position in opposite orders.
@@ -1509,9 +1512,6 @@ type sqlcQuerier interface {
 	// Mutates only created_at on the target row; ids are unchanged so
 	// consumers can keep tracking queued messages by id.
 	ReorderChatQueuedMessageToFront(ctx context.Context, arg ReorderChatQueuedMessageToFrontParams) (int64, error)
-	// Sets the target queued message's position to one less than the
-	// current minimum position for that chat, moving it to the head.
-	ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
@@ -1550,6 +1550,7 @@ type sqlcQuerier interface {
 	// Agent context rows are hard-deleted for the same reason as in
 	// SoftDeletePriorWorkspaceAgents.
 	SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
+	SteerChatQueuedMessage(ctx context.Context, arg SteerChatQueuedMessageParams) (int64, error)
 	// MCP and ACP resources bypass context drift and are live-synced on each push.
 	// Changed chats are locked in ID order so concurrent clear-then-copy re-pins
 	// cannot interleave with the replacement.

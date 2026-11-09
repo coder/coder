@@ -186,7 +186,7 @@ const MetadataItem: React.FC<MetadataItemProps> = ({ item }) => {
 		) : status === "stale" ? (
 			<Tooltip>
 				<TooltipTrigger asChild>
-					<StaticWidth className="text-ellipsis overflow-hidden whitespace-nowrap max-w-64 text-sm text-content-disabled cursor-pointer">
+					<StaticWidth className="truncate max-w-64 text-sm text-content-disabled cursor-pointer">
 						{item.result.value}
 					</StaticWidth>
 				</TooltipTrigger>
@@ -197,7 +197,7 @@ const MetadataItem: React.FC<MetadataItemProps> = ({ item }) => {
 		) : (
 			<StaticWidth
 				className={cn(
-					"text-ellipsis overflow-hidden whitespace-nowrap max-w-64 text-sm text-content-success",
+					"truncate max-w-64 text-sm text-content-success",
 					item.result.error.length > 0 && "text-content-destructive",
 				)}
 			>
@@ -207,7 +207,7 @@ const MetadataItem: React.FC<MetadataItemProps> = ({ item }) => {
 
 	return (
 		<div className="leading-relaxed flex flex-col overflow-visible shrink-0">
-			<div className="text-content-secondary text-ellipsis overflow-hidden whitespace-nowrap text-[13px]">
+			<div className="text-content-secondary truncate text-[13px]">
 				{item.description.display_name}
 			</div>
 			<div>{value}</div>

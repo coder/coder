@@ -3188,6 +3188,78 @@ func TestSubagentLifecycleToolErrorsIncludePersistedSubagentType(t *testing.T) {
 	}
 }
 
+func TestInterruptAgentReportsWhetherItInterrupted(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+	user, org, model := seedInternalChatDeps(t, db)
+
+	for _, tc := range []struct {
+		name            string
+		status          database.ChatStatus
+		wantInterrupted bool
+		wantStatus      database.ChatStatus
+	}{
+		// No worker owns the child, so the interruption finishes inline.
+		{name: "Running", status: database.ChatStatusRunning, wantInterrupted: true, wantStatus: database.ChatStatusWaiting},
+		{name: "Waiting", status: database.ChatStatusWaiting, wantStatus: database.ChatStatusWaiting},
+		{name: "Error", status: database.ChatStatusError, wantStatus: database.ChatStatusError},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := chatdTestContext(t)
+			parent, child := createParentChildChats(ctx, t, server, user, org, model)
+			setChatStatus(ctx, t, db, child.ID, tc.status, "")
+
+			result := requireToolResponseMap(t, runSubagentTool(
+				ctx,
+				t,
+				server,
+				parent,
+				parent.LastModelConfigID,
+				"interrupt_agent",
+				interruptAgentArgs{ChatID: child.ID.String()},
+			), false)
+			require.Equal(t, tc.wantInterrupted, result["interrupted"])
+			require.Equal(t, string(tc.wantStatus), result["status"])
+		})
+	}
+}
+
+func TestMessageAgentSteersBusyChild(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{})
+
+	ctx := chatdTestContext(t)
+	user, org, model := seedInternalChatDeps(t, db)
+	parent, child := createParentChildChats(ctx, t, server, user, org, model)
+	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
+
+	result := requireToolResponseMap(t, runSubagentTool(
+		ctx,
+		t,
+		server,
+		parent,
+		model.ID,
+		"message_agent",
+		messageAgentArgs{ChatID: child.ID.String(), Message: "change of plan"},
+	), false)
+	require.Equal(t, string(database.ChatStatusRunning), result["status"])
+
+	queued, err := db.GetChatQueuedMessages(ctx, child.ID)
+	require.NoError(t, err)
+	require.Len(t, queued, 1)
+	require.Equal(t, database.ChatBusyBehaviorSteer, queued[0].BusyBehavior)
+
+	childChat, err := db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	require.Equal(t, database.ChatStatusRunning, childChat.Status)
+}
+
 func TestSpawnAgent_ComputerUseRunsOnSelectedModel(t *testing.T) {
 	t.Parallel()
 
@@ -4432,7 +4504,7 @@ func TestSendAndInterruptSubagent(t *testing.T) {
 	parent, child := createParentChildChats(ctx, t, server, user, org, model)
 	require.NoError(t, WaitUntilIdleForTest(ctx, server))
 
-	_, err := server.sendSubagentMessage(ctx, parent.ID, child.ID, "  ", SendMessageBusyBehaviorQueue)
+	_, err := server.sendSubagentMessage(ctx, parent.ID, child.ID, "  ")
 	require.ErrorContains(t, err, "message is required")
 
 	setChatStatus(ctx, t, db, child.ID, database.ChatStatusWaiting, "")
@@ -4440,17 +4512,6 @@ func TestSendAndInterruptSubagent(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, interrupted)
 	require.Equal(t, database.ChatStatusWaiting, chat.Status)
-
-	setChatStatus(ctx, t, db, child.ID, database.ChatStatusRunning, "")
-	result := requireToolResponseMap(t, runSubagentTool(ctx, t, server, parent, parent.LastModelConfigID, "message_agent", messageAgentArgs{
-		ChatID: child.ID.String(), Message: "redo it", Interrupt: true,
-	}), false)
-	require.Equal(t, true, result["interrupted"])
-	// The unowned run is interrupted at once, so the message is promoted
-	// into history instead of waiting in the queue.
-	queued, err := db.GetChatQueuedMessages(ctx, child.ID)
-	require.NoError(t, err)
-	require.Empty(t, queued)
 }
 
 func TestListAgents(t *testing.T) {
@@ -4545,7 +4606,7 @@ func TestSubagentToolOutputsJSON(t *testing.T) {
 		output any
 		want   string
 	}{
-		{"Spawn", spawnAgentResult(chat), `{` + id + `,"status":"error","title":"child","type":"explore"}`},
+		{"Spawn", subagentChatResult(chat), `{` + id + `,"status":"error","title":"child","type":"explore"}`},
 		{"Action", subagentActionResult(chat, true), `{` + id + `,"interrupted":true,"status":"error","title":"child","type":"explore"}`},
 		{"List", subagentListResult{
 			Agents:   []subagentListEntry{{ChatID: chat.ID.String(), CreatedAt: "c", Status: "s", Title: "t", Type: "y", UpdatedAt: "u"}},
