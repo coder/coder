@@ -67,6 +67,30 @@ Release candidates give Coder a way to push out builds for customers and other u
 Unlike mainline and stable releases, RCs do not follow a fixed schedule and carry no guarantees around stability or long-term support.
 They exist purely as a feedback mechanism: Coder can ship targeted builds, gather real-world input, and iterate before committing changes to the standard release channels.
 
+## Patch releases and backports
+
+Coder ships bug fixes and security patches between minor releases as patch releases, such as `v2.38.5`.
+Patch releases don't follow a fixed schedule.
+
+Every fix lands on `main` first.
+Coder then backports it to the release branches that are eligible for it:
+
+| Release channel          | Backported fixes                        |
+|--------------------------|-----------------------------------------|
+| Mainline                 | Bug fixes and security patches          |
+| Stable                   | Bug fixes and security patches          |
+| Security Support         | Security patches and CVE fixes          |
+| Extended Support Release | Critical bug fixes and security patches |
+
+Coder decides which releases receive a bug fix based on its severity and how likely users on each release are to encounter the bug.
+A fix might ship only in mainline and stable, in which case the supported path for older releases is to upgrade.
+
+Fixes that require a database schema change aren't backported.
+They ship in the next minor release.
+
+To request a patch release for an issue that affects your deployment, [contact Coder support](../support/index.md) with your Coder version, the impact, and any deadline.
+To test a fix before it's released, use the `preview` image described in [Release schedule](#release-schedule).
+
 <a id="installing-stable"></a>
 
 ## Install stable
