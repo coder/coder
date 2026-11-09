@@ -70,7 +70,7 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 		`UPDATE chats SET archived = true WHERE id = $1 OR root_chat_id = $1`, archivedRoot)
 	require.NoError(t, err)
 
-	// Compare every historical status field, with the owner asserted separately.
+	// Compare every historical status field, with chat_id asserted separately.
 	type diffStatusRow struct {
 		chatID uuid.UUID
 		fields map[string]any
@@ -137,11 +137,11 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 			)
 			RETURNING chat_id, to_jsonb(chat_diff_statuses) - 'chat_id'`,
 			chatID, remoteOrigin, branch, chatID.String(), refreshed, reported)
-		var owner uuid.UUID
+		var rowChatID uuid.UUID
 		var raw []byte
-		err := row.Scan(&owner, &raw)
+		err := row.Scan(&rowChatID, &raw)
 		require.NoError(t, err)
-		return decodeStatus(owner, raw)
+		return decodeStatus(rowChatID, raw)
 	}
 
 	seedReference := func(chatID uuid.UUID, branch, remoteOrigin string, reported time.Time) diffStatusRow {
@@ -164,24 +164,25 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 			)
 			RETURNING chat_id, to_jsonb(chat_diff_statuses) - 'chat_id'`,
 			chatID, remoteOrigin, branch, reported)
-		var owner uuid.UUID
+		var rowChatID uuid.UUID
 		var raw []byte
-		err := row.Scan(&owner, &raw)
+		err := row.Scan(&rowChatID, &raw)
 		require.NoError(t, err)
-		return decodeStatus(owner, raw)
+		return decodeStatus(rowChatID, raw)
 	}
 
 	origin := "https://github.com/coder/coder"
 	reportedAt := dbtime.Now().Add(-2 * time.Hour)
 	refreshedAt := reportedAt.Add(time.Hour)
 
-	// Keep existing root metadata even if a subagent chat's row is newer.
+	// Keep the existing root row even if a subagent chat's row has later
+	// refreshed_at and updated_at values.
 	rootStatus := seedStatus(root, "shared", origin, refreshedAt.Add(-time.Hour), reportedAt)
 	seedStatus(child, "shared", origin, refreshedAt, reportedAt.Add(time.Minute))
 	seedStatus(grandchild, "shared", origin, refreshedAt, reportedAt.Add(2*time.Minute))
 
-	// The freshest row was reported first. A later reference-only report
-	// must not replace its PR metadata, even though its report time is newest.
+	// The latest refreshed_at takes precedence over a later updated_at,
+	// including a reference-only row whose refreshed_at is NULL.
 	subagentStatus := seedStatus(grandchild, "subagent-only", origin, refreshedAt, reportedAt)
 	seedStatus(child, "subagent-only", origin, refreshedAt.Add(-time.Hour), reportedAt.Add(time.Minute))
 	seedReference(referenceOnlyChild, "subagent-only", origin, reportedAt.Add(2*time.Minute))
@@ -198,8 +199,17 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 	// An unrelated root chat retains its row for the same ref.
 	otherRootStatus := seedStatus(otherRoot, "shared", origin, refreshedAt, reportedAt)
 
-	// Refs without PR metadata also move to the root chat.
-	noPRStatus := seedReference(child, "no-pr", origin, reportedAt)
+	// When refreshed_at is NULL for both rows, retain the later updated_at.
+	seedReference(child, "no-pr", origin, reportedAt)
+	noPRStatus := seedReference(grandchild, "no-pr", origin, reportedAt.Add(time.Minute))
+
+	// When both timestamps tie, retain the row with the lower chat_id.
+	lowerChatID, higherChatID := child, grandchild
+	if lowerChatID.String() > higherChatID.String() {
+		lowerChatID, higherChatID = higherChatID, lowerChatID
+	}
+	seedStatus(higherChatID, "chat-id-tie", origin, refreshedAt, reportedAt)
+	chatIDTieStatus := seedStatus(lowerChatID, "chat-id-tie", origin, refreshedAt, reportedAt)
 
 	movedTo := func(chatID uuid.UUID, status diffStatusRow) diffStatusRow {
 		status.chatID = chatID
@@ -213,6 +223,7 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 		movedTo(archivedRoot, archivedStatus),
 		otherRootStatus,
 		movedTo(root, noPRStatus),
+		movedTo(root, chatIDTieStatus),
 	}
 
 	stepTo(t, sqlDB, 641)
