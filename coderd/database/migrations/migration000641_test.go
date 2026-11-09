@@ -199,15 +199,16 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 	// An unrelated root chat retains its row for the same ref.
 	otherRootStatus := seedStatus(otherRoot, "shared", origin, refreshedAt, reportedAt)
 
-	// When refreshed_at is NULL for both rows, retain the later updated_at.
-	seedReference(child, "no-pr", origin, reportedAt)
-	noPRStatus := seedReference(grandchild, "no-pr", origin, reportedAt.Add(time.Minute))
-
-	// When both timestamps tie, retain the row with the lower chat_id.
 	lowerChatID, higherChatID := child, grandchild
 	if lowerChatID.String() > higherChatID.String() {
 		lowerChatID, higherChatID = higherChatID, lowerChatID
 	}
+
+	// When refreshed_at is NULL for both rows, retain the later updated_at.
+	seedReference(lowerChatID, "no-pr", origin, reportedAt)
+	noPRStatus := seedReference(higherChatID, "no-pr", origin, reportedAt.Add(time.Minute))
+
+	// When both timestamps tie, retain the row with the lower chat_id.
 	seedStatus(higherChatID, "chat-id-tie", origin, refreshedAt, reportedAt)
 	chatIDTieStatus := seedStatus(lowerChatID, "chat-id-tie", origin, refreshedAt, reportedAt)
 
