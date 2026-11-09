@@ -13,12 +13,15 @@ Coder Agents spend is controlled by AI Gateway budgets, which cap all AI Gateway
   The deployment budget policy resolves which group budget applies when a user belongs to multiple budgeted groups, which defaults to the group with the highest budget.
 - **Per-user overrides**:
   set a custom budget for an individual user, attributed to one of their groups.
-  Per-user overrides take priority over group budgets.
+  Per-user overrides take priority over group budgets in the organization of the override's assigned group.
 
 The deployment flags `--ai-budget-policy` and `--ai-budget-period` currently support only `highest` and `month`.
 `highest` selects the group with the largest spend limit, and `month` resets spend at the start of each Coordinated Universal Time (UTC) calendar month.
 A user who belongs to no budgeted group falls back to the Everyone group, which has no budget unless one is set for it.
 There is no deployment-wide budget amount, and a configured spend limit cannot exceed $1,000,000 per member per period.
+
+A chat uses the budgets of the chat's organization.
+For users in several organizations, refer to [Request organization](../../ai-governance/ai-gateway/request-organization.md).
 
 > [!IMPORTANT]
 > Budget controls in the Coder UI, the group budget endpoints (`/api/v2/groups/{group}/ai/budget`), and the AI spend status and reporting endpoints all require the AI Gateway entitlement.
@@ -50,6 +53,7 @@ The API reference documents how to [get](../../reference/api/enterprise.md#get-g
 
 The usage indicator on the Agents page and the summary in the user menu both show the signed-in user's current AI spend, their budget, and the period reset date.
 Both appear only when the deployment has the AI Gateway entitlement.
+For a user in several organizations, both can show a different budget from the one that applies to a chat.
 
 ## Spend details
 
