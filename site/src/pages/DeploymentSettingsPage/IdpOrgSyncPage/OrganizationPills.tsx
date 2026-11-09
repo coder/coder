@@ -19,7 +19,7 @@ export const OrganizationPills: React.FC<OrganizationPillsProps> = ({
 	}));
 
 	return (
-		<div className="flex flex-row gap-2">
+		<div className="flex gap-2">
 			{orgs.length > 0 ? (
 				<Badge
 					variant={orgs[0].isUUID ? "destructive" : "default"}

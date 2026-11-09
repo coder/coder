@@ -146,7 +146,7 @@ export const TemplateEmbedPageView: React.FC<TemplateEmbedPageViewProps> = ({
 						)
 					)}
 
-					<div className="flex flex-row items-center gap-4">
+					<div className="flex items-center gap-4">
 						{isLoading ? (
 							<Button disabled={isLoading}>Test</Button>
 						) : (

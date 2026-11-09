@@ -658,7 +658,7 @@ Must be at least 1.
 ### Max queued messages per chat
 
 Maximum number of messages that can be queued in a chat.
-Sending a message to a chat whose queue is full fails with HTTP 429.
+Sending a message that would make a full queue longer fails with HTTP 429.
 Must be at least 1.
 
 - Type: `int`
