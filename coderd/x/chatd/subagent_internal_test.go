@@ -717,6 +717,12 @@ func seedWorkspaceBinding(
 	t.Helper()
 
 	org := dbgen.Organization(t, db, database.Organization{})
+	// The chat owner must belong to the workspace's organization to keep
+	// SSH access to their own workspace.
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         userID,
+		OrganizationID: org.ID,
+	})
 	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 		OrganizationID: org.ID,
 		CreatedBy:      userID,

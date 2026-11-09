@@ -9358,6 +9358,12 @@ func seedWorkspaceWithAgent(
 	t.Helper()
 
 	org := dbgen.Organization(t, db, database.Organization{})
+	// The chat owner must belong to the workspace's organization to keep
+	// SSH access to their own workspace.
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{
+		UserID:         userID,
+		OrganizationID: org.ID,
+	})
 	tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 		OrganizationID: org.ID,
 		CreatedBy:      userID,
@@ -9398,6 +9404,150 @@ func seedWorkspaceWithAgent(
 	dbAgent, err := db.GetWorkspaceAgentByID(context.Background(), dbAgent.ID)
 	require.NoError(t, err)
 	return ws, dbAgent
+}
+
+// TestChatRechecksWorkspaceAccess verifies that chatd re-checks the chat
+// owner's SSH access to the chat's workspace on every turn, so a chat cannot
+// keep using a workspace after its owner loses access.
+func TestChatRechecksWorkspaceAccess(t *testing.T) {
+	t.Parallel()
+
+	const accessDeniedMessage = "You no longer have access to this chat's workspace. " +
+		"Ask the workspace owner to share it with you again, or start a new chat."
+	shareUse := func(userID uuid.UUID) database.WorkspaceACL {
+		return database.WorkspaceACL{
+			userID.String(): {Permissions: db2sdk.WorkspaceRoleActions(codersdk.WorkspaceRoleUse)},
+		}
+	}
+	setUserACL := func(ctx context.Context, t *testing.T, db database.Store, workspaceID uuid.UUID, acl database.WorkspaceACL) {
+		t.Helper()
+		require.NoError(t, db.UpdateWorkspaceACLByID(ctx, database.UpdateWorkspaceACLByIDParams{
+			ID:       workspaceID,
+			UserACL:  acl,
+			GroupACL: database.WorkspaceACL{},
+		}))
+	}
+
+	type accessChange func(ctx context.Context, t *testing.T, db database.Store, ws database.WorkspaceTable, userID uuid.UUID)
+	tests := []struct {
+		name    string
+		revoke  accessChange
+		restore accessChange
+	}{
+		{
+			name: "ShareRevoked",
+			revoke: func(ctx context.Context, t *testing.T, db database.Store, ws database.WorkspaceTable, _ uuid.UUID) {
+				setUserACL(ctx, t, db, ws.ID, database.WorkspaceACL{})
+			},
+			restore: func(ctx context.Context, t *testing.T, db database.Store, ws database.WorkspaceTable, userID uuid.UUID) {
+				setUserACL(ctx, t, db, ws.ID, shareUse(userID))
+			},
+		},
+		{
+			name: "RemovedFromOrganization",
+			revoke: func(ctx context.Context, t *testing.T, db database.Store, ws database.WorkspaceTable, userID uuid.UUID) {
+				require.NoError(t, db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
+					OrganizationID: ws.OrganizationID,
+					UserID:         userID,
+				}))
+			},
+			restore: func(_ context.Context, t *testing.T, db database.Store, ws database.WorkspaceTable, userID uuid.UUID) {
+				dbgen.OrganizationMember(t, db, database.OrganizationMember{
+					UserID:         userID,
+					OrganizationID: ws.OrganizationID,
+				})
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps := dbtestutil.NewDB(t)
+			// Every user turn asks for read_file, then finishes after the
+			// tool result.
+			var streamCalls atomic.Int32
+			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse("title")
+				}
+				if streamCalls.Add(1)%2 == 1 {
+					return chattest.OpenAIStreamingResponse(
+						chattest.OpenAIToolCallChunk("read_file", `{"path":"/tmp/shared.txt"}`),
+					)
+				}
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+			})
+			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+			workspaceOwner := dbgen.User(t, db, database.User{})
+			ws, dbAgent := seedWorkspaceWithAgent(t, db, workspaceOwner.ID)
+			dbgen.OrganizationMember(t, db, database.OrganizationMember{
+				UserID:         user.ID,
+				OrganizationID: ws.OrganizationID,
+			})
+			setUserACL(ctx, t, db, ws.ID, shareUse(user.ID))
+
+			ctrl := gomock.NewController(t)
+			mockConn := agentconnmock.NewMockAgentConn(ctrl)
+			setupToolExecutionAgentConn(t, mockConn)
+			// One read for the first turn and one after access returns. The
+			// denied turn must not reach the agent.
+			mockConn.EXPECT().ReadFileLines(gomock.Any(), "/tmp/shared.txt", gomock.Any(), gomock.Any(), gomock.Any()).
+				Return(workspacesdk.ReadFileLinesResponse{
+					Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data",
+				}, nil).
+				Times(2)
+			var dials atomic.Int32
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+				cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+					require.Equal(t, dbAgent.ID, agentID)
+					dials.Add(1)
+					return mockConn, func() {}, nil
+				}
+			})
+
+			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+				WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+				AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+				Title:          "workspace-access-recheck",
+				ModelConfigID:  model.ID,
+				InitialUserContent: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("read the shared file"),
+				},
+			})
+			require.NoError(t, err)
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+			require.Equal(t, int32(2), streamCalls.Load())
+
+			sendMessage := func(text string) {
+				t.Helper()
+				_, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+					ChatID:        chat.ID,
+					CreatedBy:     user.ID,
+					ModelConfigID: model.ID,
+					Content:       []codersdk.ChatMessagePart{codersdk.ChatMessageText(text)},
+				})
+				require.NoError(t, err)
+			}
+
+			tt.revoke(ctx, t, db, ws, user.ID)
+			dialsBeforeDenied := dials.Load()
+			sendMessage("read it again")
+			denied := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+			require.Equal(t, accessDeniedMessage, chatLastErrorMessage(denied.LastError))
+			require.Equal(t, int32(2), streamCalls.Load(), "denied turn must not call the model")
+			require.Equal(t, dialsBeforeDenied, dials.Load(), "denied turn must not dial the agent")
+
+			tt.restore(ctx, t, db, ws, user.ID)
+			sendMessage("try once more")
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+			require.Equal(t, int32(4), streamCalls.Load())
+		})
+	}
 }
 
 func setOpenAIProviderBaseURL(

@@ -36,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -113,7 +114,11 @@ var (
 	errChatHasNoWorkspace      = xerrors.New("this tool requires a workspace and this chat does not have one. Use the create_workspace tool to create one")
 	errChatHasNoWorkspaceAgent = xerrors.New("workspace has no running agent: the workspace is likely stopped. Use the start_workspace tool to start it")
 	errChatWorkspaceDeleted    = xerrors.New("the chat's workspace was deleted (for example by dormancy cleanup) and cannot execute tools. Use the create_workspace tool to create a new one")
-	errChatAgentDisconnected   = xerrors.New(
+	// errChatWorkspaceAccessDenied is returned when the chat owner no
+	// longer has SSH access to the chat's workspace, for example after
+	// a workspace share was revoked.
+	errChatWorkspaceAccessDenied = xerrors.New("you no longer have access to this chat's workspace")
+	errChatAgentDisconnected     = xerrors.New(
 		"workspace agent has been disconnected for at least 90 seconds " +
 			"and cannot execute tools. To recover, call stop_workspace " +
 			"to stop the workspace, then start_workspace to start it " +
@@ -163,6 +168,9 @@ type Server struct {
 	db                 database.Store
 	logger             slog.Logger
 	modelConfigContext func(context.Context, uuid.UUID) (context.Context, error)
+	// authorizer checks that the chat owner may still use the chat's
+	// workspace before chatd connects to it. New always sets it.
+	authorizer rbac.Authorizer
 
 	streamPartsDialer StreamPartsDialer
 
@@ -824,6 +832,40 @@ func callerModelConfigContext(
 	return dbauthz.As(ctx, actor), nil
 }
 
+// authorizeChatWorkspace checks that the chat owner still has SSH access to
+// workspace. Chatd reads and dials workspaces with its own subject, so this
+// keeps a chat from using a workspace after the owner loses access, for
+// example when a share is revoked or the owner leaves the organization. A
+// denial is terminal for the turn and carries a user-facing message.
+func (p *Server) authorizeChatWorkspace(
+	ctx context.Context,
+	ownerID uuid.UUID,
+	workspace database.Workspace,
+) error {
+	if p.authorizer == nil {
+		return xerrors.New("chat workspace authorizer is not configured")
+	}
+	owner, err := p.chatOwnerSubject(ctx, ownerID)
+	if err != nil {
+		return xerrors.Errorf("authorize chat workspace: %w", err)
+	}
+	err = p.authorizer.Authorize(ctx, owner, policy.ActionSSH, workspace.RBACObject())
+	if err == nil {
+		return nil
+	}
+	if !rbac.IsUnauthorizedError(err) {
+		return xerrors.Errorf("authorize chat workspace: %w", err)
+	}
+	return terminalGeneration(chaterror.WithClassification(
+		xerrors.Errorf("workspace %s: %w", workspace.ID, errChatWorkspaceAccessDenied),
+		chaterror.ClassifiedError{
+			Message: "You no longer have access to this chat's workspace. " +
+				"Ask the workspace owner to share it with you again, or start a new chat.",
+			Kind: codersdk.ChatErrorKindGeneric,
+		},
+	))
+}
+
 // requireEnabledChatModelConfig rechecks enabled state inside the daemon.
 // The coderd preflight can race an admin disabling the model or provider.
 func requireEnabledChatModelConfig(
@@ -1215,6 +1257,9 @@ type Config struct {
 	Logger    slog.Logger
 	Database  database.Store
 	ReplicaID uuid.UUID
+	// Authorizer checks the chat owner's workspace permissions before
+	// chatd uses a chat's workspace. Nil uses a new RBAC authorizer.
+	Authorizer rbac.Authorizer
 	// StreamPartsDialer dials remote stream parts. Nil uses the local
 	// in-process channel dialer for every stream.
 	StreamPartsDialer              StreamPartsDialer
@@ -1317,6 +1362,11 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 
 	limits := cfg.Limits.withDefaults()
 
+	authorizer := cfg.Authorizer
+	if authorizer == nil {
+		authorizer = rbac.NewAuthorizer(prometheus.NewRegistry())
+	}
+
 	allowBYOK := true
 	if cfg.AllowBYOKSet {
 		allowBYOK = cfg.AllowBYOK
@@ -1336,6 +1386,7 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		modelConfigContext: func(ctx context.Context, ownerID uuid.UUID) (context.Context, error) {
 			return callerModelConfigContext(ctx, cfg.Database, ownerID)
 		},
+		authorizer:                     authorizer,
 		agentConnFn:                    cfg.AgentConn,
 		agentInactiveDisconnectTimeout: cfg.AgentInactiveDisconnectTimeout,
 		dialTimeout:                    defaultDialTimeout,

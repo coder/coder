@@ -1514,6 +1514,9 @@ func (c *turnWorkspaceContext) loadWorkspaceAgentLocked(
 			}
 			return chatSnapshot, database.WorkspaceAgent{}, errChatWorkspaceDeleted
 		}
+		if err := c.server.authorizeChatWorkspace(ctx, chatSnapshot.OwnerID, ws); err != nil {
+			return chatSnapshot, database.WorkspaceAgent{}, err
+		}
 
 		if chatSnapshot.AgentID.Valid {
 			agent, err := c.server.db.GetWorkspaceAgentByID(ctx, chatSnapshot.AgentID.UUID)

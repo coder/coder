@@ -1183,6 +1183,7 @@ The generation goroutine supports:
 - subagents (`spawn_agent`, `wait_agent`, `message_agent`, `interrupt_agent`, `list_agents`, `list_subagent_models`)
 - file links
 - workspace binding
+  <!-- TODO(deansheather): document that each turn re-checks the chat owner's SSH access to the bound workspace before resolving or dialing its agent, and that a denial fails the turn with a non-retryable access error. -->
 - plan mode
 - respecting model configuration
 - provider-specific tools like web search and computer use
