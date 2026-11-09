@@ -2774,6 +2774,14 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 		if err != nil {
 			return nil, xerrors.Errorf("migrate up: %w", err)
 		}
+		var converted bool
+		converted, err = migrations.EnsureTailnetTablesLogged(ctx, sqlDB)
+		if err != nil {
+			return nil, xerrors.Errorf("ensure tailnet tables logged: %w", err)
+		}
+		if converted {
+			logger.Info(ctx, "converted tailnet tables from UNLOGGED to LOGGED so their rows survive a Postgres failover")
+		}
 	}
 
 	err = migrations.EnsureClean(sqlDB)
