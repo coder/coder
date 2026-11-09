@@ -1,5 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { mockApiError } from "#/testHelpers/entities";
 import { render } from "#/testHelpers/renderHelpers";
 import { Filter, type UseFilterResult } from "./Filter";
 
@@ -35,5 +36,25 @@ describe(Filter.name, () => {
 		expect(
 			screen.getByRole("menuitem", { name: /^User status/ }),
 		).toHaveAccessibleName(/^User status\s*\(opens in new tab\)$/);
+	});
+
+	it("describes the search box with the validation error", () => {
+		const detail = 'Query param "resource_type" has invalid value';
+		render(
+			<Filter
+				filter={mockFilter}
+				isLoading={false}
+				optionsSkeleton={null}
+				presets={[]}
+				error={mockApiError({
+					message: "Invalid query parameters.",
+					validations: [{ field: "resource_type", detail }],
+				})}
+			/>,
+		);
+
+		expect(
+			screen.getByRole("textbox", { name: "Filter" }),
+		).toHaveAccessibleDescription(detail);
 	});
 });

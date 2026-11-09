@@ -3,7 +3,6 @@ import {
 	BotIcon,
 	CircleAlertIcon,
 	FileIcon,
-	PlugIcon,
 	TriangleAlertIcon,
 	ZapIcon,
 } from "lucide-react";
@@ -14,6 +13,7 @@ import type {
 	ChatContextTool,
 } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
 import {
 	Popover,
 	PopoverContent,
@@ -38,6 +38,8 @@ import {
 	ContextResourceAccordionTrigger,
 } from "./ContextResourceAccordion";
 import {
+	ContextResourceServer,
+	ContextResourceTool,
 	ContextResourceTree,
 	ContextResourceTreeDirectory,
 	ContextResourceTreeItem,
@@ -74,6 +76,7 @@ type ContextMcpConfigItem = { readonly source: string };
 type ContextMcpServerItem = {
 	readonly name: string;
 	readonly source: string;
+	readonly connected: boolean;
 	readonly tools: readonly ChatContextTool[];
 };
 // A pinned resource the agent could not use, surfaced with its error so the
@@ -186,14 +189,41 @@ const ContextResourceIssues: React.FC<{
 		</ContextAlert>
 	) : null;
 
-const ContextIssueIndicator: React.FC<{ count: number }> = ({ count }) =>
-	count > 0 ? (
-		<span className="ml-1 inline-flex align-middle text-content-warning">
-			<TriangleAlertIcon aria-hidden="true" className="size-3" />
-			<span className="sr-only">
-				{count} {count === 1 ? "issue" : "issues"}
-			</span>
-		</span>
+type ContextMcpServerIssuesProps = {
+	issues: readonly ContextIssueItem[];
+	onManageServers?: () => void;
+};
+
+const ContextMcpServerIssues: React.FC<ContextMcpServerIssuesProps> = ({
+	issues,
+	onManageServers,
+}) =>
+	issues.length > 0 ? (
+		<ContextAlert
+			severity="warning"
+			variant="panel"
+			className="gap-y-1 leading-4.5"
+		>
+			<ContextAlertTitle className="font-normal leading-4.5">
+				{issues.length} {issues.length === 1 ? "server" : "servers"} not
+				running:
+			</ContextAlertTitle>
+			<ContextAlertDescription className="gap-1 break-words">
+				<span>{issues.map((issue) => issue.name).join(", ")}</span>
+				{onManageServers && (
+					<Link
+						asChild
+						size="sm"
+						showExternalIcon={false}
+						className="w-fit border-0 bg-transparent p-0 font-normal leading-4.5"
+					>
+						<button type="button" onClick={onManageServers}>
+							Manage servers
+						</button>
+					</Link>
+				)}
+			</ContextAlertDescription>
+		</ContextAlert>
 	) : null;
 
 const ContextHarnessSection: React.FC<{
@@ -201,21 +231,23 @@ const ContextHarnessSection: React.FC<{
 	issues: readonly ContextIssueItem[];
 }> = ({ groups, issues }) => (
 	<ContextResourceAccordion>
-		<ContextResourceAccordionTrigger>
-			ACP
-			<ContextIssueIndicator count={issues.length} />
-		</ContextResourceAccordionTrigger>
+		<ContextResourceAccordionTrigger>ACP</ContextResourceAccordionTrigger>
 		<ContextResourceAccordionContent>
 			{groups.length > 0 && (
 				<ContextResourceTree>
 					{groups.map((group) => (
-						<ContextResourceTreeDirectory key={group.dir} dir={group.dir}>
+						<ContextResourceTreeDirectory
+							key={group.dir}
+							dir={group.dir}
+							className="gap-1"
+						>
 							{group.items.map((harness) => (
 								<ContextResourceTreeItem
 									key={harness.slug}
 									icon={group.dir === "" ? BotIcon : undefined}
 									name={harness.slug}
 									title={harness.slug}
+									className="leading-4 text-content-secondary"
 								/>
 							))}
 						</ContextResourceTreeDirectory>
@@ -230,8 +262,9 @@ const ContextHarnessSection: React.FC<{
 export const ContextUsageIndicator: React.FC<{
 	usage: AgentContextUsage;
 	onRefreshContext?: () => void;
+	onManageServers?: () => void;
 	isRefreshingContext?: boolean;
-}> = ({ usage, onRefreshContext, isRefreshingContext }) => {
+}> = ({ usage, onRefreshContext, onManageServers, isRefreshingContext }) => {
 	const usedTokens = hasFiniteTokenValue(usage.usedTokens)
 		? usage.usedTokens
 		: undefined;
@@ -317,12 +350,11 @@ export const ContextUsageIndicator: React.FC<{
 	const mcpServerItems: readonly ContextMcpServerItem[] = (
 		pinnedResources ?? []
 	)
-		.filter(
-			(resource) => resource.kind === "mcp_server" && resource.status === "ok",
-		)
+		.filter((resource) => resource.kind === "mcp_server")
 		.map((resource) => ({
 			name: resource.source,
 			source: resource.source,
+			connected: resource.status === "ok",
 			tools: resource.tools ?? [],
 		}))
 		// Drop entries with no usable name so an empty MCP marker never renders as
@@ -360,6 +392,12 @@ export const ContextUsageIndicator: React.FC<{
 	const skillIssues = issueItems.filter((issue) => issue.kind === "skill");
 	const mcpIssues = issueItems.filter(
 		(issue) => issue.kind === "mcp_config" || issue.kind === "mcp_server",
+	);
+	const mcpConfigIssues = mcpIssues.filter(
+		(issue) => issue.kind === "mcp_config",
+	);
+	const mcpServerIssues = mcpIssues.filter(
+		(issue) => issue.kind === "mcp_server",
 	);
 	const harnessIssues = issueItems.filter(
 		(issue) => issue.kind === "acp_harness",
@@ -443,10 +481,10 @@ export const ContextUsageIndicator: React.FC<{
 			<PopoverContent
 				side="top"
 				align="end"
-				className="mobile-full-width-dropdown w-76 text-xs pb-0.5 font-normal"
+				className="mobile-full-width-dropdown w-76 text-xs pb-1 font-normal"
 			>
-				<div className="text-xs text-content-primary p-3">
-					<div className="text-sm font-semibold">Context</div>
+				<div className="text-xs text-content-primary px-4 pt-2 pb-3">
+					<div className="pt-1 text-sm font-semibold leading-6">Context</div>
 					{hasReportedUsage ? (
 						hasPercent ? (
 							<div className="flex gap-2 items-center pt-2">
@@ -526,14 +564,13 @@ export const ContextUsageIndicator: React.FC<{
 					)}
 				</div>
 				{hasContextList && (
-					<div className="flex flex-col text-content-secondary px-1.5">
+					<div className="flex flex-col text-content-secondary">
 						{(fileItems.length > 0 || fileIssues.length > 0) && (
 							<ContextResourceAccordion>
 								<ContextResourceAccordionTrigger
 									detail={`${fileItems.length} ${fileItems.length === 1 ? "file" : "files"}`}
 								>
 									Context files
-									<ContextIssueIndicator count={fileIssues.length} />
 								</ContextResourceAccordionTrigger>
 								<ContextResourceAccordionContent>
 									{fileItems.length > 0 && (
@@ -565,7 +602,6 @@ export const ContextUsageIndicator: React.FC<{
 									detail={`${skillItems.length} available`}
 								>
 									Skills
-									<ContextIssueIndicator count={skillIssues.length} />
 								</ContextResourceAccordionTrigger>
 								<ContextResourceAccordionContent>
 									{skillItems.length > 0 && (
@@ -581,7 +617,6 @@ export const ContextUsageIndicator: React.FC<{
 															icon={group.dir === "" ? ZapIcon : undefined}
 															name={skill.name}
 															description={skill.description}
-															className="text-content-primary"
 														/>
 													))}
 												</ContextResourceTreeDirectory>
@@ -595,12 +630,11 @@ export const ContextUsageIndicator: React.FC<{
 						{(hasMcp || mcpIssues.length > 0) && (
 							<ContextResourceAccordion>
 								<ContextResourceAccordionTrigger
-									detail={`${mcpServerItems.length} connected`}
+									detail={`${mcpServerItems.filter((server) => server.connected).length} of ${mcpServerItems.length} connected`}
 								>
 									MCP Servers
-									<ContextIssueIndicator count={mcpIssues.length} />
 								</ContextResourceAccordionTrigger>
-								<ContextResourceAccordionContent>
+								<ContextResourceAccordionContent className="gap-2">
 									{hasMcp && (
 										<ContextResourceTree>
 											{mcpConfigItems.map((config) => (
@@ -609,28 +643,33 @@ export const ContextUsageIndicator: React.FC<{
 													icon={FileIcon}
 													name={config.source}
 													title={config.source}
+													appearance="path"
 												/>
 											))}
 											{mcpServerItems.map((mcp) => (
-												<ContextResourceTreeItem
+												<ContextResourceServer
 													key={mcp.source}
-													icon={PlugIcon}
 													name={mcp.name}
 													title={mcp.source}
+													connected={mcp.connected}
 												>
 													{mcp.tools.length > 0 &&
 														mcp.tools.map((tool) => (
-															<ContextResourceTreeItem
+															<ContextResourceTool
 																key={tool.name}
 																name={tool.name}
 																description={tool.description}
 															/>
 														))}
-												</ContextResourceTreeItem>
+												</ContextResourceServer>
 											))}
 										</ContextResourceTree>
 									)}
-									<ContextResourceIssues issues={mcpIssues} />
+									<ContextResourceIssues issues={mcpConfigIssues} />
+									<ContextMcpServerIssues
+										issues={mcpServerIssues}
+										onManageServers={onManageServers}
+									/>
 								</ContextResourceAccordionContent>
 							</ContextResourceAccordion>
 						)}
@@ -643,33 +682,34 @@ export const ContextUsageIndicator: React.FC<{
 					</div>
 				)}
 				{(isDirty || hasContextError) && (
-					<ContextAlert
-						severity={hasContextError ? "error" : "warning"}
-						variant="panel"
-						className="mx-3 mb-3 mt-2"
-					>
-						<ContextAlertTitle>
-							{hasContextError ? "Context error" : "Context changed"}
-						</ContextAlertTitle>
-						<ContextAlertDescription>
-							{hasContextError
-								? contextError
-								: "The workspace context changed since this chat was pinned."}
-							{onRefreshContext && (
-								<ContextAlertActions>
-									<Button
-										size="xs"
-										disabled={isRefreshingContext}
-										onClick={() => onRefreshContext()}
-										variant="outline"
-									>
-										<Spinner size="sm" loading={isRefreshingContext} />
-										Refresh context
-									</Button>
-								</ContextAlertActions>
-							)}
-						</ContextAlertDescription>
-					</ContextAlert>
+					<div className="px-4 py-3">
+						<ContextAlert
+							severity={hasContextError ? "error" : "warning"}
+							variant="panel"
+						>
+							<ContextAlertTitle>
+								{hasContextError ? "Context error" : "Context changed"}
+							</ContextAlertTitle>
+							<ContextAlertDescription>
+								{hasContextError
+									? contextError
+									: "The workspace context changed since this chat was pinned."}
+								{onRefreshContext && (
+									<ContextAlertActions>
+										<Button
+											size="xs"
+											disabled={isRefreshingContext}
+											onClick={() => onRefreshContext()}
+											variant="outline"
+										>
+											<Spinner size="sm" loading={isRefreshingContext} />
+											Refresh context
+										</Button>
+									</ContextAlertActions>
+								)}
+							</ContextAlertDescription>
+						</ContextAlert>
+					</div>
 				)}
 			</PopoverContent>
 		</Popover>

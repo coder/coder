@@ -6,6 +6,7 @@
 import { cn } from "cn";
 import {
 	createContext,
+	useCallback,
 	useContext,
 	useEffect,
 	useId,
@@ -166,7 +167,86 @@ export function getDailyChartDescription(
 	return `${summary} from ${format(dates[0])} to ${format(dates[dates.length - 1])}. ${hint}`;
 }
 
-export const ChartTooltip = RechartsPrimitive.Tooltip;
+type RechartsTooltipProps = React.ComponentProps<
+	typeof RechartsPrimitive.Tooltip
+>;
+
+type ChartTooltipProps = Omit<RechartsTooltipProps, "content"> & {
+	/** Renders the tooltip body from the props Recharts gives the content. */
+	content: (props: RechartsTooltipProps) => React.ReactNode;
+};
+
+/**
+ * Recharts tooltip that the pointer can reach (WCAG 1.4.13). It is centered
+ * above the active point at the top of the plot, and keeps that point while
+ * hovered. Recharts dismisses it on Escape.
+ */
+export const ChartTooltip: React.FC<ChartTooltipProps> = ({
+	coordinate,
+	viewBox,
+	content,
+	...props
+}) => {
+	const [width, setWidth] = useState(0);
+	// Stable so React does not recreate the observer on every render.
+	const measureContent = useCallback((node: HTMLDivElement | null) => {
+		if (!node) {
+			return;
+		}
+		const observer = new ResizeObserver(() => {
+			// Keep the last width while the content is hidden and empty.
+			if (node.offsetWidth > 0) {
+				setWidth(node.offsetWidth);
+			}
+		});
+		observer.observe(node);
+		return () => observer.disconnect();
+	}, []);
+
+	const plotX = viewBox?.x ?? 0;
+	const maxX = plotX + Math.max((viewBox?.width ?? 0) - width, 0);
+	const x = Math.max(plotX, Math.min((coordinate?.x ?? 0) - width / 2, maxX));
+
+	return (
+		<RechartsPrimitive.Tooltip
+			isAnimationActive={false}
+			{...props}
+			coordinate={coordinate}
+			viewBox={viewBox}
+			position={{ x, y: viewBox?.y ?? 0 }}
+			content={
+				<HoverableTooltipContent
+					containerRef={measureContent}
+					renderContent={content}
+				/>
+			}
+		/>
+	);
+};
+// Recharts finds the tooltip among chart children by display name.
+ChartTooltip.displayName = "Tooltip";
+
+type HoverableTooltipContentProps = RechartsTooltipProps & {
+	containerRef: React.Ref<HTMLDivElement>;
+	renderContent: ChartTooltipProps["content"];
+};
+
+// Recharts keeps its wrapper at pointer-events: none, so only the visible
+// content is hoverable. Stopping mousemove here keeps the chart from moving
+// the active point while the pointer is over the tooltip.
+const HoverableTooltipContent: React.FC<HoverableTooltipContentProps> = ({
+	containerRef,
+	renderContent,
+	...props
+}) => (
+	<div
+		ref={containerRef}
+		className="pointer-events-auto"
+		onMouseMove={(event) => event.stopPropagation()}
+	>
+		{renderContent(props)}
+	</div>
+);
 
 type ChartTooltipContentProps = React.ComponentProps<
 	typeof RechartsPrimitive.Tooltip
