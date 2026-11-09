@@ -124,7 +124,7 @@ const trailingPunctuation = "),;."
 // ErrDiffTooLarge.
 const MaxDiffSize = 4 << 20 // 4 MiB
 
-// RateLimitPadding delays retries past the provider's API rate-limit reset.
+// RateLimitPadding delays retries after Retry-After and rate-limit reset times.
 const RateLimitPadding = 5 * time.Minute
 
 // ErrDiffTooLarge is returned when a diff exceeds MaxDiffSize.
@@ -212,8 +212,8 @@ func New(providerType string, apiBaseURL string, httpClient *http.Client, opts .
 	}
 }
 
-// parseRetryAfter reads Retry-After for secondary rate limits and the reset
-// timestamp for primary rate limits with zero requests remaining.
+// parseRetryAfter returns Retry-After seconds, or the time until resetHeader
+// when remainingHeader is "0". It returns zero when neither applies.
 func parseRetryAfter(h http.Header, resetHeader, remainingHeader string, clk quartz.Clock) time.Duration {
 	// Retry-After header: seconds until retry.
 	if ra := h.Get("Retry-After"); ra != "" {
@@ -221,9 +221,12 @@ func parseRetryAfter(h http.Header, resetHeader, remainingHeader string, clk qua
 			return time.Duration(secs) * time.Second
 		}
 	}
+
+	// Permission errors can carry a reset header while requests remain.
 	if h.Get(remainingHeader) != "0" {
 		return 0
 	}
+
 	// Reset header: unix timestamp. We compute the duration from now
 	// according to the caller's clock.
 	if reset := h.Get(resetHeader); reset != "" {
@@ -236,7 +239,8 @@ func parseRetryAfter(h http.Header, resetHeader, remainingHeader string, clk qua
 
 // checkRateLimitError returns a *RateLimitError when resp indicates a
 // rate limit (HTTP 403 or 429) with recognizable retry headers;
-// otherwise nil. A nil resp returns nil.
+// otherwise nil. A reset header requires remainingHeader to be "0".
+// A nil resp returns nil.
 func checkRateLimitError(resp *http.Response, clk quartz.Clock, resetHeader, remainingHeader string) error {
 	if resp == nil {
 		return nil

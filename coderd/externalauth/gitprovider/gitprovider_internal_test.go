@@ -72,7 +72,7 @@ func TestParseRetryAfter(t *testing.T) {
 		assert.Equal(t, 120*time.Second, d)
 	})
 
-	t.Run("GitHubResetHeader", func(t *testing.T) {
+	t.Run("GitHubResetHeaderCaseInsensitiveNames", func(t *testing.T) {
 		t.Parallel()
 		future := clk.Now().Add(90 * time.Second)
 		h := http.Header{}
