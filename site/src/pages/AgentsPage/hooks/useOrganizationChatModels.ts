@@ -23,6 +23,7 @@ export const useOrganizationChatModels = (
 
 	return {
 		models: queries.flatMap((query) => query.data?.models ?? []),
+		providers: queries.flatMap((query) => query.data?.providers ?? []),
 		isLoading: queries.some((query) => query.isLoading),
 		isFetching: queries.some((query) => query.isFetching),
 		error: hasData ? null : modelError,

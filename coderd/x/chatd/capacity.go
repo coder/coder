@@ -7,6 +7,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 )
 
 type capacityMetrics struct {
@@ -77,8 +78,8 @@ func (w *chatWorker) refreshCapacityMetrics(ctx context.Context) {
 	}
 
 	metrics := w.opts.CapacityMetrics
-	metrics.active.WithLabelValues("root").Set(float64(active.ActiveRootCount))
-	metrics.active.WithLabelValues("subagent").Set(float64(active.ActiveSubagentCount))
-	metrics.queued.WithLabelValues("root").Set(float64(queuedRoot))
-	metrics.queued.WithLabelValues("subagent").Set(float64(queuedSubagent))
+	metrics.active.WithLabelValues(string(chatloop.ChatKindRoot)).Set(float64(active.ActiveRootCount))
+	metrics.active.WithLabelValues(string(chatloop.ChatKindSubagent)).Set(float64(active.ActiveSubagentCount))
+	metrics.queued.WithLabelValues(string(chatloop.ChatKindRoot)).Set(float64(queuedRoot))
+	metrics.queued.WithLabelValues(string(chatloop.ChatKindSubagent)).Set(float64(queuedSubagent))
 }

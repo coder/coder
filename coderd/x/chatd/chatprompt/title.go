@@ -30,15 +30,10 @@ func TitlePasteText(data []byte) string {
 }
 
 // TitleText derives title-generation input from message parts. Text,
-// file-reference, and workspace-file-reference parts are joined in
-// part order. When they yield nothing, the content of synthetic
+// file-reference, workspace-file-reference, and skill-invocation parts
+// are joined in part order. When they yield nothing, the content of synthetic
 // pasted-text attachments is used instead, looked up in pasteText by
 // file ID and truncated to syntheticPasteTitleBudget runes per file.
-//
-// The chat-creation fallback title and both title-generation paths
-// must derive their input through this function: auto-titling only
-// proceeds when the current title equals FallbackTitle of this exact
-// string, so a drift between derivations silently disables it.
 func TitleText(parts []codersdk.ChatMessagePart, pasteText map[uuid.UUID]string) string {
 	texts := make([]string, 0, len(parts))
 	for _, part := range parts {
@@ -59,6 +54,8 @@ func TitleText(parts []codersdk.ChatMessagePart, pasteText map[uuid.UUID]string)
 				continue
 			}
 			texts = append(texts, name)
+		case codersdk.ChatMessagePartTypeSkillInvocation:
+			texts = append(texts, "/"+SkillInvocationAlias(part))
 		}
 	}
 	if joined := strings.TrimSpace(strings.Join(texts, " ")); joined != "" {
@@ -102,28 +99,17 @@ func SyntheticPasteFileIDs(parts []codersdk.ChatMessagePart) []uuid.UUID {
 // automatic title generation.
 const DefaultChatTitle = "New Chat"
 
-// FallbackTitle derives a deterministic chat title from title text:
-// the first six words, ellipsized when truncated, capped at 80 runes.
-// Empty input yields DefaultChatTitle.
+// FallbackTitle returns title text with whitespace collapsed, ellipsized
+// past 80 runes. Empty input yields DefaultChatTitle.
 func FallbackTitle(message string) string {
-	const maxWords = 6
 	const maxRunes = 80
 
-	words := strings.Fields(message)
-	if len(words) == 0 {
+	title := strings.Join(strings.Fields(message), " ")
+	if title == "" {
 		return DefaultChatTitle
 	}
-
-	truncated := false
-	if len(words) > maxWords {
-		words = words[:maxWords]
-		truncated = true
-	}
-
-	title := strings.Join(words, " ")
-	if truncated {
+	if len([]rune(title)) > maxRunes {
 		return stringutil.Truncate(title, maxRunes-1) + "…"
 	}
-
-	return stringutil.Truncate(title, maxRunes)
+	return title
 }

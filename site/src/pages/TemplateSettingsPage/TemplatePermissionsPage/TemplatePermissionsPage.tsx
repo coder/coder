@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import {
 	setGroupRole,
@@ -12,6 +11,7 @@ import {
 	SettingsHeaderDocsLink,
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
 import { PremiumPaywall } from "#/modules/paywall/PremiumPaywall";
@@ -45,7 +45,7 @@ const TemplatePermissionsPage: React.FC = () => {
 					<SettingsHeaderDescription>
 						Manage which members and groups can use this template.{" "}
 						<SettingsHeaderDocsLink
-							href={docs("/admin/templates/template-permissions")}
+							href={docs("/templates/template-permissions")}
 						/>
 					</SettingsHeaderDescription>
 				</SettingsHeader>

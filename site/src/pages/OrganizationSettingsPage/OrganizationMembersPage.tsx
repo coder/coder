@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router";
-import { toast } from "sonner";
 import { getErrorDetail, getErrorMessage } from "#/api/errors";
 import { groupsByUserIdInOrganization } from "#/api/queries/groups";
 import {
@@ -20,6 +19,7 @@ import {
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { useFilter } from "#/components/Filter/Filter";
+import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { usePaginatedQuery } from "#/hooks/usePaginatedQuery";
 import { useDashboard } from "#/modules/dashboard/useDashboard";

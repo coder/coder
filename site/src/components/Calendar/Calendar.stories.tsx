@@ -11,7 +11,7 @@ const meta: Meta<typeof Calendar> = {
 	},
 	decorators: [
 		(Story) => (
-			<div className="rounded-lg border border-solid border-border-default w-fit">
+			<div className="rounded-lg border border-solid border-border w-fit">
 				<Story />
 			</div>
 		),

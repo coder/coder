@@ -18,7 +18,7 @@ coder server dbcrypt rotate [flags]
 
 ### --postgres-url
 
-|             |                                       |
+| Property    | Value                                 |
 |-------------|---------------------------------------|
 | Type        | <code>string</code>                   |
 | Environment | <code>$CODER_PG_CONNECTION_URL</code> |
@@ -27,7 +27,7 @@ The connection URL for the Postgres database.
 
 ### --postgres-connection-auth
 
-|             |                                        |
+| Property    | Value                                  |
 |-------------|----------------------------------------|
 | Type        | <code>password\|awsiamrds</code>       |
 | Environment | <code>$CODER_PG_CONNECTION_AUTH</code> |
@@ -37,7 +37,7 @@ Type of auth to use when connecting to postgres.
 
 ### --new-key
 
-|             |                                                               |
+| Property    | Value                                                         |
 |-------------|---------------------------------------------------------------|
 | Type        | <code>string</code>                                           |
 | Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_NEW_KEY</code> |
@@ -46,7 +46,7 @@ The new external token encryption key. Must be base64-encoded.
 
 ### --old-keys
 
-|             |                                                                |
+| Property    | Value                                                          |
 |-------------|----------------------------------------------------------------|
 | Type        | <code>string-array</code>                                      |
 | Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_ENCRYPT_OLD_KEYS</code> |
@@ -55,8 +55,8 @@ The old external token encryption keys. Must be a comma-separated list of base64
 
 ### -y, --yes
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Bypass confirmation prompts.

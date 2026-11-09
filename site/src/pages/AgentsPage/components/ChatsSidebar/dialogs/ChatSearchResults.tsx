@@ -8,6 +8,7 @@ import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { shortRelativeTime } from "#/utils/time";
+import { ChatNodePRIcon } from "../tree/ChatNodePRIcon";
 import { getChatDisplayConfig } from "../tree/statusConfig";
 
 type ChatSearchResultsProps = {
@@ -256,15 +257,17 @@ const ChatSearchResultRow: React.FC<ChatSearchResultRowProps> = ({
 		icon: StatusIcon,
 		className: statusClassName,
 		label: statusLabel,
-		prIcon,
-		diffStatus,
+		prStatuses,
 	} = getChatDisplayConfig(chat);
-	const PRIcon = prIcon?.icon;
-	const additions = diffStatus?.additions ?? 0;
-	const deletions = diffStatus?.deletions ?? 0;
-	const changedFiles = diffStatus?.changed_files ?? 0;
+	// Line stats only make sense for one PR; several PRs have no
+	// single set of counts, and the icon shows the count instead.
+	const solePR = prStatuses.length === 1 ? prStatuses[0] : undefined;
+
+	const additions = solePR?.additions ?? 0;
+	const deletions = solePR?.deletions ?? 0;
+	const changedFiles = solePR?.changed_files ?? 0;
 	const hasLineStats =
-		Boolean(diffStatus?.url) &&
+		Boolean(solePR?.url) &&
 		(additions > 0 || deletions > 0 || changedFiles > 0);
 	const subtitle = chat.last_turn_summary?.trim() || "No summary available";
 
@@ -285,7 +288,8 @@ const ChatSearchResultRow: React.FC<ChatSearchResultRowProps> = ({
 			onClick={onSelect}
 			className={cn(
 				"grid w-full min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2 rounded-md px-1.5 py-1 text-content-secondary no-underline hover:bg-surface-tertiary/40 hover:text-content-primary",
-				isSelected && "bg-surface-tertiary/40 text-content-primary",
+				isSelected &&
+					"bg-surface-tertiary/40 text-content-primary ring-2 ring-inset ring-content-link",
 			)}
 		>
 			<StatusIcon
@@ -298,13 +302,7 @@ const ChatSearchResultRow: React.FC<ChatSearchResultRowProps> = ({
 					{chat.title}
 				</div>
 				<div className="flex min-w-0 items-center gap-1.5 text-xs">
-					{PRIcon && prIcon && (
-						<PRIcon
-							role="img"
-							aria-label={prIcon.label}
-							className={cn("size-3.5 shrink-0", prIcon.className)}
-						/>
-					)}
+					<ChatNodePRIcon prStatuses={prStatuses} />
 					{hasLineStats && (
 						<span className="inline-flex shrink-0 items-center gap-0.5 tabular-nums">
 							<span className="text-git-added-bright">+{additions}</span>

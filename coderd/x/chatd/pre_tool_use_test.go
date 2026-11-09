@@ -245,64 +245,231 @@ func TestPreToolUseHookMalformedToolInputStaysRecoverable(t *testing.T) {
 	require.False(t, failed.LastError.Valid, "the turn must not fail as a hook dispatch error")
 }
 
-// Duplicate tool-use IDs make a hook decision unattributable, so the batch
-// must be rejected even when filtering would otherwise hide the duplication.
+// A tool call cut off by the output token limit gets exactly one error result,
+// never a second malformed-input result from hook admission.
+func TestPreToolUseHookOutputLimitTruncatedToolCallResolvedOnce(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		// blockStopped reports whether the provider closed the tool_use block,
+		// so the call arrives with truncated input instead of being dropped.
+		blockStopped bool
+		// duplicateID precedes the truncated call with a complete call that
+		// reuses its tool-use ID, which must still fail the batch closed.
+		duplicateID bool
+	}{
+		{name: "TruncatedInput", blockStopped: true},
+		{name: "UnfinishedInput", blockStopped: false},
+		{name: "DuplicateIDFailsClosed", blockStopped: true, duplicateID: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps := dbtestutil.NewDB(t)
+			var modelCalls atomic.Int32
+			var replay atomic.Pointer[chattest.AnthropicRequest]
+			anthropicURL := chattest.NewAnthropic(t, func(req *chattest.AnthropicRequest) chattest.AnthropicResponse {
+				if !req.Stream {
+					return chattest.AnthropicNonStreamingResponse("title")
+				}
+				if modelCalls.Add(1) > 1 {
+					replay.Store(req)
+					return chattest.AnthropicStreamingResponse(chattest.AnthropicTextChunks("split it")...)
+				}
+				var chunks []chattest.AnthropicChunk
+				for _, chunk := range chattest.AnthropicToolCallChunks("write_file", `{"path":"/tmp/big.txt","content":"abc`) {
+					if tt.duplicateID && chunk.Type == "content_block_start" {
+						for _, valid := range chattest.AnthropicToolCallChunks("write_file", `{"path":"/tmp/small.txt","content":"ok"}`) {
+							if strings.HasPrefix(valid.Type, "content_block_") {
+								valid.ContentBlock.ID = "toolu_truncated"
+								chunks = append(chunks, valid)
+							}
+						}
+					}
+					if tt.duplicateID && strings.HasPrefix(chunk.Type, "content_block_") {
+						chunk.Index = 1
+					}
+					switch chunk.Type {
+					case "content_block_start":
+						chunk.ContentBlock.ID = "toolu_truncated"
+					case "content_block_stop":
+						if !tt.blockStopped {
+							continue
+						}
+					case "message_delta":
+						chunk.StopReason = "max_tokens"
+					}
+					chunks = append(chunks, chunk)
+				}
+				return chattest.AnthropicStreamingResponse(chunks...)
+			})
+			user, org, model := seedAnthropicChatDependencies(t, db, anthropicURL)
+			ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+
+			var hookCalls atomic.Int32
+			consumer := preToolUseConsumer(t, func(agenthooks.PreToolUseData) string {
+				hookCalls.Add(1)
+				return `{}`
+			})
+
+			ctrl := gomock.NewController(t)
+			mockConn := agentconnmock.NewMockAgentConn(ctrl)
+			setupToolExecutionAgentConn(t, mockConn)
+
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, anthropicURL, chattest.WithPreservePath()))
+				cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+				cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+					require.Equal(t, dbAgent.ID, agentID)
+					return mockConn, func() {}, nil
+				}
+			})
+			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+				WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+				AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+				Title:          "pre-tool-use-output-limit-" + tt.name,
+				ModelConfigID:  model.ID,
+				InitialUserContent: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("write a big file"),
+				},
+			})
+			require.NoError(t, err)
+			if tt.duplicateID {
+				failed := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+				require.Zero(t, hookCalls.Load())
+				require.Equal(t, int32(1), modelCalls.Load())
+				var chatErr codersdk.ChatError
+				require.NoError(t, json.Unmarshal(failed.LastError.RawMessage, &chatErr))
+				require.Contains(t, chatErr.Message, "duplicate tool use ID")
+				return
+			}
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+			require.Zero(t, hookCalls.Load())
+			require.Equal(t, int32(2), modelCalls.Load(), "generation must continue after the truncated call")
+
+			parts := chatToolParts(ctx, t, db, chat.ID)
+			var results []codersdk.ChatMessagePart
+			for _, part := range parts {
+				if part.Type == codersdk.ChatMessagePartTypeToolResult {
+					results = append(results, part)
+				}
+			}
+			require.Len(t, results, 1)
+			require.Equal(t, "toolu_truncated", results[0].ToolCallID)
+			require.True(t, results[0].IsError)
+			require.Contains(t, string(results[0].Result), "reached the output token limit")
+			require.Contains(t, string(results[0].Result), "while writing its input. Split the content into smaller tool calls.")
+			call := requireToolCallPart(t, parts, "write_file")
+			require.Equal(t, "toolu_truncated", call.ToolCallID)
+			require.Nil(t, call.Args)
+
+			replayed := replay.Load()
+			require.NotNil(t, replayed)
+			var toolUses, toolResults []string
+			for _, message := range replayed.Messages {
+				var blocks []struct {
+					Type      string          `json:"type"`
+					ID        string          `json:"id"`
+					Input     json.RawMessage `json:"input"`
+					ToolUseID string          `json:"tool_use_id"`
+				}
+				if json.Unmarshal(message.Content, &blocks) != nil {
+					continue
+				}
+				for _, block := range blocks {
+					switch block.Type {
+					case "tool_use":
+						toolUses = append(toolUses, block.ID+" "+string(block.Input))
+					case "tool_result":
+						toolResults = append(toolResults, block.ToolUseID)
+					}
+				}
+			}
+			require.Equal(t, []string{"toolu_truncated {}"}, toolUses)
+			require.Equal(t, []string{"toolu_truncated"}, toolResults)
+		})
+	}
+}
+
+// Duplicate tool-use IDs make results and hook decisions unattributable,
+// so filtering invalid inputs must not hide a collision.
 func TestPreToolUseHookDuplicateToolUseIDWithMalformedSiblingFailsClosed(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	db, ps := dbtestutil.NewDB(t)
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-		first := chattest.OpenAIToolCallChunk("read_file", `{"path":`)
-		first.Choices[0].ToolCalls[0].ID = "call_duplicate"
-		second := chattest.OpenAIToolCallChunk("read_file", `{"path":"/tmp/allowed.txt"}`).Choices[0].ToolCalls[0]
-		second.ID = "call_duplicate"
-		second.Index = 1
-		first.Choices[0].ToolCalls = append(first.Choices[0].ToolCalls, second)
-		return chattest.OpenAIStreamingResponse(first)
-	})
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	for _, tt := range []struct {
+		name         string
+		input        string
+		hooksEnabled bool
+	}{
+		{name: "malformed with hooks", input: `{"path":`, hooksEnabled: true},
+		{name: "schema mismatch without hooks", input: `{}`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	var hookCalls atomic.Int32
-	consumer := preToolUseConsumer(t, func(agenthooks.PreToolUseData) string {
-		hookCalls.Add(1)
-		return `{}`
-	})
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps := dbtestutil.NewDB(t)
+			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse("title")
+				}
+				first := chattest.OpenAIToolCallChunk("read_file", tt.input)
+				first.Choices[0].ToolCalls[0].ID = "call_duplicate"
+				second := chattest.OpenAIToolCallChunk("read_file", `{"path":"/tmp/allowed.txt"}`).Choices[0].ToolCalls[0]
+				second.ID = "call_duplicate"
+				second.Index = 1
+				first.Choices[0].ToolCalls = append(first.Choices[0].ToolCalls, second)
+				return chattest.OpenAIStreamingResponse(first)
+			})
+			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+			ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
-	ctrl := gomock.NewController(t)
-	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-	setupToolExecutionAgentConn(t, mockConn)
+			var hookCalls atomic.Int32
+			consumer := preToolUseConsumer(t, func(agenthooks.PreToolUseData) string {
+				hookCalls.Add(1)
+				return `{}`
+			})
 
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
-		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-			require.Equal(t, dbAgent.ID, agentID)
-			return mockConn, func() {}, nil
-		}
-	})
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
-		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
-		Title:          "pre-tool-use-duplicate-id",
-		ModelConfigID:  model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("read the files"),
-		},
-	})
-	require.NoError(t, err)
-	failed := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+			ctrl := gomock.NewController(t)
+			mockConn := agentconnmock.NewMockAgentConn(ctrl)
+			setupToolExecutionAgentConn(t, mockConn)
 
-	require.Zero(t, hookCalls.Load(), "a duplicated ID must be rejected before any dispatch")
-	var chatErr codersdk.ChatError
-	require.NoError(t, json.Unmarshal(failed.LastError.RawMessage, &chatErr))
-	require.Contains(t, chatErr.Message, "duplicate tool use ID")
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+				if tt.hooksEnabled {
+					cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+				}
+				cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+					require.Equal(t, dbAgent.ID, agentID)
+					return mockConn, func() {}, nil
+				}
+			})
+			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+				WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+				AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+				Title:          "pre-tool-use-duplicate-id",
+				ModelConfigID:  model.ID,
+				InitialUserContent: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("read the files"),
+				},
+			})
+			require.NoError(t, err)
+			failed := waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+
+			require.Zero(t, hookCalls.Load(), "a duplicated ID must be rejected before any dispatch")
+			var chatErr codersdk.ChatError
+			require.NoError(t, json.Unmarshal(failed.LastError.RawMessage, &chatErr))
+			require.Contains(t, chatErr.Message, "duplicate tool use ID")
+		})
+	}
 }
 
 func TestPreToolUseHookDeny(t *testing.T) {
@@ -1008,120 +1175,178 @@ func TestPreToolUseHookDynamicDeny(t *testing.T) {
 	require.Contains(t, string(result.Result), "Reason: dynamic denied.")
 }
 
-func TestPreToolUseHookRejectsAmbiguousToolInput(t *testing.T) {
+func TestPreToolUseHookRejectsInvalidToolInput(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	db, ps := dbtestutil.NewDB(t)
-	var modelCalls atomic.Int32
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-		if modelCalls.Add(1) == 1 {
-			chunk := chattest.OpenAIToolCallChunk("read_file",
-				`{"path":"/tmp/allowed.txt","PATH":"/tmp/secret.txt"}`)
-			chunk.Choices[0].ToolCalls[0].ID = "call_ambiguous"
-			return chattest.OpenAIStreamingResponse(chunk)
-		}
-		return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
-	})
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	for _, tt := range []struct {
+		name         string
+		input        string
+		wantErr      string
+		hooksEnabled bool
+	}{
+		{name: "case mismatch", input: `{"path":"/tmp/allowed.txt","PATH":"/tmp/secret.txt"}`, wantErr: "only by case", hooksEnabled: true},
+		{name: "duplicate key without hooks", input: `{"path":"/tmp/allowed.txt","path":"/tmp/secret.txt"}`, wantErr: "repeats the key"},
+		{name: "schema mismatch", input: `{}`, wantErr: "missing properties", hooksEnabled: true},
+		{name: "schema mismatch without hooks", input: `{}`, wantErr: "missing properties"},
+		// null decodes into a nil offset and lets read_file run, but the
+		// schema requires an integer when offset is present.
+		{name: "null offset", input: `{"path":"/tmp/allowed.txt","offset":null}`, wantErr: `want "integer"`, hooksEnabled: true},
+		{name: "null offset without hooks", input: `{"path":"/tmp/allowed.txt","offset":null}`, wantErr: `want "integer"`},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	var hookCalls atomic.Int32
-	consumer := preToolUseConsumer(t, func(agenthooks.PreToolUseData) string {
-		hookCalls.Add(1)
-		return `{}`
-	})
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps := dbtestutil.NewDB(t)
+			var modelCalls atomic.Int32
+			var modelSawValidationError atomic.Bool
+			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse("title")
+				}
+				if modelCalls.Add(1) == 1 {
+					chunk := chattest.OpenAIToolCallChunk("read_file", tt.input)
+					chunk.Choices[0].ToolCalls[0].ID = "call_invalid"
+					return chattest.OpenAIStreamingResponse(chunk)
+				}
+				for _, message := range req.Messages {
+					if message.Role == "tool" && strings.Contains(message.Content, "input is invalid") {
+						modelSawValidationError.Store(true)
+					}
+				}
+				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+			})
+			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+			ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
-	ctrl := gomock.NewController(t)
-	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-	setupToolExecutionAgentConn(t, mockConn)
-	mockConn.EXPECT().ReadFileLines(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Times(0)
+			var hookCalls atomic.Int32
+			consumer := preToolUseConsumer(t, func(agenthooks.PreToolUseData) string {
+				hookCalls.Add(1)
+				return `{}`
+			})
 
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
-		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-			require.Equal(t, dbAgent.ID, agentID)
-			return mockConn, func() {}, nil
-		}
-	})
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
-		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
-		Title:          "pre-tool-use-ambiguous",
-		ModelConfigID:  model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("read the file"),
-		},
-	})
-	require.NoError(t, err)
-	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+			ctrl := gomock.NewController(t)
+			mockConn := agentconnmock.NewMockAgentConn(ctrl)
+			setupToolExecutionAgentConn(t, mockConn)
+			var toolCalls atomic.Int32
+			mockConn.EXPECT().ReadFileLines(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Do(func(_ context.Context, path string, offset, limit int64, _ workspacesdk.ReadFileLinesLimits) {
+					t.Logf("read_file executed: path=%q offset=%d limit=%d", path, offset, limit)
+					toolCalls.Add(1)
+				}).
+				Return(workspacesdk.ReadFileLinesResponse{
+					Success: true, FileSize: 4, TotalLines: 1, LinesRead: 1, Content: "data",
+				}, nil).
+				AnyTimes()
 
-	require.Zero(t, hookCalls.Load())
-	result := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), "read_file")
-	require.True(t, result.IsError)
-	require.Contains(t, string(result.Result), "input is ambiguous")
-	require.Contains(t, string(result.Result), "only by case")
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+				if tt.hooksEnabled {
+					cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+				}
+				cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+					require.Equal(t, dbAgent.ID, agentID)
+					return mockConn, func() {}, nil
+				}
+			})
+			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+				WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+				AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+				Title:          "pre-tool-use-invalid",
+				ModelConfigID:  model.ID,
+				InitialUserContent: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("read the file"),
+				},
+			})
+			require.NoError(t, err)
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusWaiting)
+
+			require.Zero(t, toolCalls.Load(), "schema-invalid input must not reach the workspace tool")
+			require.Zero(t, hookCalls.Load())
+			result := requireToolResultPart(t, chatToolParts(ctx, t, db, chat.ID), "read_file")
+			require.True(t, result.IsError)
+			var failure struct {
+				Error string `json:"error"`
+			}
+			require.NoError(t, json.Unmarshal(result.Result, &failure))
+			require.Contains(t, failure.Error, "input is invalid")
+			require.Contains(t, failure.Error, tt.wantErr)
+			require.Equal(t, int32(2), modelCalls.Load())
+			require.True(t, modelSawValidationError.Load(), "the model must receive the validation error")
+			updated, err := db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			require.False(t, updated.LastError.Valid)
+		})
+	}
 }
 
-func TestPreToolUseHookRejectsAmbiguousInputOverride(t *testing.T) {
+func TestPreToolUseHookRejectsInvalidInputOverride(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	db, ps := dbtestutil.NewDB(t)
-	openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		if !req.Stream {
-			return chattest.OpenAINonStreamingResponse("title")
-		}
-		chunk := chattest.OpenAIToolCallChunk("read_file", `{"path":"/tmp/before.txt"}`)
-		chunk.Choices[0].ToolCalls[0].ID = "call_override"
-		return chattest.OpenAIStreamingResponse(chunk)
-	})
-	user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
-	ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
+	for _, tt := range []struct {
+		input   string
+		wantErr string
+	}{
+		{input: `{"path":"/tmp/after.txt","PATH":"/tmp/secret.txt"}`, wantErr: `input key "PATH" differs from schema property "path" only by case`},
+		{input: `{}`, wantErr: `missing properties: ["path"]`},
+	} {
+		t.Run(tt.input, func(t *testing.T) {
+			t.Parallel()
 
-	consumer := preToolUseConsumer(t, func(agenthooks.PreToolUseData) string {
-		return `{"permission":{"decision":"allow","input_override":{"path":"/tmp/after.txt","PATH":"/tmp/secret.txt"}}}`
-	})
+			ctx := testutil.Context(t, testutil.WaitLong)
+			db, ps := dbtestutil.NewDB(t)
+			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				if !req.Stream {
+					return chattest.OpenAINonStreamingResponse("title")
+				}
+				chunk := chattest.OpenAIToolCallChunk("read_file", `{"path":"/tmp/before.txt"}`)
+				chunk.Choices[0].ToolCalls[0].ID = "call_override"
+				return chattest.OpenAIStreamingResponse(chunk)
+			})
+			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", openAIURL)
+			ws, dbAgent := seedWorkspaceWithAgent(t, db, user.ID)
 
-	ctrl := gomock.NewController(t)
-	mockConn := agentconnmock.NewMockAgentConn(ctrl)
-	setupToolExecutionAgentConn(t, mockConn)
-	mockConn.EXPECT().ReadFileLines(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
-		Times(0)
+			consumer := preToolUseConsumer(t, func(agenthooks.PreToolUseData) string {
+				return `{"permission":{"decision":"allow","input_override":` + tt.input + `}}`
+			})
 
-	server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
-		cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-		cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
-		cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
-			require.Equal(t, dbAgent.ID, agentID)
-			return mockConn, func() {}, nil
-		}
-	})
-	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
-		AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
-		Title:          "pre-tool-use-ambiguous-override",
-		ModelConfigID:  model.ID,
-		InitialUserContent: []codersdk.ChatMessagePart{
-			codersdk.ChatMessageText("read the file"),
-		},
-	})
-	require.NoError(t, err)
-	waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+			ctrl := gomock.NewController(t)
+			mockConn := agentconnmock.NewMockAgentConn(ctrl)
+			setupToolExecutionAgentConn(t, mockConn)
+			mockConn.EXPECT().ReadFileLines(gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any(), gomock.Any()).
+				Times(0)
 
-	failed, err := db.GetChatByID(ctx, chat.ID)
-	require.NoError(t, err)
-	require.Contains(t, chatLastErrorMessage(failed.LastError),
-		`hook input override for tool read_file: input key "PATH" differs from schema property "path" only by case`)
+			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
+				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
+				cfg.HookDispatcher = newHookDispatcher(t, db, consumer)
+				cfg.AgentConn = func(_ context.Context, agentID uuid.UUID) (workspacesdk.AgentConn, func(), error) {
+					require.Equal(t, dbAgent.ID, agentID)
+					return mockConn, func() {}, nil
+				}
+			})
+			chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+				OrganizationID: org.ID,
+				OwnerID:        user.ID,
+				WorkspaceID:    uuid.NullUUID{UUID: ws.ID, Valid: true},
+				AgentID:        uuid.NullUUID{UUID: dbAgent.ID, Valid: true},
+				Title:          "pre-tool-use-invalid-override",
+				ModelConfigID:  model.ID,
+				InitialUserContent: []codersdk.ChatMessagePart{
+					codersdk.ChatMessageText("read the file"),
+				},
+			})
+			require.NoError(t, err)
+			waitForChatStatus(ctx, t, db, chat.ID, database.ChatStatusError)
+
+			failed, err := db.GetChatByID(ctx, chat.ID)
+			require.NoError(t, err)
+			require.Contains(t, chatLastErrorMessage(failed.LastError),
+				"hook input override for tool read_file:")
+			require.Contains(t, chatLastErrorMessage(failed.LastError), tt.wantErr)
+		})
+	}
 }
 
 func requireNoClientVisibleText(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID, text string) {

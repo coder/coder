@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"reflect"
 	"strings"
 
@@ -81,6 +82,17 @@ func (f *OutputFormatter) Format(ctx context.Context, data any) (string, error) 
 	}
 
 	return "", xerrors.Errorf("unknown output format %q", f.formatID)
+}
+
+// WriteLine formats data with Format and writes the result to w as a single
+// line, appending a newline. Empty output is written as a bare newline.
+func (f *OutputFormatter) WriteLine(ctx context.Context, w io.Writer, data any) error {
+	out, err := f.Format(ctx, data)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(w, out)
+	return err
 }
 
 // FormatID will return the ID of the format selected by `--output`.
@@ -205,6 +217,18 @@ func (textFormat) AttachOptions(_ *serpent.OptionSet) {}
 
 func (textFormat) Format(_ context.Context, data any) (string, error) {
 	return fmt.Sprintf("%s", data), nil
+}
+
+// TextFormatFunc returns a text format that renders data of type T with fn.
+// Formatting fails if the data passed to the formatter is not a T.
+func TextFormatFunc[T any](fn func(T) (string, error)) OutputFormat {
+	return ChangeFormatterData(TextFormat(), func(data any) (any, error) {
+		typed, ok := data.(T)
+		if !ok {
+			return nil, xerrors.Errorf("expected %s, got %T", reflect.TypeFor[T](), data)
+		}
+		return fn(typed)
+	})
 }
 
 // DataChangeFormat allows manipulating the data passed to an output format.

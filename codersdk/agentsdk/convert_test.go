@@ -25,6 +25,8 @@ func TestManifest(t *testing.T) {
 		OwnerName:          "test-owner",
 		WorkspaceID:        uuid.New(),
 		WorkspaceName:      "test-workspace",
+		TemplateID:         uuid.New(),
+		TemplateName:       "test-template",
 		GitAuthConfigs:     3,
 		VSCodePortProxyURI: "http://proxy.example.com/stuff",
 		Apps: []codersdk.WorkspaceApp{
@@ -117,6 +119,17 @@ func TestManifest(t *testing.T) {
 				StartBlocksLogin: true,
 				Timeout:          time.Second,
 				DisplayName:      "foo",
+				ResourceAddress:  "coder_script.foo",
+				Dependencies: []codersdk.WorkspaceAgentScriptDependency{
+					{
+						PrerequisiteResourceAddress: "coder_script.bar",
+						Requirement:                 codersdk.WorkspaceAgentScriptDependencyRequirementSuccess,
+					},
+					{
+						PrerequisiteResourceAddress: "module.cache.coder_script.warm",
+						Requirement:                 codersdk.WorkspaceAgentScriptDependencyRequirementCompletion,
+					},
+				},
 			},
 			{
 				ID:               uuid.New(),
@@ -129,6 +142,7 @@ func TestManifest(t *testing.T) {
 				StartBlocksLogin: true,
 				Timeout:          time.Second * 4,
 				DisplayName:      "bar",
+				ResourceAddress:  "coder_script.bar",
 			},
 		},
 		Devcontainers: []codersdk.WorkspaceAgentDevcontainer{
@@ -150,6 +164,8 @@ func TestManifest(t *testing.T) {
 	require.Equal(t, manifest.OwnerName, back.OwnerName)
 	require.Equal(t, manifest.WorkspaceID, back.WorkspaceID)
 	require.Equal(t, manifest.WorkspaceName, back.WorkspaceName)
+	require.Equal(t, manifest.TemplateID, back.TemplateID)
+	require.Equal(t, manifest.TemplateName, back.TemplateName)
 	require.Equal(t, manifest.GitAuthConfigs, back.GitAuthConfigs)
 	require.Equal(t, manifest.VSCodePortProxyURI, back.VSCodePortProxyURI)
 	require.Equal(t, manifest.Apps, back.Apps)
@@ -163,6 +179,65 @@ func TestManifest(t *testing.T) {
 	require.Equal(t, manifest.Metadata, back.Metadata)
 	require.Equal(t, manifest.Scripts, back.Scripts)
 	require.Equal(t, manifest.Devcontainers, back.Devcontainers)
+}
+
+func TestScriptDependencyConversionRejectsInvalidRequirements(t *testing.T) {
+	t.Parallel()
+
+	id, logSourceID := uuid.New(), uuid.New()
+
+	t.Run("FromProtoUnspecified", func(t *testing.T) {
+		t.Parallel()
+		_, err := agentsdk.AgentScriptFromProto(&proto.WorkspaceAgentScript{
+			Id:              id[:],
+			LogSourceId:     logSourceID[:],
+			ResourceAddress: "coder_script.install_tools",
+			Dependencies: []*proto.WorkspaceAgentScriptDependency{{
+				PrerequisiteResourceAddress: "coder_script.clone_repo",
+				Requirement:                 proto.WorkspaceAgentScriptDependency_REQUIREMENT_UNSPECIFIED,
+			}},
+		})
+		require.ErrorContains(t, err, "dependency 0: unsupported requirement")
+	})
+
+	t.Run("FromProtoEmptyAddress", func(t *testing.T) {
+		t.Parallel()
+		_, err := agentsdk.AgentScriptFromProto(&proto.WorkspaceAgentScript{
+			Id:              id[:],
+			LogSourceId:     logSourceID[:],
+			ResourceAddress: "coder_script.install_tools",
+			Dependencies: []*proto.WorkspaceAgentScriptDependency{{
+				Requirement: proto.WorkspaceAgentScriptDependency_REQUIREMENT_SUCCESS,
+			}},
+		})
+		require.ErrorContains(t, err, "dependency 0 has an empty prerequisite resource address")
+	})
+
+	t.Run("ToProtoUnknownString", func(t *testing.T) {
+		t.Parallel()
+		_, err := agentsdk.ProtoFromScript(codersdk.WorkspaceAgentScript{
+			ID:              id,
+			LogSourceID:     logSourceID,
+			ResourceAddress: "coder_script.install_tools",
+			Dependencies: []codersdk.WorkspaceAgentScriptDependency{{
+				PrerequisiteResourceAddress: "coder_script.clone_repo",
+				Requirement:                 codersdk.WorkspaceAgentScriptDependencyRequirement("always"),
+			}},
+		})
+		require.ErrorContains(t, err, `dependency 0: unsupported requirement "always"`)
+	})
+
+	t.Run("ToProtoEmptyAddress", func(t *testing.T) {
+		t.Parallel()
+		_, err := agentsdk.ProtoFromScript(codersdk.WorkspaceAgentScript{
+			ID:          id,
+			LogSourceID: logSourceID,
+			Dependencies: []codersdk.WorkspaceAgentScriptDependency{{
+				Requirement: codersdk.WorkspaceAgentScriptDependencyRequirementSuccess,
+			}},
+		})
+		require.ErrorContains(t, err, "dependency 0 has an empty prerequisite resource address")
+	})
 }
 
 func TestSubsystems(t *testing.T) {

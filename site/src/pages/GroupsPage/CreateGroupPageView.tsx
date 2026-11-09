@@ -22,7 +22,7 @@ import {
 } from "#/utils/formUtils";
 
 const validationSchema = Yup.object({
-	name: nameValidator("Name"),
+	name: nameValidator("Name", { maxLength: 255 }),
 });
 
 type CreateGroupPageViewProps = {
@@ -99,7 +99,6 @@ export const CreateGroupPageView: React.FC<CreateGroupPageViewProps> = ({
 						<IconField
 							{...getFieldHelpers("avatar_url")}
 							onChange={onChangeTrimmed(form)}
-							fullWidth
 							label="Avatar URL"
 							onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
 						/>

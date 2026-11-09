@@ -157,7 +157,7 @@ describe("WorkspaceAgentLogSection", () => {
 		}
 	});
 
-	it("keeps streaming agent logs after the call completes without scrolling to new lines", () => {
+	it("keeps streaming agent logs after the call completes without scrolling the transcript", () => {
 		const scrollIntoView = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
 		const { watchAgentLogs, rerender, socketServer } = renderSection({
 			props: { status: "running" },
@@ -165,27 +165,12 @@ describe("WorkspaceAgentLogSection", () => {
 			workspace: MockWorkspace,
 		});
 		publishLogs(socketServer(), MockWorkspaceAgentLogs.slice(0, 2));
-		expect(scrollIntoView).toHaveBeenCalledTimes(1);
 
 		rerender({ status: "completed", buildId: currentBuildId });
 		publishLogs(socketServer(), MockWorkspaceAgentLogs.slice(2, 4));
 
 		expect(watchAgentLogs).toHaveBeenCalledTimes(1);
 		expect(socketServer()?.isConnectionOpen).toBe(true);
-		expect(scrollIntoView).toHaveBeenCalledTimes(1);
-	});
-
-	it("scrolls once to the end of the replayed log when a completed row mounts", () => {
-		const scrollIntoView = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
-		const { socketServer } = renderSection({
-			props: { status: "completed", buildId: currentBuildId },
-			workspace: MockWorkspace,
-		});
-
-		publishLogs(socketServer(), MockWorkspaceAgentLogs.slice(0, 2));
-		expect(scrollIntoView).toHaveBeenCalledTimes(1);
-
-		publishLogs(socketServer(), MockWorkspaceAgentLogs.slice(2, 4));
-		expect(scrollIntoView).toHaveBeenCalledTimes(1);
+		expect(scrollIntoView).not.toHaveBeenCalled();
 	});
 });

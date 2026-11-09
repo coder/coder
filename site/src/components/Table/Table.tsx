@@ -53,6 +53,7 @@ export const TableBody: React.FC<TableBodyProps> = ({
 	return (
 		<tbody
 			className={cn(
+				"[&>tr>th]:border-0 [&>tr>th]:border-t [&>tr>th]:border-solid [&>tr>th]:border-border",
 				// Select the outline by child position: a body row can start with a
 				// scope="row" th, and td:first-of-type would skip it and treat the
 				// second cell as the first.
@@ -61,21 +62,6 @@ export const TableBody: React.FC<TableBodyProps> = ({
 				"[&>tr:first-of-type>*:first-child]:rounded-tl-md [&>tr:first-of-type>*:last-child]:rounded-tr-md",
 				"[&>tr:last-child>*:first-child]:rounded-bl-md [&>tr:last-child>*:last-child]:rounded-br-md",
 				tableBodyVariants({ size }),
-				className,
-			)}
-			{...props}
-		/>
-	);
-};
-
-export const TableFooter: React.FC<React.ComponentProps<"tfoot">> = ({
-	className,
-	...props
-}) => {
-	return (
-		<tfoot
-			className={cn(
-				"border-t bg-surface-secondary/50 font-medium last:[&>tr]:border-b-0",
 				className,
 			)}
 			{...props}
@@ -93,7 +79,7 @@ const tableRowVariants = cva(
 			hover: {
 				false: null,
 				true: cn(
-					"cursor-pointer outline-none hover:outline-solid hover:outline-1 focus-visible:outline-solid focus-visible:outline-1 -outline-offset-1 outline-border-secondary",
+					"cursor-pointer outline-none hover:outline-solid hover:outline-1 -outline-offset-1 outline-border-secondary focus-visible:outline-solid focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-content-link",
 					"first:rounded-t-md last:rounded-b-md",
 				),
 			},

@@ -7,8 +7,11 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
+	"unicode/utf8"
+
+	xhtml "golang.org/x/net/html"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk"
@@ -59,10 +62,9 @@ func stripAnnotationParam(rawQuery string) (value string, found bool, rest strin
 	return value, found, strings.Join(kept, "&")
 }
 
-// injectAnnotationScript rewrites a successful, uncompressed text/html GET
-// response so that it loads the overlay script. The body is transformed as
-// it streams, so server-rendered pages that flush progressively keep
-// streaming and arbitrarily large pages are never buffered.
+// injectAnnotationScript rewrites a successful, uncompressed UTF-8 HTML GET
+// response so that it loads the overlay script. Only a bounded document
+// prologue is inspected; unsupported HTML passes through without injection.
 func injectAnnotationScript(resp *http.Response, scriptTag string) error {
 	if resp.StatusCode != http.StatusOK || resp.Header.Get("Content-Encoding") != "" {
 		return nil
@@ -70,17 +72,24 @@ func injectAnnotationScript(resp *http.Response, scriptTag string) error {
 	if resp.Request != nil && resp.Request.Method != http.MethodGet {
 		return nil
 	}
-	mediaType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
+	mediaType, params, err := mime.ParseMediaType(resp.Header.Get("Content-Type"))
 	if err != nil || !strings.EqualFold(mediaType, "text/html") {
 		return nil
 	}
-
-	tag := []byte(scriptTag)
-	resp.Body = &annotationInjector{src: resp.Body, tag: tag}
-	if resp.ContentLength >= 0 {
-		resp.ContentLength += int64(len(tag))
-		resp.Header.Set("Content-Length", strconv.FormatInt(resp.ContentLength, 10))
+	// An explicit UTF-8 charset keeps the tokenizer and browser in agreement.
+	// Without it the browser can sniff a different encoding from the body.
+	if !strings.EqualFold(params["charset"], "utf-8") && !strings.EqualFold(params["charset"], "utf8") {
+		return nil
 	}
+
+	src := &annotationSource{ReadCloser: resp.Body}
+	tokenizer := xhtml.NewTokenizer(src)
+	tokenizer.SetMaxBuf(annotationMaxTokenBytes)
+	resp.Body = &annotationInjector{src: src, tag: []byte(scriptTag), tokenizer: tokenizer}
+	// Injection can be declined after headers have been sent, so its length
+	// cannot be included in Content-Length in advance.
+	resp.ContentLength = -1
+	resp.Header.Del("Content-Length")
 	// These describe the upstream bytes, which no longer match. Last-Modified
 	// goes too: the rewritten page also depends on the Coder version in the
 	// script URL, which a 304 against the upstream's date would preserve.
@@ -90,36 +99,50 @@ func injectAnnotationScript(resp *http.Response, scriptTag string) error {
 	return nil
 }
 
-// annotationMarkers are the closing tags before which the script may be
-// inserted, in document order. With `defer` the position does not affect
-// when the script runs, so the first one seen wins, which lets the body
-// stream through with a six byte lookbehind. All have the same length.
-var annotationMarkers = [][]byte{[]byte("</head>"), []byte("</body>"), []byte("</html>")}
+const (
+	annotationMaxTokenBytes  = 64 << 10
+	annotationMaxPrefixBytes = 1 << 20
+)
 
-const annotationMarkerLen = 7
+// annotationSource retains errors returned alongside bytes. Switching from
+// tokenization to passthrough must not lose an error held by the tokenizer.
+type annotationSource struct {
+	io.ReadCloser
+	err error
+}
 
-// annotationInjector streams an HTML body and inserts the script tag exactly
-// once: before the first marker it sees, or at the end of the body when no
-// marker appears.
+func (s *annotationSource) Read(p []byte) (int, error) {
+	if s.err != nil {
+		return 0, s.err
+	}
+	n, err := s.ReadCloser.Read(p)
+	s.err = err
+	return n, err
+}
+
+// annotationInjector inserts before a head end tag or an opening body tag.
+// It never searches beyond the document prologue: tokenization alone cannot
+// model the browser's tree-dependent parsing of arbitrary body/foreign HTML.
 type annotationInjector struct {
-	src io.ReadCloser
-	tag []byte
+	src       *annotationSource
+	tag       []byte
+	tokenizer *xhtml.Tokenizer
+	pending   []byte
+	rest      io.Reader
 
-	pending  []byte // Transformed bytes not yet handed to the caller.
-	carry    []byte // Trailing bytes held back in case a marker straddles reads.
-	injected bool
-	eof      bool
-	err      error // Source error, surfaced once pending has drained.
-	buf      []byte
+	scanned     int
+	htmlSeen    bool
+	headStarted bool
+	rawTag      string
 }
 
 func (a *annotationInjector) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
 	for len(a.pending) == 0 {
-		if a.err != nil {
-			return 0, a.err
-		}
-		if a.eof {
-			return 0, io.EOF
+		if a.rest != nil {
+			return a.rest.Read(p)
 		}
 		a.fill()
 	}
@@ -128,84 +151,108 @@ func (a *annotationInjector) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-// fill reads the next chunk from the source and moves as much as it safely
-// can into pending. A source error is recorded rather than returned, so
-// the bytes read alongside it still reach the caller first.
 func (a *annotationInjector) fill() {
-	if a.buf == nil {
-		a.buf = make([]byte, 32<<10)
+	tt := a.tokenizer.Next()
+	// TagName and other tokenizer accessors can mutate Raw's backing buffer.
+	// Preserve the exact upstream bytes before inspecting the token.
+	a.pending = bytes.Clone(a.tokenizer.Raw())
+	a.scanned += len(a.pending)
+	if tt == xhtml.ErrorToken {
+		if err := a.tokenizer.Err(); !xerrors.Is(err, xhtml.ErrBufferExceeded) {
+			a.src.err = err
+		}
+		a.passthrough()
+		return
 	}
-	n, err := a.src.Read(a.buf)
-	data := make([]byte, 0, len(a.carry)+n)
-	data = append(data, a.carry...)
-	data = append(data, a.buf[:n]...)
-	a.carry = nil
+	if a.scanned > annotationMaxPrefixBytes || !utf8.Valid(a.pending) || bytes.IndexByte(a.pending, 0) >= 0 || (a.src.err != nil && !xerrors.Is(a.src.err, io.EOF)) {
+		a.passthrough()
+		return
+	}
 
-	if err != nil && err != io.EOF {
-		a.err = err
-		a.pending = data
-		return
+	inject, valid := a.inspect(tt)
+	if inject {
+		a.pending = bytes.Join([][]byte{a.tag, a.pending}, nil)
 	}
-	a.eof = err == io.EOF
+	if inject || !valid {
+		a.passthrough()
+	}
+}
 
-	if a.injected {
-		a.pending = data
-		return
+// inspect accepts only the prologue and ordinary head elements. Everything
+// else permanently disables injection rather than guessing a safe context.
+func (a *annotationInjector) inspect(tt xhtml.TokenType) (inject, valid bool) {
+	if a.rawTag != "" {
+		if tt == xhtml.TextToken {
+			return false, true
+		}
+		if tt == xhtml.EndTagToken {
+			name, _ := a.tokenizer.TagName()
+			if string(name) == a.rawTag {
+				a.rawTag = ""
+				return false, true
+			}
+		}
+		return false, false
 	}
-	if at := findAnnotationMarker(data); at >= 0 {
-		a.pending = bytes.Join([][]byte{data[:at], a.tag, data[at:]}, nil)
-		a.injected = true
-		return
+
+	switch tt {
+	case xhtml.TextToken:
+		text := a.pending
+		if a.scanned == len(text) {
+			text = bytes.TrimPrefix(text, []byte("\xef\xbb\xbf"))
+		}
+		return false, len(bytes.Trim(text, " \t\r\n\f")) == 0
+	case xhtml.CommentToken:
+		return false, true
+	case xhtml.DoctypeToken:
+		return false, !a.htmlSeen && !a.headStarted
+	case xhtml.EndTagToken:
+		name, _ := a.tokenizer.TagName()
+		return string(name) == "head" && a.headStarted, false
+	case xhtml.StartTagToken, xhtml.SelfClosingTagToken:
+		name, _ := a.tokenizer.TagName()
+		switch string(name) {
+		case "base", "link", "meta":
+			a.headStarted = true
+			return false, true
+		}
+		if tt == xhtml.SelfClosingTagToken {
+			return false, false
+		}
+		switch string(name) {
+		case "html":
+			if a.htmlSeen || a.headStarted {
+				return false, false
+			}
+			a.htmlSeen = true
+		case "head":
+			if a.headStarted {
+				return false, false
+			}
+			a.headStarted = true
+		case "script", "style", "title":
+			a.headStarted = true
+			a.rawTag = string(name)
+		case "body":
+			return true, true
+		default:
+			return false, false
+		}
+		return false, true
+	default:
+		return false, false
 	}
-	if a.eof {
-		data = append(data, a.tag...)
-		a.pending = data
-		a.injected = true
-		return
-	}
-	// Keep enough of the tail to recognize a marker split across reads.
-	hold := annotationMarkerLen - 1
-	if len(data) <= hold {
-		a.carry = data
-		return
-	}
-	a.pending = data[:len(data)-hold]
-	a.carry = append([]byte(nil), data[len(data)-hold:]...)
+}
+
+func (a *annotationInjector) passthrough() {
+	// The current raw token is already pending. Drain read-ahead exactly once
+	// before resuming the source, including on EOF or a token buffer limit.
+	a.rest = io.MultiReader(bytes.NewReader(a.tokenizer.Buffered()), a.src)
+	a.tokenizer = nil
 }
 
 func (a *annotationInjector) Close() error {
 	return a.src.Close()
-}
-
-// findAnnotationMarker returns the index of the earliest marker in data or
-// -1. Markers are ASCII, so folding is done per byte rather than with
-// bytes.ToLower, which can change the length of non-ASCII text and shift
-// every index after it.
-func findAnnotationMarker(data []byte) int {
-	for i := 0; i+annotationMarkerLen <= len(data); i++ {
-		if data[i] != '<' || data[i+1] != '/' {
-			continue
-		}
-		for _, marker := range annotationMarkers {
-			if equalFoldASCII(data[i:i+annotationMarkerLen], marker) {
-				return i
-			}
-		}
-	}
-	return -1
-}
-
-func equalFoldASCII(a, b []byte) bool {
-	for i := range a {
-		c := a[i]
-		if 'A' <= c && c <= 'Z' {
-			c += 'a' - 'A'
-		}
-		if c != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func annotationScriptTag(dashboardURL *url.URL) string {

@@ -76,7 +76,7 @@ func TestMantleLive(t *testing.T) {
 				BaseURL:  "https://bedrock-mantle." + region + ".api.aws/anthropic",
 				Protocol: config.BedrockProtocolMantle,
 			})),
-		withActor(defaultActorID, nil),
+		withActor(defaultActorUUID, ""),
 	)
 
 	for _, model := range models {

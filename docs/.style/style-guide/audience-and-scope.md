@@ -1,3 +1,7 @@
+---
+review-personas: [audience, learner, structure]
+---
+
 # Audience and scope
 
 Every page in the Coder documentation targets one audience working toward one outcome.
@@ -83,7 +87,7 @@ For Google Workspace, refer to [Configure SSO with Google Workspace](./sso-googl
 # Authentication
 
 This page covers OIDC providers (Okta, Azure AD, Google Workspace, generic OIDC),
-SAML providers, GitHub OAuth, password authentication, and the API token model.
+GitHub OAuth, password authentication, and the API token model.
 ```
 
 *Documentation-only.
@@ -113,8 +117,8 @@ This page is the entry point for configuring authentication in Coder.
 Pick the provider that matches your identity source:
 
 - [OpenID Connect (OIDC)](./oidc.md), for Okta, Auth0, Azure AD, Google Workspace, and other OIDC providers.
-- [SAML](./saml.md), for SAML 2.0 identity providers.
 - [GitHub OAuth](./github-oauth.md), for GitHub-hosted teams.
+- [Headless authentication](./headless-auth.md), for service accounts and automation.
 - [Password authentication](./password.md), for self-hosted local accounts.
 ```
 
@@ -123,13 +127,13 @@ Pick the provider that matches your identity source:
 ```md
 # Authentication
 
-This page covers OIDC, SAML, GitHub OAuth, password authentication, and the API token model.
+This page covers OIDC, GitHub OAuth, password authentication, and the API token model.
 
 ## OIDC
 
 [300 lines of provider-specific configuration]
 
-## SAML
+## GitHub OAuth
 
 [300 lines of provider-specific configuration]
 ```
@@ -248,6 +252,32 @@ This is the complement of [gating privileged pages](#gate-privileged-pages-with-
 *Documentation-only.
 No Vale rule.*
 
+## Lead with the surface the reader uses
+
+When the reader can do a task in more than one place, such as the dashboard, the CLI, the API, or a configuration file, lead with the place the page's persona uses.
+For most user tasks, that is the dashboard, so the UI label comes first.
+Give the API field, CLI flag, or file key once, in a sentence framed for the reader who uses that surface.
+A page whose reader works in the API or the CLI leads with that surface instead.
+
+The reader looks for what the screen shows.
+A page that opens with a field name sends the dashboard user looking for a control that has a different name.
+
+**Do**:
+
+> Turn off **Agents can use it automatically** to make a skill manual-only.
+> In the API, the setting is the `model_invocable` field.
+
+**Don't**:
+
+> Skills have a `model_invocable` setting that is on by default.
+> When it is off, agents can't choose the skill on their own.
+
+Tutorials that show the same step in the UI and the CLI keep both paths, in the same order on every step.
+For which identifiers belong on the page at all, refer to [Evidence justifies a claim and does not belong in the claim](../content-guidelines.md#evidence-justifies-a-claim-and-does-not-belong-in-the-claim).
+
+*Documentation-only.
+No Vale rule.*
+
 ## Personas the Coder docs serve
 
 When deciding which audience a page targets, match the reader to one of the canonical personas the Coder docs serve.
@@ -299,7 +329,7 @@ Ada runs the underlying infrastructure that Coder deploys onto: Kubernetes clust
 They need deployment, operation, and recovery docs: install paths, upgrade and rollback, IAM and SSO, monitoring and alerting, and operational playbooks for capacity and incidents.
 Their success metric is uptime, so they trust proven, well-documented configurations over unproven defaults.
 
-*Coder surface:* control plane install (Helm, Docker, VM, airgapped), database, networking and DERP, IAM and SSO/OIDC/SAML, telemetry and audit logs, backup and disaster recovery.
+*Coder surface:* control plane install (Helm, Docker, VM, airgapped), database, networking and DERP, IAM and SSO/OIDC, telemetry and audit logs, backup and disaster recovery.
 
 #### Steven the Sponsor
 
@@ -351,7 +381,7 @@ Sergio is the IT security officer at an organization with strict compliance requ
 They need docs for the security architecture, identity and access control, secrets management, audit and compliance evidence (SOC 2, FedRAMP-style controls), and data residency and supply-chain posture.
 They are skeptical of new tools by default and want documented, auditable behavior.
 
-*Coder surface:* SSO and OIDC/SAML, RBAC, secrets management, audit logs, security architecture pages, compliance and trust-center content, allowlists and network policies.
+*Coder surface:* SSO and OIDC, RBAC, secrets management, audit logs, security architecture pages, compliance and trust-center content, allowlists and network policies.
 
 #### Tara the Team Leader
 

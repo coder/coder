@@ -39,22 +39,22 @@ type Template struct {
 	// autostop deadline at which a reminder notification is sent. 0 disables
 	// the notification.
 	TimeTilAutostopNotifyMillis int64 `json:"time_til_autostop_notify_ms"`
-	// AutostopRequirement and AutostartRequirement are enterprise features. Its
-	// value is only used if your license is entitled to use the advanced template
+	// AutostopRequirement and AutostartRequirement are Premium features. Their
+	// values are only used if your license is entitled to use the advanced template
 	// scheduling feature.
 	AutostopRequirement  TemplateAutostopRequirement  `json:"autostop_requirement"`
 	AutostartRequirement TemplateAutostartRequirement `json:"autostart_requirement"`
 	CreatedByID          uuid.UUID                    `json:"created_by_id" format:"uuid"`
 	CreatedByName        string                       `json:"created_by_name"`
 
-	// AllowUserAutostart and AllowUserAutostop are enterprise-only. Their
+	// AllowUserAutostart and AllowUserAutostop are Premium features. Their
 	// values are only used if your license is entitled to use the advanced
 	// template scheduling feature.
 	AllowUserAutostart           bool `json:"allow_user_autostart"`
 	AllowUserAutostop            bool `json:"allow_user_autostop"`
 	AllowUserCancelWorkspaceJobs bool `json:"allow_user_cancel_workspace_jobs"`
 
-	// FailureTTLMillis, TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are enterprise-only. Their
+	// FailureTTLMillis, TimeTilDormantMillis, and TimeTilDormantAutoDeleteMillis are Premium features. Their
 	// values are used if your license is entitled to use the advanced
 	// template scheduling feature.
 	FailureTTLMillis               int64 `json:"failure_ttl_ms"`

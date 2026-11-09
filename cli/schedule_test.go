@@ -337,6 +337,24 @@ func TestScheduleModify(t *testing.T) {
 		// Then: the updated schedule should be shown
 		stdout.ExpectMatch(ctx, ws[0].OwnerName+"/"+ws[0].Name)
 	})
+
+	t.Run("SetStart_JSON", func(t *testing.T) {
+		inv, root := clitest.New(t,
+			"schedule", "start", ws[3].OwnerName+"/"+ws[3].Name, "7:30AM", "Mon-Fri", "Europe/Dublin", "-o", "json",
+		)
+		//nolint:gocritic // this workspace is not owned by the same user
+		clitest.SetupConfig(t, ownerClient, root)
+		var buf bytes.Buffer
+		inv.Stdout = &buf
+		require.NoError(t, inv.Run())
+
+		var rows []map[string]any
+		require.NoError(t, json.Unmarshal(buf.Bytes(), &rows), "unmarshal JSON output")
+		require.Len(t, rows, 1)
+		require.Equal(t, ws[3].OwnerName+"/"+ws[3].Name, rows[0]["workspace"])
+		require.Equal(t, sched.Humanize(), rows[0]["starts_at"])
+		require.Equal(t, sched.Next(now).In(loc).Format(time.RFC3339), rows[0]["starts_next"])
+	})
 }
 
 //nolint:paralleltest // t.Setenv
@@ -393,6 +411,71 @@ func TestScheduleOverride(t *testing.T) {
 			stdout.ExpectMatch(ctx, expectedDeadline)
 		})
 	}
+}
+
+// TestScheduleShow_ExactMatch ensures that `schedule show` resolves the
+// given workspace argument exactly, rather than falling back to a name
+// filter query that can match substrings or other users' workspaces.
+func TestScheduleShow_ExactMatch(t *testing.T) {
+	t.Parallel()
+
+	ownerClient, db := coderdtest.NewWithDatabase(t, nil)
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	memberClient, memberUser := coderdtest.CreateAnotherUserMutators(t, ownerClient, owner.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
+		r.Username = "testuser2"
+	})
+
+	// Owner has a workspace named "ui", member has a workspace named "ui-2"
+	// (a superset match) plus a workspace also literally named "ui".
+	ownerWS := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		Name:           "ui",
+		OwnerID:        owner.UserID,
+		OrganizationID: owner.OrganizationID,
+	}).WithAgent().Do()
+	_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		Name:           "ui-2",
+		OwnerID:        memberUser.ID,
+		OrganizationID: owner.OrganizationID,
+	}).WithAgent().Do()
+	memberWS := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		Name:           "ui",
+		OwnerID:        memberUser.ID,
+		OrganizationID: owner.OrganizationID,
+	}).WithAgent().Do()
+
+	ownerWorkspace, err := ownerClient.Workspace(context.Background(), ownerWS.Workspace.ID)
+	require.NoError(t, err)
+	memberWorkspace, err := ownerClient.Workspace(context.Background(), memberWS.Workspace.ID)
+	require.NoError(t, err)
+
+	t.Run("OwnerSlashName", func(t *testing.T) {
+		t.Parallel()
+		inv, root := clitest.New(t, "schedule", "show", memberWorkspace.OwnerName+"/"+memberWorkspace.Name)
+		//nolint:gocritic // Testing owner access to another user's workspace by owner/name
+		clitest.SetupConfig(t, ownerClient, root)
+		var buf bytes.Buffer
+		inv.Stdout = &buf
+		ctx := testutil.Context(t, testutil.WaitShort)
+		require.NoError(t, inv.WithContext(ctx).Run())
+
+		output := buf.String()
+		require.Contains(t, output, memberWorkspace.OwnerName+"/"+memberWorkspace.Name)
+		require.NotContains(t, output, ownerWorkspace.OwnerName+"/"+ownerWorkspace.Name)
+	})
+
+	t.Run("NameSubstringMatch", func(t *testing.T) {
+		t.Parallel()
+		inv, root := clitest.New(t, "schedule", "show", "ui")
+		clitest.SetupConfig(t, memberClient, root)
+		var buf bytes.Buffer
+		inv.Stdout = &buf
+		ctx := testutil.Context(t, testutil.WaitShort)
+		require.NoError(t, inv.WithContext(ctx).Run())
+
+		output := buf.String()
+		require.Contains(t, output, memberWorkspace.OwnerName+"/ui")
+		require.NotContains(t, output, "ui-2")
+	})
 }
 
 //nolint:paralleltest // t.Setenv

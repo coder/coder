@@ -1,6 +1,7 @@
 package docgenenv_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -36,4 +37,23 @@ func TestManifestFindRoute(t *testing.T) {
 	require.Nil(t, m.FindRoute("Reference", "Nope"))
 	require.Nil(t, m.FindRoute())
 	require.Nil(t, m.FindRoute("REST API")) // Not a top-level route.
+}
+
+func TestMarshalJSON(t *testing.T) {
+	t.Parallel()
+
+	m := &docgenenv.Manifest{
+		Routes: []docgenenv.Route{{Title: "Groups & Roles <beta>", Path: "./a.md"}},
+	}
+
+	b, err := docgenenv.MarshalJSON(m)
+	require.NoError(t, err)
+	require.Contains(t, string(b), `"title": "Groups & Roles <beta>"`)
+	require.NotContains(t, string(b), `\u00`)
+	require.Equal(t, byte('\n'), b[len(b)-1])
+
+	// Decodes back to the same manifest.
+	var got docgenenv.Manifest
+	require.NoError(t, json.Unmarshal(b, &got))
+	require.Equal(t, m, &got)
 }

@@ -215,7 +215,8 @@ func (c *Client) WorkspaceBuildState(ctx context.Context, build uuid.UUID) ([]by
 // UpdateWorkspaceBuildStateRequest is the request body for updating the
 // provisioner state of a workspace build.
 type UpdateWorkspaceBuildStateRequest struct {
-	State []byte `json:"state"`
+	// State is the provisioner state, which JSON carries as a base64 string.
+	State []byte `json:"state" swaggertype:"string" format:"byte"`
 }
 
 // UpdateWorkspaceBuildState updates the provisioner state of the build without
@@ -287,14 +288,14 @@ type ProvisionerTiming struct {
 }
 
 type AgentScriptTiming struct {
-	StartedAt          time.Time   `json:"started_at" format:"date-time"`
-	EndedAt            time.Time   `json:"ended_at" format:"date-time"`
-	ExitCode           int32       `json:"exit_code"`
-	Stage              TimingStage `json:"stage"`
-	Status             string      `json:"status"`
-	DisplayName        string      `json:"display_name"`
-	WorkspaceAgentID   string      `json:"workspace_agent_id"`
-	WorkspaceAgentName string      `json:"workspace_agent_name"`
+	StartedAt          time.Time                  `json:"started_at" format:"date-time"`
+	EndedAt            time.Time                  `json:"ended_at" format:"date-time"`
+	ExitCode           int32                      `json:"exit_code"`
+	Stage              TimingStage                `json:"stage"`
+	Status             WorkspaceAgentScriptStatus `json:"status"`
+	DisplayName        string                     `json:"display_name"`
+	WorkspaceAgentID   string                     `json:"workspace_agent_id"`
+	WorkspaceAgentName string                     `json:"workspace_agent_name"`
 }
 
 type AgentConnectionTiming struct {

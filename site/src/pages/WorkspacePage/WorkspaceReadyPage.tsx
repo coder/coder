@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import { API } from "#/api/api";
 import {
 	type ApiError,
@@ -23,6 +22,7 @@ import {
 	ConfirmDialog,
 	type ConfirmDialogProps,
 } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
+import { toast } from "#/components/Toaster/toast";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
 import { EphemeralParametersDialog } from "#/modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
 import { WorkspaceErrorDialog } from "#/modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
@@ -91,6 +91,15 @@ export const WorkspaceReadyPage: React.FC<WorkspaceReadyPageProps> = ({
 		buildParameters?: TypesGen.WorkspaceBuildParameter[];
 		ephemeralParameters: TypesGen.TemplateVersionParameter[];
 	}>({ open: false, action: "start", ephemeralParameters: [] });
+
+	// Users who must stay on the active version can only fix parameters
+	// against the active version, so send them there from the error dialog.
+	const parametersVersionId =
+		workspace.outdated &&
+		workspace.template_require_active_version &&
+		!permissions.updateWorkspaceVersion
+			? workspace.template_active_version_id
+			: workspace.latest_build.template_version_id;
 
 	const [isCancelConfirmOpen, setIsCancelConfirmOpen] = useState(false);
 
@@ -437,7 +446,7 @@ export const WorkspaceReadyPage: React.FC<WorkspaceReadyPageProps> = ({
 				onClose={() => setWorkspaceErrorDialog({ open: false })}
 				workspaceOwner={workspace.owner_name}
 				workspaceName={workspace.name}
-				templateVersionId={workspace.latest_build.template_version_id}
+				templateVersionId={parametersVersionId}
 				isDeleting={false}
 			/>
 		</>

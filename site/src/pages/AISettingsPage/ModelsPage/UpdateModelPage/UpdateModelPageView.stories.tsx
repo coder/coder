@@ -81,7 +81,7 @@ export const Default: Story = {
 			),
 		).toBeVisible();
 		expect(
-			canvas.queryByRole("button", {
+			canvas.queryByRole("combobox", {
 				name: `Organization ${MockDefaultOrganization.display_name}`,
 			}),
 		).not.toBeInTheDocument();

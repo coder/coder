@@ -10,7 +10,7 @@ type AgentSetupNoticeProps = {
 	organization?: Organization;
 	// Names of configured providers the harness cannot use, populated by
 	// the page only when no supported provider is configured.
-	unsupportedProviderNames?: readonly string[];
+	unsupportedProviderNames: readonly string[];
 	aiGatewayDisabled?: boolean;
 };
 
@@ -29,7 +29,7 @@ export const AgentSetupNotice: React.FC<AgentSetupNoticeProps> = ({
 	providerCount,
 	modelCount,
 	organization,
-	unsupportedProviderNames = [],
+	unsupportedProviderNames,
 	aiGatewayDisabled,
 }) => {
 	const hasProvider = providerCount > 0;
@@ -63,7 +63,7 @@ export const AgentSetupNotice: React.FC<AgentSetupNoticeProps> = ({
 		const providerList = formatProviderList(unsupportedProviderNames);
 		const unsupportedLink = (
 			<a
-				href={docs("/ai-coder/agents/models#providers")}
+				href={docs("/coder-agents/models#providers")}
 				target="_blank"
 				rel="noreferrer"
 				className="text-content-link transition-colors hover:text-content-link/80"

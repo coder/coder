@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { toast } from "sonner";
 import {
 	setWorkspaceGroupRole,
 	setWorkspaceUserRole,
@@ -13,6 +12,7 @@ import type {
 	WorkspaceRole,
 	WorkspaceUser,
 } from "#/api/typesGenerated";
+import { toast } from "#/components/Toaster/toast";
 
 /**
  * Encapsulates all data fetching and mutations for workspace sharing.
