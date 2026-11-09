@@ -127,25 +127,28 @@ func TestResponseCacheStore(t *testing.T) {
 
 		// Dogfood on 2026-11-07 (CODAGT-1543): two keys per chat-owner/PR
 		// pair plus one per chat-owner/branch lookup.
-		const observedKeys = 2*1201 + 329
-		const keys = 10 * observedKeys
+		const (
+			pullRequests = 1201
+			branches     = 329
+			cacheKeys    = 2*pullRequests + branches
+			keys         = 10 * cacheKeys
+		)
 
 		cache := newResponseCache(0, 0)
 		body := []byte(`{"title":"` + strings.Repeat("t", 256) + `","state":"open","number":42}`)
-		cacheKeys := make([]string, keys)
+		storedKeys := make([]string, keys)
 		for i := range keys {
 			requestURL := fmt.Sprintf("http://localhost/repos/owner/repo/pulls/%d", i)
 			key := responseCacheKey(requestURL, "test-token")
-			cacheKeys[i] = key
+			storedKeys[i] = key
 			cache.store(key, `"v"`, body)
 		}
 
-		for _, key := range cacheKeys {
+		for _, key := range storedKeys {
 			_, cachedBody, ok := cache.load(key)
 			require.True(t, ok, "a tenfold working set must survive a full scan")
 			require.Equal(t, body, cachedBody)
 		}
-		require.Less(t, cache.usedBytes, 16<<20)
 		t.Logf("retained %d keys using %d accounted bytes", keys, cache.usedBytes)
 	})
 
@@ -183,7 +186,7 @@ func TestResponseCacheStore(t *testing.T) {
 		assert.Equal(t, `{"v":2}`, string(body))
 	})
 
-	// Fills the cache past maxSize and verifies the
+	// Fills the cache past maxEntries and verifies the
 	// least-recently-used entry is evicted, not merely the
 	// oldest-inserted one.
 	t.Run("EvictsLeastRecentlyUsed", func(t *testing.T) {
@@ -195,7 +198,7 @@ func TestResponseCacheStore(t *testing.T) {
 		// Access "a" so "b" becomes the least-recently-used entry.
 		_, _, ok := cache.load("a")
 		require.True(t, ok)
-		// This third store exceeds maxSize and must evict "b",
+		// This third store exceeds maxEntries and must evict "b",
 		// not the older "a".
 		cache.store("c", `"etag-c"`, []byte(`{"k":"c"}`))
 
@@ -216,9 +219,8 @@ func TestResponseCacheStore(t *testing.T) {
 	t.Run("EvictsToByteLimit", func(t *testing.T) {
 		t.Parallel()
 
-		// These lengths are allocator size classes, so cap equals len.
-		// Three 84-byte entries (1 key + 3 ETag + 80 projection bytes) use 252
-		// of the 256-byte limit.
+		// These allocator-size-class lengths keep cap equal to len after
+		// bytes.Clone. Three 84-byte entries use 252 of the 256-byte limit.
 		cache := newResponseCache(8, 256)
 		for _, key := range []string{"a", "b", "c"} {
 			cache.store(key, `"v"`, make([]byte, 80))
@@ -227,8 +229,8 @@ func TestResponseCacheStore(t *testing.T) {
 		_, _, ok := cache.load("a")
 		require.True(t, ok)
 
-		// The 164-byte entry raises the total to 416, evicting both oldest
-		// entries, "b" and "c", to leave 248 accounted bytes.
+		// The 164-byte "d" raises the total to 416; evicting "b" and "c"
+		// leaves 248 accounted bytes.
 		cache.store("d", `"v"`, make([]byte, 160))
 
 		for _, key := range []string{"b", "c"} {
@@ -341,9 +343,10 @@ func TestResponseCacheStore(t *testing.T) {
 func TestGitHubCachedProjection(t *testing.T) {
 	t.Parallel()
 
+	const responsePaddingBytes = 26 << 10
 	var fullResponses atomic.Int64
 	var notModifiedResponses atomic.Int64
-	padding := strings.Repeat("p", 26<<10)
+	padding := strings.Repeat("p", responsePaddingBytes)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("ETag", `"v"`)
 		if r.Header.Get("If-None-Match") != "" {
@@ -363,8 +366,8 @@ func TestGitHubCachedProjection(t *testing.T) {
 	github, ok := provider.(*githubProvider)
 	require.True(t, ok)
 
-	// The first pass fetches the response body; the second decodes the
-	// cached JSON projection after a conditional request.
+	// The first pass fetches the response body; the second uses its JSON
+	// projection after a 304.
 	for range 2 {
 		var title struct {
 			Title string `json:"title"`

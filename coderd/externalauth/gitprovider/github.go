@@ -26,9 +26,6 @@ type githubProvider struct {
 	httpClient *http.Client
 	clock      quartz.Clock
 
-	// cache stores ETags and JSON projections so JSON reads can be
-	// issued as conditional requests, letting unchanged pull
-	// requests return 304 Not Modified instead of a full body.
 	cache *responseCache
 
 	// Compiled per-instance to support GitHub Enterprise hosts.
@@ -390,10 +387,10 @@ func (g *githubProvider) FetchBranchDiff(
 	return g.fetchDiff(ctx, requestURL, token)
 }
 
-// decodeJSON fetches JSON into dest and caches its JSON projection. Each
-// request URL must always be decoded into the same destination type, and dest
-// must round-trip through encoding/json without loss: on a 304, decodeJSON
-// decodes the cached JSON projection into dest.
+// decodeJSON fetches JSON into dest and caches its JSON projection. dest must
+// point to a zero value and round-trip through encoding/json without loss.
+// Each request URL must always be decoded into the same destination type;
+// on a 304, decodeJSON decodes the cached JSON projection into dest.
 func (g *githubProvider) decodeJSON(
 	ctx context.Context,
 	requestURL string,
@@ -411,9 +408,6 @@ func (g *githubProvider) decodeJSON(
 		req.Header.Set("Authorization", "Bearer "+token)
 	}
 
-	// Issue a conditional request when we have a cached ETag for this URL and
-	// token hash. GitHub replies 304 Not Modified when nothing changed, which
-	// avoids a full response and does not count against the primary rate limit.
 	cacheKey := responseCacheKey(requestURL, token)
 	var (
 		cachedBody []byte
@@ -430,7 +424,6 @@ func (g *githubProvider) decodeJSON(
 	}
 	defer resp.Body.Close()
 
-	// Nothing changed: decode the cached JSON projection.
 	if resp.StatusCode == http.StatusNotModified && haveCached {
 		if err := json.Unmarshal(cachedBody, dest); err != nil {
 			return xerrors.Errorf("decode cached github response: %w", err)
@@ -470,10 +463,10 @@ func (g *githubProvider) decodeJSON(
 		return nil
 	}
 
-	// Cache the JSON projection re-encoded from the decoded destination.
+	// Re-encoding dest omits response fields outside its JSON schema.
 	projection, err := json.Marshal(dest)
 	if err != nil {
-		// The response was decoded successfully, so only caching is skipped.
+		// dest is decoded; storing a JSON projection is optional.
 		return nil
 	}
 

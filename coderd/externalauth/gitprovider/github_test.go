@@ -821,8 +821,8 @@ func TestFetchPullRequestStatus(t *testing.T) {
 
 			require.Zero(t, conditionalRequests.Load(), "first fetch must not be conditional")
 
-			// The second fetch receives 304 for both requests and must reproduce
-			// every PRStatus field from their JSON projections.
+			// With the clock fixed, both 304 responses must reproduce the fields
+			// populated by the PR and review fixtures.
 			warm, err := gp.FetchPullRequestStatus(
 				context.Background(),
 				"test-token",
@@ -1032,9 +1032,15 @@ func TestConditionalRequestReuse(t *testing.T) {
 			branches     = 329
 			cacheKeys    = 2*pullRequests + branches
 		)
-		pullPadding := strings.Repeat("p", 26<<10)
-		reviewPadding := strings.Repeat("r", 20<<10)
-		branchPadding := strings.Repeat("b", 38<<10)
+		// Padding approximates the full-response sizes from the same snapshot.
+		const (
+			pullPaddingBytes   = 26 << 10
+			reviewPaddingBytes = 20 << 10
+			branchPaddingBytes = 38 << 10
+		)
+		pullPadding := strings.Repeat("p", pullPaddingBytes)
+		reviewPadding := strings.Repeat("r", reviewPaddingBytes)
+		branchPadding := strings.Repeat("b", branchPaddingBytes)
 		var fullResponses atomic.Int64
 		var notModifiedResponses atomic.Int64
 

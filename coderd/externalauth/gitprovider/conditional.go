@@ -8,19 +8,17 @@ import (
 	"sync"
 )
 
-// Defaults for the conditional-request response cache.
 const (
 	// defaultResponseCacheEntries bounds entry count, map and LRU list overhead.
-	// Entries averaging under 2 KiB reach this limit before the byte limit.
+	// It is about 24 times the 2,731 keys observed on dogfood on 2026-11-07
+	// (CODAGT-1543).
 	defaultResponseCacheEntries = 65536
 
-	// defaultResponseCacheBytes limits URL/token-hash string lengths, ETag
-	// lengths and JSON projection buffer capacities. Entry, map, list and
-	// allocator overhead are excluded.
-	defaultResponseCacheBytes = 128 << 20 // 128 MiB
+	// defaultResponseCacheBytes limits the sum of cachedResponse.sizeBytes.
+	// It is not an RSS limit.
+	defaultResponseCacheBytes = 128 << 20
 
 	// maxCachedBodyBytes is the largest encoded JSON projection retained.
-	// Larger projections are not stored.
 	maxCachedBodyBytes = 1 << 20 // 1 MiB
 )
 
@@ -32,38 +30,37 @@ type cachedResponse struct {
 	body []byte
 }
 
+// sizeBytes counts key and ETag lengths and projection buffer capacity.
+// It excludes entry, map, list and allocator overhead.
 func (r *cachedResponse) sizeBytes() int {
 	return len(r.key) + len(r.etag) + cap(r.body)
 }
 
-// responseCache stores JSON projections in a concurrency-safe LRU, keyed by
-// request URL and token hash. The provider decodes a cached JSON projection
-// after a 304 Not Modified response, which GitHub does not count against the
-// primary rate limit.
+// responseCache is a concurrency-safe LRU of JSON projections for conditional
+// requests. GitHub does not count 304 responses against the primary rate limit.
 type responseCache struct {
-	mu        sync.Mutex
-	maxSize   int
-	maxBytes  int
-	usedBytes int
-	ll        *list.List
-	entries   map[string]*list.Element
+	mu         sync.Mutex
+	maxEntries int
+	maxBytes   int
+	usedBytes  int
+	ll         *list.List
+	entries    map[string]*list.Element
 }
 
-// newResponseCache constructs an empty cache retaining at most maxSize
-// entries and maxBytes of keys, ETags and projection buffers. Non-positive
-// limits fall back to the defaults.
-func newResponseCache(maxSize, maxBytes int) *responseCache {
-	if maxSize <= 0 {
-		maxSize = defaultResponseCacheEntries
+// newResponseCache returns an empty response cache with entry and byte limits.
+// Non-positive maxEntries or maxBytes select the defaults.
+func newResponseCache(maxEntries, maxBytes int) *responseCache {
+	if maxEntries <= 0 {
+		maxEntries = defaultResponseCacheEntries
 	}
 	if maxBytes <= 0 {
 		maxBytes = defaultResponseCacheBytes
 	}
 	return &responseCache{
-		maxSize:  maxSize,
-		maxBytes: maxBytes,
-		ll:       list.New(),
-		entries:  make(map[string]*list.Element),
+		maxEntries: maxEntries,
+		maxBytes:   maxBytes,
+		ll:         list.New(),
+		entries:    make(map[string]*list.Element),
 	}
 }
 
@@ -132,7 +129,7 @@ func (c *responseCache) store(key, etag string, body []byte) {
 // overLimit reports whether the response cache exceeds either limit.
 // The caller must hold c.mu.
 func (c *responseCache) overLimit() bool {
-	return c.ll.Len() > c.maxSize || c.usedBytes > c.maxBytes
+	return c.ll.Len() > c.maxEntries || c.usedBytes > c.maxBytes
 }
 
 // evictOldest removes the least-recently-used entry. The caller must
