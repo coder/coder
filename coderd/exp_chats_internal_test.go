@@ -62,108 +62,133 @@ func TestResolveChatGitAccessToken(t *testing.T) {
 			t.Parallel()
 
 			for _, tc := range []struct {
-				name        string
-				expiresIn   time.Duration
-				wantRefresh bool
+				name             string
+				expiresIn        time.Duration
+				wantTokenRefresh bool
 			}{
+				// OAuth2 includes a 10-second early-expiry margin.
 				{name: "Unexpired", expiresIn: time.Hour},
 				{name: "NoExpiry"},
-				{name: "Expired", expiresIn: -time.Hour, wantRefresh: true},
-				// OAuth2 treats tokens within 10 seconds of expiry as expired.
-				{name: "NearExpiry", expiresIn: 5 * time.Second, wantRefresh: true},
+				{name: "Expired", expiresIn: -time.Hour, wantTokenRefresh: true},
+				{name: "NearExpiry", expiresIn: 5 * time.Second, wantTokenRefresh: true},
 			} {
 				t.Run(tc.name, func(t *testing.T) {
 					t.Parallel()
 
 					ctx := testutil.Context(t, testutil.WaitLong)
-					var refreshRequests, validateRequests atomic.Int64
-					idp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-						w.Header().Set("Content-Type", "application/json")
-						switch r.URL.Path {
-						case "/token":
-							refreshRequests.Add(1)
-							assert.Equal(t, http.MethodPost, r.Method)
-							assert.NoError(t, r.ParseForm())
-							assert.Equal(t, "refresh_token", r.Form.Get("grant_type"))
-							assert.Equal(t, "stored-refresh-token", r.Form.Get("refresh_token"))
-							_, _ = io.WriteString(w, `{"access_token":"refreshed-access-token","refresh_token":"refreshed-refresh-token","token_type":"Bearer","expires_in":3600}`)
-						case "/validate":
-							validateRequests.Add(1)
-							_, _ = io.WriteString(w, `{}`)
-						default:
-							t.Errorf("unexpected provider request: %s", r.URL.Path)
-							http.NotFound(w, r)
-						}
-					}))
-					t.Cleanup(idp.Close)
+					fixture := newChatGitAuthFixture(t, ctx, db, tc.expiresIn)
 
-					instrument := promoauth.NewFactory(prometheus.NewRegistry())
-					config := &externalauth.Config{
-						ID:   "git-test",
-						Type: "github",
-						InstrumentedOAuth2Config: instrument.New("git-test", &oauth2.Config{
-							ClientID: "test-client",
-							Endpoint: oauth2.Endpoint{
-								AuthURL:   idp.URL + "/auth",
-								TokenURL:  idp.URL + "/token",
-								AuthStyle: oauth2.AuthStyleInParams,
-							},
-						}),
-						Regex:        regexp.MustCompile(`^https://git\.example\.com/`),
-						ValidateURL:  idp.URL + "/validate",
-						RefreshGroup: new(singleflight.Group),
-					}
-
-					user := dbgen.User(t, db, database.User{})
-					now := dbtime.Now()
-					var expiry time.Time
-					if tc.expiresIn != 0 {
-						expiry = now.Add(tc.expiresIn)
-					}
-					link, err := db.InsertExternalAuthLink(ctx, database.InsertExternalAuthLinkParams{
-						ProviderID:        config.ID,
-						UserID:            user.ID,
-						CreatedAt:         now,
-						UpdatedAt:         now,
-						OAuthAccessToken:  "stored-access-token",
-						OAuthRefreshToken: "stored-refresh-token",
-						OAuthExpiry:       expiry,
-					})
-					require.NoError(t, err)
-
-					wantToken := link.OAuthAccessToken
-					var wantRequests int64
-					if tc.wantRefresh {
-						wantToken = "refreshed-access-token"
-						wantRequests = 1
-					}
-
-					api := &API{Options: &Options{
-						Database:            db,
-						ExternalAuthConfigs: []*externalauth.Config{config},
-						Logger:              testutil.Logger(t),
-					}}
-					token, err := api.resolveChatGitAccessToken(ctx, link.UserID, lookup.origin)
+					token, err := fixture.api.resolveChatGitAccessToken(ctx, fixture.link.UserID, lookup.origin)
 					require.NoError(t, err)
 					require.NotNil(t, token)
-					assert.Equal(t, wantToken, *token)
-					assert.Equal(t, wantRequests, refreshRequests.Load())
-					if !tc.wantRefresh {
-						assert.Zero(t, validateRequests.Load())
+
+					if !tc.wantTokenRefresh {
+						assert.Equal(t, fixture.link.OAuthAccessToken, *token)
+						assert.Zero(t, fixture.tokenRefreshRequests.Load())
+						assert.Zero(t, fixture.providerValidationRequests.Load())
 						return
 					}
 
+					assert.Equal(t, "refreshed-access-token", *token)
+					assert.EqualValues(t, 1, fixture.tokenRefreshRequests.Load())
+
 					stored, err := db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
-						ProviderID: config.ID,
-						UserID:     link.UserID,
+						ProviderID: fixture.link.ProviderID,
+						UserID:     fixture.link.UserID,
 					})
 					require.NoError(t, err)
-					assert.Equal(t, wantToken, stored.OAuthAccessToken)
+					assert.Equal(t, "refreshed-access-token", stored.OAuthAccessToken)
 					assert.Equal(t, "refreshed-refresh-token", stored.OAuthRefreshToken)
 				})
 			}
 		})
 	}
+}
+
+type chatGitAuthFixture struct {
+	api                        *API
+	link                       database.ExternalAuthLink
+	tokenRefreshRequests       atomic.Int64
+	providerValidationRequests atomic.Int64
+}
+
+func newChatGitAuthFixture(
+	t *testing.T,
+	ctx context.Context,
+	db database.Store,
+	expiresIn time.Duration,
+) *chatGitAuthFixture {
+	t.Helper()
+
+	fixture := new(chatGitAuthFixture)
+	idp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/token":
+			fixture.tokenRefreshRequests.Add(1)
+			assert.Equal(t, http.MethodPost, r.Method)
+			assert.NoError(t, r.ParseForm())
+			assert.Equal(t, "refresh_token", r.Form.Get("grant_type"))
+			assert.Equal(t, "stored-refresh-token", r.Form.Get("refresh_token"))
+			_, _ = io.WriteString(w, `{
+				"access_token": "refreshed-access-token",
+				"refresh_token": "refreshed-refresh-token",
+				"token_type": "Bearer",
+				"expires_in": 3600
+			}`)
+		case "/validate":
+			fixture.providerValidationRequests.Add(1)
+			_, _ = io.WriteString(w, `{}`)
+		default:
+			t.Errorf("unexpected provider request: %s", r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(idp.Close)
+
+	oauthConfig := &oauth2.Config{
+		ClientID: "test-client",
+		Endpoint: oauth2.Endpoint{
+			AuthURL:   idp.URL + "/auth",
+			TokenURL:  idp.URL + "/token",
+			AuthStyle: oauth2.AuthStyleInParams,
+		},
+	}
+
+	instrument := promoauth.NewFactory(prometheus.NewRegistry())
+	config := &externalauth.Config{
+		ID:                       "git-test",
+		Type:                     "github",
+		InstrumentedOAuth2Config: instrument.New("git-test", oauthConfig),
+		Regex:                    regexp.MustCompile(`^https://git\.example\.com/`),
+		ValidateURL:              idp.URL + "/validate",
+		RefreshGroup:             new(singleflight.Group),
+	}
+
+	user := dbgen.User(t, db, database.User{})
+	now := dbtime.Now()
+	var expiry time.Time
+	if expiresIn != 0 {
+		expiry = now.Add(expiresIn)
+	}
+	link, err := db.InsertExternalAuthLink(ctx, database.InsertExternalAuthLinkParams{
+		ProviderID:        config.ID,
+		UserID:            user.ID,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+		OAuthAccessToken:  "stored-access-token",
+		OAuthRefreshToken: "stored-refresh-token",
+		OAuthExpiry:       expiry,
+	})
+	require.NoError(t, err)
+
+	fixture.link = link
+	fixture.api = &API{Options: &Options{
+		Database:            db,
+		ExternalAuthConfigs: []*externalauth.Config{config},
+		Logger:              testutil.Logger(t),
+	}}
+	return fixture
 }
 
 func TestAuditedChatOperationalSettingWriteNoOpTransactionFailure(t *testing.T) {
