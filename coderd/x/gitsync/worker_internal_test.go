@@ -37,50 +37,37 @@ func (s *acquiredChatDiffStatusesStore) AcquireStaleChatDiffStatuses(context.Con
 	return s.rows, nil
 }
 
+type cooldownBackoffCall struct {
+	params       database.BackoffChatDiffStatusParams
+	contextError error
+	budget       time.Duration
+	hasDeadline  bool
+}
+
 type cooldownStoreSpy struct {
 	Store
-	reads, writes int
-	owners        []uuid.UUID
-	writeError    error
-	writeBudget   time.Duration
-	hasDeadline   bool
+	acquired int
+	backoffs []cooldownBackoffCall
 }
 
-func (s *cooldownStoreSpy) GetChatGitSyncRateLimitsByUserIDs(ctx context.Context, owners []uuid.UUID) ([]database.ChatGitSyncRateLimit, error) {
-	s.reads++
-	s.owners = append([]uuid.UUID{}, owners...)
-	return s.Store.GetChatGitSyncRateLimitsByUserIDs(ctx, owners)
+func (s *cooldownStoreSpy) AcquireStaleChatDiffStatuses(ctx context.Context, limit int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
+	rows, err := s.Store.AcquireStaleChatDiffStatuses(ctx, limit)
+	s.acquired += len(rows)
+	return rows, err
 }
 
-func (s *cooldownStoreSpy) UpsertChatGitSyncRateLimit(ctx context.Context, arg database.UpsertChatGitSyncRateLimitParams) error {
-	s.writes++
-	s.writeError = ctx.Err()
+func (s *cooldownStoreSpy) BackoffChatDiffStatus(ctx context.Context, arg database.BackoffChatDiffStatusParams) error {
 	deadline, ok := ctx.Deadline()
-	s.hasDeadline = ok
-	if ok {
-		s.writeBudget = time.Until(deadline)
+	call := cooldownBackoffCall{
+		params:       arg,
+		contextError: ctx.Err(),
+		hasDeadline:  ok,
 	}
-	return s.Store.UpsertChatGitSyncRateLimit(ctx, arg)
-}
-
-func TestWorker_CooldownLookupError(t *testing.T) {
-	t.Parallel()
-	clock := quartz.NewMock(t)
-	store := dbmock.NewMockStore(gomock.NewController(t))
-	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).Return([]database.AcquireStaleChatDiffStatusesRow{{
-		ChatID:          uuid.New(),
-		OwnerID:         uuid.New(),
-		GitRemoteOrigin: "https://github.com/owner/repo",
-		GitBranch:       "main",
-	}}, nil)
-	store.EXPECT().GetChatGitSyncRateLimitsByUserIDs(gomock.Any(), gomock.Any()).Return(nil, xerrors.New("database unavailable"))
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	refresher := NewRefresher(func(context.Context, string) gitprovider.Provider {
-		t.Error("provider resolution must not run when cooldown lookup fails")
-		return nil
-	}, nil, logger, clock)
-	worker := NewWorker(store, refresher, nil, clock, logger)
-	worker.tick(testutil.Context(t, testutil.WaitShort))
+	if ok {
+		call.budget = time.Until(deadline)
+	}
+	s.backoffs = append(s.backoffs, call)
+	return s.Store.BackoffChatDiffStatus(ctx, arg)
 }
 
 func newCooldownWorkspace(t *testing.T, db database.Store, ownerID, organizationID uuid.UUID) uuid.UUID {
@@ -111,7 +98,7 @@ func (p branchCallbackProvider) ResolveBranchPullRequest(ctx context.Context, to
 	return p.resolve(ctx, token, ref)
 }
 
-func TestWorker_CooldownPersistsAfterTickCancellation(t *testing.T) {
+func TestWorker_CooldownBackoffSurvivesTickCancellation(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, _ := dbtestutil.NewDB(t)
@@ -191,17 +178,39 @@ func TestWorker_CooldownPersistsAfterTickCancellation(t *testing.T) {
 	cancelTick()
 	testutil.TryReceive(ctx, t, tickDone)
 
-	require.NoError(t, store.writeError, "the cooldown write must outlive tick cancellation")
-	require.True(t, store.hasDeadline, "cooldown persistence must have its own timeout")
-	require.Positive(t, store.writeBudget)
-	require.LessOrEqual(t, store.writeBudget, 5*time.Second)
-	limits, err := db.GetChatGitSyncRateLimitsByUserIDs(ctx, []uuid.UUID{owner.ID})
+	var limitedBackoff *cooldownBackoffCall
+	for i := range store.backoffs {
+		if store.backoffs[i].params.GitBranch == "branch-0" {
+			limitedBackoff = &store.backoffs[i]
+		}
+	}
+	require.NotNil(t, limitedBackoff)
+	require.NoError(t, limitedBackoff.contextError, "the shared stale_at backoff must outlive tick cancellation")
+	require.True(t, limitedBackoff.hasDeadline, "cooldown backoff must have its own timeout")
+	require.Positive(t, limitedBackoff.budget)
+	require.LessOrEqual(t, limitedBackoff.budget, 5*time.Second)
+	statuses, err := db.GetChatDiffStatusesByChatIDs(ctx, []uuid.UUID{limitedChat.ID})
 	require.NoError(t, err)
-	require.Len(t, limits, 1)
-	require.Equal(t, retryAfter, limits[0].RetryAfter.UTC())
+	require.Len(t, statuses, 1)
+	require.Equal(t, retryAfter, statuses[0].StaleAt.UTC())
+	key := rateLimitKey{ownerID: owner.ID, host: "github.example"}
+	require.Equal(t, retryAfter, worker.cooldowns[key])
 
 	otherStore := &cooldownStoreSpy{Store: db}
 	otherWorker := newWorker(otherStore)
+	otherWorker.tick(ctx)
+	require.Zero(t, otherStore.acquired, "stale_at must defer the existing row on another replica")
+	require.Equal(t, int32(1), limitedCalls.Load())
+
+	worker.MarkStale(ctx, MarkStaleParams{
+		WorkspaceID: limitedChat.WorkspaceID.UUID,
+		ChatID:      limitedChat.ID,
+		Branch:      "branch-0",
+		Origin:      origin,
+	})
+	worker.tick(ctx)
+	require.Equal(t, int32(1), limitedCalls.Load(), "the long-lived worker must keep its cooldown after MarkStale")
+
 	otherWorker.MarkStale(ctx, MarkStaleParams{
 		WorkspaceID: limitedChat.WorkspaceID.UUID,
 		ChatID:      limitedChat.ID,
@@ -209,8 +218,71 @@ func TestWorker_CooldownPersistsAfterTickCancellation(t *testing.T) {
 		Origin:      origin,
 	})
 	otherWorker.tick(ctx)
-	require.Equal(t, 1, otherStore.reads, "MarkStale must make the row eligible for the next worker")
-	require.Equal(t, int32(1), limitedCalls.Load(), "another worker must respect the saved cooldown")
+	require.Equal(t, 1, otherStore.acquired)
+	require.Equal(t, int32(2), limitedCalls.Load(), "a replica learns a cooldown from its own first response")
+	require.Equal(t, retryAfter, otherWorker.cooldowns[key])
+}
+
+func TestWorker_CooldownNeverShortens(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	clock := quartz.NewMock(t)
+	ownerID := uuid.New()
+	const origin = "https://github.example/owner/repo"
+	longer := clock.Now().Add(30 * time.Minute)
+	shorter := clock.Now().Add(15 * time.Minute)
+	store := dbmock.NewMockStore(gomock.NewController(t))
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).Return([]database.AcquireStaleChatDiffStatusesRow{
+		{
+			ChatID:          uuid.New(),
+			OwnerID:         ownerID,
+			GitRemoteOrigin: origin,
+			GitBranch:       "longer",
+		},
+		{
+			ChatID:          uuid.New(),
+			OwnerID:         ownerID,
+			GitRemoteOrigin: origin,
+			GitBranch:       "shorter",
+		},
+	}, nil)
+	var backedOff []time.Time
+	store.EXPECT().BackoffChatDiffStatus(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg database.BackoffChatDiffStatusParams) error {
+		backedOff = append(backedOff, arg.StaleAt)
+		return nil
+	}).Times(2)
+	client := &http.Client{Transport: testutil.RoundTripperFunc(func(*http.Request) (*http.Response, error) {
+		t.Error("unexpected HTTP request")
+		return nil, xerrors.New("unexpected HTTP request")
+	})}
+	baseProvider, err := gitprovider.New("github", "https://github.example", client, gitprovider.WithClock(clock))
+	require.NoError(t, err)
+	bothStarted := make(chan struct{})
+	var started atomic.Int32
+	provider := branchCallbackProvider{
+		Provider: baseProvider,
+		resolve: func(_ context.Context, _ string, ref gitprovider.BranchRef) (*gitprovider.PRRef, error) {
+			if started.Add(1) == 2 {
+				close(bothStarted)
+			}
+			testutil.TryReceive(ctx, t, bothStarted)
+			retryAfter := shorter
+			if ref.Branch == "longer" {
+				retryAfter = longer
+			}
+			return nil, &gitprovider.RateLimitError{RetryAfter: retryAfter}
+		},
+	}
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	refresher := NewRefresher(
+		func(context.Context, string) gitprovider.Provider { return provider },
+		func(context.Context, uuid.UUID, string) (*string, error) { return new("test-token"), nil },
+		logger, clock, WithConcurrency(2),
+	)
+	worker := NewWorker(store, refresher, nil, clock, logger)
+	worker.tick(ctx)
+	require.Equal(t, longer, worker.cooldowns[rateLimitKey{ownerID: ownerID, host: "github.example"}])
+	require.Equal(t, []time.Time{longer, longer}, backedOff)
 }
 
 func TestWorker_Cooldown(t *testing.T) {
@@ -358,21 +430,14 @@ func TestWorker_Cooldown(t *testing.T) {
 			worker := newWorker(store)
 			worker.tick(ctx)
 			require.Equal(t, int32(1), limitedCalls.Load(), "two rows should be skipped in the same batch")
-			require.Equal(t, 1, store.reads, "one read per tick, not per row")
-			require.Equal(t, []uuid.UUID{owner.ID}, store.owners)
-			require.Equal(t, 1, store.writes, "one write per limited account, not per error")
-			limits, err := db.GetChatGitSyncRateLimitsByUserIDs(ctx, []uuid.UUID{owner.ID})
-			require.NoError(t, err)
-			require.Len(t, limits, 1)
-			require.Equal(t, "github.com", limits[0].Host)
-			require.Equal(t, retryAfter, limits[0].RetryAfter.UTC())
+			key := rateLimitKey{ownerID: owner.ID, host: "github.com"}
+			require.Equal(t, retryAfter, worker.cooldowns[key])
 
-			// The worker must check a row acquired before the cooldown was stored.
-			queuedStore := &cooldownStoreSpy{Store: db}
-			queuedWorker := newWorker(&acquiredChatDiffStatusesStore{Store: queuedStore, rows: acquired})
+			// This replica acquired its row earlier and must learn its own cooldown.
+			queuedWorker := newWorker(&acquiredChatDiffStatusesStore{Store: db, rows: acquired})
 			queuedWorker.tick(ctx)
-			require.Equal(t, int32(1), limitedCalls.Load())
-			require.Equal(t, 0, queuedStore.writes, "reading a cooldown must not write it back")
+			require.Equal(t, int32(2), limitedCalls.Load())
+			require.Equal(t, retryAfter, queuedWorker.cooldowns[key])
 			statuses, err := db.GetChatDiffStatusesByChatIDs(ctx, []uuid.UUID{chat.ID})
 			require.NoError(t, err)
 			require.Len(t, statuses, 4)
@@ -380,12 +445,6 @@ func TestWorker_Cooldown(t *testing.T) {
 				assert.Equal(t, retryAfter, status.StaleAt.UTC(), "direct, in-batch and cooldown-skipped rows share the reset")
 			}
 
-			err = db.UpsertChatGitSyncRateLimit(ctx, database.UpsertChatGitSyncRateLimitParams{
-				UserID:     owner.ID,
-				Host:       "github.com",
-				RetryAfter: start.Add(10 * time.Minute),
-			})
-			require.NoError(t, err)
 			worker.MarkStale(ctx, MarkStaleParams{
 				WorkspaceID: workspaceID,
 				ChatID:      chat.ID,
@@ -410,24 +469,20 @@ func TestWorker_Cooldown(t *testing.T) {
 			})
 			addRef(otherChat.ID, "https://github.com/owner/repo", "other-owner")
 
-			otherStore := &cooldownStoreSpy{Store: db}
-			otherWorker := newWorker(otherStore)
 			clock.Set(retryAfter.Add(-time.Second)).MustWait(ctx)
 			queuedWorker.tick(ctx)
-			otherWorker.tick(ctx)
-			require.Equal(t, int32(1), limitedCalls.Load(), "no request before reset, including SSH and new refs")
+			worker.tick(ctx)
+			require.Equal(t, int32(2), limitedCalls.Load(), "the workers must retain their cooldowns for SSH and new refs")
 			require.Equal(t, int32(1), otherCalls.Load())
 			require.Equal(t, int32(1), enterpriseCalls.Load(), "Enterprise diff-status refresh should not be in cooldown")
 			require.Equal(t, int32(1), gitlabCalls.Load(), "GitLab diff-status refresh should not be in cooldown")
-			require.Equal(t, 1, otherStore.reads)
-			require.ElementsMatch(t, []uuid.UUID{owner.ID, otherOwner.ID}, otherStore.owners)
-			require.Equal(t, 0, otherStore.writes)
+			require.Equal(t, retryAfter, worker.cooldowns[key])
 
 			limited.Store(false)
 			clock.Advance(time.Second).MustWait(ctx)
-			otherWorker.tick(ctx)
-			require.Equal(t, int32(7), limitedCalls.Load(), "all six affected rows should retry at reset")
-			require.Equal(t, 0, otherStore.writes)
+			worker.tick(ctx)
+			require.Equal(t, int32(8), limitedCalls.Load(), "all six affected rows should retry at reset")
+			require.Empty(t, worker.cooldowns, "expired cooldowns must be removed")
 		})
 	}
 }

@@ -3175,21 +3175,6 @@ func (mr *MockStoreMockRecorder) GetChatGatewayAPIKey(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatGatewayAPIKey", reflect.TypeOf((*MockStore)(nil).GetChatGatewayAPIKey), ctx, arg)
 }
 
-// GetChatGitSyncRateLimitsByUserIDs mocks base method.
-func (m *MockStore) GetChatGitSyncRateLimitsByUserIDs(ctx context.Context, userIds []uuid.UUID) ([]database.ChatGitSyncRateLimit, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetChatGitSyncRateLimitsByUserIDs", ctx, userIds)
-	ret0, _ := ret[0].([]database.ChatGitSyncRateLimit)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetChatGitSyncRateLimitsByUserIDs indicates an expected call of GetChatGitSyncRateLimitsByUserIDs.
-func (mr *MockStoreMockRecorder) GetChatGitSyncRateLimitsByUserIDs(ctx, userIds any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatGitSyncRateLimitsByUserIDs", reflect.TypeOf((*MockStore)(nil).GetChatGitSyncRateLimitsByUserIDs), ctx, userIds)
-}
-
 // GetChatHeartbeat mocks base method.
 func (m *MockStore) GetChatHeartbeat(ctx context.Context, arg database.GetChatHeartbeatParams) (database.ChatHeartbeat, error) {
 	m.ctrl.T.Helper()
@@ -12853,20 +12838,6 @@ func (m *MockStore) UpsertChatDiffStatusReference(ctx context.Context, arg datab
 func (mr *MockStoreMockRecorder) UpsertChatDiffStatusReference(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatDiffStatusReference", reflect.TypeOf((*MockStore)(nil).UpsertChatDiffStatusReference), ctx, arg)
-}
-
-// UpsertChatGitSyncRateLimit mocks base method.
-func (m *MockStore) UpsertChatGitSyncRateLimit(ctx context.Context, arg database.UpsertChatGitSyncRateLimitParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpsertChatGitSyncRateLimit", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpsertChatGitSyncRateLimit indicates an expected call of UpsertChatGitSyncRateLimit.
-func (mr *MockStoreMockRecorder) UpsertChatGitSyncRateLimit(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertChatGitSyncRateLimit", reflect.TypeOf((*MockStore)(nil).UpsertChatGitSyncRateLimit), ctx, arg)
 }
 
 // UpsertChatHeartbeat mocks base method.

@@ -1688,14 +1688,6 @@ func (m queryMetricsStore) GetChatGatewayAPIKey(ctx context.Context, arg databas
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatGitSyncRateLimitsByUserIDs(ctx context.Context, userIds []uuid.UUID) ([]database.ChatGitSyncRateLimit, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetChatGitSyncRateLimitsByUserIDs(ctx, userIds)
-	m.queryLatencies.WithLabelValues("GetChatGitSyncRateLimitsByUserIDs").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatGitSyncRateLimitsByUserIDs").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetChatHeartbeat(ctx context.Context, arg database.GetChatHeartbeatParams) (database.ChatHeartbeat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatHeartbeat(ctx, arg)
@@ -6823,14 +6815,6 @@ func (m queryMetricsStore) UpsertChatDiffStatusReference(ctx context.Context, ar
 	m.queryLatencies.WithLabelValues("UpsertChatDiffStatusReference").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatDiffStatusReference").Inc()
 	return r0, r1
-}
-
-func (m queryMetricsStore) UpsertChatGitSyncRateLimit(ctx context.Context, arg database.UpsertChatGitSyncRateLimitParams) error {
-	start := time.Now()
-	r0 := m.s.UpsertChatGitSyncRateLimit(ctx, arg)
-	m.queryLatencies.WithLabelValues("UpsertChatGitSyncRateLimit").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpsertChatGitSyncRateLimit").Inc()
-	return r0
 }
 
 func (m queryMetricsStore) UpsertChatHeartbeat(ctx context.Context, arg database.UpsertChatHeartbeatParams) error {

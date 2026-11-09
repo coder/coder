@@ -2049,16 +2049,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), int32(10)).Return([]database.AcquireStaleChatDiffStatusesRow{}, nil).AnyTimes()
 		check.Args(int32(10)).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns([]database.AcquireStaleChatDiffStatusesRow{})
 	}))
-	s.Run("GetChatGitSyncRateLimitsByUserIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		userIDs := []uuid.UUID{uuid.New()}
-		dbm.EXPECT().GetChatGitSyncRateLimitsByUserIDs(gomock.Any(), userIDs).Return([]database.ChatGitSyncRateLimit{}, nil).AnyTimes()
-		check.Args(userIDs).Asserts(rbac.ResourceChat, policy.ActionRead).Returns([]database.ChatGitSyncRateLimit{})
-	}))
-	s.Run("UpsertChatGitSyncRateLimit", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.UpsertChatGitSyncRateLimitParams{UserID: uuid.New(), Host: "github.com", RetryAfter: dbtime.Now().Add(time.Hour)}
-		dbm.EXPECT().UpsertChatGitSyncRateLimit(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns()
-	}))
 	s.Run("BackoffChatDiffStatus", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.BackoffChatDiffStatusParams{
 			ChatID:  uuid.New(),

@@ -2341,15 +2341,6 @@ FROM
 INNER JOIN
     chats c ON c.id = acquired.chat_id;
 
--- name: GetChatGitSyncRateLimitsByUserIDs :many
-SELECT * FROM chat_git_sync_rate_limits WHERE user_id = ANY(@user_ids::uuid[]);
-
--- name: UpsertChatGitSyncRateLimit :exec
-INSERT INTO chat_git_sync_rate_limits (user_id, host, retry_after)
-VALUES (@user_id::uuid, @host::text, @retry_after::timestamptz)
-ON CONFLICT (user_id, host) DO UPDATE
-SET retry_after = GREATEST(chat_git_sync_rate_limits.retry_after, EXCLUDED.retry_after);
-
 -- name: BackoffChatDiffStatus :exec
 UPDATE
     chat_diff_statuses

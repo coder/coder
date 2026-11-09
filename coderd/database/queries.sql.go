@@ -10275,33 +10275,6 @@ func (q *sqlQuerier) GetChatFamilyIDsByRootID(ctx context.Context, id uuid.UUID)
 	return items, nil
 }
 
-const getChatGitSyncRateLimitsByUserIDs = `-- name: GetChatGitSyncRateLimitsByUserIDs :many
-SELECT user_id, host, retry_after FROM chat_git_sync_rate_limits WHERE user_id = ANY($1::uuid[])
-`
-
-func (q *sqlQuerier) GetChatGitSyncRateLimitsByUserIDs(ctx context.Context, userIds []uuid.UUID) ([]ChatGitSyncRateLimit, error) {
-	rows, err := q.db.QueryContext(ctx, getChatGitSyncRateLimitsByUserIDs, pq.Array(userIds))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ChatGitSyncRateLimit
-	for rows.Next() {
-		var i ChatGitSyncRateLimit
-		if err := rows.Scan(&i.UserID, &i.Host, &i.RetryAfter); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getChatHeartbeat = `-- name: GetChatHeartbeat :one
 SELECT chat_id, runner_id, heartbeat_at FROM chat_heartbeats
 WHERE chat_id = $1::uuid AND runner_id = $2::uuid
@@ -16009,24 +15982,6 @@ func (q *sqlQuerier) UpsertChatDiffStatusReference(ctx context.Context, arg Upse
 		&i.HeadBranch,
 	)
 	return i, err
-}
-
-const upsertChatGitSyncRateLimit = `-- name: UpsertChatGitSyncRateLimit :exec
-INSERT INTO chat_git_sync_rate_limits (user_id, host, retry_after)
-VALUES ($1::uuid, $2::text, $3::timestamptz)
-ON CONFLICT (user_id, host) DO UPDATE
-SET retry_after = GREATEST(chat_git_sync_rate_limits.retry_after, EXCLUDED.retry_after)
-`
-
-type UpsertChatGitSyncRateLimitParams struct {
-	UserID     uuid.UUID `db:"user_id" json:"user_id"`
-	Host       string    `db:"host" json:"host"`
-	RetryAfter time.Time `db:"retry_after" json:"retry_after"`
-}
-
-func (q *sqlQuerier) UpsertChatGitSyncRateLimit(ctx context.Context, arg UpsertChatGitSyncRateLimitParams) error {
-	_, err := q.db.ExecContext(ctx, upsertChatGitSyncRateLimit, arg.UserID, arg.Host, arg.RetryAfter)
-	return err
 }
 
 const upsertChatHeartbeat = `-- name: UpsertChatHeartbeat :exec

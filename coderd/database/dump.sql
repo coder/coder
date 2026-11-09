@@ -2206,14 +2206,6 @@ CREATE TABLE chat_files (
     data bytea NOT NULL
 );
 
-CREATE TABLE chat_git_sync_rate_limits (
-    user_id uuid NOT NULL,
-    host text NOT NULL,
-    retry_after timestamp with time zone NOT NULL
-);
-
-COMMENT ON TABLE chat_git_sync_rate_limits IS 'Provider cooldowns shared by gitsync workers for each user and origin host.';
-
 CREATE UNLOGGED TABLE chat_heartbeats (
     chat_id uuid NOT NULL,
     runner_id uuid NOT NULL,
@@ -4686,9 +4678,6 @@ ALTER TABLE ONLY chat_file_links
 ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_pkey PRIMARY KEY (id);
 
-ALTER TABLE ONLY chat_git_sync_rate_limits
-    ADD CONSTRAINT chat_git_sync_rate_limits_pkey PRIMARY KEY (user_id, host);
-
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_pkey PRIMARY KEY (chat_id, runner_id);
 
@@ -5622,9 +5611,6 @@ ALTER TABLE ONLY chat_files
 
 ALTER TABLE ONLY chat_files
     ADD CONSTRAINT chat_files_owner_id_fkey FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE CASCADE;
-
-ALTER TABLE ONLY chat_git_sync_rate_limits
-    ADD CONSTRAINT chat_git_sync_rate_limits_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_heartbeats
     ADD CONSTRAINT chat_heartbeats_chat_id_fkey FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE;

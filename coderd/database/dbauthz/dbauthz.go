@@ -3581,13 +3581,6 @@ func (q *querier) GetChatGatewayAPIKey(ctx context.Context, arg database.GetChat
 	return fetch(q.log, q.auth, q.db.GetChatGatewayAPIKey)(ctx, arg)
 }
 
-func (q *querier) GetChatGitSyncRateLimitsByUserIDs(ctx context.Context, userIDs []uuid.UUID) ([]database.ChatGitSyncRateLimit, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
-		return nil, err
-	}
-	return q.db.GetChatGitSyncRateLimitsByUserIDs(ctx, userIDs)
-}
-
 func (q *querier) GetChatHeartbeat(ctx context.Context, arg database.GetChatHeartbeatParams) (database.ChatHeartbeat, error) {
 	_, err := q.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
@@ -9576,13 +9569,6 @@ func (q *querier) UpsertChatDiffStatusReference(ctx context.Context, arg databas
 		return database.ChatDiffStatus{}, err
 	}
 	return q.db.UpsertChatDiffStatusReference(ctx, arg)
-}
-
-func (q *querier) UpsertChatGitSyncRateLimit(ctx context.Context, arg database.UpsertChatGitSyncRateLimitParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
-		return err
-	}
-	return q.db.UpsertChatGitSyncRateLimit(ctx, arg)
 }
 
 func (q *querier) UpsertChatHeartbeat(ctx context.Context, arg database.UpsertChatHeartbeatParams) error {
