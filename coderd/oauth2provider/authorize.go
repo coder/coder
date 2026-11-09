@@ -30,7 +30,7 @@ import (
 
 // Rejection reasons from scope negotiation and the session check.
 var (
-	// The name is not in the external scope catalog: unknown, or internal-only.
+	// The request names an unsupported scope or only retired scopes.
 	errUnknownScope = xerrors.New("unknown or unsupported scope")
 	// Every entry in the app's allowlist falls outside the catalog. The stored
 	// value is not echoed: the admin API and DCR rows from before narrowing
@@ -59,16 +59,28 @@ func canonicalScopes(names []string) []string {
 	return slice.Unique(canonical)
 }
 
-// firstUnknownScope returns the first name clients may not request, and whether
-// there was one. The catalog is a curation, not a validity check: RBAC also
-// expands internal-only names such as debug_info:read.
-func firstUnknownScope(names []string) (string, bool) {
-	for _, name := range names {
-		if !rbac.IsExternalScope(rbac.ScopeName(name)) {
-			return name, true
+// RFC 6749 §3.3 permits ignoring retired scopes.
+// Reject retired-only requests so they cannot widen to the default grant.
+func requestedScopes(names []string) ([]string, error) {
+	canonical := canonicalScopes(names)
+	grantable := make([]string, 0, len(canonical))
+	retired := ""
+	for _, name := range canonical {
+		switch {
+		case rbac.IsExternalScope(rbac.ScopeName(name)):
+			grantable = append(grantable, name)
+		case rbac.IsRetiredScope(rbac.ScopeName(name)):
+			if retired == "" {
+				retired = name
+			}
+		default:
+			return nil, xerrors.Errorf("'%s': %w", name, errUnknownScope)
 		}
 	}
-	return "", false
+	if len(grantable) == 0 && retired != "" {
+		return nil, xerrors.Errorf("'%s': %w", retired, errUnknownScope)
+	}
+	return grantable, nil
 }
 
 // noScopeAllowlist reports whether an app has no scope allowlist. NULL and ""
@@ -134,26 +146,21 @@ func firstScopeBeyondCeiling(ctx context.Context, logger slog.Logger, phase stri
 	return string(outside), nil
 }
 
-// negotiateScope decides the scope the authorization code will carry. Every
-// requested name must be in the external scope catalog and covered by the app's
-// allowlist. A rejection is an RFC 6749 §4.1.2.1 invalid_scope.
+// negotiateScope decides the scope the authorization code will carry. A
+// rejection is an RFC 6749 §4.1.2.1 invalid_scope.
 //
 //	allowlist  request  result
 //	absent     absent   ApiKeyScopeCoderAll, an unrestricted grant
-//	absent     present  the request
+//	absent     present  the request without retired names
 //	present    absent   the allowlist, catalog-filtered (RFC 6749 §3.3 default)
-//	present    present  the request, once shown to be within the allowlist
+//	present    present  the request without retired names, within the allowlist
 //
 // The result is canonical, deduplicated, and never empty when the error is nil,
 // since it is written to a NOT NULL column whose CHECK also rejects "".
 func negotiateScope(ctx context.Context, logger slog.Logger, app database.OAuth2ProviderApp, requested []string) (string, error) {
-	// Canonicalized first so the catalog check, the coverage comparison, and
-	// the stored value all use one spelling. The catalog holds both spellings
-	// of the two aliases, so checking after the rewrite accepts the same names.
-	granted := canonicalScopes(requested)
-
-	if unknown, ok := firstUnknownScope(granted); ok {
-		return "", xerrors.Errorf("'%s': %w", unknown, errUnknownScope)
+	granted, err := requestedScopes(requested)
+	if err != nil {
+		return "", err
 	}
 
 	if noScopeAllowlist(app.Scope) {
