@@ -226,6 +226,7 @@ export const MockMCPServerConfig: MCPServerConfig = {
 	created_at: MOCK_TIMESTAMP,
 	updated_at: MOCK_TIMESTAMP,
 	auth_connected: false,
+	acl_granted: true,
 };
 
 export const MockChatMessage: ChatMessage = {

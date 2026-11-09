@@ -47,8 +47,8 @@ The add and update views always show the target organization, as a read-only fie
 
 | Policy        | Behavior                                                                                                                |
 |---------------|-------------------------------------------------------------------------------------------------------------------------|
-| `force_on`    | Injected into every chat whose owner has access control list (ACL) access to the server. No opting out.                 |
-| `default_on`  | Pre-selected in new chats. Users can opt out.                                                                           |
+| `force_on`    | Injected into every chat whose owner the server's access control list (ACL) grants access. No opting out.               |
+| `default_on`  | Pre-selected in new chats for users the ACL grants access. Users can opt out.                                           |
 | `default_off` | Available in the chat's **MCP servers** list but users must opt in. An OAuth2 server is listed after the user connects. |
 
 ## Authentication
@@ -286,6 +286,7 @@ Refer to [Organization scope](./organizations.md) for the organization scope of 
 
 Each server has a group and user ACL that controls which members can see and use it.
 New servers grant read access to the organization's **Everyone** group, so all members have access by default.
+Role-wide access isn't an ACL grant: Owners and organization admins can view and manage every server, but `force_on` and `default_on` apply to their chats only when the ACL grants them access directly, through a group, or through **Everyone**.
 Members with MCP server share permission can open **Server actions** > **Manage permissions** to remove the Everyone entry and grant specific groups or users instead.
 They can also manage the ACL through the API (`GET`/`PATCH /api/v2/organizations/{organization}/mcp-servers/{id}/acl`).
 ACL management is available in all editions and does not require a Premium license.

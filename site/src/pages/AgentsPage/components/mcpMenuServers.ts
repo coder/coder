@@ -1,4 +1,5 @@
 import type * as TypesGen from "#/api/typesGenerated";
+import { isForcedOn } from "../utils/mcpSelection";
 
 /** Reports whether the user must sign in before a chat can use the server. */
 export const needsSignIn = (server: TypesGen.MCPServerConfig) =>
@@ -20,8 +21,7 @@ export const getMCPMenuServers = (
 	servers.flatMap((server) => {
 		const isDisconnected = needsSignIn(server);
 		const isSelected =
-			server.availability === "force_on" ||
-			(selectedIds?.includes(server.id) ?? false);
+			isForcedOn(server) || (selectedIds?.includes(server.id) ?? false);
 		return !isDisconnected || isSelected
 			? [{ server, isSelected, isDisconnected }]
 			: [];

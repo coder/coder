@@ -389,3 +389,74 @@ func TestSkillRBACObjectOrganizationACL(t *testing.T) {
 		require.Error(t, authz.Authorize(context.Background(), subject, policy.ActionUpdate, tc.skill.RBACObject()), name)
 	}
 }
+
+func TestMCPServerConfigACLGrants(t *testing.T) {
+	t.Parallel()
+
+	orgID, otherOrgID, groupID, userID := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	read := ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
+	wildcard := ChatACLEntry{Permissions: []policy.Action{policy.WildcardSymbol}}
+
+	builtin := func(id rbac.RoleIdentifier) rbac.Role {
+		role, err := rbac.RoleByName(id)
+		require.NoError(t, err)
+		return role
+	}
+	// organization-member is stored in the database, so build the
+	// expanded role the way rolestore would.
+	orgMember := func(id uuid.UUID) rbac.Role {
+		perms := rbac.OrgMemberPermissions(rbac.OrgSettings{})
+		return rbac.Role{
+			Identifier: rbac.ScopedRoleOrgMember(id),
+			ByOrgID:    map[string]rbac.OrgPermissions{id.String(): {Org: perms.Org, Member: perms.Member}},
+		}
+	}
+	member := rbac.Roles{builtin(rbac.RoleMember()), orgMember(orgID)}
+	owner := rbac.Roles{builtin(rbac.RoleOwner()), builtin(rbac.RoleMember()), orgMember(orgID)}
+	orgAdmin := rbac.Roles{builtin(rbac.RoleMember()), orgMember(orgID), builtin(rbac.ScopedRoleOrgAdmin(orgID))}
+	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
+
+	for name, tc := range map[string]struct {
+		userACL  ChatACL
+		groupACL ChatACL
+		roles    rbac.Roles
+		groups   []string
+		want     bool
+		// roleRead marks subjects whose roles read every config, so the
+		// authorizer allows read whatever the ACL holds.
+		roleRead bool
+	}{
+		"UserGrant":           {userACL: ChatACL{userID.String(): read}, roles: member, want: true},
+		"GroupGrant":          {groupACL: ChatACL{groupID.String(): read}, roles: member, groups: []string{groupID.String()}, want: true},
+		"EveryoneGrant":       {groupACL: ChatACL{orgID.String(): read}, roles: member, want: true},
+		"WildcardGrant":       {userACL: ChatACL{userID.String(): wildcard}, roles: member, want: true},
+		"OtherUserOnly":       {userACL: ChatACL{uuid.NewString(): read}, roles: member},
+		"OtherGroupOnly":      {groupACL: ChatACL{uuid.NewString(): read}, roles: member, groups: []string{groupID.String()}},
+		"ActionNotInACLEntry": {userACL: ChatACL{userID.String(): {Permissions: []policy.Action{policy.ActionUpdate}}}, roles: member},
+		"NotOrgMember":        {userACL: ChatACL{userID.String(): read}, roles: rbac.Roles{builtin(rbac.RoleMember()), orgMember(otherOrgID)}},
+		"OwnerNotInACL":       {userACL: ChatACL{uuid.NewString(): read}, roles: owner, roleRead: true},
+		"OwnerInACL":          {userACL: ChatACL{userID.String(): read}, roles: owner, want: true, roleRead: true},
+		"OwnerNotOrgMember":   {userACL: ChatACL{userID.String(): read}, roles: rbac.Roles{builtin(rbac.RoleOwner()), builtin(rbac.RoleMember())}, roleRead: true},
+		"OrgAdminNotInACL":    {groupACL: ChatACL{uuid.NewString(): read}, roles: orgAdmin, roleRead: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			cfg := MCPServerConfig{ID: uuid.New(), OrganizationID: orgID, UserACL: tc.userACL, GroupACL: tc.groupACL}
+			subject := rbac.Subject{ID: userID.String(), Roles: tc.roles, Groups: tc.groups, Scope: rbac.ScopeAll}
+
+			got, err := cfg.ACLGrants(subject, policy.ActionRead)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, got)
+
+			authzErr := authz.Authorize(context.Background(), subject, policy.ActionRead, cfg.RBACObject())
+			if tc.roleRead {
+				require.NoError(t, authzErr, "test expects a role that reads the config")
+			} else {
+				// Without role-wide read the ACL is the only path, so
+				// ACLGrants must agree with the authorizer.
+				require.Equal(t, tc.want, authzErr == nil, "ACLGrants disagrees with the RBAC ACL rules")
+			}
+		})
+	}
+}
