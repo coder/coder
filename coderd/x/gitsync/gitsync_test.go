@@ -499,11 +499,12 @@ func TestRefresher_BatchGroupsByOwnerAndOrigin(t *testing.T) {
 		"TokenResolver should be called once per (owner, origin) group")
 }
 
-func TestRefresher_UsesInjectedClock(t *testing.T) {
+func TestRefresher_StaleAtByPRState(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name        string
+		name string
+		// Vary the stored state to catch scheduling from cached data.
 		storedState gitprovider.PRState
 		state       gitprovider.PRState
 		ttl         time.Duration
@@ -512,13 +513,13 @@ func TestRefresher_UsesInjectedClock(t *testing.T) {
 			name:        "open",
 			storedState: gitprovider.PRStateClosed,
 			state:       gitprovider.PRStateOpen,
-			ttl:         2 * time.Minute,
+			ttl:         gitsync.DiffStatusTTL,
 		},
 		{
 			name:        "closed",
 			storedState: gitprovider.PRStateClosed,
 			state:       gitprovider.PRStateClosed,
-			ttl:         2 * time.Minute,
+			ttl:         gitsync.DiffStatusTTL,
 		},
 		{
 			name:        "merged",
