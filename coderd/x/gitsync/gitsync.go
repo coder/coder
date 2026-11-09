@@ -20,9 +20,13 @@ import (
 )
 
 const (
-	// DiffStatusTTL is how long a successfully refreshed
+	// DiffStatusTTL is the default duration a successfully refreshed
 	// diff status remains fresh before becoming stale again.
 	DiffStatusTTL = 120 * time.Second
+
+	// mergedDiffStatusTTL allows occasional metadata updates for PRs
+	// that cannot reopen.
+	mergedDiffStatusTTL = time.Hour
 
 	// defaultConcurrency is the maximum number of HTTP calls
 	// made in parallel during a single Refresh batch.
@@ -341,6 +345,11 @@ func (r *Refresher) refreshOne(
 		}
 	}
 
+	ttl := DiffStatusTTL
+	if status.State == gitprovider.PRStateMerged {
+		ttl = mergedDiffStatusTTL
+	}
+
 	if status.PRNumber < math.MinInt32 || status.PRNumber > math.MaxInt32 {
 		return nil, xerrors.Errorf("pull request number %d overflows int32", status.PRNumber)
 	}
@@ -370,7 +379,7 @@ func (r *Refresher) refreshOne(
 		Approved:         sql.NullBool{Bool: status.Approved, Valid: true},
 		ReviewerCount:    sql.NullInt32{Int32: status.ReviewerCount, Valid: true},
 		RefreshedAt:      now,
-		StaleAt:          now.Add(DiffStatusTTL),
+		StaleAt:          now.Add(ttl),
 	}
 
 	return params, nil

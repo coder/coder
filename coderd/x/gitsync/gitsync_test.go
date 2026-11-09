@@ -502,55 +502,79 @@ func TestRefresher_BatchGroupsByOwnerAndOrigin(t *testing.T) {
 func TestRefresher_UsesInjectedClock(t *testing.T) {
 	t.Parallel()
 
-	mClock := quartz.NewMock(t)
-	fixedTime := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
-	mClock.Set(fixedTime)
-
-	mp := &mockProvider{
-		parsePullRequestURL: func(raw string) (gitprovider.PRRef, bool) {
-			return gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 42}, true
+	tests := []struct {
+		name        string
+		storedState gitprovider.PRState
+		state       gitprovider.PRState
+		ttl         time.Duration
+	}{
+		{
+			name:        "open",
+			storedState: gitprovider.PRStateClosed,
+			state:       gitprovider.PRStateOpen,
+			ttl:         2 * time.Minute,
 		},
-		fetchPullRequestStatus: func(_ context.Context, _ string, _ gitprovider.PRRef) (*gitprovider.PRStatus, error) {
-			return &gitprovider.PRStatus{
-				State: gitprovider.PRStateOpen,
-				DiffStats: gitprovider.DiffStats{
-					Additions:    10,
-					Deletions:    5,
-					ChangedFiles: 3,
+		{
+			name:        "closed",
+			storedState: gitprovider.PRStateClosed,
+			state:       gitprovider.PRStateClosed,
+			ttl:         2 * time.Minute,
+		},
+		{
+			name:        "merged",
+			storedState: gitprovider.PRStateOpen,
+			state:       gitprovider.PRStateMerged,
+			ttl:         time.Hour,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			mClock := quartz.NewMock(t)
+			fixedTime := time.Date(2025, 6, 15, 12, 0, 0, 0, time.UTC)
+			mClock.Set(fixedTime)
+
+			mp := &mockProvider{
+				parsePullRequestURL: func(raw string) (gitprovider.PRRef, bool) {
+					return gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 42}, true
 				},
-			}, nil
-		},
+				fetchPullRequestStatus: func(_ context.Context, _ string, _ gitprovider.PRRef) (*gitprovider.PRStatus, error) {
+					return &gitprovider.PRStatus{State: tt.state}, nil
+				},
+			}
+
+			providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
+			tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
+				return new("test-token"), nil
+			}
+
+			r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), mClock)
+
+			row := database.ChatDiffStatus{
+				ChatID:           uuid.New(),
+				Url:              sql.NullString{String: "https://github.com/org/repo/pull/42", Valid: true},
+				GitRemoteOrigin:  "https://github.com/org/repo",
+				GitBranch:        "feature",
+				PullRequestState: sql.NullString{String: string(tt.storedState), Valid: true},
+			}
+
+			results, err := r.Refresh(context.Background(), []gitsync.RefreshRequest{
+				{Row: row, OwnerID: uuid.New()},
+			})
+			require.NoError(t, err)
+			require.Len(t, results, 1)
+			res := results[0]
+
+			require.NoError(t, res.Error)
+			require.NotNil(t, res.Params)
+
+			assert.Equal(t, string(tt.state), res.Params.PullRequestState.String)
+			assert.Equal(t, fixedTime, res.Params.RefreshedAt)
+			assert.Equal(t, fixedTime.Add(tt.ttl), res.Params.StaleAt)
+		})
 	}
-
-	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
-	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
-		return new("test-token"), nil
-	}
-
-	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), mClock)
-
-	chatID := uuid.New()
-	row := database.ChatDiffStatus{
-		ChatID:          chatID,
-		Url:             sql.NullString{String: "https://github.com/org/repo/pull/42", Valid: true},
-		GitRemoteOrigin: "https://github.com/org/repo",
-		GitBranch:       "feature",
-	}
-
-	ownerID := uuid.New()
-	results, err := r.Refresh(context.Background(), []gitsync.RefreshRequest{
-		{Row: row, OwnerID: ownerID},
-	})
-	require.NoError(t, err)
-	require.Len(t, results, 1)
-	res := results[0]
-
-	require.NoError(t, res.Error)
-	require.NotNil(t, res.Params)
-
-	// The mock clock is deterministic, so times must be exact.
-	assert.Equal(t, fixedTime, res.Params.RefreshedAt)
-	assert.Equal(t, fixedTime.Add(gitsync.DiffStatusTTL), res.Params.StaleAt)
 }
 
 func TestRefresher_RateLimitSkipsRemainingInGroup(t *testing.T) {

@@ -1247,6 +1247,85 @@ func TestWorker(t *testing.T) {
 	assert.WithinDuration(t, expectedStaleAt, status.StaleAt, time.Second)
 }
 
+func TestWorker_MarkStale_MergedPR(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	modelCfg := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{})
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: modelCfg.ID,
+	})
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	mClock := quartz.NewMock(t)
+	mClock.Set(time.Now().UTC().Truncate(time.Microsecond))
+	prURL := "https://github.com/o/r/pull/1"
+	_, err := db.UpsertChatDiffStatus(ctx, database.UpsertChatDiffStatusParams{
+		ChatID:           chat.ID,
+		GitRemoteOrigin:  "https://github.com/o/r",
+		GitBranch:        "feature",
+		Url:              sql.NullString{String: prURL, Valid: true},
+		PullRequestState: sql.NullString{String: string(gitprovider.PRStateMerged), Valid: true},
+		PullRequestTitle: "Original title",
+		RefreshedAt:      mClock.Now(),
+		StaleAt:          mClock.Now().Add(time.Hour),
+	})
+	require.NoError(t, err)
+
+	acquired, err := db.AcquireStaleChatDiffStatuses(ctx, 1)
+	require.NoError(t, err)
+	require.Empty(t, acquired)
+
+	refresher := newTestRefresher(t, mClock, func(cfg *testRefresherCfg) {
+		cfg.fetchPRStatus = func(context.Context, string, gitprovider.PRRef) (*gitprovider.PRStatus, error) {
+			return &gitprovider.PRStatus{
+				State:      gitprovider.PRStateMerged,
+				HeadBranch: "feature",
+				Title:      "Updated title",
+			}, nil
+		}
+	})
+	tickDone := make(chan struct{})
+	var publishCount atomic.Int32
+	pub := func(_ context.Context, chatID uuid.UUID, _ codersdk.DiffStatusRef) error {
+		assert.Equal(t, chat.ID, chatID)
+		if publishCount.Add(1) == 2 {
+			close(tickDone)
+		}
+		return nil
+	}
+	logger := slogtest.Make(t, nil)
+	worker := gitsync.NewWorker(db, refresher, pub, mClock, logger)
+
+	worker.MarkStale(ctx, gitsync.MarkStaleParams{
+		ChatID: chat.ID,
+		Origin: "https://github.com/o/r",
+		Branch: "feature",
+	})
+
+	statuses, err := db.GetChatDiffStatusesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, statuses, 1)
+	require.True(t, statuses[0].StaleAt.Before(mClock.Now()))
+	assert.Equal(t, prURL, statuses[0].Url.String)
+	assert.Equal(t, string(gitprovider.PRStateMerged), statuses[0].PullRequestState.String)
+	require.Equal(t, int32(1), publishCount.Load())
+
+	tickOnce(ctx, t, mClock, worker, tickDone)
+
+	statuses, err = db.GetChatDiffStatusesByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, statuses, 1)
+	assert.Equal(t, "Updated title", statuses[0].PullRequestTitle)
+	assert.Equal(t, mClock.Now(), statuses[0].RefreshedAt.Time.UTC())
+	assert.Equal(t, mClock.Now().Add(time.Hour), statuses[0].StaleAt.UTC())
+	require.Equal(t, int32(2), publishCount.Load())
+}
+
 func TestWorker_RefreshDoesNotReorderPrimary(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
