@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
 import { useQuery } from "react-query";
 import { workspaceSharingSettings } from "#/api/queries/organizations";
@@ -223,12 +224,17 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 			workspaceACL.group.length === 0,
 	);
 
+	const headClassName = cn(
+		"py-2",
+		isCompact && "sticky top-0 z-10 bg-surface-primary",
+	);
+
 	const tableHeader = (
 		<TableHeader>
 			<TableRow>
-				<TableHead className="w-[50%] py-2">Member</TableHead>
-				<TableHead className="w-[40%] py-2">Role</TableHead>
-				<TableHead className="w-[10%] py-2" />
+				<TableHead className={cn("w-[50%]", headClassName)}>Member</TableHead>
+				<TableHead className={cn("w-[40%]", headClassName)}>Role</TableHead>
+				<TableHead className={cn("w-[10%]", headClassName)} />
 			</TableRow>
 		</TableHeader>
 	);
@@ -353,26 +359,6 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 		</TableBody>
 	);
 
-	if (isCompact) {
-		return (
-			<div className="flex flex-col gap-4">
-				{Boolean(error) && <ErrorAlert error={error} />}
-				{canShareWorkspace && addMemberForm}
-				{showRestartWarning && (
-					<Alert severity="warning">
-						Workspace restart required for the removal to take effect.
-					</Alert>
-				)}
-				<div>
-					<Table>{tableHeader}</Table>
-					<div className="max-h-60 overflow-y-auto">
-						<Table>{tableBody}</Table>
-					</div>
-				</div>
-			</div>
-		);
-	}
-
 	return (
 		<div className="flex flex-col gap-4">
 			{Boolean(error) && <ErrorAlert error={error} />}
@@ -382,7 +368,11 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 					Workspace restart required for the removal to take effect.
 				</Alert>
 			)}
-			<Table>
+			{/* Screen readers associate headers with cells only within one table. */}
+			<Table
+				aria-label="Shared workspace members and groups"
+				wrapperClassName={cn(isCompact && "max-h-60 overflow-y-auto")}
+			>
 				{tableHeader}
 				{tableBody}
 			</Table>
