@@ -288,6 +288,13 @@ export const ACPHarnessesWithOtherContext: Story = {
 	},
 };
 
+export const ACPHarnessesCollapsed: Story = {
+	...ACPHarnessesWithOtherContext,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(within(canvasElement).getByRole("button"));
+	},
+};
+
 export const ACPHarnessIssue: Story = {
 	...ACPHarnesses,
 	args: {
