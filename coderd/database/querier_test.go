@@ -18073,11 +18073,11 @@ func TestAcquireStaleChatDiffStatusesRootChatsOnly(t *testing.T) {
 		return status
 	}
 
-	// Rows on subagent chats are due before the root row. They must not
-	// prevent acquisition of the root row when the batch limit is one.
+	// Rows on subagent chats and the archived root chat are due before the
+	// active root row. They must not prevent its acquisition with a limit of one.
 	olderStaleAt := dbtime.Now().Add(-2 * time.Minute)
 	rootStaleAt := olderStaleAt.Add(time.Minute)
-	unpolled := []database.ChatDiffStatus{
+	excluded := []database.ChatDiffStatus{
 		seedRef(child, olderStaleAt),
 		seedRef(grandchild, olderStaleAt),
 		seedRef(archived, olderStaleAt),
@@ -18097,7 +18097,7 @@ func TestAcquireStaleChatDiffStatusesRootChatsOnly(t *testing.T) {
 	require.Empty(t, rows)
 
 	// Excluded rows keep their original stale_at.
-	for _, want := range unpolled {
+	for _, want := range excluded {
 		statuses, err := store.GetChatDiffStatusesByChatID(ctx, want.ChatID)
 		require.NoError(t, err)
 		require.Equal(t, []database.ChatDiffStatus{want}, statuses)
