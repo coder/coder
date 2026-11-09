@@ -349,6 +349,7 @@ func TestServer(t *testing.T) {
 			"telemetry disabled, unable to notify of security issues",
 			"installed terraform version newer than expected",
 			"report generator",
+			"converted tailnet tables from UNLOGGED to LOGGED",
 		}
 
 		countLines := func(fullOutput string) int {
