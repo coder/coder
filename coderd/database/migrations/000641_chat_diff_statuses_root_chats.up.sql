@@ -1,5 +1,4 @@
--- Git refs belong to the root chat. Keep all fields of existing root rows;
--- otherwise retain the most recently refreshed subagent row for each ref.
+-- Git refs belong to the root chat.
 WITH subagent_statuses AS (
     DELETE FROM chat_diff_statuses cds
     USING chats c
@@ -57,6 +56,13 @@ SELECT DISTINCT ON (root_chat_id, git_remote_origin, git_branch)
     reviewer_count,
     head_branch
 FROM subagent_statuses
-ORDER BY root_chat_id, git_remote_origin, git_branch,
-    refreshed_at DESC NULLS LAST, updated_at DESC, chat_id
+ORDER BY
+    root_chat_id,
+    git_remote_origin,
+    git_branch,
+    -- Keep the most recently refreshed row from a subagent chat.
+    refreshed_at DESC NULLS LAST,
+    updated_at DESC,
+    chat_id
+-- Keep all fields of existing root rows.
 ON CONFLICT (chat_id, git_remote_origin, git_branch) DO NOTHING;

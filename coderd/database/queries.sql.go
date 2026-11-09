@@ -11203,7 +11203,8 @@ WHERE
         ELSE true
     END
     -- Match chats whose linked diff URL (e.g. a pull request URL)
-    -- equals the given value, case-insensitively.
+    -- equals the given value, case-insensitively. The match includes
+    -- URLs on their subagent chats.
     AND CASE
         WHEN $10::text IS NOT NULL THEN EXISTS (
             SELECT 1
