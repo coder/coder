@@ -397,7 +397,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 }) => {
 	const theme = useTheme();
 	const codeViewRef = useRef<CodeViewHandle<string, undefined>>(null);
-	const isDark = theme.palette.mode === "dark";
+	const isDark = theme.mode === "dark";
 	const [activeFile, setActiveFile] = useState<string | null>(null);
 
 	// Measure the diff container so the file tree only appears when there is

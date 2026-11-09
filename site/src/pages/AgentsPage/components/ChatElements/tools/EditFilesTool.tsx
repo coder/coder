@@ -30,7 +30,7 @@ export const EditFilesTool: React.FC<{
 	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
 }> = ({ files, diffs, status, isError, errorMessage, codeDiffDisplayMode }) => {
 	const theme = useTheme();
-	const isDark = theme.palette.mode === "dark";
+	const isDark = theme.mode === "dark";
 	const isRunning = status === "running";
 	const hasDiffs = diffs.some((d) => d !== null);
 	const displayState = resolveAgentDisplayState(

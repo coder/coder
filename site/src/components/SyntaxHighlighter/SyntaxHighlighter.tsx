@@ -38,7 +38,7 @@ export const SyntaxHighlighter: React.FC<SyntaxHighlighterProps> = ({
 	// Shared by both `File` and `MultiFileDiff`, whose options extend this type.
 	const options: BaseCodeOptions = {
 		theme: coderShikiThemes,
-		themeType: theme.palette.mode,
+		themeType: theme.mode,
 		disableFileHeader: true,
 		overflow: "scroll",
 	};

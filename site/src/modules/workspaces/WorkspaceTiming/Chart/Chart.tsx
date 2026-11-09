@@ -5,7 +5,6 @@ import {
 	SearchField,
 	type SearchFieldProps,
 } from "#/components/SearchField/SearchField";
-import type { BarColors } from "./Bar";
 
 /** Width in pixels of the label column. */
 export const Y_AXIS_WIDTH = 200;
@@ -141,7 +140,7 @@ export const ChartSearch = (props: SearchFieldProps) => {
 
 export type ChartLegend = {
 	label: string;
-	colors?: BarColors;
+	className?: string;
 };
 
 type ChartLegendsProps = {
@@ -157,11 +156,10 @@ export const ChartLegends: React.FC<ChartLegendsProps> = ({ legends }) => {
 					className="flex items-center gap-2 font-medium leading-none"
 				>
 					<div
-						className="size-[18px] rounded border border-solid bg-surface-primary"
-						style={{
-							borderColor: l.colors?.stroke,
-							backgroundColor: l.colors?.fill,
-						}}
+						className={cn(
+							"size-[18px] rounded border border-solid bg-surface-primary",
+							l.className,
+						)}
 					/>
 					{l.label}
 				</li>

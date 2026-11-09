@@ -1,4 +1,5 @@
 import { PlusIcon, RotateCwIcon } from "lucide-react";
+import { useEffect, useState } from "react";
 import Confetti from "react-confetti";
 import { Link as RouterLink } from "react-router";
 import type { GetLicensesResponse } from "#/api/api";
@@ -22,6 +23,7 @@ import {
 import { useWindowSize } from "#/hooks/useWindowSize";
 import { CONTACT_SALES_LINK } from "#/modules/licenses/trialLicense";
 import { useTheme } from "#/theme/context";
+import { readThemeColors } from "#/theme/cssColors";
 import { AIGovernanceUsersConsumption } from "./AIGovernanceUsersConsumptionChart";
 import { LicenseCard } from "./LicenseCard";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
@@ -69,6 +71,17 @@ const LicensesSettingsPageView: React.FC<Props> = ({
 }) => {
 	const theme = useTheme();
 	const { width, height } = useWindowSize();
+	const [confettiColors, setConfettiColors] = useState<string[]>([]);
+	useEffect(() => {
+		setConfettiColors(
+			Object.values(
+				readThemeColors(theme.mode, [
+					"--confetti-primary",
+					"--confetti-secondary",
+				]),
+			),
+		);
+	}, [theme.mode]);
 
 	return (
 		<>
@@ -77,7 +90,7 @@ const LicensesSettingsPageView: React.FC<Props> = ({
 				width={width - 1}
 				height={height - 1}
 				numberOfPieces={showConfetti ? 200 : 0}
-				colors={[theme.palette.primary.main, theme.palette.secondary.main]}
+				colors={confettiColors}
 			/>
 
 			<div className="flex gap-4 items-baseline justify-between">

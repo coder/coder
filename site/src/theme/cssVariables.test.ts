@@ -55,6 +55,24 @@ const REQUIRED_VARIABLES = [
 	"--git-merged-bright",
 ];
 
+const THEME_VARIABLES = [
+	...REQUIRED_VARIABLES,
+	...["success", "error", "warning", "active", "inactive", "notice"].flatMap(
+		(role) => [`--chart-${role}`, `--chart-${role}-border`],
+	),
+	"--confetti-primary",
+	"--confetti-secondary",
+	...[
+		"foreground",
+		"background",
+		"comment",
+		"type",
+		"string",
+		"variable",
+		"brace",
+	].map((token) => `--editor-${token}`),
+];
+
 const THEME_CLASSES = [
 	":root",
 	...CONCRETE_THEMES.map((themeName) => `.${themeName}`),
@@ -143,9 +161,14 @@ describe("theme CSS variables", () => {
 				expect(block).not.toBeNull();
 			});
 
-			it.each(REQUIRED_VARIABLES)("resolves %s", (variable) => {
-				expect(extractVariable(effectiveBlock ?? "", variable)).not.toBeNull();
-			});
+			it.each(selector === ":root" ? REQUIRED_VARIABLES : THEME_VARIABLES)(
+				"resolves %s",
+				(variable) => {
+					expect(
+						extractVariable(effectiveBlock ?? "", variable),
+					).not.toBeNull();
+				},
+			);
 		});
 	}
 
@@ -182,6 +205,16 @@ describe("theme CSS variables", () => {
 					extractVariable(block ?? "", "--surface-magenta"),
 				);
 			});
+		});
+	}
+
+	for (const name of CONCRETE_THEMES) {
+		it(`${name} distinguishes chart success, failure, warning, canceled, and skipped states`, () => {
+			const block = extractEffectiveBlock(css, `.${name}`) ?? "";
+			const fills = ["success", "error", "warning", "notice", "inactive"].map(
+				(role) => extractVariable(block, `--chart-${role}`),
+			);
+			expect(new Set(fills).size).toBe(fills.length);
 		});
 	}
 

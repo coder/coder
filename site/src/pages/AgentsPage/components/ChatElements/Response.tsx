@@ -348,7 +348,7 @@ export const Response = ({
 }: ResponseProps) => {
 	const theme = useTheme();
 	const fileViewerThemeType: FileViewerThemeType =
-		theme.palette.mode === "dark" ? "dark" : "light";
+		theme.mode === "dark" ? "dark" : "light";
 	const components = componentsByTheme[fileViewerThemeType];
 	const { markdown, inlineNodes } =
 		typeof children === "string"
