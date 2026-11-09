@@ -27568,6 +27568,10 @@ const docTemplate = `{
         "codersdk.MCPServerConfig": {
             "type": "object",
             "properties": {
+                "acl_granted": {
+                    "description": "ACLGranted reports whether the config's ACL shares it with the\ncaller directly, through one of their groups, or through the\norganization's Everyone group. Role-wide read access, such as an\nOwner's, does not count. Force On and Default On apply only to\nconfigs where this is true.",
+                    "type": "boolean"
+                },
                 "allow_in_plan_mode": {
                     "type": "boolean"
                 },

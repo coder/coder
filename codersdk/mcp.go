@@ -121,6 +121,12 @@ type MCPServerConfig struct {
 
 	// Per-user state (populated for non-admin requests).
 	AuthConnected bool `json:"auth_connected"`
+	// ACLGranted reports whether the config's ACL shares it with the
+	// caller directly, through one of their groups, or through the
+	// organization's Everyone group. Role-wide read access, such as an
+	// Owner's, does not count. Force On and Default On apply only to
+	// configs where this is true.
+	ACLGranted bool `json:"acl_granted"`
 }
 
 // MCPServerConfigRole is a role a user or group holds in an MCP server

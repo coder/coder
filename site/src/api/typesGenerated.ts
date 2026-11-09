@@ -6899,6 +6899,14 @@ export interface MCPServerConfig {
 	 * Per-user state (populated for non-admin requests).
 	 */
 	readonly auth_connected: boolean;
+	/**
+	 * ACLGranted reports whether the config's ACL shares it with the
+	 * caller directly, through one of their groups, or through the
+	 * organization's Everyone group. Role-wide read access, such as an
+	 * Owner's, does not count. Force On and Default On apply only to
+	 * configs where this is true.
+	 */
+	readonly acl_granted: boolean;
 }
 
 // From codersdk/mcp.go

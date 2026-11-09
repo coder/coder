@@ -11206,6 +11206,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
+  "acl_granted": true,
   "allow_in_plan_mode": true,
   "api_key_header": "string",
   "auth_connected": true,
@@ -11248,6 +11249,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 | Name                         | Type                                                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                                          |
 |------------------------------|------------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `acl_granted`                | boolean                                                                                  | false    |              | Acl granted reports whether the config's ACL shares it with the caller directly, through one of their groups, or through the organization's Everyone group. Role-wide read access, such as an Owner's, does not count. Force On and Default On apply only to configs where this is true.             |
 | `allow_in_plan_mode`         | boolean                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                      |
 | `api_key_header`             | string                                                                                   | false    |              | Api key header key fields (only populated for admins).                                                                                                                                                                                                                                               |
 | `auth_connected`             | boolean                                                                                  | false    |              | Per-user state (populated for non-admin requests).                                                                                                                                                                                                                                                   |

@@ -260,6 +260,11 @@ func (api *API) listMCPServerConfigs(rw http.ResponseWriter, r *http.Request) {
 		if config.AuthType == "oauth2" {
 			sdkConfig.AuthConnected = tokenMap[config.ID]
 		}
+		sdkConfig.ACLGranted, err = config.ACLGrants(httpmw.UserAuthorization(ctx), policy.ActionRead)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
 		resp = append(resp, sdkConfig)
 	}
 
@@ -457,7 +462,13 @@ func (api *API) createMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.New = inserted
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertMCPServerConfig(inserted))
+	sdkConfig := convertMCPServerConfig(inserted)
+	sdkConfig.ACLGranted, err = inserted.ACLGrants(httpmw.UserAuthorization(ctx), policy.ActionRead)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusCreated, sdkConfig)
 }
 
 // @Summary Get MCP server config
@@ -497,6 +508,12 @@ func (api *API) getMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 	} else {
 		sdkConfig = convertMCPServerConfigRedacted(config)
 	}
+	aclGranted, err := config.ACLGrants(httpmw.UserAuthorization(ctx), policy.ActionRead)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	sdkConfig.ACLGranted = aclGranted
 
 	// Refresh readable token state so AuthConnected reflects the current
 	// OAuth status.
@@ -773,7 +790,13 @@ func (api *API) updateMCPServerConfig(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.New = updated
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertMCPServerConfig(updated))
+	sdkConfig := convertMCPServerConfig(updated)
+	sdkConfig.ACLGranted, err = updated.ACLGrants(httpmw.UserAuthorization(ctx), policy.ActionRead)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, sdkConfig)
 }
 
 // applyMCPServerConfigChange returns prev with every field that req sets

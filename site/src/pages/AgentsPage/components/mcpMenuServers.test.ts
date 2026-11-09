@@ -37,6 +37,12 @@ describe("getMCPMenuServers", () => {
 		auth_type: "oauth2",
 		auth_connected: false,
 	};
+	const mockUnsharedForcedServer: MCPServerConfig = {
+		...MockMCPServerConfig,
+		id: "jira",
+		availability: "force_on",
+		acl_granted: false,
+	};
 	const mockServers = [
 		mockAPIKeyServer,
 		mockConnectedServer,
@@ -63,6 +69,16 @@ describe("getMCPMenuServers", () => {
 				server: mockSignedOutForcedServer,
 				isSelected: true,
 				isDisconnected: true,
+			},
+		]);
+	});
+
+	it("leaves force_on servers whose ACL excludes the caller unselected", () => {
+		expect(getMCPMenuServers([mockUnsharedForcedServer], [])).toEqual([
+			{
+				server: mockUnsharedForcedServer,
+				isSelected: false,
+				isDisconnected: false,
 			},
 		]);
 	});

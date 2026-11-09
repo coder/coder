@@ -67,6 +67,7 @@ import {
 	isChatAttachmentFile,
 	shouldRouteFileToWorkspace,
 } from "../utils/chatAttachments";
+import { isForcedOn } from "../utils/mcpSelection";
 import type { ChatSlashCommand } from "../utils/slashCommands";
 import { AgentChatSendButton } from "./AgentChatSendButton";
 import { AgentSetupNotice } from "./AgentSetupNotice";
@@ -754,7 +755,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const enabledMcpServers = mcpServers?.filter((s) => s.enabled) ?? [];
 	const activeMcpServers = enabledMcpServers.filter(
 		(s) =>
-			(s.availability === "force_on" || selectedMCPServerIds?.includes(s.id)) &&
+			(isForcedOn(s) || selectedMCPServerIds?.includes(s.id)) &&
 			!(s.auth_type === "oauth2" && !s.auth_connected),
 	);
 

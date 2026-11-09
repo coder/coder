@@ -36,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/webpush"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -523,8 +524,12 @@ type PromoteQueuedOptions struct {
 	QueuedMessageID int64
 }
 
-// forcedMCPServerConfigsForOwner filters enabled Force On configs
-// through the chat owner's ACL so availability cannot widen access.
+// forcedMCPServerConfigsForOwner returns the enabled Force On configs
+// that apply to the chat owner. A config applies only when its own ACL
+// names the owner, one of their groups, or the organization's Everyone
+// group. Role-wide read access, such as a site Owner's or an org admin's,
+// does not force a config the ACL does not share with them. The fetch
+// still runs as the owner so dbauthz enforces read access as well.
 func forcedMCPServerConfigsForOwner(ctx context.Context, store database.Store, organizationID, ownerID uuid.UUID) ([]database.MCPServerConfig, error) {
 	owner, _, err := httpmw.UserRBACSubject(ctx, store, ownerID, rbac.ScopeAll)
 	if err != nil {
@@ -534,10 +539,20 @@ func forcedMCPServerConfigsForOwner(ctx context.Context, store database.Store, o
 	if err != nil {
 		return nil, xerrors.Errorf("get forced MCP server configs: %w", err)
 	}
-	return forced, nil
+	granted := make([]database.MCPServerConfig, 0, len(forced))
+	for _, cfg := range forced {
+		ok, err := cfg.ACLGrants(owner, policy.ActionRead)
+		if err != nil {
+			return nil, xerrors.Errorf("check MCP server config %s ACL: %w", cfg.ID, err)
+		}
+		if ok {
+			granted = append(granted, cfg)
+		}
+	}
+	return granted, nil
 }
 
-// enforceForcedMCPServerIDs appends owner-readable Force On config IDs
+// enforceForcedMCPServerIDs appends ACL-granted Force On config IDs
 // missing from ids so callers cannot exclude such servers by stripping
 // IDs from a request (Cure53 CDM-02-010).
 func enforceForcedMCPServerIDs(ctx context.Context, store database.Store, organizationID, ownerID uuid.UUID, ids []uuid.UUID) ([]uuid.UUID, error) {
