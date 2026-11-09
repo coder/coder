@@ -30,9 +30,9 @@ const (
 	// of concurrent HTTP calls has enough headroom to complete.
 	defaultTickTimeout = 30 * time.Second
 
-	// maxRateLimitBackoff bounds provider-supplied reset times while
-	// allowing an hourly quota window and the provider's padding.
-	maxRateLimitBackoff = time.Hour + gitprovider.RateLimitPadding
+	// maxCooldown allows the primary rate limit's hourly window and
+	// the provider's padding.
+	maxCooldown = time.Hour + gitprovider.RateLimitPadding
 
 	// NoTokenBackoff is the backoff duration applied to rows
 	// whose owner has no linked external-auth token. Much longer
@@ -361,11 +361,11 @@ func (w *Worker) tick(ctx context.Context) {
 }
 
 func rateLimitRetryAfter(now time.Time, rateLimit *gitprovider.RateLimitError) time.Time {
-	backoff := rateLimit.RetryAfter.Sub(now)
-	if backoff <= 0 {
-		backoff = DiffStatusTTL
+	cooldown := rateLimit.RetryAfter.Sub(now)
+	if cooldown <= 0 {
+		cooldown = DiffStatusTTL
 	}
-	return now.Add(min(backoff, maxRateLimitBackoff))
+	return now.Add(min(cooldown, maxCooldown))
 }
 
 // MarkStaleParams holds the arguments for Worker.MarkStale.

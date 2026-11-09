@@ -37,24 +37,24 @@ func (s *acquiredChatDiffStatusesStore) AcquireStaleChatDiffStatuses(context.Con
 	return s.rows, nil
 }
 
-type rateLimitStoreSpy struct {
+type cooldownStoreSpy struct {
 	Store
 	reads, writes int
 	owners        []uuid.UUID
 }
 
-func (s *rateLimitStoreSpy) GetChatGitSyncRateLimitsByUserIDs(ctx context.Context, owners []uuid.UUID) ([]database.ChatGitSyncRateLimit, error) {
+func (s *cooldownStoreSpy) GetChatGitSyncRateLimitsByUserIDs(ctx context.Context, owners []uuid.UUID) ([]database.ChatGitSyncRateLimit, error) {
 	s.reads++
 	s.owners = append([]uuid.UUID{}, owners...)
 	return s.Store.GetChatGitSyncRateLimitsByUserIDs(ctx, owners)
 }
 
-func (s *rateLimitStoreSpy) UpsertChatGitSyncRateLimit(ctx context.Context, arg database.UpsertChatGitSyncRateLimitParams) error {
+func (s *cooldownStoreSpy) UpsertChatGitSyncRateLimit(ctx context.Context, arg database.UpsertChatGitSyncRateLimitParams) error {
 	s.writes++
 	return s.Store.UpsertChatGitSyncRateLimit(ctx, arg)
 }
 
-func TestWorker_RateLimitLookupError(t *testing.T) {
+func TestWorker_CooldownLookupError(t *testing.T) {
 	t.Parallel()
 	clock := quartz.NewMock(t)
 	store := dbmock.NewMockStore(gomock.NewController(t))
@@ -74,32 +74,32 @@ func TestWorker_RateLimitLookupError(t *testing.T) {
 	worker.tick(testutil.Context(t, testutil.WaitShort))
 }
 
-func TestWorker_RateLimitBackoff(t *testing.T) {
+func TestWorker_Cooldown(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
 		name       string
 		header     string
 		resetAfter time.Duration
-		backoff    time.Duration
+		cooldown   time.Duration
 	}{
 		{
-			name:       "Primary",
+			name:       "PrimaryRateLimit",
 			header:     "X-RateLimit-Reset",
 			resetAfter: 30 * time.Minute,
-			backoff:    35 * time.Minute,
+			cooldown:   35 * time.Minute,
 		},
 		{
-			name:       "Secondary",
+			name:       "SecondaryRateLimit",
 			header:     "Retry-After",
 			resetAfter: 15 * time.Minute,
-			backoff:    20 * time.Minute,
+			cooldown:   20 * time.Minute,
 		},
 		{
-			name:       "FarFuture",
+			name:       "FarFutureReset",
 			header:     "X-RateLimit-Reset",
 			resetAfter: 365 * 24 * time.Hour,
-			backoff:    65 * time.Minute,
+			cooldown:   65 * time.Minute,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -122,7 +122,7 @@ func TestWorker_RateLimitBackoff(t *testing.T) {
 			clock := quartz.NewMock(t)
 			clock.Set(time.Now().UTC().Add(-24 * time.Hour).Truncate(time.Second)).MustWait(ctx)
 			start := clock.Now()
-			retryAfter := start.Add(tc.backoff)
+			retryAfter := start.Add(tc.cooldown)
 			var limitedCalls, otherCalls, enterpriseCalls, gitlabCalls atomic.Int32
 			var limited atomic.Bool
 			limited.Store(true)
@@ -213,7 +213,7 @@ func TestWorker_RateLimitBackoff(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, acquired, 1)
 
-			store := &rateLimitStoreSpy{Store: db}
+			store := &cooldownStoreSpy{Store: db}
 			worker := newWorker(store)
 			worker.tick(ctx)
 			require.Equal(t, int32(1), limitedCalls.Load(), "two rows should be skipped in the same batch")
@@ -227,7 +227,7 @@ func TestWorker_RateLimitBackoff(t *testing.T) {
 			require.Equal(t, retryAfter, limits[0].RetryAfter.UTC())
 
 			// The worker must check a row acquired before the cooldown was stored.
-			queuedStore := &rateLimitStoreSpy{Store: db}
+			queuedStore := &cooldownStoreSpy{Store: db}
 			queuedWorker := newWorker(&acquiredChatDiffStatusesStore{Store: queuedStore, rows: acquired})
 			queuedWorker.tick(ctx)
 			require.Equal(t, int32(1), limitedCalls.Load())
@@ -261,15 +261,15 @@ func TestWorker_RateLimitBackoff(t *testing.T) {
 			})
 			addRef(otherChat.ID, "https://github.com/owner/repo", "other-owner")
 
-			otherStore := &rateLimitStoreSpy{Store: db}
+			otherStore := &cooldownStoreSpy{Store: db}
 			otherWorker := newWorker(otherStore)
 			clock.Set(retryAfter.Add(-time.Second)).MustWait(ctx)
 			queuedWorker.tick(ctx)
 			otherWorker.tick(ctx)
 			require.Equal(t, int32(1), limitedCalls.Load(), "no request before reset, including SSH and new refs")
 			require.Equal(t, int32(1), otherCalls.Load())
-			require.Equal(t, int32(1), enterpriseCalls.Load(), "the same owner's Enterprise account should refresh")
-			require.Equal(t, int32(1), gitlabCalls.Load(), "the same owner's GitLab account should refresh")
+			require.Equal(t, int32(1), enterpriseCalls.Load(), "Enterprise diff-status refresh should not be in cooldown")
+			require.Equal(t, int32(1), gitlabCalls.Load(), "GitLab diff-status refresh should not be in cooldown")
 			require.Equal(t, 1, otherStore.reads)
 			require.ElementsMatch(t, []uuid.UUID{owner.ID, otherOwner.ID}, otherStore.owners)
 			require.Equal(t, 0, otherStore.writes)

@@ -584,7 +584,7 @@ func TestRefresher_StaleAtByPRState(t *testing.T) {
 	}
 }
 
-func TestRefresher_RateLimitSkipsRemainingForAccount(t *testing.T) {
+func TestRefresher_CooldownSkipsRemainingForAccount(t *testing.T) {
 	t.Parallel()
 
 	ownerID := uuid.New()
@@ -710,7 +710,7 @@ func TestRefresher_RateLimitSkipsRemainingForAccount(t *testing.T) {
 		"two rows should be skipped due to rate limit")
 	assert.Equal(t, int32(1), callCount.Load(),
 		"FetchPullRequestStatus should be called exactly once for the limited owner")
-	assert.Equal(t, int32(3), healthyCalls.Load(), "other owners and hosts in the same batch should still refresh")
+	assert.Equal(t, int32(3), healthyCalls.Load(), "other owners and hosts should still get a diff-status refresh")
 }
 
 func TestRefresher_CorrectTokenPerOrigin(t *testing.T) {

@@ -124,8 +124,7 @@ const trailingPunctuation = "),;."
 // ErrDiffTooLarge.
 const MaxDiffSize = 4 << 20 // 4 MiB
 
-// RateLimitPadding is added to rate-limit retry times to guard
-// against over-consumption of request quotas.
+// RateLimitPadding delays retries past the provider's API rate-limit reset.
 const RateLimitPadding = 5 * time.Minute
 
 // ErrDiffTooLarge is returned when a diff exceeds MaxDiffSize.
@@ -213,10 +212,8 @@ func New(providerType string, apiBaseURL string, httpClient *http.Client, opts .
 	}
 }
 
-// parseRetryAfter extracts a retry duration from rate-limit response
-// headers. It checks Retry-After (seconds) first, then the named
-// resetHeader (unix timestamp) only when its remaining header is zero.
-// Returns zero if no recognizable rate-limit headers are present.
+// parseRetryAfter reads Retry-After for secondary rate limits and the reset
+// timestamp for primary rate limits with zero requests remaining.
 func parseRetryAfter(h http.Header, resetHeader string, clk quartz.Clock) time.Duration {
 	// Retry-After header: seconds until retry.
 	if ra := h.Get("Retry-After"); ra != "" {

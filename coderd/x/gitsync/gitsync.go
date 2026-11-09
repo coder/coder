@@ -228,7 +228,7 @@ func (r *Refresher) Refresh(
 		})
 	}
 
-	// Share a rate limit across the owner's repositories on the same host.
+	// Share the cooldown across the owner's repositories on the same host.
 	sem := make(chan struct{}, r.concurrency)
 	var wg sync.WaitGroup
 
