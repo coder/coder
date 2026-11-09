@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -1754,6 +1755,83 @@ func TestCompleteJob(t *testing.T) {
 		require.ErrorContains(t, err, "you don't own this job")
 	})
 
+	// Identical module archives share one files row. Imports that complete
+	// at the same time with the same archive must all succeed instead of
+	// racing on the unique hash constraint.
+	t.Run("TemplateImportConcurrentModuleFiles", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		srv, db, _, pd := setup(t, false, &overrides{})
+		user := dbgen.User(t, db, database.User{})
+
+		const imports = 10
+		versionIDs := make([]uuid.UUID, imports)
+		jobIDs := make([]uuid.UUID, imports)
+		for i := range imports {
+			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				CreatedBy:      user.ID,
+				OrganizationID: pd.OrganizationID,
+				JobID:          uuid.New(),
+			})
+			job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+				ID:             version.JobID,
+				OrganizationID: pd.OrganizationID,
+				Provisioner:    database.ProvisionerTypeEcho,
+				Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
+					TemplateVersionID: version.ID,
+				})),
+				StorageMethod: database.ProvisionerStorageMethodFile,
+				Type:          database.ProvisionerJobTypeTemplateVersionImport,
+				Tags:          pd.Tags,
+			})
+			require.NoError(t, err)
+			// Acquire each job before inserting the next so the daemon
+			// acquires exactly this job.
+			acquired, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+				OrganizationID:  pd.OrganizationID,
+				WorkerID:        uuid.NullUUID{UUID: pd.ID, Valid: true},
+				Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+				ProvisionerTags: must(json.Marshal(job.Tags)),
+				StartedAt:       sql.NullTime{Time: job.CreatedAt, Valid: true},
+			})
+			require.NoError(t, err)
+			require.Equal(t, job.ID, acquired.ID)
+			versionIDs[i] = version.ID
+			jobIDs[i] = job.ID
+		}
+
+		moduleFiles := []byte("identical module archive")
+		start := make(chan struct{})
+		var eg errgroup.Group
+		for _, jobID := range jobIDs {
+			eg.Go(func() error {
+				<-start
+				_, err := srv.CompleteJob(ctx, &proto.CompletedJob{
+					JobId: jobID.String(),
+					Type: &proto.CompletedJob_TemplateImport_{
+						TemplateImport: &proto.CompletedJob_TemplateImport{
+							ModuleFiles: moduleFiles,
+						},
+					},
+				})
+				return err
+			})
+		}
+		close(start)
+		require.NoError(t, eg.Wait())
+
+		var fileIDs []uuid.UUID
+		for _, versionID := range versionIDs {
+			values, err := db.GetTemplateVersionTerraformValues(ctx, versionID)
+			require.NoError(t, err)
+			require.True(t, values.CachedModuleFiles.Valid)
+			fileIDs = append(fileIDs, values.CachedModuleFiles.UUID)
+		}
+		for _, fileID := range fileIDs {
+			require.Equal(t, fileIDs[0], fileID, "all imports should share one module archive")
+		}
+	})
+
 	// Test for verifying transaction behavior on the extracted methods
 	t.Run("TransactionBehavior", func(t *testing.T) {
 		t.Parallel()
@@ -1803,7 +1881,10 @@ func TestCompleteJob(t *testing.T) {
 							Name: "test-resource",
 							Type: "aws_instance",
 						}},
-						Plan: []byte("{}"),
+						Plan: []byte(`{"configuration":{"root_module":{"resources":[
+							{"mode":"data","type":"coder_script_order","expressions":{"rule":[{},{}]}},
+							{"mode":"data","type":"coder_script_order","expressions":{"rule":[{}]}}
+						]}}}`),
 					},
 				},
 			})
@@ -1819,6 +1900,12 @@ func TestCompleteJob(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, resources, 1, "Expected one resource to be created")
 			require.Equal(t, "test-resource", resources[0].Name)
+
+			// Verify script-order counts were persisted.
+			version, err := db.GetTemplateVersionByID(ctx, versionID)
+			require.NoError(t, err)
+			require.Equal(t, int32(2), version.ScriptOrderDataSourceCount)
+			require.Equal(t, int32(3), version.ScriptOrderRuleCount)
 		})
 
 		// Test TemplateDryRun transaction
@@ -3869,6 +3956,24 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			}},
 		})
 		require.ErrorContains(t, err, `app slug "Dev" does not match regex`)
+	})
+	t.Run("ExternalAppURLInvalid", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		err := insert(db, job.ID, &sdkproto.Resource{
+			Name: "something",
+			Type: "aws_instance",
+			Agents: []*sdkproto.Agent{{
+				Name: "dev",
+				Apps: []*sdkproto.App{{
+					Slug:     "evil",
+					External: true,
+					Url:      "javascript://x/%0aalert(1)",
+				}},
+			}},
+		})
+		require.ErrorContains(t, err, `invalid external url "javascript://x/%0aalert(1)" for app "evil"`)
 	})
 	t.Run("DuplicateAgentNames", func(t *testing.T) {
 		t.Parallel()

@@ -101,12 +101,22 @@ import (
 //     WorkspaceAgentScriptDependency message. They carry each script's
 //     Terraform address and its resolved coder_script_order prerequisites
 //     in the manifest. Both are empty for unordered scripts.
-//   - A v2.14 agent decodes these fields but does not yet enforce the
-//     ordering, so a version check alone does not tell coderd that an agent
-//     orders its scripts.
+//   - A v2.14 agent runs start and stop scripts in dependency order.
+//   - Added rx_bytes and tx_bytes to Connection on the agent API.
+//
+// API v2.15:
+//   - Added SKIPPED and CANCELED to Timing.Status on the Agent API, for a
+//     lifecycle script that never ran because of a prerequisite and one the
+//     agent shut down before it finished.
+//   - A v2.15 agent reports skipped and canceled startup scripts.
+//
+// API v2.16:
+//   - Added template_id and template_name to Manifest on the Agent API.
+//   - A v2.16 agent exports them as CODER_WORKSPACE_TEMPLATE_ID and
+//     CODER_WORKSPACE_TEMPLATE_NAME.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 14
+	CurrentMinor = 16
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

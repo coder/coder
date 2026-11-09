@@ -182,7 +182,7 @@ resource "kubernetes_pod_v1" "main" {
 
       env {
         name  = "CODER_INNER_IMAGE"
-        value = "index.docker.io/codercom/enterprise-base:ubuntu-20240812"
+        value = "index.docker.io/codercom/enterprise-base:ubuntu-20261105"
       }
 
       env {

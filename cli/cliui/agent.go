@@ -172,7 +172,7 @@ func (aw *agentWaiter) waitForConnection(ctx context.Context, agent codersdk.Wor
 	if agent.Status == codersdk.WorkspaceAgentTimeout {
 		now := time.Now()
 		aw.sw.Log(now, codersdk.LogLevelInfo, "The workspace agent is having trouble connecting, wait for it to connect or restart your workspace.")
-		aw.sw.Log(now, codersdk.LogLevelInfo, troubleshootingMessage(agent, fmt.Sprintf("%s/admin/templates/troubleshooting#agent-connection-issues", aw.opts.DocsURL)))
+		aw.sw.Log(now, codersdk.LogLevelInfo, troubleshootingMessage(agent, fmt.Sprintf("%s/templates/troubleshooting#agent-connection-issues", aw.opts.DocsURL)))
 		agent, err = aw.pollWhile(ctx, agent, func(agent codersdk.WorkspaceAgent) bool {
 			return agent.Status == codersdk.WorkspaceAgentTimeout
 		})
@@ -245,12 +245,12 @@ func (aw *agentWaiter) handleConnected(ctx context.Context, agent codersdk.Works
 	case codersdk.WorkspaceAgentLifecycleStartError:
 		aw.sw.Fail(stage, safeDuration(aw.sw, agent.ReadyAt, agent.StartedAt))
 		aw.sw.Log(time.Time{}, codersdk.LogLevelWarn, "Warning: A startup script exited with an error and your workspace may be incomplete.")
-		aw.sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, fmt.Sprintf("%s/admin/templates/troubleshooting#startup-script-exited-with-an-error", aw.opts.DocsURL)))
+		aw.sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, fmt.Sprintf("%s/templates/troubleshooting#startup-script-exited-with-an-error", aw.opts.DocsURL)))
 	default:
 		switch {
 		case agent.LifecycleState.Starting():
 			aw.sw.Log(time.Time{}, codersdk.LogLevelWarn, "Notice: The startup scripts are still running and your workspace may be incomplete.")
-			aw.sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, fmt.Sprintf("%s/admin/templates/troubleshooting#your-workspace-may-be-incomplete", aw.opts.DocsURL)))
+			aw.sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, fmt.Sprintf("%s/templates/troubleshooting#your-workspace-may-be-incomplete", aw.opts.DocsURL)))
 			// Note: We don't complete or fail the stage here, it's
 			// intentionally left open to indicate this stage didn't
 			// complete.
@@ -335,7 +335,7 @@ func (aw *agentWaiter) waitForReconnection(ctx context.Context, agent codersdk.W
 	stage := "The workspace agent lost connection"
 	aw.sw.Start(stage)
 	aw.sw.Log(time.Now(), codersdk.LogLevelWarn, "Wait for it to reconnect or restart your workspace.")
-	aw.sw.Log(time.Now(), codersdk.LogLevelWarn, troubleshootingMessage(agent, fmt.Sprintf("%s/admin/templates/troubleshooting#agent-connection-issues", aw.opts.DocsURL)))
+	aw.sw.Log(time.Now(), codersdk.LogLevelWarn, troubleshootingMessage(agent, fmt.Sprintf("%s/templates/troubleshooting#agent-connection-issues", aw.opts.DocsURL)))
 
 	disconnectedAt := agent.DisconnectedAt
 	agent, err := aw.pollWhile(ctx, agent, func(agent codersdk.WorkspaceAgent) bool {

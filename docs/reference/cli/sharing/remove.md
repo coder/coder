@@ -29,16 +29,16 @@ This command fails if workspace sharing is disabled for the deployment, or if th
 
 ### --user
 
-|      |                           |
-|------|---------------------------|
-| Type | <code>string-array</code> |
+| Property | Value                     |
+|----------|---------------------------|
+| Type     | <code>string-array</code> |
 
 A comma separated list of users to remove from the workspace.
 
 ### --group
 
-|      |                           |
-|------|---------------------------|
-| Type | <code>string-array</code> |
+| Property | Value                     |
+|----------|---------------------------|
+| Type     | <code>string-array</code> |
 
 A comma separated list of groups to remove from the workspace.

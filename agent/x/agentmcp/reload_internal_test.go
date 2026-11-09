@@ -3,13 +3,17 @@ package agentmcp
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -718,6 +722,76 @@ func TestReload_NoopWhenUnchanged(t *testing.T) {
 
 	assert.Same(t, origClient, sameClient,
 		"no-op reload should not replace the client")
+}
+
+// TestReconnect_RetriesFailedServer verifies Reconnect connects a server
+// that was down at the last reload, without a config change.
+func TestReconnect_RetriesFailedServer(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	var up atomic.Bool
+	configPath := writeMCPConfig(t, t.TempDir(), map[string]mcpServerEntry{
+		"srv": {Type: "http", URL: newHTTPMCPServer(t, &up)},
+	})
+	m := NewManager(ctx, slogtest.Make(t, nil), agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+
+	require.NoError(t, m.Reload(ctx, []string{configPath}))
+	require.Empty(t, m.connectedTools())
+
+	up.Store(true)
+	require.NoError(t, m.Reconnect(ctx))
+	require.Equal(t, []catalogTool{{server: "srv", tool: "echo"}}, m.connectedTools())
+}
+
+// TestReconnect_KeepsConnectedSession verifies Reconnect does not replace
+// the session of a server that is already connected.
+func TestReconnect_KeepsConnectedSession(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	var up atomic.Bool
+	up.Store(true)
+	configPath := writeMCPConfig(t, t.TempDir(), map[string]mcpServerEntry{
+		"srv": {Type: "http", URL: newHTTPMCPServer(t, &up)},
+	})
+	m := NewManager(ctx, slogtest.Make(t, nil), agentexec.DefaultExecer, nil, nil, nil, nil)
+	t.Cleanup(func() { _ = m.Close() })
+
+	require.NoError(t, m.Reload(ctx, []string{configPath}))
+	m.mu.RLock()
+	before := m.servers["srv"].client
+	m.mu.RUnlock()
+
+	require.NoError(t, m.Reconnect(ctx))
+	m.mu.RLock()
+	after := m.servers["srv"].client
+	m.mu.RUnlock()
+	assert.Same(t, before, after)
+}
+
+// newHTTPMCPServer serves a single "echo" tool over streamable HTTP and
+// returns its URL. Requests fail with 503 while up is false.
+func newHTTPMCPServer(t *testing.T, up *atomic.Bool) string {
+	t.Helper()
+	server := mcp.NewServer(&mcp.Implementation{Name: "fake", Version: "1.0.0"}, nil)
+	server.AddTool(&mcp.Tool{
+		Name:        "echo",
+		InputSchema: map[string]any{"type": "object"},
+	}, func(context.Context, *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return &mcp.CallToolResult{}, nil
+	})
+	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server { return server }, nil)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !up.Load() {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		handler.ServeHTTP(w, r)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.URL
 }
 
 // TestClose_SuppressesSubprocessExitError verifies that Close

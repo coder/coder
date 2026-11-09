@@ -1,5 +1,7 @@
-/** Skill sources in chatd's merge order, named by their alias prefix. */
-export type SkillSource = "personal" | "org" | "workspace";
+import type { ChatSkillSource } from "#/api/typesGenerated";
+
+/** Where a skill is stored, named by its alias prefix. */
+export type SkillSource = ChatSkillSource;
 
 export type SkillSourceList<T extends { name: string }> = {
 	source: SkillSource;
@@ -18,6 +20,10 @@ export type SkillTrigger = {
 	altTriggerText: string;
 };
 
+/** Returns the source-qualified alias of a skill, such as "/project/triage". */
+export const getSkillAlias = (source: SkillSource, name: string): string =>
+	`/${source}/${name}`;
+
 /**
  * Builds every "/" trigger. Workspace skills and names in more than one
  * source (chatd's MergeSkills) are qualified, as is every trigger while any
@@ -35,7 +41,7 @@ export const resolveSkillTriggers = (
 	}
 	return lists.flatMap(({ source, skills }) =>
 		(skills ?? []).map((skill) => {
-			const qualified = `/${source}/${skill.name}`;
+			const qualified = getSkillAlias(source, skill.name);
 			const isQualified =
 				source === "workspace" ||
 				hasUnknownList ||

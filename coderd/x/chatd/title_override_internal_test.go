@@ -87,7 +87,6 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 		TitleSource: database.ChatTitleSourceGenerated,
 	}).Return(chatWithGeneratedTitle(chat, wantTitle), nil)
 
-	generated := &generatedChatTitle{}
 	server := titleOverrideTestServer(db, logger)
 	server.aibridgeTransportFactory = aibridgeTestFactoryPointer(factory)
 	resolved, err := server.resolveQuickgenModel(ctx, "title", chat, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
@@ -99,15 +98,11 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideSetUsable(t *testing.T) {
 		messages,
 		nil,
 		resolved,
-		generated,
 		logger,
 		nil,
 	)
 
 	require.Equal(t, int32(1), requestCount.Load())
-	gotTitle, ok := generated.Load()
-	require.True(t, ok)
-	require.Equal(t, wantTitle, gotTitle)
 }
 
 func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailure(t *testing.T) {
@@ -136,7 +131,6 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailure(t *testing.T)
 		APIKey:     "test-key",
 	}}, nil).AnyTimes()
 
-	generated := &generatedChatTitle{}
 	server := titleOverrideTestServer(db, logger)
 	server.aibridgeTransportFactory = aibridgeTestFactoryPointer(factory)
 	resolved, err := server.resolveQuickgenModel(ctx, "title", chat, modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
@@ -147,14 +141,11 @@ func TestMaybeGenerateChatTitle_TitleGenerationOverrideCallFailure(t *testing.T)
 		messages,
 		nil,
 		resolved,
-		generated,
 		logger,
 		nil,
 	)
 
 	require.Equal(t, int32(1), requestCount.Load())
-	_, ok := generated.Load()
-	require.False(t, ok)
 }
 
 func TestResolveQuickgenModel_TitleGenerationOverrideUnset(t *testing.T) {

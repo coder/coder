@@ -18,7 +18,7 @@ coder open app [flags] <workspace> <app slug>
 
 ### --region
 
-|             |                                     |
+| Property    | Value                               |
 |-------------|-------------------------------------|
 | Type        | <code>string</code>                 |
 | Environment | <code>$CODER_OPEN_APP_REGION</code> |

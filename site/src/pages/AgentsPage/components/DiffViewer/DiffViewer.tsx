@@ -16,11 +16,16 @@ import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useTheme } from "#/theme/context";
 import { countChangedLines } from "../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../utils/diffColors";
-import { SEPARATOR_CSS } from "../ChatElements/tools/utils";
+import {
+	DIFFS_GIT_COLOR_STYLE,
+	SEPARATOR_CSS,
+} from "../ChatElements/tools/utils";
 import { useActiveFileTracking } from "./useActiveFileTracking";
 
 type DiffViewerProps = {
 	parsedFiles: readonly FileDiffMetadata[];
+	/** Bump when files or annotations change. */
+	version: number;
 	isExpanded: boolean;
 	isLoading?: boolean;
 	error?: unknown;
@@ -63,6 +68,7 @@ const diffViewerStyle = {
 	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
 	"--diffs-font-size": "11px",
 	"--diffs-line-height": `${DIFF_VIEWER_LINE_HEIGHT}px`,
+	...DIFFS_GIT_COLOR_STYLE,
 } satisfies React.CSSProperties;
 
 const diffViewerMetrics: Partial<VirtualFileMetrics> = {
@@ -148,26 +154,6 @@ export const treeSortComparator: FileTreeSortComparator = (left, right) =>
 // construction. Exported for unit tests that pin the shared ordering.
 export function compareTreePaths(a: string, b: string): number {
 	return compareTreeEntries(a.split("/"), false, b.split("/"), false);
-}
-
-// CodeView's syncItemRecord skips reusing a record when item.version is
-// unchanged, so the version must reflect annotation content rather than count.
-// Moving the active comment box to another line in the same file keeps the
-// count at 1 but must still re-render, so fold each annotation's side and line
-// into the version. Exported for unit tests.
-export function annotationsVersion(
-	annotations: readonly DiffLineAnnotation<string>[],
-): number {
-	if (annotations.length === 0) {
-		return 0;
-	}
-	return annotations.reduce(
-		(version, annotation) =>
-			version * 31 +
-			annotation.lineNumber * 2 +
-			(annotation.side === "additions" ? 1 : 0),
-		annotations.length,
-	);
 }
 
 // The library forces classic, space-reserving scrollbars via
@@ -398,6 +384,7 @@ function DiffViewerSkeleton() {
 
 export const DiffViewer: React.FC<DiffViewerProps> = ({
 	parsedFiles,
+	version,
 	isExpanded,
 	isLoading,
 	error,
@@ -479,16 +466,13 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 		compareTreePaths(a.name, b.name),
 	);
 
-	const items: CodeViewItem<string>[] = sortedFiles.map((fileDiff) => {
-		const annotations = getLineAnnotations(fileDiff.name);
-		return {
-			id: fileDiff.name,
-			type: "diff",
-			fileDiff,
-			annotations,
-			version: annotationsVersion(annotations),
-		};
-	});
+	const items: CodeViewItem<string>[] = sortedFiles.map((fileDiff) => ({
+		id: fileDiff.name,
+		type: "diff",
+		fileDiff,
+		annotations: getLineAnnotations(fileDiff.name),
+		version,
+	}));
 
 	const selectedLines = (() => {
 		for (const fileDiff of sortedFiles) {

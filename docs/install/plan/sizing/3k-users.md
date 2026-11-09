@@ -11,7 +11,8 @@ If your needs exceed any of these limits, consider increasing deployment resourc
 |-------|-------------------------------|-------------------|
 | 3000  | 1800                          | 180               |
 
-**Observability**: Deploy monitoring solutions to gather Prometheus metrics and visualize them with Grafana to gain detailed insights into infrastructure and application behavior.
+**Observability**:
+Deploy monitoring solutions to gather Prometheus metrics and visualize them with Grafana to gain detailed insights into infrastructure and application behavior.
 This allows operators to respond quickly to incidents and continuously improve the reliability and performance of the platform.
 
 ## Hardware recommendations
@@ -28,7 +29,7 @@ This allows operators to respond quickly to incidents and continuously improve t
 - If deploying on Kubernetes:
   - Set CPU request and limit to `4000m`
   - Set Memory request and limit to `12Gi`
-- `coderd` does not typically benefit from high performance disks like SSDs (unless you are co-locating provisioners).
+- `coderd` does not typically benefit from high performance disks like solid-state drives (SSDs), unless you are co-locating provisioners.
 - `coderd` instances should be deployed in the same region as the database.
 
 ### Workspace Proxies

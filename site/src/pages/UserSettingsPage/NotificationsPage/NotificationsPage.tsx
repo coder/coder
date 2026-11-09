@@ -103,7 +103,7 @@ const NotificationsPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Notifications Settings")}</title>
+			<title>{pageTitle("Notifications", "Settings")}</title>
 
 			<SettingsHeader>
 				<SettingsHeaderTitle>Notifications</SettingsHeaderTitle>

@@ -86,7 +86,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 
 ### --url
 
-|             |                         |
+| Property    | Value                   |
 |-------------|-------------------------|
 | Type        | <code>url</code>        |
 | Environment | <code>$CODER_URL</code> |
@@ -95,15 +95,15 @@ URL to a deployment.
 
 ### --debug-options
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Print all options, how they're set, then exit.
 
 ### --token
 
-|             |                                   |
+| Property    | Value                             |
 |-------------|-----------------------------------|
 | Type        | <code>string</code>               |
 | Environment | <code>$CODER_SESSION_TOKEN</code> |
@@ -112,7 +112,7 @@ Specify an authentication token. For security reasons setting CODER_SESSION_TOKE
 
 ### --no-version-warning
 
-|             |                                        |
+| Property    | Value                                  |
 |-------------|----------------------------------------|
 | Type        | <code>bool</code>                      |
 | Environment | <code>$CODER_NO_VERSION_WARNING</code> |
@@ -121,7 +121,7 @@ Suppress warning when client and server versions do not match.
 
 ### --no-feature-warning
 
-|             |                                        |
+| Property    | Value                                  |
 |-------------|----------------------------------------|
 | Type        | <code>bool</code>                      |
 | Environment | <code>$CODER_NO_FEATURE_WARNING</code> |
@@ -130,7 +130,7 @@ Suppress warnings about unlicensed features.
 
 ### --allow-redirects
 
-|             |                                     |
+| Property    | Value                               |
 |-------------|-------------------------------------|
 | Type        | <code>bool</code>                   |
 | Environment | <code>$CODER_ALLOW_REDIRECTS</code> |
@@ -139,7 +139,7 @@ Follow HTTP redirects from the server instead of returning an error. Following r
 
 ### --header
 
-|             |                            |
+| Property    | Value                      |
 |-------------|----------------------------|
 | Type        | <code>string-array</code>  |
 | Environment | <code>$CODER_HEADER</code> |
@@ -148,7 +148,7 @@ Additional HTTP headers added to all requests. Provide as key=value. Can be spec
 
 ### --header-command
 
-|             |                                    |
+| Property    | Value                              |
 |-------------|------------------------------------|
 | Type        | <code>string</code>                |
 | Environment | <code>$CODER_HEADER_COMMAND</code> |
@@ -157,7 +157,7 @@ An external command that outputs additional HTTP headers added to all requests. 
 
 ### --force-tty
 
-|             |                               |
+| Property    | Value                         |
 |-------------|-------------------------------|
 | Type        | <code>bool</code>             |
 | Environment | <code>$CODER_FORCE_TTY</code> |
@@ -166,7 +166,7 @@ Force the use of a TTY.
 
 ### -v, --verbose
 
-|             |                             |
+| Property    | Value                       |
 |-------------|-----------------------------|
 | Type        | <code>bool</code>           |
 | Environment | <code>$CODER_VERBOSE</code> |
@@ -175,7 +175,7 @@ Enable verbose output.
 
 ### --flight-recorder-size
 
-|             |                                          |
+| Property    | Value                                    |
 |-------------|------------------------------------------|
 | Type        | <code>int</code>                         |
 | Environment | <code>$CODER_FLIGHT_RECORDER_SIZE</code> |
@@ -185,7 +185,7 @@ Number of log entries below the current log level to keep in memory and emit on 
 
 ### --disable-direct-connections
 
-|             |                                                |
+| Property    | Value                                          |
 |-------------|------------------------------------------------|
 | Type        | <code>bool</code>                              |
 | Environment | <code>$CODER_DISABLE_DIRECT_CONNECTIONS</code> |
@@ -194,7 +194,7 @@ Disable direct (P2P) connections to workspaces.
 
 ### --disable-network-telemetry
 
-|             |                                               |
+| Property    | Value                                         |
 |-------------|-----------------------------------------------|
 | Type        | <code>bool</code>                             |
 | Environment | <code>$CODER_DISABLE_NETWORK_TELEMETRY</code> |
@@ -203,7 +203,7 @@ Disable network telemetry. Network telemetry is collected when connecting to wor
 
 ### --client-tls-ca-file
 
-|             |                                        |
+| Property    | Value                                  |
 |-------------|----------------------------------------|
 | Type        | <code>string</code>                    |
 | Environment | <code>$CODER_CLIENT_TLS_CA_FILE</code> |
@@ -212,7 +212,7 @@ Path to a CA certificate file to trust for API and DERP connections.
 
 ### --client-tls-cert-file
 
-|             |                                          |
+| Property    | Value                                    |
 |-------------|------------------------------------------|
 | Type        | <code>string</code>                      |
 | Environment | <code>$CODER_CLIENT_TLS_CERT_FILE</code> |
@@ -221,7 +221,7 @@ Path to a client certificate file for mTLS authentication with API and DERP. Req
 
 ### --client-tls-key-file
 
-|             |                                         |
+| Property    | Value                                   |
 |-------------|-----------------------------------------|
 | Type        | <code>string</code>                     |
 | Environment | <code>$CODER_CLIENT_TLS_KEY_FILE</code> |
@@ -230,7 +230,7 @@ Path to a client private key file for mTLS authentication with API and DERP. Req
 
 ### --use-keyring
 
-|             |                                 |
+| Property    | Value                           |
 |-------------|---------------------------------|
 | Type        | <code>bool</code>               |
 | Environment | <code>$CODER_USE_KEYRING</code> |
@@ -240,7 +240,7 @@ Store and retrieve session tokens using the operating system keyring. This flag 
 
 ### --global-config
 
-|             |                                |
+| Property    | Value                          |
 |-------------|--------------------------------|
 | Type        | <code>string</code>            |
 | Environment | <code>$CODER_CONFIG_DIR</code> |

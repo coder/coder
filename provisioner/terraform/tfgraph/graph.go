@@ -33,15 +33,15 @@ import (
 	"github.com/coder/coder/v2/provisioner/terraform/tfaddr"
 )
 
-// TODO(PLAT-554): Measure parser time and memory use with
-// representative large Terraform graphs, then tune these limits.
+// Bound DOT parsing before its intermediate representation can exhaust memory.
+// Node and edge limits apply together; byte limits also bound long addresses.
 const (
-	maxInputBytes           = 64 << 20 // 64 MiB
-	maxNodes                = 100_000
-	maxEdges                = 1_000_000
+	maxInputBytes           = 16 << 20
+	maxNodes                = 25_000
+	maxEdges                = 100_000
 	maxStatements           = maxNodes + maxEdges
-	maxNodeIDBytes          = 16 << 20 // 16 MiB
-	maxRetainedAddressBytes = 16 << 20 // 16 MiB
+	maxNodeIDBytes          = 4 << 20
+	maxRetainedAddressBytes = 4 << 20
 	maxDiagnosticValueBytes = 256
 )
 

@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import {
 	type ChartConfig,
 	ChartContainer,
@@ -30,6 +31,9 @@ const meta: Meta<typeof ChartContainer> = {
 			<ChartContainer config={chartConfig}>
 				<AreaChart
 					accessibilityLayer
+					role="group"
+					aria-roledescription="chart"
+					title="Users"
 					data={chartData}
 					margin={{
 						left: 12,
@@ -53,7 +57,9 @@ const meta: Meta<typeof ChartContainer> = {
 					/>
 					<ChartTooltip
 						cursor={false}
-						content={<ChartTooltipContent indicator="dot" />}
+						content={(props) => (
+							<ChartTooltipContent {...props} indicator="dot" />
+						)}
 					/>
 					<Area
 						dataKey="users"
@@ -72,4 +78,33 @@ const meta: Meta<typeof ChartContainer> = {
 export default meta;
 type Story = StoryObj<typeof ChartContainer>;
 
-export const Default: Story = {};
+export const Default: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const chart = await canvas.findByRole("group", { name: "Users" });
+		const liveRegion = canvas.getByRole("status");
+
+		// Without formatters, the announcement uses the label, item name, and value.
+		chart.focus();
+		await waitFor(() =>
+			expect(liveRegion).toHaveTextContent(/^January Users 186$/),
+		);
+	},
+};
+
+export const TooltipHovered: Story = {
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("show the tooltip for the first data point", async () => {
+			// Wait for the chart to mount so it can receive focus.
+			await canvas.findByRole("group", { name: "Users" });
+			await userEvent.tab();
+			await userEvent.keyboard("{ArrowRight}");
+		});
+
+		await step("move the pointer onto the tooltip", async () => {
+			await userEvent.hover(await canvas.findByText("February"));
+		});
+	},
+};

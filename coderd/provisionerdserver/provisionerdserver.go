@@ -1500,13 +1500,9 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 					previousBuild = database.WorkspaceBuild{}
 				}
 
-				// We pass the below information to the Auditor so that it
-				// can form a friendly string for the user to view in the UI.
-				buildResourceInfo := audit.AdditionalFields{
-					WorkspaceName: workspace.Name,
-					BuildNumber:   strconv.FormatInt(int64(build.BuildNumber), 10),
-					BuildReason:   database.BuildReason(string(build.Reason)),
-					WorkspaceID:   workspace.ID,
+				buildResourceInfo, err := audit.WorkspaceBuildFields(ctx, s.Database, workspace, build)
+				if err != nil {
+					s.Logger.Error(ctx, "audit log - workspace build fields", slog.Error(err))
 				}
 
 				wriBytes, err := json.Marshal(buildResourceInfo)
@@ -1865,13 +1861,83 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 	return &proto.Empty{}, nil
 }
 
+// ensureModuleFiles stores a template import's module archive and returns
+// the ID of its files row. Archives are deduplicated by hash, so an
+// identical archive from an earlier or concurrent import is reused.
+func (s *server) ensureModuleFiles(ctx context.Context, data []byte) (uuid.UUID, error) {
+	hashBytes := sha256.Sum256(data)
+	hash := hex.EncodeToString(hashBytes[:])
+
+	//nolint:gocritic // Acting as provisionerd
+	file, err := s.Database.GetFileByHashAndCreator(dbauthz.AsProvisionerd(ctx), database.GetFileByHashAndCreatorParams{
+		Hash:      hash,
+		CreatedBy: uuid.Nil,
+	})
+	if err == nil {
+		return file.ID, nil
+	}
+	if !xerrors.Is(err, sql.ErrNoRows) {
+		return uuid.Nil, xerrors.Errorf("check for cached modules: %w", err)
+	}
+
+	//nolint:gocritic // Acting as provisionerd
+	file, err = s.Database.InsertFile(dbauthz.AsProvisionerd(ctx), database.InsertFileParams{
+		ID:        uuid.New(),
+		Hash:      hash,
+		CreatedBy: uuid.Nil,
+		CreatedAt: dbtime.Now(),
+		Mimetype:  tarMimeType,
+		Data:      data,
+	})
+	if err == nil {
+		return file.ID, nil
+	}
+	if !database.IsUniqueViolation(err, database.UniqueFilesHashCreatedByKey) {
+		return uuid.Nil, xerrors.Errorf("insert template version terraform modules: %w", err)
+	}
+
+	// A concurrent import stored the same archive after the lookup above.
+	//nolint:gocritic // Acting as provisionerd
+	file, err = s.Database.GetFileByHashAndCreator(dbauthz.AsProvisionerd(ctx), database.GetFileByHashAndCreatorParams{
+		Hash:      hash,
+		CreatedBy: uuid.Nil,
+	})
+	if err != nil {
+		return uuid.Nil, xerrors.Errorf("get concurrently inserted modules: %w", err)
+	}
+	return file.ID, nil
+}
+
 // completeTemplateImportJob handles completion of a template import job.
-// All database operations are performed within a transaction.
+// Apart from storing the module archive, all database operations are
+// performed within a transaction.
 func (s *server) completeTemplateImportJob(ctx context.Context, job database.ProvisionerJob, jobID uuid.UUID, jobType *proto.CompletedJob_TemplateImport_, telemetrySnapshot *telemetry.Snapshot) error {
 	var input TemplateVersionImportJob
 	err := json.Unmarshal(job.Input, &input)
 	if err != nil {
 		return xerrors.Errorf("template version ID is expected: %w", err)
+	}
+
+	// Keep plan parsing and traversal outside the transaction to avoid
+	// extending its duration for large plans.
+	// Failure to count script-order usage must not prevent import completion.
+	orderUsage, orderUsageErr := countScriptOrderUsage(jobType.TemplateImport.Plan)
+	if orderUsageErr != nil {
+		s.Logger.Warn(ctx, "count script order usage, skipping",
+			slog.F("job_id", jobID), slog.Error(orderUsageErr))
+	}
+
+	// Store the module archive before the transaction. Identical archives
+	// share one files row, so concurrent imports of the same archive would
+	// otherwise race on the unique hash constraint, and the loser's
+	// transaction would be aborted.
+	var moduleFilesID uuid.NullUUID
+	if moduleFiles := jobType.TemplateImport.ModuleFiles; len(moduleFiles) > 0 {
+		id, err := s.ensureModuleFiles(ctx, moduleFiles)
+		if err != nil {
+			return err
+		}
+		moduleFilesID = uuid.NullUUID{UUID: id, Valid: true}
 	}
 
 	// Execute all database operations in a transaction
@@ -2049,6 +2115,17 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 		if err != nil {
 			return xerrors.Errorf("update template version external agent: %w", err)
 		}
+		if orderUsageErr == nil {
+			err = db.UpdateTemplateVersionScriptOrderUsageByJobID(ctx, database.UpdateTemplateVersionScriptOrderUsageByJobIDParams{
+				JobID:                      jobID,
+				ScriptOrderDataSourceCount: orderUsage.dataSourceCount,
+				ScriptOrderRuleCount:       orderUsage.ruleCount,
+				UpdatedAt:                  now,
+			})
+			if err != nil {
+				return xerrors.Errorf("update template version script order usage: %w", err)
+			}
+		}
 
 		// Process terraform values
 		plan := jobType.TemplateImport.Plan
@@ -2062,42 +2139,8 @@ func (s *server) completeTemplateImportJob(ctx context.Context, job database.Pro
 				plan = []byte("{}")
 			}
 
-			// ...and we only want to insert a files row if an archive was provided.
-			var fileID uuid.NullUUID
-			if len(moduleFiles) > 0 {
-				hashBytes := sha256.Sum256(moduleFiles)
-				hash := hex.EncodeToString(hashBytes[:])
-
-				//nolint:gocritic // Acting as provisionerd
-				file, err := db.GetFileByHashAndCreator(dbauthz.AsProvisionerd(ctx), database.GetFileByHashAndCreatorParams{Hash: hash, CreatedBy: uuid.Nil})
-				switch {
-				case err == nil:
-					// This set of modules is already cached, which means we can reuse them
-					fileID = uuid.NullUUID{
-						Valid: true,
-						UUID:  file.ID,
-					}
-				case !xerrors.Is(err, sql.ErrNoRows):
-					return xerrors.Errorf("check for cached modules: %w", err)
-				default:
-					//nolint:gocritic // Acting as provisionerd
-					file, err = db.InsertFile(dbauthz.AsProvisionerd(ctx), database.InsertFileParams{
-						ID:        uuid.New(),
-						Hash:      hash,
-						CreatedBy: uuid.Nil,
-						CreatedAt: dbtime.Now(),
-						Mimetype:  tarMimeType,
-						Data:      moduleFiles,
-					})
-					if err != nil {
-						return xerrors.Errorf("insert template version terraform modules: %w", err)
-					}
-					fileID = uuid.NullUUID{
-						Valid: true,
-						UUID:  file.ID,
-					}
-				}
-			}
+			// ...and the files row only exists if an archive was provided.
+			fileID := moduleFilesID
 
 			if len(jobType.TemplateImport.ModuleFilesHash) > 0 {
 				hashString := hex.EncodeToString(jobType.TemplateImport.ModuleFilesHash)
@@ -2432,6 +2475,16 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			}()
 		}
 
+		// The previous build's agent may run until this job completes, so its
+		// secret values are kept live until now.
+		//nolint:gocritic // Clearing superseded secrets is bookkeeping, not a user write.
+		if err := db.ClearWorkspaceSecretsBeforeBuild(dbauthz.AsWorkspaceSecretManager(ctx), database.ClearWorkspaceSecretsBeforeBuildParams{
+			WorkspaceID:      workspaceBuild.WorkspaceID,
+			WorkspaceBuildID: workspaceBuild.ID,
+		}); err != nil {
+			return xerrors.Errorf("clear previous workspace secrets: %w", err)
+		}
+
 		if workspaceBuild.Transition != database.WorkspaceTransitionDelete {
 			// This is for deleting a workspace!
 			return nil
@@ -2443,6 +2496,12 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 		})
 		if err != nil {
 			return xerrors.Errorf("update workspace deleted: %w", err)
+		}
+
+		// Deleted workspaces keep their rows, so drop the secret values.
+		//nolint:gocritic // Clearing a deleted workspace's secrets is bookkeeping, not a user write.
+		if err := db.ClearWorkspaceSecretsByWorkspaceID(dbauthz.AsWorkspaceSecretManager(ctx), workspaceBuild.WorkspaceID); err != nil {
+			return xerrors.Errorf("clear workspace secrets: %w", err)
 		}
 
 		// Soft-delete any agents tied to this workspace so the
@@ -2481,13 +2540,9 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 			previousBuild = database.WorkspaceBuild{}
 		}
 
-		// We pass the below information to the Auditor so that it
-		// can form a friendly string for the user to view in the UI.
-		buildResourceInfo := audit.AdditionalFields{
-			WorkspaceName: workspace.Name,
-			BuildNumber:   strconv.FormatInt(int64(workspaceBuild.BuildNumber), 10),
-			BuildReason:   database.BuildReason(string(workspaceBuild.Reason)),
-			WorkspaceID:   workspace.ID,
+		buildResourceInfo, err := audit.WorkspaceBuildFields(ctx, s.Database, workspace, workspaceBuild)
+		if err != nil {
+			s.Logger.Error(ctx, "audit log - workspace build fields", slog.Error(err))
 		}
 
 		wriBytes, err := json.Marshal(buildResourceInfo)
@@ -3805,6 +3860,13 @@ func insertAgentApp(ctx context.Context, db database.Store, agentID uuid.UUID, a
 		return xerrors.Errorf("duplicate app slug, must be unique per template: %q", slug)
 	}
 	appSlugs[slug] = struct{}{}
+
+	// Don't rely on the provisioner having validated the URL.
+	if app.External && app.Url != "" {
+		if err := provisioner.ValidateExternalURL(app.Url); err != nil {
+			return xerrors.Errorf("invalid external url %q for app %q: %w", app.Url, slug, err)
+		}
+	}
 
 	health := database.WorkspaceAppHealthDisabled
 	healthcheck := app.GetHealthcheck()

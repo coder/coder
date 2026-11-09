@@ -33,10 +33,10 @@ func NewFakeSink(t testing.TB) *FakeSink {
 // internal slice.
 func (s *FakeSink) LogEntry(_ context.Context, e slog.SinkEntry) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.entries = append(s.entries, e)
-	shouldLog := !s.tDone
-	s.mu.Unlock()
-	if shouldLog {
+	// Cleanup must wait for in-flight test logs before marking the test done.
+	if !s.tDone {
 		s.t.Log(e.Message, e.Fields)
 	}
 }
