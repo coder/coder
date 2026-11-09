@@ -64,5 +64,6 @@ ORDER BY
     refreshed_at DESC NULLS LAST,
     updated_at DESC,
     chat_id
--- Keep all fields of existing root rows.
+-- Preserve the root chat's metadata and report times so moving duplicate
+-- refs does not reorder refs the root chat already tracks.
 ON CONFLICT (chat_id, git_remote_origin, git_branch) DO NOTHING;
