@@ -25,30 +25,38 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 	org := dbgen.Organization(t, db, database.Organization{})
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: org.ID})
 
-	var chatIDs []uuid.UUID
-	newChat := func(parentID, rootID uuid.NullUUID) database.Chat {
+	newChat := func(parentID, rootID uuid.UUID) database.Chat {
 		t.Helper()
-		chat := dbgen.Chat(t, db, database.Chat{
+		return dbgen.Chat(t, db, database.Chat{
 			OrganizationID:    org.ID,
 			OwnerID:           user.ID,
 			LastModelConfigID: model.ID,
-			ParentChatID:      parentID,
-			RootChatID:        rootID,
+			ParentChatID:      uuid.NullUUID{UUID: parentID, Valid: parentID != uuid.Nil},
+			RootChatID:        uuid.NullUUID{UUID: rootID, Valid: rootID != uuid.Nil},
 		})
-		chatIDs = append(chatIDs, chat.ID)
-		return chat
 	}
-	root := newChat(uuid.NullUUID{}, uuid.NullUUID{})
-	rootID := uuid.NullUUID{UUID: root.ID, Valid: true}
-	child := newChat(rootID, rootID)
-	grandchild := newChat(uuid.NullUUID{UUID: child.ID, Valid: true}, rootID)
-	withoutRootID := newChat(rootID, uuid.NullUUID{})
-	otherRoot := newChat(uuid.NullUUID{}, uuid.NullUUID{})
-	archivedRoot := newChat(uuid.NullUUID{}, uuid.NullUUID{})
-	archivedRootID := uuid.NullUUID{UUID: archivedRoot.ID, Valid: true}
-	archivedChild := newChat(archivedRootID, archivedRootID)
+
+	root := newChat(uuid.Nil, uuid.Nil)
+	child := newChat(root.ID, root.ID)
+	grandchild := newChat(child.ID, root.ID)
+	withoutRootID := newChat(root.ID, uuid.Nil)
+
+	otherRoot := newChat(uuid.Nil, uuid.Nil)
+
+	archivedRoot := newChat(uuid.Nil, uuid.Nil)
+	archivedChild := newChat(archivedRoot.ID, archivedRoot.ID)
 	_, err := db.ArchiveChatByID(ctx, archivedRoot.ID)
 	require.NoError(t, err)
+
+	chatIDs := []uuid.UUID{
+		root.ID,
+		child.ID,
+		grandchild.ID,
+		withoutRootID.ID,
+		otherRoot.ID,
+		archivedRoot.ID,
+		archivedChild.ID,
+	}
 
 	origin := "https://github.com/coder/coder"
 	refreshedAt := dbtime.Now().Add(-time.Hour)
@@ -81,24 +89,30 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 		return status
 	}
 
-	// Keep existing root metadata even if a subagent was refreshed later.
+	// Keep existing root metadata even if a subagent chat's row was refreshed
+	// later.
 	rootStatus := seedStatus(root, "shared", origin, refreshedAt.Add(-time.Hour))
 	seedStatus(child, "shared", origin, refreshedAt)
 	seedStatus(grandchild, "shared", origin, refreshedAt)
 
-	// Without a root row, keep the most recently refreshed subagent row.
+	// Without a root row, keep the most recently refreshed row from a
+	// subagent chat.
 	seedStatus(child, "subagent-only", origin, refreshedAt.Add(-time.Hour))
 	subagentStatus := seedStatus(grandchild, "subagent-only", origin, refreshedAt)
-	subagentStatus.ChatID = root.ID
 
+	// The same branch on another origin is a separate ref.
 	otherOriginStatus := seedStatus(child, "shared", "https://github.com/coder/other", refreshedAt)
-	otherOriginStatus.ChatID = root.ID
+
+	// A subagent chat without root_chat_id uses its parent.
 	fallbackStatus := seedStatus(withoutRootID, "fallback", origin, refreshedAt)
-	fallbackStatus.ChatID = root.ID
+
+	// Refs from archived subagent chats also move to the root chat.
 	archivedStatus := seedStatus(archivedChild, "archived", origin, refreshedAt)
-	archivedStatus.ChatID = archivedRoot.ID
+
+	// An unrelated root chat retains its row for the same ref.
 	otherRootStatus := seedStatus(otherRoot, "shared", origin, refreshedAt)
 
+	// Refs without PR metadata also move to the root chat.
 	noPRStatus, err := db.UpsertChatDiffStatusReference(ctx, database.UpsertChatDiffStatusReferenceParams{
 		ChatID:          child.ID,
 		GitRemoteOrigin: origin,
@@ -106,21 +120,24 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 		StaleAt:         refreshedAt,
 	})
 	require.NoError(t, err)
-	noPRStatus.ChatID = root.ID
 
+	movedTo := func(chat database.Chat, status database.ChatDiffStatus) database.ChatDiffStatus {
+		status.ChatID = chat.ID
+		return status
+	}
 	want := []database.ChatDiffStatus{
 		rootStatus,
-		subagentStatus,
-		otherOriginStatus,
-		fallbackStatus,
-		archivedStatus,
+		movedTo(root, subagentStatus),
+		movedTo(root, otherOriginStatus),
+		movedTo(root, fallbackStatus),
+		movedTo(archivedRoot, archivedStatus),
 		otherRootStatus,
-		noPRStatus,
+		movedTo(root, noPRStatus),
 	}
 
 	stepTo(t, sqlDB, 641)
+
 	statuses, err := db.GetChatDiffStatusesByChatIDs(ctx, chatIDs)
 	require.NoError(t, err)
-	require.Len(t, statuses, len(want))
 	require.ElementsMatch(t, want, statuses)
 }
