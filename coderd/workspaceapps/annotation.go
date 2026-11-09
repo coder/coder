@@ -56,7 +56,11 @@ func stripAnnotationParam(rawQuery string) (value string, found bool, rest strin
 		}
 		if !found {
 			found = true
-			value, _ = url.QueryUnescape(rawValue)
+			// A value that does not unescape cannot be "1", so it is treated
+			// as absent while the marker is still removed.
+			if unescaped, err := url.QueryUnescape(rawValue); err == nil {
+				value = unescaped
+			}
 		}
 	}
 	return value, found, strings.Join(kept, "&")
