@@ -15,7 +15,7 @@ const (
 	// average less than 2 KiB of cached data.
 	defaultResponseCacheEntries = 65536
 
-	// defaultResponseCacheBytes bounds cached keys, ETags and body buffers.
+	// defaultResponseCacheBytes bounds keys, ETags and projection buffers.
 	defaultResponseCacheBytes = 128 << 20 // 128 MiB
 
 	// maxCachedBodyBytes is the largest encoded JSON projection retained.
@@ -58,8 +58,8 @@ type responseCache struct {
 }
 
 // newResponseCache constructs an empty cache retaining at most maxSize
-// entries and maxBytes of keys, ETags and body buffers. Non-positive limits
-// fall back to the defaults.
+// entries and maxBytes of keys, ETags and projection buffers. Non-positive
+// limits fall back to the defaults.
 func newResponseCache(maxSize, maxBytes int) *responseCache {
 	if maxSize <= 0 {
 		maxSize = defaultResponseCacheEntries

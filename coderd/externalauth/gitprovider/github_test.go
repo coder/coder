@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
+	"github.com/coder/quartz"
 )
 
 func TestGitHubParseRepositoryOrigin(t *testing.T) {
@@ -728,16 +729,35 @@ func TestFetchPullRequestStatus(t *testing.T) {
 			changesRequested: false,
 		},
 		{
-			name:             "MergedPR",
-			pullJSON:         `{"state":"closed","merged":true,"draft":false,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123","ref":"feature-branch"}}`,
-			reviews:          []review{},
+			name: "MergedPR",
+			pullJSON: `{
+				"title":"Merged PR",
+				"state":"closed","merged":true,"draft":false,
+				"additions":10,"deletions":5,"changed_files":3,
+				"number":42,"commits":3,
+				"head":{"sha":"abc123","ref":"feature-branch"},
+				"base":{"ref":"main"},
+				"user":{"login":"author","avatar_url":"https://example.com/avatar.png"}
+			}`,
+			reviews: []review{
+				makeReview(1, "APPROVED", "alice"),
+				makeReview(2, "CHANGES_REQUESTED", "bob"),
+			},
 			expectedState:    gitprovider.PRStateMerged,
-			changesRequested: false,
+			changesRequested: true,
 		},
 		{
-			name:             "DraftPR",
-			pullJSON:         `{"state":"open","merged":false,"draft":true,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123","ref":"feature-branch"}}`,
-			reviews:          []review{},
+			name: "DraftPR",
+			pullJSON: `{
+				"title":"Draft PR",
+				"state":"open","merged":false,"draft":true,
+				"additions":10,"deletions":5,"changed_files":3,
+				"number":42,"commits":3,
+				"head":{"sha":"abc123","ref":"feature-branch"},
+				"base":{"ref":"main"},
+				"user":{"login":"author","avatar_url":null}
+			}`,
+			reviews:          []review{makeReview(1, "APPROVED", "alice")},
 			expectedState:    gitprovider.PRStateOpen,
 			expectedDraft:    true,
 			changesRequested: false,
@@ -752,25 +772,34 @@ func TestFetchPullRequestStatus(t *testing.T) {
 			reviewsJSON, err := json.Marshal(tc.reviews)
 			require.NoError(t, err)
 
+			var conditionalRequests atomic.Int64
+			serveJSON := func(etag string, body []byte) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("ETag", etag)
+					if conditional := r.Header.Get("If-None-Match"); conditional != "" {
+						assert.Equal(t, etag, conditional)
+						conditionalRequests.Add(1)
+						w.WriteHeader(http.StatusNotModified)
+						return
+					}
+
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write(body)
+				}
+			}
 			mux := http.NewServeMux()
-			mux.HandleFunc("/api/v3/repos/owner/repo/pulls/1/reviews", func(w http.ResponseWriter, _ *http.Request) {
-				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write(reviewsJSON)
-			})
-			mux.HandleFunc("/api/v3/repos/owner/repo/pulls/1", func(w http.ResponseWriter, _ *http.Request) {
-				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(tc.pullJSON))
-			})
+			mux.HandleFunc("/api/v3/repos/owner/repo/pulls/1/reviews", serveJSON(`"reviews"`, reviewsJSON))
+			mux.HandleFunc("/api/v3/repos/owner/repo/pulls/1", serveJSON(`"pull"`, []byte(tc.pullJSON)))
 
 			srv := httptest.NewServer(mux)
 			defer srv.Close()
 
-			gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+			clock := quartz.NewMock(t)
+			gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client(), gitprovider.WithClock(clock))
 			require.NoError(t, err)
 
 			require.NotNil(t, gp)
 
-			before := time.Now().UTC()
 			status, err := gp.FetchPullRequestStatus(
 				context.Background(),
 				"test-token",
@@ -787,7 +816,17 @@ func TestFetchPullRequestStatus(t *testing.T) {
 			assert.Equal(t, int32(5), status.DiffStats.Deletions)
 			assert.Equal(t, int32(3), status.DiffStats.ChangedFiles)
 			assert.False(t, status.FetchedAt.IsZero())
-			assert.True(t, !status.FetchedAt.Before(before), "FetchedAt should be >= test start time")
+			assert.Equal(t, clock.Now().UTC(), status.FetchedAt)
+			require.Zero(t, conditionalRequests.Load())
+
+			warm, err := gp.FetchPullRequestStatus(
+				context.Background(),
+				"test-token",
+				gitprovider.PRRef{Owner: "owner", Repo: "repo", Number: 1},
+			)
+			require.NoError(t, err)
+			require.Equal(t, status, warm)
+			require.EqualValues(t, 2, conditionalRequests.Load())
 		})
 	}
 }
