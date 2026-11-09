@@ -3,10 +3,14 @@ import { cn } from "cn";
 import { SquareArrowOutUpRightIcon } from "lucide-react";
 import { Slot } from "radix-ui";
 
-// py-1 -my-1 meets the WCAG 2.5.8 24px target without shifting layout, and the
-// hover underline (bottom-1.25) relies on py-1. Override with pl-0, not p-0;
-// subtract 4px from added vertical margin, or set my-0 when replacing padding.
-// w-fit keeps flex and grid parents from stretching the link past its text.
+/**
+ * py-1 -my-1 meets the WCAG 2.5.8 minimum pointer target size of 24px without
+ * shifting layout, and the hover underline (bottom-1.25) relies on py-1. w-fit
+ * keeps flex and grid parents from stretching the link past its text.
+ *
+ * Override with pl-0, not p-0; subtract 4px from added vertical margin, or
+ * set my-0 when replacing padding.
+ */
 const linkVariants = cva(
 	`relative inline-flex items-center no-underline font-medium text-content-link hover:cursor-pointer
 	 w-fit py-1 -my-1
