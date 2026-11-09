@@ -82,7 +82,8 @@ const parseRelativeDate = (
 	value: string | undefined,
 	now: Date,
 ): Date | undefined => {
-	const match = value === undefined ? null : RELATIVE_DATE_PATTERN.exec(value);
+	const match =
+		value === undefined ? null : RELATIVE_DATE_PATTERN.exec(value.trim());
 	if (!match) {
 		return undefined;
 	}
