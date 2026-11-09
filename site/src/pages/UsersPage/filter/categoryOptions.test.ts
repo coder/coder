@@ -2,12 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import type { Role } from "#/api/typesGenerated";
 import type { FilterOption } from "#/components/Filter/FilterCombobox/types";
 import { MockOwnerRole } from "#/testHelpers/entities";
+import type { OptionsQueryClient } from "#/utils/filters";
 import {
 	getRoleFilterOptions,
 	getStatusFilterOptions,
 	getUserTypeFilterOptions,
 } from "./categoryOptions";
-import type { OptionsQueryClient } from "#/utils/filters";
 
 const labelsAndValues = (options: readonly FilterOption[]) =>
 	options.map(({ label, value }) => ({ label, value }));
