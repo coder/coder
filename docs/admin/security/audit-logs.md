@@ -816,6 +816,7 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>created_at</code></td><td>No</td></tr>
 <tr><td><code>deleted</code></td><td>Yes</td></tr>
 <tr><td><code>email</code></td><td>Yes</td></tr>
+<tr><td><code>git_sync_retry_after</code></td><td>No</td></tr>
 <tr><td><code>github_com_user_id</code></td><td>No</td></tr>
 <tr><td><code>hashed_one_time_passcode</code></td><td>No</td></tr>
 <tr><td><code>hashed_password</code></td><td>Yes</td></tr>

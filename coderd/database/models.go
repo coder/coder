@@ -6734,6 +6734,8 @@ type User struct {
 	// Determines if a user is an admin-managed account that cannot login
 	IsServiceAccount     bool          `db:"is_service_account" json:"is_service_account"`
 	ChatSpendLimitMicros sql.NullInt64 `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
+	// The earliest time gitsync may refresh this user after a provider rate limit.
+	GitSyncRetryAfter sql.NullTime `db:"git_sync_retry_after" json:"git_sync_retry_after"`
 }
 
 // Per-user AI spend override that supersedes group budget resolution.

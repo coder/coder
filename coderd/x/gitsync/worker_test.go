@@ -28,6 +28,12 @@ import (
 	"github.com/coder/quartz"
 )
 
+func newTestStore(ctrl *gomock.Controller) *dbmock.MockStore {
+	store := dbmock.NewMockStore(ctrl)
+	store.EXPECT().GetChatGitSyncRetryAfter(gomock.Any(), gomock.Any()).Return(sql.NullTime{}, nil).AnyTimes()
+	return store
+}
+
 // testRefresherCfg configures newTestRefresher.
 type testRefresherCfg struct {
 	resolveBranchPR func(context.Context, string, gitprovider.BranchRef) (*gitprovider.PRRef, error)
@@ -152,10 +158,10 @@ func TestWorker_SkipsFreshRows(t *testing.T) {
 	tickDone := make(chan struct{})
 
 	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
+	store := newTestStore(ctrl)
 
 	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(context.Context, int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
+		DoAndReturn(func(context.Context, database.AcquireStaleChatDiffStatusesParams) ([]database.AcquireStaleChatDiffStatusesRow, error) {
 			// No stale rows — tick returns immediately.
 			close(tickDone)
 			return nil, nil
@@ -185,11 +191,11 @@ func TestWorker_LimitsToNRows(t *testing.T) {
 	}
 
 	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
+	store := newTestStore(ctrl)
 
 	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(_ context.Context, limitVal int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
-			capturedLimit.Store(limitVal)
+		DoAndReturn(func(_ context.Context, arg database.AcquireStaleChatDiffStatusesParams) ([]database.AcquireStaleChatDiffStatusesRow, error) {
+			capturedLimit.Store(arg.LimitVal)
 			return rows, nil
 		})
 	store.EXPECT().UpsertChatDiffStatus(gomock.Any(), gomock.Any()).
@@ -231,7 +237,7 @@ func TestWorker_NoPR_RecentMarkStale_BacksOffShort(t *testing.T) {
 	tickDone := make(chan struct{})
 
 	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
+	store := newTestStore(ctrl)
 
 	mClock := quartz.NewMock(t)
 
@@ -279,7 +285,7 @@ func TestWorker_NoPR_OldRow_Skips(t *testing.T) {
 	tickDone := make(chan struct{})
 
 	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
+	store := newTestStore(ctrl)
 
 	mClock := quartz.NewMock(t)
 
@@ -318,7 +324,7 @@ func TestWorker_NoPR_BoundaryExactWindow_Skips(t *testing.T) {
 	tickDone := make(chan struct{})
 
 	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
+	store := newTestStore(ctrl)
 
 	mClock := quartz.NewMock(t)
 
@@ -359,7 +365,7 @@ func TestWorker_NoPR_BackoffError_ContinuesNextRow(t *testing.T) {
 	var closeOnce sync.Once
 
 	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
+	store := newTestStore(ctrl)
 
 	mClock := quartz.NewMock(t)
 
@@ -427,7 +433,7 @@ func TestWorker_RefresherError_BacksOffRow(t *testing.T) {
 	mClock := quartz.NewMock(t)
 
 	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
+	store := newTestStore(ctrl)
 
 	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
 		Return([]database.AcquireStaleChatDiffStatusesRow{
@@ -518,7 +524,7 @@ func TestWorker_UpsertError_ContinuesNextRow(t *testing.T) {
 	}
 
 	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
+	store := newTestStore(ctrl)
 
 	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
 		Return([]database.AcquireStaleChatDiffStatusesRow{
@@ -564,7 +570,7 @@ func TestWorker_RespectsShutdown(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
+	store := newTestStore(ctrl)
 
 	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
 		Return(nil, nil).AnyTimes()
@@ -608,7 +614,7 @@ func TestWorker_MarkStale_UpsertAndPublish(t *testing.T) {
 	var publishedIDs []uuid.UUID
 
 	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
+	store := newTestStore(ctrl)
 
 	store.EXPECT().GetChatsByWorkspaceIDs(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(_ context.Context, ids []uuid.UUID) ([]database.Chat, error) {
@@ -675,7 +681,7 @@ func TestWorker_MarkStale_NoMatchingChats(t *testing.T) {
 	workspaceID := uuid.New()
 
 	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
+	store := newTestStore(ctrl)
 
 	store.EXPECT().GetChatsByWorkspaceIDs(gomock.Any(), gomock.Any()).
 		Return(nil, nil)
@@ -704,7 +710,7 @@ func TestWorker_MarkStale_UpsertFails_ContinuesNext(t *testing.T) {
 	var publishCount atomic.Int32
 
 	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
+	store := newTestStore(ctrl)
 
 	store.EXPECT().GetChatsByWorkspaceIDs(gomock.Any(), gomock.Any()).
 		Return([]database.Chat{
@@ -748,7 +754,7 @@ func TestWorker_MarkStale_GetChatsByWorkspaceIDsFails(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
+	store := newTestStore(ctrl)
 
 	store.EXPECT().GetChatsByWorkspaceIDs(gomock.Any(), gomock.Any()).
 		Return(nil, xerrors.New("db error"))
@@ -772,10 +778,10 @@ func TestWorker_TickStoreError(t *testing.T) {
 	tickDone := make(chan struct{})
 
 	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
+	store := newTestStore(ctrl)
 
 	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(context.Context, int32) ([]database.AcquireStaleChatDiffStatusesRow, error) {
+		DoAndReturn(func(context.Context, database.AcquireStaleChatDiffStatusesParams) ([]database.AcquireStaleChatDiffStatusesRow, error) {
 			close(tickDone)
 			return nil, xerrors.New("database unavailable")
 		})
@@ -807,7 +813,7 @@ func TestWorker_MarkStale_EmptyBranchOrOrigin(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 
 			ctrl := gomock.NewController(t)
-			store := dbmock.NewMockStore(ctrl)
+			store := newTestStore(ctrl)
 
 			mClock := quartz.NewMock(t)
 			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
@@ -845,7 +851,7 @@ func TestWorker_MarkStale_StripsOriginCredentials(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 
 			ctrl := gomock.NewController(t)
-			store := dbmock.NewMockStore(ctrl)
+			store := newTestStore(ctrl)
 
 			chatID := uuid.New()
 			workspaceID := uuid.New()
@@ -1105,7 +1111,7 @@ func TestWorker_MarkStale_NilChatID_Broadcasts(t *testing.T) {
 	var publishedIDs []uuid.UUID
 
 	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
+	store := newTestStore(ctrl)
 
 	// Broadcast path: GetChatsByWorkspaceIDs scopes the query to
 	// the workspace directly.
@@ -1204,6 +1210,7 @@ func TestWorker(t *testing.T) {
 
 	// 5. Mock refresher returns a canned PR status.
 	mClock := quartz.NewMock(t)
+	mClock.Set(time.Now()).MustWait(ctx)
 	refresher := newTestRefresher(t, mClock)
 
 	// 6. Track publish calls.
@@ -1403,6 +1410,7 @@ func TestWorker_RefreshDoesNotReorderPrimary(t *testing.T) {
 	require.Equal(t, "new", db2sdk.PrimaryChatDiffStatus(before).GitBranch)
 
 	mClock := quartz.NewMock(t)
+	mClock.Set(time.Now()).MustWait(ctx)
 	tickDone := make(chan struct{})
 	pub := func(context.Context, uuid.UUID, codersdk.DiffStatusRef) error {
 		close(tickDone)
@@ -1459,7 +1467,7 @@ func TestWorker_NoTokenBackoff(t *testing.T) {
 	mClock := quartz.NewMock(t)
 
 	ctrl := gomock.NewController(t)
-	store := dbmock.NewMockStore(ctrl)
+	store := newTestStore(ctrl)
 
 	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
 		Return([]database.AcquireStaleChatDiffStatusesRow{

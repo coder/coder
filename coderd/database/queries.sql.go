@@ -8567,7 +8567,7 @@ WITH acquired AS (
         -- Claim for 5 minutes. The worker sets the real stale_at
         -- after refresh. If the worker crashes, rows become eligible
         -- again after this interval.
-        stale_at = NOW() + INTERVAL '5 minutes'
+        stale_at = ($1::timestamptz) + INTERVAL '5 minutes'
     WHERE
         (chat_id, git_remote_origin, git_branch) IN (
             SELECT
@@ -8578,8 +8578,11 @@ WITH acquired AS (
                 chat_diff_statuses cds
             INNER JOIN
                 chats c ON c.id = cds.chat_id
+            INNER JOIN
+                users u ON u.id = c.owner_id
             WHERE
-                cds.stale_at <= NOW()
+                cds.stale_at <= $1::timestamptz
+                AND (u.git_sync_retry_after IS NULL OR u.git_sync_retry_after <= $1::timestamptz)
                 AND cds.git_remote_origin != ''
                 AND cds.git_branch != ''
                 AND c.archived = FALSE
@@ -8588,7 +8591,7 @@ WITH acquired AS (
             FOR UPDATE OF cds
                 SKIP LOCKED
             LIMIT
-                $1::int
+                $2::int
         )
     RETURNING chat_id, url, pull_request_state, changes_requested, additions, deletions, changed_files, refreshed_at, stale_at, created_at, updated_at, git_branch, git_remote_origin, pull_request_title, pull_request_draft, author_login, author_avatar_url, base_branch, pr_number, commits, approved, reviewer_count, head_branch
 )
@@ -8600,6 +8603,11 @@ FROM
 INNER JOIN
     chats c ON c.id = acquired.chat_id
 `
+
+type AcquireStaleChatDiffStatusesParams struct {
+	Now      time.Time `db:"now" json:"now"`
+	LimitVal int32     `db:"limit_val" json:"limit_val"`
+}
 
 type AcquireStaleChatDiffStatusesRow struct {
 	ChatID           uuid.UUID      `db:"chat_id" json:"chat_id"`
@@ -8628,8 +8636,8 @@ type AcquireStaleChatDiffStatusesRow struct {
 	OwnerID          uuid.UUID      `db:"owner_id" json:"owner_id"`
 }
 
-func (q *sqlQuerier) AcquireStaleChatDiffStatuses(ctx context.Context, limitVal int32) ([]AcquireStaleChatDiffStatusesRow, error) {
-	rows, err := q.db.QueryContext(ctx, acquireStaleChatDiffStatuses, limitVal)
+func (q *sqlQuerier) AcquireStaleChatDiffStatuses(ctx context.Context, arg AcquireStaleChatDiffStatusesParams) ([]AcquireStaleChatDiffStatusesRow, error) {
+	rows, err := q.db.QueryContext(ctx, acquireStaleChatDiffStatuses, arg.Now, arg.LimitVal)
 	if err != nil {
 		return nil, err
 	}
@@ -9064,6 +9072,22 @@ func (q *sqlQuerier) BackoffChatDiffStatus(ctx context.Context, arg BackoffChatD
 		arg.GitRemoteOrigin,
 		arg.GitBranch,
 	)
+	return err
+}
+
+const backoffChatGitSync = `-- name: BackoffChatGitSync :exec
+UPDATE users
+SET git_sync_retry_after = GREATEST(git_sync_retry_after, $1::timestamptz)
+WHERE id = $2::uuid
+`
+
+type BackoffChatGitSyncParams struct {
+	RetryAfter time.Time `db:"retry_after" json:"retry_after"`
+	OwnerID    uuid.UUID `db:"owner_id" json:"owner_id"`
+}
+
+func (q *sqlQuerier) BackoffChatGitSync(ctx context.Context, arg BackoffChatGitSyncParams) error {
+	_, err := q.db.ExecContext(ctx, backoffChatGitSync, arg.RetryAfter, arg.OwnerID)
 	return err
 }
 
@@ -10273,6 +10297,17 @@ func (q *sqlQuerier) GetChatFamilyIDsByRootID(ctx context.Context, id uuid.UUID)
 		return nil, err
 	}
 	return items, nil
+}
+
+const getChatGitSyncRetryAfter = `-- name: GetChatGitSyncRetryAfter :one
+SELECT git_sync_retry_after FROM users WHERE id = $1::uuid
+`
+
+func (q *sqlQuerier) GetChatGitSyncRetryAfter(ctx context.Context, ownerID uuid.UUID) (sql.NullTime, error) {
+	row := q.db.QueryRowContext(ctx, getChatGitSyncRetryAfter, ownerID)
+	var git_sync_retry_after sql.NullTime
+	err := row.Scan(&git_sync_retry_after)
+	return git_sync_retry_after, err
 }
 
 const getChatHeartbeat = `-- name: GetChatHeartbeat :one
@@ -34413,7 +34448,7 @@ func (q *sqlQuerier) GetUserAppearanceSettings(ctx context.Context, userID uuid.
 
 const getUserByEmailOrUsername = `-- name: GetUserByEmailOrUsername :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, git_sync_retry_after
 FROM
 	users
 WHERE
@@ -34452,13 +34487,14 @@ func (q *sqlQuerier) GetUserByEmailOrUsername(ctx context.Context, arg GetUserBy
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
+		&i.GitSyncRetryAfter,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, git_sync_retry_after
 FROM
 	users
 WHERE
@@ -34491,6 +34527,7 @@ func (q *sqlQuerier) GetUserByID(ctx context.Context, id uuid.UUID) (User, error
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
+		&i.GitSyncRetryAfter,
 	)
 	return i, err
 }
@@ -34598,7 +34635,7 @@ func (q *sqlQuerier) GetUserCount(ctx context.Context, includeSystem bool) (int6
 }
 
 const getUserForChatSyntheticAPIKeyByID = `-- name: GetUserForChatSyntheticAPIKeyByID :one
-SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, git_sync_retry_after
 FROM users
 WHERE id = $1::uuid
 `
@@ -34627,6 +34664,7 @@ func (q *sqlQuerier) GetUserForChatSyntheticAPIKeyByID(ctx context.Context, id u
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
+		&i.GitSyncRetryAfter,
 	)
 	return i, err
 }
@@ -34667,7 +34705,7 @@ func (q *sqlQuerier) GetUserThinkingDisplayMode(ctx context.Context, userID uuid
 
 const getUsers = `-- name: GetUsers :many
 SELECT
-	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, COUNT(*) OVER() AS count
+	id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, git_sync_retry_after, COUNT(*) OVER() AS count
 FROM
 	users
 WHERE
@@ -34833,6 +34871,7 @@ type GetUsersRow struct {
 	IsSystem                 bool           `db:"is_system" json:"is_system"`
 	IsServiceAccount         bool           `db:"is_service_account" json:"is_service_account"`
 	ChatSpendLimitMicros     sql.NullInt64  `db:"chat_spend_limit_micros" json:"chat_spend_limit_micros"`
+	GitSyncRetryAfter        sql.NullTime   `db:"git_sync_retry_after" json:"git_sync_retry_after"`
 	Count                    int64          `db:"count" json:"count"`
 }
 
@@ -34885,6 +34924,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 			&i.IsSystem,
 			&i.IsServiceAccount,
 			&i.ChatSpendLimitMicros,
+			&i.GitSyncRetryAfter,
 			&i.Count,
 		); err != nil {
 			return nil, err
@@ -34901,7 +34941,7 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 }
 
 const getUsersByIDs = `-- name: GetUsersByIDs :many
-SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros FROM users WHERE id = ANY($1 :: uuid [ ])
+SELECT id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, git_sync_retry_after FROM users WHERE id = ANY($1 :: uuid [ ])
 `
 
 // This shouldn't check for deleted, because it's frequently used
@@ -34937,6 +34977,7 @@ func (q *sqlQuerier) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User
 			&i.IsSystem,
 			&i.IsServiceAccount,
 			&i.ChatSpendLimitMicros,
+			&i.GitSyncRetryAfter,
 		); err != nil {
 			return nil, err
 		}
@@ -34976,7 +35017,7 @@ VALUES
 			CASE WHEN $11::bool THEN 'active'::user_status ELSE 'dormant'::user_status END
 		),
 		$11::bool
-	) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
+	) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, git_sync_retry_after
 `
 
 type InsertUserParams struct {
@@ -35029,6 +35070,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
+		&i.GitSyncRetryAfter,
 	)
 	return i, err
 }
@@ -35271,7 +35313,7 @@ SET
 WHERE
 	LOWER(email) = LOWER($3)
 	AND deleted = false
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, git_sync_retry_after
 `
 
 type UpdateUserEmailParams struct {
@@ -35304,6 +35346,7 @@ func (q *sqlQuerier) UpdateUserEmail(ctx context.Context, arg UpdateUserEmailPar
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
+		&i.GitSyncRetryAfter,
 	)
 	return i, err
 }
@@ -35376,7 +35419,7 @@ SET
 	last_seen_at = $2,
 	updated_at = $3
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, git_sync_retry_after
 `
 
 type UpdateUserLastSeenAtParams struct {
@@ -35409,6 +35452,7 @@ func (q *sqlQuerier) UpdateUserLastSeenAt(ctx context.Context, arg UpdateUserLas
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
+		&i.GitSyncRetryAfter,
 	)
 	return i, err
 }
@@ -35428,7 +35472,7 @@ SET
 WHERE
 	id = $2
 	AND NOT is_system
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, git_sync_retry_after
 `
 
 type UpdateUserLoginTypeParams struct {
@@ -35460,6 +35504,7 @@ func (q *sqlQuerier) UpdateUserLoginType(ctx context.Context, arg UpdateUserLogi
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
+		&i.GitSyncRetryAfter,
 	)
 	return i, err
 }
@@ -35475,7 +35520,7 @@ SET
 	name = $6
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, git_sync_retry_after
 `
 
 type UpdateUserProfileParams struct {
@@ -35518,6 +35563,7 @@ func (q *sqlQuerier) UpdateUserProfile(ctx context.Context, arg UpdateUserProfil
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
+		&i.GitSyncRetryAfter,
 	)
 	return i, err
 }
@@ -35529,7 +35575,7 @@ SET
 	quiet_hours_schedule = $2
 WHERE
 	id = $1
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, git_sync_retry_after
 `
 
 type UpdateUserQuietHoursScheduleParams struct {
@@ -35561,6 +35607,7 @@ func (q *sqlQuerier) UpdateUserQuietHoursSchedule(ctx context.Context, arg Updat
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
+		&i.GitSyncRetryAfter,
 	)
 	return i, err
 }
@@ -35573,7 +35620,7 @@ SET
 	rbac_roles = ARRAY(SELECT DISTINCT UNNEST($1 :: text[]))
 WHERE
 	id = $2
-RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
+RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, git_sync_retry_after
 `
 
 type UpdateUserRolesParams struct {
@@ -35605,6 +35652,7 @@ func (q *sqlQuerier) UpdateUserRoles(ctx context.Context, arg UpdateUserRolesPar
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
+		&i.GitSyncRetryAfter,
 	)
 	return i, err
 }
@@ -35645,7 +35693,7 @@ SET
 	-- If the user is logging in, set last_seen_at to updated_at.
 	last_seen_at = CASE WHEN $4 :: boolean THEN $3 :: timestamptz ELSE last_seen_at END
 WHERE
-	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros
+	id = $1 RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at, is_system, is_service_account, chat_spend_limit_micros, git_sync_retry_after
 `
 
 type UpdateUserStatusParams struct {
@@ -35684,6 +35732,7 @@ func (q *sqlQuerier) UpdateUserStatus(ctx context.Context, arg UpdateUserStatusP
 		&i.IsSystem,
 		&i.IsServiceAccount,
 		&i.ChatSpendLimitMicros,
+		&i.GitSyncRetryAfter,
 	)
 	return i, err
 }

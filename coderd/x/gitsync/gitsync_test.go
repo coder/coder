@@ -584,37 +584,41 @@ func TestRefresher_StaleAtByPRState(t *testing.T) {
 	}
 }
 
-func TestRefresher_RateLimitSkipsRemainingInGroup(t *testing.T) {
+func TestRefresher_RateLimitSkipsRemainingForOwner(t *testing.T) {
 	t.Parallel()
 
-	var callCount atomic.Int32
+	ownerID := uuid.New()
+	clock := quartz.NewMock(t)
+	var callCount, otherOwnerCalls atomic.Int32
 
 	mp := &mockProvider{
 		parsePullRequestURL: func(raw string) (gitprovider.PRRef, bool) {
 			return gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1}, raw != ""
 		},
-		fetchPullRequestStatus: func(_ context.Context, _ string, _ gitprovider.PRRef) (*gitprovider.PRStatus, error) {
-			// Every call returns a rate limit error. With
-			// concurrency=1 the first goroutine to acquire the
-			// semaphore makes the only real call; remaining
-			// goroutines see the flag and skip.
+		fetchPullRequestStatus: func(_ context.Context, token string, _ gitprovider.PRRef) (*gitprovider.PRStatus, error) {
+			if token == "other-token" {
+				otherOwnerCalls.Add(1)
+				return &gitprovider.PRStatus{State: gitprovider.PRStateOpen}, nil
+			}
 			callCount.Add(1)
 			return nil, &gitprovider.RateLimitError{
-				RetryAfter: time.Now().Add(60 * time.Second),
+				RetryAfter: clock.Now().Add(time.Minute),
 			}
 		},
 	}
 
 	providers := func(_ context.Context, _ string) gitprovider.Provider { return mp }
-	tokens := func(_ context.Context, _ uuid.UUID, _ string) (*string, error) {
+	tokens := func(_ context.Context, id uuid.UUID, _ string) (*string, error) {
+		if id != ownerID {
+			return new("other-token"), nil
+		}
 		return new("test-token"), nil
 	}
 
 	// Concurrency=1 ensures sequential semaphore acquisition so
 	// the rate-limit flag is always visible to later goroutines.
-	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal(), gitsync.WithConcurrency(1))
+	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), clock, gitsync.WithConcurrency(1))
 
-	ownerID := uuid.New()
 	origin := "https://github.com/org/repo"
 
 	requests := []gitsync.RefreshRequest{
@@ -631,7 +635,7 @@ func TestRefresher_RateLimitSkipsRemainingInGroup(t *testing.T) {
 			Row: database.ChatDiffStatus{
 				ChatID:          uuid.New(),
 				Url:             sql.NullString{String: "https://github.com/org/repo/pull/2", Valid: true},
-				GitRemoteOrigin: origin,
+				GitRemoteOrigin: "https://github.com/org/another-repo",
 				GitBranch:       "feat-2",
 			},
 			OwnerID: ownerID,
@@ -640,25 +644,35 @@ func TestRefresher_RateLimitSkipsRemainingInGroup(t *testing.T) {
 			Row: database.ChatDiffStatus{
 				ChatID:          uuid.New(),
 				Url:             sql.NullString{String: "https://github.com/org/repo/pull/3", Valid: true},
-				GitRemoteOrigin: origin,
+				GitRemoteOrigin: "git@github.com:org/repo.git",
 				GitBranch:       "feat-3",
 			},
 			OwnerID: ownerID,
+		},
+		{
+			Row: database.ChatDiffStatus{
+				ChatID:          uuid.New(),
+				Url:             sql.NullString{String: "https://github.com/org/repo/pull/4", Valid: true},
+				GitRemoteOrigin: origin,
+				GitBranch:       "other-owner",
+			},
+			OwnerID: uuid.New(),
 		},
 	}
 
 	results, err := r.Refresh(context.Background(), requests)
 	require.NoError(t, err)
-	require.Len(t, results, 3)
+	require.Len(t, results, 4)
 
-	// With concurrency=1, the first goroutine to acquire the
-	// semaphore makes the only API call (which rate-limits).
-	// The remaining goroutines see the rate-limit flag and
-	// skip. Goroutine scheduling order is non-deterministic,
-	// so we verify aggregate counts rather than per-index
-	// results.
+	// Semaphore acquisition order is nondeterministic, so count limited
+	// and skipped rows instead of asserting which row hits the limit.
 	var directCount, skippedCount int
 	for _, res := range results {
+		if res.Request.OwnerID != ownerID {
+			require.NoError(t, res.Error)
+			require.NotNil(t, res.Params)
+			continue
+		}
 		require.Error(t, res.Error)
 		var rlErr *gitprovider.RateLimitError
 		require.True(t, errors.As(res.Error, &rlErr),
@@ -675,7 +689,8 @@ func TestRefresher_RateLimitSkipsRemainingInGroup(t *testing.T) {
 	assert.Equal(t, 2, skippedCount,
 		"two rows should be skipped due to rate limit")
 	assert.Equal(t, int32(1), callCount.Load(),
-		"FetchPullRequestStatus should be called exactly once")
+		"FetchPullRequestStatus should be called exactly once for the limited owner")
+	assert.Equal(t, int32(1), otherOwnerCalls.Load(), "another owner in the same batch should still refresh")
 }
 
 func TestRefresher_CorrectTokenPerOrigin(t *testing.T) {

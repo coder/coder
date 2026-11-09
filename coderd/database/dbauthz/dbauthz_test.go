@@ -2046,8 +2046,19 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(diffStatus)
 	}))
 	s.Run("AcquireStaleChatDiffStatuses", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), int32(10)).Return([]database.AcquireStaleChatDiffStatusesRow{}, nil).AnyTimes()
-		check.Args(int32(10)).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns([]database.AcquireStaleChatDiffStatusesRow{})
+		arg := database.AcquireStaleChatDiffStatusesParams{LimitVal: 10, Now: dbtime.Now()}
+		dbm.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), arg).Return([]database.AcquireStaleChatDiffStatusesRow{}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns([]database.AcquireStaleChatDiffStatusesRow{})
+	}))
+	s.Run("GetChatGitSyncRetryAfter", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ownerID := uuid.New()
+		dbm.EXPECT().GetChatGitSyncRetryAfter(gomock.Any(), ownerID).Return(sql.NullTime{}, nil).AnyTimes()
+		check.Args(ownerID).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(sql.NullTime{})
+	}))
+	s.Run("BackoffChatGitSync", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.BackoffChatGitSyncParams{OwnerID: uuid.New(), RetryAfter: dbtime.Now().Add(time.Hour)}
+		dbm.EXPECT().BackoffChatGitSync(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns()
 	}))
 	s.Run("BackoffChatDiffStatus", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.BackoffChatDiffStatusParams{

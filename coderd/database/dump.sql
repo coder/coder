@@ -2551,6 +2551,7 @@ CREATE TABLE users (
     is_system boolean DEFAULT false NOT NULL,
     is_service_account boolean DEFAULT false NOT NULL,
     chat_spend_limit_micros bigint,
+    git_sync_retry_after timestamp with time zone,
     CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL)))),
     CONSTRAINT users_chat_spend_limit_micros_check CHECK (((chat_spend_limit_micros IS NULL) OR (chat_spend_limit_micros > 0))),
     CONSTRAINT users_email_not_empty CHECK (((is_service_account = true) = (email = ''::text))),
@@ -2571,6 +2572,8 @@ COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-t
 COMMENT ON COLUMN users.is_system IS 'Determines if a user is a system user, and therefore cannot login or perform normal actions';
 
 COMMENT ON COLUMN users.is_service_account IS 'Determines if a user is an admin-managed account that cannot login';
+
+COMMENT ON COLUMN users.git_sync_retry_after IS 'The earliest time gitsync may refresh this user after a provider rate limit.';
 
 CREATE VIEW visible_users AS
  SELECT users.id,

@@ -2308,7 +2308,7 @@ WITH acquired AS (
         -- Claim for 5 minutes. The worker sets the real stale_at
         -- after refresh. If the worker crashes, rows become eligible
         -- again after this interval.
-        stale_at = NOW() + INTERVAL '5 minutes'
+        stale_at = (@now::timestamptz) + INTERVAL '5 minutes'
     WHERE
         (chat_id, git_remote_origin, git_branch) IN (
             SELECT
@@ -2319,8 +2319,11 @@ WITH acquired AS (
                 chat_diff_statuses cds
             INNER JOIN
                 chats c ON c.id = cds.chat_id
+            INNER JOIN
+                users u ON u.id = c.owner_id
             WHERE
-                cds.stale_at <= NOW()
+                cds.stale_at <= @now::timestamptz
+                AND (u.git_sync_retry_after IS NULL OR u.git_sync_retry_after <= @now::timestamptz)
                 AND cds.git_remote_origin != ''
                 AND cds.git_branch != ''
                 AND c.archived = FALSE
@@ -2340,6 +2343,14 @@ FROM
     acquired
 INNER JOIN
     chats c ON c.id = acquired.chat_id;
+
+-- name: GetChatGitSyncRetryAfter :one
+SELECT git_sync_retry_after FROM users WHERE id = @owner_id::uuid;
+
+-- name: BackoffChatGitSync :exec
+UPDATE users
+SET git_sync_retry_after = GREATEST(git_sync_retry_after, @retry_after::timestamptz)
+WHERE id = @owner_id::uuid;
 
 -- name: BackoffChatDiffStatus :exec
 UPDATE
