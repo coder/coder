@@ -817,14 +817,14 @@ export const SubagentMessageLinkCard: Story = {
 	},
 };
 
-export const SubagentNoErrorWhenCompleted: Story = {
+export const SubagentFailedWithCompletedChild: Story = {
 	args: {
 		name: "spawn_agent",
 		args: undefined,
 		result: {
 			chat_id: "child-chat-id",
 			status: "completed",
-			error: "provider metadata noise",
+			error: "Unable to spawn agent",
 		},
 		status: "error",
 		isError: true,
@@ -1004,6 +1004,49 @@ export const InterruptAgentExploreCompleted: Story = {
 			status: "completed",
 			interrupted: true,
 		},
+	},
+};
+
+export const WaitAgentFailedWhileChildRunning: Story = {
+	args: {
+		name: "wait_agent",
+		status: "error",
+		isError: true,
+		args: { chat_id: "review-child" },
+		result: { error: "Unable to wait for agent" },
+		subagentTitles: new Map([["review-child", "Repo review"]]),
+		subagentStatusOverrides: new Map([["review-child", "running"]]),
+	},
+};
+
+export const WaitAgentErrorOverridesCompletedStatus: Story = {
+	args: {
+		...WaitAgentFailedWhileChildRunning.args,
+		status: "completed",
+	},
+};
+
+export const MessageAgentFailedWhileChildRunning: Story = {
+	args: {
+		...WaitAgentFailedWhileChildRunning.args,
+		name: "message_agent",
+		args: { chat_id: "review-child", message: "Check error handling" },
+		result: { error: "Unable to message agent" },
+	},
+};
+
+export const InterruptAgentFailedWhileChildRunning: Story = {
+	args: {
+		...WaitAgentFailedWhileChildRunning.args,
+		name: "interrupt_agent",
+		result: { error: "Unable to interrupt agent" },
+	},
+};
+
+export const WaitAgentFailedWhileChildCompleted: Story = {
+	args: {
+		...WaitAgentFailedWhileChildRunning.args,
+		subagentStatusOverrides: new Map([["review-child", "completed"]]),
 	},
 };
 
@@ -1988,6 +2031,45 @@ export const ComputerError: Story = {
 	},
 };
 
+export const ComputerActionText: Story = {
+	args: {
+		name: "computer",
+		status: "completed",
+		args: { action: "left_click", coordinate: [512, 300] },
+		result: { output: "left_click action performed" },
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: "Left click" });
+		await userEvent.click(toggle);
+	},
+};
+
+export const ComputerActionHalted: Story = {
+	args: {
+		name: "computer",
+		status: "error",
+		isError: true,
+		args: { action: "type", text: "hello" },
+		result: {
+			error: "Not executed: an earlier computer action in this turn failed.",
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const toggle = canvas.getByRole("button", { name: /^Type/ });
+		await userEvent.click(toggle);
+	},
+};
+
+export const ComputerActionRunning: Story = {
+	args: {
+		name: "computer",
+		status: "running",
+		args: { action: "type", text: "hello" },
+	},
+};
+
 export const ComputerPromotedAttachmentArrayResult: Story = {
 	args: {
 		name: "computer",
@@ -2277,6 +2359,13 @@ export const WaitAgentComputerUseRunning: Story = {
 			</DesktopPanelContext.Provider>
 		),
 	],
+};
+
+export const WaitAgentComputerUseFailedWhileChildRunning: Story = {
+	args: {
+		...WaitAgentFailedWhileChildRunning.args,
+		subagentVariants: new Map([["review-child", "computer_use"]]),
+	},
 };
 
 export const WaitAgentComputerUseCompletedNoRecording: Story = {

@@ -22,7 +22,7 @@ Planned coverage:
 
 1. Write a YAML file under this directory.
    Name it after the rule's intent, for example `InclusiveLanguage.yml` or `ProductVoice.yml`.
-2. Each rule's `message:` should link to the matching section in the appropriate subpage of `docs/.style/style-guide/`, ideally with a deep-link anchor.
+2. Each rule's `message:` must link to the matching section in the appropriate subpage of `docs/.style/style-guide/`, ideally with a deep-link anchor.
 
    A contributor reading a Vale warning can then jump straight to the guidance.
 3. Land at `level: warning` first.
@@ -30,7 +30,7 @@ Planned coverage:
    - The rule is objectively correct (typo, brand-name casing, banned
      substitution).
    - The existing-content violation count for the rule reaches zero.
-4. A follow-up PR adds a parity CI check that verifies every rule here has a matching section in `style-guide/`.
+4. A follow-up PR adds a parity continuous integration (CI) check for a matching `style-guide/` section per rule.
 
    Add the section in the same PR as the rule.
 

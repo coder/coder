@@ -424,33 +424,6 @@ func TestGenerateAndStoreChatSummary_UsesTitleGenerationModel(t *testing.T) {
 	require.True(t, fetched.Summary.Valid)
 }
 
-func TestComputerUseProviderForAIProviderType(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		providerType database.AIProviderType
-		want         codersdk.ChatComputerUseProvider
-	}{
-		{providerType: database.AIProviderTypeAnthropic, want: codersdk.ChatComputerUseProviderAnthropic},
-		{providerType: database.AIProviderTypeOpenai, want: codersdk.ChatComputerUseProviderOpenAI},
-		{providerType: database.AIProviderTypeAzure},
-		{providerType: database.AIProviderTypeBedrock},
-		{providerType: database.AIProviderTypeGoogle},
-		{providerType: database.AIProviderTypeOpenaiCompat},
-		{providerType: database.AIProviderTypeOpenrouter},
-		{providerType: database.AIProviderTypeVercel},
-		{providerType: database.AIProviderTypeCopilot},
-	}
-	for _, tt := range tests {
-		t.Run(string(tt.providerType), func(t *testing.T) {
-			t.Parallel()
-			got, ok := computerUseProviderForAIProviderType(string(tt.providerType))
-			require.Equal(t, tt.want != "", ok)
-			require.Equal(t, tt.want, got)
-		})
-	}
-}
-
 func TestRequireResponsesAPI(t *testing.T) {
 	t.Parallel()
 
@@ -546,21 +519,34 @@ func TestAppendComputerUseProviderTool_Gates(t *testing.T) {
 	}
 }
 
-func TestAppendComputerUseProviderTool_AnthropicHasNoResultMetadata(t *testing.T) {
+// Only the OpenAI flavor needs result metadata on the tool result. The Anthropic
+// toolset and the OpenAI-compatible function tool send the screenshot as an
+// ordinary image result.
+func TestAppendComputerUseProviderTool_HasNoResultMetadata(t *testing.T) {
 	t.Parallel()
 
-	providerTools, err := appendComputerUseProviderTool(
-		nil,
-		computerUseProviderToolOptions{
-			provider:      codersdk.ChatComputerUseProviderAnthropic,
-			isComputerUse: true,
-			logger:        slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-		},
-	)
-	require.NoError(t, err)
-	require.Len(t, providerTools, 1)
-	require.Equal(t, "computer", providerTools[0].Definition.GetName())
-	require.Nil(t, providerTools[0].ResultProviderMetadata)
+	for _, provider := range []codersdk.ChatComputerUseProvider{
+		codersdk.ChatComputerUseProviderAnthropic,
+		codersdk.ChatComputerUseProviderOpenAICompat,
+	} {
+		t.Run(string(provider), func(t *testing.T) {
+			t.Parallel()
+
+			providerTools, err := appendComputerUseProviderTool(
+				nil,
+				computerUseProviderToolOptions{
+					provider:      provider,
+					isComputerUse: true,
+					logger:        slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				},
+			)
+			require.NoError(t, err)
+			require.Len(t, providerTools, 1)
+			require.Equal(t, "computer", providerTools[0].Definition.GetName())
+			require.Equal(t, "computer", providerTools[0].Runner.Info().Name)
+			require.Nil(t, providerTools[0].ResultProviderMetadata)
+		})
+	}
 }
 
 func TestFilterExternalMCPConfigsForTurn(t *testing.T) {
@@ -4061,9 +4047,9 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		provider := newProvider(t, db, true)
 		model := newModelConfig(t, db, orgID, provider.ID, false)
 
-		resolved, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, model.ID)
+		resolved, err := validateModelConfigOverride(ctx, db, orgID, model.ID)
 		require.NoError(t, err)
-		require.Equal(t, model.ID, resolved)
+		require.Equal(t, uuid.NullUUID{UUID: model.ID, Valid: true}, resolved)
 	})
 
 	t.Run("ExplicitDefaultOrgModelRejected", func(t *testing.T) {
@@ -4076,12 +4062,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		provider := newProvider(t, db, true)
 		model := newModelConfig(t, db, defaultOrg.ID, provider.ID, false)
 
-		_, err = resolveSendMessageModelConfigID(
-			ctx,
-			db,
-			database.Chat{OrganizationID: chatOrgID},
-			model.ID,
-		)
+		_, err = validateModelConfigOverride(ctx, db, chatOrgID, model.ID)
 		require.ErrorIs(t, err, ErrInvalidModelConfigID)
 	})
 
@@ -4094,12 +4075,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		provider := newProvider(t, db, true)
 		model := newModelConfig(t, db, unrelatedOrgID, provider.ID, false)
 
-		_, err := resolveSendMessageModelConfigID(
-			ctx,
-			db,
-			database.Chat{OrganizationID: chatOrgID},
-			model.ID,
-		)
+		_, err := validateModelConfigOverride(ctx, db, chatOrgID, model.ID)
 		require.ErrorIs(t, err, ErrInvalidModelConfigID)
 	})
 
@@ -4113,7 +4089,7 @@ func TestResolveFallbackModelConfigID(t *testing.T) {
 		disabledProvider := newProvider(t, db, false)
 		model := newModelConfig(t, db, orgID, disabledProvider.ID, false)
 
-		_, err := resolveSendMessageModelConfigID(ctx, db, database.Chat{OrganizationID: orgID}, model.ID)
+		_, err := validateModelConfigOverride(ctx, db, orgID, model.ID)
 		require.ErrorIs(t, err, ErrInvalidModelConfigID)
 	})
 

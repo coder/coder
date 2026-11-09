@@ -48,7 +48,7 @@ curl -X POST \
 
 ## Revoke a token
 
-Revoke one refresh token or access token through the [RFC 7009](https://datatracker.ietf.org/doc/html/rfc7009) endpoint that `revocation_endpoint` advertises.
+Revoke one refresh token or access token through the [Request for Comments (RFC) 7009](https://datatracker.ietf.org/doc/html/rfc7009) endpoint that `revocation_endpoint` advertises.
 A confidential client authenticates as it does on a refresh, with HTTP Basic as below or with `client_id` and `client_secret` form fields as in the refresh examples above.
 An omitted or wrong secret answers HTTP 401 with `error=invalid_client`:
 

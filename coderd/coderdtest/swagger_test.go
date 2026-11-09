@@ -6,6 +6,7 @@ import (
 	"go/parser"
 	"go/token"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +15,10 @@ import (
 	"github.com/coder/coder/v2/coderd/apidoc"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 )
+
+// swaggerDoc renders the spec once. swag's ReadDoc writes shared state, so
+// parallel tests that each call it race.
+var swaggerDoc = sync.OnceValue(apidoc.SwaggerInfo.ReadDoc)
 
 func TestEndpointsDocumented(t *testing.T) {
 	t.Parallel()
@@ -38,7 +43,7 @@ func TestChatModelPathParametersFormatted(t *testing.T) {
 			} `json:"parameters"`
 		} `json:"paths"`
 	}
-	require.NoError(t, json.Unmarshal([]byte(apidoc.SwaggerInfo.ReadDoc()), &swagger))
+	require.NoError(t, json.Unmarshal([]byte(swaggerDoc()), &swagger))
 
 	operations := swagger.Paths["/api/v2/organizations/{organization}/chats/models/{model}"]
 	for _, method := range []string{"get", "patch", "delete"} {
@@ -53,6 +58,44 @@ func TestChatModelPathParametersFormatted(t *testing.T) {
 			}
 			require.Fail(t, "model path parameter not found")
 		})
+	}
+}
+
+// TestSwaggerParametersValid guards against parameter annotations that
+// produce a wrong spec. Swagger 2.0 does not allow "example" on non-body
+// parameters, swag writes format(...) on an array parameter to the array
+// rather than its items, and a path parameter must appear in its route.
+func TestSwaggerParametersValid(t *testing.T) {
+	t.Parallel()
+
+	var swagger struct {
+		Paths map[string]map[string]struct {
+			Parameters []struct {
+				Name    string `json:"name"`
+				In      string `json:"in"`
+				Type    string `json:"type"`
+				Format  string `json:"format"`
+				Example any    `json:"example"`
+			} `json:"parameters"`
+		} `json:"paths"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(swaggerDoc()), &swagger))
+	require.NotEmpty(t, swagger.Paths)
+
+	for path, operations := range swagger.Paths {
+		for method, operation := range operations {
+			for _, parameter := range operation.Parameters {
+				if parameter.In != "body" {
+					assert.Nil(t, parameter.Example, "%s %s: %s parameter %q must not have an example; use extensions(x-example=...)", method, path, parameter.In, parameter.Name)
+				}
+				if parameter.Type == "array" {
+					assert.Empty(t, parameter.Format, "%s %s: array parameter %q must not have a format; swag cannot set an item format, so state it in the description", method, path, parameter.Name)
+				}
+				if parameter.In == "path" {
+					assert.Contains(t, path, "{"+parameter.Name+"}", "%s %s: path parameter %q is not in the route", method, path, parameter.Name)
+				}
+			}
+		}
 	}
 }
 

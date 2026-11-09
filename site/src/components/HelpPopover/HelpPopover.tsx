@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import { CircleHelpIcon, ExternalLinkIcon } from "lucide-react";
+import { NewTabLabel } from "#/components/Link/Link";
 import {
 	Popover,
 	PopoverContent,
@@ -122,6 +123,7 @@ export const HelpPopoverLink: React.FC<HelpPopoverLinkProps> = ({
 		>
 			<ExternalLinkIcon className="size-3.5 mr-2" />
 			{children}
+			<NewTabLabel />
 		</a>
 	);
 };

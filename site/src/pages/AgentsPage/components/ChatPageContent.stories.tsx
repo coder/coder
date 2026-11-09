@@ -133,8 +133,8 @@ const StoryChatPageInput: React.FC<{
 			]}
 			modelSelectorPlaceholder="Select model"
 			canConfigureAgentSetup={false}
-			isEditing={false}
-			onCancelHistoryEdit={fn()}
+			editingTarget={null}
+			onCancelEdit={fn()}
 			isReadOnly={false}
 			onReasoningEffortChange={fn()}
 			unsupportedProviderNames={[]}
@@ -149,6 +149,7 @@ const StoryChatPageInput: React.FC<{
 			selectedMCPServerIds={[]}
 			onMCPSelectionChange={fn()}
 			isWorkspaceLoading={false}
+			queuedMessageUnderEditID={null}
 		/>
 	</div>
 );
@@ -422,7 +423,9 @@ export const InterruptingShowsBusyComposer: Story = {
 		expect(canvas.getByRole("status")).toHaveTextContent(
 			"Interrupting. Waiting for the agent to stop.",
 		);
-		expect(canvas.queryByRole("button", { name: "Queue" })).toBeNull();
+		expect(
+			canvas.queryByRole("button", { name: "Send during turn" }),
+		).toBeNull();
 		expect(canvas.getByText("Interrupting")).toBeInTheDocument();
 		expect(canvas.queryByText("Thinking")).toBeNull();
 
@@ -477,8 +480,8 @@ const CompactionChatPageInput: React.FC = () => {
 				modelOptions={[]}
 				modelSelectorPlaceholder="Select model"
 				canConfigureAgentSetup={false}
-				isEditing={false}
-				onCancelHistoryEdit={fn()}
+				editingTarget={null}
+				onCancelEdit={fn()}
 				isReadOnly={false}
 				onReasoningEffortChange={fn()}
 				unsupportedProviderNames={[]}
@@ -493,6 +496,7 @@ const CompactionChatPageInput: React.FC = () => {
 				selectedMCPServerIds={[]}
 				onMCPSelectionChange={fn()}
 				isWorkspaceLoading={false}
+				queuedMessageUnderEditID={null}
 			/>
 		</div>
 	);

@@ -230,3 +230,39 @@ func TestWorkspaceAgentPTY_AgentUnreachable(t *testing.T) {
 	}
 	require.True(t, found, "no agent is unreachable log line")
 }
+
+func Test_stripQueryParam(t *testing.T) {
+	t.Parallel()
+
+	const key = "coder_session_token"
+	cases := []struct {
+		name        string
+		rawQuery    string
+		want        string
+		wantRemoved bool
+	}{
+		{name: "Empty", rawQuery: "", want: ""},
+		{name: "NoMatch", rawQuery: "b=2&a=1&c=%2C", want: "b=2&a=1&c=%2C"},
+		{name: "First", rawQuery: "coder_session_token=K&b=2&a=1", want: "b=2&a=1", wantRemoved: true},
+		{name: "Middle", rawQuery: "b=2&coder_session_token=K&a=1", want: "b=2&a=1", wantRemoved: true},
+		{name: "Last", rawQuery: "b=2&a=1&coder_session_token=K", want: "b=2&a=1", wantRemoved: true},
+		{name: "Only", rawQuery: "coder_session_token=K", want: "", wantRemoved: true},
+		{name: "Duplicates", rawQuery: "coder_session_token=K1&b=2&coder_session_token=K2&a=1", want: "b=2&a=1", wantRemoved: true},
+		{name: "PercentEncodedKey", rawQuery: "a=1&coder%5Fsession%5Ftoken=K", want: "a=1", wantRemoved: true},
+		{name: "ValueWithSemicolon", rawQuery: "coder_session_token=K;&view=1", want: "view=1", wantRemoved: true},
+		{name: "KeyWithoutEquals", rawQuery: "a=1&coder_session_token&b=2", want: "a=1&b=2", wantRemoved: true},
+		{name: "UnparseableFieldsKept", rawQuery: "filter=a;b&coder_session_token=K&bad=%zz&%zz=1", want: "filter=a;b&bad=%zz&%zz=1", wantRemoved: true},
+		{name: "EmptyFieldsKept", rawQuery: "a=1&&b=2&coder_session_token=K&", want: "a=1&&b=2&", wantRemoved: true},
+		{name: "SimilarKeysKept", rawQuery: "xcoder_session_token=1&coder_session_token_extra=1", want: "xcoder_session_token=1&coder_session_token_extra=1"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, removed := stripQueryParam(tc.rawQuery, key)
+			require.Equal(t, tc.want, got)
+			require.Equal(t, tc.wantRemoved, removed)
+		})
+	}
+}

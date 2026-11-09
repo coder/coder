@@ -6,6 +6,8 @@ import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	MockChatContextClean,
+	MockChatQueuedMessage,
+	MockChatQueuedMessageUnderEdit,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
 import {
@@ -112,7 +114,7 @@ export const NoPromptHistoryUpArrowIsNoOp: Story = {
 
 export const PromptHistorySuppressedWhileEditingHistoryMessage: Story = {
 	args: {
-		isEditingHistoryMessage: true,
+		editingKind: "history",
 		userPromptHistory: promptHistory,
 	},
 };
@@ -129,6 +131,19 @@ export const PromptHistorySuppressedWhileLoading: Story = {
 	args: {
 		isLoading: true,
 		userPromptHistory: promptHistory,
+	},
+};
+
+export const EditingQueuedMessage: Story = {
+	args: {
+		queuedMessageUnderEditID: MockChatQueuedMessageUnderEdit.id,
+		editingKind: "queued",
+		queuedMessages: [
+			MockChatQueuedMessageUnderEdit,
+			{ ...MockChatQueuedMessage, id: 2 },
+		],
+		onEditQueuedMessage: fn(),
+		onEndQueuedMessageEdit: fn(),
 	},
 };
 
@@ -157,7 +172,7 @@ export const SendsAndClearsInput: Story = {
 		await userEvent.click(sendButton);
 
 		await waitFor(() => {
-			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests", undefined);
 		});
 	},
 };
@@ -178,9 +193,14 @@ export const EnterSendsByDefault: Story = {
 		await userEvent.keyboard("{Enter}");
 
 		await waitFor(() => {
-			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests", undefined);
 		});
 	},
+};
+
+const mockModifierEnterPreferenceSettings: TypesGen.UserPreferenceSettings = {
+	...MockUserPreferenceSettings,
+	agent_chat_send_shortcut: "modifier_enter",
 };
 
 export const ModifierEnterSendsWhenRequired: Story = {
@@ -188,10 +208,7 @@ export const ModifierEnterSendsWhenRequired: Story = {
 		queries: [
 			{
 				key: preferenceSettingsKey,
-				data: {
-					...MockUserPreferenceSettings,
-					agent_chat_send_shortcut: "modifier_enter",
-				},
+				data: mockModifierEnterPreferenceSettings,
 			},
 		],
 	},
@@ -215,7 +232,7 @@ export const ModifierEnterSendsWhenRequired: Story = {
 
 		await userEvent.keyboard("{Control>}{Enter}{/Control}");
 		await waitFor(() => {
-			expect(args.onSend).toHaveBeenCalledWith("Run focused tests");
+			expect(args.onSend).toHaveBeenCalledWith("Run focused tests", undefined);
 		});
 	},
 };
@@ -292,6 +309,53 @@ export const Streaming: Story = {
 		initialValue: "",
 		onAttach: fn(),
 		onRemoveAttachment: fn(),
+	},
+};
+
+export const StreamingWithDraftShowsAfterTurnShortcut: Story = {
+	args: {
+		...Streaming.args,
+		initialValue: "Then run the linter",
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(
+			await canvas.findByRole("button", { name: "Send during turn" }),
+		);
+		await screen.findByRole("tooltip");
+	},
+};
+
+export const StreamingSendMenuOpen: Story = {
+	args: StreamingWithDraftShowsAfterTurnShortcut.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.pointer({
+			keys: "[MouseRight]",
+			target: await canvas.findByRole("button", { name: "Send during turn" }),
+		});
+		await screen.findByRole("menu");
+	},
+};
+
+export const StreamingSendMenuOpenMobile: Story = {
+	...StreamingSendMenuOpen,
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
+	beforeEach: () => setupMatchMedia({ "(pointer: coarse)": true }).restore,
+};
+
+export const AfterTurnShortcutWhenModifierRequired: Story = {
+	...StreamingWithDraftShowsAfterTurnShortcut,
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: mockModifierEnterPreferenceSettings,
+			},
+		],
 	},
 };
 
@@ -682,6 +746,18 @@ export const WithTwoMCPServers: Story = {
 		...mcpDefaults,
 		mcpServers: [linearMCP, githubMCPConnected],
 		selectedMCPServerIds: [linearMCP.id, githubMCPConnected.id],
+	},
+};
+
+const mockImageMCP = { ...sentryMCP, icon_url: "/icon/image.svg" };
+const mockLinearMCPWithIcon = { ...linearMCP, icon_url: "/icon/linear.svg" };
+
+/** Thin glyphs at the overlap boundary must be fully covered. */
+export const MCPOverlappingTransparentIcons: Story = {
+	args: {
+		...mcpDefaults,
+		mcpServers: [mockImageMCP, mockLinearMCPWithIcon],
+		selectedMCPServerIds: [sentryMCP.id, linearMCP.id],
 	},
 };
 

@@ -7,7 +7,7 @@ title: OpenShift
 - OpenShift cluster running K8s 1.19+ (OpenShift 4.7+)
 - Helm 3.5+ installed
 - OpenShift CLI (`oc`) installed
-- [Coder CLI](../cli.md) installed
+- [Coder CLI](https://coder.com/downloads) installed
 
 ## Install Coder with OpenShift
 
@@ -44,7 +44,7 @@ coder:
     seccompProfile: RuntimeDefault # Unchanged from default
 ```
 
-- For `runAsUser` / `runAsGroup`, you can retrieve the correct values for project UID and project GID with the following command:
+- For `runAsUser` / `runAsGroup`, you can retrieve the correct values for project user ID (UID) and project group ID (GID) with the following command:
 
     ```console
     oc get project coder -o json | jq -r '.metadata.annotations'
@@ -68,7 +68,7 @@ coder:
 
   If you are unsure, we recommend setting `readOnlyRootFilesystem` to `true` in an OpenShift environment.
 
-- For `seccompProfile`: in some environments, you may need to set this to `null` to allow OpenShift to pick its preferred value.
+- For `seccompProfile`: in some environments, you might need to set this to `null` to allow OpenShift to pick its preferred value.
 
 ### 3. Configure the Coder service, connection URLs, and cache values
 
@@ -84,7 +84,7 @@ In the below example, we mount this under `/tmp` and set the cache location to `
 This enables Coder to run with `readOnlyRootFilesystem: true`.
 
 > [!NOTE]
-> Depending on the number of templates and provisioners you use, you may need to increase the size of the volume, as the `coder` pod will be automatically restarted when this volume fills up.
+> Depending on the number of templates and provisioners you use, you might need to increase the size of the volume, as the `coder` pod will be automatically restarted when this volume fills up.
 
 Additionally, create the Coder service as a `ClusterIP`.
 In the next step, you will create an OpenShift route that points to the service HTTP target port.
@@ -166,7 +166,7 @@ helm install coder coder-v2/coder \
 ```
 
 > [!NOTE]
-> If the Helm installation fails with a Kubernetes RBAC error, check the permissions of your OpenShift user using the `oc auth can-i` command.
+> If the Helm installation fails with a Kubernetes role-based access control (RBAC) error, check the permissions of your OpenShift user using the `oc auth can-i` command.
 >
 > The below permissions are the minimum required:
 >
@@ -312,5 +312,5 @@ This template should be ready to use straight away.
 
 ## Next steps
 
-- [Create your first template](../../tutorials/template-from-scratch.md)
+- [Create your first template](../../templates/template-from-scratch.md)
 - [Control plane configuration](../../admin/setup/index.md)

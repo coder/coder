@@ -773,6 +773,44 @@ describe("ChatsSidebar section switcher", () => {
 	});
 });
 
+describe("ChatsSidebar search dialog", () => {
+	const SidebarWithSearchState: React.FC = () => {
+		const [open, setOpen] = useState(false);
+		return (
+			<ChatsSidebar
+				{...defaultProps}
+				isSearchDialogOpen={open}
+				onSearchDialogOpenChange={setOpen}
+			/>
+		);
+	};
+
+	it("returns focus to the search button when dismissed", async () => {
+		const user = userEvent.setup();
+		render(
+			<Wrapper>
+				<SidebarWithSearchState />
+			</Wrapper>,
+		);
+
+		const [searchButton] = screen.getAllByRole("button", {
+			name: "Search chats",
+		});
+		searchButton.focus();
+		await user.keyboard("{Enter}");
+		await waitFor(() => {
+			expect(
+				screen.getByRole("combobox", { name: "Search chats" }),
+			).toHaveFocus();
+		});
+
+		await user.keyboard("{Escape}");
+		await waitFor(() => {
+			expect(searchButton).toHaveFocus();
+		});
+	});
+});
+
 describe("ChatsSidebar sections", () => {
 	it("renders another user's shared chats in Shared with you regardless of pin order", () => {
 		render(
@@ -957,6 +995,29 @@ describe("ChatsSidebar move to project", () => {
 			expect(update).toHaveBeenCalledWith("c1", { project_id: projectId }),
 		);
 		expect(projectRequests).toBe(1);
+	});
+
+	it("moves a paused chat, whose queued edit blocks only archiving", async () => {
+		const user = userEvent.setup();
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		renderSidebar([
+			buildChat({
+				id: "c1",
+				title: "Fix invoice dates",
+				organization_id: MockChatProject.organization_id,
+				status: "paused",
+			}),
+		]);
+
+		await selectMoveTarget(user, "Billing");
+
+		await waitFor(() =>
+			expect(update).toHaveBeenCalledWith("c1", {
+				project_id: mockBillingProject.id,
+			}),
+		);
 	});
 
 	it("shows the server message when the server refuses a move", async () => {
@@ -2041,6 +2102,11 @@ describe("ChatsSidebar filters", () => {
 							title: "Idle chat",
 							status: "waiting",
 						}),
+						buildChat({
+							id: "paused-chat",
+							title: "Paused chat",
+							status: "paused",
+						}),
 					]}
 					sidebarFilters={{
 						...defaultSidebarFilters,
@@ -2066,6 +2132,8 @@ describe("ChatsSidebar filters", () => {
 			"agents-tree-node-interrupting-chat",
 		);
 		const idleNode = screen.getByTestId("agents-tree-node-idle-chat");
+		const pausedSection = screen.getByTestId("agents-section-toggle-Paused");
+		const pausedNode = screen.getByTestId("agents-tree-node-paused-chat");
 
 		expect(
 			screen.queryByTestId("agents-section-toggle-Today"),
@@ -2080,6 +2148,8 @@ describe("ChatsSidebar filters", () => {
 			[interruptingSection, interruptingNode],
 			[interruptingNode, idleSection],
 			[idleSection, idleNode],
+			[idleNode, pausedSection],
+			[pausedSection, pausedNode],
 		] as const) {
 			expect(
 				before.compareDocumentPosition(after) &

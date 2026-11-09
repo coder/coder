@@ -45,7 +45,7 @@ Admins have access to administrative functions such as user management, template
 
 ### Coder control plane
 
-Coder's control plane, run by the `coderd` process, is the main component recommended for deployment with multiple replicas to ensure high availability.
+Coder's control plane, run by the `coderd` process, is the main component recommended for deployment with multiple replicas to provide high availability.
 It provides an API for managing workspaces and templates, and serves the dashboard UI.
 In addition, each `coderd` replica hosts 3 Terraform [provisioners](#provisioner) by default.
 
@@ -57,7 +57,7 @@ They interact with Coder using the web interface, the CLI tool, or directly call
 
 ### Workspace
 
-A [workspace](../../../user-guides/workspace-management.md) refers to an isolated development environment where users can write, build, and run code.
+A [workspace](../../../workspaces/workspace-management.md) refers to an isolated development environment where users can write, build, and run code.
 Workspaces are fully configurable and can be tailored to specific project requirements, providing developers with a consistent and efficient development environment.
 Workspaces can be autostarted and autostopped, enabling efficient resource management.
 
@@ -67,7 +67,7 @@ Workspaces are instantiated using Coder templates and deployed on resources crea
 
 ### Template
 
-A [template](../../../admin/templates/index.md) in Coder is a predefined configuration for creating workspaces.
+A [template](../../../templates/index.md) in Coder is a predefined configuration for creating workspaces.
 Templates streamline the process of workspace creation by providing pre-configured settings, tooling, and dependencies.
 They are built by template administrators on top of Terraform, allowing for efficient management of infrastructure resources.
 Additionally, templates can utilize Coder modules to leverage existing features shared with other templates, enhancing flexibility and consistency across deployments.
@@ -96,8 +96,8 @@ Note that the Registry is a hosted service and isn't available for offline use.
 
 ### AI Gateway
 
-[AI Gateway](../../../ai-coder/ai-gateway/index.md) proxies AI provider traffic and records each AI session.
-It runs inside `coderd` by default and can also run as a [standalone deployment](../../../ai-coder/ai-gateway/standalone.md) that scales independently of the control plane.
+[AI Gateway](../../../ai-governance/ai-gateway/index.md) proxies AI provider traffic and records each AI session.
+It runs inside `coderd` by default and can also run as a [standalone deployment](../../../ai-governance/ai-gateway/standalone.md) that scales independently of the control plane.
 Size replicas based on your AI request volume and `CODER_AI_GATEWAY_MAX_CONCURRENCY`.
 For the chart's resource requests and autoscaling defaults, refer to the [AI Gateway Helm chart README](../../../../helm/ai-gateway/README.md).
 
@@ -220,7 +220,7 @@ We recommend leveraging a [supported Container Storage Interface (CSI) driver](h
 The following Kubernetes volume types have been validated by Coder internally, and/or by our customers:
 
 - [PersistentVolumeClaim](https://kubernetes.io/docs/concepts/storage/volumes/#persistentvolumeclaim)
-- [NFS](https://kubernetes.io/docs/concepts/storage/volumes/#nfs)
+- [Network File System (NFS)](https://kubernetes.io/docs/concepts/storage/volumes/#nfs)
 - [subPath](https://kubernetes.io/docs/concepts/storage/volumes/#using-subpath)
 - [cephfs](https://kubernetes.io/docs/concepts/storage/volumes/#cephfs)
 
@@ -237,7 +237,7 @@ Not that Coder's control plane filesystem is ephemeral, so no persistent storage
 ## PostgreSQL database
 
 Coder requires access to an external PostgreSQL database to store user data, workspace state, template files, and more.
-Depending on the scale of the user-base, workspace activity, and High Availability requirements, the amount of CPU and memory resources required by Coder's database may differ.
+Depending on the scale of the user-base, workspace activity, and High Availability requirements, the amount of CPU and memory resources required by Coder's database can differ.
 
 ### Disaster recovery
 
@@ -301,8 +301,8 @@ Below are recommended instance types for each major cloud provider:
 For optimal database performance, use the following storage types:
 
 - **AWS RDS/Aurora**:
-  Use `gp3` (General Purpose SSD) volumes with at least 3,000 IOPS for production workloads.
-  For high-performance requirements, consider `io1` or `io2` volumes with provisioned IOPS.
+  For Amazon Relational Database Service (RDS), use `gp3` volumes, the General Purpose solid-state drive (SSD) type, with at least 3,000 IOPS for production workloads.
+  For high-performance requirements, consider `io1` or `io2` volumes with provisioned input/output operations per second (IOPS).
 
 - **Azure Database for PostgreSQL**:
   Use Premium SSD (P-series) with appropriate IOPS and throughput provisioning.
@@ -324,7 +324,7 @@ Below are general recommendations for sizing your PostgreSQL instance:
 
 ## Operational readiness
 
-Operational readiness in Coder is about ensuring that everything is set up correctly before launching a platform into production.
+Operational readiness in Coder is about making sure that everything is set up correctly before launching a platform into production.
 It involves making sure that the service is reliable, secure, and easily scales accordingly to user-base needs.
 Operational readiness is crucial because it helps prevent issues that could affect workspace users experience once the platform is live.
 
@@ -339,11 +339,11 @@ Operational readiness is crucial because it helps prevent issues that could affe
 ### Template configuration
 
 1. Establish dedicated accounts for users with the _Template Administrator_ role.
-1. Maintain Coder templates using [version control](../../../admin/templates/managing-templates/change-management.md).
+1. Maintain Coder templates using [version control](../../../templates/managing-templates/change-management.md).
 1. Consider implementing a GitOps workflow to automatically push new template versions into Coder from git.
 
    For example, on GitHub, you can use the [Setup Coder](https://github.com/marketplace/actions/setup-coder) action.
-1. Evaluate enabling [automatic template updates](../../../admin/templates/managing-templates/index.md#template-update-policies) upon workspace startup.
+1. Evaluate enabling [automatic template updates](../../../templates/managing-templates/index.md#template-update-policies) upon workspace startup.
 
 ### Observability
 
@@ -357,5 +357,5 @@ Operational readiness is crucial because it helps prevent issues that could affe
 
 1. Incorporate [support links](../../../admin/setup/appearance.md#support-links) into internal documentation accessible from the user context menu.
 
-   Ensure that hyperlinks are valid and lead to up-to-date materials.
+   Make sure that hyperlinks are valid and lead to up-to-date materials.
 1. Encourage the use of `coder support bundle` to allow workspace users to generate and provide network-related diagnostic data.

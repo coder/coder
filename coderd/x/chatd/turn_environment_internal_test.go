@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"charm.land/fantasy"
+	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -297,23 +298,85 @@ func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
 }
 
 // Computer use chats run on their own model config; the tool flavor follows
-// that model's AI provider type.
+// that model's AI provider type and model ID, and the Anthropic tool version
+// follows the model on every platform.
 func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name            string
 		providerType    database.AIProviderType
+		settings        codersdk.AIProviderSettings
 		model           string
 		useResponsesAPI *bool
 		wantProvider    codersdk.ChatComputerUseProvider
+		wantToolVersion fantasyanthropic.ComputerUseToolVersion
 		wantErr         string
 	}{
 		{
-			name:         "Anthropic",
+			name:            "Anthropic",
+			providerType:    database.AIProviderTypeAnthropic,
+			model:           "claude-opus-5",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUseToolset20260801,
+		},
+		{
+			// The chat's model picks the Anthropic tool version.
+			name:            "AnthropicComputer20251124",
+			providerType:    database.AIProviderTypeAnthropic,
+			model:           "claude-opus-4-6",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUse20251124,
+		},
+		{
+			name:            "AnthropicUnknownModel",
+			providerType:    database.AIProviderTypeAnthropic,
+			model:           "company-default-model",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUse20251124,
+		},
+		{
+			// The platform does not change the version.
+			name:         "ClaudePlatformAWS",
 			providerType: database.AIProviderTypeAnthropic,
-			model:        "claude-opus-5",
-			wantProvider: codersdk.ChatComputerUseProviderAnthropic,
+			settings: codersdk.AIProviderSettings{ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+				Region:      "us-east-2",
+				WorkspaceID: "wrkspc_test",
+			}},
+			model:           "claude-opus-5-5",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUseToolset20260801,
+		},
+		{
+			name:            "AnthropicBedrock",
+			providerType:    database.AIProviderTypeAnthropic,
+			settings:        codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}},
+			model:           "us.anthropic.claude-opus-5-5",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUseToolset20260801,
+		},
+		{
+			name:            "BedrockClaude",
+			providerType:    database.AIProviderTypeBedrock,
+			settings:        codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}},
+			model:           "us.anthropic.claude-opus-5-5",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUseToolset20260801,
+		},
+		{
+			name:            "BedrockClaudeComputer20250124",
+			providerType:    database.AIProviderTypeBedrock,
+			settings:        codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}},
+			model:           "anthropic.claude-haiku-4-5-20251001-v1:0",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUse20250124,
+		},
+		{
+			name:         "BedrockNonClaude",
+			providerType: database.AIProviderTypeBedrock,
+			settings:     codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}},
+			model:        "openai.gpt-5.4",
+			wantErr:      "computer use requires " + chatprovider.ComputerUseModelRequirement,
 		},
 		{
 			// The model is absent from the SDK's known Responses models, so
@@ -322,6 +385,15 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 			providerType: database.AIProviderTypeOpenai,
 			model:        "custom-openai-model",
 			wantProvider: codersdk.ChatComputerUseProviderOpenAI,
+		},
+		{
+			// An OpenAI-compatible server drops the hosted computer tool, so the
+			// turn declares the function tool and the model keeps the chat
+			// completions transport.
+			name:         "OpenAICompat",
+			providerType: database.AIProviderTypeOpenaiCompat,
+			model:        "custom-openai-compat-model",
+			wantProvider: codersdk.ChatComputerUseProviderOpenAICompat,
 		},
 		{
 			name:            "OpenAIResponsesDisabled",
@@ -334,7 +406,7 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 			name:         "UnsupportedProvider",
 			providerType: database.AIProviderTypeOpenrouter,
 			model:        "openai/gpt-4o-mini",
-			wantErr:      "computer use requires a model from an Anthropic or OpenAI AI provider",
+			wantErr:      "computer use requires " + chatprovider.ComputerUseModelRequirement,
 		},
 	}
 	for _, tt := range tests {
@@ -348,8 +420,15 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 				UserID:         user.ID,
 				OrganizationID: org.ID,
 			})
+			var settings sql.NullString
+			if !tt.settings.IsZero() {
+				raw, err := json.Marshal(tt.settings)
+				require.NoError(t, err)
+				settings = sql.NullString{String: string(raw), Valid: true}
+			}
 			provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
-				Type: tt.providerType,
+				Type:     tt.providerType,
+				Settings: settings,
 			}, "test-key")
 			var callConfig codersdk.ChatModelCallConfig
 			if tt.useResponsesAPI != nil {
@@ -423,7 +502,7 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 			require.Equal(t, modelConfig.ID, prepared.ModelConfigID)
 			require.Equal(t, tt.model, prepared.Model.ModelID())
 			geometry := chattool.DefaultComputerUseDesktopGeometry(tt.wantProvider)
-			wantTool, err := chattool.ComputerUseProviderTool(tt.wantProvider, geometry.DeclaredWidth, geometry.DeclaredHeight)
+			wantTool, err := chattool.ComputerUseProviderTool(tt.wantProvider, tt.wantToolVersion, geometry.DeclaredWidth, geometry.DeclaredHeight)
 			require.NoError(t, err)
 			require.Len(t, prepared.ProviderTools, 1)
 			require.Equal(t, wantTool, prepared.ProviderTools[0].Definition)
@@ -1156,6 +1235,22 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		require.JSONEq(t, `{"openai_config":{"use_responses_api":false}}`, string(result.StatusLabelCall.dbConfig.Options))
 	})
 
+	// A paused chat also finished its turn, so it gets the same
+	// status label call as a waiting one.
+	t.Run("PausedDerivesFromHistory", func(t *testing.T) {
+		t.Parallel()
+		server, chat, _ := setup(t, "gpt-4o-mini")
+		ctx := chatdTestContext(t)
+		commitAssistant(t, server, chat, "the answer is 42")
+
+		chat.Status = database.ChatStatusPaused
+		result := server.deriveFinalTurnRunResult(ctx, chat, logger)
+
+		require.Equal(t, "the answer is 42", result.FinalAssistantText)
+		require.NotNil(t, result.StatusLabelCall)
+		require.Equal(t, "gpt-4o-mini", result.StatusLabelCall.resolvedModel)
+	})
+
 	// The status label is a structured side call, so it must prefer the
 	// title generation model over a chat model that may reject forced tools.
 	t.Run("WaitingPrefersSmallModelOverChatModel", func(t *testing.T) {
@@ -1497,19 +1592,20 @@ func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 		chatOrg := dbgen.Organization(t, db, database.Organization{})
 		user := dbgen.User(t, db, database.User{})
 		disabledCfg, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-			ID:             uuid.New(),
-			OrganizationID: chatOrg.ID,
-			DisplayName:    "Disabled MCP Server",
-			Slug:           testutil.GetRandomName(t),
-			Url:            "https://mcp.example.com",
-			Transport:      "streamable_http",
-			AuthType:       "none",
-			ToolAllowList:  []string{},
-			ToolDenyList:   []string{},
-			Availability:   "default_off",
-			Enabled:        false,
-			CreatedBy:      user.ID,
-			UpdatedBy:      user.ID,
+			ID:                       uuid.New(),
+			OrganizationID:           chatOrg.ID,
+			DisplayName:              "Disabled MCP Server",
+			Slug:                     testutil.GetRandomName(t),
+			Url:                      "https://mcp.example.com",
+			Transport:                "streamable_http",
+			AuthType:                 "none",
+			OAuth2ClientRegistration: "manual",
+			ToolAllowList:            []string{},
+			ToolDenyList:             []string{},
+			Availability:             "default_off",
+			Enabled:                  false,
+			CreatedBy:                user.ID,
+			UpdatedBy:                user.ID,
 		})
 		require.NoError(t, err)
 

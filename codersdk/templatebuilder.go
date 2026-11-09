@@ -24,9 +24,11 @@ type TemplateBuilderModuleVariable struct {
 	Name        string                      `json:"name"`
 	Type        TemplateBuilderVariableType `json:"type"`
 	Description string                      `json:"description"`
-	Default     json.RawMessage             `json:"default,omitempty"`
-	Required    bool                        `json:"required"`
-	Sensitive   bool                        `json:"sensitive"`
+	// Default is the variable's default as a JSON string, number, or boolean,
+	// matching the variable's type.
+	Default   json.RawMessage `json:"default,omitempty"`
+	Required  bool            `json:"required"`
+	Sensitive bool            `json:"sensitive"`
 }
 
 // TemplateBuilderModule is the API response type returned by

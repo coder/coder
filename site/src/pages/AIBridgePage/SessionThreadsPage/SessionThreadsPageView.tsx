@@ -117,16 +117,13 @@ export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 		<>
 			<nav className="mb-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
 				<Button
-					asChild
 					variant="outline"
 					size="lg"
 					title="Back to AI Gateway sessions list"
 					onClick={onBackClicked}
 				>
-					<span>
-						<ArrowLeftIcon />
-						Back
-					</span>
+					<ArrowLeftIcon />
+					Back
 				</Button>
 				{session && (
 					<div className="flex flex-col items-stretch md:items-end gap-1 md:w-[28rem]">

@@ -223,14 +223,18 @@ func (p *Server) buildTurnEnvironment(
 	modelConfig := resolved.dbConfig
 
 	var computerUseProvider codersdk.ChatComputerUseProvider
+	var computerUseToolVersion anthropic.ComputerUseToolVersion
 	if isComputerUse {
 		var ok bool
-		computerUseProvider, ok = computerUseProviderForAIProviderType(string(resolved.route.Provider.Type))
+		computerUseProvider, ok = chatprovider.ComputerUseProvider(resolved.route.Provider.Type, modelConfig.Model)
 		if !ok {
 			return turnEnvironment{}, xerrors.Errorf(
-				"computer use requires a model from an Anthropic or OpenAI AI provider, but model %q uses AI provider %q of type %q",
-				modelConfig.Model, resolved.route.Provider.Name, resolved.route.Provider.Type,
+				"computer use requires %s, but model %q uses AI provider %q of type %q",
+				chatprovider.ComputerUseModelRequirement, modelConfig.Model, resolved.route.Provider.Name, resolved.route.Provider.Type,
 			)
+		}
+		if computerUseProvider == codersdk.ChatComputerUseProviderAnthropic {
+			computerUseToolVersion = anthropic.ComputerUseToolVersionForModel(modelConfig.Model)
 		}
 	}
 	model := resolved.model
@@ -900,6 +904,7 @@ func (p *Server) buildTurnEnvironment(
 	if isComputerUse {
 		providerTools, err = appendComputerUseProviderTool(providerTools, computerUseProviderToolOptions{
 			provider:         computerUseProvider,
+			toolVersion:      computerUseToolVersion,
 			isPlanModeTurn:   isPlanModeTurn,
 			isComputerUse:    isComputerUse,
 			getWorkspaceConn: workspaceCtx.getWorkspaceConn,
@@ -1229,10 +1234,10 @@ func (p *Server) deriveFinalTurnRunResult(
 	chat database.Chat,
 	logger slog.Logger,
 ) runChatResult {
-	// generateFinalTurnStatusLabel only produces a model-generated label for
-	// the Waiting status, so skip the model resolution and history read
+	// generateFinalTurnStatusLabel only produces a model-generated label
+	// for a finished turn, so skip the model resolution and history read
 	// otherwise.
-	if chat.Status != database.ChatStatusWaiting {
+	if !turnFinished(chat.Status) {
 		return runChatResult{}
 	}
 

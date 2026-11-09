@@ -369,7 +369,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 											</p>
 											<Link
 												href={docs(
-													"/ai-coder/ai-gateway/audit#human-vs-agent-attribution",
+													"/ai-governance/ai-gateway/audit#human-vs-agent-attribution",
 												)}
 												target="_blank"
 												className="text-sm"
@@ -461,7 +461,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 
 							{/* Agentic loop completed */}
 							<BracketConnector contentClassName="py-4 -my-px" hideBottomLine>
-								<div className="flex flex-row items-center ml-2">
+								<div className="flex items-center ml-2">
 									<StatusIndicatorDot variant="success" />
 									<span className="text-content-success font-normal ml-2 text-sm py-1">
 										Agentic loop completed
@@ -602,7 +602,7 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 								</div>
 								<div>
 									<Link
-										href={docs("/ai-coder/ai-governance")}
+										href={docs("/ai-governance")}
 										target="_blank"
 										className="text-sm"
 									>

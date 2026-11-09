@@ -162,6 +162,8 @@ export const OrganizationProvisionersPageView: React.FC<
 												<Link
 													href={docs("/admin/provisioners")}
 													className="py-0 my-0"
+													target="_blank"
+													rel="noreferrer"
 												>
 													Create a provisioner
 												</Link>

@@ -20,7 +20,7 @@ Coder will operate correctly even with few seconds of latency on workspace <-> C
 Coder automatically enters HA mode when multiple instances simultaneously connect to the same Postgres endpoint.
 
 > [!NOTE]
-> When upgrading HA deployments, database migrations may require special handling to avoid lock contention.
+> When upgrading HA deployments, database migrations might require special handling to avoid lock contention.
 > See [Upgrading Best Practices](../../install/operate/upgrade/best-practices.md) for recommended procedures.
 
 HA brings one configuration variable to set in each `coderd` node: `CODER_DERP_SERVER_RELAY_URL`.
@@ -36,7 +36,7 @@ Set `CODER_CLUSTER_HOST` to each node's routable IP address.
 Setting it is required when you use [custom relays](./index.md#custom-relays), because `CODER_DERP_SERVER_RELAY_URL` is ignored and no fallback address is available.
 If a node has neither value set, Coder logs an error and falls back to PostgreSQL for pubsub.
 
-Nodes connect to each other's pubsub on TCP port 6222, which isn't configurable.
+Nodes connect to each other's pubsub on Transmission Control Protocol (TCP) port 6222, which isn't configurable.
 Allow port 6222 between the `CODER_CLUSTER_HOST` addresses of your `coderd` nodes in any firewall or Kubernetes NetworkPolicy that sits between them.
 If you use the embedded relay, also allow the port in `CODER_DERP_SERVER_RELAY_URL`.
 If port 6222 is blocked, Coder doesn't fall back to PostgreSQL, so events published on one node, such as workspace updates, don't reach clients connected to another node.
