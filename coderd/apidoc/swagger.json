@@ -19865,10 +19865,11 @@
 		},
 		"codersdk.ChatComputerUseProvider": {
 			"type": "string",
-			"enum": ["anthropic", "openai"],
+			"enum": ["anthropic", "openai", "openai-compat"],
 			"x-enum-varnames": [
 				"ChatComputerUseProviderAnthropic",
-				"ChatComputerUseProviderOpenAI"
+				"ChatComputerUseProviderOpenAI",
+				"ChatComputerUseProviderOpenAICompat"
 			]
 		},
 		"codersdk.ChatConfig": {

@@ -274,7 +274,7 @@ export const WorkspacesTable: React.FC<WorkspacesTableProps> = ({
 							<TableCell>
 								<AvatarData
 									title={
-										<span className="whitespace-nowrap block max-w-52 text-ellipsis overflow-hidden">
+										<span className="truncate block max-w-52">
 											{getDisplayWorkspaceTemplateName(workspace)}
 										</span>
 									}
@@ -684,7 +684,7 @@ const PrimaryAction: React.FC<PrimaryActionProps> = ({
 	children,
 }) => {
 	return (
-		<Tooltip delayDuration={700}>
+		<Tooltip>
 			<TooltipTrigger asChild>
 				<Button
 					variant="outline"
@@ -978,7 +978,7 @@ const BaseIconLink: React.FC<BaseIconLinkProps> = ({
 	const loadingClass = isLoading ? "animate-pulse" : "";
 
 	return (
-		<Tooltip delayDuration={700}>
+		<Tooltip>
 			<TooltipTrigger asChild>
 				{rest.href !== undefined ? (
 					<Button variant="outline" size="icon-lg" asChild disabled={isLoading}>

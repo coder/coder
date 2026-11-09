@@ -36,7 +36,7 @@ type ListSessionsPageViewProps = {
 };
 
 const ThreadTooltip: React.FC<React.PropsWithChildren> = ({ children }) => (
-	<Tooltip delayDuration={700}>
+	<Tooltip>
 		<TooltipTrigger asChild>
 			<button
 				type="button"
@@ -110,7 +110,7 @@ export const ListSessionsPageView: React.FC<ListSessionsPageViewProps> = ({
 							<TableHead>
 								<div className="flex items-center flex-nowrap gap-1">
 									Last active
-									<Tooltip delayDuration={700}>
+									<Tooltip>
 										<TooltipTrigger asChild>
 											<button
 												type="button"

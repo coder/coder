@@ -29,7 +29,7 @@ export const NetworkCallBadges: React.FC<NetworkCallBadgesProps> = ({
 	}
 
 	return (
-		<Tooltip delayDuration={700}>
+		<Tooltip>
 			<TooltipTrigger asChild>
 				<button
 					type="button"

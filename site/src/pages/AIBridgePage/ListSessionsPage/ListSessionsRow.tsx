@@ -45,7 +45,7 @@ export const ListSessionsRow: React.FC<ListSessionsRowProps> = ({
 			}}
 		>
 			<TableCell className="font-normal">
-				<Tooltip delayDuration={700}>
+				<Tooltip>
 					<TooltipTrigger asChild>
 						<p className="m-0 line-clamp-2 wrap-anywhere">{promptPreview}</p>
 					</TooltipTrigger>

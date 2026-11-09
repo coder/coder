@@ -67,7 +67,7 @@ const ModelBadge: React.FC<ModelBadgeProps> = ({
 
 	return (
 		<span className="inline-flex items-center gap-1 min-w-0 max-w-full">
-			<Tooltip delayDuration={700}>
+			<Tooltip>
 				<TooltipTrigger asChild>
 					<Badge asChild className="gap-1.5 max-w-full min-w-0 overflow-hidden">
 						<button type="button" className="cursor-default">

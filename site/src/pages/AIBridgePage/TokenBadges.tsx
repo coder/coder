@@ -113,7 +113,7 @@ export const TokenBadges: React.FC<TokenBadgesProps> = ({
 
 	return (
 		<div className="flex items-center whitespace-nowrap">
-			<Tooltip delayDuration={700}>
+			<Tooltip>
 				<TooltipTrigger asChild>
 					<button
 						type="button"

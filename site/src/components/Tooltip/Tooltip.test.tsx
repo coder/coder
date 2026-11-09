@@ -1,11 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "./Tooltip";
+import { renderComponent } from "#/testHelpers/renderHelpers";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./Tooltip";
 
 const renderInteractive = (onRowClick = vi.fn()) => {
 	render(
@@ -85,19 +81,16 @@ describe("Tooltip delay", () => {
 		{ delayDuration: undefined, expectedDelay: 100 },
 		{ delayDuration: 150, expectedDelay: 150 },
 		{ delayDuration: 300, expectedDelay: 300 },
-		{ delayDuration: 700, expectedDelay: 700 },
 	])(
 		"opens after $expectedDelay ms",
 		async ({ delayDuration, expectedDelay }) => {
 			const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
 			const onOpenChange = vi.fn();
-			render(
-				<TooltipProvider delayDuration={100}>
-					<Tooltip delayDuration={delayDuration} onOpenChange={onOpenChange}>
-						<TooltipTrigger>Details</TooltipTrigger>
-						<TooltipContent>More information</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>,
+			renderComponent(
+				<Tooltip delayDuration={delayDuration} onOpenChange={onOpenChange}>
+					<TooltipTrigger>Details</TooltipTrigger>
+					<TooltipContent>More information</TooltipContent>
+				</Tooltip>,
 			);
 
 			await user.hover(screen.getByRole("button", { name: "Details" }));

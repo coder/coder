@@ -167,7 +167,7 @@ const ParameterLabel: React.FC<ParameterLabelProps> = ({
 						</Tooltip>
 					)}
 					{isPreset && (
-						<Tooltip delayDuration={100}>
+						<Tooltip>
 							<TooltipTrigger asChild>
 								<span className="flex items-center">
 									<Badge size="sm">

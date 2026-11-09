@@ -24,7 +24,7 @@ import { countSessionSearchMatches } from "./SessionTimeline/sessionSearch";
 const SessionSummaryTooltip: React.FC<React.PropsWithChildren> = ({
 	children,
 }) => (
-	<Tooltip delayDuration={700}>
+	<Tooltip>
 		<TooltipTrigger asChild>
 			<button
 				type="button"

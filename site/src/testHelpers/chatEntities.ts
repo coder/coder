@@ -142,6 +142,20 @@ export const MockChatContextResourceFailures: ChatContext = {
 	],
 };
 
+/** A pinned context whose only resources are disconnected MCP servers. */
+export const MockChatContextMCPServerFailures: ChatContext = {
+	...MockChatContextClean,
+	resources: ["storybook", "playwright", "github"].map<ChatContextResource>(
+		(source) => ({
+			source,
+			kind: "mcp_server",
+			status: "unreadable",
+			size_bytes: 0,
+			error: "Failed to connect to MCP server.",
+		}),
+	),
+};
+
 export const MockChatContextDirty: ChatContext = {
 	dirty: true,
 	dirty_since: "2024-01-02T00:00:00Z",

@@ -47,12 +47,10 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
 						<ResourceAvatar resource={resource} />
 					</div>
 					<div className="font-normal text-sm leading-6">
-						<div className="overflow-hidden text-ellipsis whitespace-nowrap text-xs text-content-secondary">
+						<div className="truncate text-xs text-content-secondary">
 							{resource.type}
 						</div>
-						<div className="overflow-hidden text-ellipsis whitespace-nowrap">
-							{resource.name}
-						</div>
+						<div className="truncate">{resource.name}</div>
 					</div>
 				</div>
 
@@ -64,21 +62,19 @@ export const ResourceCard: React.FC<ResourceCardProps> = ({
 				>
 					{resource.daily_cost > 0 && (
 						<div className="font-normal text-sm leading-6">
-							<div className="overflow-hidden text-ellipsis whitespace-nowrap font-normal text-xs text-content-secondary">
+							<div className="truncate font-normal text-xs text-content-secondary">
 								<b>Daily cost</b>
 							</div>
-							<div className="overflow-hidden text-ellipsis whitespace-nowrap">
-								{resource.daily_cost}
-							</div>
+							<div className="truncate">{resource.daily_cost}</div>
 						</div>
 					)}
 					{visibleMetadata.map((meta) => {
 						return (
 							<div className="font-normal text-sm leading-6" key={meta.key}>
-								<div className="overflow-hidden text-ellipsis whitespace-nowrap font-normal text-xs text-content-secondary">
+								<div className="truncate font-normal text-xs text-content-secondary">
 									{meta.key}
 								</div>
-								<div className="overflow-hidden text-ellipsis whitespace-nowrap">
+								<div className="truncate">
 									{meta.sensitive ? (
 										<SensitiveValue value={meta.value} />
 									) : (
