@@ -1,28 +1,39 @@
-/**
- * Copied from shadc/ui on 04/04/2025
- * @see {@link https://ui.shadcn.com/docs/components/radio-group}
- */
-
+import { Radio } from "@base-ui/react/radio";
+import { RadioGroup as RadioGroupPrimitive } from "@base-ui/react/radio-group";
 import { cn } from "cn";
 import { CircleIcon } from "lucide-react";
-import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 
-export const RadioGroup: React.FC<
-	React.ComponentProps<typeof RadioGroupPrimitive.Root>
-> = ({ className, ...props }) => {
+type RadioGroupProps = Omit<
+	RadioGroupPrimitive.Props<string>,
+	"className" | "onValueChange"
+> & { onValueChange?: (value: string) => void; className?: string };
+
+export const RadioGroup: React.FC<RadioGroupProps> = ({
+	className,
+	onValueChange,
+	...props
+}) => {
 	return (
-		<RadioGroupPrimitive.Root
+		<RadioGroupPrimitive
 			className={cn("grid gap-2", className)}
+			onValueChange={(value) => onValueChange?.(value)}
 			{...props}
 		/>
 	);
 };
 
-export const RadioGroupItem: React.FC<
-	React.ComponentProps<typeof RadioGroupPrimitive.Item>
-> = ({ className, ...props }) => {
+type RadioGroupItemProps = Omit<Radio.Root.Props<string>, "className"> & {
+	className?: string;
+};
+
+export const RadioGroupItem: React.FC<RadioGroupItemProps> = ({
+	className,
+	...props
+}) => {
 	return (
-		<RadioGroupPrimitive.Item
+		<Radio.Root
+			nativeButton
+			render={(buttonProps) => <button {...buttonProps} type="button" />}
 			className={cn(
 				`relative aspect-square size-4 rounded-full border border-solid border-border-control text-content-primary bg-surface-primary
 				focus:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
@@ -33,9 +44,9 @@ export const RadioGroupItem: React.FC<
 			)}
 			{...props}
 		>
-			<RadioGroupPrimitive.Indicator className="flex items-center justify-center">
+			<Radio.Indicator className="flex items-center justify-center">
 				<CircleIcon className="absolute h-2.5 w-2.5 fill-surface-invert-primary" />
-			</RadioGroupPrimitive.Indicator>
-		</RadioGroupPrimitive.Item>
+			</Radio.Indicator>
+		</Radio.Root>
 	);
 };

@@ -1,21 +1,20 @@
-/**
- * Copied from shadc/ui on 06/20/2025
- * @see {@link https://ui.shadcn.com/docs/components/separator}
- */
-
+import { Separator as SeparatorPrimitive } from "@base-ui/react/separator";
 import { cn } from "cn";
-import { Separator as SeparatorPrimitive } from "radix-ui";
 
 function Separator({
 	className,
 	orientation = "horizontal",
 	decorative = true,
 	...props
-}: React.ComponentProps<typeof SeparatorPrimitive.Root>) {
+}: Omit<React.ComponentProps<typeof SeparatorPrimitive>, "className"> & {
+	className?: string;
+	decorative?: boolean;
+}) {
 	return (
-		<SeparatorPrimitive.Root
+		<SeparatorPrimitive
 			data-slot="separator"
-			decorative={decorative}
+			role={decorative ? "none" : "separator"}
+			aria-orientation={decorative ? undefined : orientation}
 			orientation={orientation}
 			className={cn(
 				"bg-border shrink-0 data-[orientation=horizontal]:h-px data-[orientation=horizontal]:w-full data-[orientation=vertical]:h-full data-[orientation=vertical]:w-px",

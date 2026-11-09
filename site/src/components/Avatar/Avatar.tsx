@@ -9,9 +9,9 @@
  * It was also simplified to make usage easier and reduce boilerplate.
  * @see {@link https://github.com/coder/coder/pull/15930#issuecomment-2552292440}
  */
+import { Avatar as AvatarPrimitive } from "@base-ui/react/avatar";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "cn";
-import { Avatar as AvatarPrimitive } from "radix-ui";
 import { useAppearance } from "#/theme/appearance";
 import { getExternalImageStylesFromUrl } from "#/theme/externalImages";
 
@@ -63,7 +63,11 @@ const avatarVariants = cva(
 	},
 );
 
-export type AvatarProps = AvatarPrimitive.AvatarProps &
+export type AvatarProps = Omit<
+	React.ComponentProps<typeof AvatarPrimitive.Root>,
+	"className" | "style"
+> &
+	Pick<React.ComponentProps<"span">, "className" | "style"> &
 	VariantProps<typeof avatarVariants> & {
 		src?: string;
 		fallback?: string;
