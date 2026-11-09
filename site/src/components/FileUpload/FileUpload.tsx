@@ -77,7 +77,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
 					<div className="flex flex-col items-center gap-1">
 						<span className="text-base leading-none">{title}</span>
-						<span className="mt-1 max-w-[400px] text-center text-sm leading-6 text-content-secondary">
+						<span className="mt-1 max-w-100 text-center text-sm leading-6 text-content-secondary">
 							{description}
 						</span>
 					</div>

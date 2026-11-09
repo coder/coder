@@ -534,11 +534,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 								{prTitle}
 							</span>
 						</TooltipTrigger>
-						<TooltipContent
-							side="bottom"
-							align="start"
-							className="max-w-[260px]"
-						>
+						<TooltipContent side="bottom" align="start" className="max-w-65">
 							{prTitle}
 						</TooltipContent>
 					</Tooltip>
@@ -676,7 +672,7 @@ const GitViewSwitcher: React.FC<GitViewSwitcherProps> = ({
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="start"
-				className="w-(--radix-dropdown-menu-trigger-width) min-w-[240px] p-1"
+				className="w-(--radix-dropdown-menu-trigger-width) min-w-60 p-1"
 			>
 				{items.map((item) => {
 					const isActive = item.id === activeItem.id;

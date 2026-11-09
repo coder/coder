@@ -24,9 +24,14 @@ const chartConfig = {
 	},
 } satisfies ChartConfig;
 
-const meta: Meta<typeof ChartContainer> = {
+type ChartStoryArgs = Pick<
+	React.ComponentProps<typeof ChartTooltipContent>,
+	"indicator"
+>;
+
+const meta: Meta<ChartStoryArgs> = {
 	title: "components/Chart",
-	render: () => {
+	render: ({ indicator = "dot" }) => {
 		return (
 			<ChartContainer config={chartConfig}>
 				<AreaChart
@@ -58,7 +63,7 @@ const meta: Meta<typeof ChartContainer> = {
 					<ChartTooltip
 						cursor={false}
 						content={(props) => (
-							<ChartTooltipContent {...props} indicator="dot" />
+							<ChartTooltipContent {...props} indicator={indicator} />
 						)}
 					/>
 					<Area
@@ -76,7 +81,7 @@ const meta: Meta<typeof ChartContainer> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof ChartContainer>;
+type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
 	play: async ({ canvasElement }) => {
@@ -89,6 +94,16 @@ export const Default: Story = {
 		await waitFor(() =>
 			expect(liveRegion).toHaveTextContent(/^January Users 186$/),
 		);
+	},
+};
+
+export const DashedTooltip: Story = {
+	args: { indicator: "dashed" },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const chart = await canvas.findByRole("group", { name: "Users" });
+		chart.focus();
+		await canvas.findByText("186");
 	},
 };
 
