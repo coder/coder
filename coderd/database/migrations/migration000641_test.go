@@ -84,7 +84,11 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 		return diffStatusRow{chatID: chatID, fields: fields}
 	}
 
-	seedStatus := func(chatID uuid.UUID, branch, remoteOrigin string, refreshed, reported time.Time) diffStatusRow {
+	type statusTimes struct {
+		refreshedAt time.Time
+		updatedAt   time.Time
+	}
+	seedStatus := func(chatID uuid.UUID, branch, remoteOrigin string, times statusTimes) diffStatusRow {
 		t.Helper()
 		row := sqlDB.QueryRowContext(ctx, `
 			INSERT INTO chat_diff_statuses (
@@ -137,7 +141,13 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 				$6
 			)
 			RETURNING chat_id, to_jsonb(chat_diff_statuses) - 'chat_id'`,
-			chatID, remoteOrigin, branch, chatID.String(), refreshed, reported)
+			chatID,
+			remoteOrigin,
+			branch,
+			chatID.String(),
+			times.refreshedAt,
+			times.updatedAt,
+		)
 		var rowChatID uuid.UUID
 		var raw []byte
 		err := row.Scan(&rowChatID, &raw)
@@ -164,7 +174,11 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 				$4
 			)
 			RETURNING chat_id, to_jsonb(chat_diff_statuses) - 'chat_id'`,
-			chatID, remoteOrigin, branch, reported)
+			chatID,
+			remoteOrigin,
+			branch,
+			reported,
+		)
 		var rowChatID uuid.UUID
 		var raw []byte
 		err := row.Scan(&rowChatID, &raw)
@@ -178,30 +192,60 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 
 	// Keep the existing root row even if a subagent chat's row has later
 	// refreshed_at and updated_at values.
-	rootStatus := seedStatus(root, "shared", origin, refreshedAt.Add(-time.Hour), reportedAt)
-	seedStatus(child, "shared", origin, refreshedAt, reportedAt.Add(time.Minute))
-	seedStatus(grandchild, "shared", origin, refreshedAt, reportedAt.Add(2*time.Minute))
+	rootStatus := seedStatus(root, "shared", origin, statusTimes{
+		refreshedAt: refreshedAt.Add(-time.Hour),
+		updatedAt:   reportedAt,
+	})
+	seedStatus(child, "shared", origin, statusTimes{
+		refreshedAt: refreshedAt,
+		updatedAt:   reportedAt.Add(time.Minute),
+	})
+	seedStatus(grandchild, "shared", origin, statusTimes{
+		refreshedAt: refreshedAt,
+		updatedAt:   reportedAt.Add(2 * time.Minute),
+	})
 
 	// The latest refreshed_at takes precedence over a later updated_at,
 	// including a reference-only row whose refreshed_at is NULL.
-	subagentStatus := seedStatus(grandchild, "subagent-only", origin, refreshedAt, reportedAt)
-	seedStatus(child, "subagent-only", origin, refreshedAt.Add(-time.Hour), reportedAt.Add(time.Minute))
+	subagentStatus := seedStatus(grandchild, "subagent-only", origin, statusTimes{
+		refreshedAt: refreshedAt,
+		updatedAt:   reportedAt,
+	})
+	seedStatus(child, "subagent-only", origin, statusTimes{
+		refreshedAt: refreshedAt.Add(-time.Hour),
+		updatedAt:   reportedAt.Add(time.Minute),
+	})
 	seedReference(referenceOnlyChild, "subagent-only", origin, reportedAt.Add(2*time.Minute))
 
 	// The same branch on another origin is a separate ref.
-	otherOriginStatus := seedStatus(child, "shared", "https://github.com/coder/other", refreshedAt, reportedAt)
+	otherOriginStatus := seedStatus(child, "shared", "https://github.com/coder/other", statusTimes{
+		refreshedAt: refreshedAt,
+		updatedAt:   reportedAt,
+	})
 
 	// A subagent chat without root_chat_id uses its parent.
-	fallbackStatus := seedStatus(withoutRootID, "fallback", origin, refreshedAt, reportedAt)
+	fallbackStatus := seedStatus(withoutRootID, "fallback", origin, statusTimes{
+		refreshedAt: refreshedAt,
+		updatedAt:   reportedAt,
+	})
 
 	// A subagent chat without parent_chat_id still uses its root.
-	withoutParentIDStatus := seedStatus(withoutParentID, "root-id-only", origin, refreshedAt, reportedAt)
+	withoutParentIDStatus := seedStatus(withoutParentID, "root-id-only", origin, statusTimes{
+		refreshedAt: refreshedAt,
+		updatedAt:   reportedAt,
+	})
 
 	// Refs from archived subagent chats also move to the root chat.
-	archivedStatus := seedStatus(archivedChild, "archived", origin, refreshedAt, reportedAt)
+	archivedStatus := seedStatus(archivedChild, "archived", origin, statusTimes{
+		refreshedAt: refreshedAt,
+		updatedAt:   reportedAt,
+	})
 
 	// An unrelated root chat retains its row for the same ref.
-	otherRootStatus := seedStatus(otherRoot, "shared", origin, refreshedAt, reportedAt)
+	otherRootStatus := seedStatus(otherRoot, "shared", origin, statusTimes{
+		refreshedAt: refreshedAt,
+		updatedAt:   reportedAt,
+	})
 
 	lowerChatID, higherChatID := child, grandchild
 	if lowerChatID.String() > higherChatID.String() {
@@ -209,14 +253,20 @@ func TestMigration000641ChatDiffStatusesRootChats(t *testing.T) {
 	}
 
 	// When refreshed_at is NULL for both rows, retain the later updated_at.
-	// The higher chat_id has the later updated_at so chat_id alone selects
-	// the older row.
+	// The higher chat_id has the later updated_at, so the test fails if
+	// the chat_id tiebreaker runs before updated_at.
 	seedReference(lowerChatID, "no-pr", origin, reportedAt)
 	noPRStatus := seedReference(higherChatID, "no-pr", origin, reportedAt.Add(time.Minute))
 
 	// When both timestamps tie, retain the row with the lower chat_id.
-	seedStatus(higherChatID, "chat-id-tie", origin, refreshedAt, reportedAt)
-	chatIDTieStatus := seedStatus(lowerChatID, "chat-id-tie", origin, refreshedAt, reportedAt)
+	seedStatus(higherChatID, "chat-id-tie", origin, statusTimes{
+		refreshedAt: refreshedAt,
+		updatedAt:   reportedAt,
+	})
+	chatIDTieStatus := seedStatus(lowerChatID, "chat-id-tie", origin, statusTimes{
+		refreshedAt: refreshedAt,
+		updatedAt:   reportedAt,
+	})
 
 	movedTo := func(chatID uuid.UUID, status diffStatusRow) diffStatusRow {
 		status.chatID = chatID

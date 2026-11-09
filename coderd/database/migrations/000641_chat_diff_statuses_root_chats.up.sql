@@ -3,6 +3,8 @@ WITH subagent_statuses AS (
     DELETE FROM chat_diff_statuses cds
     USING chats c
     WHERE cds.chat_id = c.id
+        -- Match Chat.IsSubChat when a deleted parent leaves
+        -- only root_chat_id set.
         AND (c.root_chat_id IS NOT NULL OR c.parent_chat_id IS NOT NULL)
     RETURNING cds.*, COALESCE(c.root_chat_id, c.parent_chat_id) AS root_chat_id
 )
