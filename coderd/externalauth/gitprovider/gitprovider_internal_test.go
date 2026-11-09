@@ -134,6 +134,7 @@ func TestParseRetryAfter(t *testing.T) {
 		h := http.Header{}
 		h.Set("Retry-After", "60")
 		h.Set("X-Ratelimit-Reset", strconv.FormatInt(clk.Now().Add(120*time.Second).Unix(), 10))
+		h.Set("X-Ratelimit-Remaining", "0")
 		d := parseRetryAfter(h, "X-Ratelimit-Reset", "X-Ratelimit-Remaining", clk)
 		assert.Equal(t, 60*time.Second, d)
 	})

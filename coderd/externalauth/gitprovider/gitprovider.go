@@ -224,7 +224,7 @@ func parseRetryAfter(h http.Header, resetHeader, remainingHeader string, clk qua
 		}
 	}
 
-	// Permission errors can carry a reset header while requests remain.
+	// A reset header alone does not show an exhausted primary rate limit.
 	if h.Get(remainingHeader) != "0" {
 		return 0
 	}
@@ -239,9 +239,8 @@ func parseRetryAfter(h http.Header, resetHeader, remainingHeader string, clk qua
 	return 0
 }
 
-// checkRateLimitError returns a *RateLimitError for 403 or 429 with usable
-// retry headers. A reset header requires remainingHeader to be "0".
-// A nil resp returns nil.
+// checkRateLimitError returns a *RateLimitError for 403 or 429 when
+// parseRetryAfter finds a positive delay. A nil resp returns nil.
 func checkRateLimitError(resp *http.Response, clk quartz.Clock, resetHeader, remainingHeader string) error {
 	if resp == nil {
 		return nil
@@ -253,7 +252,8 @@ func checkRateLimitError(resp *http.Response, clk quartz.Clock, resetHeader, rem
 	if retryAfter <= 0 {
 		return nil
 	}
-	return &RateLimitError{RetryAfter: clk.Now().Add(retryAfter + RateLimitPadding)}
+	// Add padding to the time to avoid overflowing the duration sum.
+	return &RateLimitError{RetryAfter: clk.Now().Add(retryAfter).Add(RateLimitPadding)}
 }
 
 // clampToInt32 saturates n to the int32 range used by the

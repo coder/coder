@@ -240,7 +240,8 @@ func (w *Worker) tick(ctx context.Context) {
 				// The owner must link an account.
 				backoff = NoTokenBackoff
 			case isRateLimited:
-				// Skipped rows share the retry time.
+				// Direct limits and in-batch skips carry
+				// the same RateLimitError.
 				backoff = min(rateLimit.RetryAfter.Sub(now), maxRateLimitBackoff)
 			default:
 				// Other errors retain the normal TTL.

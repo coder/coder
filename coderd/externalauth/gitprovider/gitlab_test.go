@@ -364,7 +364,7 @@ func TestGitLabRateLimit(t *testing.T) {
 	})
 }
 
-func TestGitLabRateLimitRawDiffEndpoints(t *testing.T) {
+func TestGitLabRateLimitDiffEndpoints(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {

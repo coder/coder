@@ -464,8 +464,7 @@ func TestGitHubRatelimit_429WithRetryAfter(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Retry-After", "120")
-		// A secondary rate limit can occur while the primary rate limit
-		// still has requests remaining.
+		// A secondary rate limit need not exhaust a primary rate limit.
 		w.Header().Set("X-RateLimit-Remaining", "4990")
 		w.WriteHeader(http.StatusTooManyRequests)
 		_, _ = w.Write([]byte(`{"message": "secondary rate limit"}`))
@@ -605,6 +604,8 @@ func TestFetchPullRequestDiff_Ratelimit(t *testing.T) {
 		retryDelay time.Duration
 	}{
 		{name: "RetryAfter", retryDelay: 2 * time.Minute},
+		// The delay fits Duration; adding padding overflows.
+		{name: "ResetHeaderPaddingOverflow", primary: true, retryDelay: 9223371737 * time.Second},
 		{name: "ResetHeader", primary: true, retryDelay: 30 * time.Minute},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -639,7 +640,7 @@ func TestFetchPullRequestDiff_Ratelimit(t *testing.T) {
 			require.Error(t, err)
 			rateLimit, ok := errors.AsType[*gitprovider.RateLimitError](err)
 			require.True(t, ok, "error should be *RateLimitError, got: %T", err)
-			require.Equal(t, clock.Now().Add(tc.retryDelay+gitprovider.RateLimitPadding), rateLimit.RetryAfter)
+			require.Equal(t, clock.Now().Add(tc.retryDelay).Add(gitprovider.RateLimitPadding), rateLimit.RetryAfter)
 		})
 	}
 }
