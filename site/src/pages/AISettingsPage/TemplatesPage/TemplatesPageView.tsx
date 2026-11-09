@@ -131,11 +131,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 				</SettingsHeaderDescription>
 			</SettingsHeader>
 
-			<TemplatesFilter
-				filter={filterState.filter}
-				error={error}
-				userMenu={filterState.menus.user}
-			/>
+			<TemplatesFilter filter={filterState.filter} error={error} />
 			{hasLoadError && (
 				<div className="mb-4 flex flex-col gap-4">
 					<ErrorAlert

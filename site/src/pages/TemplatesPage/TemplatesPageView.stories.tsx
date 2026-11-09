@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { screen, userEvent, within } from "storybook/test";
+import { getDefaultFilterProps } from "#/components/Filter/storyHelpers";
 import {
-	getDefaultFilterProps,
-	MockMenu,
-} from "#/components/Filter/storyHelpers";
-import {
+	MockDefaultOrganization,
+	MockOrganization2,
 	MockTemplate,
 	MockTemplateExample,
 	MockTemplateExample2,
@@ -11,14 +11,14 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { pixelWithTablet } from "#/testHelpers/pixel";
-import { withDashboardProvider } from "#/testHelpers/storybook";
+import {
+	withAuthProvider,
+	withDashboardProvider,
+} from "#/testHelpers/storybook";
 import type { TemplateFilterState } from "./TemplatesFilter";
 import { TemplatesPageView } from "./TemplatesPageView";
 
 const defaultFilterProps = getDefaultFilterProps<TemplateFilterState>({
-	menus: {
-		organizations: MockMenu,
-	},
 	values: {
 		author: MockUserOwner.username,
 	},
@@ -26,8 +26,8 @@ const defaultFilterProps = getDefaultFilterProps<TemplateFilterState>({
 
 const meta: Meta<typeof TemplatesPageView> = {
 	title: "pages/TemplatesPage",
-	decorators: [withDashboardProvider],
-	parameters: { pixel: { matrix: pixelWithTablet } },
+	decorators: [withDashboardProvider, withAuthProvider],
+	parameters: { user: MockUserOwner, pixel: { matrix: pixelWithTablet } },
 	component: TemplatesPageView,
 	args: {
 		filterState: defaultFilterProps,
@@ -137,19 +137,15 @@ export const WithFilteredAllTemplates: Story = {
 				values: {},
 				used: true,
 			},
-			menus: defaultFilterProps.menus,
 		},
 	},
 };
 
-export const WithUserDropdown: Story = {
+export const WithAuthorFilter: Story = {
 	args: {
 		...WithTemplates.args,
 		filterState: {
 			...defaultFilterProps,
-			menus: {
-				user: MockMenu,
-			},
 			filter: {
 				...defaultFilterProps.filter,
 				query: "author:me",
@@ -290,5 +286,48 @@ export const ClassicParameterFlowWarningWithoutCreatePermission: Story = {
 	args: {
 		...ClassicParameterFlowWarning.args,
 		canCreateTemplates: false,
+	},
+};
+
+export const FilterMenuOpen: Story = {
+	args: WithTemplates.args,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Filters" }),
+		);
+	},
+};
+
+export const WithAttributeFilters: Story = {
+	args: {
+		...WithTemplates.args,
+		filterState: {
+			filter: {
+				...defaultFilterProps.filter,
+				query: "deprecated:true compatibility_mode:true",
+				values: { deprecated: "true", compatibility_mode: "true" },
+				used: true,
+			},
+		},
+	},
+};
+
+export const OrganizationFilterOpen: Story = {
+	args: WithTemplates.args,
+	parameters: {
+		organizations: [MockDefaultOrganization, MockOrganization2],
+		user: {
+			...MockUserOwner,
+			organization_ids: [MockDefaultOrganization.id, MockOrganization2.id],
+		},
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: "Filters" }));
+		await userEvent.hover(
+			await screen.findByRole("option", {
+				name: "Organization",
+			}),
+		);
 	},
 };
