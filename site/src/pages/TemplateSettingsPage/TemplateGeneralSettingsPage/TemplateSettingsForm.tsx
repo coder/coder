@@ -198,7 +198,6 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 						{...getFieldHelpers("icon")}
 						disabled={isSubmitting}
 						onChange={onChangeTrimmed(form)}
-						fullWidth
 						label="Icon"
 						onPickEmoji={(value) => form.setFieldValue("icon", value)}
 					/>
