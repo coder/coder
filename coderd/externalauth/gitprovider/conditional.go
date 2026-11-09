@@ -37,7 +37,8 @@ func (r *cachedResponse) sizeBytes() int {
 }
 
 // responseCache is a concurrency-safe LRU of JSON projections for conditional
-// requests. Authenticated 304 responses do not count against GitHub's primary rate limit.
+// requests. Authenticated 304 responses do not count against GitHub's primary
+// rate limit.
 type responseCache struct {
 	mu         sync.Mutex
 	maxEntries int
