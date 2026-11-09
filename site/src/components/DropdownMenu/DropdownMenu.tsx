@@ -13,6 +13,7 @@ import {
 	menuContentClass,
 	menuItemClass,
 	menuSeparatorClass,
+	menuSubContentOffsets,
 } from "./menuClasses";
 
 export const DropdownMenu = DropdownMenuPrimitive.Root;
@@ -122,6 +123,7 @@ export const DropdownMenuSubContent: React.FC<
 		<DropdownMenuPrimitive.Portal>
 			<DropdownMenuPrimitive.SubContent
 				className={cn(menuContentClass, className)}
+				{...menuSubContentOffsets}
 				{...props}
 			/>
 		</DropdownMenuPrimitive.Portal>
