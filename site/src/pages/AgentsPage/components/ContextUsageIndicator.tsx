@@ -231,23 +231,22 @@ const ContextHarnessSection: React.FC<{
 	issues: readonly ContextIssueItem[];
 }> = ({ groups, issues }) => (
 	<ContextResourceAccordion>
-		<ContextResourceAccordionTrigger>ACP</ContextResourceAccordionTrigger>
+		<ContextResourceAccordionTrigger
+			detail={`${groups.reduce((count, group) => count + group.items.length, 0)} available`}
+		>
+			ACP
+		</ContextResourceAccordionTrigger>
 		<ContextResourceAccordionContent>
 			{groups.length > 0 && (
 				<ContextResourceTree>
 					{groups.map((group) => (
-						<ContextResourceTreeDirectory
-							key={group.dir}
-							dir={group.dir}
-							className="gap-1"
-						>
+						<ContextResourceTreeDirectory key={group.dir} dir={group.dir}>
 							{group.items.map((harness) => (
 								<ContextResourceTreeItem
 									key={harness.slug}
 									icon={group.dir === "" ? BotIcon : undefined}
 									name={harness.slug}
 									title={harness.slug}
-									className="leading-4 text-content-secondary"
 								/>
 							))}
 						</ContextResourceTreeDirectory>
