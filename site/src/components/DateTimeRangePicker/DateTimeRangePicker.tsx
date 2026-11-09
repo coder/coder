@@ -42,6 +42,7 @@ type DateTimeRangePickerProps = {
 	now?: Date;
 	presets?: QuickPreset[];
 	size?: ButtonProps["size"];
+	/** Accessible name of the picker. Defaults to "Time range". */
 	label?: string;
 	/**
 	 * Earliest allowed start. Earlier days cannot be picked, an earlier start
@@ -276,8 +277,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 					variant="outline"
 					size={size}
 					className="group gap-2 pr-1.5"
-					// Exposed as a select-only combobox whose value is the visible
-					// text, so it needs a name of its own.
+					// The visible text is the combobox value, not its name.
 					role="combobox"
 					aria-label={accessibleName}
 					aria-expanded={open}
@@ -322,7 +322,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 					    user expands the custom range panel. */}
 					<div
 						role="radiogroup"
-						aria-label="Time range"
+						aria-label="Quick ranges"
 						onKeyDown={handleQuickPickKeyDown}
 						className={cn(
 							"flex flex-col gap-0.5 p-2 text-sm",

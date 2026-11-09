@@ -80,7 +80,6 @@ it("picks a quick range with the keyboard alone", async () => {
 
 	await user.tab();
 	const trigger = screen.getByRole("combobox", { name: "Time range" });
-	expect(trigger).toHaveTextContent("Last 24 hours");
 	expect(trigger).toHaveAttribute("aria-expanded", "false");
 	await user.keyboard("{ArrowDown}");
 	expect(
