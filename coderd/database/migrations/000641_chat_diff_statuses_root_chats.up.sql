@@ -1,4 +1,4 @@
--- Git refs belong to the root chat. Keep existing root rows on conflict;
+-- Git refs belong to the root chat. Keep all fields of existing root rows;
 -- otherwise retain the most recently refreshed subagent row for each ref.
 WITH subagent_statuses AS (
     DELETE FROM chat_diff_statuses cds
