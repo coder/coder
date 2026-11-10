@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -598,14 +599,21 @@ func TestGitHubFetchPullRequestDiff(t *testing.T) {
 func TestFetchPullRequestDiff_Ratelimit(t *testing.T) {
 	t.Parallel()
 
+	// The delay fits Duration but overflows after padding. The extra
+	// second keeps it above the threshold after whole-second truncation.
+	overflowDelay := (math.MaxInt64 - gitprovider.RateLimitPadding + time.Second).Truncate(time.Second)
+
 	for _, tc := range []struct {
 		name       string
 		primary    bool
 		retryDelay time.Duration
 	}{
 		{name: "RetryAfter", retryDelay: 2 * time.Minute},
-		// The delay fits Duration; adding padding overflows.
-		{name: "ResetHeaderPaddingOverflow", primary: true, retryDelay: 9223371737 * time.Second},
+		{
+			name:       "ResetHeaderPaddingOverflow",
+			primary:    true,
+			retryDelay: overflowDelay,
+		},
 		{name: "ResetHeader", primary: true, retryDelay: 30 * time.Minute},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
