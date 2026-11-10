@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { LunarLander } from "./LunarLander";
@@ -38,7 +38,7 @@ function renderGame() {
 	const runFrame = (timestamp: number) => {
 		const frame = frames.shift();
 		if (!frame) throw new Error("Animation frame not scheduled");
-		frame(timestamp);
+		act(() => frame(timestamp));
 	};
 	const sidebarDrawn = () =>
 		fillText.mock.calls.some(([text]) => text === "Employee");
@@ -118,3 +118,70 @@ it.each([
 		unmount();
 	},
 );
+
+it("rewinds recent play behind a REWINDING... label when R is pressed", async () => {
+	const { fillText, runFrame, unmount, user } = renderGame();
+	const drew = (text: string) =>
+		fillText.mock.calls.some(([drawn]) => drawn === text);
+	let now = 1;
+	const advance = (ms: number) => {
+		now += ms;
+		runFrame(now);
+	};
+
+	// Two seconds of free fall on Hard trips the velocity warning.
+	runFrame(now);
+	await user.keyboard("h");
+	advance(1);
+	for (let i = 0; i < 20; i++) advance(100);
+	fillText.mockClear();
+	advance(16);
+	expect(drew("⚠ WARNING")).toBe(true);
+
+	await user.keyboard("R");
+	fillText.mockClear();
+	advance(100);
+	expect(drew("REWINDING...")).toBe(true);
+	expect(screen.getByText("Rewinding 5 seconds")).toBeInTheDocument();
+
+	// The replay runs faster than real time and covers all of the
+	// play so far, so one second is enough to finish it.
+	for (let i = 0; i < 10; i++) advance(100);
+	fillText.mockClear();
+	advance(16);
+	expect(drew("REWINDING...")).toBe(false);
+	expect(drew("⚠ WARNING")).toBe(false);
+	expect(screen.queryByText("Rewinding 5 seconds")).toBeNull();
+	unmount();
+});
+
+it("brings a crashed lander back when R is pressed during the explosion", async () => {
+	const { context, runFrame, unmount, user } = renderGame();
+	// drawLander is the only caller of rotate, so a frame without one is
+	// a frame where the lander has been replaced by its explosion.
+	const rotate = vi.spyOn(context, "rotate");
+	let now = 1;
+	const advance = (ms: number) => {
+		now += ms;
+		rotate.mockClear();
+		runFrame(now);
+		return rotate.mock.calls.length > 0;
+	};
+
+	runFrame(now);
+	await user.keyboard("h");
+	let crashed = false;
+	for (let i = 0; i < 100 && !crashed; i++) crashed = !advance(100);
+	expect(crashed).toBe(true);
+
+	await user.keyboard("r");
+	advance(100);
+	expect(screen.getByText("Rewinding 5 seconds")).toBeInTheDocument();
+	// 2 s more finishes the replay (5 s of play at 2.5x), while the
+	// explosion alone would still be running: it lasts 2.5 s and would
+	// have been playing for about 2.2 s.
+	for (let i = 0; i < 20; i++) advance(100);
+	expect(screen.queryByText("Rewinding 5 seconds")).toBeNull();
+	expect(advance(16)).toBe(true);
+	unmount();
+});
