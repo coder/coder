@@ -30,7 +30,6 @@ jobs:
         working-directory: .
     env:
       PROFILE_PROVIDER: ${{ matrix.provider }}
-      PROFILE_SCRIPTS: ${{ runner.temp }}/profiling-scripts
       CODER_TEST_MEMORY_LIMIT_MIB: '6144'
       TS_DEBUG_DISCO: 'true'
       TS_DEBUG_DERP: 'true'
@@ -48,7 +47,9 @@ jobs:
           sparse-checkout: .github/cache-profile
           persist-credentials: false
       - name: Keep diagnostics outside source checkout
-        run: cp -r diagnostics/.github/cache-profile "$PROFILE_SCRIPTS"
+        run: |
+          cp -r diagnostics/.github/cache-profile "$RUNNER_TEMP/profiling-scripts"
+          printf 'PROFILE_SCRIPTS=%s\n' "$RUNNER_TEMP/profiling-scripts" >> "$GITHUB_ENV"
       - name: Checkout original source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
