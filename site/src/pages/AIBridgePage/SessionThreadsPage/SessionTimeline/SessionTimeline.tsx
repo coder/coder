@@ -200,10 +200,7 @@ type ToolCallBlockProps = {
 	tool: string;
 	serverURL: string;
 	input: string;
-	inputTokens: number;
-	outputTokens: number;
 	timestamp: Date;
-	tokenUsageMetadata?: Record<string, unknown>;
 	expandedByDefault?: boolean;
 	/** The active query, used to bold matches in the tool name and input. */
 	highlight: string;
@@ -213,10 +210,7 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 	tool,
 	serverURL,
 	input,
-	inputTokens,
-	outputTokens,
 	timestamp,
-	tokenUsageMetadata,
 	expandedByDefault = false,
 	highlight,
 }) => {
@@ -232,7 +226,7 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 					onClick={() => setUserToggled((prev) => !(prev ?? expandedByDefault))}
 				>
 					<span className="text-sm font-normal">Tool call</span>
-					<Badge size="xs" className="font-mono ml-1">
+					<Badge size="sm" className="font-mono ml-1">
 						<HighlightText text={tool} highlight={highlight} />
 					</Badge>
 				</CollapseButton>
@@ -243,9 +237,6 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 						className="mt-2 ml-5 mr-4 lg:w-1/2 overflow-x-auto"
 						timestamp={timestamp}
 						serverURL={serverURL}
-						inputTokens={inputTokens}
-						outputTokens={outputTokens}
-						tokenUsageMetadata={tokenUsageMetadata}
 					/>
 					<pre className="flex gap-4 bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto m-0">
 						<span>
@@ -299,9 +290,6 @@ const AgenticActionItem: React.FC<AgenticActionItemProps> = ({
 					tool={tool_call.tool}
 					serverURL={tool_call.server_url}
 					input={tool_call.input}
-					inputTokens={action.token_usage.input_tokens}
-					outputTokens={action.token_usage.output_tokens}
-					tokenUsageMetadata={tool_call.metadata}
 					timestamp={new Date(tool_call.created_at)}
 					expandedByDefault={(matchedToolCallIds?.size ?? 0) > 0}
 					highlight={highlight}
@@ -366,8 +354,8 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 							<div className="text-sm text-content-secondary font-normal my-1 flex items-center gap-1">
 								Prompt
 								<TooltipProvider>
-									<Tooltip>
-										<TooltipTrigger asChild>
+									<Tooltip interactive>
+										<TooltipTrigger aria-label="About prompt attribution">
 											<InfoIcon className="size-icon-xs p-0.5 text-content-secondary" />
 										</TooltipTrigger>
 										<TooltipContent
@@ -417,8 +405,13 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 					<PromptTable
 						timestamp={new Date(thread.started_at)}
 						model={thread.model}
+						pricedModel={thread.priced_model}
 						inputTokens={thread.token_usage.input_tokens}
 						outputTokens={thread.token_usage.output_tokens}
+						cacheReadTokens={thread.token_usage.cache_read_input_tokens}
+						cacheWriteTokens={thread.token_usage.cache_write_input_tokens}
+						costMicros={thread.token_usage.cost_micros}
+						hasUnpricedUsage={thread.token_usage.has_unpriced_usage}
 						tokenUsageMetadata={thread.token_usage.metadata}
 					/>
 				</div>
@@ -594,8 +587,8 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 				<div className="row-start-3 col-start-5 row-span-2 flex items-center text-sm text-content-secondary font-normal px-2 pt-1">
 					AI Governance
 					<TooltipProvider>
-						<Tooltip>
-							<TooltipTrigger asChild>
+						<Tooltip interactive>
+							<TooltipTrigger aria-label="About AI Governance">
 								<InfoIcon className="size-icon-sm p-0.5 ml-1" />
 							</TooltipTrigger>
 							<TooltipContent

@@ -10,7 +10,7 @@ It is your responsibility to ensure the auth provider enforces MFA correctly.
 
 ## Configure SSO
 
-- [OpenID Connect](./oidc-auth/index.md) (e.g. Okta, KeyCloak, PingFederate, Azure AD)
+- [OpenID Connect](./oidc-auth/index.md) (for example, Okta, KeyCloak, PingFederate, Azure AD)
 - [GitHub](./github-auth.md) (or GitHub Enterprise)
 
 ## Groups
@@ -45,6 +45,9 @@ Active users can access workspaces, templates, and interact with Coder using CLI
 A user account is set to _dormant_ status when they have not yet logged in, or have not logged into the Coder platform for the past 90&nbsp;days.
 Once the user logs in to the platform, the account status will switch to _active_.
 
+[Service accounts](./headless-auth.md) are an exception.
+They don't log in, so Coder creates them as _active_ by default and never marks them _dormant_.
+
 Dormant accounts do not count towards the total number of licensed seats in a Coder subscription, allowing organizations to optimize their license usage.
 
 ### Suspended user
@@ -76,7 +79,8 @@ coder users create
 
 When prompted, provide the **username** and **email** for the new user.
 
-You'll receive a response that includes the following; share the instructions with the user so that they can log into Coder:
+You'll receive a response that includes the following.
+Share the instructions with the user so that they can log into Coder:
 
 ```console
 Download the Coder command line for your operating system:
@@ -135,7 +139,8 @@ To reset a user's password as an administrator via the web UI:
 
 1. Go to **Users**.
 2. Find the user whose password you want to reset, select the vertical ellipsis to the right, and select **Reset password**.
-3. Coder displays a temporary password that you can send to the user; copy the password and select **Reset password**.
+3. Coder displays a temporary password that you can send to the user.
+   Copy the password and select **Reset password**.
 
 Coder will prompt the user to change their temporary password immediately after logging in.
 
@@ -147,7 +152,7 @@ coder reset-password <username>
 ```
 
 > [!NOTE]
-> Resetting a user's password, e.g., the initial `owner` role-based user, only works when run on the host running the Coder control plane.
+> Resetting a user's password, for example, the initial `owner` role-based user, only works when run on the host running the Coder control plane.
 
 <a id="resetting-a-password-on-kubernetes"></a>
 
@@ -186,7 +191,7 @@ The following filters are supported:
   It can be either `active`, `dormant` or `suspended`.
 - `role` - Represents the role of the user.
   You can refer to the [TemplateRole documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#TemplateRole) for a list of supported user roles.
-- `last_seen_before` and `last_seen_after` - The last time a user has used the platform (e.g. logging in, any API requests, connecting to workspaces).
+- `last_seen_before` and `last_seen_after` - The last time a user has used the platform (for example, logging in, any API requests, connecting to workspaces).
   Uses the RFC3339Nano format.
 - `created_before` and `created_after` - The time a user was created.
   Uses the RFC3339Nano format.

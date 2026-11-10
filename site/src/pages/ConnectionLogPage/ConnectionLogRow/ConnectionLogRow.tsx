@@ -1,18 +1,54 @@
-import { InfoIcon, NetworkIcon } from "lucide-react";
-import { Link as RouterLink } from "react-router";
-import userAgentParser from "ua-parser-js";
+import { NetworkIcon, TimerIcon } from "lucide-react";
 import type { ConnectionLog } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
-import { Link } from "#/components/Link/Link";
+import { Badge } from "#/components/Badge/Badge";
 import { StatusBadge } from "#/components/StatusBadge/StatusBadge";
 import { TableCell } from "#/components/Table/Table";
 import { TimelineEntry } from "#/components/Timeline/TimelineEntry";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "#/components/Tooltip/Tooltip";
+import { humanDurationShort } from "#/utils/time";
 import { ConnectionLogDescription } from "./ConnectionLogDescription/ConnectionLogDescription";
+import { ConnectionLogDetailsPopover } from "./ConnectionLogDetailsPopover";
+
+type ConnectionTiming = {
+	range: string;
+	duration?: string;
+	warning?: string;
+};
+
+const formatTime = (time: string): string =>
+	new Date(time).toLocaleTimeString();
+
+const connectionTiming = ({
+	connect_time,
+	ssh_info,
+}: ConnectionLog): ConnectionTiming => {
+	const start = formatTime(connect_time);
+	if (!ssh_info) {
+		return { range: start };
+	}
+	const disconnectTime = ssh_info.disconnect_time;
+	if (!disconnectTime) {
+		return { range: `${start} → Ongoing` };
+	}
+	const end = formatTime(disconnectTime);
+	// A disconnect recorded without its connect stores its own time as
+	// connect_time, so identical timestamps mean the connect is unknown.
+	if (connect_time === disconnectTime) {
+		return { range: `Unknown → ${end}` };
+	}
+	const durationMs =
+		new Date(disconnectTime).getTime() - new Date(connect_time).getTime();
+	if (durationMs < 0) {
+		return {
+			range: `${start} → ${end}`,
+			warning: "Disconnect recorded before connect",
+		};
+	}
+	return {
+		range: `${start} → ${end}`,
+		duration: humanDurationShort(durationMs),
+	};
+};
 
 type ConnectionLogRowProps = {
 	connectionLog: ConnectionLog;
@@ -21,12 +57,10 @@ type ConnectionLogRowProps = {
 export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 	connectionLog,
 }) => {
-	const userAgent = connectionLog.web_info?.user_agent
-		? userAgentParser(connectionLog.web_info?.user_agent)
-		: undefined;
 	const isWeb = connectionLog.web_info !== undefined;
 	const code =
 		connectionLog.web_info?.status_code ?? connectionLog.ssh_info?.exit_code;
+	const timing = connectionTiming(connectionLog);
 
 	return (
 		<TimelineEntry
@@ -51,13 +85,22 @@ export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 						)}
 
 						<div className="flex flex-row items-center justify-between w-full">
-							<div className="flex flex-row items-baseline gap-2 text-base">
+							<div className="flex flex-row items-center gap-2 text-base">
 								<ConnectionLogDescription connectionLog={connectionLog} />
-								<span className="text-content-secondary text-xs">
-									{new Date(connectionLog.connect_time).toLocaleTimeString()}
-									{connectionLog.ssh_info?.disconnect_time &&
-										` → ${new Date(connectionLog.ssh_info.disconnect_time).toLocaleTimeString()}`}
-								</span>
+								<div className="flex flex-row items-center gap-1">
+									<Badge size="sm">{timing.range}</Badge>
+									{timing.duration && (
+										<Badge size="sm">
+											<TimerIcon />
+											{timing.duration}
+										</Badge>
+									)}
+									{timing.warning && (
+										<Badge size="sm" variant="warning">
+											{timing.warning}
+										</Badge>
+									)}
+								</div>
 							</div>
 
 							<div className="flex flex-row items-center gap-4">
@@ -68,68 +111,7 @@ export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 										label={isWeb ? "HTTP Status Code" : "SSH Exit Code"}
 									/>
 								)}
-								<Tooltip>
-									<TooltipTrigger asChild>
-										<InfoIcon className="size-icon-sm text-content-secondary" />
-									</TooltipTrigger>
-									<TooltipContent side="bottom">
-										<div className="flex flex-col gap-2">
-											{connectionLog.ip && (
-												<div>
-													<h4 className="m-0 text-content-primary text-sm leading-[150%] font-semibold">
-														IP:
-													</h4>
-													<div>{connectionLog.ip}</div>
-												</div>
-											)}
-											{userAgent?.os.name && (
-												<div>
-													<h4 className="m-0 text-content-primary text-sm leading-[150%] font-semibold">
-														OS:
-													</h4>
-													<div>{userAgent.os.name}</div>
-												</div>
-											)}
-											{userAgent?.browser.name && (
-												<div>
-													<h4 className="m-0 text-content-primary text-sm leading-[150%] font-semibold">
-														Browser:
-													</h4>
-													<div>
-														{userAgent.browser.name} {userAgent.browser.version}
-													</div>
-												</div>
-											)}
-											{connectionLog.organization && (
-												<div>
-													<h4 className="m-0 text-content-primary text-sm leading-[150%] font-semibold">
-														Organization:
-													</h4>
-													<Link
-														asChild
-														showExternalIcon={false}
-														className="px-0 text-xs"
-													>
-														<RouterLink
-															to={`/organizations/${connectionLog.organization.name}`}
-														>
-															{connectionLog.organization.display_name ||
-																connectionLog.organization.name}
-														</RouterLink>
-													</Link>
-												</div>
-											)}
-											{connectionLog.ssh_info?.disconnect_reason && (
-												<div>
-													<h4 className="m-0 text-content-primary text-sm leading-[150%] font-semibold">
-														Close Reason:
-													</h4>
-													<div>{connectionLog.ssh_info?.disconnect_reason}</div>
-												</div>
-											)}
-										</div>
-									</TooltipContent>
-								</Tooltip>
+								<ConnectionLogDetailsPopover connectionLog={connectionLog} />
 							</div>
 						</div>
 					</div>

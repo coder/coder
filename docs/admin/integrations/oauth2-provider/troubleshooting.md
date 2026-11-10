@@ -45,7 +45,8 @@ The `error_description` opens with the requested name that caused the rejection:
   Update the allowlist with supported scopes.
   This description stands alone.
   Dynamic Client Registration drops unsupported names before storing, so this applies to an allowlist set through the web UI or the management API, or to an application that registered before names were checked.
-  Such a value was never checked against the catalog, so the response never echoes it; the `coderd` log records the application ID.
+  Such a value was never checked against the catalog, so the response never echoes it.
+  The `coderd` log records the application ID.
 - `scope requests permissions beyond the signed-in session`: the session authorizing the request does not hold that scope.
   Authorize from a browser session, which holds every scope.
 - `the signed-in session is restricted to an allow list`: the session authorizing the request has an allow list other than `*:*`.
@@ -65,7 +66,8 @@ Refer to ["invalid_scope" for a refresh that names a scope](#invalid_scope-for-a
 If that stored scope names something this deployment cannot mint, the exchange answers HTTP 400 with `error=invalid_grant` and an `error_description` naming the value.
 
 The usual cause is a grant made against a scope the deployment has since dropped.
-Authorize again to negotiate a scope it still supports; the stored scope is not something the client can change by requesting a different one.
+Authorize again to negotiate a scope it still supports.
+The stored scope is not something the client can change by requesting a different one.
 
 The exchange also re-checks the code's scope against the application's registered `scope`, which can change during the 10&nbsp;minutes a code stays valid.
 Two more descriptions can open the `error_description` here:
@@ -76,14 +78,16 @@ Two more descriptions can open the `error_description` here:
   Update the allowlist with supported scopes.
   As on the authorize endpoint, the stored value stays out of the response.
 
-A coverage comparison this deployment cannot decide answers HTTP 500 with `error=server_error` and `The requested scope could not be evaluated`; the scope that could not be compared is in the `coderd` logs, not the response.
+A coverage comparison this deployment cannot decide answers HTTP 500 with `error=server_error` and `The requested scope could not be evaluated`.
+The scope that could not be compared is in the `coderd` logs, not the response.
 
 An application's `scope` allowlist can change through [Dynamic Client Registration](./index.md#dynamic-client-registration), by the application itself, or through the management API, by an administrator.
 An application that holds its registration access token can widen its own allowlist again before redeeming a code, so treat this re-check as reflecting the allowlist at redemption time rather than as a constraint on the client.
 
 A refresh is not re-checked against the registration.
 That is a Coder policy choice: withdrawing scope from a session already running would break it mid-flight, so a narrowing takes effect at the next authorization.
-A refresh token keeps its granted scope until it expires, which can be up to the configured refresh lifetime; revoke the token to cut a live session.
+A refresh token keeps its granted scope until it expires, which can be up to the configured refresh lifetime.
+Revoke the token to cut a live session.
 
 Codes issued before the upgrade that added scope columns carry `coder:all`, recorded as an unrestricted grant.
 For an application with a narrower `scope` allowlist, those codes are refused with `scope is no longer allowed by this app's registered scopes` until they expire, which takes at most 10&nbsp;minutes.

@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -287,6 +288,211 @@ func TestReadFile(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReadFileInRoot(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks are not reliably supported on Windows")
+	}
+
+	base := t.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	osFs := afero.NewOsFs()
+	api := agentfiles.NewAPI(logger, osFs, nil)
+
+	const outsideBytes = "outside-secret-bytes"
+	outsideDir := filepath.Join(base, "outside")
+	outsideFile := filepath.Join(outsideDir, "secret.txt")
+	realSkills := filepath.Join(base, "real-skills")
+	root := filepath.Join(realSkills, "my-skill")
+	siblingDir := filepath.Join(realSkills, "other-skill")
+	linkedSkills := filepath.Join(base, "skills")
+	swappedSkill := filepath.Join(base, "swapped-skill")
+
+	for _, dir := range []string{outsideDir, filepath.Join(root, "roles", "sub"), siblingDir} {
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+	}
+	for name, content := range map[string]string{
+		outsideFile:                                 outsideBytes,
+		filepath.Join(root, "notes.md"):             "notes",
+		filepath.Join(root, "roles", "reviewer.md"): "reviewer",
+		filepath.Join(root, "reviewer.md"):          "decoy",
+		filepath.Join(siblingDir, "other.md"):       "sibling",
+	} {
+		require.NoError(t, os.WriteFile(name, []byte(content), 0o600))
+	}
+	for link, target := range map[string]string{
+		linkedSkills:                                        realSkills,
+		swappedSkill:                                        outsideDir,
+		filepath.Join(root, "rel-link.md"):                  "notes.md",
+		filepath.Join(root, "deep"):                         filepath.Join("roles", "sub"),
+		filepath.Join(root, "roles", "sub", "up.md"):        filepath.Join("..", "reviewer.md"),
+		filepath.Join(root, "abs-inside.md"):                filepath.Join(root, "notes.md"),
+		filepath.Join(root, "abs-outside.md"):               outsideFile,
+		filepath.Join(root, "rel-escape.md"):                filepath.Join("..", "..", "outside", "secret.txt"),
+		filepath.Join(root, "outdir"):                       filepath.Join("..", "..", "outside"),
+		filepath.Join(root, "sibling.md"):                   filepath.Join("..", "other-skill", "other.md"),
+		filepath.Join(root, "loop.md"):                      "loop.md",
+		filepath.Join(root, "chain.md"):                     "rel-escape.md",
+		filepath.Join(root, "proc-root.md"):                 "/proc/self/root" + outsideFile,
+		filepath.Join(root, "dangling.md"):                  "missing.md",
+		filepath.Join(root, "roles", "sub", "escape-up.md"): filepath.Join("..", "..", "..", "..", "outside", "secret.txt"),
+	} {
+		require.NoError(t, os.Symlink(target, link))
+	}
+
+	tests := []struct {
+		name    string
+		root    string
+		path    string
+		bytes   string
+		errCode int
+		error   string
+	}{
+		{name: "RegularFile", root: root, path: "notes.md", bytes: "notes"},
+		{name: "NestedFile", root: root, path: "roles/reviewer.md", bytes: "reviewer"},
+		{name: "RelativeSymlinkInside", root: root, path: "rel-link.md", bytes: "notes"},
+		// deep -> roles/sub and up.md -> ../reviewer.md resolve against
+		// the real parent, roles/sub, so the read is roles/reviewer.md and
+		// not the decoy at the skill root.
+		{name: "DirectorySymlinkThenDotDot", root: root, path: "deep/up.md", bytes: "reviewer"},
+		{name: "RootUnderSymlinkedAncestor", root: filepath.Join(linkedSkills, "my-skill"), path: "rel-link.md", bytes: "notes"},
+		{name: "AbsoluteSymlinkInside", root: root, path: "abs-inside.md", errCode: http.StatusBadRequest, error: "abs-inside.md"},
+		{name: "AbsoluteSymlinkOutside", root: root, path: "abs-outside.md", errCode: http.StatusBadRequest, error: "abs-outside.md"},
+		{name: "RelativeSymlinkEscapes", root: root, path: "rel-escape.md", errCode: http.StatusBadRequest, error: "rel-escape.md"},
+		{name: "NestedRelativeSymlinkEscapes", root: root, path: "deep/escape-up.md", errCode: http.StatusBadRequest, error: "escape-up.md"},
+		{name: "DirectorySymlinkEscapes", root: root, path: "outdir/secret.txt", errCode: http.StatusBadRequest, error: "outdir/secret.txt"},
+		{name: "SiblingSkill", root: root, path: "sibling.md", errCode: http.StatusBadRequest, error: "sibling.md"},
+		{name: "SymlinkLoop", root: root, path: "loop.md", errCode: http.StatusBadRequest, error: "loop.md"},
+		{name: "ChainedSymlinkEscapes", root: root, path: "chain.md", errCode: http.StatusBadRequest, error: "chain.md"},
+		{name: "ProcSelfRootSymlink", root: root, path: "proc-root.md", errCode: http.StatusBadRequest, error: "proc-root.md"},
+		{name: "DanglingSymlink", root: root, path: "dangling.md", errCode: http.StatusNotFound, error: "no such file"},
+		{name: "RootIsSymlink", root: swappedSkill, path: "secret.txt", errCode: http.StatusBadRequest, error: "root must not be a symlink"},
+		{name: "RootIsSymlinkTrailingSlash", root: swappedSkill + "/", path: "secret.txt", errCode: http.StatusBadRequest, error: "root must not be a symlink"},
+		{name: "AbsolutePath", root: root, path: outsideFile, errCode: http.StatusBadRequest, error: "file path must be relative to root"},
+		{name: "DotDotPath", root: root, path: "../../outside/secret.txt", errCode: http.StatusBadRequest, error: "file path must be relative to root"},
+		{name: "RelativeRoot", root: "real-skills/my-skill", path: "notes.md", errCode: http.StatusBadRequest, error: "root must be absolute"},
+		{name: "NonExistent", root: root, path: "missing.md", errCode: http.StatusNotFound, error: "no such file"},
+		{name: "IsDir", root: root, path: "roles", errCode: http.StatusBadRequest, error: "not a file"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			query := url.Values{"root": {tt.root}, "path": {tt.path}}
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/read-file?"+query.Encode(), nil)
+			api.Routes().ServeHTTP(w, r)
+
+			body := w.Body.String()
+			require.NotContains(t, body, outsideBytes)
+			if tt.errCode == 0 {
+				require.Equal(t, http.StatusOK, w.Code, body)
+				require.Equal(t, tt.bytes, body)
+				return
+			}
+			require.Equal(t, tt.errCode, w.Code, body)
+			got := &codersdk.Error{}
+			require.NoError(t, json.Unmarshal([]byte(body), got))
+			require.ErrorContains(t, got, tt.error)
+			// A refusal names only the requested path, never a symlink
+			// target.
+			if tt.path != outsideFile {
+				require.NotContains(t, body, outsideDir)
+				require.NotContains(t, body, siblingDir)
+			}
+		})
+	}
+}
+
+// TestReadFileInRootRegularDirectory uses no symlinks, so unlike the
+// other rooted read tests it also runs on Windows, where the root
+// check depends on a different os.SameFile implementation.
+func TestReadFileInRootRegularDirectory(t *testing.T) {
+	t.Parallel()
+
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "notes.md"), []byte("notes"), 0o600))
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	api := agentfiles.NewAPI(logger, afero.NewOsFs(), nil)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	query := url.Values{"root": {root}, "path": {"notes.md"}}.Encode()
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/read-file?"+query, nil)
+	api.Routes().ServeHTTP(w, r)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	require.Equal(t, "notes", w.Body.String())
+}
+
+// TestReadFileInRootSwap replaces the root directory with a symlink to
+// another directory while reads run, and checks that no read returns
+// bytes from the other directory.
+func TestReadFileInRootSwap(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks are not reliably supported on Windows")
+	}
+
+	base := t.TempDir()
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	api := agentfiles.NewAPI(logger, afero.NewOsFs(), nil)
+
+	const outsideBytes = "outside-secret-bytes"
+	outsideDir := filepath.Join(base, "outside")
+	root := filepath.Join(base, "skill")
+	aside := filepath.Join(base, "skill-aside")
+	for dir, content := range map[string]string{outsideDir: outsideBytes, root: "inside"} {
+		require.NoError(t, os.Mkdir(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "secret.txt"), []byte(content), 0o600))
+	}
+
+	stop := make(chan struct{})
+	swapErr := make(chan error, 1)
+	go func() {
+		swapErr <- func() error {
+			for {
+				select {
+				case <-stop:
+					return nil
+				default:
+				}
+				if err := os.Rename(root, aside); err != nil {
+					return err
+				}
+				if err := os.Symlink(outsideDir, root); err != nil {
+					return err
+				}
+				if err := os.Remove(root); err != nil {
+					return err
+				}
+				if err := os.Rename(aside, root); err != nil {
+					return err
+				}
+			}
+		}()
+	}()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	query := url.Values{"root": {root}, "path": {"secret.txt"}}.Encode()
+	leaks := 0
+	for range 500 {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/read-file?"+query, nil)
+		api.Routes().ServeHTTP(w, r)
+		if strings.Contains(w.Body.String(), outsideBytes) {
+			leaks++
+		}
+	}
+	close(stop)
+	require.NoError(t, <-swapErr)
+	require.Zero(t, leaks, "reads returned bytes from outside root")
 }
 
 func TestWriteFile(t *testing.T) {
@@ -1326,6 +1532,10 @@ func TestReadFileLines(t *testing.T) {
 	err = afero.WriteFile(fs, basicFilePath, []byte("line1\nline2\nline3"), 0o644)
 	require.NoError(t, err)
 
+	trailingNewlineFilePath := filepath.Join(tmpdir, "trailing-newline-file")
+	err = afero.WriteFile(fs, trailingNewlineFilePath, []byte("line1\nline2\n"), 0o644)
+	require.NoError(t, err)
+
 	longLine := string(bytes.Repeat([]byte("x"), 1025))
 	longLineFilePath := filepath.Join(tmpdir, "long-line-file")
 	err = afero.WriteFile(fs, longLineFilePath, []byte(longLine), 0o644)
@@ -1336,16 +1546,18 @@ func TestReadFileLines(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name       string
-		path       string
-		offset     int64
-		limit      int64
-		expSuccess bool
-		expError   string
-		expContent string
-		expTotal   int
-		expRead    int
-		expSize    int64
+		name             string
+		path             string
+		offset           int64
+		limit            int64
+		maxResponseBytes int64
+		maxResponseLines int64
+		expSuccess       bool
+		expError         string
+		expContent       string
+		expTotal         int
+		expRead          int
+		expSize          int64
 		// useCodersdk is set for cases where the handler returns
 		// codersdk.Response (query param validation) instead of ReadFileLinesResponse.
 		useCodersdk bool
@@ -1425,6 +1637,46 @@ func TestReadFileLines(t *testing.T) {
 			expSize:    int64(len("line1\nline2\nline3")),
 		},
 		{
+			name:             "ByteBudgetEndsPage",
+			path:             basicFilePath,
+			maxResponseBytes: 15,
+			expSuccess:       true,
+			expContent:       "1\tline1\n2\tline2",
+			expTotal:         3,
+			expRead:          2,
+			expSize:          int64(len("line1\nline2\nline3")),
+		},
+		{
+			name:             "LimitClampedToMaxResponseLines",
+			path:             basicFilePath,
+			limit:            10,
+			maxResponseLines: 2,
+			expSuccess:       true,
+			expContent:       "1\tline1\n2\tline2",
+			expTotal:         3,
+			expRead:          2,
+			expSize:          int64(len("line1\nline2\nline3")),
+		},
+		{
+			name:       "TrailingNewline",
+			path:       trailingNewlineFilePath,
+			expSuccess: true,
+			expContent: "1\tline1\n2\tline2",
+			expTotal:   2,
+			expRead:    2,
+			expSize:    int64(len("line1\nline2\n")),
+		},
+		{
+			name:             "LineLargerThanByteBudget",
+			path:             basicFilePath,
+			maxResponseBytes: 3,
+			expSuccess:       true,
+			expContent:       "1\tline1",
+			expTotal:         3,
+			expRead:          1,
+			expSize:          int64(len("line1\nline2\nline3")),
+		},
+		{
 			name:     "OffsetBeyondFile",
 			path:     basicFilePath,
 			offset:   100,
@@ -1453,8 +1705,19 @@ func TestReadFileLines(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 			defer cancel()
 
+			query := url.Values{}
+			query.Set("path", tt.path)
+			query.Set("offset", fmt.Sprint(tt.offset))
+			query.Set("limit", fmt.Sprint(tt.limit))
+			if tt.maxResponseBytes != 0 {
+				query.Set("max_response_bytes", fmt.Sprint(tt.maxResponseBytes))
+			}
+			if tt.maxResponseLines != 0 {
+				query.Set("max_response_lines", fmt.Sprint(tt.maxResponseLines))
+			}
+
 			w := httptest.NewRecorder()
-			r := httptest.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("/read-file-lines?path=%s&offset=%d&limit=%d", tt.path, tt.offset, tt.limit), nil)
+			r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/read-file-lines?"+query.Encode(), nil)
 			api.Routes().ServeHTTP(w, r)
 
 			if tt.useCodersdk {

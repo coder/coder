@@ -17,7 +17,8 @@ The `coder agent-firewall` subcommand is available directly from the Coder CLI.
 ### Claude Code Module v4.7.0+
 
 Since Claude Code module v4.7.0, the embedded `coder agent-firewall` subcommand is used by default.
-This means you don't need to set `boundary_version`; the boundary version is tied to your Coder version.
+This means you don't need to set `boundary_version`.
+The boundary version is tied to your Coder version.
 
 ## Compatibility with Older Versions
 

@@ -7,13 +7,9 @@ import (
 
 	"charm.land/fantasy"
 	fantasyanthropic "charm.land/fantasy/providers/anthropic"
-	fantasyazure "charm.land/fantasy/providers/azure"
-	fantasybedrock "charm.land/fantasy/providers/bedrock"
 	fantasygoogle "charm.land/fantasy/providers/google"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	fantasyopenaicompat "charm.land/fantasy/providers/openaicompat"
-	fantasyopenrouter "charm.land/fantasy/providers/openrouter"
-	fantasyvercel "charm.land/fantasy/providers/vercel"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/codersdk"
@@ -104,7 +100,7 @@ func applyReasoningEffort(
 	}
 
 	switch NormalizeProvider(model.Provider()) {
-	case fantasyopenai.Name, fantasyazure.Name:
+	case fantasyopenai.Name:
 		providerEffort := fantasyopenai.ReasoningEffort(openAIReasoningEffort(model.ModelID(), *effort))
 		switch opts := options[fantasyopenai.Name].(type) {
 		case *fantasyopenai.ResponsesProviderOptions:
@@ -122,36 +118,10 @@ func applyReasoningEffort(
 				ReasoningEffort: &providerEffort,
 			}
 		}
-	case fantasyanthropic.Name, fantasybedrock.Name:
+	case fantasyanthropic.Name:
 		providerEffort := fantasyanthropic.Effort(anthropicReasoningEffort(model.ModelID(), *effort))
 		providerOptions := ensureProviderOptions[fantasyanthropic.ProviderOptions](options, fantasyanthropic.Name)
 		providerOptions.Effort = &providerEffort
-	case fantasygoogle.Name:
-		// Only Gemini 3+ accepts thinking_level; older generations reject
-		// requests carrying it, so keep dropping the effort for them.
-		supported := googleSupportedThinkingLevels(model.ModelID())
-		if len(supported) == 0 {
-			return options
-		}
-		providerOptions := ensureProviderOptions[fantasygoogle.ProviderOptions](options, fantasygoogle.Name)
-		if providerOptions.ThinkingConfig == nil {
-			providerOptions.ThinkingConfig = &fantasygoogle.ThinkingConfig{}
-		}
-		// A configured thinking budget wins: fantasy rejects requests that
-		// set both thinking_budget and thinking_level. The resolved effort
-		// overrides a config-pinned thinking_level so the user's effort
-		// selection stays meaningful.
-		if providerOptions.ThinkingConfig.ThinkingBudget == nil {
-			level := clampGoogleThinkingLevel(googleThinkingLevel(*effort), supported)
-			providerOptions.ThinkingConfig.ThinkingLevel = &level
-		}
-		// Google returns thought summaries only when they are requested, so
-		// default them on for reasoning-effort generations; an explicitly
-		// configured include_thoughts (either value) is preserved.
-		if providerOptions.ThinkingConfig.IncludeThoughts == nil {
-			includeThoughts := true
-			providerOptions.ThinkingConfig.IncludeThoughts = &includeThoughts
-		}
 	case fantasyopenaicompat.Name:
 		providerEffort := fantasyopenai.ReasoningEffort(*effort)
 		if compatEffort, ok := googleCompatReasoningEffort(model.ModelID(), *effort); ok {
@@ -159,20 +129,6 @@ func applyReasoningEffort(
 		}
 		providerOptions := ensureProviderOptions[fantasyopenaicompat.ProviderOptions](options, fantasyopenaicompat.Name)
 		providerOptions.ReasoningEffort = &providerEffort
-	case fantasyopenrouter.Name:
-		providerEffort := fantasyopenrouter.ReasoningEffort(*effort)
-		providerOptions := ensureProviderOptions[fantasyopenrouter.ProviderOptions](options, fantasyopenrouter.Name)
-		if providerOptions.Reasoning == nil {
-			providerOptions.Reasoning = &fantasyopenrouter.ReasoningOptions{}
-		}
-		providerOptions.Reasoning.Effort = &providerEffort
-	case fantasyvercel.Name:
-		providerEffort := fantasyvercel.ReasoningEffort(*effort)
-		providerOptions := ensureProviderOptions[fantasyvercel.ProviderOptions](options, fantasyvercel.Name)
-		if providerOptions.Reasoning == nil {
-			providerOptions.Reasoning = &fantasyvercel.ReasoningOptions{}
-		}
-		providerOptions.Reasoning.Effort = &providerEffort
 	}
 	return options
 }

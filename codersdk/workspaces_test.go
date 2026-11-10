@@ -16,6 +16,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/wsrelated"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -359,6 +360,50 @@ func TestResolveWorkspace(t *testing.T) {
 				_, err = client.ResolveWorkspace(t.Context(), identifier)
 				require.ErrorContains(t, err, "invalid workspace")
 				require.EqualValues(t, 0, hits.Load(), "invalid identifiers should fail before any HTTP request")
+			})
+		}
+	})
+
+	t.Run("ForwardsOptions", func(t *testing.T) {
+		t.Parallel()
+
+		// Options must be applied in order on both lookup paths, just
+		// as they are by Client.Workspace.
+		firstConfig := wsrelated.Config{Template: true}
+		lastConfig := wsrelated.Config{LatestBuild: &wsrelated.LatestBuild{}}
+		opts := []codersdk.WorkspaceOptions{
+			{IncludeDeleted: true, IncludeRelated: &firstConfig},
+			{IncludeRelated: &lastConfig},
+		}
+
+		tests := []struct {
+			name       string
+			identifier string
+			path       string
+		}{
+			{name: "ByUUID", identifier: uuid.NewString(), path: "/api/v2/workspaces/{workspace}"},
+			{name: "ByName", identifier: "my-workspace", path: "/api/v2/users/{user}/workspace/{workspace}"},
+		}
+		for _, tt := range tests {
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+
+				r := chi.NewRouter()
+				r.Get(tt.path, func(w http.ResponseWriter, req *http.Request) {
+					assert.Equal(t, "true", req.URL.Query().Get("include_deleted"))
+					assert.Equal(t, lastConfig.QueryParam(), req.URL.Query().Get("include_related"))
+					w.Header().Set("Content-Type", "application/json")
+					_ = json.NewEncoder(w).Encode(codersdk.Workspace{})
+				})
+				srv := httptest.NewServer(r)
+				defer srv.Close()
+
+				u, err := url.Parse(srv.URL)
+				require.NoError(t, err)
+				client := codersdk.New(u)
+
+				_, err = client.ResolveWorkspace(t.Context(), tt.identifier, opts...)
+				require.NoError(t, err)
 			})
 		}
 	})

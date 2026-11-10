@@ -37,8 +37,10 @@ import {
 	updateInfiniteChatsCache,
 	userChatDebugLogging,
 } from "#/api/queries/chats";
-import { deploymentSSHConfig } from "#/api/queries/deployment";
-import { organizationSkills } from "#/api/queries/organizationSkills";
+import {
+	organizationSkillPreferences,
+	organizationSkills,
+} from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
 import { preferenceSettings } from "#/api/queries/users";
 import { workspaceById, workspaceByIdKey } from "#/api/queries/workspaces";
@@ -63,7 +65,10 @@ import {
 	isChatHookDispatchFailedResponse,
 } from "../components/ChatConversation/chatError";
 import { getWorkspaceAgent } from "../components/ChatConversation/chatHelpers";
-import { runPromoteQueuedMessage } from "../components/ChatConversation/chatQueueReconciliation";
+import {
+	runDeleteQueuedMessage,
+	runPromoteQueuedMessage,
+} from "../components/ChatConversation/chatQueueReconciliation";
 import {
 	selectChatStatus,
 	useChatSelector,
@@ -101,6 +106,7 @@ import {
 	resolveModelSelector,
 } from "../utils/modelOptions";
 import { pickReasoningEffort } from "../utils/reasoningEffort";
+import { activeOrganizationSkills } from "../utils/skills";
 import { AgentChatPageErrorView } from "./AgentChatPageErrorView";
 import {
 	AgentChatPageLoadingView,
@@ -207,10 +213,6 @@ const AgentChatPage: React.FC = () => {
 		}
 	};
 
-	const handleMCPAuthComplete = (_serverId: string) => {
-		void mcpServersQuery.refetch();
-	};
-
 	const {
 		options: modelOptions,
 		isModelCatalogLoading,
@@ -237,7 +239,6 @@ const AgentChatPage: React.FC = () => {
 		agentId,
 		chatAgentId,
 	});
-	const sshConfigQuery = useQuery(deploymentSSHConfig());
 	const workspaceAgent = getWorkspaceAgent(workspace, chatAgentId);
 	const { proxy } = useProxy();
 
@@ -324,6 +325,7 @@ const AgentChatPage: React.FC = () => {
 	);
 	const { isPending: isClearPending, mutateAsync: clearChatContext } =
 		useMutation(clearChat(queryClient, agentId));
+
 	const personalSkillsQuery = useQuery({
 		...userSkills(),
 		staleTime: 60_000,
@@ -333,9 +335,12 @@ const AgentChatPage: React.FC = () => {
 		enabled: Boolean(chatOrganizationId),
 		staleTime: 60_000,
 	});
-	const chatProjectId = experiments.includes("chat-projects")
-		? chatQuery.data?.project_id
-		: undefined;
+	const organizationSkillPreferencesQuery = useQuery({
+		...organizationSkillPreferences(chatOrganizationId),
+		enabled: Boolean(chatOrganizationId),
+		staleTime: 60_000,
+	});
+	const chatProjectId = chatQuery.data?.project_id;
 	const hasChatProject = Boolean(chatOrganizationId && chatProjectId);
 	const projectSkillsQuery = useQuery({
 		...chatProjectSkills(chatOrganizationId, chatProjectId ?? ""),
@@ -578,24 +583,19 @@ const AgentChatPage: React.FC = () => {
 		});
 	};
 
-	const handleDeleteQueuedMessage = async (id: number) => {
-		const previousQueuedMessages = store.getSnapshot().queuedMessages;
-		store.setQueuedMessages(
-			previousQueuedMessages.filter((message) => message.id !== id),
-		);
-		try {
-			await deleteQueuedMessage(id);
-		} catch (error) {
-			store.setQueuedMessages(previousQueuedMessages);
-			throw error;
-		}
-	};
+	const handleDeleteQueuedMessage = (id: number) =>
+		runDeleteQueuedMessage({ id, store, deleteQueuedMessage });
+
+	const fetchQueueConvergence = (chatId: string) =>
+		queryClient.fetchQuery(chatQueueConvergence(chatId));
 
 	const handlePromoteQueuedMessage = (id: number) =>
 		runPromoteQueuedMessage({
 			id,
 			store,
 			promoteQueuedMessage,
+			fetchQueueConvergence,
+			setCacheQueuedMessages,
 			agentId,
 			clearChatErrorReason,
 			onError: handleRequestError,
@@ -607,19 +607,22 @@ const AgentChatPage: React.FC = () => {
 		chatInputRef,
 		inputValueRef,
 	});
-	const handleEditUserMessage = (
-		...args: Parameters<typeof editing.handleEditUserMessage>
+	const handleBeginHistoryEdit = (
+		messageId: number,
+		text: string,
+		fileBlocks?: readonly TypesGen.ChatMessagePart[],
+		editorState?: string,
 	) => {
 		isEditReasoningEffortDirtyRef.current = false;
-		editing.handleEditUserMessage(...args);
+		editing.handleBeginEdit(
+			{ kind: "history", id: messageId },
+			text,
+			fileBlocks,
+			editorState,
+		);
 	};
 
 	const chatTitle = chatQuery.data?.title;
-
-	const sshCommand =
-		workspace && workspaceAgent && sshConfigQuery.data?.hostname_suffix
-			? `ssh ${workspaceAgent.name}.${workspace.name}.${workspace.owner_name}.${sshConfigQuery.data.hostname_suffix}`
-			: undefined;
 
 	// Signal ready only after the store has synced fetched messages,
 	// so the DOM actually contains them when the parent scrolls.
@@ -661,11 +664,13 @@ const AgentChatPage: React.FC = () => {
 		isSubmissionPending,
 		hasModelOptions,
 		isEditReasoningEffortDirtyRef,
-		// chatd skips disabled skills, so they never shadow a built-in
-		// command. A list with no data stays unknown, even after an error.
+		// chatd skips disabled skills and, while members can opt out, skills
+		// they turned off, so neither shadows a built-in command. A list with
+		// no data stays unknown, even after an error.
 		personalSkills: personalSkillsQuery.data?.filter((skill) => skill.enabled),
-		organizationSkills: organizationSkillsQuery.data?.filter(
-			(skill) => skill.enabled,
+		organizationSkills: activeOrganizationSkills(
+			organizationSkillsQuery.data,
+			organizationSkillPreferencesQuery.data,
 		),
 		// Unlike the lists above, losing the use of the project means no
 		// project skills, even if some loaded earlier, because chatd then
@@ -698,8 +703,7 @@ const AgentChatPage: React.FC = () => {
 		upsertCacheMessages,
 		getCacheQueuedMessages,
 		setCacheQueuedMessages,
-		fetchQueueConvergence: (chatId: string) =>
-			queryClient.fetchQuery(chatQueueConvergence(chatId)),
+		fetchQueueConvergence,
 		setCachedChatPlanMode,
 	};
 
@@ -707,15 +711,15 @@ const AgentChatPage: React.FC = () => {
 		message,
 		attachments,
 		workspaceUploads,
-		editedMessageID,
+		editingTarget,
 	}: SendChatTurnOptions) {
 		await submitChatTurn({
 			...chatTurnDeps,
 			message,
 			attachments,
 			workspaceUploads,
-			editedMessageID,
 			composerParts: editing.chatInputRef.current?.getContentParts() ?? [],
+			editingTarget,
 		});
 	}
 
@@ -790,14 +794,13 @@ const AgentChatPage: React.FC = () => {
 				<AgentChatPageNotFoundView />
 			) : (
 				<AgentChatPageView
-					key={agentId}
 					chat={chat}
 					persistedError={persistedError}
 					workspace={workspace}
 					workspaceAgent={workspaceAgent}
 					store={store}
 					initialMessages={chatMessagesList ?? []}
-					editing={{ ...editing, handleEditUserMessage }}
+					editing={{ ...editing, handleBeginHistoryEdit }}
 					effectiveSelectedModel={effectiveSelectedModel}
 					setSelectedModel={setSelectedModel}
 					modelOptions={modelOptions}
@@ -809,7 +812,7 @@ const AgentChatPage: React.FC = () => {
 					reasoningEffort={effectiveReasoningEffort}
 					onReasoningEffortChange={(value) => {
 						setSelectedReasoningEffort(value);
-						if (editing.editingMessageId !== null) {
+						if (editing.editingTarget !== null) {
 							isEditReasoningEffortDirtyRef.current = true;
 						}
 					}}
@@ -832,7 +835,6 @@ const AgentChatPage: React.FC = () => {
 					onSetShowSidebarPanel={handleSetShowSidebarPanel}
 					debugLoggingEnabled={debugLoggingEnabled}
 					gitWatcher={gitWatcher}
-					sshCommand={sshCommand}
 					handleInterrupt={handleInterrupt}
 					handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
@@ -848,7 +850,6 @@ const AgentChatPage: React.FC = () => {
 					mcpServers={mcpServers}
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={handleMCPSelectionChange}
-					onMCPAuthComplete={handleMCPAuthComplete}
 				/>
 			)}
 		</>

@@ -13,8 +13,7 @@ import (
 )
 
 type runnerDebugTurn struct {
-	runnerCtx context.Context
-	logger    slog.Logger
+	logger slog.Logger
 
 	mu sync.Mutex
 
@@ -30,10 +29,9 @@ type runnerDebugTurn struct {
 	statusSet bool
 }
 
-func newRunnerDebugTurn(runnerCtx context.Context, logger slog.Logger) *runnerDebugTurn {
+func newRunnerDebugTurn(logger slog.Logger) *runnerDebugTurn {
 	return &runnerDebugTurn{
-		runnerCtx: runnerCtx,
-		logger:    logger,
+		logger: logger,
 	}
 }
 

@@ -28,6 +28,7 @@ It uses Coder's [external-auth](../external-auth.md) feature, so each user authe
 To set this up, follow these steps:
 
 1. Create an application integration in Artifactory.
+
    Use `https://<CODER_URL>/external-auth/jfrog/callback` (your Coder deployment URL) as the callback URL and `applied-permissions/user` as the scope.
 
    **JFrog SaaS** (`example.jfrog.io`): Create the integration from the JFrog Platform UI as an administrator:
@@ -59,7 +60,8 @@ To set this up, follow these steps:
            scope: "applied-permissions/user"
    ```
 
-1. Add a new [external authentication](../external-auth.md) to Coder by setting these environment variables in a manner consistent with your Coder deployment.
+1. Add a new [external authentication](../external-auth.md) to Coder by setting these environment variables on your Coder deployment.
+
    Replace `JFROG_URL` with your JFrog Artifactory base URL, and the client ID and secret with the values from step 1:
 
    ```dotenv
@@ -105,6 +107,7 @@ To set this up, follow these steps:
    The token must be an [admin token](https://registry.terraform.io/providers/jfrog/artifactory/latest/docs#access-token) with scope `applied-permissions/admin`.
 
 1. Create or edit a Coder template and use the [JFrog-Token](https://registry.coder.com/modules/jfrog-token) module to configure the integration and pass the admin token.
+
    It is recommended to store the token in a sensitive Terraform variable to prevent it from being displayed in plain text in the terraform state:
 
    ```tf
@@ -142,4 +145,4 @@ See the [air-gapped deployments](../templates/extending-templates/modules.md#off
 
 - See the [full example Docker template](../../../examples/jfrog/docker).
 
-- To serve extensions from your own VS Code Marketplace, check out [code-marketplace](https://github.com/coder/code-marketplace#artifactory-storage).
+- To serve extensions from your own VS Code Marketplace, visit [code-marketplace](https://github.com/coder/code-marketplace#artifactory-storage).

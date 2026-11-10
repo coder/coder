@@ -100,7 +100,7 @@ sysctl user.max_user_namespaces
 sysctl -w user.max_user_namespaces=65536
 ```
 
-If `sysctl -w` is not allowed, configure it via Bottlerocket bootstrap settings when creating the node group (e.g., in Terraform):
+If `sysctl -w` is not allowed, configure it via Bottlerocket bootstrap settings when creating the node group (for example, in Terraform):
 
 ```tf
 bootstrap_extra_args = <<-EOT
@@ -115,7 +115,7 @@ This ensures Boundary can create user namespaces with nsjail.
 
 ### Run without user namespaces
 
-If the environment is restricted and you cannot enable user namespaces (e.g. Bottlerocket in EKS auto-mode), you can run Boundary with the `--no-user-namespace` flag.
+If the environment is restricted and you cannot enable user namespaces (for example, Bottlerocket in EKS auto-mode), you can run Boundary with the `--no-user-namespace` flag.
 Use this when you have no way to allow user namespace creation.
 
 ---

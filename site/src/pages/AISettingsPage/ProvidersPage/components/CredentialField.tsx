@@ -1,12 +1,14 @@
 import { useId } from "react";
 import { Input } from "#/components/Input/Input";
 import { Label } from "#/components/Label/Label";
-import type { FormHelpers } from "#/utils/formUtils";
+import {
+	type FormHelpers,
+	passwordManagerIgnoreProps,
+} from "#/utils/formUtils";
 
 type CredentialFieldProps = {
 	label: string;
 	helpers: FormHelpers;
-	autoComplete?: string;
 	placeholder?: string;
 	description?: React.ReactNode;
 	required?: boolean;
@@ -17,7 +19,6 @@ type CredentialFieldProps = {
 export const CredentialField: React.FC<CredentialFieldProps> = ({
 	label,
 	helpers,
-	autoComplete,
 	placeholder,
 	description,
 	required = false,
@@ -62,6 +63,7 @@ export const CredentialField: React.FC<CredentialFieldProps> = ({
 
 	const inputNode = (
 		<Input
+			{...passwordManagerIgnoreProps}
 			id={inputId}
 			name={helpers.name}
 			className="font-mono text-sm font-normal"
@@ -72,7 +74,6 @@ export const CredentialField: React.FC<CredentialFieldProps> = ({
 				onBlur?.();
 			}}
 			onFocus={onFocus}
-			autoComplete={autoComplete}
 			placeholder={placeholder}
 			aria-invalid={helpers.error}
 			aria-describedby={describedBy || undefined}

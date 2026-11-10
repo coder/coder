@@ -61,7 +61,7 @@ For deployments with multiple [organizations](./organizations.md), configure gro
 
 ### CLI
 
-1. Confirm you have the [Coder CLI](../../install/index.md) installed and are logged in with a user who is an Owner or has an Organization Admin role.
+1. Confirm you have the [Coder CLI](../../install/index.md) installed and are logged in as an Owner or Organization Admin.
 
 1. To fetch the current group sync settings for an organization, run the following:
 
@@ -145,9 +145,11 @@ Visit the Coder UI to confirm these changes:
      --oidc-group-field groups
      ```
 
-1. On login, users will automatically be assigned to groups that have matching names in Coder and removed from groups that the user no longer belongs to.
+1. On login, Coder adds users to groups with matching names and removes them from groups they no longer belong to.
 
-1. For cases when an OIDC provider only returns group IDs or you want to have different group names in Coder than in your OIDC provider, you can configure mapping between the two with the [OIDC group mapping](../../reference/cli/server/index.md#--oidc-group-mapping) server flag:
+1. Configure the mapping between OIDC and Coder groups.
+
+   If an OIDC provider only returns group IDs or you want to have different group names in Coder than in your OIDC provider, map between the two with the [OIDC group mapping](../../reference/cli/server/index.md#--oidc-group-mapping) server flag:
 
    - Environment variable:
 
@@ -208,7 +210,7 @@ For deployments with multiple [organizations](./organizations.md), configure rol
 
 ### CLI
 
-1. Confirm you have the [Coder CLI](../../install/index.md) installed and are logged in with a user who is an Owner or has an Organization Admin role.
+1. Confirm you have the [Coder CLI](../../install/index.md) installed and are logged in as an Owner or Organization Admin.
 
 1. To fetch the current role sync settings for an organization, run the following:
 
@@ -454,11 +456,14 @@ The solution is to update the value of `CODER_OIDC_SCOPES` to the correct value 
 Steps to troubleshoot.
 
 1. Ensure the user is a part of a group in the IdP.
+
    If the user has 0 groups, no `groups` claim will be sent.
 2. Check if another claim appears to be the correct claim with a different name.
+
    A common name is `memberOf` instead of `groups`.
    If this is present, update `CODER_OIDC_GROUP_FIELD=memberOf`.
 3. Make sure the number of groups being sent is under the limit of the IdP.
+
    Some IdPs will return an error, while others will just omit the `groups` claim.
    A common solution is to create a filter on the identity provider that returns less than the limit for your IdP.
    - [Azure AD limit is 200, and omits groups if exceeded.](https://learn.microsoft.com/en-us/azure/active-directory/hybrid/connect/how-to-connect-fed-group-claims#options-for-applications-to-consume-group-information)
@@ -474,6 +479,7 @@ Steps to troubleshoot.
 > Tested on ADFS 4.0, Windows Server 2019
 
 1. In your Federation Server, create a new application group for Coder.
+
    Follow the steps as described in the [Windows Server documentation] (https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/development/msal/adfs-msal-web-app-web-api#app-registration-in-ad-fs).
 
    - **Server Application**:
@@ -508,8 +514,8 @@ Steps to troubleshoot.
 
 1. Configure [Issuance Transform Rules](https://learn.microsoft.com/en-us/windows-server/identity/ad-fs/operations/create-a-rule-to-send-ldap-attributes-as-claims) on your Federation Server to send the following claims:
 
-   - `preferred_username`: You can use e.g. "Display Name" as required.
-   - `email`: You can use e.g. the LDAP attribute "E-Mail-Addresses" as required.
+   - `preferred_username`: You can use, for example, "Display Name" as required.
+   - `email`: You can use, for example, the LDAP attribute "E-Mail-Addresses" as required.
    - `email_verified`: Create a custom claim rule:
 
      ```json

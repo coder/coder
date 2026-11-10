@@ -24,7 +24,6 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
-	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -124,38 +123,6 @@ func TestAIBridgeProviderFormatMapping(t *testing.T) {
 	}
 }
 
-func TestAIGatewayRequestFormatForProviderType(t *testing.T) {
-	t.Parallel()
-
-	// The BYOK header shape must agree with the inferred wire format: bedrock
-	// anthropic.* models use the X-Api-Key header, and bedrock non-anthropic
-	// models use the Authorization Bearer header. Non-bedrock provider types
-	// ignore the model parameter.
-	tests := []struct {
-		name         string
-		providerType database.AIProviderType
-		model        string
-		wantFormat   aiGatewayRequestFormat
-	}{
-		{name: "OpenAI", providerType: database.AIProviderTypeOpenai, model: "gpt-4o", wantFormat: aiGatewayRequestFormatOpenAI},
-		{name: "Anthropic", providerType: database.AIProviderTypeAnthropic, model: "claude-opus-4-6", wantFormat: aiGatewayRequestFormatAnthropic},
-		{name: "Google", providerType: database.AIProviderTypeGoogle, model: "gemini-2.5-flash", wantFormat: aiGatewayRequestFormatOpenAI},
-		{name: "BedrockAnthropicModel", providerType: database.AIProviderTypeBedrock, model: "anthropic.claude-sonnet-5", wantFormat: aiGatewayRequestFormatAnthropic},
-		{name: "BedrockClaudeAlias", providerType: database.AIProviderTypeBedrock, model: "claude-sonnet-4-6", wantFormat: aiGatewayRequestFormatAnthropic},
-		{name: "BedrockRegionalAnthropicModel", providerType: database.AIProviderTypeBedrock, model: "us.anthropic.claude-sonnet-4-6", wantFormat: aiGatewayRequestFormatAnthropic},
-		{name: "BedrockOpenAIModel", providerType: database.AIProviderTypeBedrock, model: "openai.gpt-5.6-luna", wantFormat: aiGatewayRequestFormatOpenAI},
-		{name: "BedrockMistralModel", providerType: database.AIProviderTypeBedrock, model: "mistral.ministral-3-3b-instruct", wantFormat: aiGatewayRequestFormatOpenAI},
-		{name: "BedrockEmptyModel", providerType: database.AIProviderTypeBedrock, model: "", wantFormat: aiGatewayRequestFormatOpenAI},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got := aiGatewayRequestFormatForProviderType(tt.providerType, tt.model)
-			require.Equal(t, tt.wantFormat, got)
-		})
-	}
-}
-
 func TestResolveModelRouteForConfigPreservesBaseURL(t *testing.T) {
 	t.Parallel()
 
@@ -203,7 +170,7 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 		}).Return(database.UserAIProviderKey{APIKey: "sk-user"}, nil)
 
 		server := &Server{db: db, allowBYOK: true}
-		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatOpenAI)
+		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, "openai")
 		require.NoError(t, err)
 		require.Equal(t, "Bearer sk-user", auth.Headers["Authorization"])
 		require.Empty(t, auth.Headers["X-Api-Key"])
@@ -220,7 +187,7 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 		}).Return(database.UserAIProviderKey{APIKey: "sk-user"}, nil)
 
 		server := &Server{db: db, allowBYOK: true}
-		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatAnthropic)
+		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, "anthropic")
 		require.NoError(t, err)
 		require.Equal(t, "sk-user", auth.Headers["X-Api-Key"])
 		require.Empty(t, auth.Headers["Authorization"])
@@ -237,7 +204,7 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 		}).Return(database.UserAIProviderKey{}, sql.ErrNoRows)
 
 		server := &Server{db: db, allowBYOK: true}
-		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatOpenAI)
+		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, "openai")
 		require.NoError(t, err)
 		require.Empty(t, auth.Headers)
 	})
@@ -248,7 +215,7 @@ func TestAIGatewayProviderAuthForUser(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		db := dbmock.NewMockStore(ctrl)
 		server := &Server{db: db, allowBYOK: false}
-		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, aiGatewayRequestFormatOpenAI)
+		auth, err := server.aiGatewayProviderAuthForUser(ctx, ownerID, provider, "openai")
 		require.NoError(t, err)
 		require.Empty(t, auth.Headers)
 	})
@@ -305,6 +272,37 @@ func TestResolveModelRouteForConfigAIGatewayProviderAuth(t *testing.T) {
 		route, err := server.resolveModelRouteForConfig(ctx, ownerID, modelConfig)
 		require.NoError(t, err)
 		require.Equal(t, "Bearer sk-user", route.ProviderAuth.Headers["Authorization"])
+	})
+
+	t.Run("UserKeyHeaderFollowsProviderAndModel", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tt := range []struct {
+			providerType database.AIProviderType
+			model        string
+			wantHeaders  map[string]string
+		}{
+			{providerType: database.AIProviderTypeOpenaiCompat, model: "qwen/qwen3", wantHeaders: map[string]string{"Authorization": "Bearer sk-user"}},
+			{providerType: database.AIProviderTypeBedrock, model: "us.anthropic.claude-sonnet-4-6", wantHeaders: map[string]string{"X-Api-Key": "sk-user"}},
+		} {
+			typedProvider := provider
+			typedProvider.Type = tt.providerType
+			typedConfig := modelConfig
+			typedConfig.Model = tt.model
+
+			ctrl := gomock.NewController(t)
+			db := dbmock.NewMockStore(ctrl)
+			db.EXPECT().GetAIProviderByID(gomock.Any(), providerID).Return(typedProvider, nil)
+			db.EXPECT().GetUserAIProviderKeyByProviderID(gomock.Any(), database.GetUserAIProviderKeyByProviderIDParams{
+				UserID:       ownerID,
+				AIProviderID: providerID,
+			}).Return(database.UserAIProviderKey{APIKey: "sk-user"}, nil)
+
+			server := &Server{db: db, allowBYOK: true}
+			route, err := server.resolveModelRouteForConfig(ctx, ownerID, typedConfig)
+			require.NoError(t, err)
+			require.Equal(t, tt.wantHeaders, route.ProviderAuth.Headers, "%s %s", tt.providerType, tt.model)
+		}
 	})
 
 	t.Run("CentralProviderCredentialsNotForwarded", func(t *testing.T) {
@@ -630,8 +628,7 @@ func TestAIGatewayModelBedrockReasoningSummary(t *testing.T) {
 				require.NotNil(t, body.Reasoning)
 				require.Equal(t, tt.wantSummary, body.Reasoning.Summary)
 			}
-			// The resolved config keeps the configured value so a provider
-			// substitution (computer use) does not inherit the Bedrock coercion.
+			// Only the derived provider options see the Bedrock coercion.
 			require.Equal(t, "detailed", *resolved.callConfig.ProviderOptions.OpenAI.ReasoningSummary)
 		})
 	}
@@ -892,104 +889,100 @@ func TestAIBridgeGatewayProviderTypesPreserveSlashModelID(t *testing.T) {
 	}
 }
 
-func computerUseTestServer(t *testing.T, factory *aibridgeTestFactory) *Server {
-	t.Helper()
-	ctrl := gomock.NewController(t)
-	db := dbmock.NewMockStore(ctrl)
-	db.EXPECT().GetAIProviders(gomock.Any(), gomock.Any()).Return([]database.AIProvider{
-		aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AIProviderTypeOpenai),
-	}, nil).AnyTimes()
-	return &Server{db: db, aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
-}
-
-func TestAIBridgeComputerUseModelUsesRoute(t *testing.T) {
+// Computer use chats run on their own model config, and the OpenAI computer
+// tool exists only on the Responses API.
+func TestResolveModelCallRequireOpenAIResponses(t *testing.T) {
 	t.Parallel()
 
-	apiKeyID := uuid.NewString()
-	factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
-		t.Fatal("computer use model construction must not send a request")
-		return nil, xerrors.New("unreachable")
-	})}
-	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
-	server := computerUseTestServer(t, factory)
-	provider := codersdk.ChatComputerUseProviderOpenAI
-	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
-	require.True(t, ok)
+	tests := []struct {
+		name            string
+		providerType    database.AIProviderType
+		useResponsesAPI *bool
+		require         bool
+		wantTransport   chatopenai.Transport
+		wantErr         string
+	}{
+		{
+			// Control: without the requirement, this model speaks Chat
+			// Completions, so the next case proves the requirement applies.
+			name:          "OpenAIDefaultsToChatCompletions",
+			providerType:  database.AIProviderTypeOpenai,
+			wantTransport: chatopenai.TransportChatCompletions,
+		},
+		{
+			name:          "OpenAIForcedToResponses",
+			providerType:  database.AIProviderTypeOpenai,
+			require:       true,
+			wantTransport: chatopenai.TransportResponses,
+		},
+		{
+			name:            "OpenAIExplicitResponses",
+			providerType:    database.AIProviderTypeOpenai,
+			useResponsesAPI: new(true),
+			require:         true,
+			wantTransport:   chatopenai.TransportResponses,
+		},
+		{
+			name:            "OpenAIResponsesDisabled",
+			providerType:    database.AIProviderTypeOpenai,
+			useResponsesAPI: new(false),
+			require:         true,
+			wantErr:         "disables the OpenAI Responses API, which computer use requires",
+		},
+		{
+			name:            "AnthropicUnaffected",
+			providerType:    database.AIProviderTypeAnthropic,
+			useResponsesAPI: new(false),
+			require:         true,
+			wantTransport:   chatopenai.TransportNotApplicable,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	ctx := aibridge.WithDelegatedAPIKeyID(t.Context(), "context-key-must-be-ignored")
-	resolved, err := server.resolveModelCall(ctx, modelCallSpec{
-		purpose:      "computer_use",
-		chat:         chat,
-		fixedModel:   &fixedModelCall{providerType: modelProvider, modelName: modelName},
-		buildOptions: modelBuildOptions{ActiveAPIKeyID: apiKeyID},
-	})
-	require.NoError(t, err)
-	require.True(t, resolved.model.Valid())
-	require.False(t, resolved.debugEnabled)
-	require.EqualValues(t, codersdk.ChatComputerUseProviderOpenAI, resolved.resolvedProvider)
-	require.Equal(t, modelName, resolved.resolvedModel)
-	gotProvider, gotSource := factory.recorded()
-	require.Equal(t, "primary-openai", gotProvider)
-	require.Equal(t, aibridge.SourceAgents, gotSource)
-}
-
-// The computer-use model is a hardcoded default with no config of its own, so
-// its transport must come from its own client rather than inheriting the chat
-// model's openai_config. Request preparation reads the same value back.
-func TestComputerUseModelCall_TransportIndependentOfChatConfig(t *testing.T) {
-	t.Parallel()
-
-	factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
-		t.Fatal("computer use model construction must not send a request")
-		return nil, xerrors.New("unreachable")
-	})}
-	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
-	server := computerUseTestServer(t, factory)
-
-	provider := codersdk.ChatComputerUseProviderOpenAI
-	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
-	require.True(t, ok)
-
-	resolved, err := server.resolveModelCall(t.Context(), modelCallSpec{
-		purpose:      "computer_use",
-		chat:         chat,
-		fixedModel:   &fixedModelCall{providerType: modelProvider, modelName: modelName},
-		buildOptions: modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
-	})
-	require.NoError(t, err)
-
-	wantTransport := chatopenai.TransportFor(modelProvider, modelName, nil)
-	require.Equal(t, wantTransport, resolved.model.Transport())
-
-	// The assertion above only has teeth if an override could have changed the
-	// result for this model.
-	opposite := !wantTransport.UsesResponses()
-	require.NotEqual(t, wantTransport, chatopenai.TransportFor(modelProvider, modelName, &opposite))
-}
-
-func TestComputerUseModelCall_AIGatewayMissingAPIKeyID(t *testing.T) {
-	t.Parallel()
-
-	factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
-		t.Fatal("transport must not be used without an API key ID")
-		return nil, xerrors.New("unreachable")
-	})}
-	chat := database.Chat{ID: uuid.New(), OwnerID: uuid.New()}
-	server := computerUseTestServer(t, factory)
-	provider := codersdk.ChatComputerUseProviderOpenAI
-	modelProvider, modelName, ok := chattool.DefaultComputerUseModel(provider)
-	require.True(t, ok)
-
-	resolved, err := server.resolveModelCall(t.Context(), modelCallSpec{
-		purpose:    "computer_use",
-		chat:       chat,
-		fixedModel: &fixedModelCall{providerType: modelProvider, modelName: modelName},
-	})
-	require.Error(t, err)
-	require.False(t, resolved.model.Valid())
-	require.False(t, resolved.debugEnabled)
-	require.Contains(t, err.Error(), "create model")
-	require.Contains(t, err.Error(), "active turn API key ID")
+			factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				t.Fatal("model construction must not send a request")
+				return nil, xerrors.New("unreachable")
+			})}
+			provider := aibridgeTestAIProvider(uuid.New(), "test-provider", tt.providerType)
+			db := dbmock.NewMockStore(gomock.NewController(t))
+			db.EXPECT().GetAIProviderByID(gomock.Any(), provider.ID).Return(provider, nil)
+			server := &Server{
+				db:                       db,
+				logger:                   slogtest.Make(t, nil),
+				aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
+			}
+			var config codersdk.ChatModelCallConfig
+			if tt.useResponsesAPI != nil {
+				config.OpenAIConfig = &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: tt.useResponsesAPI}
+			}
+			options, err := json.Marshal(config)
+			require.NoError(t, err)
+			// Absent from the SDK's known Responses models.
+			model := "custom-openai-model"
+			if tt.providerType == database.AIProviderTypeAnthropic {
+				model = "claude-opus-5"
+			}
+			resolved, err := server.resolveModelCall(t.Context(), modelCallSpec{
+				chat: database.Chat{ID: uuid.New(), OwnerID: uuid.New()},
+				explicitConfig: &database.ChatModelConfig{
+					ID:           uuid.New(),
+					Model:        model,
+					AIProviderID: uuid.NullUUID{UUID: provider.ID, Valid: true},
+					Options:      options,
+				},
+				requireOpenAIResponses: tt.require,
+				buildOptions:           modelBuildOptions{ActiveAPIKeyID: uuid.NewString()},
+			})
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.wantTransport, resolved.model.Transport())
+		})
+	}
 }
 
 func TestAIBridgeDelegatedContextPropagation(t *testing.T) {
@@ -1055,78 +1048,6 @@ func openaiRoundTrip(t *testing.T, fn func(*http.Request)) roundTripFunc {
 			Body:       io.NopCloser(strings.NewReader(openaiResponseBody)),
 			Request:    req,
 		}, nil
-	})
-}
-
-// TestNewModelAttribution verifies that newModel resolves Attribution from the
-// chat's persisted WorkspaceID without any DB lookup and stamps it on every
-// RoundTrip context alongside the delegated API key ID.
-func TestNewModelAttribution(t *testing.T) {
-	t.Parallel()
-
-	// nolint:gosec // Test-only identifier, not a credential.
-	const apiKeyID = "test-api-key-id"
-	provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AIProviderTypeOpenai)
-
-	t.Run("NoWorkspace", func(t *testing.T) {
-		// When the chat has no workspace bound, Attribution has a zero WorkspaceID.
-		t.Parallel()
-
-		chat := database.Chat{
-			ID:      uuid.New(),
-			OwnerID: uuid.New(),
-			// WorkspaceID is zero (not valid): no workspace bound.
-		}
-
-		seen := make(chan aibridge.Attribution, 1)
-		factory := &aibridgeTestFactory{rt: openaiRoundTrip(t, func(req *http.Request) {
-			attr, _ := aibridge.DelegatedAttributionFromContext(req.Context())
-			seen <- attr
-		})}
-		server := &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
-
-		model, err := server.newModel(t.Context(), aibridgeTestRequest(chat, "gpt-4"), aibridgeTestRoute(provider), modelBuildOptions{ActiveAPIKeyID: apiKeyID})
-		require.NoError(t, err)
-		_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
-			Role:    fantasy.MessageRoleUser,
-			Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
-		}}})
-		require.NoError(t, err)
-
-		got := <-seen
-		require.Equal(t, uuid.Nil, got.WorkspaceID)
-	})
-
-	t.Run("WithWorkspace", func(t *testing.T) {
-		// When the chat has a persisted WorkspaceID, Attribution carries it
-		// directly without any DB lookup.
-		t.Parallel()
-
-		wsID := uuid.New()
-		chat := database.Chat{
-			ID:          uuid.New(),
-			OwnerID:     uuid.New(),
-			WorkspaceID: uuid.NullUUID{UUID: wsID, Valid: true},
-		}
-
-		seen := make(chan aibridge.Attribution, 1)
-		factory := &aibridgeTestFactory{rt: openaiRoundTrip(t, func(req *http.Request) {
-			attr, _ := aibridge.DelegatedAttributionFromContext(req.Context())
-			seen <- attr
-		})}
-		// No db mock: attribution must not require a DB lookup.
-		server := &Server{aibridgeTransportFactory: aibridgeTestFactoryPointer(factory)}
-
-		model, err := server.newModel(t.Context(), aibridgeTestRequest(chat, "gpt-4"), aibridgeTestRoute(provider), modelBuildOptions{ActiveAPIKeyID: apiKeyID})
-		require.NoError(t, err)
-		_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{Prompt: []fantasy.Message{{
-			Role:    fantasy.MessageRoleUser,
-			Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}},
-		}}})
-		require.NoError(t, err)
-
-		got := <-seen
-		require.Equal(t, wsID, got.WorkspaceID)
 	})
 }
 

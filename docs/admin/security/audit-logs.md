@@ -369,7 +369,6 @@ Actions: `write`
 <tr><td><code>chat_auto_archive_days</code></td><td>Yes</td></tr>
 <tr><td><code>chat_debug_retention_days</code></td><td>Yes</td></tr>
 <tr><td><code>chat_retention_days</code></td><td>Yes</td></tr>
-<tr><td><code>computer_use_provider</code></td><td>Yes</td></tr>
 <tr><td><code>debug_logging_allow_users</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>No</td></tr>
 <tr><td><code>personal_model_overrides_enabled</code></td><td>Yes</td></tr>
@@ -663,6 +662,7 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>icon</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>No</td></tr>
 <tr><td><code>is_default</code></td><td>Yes</td></tr>
+<tr><td><code>members_can_disable_skills</code></td><td>Yes</td></tr>
 <tr><td><code>name</code></td><td>Yes</td></tr>
 <tr><td><code>shareable_workspace_owners</code></td><td>Yes</td></tr>
 <tr><td><code>updated_at</code></td><td>Yes</td></tr>

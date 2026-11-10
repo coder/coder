@@ -2276,7 +2276,7 @@ Set to 0 to disable automatic deletion.
 
 Telemetry is critical to our ability to improve Coder.
 We strip all personal information before sending data to our servers.
-Please only disable telemetry when required by your organization's security policy.
+Only disable telemetry when required by your organization's security policy.
 
 ### Enable
 

@@ -25,7 +25,7 @@ import { clearPersistedSidebarTabId } from "../../utils/sidebarTabStorage";
 import {
 	ChatActionsMenu,
 	canManageChat,
-	chatFamilyAllowsArchive,
+	getArchiveBlockedReason,
 } from "../ChatActionsMenuItems";
 import { getChatCostTreeID } from "../ChatConversation/chatHelpers";
 import { ChatPRStateIcon } from "../ChatDiffStats";
@@ -134,7 +134,7 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 					pathname: buildAgentChatPath({ chatId: chat.id }),
 					search: normalizeLocationSearch(location.search),
 				}}
-				className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-2 text-sm text-content-primary no-underline"
+				className="flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-2 text-sm text-content-secondary no-underline"
 			>
 				<StatusIcon
 					role="img"
@@ -164,9 +164,10 @@ export const ProjectChatRow: React.FC<ProjectChatRowProps> = ({
 						chat={chat}
 						canManage={canManage}
 						hasWorkspace={Boolean(workspaceId)}
-						isArchiveBlocked={
-							!chatFamilyAllowsArchive(chat.status, chat.children)
-						}
+						archiveBlockedReason={getArchiveBlockedReason(
+							chat.status,
+							chat.children,
+						)}
 						onPinAgent={() => pinMutation.mutate(chat.id)}
 						onUnpinAgent={() => unpinMutation.mutate(chat.id)}
 						onArchiveAgent={() => archiveMutation.mutate(chat.id)}

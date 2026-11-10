@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import {
 	Table,
 	TableBody,
@@ -112,6 +112,24 @@ export const ScopeOverride: Story = {
 		const invoiceHeader = canvas.getByRole("rowheader", { name: "Invoice" });
 
 		expect(invoiceHeader).toHaveAttribute("scope", "row");
+	},
+};
+
+export const ClickableRowKeyboardFocus: Story = {
+	args: {
+		children: (
+			<TableBody>
+				{invoices.slice(0, 3).map((invoice) => (
+					<TableRow key={invoice.invoice} hover role="button" tabIndex={0}>
+						<TableCell className="font-medium">{invoice.invoice}</TableCell>
+						<TableCell>{invoice.paymentStatus}</TableCell>
+					</TableRow>
+				))}
+			</TableBody>
+		),
+	},
+	play: async () => {
+		await userEvent.tab();
 	},
 };
 

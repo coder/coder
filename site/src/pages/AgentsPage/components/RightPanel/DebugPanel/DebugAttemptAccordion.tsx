@@ -119,7 +119,7 @@ export const DebugAttemptAccordion: React.FC<DebugAttemptAccordionProps> = ({
 										) : null}
 										{attempt.response_status ? (
 											<Badge
-												size="xs"
+												size="sm"
 												variant={
 													attempt.response_status < 400
 														? "green"

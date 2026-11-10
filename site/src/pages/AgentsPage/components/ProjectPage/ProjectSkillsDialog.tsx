@@ -226,7 +226,7 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 								<DialogDescription>
 									{isAtLimit
 										? `You have reached the limit of ${SKILLS_MAX_PER_OWNER} ${NOUN}s. Delete a skill before creating another one.`
-										: "Every chat in this project can use these."}
+										: "Chats use these when relevant, or when you ask."}
 								</DialogDescription>
 							</DialogHeader>
 							{canEdit && (
@@ -259,8 +259,25 @@ export const ProjectSkillsDialog: React.FC<ProjectSkillsDialogProps> = ({
 							) : null}
 							{skillsQuery.isLoading && <Loader />}
 							{skillsQuery.isSuccess && skills.length === 0 && (
-								<div className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-content-secondary">
-									No skills added yet
+								<div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-content-secondary">
+									{canEdit ? (
+										<>
+											<p className="m-0">
+												Add reusable guides for specific tasks, like reviewing
+												PRs, writing release notes, or drafting updates.
+											</p>
+											<Button
+												size="sm"
+												variant="outline"
+												onClick={() => openEditor({ type: "create" })}
+											>
+												<PlusIcon />
+												New skill
+											</Button>
+										</>
+									) : (
+										"No skills added yet"
+									)}
 								</div>
 							)}
 							{skills.length > 0 && (
@@ -588,8 +605,8 @@ const ProjectSkillRow: React.FC<ProjectSkillRowProps> = ({
 				<span className="truncate font-medium text-content-primary">
 					{skill.name}
 				</span>
-				{skill.action && <Badge size="xs">Action</Badge>}
-				{!skill.model_invocable && <Badge size="xs">Manual only</Badge>}
+				{skill.action && <Badge size="sm">Action</Badge>}
+				{!skill.model_invocable && <Badge size="sm">Manual only</Badge>}
 			</div>
 			<div
 				className="truncate text-xs text-content-secondary"

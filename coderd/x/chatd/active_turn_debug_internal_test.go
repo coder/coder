@@ -24,8 +24,6 @@ func TestRunnerDebugTurnEnsureCreatesOnce(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	runnerCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	chatID := uuid.New()
@@ -34,7 +32,7 @@ func TestRunnerDebugTurnEnsureCreatesOnce(t *testing.T) {
 	runID := uuid.New()
 	modelConfigID := uuid.New()
 	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
-	turn := newRunnerDebugTurn(runnerCtx, testutil.Logger(t))
+	turn := newRunnerDebugTurn(testutil.Logger(t))
 
 	db.EXPECT().InsertChatDebugRun(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(insertCtx context.Context, params database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
@@ -117,7 +115,7 @@ func TestRunnerDebugTurnEnsureCreateFailureDisablesTurn(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
-	turn := newRunnerDebugTurn(ctx, testutil.Logger(t))
+	turn := newRunnerDebugTurn(testutil.Logger(t))
 	chat := database.Chat{ID: uuid.New()}
 	debug := &generationDebug{
 		Enabled:          true,
@@ -144,7 +142,7 @@ func TestRunnerDebugTurnEnsureDisabledFirstAttemptStaysDisabled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
-	turn := newRunnerDebugTurn(ctx, testutil.Logger(t))
+	turn := newRunnerDebugTurn(testutil.Logger(t))
 	chat := database.Chat{ID: uuid.New()}
 
 	firstCtx := turn.Ensure(ctx, chat, nil)
@@ -164,7 +162,7 @@ func TestRunnerDebugTurnEnsureDisabledFirstAttemptStaysDisabled(t *testing.T) {
 func TestRunnerDebugTurnRecordOutcomePrecedence(t *testing.T) {
 	t.Parallel()
 
-	turn := newRunnerDebugTurn(context.Background(), testutil.Logger(t))
+	turn := newRunnerDebugTurn(testutil.Logger(t))
 	turn.RecordOutcome(chatdebug.StatusCompleted)
 	require.True(t, turn.statusSet)
 	require.Equal(t, chatdebug.StatusCompleted, turn.status)
@@ -183,14 +181,12 @@ func TestRunnerDebugTurnFinalizeOnce(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	runnerCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	chatID := uuid.New()
 	runID := uuid.New()
 	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
-	turn := newRunnerDebugTurn(runnerCtx, testutil.Logger(t))
+	turn := newRunnerDebugTurn(testutil.Logger(t))
 
 	db.EXPECT().InsertChatDebugRun(gomock.Any(), gomock.Any()).
 		Return(database.ChatDebugRun{
@@ -224,15 +220,13 @@ func TestRunnerDebugTurnRecordMCPConnectSummaries(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	runnerCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	chatID := uuid.New()
 	runID := uuid.New()
 	configID := uuid.New()
 	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
-	turn := newRunnerDebugTurn(runnerCtx, testutil.Logger(t))
+	turn := newRunnerDebugTurn(testutil.Logger(t))
 
 	var seededSummary []byte
 	db.EXPECT().InsertChatDebugRun(gomock.Any(), gomock.Any()).
@@ -311,14 +305,12 @@ func TestRunnerDebugTurnBoundsMCPConnectSummaries(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	runnerCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
 	ctrl := gomock.NewController(t)
 	db := dbmock.NewMockStore(ctrl)
 	chatID := uuid.New()
 	runID := uuid.New()
 	svc := chatdebug.NewService(db, testutil.Logger(t), nil)
-	turn := newRunnerDebugTurn(runnerCtx, testutil.Logger(t))
+	turn := newRunnerDebugTurn(testutil.Logger(t))
 
 	var seededSummary []byte
 	db.EXPECT().InsertChatDebugRun(gomock.Any(), gomock.Any()).

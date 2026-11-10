@@ -6,6 +6,7 @@ import { DetailedError } from "#/api/errors";
 import type {
 	DynamicParametersRequest,
 	DynamicParametersResponse,
+	Workspace,
 	WorkspaceBuildParameter,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -20,17 +21,45 @@ import {
 	SettingsHeaderTitle,
 } from "#/components/SettingsHeader/SettingsHeader";
 import { TooltipMessage } from "#/components/Tooltip/Tooltip";
+import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
 import { docs } from "#/utils/docs";
 import { pageTitle } from "#/utils/page";
 import type { AutofillBuildParameter } from "#/utils/richParameters";
 import { useWorkspaceSettings } from "../useWorkspaceSettings";
 import { WorkspaceParametersPageView } from "./WorkspaceParametersPageView";
 
+const resolveTemplateVersionId = (
+	workspace: Workspace,
+	permissions: WorkspacePermissions | undefined,
+	requestedVersionId: string | null,
+): string | undefined => {
+	// Whether the active version is required depends on permissions, so avoid
+	// loading a version that may be rejected.
+	if (!permissions) {
+		return undefined;
+	}
+
+	// Users who cannot bypass the requirement can only build the active
+	// version, so ignore any requested or current version.
+	if (
+		workspace.template_require_active_version &&
+		!permissions.updateWorkspaceVersion
+	) {
+		return workspace.template_active_version_id;
+	}
+
+	return requestedVersionId ?? workspace.latest_build.template_version_id;
+};
+
 const WorkspaceParametersPage: React.FC = () => {
 	const { permissions, workspace } = useWorkspaceSettings();
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
-	const templateVersionId = searchParams.get("templateVersionId") ?? undefined;
+	const templateVersionId = resolveTemplateVersionId(
+		workspace,
+		permissions,
+		searchParams.get("templateVersionId"),
+	);
 
 	const [confirmingRestart, setConfirmingRestart] = useState<{
 		open: boolean;
@@ -119,12 +148,11 @@ const WorkspaceParametersPage: React.FC = () => {
 	}, [latestBuildParametersLoading]);
 
 	useEffect(() => {
-		if (!templateVersionId && !workspace.latest_build.template_version_id)
-			return;
+		if (!templateVersionId) return;
 
 		// CLEANUP(bad-vibes): raw api call
 		const socket = API.templateVersionDynamicParameters(
-			templateVersionId ?? workspace.latest_build.template_version_id,
+			templateVersionId,
 			workspace.owner_id,
 			{
 				onOpen: () => {
@@ -167,11 +195,7 @@ const WorkspaceParametersPage: React.FC = () => {
 		return () => {
 			socket.close();
 		};
-	}, [
-		templateVersionId,
-		workspace.latest_build.template_version_id,
-		workspace.owner_id,
-	]);
+	}, [templateVersionId, workspace.owner_id]);
 
 	const startWithParameters = useMutation({
 		mutationFn: (buildParameters: WorkspaceBuildParameter[]) =>
@@ -241,12 +265,13 @@ const WorkspaceParametersPage: React.FC = () => {
 		}
 	};
 
+	const { parameters } = latestResponse ?? {};
 	const sortedParams = useMemo(() => {
-		if (!latestResponse?.parameters) {
+		if (!parameters) {
 			return [];
 		}
-		return [...latestResponse.parameters].sort((a, b) => a.order - b.order);
-	}, [latestResponse?.parameters]);
+		return [...parameters].sort((a, b) => a.order - b.order);
+	}, [parameters]);
 
 	const error =
 		wsError || startWithParameters.error || restartWithParameters.error;
