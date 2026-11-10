@@ -367,6 +367,16 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 			<Table
 				aria-label="Shared workspace members and groups"
 				wrapperClassName={cn(isCompact && "max-h-60")}
+				// Without row controls, keyboard users need the scroll area itself to be focusable.
+				wrapperProps={
+					isCompact && !canShareWorkspace
+						? {
+								tabIndex: 0,
+								role: "region",
+								"aria-label": "Shared members list",
+							}
+						: undefined
+				}
 			>
 				{tableHeader}
 				{tableBody}

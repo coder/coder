@@ -1,20 +1,20 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { screen, userEvent, within } from "storybook/test";
+import { screen, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
 import { getWorkspaceSharingSettingsKey } from "#/api/queries/organizations";
 import { workspaceACLKey } from "#/api/queries/workspaces";
 import type {
 	WorkspaceACL,
 	WorkspaceSharingSettings,
-	WorkspaceUser,
 } from "#/api/typesGenerated";
 import {
 	MockGroup,
 	MockGroup2,
 	MockGroup3,
 	MockGroupWithoutMembers,
-	MockUserMember,
-	MockUserOwner,
 	MockWorkspace,
+	MockWorkspaceUser,
+	MockWorkspaceUserAdmin,
 } from "#/testHelpers/entities";
 import { ShareButton } from "./ShareButton";
 
@@ -24,24 +24,8 @@ const mockSharingSettings: WorkspaceSharingSettings = {
 	shareable_workspace_owners: "everyone",
 };
 
-const mockWorkspaceUserAdmin: WorkspaceUser = {
-	id: MockUserOwner.id,
-	username: MockUserOwner.username,
-	name: MockUserOwner.name,
-	avatar_url: MockUserOwner.avatar_url,
-	role: "admin",
-};
-
-const mockWorkspaceUser: WorkspaceUser = {
-	id: MockUserMember.id,
-	username: MockUserMember.username,
-	name: MockUserMember.name,
-	avatar_url: MockUserMember.avatar_url,
-	role: "use",
-};
-
 const mockOverflowingACL: WorkspaceACL = {
-	users: [mockWorkspaceUserAdmin, mockWorkspaceUser],
+	users: [MockWorkspaceUserAdmin, MockWorkspaceUser],
 	group: [
 		{ ...MockGroup, role: "use" },
 		{ ...MockGroup2, role: "admin" },
@@ -85,7 +69,25 @@ export const EmptyACL: Story = {
 	play: ({ canvasElement }) => openSharing(canvasElement),
 };
 
-export const OverflowingMembers: Story = {
+export const Loading: Story = {
+	parameters: {
+		queries: [
+			{
+				key: getWorkspaceSharingSettingsKey(MockWorkspace.organization_id),
+				data: mockSharingSettings,
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API, "getWorkspaceACL").mockReturnValue(new Promise(() => {}));
+	},
+	play: ({ canvasElement }) => openSharing(canvasElement),
+};
+
+export const ReadOnly: Story = {
+	args: {
+		canShareWorkspace: false,
+	},
 	parameters: {
 		queries: [
 			{
@@ -96,4 +98,21 @@ export const OverflowingMembers: Story = {
 		],
 	},
 	play: ({ canvasElement }) => openSharing(canvasElement),
+};
+
+export const OverflowingMembers: Story = {
+	parameters: {
+		queries: [
+			{
+				key: getWorkspaceSharingSettingsKey(MockWorkspace.organization_id),
+				data: mockSharingSettings,
+			},
+			{ key: workspaceACLKey(MockWorkspace.id), data: mockOverflowingACL },
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await openSharing(canvasElement);
+		// Scroll so the screenshot shows rows passing under the sticky header.
+		screen.getAllByRole("row").at(-1)?.scrollIntoView({ block: "end" });
+	},
 };

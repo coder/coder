@@ -143,6 +143,35 @@ describe("WorkspaceSharingForm", () => {
 		expect(tables).toHaveLength(1);
 		expect(within(tables[0]).getAllByRole("row")).toHaveLength(3);
 	});
+
+	it("lets keyboard users reach the compact list when it has no controls", async () => {
+		vi.spyOn(API, "getWorkspaceSharingSettings").mockResolvedValue({
+			sharing_disabled: false,
+			sharing_globally_disabled: false,
+			shareable_workspace_owners: "everyone",
+		});
+
+		render(
+			<WorkspaceSharingForm
+				organizationId={MockWorkspace.organization_id}
+				workspaceACL={mockWorkspaceACL}
+				canShareWorkspace={false}
+				error={undefined}
+				onUpdateUser={vi.fn()}
+				updatingUserId={undefined}
+				onRemoveUser={vi.fn()}
+				onUpdateGroup={vi.fn()}
+				onRemoveGroup={vi.fn()}
+				isCompact
+			/>,
+		);
+
+		const list = await screen.findByRole("region", {
+			name: "Shared members list",
+		});
+		await userEvent.setup().tab();
+		expect(list).toHaveFocus();
+	});
 });
 
 describe("RoleSelectField", () => {

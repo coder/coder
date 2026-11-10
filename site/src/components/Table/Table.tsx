@@ -7,15 +7,21 @@ import { cn } from "cn";
 
 type TableProps = React.ComponentProps<"table"> & {
 	wrapperClassName?: string;
+	/** Props for the scroll wrapper, for example to make it focusable. */
+	wrapperProps?: Omit<React.ComponentProps<"div">, "children" | "className">;
 };
 
 export const Table: React.FC<TableProps> = ({
 	className,
 	wrapperClassName,
+	wrapperProps,
 	...props
 }) => {
 	return (
-		<div className={cn("relative w-full overflow-auto", wrapperClassName)}>
+		<div
+			{...wrapperProps}
+			className={cn("relative w-full overflow-auto", wrapperClassName)}
+		>
 			<table
 				className={cn(
 					"w-full caption-bottom text-xs font-medium text-content-secondary border-separate border-spacing-0",
