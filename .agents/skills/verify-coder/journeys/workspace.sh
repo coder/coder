@@ -12,10 +12,7 @@ vc_load_run
 "$scripts/doctor.sh" >/dev/null || vc_fail "doctor failed, run $scripts/doctor.sh"
 docker info >/dev/null 2>&1 || vc_fail "docker info failed, this journey needs a local Docker daemon"
 
-mkdir -p "$VC_EVIDENCE"
-# mktemp keeps two runs that start in the same second apart.
-out="$(mktemp -d "$VC_EVIDENCE/$(date -u +%Y%m%dT%H%M%SZ)-workspace-XXXX")"
-chmod 755 "$out"
+out="$(vc_new_evidence workspace)"
 VC_CHECK_LOG="$out/steps.log"
 VC_RESULT_FILE="$out/result.txt"
 vc_on_fail() {

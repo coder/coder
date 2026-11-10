@@ -13,10 +13,7 @@ vc_load_run
 # passes without it.
 docker info >/dev/null 2>&1 || vc_fail "docker info failed, this journey needs a local Docker daemon and the seeded docker template"
 
-mkdir -p "$VC_EVIDENCE"
-# mktemp keeps two runs that start in the same second apart.
-out="$(mktemp -d "$VC_EVIDENCE/$(date -u +%Y%m%dT%H%M%SZ)-templates-XXXX")"
-chmod 755 "$out"
+out="$(vc_new_evidence templates)"
 VC_CHECK_LOG="$out/steps.log"
 VC_RESULT_FILE="$out/result.txt"
 vc_on_fail() {

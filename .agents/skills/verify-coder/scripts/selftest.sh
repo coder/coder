@@ -744,19 +744,33 @@ terminal_polls() {
 }
 vc_check terminal-poll terminal_polls
 
-# Two journey runs that start in the same second need their own folders.
-journeys_use_unique_evidence() {
-	local journey
+# Two journey runs that start in the same second need their own folders, and
+# every journey takes its folder from vc_new_evidence.
+evidence_folders_unique() {
+	local journey first second
+	VC_EVIDENCE="$tmp/evidence"
+	# Both runs get the same stamp, as two runs in one second would.
+	date() { echo 20260101T000000Z; }
+	first="$(vc_new_evidence selftest)"
+	second="$(vc_new_evidence selftest)"
+	[[ -d "$first" && -d "$second" && "$first" != "$second" ]] || {
+		echo "two evidence folders in one second are not separate: $first $second"
+		return 1
+	}
+	[[ "$(stat -c %a "$first")" == 755 ]] || {
+		echo "the evidence folder has mode $(stat -c %a "$first"), not 755"
+		return 1
+	}
 	for journey in "$here"/../journeys/*.sh; do
 		# shellcheck disable=SC2016 # The pattern is the literal journey line.
-		grep -qE '^out="\$\(mktemp -d "\$VC_EVIDENCE/.+-XXXX"\)"$' "$journey" || {
-			echo "${journey##*/} does not create its evidence folder with mktemp -d"
+		grep -qE '^out="\$\(vc_new_evidence [a-z-]+\)"$' "$journey" || {
+			echo "${journey##*/} does not take its evidence folder from vc_new_evidence"
 			return 1
 		}
 	done
-	echo "every journey creates its own evidence folder with mktemp -d"
+	echo "vc_new_evidence makes a separate folder per run, and every journey uses it"
 }
-vc_check evidence-folders journeys_use_unique_evidence
+vc_check evidence-folders evidence_folders_unique
 
 echo "selftest: $VC_PASS/$VC_TOTAL checks passed"
 ((VC_PASS == VC_TOTAL))

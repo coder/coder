@@ -11,10 +11,7 @@ source "$scripts/lib.sh"
 vc_load_run
 "$scripts/doctor.sh" >/dev/null || vc_fail "doctor failed, run $scripts/doctor.sh"
 
-mkdir -p "$VC_EVIDENCE"
-# mktemp keeps two runs that start in the same second apart.
-out="$(mktemp -d "$VC_EVIDENCE/$(date -u +%Y%m%dT%H%M%SZ)-coder-agents-XXXX")"
-chmod 755 "$out"
+out="$(vc_new_evidence coder-agents)"
 VC_CHECK_LOG="$out/steps.log"
 VC_RESULT_FILE="$out/result.txt"
 vc_on_fail() {

@@ -27,6 +27,17 @@ unset _vc_host _vc_hosts
 no_proxy="$NO_PROXY"
 export NO_PROXY no_proxy
 
+# vc_new_evidence <name> creates and prints a new evidence folder
+# <UTC stamp>-<name>-<random>. The random part keeps two runs that start in
+# the same second apart.
+vc_new_evidence() {
+	local dir
+	mkdir -p "$VC_EVIDENCE" || return 1
+	dir="$(mktemp -d "$VC_EVIDENCE/$(date -u +%Y%m%dT%H%M%SZ)-$1-XXXX")" || return 1
+	chmod 755 "$dir" || return 1
+	echo "$dir"
+}
+
 vc_fail() {
 	echo "error: $*" >&2
 	exit 1

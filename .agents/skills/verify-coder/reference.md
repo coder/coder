@@ -63,7 +63,7 @@ It changes nothing apart from those two refused sign-ins.
 - that cleanup puts the caller's CLI session back with its file mode;
 - that `vc_wait_agent` stops at once on a missing workspace or a failed build;
 - that the coder-agents restore step gives the default back to the old model only while the journey's model holds it, and keeps a newer default;
-- that the web terminal check polls, and that each journey creates its own evidence folder with `mktemp -d`.
+- that the web terminal check polls, and that `vc_new_evidence` gives each journey run its own evidence folder.
 
 ## Drive
 
