@@ -300,7 +300,7 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param project path string true "Chat project ID" format(uuid)
-// @Param request body codersdk.ArchiveChatProjectRequest true "Archive chat project request"
+// @Param request body codersdk.ArchiveChatProjectRequest false "Archive chat project request"
 // @Success 200 {object} codersdk.ChatProject
 // @Router /api/experimental/organizations/{organization}/chats/projects/{project}/archive [post]
 // @x-apidocgen {"skip": true}
@@ -313,8 +313,9 @@ func (api *API) archiveChatProject(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The body is optional; no body archives like {}.
 	var req codersdk.ArchiveChatProjectRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	if r.Body != http.NoBody && !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 
@@ -333,7 +334,7 @@ func (api *API) archiveChatProject(rw http.ResponseWriter, r *http.Request) {
 	switch {
 	case errors.As(err, &activeErr):
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: fmt.Sprintf("Chat project has %d active chats. Set stop_active_chats to stop and archive them.", activeErr.ActiveChatCount),
+			Message: chatProjectActiveChatsMessage(activeErr.ActiveChatCount),
 		})
 		return
 	case errors.Is(err, chatstate.ErrChatProjectAlreadyArchived):
@@ -353,6 +354,15 @@ func (api *API) archiveChatProject(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq.New = archived
 	httpapi.Write(ctx, rw, http.StatusOK, api.convertChatProject(r, archived))
+}
+
+// chatProjectActiveChatsMessage explains why an archive without
+// stop_active_chats was refused.
+func chatProjectActiveChatsMessage(count int64) string {
+	if count == 1 {
+		return "Chat project has 1 active chat. Set stop_active_chats to stop and archive it."
+	}
+	return fmt.Sprintf("Chat project has %d active chats. Set stop_active_chats to stop and archive them.", count)
 }
 
 // @Summary Unarchive chat project

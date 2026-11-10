@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -82,7 +83,12 @@ func TestChatProjectArchive(t *testing.T) {
 
 	_, err = owner.ArchiveChatProject(ctx, orgID, project.ID, codersdk.ArchiveChatProjectRequest{})
 	sdkErr := requireSDKError(t, err, http.StatusConflict)
-	require.Contains(t, sdkErr.Message, "1 active chats")
+	require.Equal(t, "Chat project has 1 active chat. Set stop_active_chats to stop and archive it.", sdkErr.Message)
+	// A request without a body is refused like {}.
+	res, err := owner.Request(ctx, http.MethodPost, fmt.Sprintf("/api/experimental/organizations/%s/chats/projects/%s/archive", orgID, project.ID), nil)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	requireSDKError(t, codersdk.ReadBodyAsError(res), http.StatusConflict)
 	requireChatArchived(ctx, t, owner, running.ID, false)
 
 	archived, err := owner.ArchiveChatProject(ctx, orgID, project.ID, codersdk.ArchiveChatProjectRequest{StopActiveChats: true})

@@ -768,7 +768,6 @@ const docTemplate = `{
                         "description": "Archive chat project request",
                         "name": "request",
                         "in": "body",
-                        "required": true,
                         "schema": {
                             "$ref": "#/definitions/codersdk.ArchiveChatProjectRequest"
                         }
@@ -23759,7 +23758,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "archived_at": {
-                    "description": "ArchivedAt is set while the project is archived. An archived\nproject and its chats are read-only.",
+                    "description": "ArchivedAt is set while the project is archived. An archived\nproject's settings, sharing, instructions, skills and memories\ncannot change, chats cannot be created in it or moved into it,\nand its chats can only be unarchived by unarchiving the project.",
                     "type": "string",
                     "format": "date-time"
                 },

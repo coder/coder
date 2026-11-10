@@ -3592,7 +3592,9 @@ export interface ChatProject {
 	readonly updated_at: string;
 	/**
 	 * ArchivedAt is set while the project is archived. An archived
-	 * project and its chats are read-only.
+	 * project's settings, sharing, instructions, skills and memories
+	 * cannot change, chats cannot be created in it or moved into it,
+	 * and its chats can only be unarchived by unarchiving the project.
 	 */
 	readonly archived_at?: string;
 	readonly permissions: ChatProjectPermissions;

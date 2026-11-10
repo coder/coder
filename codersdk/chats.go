@@ -239,7 +239,9 @@ type ChatProject struct {
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
 	// ArchivedAt is set while the project is archived. An archived
-	// project and its chats are read-only.
+	// project's settings, sharing, instructions, skills and memories
+	// cannot change, chats cannot be created in it or moved into it,
+	// and its chats can only be unarchived by unarchiving the project.
 	ArchivedAt  *time.Time             `json:"archived_at,omitempty" format:"date-time"`
 	Permissions ChatProjectPermissions `json:"permissions"`
 }
