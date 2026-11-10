@@ -21,9 +21,6 @@ type BaseTemplateParametersStepProps = {
 	showErrors?: boolean;
 };
 
-// README sections start at h2; nest them under the base template's h3.
-const prerequisitesHeadings = { h2: "h4", h3: "h5" } as const;
-
 function detailsUrl(baseId: string): string {
 	return `https://registry.coder.com/templates/${baseId}`;
 }
@@ -147,7 +144,8 @@ export const BaseTemplateParametersStep: React.FC<
 								"[&_a]:font-normal",
 								"[&_code]:text-[length:inherit]",
 							)}
-							components={prerequisitesHeadings}
+							// README sections start at h2; nest them under the base template's h3.
+							components={{ h2: "h4", h3: "h5" }}
 						>
 							{prerequisites}
 						</MemoizedMarkdown>

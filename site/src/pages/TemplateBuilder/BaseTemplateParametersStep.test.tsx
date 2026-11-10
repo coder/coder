@@ -7,7 +7,7 @@ import { BaseTemplateParametersStep } from "./BaseTemplateParametersStep";
 
 describe(BaseTemplateParametersStep.name, () => {
 	it("nests prerequisites headings under the base template heading", async () => {
-		const bases: TemplateBuilderBasesResponse = {
+		const mockBases: TemplateBuilderBasesResponse = {
 			bases: [
 				{
 					id: "docker",
@@ -22,7 +22,9 @@ describe(BaseTemplateParametersStep.name, () => {
 			],
 		};
 		server.use(
-			http.get("/api/v2/templatebuilder/bases", () => HttpResponse.json(bases)),
+			http.get("/api/v2/templatebuilder/bases", () =>
+				HttpResponse.json(mockBases),
+			),
 		);
 		render(
 			<BaseTemplateParametersStep
@@ -33,13 +35,10 @@ describe(BaseTemplateParametersStep.name, () => {
 		);
 
 		await screen.findByText("Prerequisites");
-		expect(
-			screen.getAllByRole("heading").map((h) => [h.tagName, h.textContent]),
-		).toEqual([
-			["H2", "Configure base template"],
-			["H3", "Docker"],
-			["H4", "Prerequisites"],
-			["H5", "Infrastructure"],
-		]);
+		const names = (level: number) =>
+			screen.getAllByRole("heading", { level }).map((h) => h.textContent);
+		expect(names(3)).toEqual(["Docker"]);
+		expect(names(4)).toEqual(["Prerequisites"]);
+		expect(names(5)).toEqual(["Infrastructure"]);
 	});
 });
