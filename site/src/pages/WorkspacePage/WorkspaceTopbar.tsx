@@ -362,7 +362,11 @@ const WorkspaceBreadcrumb: React.FC<WorkspaceBreadcrumbProps> = ({
 		<div className="flex items-center">
 			<HelpPopover>
 				<HelpPopoverTrigger asChild>
-					<button type="button" className={BREADCRUMB_SEGMENT_CLASS}>
+					<button
+						type="button"
+						className={BREADCRUMB_SEGMENT_CLASS}
+						aria-current="page"
+					>
 						<TopbarAvatar
 							src={templateIconUrl}
 							fallback={templateDisplayName}

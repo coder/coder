@@ -43,6 +43,7 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
 					"font-semibold text-content-primary bg-surface-tertiary hover:bg-surface-tertiary border-l-content-primary",
 				className,
 			)}
+			aria-current={isActive || undefined}
 			{...buttonProps}
 		/>
 	);
@@ -75,6 +76,8 @@ export const SidebarIconButton: React.FC<SidebarIconButtonProps> = ({
 				isActive && "opacity-100 relative border-l-border-pending",
 				className,
 			)}
+			// The button opens and closes its panel, so it is a toggle.
+			aria-pressed={isActive}
 			{...buttonProps}
 		/>
 	);
