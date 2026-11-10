@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/headers"
 	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
@@ -41,6 +42,7 @@ type forwardingHandler struct {
 	// transport is shared by the per-request proxies so they reuse upstream
 	// connections.
 	transport http.RoundTripper
+	failover  keypool.KeyFailoverConfig
 	inflight  *aibridge.InflightGate
 	recorder  recorder.Recorder
 	breaker   *circuitbreaker.ProviderCircuitBreakers
@@ -57,12 +59,19 @@ func newForwardingHandler(prov provider.Provider, logger slog.Logger, m *metrics
 	if err != nil {
 		return nil, xerrors.Errorf("configure provider %q base URL: %w", prov.Name(), err)
 	}
+	transport := apidump.NewPassthroughMiddleware(utils.NewStreamingTransport(), prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal())
+	// Providers that adjust upstream requests themselves, such as Claude
+	// Platform, wrap the transport beneath key failover.
+	if wrapper, ok := prov.(provider.PassthroughTransportWrapper); ok {
+		transport = wrapper.WrapPassthroughTransport(transport)
+	}
 	h := &forwardingHandler{
 		provider:  prov,
 		baseURL:   baseURL,
 		logger:    logger.With(slog.F("provider", prov.Name())),
 		tracer:    tracer,
-		transport: apidump.NewPassthroughMiddleware(utils.NewStreamingTransport(), prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal()),
+		transport: transport,
+		failover:  prov.KeyFailoverConfig(logger),
 		inflight:  inflight,
 		recorder:  rec,
 		breaker:   circuitbreaker.NewProviderCircuitBreakers(prov.Name(), prov.CircuitBreakerConfig(), logger, m),
@@ -77,7 +86,7 @@ func (h *forwardingHandler) newProxy(cred credential.Credential) *httputil.Rever
 			rewriteForwardingURL(pr, h.provider.RoutePrefix(), h.baseURL)
 			pr.Out.Header = prepareForwardingHeaders(pr.Out.Header, cred)
 		},
-		Transport:     h.transport,
+		Transport:     keypool.NewKeyFailoverTransport(h.transport, h.failover),
 		FlushInterval: -1,
 		ErrorLog:      h.errorLog,
 	}
