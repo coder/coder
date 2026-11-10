@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"net"
@@ -37,6 +38,7 @@ import (
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
 
@@ -68,6 +70,7 @@ const (
 	loopbackBindAddress    = "127.0.0.1"
 	defaultStarterTemplate = "docker"
 	defaultHealthTimeout   = 60 * time.Second
+	healthPollInterval     = 500 * time.Millisecond
 	shutdownTimeout        = 15 * time.Second
 )
 
@@ -644,7 +647,13 @@ func (g *procGroup) Ctx() context.Context { return g.ctx }
 // or the context is canceled. If cond returns a non-nil error,
 // polling stops immediately.
 func poll[T any](ctx context.Context, interval time.Duration, cond func(ctx context.Context) (T, bool, error)) (T, error) {
-	ticker := time.NewTicker(interval)
+	return pollWithClock(ctx, quartz.NewReal(), interval, cond)
+}
+
+// pollWithClock is poll with its ticker on clk, so a test can drive the
+// ticks.
+func pollWithClock[T any](ctx context.Context, clk quartz.Clock, interval time.Duration, cond func(ctx context.Context) (T, bool, error)) (T, error) {
+	ticker := clk.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -706,7 +715,7 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	}
 
 	apiURL := fmt.Sprintf("http://127.0.0.1:%d", cfg.apiPort)
-	if err := waitForHealthy(ctx, logger, cfg, apiURL); err != nil {
+	if err := waitForHealthy(ctx, quartz.NewReal(), logger, cfg, apiURL); err != nil {
 		return err
 	}
 
@@ -918,11 +927,18 @@ func startServerDebug(cfg *devConfig, serverArgs []string, group *procGroup) err
 }
 
 // waitForHealthy waits up to cfg.healthTimeout for the API server's
-// /healthz at apiURL to return OK.
-func waitForHealthy(ctx context.Context, logger slog.Logger, cfg *devConfig, apiURL string) error {
+// /healthz at apiURL to return OK. The deadline and the poll ticks run on
+// clk.
+func waitForHealthy(ctx context.Context, clk quartz.Clock, logger slog.Logger, cfg *devConfig, apiURL string) error {
 	logger.Info(ctx, "waiting for server to become ready")
-	ctx, cancel := context.WithTimeout(ctx, cfg.healthTimeout)
-	defer cancel()
+	ctx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	// context.WithTimeout would use the real clock, so the deadline is a
+	// clock timer that cancels ctx with context.DeadlineExceeded.
+	timer := clk.AfterFunc(cfg.healthTimeout, func() {
+		cancel(context.DeadlineExceeded)
+	}, "waitForHealthy")
+	defer timer.Stop()
 
 	healthy := func(ctx context.Context) bool {
 		req, err := http.NewRequestWithContext(
@@ -943,12 +959,17 @@ func waitForHealthy(ctx context.Context, logger slog.Logger, cfg *devConfig, api
 	// timeout is shorter than the poll interval.
 	var err error
 	if !healthy(ctx) {
-		_, err = poll(ctx, 500*time.Millisecond,
+		_, err = pollWithClock(ctx, clk, healthPollInterval,
 			func(ctx context.Context) (struct{}, bool, error) {
 				return struct{}{}, healthy(ctx), nil
 			})
 	}
 	if err != nil {
+		// A canceled context reports context.Canceled. Report the
+		// deadline as the error a context deadline gives.
+		if errors.Is(context.Cause(ctx), context.DeadlineExceeded) {
+			err = context.DeadlineExceeded
+		}
 		return xerrors.Errorf("server did not become ready in %s: %w", cfg.healthTimeout, err)
 	}
 	logger.Info(ctx, "server is ready to accept connections")

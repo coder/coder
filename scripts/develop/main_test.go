@@ -25,6 +25,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 )
 
@@ -708,8 +709,9 @@ func TestWaitForHealthyImmediate(t *testing.T) {
 	t.Parallel()
 
 	// The server is already healthy, and the timeout is shorter than
-	// the 500 ms poll interval. The first check must not wait for a poll
-	// tick, or the timeout would end before any request.
+	// the poll interval. The first check must not wait for a poll tick.
+	// The mock clock never advances, so a poll tick or the deadline
+	// cannot happen.
 	var requests atomic.Int32
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/healthz" {
@@ -723,8 +725,8 @@ func TestWaitForHealthyImmediate(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := slog.Make(sloghuman.Sink(&bytes.Buffer{}))
-	cfg := &devConfig{healthTimeout: 100 * time.Millisecond}
-	err := waitForHealthy(ctx, logger, cfg, srv.URL)
+	cfg := &devConfig{healthTimeout: healthPollInterval / 5}
+	err := waitForHealthy(ctx, quartz.NewMock(t), logger, cfg, srv.URL)
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, requests.Load())
 }
@@ -732,16 +734,59 @@ func TestWaitForHealthyImmediate(t *testing.T) {
 func TestWaitForHealthyTimeout(t *testing.T) {
 	t.Parallel()
 
-	// Nothing listens on port 1, so the check fails until the timeout
-	// ends it. The error names the configured timeout, not a fixed one.
-	// The parent context outlasts the timeout, so it must still be live
-	// when waitForHealthy returns.
+	// The server never answers 200. The mock clock drives the poll ticks
+	// and the deadline.
+	probes := make(chan struct{}, 16)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		probes <- struct{}{}
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	t.Cleanup(srv.Close)
+
 	ctx := testutil.Context(t, testutil.WaitShort)
+	mClock := quartz.NewMock(t)
+	trapDeadline := mClock.Trap().AfterFunc("waitForHealthy")
+	defer trapDeadline.Close()
+	trapTicker := mClock.Trap().NewTicker()
+	defer trapTicker.Close()
+
+	// The deadline falls between the second tick and the third.
+	cfg := &devConfig{healthTimeout: 2*healthPollInterval + healthPollInterval/5}
 	logger := slog.Make(sloghuman.Sink(&bytes.Buffer{}))
-	cfg := &devConfig{healthTimeout: 10 * time.Millisecond}
-	err := waitForHealthy(ctx, logger, cfg, "http://127.0.0.1:1")
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- waitForHealthy(ctx, mClock, logger, cfg, srv.URL)
+	}()
+
+	// The deadline timer uses the configured timeout, not a fixed one.
+	call := trapDeadline.MustWait(ctx)
+	require.Equal(t, cfg.healthTimeout, call.Duration)
+	call.MustRelease(ctx)
+
+	// The first probe runs before the first poll tick.
+	testutil.RequireReceive(ctx, t, probes)
+	call = trapTicker.MustWait(ctx)
+	require.Equal(t, healthPollInterval, call.Duration)
+	call.MustRelease(ctx)
+
+	// Each poll tick runs one probe. The deadline has not passed yet.
+	for range 2 {
+		mClock.Advance(healthPollInterval).MustWait(ctx)
+		testutil.RequireReceive(ctx, t, probes)
+	}
+	select {
+	case err := <-errCh:
+		t.Fatalf("waitForHealthy returned before the deadline: %v", err)
+	default:
+	}
+
+	// The deadline ends the wait. The error names the configured timeout
+	// and wraps the deadline error, as a context deadline does. The
+	// parent context is still live.
+	mClock.Advance(cfg.healthTimeout - 2*healthPollInterval).MustWait(ctx)
+	err := testutil.RequireReceive(ctx, t, errCh)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "server did not become ready in 10ms")
+	assert.Contains(t, err.Error(), "server did not become ready in "+cfg.healthTimeout.String())
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.NoError(t, ctx.Err())
 }
