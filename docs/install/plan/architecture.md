@@ -48,7 +48,7 @@ These resources can be VMs, Kubernetes clusters, storage buckets, or whatever el
 
 The resources that run the workspace agent are described as _computational resources_, while those that don't are called _peripheral resources_.
 
-Each resource may also be _persistent_ or _ephemeral_ depending on whether they're destroyed on workspace stop.
+Each resource can also be _persistent_ or _ephemeral_ depending on whether they're destroyed on workspace stop.
 
 ### Agents
 

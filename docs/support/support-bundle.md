@@ -197,7 +197,7 @@ Review these values before sharing.
 
 Extension version 1.16.1 or later adds session identifiers and logs workspace and agent state changes.
 With extension version 1.16.4 or later, bundles can include recent connection logs even if you didn't turn on debug logging.
-Collection is best effort, so the latest entries may be missing.
+Collection is best effort, so the latest entries might be missing.
 To turn off buffering, set `coder.connectionLogBuffer.size` to `0`.
 
 Remote editor server logs appear under `agent/workspace_files/`, separately from the local VS Code diagnostics.

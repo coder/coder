@@ -53,7 +53,7 @@ export const StarterTemplatePageView: React.FC<
 					</>
 				}
 			>
-				<div className="flex flex-row gap-6 items-center">
+				<div className="flex gap-6 items-center">
 					<div className="size-12 flex items-center justify-center [&_img]:w-full">
 						<ExternalImage src={starterTemplate.icon} />
 					</div>
@@ -70,7 +70,7 @@ export const StarterTemplatePageView: React.FC<
 				className="bg-surface-secondary border border-solid border-border rounded-lg"
 				id="readme"
 			>
-				<div className="px-8 pt-2 pb-12 max-w-[860px]">
+				<div className="px-8 pt-2 pb-12 max-w-215">
 					<MemoizedMarkdown>{starterTemplate.markdown}</MemoizedMarkdown>
 				</div>
 			</div>

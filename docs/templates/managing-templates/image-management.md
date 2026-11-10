@@ -18,7 +18,7 @@ Each image reference below can be dropped directly into a template's image varia
 
 ## Create a minimal base image
 
-While you may not use this directly in Coder templates, it's useful to have a minimal base image as a small image that contains only the necessary dependencies to work in your network and work with Coder.
+While you might not use this directly in Coder templates, it's useful to have a minimal base image as a small image that contains only the necessary dependencies to work in your network and work with Coder.
 Here are some things to consider:
 
 - `curl`, `wget`, or `busybox` is required to download and run [the agent](../../../provisionersdk/scripts/bootstrap_linux.sh)
@@ -39,7 +39,7 @@ These images should contain a number of languages (for example, Python, Java, Ty
 Unlike project-specific images (which are also important), general purpose images are great for:
 
 - **Scripting:**
-  Developers may just want to hop in a Coder workspace to run basic scripts or queries.
+  Developers might just want to hop in a Coder workspace to run basic scripts or queries.
 - **Day 1 Onboarding:**
   New developers can quickly get started with a familiar environment without having to browse through (or create) an image
 - **Basic Projects:**

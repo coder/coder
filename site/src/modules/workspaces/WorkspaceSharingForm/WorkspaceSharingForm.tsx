@@ -103,7 +103,7 @@ export const AddWorkspaceMemberForm: React.FC<AddWorkspaceMemberFormProps> = ({
 }) => {
 	return (
 		<form action={onSubmit}>
-			<div className="flex flex-row items-center gap-2">
+			<div className="flex items-center gap-2">
 				{children}
 				<Button disabled={disabled || isLoading} type="submit">
 					<Spinner loading={isLoading}>
@@ -280,10 +280,9 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 											<Button
 												size="icon-lg"
 												variant="subtle"
-												aria-label="Open menu"
+												aria-label={`Open menu for ${group.display_name || group.name}`}
 											>
 												<EllipsisVerticalIcon aria-hidden="true" />
-												<span className="sr-only">Open menu</span>
 											</Button>
 										</DropdownMenuTrigger>
 										<DropdownMenuContent align="end">
@@ -329,10 +328,9 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 											<Button
 												size="icon-lg"
 												variant="subtle"
-												aria-label="Open menu"
+												aria-label={`Open menu for ${user.username}`}
 											>
 												<EllipsisVerticalIcon aria-hidden="true" />
-												<span className="sr-only">Open menu</span>
 											</Button>
 										</DropdownMenuTrigger>
 										<DropdownMenuContent align="end">

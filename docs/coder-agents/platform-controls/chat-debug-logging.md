@@ -21,7 +21,7 @@ Three layers control whether it runs for a given chat:
    The endpoint `PUT /api/v2/chats/config/user-debug-logging` returns `409 Conflict` if the deployment override is active and `403 Forbidden` if the admin has not enabled user opt-in.
 
 > [!IMPORTANT]
-> Debug logs may contain sensitive content from prompts, responses, tool calls, and errors.
+> Debug logs can contain sensitive content from prompts, responses, tool calls, and errors.
 > Treat them with the same care as conversation history.
 > Only the chat owner (or a user with read access to the chat) can fetch a chat's debug runs through the API.
 > Administrators do not get blanket access to all users' debug data.

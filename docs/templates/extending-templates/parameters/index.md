@@ -209,7 +209,7 @@ It's important to note that making these changes can lead to discrepancies in pa
 
 Consequently, workspace users will be prompted to select the new value from a pop-up window or by using the command-line interface.
 While this additional interactive step might seem like an interruption, it serves a crucial purpose.
-It prevents workspace users from becoming trapped with outdated template versions, ensuring they can smoothly update their workspace without any hindrances.
+It prevents workspace users from becoming trapped with outdated template versions, making sure they can smoothly update their workspace without any hindrances.
 
 Example:
 

@@ -46,20 +46,20 @@ If any answer routes you away from the docs, refer to the [routing table](#routi
 ### Follow the Diátaxis framework
 
 The docs follow the [Diátaxis framework](https://diataxis.fr/).
-Every page should be identifiable as one of:
+Every page must be identifiable as one of the following:
 
-- a tutorial,
-- a how-to guide,
-- a reference, or
-- an explanation,
+- A tutorial.
+- A how-to guide.
+- A reference document.
+- An explanation.
 
-and should not mix those modes within a single page.
+Avoid mixing those modes within a single page.
 
 *Why:* Diátaxis gives both writers and readers a predictable structure, and gives the team a vocabulary for detecting when a page has drifted out of its lane.
 
 ### Describe the current version, for the end user
 
-Every page should be accurate for the specific product version it applies to, and oriented around what the user sees, types, and gets back.
+Every page must be accurate for the specific product version it applies to, and oriented around what the user sees, types, and gets back.
 
 *Why:* Most users care about direct inputs and outputs ("if I enable setting X, I see Y"), not how Coder is implemented internally.
 Version-scoped content is also what makes drift detectable and testable.
@@ -76,7 +76,7 @@ When no test pins the behavior a page describes, add one in the product, so the 
 
 ### Verify against the code and document exact values
 
-Docs claims should be checked against the actual implementation, not approximations:
+Check docs claims against the actual implementation, not approximations:
 
 - Exact role-based access control (RBAC) action names.
   Example: `template:view_insights`, not "view insights".
@@ -123,7 +123,7 @@ The ladder minimizes unverifiable drift: an exact value is checkable where the r
 
 ### Documentation lands with the change
 
-A PR that introduces or changes a user-facing feature should include the documentation for it, in the same PR, or land at the same time.
+A PR that introduces or changes a user-facing feature must include the documentation for it, in the same PR, or land at the same time.
 
 A feature is **user-facing** once it's visible by default: it appears in `--help` output for a CLI command, in the UI under a section, in a public API listing, or in a public configuration surface.
 A backend or API change that's technically possible but not exposed to users by default, including anything guarded by an unsafe experiment flag, doesn't qualify until it's visible.
@@ -140,7 +140,7 @@ Three corollaries:
    No speculative docs for unmerged or uncommitted work.
 3. **Multi-PR launch exception.**
 
-   For a body of work that spans several PRs and is spec'd to launch together by a particular date, docs may be written ahead of those merges, in the present tense, describing the feature as it will exist at launch.
+   For a body of work that spans several PRs and is spec'd to launch together by a particular date, you can write docs ahead of those merges, in the present tense, describing the feature as it will exist at launch.
    They must never read as a promise of what's coming.
    No "will support", "in a future release", "coming soon", or roadmap framing.
 
@@ -157,7 +157,7 @@ Do not conflate them:
 Practical impact for docs:
 
 - **Unsafe experiments** don't need docs.
-  The feature is in active development, hidden behind a flag the user wouldn't enable on a real deployment, and may be reverted at any time.
+  The feature is in active development, hidden behind a flag the user wouldn't enable on a real deployment, and might be reverted at any time.
 - **Safe experiments and Early Access features** need at least a single docs page covering how to enable the feature, what it does, and known limitations.
 - **Beta features** get full docs (how to use, configure, and operate), with the `Beta` label.
 - **General availability (GA) features** get full docs across reference, tutorials, and guides as appropriate.
@@ -180,7 +180,7 @@ Each entry includes the reason it belongs in the docs.
 
   *Why:* If a feature changes what the user sees or does, the docs must explain how it's supposed to work.
 
-  *Exception:* Performance improvements belong in the changelog or blog, since they don't change how the user interacts with the product.
+  *Exception:* Performance improvements belong in the changelog or blog, because they don't change how the user interacts with the product.
 
 - **Supported integrations, providers, and APIs.**
   Examples: the Slack integration, GitHub Actions, Bedrock vs. Claude as model providers.
@@ -325,7 +325,7 @@ Each entry includes the destination and the reason.
 
   *Why:* The docs explain how the product works and how to use it.
   The KB covers what to do when things go wrong.
-  Support should own the content they produce.
+  Support owns the content they produce.
 
   *Connection point:* Docs pages should surface relevant Pylon KB articles via an embedded widget, scoped to the section or page.
   This keeps docs and support content separate while still giving users quick answers to troubleshooting questions in context.

@@ -67,7 +67,7 @@ export const SelectFilter: React.FC<SelectFilterProps> = ({
 					// When including selectFilterSearch, we aim for the width to be as
 					// wide as possible.
 					selectFilterSearch && "w-full",
-					"max-w-[260px]",
+					"max-w-65",
 				])}
 				style={{
 					minWidth: width,

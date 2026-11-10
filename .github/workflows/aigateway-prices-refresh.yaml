@@ -35,6 +35,7 @@ jobs:
   refresh:
     name: Refresh price book
     runs-on: ubuntu-latest
+    environment: main
     permissions: {}
     steps:
       - name: Harden Runner

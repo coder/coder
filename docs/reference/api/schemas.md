@@ -2885,16 +2885,16 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 ## codersdk.ChatBusyBehavior
 
 ```json
-"queue"
+"steer"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value(s)             |
-|----------------------|
-| `interrupt`, `queue` |
+| Value(s)         |
+|------------------|
+| `queue`, `steer` |
 
 ## codersdk.ChatClientType
 
@@ -2920,9 +2920,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)              |
-|-----------------------|
-| `anthropic`, `openai` |
+| Value(s)                               |
+|----------------------------------------|
+| `anthropic`, `openai`, `openai-compat` |
 
 ## codersdk.ChatConfig
 
@@ -3753,6 +3753,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "queued_messages": [
     {
+      "busy_behavior": "steer",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -3825,7 +3826,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |-------------------|-------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `has_more`        | boolean                                                           | false    |              |                                                                                                                                                                                        |
 | `messages`        | array of [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                        |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                        |
+| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages.                                                                                |
 | `turn_start_id`   | integer                                                           | false    |              | Turn start ID is the ID of the user prompt that starts the turn containing the page's oldest message. Omitted for after_id-only polls and when no prompt is at or before that message. |
 
 ## codersdk.ChatModel
@@ -5340,6 +5341,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
+  "busy_behavior": "steer",
   "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
   "content": [
     {
@@ -5405,15 +5407,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name               | Type                                                          | Required | Restrictions | Description                                                                                                                                                                                  |
-|--------------------|---------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `chat_id`          | string                                                        | false    |              |                                                                                                                                                                                              |
-| `content`          | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                                                                                              |
-| `created_at`       | string                                                        | false    |              |                                                                                                                                                                                              |
-| `editing_since`    | string                                                        | false    |              | Editing since is set while the owner edits the message. A message under edit and every message behind it wait until the edit ends; a turn that ends at a message under edit pauses the chat. |
-| `id`               | integer                                                       | false    |              |                                                                                                                                                                                              |
-| `model_config_id`  | string                                                        | false    |              |                                                                                                                                                                                              |
-| `reasoning_effort` | string                                                        | false    |              |                                                                                                                                                                                              |
+| Name               | Type                                                          | Required | Restrictions | Description                                                                                                                                                                                                                                                        |
+|--------------------|---------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `busy_behavior`    | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)        | false    |              | Busy behavior is the lane of the message. Steer messages go in before the next model call, and queue messages go in after the turn ends.                                                                                                                           |
+| `chat_id`          | string                                                        | false    |              |                                                                                                                                                                                                                                                                    |
+| `content`          | array of [codersdk.ChatMessagePart](#codersdkchatmessagepart) | false    |              |                                                                                                                                                                                                                                                                    |
+| `created_at`       | string                                                        | false    |              |                                                                                                                                                                                                                                                                    |
+| `editing_since`    | string                                                        | false    |              | Editing since is set while the owner edits the message. A message under edit and every message behind it wait until the edit ends. A steer message under edit also holds the steer messages ahead of it. A turn that ends at a message under edit pauses the chat. |
+| `id`               | integer                                                       | false    |              |                                                                                                                                                                                                                                                                    |
+| `model_config_id`  | string                                                        | false    |              |                                                                                                                                                                                                                                                                    |
+| `reasoning_effort` | string                                                        | false    |              |                                                                                                                                                                                                                                                                    |
+
+#### Enumerated Values
+
+| Property        | Value(s)         |
+|-----------------|------------------|
+| `busy_behavior` | `queue`, `steer` |
 
 ## codersdk.ChatRetentionDaysResponse
 
@@ -5645,6 +5654,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   },
   "queued_messages": [
     {
+      "busy_behavior": "steer",
       "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
       "content": [
         {
@@ -5725,17 +5735,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name              | Type                                                                   | Required | Restrictions | Description |
-|-------------------|------------------------------------------------------------------------|----------|--------------|-------------|
-| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |             |
-| `chat_id`         | string                                                                 | false    |              |             |
-| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |             |
-| `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |             |
-| `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |             |
-| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              |             |
-| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |             |
-| `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |             |
-| `type`            | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |             |
+| Name              | Type                                                                   | Required | Restrictions | Description                                                                                             |
+|-------------------|------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------|
+| `action_required` | [codersdk.ChatStreamActionRequired](#codersdkchatstreamactionrequired) | false    |              |                                                                                                         |
+| `chat_id`         | string                                                                 | false    |              |                                                                                                         |
+| `error`           | [codersdk.ChatError](#codersdkchaterror)                               | false    |              |                                                                                                         |
+| `message`         | [codersdk.ChatMessage](#codersdkchatmessage)                           | false    |              |                                                                                                         |
+| `message_part`    | [codersdk.ChatStreamMessagePart](#codersdkchatstreammessagepart)       | false    |              |                                                                                                         |
+| `queued_messages` | array of [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage)      | false    |              | Queued messages lists the queued messages in delivery order: steer messages first, then queue messages. |
+| `retry`           | [codersdk.ChatStreamRetry](#codersdkchatstreamretry)                   | false    |              |                                                                                                         |
+| `status`          | [codersdk.ChatStreamStatus](#codersdkchatstreamstatus)                 | false    |              |                                                                                                         |
+| `type`            | [codersdk.ChatStreamEventType](#codersdkchatstreameventtype)           | false    |              |                                                                                                         |
 
 ## codersdk.ChatStreamEventType
 
@@ -6544,7 +6554,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ```json
 {
-  "busy_behavior": "queue",
+  "busy_behavior": "steer",
   "content": [
     {
       "content": "string",
@@ -6592,21 +6602,21 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                 | Type                                                                        | Required | Restrictions | Description                                                                                                  |
-|----------------------|-----------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------|
-| `busy_behavior`      | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)                      | false    |              |                                                                                                              |
-| `content`            | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              |                                                                                                              |
-| `inline_mcp_servers` | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers replaces the inline MCP servers. nil: no change, empty: remove all.                       |
-| `mcp_server_ids`     | array of string                                                             | false    |              |                                                                                                              |
-| `model_config_id`    | string                                                                      | false    |              |                                                                                                              |
-| `plan_mode`          | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear. |
-| `reasoning_effort`   | string                                                                      | false    |              |                                                                                                              |
+| Name                 | Type                                                                        | Required | Restrictions | Description                                                                                                                                                                                  |
+|----------------------|-----------------------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `busy_behavior`      | [codersdk.ChatBusyBehavior](#codersdkchatbusybehavior)                      | false    |              | Busy behavior controls when the message reaches the agent if the chat is busy. "steer", the default, delivers it before the next model call. "queue" delivers it after the active turn ends. |
+| `content`            | array of [codersdk.ChatInputPart](#codersdkchatinputpart)                   | false    |              |                                                                                                                                                                                              |
+| `inline_mcp_servers` | array of [codersdk.InlineMCPServerRequest](#codersdkinlinemcpserverrequest) | false    |              | Inline mcp servers replaces the inline MCP servers. nil: no change, empty: remove all.                                                                                                       |
+| `mcp_server_ids`     | array of string                                                             | false    |              |                                                                                                                                                                                              |
+| `model_config_id`    | string                                                                      | false    |              |                                                                                                                                                                                              |
+| `plan_mode`          | [codersdk.ChatPlanMode](#codersdkchatplanmode)                              | false    |              | Plan mode switches the chat's persistent plan mode. nil: no change, ptr to "plan": enable, ptr to "": clear.                                                                                 |
+| `reasoning_effort`   | string                                                                      | false    |              |                                                                                                                                                                                              |
 
 #### Enumerated Values
 
-| Property        | Value(s)             |
-|-----------------|----------------------|
-| `busy_behavior` | `interrupt`, `queue` |
+| Property        | Value(s)         |
+|-----------------|------------------|
+| `busy_behavior` | `queue`, `steer` |
 
 ## codersdk.CreateChatMessageResponse
 
@@ -6760,6 +6770,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   ],
   "queued": true,
   "queued_message": {
+    "busy_behavior": "steer",
     "chat_id": "efc9fe20-a1e5-4a8c-9c48-f1b30c1e4f86",
     "content": [
       {
@@ -6829,13 +6840,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name             | Type                                                     | Required | Restrictions | Description                                                                                                                                                                                        |
-|------------------|----------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                    |
-| `messages`       | array of [codersdk.ChatMessage](#codersdkchatmessage)    | false    |              | Messages contains all user-visible messages inserted by the send, in insertion order. A queued send on an errored chat may promote the previous queue head, so clients must upsert the full batch. |
-| `queued`         | boolean                                                  | false    |              |                                                                                                                                                                                                    |
-| `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                    |
-| `warnings`       | array of string                                          | false    |              |                                                                                                                                                                                                    |
+| Name             | Type                                                     | Required | Restrictions | Description                                                                                                                                                                                                                                                                                                                                                                           |
+|------------------|----------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `message`        | [codersdk.ChatMessage](#codersdkchatmessage)             | false    |              |                                                                                                                                                                                                                                                                                                                                                                                       |
+| `messages`       | array of [codersdk.ChatMessage](#codersdkchatmessage)    | false    |              | Messages contains all user-visible messages inserted by the send, in insertion order. A send to an errored or paused chat can also insert queued messages: a steer send inserts the queued steer messages before the new message, and a queue send to an errored chat inserts the steer lane, or the first queue message when that lane is empty. Clients must upsert the full batch. |
+| `queued`         | boolean                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                                                       |
+| `queued_message` | [codersdk.ChatQueuedMessage](#codersdkchatqueuedmessage) | false    |              |                                                                                                                                                                                                                                                                                                                                                                                       |
+| `warnings`       | array of string                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                       |
 
 ## codersdk.CreateChatModelRequest
 

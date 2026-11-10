@@ -638,7 +638,7 @@ export const WorkspaceTerminal: React.FC<WorkspaceTerminalProps> = ({
 				<ContextMenuTrigger asChild disabled={isMac()}>
 					<div
 						className={cn(
-							"workspace-terminal h-full w-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary",
+							"workspace-terminal size-full flex-1 min-h-0 overflow-hidden bg-surface-tertiary",
 							className,
 						)}
 						ref={terminalWrapperRef}

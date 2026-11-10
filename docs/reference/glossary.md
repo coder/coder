@@ -539,6 +539,12 @@ Refer to [OIDC authentication](../admin/users/oidc-auth/index.md).
 A curated example template that ships with Coder for a common platform, such as Docker, Kubernetes, AWS, GCP, or Azure.
 Refer to [Create templates](../templates/creating-templates.md).
 
+### STUN
+
+Session Traversal Utilities for Network Address Translation (STUN), a protocol that lets peers behind network address translation (NAT) learn their public address and port.
+Coder uses STUN to set up direct connections between clients and workspaces, and falls back to [DERP](#derp) relays when a direct connection isn't possible.
+Refer to [STUN and NAT](../admin/networking/stun.md).
+
 ### Sub-agent (Coder Agents)
 
 A delegated child chat that a parent Coder Agents chat spawns to perform a sub-task, with its own tool allowlist.

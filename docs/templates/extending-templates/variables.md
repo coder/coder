@@ -4,7 +4,7 @@ title: Terraform template-wide variables
 
 In Coder, Terraform templates offer extensive flexibility through template-wide variables.
 These variables, managed by template authors, facilitate the construction of customizable templates.
-Unlike parameters, which are primarily for workspace customization, template variables remain under the control of the template author, ensuring workspace users cannot modify them.
+Unlike parameters, which are primarily for workspace customization, template variables remain under the control of the template author, making sure workspace users cannot modify them.
 
 ```tf
 variable "CLOUD_API_KEY" {
@@ -37,7 +37,7 @@ They can be conveniently managed via _Template Settings_ without requiring an ex
 ### Resolved values vs. default values
 
 It's crucial to note that Coder templates operate based on resolved values during a push, rather than default values.
-This ensures that default values do not inadvertently override the configured variable settings during the push process.
+This guarantees that default values do not inadvertently override the configured variable settings during the push process.
 
 This approach caters to users who prefer to avoid accidental overrides of their variable settings with default values during pushes, thereby enhancing control and predictability.
 

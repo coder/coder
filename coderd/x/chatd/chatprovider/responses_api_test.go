@@ -125,12 +125,12 @@ func TestModelTransportConsumersAgree(t *testing.T) {
 	serviceTier := "auto"
 
 	cases := []struct {
-		name           string
-		modelID        string
-		override       *bool
-		wantPath       string
-		wantOptions    fantasy.ProviderOptionsData
-		wantAcceptText bool
+		name            string
+		modelID         string
+		override        *bool
+		wantPath        string
+		wantOptions     fantasy.ProviderOptionsData
+		wantAcceptAudio bool
 	}{
 		{
 			name:        "ForceResponsesOnUnknownModel",
@@ -140,12 +140,12 @@ func TestModelTransportConsumersAgree(t *testing.T) {
 			wantOptions: &fantasyopenai.ResponsesProviderOptions{},
 		},
 		{
-			name:           "ForceCompletionsOnKnownModel",
-			modelID:        responsesModel,
-			override:       &forceCompletions,
-			wantPath:       "/chat/completions",
-			wantOptions:    &fantasyopenai.ProviderOptions{},
-			wantAcceptText: true,
+			name:            "ForceCompletionsOnKnownModel",
+			modelID:         responsesModel,
+			override:        &forceCompletions,
+			wantPath:        "/chat/completions",
+			wantOptions:     &fantasyopenai.ProviderOptions{},
+			wantAcceptAudio: true,
 		},
 		{
 			name:        "UnsetFollowsKnownModelList",
@@ -211,7 +211,7 @@ func TestModelTransportConsumersAgree(t *testing.T) {
 			}, nil)
 			require.IsType(t, tc.wantOptions, effortOptions[fantasyopenai.Name])
 
-			require.Equal(t, tc.wantAcceptText, model.AcceptsFilePartMediaType("text/plain"))
+			require.Equal(t, tc.wantAcceptAudio, model.AcceptsFilePartMediaType("audio/mpeg"))
 			require.True(t, model.AcceptsFilePartMediaType("image/png"))
 		})
 	}

@@ -9,7 +9,7 @@ You can also manage the lifecycle of failed or inactive workspaces.
 
 ## Schedule
 
-Template [admins](../../admin/users/index.md) may define these default values:
+Template [admins](../../admin/users/index.md) can define these default values:
 
 - [**Default autostop**](../../workspaces/workspace-scheduling.md#autostop): How long a workspace runs without user activity before Coder automatically stops it.
 - [**Autostop requirement**](#autostop-requirement): Enforce mandatory workspace restarts to apply template updates regardless of user activity.
@@ -22,7 +22,7 @@ Template [admins](../../admin/users/index.md) may define these default values:
 
 ## Allow users scheduling
 
-For templates where a uniform autostop duration is not appropriate, admins may allow users to define their own autostart and autostop schedules.
+For templates where a uniform autostop duration is not appropriate, admins can allow users to define their own autostart and autostop schedules.
 Admins can restrict the days of the week a workspace should automatically start to help manage infrastructure costs.
 
 ## Failure cleanup
@@ -62,10 +62,10 @@ Dormancy Auto-Deletion is only available for licensed customers.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
 Autostop requirement is a template setting that determines how often workspaces using the template must automatically stop.
-Autostop requirement ignores any active connections, and ensures that workspaces do not run in perpetuity when connections are left open inadvertently.
+Autostop requirement ignores any active connections, and guarantees that workspaces do not run in perpetuity when connections are left open inadvertently.
 
 Workspaces will apply the template autostop requirement on the given day in the user's timezone and specified quiet hours (see below).
-This ensures that workspaces will not be stopped during work hours.
+This makes sure that workspaces will not be stopped during work hours.
 
 The available options are "Days", which can be set to "Daily", "Saturday" or "Sunday", and "Weeks", which can be set to any number from 1 to 16.
 

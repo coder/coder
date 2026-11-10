@@ -5,7 +5,7 @@ title: Customize your template
 In [Launch your first workspace](../index.md), you installed the `coder` CLI, started the control plane, and built a workspace from the Quickstart template.
 That template is a good starting point, but it has gaps:
 
-- It may not include every language in which you write code.
+- It might not include every language in which you write code.
 - It comes with a base toolset, but not the personal command-line tools you install on every machine.
 - It clones public repositories, but it can't reach your private repositories without manual authentication.
 
