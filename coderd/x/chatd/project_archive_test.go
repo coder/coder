@@ -51,8 +51,11 @@ func TestArchiveChatProjectStopsRunningChat(t *testing.T) {
 		ReplicaID:                  uuid.New(),
 		PendingChatAcquireInterval: 10 * time.Millisecond,
 		InFlightChatStaleAfter:     testutil.WaitSuperLong,
-		Experiments:                codersdk.ExperimentsKnown,
-		AIBridgeTransportFactory:   chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL)),
+		// A heartbeat would also stop the runner. Delay it past the test,
+		// so only the archive's chat:update can.
+		ChatHeartbeatInterval:    testutil.WaitSuperLong,
+		Experiments:              codersdk.ExperimentsKnown,
+		AIBridgeTransportFactory: chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL)),
 	})
 	server.Start()
 	t.Cleanup(func() {
@@ -78,8 +81,9 @@ func TestArchiveChatProjectStopsRunningChat(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, archived.ArchivedAt.Valid)
 	// The archive's chat:update stops the runner, which cancels the
-	// provider request.
-	testutil.TryReceive(ctx, t, stopped)
+	// provider request. The bound is shorter than the runner sync
+	// interval, which would also stop it.
+	testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, stopped)
 
 	// Close waits for in-flight work, so a partial reply the runner
 	// persisted would be visible below.

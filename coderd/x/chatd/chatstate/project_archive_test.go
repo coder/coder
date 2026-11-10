@@ -169,6 +169,17 @@ func TestArchivedChatProjectRejectsChats(t *testing.T) {
 	_, err = chatstate.SetFamilyArchived(ctx, f.DB, f.Pub, chatstate.SetFamilyArchivedInput{RootID: member, Archived: false})
 	require.ErrorIs(t, err, chatstate.ErrChatProjectArchived)
 	require.True(t, f.readChat(ctx, t, member).Archived)
+
+	// Deleting the project detaches its chats, which stay archived. A chat
+	// unarchived on its own drops the mark, so a later project unarchive
+	// cannot restore it after it is archived again.
+	require.NoError(t, f.DB.DeleteChatProjectByID(ctx, project.ID))
+	detached := f.readChat(ctx, t, member)
+	require.True(t, detached.Archived)
+	require.False(t, detached.ProjectID.Valid)
+	_, err = chatstate.SetFamilyArchived(ctx, f.DB, f.Pub, chatstate.SetFamilyArchivedInput{RootID: member, Archived: false})
+	require.NoError(t, err)
+	require.False(t, f.readChat(ctx, t, member).ArchivedWithProject)
 }
 
 // seedChatInState inserts a chat with the status and queue that classify as
