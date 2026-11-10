@@ -55,6 +55,14 @@ type sqlcQuerier interface {
 	// AllUserIDs returns all UserIDs regardless of user status or deletion.
 	AllUserIDs(ctx context.Context, includeSystem bool) ([]uuid.UUID, error)
 	ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error)
+	// Archives every unarchived chat of the project, root chats and their
+	// subagent chats, and marks them archived_with_project. This is an
+	// execution-state transition outside the chatstate machine: keep the SET
+	// list in sync with UpdateChatExecutionState. Queued messages stay; a chat
+	// with a queue moves to error with stopped_error unless it already is in
+	// error, so it lands in XE1 or XE1P instead of an invalid state. Publishes
+	// nothing, so callers publish chat:update per chat.
+	ArchiveChatsOfChatProject(ctx context.Context, arg ArchiveChatsOfChatProjectParams) ([]uuid.UUID, error)
 	// Archiving templates is a soft delete action, so is reversible.
 	// Archiving prevents the version from being used and discovered
 	// by listing.
@@ -111,6 +119,10 @@ type sqlcQuerier interface {
 	// the chat, so interrupting and requires_action chats without a fresh lease
 	// also wait for a slot.
 	CountChatCapacityQueuedByPool(ctx context.Context, staleSeconds int32) (CountChatCapacityQueuedByPoolRow, error)
+	// Counts the unarchived root chats of a project, of every owner, and the
+	// ones whose family has a member that archiving the project would stop.
+	// Subagent chats have no project_id and belong to their root's project.
+	CountChatProjectArchivePreview(ctx context.Context, projectID uuid.UUID) (CountChatProjectArchivePreviewRow, error)
 	CountChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) (int64, error)
 	CountChatProjectsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error)
 	CountChatQueuedMessages(ctx context.Context, chatID uuid.UUID) (int64, error)
@@ -557,6 +569,10 @@ type sqlcQuerier interface {
 	GetChatPersonalModelOverridesEnabled(ctx context.Context) (bool, error)
 	GetChatPlanModeInstructions(ctx context.Context) (string, error)
 	GetChatProjectByID(ctx context.Context, id uuid.UUID) (ChatProject, error)
+	// Root chat creation in a project, moves into a project, and chat
+	// unarchives hold this until commit, so they serialize with a project
+	// archive, which locks the project FOR UPDATE first.
+	GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (ChatProject, error)
 	GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (ChatProject, error)
 	// Users are soft deleted, so ON DELETE SET NULL never clears updated_by.
 	// Excluding deleted users here reports their edits as anonymous.
@@ -565,8 +581,8 @@ type sqlcQuerier interface {
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
 	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
 	// Entries match regardless of the actions they grant, so callers must
-	// authorize each row.
-	GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]ChatProject, error)
+	// authorize each row. A NULL archived returns archived and active projects.
+	GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, arg GetChatProjectsOwnedOrSharedWithUserIDParams) ([]ChatProject, error)
 	// Pool fullness distinguishes capacity waits from worker pickup delays.
 	GetChatQueuedForCapacity(ctx context.Context, arg GetChatQueuedForCapacityParams) (bool, error)
 	GetChatQueuedMessageByID(ctx context.Context, arg GetChatQueuedMessageByIDParams) (ChatQueuedMessage, error)
@@ -1455,6 +1471,10 @@ type sqlcQuerier interface {
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// Sub-chat creation holds its root FOR SHARE, so this waits for it. At
+	// READ COMMITTED, the default isolation, a later statement then sees every
+	// child committed during the wait.
+	LockChatProjectUnarchivedRootChats(ctx context.Context, projectID uuid.UUID) error
 	// Locks the listed users' membership rows with FOR KEY SHARE for the rest of
 	// the current transaction. FOR KEY SHARE conflicts with DELETE, so a member
 	// cannot be removed until the transaction ends, and a removal committed
@@ -1561,6 +1581,10 @@ type sqlcQuerier interface {
 	// released when the transaction ends.
 	TryAcquireLock(ctx context.Context, pgTryAdvisoryXactLock int64) (bool, error)
 	UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]Chat, error)
+	// Unarchives the chats that archiving the project archived, root chats
+	// and their subagent chats. Chats archived on their own stay archived.
+	// Execution status is untouched: an archived chat is idle or in error.
+	UnarchiveChatsOfChatProject(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error)
 	// This will always work regardless of the current state of the template version.
 	UnarchiveTemplateVersion(ctx context.Context, arg UnarchiveTemplateVersionParams) error
 	UnfavoriteWorkspace(ctx context.Context, id uuid.UUID) error
@@ -1640,6 +1664,10 @@ type sqlcQuerier interface {
 	UpdateChatPinOrder(ctx context.Context, arg UpdateChatPinOrderParams) error
 	UpdateChatPlanModeByID(ctx context.Context, arg UpdateChatPlanModeByIDParams) (Chat, error)
 	UpdateChatProjectACLByID(ctx context.Context, arg UpdateChatProjectACLByIDParams) error
+	// Call only through chatstate.ArchiveProjectChats and
+	// chatstate.UnarchiveProjectChats, which archive and unarchive the
+	// project's chats in the same transaction.
+	UpdateChatProjectArchivedAt(ctx context.Context, arg UpdateChatProjectArchivedAtParams) (ChatProject, error)
 	UpdateChatProjectByID(ctx context.Context, arg UpdateChatProjectByIDParams) (ChatProject, error)
 	// Sets the project of one chat. A NULL project_id removes the chat from
 	// its project.

@@ -3,12 +3,17 @@ package chatstate
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // SetFamilyArchivedInput configures [SetFamilyArchived]. The struct
@@ -17,7 +22,8 @@ import (
 type SetFamilyArchivedInput struct {
 	// RootID identifies the family root. SetFamilyArchived rejects
 	// calls for child chats with [ErrChatNotRoot] and unknown chats
-	// with [ErrChatNotFound].
+	// with [ErrChatNotFound]. Unarchiving a root whose project is
+	// archived returns [ErrChatProjectArchived].
 	RootID uuid.UUID
 	// Archived is the desired post-call archived value for every
 	// family member.
@@ -84,6 +90,11 @@ func SetFamilyArchived(
 		}
 		if root.ParentChatID.Valid {
 			return ErrChatNotRoot
+		}
+		if !input.Archived && root.ProjectID.Valid {
+			if err := requireChatProjectNotArchived(ctx, tx, root.ProjectID.UUID); err != nil {
+				return err
+			}
 		}
 		ids, err := tx.GetChatFamilyIDsByRootID(ctx, input.RootID)
 		if err != nil {
@@ -159,7 +170,8 @@ type SetFamilyProjectInput struct {
 	// with [ErrChatNotFound].
 	RootID uuid.UUID
 	// ProjectID is the root chat's new project. NULL removes the chat
-	// from its project.
+	// from its project. An archived project returns
+	// [ErrChatProjectArchived].
 	ProjectID uuid.NullUUID
 }
 
@@ -209,6 +221,14 @@ func SetFamilyProject(
 		if root.ProjectID == input.ProjectID {
 			return nil
 		}
+		// The root is locked before the project. A project archive locks
+		// the project first and then only chats already in it, and an
+		// archived chat cannot move, so the two orders cannot deadlock.
+		if input.ProjectID.Valid {
+			if err := requireChatProjectNotArchived(ctx, tx, input.ProjectID.UUID); err != nil {
+				return err
+			}
+		}
 		ids, err := tx.GetChatFamilyIDsByRootID(ctx, input.RootID)
 		if err != nil {
 			return xerrors.Errorf("get chat family: %w", err)
@@ -243,4 +263,222 @@ func SetFamilyProject(
 		return familyChats, err
 	}
 	return familyChats, nil
+}
+
+// requireChatProjectNotArchived locks the project FOR SHARE until commit
+// and returns [ErrChatProjectArchived] when it is archived. Holding the
+// lock serializes the caller with [ArchiveProjectChats], which locks the
+// project FOR UPDATE before it archives the project's chats. A missing
+// project passes, so the caller's write fails on the project_id foreign
+// key as before.
+func requireChatProjectNotArchived(ctx context.Context, tx database.Store, projectID uuid.UUID) error {
+	//nolint:gocritic // The caller authorized the chat, and its owner may not read the project.
+	project, err := tx.GetChatProjectByIDForShare(dbauthz.AsChatd(ctx), projectID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return xerrors.Errorf("lock chat project: %w", err)
+	}
+	if project.ArchivedAt.Valid {
+		return ErrChatProjectArchived
+	}
+	return nil
+}
+
+// chatProjectArchivedStopError is the last_error of a project chat that
+// archiving stopped while it had queued messages. It has the shape
+// FinishError writes, so clients render it like any terminal error.
+const chatProjectArchivedStopError = "Stopped when the project was archived."
+
+// ArchiveProjectChatsInput configures [ArchiveProjectChats].
+type ArchiveProjectChatsInput struct {
+	ProjectID uuid.UUID
+	// StopActiveChats archives the project even when a chat in it is
+	// running, interrupting, waiting for tool results, or paused.
+	// Without it such chats return a *ChatProjectActiveChatsError.
+	StopActiveChats bool
+}
+
+// ArchiveProjectChats archives a project and every unarchived chat in it,
+// of every owner, subagent chats included, in one transaction. It returns
+// the archived project and the chats it archived.
+//
+// ctx's actor must be allowed to delete the project; the chat writes run
+// as chatd because the project's chats can belong to other users.
+//
+// Each chat moves to XW, or to XE0, XE1 or XE1P when it is in error or
+// has queued messages: queued messages are kept, and a non-error chat
+// with a queue moves to error. Worker, runner and pending requires-action
+// and compaction state are cleared, and a chat:update per archived chat is
+// published after commit, so active runners stop and discard their
+// partial reply. If that publish fails, the committed result is returned
+// with [ErrChatUpdatePublishFailed]. The chats are marked so [UnarchiveProjectChats] restores
+// only them; chats archived before stay archived.
+//
+// Locks: the project FOR UPDATE, then the unarchived root chats in id
+// order. Chat creation in the project, moves into it, and chat unarchives
+// hold the project FOR SHARE, so they either finish first or see the
+// project archived.
+func ArchiveProjectChats(
+	ctx context.Context,
+	store database.Store,
+	publisher Publisher,
+	input ArchiveProjectChatsInput,
+) (database.ChatProject, []database.Chat, error) {
+	if store == nil {
+		return database.ChatProject{}, nil, xerrors.New("chatstate: ArchiveProjectChats called with nil store")
+	}
+	if publisher == nil {
+		return database.ChatProject{}, nil, xerrors.New("chatstate: ArchiveProjectChats called with nil publisher")
+	}
+	stoppedError, err := json.Marshal(codersdk.ChatError{Message: chatProjectArchivedStopError})
+	if err != nil {
+		return database.ChatProject{}, nil, xerrors.Errorf("marshal stopped error: %w", err)
+	}
+
+	buffer := NewPublishBuffer(publisher)
+	defer buffer.Discard()
+
+	//nolint:gocritic // The project's chats can belong to other users; ctx authorizes the project.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	var (
+		project  database.ChatProject
+		archived []database.Chat
+	)
+	err = store.InTx(func(tx database.Store) error {
+		var err error
+		project, err = lockChatProject(ctx, tx, input.ProjectID)
+		if err != nil {
+			return err
+		}
+		if project.ArchivedAt.Valid {
+			return ErrChatProjectAlreadyArchived
+		}
+		if err := tx.LockChatProjectUnarchivedRootChats(chatdCtx, input.ProjectID); err != nil {
+			return xerrors.Errorf("lock project root chats: %w", err)
+		}
+		// Counted under the root locks, so a root cannot become active
+		// between the check and the archive.
+		preview, err := tx.CountChatProjectArchivePreview(chatdCtx, input.ProjectID)
+		if err != nil {
+			return xerrors.Errorf("count active project chats: %w", err)
+		}
+		if preview.ActiveChatCount > 0 && !input.StopActiveChats {
+			return &ChatProjectActiveChatsError{ActiveChatCount: preview.ActiveChatCount}
+		}
+		ids, err := tx.ArchiveChatsOfChatProject(chatdCtx, database.ArchiveChatsOfChatProjectParams{
+			ProjectID:    input.ProjectID,
+			StoppedError: stoppedError,
+		})
+		if err != nil {
+			return xerrors.Errorf("archive project chats: %w", err)
+		}
+		project, err = tx.UpdateChatProjectArchivedAt(ctx, database.UpdateChatProjectArchivedAtParams{
+			ID:         input.ProjectID,
+			ArchivedAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+		})
+		if err != nil {
+			return xerrors.Errorf("archive project: %w", err)
+		}
+		archived, err = reloadAndPublishChats(chatdCtx, tx, buffer, ids)
+		return err
+	}, nil)
+	if err != nil {
+		return database.ChatProject{}, nil, err
+	}
+	if err := buffer.Flush(); err != nil {
+		return project, archived, errors.Join(ErrChatUpdatePublishFailed, err)
+	}
+	return project, archived, nil
+}
+
+// UnarchiveProjectChats unarchives a project and the chats that
+// [ArchiveProjectChats] archived with it, in one transaction. It returns
+// the project and the chats it unarchived. Chats keep their execution
+// status, so each lands in W, E0, E1 or E1P. ctx's actor must be allowed
+// to delete the project; the chat writes run as chatd. If publishing
+// chat:update fails, the committed result is returned with
+// [ErrChatUpdatePublishFailed].
+func UnarchiveProjectChats(
+	ctx context.Context,
+	store database.Store,
+	publisher Publisher,
+	projectID uuid.UUID,
+) (database.ChatProject, []database.Chat, error) {
+	if store == nil {
+		return database.ChatProject{}, nil, xerrors.New("chatstate: UnarchiveProjectChats called with nil store")
+	}
+	if publisher == nil {
+		return database.ChatProject{}, nil, xerrors.New("chatstate: UnarchiveProjectChats called with nil publisher")
+	}
+
+	buffer := NewPublishBuffer(publisher)
+	defer buffer.Discard()
+
+	//nolint:gocritic // The project's chats can belong to other users; ctx authorizes the project.
+	chatdCtx := dbauthz.AsChatd(ctx)
+	var (
+		project    database.ChatProject
+		unarchived []database.Chat
+	)
+	err := store.InTx(func(tx database.Store) error {
+		var err error
+		project, err = lockChatProject(ctx, tx, projectID)
+		if err != nil {
+			return err
+		}
+		if !project.ArchivedAt.Valid {
+			return ErrChatProjectNotArchived
+		}
+		project, err = tx.UpdateChatProjectArchivedAt(ctx, database.UpdateChatProjectArchivedAtParams{
+			ID:         projectID,
+			ArchivedAt: sql.NullTime{},
+		})
+		if err != nil {
+			return xerrors.Errorf("unarchive project: %w", err)
+		}
+		ids, err := tx.UnarchiveChatsOfChatProject(chatdCtx, projectID)
+		if err != nil {
+			return xerrors.Errorf("unarchive project chats: %w", err)
+		}
+		unarchived, err = reloadAndPublishChats(chatdCtx, tx, buffer, ids)
+		return err
+	}, nil)
+	if err != nil {
+		return database.ChatProject{}, nil, err
+	}
+	if err := buffer.Flush(); err != nil {
+		return project, unarchived, errors.Join(ErrChatUpdatePublishFailed, err)
+	}
+	return project, unarchived, nil
+}
+
+func lockChatProject(ctx context.Context, tx database.Store, projectID uuid.UUID) (database.ChatProject, error) {
+	project, err := tx.GetChatProjectByIDForUpdate(ctx, projectID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return database.ChatProject{}, ErrChatProjectNotFound
+	}
+	if err != nil {
+		return database.ChatProject{}, xerrors.Errorf("lock chat project: %w", err)
+	}
+	return project, nil
+}
+
+// reloadAndPublishChats reads the chats a bulk update changed and buffers
+// a chat:update for each, as ChatMachine.Update does for one chat.
+func reloadAndPublishChats(ctx context.Context, tx database.Store, buffer *PublishBuffer, ids []uuid.UUID) ([]database.Chat, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	chats, err := tx.GetChatsByIDsForRunnerSync(ctx, ids)
+	if err != nil {
+		return nil, xerrors.Errorf("reload project chats: %w", err)
+	}
+	for _, chat := range chats {
+		if err := buffer.Publish(coderdpubsub.ChatStateUpdateChannel(chat.ID), buildChatUpdateMessage(chat)); err != nil {
+			return nil, xerrors.Errorf("buffer chat update: %w", err)
+		}
+	}
+	return chats, nil
 }

@@ -1378,8 +1378,46 @@ func (s *MethodTestSuite) TestChats() {
 		userID := uuid.New()
 		project := testutil.Fake(s.T(), faker, database.ChatProject{OwnerID: userID})
 		rows := []database.ChatProject{project}
-		dbm.EXPECT().GetChatProjectsOwnedOrSharedWithUserID(gomock.Any(), userID).Return(rows, nil).AnyTimes()
-		check.Args(userID).Asserts(project, policy.ActionRead).Returns(rows)
+		arg := database.GetChatProjectsOwnedOrSharedWithUserIDParams{UserID: userID}
+		dbm.EXPECT().GetChatProjectsOwnedOrSharedWithUserID(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(project, policy.ActionRead).Returns(rows)
+	}))
+	s.Run("GetChatProjectByIDForShare", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		dbm.EXPECT().GetChatProjectByIDForShare(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		check.Args(project.ID).Asserts(project, policy.ActionRead).Returns(project)
+	}))
+	s.Run("UpdateChatProjectArchivedAt", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		arg := database.UpdateChatProjectArchivedAtParams{ID: project.ID, ArchivedAt: sql.NullTime{Time: dbtime.Now(), Valid: true}}
+		updated := project
+		updated.ArchivedAt = arg.ArchivedAt
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		dbm.EXPECT().UpdateChatProjectArchivedAt(gomock.Any(), arg).Return(updated, nil).AnyTimes()
+		check.Args(arg).Asserts(project, policy.ActionDelete).Returns(updated)
+	}))
+	s.Run("CountChatProjectArchivePreview", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		projectID := uuid.New()
+		row := database.CountChatProjectArchivePreviewRow{ChatCount: 3, ActiveChatCount: 1}
+		dbm.EXPECT().CountChatProjectArchivePreview(gomock.Any(), projectID).Return(row, nil).AnyTimes()
+		check.Args(projectID).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(row)
+	}))
+	s.Run("LockChatProjectUnarchivedRootChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		projectID := uuid.New()
+		dbm.EXPECT().LockChatProjectUnarchivedRootChats(gomock.Any(), projectID).Return(nil).AnyTimes()
+		check.Args(projectID).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns()
+	}))
+	s.Run("ArchiveChatsOfChatProject", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.ArchiveChatsOfChatProjectParams{ProjectID: uuid.New(), StoppedError: json.RawMessage(`{"message":"stopped"}`)}
+		ids := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().ArchiveChatsOfChatProject(gomock.Any(), arg).Return(ids, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(ids)
+	}))
+	s.Run("UnarchiveChatsOfChatProject", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		projectID := uuid.New()
+		ids := []uuid.UUID{uuid.New()}
+		dbm.EXPECT().UnarchiveChatsOfChatProject(gomock.Any(), projectID).Return(ids, nil).AnyTimes()
+		check.Args(projectID).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns(ids)
 	}))
 	s.Run("IsChatProjectUsableByUserID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.IsChatProjectUsableByUserIDParams{ProjectID: uuid.New(), UserID: uuid.New()}

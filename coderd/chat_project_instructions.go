@@ -82,6 +82,9 @@ func (api *API) putChatProjectInstructions(rw http.ResponseWriter, r *http.Reque
 		}
 		return
 	}
+	if rejectArchivedChatProject(ctx, rw, project) {
+		return
+	}
 
 	// Cap the raw request body to prevent excessive memory use from
 	// payloads padded with invisible characters that sanitize away.
@@ -195,6 +198,9 @@ func (api *API) deleteChatProjectInstructions(rw http.ResponseWriter, r *http.Re
 		} else {
 			httpapi.ResourceNotFound(rw)
 		}
+		return
+	}
+	if rejectArchivedChatProject(ctx, rw, project) {
 		return
 	}
 	aReq, commitAudit := audit.InitRequestWithCancel[database.AuditableChatProjectInstructions](rw, &audit.RequestParams{

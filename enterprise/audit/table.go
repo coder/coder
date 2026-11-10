@@ -480,6 +480,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"last_model_config_id":        ActionIgnore, // Churns every message.
 		"last_reasoning_effort":       ActionIgnore, // Churns every message.
 		"archived":                    ActionTrack,
+		"archived_with_project":       ActionTrack,
 		"last_error":                  ActionIgnore, // Internal.
 		"last_turn_summary":           ActionIgnore, // Internal cached display text.
 		"summary":                     ActionIgnore, // Internal cached display text, generated asynchronously.
@@ -519,6 +520,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"updated_at":      ActionIgnore,
 		"user_acl":        ActionTrack,
 		"group_acl":       ActionTrack,
+		"archived_at":     ActionTrack,
 	},
 	&database.ChatProjectMemory{}: {
 		"id":              ActionTrack,

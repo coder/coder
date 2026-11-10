@@ -531,6 +531,46 @@ func (p *Server) setChatFamilyArchived(ctx context.Context, chat database.Chat, 
 	return nil
 }
 
+// ArchiveChatProject archives a project and every chat in it through
+// chatstate.ArchiveProjectChats. ctx's actor must be allowed to delete the
+// project. Without stopActive, active chats return a
+// *chatstate.ChatProjectActiveChatsError and nothing changes.
+//
+//nolint:revive // stopActive is the request's explicit confirmation.
+func (p *Server) ArchiveChatProject(ctx context.Context, projectID uuid.UUID, stopActive bool) (database.ChatProject, error) {
+	project, chats, err := chatstate.ArchiveProjectChats(ctx, p.db, p.pubsub, chatstate.ArchiveProjectChatsInput{
+		ProjectID:       projectID,
+		StopActiveChats: stopActive,
+	})
+	// A failed chat:update publish leaves the archive committed. Runners
+	// still stop at their next heartbeat, which fails on the cleared
+	// worker.
+	if errors.Is(err, chatstate.ErrChatUpdatePublishFailed) {
+		p.logger.Warn(ctx, "publish chat updates for archived project failed",
+			slog.F("project_id", projectID), slog.Error(err))
+	} else if err != nil {
+		return database.ChatProject{}, err
+	}
+	p.scheduleArchiveDebugCleanup(ctx, chats)
+	p.publishChatPubsubEvents(chats, codersdk.ChatWatchEventKindDeleted)
+	return project, nil
+}
+
+// UnarchiveChatProject unarchives a project and the chats archived with it
+// through chatstate.UnarchiveProjectChats. ctx's actor must be allowed to
+// delete the project.
+func (p *Server) UnarchiveChatProject(ctx context.Context, projectID uuid.UUID) (database.ChatProject, error) {
+	project, chats, err := chatstate.UnarchiveProjectChats(ctx, p.db, p.pubsub, projectID)
+	if errors.Is(err, chatstate.ErrChatUpdatePublishFailed) {
+		p.logger.Warn(ctx, "publish chat updates for unarchived project failed",
+			slog.F("project_id", projectID), slog.Error(err))
+	} else if err != nil {
+		return database.ChatProject{}, err
+	}
+	p.publishChatPubsubEvents(chats, codersdk.ChatWatchEventKindCreated)
+	return project, nil
+}
+
 // MoveChatToProject moves a root chat into a project, or out of its
 // project when projectID is NULL. Its subagent chats follow because they
 // use the root's project. While the chat or a subagent chat is not idle,

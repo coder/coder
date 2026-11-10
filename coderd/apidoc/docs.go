@@ -164,6 +164,14 @@ const docTemplate = `{
                 ],
                 "summary": "List chat projects",
                 "operationId": "list-chat-projects",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "List archived projects instead of active ones",
+                        "name": "archived",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -714,6 +722,110 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/archive": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Archive chat project",
+                "operationId": "archive-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Archive chat project request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ArchiveChatProjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProject"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/archive-preview": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Preview chat project archive",
+                "operationId": "preview-chat-project-archive",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProjectArchivePreview"
+                        }
                     }
                 },
                 "security": [
@@ -1324,6 +1436,52 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.Skill"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/unarchive": {
+            "post": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Unarchive chat project",
+                "operationId": "unarchive-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatProject"
                         }
                     }
                 },
@@ -21309,6 +21467,15 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ArchiveChatProjectRequest": {
+            "type": "object",
+            "properties": {
+                "stop_active_chats": {
+                    "description": "StopActiveChats confirms that active chats in the project are\nstopped and archived. Without it, a project with active chats is\nnot archived.",
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.ArchiveTemplateVersionsRequest": {
             "type": "object",
             "properties": {
@@ -23591,6 +23758,11 @@ const docTemplate = `{
         "codersdk.ChatProject": {
             "type": "object",
             "properties": {
+                "archived_at": {
+                    "description": "ArchivedAt is set while the project is archived. An archived\nproject and its chats are read-only.",
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "created_at": {
                     "type": "string",
                     "format": "date-time"
@@ -23649,6 +23821,19 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatProjectUser"
                     }
+                }
+            }
+        },
+        "codersdk.ChatProjectArchivePreview": {
+            "type": "object",
+            "properties": {
+                "active_chat_count": {
+                    "description": "ActiveChatCount is the number of those chats that archiving stops\nbecause they or one of their subagent chats are active.",
+                    "type": "integer"
+                },
+                "chat_count": {
+                    "description": "ChatCount is the number of unarchived root chats in the project,\nof every owner.",
+                    "type": "integer"
                 }
             }
         },
@@ -23772,6 +23957,10 @@ const docTemplate = `{
         "codersdk.ChatProjectPermissions": {
             "type": "object",
             "properties": {
+                "archive": {
+                    "description": "Archive covers archiving and unarchiving the project.",
+                    "type": "boolean"
+                },
                 "delete": {
                     "type": "boolean"
                 },

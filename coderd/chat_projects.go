@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -30,6 +32,7 @@ import (
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
+// @Param archived query bool false "List archived projects instead of active ones"
 // @Success 200 {array} codersdk.ChatProject
 // @Router /api/experimental/chats/projects [get]
 // @x-apidocgen {"skip": true}
@@ -37,7 +40,23 @@ func (api *API) listChatProjects(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	projects, err := api.Database.GetChatProjectsOwnedOrSharedWithUserID(ctx, apiKey.UserID)
+	archived := false
+	if raw := r.URL.Query().Get("archived"); raw != "" {
+		parsed, err := strconv.ParseBool(raw)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Invalid archived query parameter.",
+				Validations: []codersdk.ValidationError{{Field: "archived", Detail: "Must be true or false."}},
+			})
+			return
+		}
+		archived = parsed
+	}
+
+	projects, err := api.Database.GetChatProjectsOwnedOrSharedWithUserID(ctx, database.GetChatProjectsOwnedOrSharedWithUserIDParams{
+		UserID:   apiKey.UserID,
+		Archived: sql.NullBool{Bool: archived, Valid: true},
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chat projects.",
@@ -180,6 +199,9 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 	if !api.authorizeChatProjectChange(rw, r, policy.ActionUpdate, project.RBACObject()) {
 		return
 	}
+	if rejectArchivedChatProject(ctx, rw, project) {
+		return
+	}
 
 	aReq, commitAudit := audit.InitRequest[database.ChatProject](rw, &audit.RequestParams{
 		Audit:          *api.Auditor.Load(),
@@ -270,6 +292,162 @@ func (api *API) deleteChatProject(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
+// @Summary Archive chat project
+// @ID archive-chat-project
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param project path string true "Chat project ID" format(uuid)
+// @Param request body codersdk.ArchiveChatProjectRequest true "Archive chat project request"
+// @Success 200 {object} codersdk.ChatProject
+// @Router /api/experimental/organizations/{organization}/chats/projects/{project}/archive [post]
+// @x-apidocgen {"skip": true}
+func (api *API) archiveChatProject(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	project := httpmw.ChatProjectParam(r)
+	// Archiving changes every user's chats in the project, so it needs the
+	// same access as deleting the project.
+	if !api.authorizeChatProjectChange(rw, r, policy.ActionDelete, project.RBACObject()) {
+		return
+	}
+
+	var req codersdk.ArchiveChatProjectRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	aReq, commitAudit := audit.InitRequest[database.ChatProject](rw, &audit.RequestParams{
+		Audit:          *api.Auditor.Load(),
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionWrite,
+		OrganizationID: project.OrganizationID,
+	})
+	defer commitAudit()
+	aReq.Old = project
+
+	archived, err := api.chatDaemon.ArchiveChatProject(ctx, project.ID, req.StopActiveChats)
+	var activeErr *chatstate.ChatProjectActiveChatsError
+	switch {
+	case errors.As(err, &activeErr):
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: fmt.Sprintf("Chat project has %d active chats. Set stop_active_chats to stop and archive them.", activeErr.ActiveChatCount),
+		})
+		return
+	case errors.Is(err, chatstate.ErrChatProjectAlreadyArchived):
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Chat project is already archived.",
+		})
+		return
+	case errors.Is(err, chatstate.ErrChatProjectNotFound) || httpapi.Is404Error(err):
+		httpapi.ResourceNotFound(rw)
+		return
+	case err != nil:
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to archive chat project.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	aReq.New = archived
+	httpapi.Write(ctx, rw, http.StatusOK, api.convertChatProject(r, archived))
+}
+
+// @Summary Unarchive chat project
+// @ID unarchive-chat-project
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param project path string true "Chat project ID" format(uuid)
+// @Success 200 {object} codersdk.ChatProject
+// @Router /api/experimental/organizations/{organization}/chats/projects/{project}/unarchive [post]
+// @x-apidocgen {"skip": true}
+func (api *API) unarchiveChatProject(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	project := httpmw.ChatProjectParam(r)
+	if !api.authorizeChatProjectChange(rw, r, policy.ActionDelete, project.RBACObject()) {
+		return
+	}
+
+	aReq, commitAudit := audit.InitRequest[database.ChatProject](rw, &audit.RequestParams{
+		Audit:          *api.Auditor.Load(),
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionWrite,
+		OrganizationID: project.OrganizationID,
+	})
+	defer commitAudit()
+	aReq.Old = project
+
+	unarchived, err := api.chatDaemon.UnarchiveChatProject(ctx, project.ID)
+	switch {
+	case errors.Is(err, chatstate.ErrChatProjectNotArchived):
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "Chat project is not archived.",
+		})
+		return
+	case errors.Is(err, chatstate.ErrChatProjectNotFound) || httpapi.Is404Error(err):
+		httpapi.ResourceNotFound(rw)
+		return
+	case err != nil:
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to unarchive chat project.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	aReq.New = unarchived
+	httpapi.Write(ctx, rw, http.StatusOK, api.convertChatProject(r, unarchived))
+}
+
+// @Summary Preview chat project archive
+// @ID preview-chat-project-archive
+// @Security CoderSessionToken
+// @Tags Chats
+// @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param project path string true "Chat project ID" format(uuid)
+// @Success 200 {object} codersdk.ChatProjectArchivePreview
+// @Router /api/experimental/organizations/{organization}/chats/projects/{project}/archive-preview [get]
+// @x-apidocgen {"skip": true}
+func (api *API) chatProjectArchivePreview(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	project := httpmw.ChatProjectParam(r)
+	if !api.authorizeChatProjectChange(rw, r, policy.ActionDelete, project.RBACObject()) {
+		return
+	}
+	// The counts span every user's chats in the project, which the caller,
+	// authorized to archive it, may not be able to read.
+	//nolint:gocritic // See above.
+	preview, err := api.Database.CountChatProjectArchivePreview(dbauthz.AsSystemRestricted(ctx), project.ID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to preview chat project archive.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ChatProjectArchivePreview{
+		ChatCount:       preview.ChatCount,
+		ActiveChatCount: preview.ActiveChatCount,
+	})
+}
+
+// rejectArchivedChatProject writes a 409 response and returns true when the
+// project is archived. Archived projects are read-only until unarchived.
+func rejectArchivedChatProject(ctx context.Context, rw http.ResponseWriter, project database.ChatProject) bool {
+	if !project.ArchivedAt.Valid {
+		return false
+	}
+	httpapi.Write(ctx, rw, http.StatusConflict, chatProjectArchivedResponse)
+	return true
+}
+
+var chatProjectArchivedResponse = codersdk.Response{Message: "Chat project is archived."}
+
 func (api *API) authorizeChatProjectChange(rw http.ResponseWriter, r *http.Request, action policy.Action, object rbac.Objecter) bool {
 	if !api.Authorize(r, policy.ActionRead, object) {
 		httpapi.ResourceNotFound(rw)
@@ -295,6 +473,8 @@ func (api *API) convertChatProject(r *http.Request, project database.ChatProject
 		Update: can(policy.ActionUpdate),
 		Delete: can(policy.ActionDelete),
 		Share:  can(policy.ActionShare),
+		// Archiving is gated like deleting; see archiveChatProject.
+		Archive: can(policy.ActionDelete),
 	})
 }
 

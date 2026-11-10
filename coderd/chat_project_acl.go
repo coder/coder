@@ -112,6 +112,9 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 		httpapi.Forbidden(rw)
 		return
 	}
+	if rejectArchivedChatProject(ctx, rw, project) {
+		return
+	}
 
 	var req codersdk.UpdateChatProjectACL
 	if !httpapi.Read(ctx, rw, r, &req) {

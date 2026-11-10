@@ -146,6 +146,9 @@ func (api *API) registerExperimentalOrganizationChatRoutes(r chi.Router) {
 			r.Get("/", api.getChatProject)
 			r.Patch("/", api.patchChatProject)
 			r.Delete("/", api.deleteChatProject)
+			r.Post("/archive", api.archiveChatProject)
+			r.Post("/unarchive", api.unarchiveChatProject)
+			r.Get("/archive-preview", api.chatProjectArchivePreview)
 			r.Route("/acl", func(r chi.Router) {
 				r.Use(httpmw.RequireExperimentWithDevBypass(api.Experiments, codersdk.ExperimentChatProjectSharing))
 				r.Get("/", api.getChatProjectACL)

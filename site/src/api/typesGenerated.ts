@@ -1727,6 +1727,19 @@ export interface AppearanceConfig {
 	readonly codernauts_enabled: boolean;
 }
 
+// From codersdk/chats.go
+/**
+ * ArchiveChatProjectRequest archives a chat project and every chat in it.
+ */
+export interface ArchiveChatProjectRequest {
+	/**
+	 * StopActiveChats confirms that active chats in the project are
+	 * stopped and archived. Without it, a project with active chats is
+	 * not archived.
+	 */
+	readonly stop_active_chats: boolean;
+}
+
 // From codersdk/templates.go
 export interface ArchiveTemplateVersionsRequest {
 	/**
@@ -3577,6 +3590,11 @@ export interface ChatProject {
 	readonly icon: string;
 	readonly created_at: string;
 	readonly updated_at: string;
+	/**
+	 * ArchivedAt is set while the project is archived. An archived
+	 * project and its chats are read-only.
+	 */
+	readonly archived_at?: string;
 	readonly permissions: ChatProjectPermissions;
 }
 
@@ -3592,6 +3610,23 @@ export interface ChatProjectACL {
 	readonly owner: MinimalUser;
 	readonly users: readonly ChatProjectUser[];
 	readonly groups: readonly ChatProjectGroup[];
+}
+
+// From codersdk/chats.go
+/**
+ * ChatProjectArchivePreview counts what archiving a project affects.
+ */
+export interface ChatProjectArchivePreview {
+	/**
+	 * ChatCount is the number of unarchived root chats in the project,
+	 * of every owner.
+	 */
+	readonly chat_count: number;
+	/**
+	 * ActiveChatCount is the number of those chats that archiving stops
+	 * because they or one of their subagent chats are active.
+	 */
+	readonly active_chat_count: number;
 }
 
 // From codersdk/chats.go
@@ -3641,6 +3676,10 @@ export interface ChatProjectPermissions {
 	readonly update: boolean;
 	readonly delete: boolean;
 	readonly share: boolean;
+	/**
+	 * Archive covers archiving and unarchiving the project.
+	 */
+	readonly archive: boolean;
 }
 
 // From codersdk/chats.go
@@ -6736,6 +6775,17 @@ export interface LinkConfig {
 	readonly target: string;
 	readonly icon: string;
 	readonly location?: string;
+}
+
+// From codersdk/chats.go
+/**
+ * ListChatProjectsOptions filters ListChatProjects.
+ */
+export interface ListChatProjectsOptions {
+	/**
+	 * Archived lists archived projects instead of active ones.
+	 */
+	readonly Archived: boolean;
 }
 
 // From codersdk/chats.go

@@ -227,10 +227,14 @@ func (api *API) deleteChatProjectSkill(rw http.ResponseWriter, r *http.Request) 
 
 // startChatProjectSkillWrite checks update on the project before the request
 // body is read, then starts the write's audit entry. Callers who cannot update
-// the project get a 404, matching the project instructions routes.
+// the project get a 404, matching the project instructions routes. An
+// archived project gets a 409.
 func (api *API) startChatProjectSkillWrite(rw http.ResponseWriter, r *http.Request, project database.ChatProject, action database.AuditAction) (*audit.Request[database.AuditableChatProjectSkill], func(), bool) {
 	if !api.Authorize(r, policy.ActionUpdate, project.RBACObject()) {
 		httpapi.ResourceNotFound(rw)
+		return nil, nil, false
+	}
+	if rejectArchivedChatProject(r.Context(), rw, project) {
 		return nil, nil, false
 	}
 	aReq, commitAudit := audit.InitRequest[database.AuditableChatProjectSkill](rw, &audit.RequestParams{
