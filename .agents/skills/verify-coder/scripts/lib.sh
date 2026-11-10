@@ -16,13 +16,17 @@ export VC_ROOT VC_STATE VC_RUN VC_EVIDENCE VC_CONFIG_DIR VC_SKILL_SCRIPTS VC_ADM
 # curl sends requests to 127.0.0.1 through http_proxy or ALL_PROXY too, and
 # they carry the admin password and session token, so loopback requests and
 # the Docker bridge forward bypass any proxy. Sourcing lib.sh therefore sets
-# NO_PROXY and no_proxy to the entries of both plus these hosts.
-IFS=, read -ra _vc_hosts <<<"${NO_PROXY:-},${no_proxy:-},127.0.0.1,localhost,::1,172.17.0.1"
+# NO_PROXY and no_proxy to the entries of both plus these hosts. curl reads
+# "*" as "no proxy" only when it is the whole list, so "*" stays alone.
+IFS=$',\n' read -rd '' -a _vc_hosts <<<"${NO_PROXY:-},${no_proxy:-},127.0.0.1,localhost,::1,172.17.0.1" || true
 NO_PROXY=""
 for _vc_host in "${_vc_hosts[@]}"; do
 	[[ -n "$_vc_host" && ",$NO_PROXY," != *",$_vc_host,"* ]] || continue
 	NO_PROXY="${NO_PROXY:+$NO_PROXY,}$_vc_host"
 done
+if [[ ",$NO_PROXY," == *",*,"* ]]; then
+	NO_PROXY="*"
+fi
 unset _vc_host _vc_hosts
 no_proxy="$NO_PROXY"
 export NO_PROXY no_proxy
@@ -89,7 +93,8 @@ vc_check() {
 # sets VC_DEVELOP_PID. Usage: vc_start_develop <log> <password> <0|1 in Coder>
 # <develop args...>. develop.sh and coder server read many CODER_* variables
 # (a database URL, a reset, ports, an env file), so none of the caller's reach
-# them. Provider keys are dropped too, so the instance never spends real
+# them. Every ANTHROPIC_* and OPENAI_* variable is dropped too, so the
+# instance never spends real
 # tokens by itself (task naming calls Anthropic when a key is present). The
 # password goes through the environment, never an argument, so it stays out
 # of the process list. It closes fd 9, the launch.sh lock, so the instance
@@ -99,12 +104,12 @@ vc_start_develop() {
 	shift 3
 	# BASH_ENV and ENV would let a startup file in the develop.sh shell set
 	# CODER_* variables again.
-	local scrub=(-u BASH_ENV -u ENV -u ANTHROPIC_API_KEY -u ANTHROPIC_AUTH_TOKEN -u ANTHROPIC_BASE_URL -u OPENAI_API_KEY -u OPENAI_BASE_URL)
+	local scrub=(-u BASH_ENV -u ENV)
 	while read -r var; do
 		if [[ "$var" != CODER_DEV_ADMIN_PASSWORD ]]; then
 			scrub+=(-u "$var")
 		fi
-	done < <(compgen -e | grep '^CODER_' || true)
+	done < <(compgen -e | grep -E '^(CODER|ANTHROPIC|OPENAI)_' || true)
 	CODER_DEV_ADMIN_PASSWORD="$password" DEVELOP_IN_CODER="$in_coder" env "${scrub[@]}" \
 		setsid "$VC_ROOT/scripts/develop.sh" "$@" >"$log" 2>&1 </dev/null 9>&- &
 	# shellcheck disable=SC2034 # launch.sh reads it.

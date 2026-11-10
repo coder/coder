@@ -10,8 +10,8 @@
 # reach agent-browser on stdin only, that loopback and gateway requests bypass
 # a proxy, how lib.sh sets NO_PROXY, that cleanup restores the caller's CLI
 # session and its mode, that vc_wait_agent stops early, the coder-agents
-# default model restore, the web terminal poll, and the journeys' evidence
-# folders.
+# default model restore, the web terminal poll, the create-user form wait,
+# and the journeys' evidence folders.
 # Usage: selftest.sh   (prints one line per check and a count line)
 set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
@@ -142,7 +142,8 @@ start_develop_isolates() {
 	# vc_check runs this in a subshell, so the exports stay here.
 	# A caller's own CODER_DEV_ADMIN_PASSWORD must lose to the one passed in.
 	export CODER_PG_CONNECTION_URL=postgres://selftest-elsewhere CODER_DEV_DB_RESET=1 \
-		CODER_DEV_ADMIN_PASSWORD=selftest-caller-value BASH_ENV="$tmp/bash-env" PATH="$tmp/bin:$PATH"
+		CODER_DEV_ADMIN_PASSWORD=selftest-caller-value BASH_ENV="$tmp/bash-env" PATH="$tmp/bin:$PATH" \
+		ANTHROPIC_SELFTEST_KEY=selftest OPENAI_CODER_AIGATEWAY_SESSION_TOKEN=selftest
 	vc_start_develop "$tmp/develop.log" "$marker" 1 --port 1
 	wait "$VC_DEVELOP_PID"
 	if grep -qF "$marker" "$tmp/env-argv"; then
@@ -157,11 +158,11 @@ start_develop_isolates() {
 		echo "develop.sh would not get DEVELOP_IN_CODER=1"
 		return 1
 	}
-	if grep -qE '^(CODER_PG_CONNECTION_URL|CODER_DEV_DB_RESET|BASH_ENV)=' "$tmp/develop-env"; then
-		echo "a caller CODER_* variable or BASH_ENV reaches develop.sh"
+	if grep -qE '^(CODER_PG_CONNECTION_URL|CODER_DEV_DB_RESET|BASH_ENV|ANTHROPIC_SELFTEST_KEY|OPENAI_CODER_AIGATEWAY_SESSION_TOKEN)=' "$tmp/develop-env"; then
+		echo "a caller CODER_*, ANTHROPIC_* or OPENAI_* variable or BASH_ENV reaches develop.sh"
 		return 1
 	fi
-	echo "develop.sh gets the password through its environment and no caller CODER_* variable"
+	echo "develop.sh gets the password through its environment and no caller CODER_*, ANTHROPIC_* or OPENAI_* variable"
 }
 vc_check start-develop start_develop_isolates
 
@@ -170,6 +171,8 @@ vc_check start-develop start_develop_isolates
 # data. The stub develop exits at once, so launch.sh stops after that start.
 setup_binds_loopback() {
 	local kind
+	# A copy instead of a move would get the umask's mode, not the session's.
+	umask 022
 	unset CODER_DEV_ADMIN_PASSWORD
 	for kind in fresh new-data reused-data; do
 		scratch_reset
@@ -180,6 +183,7 @@ setup_binds_loopback() {
 			mkdir -p "$scratch_config/postgres/data"
 			echo selftest-saved-password >"$scratch_config/.verify-coder-admin-password"
 			echo selftest-other-user-token >"$scratch_config/session"
+			chmod 600 "$scratch_config/session"
 			;;
 		esac
 		scratch_run_script launch.sh "" "${launch_flags[@]}"
@@ -191,8 +195,8 @@ setup_binds_loopback() {
 			echo "$kind: develop started with a saved CLI session, so it would not sign in as the admin"
 			return 1
 		fi
-		if [[ "$kind" == reused-data && "$(cat "$scratch_run/caller-session" 2>/dev/null)" != selftest-other-user-token ]]; then
-			echo "reused-data: launch.sh did not keep the caller's session for cleanup"
+		if [[ "$kind" == reused-data ]] && [[ "$(cat "$scratch_run/caller-session" 2>/dev/null)" != selftest-other-user-token || "$(stat -c %a "$scratch_run/caller-session")" != 600 ]]; then
+			echo "reused-data: launch.sh did not keep the caller's session for cleanup with mode 600"
 			return 1
 		fi
 		[[ "$(wc -l <"$tmp/develop-argv")" == 1 && " $(cat "$tmp/develop-argv") " == *" --bind-address 127.0.0.1 "* ]] || {
@@ -472,6 +476,20 @@ c, _ = s.accept(); print("connected", flush=True)
 	return 1
 }
 
+# with_errexit <command...> runs the command in a subshell with errexit on and
+# sets rc to its exit code. Bash ignores errexit in anything that runs under
+# an if, || or && test, subshells included, so a failing step in a loaded
+# function would go unnoticed there. Call it as a plain command.
+with_errexit() {
+	set +e
+	(
+		set -e
+		"$@"
+	)
+	rc=$?
+	set -e
+}
+
 # load_function <script> <name> defines one function of a skill script
 # without running the script, so a check can call it with stand-ins.
 load_function() {
@@ -635,13 +653,21 @@ vc_check login-argv login_keeps_password_off_argv
 # lib.sh keeps the caller's NO_PROXY and no_proxy entries and adds the
 # loopback names and the Docker bridge gateway to both.
 no_proxy_merges() {
-	local got want="upper.example,lower.example,127.0.0.1,localhost,::1,172.17.0.1"
-	# shellcheck disable=SC2016 # The inner shell expands them.
-	got="$(env -i PATH="$PATH" NO_PROXY=upper.example no_proxy=lower.example bash -c 'source "$1" && echo "$NO_PROXY|$no_proxy"' _ "$here/lib.sh")"
-	[[ "$got" == "$want|$want" ]] || {
-		echo "NO_PROXY|no_proxy after sourcing lib.sh: $got"
-		return 1
-	}
+	local got upper want hosts="127.0.0.1,localhost,::1,172.17.0.1"
+	for upper in upper.example $'upper.example\nother.example' '*'; do
+		case "$upper" in
+		upper.example) want="upper.example,lower.example,$hosts" ;;
+		upper.example*) want="upper.example,other.example,lower.example,$hosts" ;;
+		# curl reads "*" as "no proxy" only when it is the whole list.
+		'*') want='*' ;;
+		esac
+		# shellcheck disable=SC2016 # The inner shell expands them.
+		got="$(env -i PATH="$PATH" NO_PROXY="$upper" no_proxy=lower.example bash -euc 'source "$1" && echo "$NO_PROXY|$no_proxy"' _ "$here/lib.sh")"
+		[[ "$got" == "$want|$want" ]] || {
+			echo "NO_PROXY|no_proxy after sourcing lib.sh with NO_PROXY=${upper//$'\n'/\\n}: $got"
+			return 1
+		}
+	done
 	echo "lib.sh keeps the caller's NO_PROXY and no_proxy and adds the loopback and bridge hosts to both"
 }
 vc_check no-proxy-env no_proxy_merges
@@ -662,7 +688,7 @@ doctor_gateway_bypasses_proxy() {
 	vc_docker_gateway() { echo 127.0.0.2; }
 	vc_is_docker_forward() { :; }
 	VC_API_PORT="$http_port" VC_WEB_PORT=1 http_proxy="http://127.0.0.1:$proxy_port" HTTP_PROXY="http://127.0.0.1:$proxy_port" ALL_PROXY="http://127.0.0.1:$proxy_port" \
-		docker_forward || rc=$?
+		with_errexit docker_forward
 	kill "$http_pid" "$proxy_pid" 2>/dev/null || true
 	if grep -q connected "$tmp/proxy.log"; then
 		echo "a doctor request to the gateway went through the proxy"
@@ -682,7 +708,7 @@ vc_check doctor-no-proxy doctor_gateway_bypasses_proxy
 # in a file.
 # shellcheck disable=SC2034,SC2317 # The loaded function reads these globals and calls these stand-ins.
 restore_keeps_newer_default() {
-	local case default want got
+	local case default want got rc
 	load_function "$here/../journeys/coder-agents.sh" restore
 	out="$tmp/restore" org=selftest-org model_display=journey-model provider_name=selftest-provider
 	mkdir -p "$out"
@@ -692,20 +718,26 @@ restore_keeps_newer_default() {
 		echo "$1 ${2##*/}" >>"$tmp/sends"
 		case "$1" in
 		PATCH) jq --arg id "${2##*/}" '.models |= map(.is_default = (.id == $id))' "$tmp/models.json" >"$tmp/models.next" ;;
-		DELETE) jq --arg id "${2##*/}" '.models |= map(select(.id != $id))' "$tmp/models.json" >"$tmp/models.next" ;;
+		# As coderd does, deleting the default makes a remaining model the
+		# default.
+		DELETE) jq --arg id "${2##*/}" '.models |= (map(select(.id != $id)) | if length > 0 and all(.[]; .is_default | not) then .[0].is_default = true else . end)' "$tmp/models.json" >"$tmp/models.next" ;;
 		esac
 		mv "$tmp/models.next" "$tmp/models.json"
 	}
-	for case in journey-default newer-default no-old-default; do
+	for case in journey-default newer-default no-old-default only-journey; do
 		rm -f "$tmp/sends"
-		old_default=old
+		old_default=old models='["old", "newer", "journey"]'
 		case "$case" in
 		journey-default) default=journey want=old ;;
 		newer-default) default=newer want=newer ;;
-		no-old-default) old_default="" default=journey want="" ;;
+		# Another admin added a model while the journey's model was the
+		# first and only default.
+		no-old-default) old_default="" models='["journey", "newer"]' default=journey want=newer ;;
+		only-journey) old_default="" models='["journey"]' default=journey want="" ;;
 		esac
-		jq -n --arg d "$default" '{models: ([{id: "old"}, {id: "newer"}, {id: "journey", display_name: "journey-model"}] | map(.is_default = (.id == $d)))}' >"$tmp/models.json"
-		restore >/dev/null || {
+		jq -n --arg d "$default" --argjson ids "$models" '{models: ($ids | map({id: ., is_default: (. == $d)} + (if . == "journey" then {display_name: "journey-model"} else {} end)))}' >"$tmp/models.json"
+		with_errexit restore >/dev/null
+		((rc == 0)) || {
 			echo "$case: restore failed"
 			return 1
 		}
@@ -719,13 +751,14 @@ restore_keeps_newer_default() {
 			return 1
 		}
 	done
-	echo "restore brings the old default back only from the journey's model, and keeps a newer one"
+	echo "restore brings the old default back only from the journey's model, keeps a newer one, and accepts the server's pick"
 }
 vc_check restore-default restore_keeps_newer_default
 
 # The web terminal check polls until the file it wrote appears.
 # shellcheck disable=SC2034,SC2317 # The loaded function reads these globals and calls these stand-ins.
 terminal_polls() {
+	local rc
 	load_function "$here/../journeys/workspace.sh" ui_terminal
 	ui_ws=selftest-ws out="$tmp"
 	vc_ab() { :; }
@@ -736,7 +769,8 @@ terminal_polls() {
 			echo verify-web-terminal-ok
 		fi
 	}
-	ui_terminal >/dev/null || {
+	with_errexit ui_terminal >/dev/null
+	((rc == 0)) || {
 		echo "ui_terminal failed although the file appeared on the third read"
 		return 1
 	}
@@ -763,14 +797,41 @@ evidence_folders_unique() {
 	}
 	for journey in "$here"/../journeys/*.sh; do
 		# shellcheck disable=SC2016 # The pattern is the literal journey line.
-		grep -qE '^out="\$\(vc_new_evidence [a-z-]+\)"$' "$journey" || {
-			echo "${journey##*/} does not take its evidence folder from vc_new_evidence"
+		if [[ "$(grep -c '^out=' "$journey")" != 1 ]] || ! grep -qE '^out="\$\(vc_new_evidence [a-z-]+\)"$' "$journey"; then
+			echo "${journey##*/} does not take its only evidence folder from vc_new_evidence"
 			return 1
-		}
+		fi
 	done
 	echo "vc_new_evidence makes a separate folder per run, and every journey uses it"
 }
 vc_check evidence-folders evidence_folders_unique
+
+# The new-user page sets its title before the form renders, and agent-browser
+# get text does not wait, so create-user.sh waits for the login type field
+# first. The stand-in agent-browser knows the field only after a wait for it.
+# shellcheck disable=SC2034,SC2317 # The loaded function reads these globals and calls these stand-ins.
+form_waits_before_reading() {
+	local rc
+	load_function "$here/../journeys/create-user.sh" fill_form
+	out="$tmp" username=selftest-user email=selftest@example.com password=unused VC_WEB_URL=http://127.0.0.1:1
+	vc_ab() {
+		case "$*" in
+		"wait [data-testid=login-type-input]") touch "$tmp/form-rendered" ;;
+		"get text [data-testid=login-type-input]")
+			[[ -f "$tmp/form-rendered" ]] || return 1
+			echo Password
+			;;
+		esac
+	}
+	vc_fill_secret() { :; }
+	with_errexit fill_form >/dev/null
+	((rc == 0)) || {
+		echo "fill_form read the login type before waiting for the form"
+		return 1
+	}
+	echo "fill_form waits for the form before it reads the login type"
+}
+vc_check form-wait form_waits_before_reading
 
 echo "selftest: $VC_PASS/$VC_TOTAL checks passed"
 ((VC_PASS == VC_TOTAL))

@@ -54,10 +54,8 @@ stop_mock() {
 restored=0
 on_exit() {
 	if ((!restored)) && declare -F restore >/dev/null; then
-		(
-			set -e
-			restore
-		) >>"$VC_CHECK_LOG" 2>&1 || true
+		# Best effort, so a failure here does not hide the journey's own result.
+		restore >>"$VC_CHECK_LOG" 2>&1 || true
 	fi
 	stop_mock
 }
@@ -187,10 +185,11 @@ restore() {
 	model_id="$(vc_api "/api/v2/organizations/$org/chats/models" | jq -r --arg d "$model_display" '[.models[] | select(.display_name == $d)][0].id // empty')"
 	# Another admin can have picked a newer default meanwhile, so the old
 	# default comes back only while the journey's model still has it, and a
-	# newer default stays.
+	# newer default stays. With no old default, deleting the journey's model
+	# lets the server make any remaining model the default.
 	want_default="$(vc_api "/api/v2/organizations/$org/chats/models" | jq -r '[.models[] | select(.is_default)][0].id // empty')"
 	if [[ -n "$model_id" && "$want_default" == "$model_id" ]]; then
-		want_default="$old_default"
+		want_default="${old_default:-any}"
 		if [[ -n "$old_default" ]]; then
 			vc_send PATCH "/api/v2/organizations/$org/chats/models/$old_default" '{"is_default": true}'
 		fi
@@ -203,7 +202,7 @@ restore() {
 	fi
 	vc_api "/api/v2/organizations/$org/chats/models" >"$out/08-api-models-after.json"
 	jq -e --arg d "$model_display" --arg w "$want_default" \
-		'([.models[] | select(.display_name == $d)] | length == 0) and ([.models[] | select(.is_default)][0].id // "") == $w' \
+		'([.models[] | select(.display_name == $d)] | length == 0) and ($w == "any" or ([.models[] | select(.is_default)][0].id // "") == $w)' \
 		"$out/08-api-models-after.json" >/dev/null || {
 		echo "the model list still has the journey's model or the wrong default"
 		return 1
@@ -212,7 +211,7 @@ restore() {
 		echo "provider $provider_name still exists"
 		return 1
 	}
-	echo "chat archived, default model is ${want_default:-none}, journey model and provider deleted"
+	echo "chat archived, default model is $(jq -r '[.models[] | select(.is_default)][0].id // "none"' "$out/08-api-models-after.json"), journey model and provider deleted"
 }
 
 mock_stops() {

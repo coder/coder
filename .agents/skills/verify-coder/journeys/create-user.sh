@@ -35,6 +35,9 @@ fill_form() {
 	vc_ab screenshot "$out/02-users-before.png" >/dev/null
 	vc_ab find role link click --name "New user" >/dev/null
 	vc_ab wait --fn 'document.title === "New user - Coder"' >/dev/null
+	# The page sets its title before the form renders, and get text does not
+	# wait.
+	vc_ab wait '[data-testid=login-type-input]' >/dev/null
 	local login_type
 	login_type="$(vc_ab get text '[data-testid=login-type-input]')"
 	if [[ "$login_type" != *Password* ]]; then
@@ -178,10 +181,8 @@ delete_users() {
 deleted=0
 on_exit() {
 	if ((!deleted)); then
-		(
-			set -e
-			delete_users
-		) >>"$VC_CHECK_LOG" 2>&1 || true
+		# Best effort, so a failure here does not hide the journey's own result.
+		delete_users >>"$VC_CHECK_LOG" 2>&1 || true
 	fi
 }
 trap on_exit EXIT

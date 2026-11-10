@@ -7,7 +7,7 @@ Details behind the steps in `SKILL.md`. Paths are relative to this skill's direc
 - `launch.sh` takes only `--fresh` and, after `--`, the coder server flags in `server_flag_allowed` (`--verbose`, `--experiments=<list>`). The harness owns the database, the ports, the addresses and the admin password, so it refuses every other argument.
 - It builds `build/.bin/develop` and `build/coder_<os>_<arch>` first, so build errors land in `build/verify-coder/run/build.log`. The first build in a checkout compiles the site and seven slim binaries, which can take more than 10 minutes.
 - It starts develop with `--port-offset`, develop's per-checkout offset (`.claude/docs/DEV_ISOLATION.md`), and reads the ports from develop's `resolved listen ports` log line. `CODER_DEV_PORT` and `CODER_DEV_WEB_PORT` set explicit ports instead.
-- It starts develop through `vc_start_develop`, which removes every `CODER_*` variable of the calling shell, `BASH_ENV`, `ENV` and the `ANTHROPIC_*` and `OPENAI_*` keys. A `CODER_PG_CONNECTION_URL` or `CODER_DEV_DB_RESET` in your shell therefore never reaches the instance, and nothing spends real tokens.
+- It starts develop through `vc_start_develop`, which removes every `CODER_*`, `ANTHROPIC_*` and `OPENAI_*` variable of the calling shell, `BASH_ENV` and `ENV`. A `CODER_PG_CONNECTION_URL` or `CODER_DEV_DB_RESET` in your shell therefore never reaches the instance, and nothing spends real tokens.
 - It holds `build/verify-coder/launch.lock`, so a second `launch.sh` in the same checkout stops at once. It refuses to start while `build/verify-coder/run/env` records an instance.
 - It starts develop with `--bind-address 127.0.0.1`, so the API, Vite and metrics listen on 127.0.0.1 only. coder server's tailnet still opens WireGuard UDP sockets on every interface, which answer only peers that hold a key. develop creates the owner through the unauthenticated `/api/v2/users/first` route, and Vite serves files of the checkout, `.coderv2/session` included, so neither may face the network. It moves a saved `.coderv2/session` into `build/verify-coder/run/caller-session` first, so develop signs in as the admin with the launch password and saves that session. Cleanup puts the saved session back when it keeps `.coderv2`.
 - Ready means develop printed `Coder is now running in development mode` in its log. Then `launch.sh` checks the admin password.
@@ -45,7 +45,7 @@ It changes nothing apart from those two refused sign-ins.
 
 ## Self-test
 
-`scripts/selftest.sh` needs no instance and takes 30 to 40 seconds. Run it after you edit a script or a journey. Checks that would start develop or touch `.coderv2` run a copy of the scripts in a scratch git repo, with stubs for `setsid` (in place of develop), `make`, `curl` and `docker`. It checks:
+`scripts/selftest.sh` needs no instance and takes 30 to 60 seconds. Run it after you edit a script or a journey. Checks that would start develop or touch `.coderv2` run a copy of the scripts in a scratch git repo, with stubs for `setsid` (in place of develop), `make`, `curl` and `docker`. It checks:
 
 - the `launch.sh` refusals: `CODER_BUILD_AGPL`, develop.sh flags, server flags outside `server_flag_allowed` and the published default password;
 - that a new database without `CODER_DEV_ADMIN_PASSWORD`, and the allowed server flags, get past those checks;
@@ -63,7 +63,7 @@ It changes nothing apart from those two refused sign-ins.
 - that cleanup puts the caller's CLI session back with its file mode;
 - that `vc_wait_agent` stops at once on a missing workspace or a failed build;
 - that the coder-agents restore step gives the default back to the old model only while the journey's model holds it, and keeps a newer default;
-- that the web terminal check polls, and that `vc_new_evidence` gives each journey run its own evidence folder.
+- that the web terminal check polls, that create-user waits for the new-user form before it reads it, and that `vc_new_evidence` gives each journey run its own evidence folder.
 
 ## Drive
 
