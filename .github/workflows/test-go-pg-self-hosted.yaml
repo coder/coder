@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - main
-      - release/*
-  create:
-  pull_request:
   workflow_dispatch:
 
 permissions: {}
@@ -17,13 +14,7 @@ concurrency:
 
 jobs:
   test-go-pg-self-hosted:
-    if: |
-      github.repository_owner == 'coder' && (
-        github.event_name != 'create' || (
-          github.event.ref_type == 'branch' &&
-          startsWith(github.event.ref, 'release/')
-        )
-      )
+    if: github.repository_owner == 'coder'
     runs-on: coder-large
     permissions:
       contents: read
