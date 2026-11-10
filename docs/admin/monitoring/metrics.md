@@ -7,6 +7,8 @@ This page helps administrators find the metrics for each part of a deployment an
 
 If you don't have a Prometheus server, follow the Prometheus [Getting started](https://prometheus.io/docs/prometheus/latest/getting_started/) guide.
 
+<a id="setting-up-metrics"></a>
+
 ## Set up metrics
 
 The [Prometheus integration guide](../integrations/prometheus.md) covers setup for the control plane:
@@ -21,11 +23,11 @@ The pages in the next section explain how.
 
 ## Metrics by area
 
-Each of these pages lists the metrics for one part of a deployment and explains where to collect them:
+Each of these pages covers monitoring for one part of a deployment:
 
-| Area                  | Metrics                                                                                                    | Separate endpoint |
+| Area                  | Page                                                                                                       | Separate endpoint |
 |-----------------------|------------------------------------------------------------------------------------------------------------|-------------------|
-| External provisioners | [Provisioner metrics](../../install/operate/provisioners/index.md#metrics)                                 | Yes               |
+| External provisioners | [Provisioner metrics](../../install/operate/provisioners/index.md#prometheus-metrics)                      | Yes               |
 | Workspace proxies     | [Workspace proxy observability](../networking/workspace-proxies.md#observability)                          | Yes               |
 | Prebuilt workspaces   | [Prebuilt workspace metrics](../../templates/extending-templates/prebuilt-workspaces.md#available-metrics) | No                |
 | AI Gateway            | [AI Gateway Prometheus metrics](../../ai-governance/ai-gateway/monitoring.md#prometheus-metrics)           | Standalone only   |
