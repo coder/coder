@@ -47,17 +47,6 @@ export const CoderPolicy: Story = {
 	},
 };
 
-export const CoderPolicyAdmin: Story = {
-	args: {
-		reason: { kind: "csp", ...mockCoderPolicyBlock },
-	},
-	parameters: {
-		permissions: {
-			editDeploymentConfig: true,
-		},
-	},
-};
-
 export const ProxyPolicy: Story = {
 	args: {
 		reason: { kind: "csp", ...mockProxyPolicyBlock },
