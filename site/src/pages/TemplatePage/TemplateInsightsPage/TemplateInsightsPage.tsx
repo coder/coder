@@ -457,13 +457,13 @@ const TemplateUsagePanel: React.FC<TemplateUsagePanelProps> = ({
 											<ExternalImage
 												src={usage.icon}
 												alt=""
-												className="h-full w-full object-contain"
+												className="size-full object-contain"
 											/>
 										) : (
 											<BlocksIcon className="size-icon-sm text-content-secondary" />
 										)}
 									</div>
-									<div className="flex items-center gap-2 text-sm font-medium w-[200px]">
+									<div className="flex items-center gap-2 text-sm w-50">
 										{usage.display_name}
 										{accountingDescription && (
 											<InfoTooltip size="small">
@@ -490,7 +490,7 @@ const TemplateUsagePanel: React.FC<TemplateUsagePanelProps> = ({
 										<TooltipArrow className="fill-border" />
 									</TooltipContent>
 								</Tooltip>
-								<div className="flex flex-col text-sm font-normal shrink-0 leading-normal text-content-secondary w-[120px]">
+								<div className="flex flex-col text-sm font-normal shrink-0 leading-normal text-content-secondary w-30">
 									{timeLabel}
 									{usage.times_used > 0 && (
 										<span className="text-[12px] text-content-disabled">
@@ -534,17 +534,15 @@ const TemplateParametersUsagePanel: React.FC<
 						>
 							<div className="flex-1">
 								<div className="font-medium">{label}</div>
-								<p className="text-sm m-0 text-content-secondary max-w-[400px]">
+								<p className="text-sm m-0 text-content-secondary max-w-100">
 									{parameter.description}
 								</p>
 							</div>
 							<div className="flex-1 text-sm grid grid-cols-[1fr_auto] gap-x-4 items-baseline">
-								<div className="font-medium text-sm text-content-secondary py-1">
-									Value
-								</div>
+								<div className="text-sm text-content-secondary py-1">Value</div>
 								<Tooltip>
 									<TooltipTrigger asChild>
-										<div className="font-medium text-sm text-content-secondary text-right py-1 cursor-default">
+										<div className="text-sm text-content-secondary text-right py-1 cursor-default">
 											Count
 										</div>
 									</TooltipTrigger>
@@ -610,7 +608,7 @@ const ParameterUsageLabel: React.FC<ParameterUsageLabelProps> = ({
 						<ExternalImage
 							alt=""
 							src={icon}
-							className="w-full h-full object-contain"
+							className="size-full object-contain"
 							aria-labelledby={ariaId}
 						/>
 					</div>
@@ -732,7 +730,7 @@ const PanelContent: React.FC<PanelContentProps> = ({
 	return (
 		<div className="flex-1 px-6 pb-6">
 			{!error && !data ? (
-				<Loader className="h-full min-h-[200px]" />
+				<Loader className="h-full min-h-50" />
 			) : error || !data || data.length === 0 ? (
 				<NoDataAvailable error={error} />
 			) : (
@@ -753,7 +751,7 @@ const NoDataAvailable: React.FC<NoDataAvailableProps> = ({
 	return (
 		<div
 			{...props}
-			className="flex justify-center items-center text-sm font-normal py-2 text-content-secondary text-center h-full min-h-[200px]"
+			className="flex justify-center items-center text-sm font-normal py-2 text-content-secondary text-center h-full min-h-50"
 		>
 			{error
 				? getErrorDetail(error) ||

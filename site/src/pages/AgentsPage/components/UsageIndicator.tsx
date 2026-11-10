@@ -168,7 +168,7 @@ const UsageMenu: React.FC<{ sections: readonly UsageSectionData[] }> = ({
 				</button>
 			</DropdownMenuTrigger>
 
-			<DropdownMenuContent align="end" className="w-[240px]">
+			<DropdownMenuContent align="end" className="w-60">
 				{sections.map((section, index) => (
 					<Fragment key={section.id}>
 						{index > 0 && <DropdownMenuSeparator />}
@@ -264,7 +264,7 @@ const UsageSection: React.FC<{ section: UsageSectionData }> = ({ section }) => {
 	return (
 		<>
 			<div className="flex items-center justify-between gap-2 px-2 py-1.5">
-				<span className="truncate text-sm font-medium text-content-primary">
+				<span className="truncate text-sm text-content-primary">
 					{section.title}
 				</span>
 				<span

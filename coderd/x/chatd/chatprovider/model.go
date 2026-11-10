@@ -14,6 +14,9 @@ import (
 type Model struct {
 	lm        fantasy.LanguageModel
 	transport chatopenai.Transport
+	// configuredProvider is the AI provider type the request is routed to.
+	// Empty means the client's own provider.
+	configuredProvider string
 }
 
 // NewModel pairs an already-built client with the transport resolved from that
@@ -39,6 +42,23 @@ func (m Model) Provider() string { return m.lm.Provider() }
 func (m Model) ModelID() string { return m.lm.Model() }
 
 func (m Model) Transport() chatopenai.Transport { return m.transport }
+
+// WithConfiguredProvider records the AI provider type that requests reach
+// through this client. Several provider types share one client, and the
+// provider type decides which media the route accepts.
+func (m Model) WithConfiguredProvider(provider string) Model {
+	m.configuredProvider = provider
+	return m
+}
+
+// RouteProvider returns the configured provider type, or the client's own
+// provider when none was set.
+func (m Model) RouteProvider() string {
+	if m.configuredProvider != "" {
+		return NormalizeProvider(m.configuredProvider)
+	}
+	return NormalizeProvider(m.Provider())
+}
 
 // Valid reports whether m wraps a client rather than being the zero value.
 func (m Model) Valid() bool { return m.lm != nil }

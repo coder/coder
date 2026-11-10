@@ -119,7 +119,7 @@ export const HelpPopoverLink: React.FC<HelpPopoverLinkProps> = ({
 			href={href}
 			target="_blank"
 			rel="noreferrer"
-			className="flex items-center text-sm text-content-link no-underline hover:underline"
+			className="flex w-fit items-center text-sm text-content-link no-underline hover:underline"
 		>
 			<ExternalLinkIcon className="size-3.5 mr-2" />
 			{children}
@@ -145,7 +145,7 @@ export const HelpPopoverAction: React.FC<HelpPopoverActionProps> = ({
 		<button
 			type="button"
 			aria-label={ariaLabel ?? ""}
-			className="flex items-center bg-transparent border-0 border-none text-content-link p-0 cursor-pointer text-sm"
+			className="flex w-fit items-center bg-transparent border-0 border-none text-content-link p-0 cursor-pointer text-sm"
 			onClick={onClick}
 		>
 			<Icon className="size-3.5 mr-2" />

@@ -207,7 +207,7 @@ export const AgentDevcontainerCard: React.FC<AgentDevcontainerCardProps> = ({
 					"md:gap-4",
 				)}
 			>
-				<div className="min-w-[284px] flex items-center gap-6 text-xs text-content-secondary">
+				<div className="min-w-71 flex items-center gap-6 text-xs text-content-secondary">
 					<div className="flex items-center gap-4 w-full">
 						<DevcontainerStatus
 							devcontainer={devcontainer}
@@ -224,7 +224,7 @@ export const AgentDevcontainerCard: React.FC<AgentDevcontainerCardProps> = ({
 							{subAgent?.name ??
 								(devcontainer.name || devcontainer.config_path)}
 							{devcontainer.container && (
-								<span className="text-content-tertiary">
+								<span className="text-content-secondary">
 									{" "}
 									({devcontainer.container.name})
 								</span>

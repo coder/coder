@@ -32,8 +32,8 @@ const badgeVariants = cva(
 				info: "border-border-pending bg-surface-sky text-highlight-sky",
 			},
 			size: {
-				sm: "h-[18px] border-0 rounded-sm text-2xs font-normal",
-				md: "h-[26px] py-1 text-xs font-normal",
+				sm: "h-4.5 border-0 rounded-sm text-2xs font-normal",
+				md: "h-6.5 py-1 text-xs font-normal",
 			},
 			svgSize: {
 				xs: "[&_svg]:size-icon-xs",
@@ -59,7 +59,7 @@ const badgeVariants = cva(
 			{
 				hover: true,
 				variant: "info",
-				class: "hover:bg-surface-info/20",
+				class: "hover:bg-highlight-sky/20",
 			},
 		],
 		defaultVariants: {

@@ -1247,7 +1247,7 @@ Request preparation reads the transport from the model instead of recomputing it
 
 - Provider option conversion chooses between the Responses and Chat Completions option structs. The SDK type-asserts the concrete struct, so a mismatch discards every OpenAI provider option rather than failing.
 - Reasoning effort injection creates those option structs when a config has no OpenAI options of its own.
-- File part conversion (`Model.AcceptsFilePartMediaType`) gates attachments, because the Responses API natively accepts only images and PDFs. A mismatch here drops text attachments.
+- File part conversion (`Model.AcceptsFilePartMediaType`) gates user attachments and tool-result media, because the Responses API natively accepts only images and PDFs. A mismatch here loses audio, the only media type that the two transports treat differently.
 
 The first two happen together in `chatprovider.ProviderOptionsForCall`, the only entry point in `chatprovider` that builds provider options for a call; it delegates transport-aware OpenAI conversion to `chatopenai.ProviderOptionsFromChatConfig`. Config conversion and effort injection cannot pick different option types because one function owns both.
 
@@ -1305,7 +1305,7 @@ Details that follow from the override:
   Failure to read the override row or load provider credentials stops preparation.
   A usable override that fails at use (route or client construction, provider call failure) fails the generation visibly through the normal error path; there is no silent fallback.
   The override model client is constructed inside the compact generation action, not at prepare time, so a broken override cannot fail turns that finish without compacting (including turns over the threshold whose last assistant step already completed).
-- Prompt safety: the prompt is built and sanitized for the chat model, so when the override points at a different provider the compaction copy of the prompt is re-sanitized: provider-executed tool history is flattened into plain text parts (keeping its content while dropping the provider-specific wire shape), file parts the compaction model rejects are replaced with text placeholders, and Anthropic provider-tool sanitization is re-run for the compaction provider. The assistant generation prompt is never mutated.
+- Prompt safety: the prompt is built and sanitized for the chat model, so when the override points at a different provider the compaction copy of the prompt is re-sanitized: provider-executed tool history is flattened into plain text parts (keeping its content while dropping the provider-specific wire shape), file parts and tool-result media the compaction model rejects are replaced with text placeholders, and Anthropic provider-tool sanitization is re-run for the compaction provider. The assistant generation prompt is never mutated.
 - Observability: compaction metrics and chat debug runs record the provider and model that actually generated the summary. This includes the "still over limit" terminal error, which is recorded before the override client is built: prepare-time resolution keeps the override's provider/model identity so that error lands on the same metric series as the compact action's own events.
 
 #### Interrupt goroutine

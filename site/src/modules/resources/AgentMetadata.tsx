@@ -182,7 +182,7 @@ const MetadataItem: React.FC<MetadataItemProps> = ({ item }) => {
 	// could be buggy. But, how common is that anyways?
 	const value =
 		status === "loading" ? (
-			<Skeleton width={65} height={12} variant="text" className="mt-[6px]" />
+			<Skeleton width={65} height={12} variant="text" className="mt-1.5" />
 		) : status === "stale" ? (
 			<Tooltip>
 				<TooltipTrigger asChild>

@@ -106,7 +106,7 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 					{healthErrors.length > 0 ? (
 						<Link
 							asChild
-							className="flex p-3 bg-content-destructive"
+							className="flex p-3 my-0 bg-content-destructive"
 							showExternalIcon={false}
 						>
 							<RouterLink to="/health" data-testid="deployment-health-trigger">
@@ -426,7 +426,7 @@ const AppLabel: React.FC<{ icon?: string; name: string }> = ({
 		) : (
 			<AppWindowIcon className="size-icon-xs shrink-0" />
 		)}
-		<span className="min-w-0 flex-1 break-words">{name}</span>
+		<span className="min-w-0 flex-1 wrap-break-word">{name}</span>
 	</>
 );
 

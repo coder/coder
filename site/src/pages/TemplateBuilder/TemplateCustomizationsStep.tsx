@@ -119,7 +119,7 @@ export const TemplateCustomizationsStep: React.FC<
 			id={TEMPLATE_CUSTOMIZATIONS_FORM_ID}
 			onSubmit={form.handleSubmit}
 			noValidate
-			className="min-w-[654px]"
+			className="min-w-163.5"
 		>
 			<TemplateBuilderTitle>Customizations</TemplateBuilderTitle>
 			<TemplateBuilderSubtitle>
