@@ -43,6 +43,7 @@ variables:
 | Access URL                        | `--access-url`       | `CODER_DEV_ACCESS_URL`       |
 | Admin password                    | `--password`         | `CODER_DEV_ADMIN_PASSWORD`   |
 | Listen address                    | `--bind-address`     | `CODER_DEV_BIND_ADDRESS`     |
+| Wait for the server to be healthy | `--health-timeout`   | `CODER_DEV_HEALTH_TIMEOUT`   |
 | Starter template                  | `--starter-template` | `CODER_DEV_STARTER_TEMPLATE` |
 | Roll back missing migrations      | `--db-rollback`      | `CODER_DEV_DB_ROLLBACK`      |
 | Reset the development database    | `--db-reset`         | `CODER_DEV_DB_RESET`         |
@@ -53,6 +54,11 @@ on every interface by default. Pass `--bind-address 127.0.0.1` to keep them off
 the network, for example on a shared host. Workspaces in Docker containers, such
 as the `docker` starter template's, then cannot reach the server, because their
 agents connect through `host.docker.internal`.
+
+By default, the script waits 60 seconds for the API server's `/healthz` after it
+starts the server, then exits with an error. A cold first start (a new
+`.coderv2`, embedded Postgres setup and migrations) can take longer. Pass
+`--health-timeout 3m` to wait longer. The value must be greater than zero.
 
 Extra `coder server` flags can be passed after `--`. For example,
 `./scripts/develop.sh -- --trace` passes `--trace` to the API server.

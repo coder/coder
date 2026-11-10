@@ -21,6 +21,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/sloghuman"
+	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
 )
 
@@ -297,6 +298,7 @@ func TestDevConfigValidate(t *testing.T) {
 			coderMetricsPort: 2114,
 			password:         defaultPassword,
 			bindAddress:      defaultBindAddress,
+			healthTimeout:    defaultHealthTimeout,
 		}
 	}
 
@@ -321,6 +323,20 @@ func TestDevConfigValidate(t *testing.T) {
 			name:     "BindAddressOtherIP",
 			mutate:   func(cfg *devConfig) { cfg.bindAddress = "::1" },
 			wantErrs: []string{"--bind-address must be 0.0.0.0 or 127.0.0.1"},
+		},
+		{
+			name:   "CustomHealthTimeout",
+			mutate: func(cfg *devConfig) { cfg.healthTimeout = 5 * time.Minute },
+		},
+		{
+			name:     "ZeroHealthTimeout",
+			mutate:   func(cfg *devConfig) { cfg.healthTimeout = 0 },
+			wantErrs: []string{"--health-timeout must be greater than zero"},
+		},
+		{
+			name:     "NegativeHealthTimeout",
+			mutate:   func(cfg *devConfig) { cfg.healthTimeout = -time.Second },
+			wantErrs: []string{"--health-timeout must be greater than zero", "-1s"},
 		},
 		{
 			name: "AgplAndProxy",
@@ -629,26 +645,76 @@ func TestDevConfigResolveEnvExplicitAccessURL(t *testing.T) {
 	assert.Equal(t, "http://myhost:5000", cfg.accessURL)
 }
 
+// parseOptions runs the develop options against args and env and returns
+// the resulting config, without running develop.
+func parseOptions(t *testing.T, env []string, args ...string) (*devConfig, error) {
+	t.Helper()
+	cfg := &devConfig{}
+	cmd := &serpent.Command{
+		Use:     "develop",
+		Options: cfg.options(),
+		Handler: func(*serpent.Invocation) error { return nil },
+	}
+	inv := cmd.Invoke(args...)
+	inv.Environ = serpent.ParseEnviron(env, "")
+	return cfg, inv.Run()
+}
+
 func TestBindAddressOption(t *testing.T) {
 	t.Parallel()
 
 	parse := func(t *testing.T, env []string, args ...string) *devConfig {
 		t.Helper()
-		cfg := &devConfig{}
-		cmd := &serpent.Command{
-			Use:     "develop",
-			Options: cfg.options(),
-			Handler: func(*serpent.Invocation) error { return nil },
-		}
-		inv := cmd.Invoke(args...)
-		inv.Environ = serpent.ParseEnviron(env, "")
-		require.NoError(t, inv.Run())
+		cfg, err := parseOptions(t, env, args...)
+		require.NoError(t, err)
 		return cfg
 	}
 
 	assert.Equal(t, defaultBindAddress, parse(t, nil).bindAddress)
 	assert.Equal(t, loopbackBindAddress, parse(t, nil, "--bind-address", "127.0.0.1").bindAddress)
 	assert.Equal(t, loopbackBindAddress, parse(t, []string{"CODER_DEV_BIND_ADDRESS=127.0.0.1"}).bindAddress)
+}
+
+func TestHealthTimeoutOption(t *testing.T) {
+	t.Parallel()
+
+	parse := func(t *testing.T, env []string, args ...string) time.Duration {
+		t.Helper()
+		cfg, err := parseOptions(t, env, args...)
+		require.NoError(t, err)
+		return cfg.healthTimeout
+	}
+
+	// Without the flag, the wait stays at 60 seconds.
+	assert.Equal(t, 60*time.Second, parse(t, nil))
+	assert.Equal(t, 2*time.Minute, parse(t, nil, "--health-timeout", "2m"))
+	assert.Equal(t, 90*time.Second, parse(t, []string{"CODER_DEV_HEALTH_TIMEOUT=90s"}))
+	// The flag wins over the environment variable.
+	assert.Equal(t, 3*time.Minute, parse(t, []string{"CODER_DEV_HEALTH_TIMEOUT=90s"}, "--health-timeout", "3m"))
+
+	// A value that is not a duration fails to parse. Zero and negative
+	// values parse and are refused by validate.
+	_, err := parseOptions(t, nil, "--health-timeout", "soon")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "health-timeout")
+	assert.Equal(t, time.Duration(0), parse(t, nil, "--health-timeout", "0s"))
+	assert.Equal(t, -time.Second, parse(t, nil, "--health-timeout", "-1s"))
+}
+
+func TestWaitForHealthyTimeout(t *testing.T) {
+	t.Parallel()
+
+	// Nothing listens on port 1, so the check fails until the timeout
+	// ends it. The error names the configured timeout, not a fixed one.
+	// The parent context outlasts the timeout, so it must still be live
+	// when waitForHealthy returns.
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slog.Make(sloghuman.Sink(&bytes.Buffer{}))
+	err := waitForHealthy(ctx, logger, "http://127.0.0.1:1", 10*time.Millisecond)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "server did not become ready in 10ms")
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.NoError(t, ctx.Err())
 }
 
 func TestListenAddresses(t *testing.T) {

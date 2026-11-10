@@ -67,7 +67,7 @@ const (
 	defaultBindAddress     = "0.0.0.0"
 	loopbackBindAddress    = "127.0.0.1"
 	defaultStarterTemplate = "docker"
-	healthTimeout          = 60 * time.Second
+	defaultHealthTimeout   = 60 * time.Second
 	shutdownTimeout        = 15 * time.Second
 )
 
@@ -183,6 +183,13 @@ func (c *devConfig) options() serpent.OptionSet {
 			Value:       serpent.StringOf(&c.bindAddress),
 		},
 		{
+			Flag:        "health-timeout",
+			Env:         "CODER_DEV_HEALTH_TIMEOUT",
+			Default:     defaultHealthTimeout.String(),
+			Description: "How long to wait for the server's /healthz to return OK after it starts. A cold first start (new config directory, embedded Postgres setup, migrations) can take more than a minute. Must be greater than zero.",
+			Value:       serpent.DurationOf(&c.healthTimeout),
+		},
+		{
 			Flag:        "password",
 			Env:         "CODER_DEV_ADMIN_PASSWORD",
 			Default:     defaultPassword,
@@ -254,6 +261,7 @@ type devConfig struct {
 	agpl              bool
 	accessURL         string
 	bindAddress       string
+	healthTimeout     time.Duration
 	password          string
 	useProxy          bool
 	debug             bool
@@ -399,6 +407,9 @@ func (c *devConfig) validate() error {
 	// addresses work.
 	if c.bindAddress != defaultBindAddress && c.bindAddress != loopbackBindAddress {
 		return xerrors.Errorf("--bind-address must be %s or %s, got %q", defaultBindAddress, loopbackBindAddress, c.bindAddress)
+	}
+	if c.healthTimeout <= 0 {
+		return xerrors.Errorf("--health-timeout must be greater than zero, got %s", c.healthTimeout)
 	}
 	if c.agpl && c.useProxy {
 		return xerrors.New("cannot use both --agpl and --use-proxy")
@@ -695,7 +706,7 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	}
 
 	apiURL := fmt.Sprintf("http://127.0.0.1:%d", cfg.apiPort)
-	if err := waitForHealthy(ctx, logger, apiURL); err != nil {
+	if err := waitForHealthy(ctx, logger, apiURL, cfg.healthTimeout); err != nil {
 		return err
 	}
 
@@ -906,9 +917,9 @@ func startServerDebug(cfg *devConfig, serverArgs []string, group *procGroup) err
 	return nil
 }
 
-func waitForHealthy(ctx context.Context, logger slog.Logger, apiURL string) error {
+func waitForHealthy(ctx context.Context, logger slog.Logger, apiURL string, timeout time.Duration) error {
 	logger.Info(ctx, "waiting for server to become ready")
-	ctx, cancel := context.WithTimeout(ctx, healthTimeout)
+	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
 	_, err := poll(ctx, 500*time.Millisecond,
@@ -926,7 +937,7 @@ func waitForHealthy(ctx context.Context, logger slog.Logger, apiURL string) erro
 			return struct{}{}, resp.StatusCode == http.StatusOK, nil
 		})
 	if err != nil {
-		return xerrors.Errorf("server did not become ready in %s: %w", healthTimeout, err)
+		return xerrors.Errorf("server did not become ready in %s: %w", timeout, err)
 	}
 	logger.Info(ctx, "server is ready to accept connections")
 	return nil
