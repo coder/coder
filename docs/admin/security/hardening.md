@@ -62,11 +62,9 @@ Lower it to match your token rotation policy.
 
 ## Sign-in consent and classification banners
 
-| Setting                                                                                | Environment variable         | Default | Effect of changing it                                                                                                       |
-|----------------------------------------------------------------------------------------|------------------------------|---------|-----------------------------------------------------------------------------------------------------------------------------|
-| [`--terms-of-service-url`](../../reference/cli/server/index.md#--terms-of-service-url) | `CODER_TERMS_OF_SERVICE_URL` | Empty   | When set, the web sign-in page shows a link to the URL and an **I agree** button that users select before they can sign in. |
-
-Use the terms of service URL to point users to a consent or acceptable-use notice before they sign in.
+To point users to a consent or acceptable-use notice before they sign in, set [`--terms-of-service-url`](../../reference/cli/server/index.md#--terms-of-service-url) (`CODER_TERMS_OF_SERVICE_URL`) to the notice's URL.
+The web sign-in page then shows a link to the URL and an **I agree** button that users select before they can sign in.
+The setting is empty by default, so the sign-in page shows no notice.
 
 To show a persistent notice, such as the classification of the network the deployment runs on, add an [announcement banner](../setup/appearance.md#announcement-banners).
 Announcement banners are a Premium feature that owners configure in the dashboard.
@@ -78,9 +76,9 @@ Audit logs are a Premium feature.
 Coder records them automatically when a Premium license is active, and there's no setting to turn them on.
 Refer to [Audit logs](audit-logs.md) for the events Coder records.
 
-| Setting                                                                                | Environment variable         | Default | Effect of changing it                                                               |
-|----------------------------------------------------------------------------------------|------------------------------|---------|-------------------------------------------------------------------------------------|
-| [`--audit-logs-retention`](../../reference/cli/server/index.md#--audit-logs-retention) | `CODER_AUDIT_LOGS_RETENTION` | `0`     | `0` keeps audit log entries indefinitely. Any other duration deletes older entries. |
+To control how long Coder keeps audit log entries, set [`--audit-logs-retention`](../../reference/cli/server/index.md#--audit-logs-retention) (`CODER_AUDIT_LOGS_RETENTION`) to a duration.
+The default, `0`, keeps entries indefinitely.
+Any other duration deletes entries older than that duration.
 
 If you set a retention period, keep it at least as long as your organization's audit requirements.
 Refer to [Data retention](../setup/data-retention.md) for how purging works.
@@ -119,6 +117,9 @@ Refer to [Telemetry](../setup/telemetry.md) for what Coder collects.
 
 ## Database
 
+Coder stores its data in PostgreSQL.
+The following sections cover how to encrypt the connection to the database and the sensitive values stored in it.
+
 ### Connection encryption
 
 Set the PostgreSQL connection with [`--postgres-url`](../../reference/cli/server/index.md#--postgres-url) (`CODER_PG_CONNECTION_URL`).
@@ -141,17 +142,18 @@ When `--postgres-url` is empty, Coder runs a built-in PostgreSQL database on the
 
 ### Encryption at rest
 
-| Setting                                                                                                    | Environment variable                   | Default | Effect of changing it                                                                                           |
-|------------------------------------------------------------------------------------------------------------|----------------------------------------|---------|-----------------------------------------------------------------------------------------------------------------|
-| [`--external-token-encryption-keys`](../../reference/cli/server/index.md#--external-token-encryption-keys) | `CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS` | Empty   | When set, Coder encrypts external tokens and other sensitive values in the database. This is a Premium setting. |
-
-With the default, Coder stores these values in plaintext.
+By default, Coder stores external tokens and other sensitive values in the database in plaintext.
+To encrypt them, set [`--external-token-encryption-keys`](../../reference/cli/server/index.md#--external-token-encryption-keys) (`CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS`).
+This is a Premium setting.
 Refer to [Database encryption](database-encryption.md#turn-on-encryption) to generate keys and turn encryption on.
 
 ## Settings that weaken defaults
 
-These settings are off by default.
-Turning any of them on relaxes a protection that Coder applies otherwise.
+The settings in the following table are off by default.
+
+> [!CAUTION]
+> Turn on these settings only when you need them.
+> Each one removes a protection that Coder applies by default and can expose user sessions, sign-in, or network traffic to attack.
 
 | Setting                                                                                                                            | Environment variable                               | What turning it on does                                                                                           |
 |------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
