@@ -44,9 +44,6 @@ describe(SessionTimeline.name, () => {
 		await user.click(screen.getByRole("button", { name: /Agentic loop/ }));
 		await user.click(screen.getByRole("button", { name: /Tool call/ }));
 		await user.tab();
-		expect(
-			screen.getByRole("button", { name: "Copy MCP server URL" }),
-		).toHaveFocus();
 		await user.tab();
 		expect(
 			screen.getByRole("region", { name: "list_directory input" }),

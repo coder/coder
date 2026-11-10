@@ -128,8 +128,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 				// We need the div selector to be able to apply the padding
 				// top from startupLogs
 				className={cn(
-					"py-4 [&>div]:relative bg-surface-secondary",
-					"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
+					"py-4 [&>div]:relative bg-surface-secondary peer focus-visible:outline-hidden",
 					// Add extra padding so that overflow indicator can't
 					// fully cover up lines of text
 					overflowed && "pb-10",
@@ -177,6 +176,11 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 					);
 				}}
 			</List>
+			{/* Drawn over the list so row backgrounds cannot hide the focus ring. */}
+			<div
+				aria-hidden="true"
+				className="pointer-events-none absolute inset-0 peer-focus-visible:ring-2 peer-focus-visible:ring-inset peer-focus-visible:ring-content-link"
+			/>
 
 			{overflowed && (
 				<Tooltip>

@@ -727,9 +727,10 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 										</div>
 										{/*
 											Using a singular TabsContent is necessary to avoid scrolling
-											issues when the selected log tab changes.
+											issues when the selected log tab changes. It is not a tab stop
+											because the logs region inside already is.
 										*/}
-										<TabsContent value={selectedLogTab}>
+										<TabsContent value={selectedLogTab} tabIndex={-1}>
 											<AutoSizer disableHeight>
 												{({ width }) => (
 													<AgentLogs
