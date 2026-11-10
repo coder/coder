@@ -24,6 +24,22 @@ const (
 	YamuxDefaultStreamWindowSize = 256 * 1024
 )
 
+// YamuxConfig returns the yamux configuration for dRPC sessions. Callers set
+// logging.
+//
+// StreamCloseTimeout is disabled. yamux arms a timer of that length when a
+// stream closes before the remote side's FIN arrives, and session shutdown
+// does not stop it, so a closed session and everything it references stay
+// reachable for the whole timeout (5 minutes by default). In tests that is the
+// *testing.T via the logger; in coderd it is every closed agent and client
+// session. Session shutdown already closes every stream, and both ends of
+// these sessions are Coder code that closes its side.
+func YamuxConfig() *yamux.Config {
+	config := yamux.DefaultConfig()
+	config.StreamCloseTimeout = 0
+	return config
+}
+
 func DefaultDRPCOptions(options *drpcmanager.Options) drpcmanager.Options {
 	if options == nil {
 		options = &drpcmanager.Options{}
