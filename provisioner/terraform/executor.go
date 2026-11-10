@@ -59,6 +59,35 @@ func (e *executor) basicEnv() []string {
 	return env
 }
 
+// forceExitTimeout is how long a Terraform command can run after its
+// second interrupt before it is killed. plan and apply stop their provider
+// plugins and exit within seconds of a second interrupt. Other commands,
+// such as init, show and graph, ignore it and are killed.
+const forceExitTimeout = 10 * time.Second
+
+// command creates a Terraform command that stops when killCtx ends. Where
+// interrupts are supported, it interrupts Terraform a second time and kills
+// it only if it is still running after forceExitTimeout, because a kill
+// leaves the provider plugins of Terraform running.
+func (e *executor) command(killCtx context.Context, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(killCtx, e.binaryPath, args...) // #nosec
+	cmd.Dir = e.files.WorkDirectory()
+	if runtime.GOOS != "windows" {
+		cmd.Cancel = func() error {
+			// A short exit timeout also shortens the wait after the second
+			// interrupt. Do not use cmd.WaitDelay: its timer also starts when
+			// the command exits on its own, and it would then cut off output
+			// that is not read yet.
+			time.AfterFunc(min(forceExitTimeout, e.server.exitTimeout), func() {
+				err := cmd.Process.Kill()
+				e.logger.Debug(killCtx, "killed command", slog.F("args", cmd.Args), slog.Error(err))
+			})
+			return cmd.Process.Signal(os.Interrupt)
+		}
+	}
+	return cmd
+}
+
 // execWriteOutput must only be called while the lock is held.
 func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []string, stdOutWriter, stdErrWriter io.WriteCloser) (err error) {
 	ctx, span := e.server.startTrace(ctx, fmt.Sprintf("exec - terraform %s", args[0]))
@@ -86,9 +115,7 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 		return xerrors.New("environment variables not sanitized, this is a bug within Coder")
 	}
 
-	// #nosec
-	cmd := exec.CommandContext(killCtx, e.binaryPath, args...)
-	cmd.Dir = e.files.WorkDirectory()
+	cmd := e.command(killCtx, args...)
 	if env == nil {
 		// We don't want to passthrough host env when unset.
 		env = []string{}
@@ -112,7 +139,7 @@ func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []str
 	}
 	interruptCommandOnCancel(ctx, killCtx, e.logger, cmd)
 
-	err = cmd.Wait()
+	err = waitCommand(killCtx, cmd)
 	e.logger.Debug(ctx, "command done", slog.F("args", args), slog.Error(err))
 	return err
 }
@@ -127,9 +154,7 @@ func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []strin
 		return ctx.Err()
 	}
 
-	// #nosec
-	cmd := exec.CommandContext(killCtx, e.binaryPath, args...)
-	cmd.Dir = e.files.WorkDirectory()
+	cmd := e.command(killCtx, args...)
 	cmd.Env = env
 	out := &bytes.Buffer{}
 	stdErr := &bytes.Buffer{}
@@ -146,7 +171,7 @@ func (e *executor) execParseJSON(ctx, killCtx context.Context, args, env []strin
 	}
 	interruptCommandOnCancel(ctx, killCtx, e.logger, cmd)
 
-	err = cmd.Wait()
+	err = waitCommand(killCtx, cmd)
 	if err != nil {
 		errString, _ := io.ReadAll(stdErr)
 		return xerrors.Errorf("%s: %w", errString, err)
@@ -175,9 +200,9 @@ func (e *executor) checkMinVersion(ctx context.Context) error {
 	return nil
 }
 
-// version doesn't need the lock because it doesn't read or write to any state.
+// version doesn't need e.mut because it doesn't touch the working directory.
 func (e *executor) version(ctx context.Context) (*version.Version, error) {
-	return versionFromBinaryPath(ctx, e.binaryPath)
+	return e.server.terraformVersion(ctx)
 }
 
 func versionFromBinaryPath(ctx context.Context, binaryPath string) (*version.Version, error) {
@@ -494,9 +519,8 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 	}
 
 	var out strings.Builder
-	cmd := exec.CommandContext(killCtx, e.binaryPath, args...) // #nosec
+	cmd := e.command(killCtx, args...)
 	cmd.Stdout = &out
-	cmd.Dir = e.files.WorkDirectory()
 	cmd.Env = e.basicEnv()
 
 	e.server.logger.Debug(ctx, "executing terraform command graph",
@@ -509,7 +533,7 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 	}
 	interruptCommandOnCancel(ctx, killCtx, e.logger, cmd)
 
-	err = cmd.Wait()
+	err = waitCommand(killCtx, cmd)
 	if err != nil {
 		return "", xerrors.Errorf("graph: %w", err)
 	}
@@ -594,6 +618,14 @@ func interruptCommandOnCancel(ctx, killCtx context.Context, logger slog.Logger, 
 			logger.Debug(ctx, "kill context ended", slog.F("args", cmd.Args))
 		}
 	}()
+}
+
+func waitCommand(killCtx context.Context, cmd *exec.Cmd) error {
+	err := cmd.Wait()
+	if err != nil && killCtx.Err() != nil {
+		return xerrors.Errorf("did not exit within the exit timeout after an interrupt: %w", err)
+	}
+	return err
 }
 
 type logSink interface {

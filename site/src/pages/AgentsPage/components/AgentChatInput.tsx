@@ -1,7 +1,6 @@
 import { cn } from "cn";
 import {
 	ArrowLeftIcon,
-	ArrowUpIcon,
 	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
@@ -41,14 +40,12 @@ import {
 } from "#/components/Popover/Popover";
 import { Separator } from "#/components/Separator/Separator";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
-import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import { useMediaQuery } from "#/hooks/useMediaQuery";
 import {
 	ModelSelector,
 	type ModelSelectorOption,
@@ -56,11 +53,7 @@ import {
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { countInvisibleCharacters } from "#/utils/invisibleUnicode";
-import {
-	isBelowMdViewport,
-	isMobileViewport,
-	mobileViewportMediaQuery,
-} from "#/utils/mobile";
+import { isBelowMdViewport, isMobileViewport } from "#/utils/mobile";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import { useOverflowCount } from "../hooks/useOverflowCount";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
@@ -68,16 +61,14 @@ import {
 	isWorkspaceUploadInProgress,
 	type WorkspaceFileUpload,
 } from "../hooks/useWorkspaceFileUploads";
-import {
-	getAgentChatSendShortcut,
-	MODIFIER_AGENT_CHAT_SEND_SHORTCUT,
-} from "../utils/agentChatSendShortcut";
+import { getAgentChatSendShortcut } from "../utils/agentChatSendShortcut";
 import {
 	chatAttachmentAcceptAttribute,
 	isChatAttachmentFile,
 	shouldRouteFileToWorkspace,
 } from "../utils/chatAttachments";
 import type { ChatSlashCommand } from "../utils/slashCommands";
+import { AgentChatSendButton } from "./AgentChatSendButton";
 import { AgentSetupNotice } from "./AgentSetupNotice";
 import {
 	AttachmentPreview,
@@ -96,7 +87,10 @@ import { ImageLightbox } from "./ImageLightbox";
 import { MCPServerIconStack } from "./MCPServerIconStack";
 import { MCPServersMenuContent } from "./MCPServersMenuContent";
 import { ProjectSkillActions } from "./ProjectSkillActions";
-import { QueuedMessagesList } from "./QueuedMessagesList";
+import {
+	canSendQueuedMessageNow,
+	QueuedMessagesList,
+} from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
 import { WorkspaceUploadPreview } from "./WorkspaceUploadPreview";
@@ -131,7 +125,7 @@ const workspaceUploadPendingSendMessage =
 	"Wait for the current message to finish sending, then add the file again.";
 
 type AgentChatInputProps = {
-	onSend: (message: string) => void;
+	onSend: (message: string, busyBehavior?: TypesGen.ChatBusyBehavior) => void;
 	placeholder?: string;
 	isDisabled: boolean;
 	isReadOnly?: boolean;
@@ -606,7 +600,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const enterSendsHead =
 		!isEditingMessage &&
 		queuedMessages.length > 0 &&
-		queuedMessages[0].id !== queuedMessageUnderEditID;
+		queuedMessages[0].id !== queuedMessageUnderEditID &&
+		canSendQueuedMessageNow(queuedMessages[0].busy_behavior);
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
@@ -614,7 +609,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		preferencesQuery.isLoading,
 	);
 	const [chatFullWidth] = useChatFullWidth();
-	const isMobile = useMediaQuery(mobileViewportMediaQuery);
 	const { organizations } = useDashboard();
 	const chatOrganization = organizations.find(
 		(organization) => organization.id === chatOrganizationId,
@@ -1200,11 +1194,11 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		hasModelOptions &&
 		hasSendableContent &&
 		!hasActiveUploads;
-	const handleSubmit = () => {
+	const submit = (busyBehavior?: TypesGen.ChatBusyBehavior) => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
-		// An empty composer sends the queue head unless the head is under edit.
 		if (
+			!busyBehavior &&
 			!text &&
 			!hasUploadedAttachments &&
 			!hasChips &&
@@ -1230,12 +1224,15 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			return;
 		}
 
-		onSend(text);
+		onSend(text, busyBehavior);
 		resetPromptCycle();
 		if (!isMobileViewport()) {
 			internalRef.current?.focus();
 		}
 	};
+	const handleSubmit = () => submit();
+	const offersSendAfterTurn = isStreaming && !isEditingMessage;
+	const handleSubmitAfterTurn = () => submit("queue");
 	const handleStartRecording = () => {
 		resetPromptCycle();
 		setPreRecordingState(internalRef.current?.getEditorState() ?? null);
@@ -1359,14 +1356,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		applyCycleValue(nextPrompt);
 	};
 
-	let sendButtonLabel = "Send";
-	if (isEditingMessage) {
-		sendButtonLabel = "Save Edit";
-	} else if (isStreaming || isChatPaused || queuedMessages[0]?.editing_since) {
-		// The server queues a send while a turn runs or the queue head is
-		// under edit.
-		sendButtonLabel = "Queue";
-	}
+	const sendButtonLabel = isEditingMessage ? "Save Edit" : "Send";
 	// Stop and the send button are mutually exclusive while streaming; a
 	// non-empty draft or a live recording selects the send button. A live
 	// recording also takes precedence over history editing. A queued edit
@@ -1390,20 +1380,6 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	const showSendButton =
 		!isReadOnlyView &&
 		(!isStreaming || (draftOccupiesSlot && !editingHoldsStop));
-	// Mobile viewports advertise no send shortcut.
-	const sendShortcutLabel = isMobile
-		? undefined
-		: sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
-			? "Cmd/Ctrl+Enter"
-			: "Enter";
-	const sendButtonKeyShortcuts = isMobile
-		? undefined
-		: sendShortcut === MODIFIER_AGENT_CHAT_SEND_SHORTCUT
-			? "Control+Enter Meta+Enter"
-			: "Enter";
-	const sendButtonTooltip = sendShortcutLabel
-		? `${sendButtonLabel}: ${sendShortcutLabel}`
-		: sendButtonLabel;
 
 	const content = (
 		<div
@@ -1425,8 +1401,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			{queuedMessages.length > 0 && (
 				<QueuedMessagesList
 					messages={queuedMessages}
-					onDelete={(id) => onDeleteQueuedMessage?.(id)}
-					onPromote={(id) => onPromoteQueuedMessage?.(id)}
+					onDelete={onDeleteQueuedMessage}
+					onPromote={onPromoteQueuedMessage}
 					onEdit={onEditQueuedMessage}
 					onEndEdit={onEndQueuedMessageEdit}
 					isChatPaused={isChatPaused}
@@ -1485,7 +1461,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				{warning && (
 					<div
 						id={warningId}
-						className="flex items-start gap-1.5 border-b border-border/70 px-3 py-1.5 text-xs font-medium text-content-warning"
+						className="flex items-start gap-1.5 border-b border-border/70 px-3 py-1.5 text-xs text-content-warning"
 					>
 						<TriangleAlertIcon className="mt-px size-3.5 shrink-0" />
 						{warning}
@@ -1493,7 +1469,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				)}
 				{isEditingMessage && (
 					<div className="flex items-center justify-between border-b border-border/70 px-3 py-1.5">
-						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
+						<span className="flex items-center gap-1.5 text-xs text-content-warning">
 							<PencilIcon className="size-3.5" />
 							{editingKind === "queued"
 								? "Editing a queued message. It is not sent until you save or cancel."
@@ -1550,7 +1526,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						onPaste={resetPromptCycle}
 						aria-label="Chat message"
 						aria-describedby={warning ? warningId : undefined}
-						className="min-h-[60px] sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
+						className="min-h-15 sm:min-h-24 w-full resize-none bg-transparent px-3 py-2 font-sans text-[13px] leading-relaxed text-content-primary placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-70"
 						placeholder={placeholder}
 						initialValue={initialValue}
 						initialEditorState={initialEditorState}
@@ -1558,6 +1534,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						onChange={handleContentChange}
 						onKeyDown={handleEditorKeyDown}
 						onEnter={handleSubmit}
+						onSendAfterTurn={
+							offersSendAfterTurn ? handleSubmitAfterTurn : undefined
+						}
 						sendShortcut={sendShortcut}
 						disabled={isReadOnly || isLoading}
 						hasWorkspace={hasSkillsWorkspace}
@@ -1644,7 +1623,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							<PopoverContent
 								side="bottom"
 								align="start"
-								className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto min-w-[200px] p-1"
+								className="mobile-full-width-dropdown mobile-full-width-dropdown-bottom w-auto min-w-50 p-1"
 							>
 								{plusMenuView !== "main" ? (
 									plusMenuSubmenuPanel
@@ -1781,7 +1760,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						{isModelCatalogLoading ? (
 							<Skeleton className="h-6 w-24 rounded" />
 						) : isReadOnlyView ? (
-							<span className="inline-flex min-w-0 shrink items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary">
+							<span className="inline-flex min-w-0 shrink items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs text-content-secondary">
 								{readOnlyModel && (
 									<ProviderIcon
 										provider={readOnlyModel.provider}
@@ -1963,6 +1942,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									usage={contextUsage}
 									onRefreshContext={onRefreshContext}
 									isRefreshingContext={isRefreshingContext}
+									onManageServers={
+										isReadOnlyView ? undefined : handleManageConnections
+									}
 								/>
 							</div>
 						)}
@@ -2002,38 +1984,17 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							</>
 						)}
 						{showSendButton && (
-							<Tooltip>
-								<TooltipTrigger asChild>
-									<Button
-										size="icon"
-										variant="default"
-										className="size-7 rounded-full transition-colors [&>svg]:size-5! [&>svg]:p-0"
-										onClick={
-											speech.isRecording ? handleAcceptRecording : handleSubmit
-										}
-										disabled={speech.isRecording ? false : !canSend}
-										aria-keyshortcuts={sendButtonKeyShortcuts}
-									>
-										{isLoading && !isInterruptPending ? (
-											<Spinner size="sm" loading aria-hidden="true" />
-										) : speech.isRecording ? (
-											<CheckIcon />
-										) : (
-											<ArrowUpIcon />
-										)}
-										<span className="sr-only">
-											{speech.isRecording
-												? "Accept voice input"
-												: sendButtonLabel}
-										</span>
-									</Button>
-								</TooltipTrigger>
-								<TooltipContent side="top">
-									{speech.isRecording
-										? "Accept voice input"
-										: sendButtonTooltip}
-								</TooltipContent>
-							</Tooltip>
+							<AgentChatSendButton
+								label={sendButtonLabel}
+								sendShortcut={sendShortcut}
+								canSend={canSend}
+								offersSendAfterTurn={offersSendAfterTurn}
+								isRecording={speech.isRecording}
+								isSending={isLoading && !isInterruptPending}
+								onSend={handleSubmit}
+								onSendAfterTurn={handleSubmitAfterTurn}
+								onAcceptRecording={handleAcceptRecording}
+							/>
 						)}
 						{showStopButton && (
 							<Tooltip>

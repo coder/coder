@@ -1,9 +1,9 @@
+import type { OptionsQueryClient } from "#/utils/filters";
 import {
 	getAttributeFilterOptions,
 	getSelfUserFilterOptions,
 	getStatusFilterOptions,
 	getUserFilterOptions,
-	type OptionsQueryClient,
 } from "./categoryOptions";
 
 const fakeQueryClient = <T>(data: T): OptionsQueryClient => ({

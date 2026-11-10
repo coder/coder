@@ -66,9 +66,7 @@ export const CollapsibleSection: React.FC<{
 					<ChevronRightIcon className="mt-1 size-4 shrink-0 text-content-primary" />
 				)}
 				<div>
-					<h3 className="m-0 text-sm font-medium text-content-primary">
-						{title}
-					</h3>
+					<h3 className="m-0 text-sm text-content-primary">{title}</h3>
 					<p className="m-0 text-sm text-content-secondary">{description}</p>
 				</div>
 			</CollapsibleTrigger>

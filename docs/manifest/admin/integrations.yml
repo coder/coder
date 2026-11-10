@@ -18,6 +18,9 @@ children:
   - title: Island browser integration
     description: Integrate Coder with the Island Enterprise Browser for secure, policy-controlled workspace access.
     path: ./admin/integrations/island.md
+  - title: Istio integration
+    description: Use the Istio service mesh to secure and control your Coder workspace traffic.
+    path: ./admin/integrations/istio.md
   - title: DX PlatformX
     description: Forward Coder notifications to DX PlatformX to measure and improve developer experience.
     path: ./admin/integrations/platformx.md

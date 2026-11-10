@@ -333,6 +333,7 @@ export function useConversationEditingState(deps: {
 		message,
 		attachments,
 		workspaceUploads,
+		busyBehavior,
 	}: SendChatMessageOptions) => {
 		const sendTarget = target ?? undefined;
 		const targetLoadCount = targetLoadCountRef.current;
@@ -340,6 +341,7 @@ export function useConversationEditingState(deps: {
 			message,
 			attachments,
 			workspaceUploads,
+			busyBehavior,
 			editingTarget: sendTarget,
 		});
 

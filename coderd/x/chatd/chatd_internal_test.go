@@ -424,33 +424,6 @@ func TestGenerateAndStoreChatSummary_UsesTitleGenerationModel(t *testing.T) {
 	require.True(t, fetched.Summary.Valid)
 }
 
-func TestComputerUseProviderForAIProviderType(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		providerType database.AIProviderType
-		want         codersdk.ChatComputerUseProvider
-	}{
-		{providerType: database.AIProviderTypeAnthropic, want: codersdk.ChatComputerUseProviderAnthropic},
-		{providerType: database.AIProviderTypeOpenai, want: codersdk.ChatComputerUseProviderOpenAI},
-		{providerType: database.AIProviderTypeAzure},
-		{providerType: database.AIProviderTypeBedrock},
-		{providerType: database.AIProviderTypeGoogle},
-		{providerType: database.AIProviderTypeOpenaiCompat},
-		{providerType: database.AIProviderTypeOpenrouter},
-		{providerType: database.AIProviderTypeVercel},
-		{providerType: database.AIProviderTypeCopilot},
-	}
-	for _, tt := range tests {
-		t.Run(string(tt.providerType), func(t *testing.T) {
-			t.Parallel()
-			got, ok := computerUseProviderForAIProviderType(string(tt.providerType))
-			require.Equal(t, tt.want != "", ok)
-			require.Equal(t, tt.want, got)
-		})
-	}
-}
-
 func TestRequireResponsesAPI(t *testing.T) {
 	t.Parallel()
 
@@ -546,21 +519,34 @@ func TestAppendComputerUseProviderTool_Gates(t *testing.T) {
 	}
 }
 
-func TestAppendComputerUseProviderTool_AnthropicHasNoResultMetadata(t *testing.T) {
+// Only the OpenAI flavor needs result metadata on the tool result. The Anthropic
+// toolset and the OpenAI-compatible function tool send the screenshot as an
+// ordinary image result.
+func TestAppendComputerUseProviderTool_HasNoResultMetadata(t *testing.T) {
 	t.Parallel()
 
-	providerTools, err := appendComputerUseProviderTool(
-		nil,
-		computerUseProviderToolOptions{
-			provider:      codersdk.ChatComputerUseProviderAnthropic,
-			isComputerUse: true,
-			logger:        slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
-		},
-	)
-	require.NoError(t, err)
-	require.Len(t, providerTools, 1)
-	require.Equal(t, "computer", providerTools[0].Definition.GetName())
-	require.Nil(t, providerTools[0].ResultProviderMetadata)
+	for _, provider := range []codersdk.ChatComputerUseProvider{
+		codersdk.ChatComputerUseProviderAnthropic,
+		codersdk.ChatComputerUseProviderOpenAICompat,
+	} {
+		t.Run(string(provider), func(t *testing.T) {
+			t.Parallel()
+
+			providerTools, err := appendComputerUseProviderTool(
+				nil,
+				computerUseProviderToolOptions{
+					provider:      provider,
+					isComputerUse: true,
+					logger:        slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}),
+				},
+			)
+			require.NoError(t, err)
+			require.Len(t, providerTools, 1)
+			require.Equal(t, "computer", providerTools[0].Definition.GetName())
+			require.Equal(t, "computer", providerTools[0].Runner.Info().Name)
+			require.Nil(t, providerTools[0].ResultProviderMetadata)
+		})
+	}
 }
 
 func TestFilterExternalMCPConfigsForTurn(t *testing.T) {

@@ -109,6 +109,7 @@ ENV TF_CLI_CONFIG_FILE=/home/coder/.terraformrc
 
 > [!NOTE]
 > If you are bundling Terraform providers into your Coder image, be sure the provider version matches any templates or [example templates](../../../examples/templates) you intend to use.
+> After you change the bundled provider versions, push new versions of your templates and update workspaces to them.
 
 ```tf
 # filesystem-mirror-example.tfrc
@@ -170,7 +171,7 @@ This can be uploaded into the `plugins` directory on your offline server.
 
 ### Kubernetes
 
-We publish the Helm chart for download on [GitHub Releases](https://github.com/coder/coder/releases/latest).
+We publish the Helm chart for download on the [Coder downloads page](https://coder.com/downloads) and on [GitHub Releases](https://github.com/coder/coder/releases/latest).
 Follow our [Kubernetes](../server/kubernetes/index.md) documentation and modify the Helm values to specify your custom Coder image.
 
 ```yaml
@@ -248,12 +249,12 @@ For a complete walkthrough of setting up the mirror, see [Mirror the Coder Regis
 To use Coder modules in offline installations, you can either:
 
 - [Mirror the Coder Registry with JFrog Artifactory](./registry-mirror.md) (recommended)
-- [Manually publish modules to Artifactory or use a private git repository](../../admin/templates/extending-templates/modules.md#offline-installations)
+- [Manually publish modules to Artifactory or use a private git repository](../../templates/extending-templates/modules.md#offline-installations)
 
 ## Firewall exceptions
 
-In restricted internet networks, Coder may require connection to internet.
-Ensure that the following web addresses are accessible from the machine where Coder is installed.
+In restricted internet networks, Coder might require connection to internet.
+Make sure that the following web addresses are accessible from the machine where Coder is installed.
 
 - code-server.dev (install via Arch User Repository (AUR))
 - open-vsx.org (optional if someone would use code-server)
@@ -262,7 +263,7 @@ Ensure that the following web addresses are accessible from the machine where Co
 
 ## JetBrains IDEs
 
-Gateway, JetBrains' remote development product that works with Coder, [has documented offline deployment steps.](../../admin/templates/extending-templates/jetbrains-airgapped.md)
+Gateway, JetBrains' remote development product that works with Coder, [has documented offline deployment steps.](../../templates/extending-templates/jetbrains-airgapped.md)
 
 ## Microsoft VS Code Remote - SSH
 
@@ -274,5 +275,5 @@ Installation of the [Visual Studio Code Remote - SSH extension](https://code.vis
 
 ## Next steps
 
-- [Create your first template](../../tutorials/template-from-scratch.md)
+- [Create your first template](../../templates/template-from-scratch.md)
 - [Control plane configuration](../../admin/setup/index.md)

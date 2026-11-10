@@ -1,6 +1,6 @@
 export const AppPreview: React.FC<React.PropsWithChildren> = ({ children }) => {
 	return (
-		<div className="flex flex-row items-center gap-2 h-8 px-3 rounded-full border border-solid border-surface-quaternary text-content-primary bg-surface-secondary shrink-0 w-fit text-xs [&>svg]:w-[13px] [&>img]:w-[13px]">
+		<div className="flex items-center gap-2 h-8 px-3 rounded-full border border-solid border-surface-quaternary text-content-primary bg-surface-secondary shrink-0 w-fit text-xs [&>svg]:w-3.25 [&>img]:w-3.25">
 			{children}
 		</div>
 	);

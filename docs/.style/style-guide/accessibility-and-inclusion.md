@@ -432,9 +432,10 @@ When the first use is a UI label in bold, keep the label exactly as the UI shows
 
 > Paste the path to the certificate in **certificate authority (CA) Path**.
 
-A few abbreviations are familiar enough to every reader of the Coder docs that they don't need an expansion, such as API, CLI, URL, SSH, and JSON.
+A few abbreviations are familiar enough to every reader of the Coder docs that they don't need an expansion, such as API, CLI, URL, SSH, JSON, and UUID.
 The `Coder.AbbreviationFirstUse` rule keeps that list, with the reason for each entry.
 Extend the list only for an abbreviation that every reader of the docs already knows, not for one that a page's expected audience knows.
+A Coder networking or identity term that the [glossary](../../reference/glossary.md) defines, such as DERP or OIDC, can also join the list, because the glossary gives readers one place to look it up.
 
 The rule skips headings, code, link URLs, and pages generated from source code.
 An abbreviation in a page title still needs its expansion in the body of the page.

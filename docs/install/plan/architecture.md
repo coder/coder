@@ -48,7 +48,7 @@ These resources can be VMs, Kubernetes clusters, storage buckets, or whatever el
 
 The resources that run the workspace agent are described as _computational resources_, while those that don't are called _peripheral resources_.
 
-Each resource may also be _persistent_ or _ephemeral_ depending on whether they're destroyed on workspace stop.
+Each resource can also be _persistent_ or _ephemeral_ depending on whether they're destroyed on workspace stop.
 
 ### Agents
 
@@ -62,7 +62,7 @@ It offers the following services along with much more:
 - Liveness checks
 - `startup_script` automation
 
-Templates are responsible for [creating and running agents](../../admin/templates/extending-templates/index.md#workspace-agents) within workspaces.
+Templates are responsible for [creating and running agents](../../templates/extending-templates/index.md#workspace-agents) within workspaces.
 
 ## Service Bundling
 
@@ -131,11 +131,11 @@ They keep ephemeral provider snapshots, caches, and metrics in memory, and can o
 `coderd` is the source of truth and the only component that writes AI Gateway state to the database.
 Each replica maintains a control connection to `coderd` for Coder API key validation, provider configuration, and AI session recording, and becomes unready when that connection is unavailable.
 
-Refer to [AI Gateway](../../ai-coder/ai-gateway/index.md) and [standalone deployment](../../ai-coder/ai-gateway/standalone.md) for configuration and operational guidance.
+Refer to [AI Gateway](../../ai-governance/ai-gateway/index.md) and [standalone deployment](../../ai-governance/ai-gateway/standalone.md) for configuration and operational guidance.
 
 ### Agent Firewall
 
 Agent Firewall is a process-level firewall that restricts and audits network access for AI agents running in workspaces.
 It enforces allowlist-based policies controlling which domains, HTTP methods, and URL paths agents can reach, while streaming audit logs to the Coder control plane for centralized monitoring.
 
-Learn more: [Agent Firewall](../../ai-coder/agent-firewall/index.md)
+Learn more: [Agent Firewall](../../ai-governance/agent-firewall/index.md)

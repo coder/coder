@@ -354,9 +354,10 @@ func TestQueueInsertUpdatesQueueVersion(t *testing.T) {
 
 	content := userMessageContent(t, "queued")
 	_, err = f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:    created.Chat.ID,
-		Content:   content,
-		CreatedBy: f.User.ID,
+		ChatID:       created.Chat.ID,
+		Content:      content,
+		CreatedBy:    f.User.ID,
+		BusyBehavior: database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 
@@ -410,9 +411,10 @@ func TestQueueUpdateContentUpdatesQueueVersion(t *testing.T) {
 	created := createTestChat(t, f)
 
 	queued, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:    created.Chat.ID,
-		Content:   userMessageContent(t, "initial"),
-		CreatedBy: f.User.ID,
+		ChatID:       created.Chat.ID,
+		Content:      userMessageContent(t, "initial"),
+		CreatedBy:    f.User.ID,
+		BusyBehavior: database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 
@@ -445,9 +447,10 @@ func TestQueueUpdateEditingSinceUpdatesQueueVersion(t *testing.T) {
 	created := createTestChat(t, f)
 
 	queued, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:    created.Chat.ID,
-		Content:   userMessageContent(t, "initial"),
-		CreatedBy: f.User.ID,
+		ChatID:       created.Chat.ID,
+		Content:      userMessageContent(t, "initial"),
+		CreatedBy:    f.User.ID,
+		BusyBehavior: database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 
@@ -500,15 +503,17 @@ func TestQueueUpdatePositionUpdatesQueueVersion(t *testing.T) {
 	created := createTestChat(t, f)
 
 	q1, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:    created.Chat.ID,
-		Content:   userMessageContent(t, "first"),
-		CreatedBy: f.User.ID,
+		ChatID:       created.Chat.ID,
+		Content:      userMessageContent(t, "first"),
+		CreatedBy:    f.User.ID,
+		BusyBehavior: database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 	q2, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:    created.Chat.ID,
-		Content:   userMessageContent(t, "second"),
-		CreatedBy: f.User.ID,
+		ChatID:       created.Chat.ID,
+		Content:      userMessageContent(t, "second"),
+		CreatedBy:    f.User.ID,
+		BusyBehavior: database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 	require.NotEqual(t, q1.ID, q2.ID)
@@ -538,9 +543,10 @@ func TestQueueDeleteUpdatesQueueVersion(t *testing.T) {
 	created := createTestChat(t, f)
 
 	queued, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
-		ChatID:    created.Chat.ID,
-		Content:   userMessageContent(t, "to delete"),
-		CreatedBy: f.User.ID,
+		ChatID:       created.Chat.ID,
+		Content:      userMessageContent(t, "to delete"),
+		CreatedBy:    f.User.ID,
+		BusyBehavior: database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 

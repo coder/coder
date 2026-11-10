@@ -87,9 +87,7 @@ const CollapsibleSection: React.FC<{
 					<ChevronRightIcon className="mt-1 size-4 shrink-0 text-content-secondary" />
 				)}
 				<div>
-					<h3 className="m-0 text-sm font-medium text-content-primary">
-						{title}
-					</h3>
+					<h3 className="m-0 text-sm text-content-primary">{title}</h3>
 					<p className="m-0 text-xs text-content-secondary">{description}</p>
 				</div>
 			</CollapsibleTrigger>
@@ -317,9 +315,11 @@ export const ModelFormFields: React.FC<{
 								Model prices are managed by AI Gateway.{" "}
 								<Link
 									href={docs(
-										"/ai-coder/ai-gateway/cost-controls#configure-model-prices",
+										"/ai-governance/ai-gateway/cost-controls#configure-model-prices",
 									)}
 									size="sm"
+									target="_blank"
+									rel="noreferrer"
 								>
 									Learn how to configure model prices.
 								</Link>
@@ -384,7 +384,7 @@ export const ModelFormFields: React.FC<{
 									<TooltipTrigger asChild>
 										<InfoIcon className="size-3 text-content-secondary" />
 									</TooltipTrigger>
-									<TooltipContent side="top" className="max-w-[240px]">
+									<TooltipContent side="top" className="max-w-60">
 										Percentage at which context is compressed.
 									</TooltipContent>
 								</Tooltip>

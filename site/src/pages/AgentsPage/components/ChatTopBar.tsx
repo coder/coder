@@ -288,7 +288,7 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 					<ChatActionsMenu
 						key={chat.id}
 						align="start"
-						contentClassName="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
+						contentClassName="mobile-full-width-dropdown mobile-full-width-dropdown-top **:[[role=menuitem]]:text-[13px]"
 						onArchived={navigateAfterArchive}
 						chat={chat}
 						canManage={canManage}
@@ -406,7 +406,7 @@ const PrLink: React.FC<PrLinkProps> = ({ status, className }) => {
 				draft={status.pull_request_draft}
 				className="size-3.5! shrink-0"
 			/>
-			<span className="truncate max-w-[120px] hidden sm:inline">
+			<span className="truncate max-w-30 hidden sm:inline">
 				{status.pull_request_title || (number ? `#${number}` : "PR")}
 			</span>
 			<span className="sm:hidden">{number ?? "PR"}</span>

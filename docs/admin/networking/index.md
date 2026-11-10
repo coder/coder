@@ -34,7 +34,7 @@ In order for clients to be able to establish direct connections:
 > To improve latency for browser-based applications running inside Coder workspaces in regions far from the Coder control plane, consider deploying one or more [workspace proxies](./workspace-proxies.md).
 
 - The client is connecting using the CLI (for example, `coder ssh` or `coder port-forward`).
-  Note that the [VSCode extension](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote) and [JetBrains Plugin](https://plugins.jetbrains.com/plugin/19620-coder/), and [`ssh coder.<workspace>`](../../reference/cli/config-ssh.md) all utilize the CLI to establish a workspace connection.
+  Note that the [VSCode extension](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote) and [JetBrains Plugin](https://plugins.jetbrains.com/plugin/19620-coder/), and [`ssh <workspace>.coder`](../../reference/cli/config-ssh.md) all utilize the CLI to establish a workspace connection.
 - Either the client or workspace agent are able to discover a reachable `ip:port` of their counterpart.
   If the agent and client are able to communicate with each other using their locally assigned IP addresses, then a direct connection can be established immediately.
   Otherwise, the client and agent will contact [the configured STUN servers](../../reference/cli/server/index.md#--derp-server-stun-addresses) to try and determine which `ip:port` can be used to communicate with their counterpart.
@@ -67,7 +67,7 @@ This is useful when debugging connectivity issues between the workspace agent an
 ## Web Apps
 
 The control plane relays dashboard-initiated connections between the user and the workspace.
-Web terminal <-> workspace connections are an exception and may be direct.
+Web terminal <-> workspace connections are an exception and can be direct.
 
 In general, [port forwarded](./port-forwarding.md) web apps are faster than dashboard-accessed web apps.
 
@@ -97,7 +97,7 @@ coder server --derp-config-url https://controlplane.tailscale.com/derpmap/defaul
 
 #### Custom Relays
 
-If you want lower latency than what Tailscale offers or want additional DERP relays for air-gapped deployments, you may run custom DERP servers.
+If you want lower latency than what Tailscale offers or want additional DERP relays for air-gapped deployments, you can run custom DERP servers.
 Refer to [Tailscale's documentation](https://tailscale.com/kb/1118/custom-derp-servers/#why-run-your-own-derp-server) to learn how to set them up.
 
 After you have custom DERP servers, you can launch Coder with them like so:
@@ -140,7 +140,7 @@ The dashboard (and web apps opened through the dashboard) are served from the co
 Some Coder deployments require that all access is through the browser to comply with security policies.
 In these cases, pass the `--browser-only` flag to `coder server` or set `CODER_BROWSER_ONLY=true`.
 
-With browser-only connections, developers can only connect to their workspaces via the web terminal and [web IDEs](../../user-guides/workspace-access/web-ides.md).
+With browser-only connections, developers can only connect to their workspaces via the web terminal and [web IDEs](../../workspaces/workspace-access/web-ides.md).
 
 ### Workspace Proxies
 
@@ -214,13 +214,13 @@ To improve latency and user experience:
 - **Deploy workspace proxies**:
   Place [proxies](./workspace-proxies.md) in regions closer to users, connecting back to your single control plane deployment.
 - **Use P2P connections**:
-  Ensure network configurations permit direct connections.
+  Make sure network configurations permit direct connections.
 - **Strategic placement**:
   Deploy your control plane in a region where most users work.
 - **Network configuration**:
   Optimize routing between users and workspaces.
 - **Check firewall rules**:
-  Ensure they don't block necessary Coder connections.
+  Make sure they don't block necessary Coder connections.
 
 For help troubleshooting connection issues, including latency problems, refer to the [networking troubleshooting guide](./troubleshooting.md).
 
