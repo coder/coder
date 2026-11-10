@@ -156,6 +156,9 @@ func (s *Server) Serve(ctx, hardCtx context.Context, l net.Listener) (retErr err
 					RxBytes: conn.RxBytes(),
 					TxBytes: conn.TxBytes(),
 				})
+				if !reason.Expected() {
+					clog.Flush(ctx)
+				}
 			})
 		}()
 	}
