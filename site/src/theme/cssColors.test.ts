@@ -26,8 +26,8 @@ describe("native API theme colors", () => {
 	});
 
 	it.each([
-		["#abc", "#abc"],
-		["#ABCD", "#ABCD"],
+		["#abc", "#aabbcc"],
+		["#ABCD", "#AABBCCDD"],
 		["#aBcDeF", "#aBcDeF"],
 		["#123456aB", "#123456aB"],
 		["#ab", "#0110ff"],
@@ -80,19 +80,31 @@ describe("native API theme colors", () => {
 	it.each(["dark", "light"] as const)(
 		"provides concrete %s hex colors to Monaco",
 		(mode) => {
-			const theme = getMonacoTheme(mode);
-			expect(theme.base).toBe(mode === "dark" ? "vs-dark" : "vs");
-			expect(theme.colors).toEqual({
-				"editor.foreground": "#0110ff",
-				"editor.background": "#0110ff",
-			});
-			for (const rule of theme.rules) {
-				expect(rule.foreground).toMatch(/^[0-9a-f]{6}$/i);
+			const style = document.createElement("style");
+			// Production CSS minification shortens these editor colors.
+			style.textContent = `.${mode} { --editor-variable: ${mode === "dark" ? "#ddd" : "#444"}; }`;
+			document.head.append(style);
+			try {
+				const theme = getMonacoTheme(mode);
+				expect(theme.base).toBe(mode === "dark" ? "vs-dark" : "vs");
+				expect(theme.colors).toEqual({
+					"editor.foreground": "#0110ff",
+					"editor.background": "#0110ff",
+				});
+				for (const rule of theme.rules) {
+					expect(rule.foreground).toMatch(/^[0-9a-f]{6}(?:[0-9a-f]{2})?$/i);
+				}
+				expect(theme.rules).toContainEqual({
+					token: "comment",
+					foreground: "6b737c",
+				});
+				expect(theme.rules).toContainEqual({
+					token: "variable",
+					foreground: mode === "dark" ? "dddddd" : "444444",
+				});
+			} finally {
+				style.remove();
 			}
-			expect(theme.rules).toContainEqual({
-				token: "comment",
-				foreground: "6b737c",
-			});
 		},
 	);
 });

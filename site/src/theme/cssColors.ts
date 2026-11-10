@@ -24,11 +24,18 @@ export function readThemeColors(
 		return Object.fromEntries(
 			properties.map((property) => {
 				const color = styles.getPropertyValue(property).trim();
-				if (
-					!context ||
-					/^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(color)
-				) {
+				if (!context) {
 					return [property, color];
+				}
+				if (/^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(color)) {
+					const hex = color.slice(1);
+					// Monaco token colors require six or eight digits, not CSS shorthand.
+					return [
+						property,
+						hex.length <= 4
+							? `#${Array.from(hex, (digit) => digit.repeat(2)).join("")}`
+							: color,
+					];
 				}
 				// Canvas converts CSS colors, including Tailwind's OKLCH palette, to sRGB bytes.
 				context.clearRect(0, 0, 1, 1);
