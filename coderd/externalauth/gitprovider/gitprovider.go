@@ -281,6 +281,22 @@ func countDiffLines(diff string) (additions, deletions int32) {
 	return additions, deletions
 }
 
+// markForbiddenError preserves diagnostic text after rate-limit checking.
+func markForbiddenError(resp *http.Response, err error) error {
+	if resp != nil && resp.StatusCode == http.StatusForbidden {
+		return ForbiddenError(err.Error())
+	}
+	return err
+}
+
+// ForbiddenError indicates an HTTP 403 that is not a rate limit.
+// It retains the provider's diagnostic text without wrapping another error.
+type ForbiddenError string
+
+func (e ForbiddenError) Error() string {
+	return string(e)
+}
+
 // RateLimitError indicates the git provider's API rate limit was hit.
 type RateLimitError struct {
 	RetryAfter time.Time

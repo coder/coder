@@ -306,6 +306,8 @@ func TestGitLabRateLimit(t *testing.T) {
 
 		expected := mClock.Now().Add(120*time.Second + gitprovider.RateLimitPadding)
 		assert.True(t, rlErr.RetryAfter.Equal(expected), "expected %v, got %v", expected, rlErr.RetryAfter)
+		_, forbidden := errors.AsType[gitprovider.ForbiddenError](err)
+		require.False(t, forbidden)
 	})
 
 	t.Run("403WithRateLimitReset", func(t *testing.T) {
@@ -337,6 +339,8 @@ func TestGitLabRateLimit(t *testing.T) {
 
 		expected := resetTime.Add(gitprovider.RateLimitPadding)
 		assert.True(t, rlErr.RetryAfter.Equal(expected), "expected %v, got %v", expected, rlErr.RetryAfter)
+		_, forbidden := errors.AsType[gitprovider.ForbiddenError](err)
+		require.False(t, forbidden)
 	})
 
 	t.Run("403WithoutRateLimitHeaders", func(t *testing.T) {
@@ -361,6 +365,10 @@ func TestGitLabRateLimit(t *testing.T) {
 		_, ok := errors.AsType[*gitprovider.RateLimitError](err)
 		assert.False(t, ok, "error should NOT be *RateLimitError")
 		assert.Contains(t, err.Error(), "403")
+		forbidden, ok := errors.AsType[gitprovider.ForbiddenError](err)
+		require.True(t, ok)
+		require.Equal(t, err.Error(), forbidden.Error())
+		require.ErrorContains(t, err, "gitlab get merge request:")
 	})
 }
 

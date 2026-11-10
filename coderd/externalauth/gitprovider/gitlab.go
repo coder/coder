@@ -258,15 +258,17 @@ func (g *gitlabProvider) FetchPullRequestDiff(
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		if readErr != nil {
-			return "", g.wrapError(
+			err := g.wrapError(
 				xerrors.Errorf("unexpected status %d", resp.StatusCode),
 				"get merge request raw diffs",
 			)
+			return "", markForbiddenError(resp, err)
 		}
-		return "", g.wrapError(
+		err := g.wrapError(
 			xerrors.Errorf("unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(string(body))),
 			"get merge request raw diffs",
 		)
+		return "", markForbiddenError(resp, err)
 	}
 
 	buf, err := io.ReadAll(io.LimitReader(resp.Body, MaxDiffSize+1))
@@ -347,15 +349,17 @@ func (g *gitlabProvider) FetchBranchDiff(
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		if readErr != nil {
-			return "", g.wrapError(
+			err := g.wrapError(
 				xerrors.Errorf("unexpected status %d", resp.StatusCode),
 				"compare branches",
 			)
+			return "", markForbiddenError(resp, err)
 		}
-		return "", g.wrapError(
+		err := g.wrapError(
 			xerrors.Errorf("unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(string(body))),
 			"compare branches",
 		)
+		return "", markForbiddenError(resp, err)
 	}
 
 	// Bound the read to MaxDiffSize + overhead for JSON structure.
@@ -585,12 +589,15 @@ func (g *gitlabProvider) BuildPullRequestURL(ref PRRef) string {
 
 // wrapError converts library errors to our domain errors (e.g. rate limits).
 func (g *gitlabProvider) wrapError(err error, action string) error {
+	var resp *http.Response
 	if errResp, ok := errors.AsType[*gitlab.ErrorResponse](err); ok {
-		if rlErr := checkRateLimitError(errResp.Response, g.clock, "RateLimit-Reset", "RateLimit-Remaining"); rlErr != nil {
+		resp = errResp.Response
+		if rlErr := checkRateLimitError(resp, g.clock, "RateLimit-Reset", "RateLimit-Remaining"); rlErr != nil {
 			return rlErr
 		}
 	}
-	return xerrors.Errorf("gitlab %s: %w", action, err)
+	wrapped := xerrors.Errorf("gitlab %s: %w", action, err)
+	return markForbiddenError(resp, wrapped)
 }
 
 // mapGitLabState maps a GitLab merge request state string to a normalized PRState.

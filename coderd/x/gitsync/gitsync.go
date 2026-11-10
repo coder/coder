@@ -198,27 +198,25 @@ func (r *Refresher) Refresh(
 		})
 	}
 
-	// Process all HTTP calls concurrently with a shared
-	// semaphore. Each group tracks rate-limit errors
-	// independently so that a limit hit on one provider
-	// doesn't stall requests to other providers.
+	// Process all HTTP calls concurrently with a shared semaphore.
+	// Suppression stays within each owner/origin group for this batch.
 	sem := make(chan struct{}, r.concurrency)
 	var wg sync.WaitGroup
 
 	for _, grp := range resolved {
-		var rateLimitErr atomic.Pointer[gitprovider.RateLimitError]
+		var skipErr atomic.Pointer[error]
 
 		for _, idx := range grp.indices {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
 
-				// Best-effort rate-limit check before acquiring
-				// the semaphore to avoid unnecessary blocking.
-				if rl := rateLimitErr.Load(); rl != nil {
+				// Best-effort skip check before acquiring the
+				// semaphore to avoid unnecessary blocking.
+				if skipped := skipErr.Load(); skipped != nil {
 					results[idx] = RefreshResult{
 						Request: requests[idx],
-						Error:   rateLimitSkippedError(rl),
+						Error:   *skipped,
 					}
 					return
 				}
@@ -235,12 +233,12 @@ func (r *Refresher) Refresh(
 					return
 				}
 
-				// Best-effort rate-limit check after acquiring
-				// in case it was set while we waited.
-				if rl := rateLimitErr.Load(); rl != nil {
+				// Best-effort skip check after acquiring in
+				// case it was set while we waited.
+				if skipped := skipErr.Load(); skipped != nil {
 					results[idx] = RefreshResult{
 						Request: requests[idx],
-						Error:   rateLimitSkippedError(rl),
+						Error:   *skipped,
 					}
 					return
 				}
@@ -252,9 +250,15 @@ func (r *Refresher) Refresh(
 					Error:   err,
 				}
 
-				var rlErr *gitprovider.RateLimitError
-				if errors.As(err, &rlErr) {
-					rateLimitErr.Store(rlErr)
+				if rateLimit, ok := errors.AsType[*gitprovider.RateLimitError](err); ok {
+					skipped := rateLimitSkippedError(rateLimit)
+					skipErr.Store(&skipped)
+					return
+				}
+				if forbidden, ok := errors.AsType[gitprovider.ForbiddenError](err); ok {
+					// Rate limits take precedence.
+					skipped := xerrors.Errorf("skipped due to forbidden response: %w", forbidden)
+					skipErr.CompareAndSwap(nil, &skipped)
 				}
 			}()
 		}

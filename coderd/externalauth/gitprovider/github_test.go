@@ -458,6 +458,8 @@ func TestGitHubRatelimit_403WithResetHeader(t *testing.T) {
 	var rlErr *gitprovider.RateLimitError
 	require.True(t, errors.As(err, &rlErr), "error should be *RateLimitError, got: %T", err)
 	assert.WithinDuration(t, resetTime.Add(gitprovider.RateLimitPadding), rlErr.RetryAfter, 2*time.Second)
+	_, forbidden := errors.AsType[gitprovider.ForbiddenError](err)
+	require.False(t, forbidden)
 }
 
 func TestGitHubRatelimit_429WithRetryAfter(t *testing.T) {
@@ -518,6 +520,9 @@ func TestGitHubRatelimit_403NormalError(t *testing.T) {
 	var rlErr *gitprovider.RateLimitError
 	assert.False(t, errors.As(err, &rlErr), "error should NOT be *RateLimitError")
 	assert.Contains(t, err.Error(), "403")
+	forbidden, ok := errors.AsType[gitprovider.ForbiddenError](err)
+	require.True(t, ok)
+	require.Equal(t, `github request failed with status 403: {"message": "Resource not accessible by integration"}`, forbidden.Error())
 }
 
 func TestGitHubFetchPullRequestDiff(t *testing.T) {
