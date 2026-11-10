@@ -49,7 +49,7 @@ To create a new organization:
 
 1. Select **Admin settings** from the top bar, then **Organizations**.
 
-1. Select the current organization to expand the organizations dropdown, then select **Create Organization**:
+1. Select the current organization to expand the organizations dropdown, then select **Create organization**:
 
    <img height="212px" src="../../images/admin/users/organizations/org-dropdown-create.png" alt="Organizations dropdown and Create Organization" align="center" />
 

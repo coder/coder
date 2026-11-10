@@ -79,7 +79,7 @@ You only authorize the workspace.
 
 On your workspace, select **Update**.
 The update form shows a **Login with GitHub** button: select it, follow the prompts to authorize Coder, then select **Update and restart**.
-The following screenshot shows the **External Authentication** section of the workspace creation screen before connecting GitHub:
+The following screenshot shows the **External authentication** section of the workspace creation screen before connecting GitHub:
 
 ![External Authentication panel with GitHub marked Required and a Login with GitHub button](../../images/screenshots/login-with-github-logged-out.png)_External Authentication with GitHub before logging in_
 

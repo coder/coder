@@ -20,7 +20,7 @@ This enables integrations where external applications can leverage Coder's authe
 ## Enable OAuth2 provider
 
 The provider is off by default.
-While it is off, the OAuth2 endpoints and discovery documents return 404 and the **OAuth2 Applications** page is hidden.
+While it is off, the OAuth2 endpoints and discovery documents return 404 and the **OAuth2 applications** page is hidden.
 Turn it on with the CLI flag:
 
 ```sh
@@ -63,7 +63,7 @@ Treat the setting as a way to stop new authorizations rather than as a way to re
 
 <a id="method-1-web-ui"></a>
 
-1. Navigate to **Deployment Settings** > **OAuth2 Applications**.
+1. Navigate to **Deployment Settings** > **OAuth2 applications**.
 2. On the **Applications** tab, select **Add application**.
 3. Fill in the application details:
    - **Name**:
@@ -149,7 +149,7 @@ An owner must turn it on before any client can self-register.
 
 Change the setting in the web UI:
 
-1. Navigate to **Deployment Settings** > **OAuth2 Applications**.
+1. Navigate to **Deployment Settings** > **OAuth2 applications**.
 2. Select the **Settings** tab.
 3. Select **Enable** or **Disable** next to **Dynamic Client Registration**.
 

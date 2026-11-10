@@ -49,7 +49,7 @@ For deployments with multiple [organizations](./organizations.md), configure gro
    https://[coder.example.com]/api/v2/groups
    ```
 
-1. As an Owner or Organization Admin, go to **Admin settings**, select **Organizations**, then **IdP Sync**:
+1. As an Owner or Organization Admin, go to **Admin settings**, select **Organizations**, then **IdP sync**:
 
    ![IdP Sync - Group sync](../../images/admin/users/organizations/group-sync-empty.png)
 
@@ -194,7 +194,7 @@ For deployments with multiple [organizations](./organizations.md), configure rol
 
 ### Dashboard
 
-1. As an Owner or Organization Admin, go to **Admin settings**, select **Organizations**, then **IdP Sync**.
+1. As an Owner or Organization Admin, go to **Admin settings**, select **Organizations**, then **IdP sync**.
 
 1. Select the **Role sync settings** tab:
 

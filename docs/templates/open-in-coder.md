@@ -122,9 +122,9 @@ The dialog shows:
 
 - A warning that a workspace is about to be created automatically from a link
 - All prefilled `param.*` values from the URL
-- **Confirm and Create** and **Cancel** buttons
+- **Confirm and create** and **Cancel** buttons
 
-The workspace is only created if the user explicitly selects **Confirm and Create**.
+The workspace is only created if the user explicitly selects **Confirm and create**.
 Selecting **Cancel** falls back to the standard creation form where all parameters can be reviewed manually.
 
 ![Consent dialog for automatic workspace creation](../images/templates/auto-create-consent-dialog.png)
