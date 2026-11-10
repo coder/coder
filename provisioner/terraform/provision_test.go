@@ -12,6 +12,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -533,8 +534,8 @@ func writeTerraformShim(t *testing.T, dir, script string) string {
 	return binaryPath
 }
 
-// readShimCalls returns the argument lines a shim recorded in path, or nil if
-// it never ran the command.
+// readShimCalls returns the lines a shim appended to path, one per call it
+// recorded, or nil if it recorded none.
 func readShimCalls(t *testing.T, path string) []string {
 	t.Helper()
 	content, err := os.ReadFile(path)
@@ -546,12 +547,28 @@ func readShimCalls(t *testing.T, path string) []string {
 }
 
 // TestGraphReusesPlanResults covers when Graph reuses the parsed plan and the
-// graph that Plan computed, and the fallbacks that run Terraform again.
+// graph that Plan computed, and when it runs Terraform again. In every case
+// Graph must attach the agent to its container.
 //
 //nolint:paralleltest // Avoid "text file busy"; see TestGraphResolvesAppliedScriptOrders.
 func TestGraphReusesPlanResults(t *testing.T) {
-	planJSON, err := os.ReadFile("testdata/script-order-plan.json")
-	require.NoError(t, err)
+	const planJSON = `{
+		"format_version":"1.2",
+		"terraform_version":"1.15.0",
+		"planned_values":{"root_module":{"resources":[
+			{"address":"docker_container.workspace","mode":"managed","type":"docker_container","name":"workspace","values":{}},
+			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64"}}
+		]}}
+	}`
+	// `terraform show -json` output for the applied state.
+	const stateJSON = `{
+		"format_version":"1.0",
+		"terraform_version":"1.15.0",
+		"values":{"root_module":{"resources":[
+			{"address":"docker_container.workspace","mode":"managed","type":"docker_container","name":"workspace","values":{}},
+			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64","id":"agent-id"}}
+		]}}
+	}`
 	const graphDOT = `digraph {
 		"[root] docker_container.workspace" [label = "docker_container.workspace"]
 		"[root] coder_agent.main (expand)" [label = "coder_agent.main"]
@@ -566,30 +583,18 @@ func TestGraphReusesPlanResults(t *testing.T) {
 		"[root] coder_agent.main (expand)" [label = "coder_agent.main"]
 		"[root] coder_agent.main (deposed 00000001)" [label = "coder_agent.main"]
 	}`
-	// `terraform show -json` output for the applied state.
-	const shownStateJSON = `{
-		"format_version":"1.0",
-		"terraform_version":"1.15.0",
-		"values":{"root_module":{"resources":[
-			{"address":"docker_container.workspace","mode":"managed","type":"docker_container","name":"workspace","values":{}},
-			{"address":"coder_agent.main","mode":"managed","type":"coder_agent","name":"main","values":{"arch":"amd64","id":"agent-id"}}
-		]}}
-	}`
 
 	tests := []struct {
-		name     string
-		source   proto.GraphSource
-		graphDOT string
+		name   string
+		source proto.GraphSource
+		// graphDOT is what `terraform graph` prints during Plan, and
+		// rebuiltGraphDOT, if set, what it prints after that.
+		graphDOT        string
+		rebuiltGraphDOT string
 		// failFirstGraph makes the graph run during Plan fail.
 		failFirstGraph bool
-		// rebuiltGraphDOT, if set, replaces graphDOT after the graph run
-		// during Plan.
-		rebuiltGraphDOT string
-		wantShowCalls   []string
-		wantGraphCalls  int
-		// wantAgentID is the ID of the agent the state attaches to
-		// docker_container.workspace.
-		wantAgentID string
+		wantShowCalls  []string
+		wantGraphCalls int
 	}{
 		{
 			name:           "PlanSourceReusesPlanAndGraph",
@@ -604,7 +609,6 @@ func TestGraphReusesPlanResults(t *testing.T) {
 			graphDOT:       graphDOT,
 			wantShowCalls:  []string{"plan", "state"},
 			wantGraphCalls: 1,
-			wantAgentID:    "agent-id",
 		},
 		{
 			name:            "PriorStateNodesRebuildGraph",
@@ -613,7 +617,6 @@ func TestGraphReusesPlanResults(t *testing.T) {
 			rebuiltGraphDOT: graphDOT,
 			wantShowCalls:   []string{"plan", "state"},
 			wantGraphCalls:  2,
-			wantAgentID:     "agent-id",
 		},
 		{
 			name:           "GraphFailedDuringPlan",
@@ -622,7 +625,6 @@ func TestGraphReusesPlanResults(t *testing.T) {
 			failFirstGraph: true,
 			wantShowCalls:  []string{"plan", "state"},
 			wantGraphCalls: 2,
-			wantAgentID:    "agent-id",
 		},
 	}
 	for _, test := range tests {
@@ -632,20 +634,22 @@ func TestGraphReusesPlanResults(t *testing.T) {
 			planPath := filepath.Join(dir, "plan.json")
 			statePath := filepath.Join(dir, "state.json")
 			graphPath := filepath.Join(dir, "graph.dot")
-			failGraphPath := filepath.Join(dir, "fail-graph")
 			rebuiltGraphPath := filepath.Join(dir, "rebuilt-graph.dot")
-			showArgsPath := filepath.Join(dir, "show-args")
-			graphArgsPath := filepath.Join(dir, "graph-args")
-			require.NoError(t, os.WriteFile(planPath, planJSON, 0o600))
-			require.NoError(t, os.WriteFile(statePath, []byte(shownStateJSON), 0o600))
+			failGraphPath := filepath.Join(dir, "fail-graph")
+			showCallsPath := filepath.Join(dir, "show-calls")
+			graphCallsPath := filepath.Join(dir, "graph-calls")
+			require.NoError(t, os.WriteFile(planPath, []byte(planJSON), 0o600))
+			require.NoError(t, os.WriteFile(statePath, []byte(stateJSON), 0o600))
 			require.NoError(t, os.WriteFile(graphPath, []byte(test.graphDOT), 0o600))
-			if test.failFirstGraph {
-				require.NoError(t, os.WriteFile(failGraphPath, nil, 0o600))
-			}
 			if test.rebuiltGraphDOT != "" {
 				require.NoError(t, os.WriteFile(rebuiltGraphPath, []byte(test.rebuiltGraphDOT), 0o600))
 			}
+			if test.failFirstGraph {
+				require.NoError(t, os.WriteFile(failGraphPath, nil, 0o600))
+			}
 
+			// `terraform show` takes the plan file as its last argument and
+			// shows the state without it.
 			binaryPath := writeTerraformShim(t, dir, fmt.Sprintf(`#!/bin/sh
 case "$1" in
 version)
@@ -678,7 +682,7 @@ plan|init)
 	exit 1
 	;;
 esac
-`, showArgsPath, statePath, planPath, graphArgsPath, failGraphPath, graphPath, rebuiltGraphPath))
+`, showCallsPath, statePath, planPath, graphCallsPath, failGraphPath, graphPath, rebuiltGraphPath))
 
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
 				binaryPath: binaryPath,
@@ -686,30 +690,107 @@ esac
 			sess := configure(ctx, t, api, &proto.Config{})
 			init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
 			require.Empty(t, init.Error)
-			require.NoError(t, sendPlan(sess, proto.WorkspaceTransition_STOP))
+			require.NoError(t, sendPlan(sess, proto.WorkspaceTransition_START))
 			_, response := readProvisionLog(t, sess)
 			require.NotNil(t, response.GetPlan())
 			require.Empty(t, response.GetPlan().Error)
 
-			require.NoError(t, sess.Send(&proto.Request{
-				Type: &proto.Request_Graph{Graph: &proto.GraphRequest{
-					Metadata: &proto.Metadata{WorkspaceTransition: proto.WorkspaceTransition_STOP},
-					Source:   test.source,
-				}},
-			}))
+			require.NoError(t, sendGraph(sess, test.source))
+			_, response = readProvisionLog(t, sess)
+			graph := response.GetGraph()
+			require.NotNil(t, graph)
+			require.Empty(t, graph.Error)
+			require.Len(t, graph.Resources, 1)
+			require.Equal(t, "workspace", graph.Resources[0].Name)
+			require.Len(t, graph.Resources[0].Agents, 1)
+			require.Equal(t, "main", graph.Resources[0].Agents[0].Name)
+
+			require.Equal(t, test.wantShowCalls, readShimCalls(t, showCallsPath))
+			require.Len(t, readShimCalls(t, graphCallsPath), test.wantGraphCalls)
+		})
+	}
+}
+
+// TestGraphRebuildsForPriorStateObjects runs real Terraform, because Graph
+// recognizes deposed and orphaned objects by the names Terraform gives their
+// nodes in the graph it builds during Plan. Such a graph must not be reused.
+//
+//nolint:paralleltest // Avoid "text file busy"; see TestGraphResolvesAppliedScriptOrders.
+func TestGraphRebuildsForPriorStateObjects(t *testing.T) {
+	terraformPath, err := exec.LookPath("terraform")
+	if err != nil {
+		ctx := testutil.Context(t, testutil.WaitLong)
+		terraformPath, err = terraform.Install(ctx, testutil.Logger(t), false, t.TempDir(), terraform.TerraformVersion, "")
+		require.NoError(t, err)
+	}
+
+	// The built-in terraform_data resource needs no provider download.
+	const config = `resource "terraform_data" "kept" {}`
+	const current = `{"schema_version":0,"attributes":{"id":"current"}}`
+	const deposed = `{"schema_version":0,"attributes":{"id":"deposed"},"deposed":"00000001"}`
+	resource := func(name string, objects ...string) string {
+		return fmt.Sprintf(`{"mode":"managed","type":"terraform_data","name":%q,`+
+			`"provider":"provider[\"terraform.io/builtin/terraform\"]","instances":[%s]}`,
+			name, strings.Join(objects, ","))
+	}
+	state := func(resources ...string) []byte {
+		return []byte(fmt.Sprintf(`{"version":4,"terraform_version":"1.4.0","serial":1,`+
+			`"lineage":"test","resources":[%s]}`, strings.Join(resources, ",")))
+	}
+
+	tests := []struct {
+		name           string
+		state          []byte
+		wantGraphCalls int
+	}{
+		{
+			name:           "NoPriorStateObjects",
+			state:          state(resource("kept", current)),
+			wantGraphCalls: 1,
+		},
+		{
+			name:           "DeposedObject",
+			state:          state(resource("kept", current, deposed)),
+			wantGraphCalls: 2,
+		},
+		{
+			name:           "OrphanedResource",
+			state:          state(resource("kept", current), resource("removed", current)),
+			wantGraphCalls: 2,
+		},
+	}
+	for _, test := range tests {
+		//nolint:paralleltest // Avoid "text file busy"; see above.
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			graphCallsPath := filepath.Join(dir, "graph-calls")
+			// Record graph runs and leave everything to the real Terraform.
+			binaryPath := writeTerraformShim(t, dir, fmt.Sprintf(`#!/bin/sh
+if [ "$1" = graph ]; then
+	echo graph >> %q
+fi
+exec %q "$@"
+`, graphCallsPath, terraformPath))
+
+			ctx, api := setupProvisioner(t, &provisionerServeOptions{
+				binaryPath: binaryPath,
+			})
+			sess := configure(ctx, t, api, &proto.Config{})
+			init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, map[string]string{"main.tf": config}))
+			require.Empty(t, init.Error)
+			require.NoError(t, sess.Send(&proto.Request{Type: &proto.Request_Plan{Plan: &proto.PlanRequest{
+				Metadata: &proto.Metadata{WorkspaceTransition: proto.WorkspaceTransition_START},
+				State:    test.state,
+			}}}))
+			_, response := readProvisionLog(t, sess)
+			require.NotNil(t, response.GetPlan())
+			require.Empty(t, response.GetPlan().Error)
+
+			require.NoError(t, sendGraph(sess, proto.GraphSource_SOURCE_STATE))
 			_, response = readProvisionLog(t, sess)
 			require.NotNil(t, response.GetGraph())
 			require.Empty(t, response.GetGraph().Error)
-			if test.wantAgentID != "" {
-				resources := response.GetGraph().GetResources()
-				require.Len(t, resources, 1)
-				require.Equal(t, "workspace", resources[0].GetName())
-				require.Len(t, resources[0].GetAgents(), 1)
-				require.Equal(t, test.wantAgentID, resources[0].GetAgents()[0].GetId())
-			}
-
-			require.Equal(t, test.wantShowCalls, readShimCalls(t, showArgsPath))
-			require.Len(t, readShimCalls(t, graphArgsPath), test.wantGraphCalls)
+			require.Len(t, readShimCalls(t, graphCallsPath), test.wantGraphCalls)
 		})
 	}
 }
@@ -1688,7 +1769,7 @@ func TestProvision(t *testing.T) {
 				require.NotNil(t, applyComplete)
 
 				if testCase.Response != nil {
-					// Graph reads the state file that apply wrote.
+					// Graph the applied state.
 					resp = provision(&proto.Request{Type: &proto.Request_Graph{Graph: &proto.GraphRequest{
 						Source: proto.GraphSource_SOURCE_STATE,
 					}}})

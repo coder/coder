@@ -1,7 +1,6 @@
 package terraform
 
 import (
-	"context"
 	"encoding/json"
 	"os"
 	"testing"
@@ -9,7 +8,6 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -202,36 +200,6 @@ func TestLogScriptOrderWarnings(t *testing.T) {
 	require.Equal(t, "second warning", logger.logs[1].Output)
 	require.Contains(t, logger.logs[2].Output, "3 additional script order warnings")
 	require.Contains(t, logger.logs[2].Output, "only the first 100 are reported")
-}
-
-func TestSessionStateLifecycle(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(t.Context())
-	defer cancel()
-	s := &server{}
-	sess := &provisionersdk.Session{}
-	other := &provisionersdk.Session{}
-	present := func(sess *provisionersdk.Session) bool {
-		s.sessionsMu.Lock()
-		defer s.sessionsMu.Unlock()
-		_, ok := s.sessions[sess]
-		return ok
-	}
-
-	require.Empty(t, s.sessionState(sess), "nothing is stored before the first Plan")
-	s.setSessionState(ctx, sess, sessionState{graph: "start"})
-	s.setSessionState(ctx, sess, sessionState{graph: "stop"})
-	require.Equal(t, "stop", s.sessionState(sess).graph, "each Plan replaces the state")
-	s.setSessionState(t.Context(), other, sessionState{graph: "other"})
-	require.Equal(t, "other", s.sessionState(other).graph, "sessions do not share state")
-
-	// The state goes away when its session ends, even if Graph never ran.
-	cancel()
-	require.Eventually(t, func() bool {
-		return !present(sess)
-	}, testutil.WaitShort, testutil.IntervalFast)
-	require.True(t, present(other))
 }
 
 func TestChecksumFileCRC32(t *testing.T) {
