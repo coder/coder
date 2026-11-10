@@ -165,43 +165,49 @@ type server struct {
 	// sessionsMu guards sessions, which carries state between the RPCs of
 	// one provisioner session (Init, Plan, Apply, Graph).
 	sessionsMu sync.Mutex
-	sessions   map[*provisionersdk.Session]*sessionState
+	sessions   map[*provisionersdk.Session]sessionState
 }
 
 // sessionState is what the RPCs of one session leave behind for the later
-// ones. A session runs its RPCs one at a time, so the fields need no lock.
+// ones. It is stored and returned by value, so every read and write of it
+// holds sessionsMu.
 type sessionState struct {
 	// plan is the parsed plan file and graph the `terraform graph` output
 	// from the most recent successful Plan, so Graph can reuse them instead
 	// of running Terraform again. Template import plans the start and stop
 	// transitions in one session, and each Plan replaces both. graph is
-	// empty when computing it during Plan failed.
+	// empty when computing it during Plan failed. Nothing may modify the
+	// plan once it is stored.
 	plan  *tfjson.Plan
 	graph string
 }
 
-// sessionState returns the state shared by the RPCs of sess, creating it on
-// first use. ctx must be the session's context: the entry is removed when ctx
-// is done, so the state, which includes the parsed plan, never outlives its
-// session, including sessions that end before Graph because a later stage
-// failed or was canceled.
-func (s *server) sessionState(ctx context.Context, sess *provisionersdk.Session) *sessionState {
+// sessionState returns a copy of the state stored for sess, which is empty
+// if none was stored.
+func (s *server) sessionState(sess *provisionersdk.Session) sessionState {
 	s.sessionsMu.Lock()
 	defer s.sessionsMu.Unlock()
-	if st, ok := s.sessions[sess]; ok {
-		return st
-	}
+	return s.sessions[sess]
+}
+
+// setSessionState replaces the state stored for sess. ctx must be the
+// session's context: the state is removed when ctx is done, so it never
+// outlives its session, including sessions that end before Graph because a
+// later stage failed or was canceled.
+func (s *server) setSessionState(ctx context.Context, sess *provisionersdk.Session, state sessionState) {
+	s.sessionsMu.Lock()
+	defer s.sessionsMu.Unlock()
 	if s.sessions == nil {
-		s.sessions = make(map[*provisionersdk.Session]*sessionState)
+		s.sessions = make(map[*provisionersdk.Session]sessionState)
 	}
-	st := &sessionState{}
-	s.sessions[sess] = st
-	context.AfterFunc(ctx, func() {
-		s.sessionsMu.Lock()
-		defer s.sessionsMu.Unlock()
-		delete(s.sessions, sess)
-	})
-	return st
+	if _, ok := s.sessions[sess]; !ok {
+		context.AfterFunc(ctx, func() {
+			s.sessionsMu.Lock()
+			defer s.sessionsMu.Unlock()
+			delete(s.sessions, sess)
+		})
+	}
+	s.sessions[sess] = state
 }
 
 // terraformVersion returns the Terraform binary's version. Failures aren't

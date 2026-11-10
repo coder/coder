@@ -256,9 +256,7 @@ func (s *server) Plan(
 
 	// Graph reuses the parsed plan and the graph instead of running
 	// Terraform again.
-	sessState := s.sessionState(sess.Context(), sess)
-	sessState.plan = result.plan
-	sessState.graph = result.graph
+	s.setSessionState(sess.Context(), sess, sessionState{plan: result.plan, graph: result.graph})
 	if result.graphErr != nil {
 		s.logger.Warn(ctx, "terraform graph failed during plan, the graph stage will retry it", slog.Error(result.graphErr))
 	}
@@ -285,7 +283,7 @@ func (s *server) Graph(
 
 	// Reuse the parsed plan (plan source) and the graph from this session's
 	// Plan when they are available, instead of running Terraform again.
-	sessState := s.sessionState(sess.Context(), sess)
+	sessState := s.sessionState(sess)
 
 	modules := []*tfjson.StateModule{}
 	var planConfig *tfjson.Config
