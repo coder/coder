@@ -87,8 +87,8 @@ const TimelineNotice: React.FC<{ children?: React.ReactNode }> = ({
 		role="note"
 		className="relative my-1 w-full rounded-lg border border-solid border-border bg-surface-secondary p-4 text-left"
 	>
-		<div className="flex min-w-0 flex-1 flex-row items-start gap-3 text-sm">
-			<InfoIcon className="size-icon-sm mt-[3px] text-highlight-sky" />
+		<div className="flex min-w-0 flex-1 items-start gap-3 text-sm">
+			<InfoIcon className="size-icon-sm mt-0.75 text-highlight-sky" />
 			<div className="min-w-0 flex-1">{children}</div>
 		</div>
 	</div>
@@ -125,12 +125,7 @@ const ChatMessageItem = memo<{
 	liveBlocks?: readonly RenderBlock[];
 	liveTools?: readonly MergedTool[];
 	subagentStatusOverrides?: Map<string, TypesGen.ChatStatus>;
-	onEditUserMessage?: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
-		editorState?: string,
-	) => void;
+	onEditUserMessage?: (messageId: number) => void;
 	editingMessageId?: number | null;
 	isAfterEditingMessage?: boolean;
 	turnAttachments?: readonly MessageAttachment[];
@@ -308,6 +303,7 @@ const ChatMessageItem = memo<{
 							}
 							onImageClick={openImagePreview}
 							onTextFileClick={openTextPreview}
+							urlTransform={urlTransform}
 						/>
 					) : (
 						<Message className="w-full">
@@ -387,12 +383,7 @@ type ConversationTimelineProps = {
 	subagentStatusOverrides: Map<string, TypesGen.ChatStatus>;
 	subagentTitles: Map<string, string>;
 	subagentVariants: Map<string, SubagentVariant>;
-	onEditUserMessage?: (
-		messageId: number,
-		text: string,
-		fileBlocks?: readonly TypesGen.ChatMessagePart[],
-		editorState?: string,
-	) => void;
+	onEditUserMessage?: (messageId: number) => void;
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
 	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;

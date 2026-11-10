@@ -187,13 +187,21 @@ message IsAuthorizedRequest {
   // exists, has not expired, and belongs to a non-deleted non-system user.
   // Mutually exclusive with key.
   string key_id = 2;
+  // delegated_organization_id is the organization a delegated in-process
+  // caller acts in. Currently only chatd sets it, to the chat's organization.
+  // The server resolves the request to it after checking that the user is a
+  // member. Empty for every other request. Only valid together with key_id.
+  string delegated_organization_id = 3;
 }
 
 message IsAuthorizedResponse {
   string owner_id = 1;
   string api_key_id = 2;
   string username = 3;
-  string workspace_id = 4; // UUID. Empty when workspace attribution is unknown.
+  // UUID of the workspace parsed from a workspace session token. Empty for any
+  // other token and for delegated requests, whose caller supplies its own
+  // workspace attribution.
+  string workspace_id = 4;
   string email = 5;
   // UUID. Always set from v1.6, which rejects a request when no organization
   // resolves. Earlier versions leave it empty in that case.

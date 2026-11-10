@@ -18,7 +18,7 @@ You can access these logs via `kubectl logs deployment/coder -n <coder-namespace
 > To disable human-readable logging, set `--log-human` (or `CODER_LOGGING_HUMAN`) to `/dev/null`.
 > An empty string does not disable logging.
 
-Events such as server errors, audit logs, user activities, and SSO & OpenID Connect logs are all captured in the `coderd` logs.
+Events such as server errors, audit logs, user activities, and single sign-on (SSO) & OpenID Connect logs are all captured in the `coderd` logs.
 
 ## `provisionerd` Logs
 
@@ -42,7 +42,7 @@ Startup script logs are also stored in the temporary directory of macOS and Linu
 
 ## Kubernetes Event Logs
 
-Sometimes, a workspace may take a while to start or even fail to start due to underlying events on the Kubernetes cluster such as a node being out of resources or a missing image.
+Sometimes, a workspace might take a while to start or even fail to start due to underlying events on the Kubernetes cluster such as a node being out of resources or a missing image.
 You can install [coder-logstream-kube](../integrations/kubernetes-logs.md) to stream Kubernetes events to the Coder UI.
 
 ![Kubernetes logs in Coder dashboard](../../images/admin/monitoring/logstream-kube.png)

@@ -423,6 +423,7 @@ func TestCreate(t *testing.T) {
 		}{
 			{match: "compute.main"},
 			{match: "smith (linux, i386)"},
+			{match: "coder ssh " + user.Username + "/their-workspace"},
 			{match: "Confirm create", write: "yes"},
 		}
 		for _, m := range matches {

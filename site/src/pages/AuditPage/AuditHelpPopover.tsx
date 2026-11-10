@@ -10,7 +10,12 @@ export const AuditHelpPopover: React.FC = () => {
 			<TooltipMessage>
 				An audit log is a record of events and changes made throughout a system.
 				<br />
-				<Link size="sm" href={docs("/admin/security/audit-logs")}>
+				<Link
+					size="sm"
+					href={docs("/admin/security/audit-logs")}
+					target="_blank"
+					rel="noreferrer"
+				>
 					Events we track
 				</Link>
 			</TooltipMessage>

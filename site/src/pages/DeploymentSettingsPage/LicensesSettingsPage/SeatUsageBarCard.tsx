@@ -61,7 +61,7 @@ export const SeatUsageBarCard: React.FC<SeatUsageBarCardProps> = ({
 						/>
 					</div>
 
-					<div className="flex items-start justify-between text-sm font-medium whitespace-nowrap">
+					<div className="flex items-start justify-between text-sm whitespace-nowrap">
 						<p className="m-0 text-content-primary">
 							<span className="text-content-secondary">Active: </span>
 							<span

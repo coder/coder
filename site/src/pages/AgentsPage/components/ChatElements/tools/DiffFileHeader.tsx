@@ -12,8 +12,8 @@ export function DiffFileHeader({
 	const stats = isDiff ? countChangedLines(file) : null;
 
 	return (
-		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-0 border-b border-l border-solid border-border bg-transparent py-2 pr-1.5 pl-2.5 font-sans text-sm">
-			<div className="flex min-w-0 items-baseline gap-2 overflow-hidden">
+		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-b border-solid border-border bg-transparent py-2 pr-1.5 pl-2.5 font-sans text-sm">
+			<div className="flex min-w-0 flex-1 items-baseline gap-2 truncate">
 				{isDiff && (
 					<span
 						className={cn(
@@ -29,12 +29,12 @@ export function DiffFileHeader({
 						{file.prevName}
 					</span>
 				)}
-				<span className="truncate text-xs font-medium text-content-primary">
+				<span className="truncate text-xs text-content-primary">
 					{file.name}
 				</span>
 			</div>
 			{stats && (stats.additions > 0 || stats.deletions > 0) && (
-				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs font-medium leading-5">
+				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs leading-5">
 					{stats.deletions > 0 && (
 						<span className="flex items-center bg-surface-git-deleted px-1 text-git-deleted-bright">
 							&minus;{stats.deletions}
