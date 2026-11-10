@@ -1,8 +1,6 @@
-import type { Theme } from ".";
-
 /** Reads theme CSS colors, optionally converting them to hex for Monaco. */
 export function readThemeColors(
-	mode: Theme["mode"],
+	mode: "dark" | "light",
 	properties: readonly string[],
 	format: "css" | "hex" = "css",
 ): Record<string, string> {
@@ -15,7 +13,8 @@ export function readThemeColors(
 		let context: CanvasRenderingContext2D | null = null;
 		if (format === "hex") {
 			const canvas = document.createElement("canvas");
-			canvas.width = canvas.height = 1;
+			canvas.width = 1;
+			canvas.height = 1;
 			context = canvas.getContext("2d", { willReadFrequently: true });
 			if (!context) {
 				throw new Error("A 2D canvas is required to resolve theme colors");

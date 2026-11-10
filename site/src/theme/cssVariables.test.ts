@@ -1,11 +1,27 @@
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
 	baseModeFor,
 	CONCRETE_THEMES,
 	type ConcreteThemeName,
 	DEFAULT_THEME,
 } from ".";
+
+// Use filesystem paths to avoid Vite's browser asset URL transform.
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const css = fs.readFileSync(path.resolve(moduleDir, "../index.css"), "utf8");
+const html = fs.readFileSync(
+	path.resolve(moduleDir, "../../index.html"),
+	"utf8",
+);
+const manifest: { theme_color?: string; background_color?: string } =
+	JSON.parse(
+		fs.readFileSync(
+			path.resolve(moduleDir, "../../static/manifest.json"),
+			"utf8",
+		),
+	);
 
 const REQUIRED_VARIABLES = [
 	"--content-primary",
@@ -71,11 +87,6 @@ const THEME_VARIABLES = [
 		"variable",
 		"brace",
 	].map((token) => `--editor-${token}`),
-];
-
-const THEME_CLASSES = [
-	":root",
-	...CONCRETE_THEMES.map((themeName) => `.${themeName}`),
 ];
 
 const COLORBLIND_THEME_CLASSES = [
@@ -149,10 +160,20 @@ function extractEffectiveBlock(css: string, selector: string): string | null {
 }
 
 describe("theme CSS variables", () => {
-	const cssPath = path.resolve(__dirname, "../index.css");
-	const css = fs.readFileSync(cssPath, "utf8");
+	describe(":root", () => {
+		const block = extractBlock(css, ":root");
 
-	for (const selector of THEME_CLASSES) {
+		it("has a rule block in index.css", () => {
+			expect(block).not.toBeNull();
+		});
+
+		it.each(REQUIRED_VARIABLES)("resolves %s", (variable) => {
+			expect(extractVariable(block ?? "", variable)).not.toBeNull();
+		});
+	});
+
+	for (const themeName of CONCRETE_THEMES) {
+		const selector = `.${themeName}`;
 		describe(selector, () => {
 			const block = extractBlock(css, selector);
 			const effectiveBlock = extractEffectiveBlock(css, selector);
@@ -161,14 +182,9 @@ describe("theme CSS variables", () => {
 				expect(block).not.toBeNull();
 			});
 
-			it.each(selector === ":root" ? REQUIRED_VARIABLES : THEME_VARIABLES)(
-				"resolves %s",
-				(variable) => {
-					expect(
-						extractVariable(effectiveBlock ?? "", variable),
-					).not.toBeNull();
-				},
-			);
+			it.each(THEME_VARIABLES)("resolves %s", (variable) => {
+				expect(extractVariable(effectiveBlock ?? "", variable)).not.toBeNull();
+			});
 		});
 	}
 
@@ -245,10 +261,6 @@ describe("theme CSS variables", () => {
 		};
 
 		it("gives each OS color scheme its theme's surface in index.html", () => {
-			const html = fs.readFileSync(
-				path.resolve(__dirname, "../../index.html"),
-				"utf8",
-			);
 			const metas = Array.from(
 				new DOMParser()
 					.parseFromString(html, "text/html")
@@ -274,13 +286,6 @@ describe("theme CSS variables", () => {
 
 		it("uses the default theme's surface in the PWA manifest", () => {
 			const surface = surfaceOf(`.${DEFAULT_THEME}`);
-			const manifest: { theme_color?: string; background_color?: string } =
-				JSON.parse(
-					fs.readFileSync(
-						path.resolve(__dirname, "../../static/manifest.json"),
-						"utf8",
-					),
-				);
 
 			expect(toRGB("manifest.json theme_color", manifest.theme_color)).toBe(
 				surface,

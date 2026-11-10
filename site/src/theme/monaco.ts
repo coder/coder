@@ -1,10 +1,9 @@
 import type * as monaco from "monaco-editor";
-import type { Theme } from ".";
 import { readThemeColors } from "./cssColors";
 
 /** Builds Monaco's hex color configuration from the Tailwind theme's CSS tokens. */
 export function getMonacoTheme(
-	mode: Theme["mode"],
+	mode: "dark" | "light",
 ): monaco.editor.IStandaloneThemeData {
 	const tokens = [
 		"foreground",

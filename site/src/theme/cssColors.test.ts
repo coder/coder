@@ -2,11 +2,12 @@ import { installThemeStyles } from "#/testHelpers/themeStyles";
 import { readThemeColors } from "./cssColors";
 import { getMonacoTheme } from "./monaco";
 
-vi.stubGlobal("jest", vi);
-await import("jest-canvas-mock");
-
 describe("native API theme colors", () => {
 	beforeAll(installThemeStyles);
+	beforeAll(async () => {
+		vi.stubGlobal("jest", vi);
+		await import("jest-canvas-mock");
+	});
 	beforeEach(() => {
 		vi.spyOn(
 			CanvasRenderingContext2D.prototype,
