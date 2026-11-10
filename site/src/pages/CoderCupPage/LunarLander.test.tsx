@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { LunarLander } from "./LunarLander";
 
@@ -29,29 +30,30 @@ function renderGame() {
 	vi.spyOn(window, "cancelAnimationFrame").mockImplementation(() => {});
 	const context = document.createElement("canvas").getContext("2d");
 	if (!context) throw new Error("Canvas context unavailable");
-	// jest-canvas-mock does not implement roundRect.
-	context.roundRect = vi.fn();
 	vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(context);
 	const fillText = vi.spyOn(context, "fillText");
 
+	const user = userEvent.setup();
 	const result = render(<LunarLander />);
 	const runFrame = (timestamp: number) => {
 		const frame = frames.shift();
 		if (!frame) throw new Error("Animation frame not scheduled");
 		frame(timestamp);
 	};
-	return { ...result, context, fillText, runFrame };
+	const sidebarDrawn = () =>
+		fillText.mock.calls.some(([text]) => text === "Employee");
+	return { ...result, context, fillText, runFrame, sidebarDrawn, user };
 }
 
-it("carries community membership from the roster into sidebar and suit drawing", () => {
-	const { context, fillText, runFrame, unmount } = renderGame();
+it("carries community membership from the roster into sidebar and suit drawing", async () => {
+	const { context, fillText, runFrame, unmount, user } = renderGame();
 	const suitColors = new Set<string | CanvasGradient | CanvasPattern>();
 	vi.spyOn(context, "stroke").mockImplementation(() => {
 		suitColors.add(context.strokeStyle);
 	});
 
 	runFrame(1);
-	fireEvent.keyDown(window, { key: "h" });
+	await user.keyboard("h");
 	runFrame(17);
 
 	expect(fillText).toHaveBeenCalledWith(
@@ -69,51 +71,28 @@ it("carries community membership from the roster into sidebar and suit drawing",
 	unmount();
 });
 
-it("waits on the start screen until a difficulty is chosen", () => {
-	const { context, fillText, runFrame, unmount } = renderGame();
-	const buttons: { x: number; y: number; w: number; h: number }[] = [];
-	vi.mocked(context.roundRect).mockImplementation((x, y, w, h) => {
-		buttons.push({ x, y, w, h });
-	});
-	const sidebarDrawn = () =>
-		fillText.mock.calls.some(([text]) => text === "Employee");
+it("waits on the start screen until a difficulty button is clicked", async () => {
+	const { runFrame, sidebarDrawn, unmount, user } = renderGame();
 
-	// No countdown: the start screen stays up indefinitely.
+	// The start screen stays up until a difficulty is chosen.
 	runFrame(1);
 	runFrame(60_000);
 	expect(sidebarDrawn()).toBe(false);
-	expect(fillText).toHaveBeenCalledWith(
-		"MODERATE",
-		expect.any(Number),
-		expect.any(Number),
-	);
 
-	const canvas = screen.getByRole("img", { name: /lunar lander game/i });
-	fireEvent.click(canvas, { clientX: 0, clientY: 0 });
+	await user.click(screen.getByRole("button", { name: "Easy (E)" }));
 	runFrame(60_017);
-	expect(sidebarDrawn()).toBe(false);
-
-	// Clicking the Easy button (drawn first) starts the game.
-	const easy = buttons[0];
-	fireEvent.click(canvas, {
-		clientX: easy.x + easy.w / 2,
-		clientY: easy.y + easy.h / 2,
-	});
-	runFrame(60_033);
 	expect(sidebarDrawn()).toBe(true);
+	expect(screen.queryByRole("button", { name: /easy/i })).toBeNull();
 	unmount();
 });
 
-it("starts the game with the uppercase keyboard shortcut", () => {
-	const { fillText, runFrame, unmount } = renderGame();
+it("starts the game with the uppercase keyboard shortcut", async () => {
+	const { runFrame, sidebarDrawn, unmount, user } = renderGame();
 	runFrame(1);
-	fireEvent.keyDown(window, { key: "M" });
+	await user.keyboard("M");
 	runFrame(17);
-	expect(fillText).toHaveBeenCalledWith(
-		"Employee",
-		expect.any(Number),
-		expect.any(Number),
-	);
+	expect(sidebarDrawn()).toBe(true);
+	expect(screen.queryByRole("button", { name: /moderate/i })).toBeNull();
 	unmount();
 });
 
@@ -123,10 +102,10 @@ it.each([
 	{ key: "h", warns: true },
 ])(
 	"velocity warning follows the difficulty chosen with $key",
-	({ key, warns }) => {
-		const { fillText, runFrame, unmount } = renderGame();
+	async ({ key, warns }) => {
+		const { fillText, runFrame, unmount, user } = renderGame();
 		runFrame(1);
-		fireEvent.keyDown(window, { key });
+		await user.keyboard(key);
 		runFrame(2);
 		fillText.mockClear();
 

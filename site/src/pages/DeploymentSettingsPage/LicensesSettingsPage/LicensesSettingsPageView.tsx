@@ -80,7 +80,7 @@ const LicensesSettingsPageView: React.FC<Props> = ({
 				colors={[theme.palette.primary.main, theme.palette.secondary.main]}
 			/>
 
-			<div className="flex flex-row gap-4 items-baseline justify-between">
+			<div className="flex gap-4 items-baseline justify-between">
 				<SettingsHeader>
 					<SettingsHeaderTitle>Licenses</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
@@ -88,7 +88,7 @@ const LicensesSettingsPageView: React.FC<Props> = ({
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 
-				<div className="flex flex-row gap-4">
+				<div className="flex gap-4">
 					<Button variant="outline" asChild>
 						<RouterLink to="/deployment/licenses/add">
 							<PlusIcon />

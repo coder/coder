@@ -721,8 +721,14 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 			return nil, xerrors.Errorf("get workspace dry-run resources: %w", err)
 		}
 
+		// Keep the owner in suggested commands when creating a workspace for
+		// someone else, so they resolve to the new workspace.
+		previewName := args.NewWorkspaceName
+		if args.Action == WorkspaceCreate && args.Owner != "" && args.Owner != codersdk.Me {
+			previewName = args.Owner + "/" + args.NewWorkspaceName
+		}
 		err = cliui.WorkspaceResources(inv.Stdout, resources, cliui.WorkspaceResourcesOptions{
-			WorkspaceName: args.NewWorkspaceName,
+			WorkspaceName: previewName,
 			// Since agents haven't connected yet, hiding this makes more sense.
 			HideAgentState: true,
 			Title:          "Workspace Preview",

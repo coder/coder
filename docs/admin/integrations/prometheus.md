@@ -66,9 +66,9 @@ scrape_configs:
           apps: "coder"
 ```
 
-If you run a [standalone AI gateway](../../ai-coder/ai-gateway/standalone.md), each replica exports its own metrics on its own listener.
+If you run a [standalone AI gateway](../../ai-governance/ai-gateway/standalone.md), each replica exports its own metrics on its own listener.
 Its Helm chart uses the same `0.0.0.0:2112` default as the `coder` chart, but sets up no scrape discovery.
-Refer to [AI gateway monitoring](../../ai-coder/ai-gateway/monitoring.md#kubernetes-discovery) for more details.
+Refer to [AI gateway monitoring](../../ai-governance/ai-gateway/monitoring.md#kubernetes-discovery) for more details.
 
 To use the Kubernetes Prometheus operator to scrape metrics, you will need to create a `ServiceMonitor` in your Coder deployment namespace.
 The following is an example `ServiceMonitor`.
@@ -424,5 +424,5 @@ Whether a metric is exposed as classic or native depends entirely on the Prometh
 * If native histograms are enabled, Prometheus ingests the high-resolution histogram.
 * If not, it falls back to the predefined buckets.
 
-⚠️ Important: classic and native histograms cannot be aggregated together. If Prometheus is switched from classic to native at a certain point in time, dashboards may need to account for that transition.
+⚠️ Important: classic and native histograms cannot be aggregated together. If Prometheus is switched from classic to native at a certain point in time, dashboards might need to account for that transition.
 For this reason, it’s recommended to follow [Prometheus’ migration guidelines](https://prometheus.io/docs/specs/native_histograms/#migration-considerations) when moving from classic to native histograms.

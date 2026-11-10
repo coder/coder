@@ -23,7 +23,7 @@ You grant quota allowances to [groups](./groups-roles.md), and Coder calculates 
 ## Establish costs
 
 Templates describe their cost through the `daily_cost` attribute in [`resource_metadata`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/metadata).
-Since costs are associated with resources, an offline workspace may consume less quota than an online workspace.
+Since costs are associated with resources, an offline workspace might consume less quota than an online workspace.
 
 A common use case is separating costs for a persistent volume and ephemeral compute:
 
