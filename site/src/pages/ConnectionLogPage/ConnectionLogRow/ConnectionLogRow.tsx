@@ -80,7 +80,7 @@ export const ConnectionLogRow: React.FC<ConnectionLogRowProps> = ({
 							/>
 						) : (
 							<Avatar>
-								<NetworkIcon className="h-full w-full p-1" />
+								<NetworkIcon className="size-full p-1" />
 							</Avatar>
 						)}
 

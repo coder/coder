@@ -247,7 +247,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 						) : (
 							<div
 								className={cn(
-									"w-full h-full flex items-center justify-center",
+									"size-full flex items-center justify-center",
 									"text-content-secondary text-sm font-medium",
 								)}
 							>
@@ -255,7 +255,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 							</div>
 						)
 					) : (
-						<div className="w-full h-full flex items-center justify-center">
+						<div className="size-full flex items-center justify-center">
 							<Spinner loading />
 						</div>
 					)}

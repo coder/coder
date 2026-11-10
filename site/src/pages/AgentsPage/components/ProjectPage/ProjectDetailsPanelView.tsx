@@ -109,10 +109,7 @@ export const ProjectDetailsPanelView: React.FC<
 
 	return (
 		<section aria-labelledby={headingId} className="flex flex-col gap-3">
-			<h2
-				id={headingId}
-				className="m-0 text-sm font-medium text-content-primary"
-			>
+			<h2 id={headingId} className="m-0 text-sm text-content-primary">
 				Details
 			</h2>
 			<div className="rounded-lg border border-border">
@@ -181,7 +178,7 @@ export const ProjectDetailsPanelView: React.FC<
 				>
 					<h3
 						id={instructionsHeadingId}
-						className="m-0 text-sm font-medium text-content-secondary"
+						className="m-0 text-sm text-content-secondary"
 					>
 						Instructions
 					</h3>

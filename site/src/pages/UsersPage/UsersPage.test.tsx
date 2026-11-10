@@ -68,6 +68,8 @@ describe("UsersPage", () => {
 				'status:active last_seen_after:"1970-01-01T00:00:00.000Z" last_seen_before:-30d',
 			),
 		);
-		expect(screen.getByRole("button", { name: /Over 30 days/ })).toBeVisible();
+		expect(
+			await screen.findByRole("button", { name: /Over 30 days/ }),
+		).toBeVisible();
 	});
 });

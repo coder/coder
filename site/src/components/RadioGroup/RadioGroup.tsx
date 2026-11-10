@@ -34,7 +34,7 @@ export const RadioGroupItem: React.FC<
 			{...props}
 		>
 			<RadioGroupPrimitive.Indicator className="flex items-center justify-center">
-				<CircleIcon className="absolute h-2.5 w-2.5 fill-surface-invert-primary" />
+				<CircleIcon className="absolute size-2.5 fill-surface-invert-primary" />
 			</RadioGroupPrimitive.Indicator>
 		</RadioGroupPrimitive.Item>
 	);
