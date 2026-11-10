@@ -404,7 +404,7 @@ const expectNoCopyMessageButtonForElement = (element: HTMLElement) => {
 	}
 	expect(
 		within(messageWrapper).queryByRole("button", {
-			name: "Copy message",
+			name: /^Copy message/,
 		}),
 	).not.toBeInTheDocument();
 };
@@ -1162,7 +1162,7 @@ export const UserMessageWithDownloadableFile: Story = {
 		);
 		expect(canvas.getByText("deployment-report.pdf")).toBeInTheDocument();
 		expect(
-			canvas.queryByRole("button", { name: "Copy message" }),
+			canvas.queryByRole("button", { name: /^Copy message/ }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -1391,7 +1391,7 @@ export const AssistantMessageWithImage: Story = {
 			canvas.queryByRole("link", { name: "Download generated-image.png" }),
 		).not.toBeInTheDocument();
 		expect(
-			canvas.queryByRole("button", { name: "Copy message" }),
+			canvas.queryByRole("button", { name: /^Copy message/ }),
 		).not.toBeInTheDocument();
 		const viewButton = canvas.getByRole("button", {
 			name: "View generated-image.png",
@@ -1434,7 +1434,7 @@ export const AssistantMessageWithUnnamedDownloadableFile: Story = {
 		expect(downloadLink).toHaveAttribute("download", "attachment.pdf");
 		expect(canvas.getByText("Attached file")).toBeInTheDocument();
 		expect(
-			canvas.queryByRole("button", { name: "Copy message" }),
+			canvas.queryByRole("button", { name: /^Copy message/ }),
 		).not.toBeInTheDocument();
 	},
 };
@@ -1717,10 +1717,10 @@ export const UserMessageJumpArrows: Story = {
 		}
 
 		const prevButtons = canvas.getAllByRole("button", {
-			name: "Jump to previous user message",
+			name: /^Jump to previous user message/,
 		});
 		const nextButtons = canvas.getAllByRole("button", {
-			name: "Jump to next user message",
+			name: /^Jump to next user message/,
 		});
 		expect(prevButtons).toHaveLength(3);
 		expect(nextButtons).toHaveLength(3);
@@ -1765,11 +1765,11 @@ export const UserMessageCopyButton: Story = {
 			}
 		}
 		const copyButton = canvas.getByRole("button", {
-			name: "Copy message",
+			name: /^Copy message/,
 		});
 		expect(copyButton).toBeInTheDocument();
 		const editButton = canvas.getByRole("button", {
-			name: "Edit message",
+			name: /^Edit message/,
 		});
 		expect(editButton).toBeInTheDocument();
 

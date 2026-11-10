@@ -8,8 +8,21 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
+import { clampContent } from "#/utils/text";
 import type { MessageAttachment } from "./messageHelpers";
 import { TurnAttachments } from "./TurnAttachments";
+
+// Every message repeats the same actions, so each action's name ends with the
+// start of the message it acts on. Markdown markers are dropped because screen
+// readers would read them aloud.
+const nameForMessage = (label: string, text: string | undefined) => {
+	const plain = text
+		?.replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
+		.replace(/[*`#>~]/g, "")
+		.replace(/\s+/g, " ")
+		.trim();
+	return plain ? `${label}: ${clampContent(plain, 40)}` : label;
+};
 
 type MessageActionBarProps = {
 	className?: string;
@@ -31,6 +44,7 @@ export const MessageActionBar: React.FC<MessageActionBarProps> = ({
 
 type MessageActionButtonProps = {
 	label: string;
+	messageText: string | undefined;
 	icon: React.ReactNode;
 	onClick: () => void;
 	disabled?: boolean;
@@ -38,6 +52,7 @@ type MessageActionButtonProps = {
 
 const MessageActionButton: React.FC<MessageActionButtonProps> = ({
 	label,
+	messageText,
 	icon,
 	onClick,
 	disabled,
@@ -48,7 +63,7 @@ const MessageActionButton: React.FC<MessageActionButtonProps> = ({
 				size="icon"
 				variant="subtle"
 				className="size-6"
-				aria-label={label}
+				aria-label={nameForMessage(label, messageText)}
 				disabled={disabled}
 				onClick={onClick}
 			>
@@ -92,6 +107,7 @@ export const UserMessageActions: React.FC<UserMessageActionsProps> = ({
 					{onEditUserMessage && (
 						<MessageActionButton
 							label="Edit message"
+							messageText={copyText}
 							icon={<PencilIcon />}
 							onClick={() => onEditUserMessage(message.id)}
 						/>
@@ -100,6 +116,7 @@ export const UserMessageActions: React.FC<UserMessageActionsProps> = ({
 						<>
 							<MessageActionButton
 								label="Jump to previous user message"
+								messageText={copyText}
 								icon={<ChevronLeftIcon />}
 								disabled={prevUserMessageKey === undefined}
 								onClick={() => {
@@ -110,6 +127,7 @@ export const UserMessageActions: React.FC<UserMessageActionsProps> = ({
 							/>
 							<MessageActionButton
 								label="Jump to next user message"
+								messageText={copyText}
 								icon={<ChevronRightIcon />}
 								disabled={nextUserMessageKey === undefined}
 								onClick={() => {
@@ -126,6 +144,7 @@ export const UserMessageActions: React.FC<UserMessageActionsProps> = ({
 				<CopyButton
 					text={copyText}
 					label="Copy message"
+					aria-label={nameForMessage("Copy message", copyText)}
 					className="size-6"
 					tooltipSide="bottom"
 				/>
@@ -159,6 +178,7 @@ export const AssistantMessageActions: React.FC<
 				<CopyButton
 					text={copyText}
 					label="Copy message"
+					aria-label={nameForMessage("Copy message", copyText)}
 					className="size-6"
 					tooltipSide="bottom"
 				/>

@@ -1383,7 +1383,7 @@ export const WithMessageHistory: Story = {
 			await user.click(modelSelector);
 		};
 		const editLastMessage = async () => {
-			const buttons = canvas.getAllByRole("button", { name: "Edit message" });
+			const buttons = canvas.getAllByRole("button", { name: /^Edit message/ });
 			await user.click(buttons[buttons.length - 1]);
 		};
 
@@ -1499,7 +1499,9 @@ export const StaleEditedModelUsesUsableLocalModel: Story = {
 			}),
 		).not.toBeInTheDocument();
 		await userEvent.click(modelSelector);
-		await userEvent.click(canvas.getByRole("button", { name: "Edit message" }));
+		await userEvent.click(
+			canvas.getByRole("button", { name: /^Edit message/ }),
+		);
 		await userEvent.click(canvas.getByRole("button", { name: "Save Edit" }));
 		await waitFor(() => {
 			expect(API.experimental.editChatMessage).toHaveBeenCalledTimes(1);
@@ -3537,7 +3539,7 @@ export const EditAppliesMCPServerSelection: Story = {
 		});
 
 		await userEvent.click(
-			await canvas.findByRole("button", { name: "Edit message" }),
+			await canvas.findByRole("button", { name: /^Edit message/ }),
 		);
 		await userEvent.click(canvas.getByRole("button", { name: "More options" }));
 		await userEvent.click(

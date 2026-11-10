@@ -57,6 +57,7 @@ type ChatSharingPopoverContentProps = ChatShareButtonProps & {
 };
 
 type MemberRowMenuProps = {
+	memberName: string;
 	disabled: boolean;
 	onRemove: () => void;
 };
@@ -68,6 +69,7 @@ const ReadRoleBadge: React.FC = () => (
 );
 
 const MemberRowMenu: React.FC<MemberRowMenuProps> = ({
+	memberName,
 	disabled,
 	onRemove,
 }) => (
@@ -76,7 +78,7 @@ const MemberRowMenu: React.FC<MemberRowMenuProps> = ({
 			<Button
 				size="icon-lg"
 				variant="subtle"
-				aria-label="Open menu"
+				aria-label={`Open menu for ${memberName}`}
 				disabled={disabled}
 			>
 				<EllipsisVerticalIcon aria-hidden="true" />
@@ -184,12 +186,14 @@ const CopyChatLinkButton: React.FC<CopyChatLinkButtonProps> = ({ chatId }) => {
 
 type MobileMemberRowProps = {
 	children: React.ReactNode;
+	memberName: string;
 	disabled: boolean;
 	onRemove: () => void;
 };
 
 const MobileMemberRow: React.FC<MobileMemberRowProps> = ({
 	children,
+	memberName,
 	disabled,
 	onRemove,
 }) => (
@@ -197,7 +201,11 @@ const MobileMemberRow: React.FC<MobileMemberRowProps> = ({
 		<div className="min-w-0 flex-1">{children}</div>
 		<div className="flex shrink-0 items-center gap-2">
 			<ReadRoleBadge />
-			<MemberRowMenu disabled={disabled} onRemove={onRemove} />
+			<MemberRowMenu
+				memberName={memberName}
+				disabled={disabled}
+				onRemove={onRemove}
+			/>
 		</div>
 	</div>
 );
@@ -359,6 +367,7 @@ export const ChatSharingPopoverContent: React.FC<
 								{groups.map((group) => (
 									<MobileMemberRow
 										key={group.id}
+										memberName={group.display_name || group.name}
 										disabled={isMutating}
 										onRemove={() => handleRemoveGroup(group)}
 									>
@@ -368,6 +377,7 @@ export const ChatSharingPopoverContent: React.FC<
 								{users.map((user) => (
 									<MobileMemberRow
 										key={user.id}
+										memberName={user.username}
 										disabled={isMutating}
 										onRemove={() => handleRemoveUser(user)}
 									>
@@ -405,6 +415,7 @@ export const ChatSharingPopoverContent: React.FC<
 												</TableCell>
 												<TableCell className="py-2 w-[10%]">
 													<MemberRowMenu
+														memberName={group.display_name || group.name}
 														disabled={isMutating}
 														onRemove={() => handleRemoveGroup(group)}
 													/>
@@ -421,6 +432,7 @@ export const ChatSharingPopoverContent: React.FC<
 												</TableCell>
 												<TableCell className="py-2 w-[10%]">
 													<MemberRowMenu
+														memberName={user.username}
 														disabled={isMutating}
 														onRemove={() => handleRemoveUser(user)}
 													/>
