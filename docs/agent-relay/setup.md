@@ -249,15 +249,15 @@ The module READMEs for [`coder/agent-relay-claude-code`](https://registry.coder.
   Move setup steps that the worker depends on into `coder_script` resources.
 - If a prerequisite fails or times out, Coder skips the module's scripts and the worker never starts.
   About a minute later, a Cursor request fails.
-  A Claude Code work order is handed back to Anthropic once, which rebuilds the workspace, and the session fails when that second setup fails too.
+  For Claude Code, Agent Relay hands the work order back to Anthropic once, rebuilds the workspace when Anthropic redelivers it, and fails the session if the second setup fails too.
   To start the worker even when setup fails, set `requires = "completion"` on the rule.
 - The session waits while prerequisites run, so set a `timeout` on each prerequisite.
-  The `timeout` is in seconds and bounds one script, so the `120` in the example gives its setup script two minutes.
+  The `timeout` is in seconds and bounds one script.
   Choose the timeouts so that the build plus the sum of the setup timeouts fits the pool's budget:
   - For a Cursor pool, the budget is the reaper's [startup grace](./configuration.md#--reap-startup-grace), 15&nbsp;minutes from the start of the build by default.
     Past it, Agent Relay fails the request and deletes the workspace.
   - For a Claude Code pool, the budget is the pool's [build budget](./claude-code.md#build-budget), 5&nbsp;minutes by default and at most 15, counted from when Anthropic issues the work order.
-    If setup can't fit it, the session is never served: Anthropic redelivers the work order once, and the rebuilt workspace runs the same setup and fails it too.
+    If the build and setup don't fit it, the session is never served: Anthropic offers the session again, and each new build runs the same setup from the start.
 
 ## Step 4: Configure provider pools
 
@@ -399,7 +399,7 @@ Agent Relay's reaper reads it on each sweep:
 - When the worker exits normally, Agent Relay deletes the workspace.
 - When the worker fails or disappears, Agent Relay deletes the workspace and records the failure.
 - When a build fails or is canceled, Agent Relay deletes the workspace on the next sweep.
-- Agent Relay deletes a workspace that is still building or not started after 15&nbsp;minutes.
+- Agent Relay deletes a workspace that is still building or not started after the [startup grace](./configuration.md#--reap-startup-grace), 15&nbsp;minutes by default.
 
 Keep these Coder settings in mind for relay templates:
 
