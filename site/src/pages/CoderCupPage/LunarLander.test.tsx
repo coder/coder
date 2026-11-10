@@ -1,4 +1,5 @@
-import { render } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { LunarLander } from "./LunarLander";
 
@@ -16,7 +17,7 @@ afterEach(() => {
 	vi.restoreAllMocks();
 });
 
-it("carries community membership from the roster into sidebar and suit drawing", () => {
+function renderGame() {
 	vi.spyOn(Math, "random").mockReturnValue(0.5);
 	vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
 		new DOMRect(0, 0, 1200, 800),
@@ -31,18 +32,29 @@ it("carries community membership from the roster into sidebar and suit drawing",
 	if (!context) throw new Error("Canvas context unavailable");
 	vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(context);
 	const fillText = vi.spyOn(context, "fillText");
+
+	const user = userEvent.setup();
+	const result = render(<LunarLander />);
+	const runFrame = (timestamp: number) => {
+		const frame = frames.shift();
+		if (!frame) throw new Error("Animation frame not scheduled");
+		frame(timestamp);
+	};
+	const sidebarDrawn = () =>
+		fillText.mock.calls.some(([text]) => text === "Employee");
+	return { ...result, context, fillText, runFrame, sidebarDrawn, user };
+}
+
+it("carries community membership from the roster into sidebar and suit drawing", async () => {
+	const { context, fillText, runFrame, unmount, user } = renderGame();
 	const suitColors = new Set<string | CanvasGradient | CanvasPattern>();
 	vi.spyOn(context, "stroke").mockImplementation(() => {
 		suitColors.add(context.strokeStyle);
 	});
 
-	const { unmount } = render(<LunarLander />);
-	// Advance past the intro, then draw a normal game frame.
-	for (const timestamp of [1, 8001, 8017]) {
-		const frame = frames.shift();
-		if (!frame) throw new Error("Animation frame not scheduled");
-		frame(timestamp);
-	}
+	runFrame(1);
+	await user.keyboard("h");
+	runFrame(17);
 
 	expect(fillText).toHaveBeenCalledWith(
 		"Nova Moonfern (community)",
@@ -58,3 +70,51 @@ it("carries community membership from the roster into sidebar and suit drawing",
 	expect(suitColors).toContain("#888888");
 	unmount();
 });
+
+it("waits on the start screen until a difficulty button is clicked", async () => {
+	const { runFrame, sidebarDrawn, unmount, user } = renderGame();
+
+	// The start screen stays up until a difficulty is chosen.
+	runFrame(1);
+	runFrame(60_000);
+	expect(sidebarDrawn()).toBe(false);
+
+	await user.click(screen.getByRole("button", { name: "Easy (E)" }));
+	runFrame(60_017);
+	expect(sidebarDrawn()).toBe(true);
+	expect(screen.queryByRole("button", { name: /easy/i })).toBeNull();
+	unmount();
+});
+
+it("starts the game with the uppercase keyboard shortcut", async () => {
+	const { runFrame, sidebarDrawn, unmount, user } = renderGame();
+	runFrame(1);
+	await user.keyboard("M");
+	runFrame(17);
+	expect(sidebarDrawn()).toBe(true);
+	expect(screen.queryByRole("button", { name: /moderate/i })).toBeNull();
+	unmount();
+});
+
+it.each([
+	{ key: "e", warns: false },
+	{ key: "m", warns: false },
+	{ key: "h", warns: true },
+])(
+	"velocity warning follows the difficulty chosen with $key",
+	async ({ key, warns }) => {
+		const { fillText, runFrame, unmount, user } = renderGame();
+		runFrame(1);
+		await user.keyboard(key);
+		runFrame(2);
+		fillText.mockClear();
+
+		// Two seconds of free fall at 10 px/s^2 reaches 20 px/s: above the
+		// Hard limit (15) and below Moderate (30) and Easy (50).
+		runFrame(2002);
+
+		const warned = fillText.mock.calls.some(([text]) => text === "⚠ WARNING");
+		expect(warned).toBe(warns);
+		unmount();
+	},
+);
