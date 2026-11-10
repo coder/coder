@@ -122,10 +122,7 @@ export const OrganizationProvisionersPageView: React.FC<
 								});
 							}}
 						/>
-						<label
-							htmlFor="offline-filter"
-							className="text-sm font-medium leading-none"
-						>
+						<label htmlFor="offline-filter" className="text-sm leading-none">
 							Include offline provisioners
 						</label>
 					</div>

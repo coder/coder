@@ -35,7 +35,7 @@ export const TemplateExampleCard: React.FC<TemplateExampleCardProps> = ({
 				<div className="size-8 shrink-0 pt-1">
 					<ExternalImage
 						src={example.icon}
-						className="w-full h-full object-contain"
+						className="size-full object-contain"
 					/>
 				</div>
 

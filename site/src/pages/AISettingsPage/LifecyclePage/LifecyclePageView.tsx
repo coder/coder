@@ -100,7 +100,7 @@ export const LifecyclePageView: React.FC<LifecyclePageViewProps> = ({
 	isSaveDebugLoggingError,
 }) => {
 	return (
-		<div className="flex max-w-[1100px] flex-col gap-4">
+		<div className="flex max-w-275 flex-col gap-4">
 			<SettingsHeader>
 				<SettingsHeaderTitle>Lifecycle</SettingsHeaderTitle>
 				<SettingsHeaderDescription>

@@ -16,7 +16,7 @@ const meta: Meta<typeof Select> = {
 	args: {
 		children: (
 			<>
-				<SelectTrigger className="w-[180px]">
+				<SelectTrigger className="w-45">
 					<SelectValue placeholder="Select a fruit" />
 				</SelectTrigger>
 				<SelectContent>

@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"slices"
 	"strings"
 	"sync"
@@ -32,6 +34,7 @@ import (
 	aidmcp "github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/safedial"
 )
 
@@ -634,7 +637,7 @@ func connectOne(
 		}
 
 		tools = append(
-			tools, newMCPTool(srv.ID, srv.Slug, mcpTool, session, srv.ModelIntent, redactor, limits.resultBytes),
+			tools, newMCPTool(srv.ID, srv.Slug, mcpTool, session, srv.ModelIntent, redactor, limits.resultBytes, limits.resultTextOnly),
 		)
 	}
 
@@ -665,13 +668,14 @@ const (
 	maxInlineToolResultBytes      = 256 << 10
 )
 
-// Cap model-visible tool definitions and persisted tool results even
-// for in-process servers.
+// Cap model-visible tool definitions and persisted tool result text even
+// for in-process servers. Their media is trusted, so only the chatloop
+// tool media cap bounds it.
 const (
 	maxInProcessTools                = 64
 	maxInProcessToolDefinitionBytes  = 64 << 10
 	maxInProcessToolDefinitionsBytes = 256 << 10
-	maxInProcessToolResultBytes      = 256 << 10
+	maxInProcessToolResultTextBytes  = 256 << 10
 )
 
 type toolLimits struct {
@@ -679,6 +683,8 @@ type toolLimits struct {
 	definitionBytes  int
 	definitionsBytes int
 	resultBytes      int
+	// resultTextOnly excludes media from resultBytes.
+	resultTextOnly bool
 }
 
 func (kind connectionKind) toolLimits() (toolLimits, bool) {
@@ -695,7 +701,8 @@ func (kind connectionKind) toolLimits() (toolLimits, bool) {
 			tools:            maxInProcessTools,
 			definitionBytes:  maxInProcessToolDefinitionBytes,
 			definitionsBytes: maxInProcessToolDefinitionsBytes,
-			resultBytes:      maxInProcessToolResultBytes,
+			resultBytes:      maxInProcessToolResultTextBytes,
+			resultTextOnly:   true,
 		}, true
 	default:
 		return toolLimits{}, false
@@ -1076,9 +1083,9 @@ func newServerRedactor(kind connectionKind, srv Server) secretRedactor {
 	}
 	values := []string{srv.URL}
 	if u, err := url.Parse(srv.URL); err == nil {
-		for _, path := range []string{u.EscapedPath(), u.Path} {
-			values = append(values, path)
-			values = append(values, strings.Split(path, "/")...)
+		for _, urlPath := range []string{u.EscapedPath(), u.Path} {
+			values = append(values, urlPath)
+			values = append(values, strings.Split(urlPath, "/")...)
 		}
 	}
 	for _, value := range srv.Headers {
@@ -1170,6 +1177,7 @@ func (r secretRedactor) redactResponse(response fantasy.ToolResponse) fantasy.To
 	response.Content = r.redactString(response.Content)
 	response.Data = r.redactBytes(response.Data)
 	response.MediaType = r.redactString(response.MediaType)
+	response.Filename = r.redactString(response.Filename)
 	response.Metadata = r.redactString(response.Metadata)
 	return response
 }
@@ -1188,7 +1196,9 @@ type mcpToolWrapper struct {
 	session      *mcp.ClientSession
 	redactor     secretRedactor
 	// maxResultBytes caps the serialized tool result; 0 means no cap.
-	maxResultBytes  int
+	maxResultBytes int
+	// resultTextOnly excludes media from maxResultBytes.
+	resultTextOnly  bool
 	providerOptions fantasy.ProviderOptions
 }
 
@@ -1208,6 +1218,7 @@ func newMCPTool(
 	modelIntent bool,
 	redactor secretRedactor,
 	maxResultBytes int,
+	resultTextOnly bool,
 ) *mcpToolWrapper {
 	properties, required := splitInputSchema(tool.InputSchema)
 	// Model-visible fields are redacted once here. originalName is
@@ -1224,6 +1235,7 @@ func newMCPTool(
 		session:        session,
 		redactor:       redactor,
 		maxResultBytes: maxResultBytes,
+		resultTextOnly: resultTextOnly,
 	}
 }
 
@@ -1325,15 +1337,19 @@ func (t *mcpToolWrapper) Run(
 	if err != nil {
 		resp = fantasy.NewTextErrorResponse(t.redactor.redactString(err.Error()))
 	} else {
-		// Structured content is redacted before convertCallResult encodes it
+		// Structured content is redacted before ConvertCallResult encodes it
 		// as JSON, where escaping would hide a secret from the string match.
 		if result != nil {
 			result.StructuredContent = t.redactor.redactValue(result.StructuredContent)
 		}
-		resp = t.redactor.redactResponse(convertCallResult(result))
+		resp = t.redactor.redactResponse(ConvertCallResult(result))
 	}
-	// Measure the result as the model receives it: Data is sent base64-encoded.
-	if t.maxResultBytes > 0 && len(resp.Content)+len(resp.MediaType)+base64.StdEncoding.EncodedLen(len(resp.Data)) > t.maxResultBytes {
+	resultBytes := len(resp.Content)
+	if !t.resultTextOnly {
+		// Measure the result as the model receives it: Data is sent base64-encoded.
+		resultBytes += len(resp.MediaType) + base64.StdEncoding.EncodedLen(len(resp.Data))
+	}
+	if t.maxResultBytes > 0 && resultBytes > t.maxResultBytes {
 		return fantasy.NewTextErrorResponse(fmt.Sprintf(
 			"tool result exceeded maximum size of %d bytes", t.maxResultBytes,
 		)), nil
@@ -1381,9 +1397,11 @@ func unwrapModelIntent(input string) string {
 	return input
 }
 
+// ConvertCallResult converts an MCP tool result into a fantasy tool response.
 // fantasy permits one media payload per response, so only the first eligible
-// binary block is kept alongside the text.
-func convertCallResult(
+// binary block is kept alongside the text. Callers apply redaction and size
+// limits.
+func ConvertCallResult(
 	result *mcp.CallToolResult,
 ) fantasy.ToolResponse {
 	if result == nil {
@@ -1439,6 +1457,7 @@ func convertCallResult(
 						Type:      blobType,
 						Data:      c.Resource.Blob,
 						MediaType: c.Resource.MIMEType,
+						Filename:  resourceFilename(c.Resource.URI, c.Resource.MIMEType),
 						IsError:   result.IsError,
 					}
 					binaryResult = &res
@@ -1488,6 +1507,48 @@ func convertCallResult(
 	resp := fantasy.NewTextResponse(strings.Join(textParts, "\n"))
 	resp.IsError = result.IsError
 	return resp
+}
+
+// resourceFilename returns the last element of an MCP resource URI path,
+// with the canonical extension of mediaType appended when the name's own
+// extension does not map to mediaType, because providers such as OpenAI
+// detect the file type from the extension. The name follows the rule for
+// uploaded file names, chatfiles.NormalizeStoredFileName, but truncation
+// shortens only the stem so that the extension stays. It returns "" when
+// the URI does not name a file or mediaType has no known extension.
+func resourceFilename(uri, mediaType string) string {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return ""
+	}
+	name := path.Base(u.Path)
+	if name == "." || name == "/" {
+		return ""
+	}
+	baseType, _, err := mime.ParseMediaType(mediaType)
+	if err != nil {
+		return ""
+	}
+	ext := path.Ext(name)
+	// TypeByExtension adds a charset parameter to text types.
+	if extType, _, err := mime.ParseMediaType(mime.TypeByExtension(ext)); err == nil && extType == baseType {
+		name = strings.TrimSuffix(name, ext)
+	} else if baseType == "application/pdf" {
+		ext = ".pdf"
+	} else {
+		exts, err := mime.ExtensionsByType(baseType)
+		if err != nil || len(exts) == 0 {
+			return ""
+		}
+		ext = exts[0]
+	}
+	// NormalizeStoredFileName returns valid UTF-8, so ToValidUTF8 drops only
+	// a rune that the cut splits.
+	stem := chatfiles.NormalizeStoredFileName(name)
+	if limit := chatfiles.MaxStoredFileNameBytes - len(ext); len(stem) > limit {
+		stem = strings.ToValidUTF8(stem[:limit], "")
+	}
+	return stem + ext
 }
 
 // RefreshResult contains the outcome of an OAuth2 token refresh
