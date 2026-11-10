@@ -226,7 +226,7 @@ resource "coder_script" "setup" {
   agent_id     = coder_agent.main.id
   display_name = "Workspace setup"
   run_on_start = true
-  timeout      = 300
+  timeout      = 120
   script       = file("${path.module}/setup.sh")
 }
 
@@ -253,8 +253,11 @@ The module READMEs for [`coder/agent-relay-claude-code`](https://registry.coder.
   A Cursor request fails.
   A Claude Code work order is handed back to Anthropic once, which rebuilds the workspace, and the session fails when that second setup fails too.
   To start the worker even when setup fails, set `requires = "completion"` on the rule.
-- The session waits while prerequisites run.
-  Set a `timeout` on each prerequisite, and keep setup well under 15&nbsp;minutes, after which Agent Relay deletes a workspace whose worker hasn't started.
+- The session waits while prerequisites run, so set a `timeout` on each prerequisite.
+  The build and setup together must fit the provider's budget:
+  - For a Cursor pool, keep them well under Agent Relay's startup grace of 15&nbsp;minutes, after which it deletes a workspace whose worker hasn't started.
+  - For a Claude Code pool, keep them under the pool's `dispatch_deadline`, 5&nbsp;minutes by default and at most 15, counted from when Anthropic issues the work order.
+    Past it, Anthropic redelivers the work order and Agent Relay rebuilds the workspace, so setup that can't fit reruns on every delivery and the session is never served.
 
 ## Step 4: Configure provider pools
 
