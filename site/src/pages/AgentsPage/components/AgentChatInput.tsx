@@ -1461,7 +1461,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				{warning && (
 					<div
 						id={warningId}
-						className="flex items-start gap-1.5 border-b border-border/70 px-3 py-1.5 text-xs font-medium text-content-warning"
+						className="flex items-start gap-1.5 border-b border-border/70 px-3 py-1.5 text-xs text-content-warning"
 					>
 						<TriangleAlertIcon className="mt-px size-3.5 shrink-0" />
 						{warning}
@@ -1469,7 +1469,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 				)}
 				{isEditingMessage && (
 					<div className="flex items-center justify-between border-b border-border/70 px-3 py-1.5">
-						<span className="flex items-center gap-1.5 text-xs font-medium text-content-warning">
+						<span className="flex items-center gap-1.5 text-xs text-content-warning">
 							<PencilIcon className="size-3.5" />
 							{editingKind === "queued"
 								? "Editing a queued message. It is not sent until you save or cancel."
@@ -1760,7 +1760,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 						{isModelCatalogLoading ? (
 							<Skeleton className="h-6 w-24 rounded" />
 						) : isReadOnlyView ? (
-							<span className="inline-flex min-w-0 shrink items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary">
+							<span className="inline-flex min-w-0 shrink items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs text-content-secondary">
 								{readOnlyModel && (
 									<ProviderIcon
 										provider={readOnlyModel.provider}

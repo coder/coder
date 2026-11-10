@@ -201,12 +201,12 @@ function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
 						{fileDiff.prevName}
 					</span>
 				)}
-				<span className="truncate text-xs font-medium text-content-primary">
+				<span className="truncate text-xs text-content-primary">
 					{fileDiff.name}
 				</span>
 			</div>
 			{(additions > 0 || deletions > 0) && (
-				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs font-medium leading-5">
+				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs leading-5">
 					{deletions > 0 && (
 						<span className="flex items-center bg-surface-git-deleted px-1 text-git-deleted-bright">
 							&minus;{deletions}
@@ -293,7 +293,7 @@ function DiffFileTree({
 	return (
 		<FileTree
 			model={model}
-			className="block h-full min-h-0 w-full"
+			className="block size-full min-h-0"
 			style={fileTreeStyle}
 		/>
 	);

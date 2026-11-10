@@ -249,7 +249,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 											!value && "bg-surface-secondary",
 										)}
 									>
-										<span className="min-w-0 truncate text-left text-xs font-medium leading-4.5 text-content-secondary">
+										<span className="min-w-0 truncate text-left text-xs leading-4.5 text-content-secondary">
 											{unsetLabel}
 										</span>
 										<CheckIcon
@@ -345,7 +345,7 @@ const ReasoningEffortRow: React.FC<ReasoningEffortRowProps> = ({
 	return (
 		<div className="flex items-center gap-3 border-0 border-t border-solid border-border px-3 py-2">
 			<div className="flex shrink-0 items-center gap-1">
-				<span className="text-xs font-medium leading-4.5 text-content-secondary">
+				<span className="text-xs leading-4.5 text-content-secondary">
 					Effort
 				</span>
 				<Tooltip>
@@ -417,11 +417,11 @@ const ModelOptionItem: React.FC<ModelOptionItemProps> = ({
 				isSelected && "bg-surface-secondary",
 			)}
 		>
-			<span className="min-w-0 truncate text-left text-xs font-medium leading-4.5 text-content-secondary">
+			<span className="min-w-0 truncate text-left text-xs leading-4.5 text-content-secondary">
 				{option.displayName}
 			</span>
 			{option.contextLimit != null && option.contextLimit > 0 && (
-				<span className="shrink-0 truncate text-left text-xs font-medium leading-4.5 text-content-secondary">
+				<span className="shrink-0 truncate text-left text-xs leading-4.5 text-content-secondary">
 					({formatContextLimit(option.contextLimit)})
 				</span>
 			)}

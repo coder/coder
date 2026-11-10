@@ -347,7 +347,7 @@ export const ChatSharingPopoverContent: React.FC<
 
 						{isEmpty ? (
 							<div className="flex min-h-44 flex-col items-center justify-center px-6 py-6 text-center">
-								<h4 className="m-0 text-sm font-medium text-content-secondary">
+								<h4 className="m-0 text-sm text-content-secondary">
 									No shared members or groups yet
 								</h4>
 								<p className="m-0 mt-2 text-sm text-content-secondary">
