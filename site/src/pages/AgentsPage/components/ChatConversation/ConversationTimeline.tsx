@@ -88,7 +88,7 @@ const TimelineNotice: React.FC<{ children?: React.ReactNode }> = ({
 		className="relative my-1 w-full rounded-lg border border-solid border-border bg-surface-secondary p-4 text-left"
 	>
 		<div className="flex min-w-0 flex-1 items-start gap-3 text-sm">
-			<InfoIcon className="size-icon-sm mt-[3px] text-highlight-sky" />
+			<InfoIcon className="size-icon-sm mt-0.75 text-highlight-sky" />
 			<div className="min-w-0 flex-1">{children}</div>
 		</div>
 	</div>

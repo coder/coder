@@ -50,7 +50,7 @@ export const SyntaxHighlighter: React.FC<SyntaxHighlighterProps> = ({
 	};
 
 	return (
-		<div data-pixel="ignore" className="max-h-[560px] overflow-auto">
+		<div data-pixel="ignore" className="max-h-140 overflow-auto">
 			{compareWith && value !== compareWith ? (
 				<MultiFileDiff
 					oldFile={{ ...file, contents: compareWith }}

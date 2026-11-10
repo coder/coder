@@ -120,7 +120,7 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 										<button type="button">Unavailable</button>
 									</Badge>
 								</TooltipTrigger>
-								<TooltipContent side="bottom" className="max-w-[240px]">
+								<TooltipContent side="bottom" className="max-w-60">
 									{providerNotice}
 								</TooltipContent>
 							</Tooltip>
