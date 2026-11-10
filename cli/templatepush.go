@@ -225,6 +225,8 @@ func (r *RootCmd) templatePush() *serpent.Command {
 					inv.Stdout, "\n"+cliui.Wrap(
 						"The "+cliui.Keyword(name)+" template has been created at "+cliui.Timestamp(time.Now())+"! "+
 							"Developers can provision a workspace with this template using:")+"\n")
+				_, _ = fmt.Fprintln(inv.Stdout, "  "+cliui.Code(fmt.Sprintf("coder create --template=%q --org=%q [workspace name]", name, organization.Name)))
+				_, _ = fmt.Fprintln(inv.Stdout)
 
 			// Set the new template version as the active version for an existing template
 			case activate:
