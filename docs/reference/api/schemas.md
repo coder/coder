@@ -140,7 +140,7 @@
 | `message`              | string                                                               | false    |              |                                                                           |
 | `needs_user_attention` | boolean                                                              | false    |              | Deprecated: this field is unused and will be removed in a future version. |
 | `state`                | [codersdk.WorkspaceAppStatusState](#codersdkworkspaceappstatusstate) | false    |              |                                                                           |
-| `uri`                  | string                                                               | false    |              |                                                                           |
+| `uri`                  | string                                                               | false    |              | Only http, https, and file URIs are kept; others are dropped.             |
 
 ## agentsdk.PatchLogs
 

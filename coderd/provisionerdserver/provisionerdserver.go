@@ -2948,6 +2948,13 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 			appSlugs[slug] = struct{}{}
 
+			// Don't rely on the provisioner having validated the URL.
+			if app.External && app.Url != "" {
+				if err := provisioner.ValidateExternalURL(app.Url); err != nil {
+					return xerrors.Errorf("invalid external url %q for app %q: %w", app.Url, slug, err)
+				}
+			}
+
 			health := database.WorkspaceAppHealthDisabled
 			if app.Healthcheck == nil {
 				app.Healthcheck = &sdkproto.Healthcheck{}
