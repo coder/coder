@@ -579,9 +579,14 @@ func TestWorkspaceStats(t *testing.T) {
 	}
 
 	clock := quartz.NewMock(t)
+	// The ticker is created after the first collect, so releasing the trapped
+	// call guarantees the first collect has finished and the ticker is armed.
+	tickerTrap := clock.Trap().TickerFunc("workspace_stats")
+	defer tickerTrap.Close()
 	closeFunc, err := prometheusmetrics.WorkspaceStats(ctx, testutil.Logger(t), clock, reg, db, time.Minute)
 	require.NoError(t, err)
 	t.Cleanup(closeFunc)
+	tickerTrap.MustWait(ctx).MustRelease(ctx)
 	requireLastUsed(running, stopped, prebuild)
 
 	stopped.LastUsedAt = now
