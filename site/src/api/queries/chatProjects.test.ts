@@ -1,10 +1,12 @@
-import { MutationObserver } from "react-query";
+import { MutationObserver, type QueryClient } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type { ChatProjectRole } from "#/api/typesGenerated";
 import { MockChatProject, mockApiError } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import {
+	archiveChatProject,
+	archivedChatProjectsKey,
 	chatProject,
 	chatProjectACLKey,
 	chatProjectInstructionsKey,
@@ -12,6 +14,7 @@ import {
 	createChatProject,
 	deleteChatProject,
 	setChatProjectRole,
+	unarchiveChatProject,
 	updateChatProject,
 } from "./chatProjects";
 import {
@@ -19,6 +22,7 @@ import {
 	chatListFamilyKey,
 	chatMessagesKey,
 	chatSearchFamilyKey,
+	chatsByWorkspace,
 } from "./chats";
 
 describe("chatProject", () => {
@@ -74,6 +78,58 @@ describe("chat project mutations", () => {
 		}
 		// A chat's nested queries do not depend on its project.
 		expect(isInvalidated(queryClient, messagesKey)).toBe(false);
+	});
+
+	it("moves a project between the active and archived lists and refreshes its chats", async () => {
+		const other = { ...MockChatProject, id: "other-project" };
+		const archived = {
+			...MockChatProject,
+			archived_at: "2026-11-10T00:00:00Z",
+		};
+		vi.spyOn(API.experimental, "archiveChatProject").mockResolvedValue(
+			archived,
+		);
+		vi.spyOn(API.experimental, "unarchiveChatProject").mockResolvedValue(
+			MockChatProject,
+		);
+		const cases = [
+			{
+				run: (queryClient: QueryClient) =>
+					new MutationObserver(
+						queryClient,
+						archiveChatProject(queryClient),
+					).mutate({ project: MockChatProject, stopActiveChats: false }),
+				before: { active: [MockChatProject, other], archived: [] },
+				after: { active: [other], archived: [archived] },
+			},
+			{
+				run: (queryClient: QueryClient) =>
+					new MutationObserver(
+						queryClient,
+						unarchiveChatProject(queryClient),
+					).mutate(archived),
+				before: { active: [other], archived: [archived] },
+				after: { active: [MockChatProject, other], archived: [] },
+			},
+		];
+		for (const { run, before, after } of cases) {
+			const queryClient = seed();
+			const byWorkspaceKey = chatsByWorkspace(["workspace-1"]).queryKey;
+			queryClient.setQueryData(byWorkspaceKey, {});
+			queryClient.setQueryData(chatProjectsKey, before.active);
+			queryClient.setQueryData(archivedChatProjectsKey, before.archived);
+
+			await run(queryClient);
+
+			expect(queryClient.getQueryData(chatProjectsKey)).toEqual(after.active);
+			expect(queryClient.getQueryData(archivedChatProjectsKey)).toEqual(
+				after.archived,
+			);
+			for (const key of [...chatKeys, byWorkspaceKey]) {
+				expect(isInvalidated(queryClient, key)).toBe(true);
+			}
+		}
+		vi.restoreAllMocks();
 	});
 });
 

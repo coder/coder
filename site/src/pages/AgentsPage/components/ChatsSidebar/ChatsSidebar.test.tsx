@@ -650,6 +650,93 @@ describe("ChatsSidebar projects", () => {
 		).toBeInTheDocument();
 	});
 
+	it("archives a project from its folder menu", async () => {
+		const user = userEvent.setup();
+		const archiveRequests: unknown[] = [];
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.get(
+				"/api/experimental/organizations/:organization/chats/projects/:project/archive-preview",
+				() => HttpResponse.json({ chat_count: 1, active_chat_count: 0 }),
+			),
+			http.get("/api/v2/chats/config/retention-days", () =>
+				HttpResponse.json({ retention_days: 0 }),
+			),
+			http.post(
+				"/api/experimental/organizations/:organization/chats/projects/:project/archive",
+				async ({ params, request }) => {
+					archiveRequests.push([params.project, await request.json()]);
+					return HttpResponse.json({
+						...MockChatProject,
+						archived_at: oneWeekAgo,
+					});
+				},
+			),
+		);
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
+		);
+		await user.click(screen.getByRole("menuitem", { name: "Archive project" }));
+		await screen.findByText(/will be archived/);
+		await user.click(screen.getByRole("button", { name: "Archive project" }));
+
+		await waitFor(() =>
+			expect(archiveRequests).toEqual([
+				[MockChatProject.id, { stop_active_chats: false }],
+			]),
+		);
+	});
+
+	it("unarchives a project from the archived projects list", async () => {
+		const user = userEvent.setup();
+		const archivedProject = { ...MockChatProject, archived_at: oneWeekAgo };
+		const unarchivedProjectIds: unknown[] = [];
+		server.use(
+			http.get("/api/experimental/chats/projects", ({ request }) =>
+				HttpResponse.json(
+					new URL(request.url).searchParams.get("archived") === "true"
+						? [archivedProject]
+						: [],
+				),
+			),
+			http.post(
+				"/api/experimental/organizations/:organization/chats/projects/:project/unarchive",
+				({ params }) => {
+					unarchivedProjectIds.push(params.project);
+					return HttpResponse.json(MockChatProject);
+				},
+			),
+		);
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", { name: "Archived projects" }),
+		);
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Unarchive ${MockChatProject.name}`,
+			}),
+		);
+
+		await waitFor(() =>
+			expect(unarchivedProjectIds).toEqual([MockChatProject.id]),
+		);
+	});
+
 	it("opens the folder of the project being viewed until the user collapses it", async () => {
 		const user = userEvent.setup();
 		server.use(

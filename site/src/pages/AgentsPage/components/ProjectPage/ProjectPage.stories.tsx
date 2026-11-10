@@ -2,10 +2,15 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import {
+	archivedChatProjectsKey,
 	chatProjectACLKey,
 	chatProjectInstructionsKey,
 } from "#/api/queries/chatProjects";
-import { chatCostTreeKey, projectChatsKey } from "#/api/queries/chats";
+import {
+	archivedProjectChatsKey,
+	chatCostTreeKey,
+	projectChatsKey,
+} from "#/api/queries/chats";
 import type { Chat, ChatProjectACL } from "#/api/typesGenerated";
 import { MockChat, mockChatCost } from "#/testHelpers/chatEntities";
 import {
@@ -200,6 +205,51 @@ export const ChatMovedToAnotherProject: Story = {
 					pageParams: [0],
 				},
 			},
+			{
+				key: chatCostTreeKey("chat-1"),
+				data: mockChatCost("chat-1", 1_234_000),
+			},
+			{
+				key: chatProjectInstructionsKey(MockChatProject.id),
+				data: MockChatProjectInstructions,
+			},
+			{
+				key: chatProjectSkillsKey(MockChatProject.id),
+				data: MockSkills,
+			},
+			{ key: chatProjectACLKey(MockChatProject.id), data: mockACL },
+		],
+	},
+};
+
+const mockArchivedProject = {
+	...MockChatProject,
+	archived_at: "2026-11-10T12:00:00Z",
+};
+
+/** The composer gives way to a banner, and the list shows archived chats. */
+export const Archived: Story = {
+	args: { project: mockArchivedProject },
+	parameters: {
+		queries: [
+			{
+				key: archivedProjectChatsKey(MockChatProject.id),
+				data: {
+					pages: [
+						[
+							{
+								...MockChat,
+								id: "chat-1",
+								title: "Plan the launch",
+								archived: true,
+								project_id: MockChatProject.id,
+							},
+						],
+					],
+					pageParams: [0],
+				},
+			},
+			{ key: archivedChatProjectsKey, data: [mockArchivedProject] },
 			{
 				key: chatCostTreeKey("chat-1"),
 				data: mockChatCost("chat-1", 1_234_000),

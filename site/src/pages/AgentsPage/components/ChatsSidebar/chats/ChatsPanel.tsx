@@ -78,6 +78,7 @@ import {
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
 import {
+	type ArchiveProject,
 	type DeleteProject,
 	type OpenProjectDialog,
 	ProjectFolders,
@@ -124,7 +125,11 @@ type ChatsPanelProps = {
 	readonly isProjectsLoadError: boolean;
 	readonly onRetryProjects: () => void;
 	readonly onOpenProjectDialog: OpenProjectDialog;
+	readonly onArchiveProject: ArchiveProject;
 	readonly onDeleteProject: DeleteProject;
+	readonly onOpenArchivedProjects: (
+		event: React.MouseEvent<HTMLButtonElement>,
+	) => void;
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
 	readonly modelConfigs: readonly ChatModel[];
@@ -161,7 +166,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	isProjectsLoadError,
 	onRetryProjects,
 	onOpenProjectDialog,
+	onArchiveProject,
 	onDeleteProject,
+	onOpenArchivedProjects,
 	chats,
 	chatErrorReasons,
 	modelConfigs,
@@ -618,7 +625,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 									)}
 									onToggle={toggleProject}
 									onOpenProjectDialog={onOpenProjectDialog}
+									onArchive={onArchiveProject}
 									onDelete={onDeleteProject}
+									onOpenArchivedProjects={onOpenArchivedProjects}
 									isLoading={isProjectsLoading}
 									error={projectsError}
 									isLoadError={isProjectsLoadError}

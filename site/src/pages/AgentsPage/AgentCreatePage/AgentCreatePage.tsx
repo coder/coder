@@ -9,7 +9,7 @@ import {
 } from "react-router";
 import { getErrorMessage, isApiError } from "#/api/errors";
 import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
-import { chatProject } from "#/api/queries/chatProjects";
+import { archivedChatProject, chatProject } from "#/api/queries/chatProjects";
 import {
 	archiveChat,
 	createChat,
@@ -120,19 +120,33 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		...chatProject(projectId),
 		enabled: projectId !== undefined,
 	});
-	const project = projectQuery.data ?? undefined;
 	// null also covers a project that exists but is not in this user's list.
 	// A cached list can predate the project, so wait for the refetch.
-	const isProjectMissing =
+	const isActiveProjectMissing =
 		projectId !== undefined &&
 		projectQuery.data === null &&
 		projectQuery.isFetchedAfterMount &&
 		!projectQuery.error;
+	// The default list leaves out archived projects, whose page stays
+	// available to unarchive them and read their chats.
+	const archivedProjectQuery = useQuery({
+		...archivedChatProject(projectId),
+		enabled: isActiveProjectMissing,
+	});
+	const project = projectQuery.data ?? archivedProjectQuery.data ?? undefined;
+	const isProjectMissing =
+		isActiveProjectMissing &&
+		archivedProjectQuery.data === null &&
+		archivedProjectQuery.isFetchedAfterMount &&
+		!archivedProjectQuery.error;
 	// A failed background refetch keeps the cached project usable.
-	const projectLookupError =
-		projectId !== undefined && !project && projectQuery.error
-			? projectQuery.error
+	const failedProjectQuery = projectQuery.error
+		? projectQuery
+		: archivedProjectQuery.error
+			? archivedProjectQuery
 			: undefined;
+	const projectLookupError =
+		projectId !== undefined && !project ? failedProjectQuery?.error : undefined;
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
@@ -474,10 +488,10 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 						<Button
 							size="sm"
 							variant="outline"
-							disabled={projectQuery.isFetching}
-							onClick={() => void projectQuery.refetch()}
+							disabled={failedProjectQuery?.isFetching}
+							onClick={() => void failedProjectQuery?.refetch()}
 						>
-							<Spinner loading={projectQuery.isFetching} />
+							<Spinner loading={failedProjectQuery?.isFetching} />
 							Retry
 						</Button>
 					}

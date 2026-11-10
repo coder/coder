@@ -13,9 +13,15 @@ import {
 	Trash2Icon,
 } from "lucide-react";
 import { useId, useState } from "react";
-import { useIsMutating, useMutation, useQueryClient } from "react-query";
+import {
+	useIsMutating,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { useNavigate } from "react-router";
 import { getErrorMessage } from "#/api/errors";
+import { archivedChatProject } from "#/api/queries/chatProjects";
 import {
 	archiveAndDeleteChat,
 	archiveAndDeleteChatKey,
@@ -141,6 +147,11 @@ type ChatActionsMenuItemsProps = {
 	readonly onMarkUnread?: () => void;
 	readonly onArchiveAgent: () => void;
 	readonly onUnarchiveAgent: () => void;
+	/**
+	 * Set when the chat's project is archived: its chats come back only
+	 * with the project.
+	 */
+	readonly isProjectArchived?: boolean;
 	readonly onArchiveAndDeleteWorkspace: () => void;
 	/** When omitted, the "Rename chat" item is hidden. */
 	readonly onOpenRenameDialog?: () => void;
@@ -161,6 +172,7 @@ type ChatActionsMenuProps = Omit<
 	| "SubTrigger"
 	| "SubContent"
 	| "onArchiveAndDeleteWorkspace"
+	| "isProjectArchived"
 > & {
 	readonly children: React.ReactNode;
 	readonly variant?: "dropdown" | "context";
@@ -186,6 +198,15 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 	const [confirmation, setConfirmation] = useState<TypesGen.Workspace>();
 	const isArchiving =
 		useIsMutating({ mutationKey: chatArchiveMutationKey(chat.id) }) > 0;
+	// The server is the source of truth: it refuses the unarchive with 409.
+	const archivedProjectQuery = useQuery({
+		...archivedChatProject(chat.project_id),
+		enabled:
+			items.canManage &&
+			chat.archived &&
+			Boolean(chat.project_id) &&
+			getParentChatID(chat) === undefined,
+	});
 	const options = archiveAndDeleteChat(queryClient);
 	const mutation = useMutation({
 		...options,
@@ -257,6 +278,7 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 		<ChatActionsMenuItems
 			{...items}
 			isArchiving={items.isArchiving || isArchiving}
+			isProjectArchived={Boolean(archivedProjectQuery.data)}
 			onArchiveAndDeleteWorkspace={requestArchiveAndDelete}
 			Item={variant === "context" ? ContextMenuItem : DropdownMenuItem}
 			Separator={
@@ -331,6 +353,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	onMarkUnread,
 	onArchiveAgent,
 	onUnarchiveAgent,
+	isProjectArchived = false,
 	onArchiveAndDeleteWorkspace,
 	onOpenRenameDialog,
 	prStatuses,
@@ -363,6 +386,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 		: showSubagentsToggle;
 	const branch = chat.diff_status?.head_branch;
 	const archiveBlockedHintId = useId();
+	const unarchiveBlockedHintId = useId();
 	const isArchiveBlocked = archiveBlockedReason !== undefined;
 	const archiveBlockedDescribedBy = isArchiveBlocked
 		? archiveBlockedHintId
@@ -482,10 +506,24 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 			{isArchived ? (
 				showUnarchiveAction && (
 					<>
-						<Item disabled={isArchiving} onSelect={onUnarchiveAgent}>
+						<Item
+							aria-describedby={
+								isProjectArchived ? unarchiveBlockedHintId : undefined
+							}
+							disabled={isArchiving || isProjectArchived}
+							onSelect={onUnarchiveAgent}
+						>
 							<ArchiveRestoreIcon className="size-3.5" />
 							Unarchive agent
 						</Item>
+						{isProjectArchived && (
+							<div
+								id={unarchiveBlockedHintId}
+								className="max-w-56 px-2 py-1.5 text-xs text-content-secondary"
+							>
+								Unarchive the project to restore this chat.
+							</div>
+						)}
 						{subagentToggle}
 						{readToggle}
 					</>

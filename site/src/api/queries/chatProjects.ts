@@ -5,6 +5,7 @@ import {
 	chatEntitiesFamilyKey,
 	invalidateChatListQueries,
 	invalidateChatSearches,
+	invalidateChatsByWorkspace,
 } from "./chats";
 
 export const chatProjectsKey = ["chat-projects"] as const;
@@ -30,6 +31,43 @@ export const chatProject = (projectId: string | undefined) =>
 		...chatProjects(),
 		select: (projects) =>
 			projects.find((project) => project.id === projectId) ?? null,
+	});
+
+export const archivedChatProjectsKey = [
+	...chatProjectsKey,
+	"archived",
+] as const;
+
+/** Lists the archived projects the current user owns or that are shared with them. */
+export const archivedChatProjects = () =>
+	queryOptions({
+		queryKey: archivedChatProjectsKey,
+		queryFn: () => API.experimental.getChatProjects({ archived: true }),
+	});
+
+/**
+ * Reads one project from the archivedChatProjects() list. Data is null when
+ * the project is not archived or not visible to the user.
+ */
+export const archivedChatProject = (projectId: string | undefined) =>
+	queryOptions({
+		...archivedChatProjects(),
+		select: (projects) =>
+			projects.find((project) => project.id === projectId) ?? null,
+	});
+
+export const chatProjectArchivePreviewKey = (projectId: string) =>
+	[...chatProjectsKey, projectId, "archive-preview"] as const;
+
+/** Counts the chats that archiving a project archives and stops. */
+export const chatProjectArchivePreview = (project: TypesGen.ChatProject) =>
+	queryOptions({
+		queryKey: chatProjectArchivePreviewKey(project.id),
+		queryFn: () =>
+			API.experimental.getChatProjectArchivePreview(
+				project.organization_id,
+				project.id,
+			),
 	});
 
 export const createChatProject = (queryClient: QueryClient) =>
@@ -63,25 +101,87 @@ export const updateChatProject = (queryClient: QueryClient) =>
 			queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
 	});
 
+/** Refreshes the projects and every cached chat a project change can touch. */
+const invalidateProjectsAndChats = (queryClient: QueryClient) =>
+	Promise.all([
+		queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
+		invalidateChatListQueries(queryClient),
+		invalidateChatSearches(queryClient),
+		// Only the chats themselves carry project_id and archived. Their
+		// nested queries (messages, ACL, diffs, ...) would refetch every
+		// loaded page for nothing.
+		queryClient.invalidateQueries({
+			queryKey: chatEntitiesFamilyKey,
+			predicate: ({ queryKey }) =>
+				queryKey.length === chatEntitiesFamilyKey.length + 1,
+		}),
+	]);
+
 export const deleteChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
 		mutationFn: (project: TypesGen.ChatProject) =>
 			API.experimental.deleteChatProject(project.organization_id, project.id),
-		onSettled: () =>
-			// Deleting a project clears project_id on its chats.
-			Promise.all([
-				queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
-				invalidateChatListQueries(queryClient),
-				invalidateChatSearches(queryClient),
-				// Only the chats themselves carry project_id. Their nested
-				// queries (messages, ACL, diffs, ...) would refetch every loaded
-				// page for nothing.
-				queryClient.invalidateQueries({
-					queryKey: chatEntitiesFamilyKey,
-					predicate: ({ queryKey }) =>
-						queryKey.length === chatEntitiesFamilyKey.length + 1,
-				}),
-			]),
+		// Deleting a project clears project_id on its chats.
+		onSettled: () => invalidateProjectsAndChats(queryClient),
+	});
+
+/**
+ * Moves a project between the cached active and archived lists, so pages
+ * that look it up keep finding it while both lists refetch.
+ */
+const setCachedProjectArchiveState = (
+	queryClient: QueryClient,
+	project: TypesGen.ChatProject,
+) => {
+	const [fromKey, toKey] = project.archived_at
+		? [chatProjectsKey, archivedChatProjectsKey]
+		: [archivedChatProjectsKey, chatProjectsKey];
+	queryClient.setQueryData<TypesGen.ChatProject[]>(fromKey, (projects) =>
+		projects?.filter(({ id }) => id !== project.id),
+	);
+	queryClient.setQueryData<TypesGen.ChatProject[]>(toKey, (projects = []) => [
+		project,
+		...projects.filter(({ id }) => id !== project.id),
+	]);
+};
+
+/** Refreshes what archiving or unarchiving a project changes. */
+const invalidateProjectArchiveState = (queryClient: QueryClient) => {
+	void invalidateProjectsAndChats(queryClient);
+	// Archived chats no longer count as using their workspaces.
+	void invalidateChatsByWorkspace(queryClient);
+};
+
+/**
+ * Archives a project and every chat in it. Without stopActiveChats the
+ * server refuses with 409 while any chat in the project is active.
+ */
+export const archiveChatProject = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: ({
+			project,
+			stopActiveChats,
+		}: {
+			project: TypesGen.ChatProject;
+			stopActiveChats: boolean;
+		}) =>
+			API.experimental.archiveChatProject(project.organization_id, project.id, {
+				stop_active_chats: stopActiveChats,
+			}),
+		onSuccess: (project) => setCachedProjectArchiveState(queryClient, project),
+		onSettled: () => invalidateProjectArchiveState(queryClient),
+	});
+
+/** Unarchives a project and the chats archived with it. */
+export const unarchiveChatProject = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: (project: TypesGen.ChatProject) =>
+			API.experimental.unarchiveChatProject(
+				project.organization_id,
+				project.id,
+			),
+		onSuccess: (project) => setCachedProjectArchiveState(queryClient, project),
+		onSettled: () => invalidateProjectArchiveState(queryClient),
 	});
 
 export const chatProjectInstructionsKey = (projectId: string) =>

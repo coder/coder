@@ -19,9 +19,12 @@ import {
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { buildAgentProjectPath } from "../../utils/navigation";
 import { draftStorageKeys } from "../AgentCreateForm";
+import { useDialogFocusReturn } from "../useDialogFocusReturn";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import type { ProjectDialogState } from "./chats/ProjectFolders";
 import { getOrganizationLabels } from "./chats/projectGrouping";
+import { ArchivedProjectsDialog } from "./dialogs/ArchivedProjectsDialog";
+import { ArchiveProjectDialog } from "./dialogs/ArchiveProjectDialog";
 import {
 	ChatProjectDialog,
 	type ChatProjectFormValues,
@@ -147,6 +150,12 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		organizationLabel?: string;
 		open: boolean;
 	}>({ project: null, open: false });
+	const [archiveDialog, setArchiveDialog] = useState<{
+		project: ChatProject | null;
+		open: boolean;
+	}>({ project: null, open: false });
+	const [isArchivedProjectsOpen, setIsArchivedProjectsOpen] = useState(false);
+	const archivedProjectsFocusReturn = useDialogFocusReturn();
 
 	const openProjectDialog = (dialog: ProjectDialogState) => {
 		if (dialog.mode === "create") {
@@ -264,7 +273,14 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				isProjectsLoadError={projectsQuery.isLoadingError}
 				onRetryProjects={() => void projectsQuery.refetch()}
 				onOpenProjectDialog={openProjectDialog}
+				onArchiveProject={(project) =>
+					setArchiveDialog({ project, open: true })
+				}
 				onDeleteProject={openDeleteProjectDialog}
+				onOpenArchivedProjects={(event) => {
+					archivedProjectsFocusReturn.rememberTrigger(event);
+					setIsArchivedProjectsOpen(true);
+				}}
 				chats={chats}
 				chatErrorReasons={chatErrorReasons}
 				modelConfigs={modelConfigs}
@@ -345,6 +361,19 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				}
 				confirmLoading={deleteProjectMutation.isPending}
 				info="Its memories and instructions will be deleted. Chats in it, including chats started by people it is shared with, will be kept and move back to each owner's Chats list."
+			/>
+			<ArchiveProjectDialog
+				project={archiveDialog.project}
+				open={archiveDialog.open}
+				onClose={() =>
+					setArchiveDialog((current) => ({ ...current, open: false }))
+				}
+			/>
+			<ArchivedProjectsDialog
+				open={isArchivedProjectsOpen}
+				onOpenChange={setIsArchivedProjectsOpen}
+				locationSearch={location.search}
+				onCloseAutoFocus={archivedProjectsFocusReturn.restoreFocus}
 			/>
 			{onRenameTitle && (
 				<RenameChatDialog

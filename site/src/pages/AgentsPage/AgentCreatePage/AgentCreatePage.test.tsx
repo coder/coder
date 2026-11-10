@@ -151,7 +151,7 @@ const renderAgentsRoutes = (route = projectPath(MockChatProject.id)) =>
 
 const openProjectAction = async (
 	user: ReturnType<typeof userEvent.setup>,
-	action: "Edit project" | "Delete project",
+	action: "Edit project" | "Archive project" | "Delete project",
 ) => {
 	await user.click(
 		await screen.findByRole("button", { name: "Project actions" }),
@@ -689,6 +689,70 @@ describe("AgentCreatePage project frame", () => {
 		expect(toastSuccess).toHaveBeenCalledWith("Project deleted");
 		expect(localStorage.getItem(draftKeys.text)).toBeNull();
 		expect(localStorage.getItem(draftKeys.attachments)).toBeNull();
+	});
+
+	it("opens an archived project with its archived chats, unarchives it, and stays on the page when archiving it again", async () => {
+		const archivedProject = {
+			...MockChatProject,
+			archived_at: "2026-11-10T00:00:00Z",
+		};
+		let isArchived = true;
+		const projectRequests: string[] = [];
+		const projectRoute = `/api/experimental/organizations/${MockChatProject.organization_id}/chats/projects/:projectId`;
+		server.use(
+			http.get("/api/experimental/chats/projects", ({ request }) => {
+				const listsArchived =
+					new URL(request.url).searchParams.get("archived") === "true";
+				return HttpResponse.json(
+					listsArchived !== isArchived
+						? []
+						: [isArchived ? archivedProject : MockChatProject],
+				);
+			}),
+			http.get(`${projectRoute}/archive-preview`, () =>
+				HttpResponse.json({ chat_count: 0, active_chat_count: 0 }),
+			),
+			http.get("/api/v2/chats/config/retention-days", () =>
+				HttpResponse.json({ retention_days: 30 }),
+			),
+			http.post(`${projectRoute}/archive`, () => {
+				isArchived = true;
+				projectRequests.push("archive");
+				return HttpResponse.json(archivedProject);
+			}),
+			http.post(`${projectRoute}/unarchive`, () => {
+				isArchived = false;
+				projectRequests.push("unarchive");
+				return HttpResponse.json(MockChatProject);
+			}),
+		);
+		const user = userEvent.setup();
+
+		const { router } = renderAgentsRoutes();
+
+		await user.click(await screen.findByRole("button", { name: "Unarchive" }));
+		await openProjectAction(user, "Archive project");
+		const dialog = await screen.findByRole("dialog", {
+			name: "Archive project",
+		});
+		await within(dialog).findByText(/will be archived/);
+		await user.click(
+			within(dialog).getByRole("button", { name: "Archive project" }),
+		);
+
+		await waitFor(() =>
+			expect(projectRequests).toEqual(["unarchive", "archive"]),
+		);
+		expect(router.state.location.pathname).toBe(
+			projectPath(MockChatProject.id),
+		);
+		expect(API.experimental.getChats).toHaveBeenCalledWith(
+			expect.objectContaining({
+				q: "archived:true",
+				project_id: MockChatProject.id,
+			}),
+			expect.anything(),
+		);
 	});
 
 	it("shows the owner of a project owned by someone else from its ACL", async () => {

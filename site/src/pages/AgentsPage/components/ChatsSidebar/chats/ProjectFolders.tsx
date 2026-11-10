@@ -1,5 +1,10 @@
 import { cn } from "cn";
-import { ChevronRightIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
+import {
+	ArchiveIcon,
+	ChevronRightIcon,
+	EllipsisVerticalIcon,
+	PlusIcon,
+} from "lucide-react";
 import { useRef, useState } from "react";
 import { NavLink, type To, useLocation, useMatch } from "react-router";
 import type { ChatListInput } from "#/api/queries/chats";
@@ -41,6 +46,7 @@ export type ProjectDialogState =
 
 export type OpenProjectDialog = (dialog: ProjectDialogState) => void;
 export type DeleteProject = (project: ChatProject) => void;
+export type ArchiveProject = (project: ChatProject) => void;
 
 type ProjectFoldersProps = {
 	readonly currentUserId: string;
@@ -53,7 +59,11 @@ type ProjectFoldersProps = {
 	readonly expandedProjectIds: Readonly<Record<string, boolean>>;
 	readonly onToggle: (projectId: string) => void;
 	readonly onOpenProjectDialog: OpenProjectDialog;
+	readonly onArchive: ArchiveProject;
 	readonly onDelete: DeleteProject;
+	readonly onOpenArchivedProjects: (
+		event: React.MouseEvent<HTMLButtonElement>,
+	) => void;
 	readonly isLoading: boolean;
 	readonly error: unknown;
 	/**
@@ -75,7 +85,9 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	expandedProjectIds,
 	onToggle,
 	onOpenProjectDialog,
+	onArchive,
 	onDelete,
+	onOpenArchivedProjects,
 	isLoading,
 	error,
 	isLoadError,
@@ -113,17 +125,28 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 						onToggle: () => setExpanded(!isExpanded),
 					}}
 					actions={
-						isShowingHeaderNewProject && (
+						<>
 							<Button
 								variant="subtle"
 								size="icon"
 								className="size-7"
-								aria-label="New project"
-								onClick={openCreateDialog}
+								aria-label="Archived projects"
+								onClick={onOpenArchivedProjects}
 							>
-								<PlusIcon />
+								<ArchiveIcon />
 							</Button>
-						)
+							{isShowingHeaderNewProject && (
+								<Button
+									variant="subtle"
+									size="icon"
+									className="size-7"
+									aria-label="New project"
+									onClick={openCreateDialog}
+								>
+									<PlusIcon />
+								</Button>
+							)}
+						</>
 					}
 				/>
 			</ProjectsSectionDropArea>
@@ -166,6 +189,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 									locationSearch={location.search}
 									onToggle={() => onToggle(project.id)}
 									onEdit={() => onOpenProjectDialog({ mode: "edit", project })}
+									onArchive={() => onArchive(project)}
 									onDelete={() => onDelete(project)}
 									emptyMessage={emptyMessage}
 								/>
@@ -188,6 +212,7 @@ type ProjectFolderProps = {
 	readonly locationSearch: string;
 	readonly onToggle: () => void;
 	readonly onEdit: () => void;
+	readonly onArchive: () => void;
 	readonly onDelete: () => void;
 	readonly emptyMessage: string;
 };
@@ -202,6 +227,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	locationSearch,
 	onToggle,
 	onEdit,
+	onArchive,
 	onDelete,
 	emptyMessage,
 }) => {
@@ -300,8 +326,9 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 									Separator={DropdownMenuSeparator}
 									projectPath={projectPath}
 									onNewChatInPlace={isOnProjectPage ? handleNewChat : undefined}
-									permissions={project.permissions}
+									project={project}
 									onEdit={onEdit}
+									onArchive={onArchive}
 									onDelete={onDelete}
 								/>
 							</DropdownMenuContent>
@@ -314,8 +341,9 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						Separator={ContextMenuSeparator}
 						projectPath={projectPath}
 						onNewChatInPlace={isOnProjectPage ? handleNewChat : undefined}
-						permissions={project.permissions}
+						project={project}
 						onEdit={onEdit}
+						onArchive={onArchive}
 						onDelete={onDelete}
 					/>
 				</ContextMenuContent>
