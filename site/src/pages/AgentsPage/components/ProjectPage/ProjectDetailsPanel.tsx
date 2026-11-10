@@ -129,6 +129,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 					skillsFocusReturn.rememberTrigger(event);
 					setIsSkillsDialogOpen(true);
 				}}
+				canEditSkills={canUpdate}
 				instructions={instructionsQuery.data}
 				error={instructionsQuery.error}
 				onRetry={() => void instructionsQuery.refetch()}

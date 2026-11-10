@@ -1,5 +1,6 @@
 import { mutationOptions, type QueryClient, queryOptions } from "react-query";
 import { API } from "#/api/api";
+import { getErrorStatus } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	chatEntitiesFamilyKey,
@@ -54,6 +55,40 @@ export const archivedChatProject = (projectId: string | undefined) =>
 		...archivedChatProjects(),
 		select: (projects) =>
 			projects.find((project) => project.id === projectId) ?? null,
+	});
+
+/**
+ * Finds a project in any of the given organizations. Organization admins and
+ * site Owners can manage projects that are neither theirs nor shared with
+ * them, which the lists leave out. Data is null when no organization returns
+ * the project.
+ */
+export const unlistedChatProject = (
+	projectId: string | undefined,
+	organizationIds: readonly string[],
+) =>
+	queryOptions({
+		queryKey: [...chatProjectsKey, projectId, "unlisted", organizationIds],
+		queryFn: async () => {
+			if (projectId === undefined) {
+				return null;
+			}
+			// The server answers 404 for an organization that doesn't hold
+			// the project or a project the user can't read.
+			const projects = await Promise.all(
+				organizationIds.map((organizationId) =>
+					API.experimental
+						.getChatProject(organizationId, projectId)
+						.catch((error: unknown) => {
+							if (getErrorStatus(error) === 404) {
+								return null;
+							}
+							throw error;
+						}),
+				),
+			);
+			return projects.find((project) => project !== null) ?? null;
+		},
 	});
 
 export const chatProjectArchivePreviewKey = (projectId: string) =>
@@ -127,7 +162,9 @@ export const deleteChatProject = (queryClient: QueryClient) =>
 
 /**
  * Moves a project between the cached active and archived lists, so pages
- * that look it up keep finding it while both lists refetch.
+ * that look it up keep finding it while both lists refetch. A project in
+ * neither list stays out of them and is updated where unlistedChatProject
+ * cached it.
  */
 const setCachedProjectArchiveState = (
 	queryClient: QueryClient,
@@ -136,13 +173,22 @@ const setCachedProjectArchiveState = (
 	const [fromKey, toKey] = project.archived_at
 		? [chatProjectsKey, archivedChatProjectsKey]
 		: [archivedChatProjectsKey, chatProjectsKey];
-	queryClient.setQueryData<TypesGen.ChatProject[]>(fromKey, (projects) =>
-		projects?.filter(({ id }) => id !== project.id),
+	const isListed = queryClient
+		.getQueryData<TypesGen.ChatProject[]>(fromKey)
+		?.some(({ id }) => id === project.id);
+	if (isListed) {
+		queryClient.setQueryData<TypesGen.ChatProject[]>(fromKey, (projects) =>
+			projects?.filter(({ id }) => id !== project.id),
+		);
+		queryClient.setQueryData<TypesGen.ChatProject[]>(toKey, (projects = []) => [
+			project,
+			...projects.filter(({ id }) => id !== project.id),
+		]);
+	}
+	queryClient.setQueriesData<TypesGen.ChatProject | null>(
+		{ queryKey: [...chatProjectsKey, project.id, "unlisted"] },
+		(cached) => (cached ? project : cached),
 	);
-	queryClient.setQueryData<TypesGen.ChatProject[]>(toKey, (projects = []) => [
-		project,
-		...projects.filter(({ id }) => id !== project.id),
-	]);
 };
 
 /** Refreshes what archiving or unarchiving a project changes. */

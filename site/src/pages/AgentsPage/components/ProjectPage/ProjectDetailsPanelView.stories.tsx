@@ -71,6 +71,7 @@ const meta: Meta<typeof ProjectDetailsPanelView> = {
 		disabledSkillCount: 0,
 		skillsError: undefined,
 		onOpenSkills: fn(),
+		canEditSkills: true,
 		instructions: MockChatProjectInstructions,
 		error: undefined,
 		onRetry: fn(),

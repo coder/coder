@@ -168,6 +168,8 @@ type AgentChatPageViewProps = {
 
 	// Desktop chat ID (optional).
 	desktopChatId?: string;
+	/** Set when the archived chat's project is archived too. */
+	isProjectArchived?: boolean;
 };
 
 export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
@@ -223,6 +225,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	selectedMCPServerIds,
 	onMCPSelectionChange,
 	desktopChatId,
+	isProjectArchived = false,
 }) => {
 	const { proxy } = useProxy();
 	const { user: currentUser } = useAuthenticated();
@@ -599,7 +602,9 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							{isArchived && (
 								<div className="flex shrink-0 items-center gap-2 border-b border-border bg-surface-secondary px-4 py-2 text-xs text-content-secondary">
 									<ArchiveIcon className="size-4 shrink-0" />
-									This agent has been archived and is read-only.
+									{isProjectArchived
+										? "This agent was archived with its project and is read-only. Unarchive the project to restore it."
+										: "This agent has been archived and is read-only."}
 								</div>
 							)}
 							<div
@@ -632,7 +637,8 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								hasFetchMoreError={hasFetchMoreError}
 								onFetchMoreMessages={onFetchMoreMessages}
 								onEditUserMessage={
-									isOtherUserReadOnly
+									// An archived chat has no composer to edit in.
+									isArchived || isOtherUserReadOnly
 										? undefined
 										: editing.handleBeginHistoryEdit
 								}

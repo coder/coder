@@ -15,7 +15,7 @@ import {
 	chatProjectUsability,
 	usableChatProjectSkills,
 } from "#/api/queries/chatProjectSkills";
-import { chatProject } from "#/api/queries/chatProjects";
+import { archivedChatProject, chatProject } from "#/api/queries/chatProjects";
 import {
 	chatMessagesForInfiniteScroll,
 	chatModels,
@@ -357,6 +357,11 @@ const AgentChatPage: React.FC = () => {
 	const chatProjectQuery = useQuery({
 		...chatProject(chatProjectId),
 		enabled: hasChatProject,
+	});
+	// A chat doesn't carry its project's archive state.
+	const archivedChatProjectQuery = useQuery({
+		...archivedChatProject(chatProjectId),
+		enabled: isArchived && Boolean(chatProjectId),
 	});
 	const projectUsability = chatProjectUsability(
 		chatProjectQuery,
@@ -969,6 +974,7 @@ const AgentChatPage: React.FC = () => {
 					mcpServers={mcpServers}
 					selectedMCPServerIds={effectiveMCPServerIds}
 					onMCPSelectionChange={handleMCPSelectionChange}
+					isProjectArchived={Boolean(archivedChatProjectQuery.data)}
 				/>
 			)}
 		</>

@@ -325,6 +325,17 @@ export const Archived: Story = {
 	),
 };
 
+/** An agent archived with its project points to unarchiving the project. */
+export const ArchivedWithProject: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			chat={{ archived: true }}
+			isInputDisabled
+			isProjectArchived
+		/>
+	),
+};
+
 export const OtherUserChatReadOnly: Story = {
 	render: () => (
 		<StoryAgentChatPageView

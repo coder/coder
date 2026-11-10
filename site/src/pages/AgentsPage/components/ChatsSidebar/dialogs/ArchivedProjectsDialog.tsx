@@ -37,7 +37,8 @@ export const ArchivedProjectsDialog: React.FC<ArchivedProjectsDialogProps> = ({
 			<DialogHeader>
 				<DialogTitle>Archived projects</DialogTitle>
 				<DialogDescription>
-					Unarchive a project to restore it and its chats.
+					Archived projects you own or that are shared with you. Unarchiving a
+					project restores its chats.
 				</DialogDescription>
 			</DialogHeader>
 			<ArchivedProjectsList

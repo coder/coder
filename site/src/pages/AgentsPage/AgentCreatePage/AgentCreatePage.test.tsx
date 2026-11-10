@@ -132,10 +132,18 @@ const enableExperiments = (...experiments: TypesGen.Experiment[]) => {
 	);
 };
 
+const singleProjectRoute =
+	"/api/experimental/organizations/:organizationId/chats/projects/:projectId";
+
 const serveProjects = (...projects: TypesGen.ChatProject[]) => {
 	server.use(
 		http.get("/api/experimental/chats/projects", () =>
 			HttpResponse.json(projects),
+		),
+		// The page looks up a project missing from both lists in each
+		// organization; the server answers 404 where it can't find one.
+		http.get(singleProjectRoute, () =>
+			HttpResponse.json({ message: "Resource not found" }, { status: 404 }),
 		),
 	);
 };
@@ -707,7 +715,7 @@ describe("AgentCreatePage project frame", () => {
 				);
 			}),
 			http.get(`${projectRoute}/archive-preview`, () =>
-				HttpResponse.json({ chat_count: 0, active_chat_count: 0 }),
+				HttpResponse.json({ chat_count: 1, active_chat_count: 0 }),
 			),
 			http.get("/api/v2/chats/config/retention-days", () =>
 				HttpResponse.json({ retention_days: 30 }),
@@ -750,6 +758,37 @@ describe("AgentCreatePage project frame", () => {
 			}),
 			expect.anything(),
 		);
+	});
+
+	it("opens a project in neither list by finding it in the user's organizations", async () => {
+		// An organization admin can manage another user's unshared project.
+		const project = {
+			...MockChatProject,
+			organization_id: MockOrganization2.id,
+		};
+		serveProjects();
+		server.use(
+			http.get("/api/v2/organizations", () =>
+				HttpResponse.json([MockDefaultOrganization, MockOrganization2]),
+			),
+			http.get(singleProjectRoute, ({ params }) =>
+				params.organizationId === MockOrganization2.id &&
+				params.projectId === project.id
+					? HttpResponse.json(project)
+					: HttpResponse.json(
+							{ message: "Resource not found" },
+							{ status: 404 },
+						),
+			),
+		);
+
+		renderAgentsRoutes();
+
+		await screen.findByRole("heading", { name: project.name });
+		expect(renderedProjects.at(-1)).toMatchObject({
+			id: project.id,
+			organization_id: MockOrganization2.id,
+		});
 	});
 
 	it("shows the owner of a project owned by someone else from its ACL", async () => {

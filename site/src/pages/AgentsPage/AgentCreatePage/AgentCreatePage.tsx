@@ -9,7 +9,11 @@ import {
 } from "react-router";
 import { getErrorMessage, isApiError } from "#/api/errors";
 import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
-import { archivedChatProject, chatProject } from "#/api/queries/chatProjects";
+import {
+	archivedChatProject,
+	chatProject,
+	unlistedChatProject,
+} from "#/api/queries/chatProjects";
 import {
 	archiveChat,
 	createChat,
@@ -115,7 +119,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	const navigate = useNavigate();
 	const [searchParams] = useSearchParams();
 	const { permissions } = useAuthenticated();
-	const { experiments } = useDashboard();
+	const { experiments, organizations } = useDashboard();
 	const projectQuery = useQuery({
 		...chatProject(projectId),
 		enabled: projectId !== undefined,
@@ -133,16 +137,36 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		...archivedChatProject(projectId),
 		enabled: isActiveProjectMissing,
 	});
-	const project = projectQuery.data ?? archivedProjectQuery.data ?? undefined;
-	const isProjectMissing =
+	const isListedProjectMissing =
 		isActiveProjectMissing &&
 		archivedProjectQuery.data === null &&
 		archivedProjectQuery.isFetchedAfterMount &&
 		!archivedProjectQuery.error;
+	// Organization admins and site Owners can open projects that are neither
+	// theirs nor shared with them.
+	const unlistedProjectQuery = useQuery({
+		...unlistedChatProject(
+			projectId,
+			organizations.map((organization) => organization.id),
+		),
+		enabled: isListedProjectMissing,
+	});
+	const project =
+		projectQuery.data ??
+		archivedProjectQuery.data ??
+		unlistedProjectQuery.data ??
+		undefined;
+	const isProjectMissing =
+		isListedProjectMissing &&
+		unlistedProjectQuery.data === null &&
+		unlistedProjectQuery.isFetchedAfterMount &&
+		!unlistedProjectQuery.error;
 	// A failed background refetch keeps the cached project usable.
-	const failedProjectQuery = [projectQuery, archivedProjectQuery].find(
-		(query) => query.error,
-	);
+	const failedProjectQuery = [
+		projectQuery,
+		archivedProjectQuery,
+		unlistedProjectQuery,
+	].find((query) => query.error);
 	const projectLookupError =
 		projectId !== undefined && !project ? failedProjectQuery?.error : undefined;
 	const aiGatewayDisabled = !useAIGatewayEnabled();

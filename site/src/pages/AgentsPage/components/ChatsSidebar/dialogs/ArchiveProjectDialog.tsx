@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { getErrorMessage, getErrorStatus } from "#/api/errors";
@@ -92,13 +92,25 @@ export const ArchiveProjectDialog: React.FC<ArchiveProjectDialogProps> = ({
 		},
 	});
 
+	// isPending reaches the form only after the mutation cache notifies, so
+	// a double click would send a second request. Its 409 would replace the
+	// first request's result, skipping the toast and the workspace action.
+	const isSubmittingRef = useRef(false);
+
 	const archive = (
 		projectToArchive: ChatProject,
 		{ stopActiveChats, workspaceAction, workspaces }: ArchiveRequest,
 	) => {
+		if (isSubmittingRef.current) {
+			return;
+		}
+		isSubmittingRef.current = true;
 		archiveMutation.mutate(
 			{ project: projectToArchive, stopActiveChats },
 			{
+				onSettled: () => {
+					isSubmittingRef.current = false;
+				},
 				onSuccess: () => {
 					onClose();
 					toast.success("Project archived");
@@ -289,16 +301,19 @@ const ArchiveSummary: React.FC<ArchiveSummaryProps> = ({
 		<>
 			{errorAlert}
 			<p className="m-0 text-sm text-content-secondary">
-				{plural(preview.chat_count, "chat", "chats")} will be archived.{" "}
-				{retentionDays > 0
-					? `Archived chats are permanently deleted after ${plural(retentionDays, "day", "days")}. Unarchiving the project after that won't bring them back.`
-					: "Archived chats are kept until you unarchive the project."}
+				{preview.chat_count === 0
+					? "This project has no chats to archive."
+					: `${plural(preview.chat_count, "chat", "chats")} will be archived. ${
+							retentionDays > 0
+								? `Archived chats are permanently deleted after ${plural(retentionDays, "day", "days")}. Unarchiving the project after that won't bring them back.`
+								: "Archived chats are kept until you unarchive the project."
+						}`}
 			</p>
 			{preview.active_chat_count > 0 && (
 				<Alert severity="warning" prominent>
 					{plural(preview.active_chat_count, "chat is", "chats are")} running.
-					Archiving stops them and discards any reply in progress. Queued
-					messages are kept.
+					Archiving stops {preview.active_chat_count === 1 ? "it" : "them"} and
+					discards any reply in progress. Queued messages are kept.
 				</Alert>
 			)}
 		</>
@@ -380,6 +395,9 @@ const ProjectWorkspacesSection: React.FC<ProjectWorkspacesSectionProps> = ({
 			{action === "delete" && (
 				<DeleteConfirmationField
 					confirmation={confirmation}
+					// Focusing the field as it appears would end arrow-key
+					// navigation in the radio group above.
+					autoFocus={false}
 					label={
 						<>
 							Type <strong>{project.name}</strong> to delete these workspaces

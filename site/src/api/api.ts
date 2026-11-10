@@ -3320,6 +3320,16 @@ class ExperimentalApiMethods {
 		return response.data;
 	};
 
+	getChatProject = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<TypesGen.ChatProject> => {
+		const response = await this.axios.get<TypesGen.ChatProject>(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}`,
+		);
+		return response.data;
+	};
+
 	archiveChatProject = async (
 		organizationId: string,
 		projectId: string,

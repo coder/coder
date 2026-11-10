@@ -173,6 +173,41 @@ describe("ArchiveProjectDialog", () => {
 		expect(stop.mock.calls).toEqual([[mockRunningWorkspace.id]]);
 	});
 
+	it("archives once and still stops workspaces when confirm is double-clicked", async () => {
+		// Without a delay, the second click lands before the button disables.
+		const user = userEvent.setup({ delay: null });
+		const { archive, stop } = mockApi({ workspaces: [mockRunningWorkspace] });
+		const successToast = vi.spyOn(toast, "success");
+		const { onClose } = await renderDialog();
+
+		await user.click(await screen.findByRole("radio", { name: "Stop them" }));
+		await user.dblClick(
+			screen.getByRole("button", { name: "Archive project" }),
+		);
+
+		await waitFor(() => expect(stop).toHaveBeenCalled());
+		expect(archive).toHaveBeenCalledTimes(1);
+		expect(onClose).toHaveBeenCalled();
+		expect(successToast).toHaveBeenCalledWith("Project archived");
+	});
+
+	it("keeps focus in the options when Delete is chosen with the keyboard", async () => {
+		const user = userEvent.setup();
+		mockApi({ workspaces: [mockRunningWorkspace] });
+		await renderDialog();
+
+		await user.click(await screen.findByRole("radio", { name: "Stop them" }));
+		// Radix moves focus in a timeout and checks the option only while
+		// the arrow key is still down.
+		await user.keyboard("{ArrowDown>}");
+		await user.keyboard("{/ArrowDown}");
+
+		const deleteOption = screen.getByRole("radio", { name: "Delete them" });
+		await waitFor(() => expect(deleteOption).toBeChecked());
+		expect(screen.getByRole("textbox")).toBeInTheDocument();
+		expect(deleteOption).toHaveFocus();
+	});
+
 	it("leaves every workspace alone when it can't tell which are still in use", async () => {
 		const user = userEvent.setup();
 		const { stop } = mockApi({ workspaces: [mockRunningWorkspace] });
