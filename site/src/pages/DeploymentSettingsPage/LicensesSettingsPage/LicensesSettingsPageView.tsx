@@ -85,13 +85,15 @@ const LicensesSettingsPageView: React.FC<Props> = ({
 
 	return (
 		<>
-			<Confetti
-				// For some reason this overflows the window and adds scrollbars if we don't subtract here.
-				width={width - 1}
-				height={height - 1}
-				numberOfPieces={showConfetti ? 200 : 0}
-				colors={confettiColors}
-			/>
+			{confettiColors.length > 0 && (
+				<Confetti
+					// For some reason this overflows the window and adds scrollbars if we don't subtract here.
+					width={width - 1}
+					height={height - 1}
+					numberOfPieces={showConfetti ? 200 : 0}
+					colors={confettiColors}
+				/>
+			)}
 
 			<div className="flex gap-4 items-baseline justify-between">
 				<SettingsHeader>

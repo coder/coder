@@ -234,6 +234,21 @@ describe("theme CSS variables", () => {
 		});
 	}
 
+	it.each(CONCRETE_THEMES.filter((name) => name !== baseModeFor(name)))(
+		"%s adapts chart fills and borders for colorblind users",
+		(name) => {
+			const variant = extractEffectiveBlock(css, `.${name}`) ?? "";
+			const base = extractEffectiveBlock(css, `.${baseModeFor(name)}`) ?? "";
+			for (const role of ["success", "error", "warning"]) {
+				for (const variable of [`--chart-${role}`, `--chart-${role}-border`]) {
+					expect(extractVariable(variant, variable), variable).not.toBe(
+						extractVariable(base, variable),
+					);
+				}
+			}
+		},
+	);
+
 	it("gives body the surface that ThemeProvider copies into theme-color", () => {
 		expect(extractBlocks(css, "body").join("\n")).toContain(
 			"bg-surface-primary",

@@ -23,6 +23,9 @@ export function readThemeColors(
 		return Object.fromEntries(
 			properties.map((property) => {
 				const color = styles.getPropertyValue(property).trim();
+				if (!color) {
+					throw new Error(`Missing theme color ${property} for ${mode} mode`);
+				}
 				if (!context) {
 					return [property, color];
 				}
@@ -36,9 +39,20 @@ export function readThemeColors(
 							: color,
 					];
 				}
+				// Invalid assignments are ignored; two sentinels avoid rejecting valid black.
+				context.fillStyle = "#000000";
+				context.fillStyle = color;
+				if (context.fillStyle === "#000000") {
+					context.fillStyle = "#ffffff";
+					context.fillStyle = color;
+					if (context.fillStyle === "#ffffff") {
+						throw new Error(
+							`Invalid theme color ${property} for ${mode} mode: ${color}`,
+						);
+					}
+				}
 				// Canvas converts CSS colors, including Tailwind's OKLCH palette, to sRGB bytes.
 				context.clearRect(0, 0, 1, 1);
-				context.fillStyle = color;
 				context.fillRect(0, 0, 1, 1);
 				const pixel = context.getImageData(0, 0, 1, 1).data;
 				const hex = Array.from(pixel.slice(0, 3), (channel) =>

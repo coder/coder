@@ -1,23 +1,26 @@
-import { installThemeStyles } from "#/testHelpers/themeStyles";
-import { getMonacoTheme } from "#/theme/monaco";
+import type * as monaco from "monaco-editor";
 import { toShikiTheme } from "./shikiTheme";
 
+const monacoTheme = {
+	base: "vs-dark",
+	inherit: true,
+	rules: [
+		{ token: "comment", foreground: "6b737c" },
+		{ token: "delimiter.curly", foreground: "ebb325" },
+	],
+	colors: {
+		"editor.foreground": "#ffffff",
+		"editor.background": "#000000",
+	},
+} satisfies monaco.editor.IStandaloneThemeData;
+
 describe("toShikiTheme", () => {
-	beforeAll(installThemeStyles);
-	beforeAll(async () => {
-		vi.stubGlobal("jest", vi);
-		await import("jest-canvas-mock");
-	});
 	it("translates Monaco token rules into TextMate scopes", async () => {
-		const shikiTheme = await toShikiTheme("test", getMonacoTheme("dark"));
+		const shikiTheme = await toShikiTheme("test", monacoTheme);
 
 		expect(shikiTheme.type).toBe("dark");
-		expect(shikiTheme.bg).toBe(
-			getMonacoTheme("dark").colors["editor.background"],
-		);
-		expect(shikiTheme.fg).toBe(
-			getMonacoTheme("dark").colors["editor.foreground"],
-		);
+		expect(shikiTheme.bg).toBe("#000000");
+		expect(shikiTheme.fg).toBe("#ffffff");
 		// The last rule matching a scope wins, so our rules must come after the
 		// inherited base theme's rules.
 		expect(shikiTheme.tokenColors?.at(-1)).toEqual({
@@ -35,11 +38,14 @@ describe("toShikiTheme", () => {
 	});
 
 	it("inherits from the matching Shiki base theme", async () => {
-		const shikiTheme = await toShikiTheme("test", getMonacoTheme("light"));
+		const shikiTheme = await toShikiTheme("test", {
+			...monacoTheme,
+			base: "vs",
+		});
 
 		expect(shikiTheme.type).toBe("light");
 		expect(shikiTheme.tokenColors?.length).toBeGreaterThan(
-			getMonacoTheme("light").rules.length,
+			monacoTheme.rules.length,
 		);
 	});
 });
