@@ -1,114 +1,116 @@
-name: test-go-pg-self-hosted
-
+name: cache performance profile
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
-
+    inputs:
+      phase:
+        type: choice
+        options: [warm, profile, bench]
+        default: warm
 permissions: {}
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
-
 jobs:
-  test-go-pg-self-hosted:
-    if: github.repository_owner == 'coder'
-    runs-on: coder-large
+  profile:
+    name: profile-${{ matrix.provider }}-${{ inputs.phase }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - provider: coder
+            runner: coder-large
+            fixture: test-go-pg-self-hosted
+          - provider: depot
+            runner: depot-ubuntu-22.04-8
+            fixture: test-go-pg
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 55
     permissions:
       contents: read
-    # Allow time for diagnostics and artifact uploads after the Go test timeout.
-    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    env:
+      PROFILE_PROVIDER: ${{ matrix.provider }}
+      PROFILE_SCRIPTS: ${{ runner.temp }}/profiling-scripts
+      CODER_TEST_MEMORY_LIMIT_MIB: '6144'
+      TS_DEBUG_DISCO: 'true'
+      TS_DEBUG_DERP: 'true'
+      LC_CTYPE: en_US.UTF-8
+      LC_ALL: en_US.UTF-8
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2
         with:
           egress-policy: audit
-
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Checkout diagnostics
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          path: diagnostics
+          sparse-checkout: .github/cache-profile
+          persist-credentials: false
+      - name: Keep diagnostics outside source checkout
+        run: cp -r diagnostics/.github/cache-profile "$PROFILE_SCRIPTS"
+      - name: Checkout original source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 66dca90c912971bd9ce8c7572733b19e0d35b77b
           fetch-depth: 1
           persist-credentials: false
-
       - name: Setup Go Paths
         uses: ./.github/actions/setup-go-paths
-
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "go terraform"
-
+          install-args: go terraform
       - name: Install Go mise tools
-        shell: bash
         run: ./.github/scripts/retry.sh -- mise install --locked go:gotest.tools/gotestsum go:github.com/slsyy/mtimehash/cmd/mtimehash
-
-      - name: Download Test Cache
-        id: download-cache
+      - name: Prepare profiling instrumentation
+        run: bash "$PROFILE_SCRIPTS/prepare.sh"
+      - name: Restore application test fixtures
         uses: ./.github/actions/test-cache/download
         with:
-          key-prefix: test-go-pg-self-hosted-${{ runner.os }}-${{ runner.arch }}
-
-      - name: Setup Embedded Postgres Cache Paths
-        id: embedded-pg-cache
-        uses: ./.github/actions/setup-embedded-pg-cache-paths
-
-      - name: Download Embedded Postgres Cache
-        uses: ./.github/actions/embedded-pg-cache/download
-        with:
-          key-prefix: embedded-pg-${{ runner.os }}-${{ runner.arch }}
-          cache-path: ${{ steps.embedded-pg-cache.outputs.cached-dirs }}
-
-      - name: Normalize File and Directory Timestamps
-        shell: bash
-        # Stable timestamps allow Go test cache reuse across CI runs.
+          key-prefix: ${{ matrix.fixture }}-${{ runner.os }}-${{ runner.arch }}
+      - name: Normalize timestamps and Terraform path
         run: |
-          if command -v mtimehash >/dev/null 2>&1; then
-            find . -type f ! -path ./.git/\*\* | mtimehash
-          else
-            echo "::warning::mtimehash not found; skipping file timestamp normalization (Go test cache may be cold)"
-          fi
+          find . -type f ! -path ./.git/\*\* | mtimehash
           find . -type d ! -path ./.git/\*\* -exec touch -t 200601010000 {} +
-
-      - name: Normalize Terraform Path for Caching
-        shell: bash
-        run: |
           mkdir -p "$RUNNER_TEMP/sym"
           source scripts/normalize_path.sh
           normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
-
-      - name: Test with PostgreSQL Database (Linux)
-        uses: ./.github/actions/test-go-pg
+      - name: Download source modules
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
+      - name: Start PostgreSQL
+        if: inputs.phase == 'profile'
+        env:
+          TEST_POSTGRES_LOG_STATEMENT: none
+        run: make test-postgres-docker
+      - name: Warm branch remote build cache
+        if: inputs.phase == 'warm'
+        run: bash "$PROFILE_SCRIPTS/run.sh" warm
+      - name: Profile complete test suite
+        if: inputs.phase == 'profile'
+        run: bash "$PROFILE_SCRIPTS/run.sh" baseline
+      - name: Profile default remote-cache retrieval
+        if: inputs.phase == 'bench' && matrix.provider == 'coder'
+        run: bash "$PROFILE_SCRIPTS/run.sh" baseline-compile
+      - name: Profile 64 concurrent cache requests
+        if: inputs.phase == 'bench' && matrix.provider == 'coder'
+        run: bash "$PROFILE_SCRIPTS/run.sh" c64
+      - name: Profile cache on RAM disk
+        if: inputs.phase == 'bench' && matrix.provider == 'coder'
+        run: bash "$PROFILE_SCRIPTS/run.sh" ram
+      - name: Profile 64 cache requests with RAM disk
+        if: inputs.phase == 'bench' && matrix.provider == 'coder'
+        run: bash "$PROFILE_SCRIPTS/run.sh" ram-c64
+      - name: Collect profile artifacts
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
-          postgres-version: "13"
-          test-parallelism-packages: "8"
-          test-parallelism-tests: "8"
-          # Run without the test cache on main, matching the Linux CI job.
-          test-count: ${{ github.ref == 'refs/heads/main' && '1' || '' }}
-          gotestsum-json-file: default
-
-      - name: Publish Go test failure report
-        if: failure() && github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || !github.event.pull_request.head.repo.fork)
-        uses: ./.github/actions/go-test-failure-report
-        with:
-          artifact-name: go-test-failures-${{ github.job }}-${{ github.sha }}
-
-      - name: Upload failed test db dumps
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: failed-test-db-dump-linux
-          path: "**/*.test.sql"
-
-      - name: Upload Test Cache
-        uses: ./.github/actions/test-cache/upload
-        with:
-          cache-key: ${{ steps.download-cache.outputs.cache-key }}
-
-      - name: Upload test stats to Datadog
-        timeout-minutes: 1
-        continue-on-error: true
-        uses: ./.github/actions/upload-datadog
-        if: success() || failure()
-        with:
-          api-key: ${{ secrets.DATADOG_API_KEY }}
+          name: cache-profile-${{ matrix.provider }}-${{ inputs.phase }}
+          retention-days: 7
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/cache-profile/**/*.log
+            ${{ runner.temp }}/cache-profile/**/*.json
+            ${{ runner.temp }}/cache-profile/**/*.jsonl
+            ${{ runner.temp }}/cache-profile/**/*.txt
+            ${{ runner.temp }}/cache-profile/**/*.pprof
