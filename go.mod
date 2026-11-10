@@ -138,8 +138,13 @@ replace github.com/spf13/afero => github.com/aslilac/afero v0.0.0-20250403163713
 //    Responses does. Since coder/fantasy#84, a text part ahead of the
 //    media in the Chat Completions user message names the tool call and
 //    marks the media as tool output.
-// See: https://github.com/coder/fantasy/commits/a82a0b8fb9f5
-replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261104063314-a82a0b8fb9f5
+// 20) coder/fantasy#85, send the output token limit as
+//    max_completion_tokens on every OpenAI Chat Completions request, not
+//    only for model IDs that look like reasoning models, so Azure OpenAI
+//    deployment names work. The OpenAI-compatible providers keep
+//    max_tokens.
+// See: https://github.com/coder/fantasy/commits/764e4a1985b4
+replace charm.land/fantasy => github.com/coder/fantasy v0.0.0-20261110065722-764e4a1985b4
 
 // coder/coder uses a fork of charmbracelet's fork of the Anthropic Go SDK
 // with performance improvements and Bedrock header cleanup.
