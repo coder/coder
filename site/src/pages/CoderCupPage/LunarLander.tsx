@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { Button } from "#/components/Button/Button";
 import { ROSTER, type RosterEntry } from "./roster";
 
 // ---------------------------------------------------------------------------
@@ -104,20 +105,20 @@ type LandingLimits = {
 // Difficulty levels in the order their start-screen buttons appear.
 const DIFFICULTIES: readonly LandingLimits[] = [
 	{
-		label: "EASY",
+		label: "Easy",
 		key: "e",
 		maxSpeed: 50,
 		maxAngle: (30 * Math.PI) / 180,
 	},
 	{
-		label: "MODERATE",
+		label: "Moderate",
 		key: "m",
 		maxSpeed: 30,
 		maxAngle: (20 * Math.PI) / 180,
 	},
-	// The original physics: one lander height per second and 10°.
+	// One lander height per second and 10°.
 	{
-		label: "HARD",
+		label: "Hard",
 		key: "h",
 		maxSpeed: LANDER_HEIGHT,
 		maxAngle: (10 * Math.PI) / 180,
@@ -1843,48 +1844,13 @@ function sidebarHitTest(
 }
 
 /**
- * Layout of the difficulty buttons on the start screen, shared by
- * drawing and click hit-testing so they always agree.
- */
-function difficultyButtons(dashW: number, playH: number) {
-	const btnW = 130;
-	const btnH = 32;
-	const gap = 20;
-	const totalW = DIFFICULTIES.length * btnW + (DIFFICULTIES.length - 1) * gap;
-	const left = dashW / 2 - totalW / 2;
-	return DIFFICULTIES.map((limits, i) => ({
-		limits,
-		x: left + i * (btnW + gap),
-		y: playH * 0.74,
-		w: btnW,
-		h: btnH,
-	}));
-}
-
-/** Returns the difficulty whose start-screen button is under the point. */
-function difficultyHitTest(
-	mx: number,
-	my: number,
-	dashW: number,
-	playH: number,
-): LandingLimits | null {
-	for (const b of difficultyButtons(dashW, playH)) {
-		if (mx >= b.x && mx <= b.x + b.w && my >= b.y && my <= b.y + b.h) {
-			return b.limits;
-		}
-	}
-	return null;
-}
-
-/**
- * Draw the title, controls help, and difficulty buttons. The game
- * waits on this screen until the player picks a difficulty.
+ * Draw the title and controls help behind the difficulty buttons. The
+ * game waits on this screen until the player picks a difficulty.
  */
 function drawStartScreen(
 	ctx: CanvasRenderingContext2D,
 	dashW: number,
 	playH: number,
-	hovered: LandingLimits | null,
 ) {
 	drawVectorText(ctx, "SAVE ALL", dashW / 2, playH * 0.25, 44);
 	drawVectorText(ctx, "CODERNAUTS", dashW / 2, playH * 0.43, 44);
@@ -1898,32 +1864,20 @@ function drawStartScreen(
 		playH * 0.59,
 	);
 	ctx.fillText("press \u2193 or S for main thruster", dashW / 2, playH * 0.65);
-
-	for (const b of difficultyButtons(dashW, playH)) {
-		const isHovered = hovered === b.limits;
-		ctx.fillStyle = isHovered ? "#222" : "black";
-		ctx.strokeStyle = isHovered ? "white" : "#888";
-		ctx.lineWidth = 1.5;
-		ctx.beginPath();
-		ctx.roundRect(b.x, b.y, b.w, b.h, 4);
-		ctx.fill();
-		ctx.stroke();
-		ctx.fillStyle = "white";
-		ctx.font = "bold 13px monospace";
-		ctx.fillText(b.limits.label, b.x + b.w / 2, b.y + 21);
-		ctx.fillStyle = "#888";
-		ctx.font = "11px monospace";
-		ctx.fillText(
-			`press ${b.limits.key.toUpperCase()}`,
-			b.x + b.w / 2,
-			b.y + b.h + 16,
-		);
-	}
 }
 
 export const LunarLander: React.FC = () => {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const containerRef = useRef<HTMLDivElement>(null);
+	const controlsHintId = useId();
+	// The state renders the start-screen buttons; the ref carries the
+	// same choice into the game loop, which runs outside React renders.
+	const [chosenLimits, setLimits] = useState<LandingLimits | null>(null);
+	const limitsRef = useRef<LandingLimits | null>(null);
+	const selectDifficulty = (picked: LandingLimits) => {
+		limitsRef.current = picked;
+		setLimits(picked);
+	};
 
 	useEffect(() => {
 		const canvas = canvasRef.current;
@@ -1968,8 +1922,6 @@ export const LunarLander: React.FC = () => {
 		let victory = false;
 		let victoryTimer = 0;
 		let victoryBursts: ExplosionParticle[][] = [];
-		// Chosen on the start screen; null until the player picks one.
-		let limits: LandingLimits | null = null;
 		// Sidebar interaction state.
 		let savedBubbleTimer = 0;
 		let savedBubbleName = "";
@@ -2020,10 +1972,6 @@ export const LunarLander: React.FC = () => {
 		}
 
 		// ---- input ----
-		function selectDifficulty(picked: LandingLimits) {
-			limits = picked;
-			cvs.style.cursor = "";
-		}
 		// WASD aliases for players who prefer them over the arrow keys:
 		// A/D rotate like ArrowLeft/ArrowRight, S thrusts like ArrowDown.
 		// There is no alias for ArrowUp; it is unused by this game.
@@ -2036,11 +1984,12 @@ export const LunarLander: React.FC = () => {
 			S: "ArrowDown",
 		};
 		function onKeyDown(e: KeyboardEvent) {
-			if (!limits && !e.ctrlKey && !e.metaKey && !e.altKey) {
+			if (!limitsRef.current && !e.ctrlKey && !e.metaKey && !e.altKey) {
 				const picked = DIFFICULTIES.find((d) => d.key === e.key.toLowerCase());
 				if (picked) {
 					e.preventDefault();
-					selectDifficulty(picked);
+					limitsRef.current = picked;
+					setLimits(picked);
 					return;
 				}
 			}
@@ -2091,16 +2040,7 @@ export const LunarLander: React.FC = () => {
 			const mx = e.clientX - rect.left;
 			const my = e.clientY - rect.top;
 
-			if (!limits) {
-				const picked = difficultyHitTest(
-					mx,
-					my,
-					logicalW - SIDEBAR_W,
-					logicalH - DASHBOARD_H,
-				);
-				if (picked) selectDifficulty(picked);
-				return;
-			}
+			if (!limitsRef.current) return;
 
 			// Handle dialog button clicks first.
 			if (dialogVisible) {
@@ -2188,16 +2128,13 @@ export const LunarLander: React.FC = () => {
 			lastTs = ts;
 
 			const dashW = logicalW - SIDEBAR_W;
+			const limits = limitsRef.current;
 
 			// --- start screen: wait for a difficulty choice ---
 			if (!limits) {
 				cx.fillStyle = "black";
 				cx.fillRect(0, 0, logicalW, logicalH);
-
-				const playH = logicalH - DASHBOARD_H;
-				const hovered = difficultyHitTest(mouseX, mouseY, dashW, playH);
-				drawStartScreen(cx, dashW, playH, hovered);
-				cvs.style.cursor = hovered ? "pointer" : "";
+				drawStartScreen(cx, dashW, logicalH - DASHBOARD_H);
 
 				drawDashboard(
 					cx,
@@ -2623,13 +2560,36 @@ export const LunarLander: React.FC = () => {
 	}, []);
 
 	return (
-		<div ref={containerRef} className="size-full bg-black">
+		<div ref={containerRef} className="relative size-full bg-black">
 			<canvas
 				ref={canvasRef}
 				className="block"
 				role="img"
 				aria-label="Save all Codernauts lunar lander game"
+				aria-describedby={controlsHintId}
 			/>
+			<p id={controlsHintId} className="sr-only">
+				Press the left and right arrow keys, or A and D, to rotate. Press the
+				down arrow key or S to fire the main thruster.
+			</p>
+			{!chosenLimits && (
+				// Centered over the playfield: the canvas reserves 200px on the
+				// right for the roster (SIDEBAR_W) and 84px at the bottom for the
+				// dashboard (DASHBOARD_H). The game is always drawn light on
+				// black, so the buttons use the dark theme tokens.
+				<div className="dark absolute left-0 top-[calc((100%-84px)*0.74)] flex w-[calc(100%-200px)] justify-center gap-5">
+					{DIFFICULTIES.map((d) => (
+						<Button
+							key={d.key}
+							variant="outline"
+							className="min-w-32 font-mono uppercase"
+							onClick={() => selectDifficulty(d)}
+						>
+							{d.label} ({d.key.toUpperCase()})
+						</Button>
+					))}
+				</div>
+			)}
 		</div>
 	);
 };
