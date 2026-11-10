@@ -7,7 +7,6 @@ import { cn } from "cn";
 
 type TableProps = React.ComponentProps<"table"> & {
 	wrapperClassName?: string;
-	/** Props for the scroll wrapper, for example to make it focusable. */
 	wrapperProps?: Omit<React.ComponentProps<"div">, "children" | "className">;
 };
 

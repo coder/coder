@@ -167,7 +167,7 @@ describe("WorkspaceSharingForm", () => {
 		);
 
 		const list = await screen.findByRole("region", {
-			name: "Shared members list",
+			name: "Shared workspace members and groups",
 		});
 		await userEvent.setup().tab();
 		expect(list).toHaveFocus();

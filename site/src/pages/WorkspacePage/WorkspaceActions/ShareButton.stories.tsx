@@ -97,7 +97,15 @@ export const ReadOnly: Story = {
 			{ key: workspaceACLKey(MockWorkspace.id), data: mockOverflowingACL },
 		],
 	},
-	play: ({ canvasElement }) => openSharing(canvasElement),
+	play: async ({ canvasElement }) => {
+		await openSharing(canvasElement);
+		const list = screen.getByRole("region", {
+			name: "Shared workspace members and groups",
+		});
+		for (let i = 0; i < 10 && document.activeElement !== list; i++) {
+			await userEvent.tab();
+		}
+	},
 };
 
 export const OverflowingMembers: Story = {

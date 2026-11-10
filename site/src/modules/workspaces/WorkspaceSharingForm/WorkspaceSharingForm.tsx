@@ -373,7 +373,7 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 						? {
 								tabIndex: 0,
 								role: "region",
-								"aria-label": "Shared members list",
+								"aria-label": "Shared workspace members and groups",
 							}
 						: undefined
 				}
