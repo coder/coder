@@ -173,7 +173,7 @@ vc_send() {
 # before while the journey's model still has it, and deletes the journey's
 # model and provider.
 restore() {
-	local model_id chat_id want_default
+	local model_id chat_id want_default models
 	if [[ -f "$out/06-chat-url.txt" ]]; then
 		chat_id="$(sed 's#.*/agents/##; s#[?].*##' "$out/06-chat-url.txt")"
 		# The API refuses to archive an archived chat, so a retry skips it.
@@ -185,12 +185,15 @@ restore() {
 	model_id="$(vc_api "/api/v2/organizations/$org/chats/models" | jq -r --arg d "$model_display" '[.models[] | select(.display_name == $d)][0].id // empty')"
 	# Another admin can have picked a newer default meanwhile, so the old
 	# default comes back only while the journey's model still has it, and a
-	# newer default stays. With no old default, deleting the journey's model
-	# lets the server make any remaining model the default.
-	want_default="$(vc_api "/api/v2/organizations/$org/chats/models" | jq -r '[.models[] | select(.is_default)][0].id // empty')"
+	# newer default stays. When the old default is gone (there was none, or
+	# another admin deleted it), deleting the journey's model lets the server
+	# make any remaining model the default.
+	models="$(vc_api "/api/v2/organizations/$org/chats/models")"
+	want_default="$(jq -r '[.models[] | select(.is_default)][0].id // empty' <<<"$models")"
 	if [[ -n "$model_id" && "$want_default" == "$model_id" ]]; then
-		want_default="${old_default:-any}"
-		if [[ -n "$old_default" ]]; then
+		want_default=any
+		if [[ -n "$old_default" ]] && jq -e --arg o "$old_default" 'any(.models[]; .id == $o)' <<<"$models" >/dev/null; then
+			want_default="$old_default"
 			vc_send PATCH "/api/v2/organizations/$org/chats/models/$old_default" '{"is_default": true}'
 		fi
 	fi

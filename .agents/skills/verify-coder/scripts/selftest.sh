@@ -466,10 +466,10 @@ print("port", s.getsockname()[1], flush=True)
 c, _ = s.accept(); print("connected", flush=True)
 ' >"$tmp/proxy.log" 2>&1 &
 	proxy_pid=$!
-	for _ in $(seq 50); do
+	for _ in $(seq 100); do
 		proxy_port="$(sed -n 's/^port //p' "$tmp/proxy.log")"
 		[[ -z "$proxy_port" ]] || return 0
-		sleep 0.1
+		sleep 0.2
 	done
 	kill "$proxy_pid" 2>/dev/null || true
 	echo "the stand-in proxy did not start"
@@ -682,7 +682,10 @@ doctor_gateway_bypasses_proxy() {
 	mkdir -p "$www" "$VC_RUN"
 	echo ok >"$www/healthz"
 	start_http_server 127.0.0.2 "$www"
-	start_proxy
+	start_proxy || {
+		kill "$http_pid" 2>/dev/null || true
+		return 1
+	}
 	echo "$$" >"$VC_RUN/docker-forward.pid"
 	docker() { :; }
 	vc_docker_gateway() { echo 127.0.0.2; }
@@ -708,7 +711,7 @@ vc_check doctor-no-proxy doctor_gateway_bypasses_proxy
 # in a file.
 # shellcheck disable=SC2034,SC2317 # The loaded function reads these globals and calls these stand-ins.
 restore_keeps_newer_default() {
-	local case default want got rc
+	local case default want got rc patched
 	load_function "$here/../journeys/coder-agents.sh" restore
 	out="$tmp/restore" org=selftest-org model_display=journey-model provider_name=selftest-provider
 	mkdir -p "$out"
@@ -717,14 +720,17 @@ restore_keeps_newer_default() {
 	vc_send() {
 		echo "$1 ${2##*/}" >>"$tmp/sends"
 		case "$1" in
-		PATCH) jq --arg id "${2##*/}" '.models |= map(.is_default = (.id == $id))' "$tmp/models.json" >"$tmp/models.next" ;;
+		PATCH)
+			jq -e --arg id "${2##*/}" 'any(.models[]; .id == $id)' "$tmp/models.json" >/dev/null || return 22
+			jq --arg id "${2##*/}" '.models |= map(.is_default = (.id == $id))' "$tmp/models.json" >"$tmp/models.next"
+			;;
 		# As coderd does, deleting the default makes a remaining model the
 		# default.
 		DELETE) jq --arg id "${2##*/}" '.models |= (map(select(.id != $id)) | if length > 0 and all(.[]; .is_default | not) then .[0].is_default = true else . end)' "$tmp/models.json" >"$tmp/models.next" ;;
 		esac
 		mv "$tmp/models.next" "$tmp/models.json"
 	}
-	for case in journey-default newer-default no-old-default only-journey; do
+	for case in journey-default newer-default no-old-default only-journey old-deleted; do
 		rm -f "$tmp/sends"
 		old_default=old models='["old", "newer", "journey"]'
 		case "$case" in
@@ -734,6 +740,8 @@ restore_keeps_newer_default() {
 		# first and only default.
 		no-old-default) old_default="" models='["journey", "newer"]' default=journey want=newer ;;
 		only-journey) old_default="" models='["journey"]' default=journey want="" ;;
+		# Another admin deleted the old default during the run.
+		old-deleted) models='["journey", "newer"]' default=journey want=newer ;;
 		esac
 		jq -n --arg d "$default" --argjson ids "$models" '{models: ($ids | map({id: ., is_default: (. == $d)} + (if . == "journey" then {display_name: "journey-model"} else {} end)))}' >"$tmp/models.json"
 		with_errexit restore >/dev/null
@@ -748,6 +756,14 @@ restore_keeps_newer_default() {
 		}
 		jq -e 'all(.models[]; .id != "journey")' "$tmp/models.json" >/dev/null || {
 			echo "$case: the journey's model was not deleted"
+			return 1
+		}
+		patched=no
+		if grep -q '^PATCH ' "$tmp/sends" 2>/dev/null; then
+			patched=yes
+		fi
+		[[ "$patched" == "$([[ "$case" == journey-default ]] && echo yes || echo no)" ]] || {
+			echo "$case: restore sent a default PATCH: $patched"
 			return 1
 		}
 	done
