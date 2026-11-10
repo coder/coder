@@ -7,6 +7,7 @@ import {
 	paginatedGroupsByOrganization,
 } from "#/api/queries/groups";
 import { organizationsPermissions } from "#/api/queries/organizations";
+import { NotFoundIllustration } from "#/components/EmptyState/components/NotFoundIllustration";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { useFilter } from "#/components/Filter/Filter";
 import { Loader } from "#/components/Loader/Loader";
@@ -82,7 +83,12 @@ const GroupsPage: React.FC = () => {
 	}, [permissionsQuery.error]);
 
 	if (!organization) {
-		return <EmptyState message="Organization not found" />;
+		return (
+			<EmptyState
+				image={<NotFoundIllustration className="-mb-5 max-w-full" />}
+				message="Organization not found"
+			/>
+		);
 	}
 
 	if (permissionsQuery.isLoading) {

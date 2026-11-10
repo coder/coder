@@ -12,6 +12,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { NotFoundIllustration } from "#/components/EmptyState/components/NotFoundIllustration";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import type { UseFilterResult } from "#/components/Filter/Filter";
 import { Margins } from "#/components/Margins/Margins";
@@ -195,6 +196,7 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = ({
 			{pageNumberIsInvalid ? (
 				<EmptyState
 					className="border border-solid border-border rounded-lg"
+					image={<NotFoundIllustration className="-mb-5 max-w-full" />}
 					message="Page not found"
 					description="The page you are trying to access does not exist."
 					cta={

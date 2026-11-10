@@ -1,11 +1,6 @@
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-} from "#/components/Dialog/Dialog";
+import { Button } from "#/components/Button/Button";
+import { NoAccessIllustration } from "#/components/EmptyState/components/NoAccessIllustration";
+import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
 
 type RequirePermissionProps = {
@@ -22,22 +17,18 @@ export const RequirePermission: React.FC<RequirePermissionProps> = ({
 }) => {
 	if (!isFeatureVisible) {
 		return (
-			<Dialog open>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>
-							You don't have permission to view this page
-						</DialogTitle>
-					</DialogHeader>
-					<DialogDescription>
-						If you believe this is a mistake, please contact your administrator
-						or try signing in with different credentials.
-					</DialogDescription>
-					<DialogFooter>
-						<Link href="/">Go to workspaces</Link>
-					</DialogFooter>
-				</DialogContent>
-			</Dialog>
+			<div className="w-full h-full flex justify-center items-center">
+				<EmptyState
+					image={<NoAccessIllustration className="-mb-5 max-w-full" />}
+					message="You don't have permission to view this page"
+					description="If you believe this is a mistake, please contact your administrator or try signing in with different credentials."
+					cta={
+						<Button asChild>
+							<Link href="/">Go to workspaces</Link>
+						</Button>
+					}
+				/>
+			</div>
 		);
 	}
 

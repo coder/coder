@@ -11,6 +11,7 @@ import {
 	roleIdpSyncSettings,
 } from "#/api/queries/organizations";
 import { organizationRoles } from "#/api/queries/roles";
+import { NotFoundIllustration } from "#/components/EmptyState/components/NotFoundIllustration";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import {
 	SettingsHeader,
@@ -82,7 +83,12 @@ const IdpSyncPage: React.FC = () => {
 	);
 
 	if (!organization) {
-		return <EmptyState message="Organization not found" />;
+		return (
+			<EmptyState
+				image={<NotFoundIllustration className="-mb-5 max-w-full" />}
+				message="Organization not found"
+			/>
+		);
 	}
 
 	const title = (

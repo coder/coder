@@ -2,6 +2,7 @@ import { useQuery } from "react-query";
 import { useParams, useSearchParams } from "react-router";
 import { buildInfo } from "#/api/queries/buildInfo";
 import { provisionerDaemons } from "#/api/queries/organizations";
+import { NotFoundIllustration } from "#/components/EmptyState/components/NotFoundIllustration";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useEmbeddedMetadata } from "#/hooks/useEmbeddedMetadata";
@@ -35,7 +36,12 @@ const OrganizationProvisionersPage: React.FC = () => {
 	});
 
 	if (!organization) {
-		return <EmptyState message="Organization not found" />;
+		return (
+			<EmptyState
+				image={<NotFoundIllustration className="-mb-5 max-w-full" />}
+				message="Organization not found"
+			/>
+		);
 	}
 
 	const title = (

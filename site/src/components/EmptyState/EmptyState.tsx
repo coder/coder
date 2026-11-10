@@ -27,22 +27,26 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 	return (
 		<div
 			className={cn(
-				"overflow-hidden flex flex-col justify-center items-center text-center min-h-96 py-20 px-10 relative",
+				"overflow-hidden flex flex-col items-center text-center min-h-96 py-12 px-10 relative gap-12",
 				isCompact && "min-h-44 py-2.5",
 				className,
 			)}
 			{...attrs}
 		>
-			<h5 className="m-0 font-medium text-content-primary text-lg">
-				{message}
-			</h5>
-			{description && (
-				<p className="mt-4 max-w-md text-content-secondary text-sm">
-					{description}
-				</p>
-			)}
-			{cta && <div className="mt-6">{cta}</div>}
 			{image}
+			<div className="flex flex-col gap-4 justify-center items-center max-w-105">
+				<div className="flex flex-col gap-2">
+					<h2 className="m-0 font-semibold text-content-primary text-lg">
+						{message}
+					</h2>
+					{description && (
+						<p className="m-0 max-w-md text-content-secondary text-sm font-normal">
+							{description}
+						</p>
+					)}
+				</div>
+				{cta && <div>{cta}</div>}
+			</div>
 		</div>
 	);
 };

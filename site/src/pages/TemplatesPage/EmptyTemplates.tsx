@@ -2,6 +2,8 @@ import { Link as RouterLink } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
+import { AnnotationIllustration } from "#/components/EmptyState/components/AnnotationIllustration";
+import { SearchIllustration } from "#/components/EmptyState/components/SearchIllustration";
 import { Link } from "#/components/Link/Link";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
 import { TemplateExampleCard } from "#/modules/templates/TemplateExampleCard/TemplateExampleCard";
@@ -46,7 +48,12 @@ export const EmptyTemplates: React.FC<EmptyTemplatesProps> = ({
 	isUsingFilter,
 }) => {
 	if (isUsingFilter) {
-		return <TableEmpty message="No results matched your search" />;
+		return (
+			<TableEmpty
+				image={<SearchIllustration className="-mb-5 max-w-full" />}
+				message="No results matched your search"
+			/>
+		);
 	}
 
 	const featuredExamples = findFeaturedExamples(examples);
@@ -54,6 +61,7 @@ export const EmptyTemplates: React.FC<EmptyTemplatesProps> = ({
 	if (canCreateTemplates) {
 		return (
 			<TableEmpty
+				image={<AnnotationIllustration className="-mb-5 max-w-full" />}
 				message="Create your first template"
 				description={
 					<>
@@ -101,6 +109,7 @@ export const EmptyTemplates: React.FC<EmptyTemplatesProps> = ({
 
 	return (
 		<TableEmpty
+			image={<AnnotationIllustration className="-mb-5 max-w-full" />}
 			message="Create a Template"
 			description="Contact your Coder administrator to create a template. You can share the code below."
 			cta={<CodeExample secret={false} code="coder templates init" />}

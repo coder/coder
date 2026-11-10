@@ -2,6 +2,9 @@ import { Link } from "react-router";
 import type { Template } from "#/api/typesGenerated";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
+import { AnnotationIllustration } from "#/components/EmptyState/components/AnnotationIllustration";
+import { NoAccessIllustration } from "#/components/EmptyState/components/NoAccessIllustration";
+import { SearchIllustration } from "#/components/EmptyState/components/SearchIllustration";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
 
@@ -31,10 +34,12 @@ export const WorkspacesEmpty: React.FC<WorkspacesEmptyProps> = ({
 	if (isUsingFilter) {
 		return (
 			<EmptyState
-				message="No workspaces match your search."
+				image={<SearchIllustration className="-mb-5 max-w-full" />}
+				message="No results match your filters"
+				description="Broaden your search to explore more options."
 				cta={
 					<Button variant="outline" onClick={onClearFilter}>
-						Clear all
+						Reset filters
 					</Button>
 				}
 			/>
@@ -44,6 +49,7 @@ export const WorkspacesEmpty: React.FC<WorkspacesEmptyProps> = ({
 	if (!canCreateWorkspace) {
 		return (
 			<EmptyState
+				image={<NoAccessIllustration className="-mb-5 max-w-full" />}
 				message="No workspaces"
 				description="You don't have permission to create workspaces. Contact your administrator if you need workspace access."
 			/>
@@ -53,6 +59,7 @@ export const WorkspacesEmpty: React.FC<WorkspacesEmptyProps> = ({
 	if (templates && templates.length === 0 && canCreateTemplate) {
 		return (
 			<EmptyState
+				image={<AnnotationIllustration className="-mb-5 max-w-full" />}
 				message={defaultTitle}
 				description={`${defaultMessage} To create a workspace, you first need to create a template.`}
 				cta={
@@ -67,6 +74,7 @@ export const WorkspacesEmpty: React.FC<WorkspacesEmptyProps> = ({
 	if (templates && templates.length === 0 && !canCreateTemplate) {
 		return (
 			<EmptyState
+				image={<AnnotationIllustration className="-mb-5 max-w-full" />}
 				message={defaultTitle}
 				description={`${defaultMessage} There are no templates available, but you will see them here once your admin adds them.`}
 			/>
@@ -75,6 +83,7 @@ export const WorkspacesEmpty: React.FC<WorkspacesEmptyProps> = ({
 
 	return (
 		<EmptyState
+			image={<AnnotationIllustration className="-mb-5 max-w-full" />}
 			message={defaultTitle}
 			description={`${defaultMessage} Select one template below to start.`}
 			cta={

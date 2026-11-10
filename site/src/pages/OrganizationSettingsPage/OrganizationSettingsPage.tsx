@@ -8,6 +8,7 @@ import {
 	workspaceSharingSettings,
 } from "#/api/queries/organizations";
 import type { ShareableWorkspaceOwners } from "#/api/typesGenerated";
+import { NotFoundIllustration } from "#/components/EmptyState/components/NotFoundIllustration";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { toast } from "#/components/Toaster/toast";
 import { useOrganizationSettings } from "#/modules/management/OrganizationSettingsLayout";
@@ -43,7 +44,12 @@ const OrganizationSettingsPage: React.FC = () => {
 	);
 
 	if (!organization) {
-		return <EmptyState message="Organization not found" />;
+		return (
+			<EmptyState
+				image={<NotFoundIllustration className="-mb-5 max-w-full" />}
+				message="Organization not found"
+			/>
+		);
 	}
 
 	const title = (
