@@ -85,7 +85,13 @@ function extractBlocks(css: string, selector: string): string[] {
 
 		const selectors = selectorList.split(",").map((value) => value.trim());
 		if (selectors.includes(selector)) {
-			blocks.push(block);
+			blocks.push(
+				block.replace(
+					/@apply\s+([\w-]+);/g,
+					(_, utility: string) =>
+						extractBlock(css, `@utility ${utility}`) ?? "",
+				),
+			);
 		}
 	}
 	return blocks;
@@ -211,7 +217,7 @@ describe("theme CSS variables", () => {
 			);
 		};
 
-		it("gives each OS color scheme its theme's surface in index.html", () => {
+		it("gives the light and dark theme-color metas their theme's surface in index.html", () => {
 			const html = fs.readFileSync(
 				path.resolve(__dirname, "../../index.html"),
 				"utf8",
@@ -221,20 +227,19 @@ describe("theme CSS variables", () => {
 					.parseFromString(html, "text/html")
 					.getElementsByName("theme-color"),
 			);
-			const colorFor = (scheme: "light" | "dark") =>
+			const colorFor = (scheme: "Light" | "Dark") =>
 				metas
 					.find(
 						(meta) =>
-							meta.getAttribute("media") ===
-							`(prefers-color-scheme: ${scheme})`,
+							meta.getAttribute("media") === `{{ .${scheme}ThemeColorMedia }}`,
 					)
 					?.getAttribute("content");
 
 			expect(metas).toHaveLength(2);
-			expect(toRGB("index.html light theme-color", colorFor("light"))).toBe(
+			expect(toRGB("index.html light theme-color", colorFor("Light"))).toBe(
 				surfaceOf(".light"),
 			);
-			expect(toRGB("index.html dark theme-color", colorFor("dark"))).toBe(
+			expect(toRGB("index.html dark theme-color", colorFor("Dark"))).toBe(
 				surfaceOf(".dark"),
 			);
 		});
