@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "#/api/api";
 import type { WorkspaceACL } from "#/api/typesGenerated";
@@ -114,6 +114,63 @@ describe("WorkspaceSharingForm", () => {
 		);
 		await user.click(await screen.findByRole("menuitem", { name: "Remove" }));
 		expect(onRemoveGroup).toHaveBeenCalledWith(mockWorkspaceACL.group[0]);
+	});
+
+	it("renders headers and members in one table when compact", async () => {
+		vi.spyOn(API, "getWorkspaceSharingSettings").mockResolvedValue({
+			sharing_disabled: false,
+			sharing_globally_disabled: false,
+			shareable_workspace_owners: "everyone",
+		});
+
+		render(
+			<WorkspaceSharingForm
+				organizationId={MockWorkspace.organization_id}
+				workspaceACL={mockWorkspaceACL}
+				canShareWorkspace
+				error={undefined}
+				onUpdateUser={vi.fn()}
+				updatingUserId={undefined}
+				onRemoveUser={vi.fn()}
+				onUpdateGroup={vi.fn()}
+				onRemoveGroup={vi.fn()}
+				isCompact
+			/>,
+		);
+
+		await screen.findByRole("columnheader", { name: "Member" });
+		const tables = screen.getAllByRole("table");
+		expect(tables).toHaveLength(1);
+		expect(within(tables[0]).getAllByRole("row")).toHaveLength(3);
+	});
+
+	it("lets keyboard users reach the compact list when it has no controls", async () => {
+		vi.spyOn(API, "getWorkspaceSharingSettings").mockResolvedValue({
+			sharing_disabled: false,
+			sharing_globally_disabled: false,
+			shareable_workspace_owners: "everyone",
+		});
+
+		render(
+			<WorkspaceSharingForm
+				organizationId={MockWorkspace.organization_id}
+				workspaceACL={mockWorkspaceACL}
+				canShareWorkspace={false}
+				error={undefined}
+				onUpdateUser={vi.fn()}
+				updatingUserId={undefined}
+				onRemoveUser={vi.fn()}
+				onUpdateGroup={vi.fn()}
+				onRemoveGroup={vi.fn()}
+				isCompact
+			/>,
+		);
+
+		const list = await screen.findByRole("region", {
+			name: "Shared workspace members and groups",
+		});
+		await userEvent.setup().tab();
+		expect(list).toHaveFocus();
 	});
 });
 
