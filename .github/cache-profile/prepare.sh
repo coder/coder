@@ -12,6 +12,6 @@ go version > "$profile_root/go-version.txt"
 if [[ "$PROFILE_PROVIDER" == coder ]]; then
   test -S "$CODER_CACHE_JOB_DIR/go-agent.sock"
   sha256sum /usr/local/bin/coder-cache > "$profile_root/adapter-sha256.txt"
-  test "$(sha256sum /usr/local/bin/coder-cache | cut -d' ' -f1)" = 831239bc0e49c864421f6a8ba47a710c1de15a46900c63ac60161a7229b5d837
+  test "$(sha256sum /usr/local/bin/coder-cache | cut -d' ' -f1)" = e3520e1bb30e4d09f527afc18864b5e274b8305b6bc396f5397ad9312cebde4d
   test -z "${CODER_CACHE_GO_PLUGIN:-}"
 fi
