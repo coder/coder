@@ -109,7 +109,17 @@ jobs:
           ref: ${{ steps.ref.outputs.ref }}
           token: ${{ steps.app-token.outputs.token }}
           path: engine
+          fetch-depth: 0
           persist-credentials: false
+
+      # A fork's commit can be fetched by SHA through a public repository, so
+      # only a commit on docs-engine main may build.
+      - name: Check the pin is on docs-engine main
+        env:
+          REF: ${{ steps.ref.outputs.ref }}
+        run: |
+          set -euo pipefail
+          git -C engine merge-base --is-ancestor "$REF" origin/main || { echo "::error::docs/.engine-ref must name a commit on coder/docs-engine main" >&2; exit 1; }
 
       - name: Pack the engine source
         id: pack

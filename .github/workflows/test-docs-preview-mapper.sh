@@ -936,6 +936,22 @@ else
 	failures=$((failures + 1))
 fi
 
+# The PR picks the engine commit through docs/.engine-ref. Once docs-engine is
+# public, a commit pushed to any fork of it can be fetched by SHA through
+# coder/docs-engine, so the engine job builds only commits on docs-engine main:
+# it checks out full history and fails before packing unless the pin is an
+# ancestor of origin/main.
+engine_job=$(awk '/^  engine:/{on=1} /^  build:/{on=0} on' "$deploy_workflow")
+# shellcheck disable=SC2016 # the expected lines are literal workflow text.
+if grep -qF 'fetch-depth: 0' <<<"$engine_job" &&
+	grep -qF 'git -C engine merge-base --is-ancestor "$REF" origin/main' <<<"$engine_job" &&
+	awk '/merge-base --is-ancestor/{seen=1} /name: Pack the engine source/{exit !seen}' <<<"$engine_job"; then
+	echo "PASS: the engine job builds only commits on docs-engine main"
+else
+	echo "FAIL: docs/.engine-ref can pin a docs-engine commit that is not on main"
+	failures=$((failures + 1))
+fi
+
 if [ "$failures" -gt 0 ]; then
 	echo ""
 	echo "$failures test(s) failed."
