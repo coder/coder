@@ -148,6 +148,13 @@ If your access URL uses plain HTTP, push notifications might not function.
 This does not affect agents themselves, only the browser notification delivery.
 If you terminate TLS at a reverse proxy, make sure the [access URL](../admin/setup/index.md) is configured with an `https://` scheme.
 
+### Plan for apps in the right panel
+
+The right panel of the Agents page shows workspace apps and port previews in a frame.
+Apps with `subdomain = true` and port previews need a [wildcard access URL](../admin/networking/wildcard-access-url.md).
+A reverse proxy, load balancer, or ingress that adds its own `Content-Security-Policy` header can block these frames.
+If an app is blocked, refer to [Apps are blocked in the dashboard](../admin/networking/wildcard-access-url.md#apps-are-blocked-in-the-dashboard).
+
 ### Set a deployment-wide system prompt
 
 Administrators can set a system prompt that applies to all Coder Agents across the deployment.
