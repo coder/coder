@@ -158,6 +158,7 @@ export const OrganizationProvisionersPageView: React.FC<
 											<Button size="sm" asChild>
 												<Link
 													href={docs("/admin/provisioners")}
+													className="py-0 my-0"
 													target="_blank"
 													rel="noreferrer"
 												>

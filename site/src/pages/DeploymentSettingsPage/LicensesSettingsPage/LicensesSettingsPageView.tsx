@@ -179,7 +179,7 @@ const LicensesSettingsPageView: React.FC<Props> = ({
 								more.{" "}
 								<Link
 									href={CONTACT_SALES_LINK}
-									className="m-0 p-0 text-sm"
+									className="pl-0 text-sm"
 									showExternalIcon={false}
 								>
 									Contact sales
