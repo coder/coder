@@ -922,20 +922,30 @@ func waitForHealthy(ctx context.Context, logger slog.Logger, apiURL string, time
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	_, err := poll(ctx, 500*time.Millisecond,
-		func(ctx context.Context) (struct{}, bool, error) {
-			req, err := http.NewRequestWithContext(
-				ctx, "GET", apiURL+"/healthz", nil)
-			if err != nil {
-				return struct{}{}, false, nil
-			}
-			resp, err := http.DefaultClient.Do(req)
-			if err != nil {
-				return struct{}{}, false, nil
-			}
-			_ = resp.Body.Close()
-			return struct{}{}, resp.StatusCode == http.StatusOK, nil
-		})
+	healthy := func(ctx context.Context) bool {
+		req, err := http.NewRequestWithContext(
+			ctx, "GET", apiURL+"/healthz", nil)
+		if err != nil {
+			return false
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return false
+		}
+		_ = resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
+	}
+
+	// poll waits for its first tick before it checks. Check once at
+	// once, so a server that is already healthy is found even when the
+	// timeout is shorter than the poll interval.
+	var err error
+	if !healthy(ctx) {
+		_, err = poll(ctx, 500*time.Millisecond,
+			func(ctx context.Context) (struct{}, bool, error) {
+				return struct{}{}, healthy(ctx), nil
+			})
+	}
 	if err != nil {
 		return xerrors.Errorf("server did not become ready in %s: %w", timeout, err)
 	}

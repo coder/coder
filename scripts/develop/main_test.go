@@ -6,12 +6,15 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -699,6 +702,30 @@ func TestHealthTimeoutOption(t *testing.T) {
 	assert.Contains(t, err.Error(), "health-timeout")
 	assert.Equal(t, time.Duration(0), parse(t, nil, "--health-timeout", "0s"))
 	assert.Equal(t, -time.Second, parse(t, nil, "--health-timeout", "-1s"))
+}
+
+func TestWaitForHealthyImmediate(t *testing.T) {
+	t.Parallel()
+
+	// The server is already healthy, and the timeout is shorter than
+	// the 500 ms poll interval. The first check must not wait for a poll
+	// tick, or the timeout would end before any request.
+	var requests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/healthz" {
+			requests.Add(1)
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(srv.Close)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slog.Make(sloghuman.Sink(&bytes.Buffer{}))
+	err := waitForHealthy(ctx, logger, srv.URL, 100*time.Millisecond)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, requests.Load())
 }
 
 func TestWaitForHealthyTimeout(t *testing.T) {

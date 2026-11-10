@@ -110,8 +110,9 @@ is used.
 ## Readiness without new probes
 
 Do not invent a new readiness probe. The develop script already waits for the
-API server to answer `GET /healthz` for up to 60 seconds, then logs `server is
-ready to accept connections`. After setup completes, it prints a banner with
+API server to answer `GET /healthz` for up to 60 seconds by default (set
+`--health-timeout` to change that), then logs `server is ready to accept
+connections`. After setup completes, it prints a banner with
 `Coder is now running in development mode`, the effective port list, and the API
 and Web UI URLs.
 
