@@ -145,7 +145,14 @@ Coder adds the hosts that serve workspace apps to the `frame-src` directive of i
 
 Browsers enforce every policy that a page gets, so a second policy can only remove access.
 If a reverse proxy, load balancer, or ingress in front of Coder adds its own `Content-Security-Policy` header to dashboard pages, remove that header or change its `frame-src` directive.
-That directive must allow `'self'`, the wildcard access URL, and the URL and the wildcard access URL of each workspace proxy.
+That directive must allow `'self'`, the wildcard access URL, and the URL and the wildcard access URL of each workspace proxy, for example:
+
+```text
+frame-src 'self' *.coder.example.com https://london.coder.example.com *.london.coder.example.com
+```
+
+If the header has no `frame-src` directive, the browser uses its `default-src` directive for frames, so add a `frame-src` directive.
+If a URL uses a port other than the default port of its scheme, include the port, for example `*.coder.example.com:8443`.
 `CODER_ADDITIONAL_CSP_POLICY` doesn't change that header, because it changes only the policy that Coder sends.
 
 If an app redirects to another origin in the frame, for example an external sign-in page, add that origin to the policy that Coder sends:
@@ -158,6 +165,16 @@ An app can't load in a frame if the app, or a proxy in front of the wildcard acc
 
 The browser keeps the policy that it got when the page loaded.
 After you add a workspace proxy, users must reload the dashboard to load apps from it.
+
+If Coder's own policy still blocks an app after a reload, the origin of the app doesn't match a source in the `frame-src` directive that Coder sends.
+To read that directive, run:
+
+```sh
+curl -s -D - -o /dev/null https://coder.example.com/agents | grep -i content-security-policy
+```
+
+If the access URL of the deployment or of a workspace proxy uses a port other than the default port of its scheme, include that port in its wildcard access URL, for example `*.coder.example.com:8443`.
+To allow another origin, add it to `CODER_ADDITIONAL_CSP_POLICY`.
 
 When a policy on the dashboard page blocks the origin of the app, the right panel tells the user why and shows an **Open app in new tab** button.
 The block doesn't apply to a new tab, because `frame-src` applies only to frames.
