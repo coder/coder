@@ -14,7 +14,7 @@ if [[ "$mode" == ram* ]]; then
   mkdir -p "$CACHE_PROFILE_LOCAL_DIR"
   if ! mountpoint -q "$CACHE_PROFILE_LOCAL_DIR"; then sudo mount -t tmpfs -o size=8g tmpfs "$CACHE_PROFILE_LOCAL_DIR"; fi
   rm -rf "$CACHE_PROFILE_LOCAL_DIR"/*
-elif [[ "$PROFILE_PROVIDER" == coder && "$mode" != warm ]]; then
+elif [[ "$PROFILE_PROVIDER" == coder && "$mode" != warm && "$mode" != warm-local ]]; then
   # Remove only this job's plugin cache, without touching its runtime token.
   [[ "$CODER_CACHE_JOB_DIR" == /tmp/coder-cache-job-* ]]
   rm -rf "$CODER_CACHE_JOB_DIR/go-plugin"
@@ -50,4 +50,10 @@ date -u +%FT%TZ > "$profile_out/end.txt"
 printf '%s\n' "$result" > "$profile_out/exit-code.txt"
 cat "$profile_out/time.txt"
 if [[ "$mode" == ram* ]]; then sudo umount "$CACHE_PROFILE_LOCAL_DIR"; fi
+if [[ "$mode" == baseline-repeat && "$result" == 0 ]]; then
+  xargs -r kill < "$profile_out/samplers.pid" 2>/dev/null || true
+  trap - EXIT
+  echo 'Profiling control: reuse the local cache populated by the preceding default retrieval run'
+  bash "$PROFILE_SCRIPTS/run.sh" warm-local
+fi
 exit "$result"

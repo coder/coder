@@ -6,6 +6,10 @@ on:
         type: choice
         options: [warm, profile, bench]
         default: warm
+      target:
+        type: choice
+        options: [auto, coder, depot]
+        default: auto
 permissions: {}
 jobs:
   profile:
@@ -13,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON(inputs.phase != 'profile' && '[{"provider":"coder","runner":"coder-large","fixture":"test-go-pg-self-hosted"}]' || '[{"provider":"coder","runner":"coder-large","fixture":"test-go-pg-self-hosted"},{"provider":"depot","runner":"depot-ubuntu-22.04-8","fixture":"test-go-pg"}]') }}
+        include: ${{ fromJSON(inputs.target == 'depot' && '[{"provider":"depot","runner":"depot-ubuntu-22.04-8","fixture":"test-go-pg"}]' || inputs.phase != 'profile' && '[{"provider":"coder","runner":"coder-large","fixture":"test-go-pg-self-hosted"}]' || '[{"provider":"coder","runner":"coder-large","fixture":"test-go-pg-self-hosted"},{"provider":"depot","runner":"depot-ubuntu-22.04-8","fixture":"test-go-pg"}]') }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 55
     permissions:
