@@ -11,7 +11,9 @@ free -b > "$profile_root/memory.txt"
 go version > "$profile_root/go-version.txt"
 if [[ "$PROFILE_PROVIDER" == coder ]]; then
   test -S "$CODER_CACHE_JOB_DIR/go-agent.sock"
+  test "$(stat -f -c %T "$CODER_CACHE_JOB_DIR")" != tmpfs
+  findmnt -T "$CODER_CACHE_JOB_DIR" -o TARGET,SOURCE,FSTYPE > "$profile_root/cache-storage.txt"
   sha256sum /usr/local/bin/coder-cache > "$profile_root/adapter-sha256.txt"
-  test "$(sha256sum /usr/local/bin/coder-cache | cut -d' ' -f1)" = e3520e1bb30e4d09f527afc18864b5e274b8305b6bc396f5397ad9312cebde4d
+  test "$(sha256sum /usr/local/bin/coder-cache | cut -d' ' -f1)" = 7ba6a3747fcf647f9195c68687878fa3f5d6a3d4851408ca046ee6dfd068a6f2
   test -z "${CODER_CACHE_GO_PLUGIN:-}"
 fi
