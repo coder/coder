@@ -114,8 +114,9 @@ const CSPBlockedMessage: React.FC<CSPBlockedProps> = ({
 			<>
 				A Content-Security-Policy header that Coder did not send blocks {origin}
 				. A reverse proxy, load balancer or ingress in front of Coder probably
-				adds it. Remove that header, or add this origin to its{" "}
-				<InlineCode>frame-src</InlineCode> directive.
+				adds it. Remove that header, or change it so that{" "}
+				<InlineCode>frame-src</InlineCode> allows every host that serves
+				workspace apps. The docs list these hosts.
 			</>
 		);
 	}
