@@ -4,7 +4,7 @@ on:
     inputs:
       phase:
         type: choice
-        options: [inventory, probe]
+        options: [inventory, probe, replay]
         default: inventory
 permissions: {}
 jobs:
@@ -65,6 +65,9 @@ jobs:
       - name: Trace live cache behavior and compare service endpoints
         if: inputs.phase == 'probe'
         run: bash "$DEPOT_PROBE_SCRIPTS/probe.sh"
+      - name: Replay existing cache entries against a fresh agent
+        if: inputs.phase == 'replay'
+        run: bash "$DEPOT_PROBE_SCRIPTS/replay.sh"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
