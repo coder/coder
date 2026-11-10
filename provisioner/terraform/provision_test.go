@@ -4,6 +4,7 @@ package terraform_test
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
@@ -645,8 +646,8 @@ func TestGraphReusesPlanResults(t *testing.T) {
 			wantGraphCalls: 2,
 		},
 		{
-			// Graph leaves a state file it can't read to `terraform show`.
-			name:           "UnreadableStateFile",
+			// Graph leaves a state file it doesn't support to `terraform show`.
+			name:           "UnsupportedStateFile",
 			source:         proto.GraphSource_SOURCE_STATE,
 			graphDOT:       graphDOT,
 			stateFile:      `{"version":3}`,
@@ -659,14 +660,14 @@ func TestGraphReusesPlanResults(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			dir := t.TempDir()
 			planPath := filepath.Join(dir, "plan.json")
-			statePath := filepath.Join(dir, "state.json")
+			shownStatePath := filepath.Join(dir, "state.json")
 			graphPath := filepath.Join(dir, "graph.dot")
 			rebuiltGraphPath := filepath.Join(dir, "rebuilt-graph.dot")
 			failGraphPath := filepath.Join(dir, "fail-graph")
 			showCallsPath := filepath.Join(dir, "show-calls")
 			graphCallsPath := filepath.Join(dir, "graph-calls")
 			require.NoError(t, os.WriteFile(planPath, []byte(planJSON), 0o600))
-			require.NoError(t, os.WriteFile(statePath, []byte(shownStateJSON), 0o600))
+			require.NoError(t, os.WriteFile(shownStatePath, []byte(shownStateJSON), 0o600))
 			require.NoError(t, os.WriteFile(graphPath, []byte(test.graphDOT), 0o600))
 			if test.rebuiltGraphDOT != "" {
 				require.NoError(t, os.WriteFile(rebuiltGraphPath, []byte(test.rebuiltGraphDOT), 0o600))
@@ -709,7 +710,7 @@ plan|init)
 	exit 1
 	;;
 esac
-`, showCallsPath, statePath, planPath, graphCallsPath, failGraphPath, graphPath, rebuiltGraphPath))
+`, showCallsPath, shownStatePath, planPath, graphCallsPath, failGraphPath, graphPath, rebuiltGraphPath))
 
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
 				binaryPath: binaryPath,
@@ -718,13 +719,9 @@ esac
 			init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
 			require.Empty(t, init.Error)
 			// Plan writes the state it is given to the state file.
-			stateFile := test.stateFile
-			if stateFile == "" {
-				stateFile = stateFileJSON
-			}
 			require.NoError(t, sess.Send(&proto.Request{Type: &proto.Request_Plan{Plan: &proto.PlanRequest{
 				Metadata: &proto.Metadata{WorkspaceTransition: proto.WorkspaceTransition_START},
-				State:    []byte(stateFile),
+				State:    []byte(cmp.Or(test.stateFile, stateFileJSON)),
 			}}}))
 			_, response := readProvisionLog(t, sess)
 			require.NotNil(t, response.GetPlan())

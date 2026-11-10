@@ -145,18 +145,22 @@ func TestModulePathStepsReturnsCopy(t *testing.T) {
 func TestModulePathParent(t *testing.T) {
 	t.Parallel()
 
-	path, err := tfaddr.ParseModulePath(`module.outer["x.module.y"].module.mid[0].module.inner`)
+	// A parent equals the path parsed from its own address, whatever the
+	// instance keys before it contain.
+	for child, parent := range map[string]string{
+		`module.outer["x.module.y"].module.mid[0].module.inner`: `module.outer["x.module.y"].module.mid[0]`,
+		`module.outer["ü \".module.\" q"].module.inner`:         `module.outer["ü \".module.\" q"]`,
+	} {
+		path, err := tfaddr.ParseModulePath(child)
+		require.NoError(t, err)
+		want, err := tfaddr.ParseModulePath(parent)
+		require.NoError(t, err)
+		require.Equal(t, want, path.Parent(), child)
+	}
+
+	path, err := tfaddr.ParseModulePath("module.outer")
 	require.NoError(t, err)
-
-	parent := path.Parent()
-	require.Equal(t, `module.outer["x.module.y"].module.mid[0]`, parent.String())
-	require.Equal(t, "module.outer.module.mid", parent.ConfigurationAddress())
-
-	grandparent := parent.Parent()
-	require.Equal(t, `module.outer["x.module.y"]`, grandparent.String())
-	require.Len(t, grandparent.Steps(), 1)
-
-	require.Equal(t, tfaddr.ModulePath{}, grandparent.Parent(), "a root child's parent is the root")
+	require.Equal(t, tfaddr.ModulePath{}, path.Parent(), "a root child's parent is the root")
 	require.Equal(t, tfaddr.ModulePath{}, tfaddr.ModulePath{}.Parent(), "the root has no parent")
 }
 

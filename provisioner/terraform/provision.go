@@ -327,13 +327,19 @@ func (s *server) Graph(
 			planConfig = plan.Config
 		}
 	case proto.GraphSource_SOURCE_STATE:
+		// Apply returns this file as the workspace's state, so it is where
+		// Terraform keeps the state.
 		tfState, err := readStateFile(e.files.StateFilePath())
 		if err != nil {
-			// readStateFile rejects state from Terraform before 1.4, whose
-			// `terraform show` output it doesn't reproduce, and state it
-			// doesn't understand. Let Terraform interpret those rather than
-			// failing the build.
-			s.logger.Warn(ctx, "reading terraform state file failed, falling back to terraform show", slog.Error(err))
+			// Let Terraform interpret state that readStateFile doesn't
+			// support rather than failing the build. Only warn when that is
+			// unexpected: an unsupported Terraform version repeats on every
+			// build.
+			logFallback := s.logger.Warn
+			if errors.Is(err, errStateFileTerraformVersion) {
+				logFallback = s.logger.Debug
+			}
+			logFallback(ctx, "not reading terraform state file, falling back to terraform show", slog.Error(err))
 			tfState, err = e.state(ctx, killCtx)
 		}
 		if err != nil {
