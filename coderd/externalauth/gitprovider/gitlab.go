@@ -262,13 +262,13 @@ func (g *gitlabProvider) FetchPullRequestDiff(
 				xerrors.Errorf("unexpected status %d", resp.StatusCode),
 				"get merge request raw diffs",
 			)
-			return "", markRejectedError(resp, err)
+			return "", rejectedOrOriginal(resp, err)
 		}
 		err := g.wrapError(
 			xerrors.Errorf("unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(string(body))),
 			"get merge request raw diffs",
 		)
-		return "", markRejectedError(resp, err)
+		return "", rejectedOrOriginal(resp, err)
 	}
 
 	buf, err := io.ReadAll(io.LimitReader(resp.Body, MaxDiffSize+1))
@@ -353,13 +353,13 @@ func (g *gitlabProvider) FetchBranchDiff(
 				xerrors.Errorf("unexpected status %d", resp.StatusCode),
 				"compare branches",
 			)
-			return "", markRejectedError(resp, err)
+			return "", rejectedOrOriginal(resp, err)
 		}
 		err := g.wrapError(
 			xerrors.Errorf("unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(string(body))),
 			"compare branches",
 		)
-		return "", markRejectedError(resp, err)
+		return "", rejectedOrOriginal(resp, err)
 	}
 
 	// Bound the read to MaxDiffSize + overhead for JSON structure.
@@ -587,7 +587,7 @@ func (g *gitlabProvider) BuildPullRequestURL(ref PRRef) string {
 	return fmt.Sprintf("%s/%s/%s/-/merge_requests/%d", g.webBaseURL, ref.Owner, ref.Repo, ref.Number)
 }
 
-// wrapError converts library errors to our domain errors (e.g. rate limits).
+// wrapError classifies SDK responses and adds context to other errors.
 func (g *gitlabProvider) wrapError(err error, action string) error {
 	var resp *http.Response
 	if errResp, ok := errors.AsType[*gitlab.ErrorResponse](err); ok {
@@ -597,7 +597,10 @@ func (g *gitlabProvider) wrapError(err error, action string) error {
 		}
 	}
 	wrapped := xerrors.Errorf("gitlab %s: %w", action, err)
-	return markRejectedError(resp, wrapped)
+	if resp == nil {
+		return wrapped
+	}
+	return rejectedOrOriginal(resp, wrapped)
 }
 
 // mapGitLabState maps a GitLab merge request state string to a normalized PRState.

@@ -585,7 +585,7 @@ func TestRefresher_StaleAtByPRState(t *testing.T) {
 	}
 }
 
-func TestRefresher_RateLimitSkipsRemainingInGroup(t *testing.T) {
+func TestRefresher_RateLimitInBatchSkip(t *testing.T) {
 	t.Parallel()
 
 	var callCount atomic.Int32
@@ -595,10 +595,8 @@ func TestRefresher_RateLimitSkipsRemainingInGroup(t *testing.T) {
 			return gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1}, raw != ""
 		},
 		fetchPullRequestStatus: func(_ context.Context, _ string, _ gitprovider.PRRef) (*gitprovider.PRStatus, error) {
-			// Every call returns a rate limit error. With
-			// concurrency=1 the first goroutine to acquire the
-			// semaphore makes the only real call; remaining
-			// goroutines see the flag and skip.
+			// At concurrency one, later rows
+			// use the in-batch skip.
 			callCount.Add(1)
 			return nil, &gitprovider.RateLimitError{
 				RetryAfter: time.Now().Add(60 * time.Second),
@@ -611,8 +609,7 @@ func TestRefresher_RateLimitSkipsRemainingInGroup(t *testing.T) {
 		return new("test-token"), nil
 	}
 
-	// Concurrency=1 ensures sequential semaphore acquisition so
-	// the rate-limit flag is always visible to later goroutines.
+	// Concurrency one makes the in-batch skip visible to later rows.
 	r := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewReal(), gitsync.WithConcurrency(1))
 
 	ownerID := uuid.New()
@@ -652,12 +649,8 @@ func TestRefresher_RateLimitSkipsRemainingInGroup(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, results, 3)
 
-	// With concurrency=1, the first goroutine to acquire the
-	// semaphore makes the only API call (which rate-limits).
-	// The remaining goroutines see the rate-limit flag and
-	// skip. Goroutine scheduling order is non-deterministic,
-	// so we verify aggregate counts rather than per-index
-	// results.
+	// Goroutine order is nondeterministic, so check direct errors and
+	// in-batch skips by count rather than by row.
 	var directCount, skippedCount int
 	for _, res := range results {
 		require.Error(t, res.Error)
@@ -679,18 +672,34 @@ func TestRefresher_RateLimitSkipsRemainingInGroup(t *testing.T) {
 		"FetchPullRequestStatus should be called exactly once")
 }
 
-func TestRefresher_RejectedSkipsOnlySameGroup(t *testing.T) {
+func TestRefresher_RejectedInBatchSkipScope(t *testing.T) {
 	t.Parallel()
 
-	for _, rejected := range []bool{true, false} {
-		name := "OtherError"
-		if rejected {
-			name = "Rejected"
-		}
-		t.Run(name, func(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		providerErr  error
+		wantRejected bool
+		wantCalls    int
+	}{
+		{
+			name:         "Rejected",
+			providerErr:  gitprovider.RejectedError("permission denied"),
+			wantRejected: true,
+			wantCalls:    3,
+		},
+		{
+			name:        "OtherError",
+			providerErr: xerrors.New("provider error"),
+			wantCalls:   6,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
 			ownerID := uuid.New()
+
+			// The second group changes only the owner.
+			// The third changes only the origin.
 			groups := []struct {
 				ownerID uuid.UUID
 				origin  string
@@ -715,41 +724,43 @@ func TestRefresher_RejectedSkipsOnlySameGroup(t *testing.T) {
 			}
 
 			var calls atomic.Int32
-			providerErr := xerrors.New("provider error")
-			if rejected {
-				providerErr = gitprovider.RejectedError("permission denied")
-			}
 			provider := &mockProvider{
 				parsePullRequestURL: func(string) (gitprovider.PRRef, bool) {
 					return gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1}, true
 				},
 				fetchPullRequestStatus: func(context.Context, string, gitprovider.PRRef) (*gitprovider.PRStatus, error) {
 					calls.Add(1)
-					return nil, providerErr
+					return nil, tc.providerErr
 				},
 			}
-			providers := func(context.Context, string) gitprovider.Provider { return provider }
-			tokens := func(context.Context, uuid.UUID, string) (*string, error) { return new("test-token"), nil }
-			refresher := gitsync.NewRefresher(providers, tokens, slogtest.Make(t, nil), quartz.NewMock(t), gitsync.WithConcurrency(1))
+			providers := func(context.Context, string) gitprovider.Provider {
+				return provider
+			}
+			tokens := func(context.Context, uuid.UUID, string) (*string, error) {
+				return new("test-token"), nil
+			}
+			refresher := gitsync.NewRefresher(
+				providers,
+				tokens,
+				slogtest.Make(t, nil),
+				quartz.NewMock(t),
+				gitsync.WithConcurrency(1),
+			)
 
-			// Suppression must reset on each Refresh call.
+			// Each Refresh call starts without an in-batch skip.
 			for run := 1; run <= 2; run++ {
 				results, err := refresher.Refresh(ctx, requests)
 				require.NoError(t, err)
 				require.Len(t, results, len(requests))
 				for _, result := range results {
-					require.ErrorIs(t, result.Error, providerErr)
+					require.ErrorIs(t, result.Error, tc.providerErr)
 					_, isRateLimit := errors.AsType[*gitprovider.RateLimitError](result.Error)
 					require.False(t, isRateLimit)
 					require.NotErrorIs(t, result.Error, gitsync.ErrRateLimitSkipped)
 					_, isRejected := errors.AsType[gitprovider.RejectedError](result.Error)
-					require.Equal(t, rejected, isRejected)
+					require.Equal(t, tc.wantRejected, isRejected)
 				}
-				wantCalls := len(requests)
-				if rejected {
-					wantCalls = len(groups)
-				}
-				require.Equal(t, run*wantCalls, int(calls.Load()))
+				require.Equal(t, run*tc.wantCalls, int(calls.Load()))
 			}
 		})
 	}

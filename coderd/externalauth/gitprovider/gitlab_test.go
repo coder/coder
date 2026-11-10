@@ -344,18 +344,18 @@ func TestGitLabRateLimit(t *testing.T) {
 	})
 
 	for _, tc := range []struct {
-		name   string
-		status int
-		reset  bool
+		name                       string
+		status                     int
+		resetWithRequestsRemaining bool
 	}{
 		{name: "403WithoutRateLimitHeaders", status: http.StatusForbidden},
-		{name: "429WithoutRetryAfter", status: http.StatusTooManyRequests, reset: true},
+		{name: "429WithoutRetryAfter", status: http.StatusTooManyRequests, resetWithRequestsRemaining: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			clock := quartz.NewMock(t)
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-				if tc.reset {
+				if tc.resetWithRequestsRemaining {
 					w.Header().Set("RateLimit-Reset", fmt.Sprint(clock.Now().Add(time.Hour).Unix()))
 					w.Header().Set("RateLimit-Remaining", "4990")
 				}
@@ -379,6 +379,7 @@ func TestGitLabRateLimit(t *testing.T) {
 			assert.Contains(t, err.Error(), fmt.Sprint(tc.status))
 			rejected, ok := errors.AsType[gitprovider.RejectedError](err)
 			require.True(t, ok)
+			// RejectedError is returned unwrapped.
 			require.Equal(t, err.Error(), rejected.Error())
 			require.ErrorContains(t, err, "gitlab get merge request:")
 		})

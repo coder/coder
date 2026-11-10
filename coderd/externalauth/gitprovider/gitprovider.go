@@ -224,7 +224,8 @@ func parseRetryAfter(h http.Header, resetHeader, remainingHeader string, clk qua
 		}
 	}
 
-	// A reset header alone does not show an exhausted primary rate limit.
+	// A reset header alone does not show that the provider's API rate limit
+	// is exhausted.
 	if h.Get(remainingHeader) != "0" {
 		return 0
 	}
@@ -239,13 +240,19 @@ func parseRetryAfter(h http.Header, resetHeader, remainingHeader string, clk qua
 	return 0
 }
 
+// isRateLimitStatus reports whether status can indicate
+// the provider's API rate limit.
+func isRateLimitStatus(status int) bool {
+	return status == http.StatusForbidden || status == http.StatusTooManyRequests
+}
+
 // checkRateLimitError returns a *RateLimitError for 403 or 429 when
 // parseRetryAfter finds a positive delay. A nil resp returns nil.
 func checkRateLimitError(resp *http.Response, clk quartz.Clock, resetHeader, remainingHeader string) error {
 	if resp == nil {
 		return nil
 	}
-	if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusTooManyRequests {
+	if !isRateLimitStatus(resp.StatusCode) {
 		return nil
 	}
 	retryAfter := parseRetryAfter(resp.Header, resetHeader, remainingHeader, clk)
@@ -281,20 +288,21 @@ func countDiffLines(diff string) (additions, deletions int32) {
 	return additions, deletions
 }
 
-// markRejectedError preserves diagnostic text after rate-limit checking.
-func markRejectedError(resp *http.Response, err error) error {
-	if resp != nil && (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests) {
-		return RejectedError(err.Error())
-	}
-	return err
-}
-
 // RejectedError indicates an HTTP 403 or 429 without a usable retry time.
-// It retains the provider's diagnostic text without wrapping another error.
+// It keeps only diagnostic text so it can never wrap a RateLimitError.
 type RejectedError string
 
 func (e RejectedError) Error() string {
 	return string(e)
+}
+
+// rejectedOrOriginal returns err's text as a RejectedError for a rate-limit
+// status, or err otherwise. Call it after checkRateLimitError returns nil.
+func rejectedOrOriginal(resp *http.Response, err error) error {
+	if resp != nil && isRateLimitStatus(resp.StatusCode) {
+		return RejectedError(err.Error())
+	}
+	return err
 }
 
 // RateLimitError indicates the git provider's API rate limit was hit.

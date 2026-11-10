@@ -490,7 +490,7 @@ func TestWorker_RefresherError_BacksOffRow(t *testing.T) {
 	assert.Equal(t, int32(1), publishCount.Load())
 }
 
-func TestWorker_GroupErrorBackoff(t *testing.T) {
+func TestWorker_RateLimitAndRejectedBackoff(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {

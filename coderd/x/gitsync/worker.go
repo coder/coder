@@ -244,7 +244,8 @@ func (w *Worker) tick(ctx context.Context) {
 				// the same RateLimitError.
 				backoff = min(rateLimit.RetryAfter.Sub(now), maxRateLimitBackoff)
 			default:
-				// Other errors retain the normal TTL.
+				// Rejected requests and other errors
+				// back off by DiffStatusTTL.
 				backoff = DiffStatusTTL
 			}
 
