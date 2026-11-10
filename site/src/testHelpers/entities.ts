@@ -555,7 +555,7 @@ export const MockChatProject: TypesGen.ChatProject = {
 	icon: "",
 	created_at: "2026-09-01T12:00:00Z",
 	updated_at: "2026-09-02T12:00:00Z",
-	permissions: { update: true, delete: true, share: true },
+	permissions: { update: true, delete: true, share: true, archive: true },
 };
 
 export const MockChatProjectInstructions: TypesGen.ChatProjectInstructions = {
