@@ -2,8 +2,11 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
+	"io"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -52,11 +55,19 @@ func TestChatProjectPins(t *testing.T) {
 
 	err := client.PinChatProject(ctx, orgID, a.ID, codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(0))})
 	requireSDKError(t, err, http.StatusBadRequest)
-	// The body is optional.
-	res, err := client.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/organizations/%s/chats/projects/%s/pin", orgID, b.ID), nil)
-	require.NoError(t, err)
-	_ = res.Body.Close()
-	require.Equal(t, http.StatusNoContent, res.StatusCode)
+	putPin := func(body io.Reader, opts ...codersdk.RequestOption) int {
+		res, err := client.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/organizations/%s/chats/projects/%s/pin", orgID, b.ID), body, opts...)
+		require.NoError(t, err)
+		_ = res.Body.Close()
+		return res.StatusCode
+	}
+	// The body is optional, also in a chunked request that cannot announce
+	// its empty length.
+	require.Equal(t, http.StatusNoContent, putPin(nil))
+	require.Equal(t, http.StatusNoContent, putPin(nil, func(req *http.Request) {
+		req.Body, req.ContentLength, req.TransferEncoding = io.NopCloser(strings.NewReader("")), -1, []string{"chunked"}
+	}))
+	require.Equal(t, http.StatusBadRequest, putPin(strings.NewReader("{")))
 
 	// Pins need read access. Sharing does not pin, and a pin that outlives
 	// access stays hidden.
@@ -66,6 +77,7 @@ func TestChatProjectPins(t *testing.T) {
 	// from the site owner's summaries.
 	otherOwn := createChatProject(t, other, orgID, "Pin Other")
 	requireSDKError(t, client.PinChatProject(ctx, orgID, otherOwn.ID, codersdk.PinChatProjectRequest{}), http.StatusNotFound)
+	requireSDKError(t, client.UnpinChatProject(ctx, orgID, otherOwn.ID), http.StatusNotFound)
 	setRole := func(role codersdk.ChatProjectRole) {
 		require.NoError(t, client.UpdateChatProjectACL(ctx, orgID, a.ID, codersdk.UpdateChatProjectACL{
 			UserRoles: map[string]codersdk.ChatProjectRole{otherUser.ID.String(): role},
@@ -209,7 +221,7 @@ func TestChatProjectSummaries(t *testing.T) {
 }
 
 //nolint:paralleltest // Disabling chat sharing flips a process-wide RBAC switch.
-func TestChatProjectSummariesSharingDisabled(t *testing.T) {
+func TestChatProjectsSharingDisabled(t *testing.T) {
 	previous := rbac.ChatACLDisabled()
 	t.Cleanup(func() {
 		rbac.ReloadBuiltinRoles(nil)
@@ -223,17 +235,43 @@ func TestChatProjectSummariesSharingDisabled(t *testing.T) {
 		options.DeploymentValues.DisableChatSharing = true
 	})
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
-	_, _ = newChatProjectMember(t, client, firstUser.OrganizationID)
-	project := createChatProject(t, client, firstUser.OrganizationID, "Members Disabled")
+	orgID := firstUser.OrganizationID
+	model := createChatModel(t, client)
+	member, memberUser := newChatProjectMember(t, client, orgID)
+	project := createChatProject(t, client, orgID, "Members Disabled")
 	// Grants left from before sharing was disabled do not count.
 	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
 		ID:       project.ID,
 		UserACL:  database.ChatACL{},
-		GroupACL: database.ChatACL{firstUser.OrganizationID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+		GroupACL: database.ChatACL{orgID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
 	}))
 
 	summaries := chatProjectSummariesByID(ctx, t, client)
 	require.EqualValues(t, 1, summaries[project.ID].MemberCount)
+
+	// The member cannot open the project, so the sidebar keeps their chat
+	// in it although nothing is pinned.
+	chat := dbgen.Chat(t, db, database.Chat{
+		OrganizationID: orgID, OwnerID: memberUser.ID, LastModelConfigID: model.ID,
+		ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true},
+	})
+	memberChats, err := member.ListChats(ctx, &codersdk.ListChatsOptions{PinnedProjectsOnly: true})
+	require.NoError(t, err)
+	require.Contains(t, chatIDs(memberChats), chat.ID)
+
+	// A pin from before sharing was disabled takes no visible position.
+	require.NoError(t, db.PinChatProject(ctx, database.PinChatProjectParams{
+		UserID: memberUser.ID, ProjectID: project.ID, SharingEnabled: true, PinOrder: sql.NullInt32{Int32: 1, Valid: true},
+	}))
+	x := createChatProject(t, member, orgID, "Hidden Pin X")
+	y := createChatProject(t, member, orgID, "Hidden Pin Y")
+	requirePinOrders(ctx, t, member, map[uuid.UUID]int32{x.ID: 1, y.ID: 2})
+	require.NotContains(t, chatProjectSummariesByID(ctx, t, member), project.ID)
+	require.NoError(t, member.PinChatProject(ctx, orgID, y.ID, codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(1))}))
+	requirePinOrders(ctx, t, member, map[uuid.UUID]int32{y.ID: 1, x.ID: 2})
+	require.NoError(t, member.UnpinChatProject(ctx, orgID, x.ID))
+	require.NoError(t, member.PinChatProject(ctx, orgID, x.ID, codersdk.PinChatProjectRequest{}))
+	requirePinOrders(ctx, t, member, map[uuid.UUID]int32{y.ID: 1, x.ID: 2})
 }
 
 func TestListChatsPinnedProjectsOnly(t *testing.T) {
@@ -269,8 +307,8 @@ func TestListChatsPinnedProjectsOnly(t *testing.T) {
 		chatIDs(append(firstPage, secondPage...)),
 	)
 
-	// A chat in a project the viewer can no longer see is listed like an
-	// unfiled chat.
+	// A chat in a project the viewer can no longer use stays listed,
+	// because the sidebar is the only place left to find it.
 	member, memberUser := newChatProjectMember(t, client, orgID)
 	setRole := func(role codersdk.ChatProjectRole) {
 		require.NoError(t, client.UpdateChatProjectACL(ctx, orgID, unpinned.ID, codersdk.UpdateChatProjectACL{

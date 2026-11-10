@@ -19,7 +19,8 @@ WITH current_pins AS (
             -- Same access predicate as GetChatProjectSummariesByUserID.
             cp.owner_id = @user_id::uuid
             OR (
-                (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
+                @sharing_enabled::boolean
+                AND (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
                     SELECT group_id::text FROM group_members WHERE user_id = @user_id::uuid
                     UNION ALL
                     SELECT organization_id::text FROM organization_members WHERE user_id = @user_id::uuid
@@ -84,7 +85,8 @@ updates AS (
         -- Same access predicate as GetChatProjectSummariesByUserID.
         cp.owner_id = @user_id::uuid
         OR (
-            (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
+            @sharing_enabled::boolean
+            AND (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
                 SELECT group_id::text FROM group_members WHERE user_id = @user_id::uuid
                 UNION ALL
                 SELECT organization_id::text FROM organization_members WHERE user_id = @user_id::uuid
@@ -119,7 +121,9 @@ WITH accessible AS (
     FROM chat_projects
     WHERE owner_id = @user_id::uuid
         OR (
-            (user_acl ? (@user_id::uuid)::text OR group_acl ?| ARRAY(
+            -- Grants count only while sharing is enabled.
+            @sharing_enabled::boolean
+            AND (user_acl ? (@user_id::uuid)::text OR group_acl ?| ARRAY(
                 SELECT group_id::text FROM group_members WHERE user_id = @user_id::uuid
                 UNION ALL
                 SELECT organization_id::text FROM organization_members WHERE user_id = @user_id::uuid

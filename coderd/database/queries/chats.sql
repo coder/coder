@@ -679,10 +679,10 @@ WHERE
                     AND chat_project_pins.project_id = chats_expanded.project_id
                     AND chat_project_pins.unpinned_at IS NULL
             )
-            -- A chat in a project the viewer cannot see is listed like an
-            -- unfiled chat, since the project is missing from the viewer's
-            -- projects. Same access predicate as
-            -- GetChatProjectSummariesByUserID.
+            -- A chat in a project the viewer can no longer use stays
+            -- listed: the project is missing from the viewer's projects, so
+            -- the sidebar is the only place left to find the chat. Same
+            -- access predicate as GetChatProjectSummariesByUserID.
             OR NOT EXISTS (
                 SELECT 1
                 FROM chat_projects cp
@@ -690,7 +690,8 @@ WHERE
                     AND (
                         cp.owner_id = @viewer_id::uuid
                         OR (
-                            (cp.user_acl ? (@viewer_id::uuid)::text OR cp.group_acl ?| ARRAY(
+                            @project_sharing_enabled::boolean
+                            AND (cp.user_acl ? (@viewer_id::uuid)::text OR cp.group_acl ?| ARRAY(
                                 SELECT group_id::text FROM group_members WHERE user_id = @viewer_id::uuid
                                 UNION ALL
                                 SELECT organization_id::text FROM organization_members WHERE user_id = @viewer_id::uuid

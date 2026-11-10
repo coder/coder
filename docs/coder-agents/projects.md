@@ -29,7 +29,10 @@ Chats in a project must be in the project's organization.
 Any organization member who can use Coder Agents can create projects in that organization.
 Each user can own up to 100 projects across all organizations.
 
-A project is private to its owner.
+Only the owner can use a project until they share it.
+Project sharing is experimental: your deployment administrator must include `chat-project-sharing` in the `CODER_EXPERIMENTS` environment variable or the `coder server --experiments` list.
+The owner can then share the project with users and groups in its organization, and it appears on the **Shared with you** tab for them.
+[Disabling chat sharing](./chat-sharing.md#disable-chat-sharing) also turns off project sharing.
 Coder records project, instruction, skill, and memory changes in the [audit log](../admin/security/audit-logs.md).
 
 ## Create a project
@@ -77,6 +80,7 @@ When you upgrade to a release with pinning, Coder pins every project you already
 
 The sidebar lists a chat in an unpinned project only if you pin the chat itself.
 Every chat stays available from the project's card and page.
+Chats you own in a project that you can no longer open, for example after the owner stops sharing it, stay in the sidebar.
 
 The API equivalents are `PUT` and `DELETE` on `/api/experimental/organizations/{organization}/chats/projects/{project}/pin`.
 

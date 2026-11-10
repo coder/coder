@@ -2,6 +2,9 @@ package coderd
 
 import (
 	"database/sql"
+	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -30,12 +33,9 @@ func (api *API) listChatProjectSummaries(rw http.ResponseWriter, r *http.Request
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	// Sharing is available when the project ACL routes are, under the same
-	// experiment gate.
-	sharingEnabled := !api.chatSharingDisabled() && (buildinfo.IsDev() || api.Experiments.Enabled(codersdk.ExperimentChatProjectSharing))
 	rows, err := api.Database.GetChatProjectSummariesByUserID(ctx, database.GetChatProjectSummariesByUserIDParams{
 		UserID:         apiKey.UserID,
-		SharingEnabled: sharingEnabled,
+		SharingEnabled: api.chatProjectSharingEnabled(),
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -64,30 +64,20 @@ func (api *API) putChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 	project := httpmw.ChatProjectParam(r)
-	// A pin is a personal preference, so reading the project is enough.
-	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
+	if !api.authorizeChatProjectPin(rw, r, project) {
 		return
 	}
 
-	// Summaries list only projects the user owns or that are shared with
-	// them, so role-based read access alone would leave the pin invisible.
-	usable, err := chatd.ChatProjectUsableBy(ctx, api.Database, project, apiKey.UserID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error checking chat project access.",
+	// The body is optional because pin_order is. Decoding reports io.EOF
+	// only for an empty body, which a chunked request cannot announce in
+	// its Content-Length.
+	var req codersdk.PinChatProjectRequest
+	err := json.NewDecoder(http.MaxBytesReader(rw, r.Body, httpapi.DefaultMaxRequestBodyBytes)).Decode(&req)
+	if err != nil && !errors.Is(err, io.EOF) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Request body must be valid JSON.",
 			Detail:  err.Error(),
 		})
-		return
-	}
-	if !usable {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-
-	// The body is optional because pin_order is.
-	var req codersdk.PinChatProjectRequest
-	if r.ContentLength != 0 && !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 	var pinOrder sql.NullInt32
@@ -104,9 +94,10 @@ func (api *API) putChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("lock chat project pins: %w", err)
 		}
 		return tx.PinChatProject(ctx, database.PinChatProjectParams{
-			UserID:    apiKey.UserID,
-			ProjectID: project.ID,
-			PinOrder:  pinOrder,
+			UserID:         apiKey.UserID,
+			ProjectID:      project.ID,
+			SharingEnabled: api.chatProjectSharingEnabled(),
+			PinOrder:       pinOrder,
 		})
 	}, nil)
 	if err != nil {
@@ -132,8 +123,7 @@ func (api *API) deleteChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 	project := httpmw.ChatProjectParam(r)
-	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
+	if !api.authorizeChatProjectPin(rw, r, project) {
 		return
 	}
 
@@ -142,8 +132,9 @@ func (api *API) deleteChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("lock chat project pins: %w", err)
 		}
 		return tx.UnpinChatProject(ctx, database.UnpinChatProjectParams{
-			UserID:    apiKey.UserID,
-			ProjectID: project.ID,
+			UserID:         apiKey.UserID,
+			ProjectID:      project.ID,
+			SharingEnabled: api.chatProjectSharingEnabled(),
 		})
 	}, nil)
 	if err != nil {
@@ -154,6 +145,39 @@ func (api *API) deleteChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// chatProjectSharingEnabled reports whether project grants count. Sharing is
+// available when the project ACL routes are, under the same experiment gate.
+func (api *API) chatProjectSharingEnabled() bool {
+	return !api.chatSharingDisabled() && (buildinfo.IsDev() || api.Experiments.Enabled(codersdk.ExperimentChatProjectSharing))
+}
+
+// authorizeChatProjectPin writes a 404 and returns false unless the caller
+// owns the project or holds a grant on it while sharing is enabled.
+// Summaries list only those projects, so role-based read access alone would
+// leave the pin invisible.
+func (api *API) authorizeChatProjectPin(rw http.ResponseWriter, r *http.Request, project database.ChatProject) bool {
+	ctx := r.Context()
+	userID := httpmw.APIKey(r).UserID
+	// A pin is a personal preference, so reading the project is enough.
+	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) ||
+		(project.OwnerID != userID && !api.chatProjectSharingEnabled()) {
+		httpapi.ResourceNotFound(rw)
+		return false
+	}
+	usable, err := chatd.ChatProjectUsableBy(ctx, api.Database, project, userID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking chat project access.",
+			Detail:  err.Error(),
+		})
+		return false
+	}
+	if !usable {
+		httpapi.ResourceNotFound(rw)
+	}
+	return usable
 }
 
 // chatProjectsOwnerLockID serializes one user's project creates and pin
