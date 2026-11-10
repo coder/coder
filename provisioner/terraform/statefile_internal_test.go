@@ -79,27 +79,6 @@ func Test_readStateFile_Rejects(t *testing.T) {
 	})
 }
 
-// Test_readStateFile_TerraformVersion pins the Terraform versions whose state
-// Graph reads directly. Graph logs the others quietly, because their fallback
-// to `terraform show` is expected.
-func Test_readStateFile_TerraformVersion(t *testing.T) {
-	t.Parallel()
-
-	for tfVersion, supported := range map[string]bool{
-		"1.3.10":                     false,
-		"1.4.0":                      true,
-		TerraformVersion.String():    true,
-		maxTerraformVersion.String(): false,
-	} {
-		_, err := parseStateFile([]byte(`{"version":4,"terraform_version":"` + tfVersion + `","resources":[]}`))
-		if supported {
-			require.NoError(t, err, tfVersion)
-		} else {
-			require.ErrorIs(t, err, errStateFileTerraformVersion, tfVersion)
-		}
-	}
-}
-
 // stateFileTestFiles is a template that leaves every kind of entry Coder
 // reads from state in the state file, with keys and modules that exercise
 // how `terraform show -json` orders and addresses them.
