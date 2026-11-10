@@ -155,6 +155,7 @@ Pools that use a Microsoft-hosted network have no subnet to reuse, so keep the s
 By default, the starter template deletes the virtual machine when the workspace stops and keeps the data disk mounted as `F:`.
 Files outside the data disk don't persist.
 The [template README](https://registry.coder.com/templates/coder/azure-windows) describes how to keep the whole virtual machine and deallocate it on stop instead.
+That approach needs the Azure CLI (`az`) on the provisioner's `PATH`, and the official Coder images don't include it.
 Refer to [Resource persistence](../../../templates/extending-templates/resource-persistence.md) to choose what to keep.
 
 ### Control who uses each template
@@ -163,6 +164,7 @@ Dev Box grants access with the Dev Box User role on a project.
 In Coder, use [template permissions](../../../templates/template-permissions.md) (Premium) to limit each template to the groups that need it.
 To limit how many workspaces each developer runs, as Dev Box limits do, configure [quotas](../../../admin/users/quotas.md) (Premium).
 Quotas give each developer a credit budget from the allowances of their groups.
+Coder calculates each developer's budget separately in each organization.
 A workspace spends credits only for resources that have a `daily_cost`, and the starter template sets none, so quotas don't limit its workspaces until you add one.
 
 To allow each developer a set number of workspaces, give the data disk a cost of 1 credit, and give each developer's groups allowances that add up to the limit:
@@ -225,7 +227,7 @@ The starter template includes the [Windows RDP](https://registry.coder.com/modul
 Developers without Coder Desktop can forward the RDP port with `coder port-forward` and connect with any RDP client.
 Refer to [Remote desktops](../../../workspaces/workspace-access/remote-desktops.md) for each method.
 
-The starter template creates a local administrator account with a generated password and shows both on the workspace page.
+The starter template creates a local administrator account with a generated password, and shows both on the workspace page while the workspace runs.
 It doesn't join the VM to Entra ID, so developers don't sign in to Windows with their Entra ID account.
 If your Dev Box pools gave developers standard user accounts, change the template to match.
 
