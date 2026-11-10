@@ -87,4 +87,4 @@ Follow these steps to identify problematic jobs or daemons:
    coder provisioner jobs cancel <job-id>
    ```
 
-To track queue wait times and job durations over time, use the [provisioner metrics](./index.md#metrics).
+To track queue wait times and job durations over time, use the [provisioner metrics](./index.md#prometheus-metrics).
