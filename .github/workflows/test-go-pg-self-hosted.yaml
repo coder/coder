@@ -13,13 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - provider: coder
-            runner: coder-large
-            fixture: test-go-pg-self-hosted
-          - provider: depot
-            runner: depot-ubuntu-22.04-8
-            fixture: test-go-pg
+        include: ${{ fromJSON(inputs.phase == 'bench' && '[{"provider":"coder","runner":"coder-large","fixture":"test-go-pg-self-hosted"}]' || '[{"provider":"coder","runner":"coder-large","fixture":"test-go-pg-self-hosted"},{"provider":"depot","runner":"depot-ubuntu-22.04-8","fixture":"test-go-pg"}]') }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 55
     permissions:
@@ -102,6 +96,9 @@ jobs:
       - name: Profile 64 cache requests with RAM disk
         if: inputs.phase == 'bench' && matrix.provider == 'coder'
         run: bash "$PROFILE_SCRIPTS/run.sh" ram-c64
+      - name: Repeat default retrieval as a control
+        if: inputs.phase == 'bench' && matrix.provider == 'coder'
+        run: bash "$PROFILE_SCRIPTS/run.sh" baseline-repeat
       - name: Collect profile artifacts
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
