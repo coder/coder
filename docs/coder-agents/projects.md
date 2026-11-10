@@ -42,6 +42,39 @@ The project page shows a **Details** panel with the project owner, creation date
 To rename or delete a project, open the project's menu on its page or in the sidebar and select **Edit project** or **Delete project**.
 Deleting a project deletes its instructions, skills, and memories.
 Its chats are kept and move back to your chat list.
+To set a project aside without deleting it, [archive it](#archive-a-project).
+
+## Archive a project
+
+Archive a project when its work is done.
+The project owner, organization admins, and site Owners can archive and unarchive a project.
+
+To archive a project, open the project's menu on its page or in the sidebar and select **Archive project**.
+The dialog shows how many chats archiving archives, then:
+
+- Every chat in the project is archived, including chats that other users started in it.
+- If chats are running, the dialog warns you and the button changes to **Stop chats and archive**.
+  Archiving stops them and discards any reply in progress.
+  Queued messages are kept.
+- If your own chats in the project use workspaces, choose whether to leave, stop, or delete those workspaces.
+  The dialog marks workspaces that existed before the chat that uses them.
+  Deleting workspaces requires you to type the project name.
+  A workspace that a chat outside the project still uses is skipped.
+
+Archived chats follow the deployment's [conversation data retention](./platform-controls/chat-retention.md) period.
+After that period, Coder permanently deletes them, and unarchiving the project doesn't bring them back.
+When retention is disabled, archived chats are kept until you unarchive the project.
+
+An archived project leaves the sidebar's **Projects** section, the new-chat project picker, and **Move to project**.
+Its page stays available to read its archived chats, but you can't start chats in it, move chats into it, or edit its details, instructions, skills, sharing, or memory.
+
+To unarchive a project, select **Archived projects** (the archive icon) in the **Projects** section of the sidebar and select **Unarchive**, or select **Unarchive** on the project's page.
+Unarchiving restores the chats that were archived with the project.
+You can't unarchive a single chat while its project is archived.
+Unarchive the project instead.
+
+The API equivalents are `POST /api/experimental/organizations/{organization}/chats/projects/{project}/archive` and `.../unarchive`.
+List archived projects with `GET /api/experimental/chats/projects?archived=true`.
 
 ## Add chats to a project
 
