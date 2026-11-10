@@ -45,6 +45,11 @@ export type AIBridgeAttribution = Record<string, string>;
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
 	/**
+	 * EmbeddedEnabled controls whether coderd starts the in-memory AI
+	 * Gateway. It only takes effect when Enabled is true.
+	 */
+	readonly embedded_enabled: boolean;
+	/**
 	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
 	readonly inject_coder_mcp_tools: boolean;

@@ -19693,6 +19693,10 @@ const docTemplate = `{
                     "description": "DisableContentRecording stops user prompts, tool calls and model\nreasoning from being recorded, including tool names and their arguments.\nInterceptions and token usage are still recorded, so cost controls,\nbudget enforcement and spend reporting are unaffected.",
                     "type": "boolean"
                 },
+                "embedded_enabled": {
+                    "description": "EmbeddedEnabled controls whether coderd starts the in-memory AI\nGateway. It only takes effect when Enabled is true.",
+                    "type": "boolean"
+                },
                 "enabled": {
                     "type": "boolean"
                 },
