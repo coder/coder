@@ -280,8 +280,6 @@ const AddAccessForm: React.FC<AddAccessFormProps> = ({
 					triggerRef={triggerRef}
 					// The name is the label, then the selection the trigger shows.
 					triggerAriaLabelledBy={`${triggerId}-label ${triggerId}`}
-					// Its clear control would nest a button inside the trigger button.
-					clearable={false}
 					value={selection}
 					onChange={(selection) =>
 						setDraft((current) => ({ ...current, selection }))
