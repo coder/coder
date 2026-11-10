@@ -21,6 +21,19 @@
 @source "../node_modules/streamdown";
 
 @theme inline {
+	--color-chart-success: var(--chart-success);
+	--color-chart-success-border: var(--chart-success-border);
+	--color-chart-error: var(--chart-error);
+	--color-chart-error-border: var(--chart-error-border);
+	--color-chart-warning: var(--chart-warning);
+	--color-chart-warning-border: var(--chart-warning-border);
+	--color-chart-active: var(--chart-active);
+	--color-chart-active-border: var(--chart-active-border);
+	--color-chart-inactive: var(--chart-inactive);
+	--color-chart-inactive-border: var(--chart-inactive-border);
+	--color-chart-notice: var(--chart-notice);
+	--color-chart-notice-border: var(--chart-notice-border);
+
 	--font-sans: "Geist Variable", system-ui, sans-serif;
 	/* `monospace, monospace` resets the font-size to 16px with the fallback. */
 	--font-mono: "Geist Mono Variable", monospace, monospace;
@@ -450,6 +463,28 @@
 @layer base {
 	:root,
 	.light {
+		--chart-success: var(--color-green-50);
+		--chart-success-border: var(--color-green-500);
+		--chart-error: hsl(var(--surface-destructive));
+		--chart-error-border: hsl(var(--border-destructive));
+		--chart-warning: var(--color-amber-50);
+		--chart-warning-border: var(--color-amber-300);
+		--chart-active: var(--color-sky-100);
+		--chart-active-border: var(--color-sky-500);
+		--chart-inactive: var(--color-gray-100);
+		--chart-inactive-border: var(--color-gray-400);
+		--chart-notice: var(--color-blue-50);
+		--chart-notice-border: var(--color-blue-400);
+		--confetti-primary: var(--color-sky-600);
+		--confetti-secondary: var(--color-zinc-500);
+		--editor-foreground: var(--color-zinc-950);
+		--editor-background: var(--color-zinc-100);
+		/* TODO: These are not tracked in Figma. They've been moved here from `monaco.ts` */
+		--editor-comment: #6b737c;
+		--editor-type: #682cd7;
+		--editor-string: #1766b4;
+		--editor-variable: #444444;
+		--editor-brace: #ebb325;
 		--content-primary: 240 10% 4%;
 		--content-secondary: 240 5% 34%;
 		--content-link: 221 83% 53%;
@@ -536,6 +571,28 @@
 		--avatar-xs: 1.125rem;
 	}
 	.dark {
+		--chart-success: var(--color-green-950);
+		--chart-success-border: var(--color-green-500);
+		--chart-error: hsl(var(--surface-destructive));
+		--chart-error-border: hsl(var(--border-destructive));
+		--chart-warning: var(--color-amber-950);
+		--chart-warning-border: var(--color-amber-300);
+		--chart-active: var(--color-sky-950);
+		--chart-active-border: var(--color-sky-500);
+		--chart-inactive: var(--color-zinc-950);
+		--chart-inactive-border: var(--color-zinc-500);
+		--chart-notice: var(--color-blue-950);
+		--chart-notice-border: var(--color-blue-400);
+		--confetti-primary: var(--color-sky-500);
+		--confetti-secondary: var(--color-zinc-500);
+		--editor-foreground: var(--color-zinc-50);
+		--editor-background: var(--color-zinc-900);
+		/* TODO: These are not tracked in Figma. They've been moved here from `monaco.ts` */
+		--editor-comment: #6b737c;
+		--editor-type: #b392f0;
+		--editor-string: #9db1c5;
+		--editor-variable: #dddddd;
+		--editor-brace: #ebb325;
 		--content-primary: 0 0% 100%;
 		--content-secondary: 240 5% 65%;
 		--content-link: 213 94% 68%;
@@ -626,6 +683,12 @@
 		  tritanopia.
 	*/
 	.light-protan-deuter {
+		--chart-success: var(--color-sky-100);
+		--chart-success-border: var(--color-sky-500);
+		--chart-error: var(--color-red-100);
+		--chart-error-border: var(--color-red-500);
+		--chart-warning: var(--color-fuchsia-50);
+		--chart-warning-border: var(--color-fuchsia-300);
 		--content-success: 199 89% 48%;
 		--content-warning: 322 81% 43%;
 		--content-destructive: 24 95% 53%;
@@ -651,6 +714,12 @@
 		--surface-git-deleted: 33 100% 93%;
 	}
 	.dark-protan-deuter {
+		--chart-success: var(--color-sky-950);
+		--chart-success-border: var(--color-sky-500);
+		--chart-error: var(--color-red-950);
+		--chart-error-border: var(--color-red-600);
+		--chart-warning: var(--color-fuchsia-950);
+		--chart-warning-border: var(--color-fuchsia-300);
 		--content-success: 199 82% 67%;
 		--content-warning: 322 81% 67%;
 		--content-destructive: 27 96% 67%;
@@ -674,6 +743,12 @@
 		--surface-git-deleted: 17 75% 15%;
 	}
 	.light-tritan {
+		--chart-success: var(--color-sky-100);
+		--chart-success-border: var(--color-sky-500);
+		--chart-error: var(--color-red-100);
+		--chart-error-border: var(--color-red-500);
+		--chart-warning: var(--color-fuchsia-50);
+		--chart-warning-border: var(--color-fuchsia-300);
 		--content-success: 199 89% 48%;
 		--content-warning: 322 81% 43%;
 		--surface-green: 201 94% 86%;
@@ -692,6 +767,12 @@
 		--surface-git-added: 204 94% 94%;
 	}
 	.dark-tritan {
+		--chart-success: var(--color-sky-950);
+		--chart-success-border: var(--color-sky-500);
+		--chart-error: var(--color-red-950);
+		--chart-error-border: var(--color-red-600);
+		--chart-warning: var(--color-fuchsia-950);
+		--chart-warning-border: var(--color-fuchsia-300);
 		--content-success: 199 82% 67%;
 		--content-warning: 322 81% 67%;
 		--surface-green: 201 80% 14%;
