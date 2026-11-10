@@ -40,13 +40,6 @@ const renderTable = () => {
 	const updateSkill = vi
 		.spyOn(API.experimental, "updateOrganizationSkill")
 		.mockResolvedValue({ ...mockReviewSkill, enabled: false, content: "" });
-	const getSkill = vi
-		.spyOn(API.experimental, "getOrganizationSkillByName")
-		.mockResolvedValue({
-			...mockReviewSkill,
-			description: "Review SQL.",
-			content: mockReviewSkillContent,
-		});
 	renderComponent(
 		<QueryClientProvider client={createTestQueryClient()}>
 			<SkillsTable
@@ -56,7 +49,7 @@ const renderTable = () => {
 			/>
 		</QueryClientProvider>,
 	);
-	return { user: userEvent.setup(), updateSkill, getSkill };
+	return { user: userEvent.setup(), updateSkill };
 };
 
 describe("SkillsTable enabled toggle", () => {
@@ -92,12 +85,12 @@ describe("SkillsTable row menu dialogs", () => {
 
 describe("SkillsTable download", () => {
 	it("marks a downloaded manual-only skill so re-importing keeps it manual", async () => {
-		const { user, getSkill } = renderTable();
-		getSkill.mockResolvedValue({
+		vi.spyOn(API.experimental, "getOrganizationSkillByName").mockResolvedValue({
 			...mockReviewSkill,
 			model_invocable: false,
 			content: mockReviewSkillContent,
 		});
+		const { user } = renderTable();
 
 		await user.click(await screen.findByRole("button", { name: "Open menu" }));
 		await user.click(await screen.findByRole("menuitem", { name: "Download" }));

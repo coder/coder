@@ -421,11 +421,11 @@ describe("activeOrganizationSkills", () => {
 });
 
 describe("skillFileContent", () => {
-	const manualSkill = (content: string): TypesGen.Skill => ({
+	const mockManualSkill: TypesGen.Skill = {
 		...MockSkill,
 		model_invocable: false,
-		content,
-	});
+		content: "",
+	};
 
 	it("leaves an automatic skill's content unchanged", () => {
 		const content = "---\nname: triage\n---\nTriage issues.\n";
@@ -439,7 +439,7 @@ describe("skillFileContent", () => {
 		"marks %s frontmatter so re-importing keeps the skill manual",
 		(_, content) => {
 			expect(
-				parseSkillMarkdown(skillFileContent(manualSkill(content)))
+				parseSkillMarkdown(skillFileContent({ ...mockManualSkill, content }))
 					.modelInvocable,
 			).toBe(false);
 		},
@@ -447,9 +447,10 @@ describe("skillFileContent", () => {
 
 	it("keeps a leading BOM ahead of the marker", () => {
 		expect(
-			skillFileContent(
-				manualSkill("\uFEFF---\nname: triage\n---\nTriage issues.\n"),
-			),
+			skillFileContent({
+				...mockManualSkill,
+				content: "\uFEFF---\nname: triage\n---\nTriage issues.\n",
+			}),
 		).toBe(
 			"\uFEFF---\ndisable-model-invocation: true\nname: triage\n---\nTriage issues.\n",
 		);
@@ -457,6 +458,6 @@ describe("skillFileContent", () => {
 
 	it("leaves content unmarked when the marker would pass the size limit", () => {
 		const content = `---\nname: big\n---\n${"a".repeat(SKILL_MAX_SIZE_BYTES - 20)}`;
-		expect(skillFileContent(manualSkill(content))).toBe(content);
+		expect(skillFileContent({ ...mockManualSkill, content })).toBe(content);
 	});
 });
