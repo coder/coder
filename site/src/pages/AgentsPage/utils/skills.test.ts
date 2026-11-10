@@ -455,6 +455,15 @@ describe("skillFileContent", () => {
 		);
 	});
 
+	it("marks frontmatter with whitespace around the delimiters", () => {
+		const content = "  ---  \nname: triage\n --- \nTriage issues.\n";
+		const marked = skillFileContent(manualSkill(content));
+		expect(marked).toBe(
+			"  ---  \ndisable-model-invocation: true\nname: triage\n --- \nTriage issues.\n",
+		);
+		expect(parseSkillMarkdown(marked).modelInvocable).toBe(false);
+	});
+
 	it("leaves content unmarked when the marker would pass the size limit", () => {
 		const content = `---\nname: big\n---\n${"a".repeat(SKILL_MAX_SIZE_BYTES - 20)}`;
 		expect(skillFileContent(manualSkill(content))).toBe(content);

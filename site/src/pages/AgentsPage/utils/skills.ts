@@ -170,17 +170,40 @@ const frontmatterStringField = (
 	return value.replace(/[\r\n]+$/, "");
 };
 
-// The API re-validates on submit; this only projects content into form fields.
-export const parseSkillMarkdown = (content: string): SkillFormValues => {
-	const normalizedContent = content.replace(/^\uFEFF/, "");
-	const lines = normalizedContent.split("\n");
-	if (lines[0]?.trim() !== "---") {
-		throw new SkillMarkdownError("Missing opening frontmatter delimiter.");
-	}
+type SkillMarkdownLines = {
+	/** A leading UTF-8 BOM, which the server accepts and stores. */
+	bom: string;
+	lines: string[];
+	/** Index of the closing `---`, or -1 when it is missing. */
+	closingIndex: number;
+};
 
+/**
+ * Splits SKILL.md content into lines and locates its frontmatter delimiters,
+ * allowing whitespace around `---`. Returns undefined when the first line is
+ * not a delimiter.
+ */
+const splitSkillMarkdown = (
+	content: string,
+): SkillMarkdownLines | undefined => {
+	const bom = content.startsWith("\uFEFF") ? "\uFEFF" : "";
+	const lines = content.slice(bom.length).split("\n");
+	if (lines[0].trim() !== "---") {
+		return undefined;
+	}
 	const closingIndex = lines.findIndex(
 		(line, index) => index > 0 && line.trim() === "---",
 	);
+	return { bom, lines, closingIndex };
+};
+
+// The API re-validates on submit; this only projects content into form fields.
+export const parseSkillMarkdown = (content: string): SkillFormValues => {
+	const split = splitSkillMarkdown(content);
+	if (!split) {
+		throw new SkillMarkdownError("Missing opening frontmatter delimiter.");
+	}
+	const { lines, closingIndex } = split;
 	if (closingIndex < 0) {
 		throw new SkillMarkdownError("Missing closing frontmatter delimiter.");
 	}
@@ -290,19 +313,20 @@ export const buildSkillMarkdown = (values: SkillFormValues): string => {
  * Content the marker would push past the size limit is returned unchanged.
  */
 const withDisabledModelInvocation = (content: string): string => {
-	// The server accepts and stores content that starts with a UTF-8 BOM.
-	const bom = content.startsWith("\uFEFF") ? "\uFEFF" : "";
-	const text = content.slice(bom.length);
-	const opening = /^---(\r?\n)/.exec(text);
-	const frontmatterEnd = text.search(/\r?\n---/);
-	if (!opening || frontmatterEnd < 3) {
+	const split = splitSkillMarkdown(content);
+	if (!split || split.closingIndex < 0) {
 		return content;
 	}
-	if (/^disable-model-invocation:/m.test(text.slice(0, frontmatterEnd))) {
+	const { bom, lines, closingIndex } = split;
+	const frontmatter = lines.slice(1, closingIndex);
+	if (
+		frontmatter.some((line) => line.startsWith("disable-model-invocation:"))
+	) {
 		return content;
 	}
-	const newline = opening[1];
-	const marked = `${bom}---${newline}disable-model-invocation: true${newline}${text.slice(opening[0].length)}`;
+	const lineEnding = lines[0].endsWith("\r") ? "\r" : "";
+	lines.splice(1, 0, `disable-model-invocation: true${lineEnding}`);
+	const marked = `${bom}${lines.join("\n")}`;
 	return getSkillContentSizeBytes(marked) > SKILL_MAX_SIZE_BYTES
 		? content
 		: marked;

@@ -257,7 +257,7 @@ const SkillNameCell: React.FC<SkillNameCellProps> = ({ skill }) => (
 	<TableCell className="max-w-48" title={skill.name}>
 		<div className="flex items-center gap-1.5">
 			<span className="truncate">{skill.name}</span>
-			{!skill.model_invocable && <Badge size="xs">Manual only</Badge>}
+			{!skill.model_invocable && <Badge size="sm">Manual only</Badge>}
 		</div>
 	</TableCell>
 );

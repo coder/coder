@@ -325,6 +325,8 @@ Skills tables mark these skills **Manual only**.
 The agent's list of skills leaves them out, and `read_skill` reports that the skill was not found.
 
 Importing a `SKILL.md` file with `disable-model-invocation: true` in its frontmatter turns the switch off.
+When you add a skill, importing a file without that line turns the switch back on.
+When you edit a skill, it leaves the switch unchanged.
 Downloading or exporting a manual-only skill adds that line back, so Claude Code, Cursor, and VS Code also treat the file as manual-only.
 The exception is a skill so close to the 64&nbsp;KB limit that the extra line would push the file over it.
 Coder downloads that file without the line, so other tools let agents use it automatically, and importing it again creates a skill that agents can use automatically.
