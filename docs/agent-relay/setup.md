@@ -214,8 +214,8 @@ We also recommend that you:
 
 ### Start the worker after workspace setup
 
-Agent Relay hands a workspace to the provider as soon as its build succeeds, not when the workspace agent is ready.
-The provider module starts the worker right away, so the agent can run commands while your startup scripts are still cloning repositories or installing tools.
+Agent Relay hands a workspace to the provider as soon as its build succeeds, and the provider module starts the worker without waiting for your startup scripts.
+Without an ordering rule, the agent can run commands while your startup scripts are still cloning repositories or installing tools.
 
 To make the worker wait, put the setup that sessions need in `coder_script` resources or modules.
 Then add a [`coder_script_order`](../templates/extending-templates/script-ordering.md) rule that runs the Agent Relay module after them:
@@ -225,7 +225,7 @@ resource "coder_script" "setup" {
   agent_id     = coder_agent.main.id
   display_name = "Workspace setup"
   run_on_start = true
-  timeout      = 300
+  timeout      = 120 # 2 minutes
   script       = file("${path.module}/setup.sh")
 }
 
@@ -239,16 +239,29 @@ data "coder_script_order" "relay_worker" {
 }
 ```
 
+The module READMEs for [`coder/agent-relay-claude-code`](https://registry.coder.com/modules/coder/agent-relay-claude-code) and [`coder/agent-relay-cursor`](https://registry.coder.com/modules/coder/agent-relay-cursor) show this rule with a full example.
+
 - Set `phase = "start"`, because the module also has a shutdown script.
 - Script ordering requires the Coder Terraform provider v2.20.0 or later.
 - Script ordering also requires Coder v2.39.0 or later for the control plane, provisioners, and workspace agents.
   On earlier versions, Coder ignores the rule without an error, and the worker starts right away.
 - Coder can't order the `startup_script` attribute of `coder_agent`.
   Move setup steps that the worker depends on into `coder_script` resources.
-- If a prerequisite fails, Coder skips the module's scripts and the worker never starts.
+- If a prerequisite fails or times out, Coder skips the module's scripts and the worker never starts.
+  Agent Relay newer than v0.15.0 fails the session about a minute later.
+  A Cursor request fails at that point.
+  For Claude Code, Agent Relay hands the work order back to Anthropic once, rebuilds the workspace when Anthropic redelivers it, and fails the session if the second setup fails too.
+  Agent Relay v0.15.0 and older wait out the [startup grace](./configuration.md#--reap-startup-grace) before failing a Cursor request, 15&nbsp;minutes by default, and hand a Claude Code work order back as retryable every time, so each redelivery runs the same setup again.
+  On a claimed prebuild, the status item keeps reporting the prebuild's `idle`, so Agent Relay neither fails the session nor deletes the workspace.
   To start the worker even when setup fails, set `requires = "completion"` on the rule.
-- The session waits while prerequisites run.
-  Set a `timeout` on each prerequisite, and keep setup well under 15&nbsp;minutes, after which Agent Relay deletes a workspace whose worker hasn't started.
+- The session waits while prerequisites run, so set a `timeout` on each prerequisite.
+  The `timeout` is in seconds and bounds one script.
+  Choose the timeouts so that the build plus the sum of the setup timeouts fits the pool's budget:
+  - For a Cursor pool, the budget is the reaper's [startup grace](./configuration.md#--reap-startup-grace), 15&nbsp;minutes from the start of the build by default.
+    Past it, Agent Relay fails the request and deletes the workspace.
+  - For a Claude Code pool, the budget is the pool's [build budget](./claude-code.md#build-budget), 5&nbsp;minutes by default and at most 15.
+    The budget starts when Anthropic issues the work order.
+    If the build and setup keep overrunning it, no worker ever serves the session: Anthropic offers the session again, and each new build runs the same setup from the start.
 
 ## Step 4: Configure provider pools
 
@@ -390,7 +403,7 @@ Agent Relay's reaper reads it on each sweep:
 - When the worker exits normally, Agent Relay deletes the workspace.
 - When the worker fails or disappears, Agent Relay deletes the workspace and records the failure.
 - When a build fails or is canceled, Agent Relay deletes the workspace on the next sweep.
-- Agent Relay deletes a workspace that is still building or not started after 15&nbsp;minutes.
+- Agent Relay deletes a workspace that is still building or not started after the [startup grace](./configuration.md#--reap-startup-grace), 15&nbsp;minutes by default.
 
 Keep these Coder settings in mind for relay templates:
 
