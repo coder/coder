@@ -1,9 +1,11 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
-import { type SidebarTab, SidebarTabView } from "./SidebarTabView";
+import { SidebarTab, SidebarTabView } from "./SidebarTabView";
 
-const initialTabs: SidebarTab[] = [
+type TestTab = { id: string; label: string; content: React.ReactNode };
+
+const initialTabs: TestTab[] = [
 	{ id: "git", label: "Git", content: <input aria-label="Git note" /> },
 	{
 		id: "terminal",
@@ -28,34 +30,41 @@ function renderTabs({ activeTabId = "git", tabs = initialTabs } = {}) {
 		return (
 			<>
 				<SidebarTabView
-					tabs={visibleTabs.map((tab) => ({
-						...tab,
-						onClose: () => {
-							onCloseTab(tab.id);
-							const remaining = visibleTabs.filter(({ id }) => id !== tab.id);
-							setVisibleTabs(remaining);
-							if (active === tab.id) {
-								setActive(
-									remaining[
-										Math.min(visibleTabs.indexOf(tab), remaining.length - 1)
-									]?.id ?? "",
-								);
-							}
-						},
-					}))}
-					effectiveTabId={active || null}
+					activeTabId={active || null}
 					onActiveTabChange={(id) => {
 						onActiveTabChange(id);
 						setActive(id);
 					}}
+					isPanelOpen
 					isExpanded={false}
 					onToggleExpanded={onToggleExpanded}
-					addTabControl={
+					addTabControl={() => (
 						<button type="button" onClick={onAddTab}>
 							New terminal tab
 						</button>
-					}
-				/>
+					)}
+				>
+					{visibleTabs.map((tab) => (
+						<SidebarTab
+							key={tab.id}
+							id={tab.id}
+							label={tab.label}
+							onClose={(next) => {
+								onCloseTab(tab.id);
+								setVisibleTabs((current) =>
+									current.filter(({ id }) => id !== tab.id),
+								);
+								if (next !== undefined) {
+									setActive(next);
+								} else if (visibleTabs.length === 1) {
+									setActive("");
+								}
+							}}
+						>
+							{tab.content}
+						</SidebarTab>
+					))}
+				</SidebarTabView>
 				<button type="button">After panel</button>
 			</>
 		);
@@ -114,12 +123,18 @@ describe("SidebarTabView", () => {
 			return (
 				<>
 					<SidebarTabView
-						tabs={initialTabs}
-						effectiveTabId={active}
+						activeTabId={active}
 						onActiveTabChange={setActive}
+						isPanelOpen
 						isExpanded={false}
 						onToggleExpanded={() => {}}
-					/>
+					>
+						{initialTabs.map((tab) => (
+							<SidebarTab key={tab.id} id={tab.id} label={tab.label}>
+								{tab.content}
+							</SidebarTab>
+						))}
+					</SidebarTabView>
 					<button type="button" onClick={() => setActive("preview")}>
 						Open preview
 					</button>

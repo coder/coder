@@ -35,7 +35,7 @@ export const Paywall = ({
 		<div
 			className={cn(
 				"relative isolate overflow-hidden",
-				"flex flex-row items-center justify-center min-h-[280px] p-4 rounded-lg gap-8",
+				"flex flex-row items-center justify-center min-h-70 p-4 rounded-lg gap-8",
 				"border border-solid border-border bg-surface-secondary",
 				className,
 			)}
@@ -155,7 +155,7 @@ export const PaywallFeature: React.FC<React.ComponentProps<"li">> = ({
 	...props
 }) => {
 	return (
-		<li className={cn("flex items-center gap-2 p-[3px]", className)} {...props}>
+		<li className={cn("flex items-center gap-2 p-0.75", className)} {...props}>
 			<FeatureIcon className="shrink-0" />
 			<span className="flex-1">{children}</span>
 		</li>
@@ -185,7 +185,7 @@ export const PaywallGuidance: React.FC<React.ComponentProps<"p">> = ({
 	return (
 		<p
 			className={cn(
-				"font-inherit text-sm max-w-[280px] mx-7 my-0 text-content-secondary",
+				"font-inherit text-sm max-w-70 mx-7 my-0 text-content-secondary",
 				className,
 			)}
 			{...props}

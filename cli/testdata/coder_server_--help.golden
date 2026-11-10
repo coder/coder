@@ -296,8 +296,8 @@ Configure the background chat processing daemon.
 
       --chat-max-queued-messages-per-chat int, $CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT (default: 20)
           Maximum number of messages that can be queued in a chat. Sending a
-          message to a chat whose queue is full fails with HTTP 429. Must be at
-          least 1.
+          message that would make a full queue longer fails with HTTP 429. Must
+          be at least 1.
 
       --chat-max-steps-per-turn int, $CODER_CHAT_MAX_STEPS_PER_TURN (default: 1200)
           Maximum number of steps in a chat turn. Each model response is one
@@ -591,10 +591,6 @@ NETWORKING / HTTP OPTIONS:
       --max-admin-token-lifetime duration, $CODER_MAX_ADMIN_TOKEN_LIFETIME (default: 168h0m0s)
           The maximum lifetime duration administrators can specify when creating
           an API token.
-
-      --proxy-health-interval duration, $CODER_PROXY_HEALTH_INTERVAL (default: 1m0s)
-          The interval in which coderd should be checking the status of
-          workspace proxies.
 
       --session-duration duration, $CODER_SESSION_DURATION (default: 24h0m0s)
           The token expiry duration for browser sessions. Sessions may last
@@ -898,9 +894,9 @@ Tune the behavior of the provisioner, which is responsible for creating,
 updating, and deleting workspace resources.
 
       --provisioner-disable-module-cache bool, $CODER_PROVISIONER_DISABLE_MODULE_CACHE (default: false)
-          Disable the reuse of Terraform modules cached at template import for
-          all templates. Modules are re-downloaded on every workspace build.
-          Individual templates cannot opt back in.
+          Disable the reuse of Terraform modules and the provider lock file
+          cached at template import for all templates. Modules are re-downloaded
+          on every workspace build. Individual templates cannot opt back in.
 
       --provisioner-force-cancel-interval duration, $CODER_PROVISIONER_FORCE_CANCEL_INTERVAL (default: 10m0s)
           Time to force cancel provisioning tasks that are stuck.
@@ -1037,6 +1033,10 @@ These options are only available in the Enterprise Edition.
           operation it is recommended to only set one key unless you are in the
           process of rotating keys with the `coder server dbcrypt rotate`
           command.
+
+      --proxy-health-interval duration, $CODER_PROXY_HEALTH_INTERVAL (default: 1m0s)
+          The interval in which coderd should be checking the status of
+          workspace proxies.
 
       --scim-auth-header string, $CODER_SCIM_AUTH_HEADER
           Enables SCIM and sets the authentication header for the built-in SCIM

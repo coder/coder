@@ -45,8 +45,14 @@ func (r *RootCmd) show() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("get workspace: %w", err)
 			}
+			// Keep the owner in suggested commands when needed, so they still
+			// resolve for workspaces owned by someone else.
+			workspaceName := workspace.Name
+			if suggestWithOwner(inv.Args[0], workspace) {
+				workspaceName = workspace.FullName()
+			}
 			options := cliui.WorkspaceResourcesOptions{
-				WorkspaceName: workspace.Name,
+				WorkspaceName: workspaceName,
 				ServerVersion: buildInfo.Version,
 				ShowDetails:   details,
 				Title:         fmt.Sprintf("%s/%s (%s since %s) %s:%s", workspace.OwnerName, workspace.Name, workspace.LatestBuild.Status, time.Since(workspace.LatestBuild.CreatedAt).Round(time.Second).String(), workspace.TemplateName, workspace.LatestBuild.TemplateVersionName),

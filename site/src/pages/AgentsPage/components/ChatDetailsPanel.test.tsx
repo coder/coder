@@ -14,12 +14,18 @@ import {
 } from "#/testHelpers/chatEntities";
 import { createChatStore } from "./ChatConversation/chatStore";
 import { ChatDetailsPanel } from "./ChatDetailsPanel";
+import { TabPanelStateContext } from "./ChatsSidebar/tabs/SidebarTabView";
 
 vi.mock("#/modules/dashboard/useFeatureVisibility", () => ({
 	useFeatureVisibility: () => ({ aibridge: true }),
 }));
 
-const props: React.ComponentProps<typeof ChatDetailsPanel> = {
+type PanelProps = React.ComponentProps<typeof ChatDetailsPanel> & {
+	/** Whether Details is the active tab of an open right panel. */
+	isVisible: boolean;
+};
+
+const props: PanelProps = {
 	chatId: MockChat.id,
 	isVisible: true,
 	usage: {
@@ -43,14 +49,21 @@ function setup(overrides: Partial<typeof props> = {}) {
 	const wrapper = ({ children }: { children: React.ReactNode }) => (
 		<QueryClientProvider client={client}>{children}</QueryClientProvider>
 	);
-	const result = render(<ChatDetailsPanel {...props} {...overrides} />, {
+	const renderPanel = ({ isVisible, ...panelProps }: PanelProps) => (
+		<TabPanelStateContext
+			value={{ isActive: isVisible, isPanelOpen: true, isExpanded: false }}
+		>
+			<ChatDetailsPanel {...panelProps} />
+		</TabPanelStateContext>
+	);
+	const result = render(renderPanel({ ...props, ...overrides }), {
 		wrapper,
 	});
 	return {
 		...result,
 		client,
 		rerenderPanel: (next: Partial<typeof props>) =>
-			result.rerender(<ChatDetailsPanel {...props} {...overrides} {...next} />),
+			result.rerender(renderPanel({ ...props, ...overrides, ...next })),
 	};
 }
 beforeEach(() => {

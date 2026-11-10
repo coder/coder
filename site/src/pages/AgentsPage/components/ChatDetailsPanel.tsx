@@ -32,12 +32,11 @@ import {
 import { ChatDetailsUsage } from "./ChatDetailsUsage";
 import type { EarlierMessagesProps } from "./ChatMessageScroller";
 import { ChatSummary } from "./ChatSummary";
+import { useTabPanelState } from "./ChatsSidebar/tabs/SidebarTabView";
 import type { AgentContextUsage } from "./ContextUsageIndicator";
 
 type ChatDetailsPanelProps = {
 	chatId: string;
-	/** Gate reads on tab visibility so hidden Details does not fetch chat, cost, or attachments. */
-	isVisible: boolean;
 	usage: AgentContextUsage | null;
 	onApplyContext?: () => void;
 	isApplyingContext?: boolean;
@@ -52,7 +51,6 @@ type AttachmentProps = "store" | "hasMoreMessages" | "isHydratingMessages";
 
 export const ChatDetailsPanel: React.FC<ChatDetailsPanelProps> = ({
 	chatId,
-	isVisible,
 	focusRef,
 	store,
 	hasMoreMessages,
@@ -60,6 +58,10 @@ export const ChatDetailsPanel: React.FC<ChatDetailsPanelProps> = ({
 	...props
 }) => {
 	const showCost = Boolean(useFeatureVisibility().aibridge);
+	// Gate reads on tab visibility so hidden Details does not fetch chat,
+	// cost, or attachments.
+	const { isActive, isPanelOpen } = useTabPanelState();
+	const isVisible = isPanelOpen && isActive;
 	const chatQuery = useQuery({ ...chat(chatId), enabled: isVisible });
 	const chatData = chatQuery.data;
 	const rootChatId = getChatCostTreeID(chatData) ?? chatId;
@@ -117,9 +119,10 @@ export const ChatDetailsPanel: React.FC<ChatDetailsPanelProps> = ({
 const DetailsAttachments: React.FC<
 	{
 		chatFiles: readonly ChatFileMetadata[] | undefined;
+		isVisible: boolean;
 	} & Pick<
 		ChatDetailsPanelProps,
-		"chatId" | "isVisible" | "store" | "hasMoreMessages" | "isHydratingMessages"
+		"chatId" | "store" | "hasMoreMessages" | "isHydratingMessages"
 	>
 > = ({
 	chatId,
@@ -265,10 +268,7 @@ const DetailsSection: React.FC<{
 };
 
 const DetailsSections: React.FC<
-	Omit<
-		ChatDetailsPanelProps,
-		"chatId" | "isVisible" | "focusRef" | AttachmentProps
-	> & {
+	Omit<ChatDetailsPanelProps, "chatId" | "focusRef" | AttachmentProps> & {
 		summary: React.ReactNode;
 		attachments: React.ReactNode;
 	}

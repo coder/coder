@@ -1,18 +1,50 @@
 import { cn } from "cn";
-import { useEffect, useRef, useState } from "react";
-import type { ChatContext } from "#/api/typesGenerated";
+import { useRef, useState } from "react";
+import {
+	BotIcon,
+	CircleAlertIcon,
+	FileIcon,
+	TriangleAlertIcon,
+	ZapIcon,
+} from "lucide-react";
+import type {
+	ChatContext,
+	ChatContextResourceKind,
+	ChatContextResourceStatus,
+	ChatContextTool,
+} from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
+import { Link } from "#/components/Link/Link";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
-import type { ResolvedCompactionThreshold } from "../utils/compactionTriggers";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	compactionThresholdLabel,
-	contextUsageLabel,
-} from "../utils/contextUsage";
-import { SvgRingProgress } from "./SvgRingProgress";
+	compactionThresholdPercent,
+	type ResolvedCompactionThreshold,
+} from "../utils/compactionTriggers";
+import { getPathBasename, getPathDirname } from "../utils/path";
+import {
+	ContextAlert,
+	ContextAlertActions,
+	ContextAlertDescription,
+	ContextAlertTitle,
+} from "./ContextAlert";
+import {
+	ContextResourceAccordion,
+	ContextResourceAccordionContent,
+	ContextResourceAccordionTrigger,
+} from "./ContextResourceAccordion";
+import {
+	ContextResourceServer,
+	ContextResourceTool,
+	ContextResourceTree,
+	ContextResourceTreeDirectory,
+	ContextResourceTreeItem,
+} from "./ContextResourceTree";
 
 export type AgentContextUsage = {
 	readonly usedTokens?: number;
@@ -30,149 +62,692 @@ export type AgentContextUsage = {
 	readonly context?: ChatContext;
 };
 
+// Normalized popover entries, sourced from the chat's pinned context
+// resources.
+type ContextFileItem = { readonly path: string; readonly dir: string };
+type ContextSkillItem = {
+	readonly source: string;
+	readonly name: string;
+	readonly description?: string;
+	readonly dir: string;
+};
+// MCP configs are file-backed (shown by full path), while MCP servers are
+// keyed by name and carry their tools.
+type ContextMcpConfigItem = { readonly source: string };
+type ContextMcpServerItem = {
+	readonly name: string;
+	readonly source: string;
+	readonly connected: boolean;
+	readonly tools: readonly ChatContextTool[];
+};
+// A pinned resource the agent could not use, surfaced with its error so the
+// failure is visible instead of silent.
+type ContextIssueItem = {
+	readonly name: string;
+	readonly kind: ChatContextResourceKind;
+	readonly status: ChatContextResourceStatus;
+	readonly error: string;
+	readonly source: string;
+};
+
+// Human-readable label per resource kind, used in the issues list.
+const RESOURCE_KIND_LABELS: Record<ChatContextResourceKind, string> = {
+	instruction_file: "file",
+	skill: "skill",
+	mcp_config: "MCP config",
+	mcp_server: "MCP server",
+	acp_harness: "ACP harness",
+};
+
+const hasFiniteTokenValue = (value: number | undefined): value is number =>
+	typeof value === "number" && Number.isFinite(value) && value >= 0;
+
+const formatTokenCount = (value: number | undefined): string =>
+	hasFiniteTokenValue(value) ? value.toLocaleString() : "--";
+
+const formatTokenCountCompact = (value: number | undefined): string => {
+	if (!hasFiniteTokenValue(value)) {
+		return "--";
+	}
+	if (value >= 1_000_000) {
+		const m = value / 1_000_000;
+		return `${Number.isInteger(m) ? m : m.toFixed(1).replace(/\.0$/, "")}M`;
+	}
+	if (value >= 1_000) {
+		const k = value / 1_000;
+		return `${Number.isInteger(k) ? k : k.toFixed(1).replace(/\.0$/, "")}K`;
+	}
+	return String(value);
+};
+
+const getIndicatorToneClassName = (
+	percentUsed: number | null,
+	compactionPercent: number | undefined,
+): string => {
+	if (percentUsed === null) {
+		return "text-content-secondary";
+	}
+	if (percentUsed >= 95) {
+		return "text-content-destructive";
+	}
+	if (percentUsed >= (compactionPercent ?? 100) * 0.9) {
+		return "text-content-warning";
+	}
+	return "text-content-secondary";
+};
+
+// A set of context resources that share a parent directory. Lists are grouped
+// by directory so resources pulled from different roots (for example a
+// repo-root AGENTS.md and a nested one) stay distinguishable instead of
+// collapsing to identical basenames.
+type DirectoryGroup<T> = {
+	readonly dir: string;
+	readonly items: readonly T[];
+};
+
+// Group items by their precomputed dir, preserving first-seen order so the
+// popover layout stays stable across renders.
+const groupByDirectory = <T extends { readonly dir: string }>(
+	items: readonly T[],
+): readonly DirectoryGroup<T>[] => {
+	const order: string[] = [];
+	const byDir = new Map<string, T[]>();
+	for (const item of items) {
+		const existing = byDir.get(item.dir);
+		if (existing) {
+			existing.push(item);
+		} else {
+			byDir.set(item.dir, [item]);
+			order.push(item.dir);
+		}
+	}
+	return order.map((dir) => ({ dir, items: byDir.get(dir) ?? [] }));
+};
+
+const ContextResourceIssues: React.FC<{
+	issues: readonly ContextIssueItem[];
+}> = ({ issues }) =>
+	issues.length > 0 ? (
+		<ContextAlert severity="warning" variant="panel">
+			<ContextAlertTitle>Issues</ContextAlertTitle>
+			<ContextAlertDescription>
+				{issues.map((issue) => (
+					<span
+						key={`${issue.kind}:${issue.source}`}
+						className="flex flex-col gap-1"
+						title={issue.source}
+					>
+						<span className="truncate">
+							{issue.name}{" "}
+							<span className="text-content-secondary">
+								({RESOURCE_KIND_LABELS[issue.kind]}: {issue.status})
+							</span>
+						</span>
+						{issue.error && <span>{issue.error}</span>}
+					</span>
+				))}
+			</ContextAlertDescription>
+		</ContextAlert>
+	) : null;
+
+type ContextMcpServerIssuesProps = {
+	issues: readonly ContextIssueItem[];
+	onManageServers?: () => void;
+};
+
+const ContextMcpServerIssues: React.FC<ContextMcpServerIssuesProps> = ({
+	issues,
+	onManageServers,
+}) =>
+	issues.length > 0 ? (
+		<ContextAlert
+			severity="warning"
+			variant="panel"
+			className="gap-y-1 leading-4.5"
+		>
+			<ContextAlertTitle className="font-normal leading-4.5">
+				{issues.length} {issues.length === 1 ? "server" : "servers"} not
+				running:
+			</ContextAlertTitle>
+			<ContextAlertDescription className="gap-1 break-words">
+				<span>{issues.map((issue) => issue.name).join(", ")}</span>
+				{onManageServers && (
+					<Link
+						asChild
+						size="sm"
+						showExternalIcon={false}
+						className="w-fit border-0 bg-transparent p-0 font-normal leading-4.5"
+					>
+						<button type="button" onClick={onManageServers}>
+							Manage servers
+						</button>
+					</Link>
+				)}
+			</ContextAlertDescription>
+		</ContextAlert>
+	) : null;
+
+const ContextHarnessSection: React.FC<{
+	groups: readonly DirectoryGroup<{ slug: string; dir: string }>[];
+	issues: readonly ContextIssueItem[];
+}> = ({ groups, issues }) => (
+	<ContextResourceAccordion>
+		<ContextResourceAccordionTrigger
+			detail={`${groups.reduce((count, group) => count + group.items.length, 0)} available`}
+		>
+			ACP
+		</ContextResourceAccordionTrigger>
+		<ContextResourceAccordionContent>
+			{groups.length > 0 && (
+				<ContextResourceTree>
+					{groups.map((group) => (
+						<ContextResourceTreeDirectory key={group.dir} dir={group.dir}>
+							{group.items.map((harness) => (
+								<ContextResourceTreeItem
+									key={harness.slug}
+									icon={group.dir === "" ? BotIcon : undefined}
+									name={harness.slug}
+									title={harness.slug}
+								/>
+							))}
+						</ContextResourceTreeDirectory>
+					))}
+				</ContextResourceTree>
+			)}
+			<ContextResourceIssues issues={issues} />
+		</ContextResourceAccordionContent>
+	</ContextResourceAccordion>
+);
+
 export const ContextUsageIndicator: React.FC<{
-	usage: AgentContextUsage | null;
-	onOpenDetails: (opener: HTMLButtonElement | null) => void;
-}> = ({ usage, onOpenDetails }) => {
+	usage: AgentContextUsage;
+	onRefreshContext?: () => void;
+	onManageServers?: () => void;
+	isRefreshingContext?: boolean;
+	/**
+	 * Opens the Details panel. Receives the trigger so the panel can return
+	 * focus to it when it closes.
+	 */
+	onOpenDetails?: (opener: HTMLButtonElement | null) => void;
+}> = ({
+	usage,
+	onRefreshContext,
+	onManageServers,
+	isRefreshingContext,
+	onOpenDetails,
+}) => {
 	const [open, setOpen] = useState(false);
 	const triggerRef = useRef<HTMLButtonElement>(null);
-	const contentRef = useRef<HTMLDivElement>(null);
-	const pointerInside = useRef(false);
-	const suppressFocusOpen = useRef(false);
-	const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-	const label = contextUsageLabel(usage);
-	const used = usage?.usedTokens;
-	const limit = usage?.contextLimitTokens;
-	const thresholdLabel = compactionThresholdLabel(
-		usage?.compactionThreshold,
-		limit,
-	);
-	const percent =
-		used !== undefined &&
-		Number.isFinite(used) &&
-		used >= 0 &&
-		limit !== undefined &&
-		Number.isFinite(limit) &&
-		limit > 0
-			? (used / limit) * 100
-			: 0;
+	// Details takes focus itself, so closing for it must not refocus the trigger.
+	const isOpeningDetails = useRef(false);
+	const usedTokens = hasFiniteTokenValue(usage.usedTokens)
+		? usage.usedTokens
+		: undefined;
+	const contextLimitTokens = hasFiniteTokenValue(usage.contextLimitTokens)
+		? usage.contextLimitTokens
+		: undefined;
+	const percentUsed =
+		usedTokens !== undefined &&
+		contextLimitTokens !== undefined &&
+		contextLimitTokens > 0
+			? (usedTokens / contextLimitTokens) * 100
+			: null;
+	const hasPercent = percentUsed !== null;
+	// Providers may report usage without token counts. Only a chat with no
+	// reported usage at all should promise numbers after the next message.
+	const hasReportedUsage = [
+		usage.usedTokens,
+		usage.contextLimitTokens,
+		usage.inputTokens,
+		usage.outputTokens,
+		usage.cacheReadTokens,
+		usage.cacheCreationTokens,
+		usage.reasoningTokens,
+	].some(hasFiniteTokenValue);
+	const percentLabel =
+		percentUsed === null ? "--" : `${Math.round(percentUsed)}%`;
+	const compactionLabel =
+		usage.compactionThreshold && contextLimitTokens !== undefined
+			? compactionThresholdLabel(usage.compactionThreshold, contextLimitTokens)
+			: undefined;
+	const compactionPercent =
+		usage.compactionThreshold && contextLimitTokens !== undefined
+			? compactionThresholdPercent(
+					usage.compactionThreshold,
+					contextLimitTokens,
+				)
+			: undefined;
+	const clampedPercent = hasPercent
+		? Math.min(Math.max(percentUsed, 0), 100)
+		: 0;
 
-	const cancelClose = () => {
-		if (closeTimer.current !== null) clearTimeout(closeTimer.current);
-		closeTimer.current = null;
-	};
-	useEffect(
-		() => () => {
-			if (closeTimer.current !== null) clearTimeout(closeTimer.current);
-		},
-		[],
+	const context = usage.context;
+	const isDirty = context?.dirty ?? false;
+	const contextError = context?.error ?? "";
+	const hasContextError = contextError !== "";
+	const pinnedResources = context?.resources;
+
+	// Drive the listed context from the chat's pinned resources.
+	const fileItems: readonly ContextFileItem[] = (pinnedResources ?? [])
+		.filter(
+			(resource) =>
+				resource.kind === "instruction_file" && resource.status === "ok",
+		)
+		.map((resource) => ({
+			path: resource.source,
+			dir: getPathDirname(resource.source),
+		}))
+		// Drop entries with no usable path so an empty marker never renders as a
+		// nameless "Context files" row.
+		.filter((file) => file.path.trim().length > 0);
+	const skillItems: readonly ContextSkillItem[] = (pinnedResources ?? [])
+		.filter((resource) => resource.kind === "skill" && resource.status === "ok")
+		.map((resource) => ({
+			source: resource.source,
+			name: resource.skill_name || getPathBasename(resource.source),
+			description: resource.skill_description,
+			dir: getPathDirname(resource.source),
+		}))
+		// Drop entries with no usable name so an empty skill marker never renders
+		// as a blank row.
+		.filter((skill) => skill.name.trim().length > 0);
+	// MCP configs are shown by their full path so multiple .mcp.json files
+	// (e.g. ~/.mcp.json and ~/project/.mcp.json) stay disambiguated; servers
+	// are keyed by name and carry their tools.
+	const mcpConfigItems: readonly ContextMcpConfigItem[] = (
+		pinnedResources ?? []
+	)
+		.filter(
+			(resource) => resource.kind === "mcp_config" && resource.status === "ok",
+		)
+		.map((resource) => ({ source: resource.source }))
+		.filter((config) => config.source.trim().length > 0);
+	const mcpServerItems: readonly ContextMcpServerItem[] = (
+		pinnedResources ?? []
+	)
+		.filter((resource) => resource.kind === "mcp_server")
+		.map((resource) => ({
+			name: resource.source,
+			source: resource.source,
+			connected: resource.status === "ok",
+			tools: resource.tools ?? [],
+		}))
+		// Drop entries with no usable name so an empty MCP marker never renders as
+		// a blank row.
+		.filter((server) => server.name.trim().length > 0);
+	const hasMcp = mcpConfigItems.length > 0 || mcpServerItems.length > 0;
+	const harnessItems = (pinnedResources ?? [])
+		.filter(
+			(resource) => resource.kind === "acp_harness" && resource.status === "ok",
+		)
+		.map((resource) => ({
+			slug: resource.source,
+			dir: resource.source_path ?? "",
+		}))
+		.filter((harness) => harness.slug.trim().length > 0);
+	// Pinned resources the agent could not use (invalid skill, unreadable or
+	// oversize file) are surfaced as issues with their error so the failure is
+	// visible rather than a silent omission.
+	const issueItems: readonly ContextIssueItem[] = (pinnedResources ?? [])
+		.filter((resource) => resource.status !== "ok")
+		.map((resource) => ({
+			name:
+				resource.skill_name ||
+				getPathBasename(resource.source) ||
+				resource.source,
+			kind: resource.kind,
+			status: resource.status,
+			error: resource.error ?? "",
+			source: resource.source,
+		}))
+		.filter((issue) => issue.name.trim().length > 0);
+	const fileIssues = issueItems.filter(
+		(issue) => issue.kind === "instruction_file",
 	);
-	const scheduleClose = () => {
-		cancelClose();
-		closeTimer.current = setTimeout(() => {
-			const focused = document.activeElement;
-			if (
-				!pointerInside.current &&
-				focused !== triggerRef.current &&
-				!contentRef.current?.contains(focused)
-			)
-				setOpen(false);
-		}, 150);
-	};
-	const enter = () => {
-		pointerInside.current = true;
-		cancelClose();
-		if (!suppressFocusOpen.current) setOpen(true);
-	};
-	const leave = () => {
-		pointerInside.current = false;
-		suppressFocusOpen.current = false;
-		scheduleClose();
-	};
-	return (
-		<Popover open={open} onOpenChange={setOpen} modal={false}>
-			<PopoverTrigger asChild>
-				<button
-					type="button"
-					ref={triggerRef}
-					aria-label={`Context usage: ${label}; ${thresholdLabel}`}
+	const skillIssues = issueItems.filter((issue) => issue.kind === "skill");
+	const mcpIssues = issueItems.filter(
+		(issue) => issue.kind === "mcp_config" || issue.kind === "mcp_server",
+	);
+	const mcpConfigIssues = mcpIssues.filter(
+		(issue) => issue.kind === "mcp_config",
+	);
+	const mcpServerIssues = mcpIssues.filter(
+		(issue) => issue.kind === "mcp_server",
+	);
+	const harnessIssues = issueItems.filter(
+		(issue) => issue.kind === "acp_harness",
+	);
+
+	const hasContextList =
+		fileItems.length > 0 ||
+		skillItems.length > 0 ||
+		hasMcp ||
+		harnessItems.length > 0 ||
+		issueItems.length > 0;
+
+	const hasResourceIssues = issueItems.length > 0;
+	const needsAttention = isDirty || hasContextError || hasResourceIssues;
+	const AttentionIcon = hasContextError ? CircleAlertIcon : TriangleAlertIcon;
+	const toneClassName = hasContextError
+		? "text-content-destructive"
+		: isDirty || hasResourceIssues
+			? "text-content-warning"
+			: getIndicatorToneClassName(percentUsed, compactionPercent);
+
+	// Group files and skills by directory so every context root is labeled,
+	// keeping resources pulled from different directories distinguishable.
+	const fileGroups = groupByDirectory(fileItems);
+	const skillGroups = groupByDirectory(skillItems);
+
+	const statusNotes = [
+		hasContextError ? "Context error." : "",
+		isDirty ? "Context changed." : "",
+		hasResourceIssues ? "Some context resources failed to load." : "",
+	].filter((note) => note !== "");
+	const statusNote = statusNotes.length > 0 ? ` ${statusNotes.join(" ")}` : "";
+	let ariaLabel = "Context usage";
+	if (hasPercent) {
+		const label = usage.estimated ? "Estimated context usage" : "Context usage";
+		ariaLabel = `${label} ${percentLabel}. ${formatTokenCount(usedTokens)} of ${formatTokenCount(contextLimitTokens)} tokens used.${statusNote}`;
+	} else if (statusNote !== "") {
+		ariaLabel = `Context usage.${statusNote}`;
+	}
+
+	const triggerButton = (
+		<button
+			ref={triggerRef}
+			type="button"
+			aria-label={ariaLabel}
+			className="inline-flex h-7 shrink-0 items-center gap-2 rounded-md border-none bg-transparent px-1 text-xs outline-hidden transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link"
+		>
+			<span
+				aria-hidden="true"
+				className="relative h-2 w-10 rounded-xs bg-surface-tertiary"
+			>
+				<span
 					className={cn(
-						"flex size-8 shrink-0 items-center justify-center rounded-full border-0 bg-transparent p-0 cursor-pointer focus-visible:outline focus-visible:outline-2 focus-visible:outline-content-link forced-colors:text-[ButtonText]",
-						percent >= 95
-							? "text-content-destructive"
-							: percent >= 85
-								? "text-content-warning"
-								: "text-content-secondary",
+						"block h-full rounded-xs bg-current",
+						clampedPercent > 0 && "min-w-1",
+						getIndicatorToneClassName(percentUsed, compactionPercent),
 					)}
-					onPointerEnter={(event) => {
-						if (event.pointerType !== "touch") enter();
-					}}
-					onPointerLeave={leave}
-					onFocus={() => {
-						cancelClose();
-						if (!suppressFocusOpen.current) setOpen(true);
-					}}
-					onBlur={scheduleClose}
-					onClick={(event) => {
-						event.preventDefault();
-						suppressFocusOpen.current = false;
-						setOpen(true);
-					}}
-				>
-					<SvgRingProgress
-						size={22}
-						strokeWidth={2.25}
-						percent={percent}
-						trackClassName="stroke-current opacity-30 forced-colors:opacity-100 forced-colors:stroke-[GrayText]"
-						progressClassName="stroke-current motion-reduce:transition-none forced-colors:stroke-[ButtonText]"
+					style={{ width: `${clampedPercent}%` }}
+				/>
+				{compactionPercent !== undefined && (
+					<span
+						className="absolute -top-0.5 h-3 w-0.5 -translate-x-1/2 bg-content-primary"
+						style={{ left: `${compactionPercent}%` }}
 					/>
-				</button>
-			</PopoverTrigger>
+				)}
+			</span>
+			<span className="text-content-secondary tabular-nums">
+				{percentLabel}
+			</span>
+			{needsAttention && (
+				<AttentionIcon
+					aria-hidden="true"
+					className={cn("size-3 shrink-0", toneClassName)}
+				/>
+			)}
+		</button>
+	);
+
+	return (
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
 			<PopoverContent
-				disablePortal
-				ref={contentRef}
-				aria-label="Context usage"
 				side="top"
 				align="end"
-				className="flex w-auto max-w-[calc(100vw-2rem)] items-center gap-3 p-3 text-xs motion-reduce:animate-none forced-colors:text-[CanvasText]"
-				onOpenAutoFocus={(event) => event.preventDefault()}
-				onCloseAutoFocus={(event) => event.preventDefault()}
-				onPointerEnter={enter}
-				onPointerLeave={leave}
-				onKeyDownCapture={(event) => {
-					// This non-modal popup participates in the surrounding tab order.
-					if (event.key === "Tab") event.stopPropagation();
-				}}
-				onFocusCapture={cancelClose}
-				onBlurCapture={scheduleClose}
-				onFocusOutside={(event) => {
-					if (pointerInside.current || event.target === triggerRef.current)
+				className="mobile-full-width-dropdown w-76 text-xs pb-1 font-normal"
+				onCloseAutoFocus={(event) => {
+					if (isOpeningDetails.current) {
+						isOpeningDetails.current = false;
 						event.preventDefault();
-				}}
-				onEscapeKeyDown={() => {
-					suppressFocusOpen.current = true;
-					cancelClose();
-					if (contentRef.current?.contains(document.activeElement))
-						triggerRef.current?.focus();
+					}
 				}}
 			>
-				<div className="flex min-w-0 flex-col gap-1">
-					<span>{label}</span>
-					<span className="text-content-secondary">{thresholdLabel}</span>
+				<div className="text-xs text-content-primary px-4 pt-2 pb-3">
+					<div className="flex items-center justify-between gap-2 pt-1">
+						<div className="text-sm font-semibold leading-6">Context</div>
+						{onOpenDetails && (
+							<Button
+								size="xs"
+								variant="subtle"
+								onClick={() => {
+									isOpeningDetails.current = true;
+									setOpen(false);
+									onOpenDetails(triggerRef.current);
+								}}
+							>
+								Details
+							</Button>
+						)}
+					</div>
+					{hasReportedUsage ? (
+						hasPercent ? (
+							<div className="flex gap-2 items-center pt-2">
+								<div
+									className="flex-1 bg-surface-tertiary rounded-xs h-2 relative"
+									style={{
+										"--data-compactsAt": compactionPercent,
+										"--data-percentUsed": clampedPercent,
+									}}
+								>
+									<div
+										className={cn(
+											"h-2 w-[calc(var(--data-percentUsed)*1%)] bg-current rounded-xs",
+											clampedPercent > 0 && "min-w-1",
+											getIndicatorToneClassName(percentUsed, compactionPercent),
+										)}
+									/>
+									{compactionPercent !== undefined && (
+										<div className="absolute top-0 left-[calc(var(--data-compactsAt)*1%)] h-2 w-0.5 -translate-x-1/2 bg-content-primary" />
+									)}
+								</div>
+								<span
+									className={getIndicatorToneClassName(
+										percentUsed,
+										compactionPercent,
+									)}
+								>
+									{usage.estimated && "~"}
+									{percentLabel}
+								</span>
+								<span className="text-content-secondary">
+									({formatTokenCountCompact(usedTokens)}/
+									{formatTokenCountCompact(contextLimitTokens)})
+								</span>
+							</div>
+						) : (
+							<div
+								role="status"
+								className="mt-2 rounded-lg border border-dashed border-border px-3 py-4 text-center"
+							>
+								<h3 className="m-0 text-xs font-semibold text-content-primary">
+									Context usage unavailable.
+								</h3>
+							</div>
+						)
+					) : (
+						<div
+							role="status"
+							className="mt-2 rounded-lg border border-dashed border-border px-3 py-4 text-center"
+						>
+							<h3 className="m-0 text-xs font-semibold text-content-primary">
+								Usage not available yet
+							</h3>
+							<p className="mb-0 mt-2 text-xs font-normal text-content-secondary max-w-48 mx-auto leading-5">
+								Context usage will appear after sending a message.
+							</p>
+						</div>
+					)}
+					{hasPercent && compactionLabel !== undefined && (
+						<div className="mt-2 text-content-secondary">{compactionLabel}</div>
+					)}
+					{hasPercent && usage.estimated && (
+						<ContextAlert
+							severity="info"
+							variant="panel"
+							className="mt-2 font-normal"
+						>
+							<ContextAlertTitle className="font-normal">
+								Estimated usage
+							</ContextAlertTitle>
+							<ContextAlertDescription>
+								Based on the compacted summary only, excluding other prompt
+								content and tools. Replaced by measured usage after the next
+								response.
+							</ContextAlertDescription>
+						</ContextAlert>
+					)}
 				</div>
-				<Button
-					variant="subtle"
-					size="sm"
-					className="min-h-6 shrink-0 px-1 text-content-link underline forced-colors:text-[LinkText] forced-colors:focus-visible:outline forced-colors:focus-visible:outline-2 forced-colors:focus-visible:outline-[Highlight]"
-					onClick={() => {
-						cancelClose();
-						suppressFocusOpen.current = true;
-						setOpen(false);
-						onOpenDetails(triggerRef.current);
-					}}
-				>
-					Details
-				</Button>
+				{hasContextList && (
+					<div className="flex flex-col text-content-secondary">
+						{(fileItems.length > 0 || fileIssues.length > 0) && (
+							<ContextResourceAccordion>
+								<ContextResourceAccordionTrigger
+									detail={`${fileItems.length} ${fileItems.length === 1 ? "file" : "files"}`}
+								>
+									Context files
+								</ContextResourceAccordionTrigger>
+								<ContextResourceAccordionContent>
+									{fileItems.length > 0 && (
+										<ContextResourceTree>
+											{fileGroups.map((group) => (
+												<ContextResourceTreeDirectory
+													key={group.dir}
+													dir={group.dir}
+												>
+													{group.items.map((file) => (
+														<ContextResourceTreeItem
+															key={file.path}
+															icon={group.dir === "" ? FileIcon : undefined}
+															name={getPathBasename(file.path)}
+															title={file.path}
+														/>
+													))}
+												</ContextResourceTreeDirectory>
+											))}
+										</ContextResourceTree>
+									)}
+									<ContextResourceIssues issues={fileIssues} />
+								</ContextResourceAccordionContent>
+							</ContextResourceAccordion>
+						)}
+						{(skillItems.length > 0 || skillIssues.length > 0) && (
+							<ContextResourceAccordion>
+								<ContextResourceAccordionTrigger
+									detail={`${skillItems.length} available`}
+								>
+									Skills
+								</ContextResourceAccordionTrigger>
+								<ContextResourceAccordionContent>
+									{skillItems.length > 0 && (
+										<ContextResourceTree>
+											{skillGroups.map((group) => (
+												<ContextResourceTreeDirectory
+													key={group.dir}
+													dir={group.dir}
+												>
+													{group.items.map((skill) => (
+														<ContextResourceTreeItem
+															key={skill.source}
+															icon={group.dir === "" ? ZapIcon : undefined}
+															name={skill.name}
+															description={skill.description}
+														/>
+													))}
+												</ContextResourceTreeDirectory>
+											))}
+										</ContextResourceTree>
+									)}
+									<ContextResourceIssues issues={skillIssues} />
+								</ContextResourceAccordionContent>
+							</ContextResourceAccordion>
+						)}
+						{(hasMcp || mcpIssues.length > 0) && (
+							<ContextResourceAccordion>
+								<ContextResourceAccordionTrigger
+									detail={`${mcpServerItems.filter((server) => server.connected).length} of ${mcpServerItems.length} connected`}
+								>
+									MCP Servers
+								</ContextResourceAccordionTrigger>
+								<ContextResourceAccordionContent className="gap-2">
+									{hasMcp && (
+										<ContextResourceTree>
+											{mcpConfigItems.map((config) => (
+												<ContextResourceTreeItem
+													key={config.source}
+													icon={FileIcon}
+													name={config.source}
+													title={config.source}
+													appearance="path"
+												/>
+											))}
+											{mcpServerItems.map((mcp) => (
+												<ContextResourceServer
+													key={mcp.source}
+													name={mcp.name}
+													title={mcp.source}
+													connected={mcp.connected}
+												>
+													{mcp.tools.length > 0 &&
+														mcp.tools.map((tool) => (
+															<ContextResourceTool
+																key={tool.name}
+																name={tool.name}
+																description={tool.description}
+															/>
+														))}
+												</ContextResourceServer>
+											))}
+										</ContextResourceTree>
+									)}
+									<ContextResourceIssues issues={mcpConfigIssues} />
+									<ContextMcpServerIssues
+										issues={mcpServerIssues}
+										onManageServers={onManageServers}
+									/>
+								</ContextResourceAccordionContent>
+							</ContextResourceAccordion>
+						)}
+						{(harnessItems.length > 0 || harnessIssues.length > 0) && (
+							<ContextHarnessSection
+								groups={groupByDirectory(harnessItems)}
+								issues={harnessIssues}
+							/>
+						)}
+					</div>
+				)}
+				{(isDirty || hasContextError) && (
+					<div className="px-4 py-3">
+						<ContextAlert
+							severity={hasContextError ? "error" : "warning"}
+							variant="panel"
+						>
+							<ContextAlertTitle>
+								{hasContextError ? "Context error" : "Context changed"}
+							</ContextAlertTitle>
+							<ContextAlertDescription>
+								{hasContextError
+									? contextError
+									: "The workspace context changed since this chat was pinned."}
+								{onRefreshContext && (
+									<ContextAlertActions>
+										<Button
+											size="xs"
+											disabled={isRefreshingContext}
+											onClick={() => onRefreshContext()}
+											variant="outline"
+										>
+											<Spinner size="sm" loading={isRefreshingContext} />
+											Refresh context
+										</Button>
+									</ContextAlertActions>
+								)}
+							</ContextAlertDescription>
+						</ContextAlert>
+					</div>
+				)}
 			</PopoverContent>
 		</Popover>
 	);

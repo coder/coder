@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import capitalize from "lodash/capitalize";
 import { ExternalLinkIcon, FileIcon, LayoutGridIcon } from "lucide-react";
 import { useState } from "react";
@@ -59,19 +60,19 @@ export const AppStatuses: React.FC<AppStatusesProps> = ({
 	return (
 		<div className="flex flex-col border border-solid border-border rounded-lg">
 			<div
-				className={`
-					flex items-center justify-between px-4 py-3 gap-6
-					border-0 not-last:border-b border-solid border-border
-				`}
+				className={cn(
+					"flex items-center justify-between px-4 py-3 gap-6",
+					"border-0 not-last:border-b border-solid border-border",
+				)}
 			>
 				<div className="flex flex-col overflow-hidden">
-					<div className="text-sm font-medium text-content-primary flex items-center gap-2 ">
+					<div className="text-sm text-content-primary flex items-center gap-2">
 						<AppStatusStateIcon state={latestStatus.state} latest />
-						<span className="block flex-1 whitespace-nowrap overflow-hidden text-ellipsis">
+						<span className="block flex-1 truncate">
 							{latestStatus.message || capitalize(latestStatus.state)}
 						</span>
 					</div>
-					<time className="text-xs text-content-secondary first-letter:uppercase block pl-[26px]">
+					<time className="text-xs text-content-secondary first-letter:uppercase block pl-6.5">
 						{timeFrom(new Date(latestStatus.created_at), comparisonDate)}
 					</time>
 				</div>
@@ -128,7 +129,7 @@ export const AppStatuses: React.FC<AppStatusesProps> = ({
 			</div>
 
 			{displayStatuses && (
-				<ScrollArea className="h-[200px]">
+				<ScrollArea className="h-50">
 					{otherStatuses.map((status) => {
 						const statusTime = new Date(status.created_at);
 						const formattedTimestamp = timeFrom(statusTime, comparisonDate);
@@ -136,21 +137,21 @@ export const AppStatuses: React.FC<AppStatusesProps> = ({
 						return (
 							<div
 								key={status.id}
-								className={`
-							flex items-center justify-between px-4 py-3
-							border-0 not-last:border-b border-solid border-border
-						`}
+								className={cn(
+									"flex items-center justify-between px-4 py-3",
+									"border-0 not-last:border-b border-solid border-border",
+								)}
 							>
 								<div className="flex items-center justify-between w-full text-content-secondary">
 									<span className="text-xs flex items-center gap-2">
 										<AppStatusStateIcon
 											state={status.state}
 											latest={false}
-											className="size-icon-xs w-[18px]"
+											className="size-icon-xs w-4.5"
 										/>
 										{status.message || capitalize(status.state)}
 									</span>
-									<span className="text-2xs text-content-secondary first-letter:uppercase block pl-[26px]">
+									<span className="text-2xs text-content-secondary first-letter:uppercase block pl-6.5">
 										{formattedTimestamp}
 									</span>
 								</div>

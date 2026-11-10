@@ -210,7 +210,7 @@ export const WorkspaceParametersPageView: React.FC<
 			{(templateVersionId || workspace.latest_build.template_version_id) && (
 				<div className="flex flex-col gap-2">
 					<Label className="text-sm text-content-secondary">Version ID</Label>
-					<p className="m-0 text-xs font-medium font-mono">
+					<p className="m-0 text-xs font-mono">
 						{templateVersionId ?? workspace.latest_build.template_version_id}
 					</p>
 				</div>
@@ -229,7 +229,9 @@ export const WorkspaceParametersPageView: React.FC<
 								These are the settings used by your template. Immutable
 								parameters cannot be modified once the workspace is created.
 								<Link
-									href={docs("/admin/templates/extending-templates/parameters")}
+									href={docs("/templates/extending-templates/parameters")}
+									target="_blank"
+									rel="noreferrer"
 								>
 									View docs
 								</Link>

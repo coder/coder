@@ -162,7 +162,7 @@ You must add the SSH key to your Git provider.
 
 ## PKCE Support
 
-[PKCE (Proof Key for Code Exchange)](https://datatracker.ietf.org/doc/html/rfc7636) is an OAuth 2.0 security extension that prevents authorization code interception attacks.
+[Proof Key for Code Exchange (PKCE)](https://datatracker.ietf.org/doc/html/rfc7636) is an OAuth 2.0 security extension that prevents authorization code interception attacks.
 Coder supports PKCE when acting as an OAuth client to external identity providers.
 
 Coder will usually assume PKCE support is available with "S256" as the code challenge method.
@@ -219,7 +219,7 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL=https://bitbucket.example.com/rest/oauth2/latest/authorize
 ```
 
-When configuring your Bitbucket OAuth application, set the redirect URI to `https://example.com/external-auth/primary-bitbucket-server/callback`.
+When configuring your Bitbucket OAuth application, set the redirect Uniform Resource Identifier (URI) to `https://example.com/external-auth/primary-bitbucket-server/callback`.
 This callback path includes the value of `CODER_EXTERNAL_AUTH_0_ID`.
 
 ### Gitea
@@ -233,7 +233,7 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitea.com/login/oauth/authorize"
 ```
 
-The redirect URI for Gitea should be `https://coder.example.com/external-auth/gitea/callback`.
+The redirect URI for Gitea is `https://coder.example.com/external-auth/gitea/callback`.
 
 ### GitHub
 
@@ -293,7 +293,7 @@ Visit the [JFrog Artifactory](./integrations/jfrog-artifactory.md) guide for ins
 
 ## Self-managed Git providers
 
-Custom authentication and token URLs should be used for self-managed Git provider deployments.
+Use custom authentication and token URLs for self-managed Git provider deployments.
 
 ```dotenv
 CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/oauth/authorize"
@@ -341,7 +341,7 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
    | Members       | Read-only    | Grants access to organization members and teams.       |
 
 1. Install the App for your organization.
-   You may select a subset of repositories to grant access to.
+   You can grant access to a subset of repositories.
 
    ![Install GitHub App](../images/admin/github-app-install.png)
 

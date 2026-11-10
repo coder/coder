@@ -64,7 +64,6 @@ const meta: Meta<typeof ChatDetailsPanel> = {
 	},
 	args: {
 		chatId: MockChat.id,
-		isVisible: true,
 		usage: {
 			usedTokens: 26_000,
 			contextLimitTokens: 1_100_000,

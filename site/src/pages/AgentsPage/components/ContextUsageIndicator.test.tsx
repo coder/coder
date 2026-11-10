@@ -1,94 +1,66 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import {
+	MockChatContextDirty,
+	MockChatContextResourceFailures,
+} from "#/testHelpers/chatEntities";
 import { ContextUsageIndicator } from "./ContextUsageIndicator";
 
-const usage = {
-	usedTokens: 26_000,
-	contextLimitTokens: 1_100_000,
-	compactionThreshold: {
-		percent: 70,
-		source: "model" as const,
-		organizationOverrideNotLoaded: false,
-	},
-};
-
 describe("ContextUsageIndicator", () => {
-	it("opens Details using only the keyboard and passes its surviving opener", async () => {
+	it("opens server management from an MCP server failure", async () => {
+		const user = userEvent.setup();
+		const onManageServers = vi.fn();
+		render(
+			<ContextUsageIndicator
+				usage={{ context: MockChatContextResourceFailures }}
+				onManageServers={onManageServers}
+			/>,
+		);
+		await user.click(screen.getByRole("button", { name: /Context usage/ }));
+		await user.click(screen.getByRole("button", { name: /MCP Servers/ }));
+		await user.click(screen.getByRole("button", { name: "Manage servers" }));
+		expect(onManageServers).toHaveBeenCalledTimes(1);
+	});
+
+	it("refreshes context after opening the popover with a click", async () => {
+		const user = userEvent.setup();
+		const onRefreshContext = vi.fn();
+		render(
+			<ContextUsageIndicator
+				usage={{
+					usedTokens: 12_000,
+					contextLimitTokens: 200_000,
+					context: MockChatContextDirty,
+				}}
+				onRefreshContext={onRefreshContext}
+			/>,
+		);
+		await user.click(screen.getByRole("button", { name: /Context usage/ }));
+		await user.click(screen.getByRole("button", { name: "Refresh context" }));
+		expect(onRefreshContext).toHaveBeenCalledTimes(1);
+	});
+
+	it("closes the popover and passes the trigger when opening Details from the keyboard", async () => {
 		const user = userEvent.setup();
 		const onOpenDetails = vi.fn();
 		render(
-			<ContextUsageIndicator usage={usage} onOpenDetails={onOpenDetails} />,
+			<ContextUsageIndicator
+				usage={{ usedTokens: 12_000, contextLimitTokens: 200_000 }}
+				onOpenDetails={onOpenDetails}
+			/>,
 		);
+		const trigger = screen.getByRole("button", { name: /Context usage/ });
 		await user.tab();
-		const trigger = screen.getByRole("button", {
-			name: "Context usage: 2% - 26K / 1.1M context used; Compacts at 70%",
-		});
 		expect(trigger).toHaveFocus();
 		await user.keyboard("{Enter}");
-		await user.tab();
-		expect(screen.getByRole("button", { name: "Details" })).toHaveFocus();
+		const details = await screen.findByRole("button", { name: "Details" });
+		details.focus();
 		await user.keyboard("{Enter}");
 		expect(onOpenDetails).toHaveBeenCalledExactlyOnceWith(trigger);
-	});
-	it("Escape restores focus without reopening, then allows deliberate activation", async () => {
-		const user = userEvent.setup();
-		render(
-			<>
-				<ContextUsageIndicator usage={usage} onOpenDetails={vi.fn()} />
-				<button type="button">After</button>
-			</>,
-		);
-		await user.tab();
-		const trigger = screen.getByRole("button", { name: /Context usage:/ });
-		await user.keyboard(" ");
-		await user.tab();
-		await user.keyboard("{Escape}");
-		expect(trigger).toHaveFocus();
-		await user.tab();
-		expect(screen.getByRole("button", { name: "After" })).toHaveFocus();
-		await user.tab({ shift: true });
-		await user.keyboard("{Enter}");
-		await user.tab();
-		expect(screen.getByRole("button", { name: "Details" })).toHaveFocus();
-	});
-	it("does not steal hover focus and allows pointer transfer to Details", async () => {
-		const user = userEvent.setup();
-		const onOpenDetails = vi.fn();
-		render(
-			<>
-				<button type="button">Before</button>
-				<ContextUsageIndicator usage={usage} onOpenDetails={onOpenDetails} />
-			</>,
-		);
-		await user.tab();
-		const before = screen.getByRole("button", { name: "Before" });
-		const trigger = screen.getByRole("button", { name: /Context usage:/ });
-		await user.hover(trigger);
-		expect(before).toHaveFocus();
-		await user.hover(screen.getByRole("button", { name: "Details" }));
-		await user.click(screen.getByRole("button", { name: "Details" }));
-		expect(onOpenDetails).toHaveBeenCalledExactlyOnceWith(trigger);
-	});
-	it("does not trap forward or backward tabbing", async () => {
-		const user = userEvent.setup();
-		render(
-			<>
-				<button type="button">Before</button>
-				<ContextUsageIndicator usage={usage} onOpenDetails={vi.fn()} />
-				<button type="button">After</button>
-			</>,
-		);
-		await user.tab();
-		await user.tab();
-		await user.keyboard("{Enter}");
-		await user.tab();
-		expect(screen.getByRole("button", { name: "Details" })).toHaveFocus();
-		await user.tab({ shift: true });
 		expect(
-			screen.getByRole("button", { name: /Context usage:/ }),
-		).toHaveFocus();
-		await user.tab({ shift: true });
-		expect(screen.getByRole("button", { name: "Before" })).toHaveFocus();
+			screen.queryByRole("button", { name: "Details" }),
+		).not.toBeInTheDocument();
+		expect(trigger).not.toHaveFocus();
 	});
 });

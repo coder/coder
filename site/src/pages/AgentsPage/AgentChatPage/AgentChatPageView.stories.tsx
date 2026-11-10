@@ -28,6 +28,8 @@ import {
 	MockChatContextDirty,
 	MockChatDiffStatus,
 	MockChatMessage,
+	MockChatQueuedMessage,
+	MockChatQueuedMessageUnderEdit,
 } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
@@ -53,6 +55,7 @@ import { MessageScroller } from "#/vendor/message-scroller";
 import type { ChatDetailError } from "../components/ChatConversation/chatError";
 import { createChatStore } from "../components/ChatConversation/chatStore";
 import { buildLongConversation } from "../components/ChatConversation/storyFixtures";
+import type { EditingTarget } from "../components/ChatConversation/types";
 import { visibleSingletonTabsStorageKeyPrefix } from "../utils/rightPanelTabStorage";
 import type { SingletonRightPanelTabId } from "../utils/rightPanelTabs";
 import { lastActiveSidebarTabStorageKeyPrefix } from "../utils/sidebarTabStorage";
@@ -99,10 +102,10 @@ const buildEditing = (
 	editorInitialValue: "",
 	initialEditorState: undefined,
 	remountKey: 0,
-	editingMessageId: null as number | null,
+	editingTarget: null as EditingTarget | null,
 	editingFileBlocks: [] as readonly ChatMessagePart[],
-	handleEditUserMessage: fn(),
-	handleCancelHistoryEdit: fn(),
+	handleBeginHistoryEdit: fn(),
+	handleCancelEdit: fn(),
 	handleSendFromInput: fn(),
 	handleContentChange: fn(),
 	...overrides,
@@ -191,10 +194,12 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		onSetShowSidebarPanel: fn(),
 		debugLoggingEnabled: false,
 		gitWatcher: buildGitWatcher(),
-		sshCommand: undefined as string | undefined,
 		handleInterrupt: fn(),
 		handleDeleteQueuedMessage: fn(),
 		handlePromoteQueuedMessage: fn(),
+		handleEditQueuedMessage: fn(),
+		handleEndQueuedMessageEdit: fn(),
+		queuedMessageUnderEditID: null,
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
 		isHydratingMessages: false,
@@ -207,7 +212,6 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 			typeof AgentChatPageView
 		>["selectedMCPServerIds"],
 		onMCPSelectionChange: fn(),
-		onMCPAuthComplete: fn(),
 		canConfigureAgentSetup: true,
 		providerCount: 1,
 		modelCount: 1,
@@ -358,7 +362,7 @@ export const OpensDetailsFromIndicator: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			await canvas.findByRole("button", { name: /Context usage:/ }),
+			await canvas.findByRole("button", { name: /^Context usage/ }),
 		);
 		await userEvent.click(
 			within(document.body).getByRole("button", { name: "Details" }),
@@ -745,7 +749,6 @@ export const WithWorkspace: Story = {
 		<StoryAgentChatPageView
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 };
@@ -951,10 +954,14 @@ const buildMessage = (
 const buildStoreWithMessages = (
 	msgs: TypesGen.ChatMessage[],
 	status: TypesGen.ChatStatus = "waiting",
+	queuedMessages?: TypesGen.ChatQueuedMessage[],
 ) => {
 	const store = createChatStore();
 	store.replaceMessages(msgs);
 	store.setChatStatus(status);
+	if (queuedMessages) {
+		store.setQueuedMessages(queuedMessages);
+	}
 	return store;
 };
 
@@ -1035,8 +1042,48 @@ export const EditingMessage: Story = {
 		<StoryAgentChatPageView
 			store={buildStoreWithMessages(editingMessages)}
 			editing={{
-				editingMessageId: 3,
+				editingTarget: { kind: "history", id: 3 },
 				editorInitialValue: "Now tell me a joke",
+			}}
+		/>
+	),
+};
+
+const mockPausedQueue: TypesGen.ChatQueuedMessage[] = [
+	{
+		...MockChatQueuedMessageUnderEdit,
+		id: 1,
+		content: [{ type: "text", text: "Run the migrations" }],
+	},
+	{
+		...MockChatQueuedMessage,
+		id: 2,
+		content: [{ type: "text", text: "Start the dev server" }],
+	},
+];
+
+/** The turn completed while the queue head was under edit. Cancel edit on
+ *  the head sends it, and a send from the composer is queued. */
+export const PausedAtQueuedEdit: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			store={buildStoreWithMessages(editingMessages, "paused", mockPausedQueue)}
+			chat={{ status: "paused" }}
+			queuedMessageUnderEditID={1}
+		/>
+	),
+};
+
+/** The composer is editing the paused chat's queue head. */
+export const EditingQueuedMessageWhilePaused: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			store={buildStoreWithMessages(editingMessages, "paused", mockPausedQueue)}
+			chat={{ status: "paused" }}
+			queuedMessageUnderEditID={1}
+			editing={{
+				editingTarget: { kind: "queued", id: 1 },
+				editorInitialValue: "Run the migrations",
 			}}
 		/>
 	),
@@ -1371,7 +1418,7 @@ const UnderflowPaginationStory: React.FC = () => {
 	};
 
 	return (
-		<div className="flex h-[600px] flex-col">
+		<div className="flex h-150 flex-col">
 			<StoryAgentChatPageView
 				store={store}
 				hasMoreMessages={loadedPages < 2}
@@ -1445,7 +1492,7 @@ const RetryPaginationStory: React.FC = () => {
 	};
 
 	return (
-		<div className="flex h-[600px] flex-col">
+		<div className="flex h-150 flex-col">
 			<StoryAgentChatPageView
 				store={store}
 				hasMoreMessages
@@ -1585,7 +1632,6 @@ export const RestoresPersistedSidebarTab: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 };
@@ -1606,7 +1652,6 @@ export const PersistsSidebarTabClick: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1697,7 +1742,6 @@ export const BrowserTabForHealthyAgentBrowserApp: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={mockAgentWithBrowserApp}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1718,7 +1762,6 @@ export const BrowserTabForHealthDisabledAgentBrowserApp: Story = {
 				...MockWorkspaceAgent,
 				apps: [{ ...mockAgentBrowserApp, health: "disabled" }],
 			}}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1740,7 +1783,6 @@ export const NoBrowserTabForUnhealthyAgentBrowserApp: Story = {
 				...MockWorkspaceAgent,
 				apps: [{ ...mockAgentBrowserApp, health: "unhealthy" }],
 			}}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 };
@@ -1772,7 +1814,6 @@ export const NoBrowserTabForAppOnNonBoundAgent: Story = {
 				},
 			}}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 };
@@ -1789,7 +1830,6 @@ export const PreservesUnavailableBrowserTab: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1810,7 +1850,6 @@ const renderWithSingletonSupport = () => (
 		workspace={MockWorkspace}
 		workspaceAgent={mockAgentWithBrowserApp}
 		desktopChatId={AGENT_ID}
-		sshCommand="ssh coder.workspace"
 	/>
 );
 
@@ -1954,7 +1993,6 @@ export const DoesNotPersistSingletonTabsForArchivedChat: Story = {
 			workspace={MockWorkspace}
 			workspaceAgent={mockAgentWithBrowserApp}
 			desktopChatId={AGENT_ID}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -1989,7 +2027,6 @@ export const HidesUnsupportedSingletonPanels: Story = {
 			showSidebarPanel
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {
@@ -2033,7 +2070,6 @@ export const DoesNotPersistForArchivedChat: Story = {
 			isInputDisabled
 			workspace={MockWorkspace}
 			workspaceAgent={MockWorkspaceAgent}
-			sshCommand="ssh coder.workspace"
 		/>
 	),
 	play: async ({ canvasElement }) => {

@@ -31,7 +31,6 @@ const Page = ({ initiallyOpen = false }: { initiallyOpen?: boolean }) => {
 				mcpServers={[]}
 				selectedMCPServerIds={[]}
 				onMCPSelectionChange={vi.fn()}
-				onMCPAuthComplete={vi.fn()}
 				modelSelectorPlaceholder="Select model"
 				onReasoningEffortChange={vi.fn()}
 				unsupportedProviderNames={[]}
@@ -58,10 +57,12 @@ const Page = ({ initiallyOpen = false }: { initiallyOpen?: boolean }) => {
 					hasReceivedChanges: true,
 					refresh: vi.fn(),
 				}}
-				sshCommand={undefined}
 				handleInterrupt={vi.fn()}
 				handleDeleteQueuedMessage={vi.fn()}
 				handlePromoteQueuedMessage={vi.fn()}
+				handleEditQueuedMessage={vi.fn()}
+				handleEndQueuedMessageEdit={vi.fn()}
+				queuedMessageUnderEditID={null}
 				hasMoreMessages={false}
 				isFetchingMoreMessages={false}
 				isHydratingMessages={false}
@@ -72,10 +73,10 @@ const Page = ({ initiallyOpen = false }: { initiallyOpen?: boolean }) => {
 					editorInitialValue: "",
 					initialEditorState: undefined,
 					remountKey: 0,
-					editingMessageId: null,
+					editingTarget: null,
 					editingFileBlocks: [],
-					handleEditUserMessage: vi.fn(),
-					handleCancelHistoryEdit: vi.fn(),
+					handleBeginHistoryEdit: vi.fn(),
+					handleCancelEdit: vi.fn(),
 					handleSendFromInput: vi.fn(),
 					handleContentChange: vi.fn(),
 				}}
@@ -99,11 +100,14 @@ describe("Details navigation", () => {
 			const user = userEvent.setup();
 			renderWithAuth(<Page initiallyOpen={initiallyOpen} />);
 			const trigger = await screen.findByRole("button", {
-				name: /Context usage:/,
+				name: /^Context usage/,
 			});
-			await user.click(trigger);
-			await user.tab();
-			expect(screen.getByRole("button", { name: "Details" })).toHaveFocus();
+			trigger.focus();
+			await user.keyboard("{Enter}");
+			// Opening the popover moves focus to its first control.
+			await waitFor(() =>
+				expect(screen.getByRole("button", { name: "Details" })).toHaveFocus(),
+			);
 			await user.keyboard("{Enter}");
 			await waitFor(() =>
 				expect(screen.getByRole("region", { name: "Details" })).toHaveFocus(),
@@ -137,7 +141,7 @@ describe("Details navigation", () => {
 		const user = userEvent.setup();
 		renderWithAuth(<Page />);
 		const trigger = await screen.findByRole("button", {
-			name: /Context usage:/,
+			name: /^Context usage/,
 		});
 		await user.click(trigger);
 		await user.click(screen.getByRole("button", { name: "Details" }));

@@ -10,7 +10,7 @@ export default meta;
 type Story = StoryObj<typeof ScrollArea>;
 
 const OverflowingContent = () => (
-	<div className="w-[1200px] p-3 font-mono text-xs leading-5">
+	<div className="w-300 p-3 font-mono text-xs leading-5">
 		{Array.from({ length: 60 }, (_, row) => (
 			<div key={row} className="whitespace-nowrap">
 				{`row ${row.toString().padStart(2, "0")} `}

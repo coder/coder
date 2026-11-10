@@ -297,7 +297,7 @@ export const TemplateBuilderPageView: React.FC<
 				<PageHeaderSubtitle>
 					A Terraform blueprint for reproducible workspaces.
 					<Link
-						href={docs("/admin/templates")}
+						href={docs("/templates")}
 						target="_blank"
 						className="ml-1 font-normal"
 					>
@@ -358,7 +358,7 @@ export const TemplateBuilderPageView: React.FC<
 				</div>
 
 				{/* Sidebar (top position is 72px so that it can sit below nav) */}
-				<div className="w-64 shrink-0 hidden md:block sticky top-[72px] self-start">
+				<div className="w-64 shrink-0 hidden md:block sticky top-18 self-start">
 					<SelectionSummary
 						currentStep={currentStep.group}
 						maxReachedStep={maxReachedGroup}

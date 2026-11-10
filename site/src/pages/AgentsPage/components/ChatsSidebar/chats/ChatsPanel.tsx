@@ -44,7 +44,9 @@ import {
 	AGENT_CHAT_STATUS_ORDER,
 	type AgentSidebarFilters,
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
+	getSidebarChatListInput,
 } from "../../../utils/agentSidebarFilters";
+import { getOwnPinnedChats } from "../../../utils/pinnedChats";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
 import { canManageChat } from "../../ChatActionsMenuItems";
 import { useMoveChatToProject } from "../../MoveToProjectMenuItems";
@@ -211,15 +213,10 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	const visibleRootChats = visibleRootIDs
 		.map((id) => chatById.get(id))
 		.filter((chat): chat is Chat => chat !== undefined);
-	// Pin order is the owner's sidebar preference and the server ranks it
-	// per owner, so another user's chat stays out of the sortable Pinned
-	// section regardless of its pin_order.
 	const ownedChats = visibleRootChats.filter((chat) =>
 		canManageChat(chat, currentUserId),
 	);
-	const pinnedChats = ownedChats
-		.filter((chat) => chat.pin_order > 0)
-		.sort((a, b) => a.pin_order - b.pin_order);
+	const pinnedChats = getOwnPinnedChats(visibleRootChats, currentUserId);
 	const sharedWithYouChats = visibleRootChats.filter(
 		(chat) => !canManageChat(chat, currentUserId),
 	);
@@ -229,6 +226,10 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		unfiledChats: unfiledOwnedChats,
 		folderProjectIds,
 	} = groupChatsByProject(unpinnedOwnedChats, projects, isProjectsLoading);
+	const { chatsByProjectId: pinnedChatsByProjectId } = groupChatsByProject(
+		pinnedChats,
+		projects,
+	);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
 		sidebarFilters.chatStatuses.length !== AGENT_CHAT_STATUS_ORDER.length ||
@@ -606,6 +607,8 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 									projects={projects}
 									organizations={organizations}
 									chatsByProjectId={chatsByProjectId}
+									pinnedChatsByProjectId={pinnedChatsByProjectId}
+									chatListInput={getSidebarChatListInput(sidebarFilters)}
 									expandedProjectIds={Object.fromEntries(
 										projects.map((project) => [
 											project.id,

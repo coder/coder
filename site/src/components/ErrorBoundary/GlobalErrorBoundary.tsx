@@ -39,7 +39,7 @@ export const GlobalErrorBoundaryInner: React.FC<
 		error instanceof Error || isRouteErrorResponse(error);
 
 	return (
-		<div className="bg-surface-primary text-center w-full h-full flex justify-center items-center">
+		<div className="bg-surface-primary text-center size-full flex justify-center items-center">
 			<title>{errorPageTitle}</title>
 
 			<main className="flex gap-6 w-full max-w-prose p-4 flex-col flex-nowrap">
@@ -57,7 +57,6 @@ export const GlobalErrorBoundaryInner: React.FC<
 								rel="noreferrer"
 							>
 								Coder Discord community
-								<span className="sr-only"> (link opens in a new tab)</span>
 							</Link>{" "}
 							or{" "}
 							<Link
@@ -70,14 +69,13 @@ export const GlobalErrorBoundaryInner: React.FC<
 								)}
 							>
 								open an issue on GitHub
-								<span className="sr-only"> (link opens in a new tab)</span>
 							</Link>
 							.
 						</p>
 					</div>
 				</div>
 
-				<div className="flex flex-row flex-nowrap justify-center gap-2">
+				<div className="flex flex-nowrap justify-center gap-2">
 					<Button asChild className="min-w-32 ">
 						<a href={location.pathname}>Reload page</a>
 					</Button>

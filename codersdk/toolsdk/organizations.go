@@ -6,16 +6,16 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/toolsdk/tooldef"
 )
 
 // ListOrganizations lists the authenticated user's visible memberships.
 var ListOrganizations = Tool[NoArgs, []codersdk.Organization]{
-	Tool: aisdk.Tool{
+	Tool: tooldef.Tool{
 		Name:        ToolNameListOrganizations,
 		Description: "List organizations the authenticated user belongs to, including IDs, names, and display names. Membership does not grant permission to perform every organization-scoped action.",
-		Schema: aisdk.Schema{
+		Schema: tooldef.Schema{
 			Properties: map[string]any{},
 			Required:   []string{},
 		},
