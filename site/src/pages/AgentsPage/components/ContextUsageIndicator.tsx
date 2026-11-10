@@ -215,7 +215,7 @@ const ContextMcpServerIssues: React.FC<ContextMcpServerIssuesProps> = ({
 						asChild
 						size="sm"
 						showExternalIcon={false}
-						className="w-fit border-0 bg-transparent p-0 font-normal leading-4.5"
+						className="w-fit border-0 bg-transparent pl-0 font-normal leading-4.5"
 					>
 						<button type="button" onClick={onManageServers}>
 							Manage servers
