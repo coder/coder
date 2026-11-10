@@ -3649,6 +3649,36 @@ export type ChatProjectRole = "admin" | "" | "use";
 export const ChatProjectRoles: ChatProjectRole[] = ["admin", "", "use"];
 
 // From codersdk/chats.go
+/**
+ * ChatProjectSummary is a project with the caller's pin and aggregates over
+ * the caller's own top-level, non-archived chats in it.
+ */
+export interface ChatProjectSummary {
+	readonly project: ChatProject;
+	readonly pinned: boolean;
+	/**
+	 * PinOrder is the 1-based position among pinned projects, or 0.
+	 */
+	readonly pin_order: number;
+	readonly own_chat_count: number;
+	readonly own_unread_count: number;
+	readonly own_running: boolean;
+	/**
+	 * OwnNeedsAttention reports a chat that requires action, failed, or is paused.
+	 */
+	readonly own_needs_attention: boolean;
+	/**
+	 * LastActivityAt is the latest update to one of the caller's chats.
+	 */
+	readonly last_activity_at?: string;
+	/**
+	 * MemberCount counts users who can use the project, including the owner.
+	 * It is 1 when chat sharing is unavailable.
+	 */
+	readonly member_count: number;
+}
+
+// From codersdk/chats.go
 export interface ChatProjectUser extends MinimalUser {
 	readonly role: ChatProjectRole;
 }
@@ -6754,6 +6784,11 @@ export interface ListChatsOptions extends Pagination {
 	readonly Source: ChatListSource;
 	readonly Labels: Record<string, string>;
 	readonly ProjectID: string | null;
+	/**
+	 * PinnedProjectsOnly leaves out chats in projects the caller has not
+	 * pinned, unless the chat itself is pinned.
+	 */
+	readonly PinnedProjectsOnly: boolean;
 }
 
 // From codersdk/inboxnotification.go
@@ -8511,6 +8546,19 @@ export interface Permission {
 	readonly negate: boolean;
 	readonly resource_type: RBACResource;
 	readonly action: RBACAction;
+}
+
+// From codersdk/chats.go
+/**
+ * PinChatProjectRequest pins a chat project for the caller, or moves an
+ * already pinned project.
+ */
+export interface PinChatProjectRequest {
+	/**
+	 * PinOrder is the 1-based position to pin at. When omitted, a new pin
+	 * goes to the end and an existing pin keeps its position.
+	 */
+	readonly pin_order?: number;
 }
 
 // From codersdk/oauth2.go

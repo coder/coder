@@ -355,6 +355,24 @@ func TestUpdateChatProjectACLByIDDisabled(t *testing.T) {
 	require.ErrorContains(t, err, "chat sharing is disabled")
 }
 
+// TestChatProjectPinsRejectOtherUsers checks that pins and summaries only
+// answer for the actor, even one allowed to read every project.
+func TestChatProjectPinsRejectOtherUsers(t *testing.T) {
+	t.Parallel()
+
+	ctrl := gomock.NewController(t)
+	db := dbmock.NewMockStore(ctrl)
+	db.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+	q := dbauthz.New(db, &coderdtest.FakeAuthorizer{}, slogtest.Make(t, nil), coderdtest.AccessControlStorePointer())
+	ctx := dbauthz.As(context.Background(), rbac.Subject{ID: uuid.NewString(), Scope: rbac.ScopeAll})
+	other, projectID := uuid.New(), uuid.New()
+
+	err := q.PinChatProject(ctx, database.PinChatProjectParams{UserID: other, ProjectID: projectID})
+	require.True(t, dbauthz.IsNotAuthorizedError(err))
+	_, err = q.GetChatProjectSummariesByUserID(ctx, database.GetChatProjectSummariesByUserIDParams{UserID: other})
+	require.True(t, dbauthz.IsNotAuthorizedError(err))
+}
+
 func TestUpdateChatModelConfigACLByIDAuthorization(t *testing.T) {
 	t.Parallel()
 
@@ -1380,6 +1398,34 @@ func (s *MethodTestSuite) TestChats() {
 		rows := []database.ChatProject{project}
 		dbm.EXPECT().GetChatProjectsOwnedOrSharedWithUserID(gomock.Any(), userID).Return(rows, nil).AnyTimes()
 		check.Args(userID).Asserts(project, policy.ActionRead).Returns(rows)
+	}))
+	s.Run("GetChatProjectSummariesByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.GetChatProjectSummariesByUserIDParams{UserID: testActorID, SharingEnabled: true}
+		project := testutil.Fake(s.T(), faker, database.ChatProject{OwnerID: testActorID})
+		rows := []database.GetChatProjectSummariesByUserIDRow{{ChatProject: project, Pinned: true, PinOrder: 1}}
+		dbm.EXPECT().GetChatProjectSummariesByUserID(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(project, policy.ActionRead).Returns(rows)
+	}))
+	s.Run("InsertChatProjectPin", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		arg := database.InsertChatProjectPinParams{UserID: testActorID, ProjectID: project.ID}
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		dbm.EXPECT().InsertChatProjectPin(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(project, policy.ActionRead)
+	}))
+	s.Run("PinChatProject", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		arg := database.PinChatProjectParams{UserID: testActorID, ProjectID: project.ID, PinOrder: sql.NullInt32{Int32: 2, Valid: true}}
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		dbm.EXPECT().PinChatProject(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(project, policy.ActionRead)
+	}))
+	s.Run("UnpinChatProject", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		project := testutil.Fake(s.T(), faker, database.ChatProject{})
+		arg := database.UnpinChatProjectParams{UserID: testActorID, ProjectID: project.ID}
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		dbm.EXPECT().UnpinChatProject(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(project, policy.ActionRead)
 	}))
 	s.Run("IsChatProjectUsableByUserID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.IsChatProjectUsableByUserIDParams{ProjectID: uuid.New(), UserID: uuid.New()}
@@ -5420,6 +5466,10 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("GetChatDiffStatusSummary", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetChatDiffStatusSummary(gomock.Any()).Return(database.GetChatDiffStatusSummaryRow{}, nil).AnyTimes()
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetChatProjectPinTelemetry", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		dbm.EXPECT().GetChatProjectPinTelemetry(gomock.Any()).Return(database.GetChatProjectPinTelemetryRow{}, nil).AnyTimes()
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetChatModelConfigsForTelemetry", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

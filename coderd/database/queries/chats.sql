@@ -665,6 +665,23 @@ WHERE
         WHEN sqlc.narg('project_id')::uuid IS NOT NULL THEN chats_expanded.project_id = sqlc.narg('project_id')::uuid
         ELSE true
     END
+    -- The sidebar lists a chat in a project only when the viewer pinned
+    -- the project or the chat itself. Filtering here, not after the
+    -- query, keeps cursor pages full.
+    AND CASE
+        WHEN sqlc.narg('pinned_projects_only')::boolean THEN (
+            chats_expanded.project_id IS NULL
+            OR chats_expanded.pin_order > 0
+            OR EXISTS (
+                SELECT 1
+                FROM chat_project_pins
+                WHERE chat_project_pins.user_id = @viewer_id::uuid
+                    AND chat_project_pins.project_id = chats_expanded.project_id
+                    AND chat_project_pins.unpinned_at IS NULL
+            )
+        )
+        ELSE true
+    END
     AND CASE
         -- Cursor pagination: the last element on a page acts as the cursor.
         -- The 4-tuple matches the ORDER BY below. All columns sort DESC

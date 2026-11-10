@@ -121,7 +121,11 @@ func (api *API) postChatProject(rw http.ResponseWriter, r *http.Request) {
 			Description:    req.Description,
 			Icon:           req.Icon,
 		})
-		return err
+		if err != nil {
+			return err
+		}
+		// New projects start pinned for their creator.
+		return tx.InsertChatProjectPin(ctx, database.InsertChatProjectPinParams{UserID: apiKey.UserID, ProjectID: project.ID})
 	}, nil)
 	if errors.Is(err, errChatProjectLimit) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{

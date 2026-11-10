@@ -461,6 +461,7 @@ func (api *API) chatsByWorkspace(rw http.ResponseWriter, r *http.Request) {
 // @Param limit query int false "Page limit"
 // @Param offset query int false "Page offset"
 // @Param project_id query string false "Only chats in this project." format(uuid)
+// @Param pinned_projects_only query bool false "Leave out chats in projects the caller has not pinned, unless the chat is pinned."
 // @Success 200 {array} codersdk.Chat
 // @Router /api/v2/chats [get]
 func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
@@ -535,6 +536,16 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		projectID = uuid.NullUUID{UUID: parsedProjectID, Valid: true}
 	}
 
+	parser := httpapi.NewQueryParamParser()
+	pinnedProjectsOnly := parser.Boolean(r.URL.Query(), false, "pinned_projects_only")
+	if len(parser.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query parameters.",
+			Validations: parser.Errors,
+		})
+		return
+	}
+
 	params := database.GetChatsParams{
 		OwnedOnly:           searchParams.OwnedOnly,
 		ViewerID:            apiKey.UserID,
@@ -554,6 +565,7 @@ func (api *API) listChats(rw http.ResponseWriter, r *http.Request) {
 		PrTitleQuery:        searchParams.PrTitleQuery,
 		Search:              searchParams.Search,
 		ProjectID:           projectID,
+		PinnedProjectsOnly:  sql.NullBool{Bool: pinnedProjectsOnly, Valid: pinnedProjectsOnly},
 		// #nosec G115 - Pagination offsets are small and fit in int32
 		OffsetOpt: int32(paginationParams.Offset),
 		// #nosec G115 - Pagination limits are small and fit in int32

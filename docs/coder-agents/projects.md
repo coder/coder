@@ -8,7 +8,9 @@ title: Projects
 
 Projects group related Coder Agents chats.
 Every chat in a project gets the project's instructions, skills, and memory, so you don't repeat the same context in each chat.
-Your projects appear in the **Projects** section of the **Agents** page sidebar.
+Select **Projects** below **New chat** in the **Agents** page sidebar to see your projects as cards, in a **Your projects** tab for projects you own and a **Shared with you** tab for projects other users share with you.
+Each card shows your unread and total chats in the project, how many users can use it, your latest chat activity, and whether one of your chats is running or needs attention.
+[Pinned projects](#pin-a-project) also appear in the sidebar.
 
 ## What a project provides
 
@@ -32,14 +34,15 @@ Coder records project, instruction, skill, and memory changes in the [audit log]
 
 ## Create a project
 
-1. On the **Agents** page, select **New project** in the **Projects** section of the sidebar.
+1. On the **Projects** page, select **New project**.
 1. Enter a **Project name** and an optional **Description**, and pick an icon.
 1. Choose the **Organization**.
 1. Select **Create project**.
 
+New projects start pinned to your sidebar.
 The project page shows a **Details** panel with the project owner, creation date, organization, skills, and instructions, and lists your chats in the project.
 
-To rename or delete a project, open the project's menu on its page or in the sidebar and select **Edit project** or **Delete project**.
+To rename or delete a project, open the project's menu on its page, on its card, or in the sidebar and select **Edit project** or **Delete project**.
 Deleting a project deletes its instructions, skills, and memories.
 Its chats are kept and move back to your chat list.
 
@@ -51,7 +54,8 @@ Its chats are kept and move back to your chat list.
   The picker defaults to **No project**.
 - Move an existing chat: open the chat's menu, select **Move to project**, and choose a project.
   Select **Remove from project** to take it out.
-- Drag a chat in the sidebar onto a project folder.
+- Drag a chat in the sidebar onto a pinned project.
+  Only pinned projects appear in the sidebar, so to move a chat into an unpinned project, use **Move to project** and choose the project in the dialog.
 
 You can move only top-level chats that you own, that aren't archived, and that aren't running.
 Sub-agent chats always follow their top-level chat.
@@ -59,6 +63,22 @@ After a move, the chat's next turn uses the new project's instructions, skills, 
 
 The API equivalent is `PATCH /api/v2/chats/{chat}` with `project_id`.
 Set `project_id` to the nil universally unique identifier (UUID) (`00000000-0000-0000-0000-000000000000`) to remove a chat from its project.
+
+## Pin a project
+
+- To pin a project, open its card's menu on the **Projects** page and select **Pin**.
+  The project appears at the end of the **Pinned** area of the sidebar, below your pinned chats.
+- To unpin a project, open its menu on its card or in the sidebar and select **Unpin**.
+- To reorder pinned projects, drag them in the **Pinned** area of the sidebar.
+
+Pins are personal and change only your own sidebar.
+Projects you create start pinned, and projects that other users share with you start unpinned.
+When you upgrade to a release with pinning, Coder pins every project you already own, so your sidebar doesn't lose any projects.
+
+The sidebar lists a chat in an unpinned project only if you pin the chat itself.
+Every chat stays available from the project's card and page.
+
+The API equivalents are `PUT` and `DELETE` on `/api/experimental/organizations/{organization}/chats/projects/{project}/pin`.
 
 ## Instructions
 

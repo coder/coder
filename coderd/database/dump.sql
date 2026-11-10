@@ -396,6 +396,12 @@ CREATE TYPE chat_plan_mode AS ENUM (
     'plan'
 );
 
+CREATE TYPE chat_project_pin_source AS ENUM (
+    'migration',
+    'default',
+    'user'
+);
+
 CREATE TYPE chat_reasoning_effort AS ENUM (
     'none',
     'minimal',
@@ -2352,6 +2358,20 @@ CREATE TABLE chat_project_memories (
 );
 
 COMMENT ON TABLE chat_project_memories IS 'Organization-scoped durable memories for chat projects. Memories are immutable; changing one deletes it and creates its replacement.';
+
+CREATE TABLE chat_project_pins (
+    user_id uuid NOT NULL,
+    project_id uuid NOT NULL,
+    pin_order integer DEFAULT 0 NOT NULL,
+    source chat_project_pin_source NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    unpinned_at timestamp with time zone,
+    CONSTRAINT chat_project_pins_pin_order_check CHECK ((((unpinned_at IS NULL) AND (pin_order > 0)) OR ((unpinned_at IS NOT NULL) AND (pin_order = 0))))
+);
+
+COMMENT ON TABLE chat_project_pins IS 'Per-user pinned chat projects. Pins can outlive project access, so readers must check access.';
+
+COMMENT ON COLUMN chat_project_pins.unpinned_at IS 'When the user unpinned the project. A row with this set is a tombstone kept for telemetry, not a pin.';
 
 CREATE TABLE chat_projects (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -4711,6 +4731,9 @@ ALTER TABLE ONLY chat_project_instructions
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY chat_project_pins
+    ADD CONSTRAINT chat_project_pins_pkey PRIMARY KEY (user_id, project_id);
+
 ALTER TABLE ONLY chat_projects
     ADD CONSTRAINT chat_projects_pkey PRIMARY KEY (id);
 
@@ -5216,6 +5239,8 @@ CREATE UNIQUE INDEX idx_chat_model_configs_single_default ON chat_model_configs 
 
 CREATE UNIQUE INDEX idx_chat_project_memories_project_lower_name ON chat_project_memories USING btree (project_id, lower(name));
 
+CREATE INDEX idx_chat_project_pins_user_order ON chat_project_pins USING btree (user_id, pin_order) WHERE (unpinned_at IS NULL);
+
 CREATE INDEX idx_chat_projects_group_acl ON chat_projects USING gin (group_acl);
 
 CREATE INDEX idx_chat_projects_organization_id ON chat_projects USING btree (organization_id);
@@ -5661,6 +5686,12 @@ ALTER TABLE ONLY chat_project_memories
 
 ALTER TABLE ONLY chat_project_memories
     ADD CONSTRAINT chat_project_memories_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_pins
+    ADD CONSTRAINT chat_project_pins_project_id_fkey FOREIGN KEY (project_id) REFERENCES chat_projects(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY chat_project_pins
+    ADD CONSTRAINT chat_project_pins_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY chat_projects
     ADD CONSTRAINT chat_projects_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
