@@ -313,8 +313,9 @@ type ArchiveProjectChatsInput struct {
 // and compaction state are cleared, and a chat:update per archived chat is
 // published after commit, so active runners stop and discard their
 // partial reply. If that publish fails, the committed result is returned
-// with [ErrChatUpdatePublishFailed]. The chats are marked so [UnarchiveProjectChats] restores
-// only them; chats archived before stay archived.
+// with [ErrChatUpdatePublishFailed]. The chats are marked so
+// [UnarchiveProjectChats] restores only them; chats archived before stay
+// archived.
 //
 // Locks: the project FOR UPDATE, then the unarchived root chats in id
 // order. Chat creation in the project, moves into it, and chat unarchives

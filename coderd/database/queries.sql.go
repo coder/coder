@@ -8000,7 +8000,9 @@ const archiveChatsOfChatProject = `-- name: ArchiveChatsOfChatProject :many
 WITH roots AS (
     SELECT chats.id
     FROM chats
-    WHERE chats.project_id = $2::uuid AND chats.parent_chat_id IS NULL
+    WHERE chats.project_id = $2::uuid
+        AND chats.parent_chat_id IS NULL
+        AND NOT chats.archived
 ),
 targets AS (
     SELECT
@@ -8403,7 +8405,10 @@ const unarchiveChatsOfChatProject = `-- name: UnarchiveChatsOfChatProject :many
 WITH roots AS (
     SELECT chats.id
     FROM chats
-    WHERE chats.project_id = $1::uuid AND chats.parent_chat_id IS NULL
+    WHERE chats.project_id = $1::uuid
+        AND chats.parent_chat_id IS NULL
+        AND chats.archived
+        AND chats.archived_with_project
 )
 UPDATE chats
 SET
@@ -8420,6 +8425,8 @@ RETURNING chats.id
 // Unarchives the chats that archiving the project archived, root chats
 // and their subagent chats. Chats archived on their own stay archived.
 // Execution status is untouched: an archived chat is idle or in error.
+// Only families whose root was archived with the project come back, so no
+// family ends up partly archived.
 func (q *sqlQuerier) UnarchiveChatsOfChatProject(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, unarchiveChatsOfChatProject, projectID)
 	if err != nil {

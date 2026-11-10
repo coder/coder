@@ -171,4 +171,3 @@ func requireChatArchived(ctx context.Context, t *testing.T, client *codersdk.Exp
 	require.NoError(t, err)
 	require.Equal(t, want, chat.Archived)
 }
-

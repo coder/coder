@@ -1584,6 +1584,8 @@ type sqlcQuerier interface {
 	// Unarchives the chats that archiving the project archived, root chats
 	// and their subagent chats. Chats archived on their own stay archived.
 	// Execution status is untouched: an archived chat is idle or in error.
+	// Only families whose root was archived with the project come back, so no
+	// family ends up partly archived.
 	UnarchiveChatsOfChatProject(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error)
 	// This will always work regardless of the current state of the template version.
 	UnarchiveTemplateVersion(ctx context.Context, arg UnarchiveTemplateVersionParams) error

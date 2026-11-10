@@ -179,7 +179,9 @@ FOR UPDATE;
 WITH roots AS (
     SELECT chats.id
     FROM chats
-    WHERE chats.project_id = @project_id::uuid AND chats.parent_chat_id IS NULL
+    WHERE chats.project_id = @project_id::uuid
+        AND chats.parent_chat_id IS NULL
+        AND NOT chats.archived
 ),
 targets AS (
     SELECT
@@ -221,10 +223,15 @@ RETURNING chats.id;
 -- Unarchives the chats that archiving the project archived, root chats
 -- and their subagent chats. Chats archived on their own stay archived.
 -- Execution status is untouched: an archived chat is idle or in error.
+-- Only families whose root was archived with the project come back, so no
+-- family ends up partly archived.
 WITH roots AS (
     SELECT chats.id
     FROM chats
-    WHERE chats.project_id = @project_id::uuid AND chats.parent_chat_id IS NULL
+    WHERE chats.project_id = @project_id::uuid
+        AND chats.parent_chat_id IS NULL
+        AND chats.archived
+        AND chats.archived_with_project
 )
 UPDATE chats
 SET
