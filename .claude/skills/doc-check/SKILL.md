@@ -98,7 +98,7 @@ Each persona file says which rules to load and how to find them.
 | Reader Advocate   | [`audience.md`](./personas/audience.md)       | No docs changed                                    |
 | Architect         | [`structure.md`](./personas/structure.md)     | No docs changed                                    |
 | Copy Editor       | [`language.md`](./personas/language.md)       | No docs prose changed                              |
-| Skeptic           | [`verifier.md`](./personas/verifier.md)       | Never. Runs last, over every finding               |
+| Skeptic           | [`verifier.md`](./personas/verifier.md)       | Never. Runs last, once per group of findings       |
 
 When you can spawn sub-agents and the prompt gives you a model configuration ID for them, run each persona as its own sub-agent with that ID, in parallel.
 Give each one the change model, the PR reference, its persona file, and the finding schema from [`output.md`](./output.md).
@@ -109,8 +109,24 @@ Each persona returns findings in the schema in [`output.md`](./output.md), or th
 
 ### 6. Verify
 
-Run [`verifier.md`](./personas/verifier.md) over every finding.
-Drop what it rejects, and keep the count of rejected findings for the trace.
+First, run the two mechanical checks yourself, because they need a lookup, not judgment:
+
+- **The quote exists.** For each finding with a `line`, confirm the `quote` appears on the PR head at `file:line`, such as with `sed -n '<line>,+2p' <file>`.
+  A quote that spans lines starts at `line`.
+- **Not already reported.** Compare each finding with the open doc-check review threads you read in step 1.
+
+Drop each finding that fails, and record which check it failed.
+
+Then group the remaining findings: findings about the same sentence form one group, and findings about the same missing page form one group.
+Run [`verifier.md`](./personas/verifier.md) once per group.
+A group holds every finding that could duplicate or contradict another, so groups never need to see each other.
+
+When you can spawn sub-agents and the prompt gives you a model configuration ID, run each group as its own sub-agent with that ID.
+Give each one its group's findings, the change model, the PR reference, and the verifier file.
+Spawn every group before you wait for any of them, then wait for all of them without doing other work.
+Without a model configuration ID, verify the groups yourself, one at a time.
+
+Drop what the verifiers reject, and keep the count of rejected findings for the trace.
 A finding the verifier rejects never reaches the author.
 
 ### 7. Decide and report
@@ -180,7 +196,7 @@ Review only the user-facing part of a mixed diff.
 - **Sidebar:** `docs/manifest/**/*.yml` is the navigation source. Each file holds one route and its direct children. `make gen/docs-manifest` compiles `docs/manifest.json`, which is never edited by hand.
 - **Generated reference:** `docs/reference/cli/*.md` comes from `cli/`, and `docs/reference/api/*.md` comes from Swagger comments in Go. Suggest edits to the source.
 - **Feature states:** a staged feature carries `state:` on its route in `docs/manifest/**/*.yml`, such as `state: [premium]`. Titles and H1s carry no state suffix.
-- **Redirects:** `docs/redirects.json`. A rename or move updates every inbound link and adds a redirect in the same PR. There is no `docs/_redirects` file.
+- **Redirects:** `docs/redirects.json`. A rename or move updates every inbound link and adds a redirect in the same PR, such as `{"source": "old/path", "destination": "new/path"}`. Routes are relative to the docs root, so they leave out `/docs`, and `"/"` is the docs root. There is no `docs/_redirects` file.
 - **Glossary:** `docs/reference/glossary.md`. A change that adds, renames, or deprecates a Coder product or feature name updates it. Refer to [Structural rules](../../../docs/.style/content-guidelines.md#structural-rules).
 - **Callouts:** GitHub-Flavored Markdown alerts, such as `> [!NOTE]`.
 - **Punctuation:** no em dashes, en dashes, or spaced double hyphens, in prose, code, comments, or strings. `make lint/emdash` enforces it. Suggestions you write follow the same rule.

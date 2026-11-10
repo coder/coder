@@ -1,7 +1,8 @@
 # Documentation Guidelines
 
 Read the [style guide](.style/style-guide/README.md) before you write docs prose.
-It is the canonical source; this page is the short list of rules that get missed most often.
+It is the canonical source.
+This page is the short list of rules that get missed most often.
 
 The surrounding page is not a reliable guide to house style.
 Most of the corpus predates these rules, so match the rules, not the neighboring lines.

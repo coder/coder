@@ -213,6 +213,38 @@ func TestRunnerRunConversation(t *testing.T) {
 		require.Equal(t, 2, result.turnsCompleted)
 		require.Equal(t, string(codersdk.ChatStatusWaiting), result.finalStatus)
 	})
+
+	t.Run("MessageJitterRunsBeforeTurnStartTime", func(t *testing.T) {
+		t.Parallel()
+
+		// A canceled context aborts the jitter wait; turnStartTime must
+		// still hold the initial turn's start, proving it is reset only
+		// after the wait.
+		cfg := newRunConfig(t)
+		cfg.Turns = 2
+		cfg.MessageJitter = time.Hour
+
+		events := make(chan codersdk.ChatStreamEvent, 3)
+		events <- statusEvent(chatID, codersdk.ChatStatusRunning)
+		events <- messagePartEvent(chatID)
+		events <- statusEvent(chatID, codersdk.ChatStatusWaiting)
+		close(events)
+
+		var sendCount atomic.Int64
+		runner := newTestRunnerWithChatMessage(t, cfg, chatID, func() {
+			sendCount.Add(1)
+		})
+		initialStart := time.Now()
+		runner.resetConversation(initialStart, noopMarkTurnStartReady)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		err := runner.runConversation(ctx, chatID, testLogger(), events)
+		require.ErrorIs(t, err, context.Canceled)
+		require.Zero(t, sendCount.Load())
+		require.Equal(t, initialStart, runner.turnStartTime)
+		require.Equal(t, phaseInitial, runner.currentPhase)
+	})
 }
 
 func runTestConversation(t *testing.T, runner *Runner, chatID uuid.UUID, events <-chan codersdk.ChatStreamEvent, markTurnStartReady func()) error {
@@ -252,6 +284,66 @@ func TestRunnerCleanup(t *testing.T) {
 
 func testLogger() slog.Logger {
 	return slog.Make(sloghuman.Sink(io.Discard)).Leveled(slog.LevelDebug)
+}
+
+func TestJitterDelay(t *testing.T) {
+	t.Parallel()
+
+	require.Zero(t, jitterDelay(0))
+	require.Zero(t, jitterDelay(-time.Second))
+	for range 100 {
+		d := jitterDelay(5 * time.Second)
+		require.GreaterOrEqual(t, d, time.Duration(0))
+		require.Less(t, d, 5*time.Second)
+	}
+}
+
+func TestRunnerRunStartJitterCanceled(t *testing.T) {
+	t.Parallel()
+
+	cfg := newRunConfig(t)
+	cfg.StartJitter = time.Hour
+
+	var createCalled atomic.Bool
+	client := newFakeChatClient(t)
+	client.createChatFunc = func(context.Context, codersdk.CreateChatRequest) (codersdk.Chat, error) {
+		createCalled.Store(true)
+		return codersdk.Chat{}, xerrors.New("create chat called during start jitter")
+	}
+	runner := &Runner{client: client, cfg: cfg}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := runner.Run(ctx, "runner-1", io.Discard)
+	require.ErrorIs(t, err, context.Canceled)
+	require.False(t, createCalled.Load())
+	require.True(t, runner.conversationStart.IsZero())
+}
+
+func TestConfigValidateJitter(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ValidJitters", func(t *testing.T) {
+		t.Parallel()
+		cfg := newRunConfig(t)
+		cfg.StartJitter = 5 * time.Second
+		cfg.MessageJitter = 3 * time.Second
+		require.NoError(t, cfg.Validate())
+	})
+
+	t.Run("NegativeStartJitter", func(t *testing.T) {
+		t.Parallel()
+		cfg := newRunConfig(t)
+		cfg.StartJitter = -time.Second
+		require.ErrorContains(t, cfg.Validate(), "start_jitter")
+	})
+
+	t.Run("NegativeMessageJitter", func(t *testing.T) {
+		t.Parallel()
+		cfg := newRunConfig(t)
+		cfg.MessageJitter = -time.Second
+		require.ErrorContains(t, cfg.Validate(), "message_jitter")
+	})
 }
 
 func newRunConfig(t *testing.T) Config {

@@ -3,6 +3,7 @@ import { cn } from "cn";
 import { memo } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useTheme } from "#/theme/context";
+import type { SourceLink } from "../../ChatConversation/types";
 import { ACPTool } from "./ACPTool";
 import { AdvisorTool, type AdvisorToolResultType } from "./AdvisorTool";
 import {
@@ -52,17 +53,22 @@ import {
 	getFileViewerOptionsNoHeader,
 	getWriteFileDiff,
 	humanizeMCPToolName,
-	isSubagentSuccessStatus,
 	mapSubagentStatusToToolStatus,
 	parseArgs,
+	parseArray,
 	parseEditFilesArgs,
 	parseMediaToolResult,
 	parseServerEditDiffText,
 	parseServerEditResults,
+	parseStringList,
 	type ToolStatus,
 } from "./utils";
+import {
+	getWebSearchAction,
+	getWebSearchState,
+	WebSearchTool,
+} from "./WebSearchTool";
 import { WorkspaceLifecycleTool } from "./WorkspaceLifecycleTool";
-
 import { WriteFileTool } from "./WriteFileTool";
 
 type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
@@ -103,6 +109,10 @@ type ToolProps = Omit<React.ComponentProps<"div">, "children"> & {
 	hookRewritten?: boolean;
 	shellToolDisplayMode: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
+	/** True when the model provider ran the tool, not the chat server. */
+	providerExecuted?: boolean;
+	/** Pages a provider-executed web search returned. */
+	foundPages?: readonly SourceLink[];
 };
 
 // Props passed to each tool-specific renderer function. Each renderer
@@ -134,6 +144,8 @@ type ToolRendererProps = {
 	startedAt?: string;
 	shellToolDisplayMode: TypesGen.AgentDisplayMode;
 	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
+	providerExecuted?: boolean;
+	foundPages?: readonly SourceLink[];
 };
 
 // ---------------------------------------------------------------------------
@@ -497,18 +509,11 @@ const SubagentRenderer: React.FC<ToolRendererProps> = ({
 	if (rawTitle) {
 		title = rawTitle;
 	}
-	const subagentCompleted = isSubagentSuccessStatus(subagentStatus);
 	const subagentToolStatus = mapSubagentStatusToToolStatus(
 		subagentStatus,
-		status,
+		isError ? "error" : status,
 	);
-	let subagentIsError = subagentToolStatus === "error";
-	if (!subagentIsError) {
-		const toolFailed = status === "error" || isError;
-		if (toolFailed && !subagentCompleted) {
-			subagentIsError = true;
-		}
-	}
+	const subagentIsError = subagentToolStatus === "error";
 
 	// Detect timeout from the result. A timed-out wait_agent
 	// returns a structured payload with timed_out: true
@@ -800,9 +805,13 @@ const AdvisorRenderer: React.FC<ToolRendererProps> = ({
 
 const ComputerRenderer: React.FC<ToolRendererProps> = ({
 	status,
+	args,
 	result,
 	isError,
 }) => {
+	const action = asString(parseArgs(args)?.action);
+	// Failed and halted desktop actions persist as {"error": ...}.
+	const errorMessage = asString(asRecord(result)?.error);
 	let imageData = "";
 	let mimeType = "image/png";
 	let text = "";
@@ -834,7 +843,9 @@ const ComputerRenderer: React.FC<ToolRendererProps> = ({
 		if (rec) {
 			imageData = asString(rec.data);
 			mimeType = asString(rec.mime_type) || "image/png";
-			text = asString(rec.text);
+			// Desktop actions that return no screenshot persist their text
+			// output as {"output": ...}.
+			text = asString(rec.text) || asString(rec.output);
 			attachmentFileId = asString(rec.attachment_file_id);
 			attachmentName = asString(rec.attachment_name);
 		}
@@ -851,11 +862,13 @@ const ComputerRenderer: React.FC<ToolRendererProps> = ({
 
 	return (
 		<ComputerTool
+			action={action}
 			imageData={imageData}
 			mimeType={mimeType}
 			text={text}
 			status={status}
 			isError={isError}
+			errorMessage={errorMessage || undefined}
 		/>
 	);
 };
@@ -1034,37 +1047,6 @@ const GenericToolRenderer: React.FC<ToolRendererProps> = ({
 	);
 };
 
-const parseArray = <T,>(
-	value: unknown,
-	parseItem: (item: unknown) => T | null,
-): T[] | null => {
-	let array = value;
-	if (typeof array === "string") {
-		try {
-			array = JSON.parse(array);
-		} catch {
-			return null;
-		}
-	}
-	if (!Array.isArray(array)) {
-		return null;
-	}
-	const items: T[] = [];
-	for (const item of array) {
-		const parsed = parseItem(item);
-		if (parsed === null) {
-			return null;
-		}
-		items.push(parsed);
-	}
-	return items;
-};
-
-const parseStringList = (value: unknown): string[] | null =>
-	parseArray(value, (item) =>
-		typeof item === "string" ? item.trim() : null,
-	)?.filter(Boolean) ?? null;
-
 const parseFindToolsMatches = (value: unknown): FindToolsMatch[] | null =>
 	parseArray(value, (item) => {
 		const record = asRecord(item);
@@ -1170,6 +1152,20 @@ const WorkspaceLifecycleRenderer: React.FC<ToolRendererProps> = ({
 	);
 };
 
+// A client dynamic tool can also be named web_search, so only
+// provider-executed calls get the web search row.
+const WebSearchRenderer: React.FC<ToolRendererProps> = (props) =>
+	props.providerExecuted ? (
+		<WebSearchTool
+			action={getWebSearchAction(props.args)}
+			state={getWebSearchState(props)}
+			foundPages={props.foundPages ?? []}
+			errorMessage={asString(asRecord(props.result)?.error)}
+		/>
+	) : (
+		<GenericToolRenderer {...props} />
+	);
+
 // ---------------------------------------------------------------------------
 // Renderer lookup map for tool names and specialized renderers.
 // ---------------------------------------------------------------------------
@@ -1206,6 +1202,7 @@ export const toolRenderers: Record<string, React.FC<ToolRendererProps>> = {
 	propose_plan: ProposePlanRenderer,
 	advisor: AdvisorRenderer,
 	computer: ComputerRenderer,
+	web_search: WebSearchRenderer,
 };
 
 // Exported so tests can assert cross-cutting affordances across every
@@ -1245,6 +1242,8 @@ export const Tool = memo(
 		hookRewritten = false,
 		shellToolDisplayMode,
 		codeDiffDisplayMode,
+		providerExecuted,
+		foundPages,
 		ref,
 		...props
 	}: ToolProps) => {
@@ -1295,6 +1294,8 @@ export const Tool = memo(
 						startedAt={startedAt}
 						shellToolDisplayMode={shellToolDisplayMode}
 						codeDiffDisplayMode={codeDiffDisplayMode}
+						providerExecuted={providerExecuted}
+						foundPages={foundPages}
 					/>
 				</ToolCall.PolicyProvider>
 			</div>

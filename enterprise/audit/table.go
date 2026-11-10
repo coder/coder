@@ -385,6 +385,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"icon":                       ActionTrack,
 		"shareable_workspace_owners": ActionTrack,
 		"default_org_member_roles":   ActionTrack,
+		"members_can_disable_skills": ActionTrack,
 	},
 	&database.NotificationTemplate{}: {
 		"id":                 ActionIgnore,
@@ -595,6 +596,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"user_acl":                    ActionTrack,
 		"oauth2_revocation_url":       ActionTrack,
 		"oauth2_resource":             ActionTrack,
+		"oauth2_client_registration":  ActionTrack,
 		"organization_id":             ActionIgnore,
 	},
 	&database.Skill{}: {
@@ -651,7 +653,6 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"chat_debug_retention_days":        ActionTrack,
 		"chat_auto_archive_days":           ActionTrack,
 		"workspace_ttl":                    ActionTrack,
-		"computer_use_provider":            ActionTrack,
 		"debug_logging_allow_users":        ActionTrack,
 		"personal_model_overrides_enabled": ActionTrack,
 	},

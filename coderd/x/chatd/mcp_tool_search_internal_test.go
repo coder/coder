@@ -42,25 +42,22 @@ func TestDecideMCPToolSearch(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		experiment   bool
 		candidates   []deferredMCPTool
 		dynamicNames map[string]bool
 		want         bool
 	}{
-		{name: "experiment on", experiment: true, candidates: candidates, want: true},
-		{name: "experiment off", candidates: candidates},
-		{name: "empty", experiment: true},
-		{name: "collision", experiment: true, candidates: []deferredMCPTool{testDeferredTool(chattool.FindToolsName, "collision", nil)}},
-		{name: "dynamic collision", experiment: true, candidates: candidates, dynamicNames: map[string]bool{chattool.FindToolsName: true}},
-		{name: "dynamic no collision", experiment: true, candidates: candidates, dynamicNames: map[string]bool{"other": true}, want: true},
+		{name: "candidates", candidates: candidates, want: true},
+		{name: "empty"},
+		{name: "collision", candidates: []deferredMCPTool{testDeferredTool(chattool.FindToolsName, "collision", nil)}},
+		{name: "dynamic collision", candidates: candidates, dynamicNames: map[string]bool{chattool.FindToolsName: true}},
+		{name: "dynamic no collision", candidates: candidates, dynamicNames: map[string]bool{"other": true}, want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			require.Equal(t, tt.want, decideMCPToolSearch(mcpToolSearchInput{
-				experimentEnabled: tt.experiment,
-				candidates:        tt.candidates,
-				dynamicToolNames:  tt.dynamicNames,
+				candidates:       tt.candidates,
+				dynamicToolNames: tt.dynamicNames,
 			}))
 		})
 	}
@@ -428,21 +425,6 @@ func TestConfigureDeferredMCPToolSearchDirectCallAndCompaction(t *testing.T) {
 	// Prompt preparation passes only the post-summary history window, so an
 	// activation before chat_summarized naturally lapses after compaction.
 	require.Empty(t, deriveDeferredMCPActivations(nil, candidates, 0))
-}
-
-func TestMCPToolSearchExperimentDisabledPreservesWireTools(t *testing.T) {
-	t.Parallel()
-
-	hot := deferredTestAgentTool{info: fantasy.ToolInfo{Name: "read_file"}}
-	candidate := testDeferredTool("github__list_issues", "List issues", nil)
-	tools := []fantasy.AgentTool{hot, candidate.tool}
-	active := []string{"read_file", candidate.tool.Info().Name}
-	withoutExperiment := captureWireToolNames(t, tools, active)
-
-	require.False(t, decideMCPToolSearch(mcpToolSearchInput{
-		candidates: []deferredMCPTool{candidate},
-	}))
-	require.Equal(t, withoutExperiment, captureWireToolNames(t, tools, active))
 }
 
 func TestMCPToolSearchExploreAllowlist(t *testing.T) {

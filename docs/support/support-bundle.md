@@ -22,7 +22,8 @@ IDE integrations add their own diagnostics, which aren't included by the CLI alo
 
 Any authenticated user can generate a bundle.
 Your permissions, deployment configuration, and agent connectivity determine which data is available.
-Users with the Owner role get the most complete bundle; unavailable data can leave files empty or JSON values `null`.
+Users with the Owner role get the most complete bundle.
+Unavailable data can leave files empty or JSON values `null`.
 
 Choose a collection method:
 
@@ -62,7 +63,7 @@ The archive contains the following files when the corresponding data is availabl
 | `deployment/prometheus.txt`                   | Control plane Prometheus metrics, when enabled and accessible.                                                                                                                         |
 | `license-status.txt`                          | License status, when available.                                                                                                                                                        |
 | `logs.txt`                                    | Logs from the `codersdk.Client` used to generate the bundle.                                                                                                                           |
-| `network/connection_info.json`                | Information used by workspace agents used to connect to Coder (DERP map etc.)                                                                                                          |
+| `network/connection_info.json`                | Information used by workspace agents used to connect to Coder (Designated Encrypted Relay for Packets (DERP) map etc.)                                                                 |
 | `network/coordinator_debug.html`              | Peers currently connected to each Coder instance and the tunnels established between peers. *Requires Owner role.*                                                                     |
 | `network/interfaces.json`                     | Network interfaces on the machine running the CLI.                                                                                                                                     |
 | `network/netcheck.json`                       | Results of running `coder netcheck` locally.                                                                                                                                           |
@@ -131,7 +132,8 @@ The workspace agent evaluates paths and globs:
 
 - Environment variables such as `$HOME` expand inside the workspace.
 - Paths must resolve to absolute paths or start with `~/`, which resolves to the agent user's home directory.
-- Direct paths follow symlinks; glob traversal doesn't follow symlinks.
+- Direct paths follow symlinks.
+   Glob traversal doesn't follow symlinks.
 - Collection is limited to 10,000 files and 100&nbsp;MiB in total.
 - Each file contributes at most its last 10&nbsp;MiB, or less if the total budget is nearly exhausted, with truncation recorded in the manifest.
 
@@ -155,7 +157,7 @@ Running the CLI separately doesn't collect those local IDE files.
 
 ### VS Code
 
-Use the [Coder Remote extension](../user-guides/workspace-access/vscode.md) version 1.16.0 or later for this workflow.
+Use the [Coder Remote extension](../workspaces/workspace-access/vscode.md) version 1.16.0 or later for this workflow.
 Sign in to your Coder deployment in the extension before collecting a bundle.
 
 - Bundle generation requires Coder CLI version 2.10.0 or later.
@@ -195,12 +197,12 @@ Review these values before sharing.
 
 Extension version 1.16.1 or later adds session identifiers and logs workspace and agent state changes.
 With extension version 1.16.4 or later, bundles can include recent connection logs even if you didn't turn on debug logging.
-Collection is best effort, so the latest entries may be missing.
+Collection is best effort, so the latest entries might be missing.
 To turn off buffering, set `coder.connectionLogBuffer.size` to `0`.
 
 Remote editor server logs appear under `agent/workspace_files/`, separately from the local VS Code diagnostics.
 
-For telemetry controls and retention, refer to [VS Code local telemetry](../user-guides/workspace-access/vscode.md#local-telemetry).
+For telemetry controls and retention, refer to [VS Code local telemetry](../workspaces/workspace-access/vscode.md#local-telemetry).
 For extension installation and settings, refer to the [Coder Remote README](https://github.com/coder/vscode-coder/blob/main/README.md#getting-started).
 
 ### JetBrains Toolbox
@@ -214,7 +216,7 @@ Workspace support-bundle collection requires all of the following:
 
 Coder plugin version 0.9.4 and earlier collect Toolbox logs without generating a Coder support bundle.
 Upgrading Toolbox alone doesn't add bundle collection to those plugin versions.
-For installation, refer to the [JetBrains Toolbox guide](../user-guides/workspace-access/jetbrains/toolbox.md#install-the-coder-provider-for-toolbox).
+For installation, refer to the [JetBrains Toolbox guide](../workspaces/workspace-access/jetbrains/toolbox.md#install-the-coder-provider-for-toolbox).
 
 Sign in to your Coder deployment in the plugin before collecting a bundle.
 After sign-in, Coder's main page lists your environments.

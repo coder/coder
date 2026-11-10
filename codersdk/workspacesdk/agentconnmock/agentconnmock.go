@@ -508,6 +508,22 @@ func (mr *MockAgentConnMockRecorder) ReadFile(ctx, path, offset, limit any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadFile", reflect.TypeOf((*MockAgentConn)(nil).ReadFile), ctx, path, offset, limit)
 }
 
+// ReadFileInRoot mocks base method.
+func (m *MockAgentConn) ReadFileInRoot(ctx context.Context, root, path string, offset, limit int64) (io.ReadCloser, string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ReadFileInRoot", ctx, root, path, offset, limit)
+	ret0, _ := ret[0].(io.ReadCloser)
+	ret1, _ := ret[1].(string)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// ReadFileInRoot indicates an expected call of ReadFileInRoot.
+func (mr *MockAgentConnMockRecorder) ReadFileInRoot(ctx, root, path, offset, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReadFileInRoot", reflect.TypeOf((*MockAgentConn)(nil).ReadFileInRoot), ctx, root, path, offset, limit)
+}
+
 // ReadFileLines mocks base method.
 func (m *MockAgentConn) ReadFileLines(ctx context.Context, path string, offset, limit int64, limits workspacesdk.ReadFileLinesLimits) (workspacesdk.ReadFileLinesResponse, error) {
 	m.ctrl.T.Helper()

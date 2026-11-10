@@ -3337,7 +3337,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "Disable Terraform Module Cache",
-			Description: "Disable the reuse of Terraform modules cached at template import for all templates. Modules are re-downloaded on every workspace build. Individual templates cannot opt back in.",
+			Description: "Disable the reuse of Terraform modules and the provider lock file cached at template import for all templates. Modules are re-downloaded on every workspace build. Individual templates cannot opt back in.",
 			Flag:        "provisioner-disable-module-cache",
 			Env:         "CODER_PROVISIONER_DISABLE_MODULE_CACHE",
 			Default:     "false",
@@ -4002,7 +4002,9 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.ProxyHealthStatusInterval,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "proxyHealthInterval",
-			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Annotations: serpent.Annotations{}.
+				Mark(annotationEnterpriseKey, "true").
+				Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Default Quiet Hours Schedule",
@@ -4504,7 +4506,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Max Queued Messages Per Chat",
-			Description: "Maximum number of messages that can be queued in a chat. Sending a message to a chat whose queue is full fails with HTTP 429. Must be at least 1.",
+			Description: "Maximum number of messages that can be queued in a chat. Sending a message that would make a full queue longer fails with HTTP 429. Must be at least 1.",
 			Flag:        "chat-max-queued-messages-per-chat",
 			Env:         "CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT",
 			Value:       &c.AI.Chat.MaxQueuedMessagesPerChat,
@@ -5502,15 +5504,13 @@ const (
 	ExperimentNotifications             Experiment = "notifications"               // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage            Experiment = "workspace-usage"             // Enables the new workspace usage tracking.
 	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
-	ExperimentMCPToolSearch             Experiment = "mcp-tool-search"             // Defers MCP tool schemas behind a searchable catalog in agent chats.
 	ExperimentWorkspaceBuildUpdates     Experiment = "workspace-build-updates"     // Enables publishing workspace build updates to the all builds pubsub channel.
 	ExperimentNoNATSPubsub              Experiment = "no_nats_pubsub"              // Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
 	ExperimentAIGatewayReverseProxy     Experiment = "ai-gateway-reverse-proxy"    // Uses stateless reverse proxy routing when MCP injection is not configured.
-	ExperimentChatProjects              Experiment = "chat-projects"               // Enables organization-scoped projects that group agent chats.
-	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
-	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
+	ExperimentChatProjectSharing        Experiment = "chat-project-sharing"        // Enables sharing agent chat projects with other users and groups.
+	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
 	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
@@ -5528,8 +5528,6 @@ func (e Experiment) DisplayName() string {
 		return "Workspace Usage Tracking"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
-	case ExperimentMCPToolSearch:
-		return "MCP Tool Search"
 	case ExperimentWorkspaceBuildUpdates:
 		return "Workspace Build Updates Channel"
 	case ExperimentNoNATSPubsub:
@@ -5540,10 +5538,8 @@ func (e Experiment) DisplayName() string {
 		return "AI Gateway Seat Exclusion"
 	case ExperimentAIGatewayReverseProxy:
 		return "AI Gateway Reverse Proxy"
-	case ExperimentChatProjects:
-		return "Chat Projects"
-	case ExperimentChatAdvisor:
-		return "Chat Advisor"
+	case ExperimentChatProjectSharing:
+		return "Chat Project Sharing"
 	case ExperimentChatVirtualDesktop:
 		return "Chat Virtual Desktop"
 	case ExperimentAgentLifecycleHooks:
@@ -5568,14 +5564,12 @@ var ExperimentsKnown = Experiments{
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
 	ExperimentMCPServerHTTP,
-	ExperimentMCPToolSearch,
 	ExperimentNoNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentWorkspaceCapableLicensing,
 	ExperimentAIGatewaySeatExclusion,
 	ExperimentAIGatewayReverseProxy,
-	ExperimentChatProjects,
-	ExperimentChatAdvisor,
+	ExperimentChatProjectSharing,
 	ExperimentChatVirtualDesktop,
 	ExperimentAgentLifecycleHooks,
 	ExperimentChatInlineMCPServers,
@@ -5590,6 +5584,7 @@ var ExperimentsKnown = Experiments{
 // not be included here and will be essentially hidden.
 var ExperimentsSafe = Experiments{
 	ExperimentChatStageMetrics,
+	ExperimentChatProjectSharing,
 }
 
 // ExperimentsUserScoped lists the experiments that accept runtime rules
@@ -5597,7 +5592,6 @@ var ExperimentsSafe = Experiments{
 // startup list and need a restart to change.
 var ExperimentsUserScoped = Experiments{
 	ExperimentExample,
-	ExperimentMCPToolSearch,
 }
 
 // Experiments is a list of experiments.

@@ -25,11 +25,12 @@ export const WorkspaceSharingIndicator: React.FC<
 	});
 
 	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<span className="flex items-center text-content-secondary hover:text-content-primary">
-					<UsersIcon className="size-icon-xs" />
-				</span>
+		<Tooltip interactive>
+			<TooltipTrigger
+				aria-label="Workspace permissions"
+				className="text-content-secondary hover:text-content-primary"
+			>
+				<UsersIcon className="size-icon-xs" />
 			</TooltipTrigger>
 			<TooltipContent className="w-56 p-0">
 				<div className="px-3 py-2">

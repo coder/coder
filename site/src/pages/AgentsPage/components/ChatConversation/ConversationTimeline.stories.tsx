@@ -245,6 +245,17 @@ const buildInlineAttachmentPart = (
 	data: string,
 ): TypesGen.ChatFilePart => buildFilePart({ media_type: mediaType, data });
 
+const mockWorkspaceFileReferencePart: TypesGen.ChatWorkspaceFileReferencePart =
+	{
+		type: "workspace-file-reference",
+		workspace_file_path:
+			"/home/coder/.coder/chats/story-chat/files/dataset.zip",
+		workspace_file_name: "dataset.zip",
+		workspace_file_size: 4096,
+		workspace_file_media_type: "application/zip",
+		workspace_file_workspace_id: "ws-1",
+	};
+
 const buildUserMessage = ({
 	id = 1,
 	text,
@@ -330,6 +341,7 @@ const buildParsedReadFileEntry = ({
 				},
 			],
 			blocks: [{ type: "tool", id: toolId }],
+			partBlockIndices: [0],
 			sources: [],
 			hookNotices: [],
 		},
@@ -795,6 +807,40 @@ export const UserMessageBubbleAlignment: Story = {
 
 		await userEvent.hover(userRow?.parentElement as HTMLElement);
 	},
+};
+
+/** User messages render Markdown, with chips inline even inside emphasis. */
+export const UserMessageWithMarkdown: Story = {
+	args: buildStoryArgs({
+		...baseMessage,
+		id: 1,
+		role: "user",
+		content: [
+			buildTextPart("Why does `make test` fail in **"),
+			{
+				type: "file-reference",
+				file_name: "site/src/components/Button.tsx",
+				start_line: 42,
+				end_line: 42,
+				content: "export const Button = ...",
+			},
+			buildTextPart(
+				[
+					"**?",
+					"Steps so far:",
+					"- reran it",
+					"- cleared the cache",
+					"",
+					"```go",
+					"func main() {",
+					'\tfmt.Println("hello")',
+					"}",
+					"```",
+					"Thanks!",
+				].join("\n"),
+			),
+		],
+	}),
 };
 
 /** Regression guard: a single image attachment must not be duplicated. */
@@ -1283,6 +1329,20 @@ export const UserMessageWithMixedAttachments: Story = {
 	),
 };
 
+/** Visual regression: files without text sit as far from the edge as text. */
+export const UserMessageWithFilesOnly: Story = {
+	args: buildStoryArgs({
+		...baseMessage,
+		id: 1,
+		role: "user",
+		content: [
+			buildInlineAttachmentPart("image/png", MockPngBase64),
+			buildTextAttachmentPart("storybook-test-text"),
+			mockWorkspaceFileReferencePart,
+		],
+	}),
+};
+
 /** Text-only messages must not produce spurious image thumbnails. */
 export const UserMessageTextOnly: Story = {
 	args: {
@@ -1503,6 +1563,20 @@ export const UserMessageWithSkillChips: Story = {
 					},
 				],
 			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "user",
+				content: [
+					{ type: "text", text: "# Run " },
+					{
+						type: "skill-invocation",
+						skill_source: "project",
+						skill_name: "triage",
+					},
+					{ type: "text", text: " first" },
+				],
+			},
 		]),
 	},
 };
@@ -1667,7 +1741,6 @@ export const UserMessageJumpArrows: Story = {
 	},
 };
 
-/** Copy + edit actions appear below user messages on hover. */
 export const UserMessageCopyButton: Story = {
 	args: {
 		...defaultArgs,
@@ -1701,14 +1774,9 @@ export const UserMessageCopyButton: Story = {
 		expect(editButton).toBeInTheDocument();
 
 		// Behavioral: clicking edit fires onEditUserMessage with the
-		// correct message ID and text.
+		// message ID.
 		await userEvent.click(editButton);
-		expect(args.onEditUserMessage).toHaveBeenCalledWith(
-			1,
-			"Can you fix this bug?",
-			undefined,
-			undefined,
-		);
+		expect(args.onEditUserMessage).toHaveBeenCalledWith(1);
 
 		// Behavioral: clicking copy writes the raw markdown to the
 		// clipboard.
@@ -1732,7 +1800,6 @@ export const UserMessageCopyButton: Story = {
 	},
 };
 
-/** Copy button is present on assistant messages on hover. */
 export const AssistantMessageCopyButton: Story = {
 	args: {
 		...defaultArgs,
@@ -1755,17 +1822,6 @@ export const AssistantMessageCopyButton: Story = {
 				],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		// Force the hover-reveal toolbar visible.
-		for (const el of canvasElement.querySelectorAll("[class]")) {
-			if (
-				el instanceof HTMLElement &&
-				el.className.includes("group-hover/msg:opacity-100")
-			) {
-				el.style.opacity = "1";
-			}
-		}
 	},
 };
 
@@ -1817,63 +1873,6 @@ export const AskUserQuestionSubmittedAnswer: Story = {
 	},
 };
 
-/** Copy button calls clipboard API with the raw markdown text. */
-export const CopyButtonWritesToClipboard: Story = {
-	args: {
-		...defaultArgs,
-		parsedMessages: buildMessages([
-			{
-				...baseMessage,
-				id: 1,
-				role: "user",
-				content: [{ type: "text", text: "What is the answer?" }],
-			},
-			{
-				...baseMessage,
-				id: 2,
-				role: "assistant",
-				content: [{ type: "text", text: "Here is the **answer**." }],
-			},
-		]),
-	},
-	play: async ({ canvasElement }) => {
-		const originalClipboard = navigator.clipboard;
-		const writeText = fn().mockResolvedValue(undefined);
-		Object.defineProperty(navigator, "clipboard", {
-			value: { writeText },
-			writable: true,
-			configurable: true,
-		});
-
-		try {
-			const canvas = within(canvasElement);
-			// Force the hover-reveal toolbar visible.
-			for (const el of canvasElement.querySelectorAll("[class]")) {
-				if (
-					el instanceof HTMLElement &&
-					el.className.includes("group-hover/msg:opacity-100")
-				) {
-					el.style.opacity = "1";
-				}
-			}
-			// Find the assistant's copy button (last message-actions).
-			const actions = canvas.getAllByTestId("message-actions");
-			const assistantActions = actions[actions.length - 1];
-			const copyBtn = within(assistantActions).getByRole("button", {
-				name: "Copy message",
-			});
-			await userEvent.click(copyBtn);
-			expect(writeText).toHaveBeenCalledWith("Here is the **answer**.");
-		} finally {
-			Object.defineProperty(navigator, "clipboard", {
-				value: originalClipboard,
-				writable: true,
-				configurable: true,
-			});
-		}
-	},
-};
-
 /**
  * Regression: sources-only assistant messages must have consistent
  * bottom spacing before the next user bubble. A spacer div fills the
@@ -1916,16 +1915,85 @@ export const SourcesOnlyAssistantSpacing: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.click(
-			canvas.getByRole("button", { name: /searched 2 results/i }),
-		);
+		await userEvent.click(canvas.getByRole("button", { name: /^2 sources$/ }));
 	},
 };
 
 /**
- * Regression: action bar must appear on the last *visible* assistant
- * message even when invisible assistant messages (provider-executed
- * tool-result-only) follow it before the next user turn.
+ * A provider-executed OpenAI web search lists its found pages, tagged with
+ * the call ID, in its own row. The untagged citation goes to the answer's
+ * source row.
+ */
+export const ProviderWebSearchWithCitations: Story = {
+	args: {
+		...defaultArgs,
+		parsedMessages: buildMessages([
+			{
+				...baseMessage,
+				id: 1,
+				role: "user",
+				content: [{ type: "text", text: "What is new in Coder?" }],
+			},
+			{
+				...baseMessage,
+				id: 2,
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "ws_1",
+						tool_name: "web_search",
+						args: {
+							type: "search",
+							queries: JSON.stringify(["coder release notes"]),
+						},
+						provider_executed: true,
+					},
+					{
+						type: "source",
+						tool_call_id: "ws_1",
+						url: "https://coder.com/changelog",
+					},
+					{
+						type: "source",
+						tool_call_id: "ws_1",
+						url: "https://github.com/coder/coder/releases",
+					},
+					{
+						type: "source",
+						tool_call_id: "ws_1",
+						url: "https://coder.com/blog",
+					},
+					{
+						type: "tool-result",
+						tool_call_id: "ws_1",
+						tool_name: "web_search",
+						provider_executed: true,
+						result: {},
+					},
+					{ type: "text", text: "The latest release adds Coder Agents." },
+					{
+						type: "source",
+						url: "https://coder.com/changelog",
+						title: "Coder changelog",
+					},
+				],
+			},
+		]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /searched for coder release notes/i }),
+		);
+		await userEvent.click(canvas.getByRole("button", { name: /^1 source$/ }));
+	},
+};
+
+/**
+ * Regression: the visible assistant message keeps its action bar when
+ * invisible assistant messages (provider-executed tool-result-only) follow it
+ * before the next user turn.
  */
 export const AssistantActionBarAfterHiddenMessages: Story = {
 	args: {
@@ -1965,18 +2033,6 @@ export const AssistantActionBarAfterHiddenMessages: Story = {
 				content: [{ type: "text", text: "Thanks!" }],
 			},
 		]),
-	},
-	play: async ({ canvasElement }) => {
-		// Force the hover-reveal action bars visible using stable test IDs.
-		// The invisible provider-executed tool-result message (id=3)
-		// must not prevent the assistant (id=2) from showing its bar.
-		for (const el of canvasElement.querySelectorAll(
-			'[data-testid="message-actions"]',
-		)) {
-			if (el instanceof HTMLElement) {
-				el.style.opacity = "1";
-			}
-		}
 	},
 };
 
@@ -2043,6 +2099,7 @@ export const ToolDisplayModesFromPreferences: Story = {
 						{ type: "tool", id: "execute-tool" },
 						{ type: "tool", id: "edit-tool" },
 					],
+					partBlockIndices: [],
 					sources: [],
 					hookNotices: [],
 				},
@@ -2492,15 +2549,7 @@ export const UserMessageWithWorkspaceFileReference: Story = {
 				role: "user",
 				content: [
 					{ type: "text", text: "Unzip this in my workspace" },
-					{
-						type: "workspace-file-reference",
-						workspace_file_path:
-							"/home/coder/.coder/chats/story-chat/files/dataset.zip",
-						workspace_file_name: "dataset.zip",
-						workspace_file_size: 4096,
-						workspace_file_media_type: "application/zip",
-						workspace_file_workspace_id: "ws-1",
-					},
+					mockWorkspaceFileReferencePart,
 				],
 			},
 		]),

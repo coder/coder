@@ -121,9 +121,9 @@ func (m *Manager) run(fn func()) bool {
 }
 
 func timeout(ctx context.Context, clock quartz.Clock, duration time.Duration) (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(ctx)
-	timer := clock.AfterFunc(duration, cancel, "acp-timeout")
-	return ctx, func() { timer.Stop(); cancel() }
+	ctx, cancel := context.WithCancelCause(ctx)
+	timer := clock.AfterFunc(duration, func() { cancel(context.DeadlineExceeded) }, "acp-timeout")
+	return ctx, func() { timer.Stop(); cancel(context.Canceled) }
 }
 
 func (m *Manager) validate(directory string) error {

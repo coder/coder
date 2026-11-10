@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
-	Navigate,
 	Link as RouterLink,
 	useLocation,
 	useNavigate,
@@ -50,6 +49,7 @@ import {
 	toWorkspaceFileReferencePart,
 } from "../utils/chatInputContent";
 import { getChimeEnabled, setChimeEnabled } from "../utils/chime";
+import { hasHighlightComposerState } from "../utils/composerHighlight";
 import { type DeepLinkState, readDeepLinkState } from "../utils/deepLinkState";
 import { buildAgentChatPath } from "../utils/navigation";
 import {
@@ -96,10 +96,6 @@ const isConflictError = (error: unknown) =>
 
 const AgentCreatePage: React.FC = () => {
 	const { projectId } = useParams<{ projectId?: string }>();
-	const { experiments } = useDashboard();
-	if (projectId !== undefined && !experiments.includes("chat-projects")) {
-		return <Navigate to="/agents" replace />;
-	}
 	// Remount per project so the create mutation's pending and error state do
 	// not carry over. A create still in flight opens its chat on success, as
 	// from /agents; if it fails after the page unmounts, its error and the
@@ -174,6 +170,16 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	};
 	const webPush = useWebpushNotifications();
 	const [chimeEnabled, setChimeEnabledState] = useState(getChimeEnabled);
+
+	// The highlight state persists on its history entry, so only a location
+	// key that differs from the one at mount is a fresh New chat click.
+	// Mounting on that entry (a reload, or Back to it) must not replay it.
+	const [mountLocationKey] = useState(location.key);
+	const composerHighlightKey =
+		hasHighlightComposerState(location.state) &&
+		location.key !== mountLocationKey
+			? location.key
+			: undefined;
 
 	const linkState = readDeepLinkState(location.state);
 	const debugLinkParam = searchParams.get(debugWorkspaceBuildSearchParam);
@@ -435,6 +441,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			workspacesError={workspacesQuery.error}
 			isWorkspacesLoading={workspacesQuery.isLoading}
 			prefill={prefill}
+			highlightKey={composerHighlightKey}
 		/>
 	);
 

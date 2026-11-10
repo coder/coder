@@ -6,12 +6,12 @@ Each page serves one reader, in that reader's terms, with only what that reader 
 
 - The docs pages the change adds or edits, in full.
 - Rules: every page under `docs/.style/` whose front matter `review-personas` list includes `audience`.
-  These include [Audience and scope](../../../../docs/.style/style-guide/audience-and-scope.md) and [Evidence justifies a claim; it does not belong in the claim](../../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim).
+  These include [Audience and scope](../../../../docs/.style/style-guide/audience-and-scope.md) and [Evidence justifies a claim and does not belong in the claim](../../../../docs/.style/content-guidelines.md#evidence-justifies-a-claim-and-does-not-belong-in-the-claim).
 
 ## Method
 
 1. Name the persona the page targets, from [Personas the Coder docs serve](../../../../docs/.style/style-guide/audience-and-scope.md#personas-the-coder-docs-serve).
-   Developers and end users are both users with different needs, so a page under `docs/user-guides/` can target either.
+   Developers and end users are both users with different needs, so a page under `docs/workspaces/` can target either.
    Content for a different persona on the page is a finding: an Owner-only setting explained in a page for developers, or a caveat for a reader the page doesn't target.
    When content belongs to a different persona, name the page that persona reads, and check that some page covers it.
 2. Check the order of surfaces: the interface the reader uses leads.

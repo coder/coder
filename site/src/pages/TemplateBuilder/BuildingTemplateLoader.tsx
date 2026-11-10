@@ -40,7 +40,7 @@ export const BuildingTemplateLoader: React.FC = () => {
 
 	return (
 		<div
-			className="relative flex flex-col items-center justify-end w-full min-h-[480px] overflow-hidden"
+			className="relative flex flex-col items-center justify-end w-full min-h-120 overflow-hidden"
 			role="status"
 			aria-label="Building your template"
 		>
@@ -76,7 +76,7 @@ export const BuildingTemplateLoader: React.FC = () => {
 			</div>
 
 			{/* Progress bar and label */}
-			<div className="relative z-10 flex w-full max-w-[480px] flex-col items-center gap-3 pb-8">
+			<div className="relative z-10 flex w-full max-w-120 flex-col items-center gap-3 pb-8">
 				{/* Progress track */}
 				<div className="flex h-2.5 w-full items-center justify-center">
 					<div className="h-2.5 w-full overflow-hidden rounded bg-surface-sky">
@@ -93,7 +93,7 @@ export const BuildingTemplateLoader: React.FC = () => {
 				</div>
 
 				{/* Label */}
-				<p className="flex items-center gap-0.5 text-xs leading-[18px] text-content-secondary">
+				<p className="flex items-center gap-0.5 text-xs leading-4.5 text-content-secondary">
 					<span>Building your template</span>
 					<span className="inline-flex gap-0.5">
 						<motion.span

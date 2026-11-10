@@ -87,7 +87,7 @@ export const WorkspaceDeleteDialog: React.FC<WorkspaceDeleteDialogProps> = ({
 							<p className="m-0 text-xs text-content-secondary">workspace</p>
 						</div>
 						<div className="text-right">
-							<p className="m-0 text-xs font-medium text-content-primary">
+							<p className="m-0 text-xs text-content-primary">
 								{dayjs(workspace.created_at).fromNow()}
 							</p>
 							<p className="m-0 text-xs text-content-secondary">created</p>
@@ -133,7 +133,7 @@ export const WorkspaceDeleteDialog: React.FC<WorkspaceDeleteDialogProps> = ({
 											virtual machines will not be destroyed.{" "}
 											<Link
 												href={docs(
-													"/user-guides/workspace-management#workspace-resources",
+													"/workspaces/workspace-management#workspace-resources",
 												)}
 												target="_blank"
 												rel="noreferrer"

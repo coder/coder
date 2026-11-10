@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
@@ -21,6 +22,7 @@ var (
 	ErrConnect               = xerrors.New("could not connect to coderd")
 	ErrUnauthorized          = xerrors.New("unauthorized")
 	ErrAcquireRequestHandler = xerrors.New("failed to acquire request handler")
+	ErrAuthorizationCheck    = xerrors.New("internal server error checking authorization")
 	ErrBudgetCheck           = xerrors.New("internal server error checking user AI budget")
 )
 
@@ -88,6 +90,9 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	if delegated {
 		authReq = &proto.IsAuthorizedRequest{KeyId: delegatedID}
+		if attr, ok := agplaibridge.DelegatedAttributionFromContext(ctx); ok && attr.DelegatedOrganizationID != uuid.Nil {
+			authReq.DelegatedOrganizationId = attr.DelegatedOrganizationID.String()
+		}
 	} else {
 		authReq = &proto.IsAuthorizedRequest{Key: key}
 	}
@@ -131,6 +136,14 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	resp, err := client.IsAuthorized(ctx, authReq)
 	if err != nil {
+		// coderd marks its own failures, such as a database error, so they are
+		// not reported as a rejected request. Every other error, including any
+		// from a coderd that does not mark its failures, stays a 403.
+		if drpcerr.Code(err) == proto.ErrCodeInternal {
+			logger.Warn(ctx, "key authorization check failed internally", slog.Error(err))
+			http.Error(rw, ErrAuthorizationCheck.Error(), http.StatusInternalServerError)
+			return
+		}
 		logger.Warn(ctx, "key authorization check failed", slog.Error(err))
 		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
 		return
@@ -161,8 +174,21 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 	ctx = agplaibridge.WithAttribution(ctx, attribution)
 
+	// coderd resolves the organization once, in IsAuthorized. The budget check
+	// and the interception record both reuse it. A request without one is
+	// rejected so it never falls back to site-wide budget and cost.
+	org, err := requestOrganizationFromAuthorization(resp)
+	if err != nil {
+		logger.Warn(ctx, "invalid authorization organization", slog.Error(err))
+		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
+		return
+	}
+	ctx = agplaibridge.WithRequestOrganization(ctx, org)
+	logger = logger.With(slog.F("organization_id", org.ID), slog.F("organization_source", org.Source))
+
 	budgetResp, err := client.IsBudgetExceeded(ctx, &proto.IsBudgetExceededRequest{
-		UserId: id.String(),
+		UserId:         id.String(),
+		OrganizationId: org.ID.String(),
 	})
 	if err != nil {
 		logger.Warn(ctx, "user AI budget check failed", slog.Error(err))
@@ -213,4 +239,28 @@ func attributionFromAuthorization(resp *proto.IsAuthorizedResponse) (agplaibridg
 		return agplaibridge.Attribution{}, xerrors.Errorf("parse workspace ID: %w", err)
 	}
 	return agplaibridge.Attribution{WorkspaceID: workspaceID}, nil
+}
+
+// requestOrganizationFromAuthorization extracts the organization coderd
+// resolved for the request. A missing ID or source, or a malformed ID, is an
+// error. coderd at v1.6 or later always sends one, and an older coderd rejects
+// this gateway's version, so a missing organization is never expected. The
+// source value itself is not checked, so a newer coderd can add sources
+// without breaking this gateway.
+func requestOrganizationFromAuthorization(resp *proto.IsAuthorizedResponse) (agplaibridge.RequestOrganization, error) {
+	rawID, source := resp.GetOrganizationId(), resp.GetOrganizationSource()
+	switch {
+	case rawID == "":
+		return agplaibridge.RequestOrganization{}, xerrors.New("no organization ID")
+	case source == "":
+		return agplaibridge.RequestOrganization{}, xerrors.New("organization ID set without organization source")
+	}
+	id, err := uuid.Parse(rawID)
+	if err != nil {
+		return agplaibridge.RequestOrganization{}, xerrors.Errorf("parse organization ID: %w", err)
+	}
+	if id == uuid.Nil {
+		return agplaibridge.RequestOrganization{}, xerrors.New("organization ID is the nil UUID")
+	}
+	return agplaibridge.RequestOrganization{ID: id, Source: source}, nil
 }

@@ -13,7 +13,7 @@ The orchestrator keeps the same fields through verification and posting.
   persona: accuracy
   class: wrong              # wrong | missing | broken | rule | suggestion | friction | adjacent
   blocking: true            # set by the orchestrator from SKILL.md#blocking, never by the persona
-  file: docs/ai-coder/agents/extending-agents.md
+  file: docs/coder-agents/extending-agents.md
   line: 304                 # line on the PR head, or null for a missing page
   quote: "Downloads add the line back for manual-only skills."
   evidence:
@@ -25,7 +25,7 @@ The orchestrator keeps the same fields through verification and posting.
 ```
 
 `quote` is copied from the file, never paraphrased.
-A finding whose `quote` does not appear at `file:line` is dropped by the verifier.
+A finding whose `quote` does not appear at `file:line` is dropped before verification.
 
 ## Where findings go
 
@@ -139,7 +139,7 @@ doc-check-trace:
   deterministic_checks:
     - {name: make lint/emdash, result: pass}
   pages_read:
-    - docs/ai-coder/agents/extending-agents.md
+    - docs/coder-agents/extending-agents.md
   searches:
     - {query: "grep -rn 'model_invocable' docs/ | grep -v '^docs/reference/'", hits: 4}
   pr_claims_unsupported:

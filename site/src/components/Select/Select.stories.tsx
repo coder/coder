@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { screen, userEvent, within } from "storybook/test";
 import {
 	Select,
 	SelectContent,
@@ -15,7 +16,7 @@ const meta: Meta<typeof Select> = {
 	args: {
 		children: (
 			<>
-				<SelectTrigger className="w-[180px]">
+				<SelectTrigger className="w-45">
 					<SelectValue placeholder="Select a fruit" />
 				</SelectTrigger>
 				<SelectContent>
@@ -62,7 +63,7 @@ export const NarrowViewport: Story = {
 		open: true,
 		children: (
 			<>
-				<SelectTrigger className="w-[180px]">
+				<SelectTrigger className="w-45">
 					<SelectValue placeholder="Select a login type" />
 				</SelectTrigger>
 				<SelectContent>
@@ -82,5 +83,15 @@ export const NarrowViewport: Story = {
 	parameters: {
 		viewport: { defaultViewport: "mobile1" },
 		pixel: { matrix: { viewports: ["phone"] } },
+	},
+};
+
+export const KeyboardFocus: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		canvas.getByRole("combobox").focus();
+		await userEvent.keyboard("{Enter}");
+		await screen.findByRole("listbox");
+		await userEvent.keyboard("{ArrowDown}");
 	},
 };
