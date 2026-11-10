@@ -346,6 +346,73 @@
 					}
 				}
 			}
+		],
+
+		// Vite transpiles syntax but does not polyfill built-ins, so these
+		// fail in the oldest browsers in the browserslist in package.json.
+		// Remove an entry once the browserslist reaches its versions.
+		"no-restricted-properties": [
+			"error",
+			{
+				"object": "URL",
+				"property": "parse",
+				"message": "URL.parse needs Chrome 126 and Safari 18. Use parseURL from #/utils/uri instead."
+			},
+			{
+				"object": "URL",
+				"property": "canParse",
+				"message": "URL.canParse needs Chrome 120 and Safari 17. Use parseURL from #/utils/uri instead."
+			},
+			{
+				"object": "Object",
+				"property": "groupBy",
+				"message": "Object.groupBy needs Chrome 117 and Safari 17.4. Use Array.filter or a loop instead."
+			},
+			{
+				"object": "Map",
+				"property": "groupBy",
+				"message": "Map.groupBy needs Chrome 117 and Safari 17.4. Use a loop instead."
+			},
+			{
+				"object": "Promise",
+				"property": "withResolvers",
+				"message": "Promise.withResolvers needs Chrome 119 and Safari 17.4. Use new Promise() instead."
+			},
+			{
+				"object": "Promise",
+				"property": "try",
+				"message": "Promise.try needs Chrome 128, Firefox 134 and Safari 18.2."
+			},
+			{
+				"object": "AbortSignal",
+				"property": "any",
+				"message": "AbortSignal.any needs Chrome 116 and Safari 17.4."
+			},
+			{
+				"object": "Array",
+				"property": "fromAsync",
+				"message": "Array.fromAsync needs Chrome 121."
+			},
+			{
+				"object": "Iterator",
+				"property": "from",
+				"message": "Iterator.from needs Chrome 122, Firefox 131 and Safari 18.4."
+			},
+			{
+				"object": "RegExp",
+				"property": "escape",
+				"message": "RegExp.escape needs Chrome 136, Firefox 134 and Safari 18.2."
+			},
+			{
+				"object": "Error",
+				"property": "isError",
+				"message": "Error.isError needs Chrome 134, Firefox 138 and Safari 18.4."
+			},
+			{
+				"object": "Uint8Array",
+				"property": "fromBase64",
+				"message": "Uint8Array.fromBase64 needs Chrome 140, Firefox 133 and Safari 18.2."
+			}
 		]
 	},
 	// typesGenerated.ts is generated, so ignore it entirely rather than
@@ -372,6 +439,11 @@
 			// interfaces; type aliases cannot merge with the upstream declaration.
 			"files": ["src/@types/*.d.ts"],
 			"rules": { "consistent-type-definitions": "off" }
+		},
+		{
+			// Tests run in Node, not in the browsers in the browserslist.
+			"files": ["**/*.test.ts", "**/*.test.tsx", "e2e/**"],
+			"rules": { "no-restricted-properties": "off" }
 		},
 		{
 			"files": ["src/components/**/*.ts", "src/components/**/*.tsx"],
