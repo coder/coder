@@ -20,7 +20,7 @@ if [[ "$PROFILE_PROVIDER" == coder ]]; then
   python3 - "$RUNNER_TEMP/profile-plugin-source" <<'PY'
 import pathlib,sys
 p=pathlib.Path(sys.argv[1])/'cmd/go-cache-plugin'
-f=p/'setup.go';s=f.read_text();old='client := &s3util.Client{';assert old in s;s=s.replace(old,'cfg.HTTPClient = profileClient{base: cfg.HTTPClient}\n\t'+old);s=s.replace('Get:         cache.Get,','Get:         profileGet(cache.Get),');f.write_text(s)
+f=p/'setup.go';s=f.read_text();old='o.UsePathStyle = flags.S3PathStyle';assert old in s;s=s.replace(old,old+'\n\t\t\to.HTTPClient = profileClient{base: o.HTTPClient}');s=s.replace('Get:         cache.Get,','Get:         profileGet(cache.Get),');f.write_text(s)
 f=p/'commands.go';s=f.read_text();old='func runDirect(env *command.Env) error {';assert old in s;s=s.replace(old,old+'\n\tdefer profileStart()()');f.write_text(s)
 PY
   (cd "$RUNNER_TEMP/profile-plugin-source"; GOCACHEPROG= GOCACHE="$RUNNER_TEMP/profiler-build-cache" "$profile_go" build -o "$profile_root/go-cache-plugin-profile" ./cmd/go-cache-plugin)
