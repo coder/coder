@@ -102,7 +102,7 @@ export const WorkspacesEmpty: React.FC<WorkspacesEmptyProps> = ({
 										// descriptions, when those URLS have no hyphens or other
 										// easy semantic breakpoints. Need to set this to ensure
 										// those URLs don't break outside their containing boxes
-										className="text-sm text-gray-400 leading-[1.4] m-0 pt-1 wrap-break-word"
+										className="text-sm text-content-secondary leading-[1.4] m-0 pt-1 wrap-break-word"
 									>
 										{t.description}
 									</p>

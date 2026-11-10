@@ -10,7 +10,9 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 
+	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 )
 
@@ -167,14 +169,21 @@ func (t *WorkspaceMCPTool) Run(
 	}
 
 	resp, err := conn.CallMCPTool(ctx, workspacesdk.CallMCPToolRequest{
-		ToolName:  t.routingName,
-		Arguments: args,
+		ToolName:      t.routingName,
+		Arguments:     args,
+		IncludeResult: true,
 	})
 	if err != nil {
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
 
-	return convertMCPToolResponse(resp), nil
+	result, err := mcpCallResult(resp)
+	if err != nil {
+		return fantasy.NewTextErrorResponse(
+			"decode workspace MCP tool result: " + err.Error(),
+		), nil
+	}
+	return mcpclient.ConvertCallResult(result), nil
 }
 
 func (t *WorkspaceMCPTool) ProviderOptions() fantasy.ProviderOptions {
@@ -187,55 +196,38 @@ func (t *WorkspaceMCPTool) SetProviderOptions(
 	t.providerOpts = opts
 }
 
-// fantasy permits one media payload per response, so only the first eligible
-// binary block is kept alongside the text.
-func convertMCPToolResponse(
+// mcpCallResult returns the MCP result from an agent response. Agents
+// that predate IncludeResult send only Content, which is adapted to MCP
+// content values.
+func mcpCallResult(
 	resp workspacesdk.CallMCPToolResponse,
-) fantasy.ToolResponse {
-	var (
-		textParts    []string
-		binaryResult *fantasy.ToolResponse
-	)
+) (*mcp.CallToolResult, error) {
+	if len(resp.Result) > 0 {
+		var result *mcp.CallToolResult
+		if err := json.Unmarshal(resp.Result, &result); err != nil {
+			return nil, err
+		}
+		return result, nil
+	}
 
+	result := &mcp.CallToolResult{IsError: resp.IsError}
 	for _, c := range resp.Content {
+		var item mcp.Content
 		switch c.Type {
-		case "text":
-			textParts = append(textParts, strings.ToValidUTF8(c.Text, "\uFFFD"))
 		case "image", "audio":
-			if c.Data == "" || c.MediaType == "" {
-				continue
-			}
 			data, err := base64.StdEncoding.DecodeString(c.Data)
-			if err != nil {
-				textParts = append(textParts,
-					"[binary decode error: "+err.Error()+"]",
-				)
-				continue
-			}
-			if binaryResult == nil {
-				responseType := c.Type
-				if c.Type == "audio" {
-					// chatloop only recognizes "image" and "media".
-					responseType = "media"
-				}
-				r := fantasy.ToolResponse{
-					Type:      responseType,
-					Data:      data,
-					MediaType: c.MediaType,
-					IsError:   resp.IsError,
-				}
-				binaryResult = &r
+			switch {
+			case err != nil:
+				item = &mcp.TextContent{Text: "[binary decode error: " + err.Error() + "]"}
+			case c.Type == "image":
+				item = &mcp.ImageContent{Data: data, MIMEType: c.MediaType}
+			default:
+				item = &mcp.AudioContent{Data: data, MIMEType: c.MediaType}
 			}
 		default:
-			textParts = append(textParts, strings.ToValidUTF8(c.Text, "\uFFFD"))
+			item = &mcp.TextContent{Text: c.Text}
 		}
+		result.Content = append(result.Content, item)
 	}
-
-	if binaryResult != nil {
-		binaryResult.Content = strings.Join(textParts, "\n")
-		return *binaryResult
-	}
-	r := fantasy.NewTextResponse(strings.Join(textParts, "\n"))
-	r.IsError = resp.IsError
-	return r
+	return result, nil
 }
