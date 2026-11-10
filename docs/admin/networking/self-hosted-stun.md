@@ -33,13 +33,15 @@ This guide runs it in STUN-only mode.
 
 ### Linux package
 
-1. Install coturn from your distribution's packages:
+1. Install coturn from your distribution's packages.
+   On Debian or Ubuntu, run:
 
    ```sh
    sudo apt-get install -y coturn
    ```
 
-1. Replace the contents of `/etc/turnserver.conf` with this STUN-only configuration:
+1. Replace the contents of coturn's configuration file with this STUN-only configuration.
+   On Debian and Ubuntu, the file is `/etc/turnserver.conf`:
 
    ```text
    listening-port=3478
@@ -122,19 +124,27 @@ Keep these behaviors in mind:
   Coder doesn't add them back.
 - Each entry can be a hostname or an IP address, and must include the port.
   Hostnames must resolve from every network your clients and workspaces use.
-- Run at least 2 STUN servers on separate hosts.
+- Run two or more STUN servers on separate hosts.
   Coder queries each server separately, so direct connections keep working if one server goes down.
-- `CODER_DERP_SERVER_STUN_ADDRESSES` is a setting of Coder's built-in relay, which is enabled by default.
-  If you turn off the built-in relay with `CODER_DERP_SERVER_ENABLE=false` and provide a [custom relay map](./index.md#custom-relays) with `CODER_DERP_CONFIG_URL` or `CODER_DERP_CONFIG_PATH`, Coder ignores this setting.
-  Add each STUN server to your relay map instead, as its own region with a unique `RegionID`.
-  Give each region one node with a unique `Name`, the STUN server's `HostName`, `"STUNOnly": true`, and `"STUNPort": 3478`.
+
+### Use a custom relay map
+
+Coder's built-in relay is optional for self-hosted STUN.
+You need it only to configure STUN servers with `CODER_DERP_SERVER_STUN_ADDRESSES`, because Coder ignores that setting when you set `CODER_DERP_SERVER_ENABLE=false`.
+
+Without the built-in relay, add your STUN servers to the [custom relay map](./index.md#custom-relays) that you provide with `CODER_DERP_CONFIG_URL` or `CODER_DERP_CONFIG_PATH`:
+
+- Give each STUN server its own region with a unique `RegionID`.
+- Give each region one node with a unique `Name`, the STUN server's `HostName`, `"STUNOnly": true`, and `"STUNPort": 3478`.
+- Keep at least one relay node in the map.
+  Coder doesn't start if the relay map contains only STUN servers.
 
 ## Verify direct connections
 
 Run these commands from a client on a network your users connect from.
+The first command uses `jq` to shorten the `coder netcheck` output, so install `jq` on the client if it isn't already installed.
 
-1. Check that the client can reach each STUN server.
-   This example uses `jq` to shorten the `coder netcheck` output:
+1. Check that the client can reach each STUN server:
 
    ```sh
    coder netcheck | jq '{udp: .derp.netcheck.UDP, stun: [.derp.regions[].node_reports[] | select(.node.STUNOnly) | {host: .node.HostName, can_stun: .stun.CanSTUN}]}'
