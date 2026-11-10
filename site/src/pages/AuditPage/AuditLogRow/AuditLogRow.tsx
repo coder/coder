@@ -67,7 +67,8 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 					<div
 						className={cn(
 							"flex flex-row items-center gap-4 py-4 px-8",
-							shouldDisplayDiff && "cursor-pointer",
+							shouldDisplayDiff &&
+								"relative cursor-pointer outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 						)}
 						{...(shouldDisplayDiff && {
 							tabIndex: 0,
@@ -82,8 +83,8 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 							},
 						})}
 					>
-						<div className="flex flex-row items-center gap-4 flex-1">
-							<div className="flex flex-row items-center gap-4 w-full">
+						<div className="flex items-center gap-4 flex-1">
+							<div className="flex items-center gap-4 w-full">
 								{/*
 								 * Session logs don't have an associated user to the log,
 								 * so when it happens we display a default icon to represent non user actions
@@ -95,12 +96,12 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 									/>
 								) : (
 									<Avatar>
-										<NetworkIcon className="h-full w-full p-1" />
+										<NetworkIcon className="size-full p-1" />
 									</Avatar>
 								)}
 
-								<div className="flex flex-row items-baseline justify-between w-full font-normal gap-4">
-									<div className="flex flex-row items-baseline gap-2">
+								<div className="flex items-baseline justify-between w-full font-normal gap-4">
+									<div className="flex items-baseline gap-2">
 										<AuditLogDescription auditLog={auditLog} />
 										{auditLog.is_deleted && (
 											<span className="text-xs text-content-secondary">
@@ -112,14 +113,14 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 										</span>
 									</div>
 
-									<div className="flex flex-row items-center gap-4">
+									<div className="flex items-center gap-4">
 										<StatusBadge isHttpCode code={auditLog.status_code} />
 
 										{/* With multi-org, there is not enough space so show
                       everything in a tooltip. */}
 										{showOrgDetails ? (
-											<Tooltip>
-												<TooltipTrigger asChild>
+											<Tooltip interactive>
+												<TooltipTrigger aria-label="Request details">
 													<InfoIcon className="size-icon-sm text-content-secondary" />
 												</TooltipTrigger>
 												<TooltipContent side="bottom">
@@ -187,7 +188,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 												</TooltipContent>
 											</Tooltip>
 										) : (
-											<div className="flex flex-row items-baseline gap-2">
+											<div className="flex items-baseline gap-2">
 												{auditLog.ip && (
 													<span className="text-xs text-content-secondary block">
 														<span>IP: </span>

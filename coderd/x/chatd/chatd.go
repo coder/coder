@@ -32,7 +32,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
-	"github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
@@ -203,11 +202,13 @@ type Server struct {
 
 	aibridgeTransportFactory *atomic.Pointer[aibridge.TransportFactory]
 	experiments              codersdk.Experiments
-	experimentEvaluator      *experiments.Evaluator
 
 	// thinkingDropBlock holds the thinkingDropBlockKey of each provider and
 	// model that accepted Anthropic's thinking drop_block control.
 	thinkingDropBlock sync.Map
+	// quickgenParamRejections records when each provider and model last
+	// rejected a quickgen parameter. See quickgenParamModel.
+	quickgenParamRejections sync.Map
 
 	// Configuration
 	inFlightChatStaleAfter time.Duration
@@ -288,6 +289,7 @@ func (p *Server) newAdvisorRuntime(
 	ctx context.Context,
 	chat database.Chat,
 	advisorCfg advisorRuntimeConfig,
+	priorUses int,
 	modelOpts modelBuildOptions,
 	logger slog.Logger,
 ) (*chatadvisor.Runtime, error) {
@@ -351,6 +353,7 @@ func (p *Server) newAdvisorRuntime(
 		MaxOutputTokens:      maxOutputTokens,
 		StreamSilenceTimeout: p.streamSilenceTimeout,
 		MaxRetries:           p.chatLimits.MaxGenerationRetries,
+		PriorUses:            priorUses,
 	})
 	if err != nil {
 		logger.Warn(
@@ -445,10 +448,9 @@ type SendMessageBusyBehavior string
 const (
 	// SendMessageBusyBehaviorQueue queues user messages while the chat is busy.
 	SendMessageBusyBehaviorQueue SendMessageBusyBehavior = "queue"
-	// SendMessageBusyBehaviorInterrupt interrupts the active run. It persists
-	// the partial response before this message runs ahead of queued messages.
-	// Further messages join the queue tail while the interruption is pending.
-	SendMessageBusyBehaviorInterrupt SendMessageBusyBehavior = "interrupt"
+	// SendMessageBusyBehaviorSteer delivers the message before the next
+	// assistant model call. It is the default.
+	SendMessageBusyBehaviorSteer SendMessageBusyBehavior = "steer"
 )
 
 // SendMessageOptions controls user message insertion with busy-state behavior.
@@ -471,8 +473,11 @@ type SendMessageResult struct {
 	QueuedMessage *database.ChatQueuedMessage
 	Message       database.ChatMessage
 	// InsertedMessages holds every message the send inserted, in
-	// insertion order. A queued send on an errored chat can still
-	// insert messages by promoting the previous queue head.
+	// insertion order. A send to an errored or paused chat can also
+	// insert queued messages: a steer send inserts the queued steer
+	// messages before the new message, and a queue send to an errored
+	// chat inserts the steer lane, or the first queue message when that
+	// lane is empty.
 	InsertedMessages []database.ChatMessage
 	Chat             database.Chat
 	// FirstUserTurn reports that the send inserted the first
@@ -516,14 +521,6 @@ type EditMessageResult struct {
 type PromoteQueuedOptions struct {
 	ChatID          uuid.UUID
 	QueuedMessageID int64
-}
-
-// PromoteQueuedResult contains post-promotion message metadata.
-type PromoteQueuedResult struct {
-	// PromotedMessage is the inserted user message. For a chat that
-	// was running at promote time, the insertion is deferred to the
-	// worker's auto-promote and PromotedMessage is the zero value.
-	PromotedMessage database.ChatMessage
 }
 
 // forcedMCPServerConfigsForOwner filters enabled Force On configs
@@ -830,22 +827,6 @@ func callerModelConfigContext(
 	return dbauthz.As(ctx, actor), nil
 }
 
-func resolveSendMessageModelConfigID(
-	ctx context.Context,
-	store database.Store,
-	chat database.Chat,
-	requested uuid.UUID,
-) (uuid.UUID, error) {
-	if requested == uuid.Nil {
-		return resolveFallbackModelConfigID(ctx, store, chat, chat.LastModelConfigID)
-	}
-
-	if err := requireEnabledChatModelConfig(ctx, store, chat.OrganizationID, requested); err != nil {
-		return uuid.Nil, err
-	}
-	return requested, nil
-}
-
 // requireEnabledChatModelConfig rechecks enabled state inside the daemon.
 // The coderd preflight can race an admin disabling the model or provider.
 func requireEnabledChatModelConfig(
@@ -928,6 +909,13 @@ func resolveFallbackModelConfigID(
 	return defaultConfig.ID, nil
 }
 
+// validateModelConfigOverride returns requested as an override if it is
+// an enabled model config in the organization, and no override when
+// requested is uuid.Nil. Call it before the chat transaction: model
+// config writes serialize on an organization advisory lock that chat
+// transactions do not take, so the chat row lock cannot stop a
+// concurrent disable. If the config is disabled after this check, the
+// turn runs on the organization default model (see resolveModelConfig).
 func validateModelConfigOverride(
 	ctx context.Context,
 	store database.Store,
@@ -1255,11 +1243,8 @@ type Config struct {
 	Clock                          quartz.Clock
 	AIBridgeTransportFactory       *atomic.Pointer[aibridge.TransportFactory]
 	Experiments                    codersdk.Experiments
-	// ExperimentEvaluator decides user-scoped experiments for a chat's
-	// owner. It is required.
-	ExperimentEvaluator *experiments.Evaluator
-	PrometheusRegistry  prometheus.Registerer
-	TracerProvider      trace.TracerProvider
+	PrometheusRegistry             prometheus.Registerer
+	TracerProvider                 trace.TracerProvider
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
@@ -1283,9 +1268,6 @@ type Config struct {
 // The processor polls for pending chats and processes them. It is the
 // caller's responsibility to call Close on the returned instance.
 func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
-	if cfg.ExperimentEvaluator == nil {
-		return nil, xerrors.New("chatd: experiment evaluator is required")
-	}
 	if err := validateInternalMCPServers(cfg.InternalMCPServers); err != nil {
 		return nil, xerrors.Errorf("chatd: %w", err)
 	}
@@ -1383,7 +1365,6 @@ func New(ps pubsub.Pubsub, cfg Config) (*Server, error) {
 		},
 		aibridgeTransportFactory: cfg.AIBridgeTransportFactory,
 		experiments:              cfg.Experiments,
-		experimentEvaluator:      cfg.ExperimentEvaluator,
 		inFlightChatStaleAfter:   inFlightChatStaleAfter,
 		streamSilenceTimeout:     streamSilenceTimeout,
 		usageTracker:             cfg.UsageTracker,
@@ -1646,14 +1627,14 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID, 
 // the prompt forward). A future change should skip the file with a
 // user-facing warning, but that requires altering the FileResolver
 // contract.
-func (p *Server) chatFileResolver(provider string) chatprompt.FileResolver {
+func (p *Server) chatFileResolver(model chatprovider.Model) chatprompt.FileResolver {
+	imageCap, hasImageCap := model.InlineImageCapBytes()
+	normalizedProvider := model.RouteProvider()
 	return func(ctx context.Context, ids []uuid.UUID) (map[uuid.UUID]chatprompt.FileData, error) {
 		files, err := p.db.GetChatFilesByIDs(ctx, ids)
 		if err != nil {
 			return nil, err
 		}
-		imageCap, hasImageCap := chatprovider.InlineImageCapBytes(provider)
-		normalizedProvider := chatprovider.NormalizeProvider(provider)
 		result := make(map[uuid.UUID]chatprompt.FileData, len(files))
 		for _, f := range files {
 			if hasImageCap &&
@@ -2196,14 +2177,14 @@ func (p *Server) maybeFinalizeTurnStatusLabelAndPush(
 		// Subagent chats skip turn status labels and generated
 		// summaries, but a successful turn's final report doubles as
 		// the chat summary so subagents are not summary-less.
-		if status == database.ChatStatusWaiting {
+		if turnFinished(status) {
 			p.storeSubagentReportSummaryAsync(ctx, chat, logger)
 		}
 		return
 	}
 
 	switch status {
-	case database.ChatStatusWaiting:
+	case database.ChatStatusWaiting, database.ChatStatusPaused:
 		p.finalizeSuccessfulTurnStatusLabelAndPush(ctx, chat, status, runResult, logger)
 		p.maybeGenerateChatSummaryAsync(ctx, logger, chat)
 
@@ -2277,7 +2258,7 @@ func (p *Server) generateFinalTurnStatusLabel(
 	runResult runChatResult,
 	logger slog.Logger,
 ) string {
-	if status != database.ChatStatusWaiting {
+	if !turnFinished(status) {
 		return fallbackTurnStatusLabel(status)
 	}
 

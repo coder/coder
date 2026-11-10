@@ -1721,7 +1721,7 @@ UPDATE chats
 SET context_dirty_since = @dirty_since
 WHERE agent_id = @agent_id::uuid
     AND archived = false
-    AND status IN ('waiting', 'running', 'requires_action')
+    AND status IN ('waiting', 'running', 'requires_action', 'paused')
     AND context_aggregate_hash IS NOT NULL
     AND context_aggregate_hash IS DISTINCT FROM @aggregate_hash
     AND context_dirty_since IS NULL
@@ -2142,14 +2142,15 @@ WHERE chats.id = @chat_id::uuid
 RETURNING *;
 
 -- name: GetChatQueuedMessages :many
--- Returns the queue in promotion order (position ASC, id ASC), the same
--- order chatstate uses to pick the head. Clients read the queue through
+-- Returns the queue in promotion order (steer lane first, then the queue
+-- lane, each by position ASC, id ASC), the same order chatstate uses to
+-- pick the head. Clients read the queue through
 -- this query, so it must not order by created_at: promoting a message
 -- changes only its position, and concurrent senders can commit with
 -- created_at and position in opposite orders.
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id
-ORDER BY position ASC, id ASC;
+ORDER BY CASE busy_behavior WHEN 'steer' THEN 0 ELSE 1 END, position ASC, id ASC;
 
 -- name: DeleteChatQueuedMessage :exec
 DELETE FROM chat_queued_messages WHERE id = @id AND chat_id = @chat_id;
@@ -2540,9 +2541,8 @@ SELECT *
 FROM chats_expanded
 WHERE agent_id = @agent_id::uuid
     AND archived = false
-    -- Active statuses only: waiting, running, requires_action.
     -- Excludes error (terminal state) and interrupting.
-    AND status IN ('waiting', 'running', 'requires_action')
+    AND status IN ('waiting', 'running', 'requires_action', 'paused')
 ORDER BY updated_at DESC;
 
 -- name: SoftDeleteContextFileMessages :exec
@@ -2664,10 +2664,26 @@ WHERE
     AND chats_expanded.pin_order = 0
     AND chats_expanded.parent_chat_id IS NULL
     AND chats_expanded.created_at < @archive_cutoff::timestamptz
+    -- Statuses SetArchived refuses. Archiving a root archives its whole
+    -- family and fails if any unarchived member refuses, so members are
+    -- checked too.
     AND chats_expanded.status NOT IN (
         'running'::chat_status,
         'interrupting'::chat_status,
-        'requires_action'::chat_status
+        'requires_action'::chat_status,
+        'paused'::chat_status
+    )
+    AND NOT EXISTS (
+        SELECT 1
+        FROM chats member
+        WHERE member.root_chat_id = chats_expanded.id
+          AND member.archived = false
+          AND member.status IN (
+              'running'::chat_status,
+              'interrupting'::chat_status,
+              'requires_action'::chat_status,
+              'paused'::chat_status
+          )
     )
     AND COALESCE(activity.last_activity_at, chats_expanded.created_at) < @archive_cutoff::timestamptz
 ORDER BY chats_expanded.created_at ASC
@@ -2700,7 +2716,20 @@ WHERE
     AND chats_expanded.status NOT IN (
         'running'::chat_status,
         'interrupting'::chat_status,
-        'requires_action'::chat_status
+        'requires_action'::chat_status,
+        'paused'::chat_status
+    )
+    AND NOT EXISTS (
+        SELECT 1
+        FROM chats member
+        WHERE member.root_chat_id = chats_expanded.id
+          AND member.archived = false
+          AND member.status IN (
+              'running'::chat_status,
+              'interrupting'::chat_status,
+              'requires_action'::chat_status,
+              'paused'::chat_status
+          )
     )
     AND COALESCE(activity.last_activity_at, chats_expanded.created_at) < @archive_cutoff::timestamptz;
 
@@ -2960,34 +2989,29 @@ SELECT NOW()::timestamptz AS now;
 -- Inserts a queued message that carries a position (from the default
 -- sequence) and an explicit created_by reference. Use this when the
 -- queued-message creator differs from the chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, busy_behavior)
 VALUES (
     @chat_id::uuid,
     @content::jsonb,
     sqlc.narg('model_config_id')::uuid,
     sqlc.narg('reasoning_effort')::chat_reasoning_effort,
-    @created_by::uuid
+    @created_by::uuid,
+    @busy_behavior::chat_busy_behavior
 )
 RETURNING *;
 
--- name: GetChatQueuedMessagesByPosition :many
--- Returns queued messages in state-machine order (position ASC, id ASC).
-SELECT * FROM chat_queued_messages
-WHERE chat_id = @chat_id::uuid
-ORDER BY position ASC, id ASC;
-
 -- name: CountChatQueuedMessages :one
--- Cheap queue-length check used by ChatMachine.Update when deciding
--- whether the chat is in a "1" sub-state.
 SELECT COUNT(*)::bigint AS count
 FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
 
 -- name: GetChatQueuedMessageHead :one
--- Returns the queue head (lowest position, then lowest id).
+-- Returns the queue head: the first row in GetChatQueuedMessages order.
+-- A steer row under edit comes first instead, because it holds the
+-- whole steer lane.
 SELECT * FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid
-ORDER BY position ASC, id ASC
+ORDER BY (busy_behavior = 'steer' AND editing_since IS NOT NULL) DESC, CASE busy_behavior WHEN 'steer' THEN 0 ELSE 1 END, position ASC, id ASC
 LIMIT 1;
 
 -- name: GetChatQueuedMessageByID :one
@@ -3005,20 +3029,29 @@ WHERE id = @id::bigint AND chat_id = @chat_id::uuid;
 DELETE FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
 
--- name: ReorderChatQueuedMessageToHead :execrows
--- Sets the target queued message's position to one less than the
--- current minimum position for that chat, moving it to the head.
-UPDATE chat_queued_messages AS target
-SET position = COALESCE(
-    (SELECT MIN(position) FROM chat_queued_messages WHERE chat_id = @chat_id::uuid),
-    0
-) - 1
-WHERE target.id = @id::bigint
-  AND target.chat_id = @chat_id::uuid
-  AND target.position > COALESCE(
-    (SELECT MIN(position) FROM chat_queued_messages WHERE chat_id = @chat_id::uuid),
-    target.position
-  );
+-- name: UpdateChatQueuedMessageEditing :one
+-- Begins (@editing = true) or ends the row's edit. Beginning keeps an
+-- existing editing_since, so the timestamp marks the first begin.
+UPDATE chat_queued_messages
+SET editing_since = CASE WHEN @editing::boolean THEN COALESCE(editing_since, NOW()) ELSE NULL END
+WHERE id = @id::bigint AND chat_id = @chat_id::uuid
+RETURNING *;
+
+-- name: UpdateChatQueuedMessageContent :one
+-- Replaces the content and per-message overrides of a queued message.
+UPDATE chat_queued_messages
+SET content = @content::jsonb,
+    model_config_id = sqlc.narg('model_config_id')::uuid,
+    reasoning_effort = sqlc.narg('reasoning_effort')::chat_reasoning_effort
+WHERE id = @id::bigint AND chat_id = @chat_id::uuid
+RETURNING *;
+
+-- name: SteerChatQueuedMessage :execrows
+UPDATE chat_queued_messages
+SET position = nextval('chat_queued_messages_position_seq'),
+    busy_behavior = 'steer'
+WHERE id = @id::bigint
+  AND chat_id = @chat_id::uuid;
 
 -- name: UpsertChatHeartbeat :exec
 -- Upserts a heartbeat row for the (chat_id, runner_id) lease. Uses
@@ -3097,8 +3130,9 @@ WITH to_archive AS (
       AND c.parent_chat_id IS NULL -- roots only
       -- Redundant filter helps the planner use the partial index on created_at.
       AND c.created_at < @archive_cutoff::timestamptz
-      -- New active statuses must be added here to prevent archiving.
-      AND c.status NOT IN ('running', 'requires_action')
+      -- Matches the root status list in
+      -- GetAutoArchiveInactiveChatCandidates.
+      AND c.status NOT IN ('running', 'interrupting', 'requires_action', 'paused')
       AND COALESCE(activity.last_activity_at, c.created_at) < @archive_cutoff::timestamptz
     -- Sorting by created_at lets Postgres drive the scan from the
     -- partial index instead of evaluating every LATERAL subquery

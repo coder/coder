@@ -41,6 +41,7 @@ import {
 import { originRepoLabel } from "../../utils/originRepoLabel";
 import { parsePullRequestUrl } from "../../utils/pullRequest";
 import type { ChatMessageInputRef } from "../AgentChatInput";
+import { useTabPanelState } from "../ChatsSidebar/tabs/SidebarTabView";
 import { DiffStatBadge } from "../DiffViewer/DiffStats";
 import {
 	type DiffStyle,
@@ -140,8 +141,6 @@ type GitPanelProps = {
 	 * itself.
 	 */
 	onRefresh: () => boolean;
-	/** Whether the panel is in expanded/fullscreen mode. */
-	isExpanded: boolean;
 	/** Whether the watcher is loading its initial repository state. */
 	isGitStatusLoading: boolean;
 	remoteDiffStats?: readonly ChatDiffStatus[];
@@ -298,13 +297,14 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 	chatId,
 	repositories,
 	onRefresh,
-	isExpanded,
 	isGitStatusLoading,
 	remoteDiffStats,
 	primaryDiffStatus,
 	chatInputRef,
 	everDirty,
 }) => {
+	const { isExpanded } = useTabPanelState();
+
 	const showRemoteTab = (remoteDiffStats?.length ?? 0) > 0;
 	const hasGitContext = repositories.size > 0 || showRemoteTab;
 
@@ -476,7 +476,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 							disabled={!hasGitContext}
 							title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}
 							className={cn(
-								"flex cursor-pointer items-center border-none px-1.5 transition-colors disabled:cursor-default disabled:opacity-50",
+								"flex cursor-pointer items-center border-none px-1.5 transition-colors disabled:cursor-default disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 								diffStyle === "unified"
 									? "bg-surface-quaternary/25 text-content-primary"
 									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
@@ -491,7 +491,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 							disabled={!hasGitContext}
 							title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}
 							className={cn(
-								"flex cursor-pointer items-center border-0 border-l border-solid border-border px-1.5 transition-colors disabled:cursor-default disabled:opacity-50",
+								"flex cursor-pointer items-center border-0 border-l border-solid border-border px-1.5 transition-colors disabled:cursor-default disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 								diffStyle === "split"
 									? "bg-surface-quaternary/25 text-content-primary"
 									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
@@ -528,17 +528,13 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 							<span
 								key={prTitle}
 								ref={observePrTitle}
-								className="min-w-0 truncate text-sm font-medium text-content-primary"
+								className="min-w-0 truncate text-sm text-content-primary"
 								data-testid="git-panel-pr-title"
 							>
 								{prTitle}
 							</span>
 						</TooltipTrigger>
-						<TooltipContent
-							side="bottom"
-							align="start"
-							className="max-w-[260px]"
-						>
+						<TooltipContent side="bottom" align="start" className="max-w-65">
 							{prTitle}
 						</TooltipContent>
 					</Tooltip>
@@ -676,7 +672,7 @@ const GitViewSwitcher: React.FC<GitViewSwitcherProps> = ({
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="start"
-				className="w-(--radix-dropdown-menu-trigger-width) min-w-[240px] p-1"
+				className="w-(--radix-dropdown-menu-trigger-width) min-w-60 p-1"
 			>
 				{items.map((item) => {
 					const isActive = item.id === activeItem.id;
@@ -758,7 +754,7 @@ const RemoteContent: React.FC<{
 						<GitBranchIcon className="size-5 text-content-secondary" />
 					)}
 				</div>
-				<p className="text-sm font-medium text-content-primary">{title}</p>
+				<p className="text-sm text-content-primary">{title}</p>
 				<p className="mt-1 max-w-52 text-xs text-content-secondary">{body}</p>
 			</div>
 		);

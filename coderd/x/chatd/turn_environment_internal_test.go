@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"charm.land/fantasy"
+	fantasyanthropic "charm.land/fantasy/providers/anthropic"
 	fantasyopenai "charm.land/fantasy/providers/openai"
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -162,9 +163,8 @@ func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testin
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
 	env, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-		Chat:            created.Chat,
-		Messages:        created.InitialMessages,
-		TurnExperiments: &turnExperimentDecisions{},
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
 	})
 	require.NoError(t, err)
 	t.Cleanup(env.Close)
@@ -188,7 +188,7 @@ func TestBuildTurnEnvironmentSplitsPendingUserRowsFromCompactionPrompt(t *testin
 	require.Equal(t, wantSummaryCall, env.Compaction.Options.SummaryCall)
 }
 
-func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
+func TestBuildTurnEnvironmentReplacesUnsupportedMedia(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -197,10 +197,11 @@ func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
 		model     string
 		mediaType string
 	}{
-		// Anthropic is a native transport; Google is bridged through an
-		// OpenAI-compatible transport that hides the vendor restriction.
+		// Anthropic is a native transport. Google shares the OpenAI-compatible
+		// transport, which accepts GIF, so only the configured provider
+		// rejects it.
 		{name: "AnthropicAudio", provider: database.AIProviderTypeAnthropic, model: "claude-sonnet-4-5", mediaType: "audio/mpeg"},
-		{name: "GoogleSVG", provider: database.AIProviderTypeGoogle, model: "gemini-2.5-flash", mediaType: "image/svg+xml"},
+		{name: "GoogleGIF", provider: database.AIProviderTypeGoogle, model: "gemini-2.5-flash", mediaType: "image/gif"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -239,6 +240,20 @@ func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
 				codersdk.ChatMessageToolResult(toolCallID, "media__render", mediaResult, false, true),
 			})
 			require.NoError(t, err)
+			file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+				OwnerID:        user.ID,
+				OrganizationID: org.ID,
+				Name:           "attachment",
+				Mimetype:       tc.mediaType,
+				Data:           []byte("data"),
+			})
+			require.NoError(t, err)
+			// The last user message is the pending tail of the prompt.
+			pendingContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+				codersdk.ChatMessageText("what did it show?"),
+				codersdk.ChatMessageFile(file.ID, tc.mediaType, file.Name),
+			})
+			require.NoError(t, err)
 			message := func(role database.ChatMessageRole, content pqtype.NullRawMessage) chatstate.Message {
 				return chatstate.Message{
 					Role:           role,
@@ -259,7 +274,7 @@ func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
 					message(database.ChatMessageRoleUser, mustMarshalText(t, "render media")),
 					message(database.ChatMessageRoleAssistant, assistantContent),
 					message(database.ChatMessageRoleTool, toolContent),
-					message(database.ChatMessageRoleUser, mustMarshalText(t, "what did it show?")),
+					message(database.ChatMessageRoleUser, pendingContent),
 				},
 			})
 			require.NoError(t, err)
@@ -272,50 +287,119 @@ func TestBuildTurnEnvironmentReplacesUnsupportedToolMedia(t *testing.T) {
 				withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 			)
 			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-				Chat:            created.Chat,
-				Messages:        created.InitialMessages,
-				TurnExperiments: &turnExperimentDecisions{},
+				Chat:     created.Chat,
+				Messages: created.InitialMessages,
 			})
 			require.NoError(t, err)
 			t.Cleanup(prepared.Close)
 
-			var sawToolResult bool
+			var sawToolResult, sawAttachmentNote bool
 			for _, msg := range prepared.Prompt {
 				for _, part := range msg.Content {
-					result, ok := part.(fantasy.ToolResultPart)
-					if !ok || result.ToolCallID != toolCallID {
-						continue
+					switch typed := part.(type) {
+					case fantasy.ToolResultPart:
+						if typed.ToolCallID != toolCallID {
+							continue
+						}
+						sawToolResult = true
+						text, ok := typed.Output.(fantasy.ToolResultOutputContentText)
+						require.True(t, ok, "expected text output, got %T", typed.Output)
+						require.Equal(t, "The tool returned "+tc.mediaType+" content, which cannot be displayed.\n\nTool output", text.Text)
+					case fantasy.FilePart:
+						t.Fatalf("unsupported %s attachment reached the prompt", typed.MediaType)
+					case fantasy.TextPart:
+						if typed.Text == `[Attachment "attachment" (`+tc.mediaType+`) omitted: not supported by this model]` {
+							sawAttachmentNote = true
+						}
 					}
-					sawToolResult = true
-					text, ok := result.Output.(fantasy.ToolResultOutputContentText)
-					require.True(t, ok, "expected text output, got %T", result.Output)
-					require.Contains(t, text.Text, "Tool output")
-					require.Contains(t, text.Text, "["+tc.mediaType+" content omitted: unsupported tool result media type]")
 				}
 			}
 			require.True(t, sawToolResult, "tool result missing from prompt")
+			require.True(t, sawAttachmentNote, "attachment note missing from prompt")
 		})
 	}
 }
 
 // Computer use chats run on their own model config; the tool flavor follows
-// that model's AI provider type.
+// that model's AI provider type and model ID, and the Anthropic tool version
+// follows the model on every platform.
 func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name            string
 		providerType    database.AIProviderType
+		settings        codersdk.AIProviderSettings
 		model           string
 		useResponsesAPI *bool
 		wantProvider    codersdk.ChatComputerUseProvider
+		wantToolVersion fantasyanthropic.ComputerUseToolVersion
 		wantErr         string
 	}{
 		{
-			name:         "Anthropic",
+			name:            "Anthropic",
+			providerType:    database.AIProviderTypeAnthropic,
+			model:           "claude-opus-5",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUseToolset20260801,
+		},
+		{
+			// The chat's model picks the Anthropic tool version.
+			name:            "AnthropicComputer20251124",
+			providerType:    database.AIProviderTypeAnthropic,
+			model:           "claude-opus-4-6",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUse20251124,
+		},
+		{
+			name:            "AnthropicUnknownModel",
+			providerType:    database.AIProviderTypeAnthropic,
+			model:           "company-default-model",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUse20251124,
+		},
+		{
+			// The platform does not change the version.
+			name:         "ClaudePlatformAWS",
 			providerType: database.AIProviderTypeAnthropic,
-			model:        "claude-opus-5",
-			wantProvider: codersdk.ChatComputerUseProviderAnthropic,
+			settings: codersdk.AIProviderSettings{ClaudePlatformAWS: &codersdk.AIProviderClaudePlatformAWSSettings{
+				Region:      "us-east-2",
+				WorkspaceID: "wrkspc_test",
+			}},
+			model:           "claude-opus-5-5",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUseToolset20260801,
+		},
+		{
+			name:            "AnthropicBedrock",
+			providerType:    database.AIProviderTypeAnthropic,
+			settings:        codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}},
+			model:           "us.anthropic.claude-opus-5-5",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUseToolset20260801,
+		},
+		{
+			name:            "BedrockClaude",
+			providerType:    database.AIProviderTypeBedrock,
+			settings:        codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}},
+			model:           "us.anthropic.claude-opus-5-5",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUseToolset20260801,
+		},
+		{
+			name:            "BedrockClaudeComputer20250124",
+			providerType:    database.AIProviderTypeBedrock,
+			settings:        codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}},
+			model:           "anthropic.claude-haiku-4-5-20251001-v1:0",
+			wantProvider:    codersdk.ChatComputerUseProviderAnthropic,
+			wantToolVersion: fantasyanthropic.ComputerUse20250124,
+		},
+		{
+			name:         "BedrockNonClaude",
+			providerType: database.AIProviderTypeBedrock,
+			settings:     codersdk.AIProviderSettings{Bedrock: &codersdk.AIProviderBedrockSettings{Region: "us-east-1"}},
+			model:        "openai.gpt-5.4",
+			wantErr:      "computer use requires " + chatprovider.ComputerUseModelRequirement,
 		},
 		{
 			// The model is absent from the SDK's known Responses models, so
@@ -324,6 +408,15 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 			providerType: database.AIProviderTypeOpenai,
 			model:        "custom-openai-model",
 			wantProvider: codersdk.ChatComputerUseProviderOpenAI,
+		},
+		{
+			// An OpenAI-compatible server drops the hosted computer tool, so the
+			// turn declares the function tool and the model keeps the chat
+			// completions transport.
+			name:         "OpenAICompat",
+			providerType: database.AIProviderTypeOpenaiCompat,
+			model:        "custom-openai-compat-model",
+			wantProvider: codersdk.ChatComputerUseProviderOpenAICompat,
 		},
 		{
 			name:            "OpenAIResponsesDisabled",
@@ -336,7 +429,7 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 			name:         "UnsupportedProvider",
 			providerType: database.AIProviderTypeOpenrouter,
 			model:        "openai/gpt-4o-mini",
-			wantErr:      "computer use requires a model from an Anthropic or OpenAI AI provider",
+			wantErr:      "computer use requires " + chatprovider.ComputerUseModelRequirement,
 		},
 	}
 	for _, tt := range tests {
@@ -350,8 +443,15 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 				UserID:         user.ID,
 				OrganizationID: org.ID,
 			})
+			var settings sql.NullString
+			if !tt.settings.IsZero() {
+				raw, err := json.Marshal(tt.settings)
+				require.NoError(t, err)
+				settings = sql.NullString{String: string(raw), Valid: true}
+			}
 			provider := dbgen.AIProviderWithOptionalKey(t, db, database.AIProvider{
-				Type: tt.providerType,
+				Type:     tt.providerType,
+				Settings: settings,
 			}, "test-key")
 			var callConfig codersdk.ChatModelCallConfig
 			if tt.useResponsesAPI != nil {
@@ -412,9 +512,8 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 				withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 			)
 			prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-				Chat:            created.Chat,
-				Messages:        created.InitialMessages,
-				TurnExperiments: &turnExperimentDecisions{},
+				Chat:     created.Chat,
+				Messages: created.InitialMessages,
 			})
 			if tt.wantErr != "" {
 				require.ErrorContains(t, err, tt.wantErr)
@@ -426,7 +525,7 @@ func TestBuildTurnEnvironmentComputerUseRunsOnChatModel(t *testing.T) {
 			require.Equal(t, modelConfig.ID, prepared.ModelConfigID)
 			require.Equal(t, tt.model, prepared.Model.ModelID())
 			geometry := chattool.DefaultComputerUseDesktopGeometry(tt.wantProvider)
-			wantTool, err := chattool.ComputerUseProviderTool(tt.wantProvider, geometry.DeclaredWidth, geometry.DeclaredHeight)
+			wantTool, err := chattool.ComputerUseProviderTool(tt.wantProvider, tt.wantToolVersion, geometry.DeclaredWidth, geometry.DeclaredHeight)
 			require.NoError(t, err)
 			require.Len(t, prepared.ProviderTools, 1)
 			require.Equal(t, wantTool, prepared.ProviderTools[0].Definition)
@@ -664,9 +763,8 @@ func TestBuildTurnEnvironmentSubagentUsesOwnerSyntheticAPIKey(t *testing.T) {
 		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
 	)
 	prepared, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-		Chat:            created.Chat,
-		Messages:        created.InitialMessages,
-		TurnExperiments: &turnExperimentDecisions{},
+		Chat:     created.Chat,
+		Messages: created.InitialMessages,
 	})
 	require.NoError(t, err)
 	t.Cleanup(prepared.Close)
@@ -743,24 +841,23 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 	require.NoError(t, err)
 	seedAgentContext(ctx, t, db, agent.ID, "workspace", []byte("workspace"),
 		database.WorkspaceAgentContextBodyKindMcpServer, workspaceMCPBody)
+	acpBody, err := protojson.Marshal(&agentproto.ACPHarnessBody{Slug: "test", DisplayName: "Test"})
+	require.NoError(t, err)
+	seedAgentContext(ctx, t, db, agent.ID, "test", []byte("acp"),
+		database.WorkspaceAgentContextBodyKindAcpHarness, acpBody)
 	parent := dbgen.Chat(t, db, database.Chat{OrganizationID: org.ID, OwnerID: user.ID, LastModelConfigID: modelConfig.ID})
 	// Children load inline MCP servers from the root chat; this one does not allow sub-agents.
 	dbgen.ChatMCPServer(t, db, database.ChatMCPServer{ChatID: parent.ID, Slug: "inline", Url: echoURL})
-	// The stored config says enabled, so RootAdvisorOff shows that the experiment alone gates the advisor.
-	advisorConfig, err := json.Marshal(codersdk.AdvisorConfig{Enabled: true, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
+	// A stored enabled=false must not remove the advisor from root chats.
+	advisorConfig, err := json.Marshal(codersdk.AdvisorConfig{Enabled: false, MaxUsesPerRun: 3, MaxOutputTokens: 1024})
 	require.NoError(t, err)
 	require.NoError(t, db.UpsertChatAdvisorConfig(ctx, string(advisorConfig)))
 
-	newServer := func(experiments ...codersdk.Experiment) *Server {
-		server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
-			withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
-			withInternalTestServerExperiments(append(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers}, experiments...)),
-		)
-		server.mcpHTTPClient = mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(netip.MustParsePrefix("127.0.0.0/8")))
-		return server
-	}
-	advisorServer := newServer(codersdk.ExperimentChatAdvisor)
-	advisorOffServer := newServer()
+	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
+		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+		withInternalTestServerExperiments(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers, codersdk.ExperimentChatACPSubagents}),
+	)
+	server.mcpHTTPClient = mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(netip.MustParsePrefix("127.0.0.0/8")))
 
 	explore := database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true}
 	plan := database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
@@ -780,8 +877,6 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		mode     database.NullChatMode
 		planMode database.NullChatPlanMode
 		child    bool
-		// advisorOff prepares the turn on a server without the advisor experiment.
-		advisorOff bool
 		// spawn delegates to a general sub-agent, which must keep the
 		// parent's plan mode.
 		spawn bool
@@ -796,18 +891,13 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 	}{
 		{
 			name:   "Root",
-			prompt: []string{advisorGuidance},
+			prompt: []string{advisorGuidance, acpSubagentPromptBlock},
 			want: append([]string{
 				"write_file", "edit_files", "approved__echo", "blocked__echo", "filtered__visible",
 				"forced__echo", "inline__echo", "workspace__echo", "web_search", chatadvisor.ToolName,
+				"acp_spawn_agent", "acp_wait_agent", "acp_message_agent", "acp_interrupt_agent",
 			}, rootOnlyTools...),
 			dontWant: []string{"filtered__hidden", "unselected__echo", "ask_user_question", "propose_plan"},
-		},
-		{
-			name:       "RootAdvisorOff",
-			advisorOff: true,
-			want:       []string{"spawn_agent"},
-			dontWant:   []string{chatadvisor.ToolName},
 		},
 		{
 			name:     "GeneralChild",
@@ -912,10 +1002,6 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			if !tt.child {
 				dbgen.ChatMCPServer(t, db, database.ChatMCPServer{ChatID: created.Chat.ID, Slug: "inline", Url: echoURL})
 			}
-			server := advisorServer
-			if tt.advisorOff {
-				server = advisorOffServer
-			}
 
 			chat, messages := created.Chat, created.InitialMessages
 			if tt.planMode.Valid {
@@ -946,9 +1032,8 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			}
 
 			env, err := server.buildTurnEnvironment(ctx, generationPrepareInput{
-				Chat:            chat,
-				Messages:        messages,
-				TurnExperiments: &turnExperimentDecisions{},
+				Chat:     chat,
+				Messages: messages,
 			})
 			require.NoError(t, err)
 			t.Cleanup(env.Close)
@@ -957,10 +1042,15 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			for _, definition := range chatloop.BuildToolDefinitions(env.Tools, env.ActiveTools, env.ProviderTools) {
 				offered = append(offered, definition.GetName())
 			}
+			// Deferred MCP tools reach the model through the find_tools catalog.
+			for name := range env.AllowInactiveTools {
+				offered = append(offered, name)
+			}
 			loaded := make(map[string]bool, len(env.Tools))
 			for _, tool := range env.Tools {
 				loaded[tool.Info().Name] = true
 			}
+			require.Equal(t, slices.Contains(tt.prompt, acpSubagentPromptBlock), slices.Contains(offered, "acp_spawn_agent"))
 			require.Subset(t, offered, tt.want)
 			for _, name := range tt.dontWant {
 				require.NotContains(t, offered, name)
@@ -994,7 +1084,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 					}
 				}
 			}
-			for _, instruction := range []string{exploreOverlay, planRootOverlay, planChildOverlay, proposePlan, advisorGuidance} {
+			for _, instruction := range []string{exploreOverlay, planRootOverlay, planChildOverlay, proposePlan, advisorGuidance, acpSubagentPromptBlock} {
 				require.Equal(t, slices.Contains(tt.prompt, instruction), strings.Contains(system.String(), instruction), instruction)
 			}
 
@@ -1166,6 +1256,22 @@ func TestDeriveFinalTurnRunResult(t *testing.T) {
 		require.Equal(t, "openai", result.StatusLabelCall.resolvedProvider)
 		require.Equal(t, "gpt-4o-mini", result.StatusLabelCall.resolvedModel)
 		require.JSONEq(t, `{"openai_config":{"use_responses_api":false}}`, string(result.StatusLabelCall.dbConfig.Options))
+	})
+
+	// A paused chat also finished its turn, so it gets the same
+	// status label call as a waiting one.
+	t.Run("PausedDerivesFromHistory", func(t *testing.T) {
+		t.Parallel()
+		server, chat, _ := setup(t, "gpt-4o-mini")
+		ctx := chatdTestContext(t)
+		commitAssistant(t, server, chat, "the answer is 42")
+
+		chat.Status = database.ChatStatusPaused
+		result := server.deriveFinalTurnRunResult(ctx, chat, logger)
+
+		require.Equal(t, "the answer is 42", result.FinalAssistantText)
+		require.NotNil(t, result.StatusLabelCall)
+		require.Equal(t, "gpt-4o-mini", result.StatusLabelCall.resolvedModel)
 	})
 
 	// The status label is a structured side call, so it must prefer the
@@ -1509,19 +1615,20 @@ func TestEnabledMCPServerConfigsForChatOrg(t *testing.T) {
 		chatOrg := dbgen.Organization(t, db, database.Organization{})
 		user := dbgen.User(t, db, database.User{})
 		disabledCfg, err := db.InsertMCPServerConfig(ctx, database.InsertMCPServerConfigParams{
-			ID:             uuid.New(),
-			OrganizationID: chatOrg.ID,
-			DisplayName:    "Disabled MCP Server",
-			Slug:           testutil.GetRandomName(t),
-			Url:            "https://mcp.example.com",
-			Transport:      "streamable_http",
-			AuthType:       "none",
-			ToolAllowList:  []string{},
-			ToolDenyList:   []string{},
-			Availability:   "default_off",
-			Enabled:        false,
-			CreatedBy:      user.ID,
-			UpdatedBy:      user.ID,
+			ID:                       uuid.New(),
+			OrganizationID:           chatOrg.ID,
+			DisplayName:              "Disabled MCP Server",
+			Slug:                     testutil.GetRandomName(t),
+			Url:                      "https://mcp.example.com",
+			Transport:                "streamable_http",
+			AuthType:                 "none",
+			OAuth2ClientRegistration: "manual",
+			ToolAllowList:            []string{},
+			ToolDenyList:             []string{},
+			Availability:             "default_off",
+			Enabled:                  false,
+			CreatedBy:                user.ID,
+			UpdatedBy:                user.ID,
 		})
 		require.NoError(t, err)
 

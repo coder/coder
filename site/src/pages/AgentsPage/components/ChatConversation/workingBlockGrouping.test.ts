@@ -11,11 +11,14 @@ import { assignTimelineRows, type TimelineRow } from "./timelineRows";
 import type { RenderBlock } from "./types";
 import {
 	type GroupWorkingBlocksOptions,
+	getBlockTurnAttachments,
 	getSliceContent,
+	getTurnAttachmentsByRow,
 	groupWorkingBlocks,
 	isAgentAttachmentOnlyRow,
 	type RowSlice,
 	splitRowPieces,
+	type TurnAttachmentsOptions,
 	type WorkingBlockLayout,
 } from "./workingBlockGrouping";
 
@@ -1695,5 +1698,220 @@ describe("isAgentAttachmentOnlyRow", () => {
 			false,
 			false,
 		]);
+	});
+});
+
+describe("getTurnAttachmentsByRow", () => {
+	const file = (fileId: string): TypesGen.ChatMessagePart => ({
+		...mockAttachment,
+		file_id: fileId,
+	});
+	const mockIdleChat: TurnAttachmentsOptions = {
+		hidesAttachmentRows: false,
+		isChatActive: false,
+		isCompacting: false,
+	};
+	const pills = (
+		rows: readonly TimelineRow[],
+		options: Partial<TurnAttachmentsOptions> = {},
+	) =>
+		[...getTurnAttachmentsByRow(rows, { ...mockIdleChat, ...options })].map(
+			([key, attachments]) => [
+				key,
+				attachments.map(({ file }) => file.file_id),
+			],
+		);
+	const attachSteps = (fileId: string) => [
+		message("assistant", [call("attach", undefined, "attach_file")]),
+		message("assistant", [file(fileId)]),
+		message("tool", [result("attach", undefined, { name: "attach_file" })]),
+	];
+
+	it("lists each turn's agent files on its last assistant row", () => {
+		const { rows } = group([
+			user("Build the first report"),
+			message("assistant", [text("Here:"), file("old")]),
+			message("user", [text("Build the reports"), file("upload")]),
+			message("assistant", [text("First:"), file("a")]),
+			message("assistant", [file("b"), text("Then the second.")]),
+			message("assistant", [text("Both reports are ready.")]),
+		]);
+
+		expect(pills(rows)).toEqual([
+			["message:2", ["old"]],
+			["message:6", ["a", "b"]],
+		]);
+	});
+
+	it("keeps the pill of an earlier turn that stopped before answering", () => {
+		const { rows } = group([
+			user("Attach the report"),
+			...attachSteps("a"),
+			user("Continue"),
+			message("assistant", [text("The report shows no errors.")]),
+		]);
+
+		for (const isChatActive of [true, false]) {
+			expect(pills(rows, { hidesAttachmentRows: true, isChatActive })).toEqual([
+				["message:2", ["a"]],
+			]);
+		}
+	});
+
+	it("gives a block the pill only when its turn ends without an answer", () => {
+		const blockPills = ({ rows, blocks }: ReturnType<typeof group>) => {
+			const byRow = getTurnAttachmentsByRow(rows, {
+				...mockIdleChat,
+				hidesAttachmentRows: true,
+			});
+			return blocks.map((block) =>
+				getBlockTurnAttachments(block, rows, byRow)?.map(
+					({ file }) => file.file_id,
+				),
+			);
+		};
+
+		expect(
+			blockPills(group([user("Attach the report"), ...attachSteps("a")])),
+		).toEqual([["a"]]);
+
+		expect(
+			blockPills(
+				group([
+					user("Attach the report"),
+					...attachSteps("b"),
+					message("assistant", [
+						call("check", undefined, "execute"),
+						text("Done."),
+					]),
+					message("tool", [result("check")]),
+				]),
+			),
+		).toEqual([undefined]);
+
+		const { streamState, streamTools } = buildStreamRenderState([
+			reasoning("Thinking"),
+			text("Sure"),
+		]);
+		expect(
+			blockPills(
+				group([user("Attach the report"), ...attachSteps("c")], {
+					isTurnActive: true,
+					isWorking: true,
+					isLiveRowCollapsible: true,
+					streamState,
+					liveBlocks: streamState?.blocks ?? [],
+					liveTools: streamTools,
+				}),
+			),
+		).toEqual([["c"]]);
+	});
+
+	it("skips hidden attachment-only rows when picking the pill's row", () => {
+		const { rows } = group([
+			user("Build the report"),
+			message("assistant", [text("Report attached.")]),
+			message("assistant", [file("a")]),
+		]);
+
+		expect(pills(rows, { hidesAttachmentRows: true })).toEqual([
+			["message:2", ["a"]],
+		]);
+		expect(pills(rows)).toEqual([["message:3", ["a"]]]);
+	});
+
+	it.each(["chat_cleared", "chat_summarized"])(
+		"keeps the pill off a later %s row",
+		(toolName) => {
+			const { rows } = group([
+				user("Build the report"),
+				message("assistant", [text("Here:"), file("a")]),
+				message("assistant", [call("boundary", undefined, toolName)]),
+				message("tool", [result("boundary", undefined, { name: toolName })]),
+			]);
+
+			expect(pills(rows)).toEqual([["message:2", ["a"]]]);
+		},
+	);
+
+	it("keeps the pill on the answer when a hook notice follows it", () => {
+		const { rows } = group([
+			user("Build the report"),
+			message("assistant", [text("Here:"), file("a")]),
+			message("system", [{ type: "hook-notice", text: "Formatter ran." }]),
+		]);
+
+		expect(pills(rows)).toEqual([["message:2", ["a"]]]);
+	});
+
+	it("shows no pill for the newest turn while it runs", () => {
+		const { rows } = group(
+			[
+				user("Build the report"),
+				message("assistant", [text("Done:"), file("a")]),
+				user("Another one"),
+				message("assistant", [
+					text("Working on it:"),
+					call("attach", undefined, "attach_file"),
+				]),
+				message("assistant", [file("b")]),
+			],
+			{ isTurnActive: true },
+		);
+
+		expect(
+			pills(rows, { hidesAttachmentRows: true, isChatActive: true }),
+		).toEqual([["message:2", ["a"]]]);
+	});
+
+	it("leaves an answered turn out while the chat keeps running it, unless it compacts", () => {
+		// A stop hook can nudge the agent past its answer within the turn.
+		const { rows } = group([
+			user("Build the report"),
+			message("assistant", [text("Here:"), file("a")]),
+		]);
+
+		expect(pills(rows, { isChatActive: true })).toEqual([]);
+		expect(pills(rows, { isChatActive: true, isCompacting: true })).toEqual([
+			["message:2", ["a"]],
+		]);
+	});
+
+	it("keeps an answered turn's pill after a compaction until the agent answers again", () => {
+		const mockCompactedTurnMessages = [
+			user("Build the report"),
+			message("assistant", [text("Here:"), file("a")]),
+			message("assistant", [call("compact", undefined, "chat_summarized")]),
+			message("tool", [
+				result("compact", undefined, { name: "chat_summarized" }),
+			]),
+		];
+		const mockRunningChat = { isChatActive: true };
+
+		expect(
+			pills(group(mockCompactedTurnMessages).rows, mockRunningChat),
+		).toEqual([["message:2", ["a"]]]);
+		expect(
+			pills(
+				group([
+					...mockCompactedTurnMessages,
+					message("assistant", [text("Rechecked: all good.")]),
+				]).rows,
+				mockRunningChat,
+			),
+		).toEqual([]);
+	});
+
+	it("leaves an unanswered turn open while it compacts", () => {
+		const { rows } = group([
+			user("Build the report"),
+			message("assistant", [
+				text("Working on it:"),
+				call("attach", undefined, "attach_file"),
+			]),
+			message("assistant", [file("a")]),
+		]);
+
+		expect(pills(rows, { isChatActive: true, isCompacting: true })).toEqual([]);
 	});
 });

@@ -115,6 +115,7 @@ jobs:
     name: run (${{ matrix.arm }})
     needs: resolve
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    environment: main
     timeout-minutes: 360
     permissions:
       contents: read

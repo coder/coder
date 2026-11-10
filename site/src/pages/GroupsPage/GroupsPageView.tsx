@@ -283,7 +283,7 @@ const GroupRow: React.FC<GroupRowProps> = ({ group, showAIBudget }) => {
 
 	return (
 		<TableRow data-testid={`group-${group.id}`} {...rowProps}>
-			<TableCell>
+			<TableHead scope="row">
 				<AvatarData
 					avatar={
 						<Avatar
@@ -296,7 +296,7 @@ const GroupRow: React.FC<GroupRowProps> = ({ group, showAIBudget }) => {
 					title={group.display_name || group.name}
 					subtitle={`${group.total_member_count.toLocaleString("en-US")} ${group.total_member_count === 1 ? "member" : "members"}`}
 				/>
-			</TableCell>
+			</TableHead>
 
 			<TableCell>
 				{group.total_member_count === 0 || membersQuery.isError ? (

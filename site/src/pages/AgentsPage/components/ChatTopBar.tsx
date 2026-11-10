@@ -47,7 +47,7 @@ import { clearPersistedSidebarTabId } from "../utils/sidebarTabStorage";
 import {
 	ChatActionsMenu,
 	canManageChat,
-	chatFamilyAllowsArchive,
+	getArchiveBlockedReason,
 } from "./ChatActionsMenuItems";
 import { getParentChatID } from "./ChatConversation/chatHelpers";
 import { ChatSharingPopoverContent } from "./ChatSharingPopover";
@@ -199,13 +199,10 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 	const canManage = chat !== undefined && canManageChat(chat, currentUser.id);
 	const hasWorkspace = Boolean(chat?.workspace_id);
 	const isArchivingThisChat = useIsMutating({ mutationKey }) > 0;
-	// The per-chat stream updates this before the global chat record catches up.
-	const isArchiveBlocked = chat
-		? !chatFamilyAllowsArchive(
-				liveChatStatus ?? chat.status,
-				activeChatChildren,
-			)
-		: false;
+	// The per-chat stream reports status before the chat record query refetches.
+	const archiveBlockedReason = chat
+		? getArchiveBlockedReason(liveChatStatus ?? chat.status, activeChatChildren)
+		: undefined;
 	// Suppressed when there is no chat to act on (loading and not-found views).
 	const showActionsMenu =
 		!isEmbedded && chat !== undefined && Boolean(chatTitle);
@@ -291,13 +288,13 @@ export const ChatTopBar: React.FC<ChatTopBarProps> = ({
 					<ChatActionsMenu
 						key={chat.id}
 						align="start"
-						contentClassName="mobile-full-width-dropdown mobile-full-width-dropdown-top [&_[role=menuitem]]:text-[13px]"
+						contentClassName="mobile-full-width-dropdown mobile-full-width-dropdown-top **:[[role=menuitem]]:text-[13px]"
 						onArchived={navigateAfterArchive}
 						chat={chat}
 						canManage={canManage}
 						hasWorkspace={hasWorkspace}
 						isArchiving={isArchivingThisChat}
-						isArchiveBlocked={isArchiveBlocked}
+						archiveBlockedReason={archiveBlockedReason}
 						onPinAgent={() => pinMutation.mutate(chat.id)}
 						onUnpinAgent={() => unpinMutation.mutate(chat.id)}
 						onArchiveAgent={() => {
@@ -409,7 +406,7 @@ const PrLink: React.FC<PrLinkProps> = ({ status, className }) => {
 				draft={status.pull_request_draft}
 				className="size-3.5! shrink-0"
 			/>
-			<span className="truncate max-w-[120px] hidden sm:inline">
+			<span className="truncate max-w-30 hidden sm:inline">
 				{status.pull_request_title || (number ? `#${number}` : "PR")}
 			</span>
 			<span className="sm:hidden">{number ?? "PR"}</span>

@@ -8,3 +8,7 @@ replace github.com/coder/coder/v2/codersdk.ProvisionerType string
 replace netip.Addr string
 // Replace all NullUUID with string
 replace github.com/google/uuid.NullUUID string
+// swag cannot emit an untyped schema, so render raw JSON as an object instead
+// of an integer array. Fields that hold non-object JSON must say so in their
+// doc comment.
+replace encoding/json.RawMessage object

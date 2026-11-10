@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -7683,6 +7685,7 @@ func createTmplVersionAndPreset(
 
 type createPrebuiltWorkspaceOpts struct {
 	failedJob      bool
+	succeededJob   bool
 	createdAt      time.Time
 	readyAgents    int
 	notReadyAgents int
@@ -7703,12 +7706,19 @@ func createPrebuiltWorkspace(
 	if opts != nil && opts.failedJob {
 		jobError = sql.NullString{String: "failed", Valid: true}
 	}
+	var jobStartedAt, jobCompletedAt sql.NullTime
+	if opts != nil && opts.succeededJob {
+		jobStartedAt = sql.NullTime{Time: now.Add(-1 * time.Minute), Valid: true}
+		jobCompletedAt = sql.NullTime{Time: now, Valid: true}
+	}
 	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 		Type:           database.ProvisionerJobTypeWorkspaceBuild,
 		OrganizationID: orgID,
 
-		CreatedAt: now.Add(-1 * time.Minute),
-		Error:     jobError,
+		CreatedAt:   now.Add(-1 * time.Minute),
+		StartedAt:   jobStartedAt,
+		CompletedAt: jobCompletedAt,
+		Error:       jobError,
 	})
 
 	// create ready agents
@@ -7872,6 +7882,308 @@ func TestWorkspacePrebuildsView(t *testing.T) {
 			require.Len(t, workspacePrebuilds, 1)
 			require.Equal(t, tc.expectReady, workspacePrebuilds[0].Ready)
 		})
+	}
+}
+
+// claimTestPreset is a template whose active version has a preset, for testing
+// ClaimPrebuiltWorkspace.
+type claimTestPreset struct {
+	sqlDB   *sql.DB
+	db      database.Store
+	orgID   uuid.UUID
+	tmpl    database.Template
+	version templateVersionWithPreset
+}
+
+func newClaimTestPreset(t *testing.T) claimTestPreset {
+	t.Helper()
+	sqlDB := testSQLDB(t)
+	require.NoError(t, migrations.Up(sqlDB))
+	db := database.New(sqlDB)
+	orgID, adminID := uuid.New(), uuid.New()
+	dbgen.Organization(t, db, database.Organization{ID: orgID})
+	dbgen.User(t, db, database.User{ID: adminID})
+	tmpl := createTemplate(t, db, orgID, adminID)
+	version := createTmplVersionAndPreset(t, db, tmpl, tmpl.ActiveVersionID, dbtime.Now(), nil)
+	return claimTestPreset{sqlDB: sqlDB, db: db, orgID: orgID, tmpl: tmpl, version: version}
+}
+
+// claimTestBuild is a workspace build whose agents share one resource.
+type claimTestBuild struct {
+	transition database.WorkspaceTransition
+	succeeded  bool
+	versionID  uuid.UUID
+	presetID   uuid.UUID
+	agents     []database.WorkspaceAgentLifecycleState
+	// agentsDeleted marks all of the build's agents deleted.
+	agentsDeleted bool
+}
+
+// readyBuild returns a succeeded start of the active version with one ready agent.
+func (p claimTestPreset) readyBuild() claimTestBuild {
+	return claimTestBuild{
+		transition: database.WorkspaceTransitionStart,
+		succeeded:  true,
+		versionID:  p.version.ID,
+		presetID:   p.version.preset.ID,
+		agents:     []database.WorkspaceAgentLifecycleState{database.WorkspaceAgentLifecycleStateReady},
+	}
+}
+
+// addWorkspace creates a workspace with the given builds. The prebuilds user
+// owns it unless ws sets an owner.
+func (p claimTestPreset) addWorkspace(ctx context.Context, t *testing.T, ws database.WorkspaceTable, builds ...claimTestBuild) uuid.UUID {
+	t.Helper()
+	if ws.OwnerID == uuid.Nil {
+		ws.OwnerID = database.PrebuildsSystemUserID
+	}
+	if ws.TemplateID == uuid.Nil {
+		ws.TemplateID = p.tmpl.ID
+	}
+	ws.OrganizationID = p.orgID
+	workspace := dbgen.Workspace(t, p.db, ws)
+	for i, b := range builds {
+		job := dbgen.ProvisionerJob(t, p.db, nil, database.ProvisionerJob{OrganizationID: p.orgID, InitiatorID: database.PrebuildsSystemUserID})
+		if b.succeeded {
+			_, err := p.sqlDB.ExecContext(ctx, "UPDATE provisioner_jobs SET started_at = now(), completed_at = now() WHERE id = $1", job.ID)
+			require.NoError(t, err)
+		}
+		if len(b.agents) > 0 {
+			resource := dbgen.WorkspaceResource(t, p.db, database.WorkspaceResource{JobID: job.ID})
+			for _, state := range b.agents {
+				agent := dbgen.WorkspaceAgent(t, p.db, database.WorkspaceAgent{ResourceID: resource.ID})
+				require.NoError(t, p.db.UpdateWorkspaceAgentLifecycleStateByID(ctx, database.UpdateWorkspaceAgentLifecycleStateByIDParams{
+					ID:             agent.ID,
+					LifecycleState: state,
+				}))
+				if b.agentsDeleted {
+					_, err := p.sqlDB.ExecContext(ctx, "UPDATE workspace_agents SET deleted = true WHERE id = $1", agent.ID)
+					require.NoError(t, err)
+				}
+			}
+		}
+		dbgen.WorkspaceBuild(t, p.db, database.WorkspaceBuild{
+			WorkspaceID:             workspace.ID,
+			TemplateVersionID:       b.versionID,
+			BuildNumber:             int32(i + 1), //nolint:gosec // Tests use a handful of builds.
+			Transition:              b.transition,
+			InitiatorID:             database.PrebuildsSystemUserID,
+			JobID:                   job.ID,
+			TemplateVersionPresetID: uuid.NullUUID{UUID: b.presetID, Valid: b.presetID != uuid.Nil},
+		})
+	}
+	return workspace.ID
+}
+
+// addReadyPrebuilds creates n claimable prebuilds and returns their IDs, oldest first.
+func (p claimTestPreset) addReadyPrebuilds(ctx context.Context, t *testing.T, n int) []uuid.UUID {
+	t.Helper()
+	ids := make([]uuid.UUID, n)
+	now := dbtime.Now()
+	for i := range n {
+		ids[i] = p.addWorkspace(ctx, t, database.WorkspaceTable{CreatedAt: now.Add(time.Duration(i) * time.Second)}, p.readyBuild())
+	}
+	return ids
+}
+
+func (claimTestPreset) claim(ctx context.Context, store database.Store, presetID, userID uuid.UUID) (uuid.UUID, error) {
+	row, err := store.ClaimPrebuiltWorkspace(ctx, database.ClaimPrebuiltWorkspaceParams{
+		NewUserID: userID,
+		NewName:   "claimed-" + uuid.NewString()[:8],
+		Now:       dbtime.Now(),
+		PresetID:  presetID,
+	})
+	return row.ID, err
+}
+
+// holdClaim claims a prebuild in a transaction that stays open until release
+// is called or the test ends.
+func (p claimTestPreset) holdClaim(ctx context.Context, t *testing.T, userID uuid.UUID) (id uuid.UUID, release func()) {
+	t.Helper()
+	claimed := make(chan uuid.UUID, 1)
+	releaseCh := make(chan struct{})
+	done := make(chan error, 1)
+	go func() {
+		done <- p.db.InTx(func(tx database.Store) error {
+			id, err := p.claim(ctx, tx, p.version.preset.ID, userID)
+			claimed <- id
+			<-releaseCh
+			return err
+		}, nil)
+	}()
+	var once sync.Once
+	release = func() {
+		once.Do(func() {
+			close(releaseCh)
+			assert.NoError(t, testutil.TryReceive(ctx, t, done))
+		})
+	}
+	t.Cleanup(release)
+	id = testutil.TryReceive(ctx, t, claimed)
+	require.NotEqual(t, uuid.Nil, id, "held claim failed")
+	return id, release
+}
+
+// TestClaimPrebuiltWorkspaceConcurrent checks that claims racing an open claim
+// skip its locked prebuild without waiting, and that claims take the oldest
+// prebuild first.
+func TestClaimPrebuiltWorkspaceConcurrent(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	p := newClaimTestPreset(t)
+	ids := p.addReadyPrebuilds(ctx, t, 2)
+	userA := dbgen.User(t, p.db, database.User{})
+	userB := dbgen.User(t, p.db, database.User{})
+
+	idA, release := p.holdClaim(ctx, t, userA.ID)
+	require.Equal(t, ids[0], idA, "a claim must take the oldest prebuild")
+
+	// Each claim must return while claim A still holds its lock.
+	claimWithoutWaiting := func(userID uuid.UUID) (uuid.UUID, error) {
+		type result struct {
+			id  uuid.UUID
+			err error
+		}
+		ch := make(chan result, 1)
+		go func() {
+			id, err := p.claim(ctx, p.db, p.version.preset.ID, userID)
+			ch <- result{id, err}
+		}()
+		res := testutil.TryReceive(testutil.Context(t, testutil.WaitShort), t, ch)
+		return res.id, res.err
+	}
+	idB, err := claimWithoutWaiting(userB.ID)
+	require.NoError(t, err)
+	require.Equal(t, ids[1], idB)
+	_, err = claimWithoutWaiting(userB.ID)
+	require.ErrorIs(t, err, sql.ErrNoRows)
+
+	release()
+	for id, owner := range map[uuid.UUID]uuid.UUID{idA: userA.ID, idB: userB.ID} {
+		ws, err := p.db.GetWorkspaceByID(ctx, id)
+		require.NoError(t, err)
+		require.Equal(t, owner, ws.OwnerID)
+	}
+}
+
+// TestClaimPrebuiltWorkspaceClaimsOne guards against one claim taking two
+// prebuilds. With w.id IN (...) and statistics from when only one prebuild
+// existed, Postgres reran the SKIP LOCKED subquery per workspace row, and the
+// rerun returned a second prebuild that the scan reached later.
+func TestClaimPrebuiltWorkspaceClaimsOne(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	p := newClaimTestPreset(t)
+	p.addReadyPrebuilds(ctx, t, 1)
+	_, err := p.sqlDB.ExecContext(ctx, "ANALYZE")
+	require.NoError(t, err)
+	// Newer, so the claim takes the first prebuild and the scan reaches this one after it.
+	p.addWorkspace(ctx, t, database.WorkspaceTable{CreatedAt: dbtime.Now().Add(time.Hour)}, p.readyBuild())
+
+	user := dbgen.User(t, p.db, database.User{})
+	_, err = p.claim(ctx, p.db, p.version.preset.ID, user.ID)
+	require.NoError(t, err)
+	var owned int
+	require.NoError(t, p.sqlDB.QueryRowContext(ctx, "SELECT count(*) FROM workspaces WHERE owner_id = $1", user.ID).Scan(&owned))
+	require.Equal(t, 1, owned)
+}
+
+// TestClaimPrebuiltWorkspaceEligibilityMatchesView checks that the claim query,
+// which repeats the workspace_prebuilds logic per workspace, claims exactly the
+// prebuilds that the view reports as ready.
+func TestClaimPrebuiltWorkspaceEligibilityMatchesView(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	p := newClaimTestPreset(t)
+	preset := p.version.preset.ID
+	otherPreset := dbgen.Preset(t, p.db, database.InsertPresetParams{TemplateVersionID: p.version.ID, Name: "other"})
+	inactive := createTmplVersionAndPreset(t, p.db, p.tmpl, uuid.New(), dbtime.Now(), nil)
+	deletedTmpl := createTemplate(t, p.db, p.orgID, p.tmpl.CreatedBy)
+	deletedTmplVersion := createTmplVersionAndPreset(t, p.db, deletedTmpl, deletedTmpl.ActiveVersionID, dbtime.Now(), nil)
+	_, err := p.sqlDB.ExecContext(ctx, "UPDATE templates SET deleted = true WHERE id = $1", deletedTmpl.ID)
+	require.NoError(t, err)
+	user := dbgen.User(t, p.db, database.User{})
+
+	ready := p.readyBuild()
+	build := func(modify func(*claimTestBuild)) claimTestBuild {
+		b := p.readyBuild()
+		modify(&b)
+		return b
+	}
+	cases := []struct {
+		name         string
+		ws           database.WorkspaceTable
+		builds       []claimTestBuild
+		claimableFor uuid.UUID
+	}{
+		{name: "Ready", builds: []claimTestBuild{ready}, claimableFor: preset},
+		{name: "AgentStarting", builds: []claimTestBuild{build(func(b *claimTestBuild) {
+			b.agents = append(b.agents, database.WorkspaceAgentLifecycleStateStarting)
+		})}},
+		{name: "NoAgents", builds: []claimTestBuild{build(func(b *claimTestBuild) { b.agents = nil })}},
+		{name: "OnlyDeletedAgents", builds: []claimTestBuild{build(func(b *claimTestBuild) { b.agentsDeleted = true })}},
+		{name: "LatestBuildStop", builds: []claimTestBuild{ready, build(func(b *claimTestBuild) { b.transition = database.WorkspaceTransitionStop })}},
+		{name: "LatestBuildPending", builds: []claimTestBuild{ready, build(func(b *claimTestBuild) { b.succeeded = false })}},
+		{name: "InactiveTemplateVersion", builds: []claimTestBuild{build(func(b *claimTestBuild) {
+			b.versionID, b.presetID = inactive.ID, inactive.preset.ID
+		})}},
+		{name: "TemplateDeleted", ws: database.WorkspaceTable{TemplateID: deletedTmpl.ID}, builds: []claimTestBuild{build(func(b *claimTestBuild) {
+			b.versionID, b.presetID = deletedTmplVersion.ID, deletedTmplVersion.preset.ID
+		})}},
+		{name: "PresetChanged", builds: []claimTestBuild{ready, build(func(b *claimTestBuild) { b.presetID = otherPreset.ID })}, claimableFor: otherPreset.ID},
+		{name: "LatestBuildNoPreset", builds: []claimTestBuild{ready, build(func(b *claimTestBuild) { b.presetID = uuid.Nil })}, claimableFor: preset},
+		{name: "WorkspaceDeleted", ws: database.WorkspaceTable{Deleted: true}, builds: []claimTestBuild{ready}},
+		{name: "OwnedByUser", ws: database.WorkspaceTable{OwnerID: user.ID}, builds: []claimTestBuild{ready}},
+	}
+	names := make(map[uuid.UUID]string, len(cases))
+	want := make(map[uuid.UUID][]string)
+	for _, tc := range cases {
+		names[p.addWorkspace(ctx, t, tc.ws, tc.builds...)] = tc.name
+		if tc.claimableFor != uuid.Nil {
+			want[tc.claimableFor] = append(want[tc.claimableFor], tc.name)
+		}
+	}
+
+	for _, presetID := range []uuid.UUID{preset, otherPreset.ID, inactive.preset.ID, deletedTmplVersion.preset.ID} {
+		// The view's ready prebuilds, filtered as the claim filtered them when it read the view.
+		rows, err := p.sqlDB.QueryContext(ctx, `
+			SELECT p.id
+			FROM workspace_prebuilds p
+				INNER JOIN workspaces w ON w.id = p.id
+				INNER JOIN workspace_latest_builds b ON b.workspace_id = p.id
+				INNER JOIN templates t ON t.id = p.template_id
+			WHERE p.ready
+				AND p.current_preset_id = $1
+				AND NOT w.deleted
+				AND NOT t.deleted
+				AND b.transition = 'start'::workspace_transition
+				AND b.job_status = 'succeeded'::provisioner_job_status
+				AND b.template_version_id = t.active_version_id`, presetID)
+		require.NoError(t, err)
+		var inView []string
+		for rows.Next() {
+			var id uuid.UUID
+			require.NoError(t, rows.Scan(&id))
+			inView = append(inView, names[id])
+		}
+		require.NoError(t, rows.Err())
+		require.NoError(t, rows.Close())
+
+		// Claim until no prebuild is left, then roll back.
+		var claimed []string
+		err = p.db.InTx(func(tx database.Store) error {
+			for range len(cases) + 1 {
+				id, err := p.claim(ctx, tx, presetID, user.ID)
+				if err != nil {
+					return err
+				}
+				claimed = append(claimed, names[id])
+			}
+			return xerrors.New("claims did not run out")
+		}, nil)
+		require.ErrorIs(t, err, sql.ErrNoRows)
+		require.ElementsMatch(t, want[presetID], inView, "workspace_prebuilds for preset %s", presetID)
+		require.ElementsMatch(t, inView, claimed, "claims for preset %s", presetID)
 	}
 }
 
@@ -8413,7 +8725,9 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 		name string
 		// true - build is successful
 		// false - build is unsuccessful
-		buildSuccesses  []bool
+		buildSuccesses []bool
+		// newestInFlight adds a pending build after buildSuccesses, as the reconciler sees while it is still creating.
+		newestInFlight  bool
 		hardLimit       int64
 		expHitHardLimit bool
 	}{
@@ -8459,6 +8773,20 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 			hardLimit:       3,
 			expHitHardLimit: false,
 		},
+		{
+			name:            "last 3 builds are failed and a newer one is in flight - hard limit is reached",
+			buildSuccesses:  []bool{false, false, false},
+			newestInFlight:  true,
+			hardLimit:       3,
+			expHitHardLimit: true,
+		},
+		{
+			name:            "last build is successful and a newer one is in flight - hard limit is NOT reached",
+			buildSuccesses:  []bool{false, false, true},
+			newestInFlight:  true,
+			hardLimit:       3,
+			expHitHardLimit: false,
+		},
 		// hardLimit set to zero, implicitly disables the hard limit.
 		{
 			name:            "despite 5 failed builds, the hard limit is not reached because it's disabled.",
@@ -8485,8 +8813,14 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 			tmplV1 := createTmplVersionAndPreset(t, db, tmpl, tmpl.ActiveVersionID, now, nil)
 			for idx, buildSuccess := range tc.buildSuccesses {
 				createPrebuiltWorkspace(ctx, t, db, tmpl, tmplV1, orgID, now, &createPrebuiltWorkspaceOpts{
-					failedJob: !buildSuccess,
-					createdAt: hourBefore.Add(time.Duration(idx) * time.Second),
+					failedJob:    !buildSuccess,
+					succeededJob: buildSuccess,
+					createdAt:    hourBefore.Add(time.Duration(idx) * time.Second),
+				})
+			}
+			if tc.newestInFlight {
+				createPrebuiltWorkspace(ctx, t, db, tmpl, tmplV1, orgID, now, &createPrebuiltWorkspaceOpts{
+					createdAt: hourBefore.Add(time.Duration(len(tc.buildSuccesses)) * time.Second),
 				})
 			}
 
@@ -17900,6 +18234,8 @@ func TestGetChatsFilter(t *testing.T) {
 	setStatus(failedChat, database.ChatStatusError)
 	interruptingChat := createRoot("interrupting chat")
 	setStatus(interruptingChat, database.ChatStatusInterrupting)
+	pausedChat := createRoot("paused chat")
+	setStatus(pausedChat, database.ChatStatusPaused)
 
 	// Read chat (message exists but marked read).
 	readChat := createRoot("read chat")
@@ -17944,12 +18280,14 @@ func TestGetChatsFilter(t *testing.T) {
 		unreadNoPR.ID, readChat.ID, childParent.ID,
 		prNumberChat.ID, repoChat.ID, prTitleChat.ID, clearedPR.ID,
 		workingUnread.ID, needsAttention.ID, failedChat.ID, interruptingChat.ID,
+		pausedChat.ID,
 	}
 	noPRRootIDs := []uuid.UUID{
 		alphaProject.ID, betaProject.ID, gammaUnrelated.ID,
 		percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID,
 		unreadNoPR.ID, readChat.ID, childParent.ID, clearedPR.ID,
 		workingUnread.ID, needsAttention.ID, failedChat.ID, interruptingChat.ID,
+		pausedChat.ID,
 	}
 	noPROrOpenRootIDs := append(append([]uuid.UUID{}, noPRRootIDs...),
 		openPR.ID, prNumberChat.ID, prTitleChat.ID)
@@ -17985,7 +18323,7 @@ func TestGetChatsFilter(t *testing.T) {
 		// Unread filter.
 		{"Unread/MatchesUnread", database.GetChatsParams{HasUnread: sql.NullBool{Bool: true, Valid: true}}, []uuid.UUID{draftPR.ID, unreadNoPR.ID, workingUnread.ID}},
 		// HasUnread=false returns chats without unread messages.
-		{"Unread/ExcludesRead", database.GetChatsParams{HasUnread: sql.NullBool{Bool: false, Valid: true}}, []uuid.UUID{alphaProject.ID, betaProject.ID, gammaUnrelated.ID, percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID, openPR.ID, mergedPR.ID, closedPR.ID, readChat.ID, childParent.ID, prNumberChat.ID, repoChat.ID, prTitleChat.ID, clearedPR.ID, needsAttention.ID, failedChat.ID, interruptingChat.ID}},
+		{"Unread/ExcludesRead", database.GetChatsParams{HasUnread: sql.NullBool{Bool: false, Valid: true}}, []uuid.UUID{alphaProject.ID, betaProject.ID, gammaUnrelated.ID, percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID, openPR.ID, mergedPR.ID, closedPR.ID, readChat.ID, childParent.ID, prNumberChat.ID, repoChat.ID, prTitleChat.ID, clearedPR.ID, needsAttention.ID, failedChat.ID, interruptingChat.ID, pausedChat.ID}},
 
 		// chat_status enum, the same value the sidebar row icon uses.
 		{"Status/Running", database.GetChatsParams{ChatStatuses: []string{"running"}}, []uuid.UUID{workingUnread.ID}},
@@ -17993,6 +18331,7 @@ func TestGetChatsFilter(t *testing.T) {
 		{"Status/RequiresAction", database.GetChatsParams{ChatStatuses: []string{"requires_action"}}, []uuid.UUID{needsAttention.ID}},
 		{"Status/Error", database.GetChatsParams{ChatStatuses: []string{"error"}}, []uuid.UUID{failedChat.ID}},
 		{"Status/Waiting", database.GetChatsParams{ChatStatuses: []string{"waiting"}}, []uuid.UUID{alphaProject.ID, betaProject.ID, gammaUnrelated.ID, percentComplete.ID, thousandOne.ID, underscoreConfig.ID, hyphenConfig.ID, openPR.ID, mergedPR.ID, closedPR.ID, draftPR.ID, unreadNoPR.ID, readChat.ID, childParent.ID, prNumberChat.ID, repoChat.ID, prTitleChat.ID, clearedPR.ID}},
+		{"Status/Paused", database.GetChatsParams{ChatStatuses: []string{"paused"}}, []uuid.UUID{pausedChat.ID}},
 		{"Status/RunningAndError", database.GetChatsParams{ChatStatuses: []string{"running", "error"}}, []uuid.UUID{workingUnread.ID, failedChat.ID}},
 		{"Status/EmptyIsNoOp", database.GetChatsParams{ChatStatuses: nil}, allRootIDs},
 
@@ -20797,4 +21136,45 @@ func TestGetWorkspaceSecretsPaginates(t *testing.T) {
 	}
 	require.Equal(t, want, got, "every live secret is listed once, in id order")
 	require.Equal(t, 3, pages)
+}
+
+func TestGetWorkspaceBuildParametersByBuildIDsAndNames(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	newBuild := func(params ...database.WorkspaceBuildParameter) uuid.UUID {
+		return dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+		}).Params(params...).Do().Build.ID
+	}
+	queried := newBuild(
+		database.WorkspaceBuildParameter{Name: "agent_relay_session_id", Value: "session"},
+		database.WorkspaceBuildParameter{Name: "agent_relay_cursor_pool_name", Value: "pool"},
+		// An underscore in a prefix must not match any character.
+		database.WorkspaceBuildParameter{Name: "agent_relayXcursor_pool_name", Value: "wildcard"},
+		database.WorkspaceBuildParameter{Name: "agent_relay_credential", Value: "token"},
+		database.WorkspaceBuildParameter{Name: "region", Value: "us-east"},
+	)
+	// A matching parameter on another build must not be returned.
+	_ = newBuild(database.WorkspaceBuildParameter{Name: "agent_relay_session_id", Value: "other"})
+
+	params, err := db.GetWorkspaceBuildParametersByBuildIDsAndNames(ctx, database.GetWorkspaceBuildParametersByBuildIDsAndNamesParams{
+		WorkspaceBuildIds: []uuid.UUID{queried},
+		Names:             []string{"agent_relay_session_id"},
+		NamePrefixes:      []string{"agent_relay_cursor_"},
+	})
+	require.NoError(t, err)
+	got := make(map[string]string, len(params))
+	for _, param := range params {
+		require.Equal(t, queried, param.WorkspaceBuildID)
+		got[param.Name] = param.Value
+	}
+	require.Equal(t, map[string]string{
+		"agent_relay_session_id":       "session",
+		"agent_relay_cursor_pool_name": "pool",
+	}, got)
 }

@@ -13,12 +13,14 @@ const model: TypesGen.ChatModel = {
 	...MockChatModel,
 	id: "model-1",
 	display_name: "Model One",
+	computer_use_provider: "openai",
 };
 const alternateModel: TypesGen.ChatModel = {
 	...MockChatModel,
 	id: "model-2",
 	model: "model-two",
 	display_name: "Model Two",
+	computer_use_provider: "openai",
 };
 const mockGoogleModel: TypesGen.ChatModel = {
 	...MockChatModel,
@@ -26,6 +28,21 @@ const mockGoogleModel: TypesGen.ChatModel = {
 	ai_provider_id: "provider-google",
 	model: "gemini-3.8-flash",
 	display_name: "Gemini Flash",
+};
+const mockBedrockClaudeModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "model-bedrock-claude",
+	ai_provider_id: "provider-bedrock",
+	model: "us.anthropic.claude-opus-5-5",
+	display_name: "Claude Opus 5.5 on Bedrock",
+	computer_use_provider: "anthropic",
+};
+const mockBedrockNovaModel: TypesGen.ChatModel = {
+	...MockChatModel,
+	id: "model-bedrock-nova",
+	ai_provider_id: "provider-bedrock",
+	model: "amazon.nova-pro-v1:0",
+	display_name: "Nova Pro on Bedrock",
 };
 const mockTinyModelWithCompactionOff: TypesGen.ChatModel = {
 	...MockChatModel,
@@ -84,7 +101,6 @@ const meta: Meta<typeof OrganizationAgentSettingsView> = {
 		overridesRefetchError: null,
 		modelsError: null,
 		canEdit: true,
-		showAdvisor: true,
 		showComputerUse: false,
 		saveByContext,
 		savingContexts: new Set(),
@@ -248,15 +264,6 @@ export const CompactionTriggerWarningManyModels: Story = {
 	play: CompactionTriggerWarning.play,
 };
 
-export const AdvisorDisabled: Story = {
-	args: { showAdvisor: false },
-	play: async ({ canvasElement }) => {
-		await expect(
-			within(canvasElement).queryByText("Advisor"),
-		).not.toBeInTheDocument();
-	},
-};
-
 const computerUseArgs = {
 	showComputerUse: true,
 	enabledModels: [
@@ -264,6 +271,8 @@ const computerUseArgs = {
 		alternateModel,
 		MockComputerUseChatModel,
 		mockGoogleModel,
+		mockBedrockClaudeModel,
+		mockBedrockNovaModel,
 	],
 	providerInfoByID: new Map([
 		[
@@ -277,6 +286,10 @@ const computerUseArgs = {
 		[
 			mockGoogleModel.ai_provider_id,
 			{ provider: "google", displayName: "Google", icon: "" },
+		],
+		[
+			mockBedrockClaudeModel.ai_provider_id,
+			{ provider: "bedrock", displayName: "AWS Bedrock", icon: "" },
 		],
 	]),
 };
@@ -314,6 +327,7 @@ const mockResponsesAPIDisabledModel: TypesGen.ChatModel = {
 	model: "gpt-5.4",
 	display_name: "GPT-5.4",
 	model_config: { openai_config: { use_responses_api: false } },
+	computer_use_provider: "openai",
 };
 
 // gpt-5.4 is on the curated list, but OpenAI computer use needs the Responses

@@ -34,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
@@ -589,9 +590,13 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		if err != nil {
 			return xerrors.Errorf("get workspace builds: %w", err)
 		}
+		paramsByBuild, err := agentRelayBuildParameters(ctx, r.options.Database, workspaceBuilds)
+		if err != nil {
+			return err
+		}
 		snapshot.WorkspaceBuilds = make([]WorkspaceBuild, 0, len(workspaceBuilds))
 		for _, build := range workspaceBuilds {
-			snapshot.WorkspaceBuilds = append(snapshot.WorkspaceBuilds, ConvertWorkspaceBuild(build))
+			snapshot.WorkspaceBuilds = append(snapshot.WorkspaceBuilds, ConvertWorkspaceBuild(build, paramsByBuild[build.ID]))
 		}
 		return nil
 	})
@@ -1098,8 +1103,10 @@ func ConvertWorkspace(workspace database.Workspace) Workspace {
 	}
 }
 
-// ConvertWorkspaceBuild anonymizes a workspace build.
-func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
+// ConvertWorkspaceBuild anonymizes a workspace build. parameters holds the
+// build's rich parameter values by name; only Agent Relay parameters are
+// read, and only to fill AgentRelay.
+func ConvertWorkspaceBuild(build database.WorkspaceBuild, parameters map[string]string) WorkspaceBuild {
 	wb := WorkspaceBuild{
 		ID:                build.ID,
 		CreatedAt:         build.CreatedAt,
@@ -1108,6 +1115,7 @@ func ConvertWorkspaceBuild(build database.WorkspaceBuild) WorkspaceBuild {
 		TemplateVersionID: build.TemplateVersionID,
 		// #nosec G115 - Safe conversion as build numbers are expected to be positive and within uint32 range
 		BuildNumber: uint32(build.BuildNumber),
+		AgentRelay:  convertWorkspaceBuildAgentRelay(parameters),
 	}
 	return wb
 }
@@ -1732,6 +1740,10 @@ type WorkspaceBuild struct {
 	TemplateVersionID uuid.UUID `json:"template_version_id"`
 	JobID             uuid.UUID `json:"job_id"`
 	BuildNumber       uint32    `json:"build_number"`
+	// AgentRelay is set on start builds of workspaces Agent Relay created.
+	// Omitted for stop and delete builds, other workspaces, and by older
+	// Coder versions.
+	AgentRelay *WorkspaceBuildAgentRelay `json:"agent_relay,omitempty"`
 }
 
 type Workspace struct {
@@ -2274,11 +2286,10 @@ func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMess
 		payload.ComputerUse.Overrides = []AgentsComputerUseOverrideTelemetry{}
 
 		for _, override := range overrides {
-			// When the override's model is disabled or deleted, or its AI
-			// provider type does not support computer use, the runtime falls
-			// back to the organization's default chat model.
-			supported := override.ProviderType == string(database.AIProviderTypeAnthropic) ||
-				override.ProviderType == string(database.AIProviderTypeOpenai)
+			// When the override's model is disabled or deleted, or the model
+			// does not support computer use, the runtime falls back to the
+			// organization's default chat model.
+			_, supported := chatprovider.ComputerUseProvider(database.AIProviderType(override.ProviderType), override.Model)
 			provider, model := AgentsExperimentComputerUseOrgDefaultModel, AgentsExperimentComputerUseOrgDefaultModel
 			if override.ModelAvailable && supported {
 				provider, model = override.ProviderType, override.Model
@@ -2304,7 +2315,7 @@ func CollectAgentsVirtualDesktop(ctx context.Context, opts Options) json.RawMess
 // Deployment.AgentsExperiments.
 func CollectAgentsAdvisor(ctx context.Context, opts Options) json.RawMessage {
 	payload := AgentsAdvisorTelemetry{
-		Enabled:   opts.Experiments.Enabled(codersdk.ExperimentChatAdvisor),
+		Enabled:   true,
 		Overrides: []AgentsAdvisorOverrideTelemetry{},
 	}
 	var cfg codersdk.AdvisorConfig

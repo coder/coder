@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import { ChevronRightIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
 import { useRef, useState } from "react";
-import { NavLink, type To, useLocation } from "react-router";
+import { NavLink, type To, useLocation, useMatch } from "react-router";
 import type { ChatListInput } from "#/api/queries/chats";
 import type { Chat, ChatProject, Organization } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -12,6 +12,7 @@ import {
 	ContextMenuItem,
 	ContextMenuSeparator,
 	ContextMenuTrigger,
+	preventRowContextMenuProps,
 } from "#/components/ContextMenu/ContextMenu";
 import {
 	DropdownMenu,
@@ -204,14 +205,24 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	onDelete,
 	emptyMessage,
 }) => {
-	const projectPath: To = {
-		pathname: buildAgentProjectPath({ projectId: project.id }),
-		search: locationSearch,
-	};
+	const projectPathname = buildAgentProjectPath({ projectId: project.id });
+	const projectPath: To = { pathname: projectPathname, search: locationSearch };
+	const isOnProjectPage = useMatch(projectPathname) !== null;
 	const projectLabel = organizationLabel
 		? `${project.name} (${organizationLabel})`
 		: project.name;
 	const toggleRef = useRef<HTMLButtonElement>(null);
+	// Keeps the closing menu from pulling focus back out of the composer.
+	const newChatPickedRef = useRef(false);
+	const handleNewChat = () => {
+		newChatPickedRef.current = true;
+	};
+	const handleMenuCloseAutoFocus = (event: Event) => {
+		if (newChatPickedRef.current) {
+			newChatPickedRef.current = false;
+			event.preventDefault();
+		}
+	};
 	return (
 		<ChatDropArea
 			target={{
@@ -223,7 +234,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 		>
 			<ContextMenu>
 				<ContextMenuTrigger asChild>
-					<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary group-data-[drop=unavailable]/drop:opacity-50 hover:bg-surface-tertiary/50 hover:text-content-primary has-[[aria-current=page]]:bg-surface-quaternary/50 has-[[aria-current=page]]:text-content-primary">
+					<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary group-data-[drop=unavailable]/drop:opacity-50 hover:bg-surface-tertiary/50 hover:text-content-primary has-aria-[current=page]:bg-surface-quaternary/50 has-aria-[current=page]:text-content-primary">
 						<Button
 							ref={toggleRef}
 							variant="subtle"
@@ -241,14 +252,26 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						<NavLink
 							to={projectPath}
 							aria-label={projectLabel}
-							className="flex min-w-0 flex-1 items-center gap-2 py-1 text-[13px] text-content-primary no-underline"
+							className="flex min-w-0 flex-1 items-center gap-2 py-1 text-[13px] no-underline"
 						>
-							<ChatProjectIcon
-								project={project}
-								expanded={expanded}
-								className="size-4"
-							/>
-							<span className="flex-1 truncate">{project.name}</span>
+							{({ isActive }) => (
+								<>
+									<ChatProjectIcon
+										project={project}
+										expanded={expanded}
+										className="size-4 stroke-[1.75]"
+									/>
+									<span
+										className={cn(
+											"flex-1 truncate text-content-primary",
+											!isActive &&
+												"opacity-85 [@media(hover:hover)]:group-hover:opacity-100 group-data-[state=open]:opacity-100 group-has-data-[state=open]:opacity-100",
+										)}
+									>
+										{project.name}
+									</span>
+								</>
+							)}
 						</NavLink>
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
@@ -257,30 +280,14 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 									size="icon"
 									className="size-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
 									aria-label={`Open project actions for ${projectLabel}`}
-									// Keeps a right-click on this button from also
-									// opening the row's context menu.
-									onContextMenuCapture={(e) => {
-										e.preventDefault();
-										e.stopPropagation();
-									}}
-									onMouseDownCapture={(e) => {
-										if (e.button === 2) {
-											e.preventDefault();
-											e.stopPropagation();
-										}
-									}}
-									onPointerDownCapture={(e) => {
-										if (e.button === 2) {
-											e.preventDefault();
-											e.stopPropagation();
-										}
-									}}
+									{...preventRowContextMenuProps}
 								>
 									<EllipsisVerticalIcon />
 								</Button>
 							</DropdownMenuTrigger>
 							<DropdownMenuContent
 								align="end"
+								onCloseAutoFocus={handleMenuCloseAutoFocus}
 								// Portaled, but React events still bubble to the row's
 								// context-menu trigger and would open a second menu.
 								onContextMenu={(e) => {
@@ -292,6 +299,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 									Item={DropdownMenuItem}
 									Separator={DropdownMenuSeparator}
 									projectPath={projectPath}
+									onNewChatInPlace={isOnProjectPage ? handleNewChat : undefined}
 									permissions={project.permissions}
 									onEdit={onEdit}
 									onDelete={onDelete}
@@ -300,11 +308,12 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						</DropdownMenu>
 					</div>
 				</ContextMenuTrigger>
-				<ContextMenuContent>
+				<ContextMenuContent onCloseAutoFocus={handleMenuCloseAutoFocus}>
 					<ProjectActionsMenuItems
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}
 						projectPath={projectPath}
+						onNewChatInPlace={isOnProjectPage ? handleNewChat : undefined}
 						permissions={project.permissions}
 						onEdit={onEdit}
 						onDelete={onDelete}
@@ -312,9 +321,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 				</ContextMenuContent>
 			</ContextMenu>
 			{expanded && (
-				// pl-[7px] and pr-2 offset ChatTreeNode's -mx-2 bleed: rows span the
-				// folder row's width and an active row's border covers the guide line.
-				<div className="ml-3 flex flex-col gap-0.5 border-0 border-l border-solid border-border pl-[7px] pr-2">
+				<div className="ml-[15.5px] flex flex-col gap-0.5 border-0 border-l border-solid border-border pl-1.75 pr-2">
 					<ProjectFolderChats
 						projectId={project.id}
 						projectLabel={projectLabel}

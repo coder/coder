@@ -1,0 +1,285 @@
+{
+	"description": "Cases for the session token destination check. Run by Test_sessionTokenDestinationTrusted in cli/open_internal_test.go and by apps.test.ts, so coder open app and the dashboard trust the same links. origin is the deployment the check trusts; rows without one use the top-level origin.",
+	"origin": "https://coder.example.com",
+	"cases": [
+		{
+			"name": "VSCode",
+			"url": "vscode://coder.coder-remote/open?owner=a&workspace=b&url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": true
+		},
+		{
+			"name": "TrailingSlash",
+			"url": "cursor://coder.coder-remote/open?url=https://coder.example.com/&token=$SESSION_TOKEN",
+			"trusted": true
+		},
+		{
+			"name": "JetBrainsToolbox",
+			"url": "jetbrains://gateway/coder?&workspace=b&url=https://coder.example.com&token=$SESSION_TOKEN&ide_product_code=GO",
+			"trusted": true
+		},
+		{
+			"name": "JetBrainsGateway",
+			"url": "jetbrains-gateway://connect#type=coder&workspace=b&url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": true
+		},
+		{
+			"name": "DevContainer",
+			"url": "cursor://coder.coder-remote/openDevContainer?url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": true
+		},
+		{
+			"name": "JetBrainsToolboxDocumentedPath",
+			"url": "jetbrains://gateway/com.coder.toolbox?url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": true
+		},
+		{
+			"name": "UppercaseSchemeAndAuthority",
+			"url": "VSCode://Coder.Coder-Remote/open?url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": true
+		},
+		{
+			"name": "UppercaseURLHost",
+			"url": "vscode://coder.coder-remote/open?url=https://CODER.example.com&token=$SESSION_TOKEN",
+			"trusted": true
+		},
+		{
+			"name": "DefaultPort",
+			"url": "vscode://coder.coder-remote/open?url=https://coder.example.com:443&token=$SESSION_TOKEN",
+			"trusted": true
+		},
+		{
+			"name": "ZeroPaddedDefaultPort",
+			"url": "vscode://coder.coder-remote/open?url=https://coder.example.com:0443&token=$SESSION_TOKEN",
+			"trusted": true
+		},
+		{
+			"name": "SemicolonInAnotherValue",
+			"url": "vscode://coder.coder-remote/open?url=https://coder.example.com&token=$SESSION_TOKEN&folder=/work;sync",
+			"trusted": true
+		},
+		{
+			"name": "AccessURLOnAnotherHost",
+			"url": "vscode://coder.coder-remote/open?url=https://access.example.com&token=$SESSION_TOKEN",
+			"trusted": true,
+			"origin": "https://access.example.com"
+		},
+		{
+			"name": "AnotherOrigin",
+			"url": "vscode://coder.coder-remote/open?url=https://attacker.example&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "AnotherPort",
+			"url": "vscode://coder.coder-remote/open?url=https://coder.example.com:1&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "OutOfRangePort",
+			"url": "vscode://coder.coder-remote/open?url=https://coder.example.com:65979&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "InvalidEscape",
+			"url": "vscode://coder.coder-remote/open?url=https://coder.example.com&token=$SESSION_TOKEN&x=%zz",
+			"trusted": false
+		},
+		{
+			"name": "AnotherScheme",
+			"url": "vscode://coder.coder-remote/open?url=http://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "EncodedOtherOrigin",
+			"url": "vscode://coder.coder-remote/open?url=https%3A%2F%2Fattacker.example&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "NoURL",
+			"url": "vscode://coder.coder-remote/open?token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "UnparsableURL",
+			"url": "vscode://coder.coder-remote/open?url=not-a-url&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "DuplicateURL",
+			"url": "vscode://coder.coder-remote/open?url=https://coder.example.com&url=https://attacker.example&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "URLInQueryAndFragment",
+			"url": "jetbrains-gateway://connect?url=https://attacker.example#url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "TokenOutsideTokenParam",
+			"url": "jetbrains://gateway/coder?url=https://coder.example.com&token=x&ide_download_link=https://attacker.example/$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "TokenTwice",
+			"url": "vscode://coder.coder-remote/open?url=https://coder.example.com&token=$SESSION_TOKEN&t=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "TokenInVSCodeFragment",
+			"url": "vscode://coder.coder-remote/open?url=https://coder.example.com#token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "URLInFragment",
+			"url": "vscode://coder.coder-remote/open?url=https://coder.example.com&token=$SESSION_TOKEN#url=https://attacker.example",
+			"trusted": false
+		},
+		{
+			"name": "AnotherExtension",
+			"url": "vscode://attacker.ext/open?url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "UnknownScheme",
+			"url": "coder://open?url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "WorkspaceAppPath",
+			"url": "vscode://coder.coder-remote/open?url=https://coder.example.com/@victim/ws.main/apps/evil/&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "DoubleEncodedHost",
+			"url": "vscode://coder.coder-remote/open?url=https://attacker.example%252Fx@coder.example.com/&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "SingleEncodedURLParam",
+			"url": "vscode://coder.coder-remote/open?owner=x%26url=https://attacker.example&url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "DoubleEncodedURLParam",
+			"url": "vscode://coder.coder-remote/open?owner=x%26url%3Dhttps%253A%252F%252Fattacker.example&url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "TripleEncodedURLParam",
+			"url": "vscode://coder.coder-remote/open?x=%252526url%25253Dhttps%25253A%25252F%25252Fattacker.example&url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "OpaqueHandler",
+			"url": "vscode:coder.coder-remote/open?url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "UserinfoInHandler",
+			"url": "vscode://x@coder.coder-remote/open?url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "DotSegmentsInHandler",
+			"url": "vscode://coder.coder-remote/open/../open?url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "ParamsInVSCodeFragment",
+			"url": "vscode://coder.coder-remote/open#url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "ParamsInJetBrainsGatewayQuery",
+			"url": "jetbrains-gateway://connect?url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "PlaceholderOutsideRawTokenEntry",
+			"url": "jetbrains-gateway://connect#type=coder&url=https://coder.example.com&token=%24SESSION_TOKEN&ide_download_link=https://attacker.example/$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "EncodedURLName",
+			"url": "jetbrains-gateway://connect#type=coder&%75rl=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "NonCoderJetBrainsGatewayProvider",
+			"url": "jetbrains-gateway://connect#type=ssh&host=attacker.example&url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "DuplicateJetBrainsGatewayType",
+			"url": "jetbrains-gateway://connect#type=coder&url=https://coder.example.com&token=$SESSION_TOKEN&type=ssh",
+			"trusted": false
+		},
+		{
+			"name": "ParamsAfterFragment",
+			"url": "vscode://coder.coder-remote/open?x=1#&url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "NonASCIIScheme",
+			"url": "\u212airo://coder.coder-remote/open?url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "TabInParamName",
+			"url": "jetbrains-gateway://connect#type=coder&url=https://coder.example.com&ur\tl=https://attacker.example&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "NewlineInParamName",
+			"url": "jetbrains-gateway://connect#type=coder&url=https://coder.example.com&ur\nl=https://attacker.example&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "CarriageReturnInParamName",
+			"url": "jetbrains-gateway://connect#type=coder&url=https://coder.example.com&ur\rl=https://attacker.example&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "LeadingQuestionMarkHidesDuplicateURL",
+			"url": "vscode://coder.coder-remote/open??url=https://attacker.example&url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "EncodedLeadingQuestionMarkHidesDuplicateURL",
+			"url": "vscode://coder.coder-remote/open?%3Furl=https://attacker.example&url=https://coder.example.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "HTTPSLink",
+			"url": "https://attacker.example/?token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "TruncatedHandler",
+			"url": "vscode://coder",
+			"trusted": false
+		},
+		{
+			"name": "AccessURLWithoutMatchingOrigin",
+			"url": "vscode://coder.coder-remote/open?url=https://access.example.com&token=$SESSION_TOKEN",
+			"trusted": false
+		},
+		{
+			"name": "NonASCIIHostFoldingToTrustedHost/cod\u0130ng.example.com",
+			"url": "vscode://coder.coder-remote/open?url=https://cod\u0130ng.example.com&token=$SESSION_TOKEN",
+			"trusted": false,
+			"origin": "https://coding.example.com"
+		},
+		{
+			"name": "NonASCIIHostFoldingToTrustedHost/COD\u0130NG.com",
+			"url": "vscode://coder.coder-remote/open?url=https://COD\u0130NG.com&token=$SESSION_TOKEN",
+			"trusted": false,
+			"origin": "https://coding.example.com"
+		},
+		{
+			"name": "NonASCIIHostFoldingToTrustedHost/cod%C4%B0ng.example.com",
+			"url": "vscode://coder.coder-remote/open?url=https://cod%C4%B0ng.example.com&token=$SESSION_TOKEN",
+			"trusted": false,
+			"origin": "https://coding.example.com"
+		}
+	]
+}

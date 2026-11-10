@@ -11,7 +11,6 @@ import { SearchField } from "#/components/SearchField/SearchField";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useDebouncedValue } from "#/hooks/debounce";
@@ -25,29 +24,27 @@ import { countSessionSearchMatches } from "./SessionTimeline/sessionSearch";
 const SessionSummaryTooltip: React.FC<React.PropsWithChildren> = ({
 	children,
 }) => (
-	<TooltipProvider>
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<button
-					type="button"
-					aria-label="About sessions"
-					className="m-0 ml-2 shrink-0 flex items-center border-0 bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
-				>
-					{children}
-				</button>
-			</TooltipTrigger>
-			<TooltipContent
-				side="top"
-				align="start"
-				className="max-w-xs flex flex-col gap-1 text-sm font-normal p-3"
+	<Tooltip>
+		<TooltipTrigger asChild>
+			<button
+				type="button"
+				aria-label="About sessions"
+				className="m-0 ml-2 shrink-0 flex items-center border-0 bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 			>
-				<p className="m-0 leading-snug">
-					A session is a set of threads or interceptions logically grouped by a
-					session key issued by the client.
-				</p>
-			</TooltipContent>
-		</Tooltip>
-	</TooltipProvider>
+				{children}
+			</button>
+		</TooltipTrigger>
+		<TooltipContent
+			side="top"
+			align="start"
+			className="max-w-xs flex flex-col gap-1 text-sm font-normal p-3"
+		>
+			<p className="m-0 leading-snug">
+				A session is a set of threads or interceptions logically grouped by a
+				session key issued by the client.
+			</p>
+		</TooltipContent>
+	</Tooltip>
 );
 
 type SessionThreadsPageViewProps = {
@@ -117,19 +114,16 @@ export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 		<>
 			<nav className="mb-6 flex flex-col md:flex-row md:items-start justify-between gap-4">
 				<Button
-					asChild
 					variant="outline"
 					size="lg"
 					title="Back to AI Gateway sessions list"
 					onClick={onBackClicked}
 				>
-					<span>
-						<ArrowLeftIcon />
-						Back
-					</span>
+					<ArrowLeftIcon />
+					Back
 				</Button>
 				{session && (
-					<div className="flex flex-col items-stretch md:items-end gap-1 md:w-[28rem]">
+					<div className="flex flex-col items-stretch md:items-end gap-1 md:w-md">
 						<SearchField
 							value={searchQuery}
 							onChange={setSearchQuery}

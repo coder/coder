@@ -221,27 +221,29 @@ func (p *Server) buildTurnEnvironment(
 		return turnEnvironment{}, err
 	}
 	modelConfig := resolved.dbConfig
-	providerIdentity := modelConfigProviderIdentity(modelConfig, chatprovider.NormalizeProvider(string(resolved.route.Provider.Type)))
 
 	var computerUseProvider codersdk.ChatComputerUseProvider
+	var computerUseToolVersion anthropic.ComputerUseToolVersion
 	if isComputerUse {
 		var ok bool
-		computerUseProvider, ok = computerUseProviderForAIProviderType(string(resolved.route.Provider.Type))
+		computerUseProvider, ok = chatprovider.ComputerUseProvider(resolved.route.Provider.Type, modelConfig.Model)
 		if !ok {
 			return turnEnvironment{}, xerrors.Errorf(
-				"computer use requires a model from an Anthropic or OpenAI AI provider, but model %q uses AI provider %q of type %q",
-				modelConfig.Model, resolved.route.Provider.Name, resolved.route.Provider.Type,
+				"computer use requires %s, but model %q uses AI provider %q of type %q",
+				chatprovider.ComputerUseModelRequirement, modelConfig.Model, resolved.route.Provider.Name, resolved.route.Provider.Type,
 			)
+		}
+		if computerUseProvider == codersdk.ChatComputerUseProviderAnthropic {
+			computerUseToolVersion = anthropic.ComputerUseToolVersionForModel(modelConfig.Model)
 		}
 	}
 	model := resolved.model
 	callConfig := resolved.callConfig
 	reasoningSource := reasoningProvenance{
-		ProviderIdentity: providerIdentity,
+		ProviderIdentity: modelConfig.AIProviderID.UUID.String(),
 		Model:            model.ModelID(),
 		Credential:       reasoningCredential(resolved.route.ProviderAuth),
 	}
-	modelRoute := resolved.route
 
 	currentPlanMode := chat.PlanMode
 	isPlanModeTurn := currentPlanMode.Valid && currentPlanMode.ChatPlanMode == database.ChatPlanModePlan
@@ -283,16 +285,20 @@ func (p *Server) buildTurnEnvironment(
 	}
 
 	var advisorRuntime *chatadvisor.Runtime
-	if p.experiments.Enabled(codersdk.ExperimentChatAdvisor) && isRootChat && !isPlanModeTurn && !isExploreSubagent {
+	if isRootChat && !isPlanModeTurn && !isExploreSubagent {
 		advisorCfg, cfgErr := p.configCache.AdvisorConfig(ctx)
 		if cfgErr != nil {
 			return turnEnvironment{}, xerrors.Errorf("load advisor config: %w", cfgErr)
 		}
-		var advisorErr error
+		advisorUses, advisorErr := currentTurnAdvisorUses(ctx, logger, input.Messages)
+		if advisorErr != nil {
+			return turnEnvironment{}, xerrors.Errorf("count advisor uses: %w", advisorErr)
+		}
 		advisorRuntime, advisorErr = p.newAdvisorRuntime(
 			ctx,
 			chat,
 			advisorCfg,
+			advisorUses,
 			modelOpts,
 			logger,
 		)
@@ -491,23 +497,19 @@ func (p *Server) buildTurnEnvironment(
 	var g2 errgroup.Group
 	g2.Go(func() error {
 		var err error
-		// Key the file-part acceptance on model.Provider() (the fantasy
-		// transport identity), not the configured provider, because
-		// aibridge routing rewrites the provider (e.g. Bedrock to the
-		// Anthropic transport). The conversion that actually drops or
-		// accepts a file part is the one for model.Provider().
 		acceptsFilePart := model.AcceptsFilePartMediaType
-		providerType := string(modelRoute.Provider.Type)
-		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[:pendingRowsStart], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
+		fileResolver := p.chatFileResolver(model)
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[:pendingRowsStart], fileResolver, logger, acceptsFilePart, chat.WorkspaceID)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
 		}
-		prompt = replaceUnsupportedToolMedia(ctx, logger, prompt, model, providerType)
+		prompt = replaceUnsupportedMedia(ctx, logger, prompt, model)
 		if pendingRowsStart < len(promptRows) {
-			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[pendingRowsStart:], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
+			pendingPrompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[pendingRowsStart:], fileResolver, logger, acceptsFilePart, chat.WorkspaceID)
 			if err != nil {
 				return xerrors.Errorf("build pending chat prompt tail: %w", err)
 			}
+			pendingPrompt = replaceUnsupportedMedia(ctx, logger, pendingPrompt, model)
 		}
 		return nil
 	})
@@ -686,38 +688,6 @@ func (p *Server) buildTurnEnvironment(
 		memoryIndex = chattool.FormatMemoryGuidance(memoryProjectName)
 	}
 
-	prompt = buildSystemPrompt(
-		prompt,
-		subagentInstruction,
-		instruction,
-		initialResolvedSkills,
-		memoryIndex,
-		projectInstructions,
-		resolvedUserPrompt,
-		systemPromptBehaviorContext{
-			planMode:             currentPlanMode,
-			chatMode:             chat.Mode,
-			planModeInstructions: planModeInstructions,
-			isRootChat:           isRootChat,
-		},
-	)
-	if advisorRuntime != nil {
-		prompt = chatprompt.InsertSystem(prompt, chatadvisor.ParentGuidanceBlock)
-	}
-	prompt = renderPlanPathPrompt(prompt, planPathBlock)
-	compactionPromptMessages := prompt
-	pendingUserRows := promptRows[pendingRowsStart:]
-	if len(pendingUserRows) == 0 || len(pendingPrompt) == 0 {
-		pendingUserRows = nil
-	}
-	// Full slice expression: appending the tail must not share the
-	// head's backing array with the summarizer input.
-	prompt = append(prompt[:len(prompt):len(prompt)], pendingPrompt...)
-	if pendingUserRows == nil {
-		compactionPromptMessages = prompt
-	}
-	setAdvisorPromptSnapshot(prompt)
-
 	storeChatAttachment := p.newStoreChatAttachmentFunc(&workspaceCtx)
 	tools := []fantasy.AgentTool{
 		chattool.ReadFile(chattool.ReadFileOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
@@ -760,6 +730,43 @@ func (p *Server) buildTurnEnvironment(
 			return turnEnvironment{}, err
 		}
 	}
+
+	acpSubagentsAvailable := !isExploreSubagent && slices.ContainsFunc(tools, func(tool fantasy.AgentTool) bool {
+		_, ok := tool.(acpSpawnTool)
+		return ok
+	})
+	prompt = buildSystemPrompt(
+		prompt,
+		subagentInstruction,
+		instruction,
+		initialResolvedSkills,
+		memoryIndex,
+		projectInstructions,
+		resolvedUserPrompt,
+		systemPromptBehaviorContext{
+			planMode:              currentPlanMode,
+			chatMode:              chat.Mode,
+			planModeInstructions:  planModeInstructions,
+			isRootChat:            isRootChat,
+			acpSubagentsAvailable: acpSubagentsAvailable,
+		},
+	)
+	if advisorRuntime != nil {
+		prompt = chatprompt.InsertSystem(prompt, chatadvisor.ParentGuidanceBlock)
+	}
+	prompt = renderPlanPathPrompt(prompt, planPathBlock)
+	compactionPromptMessages := prompt
+	pendingUserRows := promptRows[pendingRowsStart:]
+	if len(pendingUserRows) == 0 || len(pendingPrompt) == 0 {
+		pendingUserRows = nil
+	}
+	// Full slice expression: appending the tail must not share the
+	// head's backing array with the summarizer input.
+	prompt = append(prompt[:len(prompt):len(prompt)], pendingPrompt...)
+	if pendingUserRows == nil {
+		compactionPromptMessages = prompt
+	}
+	setAdvisorPromptSnapshot(prompt)
 
 	skillOpts := chattool.ReadSkillOptions{
 		GetWorkspaceConn: workspaceCtx.getWorkspaceConn,
@@ -892,6 +899,7 @@ func (p *Server) buildTurnEnvironment(
 	if isComputerUse {
 		providerTools, err = appendComputerUseProviderTool(providerTools, computerUseProviderToolOptions{
 			provider:         computerUseProvider,
+			toolVersion:      computerUseToolVersion,
 			isPlanModeTurn:   isPlanModeTurn,
 			isComputerUse:    isComputerUse,
 			getWorkspaceConn: workspaceCtx.getWorkspaceConn,
@@ -917,22 +925,9 @@ func (p *Server) buildTurnEnvironment(
 		activeToolNames = allowedExploreToolNames(tools)
 	}
 	var allowInactiveTools map[string]bool
-	// The owner is the subject: only the owner posts turns and descendant
-	// chats inherit it. Preparation runs for every step, so the first step
-	// with MCP candidates decides and later steps of the same turn reuse
-	// that decision; otherwise a rule change mid-turn would reject
-	// find_tools calls the model already issued. Without candidates
-	// find_tools is never offered, so skip the read.
-	toolSearchEnabled := false
-	if len(deferredCandidates) > 0 {
-		toolSearchEnabled = input.TurnExperiments.mcpToolSearchEnabled(stopNudgeKey(input.Messages), func() bool {
-			return p.experimentEvaluator.Enabled(ctx, chat.OwnerID, codersdk.ExperimentMCPToolSearch)
-		})
-	}
 	if decideMCPToolSearch(mcpToolSearchInput{
-		experimentEnabled: toolSearchEnabled,
-		candidates:        deferredCandidates,
-		dynamicToolNames:  dynamicToolNames,
+		candidates:       deferredCandidates,
+		dynamicToolNames: dynamicToolNames,
 	}) {
 		activationTokenBudget := float64(modelConfig.ContextLimit) / mcpToolSearchBudgetDivisor
 		findTools := chattool.FindTools(chattool.FindToolsOptions{
@@ -1234,10 +1229,10 @@ func (p *Server) deriveFinalTurnRunResult(
 	chat database.Chat,
 	logger slog.Logger,
 ) runChatResult {
-	// generateFinalTurnStatusLabel only produces a model-generated label for
-	// the Waiting status, so skip the model resolution and history read
+	// generateFinalTurnStatusLabel only produces a model-generated label
+	// for a finished turn, so skip the model resolution and history read
 	// otherwise.
-	if chat.Status != database.ChatStatusWaiting {
+	if !turnFinished(chat.Status) {
 		return runChatResult{}
 	}
 
@@ -2035,7 +2030,7 @@ func builtinPlanToolAllowed(name string, isRootChat bool) bool {
 		"ask_user_question", "attach_file",
 		chattool.ReadMemoryToolName, chattool.SaveMemoryToolName, chattool.DeleteMemoryToolName, chattool.ConsolidateMemoryToolName:
 		return isRootChat
-	case "process_list", "process_signal", "message_agent", "interrupt_agent", "close_agent",
+	case "process_list", "process_signal", "message_agent", "interrupt_agent",
 		"spawn_computer_use_agent":
 		return false
 	default:
@@ -2147,10 +2142,11 @@ func stopAfterBehaviorTools(
 }
 
 type systemPromptBehaviorContext struct {
-	planMode             database.NullChatPlanMode
-	chatMode             database.NullChatMode
-	planModeInstructions string
-	isRootChat           bool
+	acpSubagentsAvailable bool
+	planMode              database.NullChatPlanMode
+	chatMode              database.NullChatMode
+	planModeInstructions  string
+	isRootChat            bool
 }
 
 // workspaceSkillsForResolution returns the workspace skills the model may
@@ -2191,7 +2187,7 @@ func mergeTurnSkills(
 
 // buildSystemPrompt applies system-level prompt injections in a fixed
 // order: subagent instruction, chat instruction, skill index, memory index,
-// project instructions, user prompt, then mode overlay prompts. Project
+// ACP guidance, project instructions, user prompt, then mode overlays. Project
 // instructions precede the user prompt so personal instructions keep the
 // last word.
 func buildSystemPrompt(
@@ -2215,6 +2211,9 @@ func buildSystemPrompt(
 	}
 	if memoryIndex != "" {
 		prompt = chatprompt.InsertSystem(prompt, memoryIndex)
+	}
+	if behaviorContext.acpSubagentsAvailable {
+		prompt = chatprompt.InsertSystem(prompt, acpSubagentPromptBlock)
 	}
 	if projectInstructions != "" {
 		prompt = chatprompt.InsertSystem(prompt, projectInstructions)

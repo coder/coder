@@ -1,3 +1,7 @@
+self-hosted-runner:
+  labels:
+    - coder-large
+
 paths:
   # The triage workflow uses a quoted heredoc (<<'EOF') with ${VAR}
   # placeholders that envsubst expands later. Shellcheck's SC2016

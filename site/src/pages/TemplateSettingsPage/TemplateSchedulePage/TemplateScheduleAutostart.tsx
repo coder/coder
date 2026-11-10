@@ -16,7 +16,7 @@ export const TemplateScheduleAutostart: React.FC<
 > = ({ value, isSubmitting, enabled, onChange }) => {
 	return (
 		<div className="flex flex-col gap-2 items-start">
-			<div className="flex flex-row items-baseline justify-center w-full gap-0.5">
+			<div className="flex items-baseline justify-center w-full gap-0.5">
 				{(
 					[
 						{ value: "monday", key: "Mon" },
