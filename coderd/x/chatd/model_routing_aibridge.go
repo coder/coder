@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chaterror"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -224,6 +225,16 @@ func (p *Server) newModel(
 				Kind:      codersdk.ChatErrorKindConfig,
 				Retryable: false,
 				Detail:    "Ask an administrator to change the AI provider type to openrouter or openai-compat.",
+			},
+		)
+	}
+	if err := chatopenai.ValidateReasoningMode(codersdk.AIProviderType(route.Provider.Type), &req.CallConfig); err != nil {
+		return chatprovider.Model{}, chaterror.WithClassification(
+			err,
+			chaterror.ClassifiedError{
+				Kind:      codersdk.ChatErrorKindConfig,
+				Retryable: false,
+				Detail:    "Ask an administrator to fix the Reasoning Mode setting of this model.",
 			},
 		)
 	}

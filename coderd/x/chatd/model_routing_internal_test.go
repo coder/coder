@@ -889,6 +889,35 @@ func TestAIBridgeRoutingFailClosed(t *testing.T) {
 		require.False(t, classified.Retryable)
 	})
 
+	// Azure and Bedrock OpenAI-format models share the OpenAI client, so the
+	// provider type, not the client, must reject the reasoning mode.
+	for providerType, modelName := range map[database.AIProviderType]string{
+		database.AIProviderTypeAzure:   "gpt-5.6-sol",
+		database.AIProviderTypeBedrock: "openai.gpt-oss-120b-1:0",
+	} {
+		t.Run("ReasoningModeProvider="+string(providerType), func(t *testing.T) {
+			t.Parallel()
+			factory := &aibridgeTestFactory{rt: roundTripFunc(func(*http.Request) (*http.Response, error) {
+				t.Fatal("transport must not be used for invalid reasoning mode")
+				return nil, xerrors.New("unreachable")
+			})}
+			server := &Server{
+				aibridgeTransportFactory: aibridgeTestFactoryPointer(factory),
+			}
+			req := aibridgeTestRequest(chat, modelName)
+			req.CallConfig = codersdk.ChatModelCallConfig{
+				OpenAIConfig:    &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: new(true)},
+				ProviderOptions: &codersdk.ChatModelProviderOptions{OpenAI: &codersdk.ChatModelOpenAIProviderOptions{ReasoningMode: new("pro")}},
+			}
+			provider := aibridgeTestAIProvider(providerID, "primary-"+string(providerType), providerType)
+			_, err := server.newModel(t.Context(), req, aibridgeTestRoute(provider), modelBuildOptions{ActiveAPIKeyID: uuid.NewString()})
+			require.ErrorContains(t, err, "requires an OpenAI provider")
+			classified := chaterror.Classify(err)
+			require.Equal(t, codersdk.ChatErrorKindConfig, classified.Kind)
+			require.False(t, classified.Retryable)
+		})
+	}
+
 	t.Run("StaticModel", func(t *testing.T) {
 		t.Parallel()
 		server := &Server{}

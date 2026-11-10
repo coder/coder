@@ -8612,7 +8612,7 @@ func (e *chatModelConfigProviderModelError) Error() string {
 }
 
 func validateChatModelConfigProviderModel(aiProvider database.AIProvider, model string, config *codersdk.ChatModelCallConfig) *chatModelConfigProviderModelError {
-	if err := chatopenai.ValidateReasoningMode(string(aiProvider.Type), config); err != nil {
+	if err := chatopenai.ValidateReasoningMode(codersdk.AIProviderType(aiProvider.Type), config); err != nil {
 		return &chatModelConfigProviderModelError{
 			Response: codersdk.Response{Message: "Invalid model config.", Detail: err.Error()},
 		}

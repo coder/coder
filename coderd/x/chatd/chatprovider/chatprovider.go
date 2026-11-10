@@ -776,6 +776,9 @@ func effectiveOpenAIConfig(callConfig *codersdk.ChatModelCallConfig) *codersdk.C
 // HTTP headers on every request. httpClient, when non-nil, is used for
 // all provider HTTP requests. callConfig carries the model's client-scoped
 // OpenAI settings applied here: the transport override and reasoning mode.
+// Callers must validate the reasoning mode against the configured AI provider
+// type with chatopenai.ValidateReasoningMode, because providerHint names the
+// client, and Azure and Bedrock share the OpenAI client.
 func ModelFromConfig(
 	providerHint string,
 	modelName string,
@@ -790,9 +793,6 @@ func ModelFromConfig(
 		return Model{}, err
 	}
 
-	if err := chatopenai.ValidateReasoningMode(provider, callConfig); err != nil {
-		return Model{}, err
-	}
 	openAIConfig := effectiveOpenAIConfig(callConfig)
 
 	apiKey := providerKeys.APIKey(provider)
