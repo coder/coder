@@ -211,6 +211,13 @@ const AgentChatSendMenu: React.FC<AgentChatSendMenuProps> = ({
 					}}
 					onPointerUp={cancelPress}
 					onPointerCancel={cancelPress}
+					// The mouse events that end a long press would focus Send and
+					// dismiss the menu the press just opened.
+					onMouseDown={(event) => {
+						if (suppressClickRef.current) {
+							event.preventDefault();
+						}
+					}}
 					onClickCapture={(event) => {
 						if (suppressClickRef.current) {
 							suppressClickRef.current = false;
@@ -240,13 +247,6 @@ const AgentChatSendMenu: React.FC<AgentChatSendMenuProps> = ({
 			<DropdownMenuContent
 				side="top"
 				align="end"
-				// The mouse events that end a long press focus Send; that must not
-				// dismiss the menu the press just opened.
-				onFocusOutside={(event) => {
-					if (suppressClickRef.current) {
-						event.preventDefault();
-					}
-				}}
 				// Restore focus explicitly because the trigger is a nonfocusable span.
 				onCloseAutoFocus={(event) => {
 					event.preventDefault();
