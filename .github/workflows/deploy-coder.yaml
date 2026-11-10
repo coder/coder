@@ -1,4 +1,5 @@
-# Deploys Coder to Kubernetes using the official Helm chart.
+# Deploys Coder to Kubernetes using the Helm chart in this repository
+# (helm/coder), not the published chart from helm.coder.com.
 #
 # Required (Settings -> Secrets and variables -> Actions):
 #   secrets.KUBE_CONFIG_B64          base64-encoded kubeconfig for the cluster
@@ -8,7 +9,11 @@ name: Deploy Coder
 on:
   push:
     branches: [main]
-    paths: ["deploy/**", ".github/workflows/deploy-coder.yaml"]
+    paths:
+      - "deploy/**"
+      - "helm/coder/**"
+      - "helm/libcoder/**"
+      - ".github/workflows/deploy-coder.yaml"
   workflow_dispatch:
 
 permissions:
@@ -19,7 +24,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  CHART_VERSION: "2.38.7"
+  # The in-repo chart is versioned 0.1.0, so the Coder image tag must be pinned.
+  CODER_IMAGE_TAG: "v2.38.7"
   NAMESPACE: coder
 
 jobs:
@@ -46,12 +52,11 @@ jobs:
           kubectl -n "$NAMESPACE" create secret generic coder-db-url \
             --from-literal=url="$PG_URL" --dry-run=client -o yaml | kubectl apply -f -
 
-      - name: Deploy with Helm
+      - name: Deploy with Helm (chart from this repo)
         run: |
-          helm repo add coder-v2 https://helm.coder.com/v2
-          helm repo update
-          helm upgrade --install coder coder-v2/coder \
+          helm dependency build ./helm/coder
+          helm upgrade --install coder ./helm/coder \
             --namespace "$NAMESPACE" \
-            --version "$CHART_VERSION" \
             -f deploy/values.yaml \
+            --set-string coder.image.tag="$CODER_IMAGE_TAG" \
             --wait --timeout 10m
