@@ -10,6 +10,9 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
+const hardCapMessage =
+	"Agent hours limit reached. Concurrent chats are now limited to 5.";
+
 type TotalAgentHoursCardProps = {
 	feature?: Feature;
 };
@@ -176,17 +179,12 @@ export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 							{/* The concurrency cap re-engages at usage equal to the
 							    hard cap, so the badge shows at the inclusive boundary
 							    and reads "reached" (still true above it) rather than
-							    "exceeded" (false at equality). The sentence outgrows
-							    narrow cards, so this instance wraps instead of
-							    keeping the shared Badge's single-line layout. */}
-							<Badge
-								variant="destructive"
-								size="sm"
-								className="h-auto rounded-full text-wrap"
-							>
-								<BanIcon />
-								Agent hours limit reached. Concurrent chats are now limited to
-								5.
+							    "exceeded" (false at equality). */}
+							<Badge variant="destructive" size="sm" className="max-w-full">
+								<BanIcon className="shrink-0" />
+								<span className="truncate min-w-0" title={hardCapMessage}>
+									{hardCapMessage}
+								</span>
 							</Badge>
 						</div>
 					)}
@@ -216,10 +214,7 @@ export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 						)}
 						{isUnlimited ? (
 							<div
-								className={cn(
-									"relative z-10 h-full w-full",
-									unlimitedBarClassName,
-								)}
+								className={cn("relative z-10 size-full", unlimitedBarClassName)}
 							/>
 						) : (
 							<div
@@ -232,7 +227,7 @@ export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 						)}
 					</div>
 
-					<div className="flex items-start justify-between gap-3 text-sm font-medium">
+					<div className="flex items-start justify-between gap-3 text-sm">
 						<p className="m-0 whitespace-nowrap text-content-primary">
 							<span className="text-content-secondary">Used: </span>
 							<span

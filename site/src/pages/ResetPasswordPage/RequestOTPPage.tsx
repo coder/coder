@@ -136,7 +136,7 @@ const RequestOTP: React.FC<RequestOTPProps> = ({
 
 const RequestOTPSuccess: React.FC<{ email: string }> = ({ email }) => {
 	return (
-		<div className="w-full max-w-[380px] flex flex-col items-center font-medium text-sm leading-6">
+		<div className="w-full max-w-95 flex flex-col items-center text-sm leading-6">
 			<div>
 				<p className="m-0 mb-14">
 					If the account{" "}

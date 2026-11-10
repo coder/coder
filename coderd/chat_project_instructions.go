@@ -3,7 +3,6 @@ package coderd
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -72,8 +71,15 @@ func (api *API) putChatProjectInstructions(rw http.ResponseWriter, r *http.Reque
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
 	apiKey := httpmw.APIKey(r)
+	// Update is checked before read, unlike authorizeChatProjectChange, so
+	// update-only roles can still write.
 	if !api.Authorize(r, policy.ActionUpdate, project.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
+		// Readers learn nothing new from a 403.
+		if api.Authorize(r, policy.ActionRead, project.RBACObject()) {
+			httpapi.Forbidden(rw)
+		} else {
+			httpapi.ResourceNotFound(rw)
+		}
 		return
 	}
 
@@ -95,12 +101,7 @@ func (api *API) putChatProjectInstructions(rw http.ResponseWriter, r *http.Reque
 		})
 		return
 	}
-	// The same limit applies as for the deployment and user prompts.
-	if len(instructions) > api.chatLimits.MaxPromptBytes {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Instructions exceed maximum length.",
-			Detail:  fmt.Sprintf("Maximum length is %d bytes, got %d.", api.chatLimits.MaxPromptBytes, len(instructions)),
-		})
+	if api.writePromptTooLongError(ctx, rw, instructions, "Instructions exceed maximum length.") {
 		return
 	}
 
@@ -185,8 +186,15 @@ func (api *API) putChatProjectInstructions(rw http.ResponseWriter, r *http.Reque
 func (api *API) deleteChatProjectInstructions(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
+	// Update is checked before read, unlike authorizeChatProjectChange, so
+	// update-only roles can still write.
 	if !api.Authorize(r, policy.ActionUpdate, project.RBACObject()) {
-		httpapi.ResourceNotFound(rw)
+		// Readers learn nothing new from a 403.
+		if api.Authorize(r, policy.ActionRead, project.RBACObject()) {
+			httpapi.Forbidden(rw)
+		} else {
+			httpapi.ResourceNotFound(rw)
+		}
 		return
 	}
 	aReq, commitAudit := audit.InitRequestWithCancel[database.AuditableChatProjectInstructions](rw, &audit.RequestParams{

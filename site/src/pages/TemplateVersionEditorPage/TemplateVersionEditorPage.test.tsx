@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent, { type UserEvent } from "@testing-library/user-event";
 import WS from "jest-websocket-mock";
 import { HttpResponse, http } from "msw";
@@ -9,12 +9,14 @@ import * as apiModule from "#/api/api";
 import { templateVersionVariablesKey } from "#/api/queries/templates";
 import type { TemplateVersion } from "#/api/typesGenerated";
 import { RequireAuth } from "#/contexts/auth/RequireAuth";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockTemplate,
 	MockTemplateVersion,
 	MockTemplateVersionVariable1,
 	MockTemplateVersionVariable2,
 	MockWorkspaceBuildLogs,
+	mockApiError,
 } from "#/testHelpers/entities";
 import {
 	createTestQueryClient,
@@ -46,7 +48,7 @@ vi.mock("#/pages/TemplateVersionEditorPage/MonacoEditor", () => ({
 }));
 
 const renderTemplateEditorPage = () => {
-	renderWithAuth(<TemplateVersionEditorPage />, {
+	return renderWithAuth(<TemplateVersionEditorPage />, {
 		route: `/templates/${MockTemplate.name}/versions/${MockTemplateVersion.name}/edit`,
 		path: "/templates/:template/versions/:version/edit",
 		extraRoutes: [
@@ -97,9 +99,9 @@ const buildTemplateVersion = async (
 	);
 };
 
-test("Use custom name, message and set it as active when publishing", async () => {
+test("Use custom name, message and set it as active after the metadata update succeeds", async () => {
 	const user = userEvent.setup();
-	renderTemplateEditorPage();
+	const { router } = renderTemplateEditorPage();
 	const topbar = await screen.findByTestId("topbar");
 
 	const newTemplateVersion: TemplateVersion = {
@@ -112,9 +114,10 @@ test("Use custom name, message and set it as active when publishing", async () =
 	await buildTemplateVersion(newTemplateVersion, user, topbar);
 
 	// Publish
+	const metadataUpdate = createDeferred<TemplateVersion>();
 	const patchTemplateVersion = vi
 		.spyOn(API, "patchTemplateVersion")
-		.mockResolvedValue(newTemplateVersion);
+		.mockReturnValue(metadataUpdate.promise);
 	const updateActiveTemplateVersion = vi
 		.spyOn(API, "updateActiveTemplateVersion")
 		.mockResolvedValue({ message: "" });
@@ -122,7 +125,9 @@ test("Use custom name, message and set it as active when publishing", async () =
 		name: "Publish",
 	});
 	await user.click(publishButton);
-	const publishDialog = await screen.findByTestId("dialog");
+	const publishDialog = await screen.findByRole("dialog", {
+		name: "Publish new version",
+	});
 	const nameField = within(publishDialog).getByLabelText("Version name");
 	await user.clear(nameField);
 	await user.type(nameField, "v1.0");
@@ -137,16 +142,97 @@ test("Use custom name, message and set it as active when publishing", async () =
 			name: "v1.0",
 			message: "Informative message",
 		});
+	});
+	expect(updateActiveTemplateVersion).not.toHaveBeenCalled();
+
+	await act(async () => {
+		metadataUpdate.resolve(newTemplateVersion);
+	});
+	await waitFor(() => {
 		expect(updateActiveTemplateVersion).toBeCalledWith("test-template", {
 			id: "new-version-id",
 		});
-	});
-	// Wait for the dialog to close so all async state updates (setIsPublishingDialogOpen,
-	// setLastSuccessfulPublishedVersion, navigation) settle before the test ends.
-	await waitFor(() => {
-		expect(screen.queryByTestId("dialog")).not.toBeInTheDocument();
+		expect(router.state.location.pathname).toBe(
+			`/templates/${MockTemplate.name}/versions/v1.0/edit`,
+		);
 	});
 }, 20_000);
+
+test("Do not promote a duplicate version name and allow publishing after correcting it", async () => {
+	const user = userEvent.setup();
+	const { router } = renderTemplateEditorPage();
+	const topbar = await screen.findByTestId("topbar");
+	const newTemplateVersion: TemplateVersion = {
+		...MockTemplateVersion,
+		id: "new-version-id",
+		name: "new-version",
+	};
+
+	await typeOnEditor("new content", user);
+	await buildTemplateVersion(newTemplateVersion, user, topbar);
+
+	const patchTemplateVersion = vi
+		.spyOn(API, "patchTemplateVersion")
+		.mockRejectedValueOnce(
+			mockApiError({
+				message: "template version name must be unique for a template",
+				validations: [{ field: "name", detail: "Name is already used" }],
+			}),
+		)
+		.mockResolvedValue(newTemplateVersion);
+	const updateActiveTemplateVersion = vi
+		.spyOn(API, "updateActiveTemplateVersion")
+		.mockResolvedValue({ message: "" });
+
+	await user.click(within(topbar).getByRole("button", { name: "Publish" }));
+	const publishDialog = await screen.findByRole("dialog", {
+		name: "Publish new version",
+	});
+	const nameField = within(publishDialog).getByRole("textbox", {
+		name: "Version name",
+	});
+	await user.clear(nameField);
+	await user.type(nameField, MockTemplateVersion.name);
+	await user.type(
+		within(publishDialog).getByRole("textbox", { name: "Message" }),
+		"Informative message",
+	);
+	await user.click(
+		within(publishDialog).getByRole("button", { name: "Publish" }),
+	);
+
+	await within(publishDialog).findByRole("textbox", {
+		name: "Version name",
+		description: "Name is already used",
+	});
+	expect(patchTemplateVersion).toHaveBeenCalledWith(newTemplateVersion.id, {
+		name: MockTemplateVersion.name,
+		message: "Informative message",
+	});
+	expect(updateActiveTemplateVersion).not.toHaveBeenCalled();
+	expect(router.state.location.pathname).toBe(
+		`/templates/${MockTemplate.name}/versions/${newTemplateVersion.name}/edit`,
+	);
+
+	await user.clear(nameField);
+	await user.type(nameField, "v1.0");
+	await user.click(
+		within(publishDialog).getByRole("button", { name: "Publish" }),
+	);
+	await waitFor(() => {
+		expect(updateActiveTemplateVersion).toHaveBeenCalledExactlyOnceWith(
+			newTemplateVersion.template_id,
+			{ id: newTemplateVersion.id },
+		);
+		expect(router.state.location.pathname).toBe(
+			`/templates/${MockTemplate.name}/versions/v1.0/edit`,
+		);
+	});
+	expect(patchTemplateVersion).toHaveBeenLastCalledWith(newTemplateVersion.id, {
+		name: "v1.0",
+		message: "Informative message",
+	});
+});
 
 test("Do not mark as active if promote is not checked", async () => {
 	const user = userEvent.setup();

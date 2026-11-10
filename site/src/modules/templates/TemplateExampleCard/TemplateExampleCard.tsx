@@ -35,7 +35,7 @@ export const TemplateExampleCard: React.FC<TemplateExampleCardProps> = ({
 				<div className="size-8 shrink-0 pt-1">
 					<ExternalImage
 						src={example.icon}
-						className="w-full h-full object-contain"
+						className="size-full object-contain"
 					/>
 				</div>
 
@@ -44,7 +44,12 @@ export const TemplateExampleCard: React.FC<TemplateExampleCardProps> = ({
 						<RouterLink key={tag} to={`/starter-templates?tag=${tag}`}>
 							<Badge
 								variant={activeTag === tag ? "info" : "default"}
-								className="cursor-pointer no-underline hover:border-content-primary"
+								className={cn(
+									"cursor-pointer no-underline",
+									activeTag === tag
+										? "hover:border-content-primary"
+										: "hover:bg-surface-tertiary",
+								)}
 							>
 								{tag}
 							</Badge>

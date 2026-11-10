@@ -18,10 +18,31 @@ func ProvisionerDaemonStatuses(params []codersdk.ProvisionerDaemonStatus) []data
 	return slice.List(params, ProvisionerDaemonStatus)
 }
 
-// ConnectionLogFromAgentType recovers the method and app name from legacy
-// reports.
-// An unspecified legacy type was used by SSH handlers for unfamiliar apps.
-func ConnectionLogFromAgentType(typ agentproto.Connection_Type) (database.ConnectionLogMethod, string, error) {
+// ConnectionLogFromAgentConnection returns the method and app name to log for
+// an agent connection report.
+func ConnectionLogFromAgentConnection(conn *agentproto.Connection) (database.ConnectionLogMethod, string, error) {
+	appName := conn.GetAppName()
+	if appName != "" {
+		appName = codersdk.NormalizeAppName(appName)
+	}
+	switch method := conn.GetConnectionMethod(); method {
+	case agentproto.Connection_METHOD_UNSPECIFIED:
+		return connectionLogFromAgentType(conn.GetType())
+	case agentproto.Connection_METHOD_SSH:
+		return database.ConnectionLogMethodSSH, appName, nil
+	case agentproto.Connection_METHOD_RECONNECTING_PTY:
+		return database.ConnectionLogMethodReconnectingPTY, appName, nil
+	case agentproto.Connection_METHOD_PORT_FORWARDING:
+		// app_name_or_port holds a forward's destination, not a client app.
+		return database.ConnectionLogMethodPortForwarding, "", nil
+	default:
+		return "", "", xerrors.Errorf("unsupported agent connection method %d", method)
+	}
+}
+
+// connectionLogFromAgentType maps the type sent by agents before API v2.13.
+// SSH handlers reported unfamiliar apps as unspecified.
+func connectionLogFromAgentType(typ agentproto.Connection_Type) (database.ConnectionLogMethod, string, error) {
 	switch typ {
 	case agentproto.Connection_SSH, agentproto.Connection_TYPE_UNSPECIFIED:
 		return database.ConnectionLogMethodSSH, "", nil

@@ -12,7 +12,6 @@ import { Alert } from "#/components/Alert/Alert";
 import { Avatar } from "#/components/Avatar/Avatar";
 import { FormField } from "#/components/FormField/FormField";
 import { IconField } from "#/components/IconField/IconField";
-import { Label } from "#/components/Label/Label";
 import { Link } from "#/components/Link/Link";
 import { OrganizationAutocomplete } from "#/components/OrganizationAutocomplete/OrganizationAutocomplete";
 import { Textarea } from "#/components/Textarea/Textarea";
@@ -120,7 +119,7 @@ export const TemplateCustomizationsStep: React.FC<
 			id={TEMPLATE_CUSTOMIZATIONS_FORM_ID}
 			onSubmit={form.handleSubmit}
 			noValidate
-			className="min-w-[654px]"
+			className="min-w-163.5"
 		>
 			<TemplateBuilderTitle>Customizations</TemplateBuilderTitle>
 			<TemplateBuilderSubtitle>
@@ -145,46 +144,41 @@ export const TemplateCustomizationsStep: React.FC<
 
 					{/* Right column */}
 					{orgOptions.length > 0 && (
-						<div className="flex flex-col gap-2">
-							<Label htmlFor="organization">
-								Organization
-								<span className="text-xs font-bold text-content-destructive ml-1">
-									*
-								</span>
-							</Label>
-							<OrganizationAutocomplete
-								id="organization"
-								required
-								value={selectedOrg}
-								onChange={handleOrgChange}
-								options={orgOptions}
-							/>
-							{organizationField.error && (
-								<span className="text-xs text-content-destructive">
-									{organizationField.helperText}
-								</span>
+						<FormField
+							field={organizationField}
+							label="Organization"
+							required
+							id="organization"
+							control={(props) => (
+								<OrganizationAutocomplete
+									{...props}
+									required
+									value={selectedOrg}
+									onChange={handleOrgChange}
+									options={orgOptions}
+								/>
 							)}
-						</div>
+						/>
 					)}
 
 					{/* Left column */}
 					<div className="flex flex-col gap-2">
-						<Label htmlFor="template-description">Description</Label>
-						<Textarea
-							{...form.getFieldProps("description")}
+						<FormField
+							field={descriptionField}
+							label="Description"
 							id="template-description"
-							placeholder="Describe what this template is for"
-							rows={3}
-							aria-invalid={descriptionField.error}
-							className={cn(
-								descriptionField.error && "border-border-destructive",
+							control={(props) => (
+								<Textarea
+									{...props}
+									{...form.getFieldProps("description")}
+									placeholder="Describe what this template is for"
+									rows={3}
+									className={cn(
+										descriptionField.error && "border-border-destructive",
+									)}
+								/>
 							)}
 						/>
-						{descriptionField.error && (
-							<span className="text-xs text-content-destructive">
-								{descriptionField.helperText}
-							</span>
-						)}
 						<p className="text-xs text-content-secondary">
 							Used by both humans and Agents to identify templates.
 						</p>
@@ -224,7 +218,11 @@ const ProvisionerWarning: React.FC = () => {
 		<Alert severity="error" prominent className="my-4">
 			This organization does not have any provisioners. Before you create a
 			template, you&apos;ll need to configure a provisioner.{" "}
-			<Link href={docs("/admin/provisioners#organization-scoped-provisioners")}>
+			<Link
+				href={docs("/admin/provisioners#organization-scoped-provisioners")}
+				target="_blank"
+				rel="noreferrer"
+			>
 				See our documentation
 			</Link>
 		</Alert>

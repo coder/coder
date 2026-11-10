@@ -124,7 +124,7 @@ export const RightPanelAddTabControl: React.FC<{
 				disabled={!canCreateTerminal}
 				aria-label="New terminal tab"
 				title="New terminal tab"
-				className="size-6 rounded-none border-0 bg-transparent p-0 text-content-secondary hover:bg-surface-secondary hover:text-content-primary border-r border-solid border-border"
+				className="size-6 rounded-none border-0 bg-transparent p-0 text-content-secondary hover:bg-surface-secondary hover:text-content-primary border-r border-solid border-border focus-visible:ring-inset"
 			>
 				<PlusIcon className="size-3.5" />
 			</Button>
@@ -134,7 +134,7 @@ export const RightPanelAddTabControl: React.FC<{
 						variant="subtle"
 						size="icon"
 						aria-label="Add panel"
-						className="size-6 rounded-none border-0 bg-transparent p-0 text-content-secondary hover:bg-surface-secondary hover:text-content-primary"
+						className="size-6 rounded-none border-0 bg-transparent p-0 text-content-secondary hover:bg-surface-secondary hover:text-content-primary focus-visible:ring-inset"
 					>
 						<ChevronDownIcon
 							className={cn(
@@ -147,7 +147,7 @@ export const RightPanelAddTabControl: React.FC<{
 				<DropdownMenuContent
 					align="end"
 					side="bottom"
-					className="w-52 p-1 [&_[role^=menuitem]]:py-1 [&_[role^=menuitem]]:text-xs [&_img]:size-3.5! [&_svg]:size-3.5!"
+					className="w-52 p-1 **:[[role^=menuitem]]:py-1 **:[[role^=menuitem]]:text-xs [&_img]:size-3.5! [&_svg]:size-3.5!"
 				>
 					{singletonEntries.length > 0 && (
 						<>

@@ -326,7 +326,7 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 					)}
 
 					<Sidebar>
-						<div className="h-[42px] py-0 pr-2 pl-4 flex items-center">
+						<div className="h-10.5 py-0 pr-2 pl-4 flex items-center">
 							<span className="text-content-primary text-sm">Files</span>
 
 							<div className="ml-auto [&_svg]:fill-content-primary">
@@ -421,9 +421,9 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 								isEditorValueBinary ? (
 									<div
 										role="alert"
-										className="w-full h-full flex items-center justify-center p-10"
+										className="size-full flex items-center justify-center p-10"
 									>
-										<div className="flex flex-col items-center max-w-[420px] text-center">
+										<div className="flex flex-col items-center max-w-105 text-center">
 											<TriangleAlertIcon className="text-content-warning size-icon-lg" />
 											<p className="m-0 p-0 mt-6">
 												The file is not displayed in the text editor because it
@@ -511,7 +511,7 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 							</div>
 
 							{selectedTab === "logs" && (
-								<div className="flex flex-col h-[280px] overflow-y-auto">
+								<div className="flex flex-col h-70 overflow-y-auto">
 									{templateVersion.job.error ? (
 										<div className="sticky top-0 z-10">
 											<ProvisionerAlert
@@ -559,7 +559,7 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 							{selectedTab === "resources" && (
 								<div
 									className={cn(
-										"h-[280px] overflow-y-auto",
+										"h-70 overflow-y-auto",
 										"[&_.resource-card]:border-l-0 [&_.resource-card]:border-r-0",
 										"[&_.resource-card:first-of-type]:border-t-0 [&_.resource-card:last-child]:border-b-0",
 									)}

@@ -2,6 +2,7 @@ package workspaceapps
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -79,6 +80,20 @@ type AgentProvider interface {
 	ServeHTTPDebug(w http.ResponseWriter, r *http.Request)
 
 	Close() error
+}
+
+// AgentUnreachableError is returned by AgentProvider.AgentConn when the agent
+// did not answer before the context ended. It is not returned when the client
+// canceled within 5s, or when the context was canceled with
+// workspacesdk.ErrDialAbandoned or workspacesdk.ErrReadinessProbeTimeout.
+// Fields holds the peer diagnostics collected at that time. Callers with a
+// request log line that log the failure should include them.
+type AgentUnreachableError struct {
+	Fields []slog.Field
+}
+
+func (*AgentUnreachableError) Error() string {
+	return "agent is unreachable"
 }
 
 type ServerOptions struct {
@@ -176,6 +191,29 @@ func (s *Server) Attach(r chi.Router) {
 // percent-encodes any control characters in the path.
 func originLocalURL(p string) *url.URL {
 	return &url.URL{Path: "/" + strings.TrimLeft(p, `/\`)}
+}
+
+// stripQueryParam removes every field whose decoded key equals key from
+// rawQuery and reports whether any field was removed. Other fields are kept
+// byte-for-byte and in order, including fields url.ParseQuery would reject, so
+// the result can be forwarded to apps that rely on the exact query string.
+// Fields are split on "&" only and keys are decoded with url.QueryUnescape to
+// match how Coder's auth reads the parameter. A key that fails to decode is
+// kept because Coder's auth could not have read it.
+func stripQueryParam(rawQuery, key string) (string, bool) {
+	fields := strings.Split(rawQuery, "&")
+	kept := fields[:0]
+	for _, field := range fields {
+		fieldKey, _, _ := strings.Cut(field, "=")
+		if decoded, err := url.QueryUnescape(fieldKey); err == nil && decoded == key {
+			continue
+		}
+		kept = append(kept, field)
+	}
+	if len(kept) == len(fields) {
+		return rawQuery, false
+	}
+	return strings.Join(kept, "&"), true
 }
 
 // handleAPIKeySmuggling is called by the proxy path and subdomain handlers to
@@ -685,11 +723,18 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 		return nil
 	}
 
-	// This strips the session token from a workspace app request.
+	// Strip the Coder session token from cookies, the Coder-Session-Token
+	// header, and the coder_session_token query parameter before proxying.
+	// Authorization and access_token are forwarded because apps may use them
+	// for their own auth.
 	cookieHeaders := r.Header.Values("Cookie")
 	r.Header.Del("Cookie")
 	for _, cookieHeader := range cookieHeaders {
 		r.Header.Add("Cookie", httpapi.StripCoderCookies(cookieHeader))
+	}
+	r.Header.Del(codersdk.SessionTokenHeader)
+	if rawQuery, ok := stripQueryParam(r.URL.RawQuery, codersdk.SessionTokenCookie); ok {
+		r.URL.RawQuery = rawQuery
 	}
 
 	// Convert canonicalized headers to their non-canonicalized counterparts.
@@ -802,7 +847,13 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	agentConn, release, err := s.AgentProvider.AgentConn(ctx, appToken.AgentID)
 	if err != nil {
-		log.Debug(ctx, "dial workspace agent", slog.Error(err))
+		// A 101 response logs the request at debug, so log unreachable agents
+		// at warn here. Use s.Logger: Fields already has agent_id.
+		if unreachable, ok := errors.AsType[*AgentUnreachableError](err); ok {
+			s.Logger.Warn(ctx, "agent is unreachable", append(unreachable.Fields, slog.Error(err))...)
+		} else {
+			log.Debug(ctx, "dial workspace agent", slog.Error(err))
+		}
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
 		return
 	}

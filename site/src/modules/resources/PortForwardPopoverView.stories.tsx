@@ -14,7 +14,7 @@ const meta: Meta<typeof PortForwardPopoverView> = {
 	component: PortForwardPopoverView,
 	decorators: [
 		(Story) => (
-			<div className="w-[404px] rounded-lg border border-solid border-border bg-surface-primary">
+			<div className="w-101 rounded-lg border border-solid border-border bg-surface-primary">
 				<Story />
 			</div>
 		),

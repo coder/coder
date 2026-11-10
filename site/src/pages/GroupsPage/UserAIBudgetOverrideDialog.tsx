@@ -351,7 +351,7 @@ const OverrideForm: React.FC<OverrideFormProps> = ({
 					className="mt-0 shrink-0"
 				/>
 				<div className="flex flex-col gap-1">
-					<span className="text-sm font-medium text-content-primary">
+					<span className="text-sm text-content-primary">
 						Override group budget
 					</span>
 					<span className="text-sm text-content-secondary">

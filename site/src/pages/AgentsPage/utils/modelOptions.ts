@@ -184,19 +184,6 @@ export const providerInfoByIDFromUserConfigs = (
 		]),
 	);
 
-export const providerTypeByIDFromUserConfigs = (
-	providerConfigs:
-		| readonly TypesGen.UserChatProviderConfig[]
-		| null
-		| undefined,
-): ReadonlyMap<string, string> =>
-	new Map(
-		Array.from(
-			providerInfoByIDFromUserConfigs(providerConfigs),
-			([id, info]) => [id, info.provider],
-		),
-	);
-
 export const getModelLabel = (model: TypesGen.ChatModel): string =>
 	model.display_name.trim() || model.model || model.id;
 

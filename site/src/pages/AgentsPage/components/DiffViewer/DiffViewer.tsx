@@ -16,11 +16,16 @@ import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useTheme } from "#/theme/context";
 import { countChangedLines } from "../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../utils/diffColors";
-import { SEPARATOR_CSS } from "../ChatElements/tools/utils";
+import {
+	DIFFS_GIT_COLOR_STYLE,
+	SEPARATOR_CSS,
+} from "../ChatElements/tools/utils";
 import { useActiveFileTracking } from "./useActiveFileTracking";
 
 type DiffViewerProps = {
 	parsedFiles: readonly FileDiffMetadata[];
+	/** Bump when files or annotations change. */
+	version: number;
 	isExpanded: boolean;
 	isLoading?: boolean;
 	error?: unknown;
@@ -63,6 +68,7 @@ const diffViewerStyle = {
 	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
 	"--diffs-font-size": "11px",
 	"--diffs-line-height": `${DIFF_VIEWER_LINE_HEIGHT}px`,
+	...DIFFS_GIT_COLOR_STYLE,
 } satisfies React.CSSProperties;
 
 const diffViewerMetrics: Partial<VirtualFileMetrics> = {
@@ -150,26 +156,6 @@ export function compareTreePaths(a: string, b: string): number {
 	return compareTreeEntries(a.split("/"), false, b.split("/"), false);
 }
 
-// CodeView's syncItemRecord skips reusing a record when item.version is
-// unchanged, so the version must reflect annotation content rather than count.
-// Moving the active comment box to another line in the same file keeps the
-// count at 1 but must still re-render, so fold each annotation's side and line
-// into the version. Exported for unit tests.
-export function annotationsVersion(
-	annotations: readonly DiffLineAnnotation<string>[],
-): number {
-	if (annotations.length === 0) {
-		return 0;
-	}
-	return annotations.reduce(
-		(version, annotation) =>
-			version * 31 +
-			annotation.lineNumber * 2 +
-			(annotation.side === "additions" ? 1 : 0),
-		annotations.length,
-	);
-}
-
 // The library forces classic, space-reserving scrollbars via
 // scrollbar-gutter: stable, leaving a permanent empty strip on the right.
 // Restore the default gutter so the scrollbar overlays content while scrolling
@@ -215,12 +201,12 @@ function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
 						{fileDiff.prevName}
 					</span>
 				)}
-				<span className="truncate text-xs font-medium text-content-primary">
+				<span className="truncate text-xs text-content-primary">
 					{fileDiff.name}
 				</span>
 			</div>
 			{(additions > 0 || deletions > 0) && (
-				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs font-medium leading-5">
+				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs leading-5">
 					{deletions > 0 && (
 						<span className="flex items-center bg-surface-git-deleted px-1 text-git-deleted-bright">
 							&minus;{deletions}
@@ -307,7 +293,7 @@ function DiffFileTree({
 	return (
 		<FileTree
 			model={model}
-			className="block h-full min-h-0 w-full"
+			className="block size-full min-h-0"
 			style={fileTreeStyle}
 		/>
 	);
@@ -356,7 +342,7 @@ function SkeletonFile({ groups }: { groups: readonly (readonly string[])[] }) {
 		<div>
 			<div className="flex h-8 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-2.5">
 				<div className="flex items-center gap-2">
-					<Skeleton className="size-3 rounded-[2px]" />
+					<Skeleton className="size-3 rounded-xs" />
 					<Skeleton className="h-3 w-44" />
 				</div>
 				<Skeleton className="h-5 w-14 rounded-[3px]" />
@@ -398,6 +384,7 @@ function DiffViewerSkeleton() {
 
 export const DiffViewer: React.FC<DiffViewerProps> = ({
 	parsedFiles,
+	version,
 	isExpanded,
 	isLoading,
 	error,
@@ -479,16 +466,13 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 		compareTreePaths(a.name, b.name),
 	);
 
-	const items: CodeViewItem<string>[] = sortedFiles.map((fileDiff) => {
-		const annotations = getLineAnnotations(fileDiff.name);
-		return {
-			id: fileDiff.name,
-			type: "diff",
-			fileDiff,
-			annotations,
-			version: annotationsVersion(annotations),
-		};
-	});
+	const items: CodeViewItem<string>[] = sortedFiles.map((fileDiff) => ({
+		id: fileDiff.name,
+		type: "diff",
+		fileDiff,
+		annotations: getLineAnnotations(fileDiff.name),
+		version,
+	}));
 
 	const selectedLines = (() => {
 		for (const fileDiff of sortedFiles) {

@@ -88,7 +88,7 @@ export const OrganizationSidebarView: React.FC<
 						<CommandList>
 							<CommandEmpty>No organization found.</CommandEmpty>
 							<CommandGroup className="pb-2">
-								<div className="flex flex-col max-h-[260px] overflow-y-auto">
+								<div className="flex flex-col max-h-65 overflow-y-auto">
 									{sortedOrganizations.map((organization) => (
 										<CommandItem
 											key={organization.id}

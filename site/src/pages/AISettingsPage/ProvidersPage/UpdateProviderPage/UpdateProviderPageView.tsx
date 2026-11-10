@@ -156,12 +156,17 @@ const UpdateProviderPageView: React.FC = () => {
 				<div className="flex items-center justify-between w-full">
 					<p className="text-sm text-content-secondary m-0">
 						Add or update models for this provider.{" "}
-						<a
-							href="/ai/settings/models"
+						<Link
+							to={{
+								pathname: "/ai/settings/models",
+								search: new URLSearchParams({
+									provider: provider.id,
+								}).toString(),
+							}}
 							className="text-content-link no-underline hover:underline"
 						>
 							Model settings
-						</a>
+						</Link>
 					</p>
 					<div className="flex items-center gap-2">
 						<Switch

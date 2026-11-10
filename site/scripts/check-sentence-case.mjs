@@ -53,6 +53,7 @@ const PROPER_NOUNS = [
 	"Coder Workspaces",
 	"Dynamic Parameters",
 	"Organization Workspace Access",
+	"Premium",
 	"Template Admin",
 	"Terms of Service",
 
@@ -96,7 +97,6 @@ const PROPER_NOUNS = [
 	"Universal Plug and Play",
 
 	// Font names, shown in the terminal font picker.
-	"Coder Terminal Symbols",
 	"Courier New",
 	"Fira Code",
 	"Geist Mono",
@@ -108,6 +108,7 @@ const PROPER_NOUNS = [
 	"Lucida Console",
 	"Lucida Sans Typewriter",
 	"Source Code Pro",
+	"Terminal Symbols",
 ];
 
 // Generated code, tests, and fixture data, plus files whose text is

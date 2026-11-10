@@ -59,7 +59,9 @@ export const GatewayKeysPageView: React.FC<GatewayKeysPageViewProps> = ({
 					Keys authenticate standalone AI Gateway replicas to this deployment.
 					The key value is shown only once when created.{" "}
 					<SettingsHeaderDocsLink
-						href={docs("/ai-coder/ai-gateway/standalone#create-a-gateway-key")}
+						href={docs(
+							"/ai-governance/ai-gateway/standalone#create-a-gateway-key",
+						)}
 					/>
 				</SettingsHeaderDescription>
 			</SettingsHeader>

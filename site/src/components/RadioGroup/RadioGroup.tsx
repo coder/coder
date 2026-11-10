@@ -24,17 +24,17 @@ export const RadioGroupItem: React.FC<
 	return (
 		<RadioGroupPrimitive.Item
 			className={cn(
-				`relative aspect-square size-4 rounded-full border border-solid border-border text-content-primary bg-surface-primary
-				focus:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
-				focus-visible:ring-offset-4 focus-visible:ring-offset-surface-primary
-				disabled:cursor-not-allowed disabled:opacity-25 disabled:border-surface-invert-primary
-				hover:border-border-secondary data-[state=checked]:border-border-secondary`,
+				"relative aspect-square size-4 rounded-full border border-solid border-border-control text-content-primary bg-surface-primary",
+				"focus:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+				"focus-visible:ring-offset-4 focus-visible:ring-offset-surface-primary",
+				"disabled:cursor-not-allowed disabled:opacity-25 disabled:border-surface-invert-primary",
+				"hover:border-border-control-hover",
 				className,
 			)}
 			{...props}
 		>
 			<RadioGroupPrimitive.Indicator className="flex items-center justify-center">
-				<CircleIcon className="absolute h-2.5 w-2.5 fill-surface-invert-primary" />
+				<CircleIcon className="absolute size-2.5 fill-surface-invert-primary" />
 			</RadioGroupPrimitive.Indicator>
 		</RadioGroupPrimitive.Item>
 	);

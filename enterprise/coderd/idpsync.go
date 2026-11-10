@@ -751,7 +751,6 @@ func (api *API) organizationIDPSyncClaimFields(rw http.ResponseWriter, r *http.R
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
 // @Success 200 {array} string
 // @Router /api/v2/settings/idpsync/available-fields [get]
 func (api *API) deploymentIDPSyncClaimFields(rw http.ResponseWriter, r *http.Request) {
@@ -799,7 +798,6 @@ func (api *API) organizationIDPSyncClaimFieldValues(rw http.ResponseWriter, r *h
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
 // @Param claimField query string true "Claim Field" format(string)
 // @Success 200 {array} string
 // @Router /api/v2/settings/idpsync/field-values [get]

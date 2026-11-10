@@ -71,7 +71,6 @@ export const NotificationEvents: React.FC<NotificationEventsProps> = ({
 							rel="noreferrer"
 						>
 							View docs
-							<span className="sr-only"> (opens in new tab)</span>
 						</Link>
 					}
 				>
@@ -90,7 +89,6 @@ export const NotificationEvents: React.FC<NotificationEventsProps> = ({
 							rel="noreferrer"
 						>
 							View docs
-							<span className="sr-only"> (opens in new tab)</span>
 						</Link>
 					}
 				>
@@ -104,7 +102,7 @@ export const NotificationEvents: React.FC<NotificationEventsProps> = ({
 					className="border border-solid rounded-md overflow-hidden w-full"
 				>
 					<header className="bg-surface-secondary border-0 border-b border-solid px-4 py-3">
-						<span className="font-medium text-sm">{group}</span>
+						<span className="text-sm">{group}</span>
 					</header>
 
 					{templates.map((tpl) => {
@@ -116,7 +114,7 @@ export const NotificationEvents: React.FC<NotificationEventsProps> = ({
 								data-testid="notification-template-row"
 								className="flex items-center justify-between gap-3 px-4 py-3 border-0 not-last:border-b border-solid"
 							>
-								<span className="font-medium text-sm">{tpl.name}</span>
+								<span className="text-sm">{tpl.name}</span>
 								<MethodSelect
 									templateId={tpl.id}
 									templateName={tpl.name}

@@ -18,26 +18,26 @@ coder workspace-proxy regenerate-token [flags] <name|id>
 
 ### --only-token
 
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
 
 Only print the token. This is useful for scripting.
 
 ### -c, --column
 
-|         |                                                                                                                                                                                                                |
-|---------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Type    | <code>[id\|name\|display name\|icon url\|healthy\|url\|wildcard hostname\|derp enabled\|derp only\|proxy status\|proxy report\|proxy checked at\|created at\|updated at\|deleted\|version\|proxy token]</code> |
-| Default | <code>name,url,proxy token</code>                                                                                                                                                                              |
+| Property | Value                                                                                                                                                                                                          |
+|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Type     | <code>[id\|name\|display name\|icon url\|healthy\|url\|wildcard hostname\|derp enabled\|derp only\|proxy status\|proxy report\|proxy checked at\|created at\|updated at\|deleted\|version\|proxy token]</code> |
+| Default  | <code>name,url,proxy token</code>                                                                                                                                                                              |
 
 Columns to display in table output.
 
 ### -o, --output
 
-|         |                                |
-|---------|--------------------------------|
-| Type    | <code>text\|json\|table</code> |
-| Default | <code>text</code>              |
+| Property | Value                          |
+|----------|--------------------------------|
+| Type     | <code>text\|json\|table</code> |
+| Default  | <code>text</code>              |
 
 Output format.
