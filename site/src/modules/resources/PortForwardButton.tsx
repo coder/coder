@@ -89,7 +89,7 @@ export const PortForwardButton: React.FC<PortForwardButtonProps> = ({
 			<PopoverTrigger asChild>
 				<Button disabled={!listeningPorts} size="sm" variant="subtle">
 					<Spinner loading={!listeningPorts}>
-						<span className="text-xs font-medium h-5 min-w-5 px-1 rounded-full flex items-center justify-center bg-surface-tertiary">
+						<span className="text-xs h-5 min-w-5 px-1 rounded-full flex items-center justify-center bg-surface-tertiary">
 							{listeningPorts?.length}
 						</span>
 					</Spinner>
@@ -397,7 +397,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 							>
 								<div className="flex gap-3">
 									<a
-										className="flex min-w-20 items-center gap-2 py-2 text-sm font-medium text-content-primary no-underline hover:underline"
+										className="flex min-w-20 items-center gap-2 py-2 text-sm text-content-primary no-underline hover:underline"
 										href={url}
 										target="_blank"
 										rel="noreferrer"
@@ -406,7 +406,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 										{port.port}
 									</a>
 									<a
-										className="flex min-w-20 items-center gap-2 py-2 text-sm font-medium text-content-primary no-underline hover:underline"
+										className="flex min-w-20 items-center gap-2 py-2 text-sm text-content-primary no-underline hover:underline"
 										href={url}
 										target="_blank"
 										rel="noreferrer"
@@ -470,7 +470,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 									className="flex justify-between items-center"
 								>
 									<a
-										className="flex min-w-20 items-center gap-2 py-2 text-sm font-medium text-content-primary no-underline hover:underline"
+										className="flex min-w-20 items-center gap-2 py-2 text-sm text-content-primary no-underline hover:underline"
 										href={url}
 										target="_blank"
 										rel="noreferrer"

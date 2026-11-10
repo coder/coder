@@ -622,7 +622,7 @@ const OptionDisplay: React.FC<OptionDisplayProps> = ({ option }) => {
 			{option.description && (
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<InfoIcon className="w-3.5 h-3.5 text-content-secondary" />
+						<InfoIcon className="size-3.5 text-content-secondary" />
 					</TooltipTrigger>
 					<TooltipContent side="right" sideOffset={10}>
 						{option.description}

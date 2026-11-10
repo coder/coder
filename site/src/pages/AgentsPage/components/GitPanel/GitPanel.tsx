@@ -528,7 +528,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 							<span
 								key={prTitle}
 								ref={observePrTitle}
-								className="min-w-0 truncate text-sm font-medium text-content-primary"
+								className="min-w-0 truncate text-sm text-content-primary"
 								data-testid="git-panel-pr-title"
 							>
 								{prTitle}
@@ -754,7 +754,7 @@ const RemoteContent: React.FC<{
 						<GitBranchIcon className="size-5 text-content-secondary" />
 					)}
 				</div>
-				<p className="text-sm font-medium text-content-primary">{title}</p>
+				<p className="text-sm text-content-primary">{title}</p>
 				<p className="mt-1 max-w-52 text-xs text-content-secondary">{body}</p>
 			</div>
 		);

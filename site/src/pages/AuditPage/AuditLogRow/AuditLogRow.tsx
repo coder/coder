@@ -96,7 +96,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 									/>
 								) : (
 									<Avatar>
-										<NetworkIcon className="h-full w-full p-1" />
+										<NetworkIcon className="size-full p-1" />
 									</Avatar>
 								)}
 

@@ -421,7 +421,7 @@ export const TemplateVersionEditor: React.FC<TemplateVersionEditorProps> = ({
 								isEditorValueBinary ? (
 									<div
 										role="alert"
-										className="w-full h-full flex items-center justify-center p-10"
+										className="size-full flex items-center justify-center p-10"
 									>
 										<div className="flex flex-col items-center max-w-105 text-center">
 											<TriangleAlertIcon className="text-content-warning size-icon-lg" />

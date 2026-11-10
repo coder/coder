@@ -93,7 +93,7 @@ const AddModelDropdown: React.FC<{
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align={align} className="min-w-56">
-				<div className="px-2 py-1.5 text-xs font-medium text-content-secondary">
+				<div className="px-2 py-1.5 text-xs text-content-secondary">
 					Select a provider
 				</div>
 				{manageableProviderStates.length === 0 ? (
