@@ -64,6 +64,32 @@ describe("count badge inside the clickable session row", () => {
 	});
 });
 
+describe("unknown client badge inside the clickable session row", () => {
+	it("opens the row when the badge is clicked while its user agent is shown", async () => {
+		const user = userEvent.setup();
+		const onClick = vi.fn();
+		renderComponent(
+			<Table>
+				<TableBody>
+					<ListSessionsRow
+						session={{
+							...MockSession,
+							client: null,
+							metadata: { request_user_agent: "acme-agent/1.4.0" },
+						}}
+						onClick={onClick}
+					/>
+				</TableBody>
+			</Table>,
+		);
+
+		await user.hover(screen.getByRole("button", { name: "Unknown" }));
+		await screen.findByRole("tooltip");
+		await user.click(screen.getByRole("button", { name: "Unknown" }));
+		expect(onClick).toHaveBeenCalledTimes(1);
+	});
+});
+
 describe("last prompt tooltip inside the clickable session row", () => {
 	it("keeps clicks inside the tooltip from opening the row", async () => {
 		const user = userEvent.setup();
