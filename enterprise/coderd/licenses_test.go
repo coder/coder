@@ -107,6 +107,27 @@ func TestPostLicense(t *testing.T) {
 		require.Contains(t, errResp.Message, "Invalid license")
 	})
 
+	t.Run("AlreadyInstalled", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
+		lic := coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{})
+		_, err := client.AddLicense(ctx, codersdk.AddLicenseRequest{License: lic})
+		require.NoError(t, err)
+
+		_, err = client.AddLicense(ctx, codersdk.AddLicenseRequest{License: lic})
+		errResp := &codersdk.Error{}
+		require.ErrorAs(t, err, &errResp)
+		require.Equal(t, http.StatusConflict, errResp.StatusCode())
+		require.Equal(t, "This license is already installed.", errResp.Message)
+		require.Contains(t, errResp.Detail, "coder licenses list")
+		require.NotContains(t, errResp.Detail, "licenses_jwt_key")
+
+		licenses, err := client.Licenses(ctx)
+		require.NoError(t, err)
+		require.Len(t, licenses, 1)
+	})
+
 	t.Run("UnusableAgentRuntimeClaims", func(t *testing.T) {
 		t.Parallel()
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{DontAddLicense: true})
