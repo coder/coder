@@ -70,13 +70,13 @@ const CSPBlockedContent: React.FC<CSPBlockedProps> = ({
 				<Button size="sm" variant="outline" asChild>
 					<a
 						href={docs(
-							"/admin/networking/wildcard-access-url#apps-are-blocked-in-the-dashboard",
+							"/admin/networking/wildcard-access-url#apps-in-the-dashboard",
 						)}
 						target="_blank"
 						rel="noreferrer"
 					>
 						<SquareArrowOutUpRightIcon />
-						Troubleshoot blocked apps
+						Learn more about blocked apps
 						<NewTabLabel />
 					</a>
 				</Button>
@@ -97,8 +97,7 @@ const CSPBlockedMessage: React.FC<CSPBlockedProps> = ({
 		return (
 			<>
 				Coder's security policy did not allow {origin} when this page loaded.
-				Reload the page. If the app is still blocked, see the troubleshooting
-				guide.
+				Reload the page. If the app is still blocked, read the docs.
 			</>
 		);
 	}
