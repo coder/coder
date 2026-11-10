@@ -493,20 +493,16 @@ func TestGitHubRatelimit_429WithRetryAfter(t *testing.T) {
 	assert.WithinDuration(t, expected.Add(gitprovider.RateLimitPadding), rlErr.RetryAfter, 5*time.Second)
 }
 
-func TestGitHubRatelimit_403NormalError(t *testing.T) {
+func TestGitHubRatelimit_403WithoutRetryHeaders(t *testing.T) {
 	t.Parallel()
-	clock := quartz.NewMock(t)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		// Permission errors still carry primary rate-limit headers.
-		w.Header().Set("X-RateLimit-Remaining", "4990")
-		w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(clock.Now().Add(time.Hour).Unix(), 10))
 		w.WriteHeader(http.StatusForbidden)
 		_, _ = w.Write([]byte(`{"message": "Resource not accessible by integration"}`))
 	}))
 	defer srv.Close()
 
-	gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client(), gitprovider.WithClock(clock))
+	gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
 	require.NoError(t, err)
 	require.NotNil(t, gp)
 

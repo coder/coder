@@ -198,7 +198,6 @@ func (r *Refresher) Refresh(
 		})
 	}
 
-	// Process all HTTP calls concurrently with a shared semaphore.
 	sem := make(chan struct{}, r.concurrency)
 	var wg sync.WaitGroup
 

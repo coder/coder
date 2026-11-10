@@ -587,20 +587,19 @@ func (g *gitlabProvider) BuildPullRequestURL(ref PRRef) string {
 	return fmt.Sprintf("%s/%s/%s/-/merge_requests/%d", g.webBaseURL, ref.Owner, ref.Repo, ref.Number)
 }
 
-// wrapError classifies SDK responses and adds context to other errors.
+// wrapError adds GitLab action context unless it returns a RateLimitError.
 func (g *gitlabProvider) wrapError(err error, action string) error {
-	var resp *http.Response
-	if errResp, ok := errors.AsType[*gitlab.ErrorResponse](err); ok {
-		resp = errResp.Response
-		if rlErr := checkRateLimitError(resp, g.clock, "RateLimit-Reset", "RateLimit-Remaining"); rlErr != nil {
+	errResp, isSDKError := errors.AsType[*gitlab.ErrorResponse](err)
+	if isSDKError {
+		if rlErr := checkRateLimitError(errResp.Response, g.clock, "RateLimit-Reset", "RateLimit-Remaining"); rlErr != nil {
 			return rlErr
 		}
 	}
 	wrapped := xerrors.Errorf("gitlab %s: %w", action, err)
-	if resp == nil {
-		return wrapped
+	if isSDKError {
+		return rejectedOrOriginal(errResp.Response, wrapped)
 	}
-	return rejectedOrOriginal(resp, wrapped)
+	return wrapped
 }
 
 // mapGitLabState maps a GitLab merge request state string to a normalized PRState.

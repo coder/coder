@@ -595,8 +595,6 @@ func TestRefresher_RateLimitInBatchSkip(t *testing.T) {
 			return gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1}, raw != ""
 		},
 		fetchPullRequestStatus: func(_ context.Context, _ string, _ gitprovider.PRRef) (*gitprovider.PRStatus, error) {
-			// At concurrency one, later rows
-			// use the in-batch skip.
 			callCount.Add(1)
 			return nil, &gitprovider.RateLimitError{
 				RetryAfter: time.Now().Add(60 * time.Second),
@@ -679,18 +677,15 @@ func TestRefresher_RejectedInBatchSkipScope(t *testing.T) {
 		name         string
 		providerErr  error
 		wantRejected bool
-		wantCalls    int
 	}{
 		{
 			name:         "Rejected",
 			providerErr:  gitprovider.RejectedError("permission denied"),
 			wantRejected: true,
-			wantCalls:    3,
 		},
 		{
 			name:        "OtherError",
 			providerErr: xerrors.New("provider error"),
-			wantCalls:   6,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -721,6 +716,11 @@ func TestRefresher_RejectedInBatchSkipScope(t *testing.T) {
 						},
 					})
 				}
+			}
+
+			wantCalls := len(requests)
+			if tc.wantRejected {
+				wantCalls = len(groups)
 			}
 
 			var calls atomic.Int32
@@ -760,7 +760,7 @@ func TestRefresher_RejectedInBatchSkipScope(t *testing.T) {
 					_, isRejected := errors.AsType[gitprovider.RejectedError](result.Error)
 					require.Equal(t, tc.wantRejected, isRejected)
 				}
-				require.Equal(t, run*tc.wantCalls, int(calls.Load()))
+				require.Equal(t, run*wantCalls, int(calls.Load()))
 			}
 		})
 	}
