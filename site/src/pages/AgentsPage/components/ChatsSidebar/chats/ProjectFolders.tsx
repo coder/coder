@@ -46,7 +46,11 @@ export type ProjectDialogState =
 
 export type OpenProjectDialog = (dialog: ProjectDialogState) => void;
 export type DeleteProject = (project: ChatProject) => void;
-export type ArchiveProject = (project: ChatProject) => void;
+/** `trigger` is the folder's actions button, to refocus if it remains. */
+export type ArchiveProject = (
+	project: ChatProject,
+	trigger: HTMLButtonElement | null,
+) => void;
 
 type ProjectFoldersProps = {
 	readonly currentUserId: string;
@@ -191,7 +195,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 									locationSearch={location.search}
 									onToggle={() => onToggle(project.id)}
 									onEdit={() => onOpenProjectDialog({ mode: "edit", project })}
-									onArchive={() => onArchive(project)}
+									onArchive={(trigger) => onArchive(project, trigger)}
 									onDelete={() => onDelete(project)}
 									emptyMessage={emptyMessage}
 								/>
@@ -214,7 +218,7 @@ type ProjectFolderProps = {
 	readonly locationSearch: string;
 	readonly onToggle: () => void;
 	readonly onEdit: () => void;
-	readonly onArchive: () => void;
+	readonly onArchive: (trigger: HTMLButtonElement | null) => void;
 	readonly onDelete: () => void;
 	readonly emptyMessage: string;
 };
@@ -240,6 +244,8 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 		? `${project.name} (${organizationLabel})`
 		: project.name;
 	const toggleRef = useRef<HTMLButtonElement>(null);
+	const actionsButtonRef = useRef<HTMLButtonElement>(null);
+	const handleArchive = () => onArchive(actionsButtonRef.current);
 	// Keeps the closing menu from pulling focus back out of the composer.
 	const newChatPickedRef = useRef(false);
 	const handleNewChat = () => {
@@ -304,6 +310,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<Button
+									ref={actionsButtonRef}
 									variant="subtle"
 									size="icon"
 									className="size-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
@@ -330,7 +337,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 									onNewChatInPlace={isOnProjectPage ? handleNewChat : undefined}
 									project={project}
 									onEdit={onEdit}
-									onArchive={onArchive}
+									onArchive={handleArchive}
 									onDelete={onDelete}
 								/>
 							</DropdownMenuContent>
@@ -345,7 +352,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						onNewChatInPlace={isOnProjectPage ? handleNewChat : undefined}
 						project={project}
 						onEdit={onEdit}
-						onArchive={onArchive}
+						onArchive={handleArchive}
 						onDelete={onDelete}
 					/>
 				</ContextMenuContent>

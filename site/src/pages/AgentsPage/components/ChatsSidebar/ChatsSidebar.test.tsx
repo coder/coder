@@ -695,6 +695,29 @@ describe("ChatsSidebar projects", () => {
 		);
 	});
 
+	it("returns focus to the folder's actions button when archiving is cancelled", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+		);
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+		const actionsButton = await screen.findByRole("button", {
+			name: `Open project actions for ${MockChatProject.name}`,
+		});
+
+		await user.click(actionsButton);
+		await user.click(screen.getByRole("menuitem", { name: "Archive project" }));
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		await waitFor(() => expect(actionsButton).toHaveFocus());
+	});
+
 	it("unarchives a project from the archived projects list", async () => {
 		const user = userEvent.setup();
 		const unarchivedProjectIds: unknown[] = [];

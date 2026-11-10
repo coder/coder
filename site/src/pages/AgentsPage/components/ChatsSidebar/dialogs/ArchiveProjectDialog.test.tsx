@@ -173,6 +173,22 @@ describe("ArchiveProjectDialog", () => {
 		expect(stop.mock.calls).toEqual([[mockRunningWorkspace.id]]);
 	});
 
+	it("leaves every workspace alone when it can't tell which are still in use", async () => {
+		const user = userEvent.setup();
+		const { stop } = mockApi({ workspaces: [mockRunningWorkspace] });
+		vi.mocked(API.experimental.getChatsByWorkspace).mockRejectedValue(
+			mockApiError({ message: "Lookup failed" }),
+		);
+		const errorToast = vi.spyOn(toast, "error");
+		await renderDialog();
+
+		await user.click(await screen.findByRole("radio", { name: "Stop them" }));
+		await user.click(screen.getByRole("button", { name: "Archive project" }));
+
+		await waitFor(() => expect(errorToast).toHaveBeenCalled());
+		expect(stop).not.toHaveBeenCalled();
+	});
+
 	it("deletes workspaces only once the project name is typed, and reports failures", async () => {
 		const user = userEvent.setup();
 		const { archive, remove } = mockApi({

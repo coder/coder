@@ -19,7 +19,7 @@ import {
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { buildAgentProjectPath } from "../../utils/navigation";
 import { draftStorageKeys } from "../AgentCreateForm";
-import { useDialogFocusReturn } from "../useDialogFocusReturn";
+import { returnFocusTo, useDialogFocusReturn } from "../useDialogFocusReturn";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import type { ProjectDialogState } from "./chats/ProjectFolders";
 import { getOrganizationLabels } from "./chats/projectGrouping";
@@ -152,11 +152,12 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 	}>({ project: null, open: false });
 	const [archiveDialog, setArchiveDialog] = useState<{
 		project: ChatProject | null;
+		trigger: HTMLButtonElement | null;
 		open: boolean;
-	}>({ project: null, open: false });
+	}>({ project: null, trigger: null, open: false });
 	const [isArchivedProjectsOpen, setIsArchivedProjectsOpen] = useState(false);
-	// The archive dialog's opener, a folder menu item, is gone once it closes,
-	// and an archived project's folder leaves the list.
+	// Project dialogs fall back to the Archived projects button: an archived
+	// project's folder, and its actions button, leave the list.
 	const projectArchiveFocusReturn = useDialogFocusReturn();
 
 	const openProjectDialog = (dialog: ProjectDialogState) => {
@@ -275,8 +276,8 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				isProjectsLoadError={projectsQuery.isLoadingError}
 				onRetryProjects={() => void projectsQuery.refetch()}
 				onOpenProjectDialog={openProjectDialog}
-				onArchiveProject={(project) =>
-					setArchiveDialog({ project, open: true })
+				onArchiveProject={(project, trigger) =>
+					setArchiveDialog({ project, trigger, open: true })
 				}
 				onDeleteProject={openDeleteProjectDialog}
 				onOpenArchivedProjects={() => setIsArchivedProjectsOpen(true)}
@@ -368,7 +369,14 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				onClose={() =>
 					setArchiveDialog((current) => ({ ...current, open: false }))
 				}
-				onCloseAutoFocus={projectArchiveFocusReturn.restoreFocus}
+				onCloseAutoFocus={(event) => {
+					if (archiveDialog.trigger) {
+						returnFocusTo(archiveDialog.trigger)(event);
+					}
+					if (!event.defaultPrevented) {
+						projectArchiveFocusReturn.restoreFocus(event);
+					}
+				}}
 			/>
 			<ArchivedProjectsDialog
 				open={isArchivedProjectsOpen}

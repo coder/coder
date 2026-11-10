@@ -130,7 +130,7 @@ export const ArchiveProjectDialog: React.FC<ArchiveProjectDialogProps> = ({
 		<Dialog
 			open={open}
 			onOpenChange={(next) => {
-				// The request can't be cancelled, and a 409 is reported in here.
+				// The request can't be cancelled, and a 409 is shown in this dialog.
 				if (!next && !archiveMutation.isPending) {
 					onClose();
 				}

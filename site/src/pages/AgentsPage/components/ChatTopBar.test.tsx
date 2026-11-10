@@ -266,8 +266,12 @@ describe("ChatTopBar archive state", () => {
 		await user.click(
 			await screen.findByRole("button", { name: "Open agent actions" }),
 		);
-		await screen.findByText("Unarchive the project to restore this chat.");
-		await user.click(screen.getByRole("menuitem", { name: "Unarchive agent" }));
+		await user.click(
+			await screen.findByRole("menuitem", {
+				name: "Unarchive agent",
+				description: "Unarchive the project to restore this chat.",
+			}),
+		);
 
 		expect(API.experimental.updateChat).not.toHaveBeenCalled();
 	});

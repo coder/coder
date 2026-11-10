@@ -146,13 +146,13 @@ describe("setChatProjectRole", () => {
 		chatProjectsKey,
 		chatProjectACLKey(MockChatProject.id),
 	];
-	const mockOtherProjectKeys = [
+	const otherKeys = [
 		chatProjectInstructionsKey(MockChatProject.id),
-		chatProjectACLKey("mockOtherProject-project"),
+		chatProjectACLKey("other-project"),
 	];
 	const setup = () => {
 		const queryClient = createTestQueryClient();
-		for (const key of [...refreshedKeys, ...mockOtherProjectKeys]) {
+		for (const key of [...refreshedKeys, ...otherKeys]) {
 			queryClient.setQueryData(key, {});
 		}
 		const updateACL = vi
@@ -196,7 +196,7 @@ describe("setChatProjectRole", () => {
 			for (const key of refreshedKeys) {
 				expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
 			}
-			for (const key of mockOtherProjectKeys) {
+			for (const key of otherKeys) {
 				expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
 			}
 		}
