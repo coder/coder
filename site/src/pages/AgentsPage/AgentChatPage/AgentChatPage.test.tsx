@@ -224,73 +224,126 @@ describe("AgentChatPage", () => {
 		);
 	});
 
-	it("detaches the workspace only after the user confirms", async () => {
-		const mockWorkspace: TypesGen.Workspace = {
+	describe("detaching the workspace", () => {
+		// Without an agent, the input shows a removable badge instead of the
+		// workspace pill, which needs the chat's agent in the build.
+		const workspaceWithoutAgent: TypesGen.Workspace = {
 			...MockWorkspace,
-			latest_build: {
-				...MockWorkspace.latest_build,
-				resources: [],
-			},
+			latest_build: { ...MockWorkspace.latest_build, resources: [] },
 		};
-		vi.spyOn(API, "getWorkspace").mockResolvedValue(mockWorkspace);
-		vi.spyOn(apiModule, "watchWorkspace").mockImplementation(
-			() =>
-				new OneWayWebSocket({
-					apiRoute: `/api/v2/workspaces/${mockWorkspace.id}/watch-ws`,
-					websocketInit: (url, protocol) =>
-						createMockWebSocket(url, protocol)[0],
-				}),
-		);
-		const updateChat = vi
-			.spyOn(API.experimental, "updateChat")
-			.mockResolvedValue(undefined);
-		const { user, composer } = renderQueuedChat({
-			queuedMessages: [],
-			chat: { ...MockChat, workspace_id: mockWorkspace.id },
-		});
-		const removeWorkspace = () =>
-			screen.findByRole("button", {
-				name: `Remove workspace ${mockWorkspace.name}`,
+
+		const renderChatWithWorkspace = (workspace: TypesGen.Workspace) => {
+			vi.spyOn(API, "getWorkspace").mockResolvedValue(workspace);
+			vi.spyOn(apiModule, "watchWorkspace").mockImplementation(
+				() =>
+					new OneWayWebSocket({
+						apiRoute: `/api/v2/workspaces/${workspace.id}/watch-ws`,
+						websocketInit: (url, protocol) =>
+							createMockWebSocket(url, protocol)[0],
+					}),
+			);
+			const updateChat = vi
+				.spyOn(API.experimental, "updateChat")
+				.mockResolvedValue(undefined);
+			const { user, composer } = renderQueuedChat({
+				queuedMessages: [],
+				chat: {
+					...MockChat,
+					workspace_id: workspace.id,
+					agent_id: workspace.latest_build.resources[0]?.agents?.[0]?.id,
+				},
 			});
+			const clickDialogButton = async (name: string) => {
+				await user.click(
+					within(await screen.findByRole("dialog")).getByRole("button", {
+						name,
+					}),
+				);
+			};
+			const openWorkspaceMenuDetach = async () => {
+				const trigger = await screen.findByRole("button", {
+					name: `${workspace.name} workspace menu`,
+				});
+				await user.click(trigger);
+				await user.click(
+					await screen.findByRole("menuitem", { name: "Detach workspace" }),
+				);
+				return trigger;
+			};
+			return {
+				user,
+				composer,
+				updateChat,
+				clickDialogButton,
+				openWorkspaceMenuDetach,
+			};
+		};
 
-		const removeButton = await removeWorkspace();
-		await user.click(removeButton);
-		await user.click(
-			within(await screen.findByRole("dialog")).getByRole("button", {
-				name: "Cancel",
-			}),
-		);
-		expect(updateChat).not.toHaveBeenCalled();
-		await waitFor(() => expect(removeButton).toHaveFocus());
+		it("Cancel from the workspace menu keeps the workspace and refocuses the menu trigger", async () => {
+			const { updateChat, clickDialogButton, openWorkspaceMenuDetach } =
+				renderChatWithWorkspace(MockWorkspace);
 
-		const moreOptions = screen.getByRole("button", { name: "More options" });
-		await user.click(moreOptions);
-		await user.click(
-			await screen.findByRole("button", { name: /Attach workspace/ }),
-		);
-		await user.click(
-			await screen.findByRole("option", { name: mockWorkspace.name }),
-		);
-		await user.click(
-			within(await screen.findByRole("dialog")).getByRole("button", {
-				name: "Cancel",
-			}),
-		);
-		expect(updateChat).not.toHaveBeenCalled();
-		await waitFor(() => expect(moreOptions).toHaveFocus());
+			const trigger = await openWorkspaceMenuDetach();
+			await clickDialogButton("Cancel");
 
-		await user.click(await removeWorkspace());
-		await user.click(
-			within(await screen.findByRole("dialog")).getByRole("button", {
-				name: "Detach",
-			}),
-		);
-		await waitFor(() =>
-			expect(updateChat).toHaveBeenCalledWith(MockChat.id, {
-				workspace_id: NIL_UUID,
-			}),
-		);
-		await waitFor(() => expect(composer()).toHaveFocus());
+			await waitFor(() => expect(trigger).toHaveFocus());
+			expect(updateChat).not.toHaveBeenCalled();
+		});
+
+		it("Detach clears the workspace and focuses the chat input", async () => {
+			const {
+				composer,
+				updateChat,
+				clickDialogButton,
+				openWorkspaceMenuDetach,
+			} = renderChatWithWorkspace(MockWorkspace);
+
+			await openWorkspaceMenuDetach();
+			await clickDialogButton("Detach");
+
+			await waitFor(() =>
+				expect(updateChat).toHaveBeenCalledWith(MockChat.id, {
+					workspace_id: NIL_UUID,
+				}),
+			);
+			await waitFor(() => expect(composer()).toHaveFocus());
+		});
+
+		it("Cancel from the workspace picker refocuses the More options button", async () => {
+			const { user, updateChat, clickDialogButton } =
+				renderChatWithWorkspace(MockWorkspace);
+			// The picker reads the workspace, so wait until it has loaded.
+			await screen.findByRole("button", {
+				name: `${MockWorkspace.name} workspace menu`,
+			});
+			const moreOptions = screen.getByRole("button", { name: "More options" });
+			await user.click(moreOptions);
+			await user.click(
+				await screen.findByRole("button", { name: /Attach workspace/ }),
+			);
+			await user.click(
+				await screen.findByRole("option", { name: MockWorkspace.name }),
+			);
+			await clickDialogButton("Cancel");
+
+			await waitFor(() => expect(moreOptions).toHaveFocus());
+			expect(updateChat).not.toHaveBeenCalled();
+		});
+
+		it("Cancel from the badge's remove button refocuses that button", async () => {
+			const { user, updateChat, clickDialogButton } = renderChatWithWorkspace(
+				workspaceWithoutAgent,
+			);
+
+			const removeButton = await screen.findByRole("button", {
+				name: `Remove workspace ${workspaceWithoutAgent.name}`,
+			});
+			await user.click(removeButton);
+			await clickDialogButton("Cancel");
+
+			await waitFor(() => expect(removeButton).toHaveFocus());
+			expect(updateChat).not.toHaveBeenCalled();
+		});
 	});
 
 	describe("queued message editing", () => {
