@@ -80,6 +80,7 @@ var errLicenseAlreadyInstalled = xerrors.New("license is already installed")
 // @Tags Enterprise
 // @Param request body codersdk.AddLicenseRequest true "Add license request"
 // @Success 201 {object} codersdk.License
+// @Failure 409 {object} codersdk.Response
 // @Router /api/v2/licenses [post]
 func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -138,6 +139,7 @@ func (api *API) postLicense(rw http.ResponseWriter, r *http.Request) {
 // @Tags Enterprise
 // @Param request body codersdk.CreateTrialLicenseRequest true "Trial license request"
 // @Success 201 {object} codersdk.License
+// @Failure 409 {object} codersdk.Response
 // @Router /api/v2/licenses/trial [post]
 func (api *API) postTrialLicense(rw http.ResponseWriter, r *http.Request) {
 	var (
