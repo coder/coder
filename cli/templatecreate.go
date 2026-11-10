@@ -10,7 +10,6 @@ import (
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
 
@@ -167,14 +166,7 @@ func (r *RootCmd) templateCreate() *serpent.Command {
 				return err
 			}
 
-			_, _ = fmt.Fprintln(inv.Stdout, "\n"+pretty.Sprint(cliui.DefaultStyles.Wrap,
-				"The "+pretty.Sprint(
-					cliui.DefaultStyles.Keyword, templateName)+" template has been created at "+
-					pretty.Sprint(cliui.DefaultStyles.DateTimeStamp, time.Now().Format(time.Stamp))+"! "+
-					"Developers can provision a workspace with this template using:")+"\n")
-
-			_, _ = fmt.Fprintln(inv.Stdout, "  "+pretty.Sprint(cliui.DefaultStyles.Code, fmt.Sprintf("coder create --template=%q --org=%q [workspace name]", templateName, template.OrganizationName)))
-			_, _ = fmt.Fprintln(inv.Stdout)
+			printTemplateCreated(inv.Stdout, templateName, template.OrganizationName, time.Now())
 
 			return nil
 		},
