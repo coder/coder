@@ -22,9 +22,7 @@ export const AnnotationIllustration: React.FC<SVGProps<SVGSVGElement>> = (
 			<g clipPath={`url(#${clipId})`}>
 				<mask
 					id={maskId}
-					style={{
-						maskType: "alpha",
-					}}
+					className="mask-type-alpha"
 					maskUnits="userSpaceOnUse"
 					x="0"
 					y="0"

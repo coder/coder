@@ -1,6 +1,7 @@
 import { type SVGProps, useId } from "react";
 import { useTheme } from "#/theme/context";
 
+/** Decorative preview of an empty search result. */
 export const SearchIllustration: React.FC<SVGProps<SVGSVGElement>> = (
 	props,
 ) => {

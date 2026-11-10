@@ -207,38 +207,25 @@ describe("WorkspacesPageView", () => {
 		).toBeInTheDocument();
 	});
 
-	it("shows the filter empty state instead of the no-permission empty state when a filter is active", async () => {
-		renderWithAuth(
-			<WorkspacesPageView
-				{...defaultProps}
-				canCreateWorkspace={false}
-				filter={createFilter(true)}
-			/>,
-		);
+	it.each([true, false])(
+		"resets an empty filter when workspace creation is allowed: %s",
+		async (canCreateWorkspace) => {
+			const user = userEvent.setup();
+			const filter = createFilter(true);
+			renderWithAuth(
+				<WorkspacesPageView
+					{...defaultProps}
+					canCreateWorkspace={canCreateWorkspace}
+					filter={filter}
+				/>,
+			);
 
-		await screen.findByRole("heading", {
-			name: /no workspaces match your search\./i,
-		});
-		expect(
-			screen.queryByText(/don't have permission to create workspaces/i),
-		).not.toBeInTheDocument();
-		expect(
-			screen.queryByRole("button", { name: /new workspace/i }),
-		).not.toBeInTheDocument();
-	});
-
-	it("shows the filter empty state when the user can create workspaces but the filter matches nothing", async () => {
-		renderWithAuth(
-			<WorkspacesPageView {...defaultProps} filter={createFilter(true)} />,
-		);
-
-		await screen.findByRole("heading", {
-			name: /no workspaces match your search\./i,
-		});
-		expect(
-			screen.queryByText(/don't have permission to create workspaces/i),
-		).not.toBeInTheDocument();
-	});
+			await user.click(
+				await screen.findByRole("button", { name: "Reset filters" }),
+			);
+			expect(filter.update).toHaveBeenCalledWith("");
+		},
+	);
 
 	it("restarts a running workspace from the overflow menu", async () => {
 		const user = userEvent.setup();
