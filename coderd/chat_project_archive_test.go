@@ -155,8 +155,13 @@ func TestChatProjectArchive(t *testing.T) {
 	requireArchivedProjectConflict(err)
 	requireArchivedProjectConflict(owner.DeleteChatProjectMemory(ctx, orgID, project.ID, memory.ID))
 
-	// An org admin can unarchive; only chats archived with the project
-	// come back.
+	// Unarchiving needs the delete permission too, so project ACL grants
+	// do not allow it. An org admin can unarchive; only chats archived
+	// with the project come back.
+	for _, sharee := range []*codersdk.ExperimentalClient{sharedAdmin, sharedUse} {
+		_, err = sharee.UnarchiveChatProject(ctx, orgID, project.ID)
+		requireSDKError(t, err, http.StatusForbidden)
+	}
 	unarchived, err := orgAdmin.UnarchiveChatProject(ctx, orgID, project.ID)
 	require.NoError(t, err)
 	require.Nil(t, unarchived.ArchivedAt)
@@ -169,10 +174,6 @@ func TestChatProjectArchive(t *testing.T) {
 
 	// The site owner can archive too, and an archived project can still be
 	// deleted, which detaches its chats and leaves them archived.
-	_, err = siteOwner.ArchiveChatProject(ctx, orgID, project.ID, codersdk.ArchiveChatProjectRequest{StopActiveChats: true})
-	require.NoError(t, err)
-	_, err = siteOwner.UnarchiveChatProject(ctx, orgID, project.ID)
-	require.NoError(t, err)
 	_, err = siteOwner.ArchiveChatProject(ctx, orgID, project.ID, codersdk.ArchiveChatProjectRequest{StopActiveChats: true})
 	require.NoError(t, err)
 	require.NoError(t, owner.DeleteChatProject(ctx, orgID, project.ID))
