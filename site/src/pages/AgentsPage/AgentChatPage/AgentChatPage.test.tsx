@@ -23,6 +23,7 @@ import {
 import {
 	MockUserPreferenceSettings,
 	MockWorkspace,
+	MockWorkspaceAgent,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
@@ -225,19 +226,12 @@ describe("AgentChatPage", () => {
 	});
 
 	describe("detaching the workspace", () => {
-		// Without an agent, the input shows a removable badge instead of the
-		// workspace pill, which needs the chat's agent in the build.
-		const workspaceWithoutAgent: TypesGen.Workspace = {
-			...MockWorkspace,
-			latest_build: { ...MockWorkspace.latest_build, resources: [] },
-		};
-
-		const renderChatWithWorkspace = (workspace: TypesGen.Workspace) => {
-			vi.spyOn(API, "getWorkspace").mockResolvedValue(workspace);
+		const renderChatWithWorkspace = () => {
+			vi.spyOn(API, "getWorkspace").mockResolvedValue(MockWorkspace);
 			vi.spyOn(apiModule, "watchWorkspace").mockImplementation(
 				() =>
 					new OneWayWebSocket({
-						apiRoute: `/api/v2/workspaces/${workspace.id}/watch-ws`,
+						apiRoute: `/api/v2/workspaces/${MockWorkspace.id}/watch-ws`,
 						websocketInit: (url, protocol) =>
 							createMockWebSocket(url, protocol)[0],
 					}),
@@ -249,57 +243,41 @@ describe("AgentChatPage", () => {
 				queuedMessages: [],
 				chat: {
 					...MockChat,
-					workspace_id: workspace.id,
-					agent_id: workspace.latest_build.resources[0]?.agents?.[0]?.id,
+					workspace_id: MockWorkspace.id,
+					agent_id: MockWorkspaceAgent.id,
 				},
 			});
-			const clickDialogButton = async (name: string) => {
+			const openDetachDialog = async () => {
 				await user.click(
-					within(await screen.findByRole("dialog")).getByRole("button", {
-						name,
+					await screen.findByRole("button", {
+						name: `${MockWorkspace.name} workspace menu`,
 					}),
 				);
-			};
-			const openWorkspaceMenuDetach = async () => {
-				const trigger = await screen.findByRole("button", {
-					name: `${workspace.name} workspace menu`,
-				});
-				await user.click(trigger);
 				await user.click(
 					await screen.findByRole("menuitem", { name: "Detach workspace" }),
 				);
-				return trigger;
+				return within(await screen.findByRole("dialog"));
 			};
-			return {
-				user,
-				composer,
-				updateChat,
-				clickDialogButton,
-				openWorkspaceMenuDetach,
-			};
+			return { user, composer, updateChat, openDetachDialog };
 		};
 
-		it("Cancel from the workspace menu keeps the workspace and refocuses the menu trigger", async () => {
-			const { updateChat, clickDialogButton, openWorkspaceMenuDetach } =
-				renderChatWithWorkspace(MockWorkspace);
+		it("Cancel keeps the workspace and focuses the chat input", async () => {
+			const { user, composer, updateChat, openDetachDialog } =
+				renderChatWithWorkspace();
 
-			const trigger = await openWorkspaceMenuDetach();
-			await clickDialogButton("Cancel");
+			const dialog = await openDetachDialog();
+			await user.click(dialog.getByRole("button", { name: "Cancel" }));
 
-			await waitFor(() => expect(trigger).toHaveFocus());
+			await waitFor(() => expect(composer()).toHaveFocus());
 			expect(updateChat).not.toHaveBeenCalled();
 		});
 
 		it("Detach clears the workspace and focuses the chat input", async () => {
-			const {
-				composer,
-				updateChat,
-				clickDialogButton,
-				openWorkspaceMenuDetach,
-			} = renderChatWithWorkspace(MockWorkspace);
+			const { user, composer, updateChat, openDetachDialog } =
+				renderChatWithWorkspace();
 
-			await openWorkspaceMenuDetach();
-			await clickDialogButton("Detach");
+			const dialog = await openDetachDialog();
+			await user.click(dialog.getByRole("button", { name: "Detach" }));
 
 			await waitFor(() =>
 				expect(updateChat).toHaveBeenCalledWith(MockChat.id, {
@@ -307,42 +285,6 @@ describe("AgentChatPage", () => {
 				}),
 			);
 			await waitFor(() => expect(composer()).toHaveFocus());
-		});
-
-		it("Cancel from the workspace picker refocuses the More options button", async () => {
-			const { user, updateChat, clickDialogButton } =
-				renderChatWithWorkspace(MockWorkspace);
-			// The picker reads the workspace, so wait until it has loaded.
-			await screen.findByRole("button", {
-				name: `${MockWorkspace.name} workspace menu`,
-			});
-			const moreOptions = screen.getByRole("button", { name: "More options" });
-			await user.click(moreOptions);
-			await user.click(
-				await screen.findByRole("button", { name: /Attach workspace/ }),
-			);
-			await user.click(
-				await screen.findByRole("option", { name: MockWorkspace.name }),
-			);
-			await clickDialogButton("Cancel");
-
-			await waitFor(() => expect(moreOptions).toHaveFocus());
-			expect(updateChat).not.toHaveBeenCalled();
-		});
-
-		it("Cancel from the badge's remove button refocuses that button", async () => {
-			const { user, updateChat, clickDialogButton } = renderChatWithWorkspace(
-				workspaceWithoutAgent,
-			);
-
-			const removeButton = await screen.findByRole("button", {
-				name: `Remove workspace ${workspaceWithoutAgent.name}`,
-			});
-			await user.click(removeButton);
-			await clickDialogButton("Cancel");
-
-			await waitFor(() => expect(removeButton).toHaveFocus());
-			expect(updateChat).not.toHaveBeenCalled();
 		});
 	});
 

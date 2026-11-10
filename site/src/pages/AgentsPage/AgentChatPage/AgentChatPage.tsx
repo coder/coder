@@ -595,13 +595,11 @@ const AgentChatPage: React.FC = () => {
 	};
 
 	const [isDetachConfirmOpen, setIsDetachConfirmOpen] = useState(false);
-	const [detachOpener, setDetachOpener] = useState<HTMLElement | null>(null);
 	const handleWorkspaceChange = (nextWorkspaceId: string | null) => {
 		if (nextWorkspaceId === selectedWorkspaceId) {
 			return;
 		}
 		if (nextWorkspaceId === null) {
-			setDetachOpener(getFocusReturnTarget());
 			setIsDetachConfirmOpen(true);
 			return;
 		}
@@ -979,97 +977,34 @@ const AgentChatPage: React.FC = () => {
 					onMCPSelectionChange={handleMCPSelectionChange}
 				/>
 			)}
-			<DetachWorkspaceDialog
+			<ConfirmDialog
 				open={isDetachConfirmOpen}
-				workspaceName={workspace?.name}
-				opener={detachOpener}
+				title="Detach workspace?"
+				description={
+					<p>
+						The agent will no longer have access to{" "}
+						<strong>{workspace?.name ?? "this workspace"}</strong>. The
+						workspace is not stopped or deleted, and you can attach it again
+						later.
+					</p>
+				}
+				type="delete"
+				confirmText="Detach"
 				onConfirm={() => {
-					// The opener is unmounted once the optimistic update lands.
-					setDetachOpener(null);
 					setIsDetachConfirmOpen(false);
 					updateChatWorkspaceMutate({ chatId: agentId, workspaceId: null });
 				}}
 				onClose={() => setIsDetachConfirmOpen(false)}
-				focusFallback={() => chatInputRef.current?.focus()}
+				// The control that opened the dialog may have unmounted with its
+				// menu, so focus goes to the chat input.
+				onCloseAutoFocus={(event) => {
+					event.preventDefault();
+					chatInputRef.current?.focus();
+				}}
 			/>
 		</>
 	);
 };
-
-const POPUP_SELECTOR = '[role="menu"][id], [role="dialog"][id]';
-
-/**
- * Returns the element to refocus when a dialog closes. A menu item or picker
- * option unmounts with its popup, so this walks up to the outermost trigger
- * that controls the open popups.
- */
-const getFocusReturnTarget = (): HTMLElement | null => {
-	const active = document.activeElement;
-	if (!(active instanceof HTMLElement) || active === document.body) {
-		return null;
-	}
-	let target = active;
-	for (
-		let popup = target.closest(POPUP_SELECTOR);
-		popup;
-		popup = target.closest(POPUP_SELECTOR)
-	) {
-		const trigger = document.querySelector<HTMLElement>(
-			`[aria-controls="${CSS.escape(popup.id)}"]`,
-		);
-		if (!trigger) {
-			break;
-		}
-		target = trigger;
-	}
-	return target;
-};
-
-type DetachWorkspaceDialogProps = {
-	open: boolean;
-	workspaceName: string | undefined;
-	opener: HTMLElement | null;
-	onConfirm: () => void;
-	onClose: () => void;
-	focusFallback: () => void;
-};
-
-/**
- * Confirms unbinding the chat's workspace. Focus returns to the control that
- * opened the dialog, or to `focusFallback` when there is no usable opener.
- */
-const DetachWorkspaceDialog: React.FC<DetachWorkspaceDialogProps> = ({
-	open,
-	workspaceName,
-	opener,
-	onConfirm,
-	onClose,
-	focusFallback,
-}) => (
-	<ConfirmDialog
-		open={open}
-		title="Detach workspace?"
-		description={
-			<p>
-				The agent will no longer have access to{" "}
-				<strong>{workspaceName ?? "this workspace"}</strong>. The workspace is
-				not stopped or deleted, and you can attach it again later.
-			</p>
-		}
-		type="delete"
-		confirmText="Detach"
-		onConfirm={onConfirm}
-		onClose={onClose}
-		onCloseAutoFocus={(event) => {
-			event.preventDefault();
-			if (opener?.isConnected && !opener.matches(":disabled")) {
-				opener.focus();
-			} else {
-				focusFallback();
-			}
-		}}
-	/>
-);
 
 // Keyed so that navigating between agents (changing the :agentId param)
 // fully remounts the component, resetting all internal state (drafts,
