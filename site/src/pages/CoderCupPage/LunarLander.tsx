@@ -1910,13 +1910,25 @@ type VhsBuffers = {
 	cyan: HTMLCanvasElement;
 };
 
+/**
+ * Size an offscreen buffer to match the source. Assigning a canvas size
+ * clears its backing store even when the size is unchanged, so only do
+ * it on an actual change; every caller then draws an opaque full frame
+ * over the old contents.
+ */
+function matchSize(target: HTMLCanvasElement, w: number, h: number) {
+	if (target.width !== w || target.height !== h) {
+		target.width = w;
+		target.height = h;
+	}
+}
+
 function tintInto(
 	target: HTMLCanvasElement,
 	source: HTMLCanvasElement,
 	color: string,
 ) {
-	target.width = source.width;
-	target.height = source.height;
+	matchSize(target, source.width, source.height);
 	const tctx = target.getContext("2d");
 	if (!tctx) return;
 	tctx.globalCompositeOperation = "source-over";
@@ -1943,8 +1955,7 @@ function drawVhsRewindEffect(
 	const h = canvas.height;
 	if (w === 0 || h === 0) return;
 
-	buffers.frame.width = w;
-	buffers.frame.height = h;
+	matchSize(buffers.frame, w, h);
 	const fctx = buffers.frame.getContext("2d");
 	if (!fctx) return;
 	fctx.drawImage(canvas, 0, 0);
@@ -2044,6 +2055,8 @@ export const LunarLander: React.FC = () => {
 	// same choice into the game loop, which runs outside React renders.
 	const [chosenLimits, setLimits] = useState<LandingLimits | null>(null);
 	const limitsRef = useRef<LandingLimits | null>(null);
+	// Drives the screen reader announcement; the loop owns the replay.
+	const [rewinding, setRewinding] = useState(false);
 	const selectDifficulty = (picked: LandingLimits) => {
 		limitsRef.current = picked;
 		setLimits(picked);
@@ -2102,6 +2115,7 @@ export const LunarLander: React.FC = () => {
 			red: document.createElement("canvas"),
 			cyan: document.createElement("canvas"),
 		};
+		const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 		// Sidebar interaction state.
 		let savedBubbleTimer = 0;
 		let savedBubbleName = "";
@@ -2151,7 +2165,7 @@ export const LunarLander: React.FC = () => {
 			// A resize regenerates the terrain, so older snapshots no
 			// longer fit the screen.
 			history = [];
-			rewind = null;
+			endRewind();
 			if (!victory) startNewRound();
 		}
 
@@ -2226,6 +2240,12 @@ export const LunarLander: React.FC = () => {
 				cursor: gameTime,
 				target: Math.max(history[0].time, gameTime - REWIND_SECONDS),
 			};
+			setRewinding(true);
+		}
+
+		function endRewind() {
+			rewind = null;
+			setRewinding(false);
 		}
 
 		// Replay history backwards, dropping snapshots as it passes them,
@@ -2246,7 +2266,7 @@ export const LunarLander: React.FC = () => {
 			restoreSnapshot(current);
 			if (rewind.cursor <= rewind.target) {
 				gameTime = current.time;
-				rewind = null;
+				endRewind();
 			}
 		}
 
@@ -2837,7 +2857,11 @@ export const LunarLander: React.FC = () => {
 			);
 
 			if (rewind) {
-				drawVhsRewindEffect(cx, vhsBuffers, ts / 1000);
+				// Players who ask for reduced motion get the label without
+				// the tearing and static.
+				if (!reducedMotion.matches) {
+					drawVhsRewindEffect(cx, vhsBuffers, ts / 1000);
+				}
 				drawRewindLabel(cx);
 			}
 
@@ -2880,7 +2904,11 @@ export const LunarLander: React.FC = () => {
 			/>
 			<p id={controlsHintId} className="sr-only">
 				Press the left and right arrow keys, or A and D, to rotate. Press the
-				down arrow key or S to fire the main thruster.
+				down arrow key or S to fire the main thruster. Press R to rewind the
+				last 5 seconds.
+			</p>
+			<p className="sr-only" aria-live="polite">
+				{rewinding ? "Rewinding 5 seconds" : ""}
 			</p>
 			{!chosenLimits && (
 				// Centered over the playfield: the canvas reserves 200px on the
