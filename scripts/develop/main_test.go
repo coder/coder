@@ -738,7 +738,12 @@ func TestWaitForHealthyTimeout(t *testing.T) {
 	// and the deadline.
 	probes := make(chan struct{}, 16)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		probes <- struct{}{}
+		// Never block the handler: a regression that probes without the
+		// mock clock must fail the test, not hang the server.
+		select {
+		case probes <- struct{}{}:
+		default:
+		}
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}))
 	t.Cleanup(srv.Close)
@@ -789,6 +794,37 @@ func TestWaitForHealthyTimeout(t *testing.T) {
 	assert.Contains(t, err.Error(), "server did not become ready in "+cfg.healthTimeout.String())
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.NoError(t, ctx.Err())
+}
+
+func TestWaitForHealthyCanceled(t *testing.T) {
+	t.Parallel()
+
+	// A canceled parent is not a deadline. The error must wrap
+	// context.Canceled and not context.DeadlineExceeded, also when the
+	// parent was canceled with a cause, as an errgroup does.
+	cases := []struct {
+		name  string
+		cause error
+	}{
+		{name: "NoCause"},
+		{name: "WithCause", cause: xerrors.New("process exited")},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancelCause(testutil.Context(t, testutil.WaitShort))
+			cancel(tc.cause)
+			logger := slog.Make(sloghuman.Sink(&bytes.Buffer{}))
+			cfg := &devConfig{healthTimeout: time.Minute}
+			// Nothing listens on port 1, and the mock clock never advances.
+			err := waitForHealthy(ctx, quartz.NewMock(t), logger, cfg, "http://127.0.0.1:1")
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "server did not become ready in 1m0s")
+			assert.ErrorIs(t, err, context.Canceled)
+			assert.NotErrorIs(t, err, context.DeadlineExceeded)
+		})
+	}
 }
 
 func TestListenAddresses(t *testing.T) {

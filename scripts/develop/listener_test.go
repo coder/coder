@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"slices"
 	"sync/atomic"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,7 +42,13 @@ const (
 	ipv4Other  = "0501A8C0" // 192.168.1.5
 	ipv6Any    = "00000000000000000000000000000000"
 	ipv6Mapped = "0000000000000000FFFF00000100007F" // ::ffff:127.0.0.1
-	ipv6Lo     = "00000000000000000000000001000000" // ::1
+	// ipv6MappedAny is ::ffff:0.0.0.0, which takes connections to 127.0.0.1.
+	ipv6MappedAny = "0000000000000000FFFF000000000000"
+	// ipv6MappedOther is ::ffff:192.168.1.5 and ipv6MappedLo2 is
+	// ::ffff:127.0.0.2. Neither takes connections to 127.0.0.1.
+	ipv6MappedOther = "0000000000000000FFFF00000501A8C0"
+	ipv6MappedLo2   = "0000000000000000FFFF00000200007F"
+	ipv6Lo          = "00000000000000000000000001000000" // ::1
 )
 
 func TestLoopbackListeners(t *testing.T) {
@@ -75,6 +82,11 @@ func TestLoopbackListeners(t *testing.T) {
 			want: []loopbackListener{{uid: 1003}},
 		},
 		{
+			name: "IPv6MappedWildcard",
+			text: procNetTCPHeader + procNetRow(ipv6MappedAny, testPort, "0A", 1004),
+			want: []loopbackListener{{uid: 1004}},
+		},
+		{
 			name: "EveryMatchingRow",
 			text: procNetTCPHeader +
 				procNetRow(ipv4Lo, testPort, "0A", 1000) +
@@ -85,7 +97,11 @@ func TestLoopbackListeners(t *testing.T) {
 			name: "OtherAddresses",
 			text: procNetTCPHeader +
 				procNetRow(ipv4Other, testPort, "0A", 1001) +
-				procNetRow(ipv6Lo, testPort, "0A", 1001),
+				procNetRow(ipv6Lo, testPort, "0A", 1001) +
+				procNetRow(ipv6MappedOther, testPort, "0A", 1001) +
+				procNetRow(ipv6MappedLo2, testPort, "0A", 1001) +
+				procNetRow("0200007F", testPort, "0A", 1001) + // 127.0.0.2
+				procNetRow("0000", testPort, "0A", 1001), // not an address
 		},
 		{
 			name: "OtherPorts",
@@ -168,6 +184,19 @@ func TestTableListenerUIDs(t *testing.T) {
 			want: []int{self, foreign},
 		},
 		{
+			name: "ForeignMappedWildcardAlone",
+			tcp6: procNetTCPHeader + listen(ipv6MappedAny, foreign),
+			want: []int{foreign},
+		},
+		{
+			// The rule for :: must not hide a socket on ::ffff:0.0.0.0,
+			// which takes IPv4 connections whatever IPV6_V6ONLY says.
+			name: "OwnIPv4AndForeignMappedWildcard",
+			tcp:  procNetTCPHeader + listen(ipv4Any, self),
+			tcp6: procNetTCPHeader + listen(ipv6MappedAny, foreign),
+			want: []int{self, foreign},
+		},
+		{
 			name: "ForeignIPv4AndForeignIPv6Wildcard",
 			tcp:  procNetTCPHeader + listen(ipv4Lo, foreign),
 			tcp6: procNetTCPHeader + listen(ipv6Any, foreign),
@@ -232,6 +261,34 @@ func TestProcListenerUIDs(t *testing.T) {
 	}
 }
 
+// TestProcListenerUIDsMappedWildcard binds a socket on ::ffff:0.0.0.0, which
+// the net package cannot do, and checks that the kernel's row for it is
+// found.
+func TestProcListenerUIDsMappedWildcard(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS != "linux" {
+		t.Skip("reads /proc/net/tcp6")
+	}
+
+	fd, err := syscall.Socket(syscall.AF_INET6, syscall.SOCK_STREAM, 0)
+	if err != nil {
+		t.Skipf("no IPv6 sockets: %v", err)
+	}
+	t.Cleanup(func() { _ = syscall.Close(fd) })
+	// ::ffff:0.0.0.0
+	addr := &syscall.SockaddrInet6{Addr: [16]byte{10: 0xff, 11: 0xff}}
+	if err := syscall.Bind(fd, addr); err != nil {
+		t.Skipf("cannot bind ::ffff:0.0.0.0: %v", err)
+	}
+	require.NoError(t, syscall.Listen(fd, 1))
+	bound, err := syscall.Getsockname(fd)
+	require.NoError(t, err)
+
+	uids, err := procListenerUIDs(int64(bound.(*syscall.SockaddrInet6).Port))
+	require.NoError(t, err)
+	assert.Contains(t, uids, os.Getuid())
+}
+
 func TestCheckAPIListener(t *testing.T) {
 	t.Parallel()
 
@@ -286,7 +343,7 @@ func TestCheckAPIListener(t *testing.T) {
 			}
 			require.NoError(t, err)
 			if tc.wantWarn == "" {
-				assert.NotContains(t, buf.String(), "WARN")
+				assert.NotContains(t, buf.String(), "[warn]")
 			} else {
 				assert.Contains(t, buf.String(), tc.wantWarn)
 			}

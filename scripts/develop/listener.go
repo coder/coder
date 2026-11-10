@@ -4,7 +4,9 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"errors"
+	"net"
 	"os"
 	"runtime"
 	"strconv"
@@ -21,22 +23,46 @@ const (
 	procNetTCPListen = "0A"
 	procNetTCP       = "/proc/net/tcp"
 	procNetTCP6      = "/proc/net/tcp6"
-	// ipv6AnyAddr is :: in /proc/net/tcp6.
-	ipv6AnyAddr = "00000000000000000000000000000000"
-	// ipv4AddrLen is the length of an IPv4 address in /proc/net/tcp.
-	ipv4AddrLen = 8
 )
 
-// loopbackListenAddrs holds the local addresses, as /proc/net/tcp and
-// /proc/net/tcp6 print them, of a listening socket that can accept a
-// connection to 127.0.0.1: 127.0.0.1, 0.0.0.0, :: and ::ffff:127.0.0.1.
-// The kernel prints each 32-bit word of an address in host byte order, so
-// these strings are for little-endian hosts (amd64 and arm64).
-var loopbackListenAddrs = map[string]bool{
-	"0100007F":                         true,
-	"00000000":                         true,
-	ipv6AnyAddr:                        true,
-	"0000000000000000FFFF00000100007F": true,
+// decodeProcAddr decodes the local address of a row of /proc/net/tcp (8 hex
+// digits, IPv4) or /proc/net/tcp6 (32 hex digits, IPv6). The kernel prints
+// each 32-bit word of the address in host byte order.
+func decodeProcAddr(s string) (net.IP, bool) {
+	if len(s) != 2*net.IPv4len && len(s) != 2*net.IPv6len {
+		return nil, false
+	}
+	ip := make(net.IP, len(s)/2)
+	for i := 0; i < len(s); i += 8 {
+		w, err := strconv.ParseUint(s[i:i+8], 16, 32)
+		if err != nil {
+			return nil, false
+		}
+		binary.NativeEndian.PutUint32(ip[i/2:], uint32(w))
+	}
+	return ip, true
+}
+
+// classifyListenAddr reports whether a socket that listens on ip can accept
+// a connection to 127.0.0.1. That holds for 127.0.0.1 and 0.0.0.0 (ipv4), for
+// :: (anyIPv6, when the socket is dual-stack) and for the IPv4-mapped forms
+// of 127.0.0.1 and 0.0.0.0, ::ffff:127.0.0.1 and ::ffff:0.0.0.0.
+func classifyListenAddr(ip net.IP) (ipv4, anyIPv6, ok bool) {
+	acceptsLoopback := func(v4 net.IP) bool {
+		return v4.Equal(net.IPv4zero) || v4.Equal(net.IPv4(127, 0, 0, 1))
+	}
+	switch len(ip) {
+	case net.IPv4len:
+		return true, false, acceptsLoopback(ip)
+	case net.IPv6len:
+		if ip.Equal(net.IPv6unspecified) {
+			return false, true, true
+		}
+		if v4 := ip.To4(); v4 != nil {
+			return false, false, acceptsLoopback(v4)
+		}
+	}
+	return false, false, false
 }
 
 // errListenerCheckUnsupported means that the host has no /proc/net/tcp to
@@ -51,7 +77,9 @@ type listenerLookup func(port int64) ([]int, error)
 // connections to 127.0.0.1.
 type loopbackListener struct {
 	uid int
-	// ipv4 is true for a socket on 127.0.0.1 or 0.0.0.0.
+	// ipv4 is true for a socket on 127.0.0.1 or 0.0.0.0. A socket on an
+	// IPv4-mapped address, such as ::ffff:0.0.0.0, is neither ipv4 nor
+	// anyIPv6.
 	ipv4 bool
 	// anyIPv6 is true for a socket on ::. The socket table does not show
 	// its IPV6_V6ONLY option, so it may not accept connections to 127.0.0.1.
@@ -72,8 +100,15 @@ func loopbackListeners(procNet string, port int64) []loopbackListener {
 			continue
 		}
 		addr, portHex, ok := strings.Cut(fields[1], ":")
-		addr = strings.ToUpper(addr)
-		if !ok || !loopbackListenAddrs[addr] {
+		if !ok {
+			continue
+		}
+		ip, ok := decodeProcAddr(addr)
+		if !ok {
+			continue
+		}
+		ipv4, anyIPv6, ok := classifyListenAddr(ip)
+		if !ok {
 			continue
 		}
 		if p, err := strconv.ParseInt(portHex, 16, 32); err != nil || p != port {
@@ -83,7 +118,7 @@ func loopbackListeners(procNet string, port int64) []loopbackListener {
 		if err != nil {
 			continue
 		}
-		listeners = append(listeners, loopbackListener{uid: uid, ipv4: len(addr) == ipv4AddrLen, anyIPv6: addr == ipv6AnyAddr})
+		listeners = append(listeners, loopbackListener{uid: uid, ipv4: ipv4, anyIPv6: anyIPv6})
 	}
 	return listeners
 }
@@ -96,7 +131,9 @@ func loopbackListeners(procNet string, port int64) []loopbackListener {
 // When a socket of uid self listens on 127.0.0.1 or 0.0.0.0 on the port, any
 // socket on :: must be IPv6-only. The kernel refuses a dual-stack socket on a
 // port that an IPv4 socket listens on, and requests to 127.0.0.1 go to the
-// IPv4 socket. Sockets on any other address always count.
+// IPv4 socket. Sockets on any other address always count, including a
+// socket on an IPv4-mapped address such as ::ffff:0.0.0.0, which takes IPv4
+// connections whatever its IPV6_V6ONLY option says.
 func tableListenerUIDs(tcp, tcp6 string, port int64, self int) []int {
 	listeners := append(loopbackListeners(tcp, port), loopbackListeners(tcp6, port)...)
 	ownIPv4 := false
