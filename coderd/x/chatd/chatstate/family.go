@@ -298,6 +298,9 @@ type ArchiveProjectChatsInput struct {
 	// running, interrupting, waiting for tool results, or paused.
 	// Without it such chats return a *ChatProjectActiveChatsError.
 	StopActiveChats bool
+	// OnDeadlockRetry, when set, is called before each retry of a
+	// transaction that Postgres aborted to break a deadlock.
+	OnDeadlockRetry func(attempt int, err error)
 }
 
 // archiveProjectAttempts bounds how often [ArchiveProjectChats] runs its
@@ -362,6 +365,9 @@ func ArchiveProjectChats(
 		buffer.Discard()
 		if attempt == archiveProjectAttempts || !database.IsDeadlockError(err) {
 			return database.ChatProject{}, nil, err
+		}
+		if input.OnDeadlockRetry != nil {
+			input.OnDeadlockRetry(attempt, err)
 		}
 	}
 	if err := buffer.Flush(); err != nil {

@@ -541,6 +541,10 @@ func (p *Server) ArchiveChatProject(ctx context.Context, projectID uuid.UUID, st
 	project, chats, err := chatstate.ArchiveProjectChats(ctx, p.db, p.pubsub, chatstate.ArchiveProjectChatsInput{
 		ProjectID:       projectID,
 		StopActiveChats: stopActive,
+		OnDeadlockRetry: func(attempt int, err error) {
+			p.logger.Warn(ctx, "retrying chat project archive after a deadlock",
+				slog.F("project_id", projectID), slog.F("attempt", attempt), slog.Error(err))
+		},
 	})
 	// A failed chat:update publish leaves the archive committed. Runners
 	// still stop at their next heartbeat, which fails on the cleared

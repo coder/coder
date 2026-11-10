@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
@@ -228,8 +229,15 @@ func TestArchiveProjectChatsRetriesAfterDeadlock(t *testing.T) {
 	require.NoError(t, err)
 
 	archiveErr := make(chan error, 1)
+	retries := make(chan int, 3)
 	go func() {
-		_, _, err := chatstate.ArchiveProjectChats(ctx, db, newRecordingPubsub(), chatstate.ArchiveProjectChatsInput{ProjectID: project.ID})
+		_, _, err := chatstate.ArchiveProjectChats(ctx, db, newRecordingPubsub(), chatstate.ArchiveProjectChatsInput{
+			ProjectID: project.ID,
+			OnDeadlockRetry: func(attempt int, err error) {
+				assert.True(t, database.IsDeadlockError(err))
+				retries <- attempt
+			},
+		})
 		archiveErr <- err
 	}()
 	waitForLockWaiter(ctx, t, sqlDB, "LockChatProjectUnarchivedRootChats")
@@ -239,6 +247,7 @@ func TestArchiveProjectChatsRetriesAfterDeadlock(t *testing.T) {
 	require.NoError(t, writer.Commit())
 
 	require.NoError(t, testutil.RequireReceive(ctx, t, archiveErr))
+	require.Equal(t, 1, testutil.RequireReceive(ctx, t, retries), "the retry must be reported")
 	archivedProject, err := db.GetChatProjectByID(ctx, project.ID)
 	require.NoError(t, err)
 	require.True(t, archivedProject.ArchivedAt.Valid)

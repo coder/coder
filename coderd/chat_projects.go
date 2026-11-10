@@ -1,10 +1,12 @@
 package coderd
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -313,10 +315,21 @@ func (api *API) archiveChatProject(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// The body is optional; no body archives like {}.
+	// The body is optional; an empty body archives like {}.
 	var req codersdk.ArchiveChatProjectRequest
-	if r.Body != http.NoBody && !httpapi.Read(ctx, rw, r, &req) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<16))
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to read request body.",
+			Detail:  err.Error(),
+		})
 		return
+	}
+	if len(bytes.TrimSpace(body)) > 0 {
+		r.Body = io.NopCloser(bytes.NewReader(body))
+		if !httpapi.Read(ctx, rw, r, &req) {
+			return
+		}
 	}
 
 	aReq, commitAudit := audit.InitRequest[database.ChatProject](rw, &audit.RequestParams{
