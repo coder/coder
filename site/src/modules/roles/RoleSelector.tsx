@@ -55,13 +55,13 @@ export const RoleSelector: React.FC<RoleSelectorProps> = ({
 	}
 
 	const impliedRoleNames = new Set(additionalImpliedRoles.map((r) => r.name));
-	const { selectableRoles = [], advancedRoles = [] } = Object.groupBy(
-		availableRoles.filter(
-			(r) => r.name !== "member" && !impliedRoleNames.has(r.name),
-		),
-		(it) =>
-			advancedRoleNames.includes(it.name) ? "advancedRoles" : "selectableRoles",
+	const roles = availableRoles.filter(
+		(r) => r.name !== "member" && !impliedRoleNames.has(r.name),
 	);
+	const selectableRoles = roles.filter(
+		(r) => !advancedRoleNames.includes(r.name),
+	);
+	const advancedRoles = roles.filter((r) => advancedRoleNames.includes(r.name));
 
 	if (selectableRoles.length === 0) {
 		return null;
