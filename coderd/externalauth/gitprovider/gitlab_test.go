@@ -306,8 +306,8 @@ func TestGitLabRateLimit(t *testing.T) {
 
 		expected := mClock.Now().Add(120*time.Second + gitprovider.RateLimitPadding)
 		assert.True(t, rlErr.RetryAfter.Equal(expected), "expected %v, got %v", expected, rlErr.RetryAfter)
-		_, forbidden := errors.AsType[gitprovider.ForbiddenError](err)
-		require.False(t, forbidden)
+		_, rejected := errors.AsType[gitprovider.RejectedError](err)
+		require.False(t, rejected)
 	})
 
 	t.Run("403WithRateLimitReset", func(t *testing.T) {
@@ -339,37 +339,50 @@ func TestGitLabRateLimit(t *testing.T) {
 
 		expected := resetTime.Add(gitprovider.RateLimitPadding)
 		assert.True(t, rlErr.RetryAfter.Equal(expected), "expected %v, got %v", expected, rlErr.RetryAfter)
-		_, forbidden := errors.AsType[gitprovider.ForbiddenError](err)
-		require.False(t, forbidden)
+		_, rejected := errors.AsType[gitprovider.RejectedError](err)
+		require.False(t, rejected)
 	})
 
-	t.Run("403WithoutRateLimitHeaders", func(t *testing.T) {
-		t.Parallel()
+	for _, tc := range []struct {
+		name   string
+		status int
+		reset  bool
+	}{
+		{name: "403WithoutRateLimitHeaders", status: http.StatusForbidden},
+		{name: "429WithoutRetryAfter", status: http.StatusTooManyRequests, reset: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			clock := quartz.NewMock(t)
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if tc.reset {
+					w.Header().Set("RateLimit-Reset", fmt.Sprint(clock.Now().Add(time.Hour).Unix()))
+					w.Header().Set("RateLimit-Remaining", "4990")
+				}
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(`{"message":"forbidden"}`))
+			}))
+			defer srv.Close()
 
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusForbidden)
-			_, _ = w.Write([]byte(`{"message":"forbidden"}`))
-		}))
-		defer srv.Close()
+			gp, err := gitprovider.New("gitlab", srv.URL, srv.Client(), gitprovider.WithClock(clock))
+			require.NoError(t, err)
 
-		gp, err := gitprovider.New("gitlab", srv.URL, srv.Client())
-		require.NoError(t, err)
+			_, err = gp.FetchPullRequestStatus(
+				t.Context(),
+				"bad-token",
+				gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
+			)
+			require.Error(t, err)
 
-		_, err = gp.FetchPullRequestStatus(
-			t.Context(),
-			"bad-token",
-			gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1},
-		)
-		require.Error(t, err)
-
-		_, ok := errors.AsType[*gitprovider.RateLimitError](err)
-		assert.False(t, ok, "error should NOT be *RateLimitError")
-		assert.Contains(t, err.Error(), "403")
-		forbidden, ok := errors.AsType[gitprovider.ForbiddenError](err)
-		require.True(t, ok)
-		require.Equal(t, err.Error(), forbidden.Error())
-		require.ErrorContains(t, err, "gitlab get merge request:")
-	})
+			_, ok := errors.AsType[*gitprovider.RateLimitError](err)
+			assert.False(t, ok, "error should NOT be *RateLimitError")
+			assert.Contains(t, err.Error(), fmt.Sprint(tc.status))
+			rejected, ok := errors.AsType[gitprovider.RejectedError](err)
+			require.True(t, ok)
+			require.Equal(t, err.Error(), rejected.Error())
+			require.ErrorContains(t, err, "gitlab get merge request:")
+		})
+	}
 }
 
 func TestGitLabRateLimitDiffEndpoints(t *testing.T) {

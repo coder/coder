@@ -679,13 +679,13 @@ func TestRefresher_RateLimitSkipsRemainingInGroup(t *testing.T) {
 		"FetchPullRequestStatus should be called exactly once")
 }
 
-func TestRefresher_ForbiddenSkipsOnlySameGroup(t *testing.T) {
+func TestRefresher_RejectedSkipsOnlySameGroup(t *testing.T) {
 	t.Parallel()
 
-	for _, forbidden := range []bool{true, false} {
+	for _, rejected := range []bool{true, false} {
 		name := "OtherError"
-		if forbidden {
-			name = "Forbidden"
+		if rejected {
+			name = "Rejected"
 		}
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -716,8 +716,8 @@ func TestRefresher_ForbiddenSkipsOnlySameGroup(t *testing.T) {
 
 			var calls atomic.Int32
 			providerErr := xerrors.New("provider error")
-			if forbidden {
-				providerErr = gitprovider.ForbiddenError("permission denied")
+			if rejected {
+				providerErr = gitprovider.RejectedError("permission denied")
 			}
 			provider := &mockProvider{
 				parsePullRequestURL: func(string) (gitprovider.PRRef, bool) {
@@ -737,23 +737,18 @@ func TestRefresher_ForbiddenSkipsOnlySameGroup(t *testing.T) {
 				results, err := refresher.Refresh(ctx, requests)
 				require.NoError(t, err)
 				require.Len(t, results, len(requests))
-				var skipped int
 				for _, result := range results {
 					require.ErrorIs(t, result.Error, providerErr)
 					_, isRateLimit := errors.AsType[*gitprovider.RateLimitError](result.Error)
 					require.False(t, isRateLimit)
 					require.NotErrorIs(t, result.Error, gitsync.ErrRateLimitSkipped)
-					if strings.HasPrefix(result.Error.Error(), "skipped due to forbidden response:") {
-						skipped++
-					}
+					_, isRejected := errors.AsType[gitprovider.RejectedError](result.Error)
+					require.Equal(t, rejected, isRejected)
 				}
 				wantCalls := len(requests)
-				wantSkipped := 0
-				if forbidden {
+				if rejected {
 					wantCalls = len(groups)
-					wantSkipped = len(groups)
 				}
-				require.Equal(t, wantSkipped, skipped)
 				require.Equal(t, run*wantCalls, int(calls.Load()))
 			}
 		})

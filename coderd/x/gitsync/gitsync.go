@@ -255,10 +255,9 @@ func (r *Refresher) Refresh(
 					skipErr.Store(&skipped)
 					return
 				}
-				if forbidden, ok := errors.AsType[gitprovider.ForbiddenError](err); ok {
-					// Rate limits take precedence.
-					skipped := xerrors.Errorf("skipped due to forbidden response: %w", forbidden)
-					skipErr.CompareAndSwap(nil, &skipped)
+				if rejected, ok := errors.AsType[gitprovider.RejectedError](err); ok {
+					skipped := xerrors.Errorf("skipped due to rejected request: %w", rejected)
+					skipErr.Store(&skipped)
 				}
 			}()
 		}

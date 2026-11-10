@@ -497,11 +497,11 @@ func TestWorker_GroupErrorBackoff(t *testing.T) {
 		name        string
 		retryDelay  time.Duration
 		wantBackoff time.Duration
-		forbidden   bool
+		rejected    bool
 	}{
 		{name: "RetryAfter", retryDelay: 30 * time.Minute, wantBackoff: 30 * time.Minute},
 		{name: "CappedAtOneHour", retryDelay: 24 * time.Hour, wantBackoff: time.Hour},
-		{name: "Forbidden", forbidden: true, wantBackoff: gitsync.DiffStatusTTL},
+		{name: "Rejected", rejected: true, wantBackoff: gitsync.DiffStatusTTL},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -536,8 +536,8 @@ func TestWorker_GroupErrorBackoff(t *testing.T) {
 				},
 				resolveBranchPR: func(context.Context, string, gitprovider.BranchRef) (*gitprovider.PRRef, error) {
 					calls.Add(1)
-					if tc.forbidden {
-						return nil, gitprovider.ForbiddenError("permission denied")
+					if tc.rejected {
+						return nil, gitprovider.RejectedError("permission denied")
 					}
 					return nil, &gitprovider.RateLimitError{RetryAfter: clock.Now().Add(tc.retryDelay)}
 				},

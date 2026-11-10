@@ -445,14 +445,14 @@ func (g *githubProvider) decodeJSON(
 				"github request failed with status %d",
 				resp.StatusCode,
 			)
-			return markForbiddenError(resp, err)
+			return markRejectedError(resp, err)
 		}
 		err := xerrors.Errorf(
 			"github request failed with status %d: %s",
 			resp.StatusCode,
 			strings.TrimSpace(string(body)),
 		)
-		return markForbiddenError(resp, err)
+		return markRejectedError(resp, err)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -499,14 +499,14 @@ func (g *githubProvider) fetchDiff(
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		if readErr != nil {
 			err := xerrors.Errorf("github diff request failed with status %d", resp.StatusCode)
-			return "", markForbiddenError(resp, err)
+			return "", markRejectedError(resp, err)
 		}
 		err := xerrors.Errorf(
 			"github diff request failed with status %d: %s",
 			resp.StatusCode,
 			strings.TrimSpace(string(body)),
 		)
-		return "", markForbiddenError(resp, err)
+		return "", markRejectedError(resp, err)
 	}
 
 	// Read one extra byte beyond MaxDiffSize so we can detect

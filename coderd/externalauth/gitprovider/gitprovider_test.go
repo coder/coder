@@ -19,7 +19,7 @@ import (
 	"github.com/coder/quartz"
 )
 
-func TestForbiddenResponses(t *testing.T) {
+func TestRejectedResponses(t *testing.T) {
 	t.Parallel()
 
 	pull := gitprovider.PRRef{Owner: "org", Repo: "repo", Number: 1}
@@ -72,6 +72,8 @@ func TestForbiddenResponses(t *testing.T) {
 			}{
 				{name: "Forbidden", status: http.StatusForbidden},
 				{name: "ForbiddenReadFailure", status: http.StatusForbidden, readError: true},
+				{name: "TooManyRequests", status: http.StatusTooManyRequests},
+				{name: "TooManyRequestsReadFailure", status: http.StatusTooManyRequests, readError: true},
 				{name: "OtherError", status: http.StatusInternalServerError},
 			} {
 				t.Run(response.name, func(t *testing.T) {
@@ -110,14 +112,14 @@ func TestForbiddenResponses(t *testing.T) {
 					require.Error(t, err)
 					_, rateLimited := errors.AsType[*gitprovider.RateLimitError](err)
 					require.False(t, rateLimited)
-					forbidden, ok := errors.AsType[gitprovider.ForbiddenError](err)
-					require.Equal(t, response.status == http.StatusForbidden, ok)
+					rejected, ok := errors.AsType[gitprovider.RejectedError](err)
+					require.Equal(t, response.status == http.StatusForbidden || response.status == http.StatusTooManyRequests, ok)
 					message := fmt.Sprintf("%s %d", endpoint.message, response.status)
 					if !response.readError {
 						message += ": permission denied"
 					}
 					if ok {
-						require.Equal(t, message, forbidden.Error())
+						require.Equal(t, message, rejected.Error())
 					} else {
 						require.ErrorContains(t, err, message)
 					}

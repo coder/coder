@@ -262,13 +262,13 @@ func (g *gitlabProvider) FetchPullRequestDiff(
 				xerrors.Errorf("unexpected status %d", resp.StatusCode),
 				"get merge request raw diffs",
 			)
-			return "", markForbiddenError(resp, err)
+			return "", markRejectedError(resp, err)
 		}
 		err := g.wrapError(
 			xerrors.Errorf("unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(string(body))),
 			"get merge request raw diffs",
 		)
-		return "", markForbiddenError(resp, err)
+		return "", markRejectedError(resp, err)
 	}
 
 	buf, err := io.ReadAll(io.LimitReader(resp.Body, MaxDiffSize+1))
@@ -353,13 +353,13 @@ func (g *gitlabProvider) FetchBranchDiff(
 				xerrors.Errorf("unexpected status %d", resp.StatusCode),
 				"compare branches",
 			)
-			return "", markForbiddenError(resp, err)
+			return "", markRejectedError(resp, err)
 		}
 		err := g.wrapError(
 			xerrors.Errorf("unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(string(body))),
 			"compare branches",
 		)
-		return "", markForbiddenError(resp, err)
+		return "", markRejectedError(resp, err)
 	}
 
 	// Bound the read to MaxDiffSize + overhead for JSON structure.
@@ -597,7 +597,7 @@ func (g *gitlabProvider) wrapError(err error, action string) error {
 		}
 	}
 	wrapped := xerrors.Errorf("gitlab %s: %w", action, err)
-	return markForbiddenError(resp, wrapped)
+	return markRejectedError(resp, wrapped)
 }
 
 // mapGitLabState maps a GitLab merge request state string to a normalized PRState.

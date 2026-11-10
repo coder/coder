@@ -281,19 +281,19 @@ func countDiffLines(diff string) (additions, deletions int32) {
 	return additions, deletions
 }
 
-// markForbiddenError preserves diagnostic text after rate-limit checking.
-func markForbiddenError(resp *http.Response, err error) error {
-	if resp != nil && resp.StatusCode == http.StatusForbidden {
-		return ForbiddenError(err.Error())
+// markRejectedError preserves diagnostic text after rate-limit checking.
+func markRejectedError(resp *http.Response, err error) error {
+	if resp != nil && (resp.StatusCode == http.StatusForbidden || resp.StatusCode == http.StatusTooManyRequests) {
+		return RejectedError(err.Error())
 	}
 	return err
 }
 
-// ForbiddenError indicates an HTTP 403 that is not a rate limit.
+// RejectedError indicates an HTTP 403 or 429 without a usable retry time.
 // It retains the provider's diagnostic text without wrapping another error.
-type ForbiddenError string
+type RejectedError string
 
-func (e ForbiddenError) Error() string {
+func (e RejectedError) Error() string {
 	return string(e)
 }
 
