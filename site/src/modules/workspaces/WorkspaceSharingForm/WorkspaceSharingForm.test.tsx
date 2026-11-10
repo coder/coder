@@ -74,6 +74,47 @@ describe("WorkspaceSharingForm", () => {
 			"admin",
 		);
 	});
+
+	it("names each member's menu after the member", async () => {
+		vi.spyOn(API, "getWorkspaceSharingSettings").mockResolvedValue({
+			sharing_disabled: false,
+			sharing_globally_disabled: false,
+			shareable_workspace_owners: "everyone",
+		});
+		const onRemoveUser = vi.fn();
+		const onRemoveGroup = vi.fn();
+
+		render(
+			<WorkspaceSharingForm
+				organizationId={MockWorkspace.organization_id}
+				workspaceACL={mockWorkspaceACL}
+				canShareWorkspace
+				error={undefined}
+				onUpdateUser={vi.fn()}
+				updatingUserId={undefined}
+				onRemoveUser={onRemoveUser}
+				onUpdateGroup={vi.fn()}
+				onRemoveGroup={onRemoveGroup}
+			/>,
+		);
+
+		const user = userEvent.setup();
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Open menu for ${MockUserMember.username}`,
+			}),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "Remove" }));
+		expect(onRemoveUser).toHaveBeenCalledWith(mockWorkspaceACL.users[0]);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: `Open menu for ${MockGroup.display_name || MockGroup.name}`,
+			}),
+		);
+		await user.click(await screen.findByRole("menuitem", { name: "Remove" }));
+		expect(onRemoveGroup).toHaveBeenCalledWith(mockWorkspaceACL.group[0]);
+	});
 });
 
 describe("RoleSelectField", () => {
