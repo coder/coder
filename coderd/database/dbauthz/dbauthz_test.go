@@ -5469,8 +5469,8 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetChatProjectPinTelemetry", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		dbm.EXPECT().GetChatProjectPinTelemetry(gomock.Any()).Return(database.GetChatProjectPinTelemetryRow{}, nil).AnyTimes()
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
+		dbm.EXPECT().GetChatProjectPinTelemetry(gomock.Any(), true).Return(database.GetChatProjectPinTelemetryRow{}, nil).AnyTimes()
+		check.Args(true).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetChatModelConfigsForTelemetry", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		dbm.EXPECT().GetChatModelConfigsForTelemetry(gomock.Any()).Return([]database.GetChatModelConfigsForTelemetryRow{}, nil).AnyTimes()

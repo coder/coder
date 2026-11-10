@@ -3879,12 +3879,12 @@ func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.G
 	return row, nil
 }
 
-func (q *querier) GetChatProjectPinTelemetry(ctx context.Context) (database.GetChatProjectPinTelemetryRow, error) {
+func (q *querier) GetChatProjectPinTelemetry(ctx context.Context, aclEnabled bool) (database.GetChatProjectPinTelemetryRow, error) {
 	// Telemetry queries are called from system contexts only.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.GetChatProjectPinTelemetryRow{}, err
 	}
-	return q.db.GetChatProjectPinTelemetry(ctx)
+	return q.db.GetChatProjectPinTelemetry(ctx, aclEnabled)
 }
 
 // GetChatProjectSummariesByUserID returns the caller's own pins and chat

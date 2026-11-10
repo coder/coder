@@ -203,7 +203,8 @@ ORDER BY lower(chat_projects.name), chat_projects.id;
 
 -- name: GetChatProjectPinTelemetry :one
 -- Aggregates pin usage over each active, non-system user's accessible
--- projects. No identifiers leave this query.
+-- projects. Grants count only when @acl_enabled, matching the summaries.
+-- No identifiers leave this query.
 WITH project_users AS (
     SELECT id AS project_id, owner_id AS user_id FROM chat_projects
     UNION
@@ -214,10 +215,12 @@ WITH project_users AS (
     JOIN organization_members
         ON organization_members.user_id = granted.user_id
         AND organization_members.organization_id = granted.organization_id
+    WHERE @acl_enabled::boolean
     UNION
     SELECT granted.project_id, group_members_expanded.user_id
     FROM (SELECT id AS project_id, jsonb_object_keys(group_acl)::uuid AS group_id FROM chat_projects) granted
     JOIN group_members_expanded ON group_members_expanded.group_id = granted.group_id
+    WHERE @acl_enabled::boolean
 ),
 per_user AS (
     SELECT
@@ -231,7 +234,8 @@ per_user AS (
         COUNT(*) FILTER (WHERE pins.unpinned_at IS NOT NULL AND pins.source = 'user') AS tombstones_user,
         COUNT(*) FILTER (WHERE pins.unpinned_at IS NOT NULL) AS tombstones
     FROM project_users
-    JOIN users ON users.id = project_users.user_id AND users.deleted = false AND users.is_system = false
+    JOIN users ON users.id = project_users.user_id
+        AND users.status = 'active'::user_status AND users.deleted = false AND users.is_system = false
     LEFT JOIN chat_project_pins pins
         ON pins.user_id = project_users.user_id AND pins.project_id = project_users.project_id
     GROUP BY project_users.user_id

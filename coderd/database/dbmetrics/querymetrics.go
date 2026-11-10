@@ -1936,9 +1936,9 @@ func (m queryMetricsStore) GetChatProjectMemoryByName(ctx context.Context, arg d
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetChatProjectPinTelemetry(ctx context.Context) (database.GetChatProjectPinTelemetryRow, error) {
+func (m queryMetricsStore) GetChatProjectPinTelemetry(ctx context.Context, aclEnabled bool) (database.GetChatProjectPinTelemetryRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetChatProjectPinTelemetry(ctx)
+	r0, r1 := m.s.GetChatProjectPinTelemetry(ctx, aclEnabled)
 	m.queryLatencies.WithLabelValues("GetChatProjectPinTelemetry").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectPinTelemetry").Inc()
 	return r0, r1

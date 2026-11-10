@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
@@ -848,7 +849,10 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
-		row, err := r.options.Database.GetChatProjectPinTelemetry(ctx)
+		// Grants count only where RBAC honors them, as in the summaries.
+		sharingDisabled := rbac.ChatACLDisabled() ||
+			(r.options.DeploymentConfig != nil && bool(r.options.DeploymentConfig.DisableChatSharing))
+		row, err := r.options.Database.GetChatProjectPinTelemetry(ctx, !sharingDisabled)
 		if err != nil {
 			return xerrors.Errorf("get chat project pin telemetry: %w", err)
 		}

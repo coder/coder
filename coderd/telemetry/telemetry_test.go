@@ -1326,17 +1326,20 @@ func TestChatProjectPinTelemetry(t *testing.T) {
 	org, err := db.GetDefaultOrganization(ctx)
 	require.NoError(t, err)
 	// A pins two of four projects, unpins one and reorders one; B pins its
-	// only project; C has a shared project and no pins; D has no projects.
+	// only project; C has a shared project and no pins; D has no projects;
+	// suspended E is not counted.
 	userA := dbgen.User(t, db, database.User{})
 	userB := dbgen.User(t, db, database.User{})
 	userC := dbgen.User(t, db, database.User{})
 	_ = dbgen.User(t, db, database.User{})
+	userE := dbgen.User(t, db, database.User{Status: database.UserStatusSuspended})
 	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: userC.ID, OrganizationID: org.ID})
 	newProject := func(owner database.User) database.ChatProject {
 		return dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
 	}
 	a1, a2, a3, _ := newProject(userA), newProject(userA), newProject(userA), newProject(userA)
 	b1 := newProject(userB)
+	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: userE.ID, ProjectID: newProject(userE).ID})
 	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: userA.ID, ProjectID: a1.ID})
 	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: userA.ID, ProjectID: a2.ID, Source: database.ChatProjectPinSourceUser})
 	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: userA.ID, ProjectID: a3.ID, UnpinnedAt: sql.NullTime{Time: dbtime.Now(), Valid: true}})
@@ -1359,6 +1362,12 @@ func TestChatProjectPinTelemetry(t *testing.T) {
 		AllShare100:         1,
 		ActedShare2650:      1,
 	}, snapshot.ChatProjectPins)
+
+	// With sharing disabled, C's grant no longer gives C a project.
+	disabled, err := db.GetChatProjectPinTelemetry(ctx, false)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, disabled.UsersWithProjects)
+	require.Zero(t, disabled.AllShare0)
 }
 
 func TestChatDiffStatusSummaryTelemetry(t *testing.T) {
