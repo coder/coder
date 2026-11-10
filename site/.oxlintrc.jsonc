@@ -371,7 +371,7 @@
 			{
 				"object": "Map",
 				"property": "groupBy",
-				"message": "Map.groupBy needs Chrome 117 and Safari 17.4. Use a loop instead."
+				"message": "Map.groupBy needs Chrome 117 and Safari 17.4. Fill a new Map in a loop instead."
 			},
 			{
 				"object": "Promise",
@@ -381,37 +381,37 @@
 			{
 				"object": "Promise",
 				"property": "try",
-				"message": "Promise.try needs Chrome 128, Firefox 134 and Safari 18.2."
+				"message": "Promise.try needs Chrome 128, Firefox 134 and Safari 18.2. Use new Promise((resolve) => resolve(fn())) instead."
 			},
 			{
 				"object": "AbortSignal",
 				"property": "any",
-				"message": "AbortSignal.any needs Chrome 116 and Safari 17.4."
+				"message": "AbortSignal.any needs Chrome 116 and Safari 17.4. Use one AbortController and abort it from the abort event of each signal instead."
 			},
 			{
 				"object": "Array",
 				"property": "fromAsync",
-				"message": "Array.fromAsync needs Chrome 121."
+				"message": "Array.fromAsync needs Chrome 121. Collect the values in a for await loop instead."
 			},
 			{
 				"object": "Iterator",
 				"property": "from",
-				"message": "Iterator.from needs Chrome 122, Firefox 131 and Safari 18.4."
+				"message": "Iterator.from needs Chrome 122, Firefox 131 and Safari 18.4. Use Array.from or a generator function instead."
 			},
 			{
 				"object": "RegExp",
 				"property": "escape",
-				"message": "RegExp.escape needs Chrome 136, Firefox 134 and Safari 18.2."
+				"message": "RegExp.escape needs Chrome 136, Firefox 134 and Safari 18.2. Use lodash/escapeRegExp instead."
 			},
 			{
 				"object": "Error",
 				"property": "isError",
-				"message": "Error.isError needs Chrome 134, Firefox 138 and Safari 18.4."
+				"message": "Error.isError needs Chrome 134, Firefox 138 and Safari 18.4. Use instanceof Error instead."
 			},
 			{
 				"object": "Uint8Array",
 				"property": "fromBase64",
-				"message": "Uint8Array.fromBase64 needs Chrome 140, Firefox 133 and Safari 18.2."
+				"message": "Uint8Array.fromBase64 needs Chrome 140, Firefox 133 and Safari 18.2. Use Uint8Array.from(atob(value), (c) => c.charCodeAt(0)) instead."
 			}
 		]
 	},
