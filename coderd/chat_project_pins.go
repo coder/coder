@@ -176,8 +176,9 @@ func (api *API) authorizeChatProjectPin(rw http.ResponseWriter, r *http.Request,
 	}
 	if !usable {
 		httpapi.ResourceNotFound(rw)
+		return false
 	}
-	return usable
+	return true
 }
 
 // chatProjectsOwnerLockID serializes one user's project creates and pin
