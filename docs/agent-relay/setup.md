@@ -214,8 +214,7 @@ We also recommend that you:
 
 ### Start the worker after workspace setup
 
-Agent Relay hands a workspace to the provider as soon as its build succeeds.
-It reads the workspace agent's lifecycle on every sweep and reports it on the status page, but it doesn't wait for it: the provider module starts the worker as soon as its start script runs.
+Agent Relay hands a workspace to the provider as soon as its build succeeds, and the provider module starts the worker without waiting for your startup scripts.
 Without an ordering rule, the agent can run commands while your startup scripts are still cloning repositories or installing tools.
 
 To make the worker wait, put the setup that sessions need in `coder_script` resources or modules.
@@ -248,9 +247,8 @@ The module READMEs for [`coder/agent-relay-claude-code`](https://registry.coder.
   On earlier versions, Coder ignores the rule without an error, and the worker starts right away.
 - Coder can't order the `startup_script` attribute of `coder_agent`.
   Move setup steps that the worker depends on into `coder_script` resources.
-- If a prerequisite fails, Coder skips the module's scripts and the worker never starts.
-  Agent Relay reads the agent's `start_error` or `start_timeout` lifecycle and acts about a minute later.
-  A Cursor request fails.
+- If a prerequisite fails or times out, Coder skips the module's scripts and the worker never starts.
+  About a minute later, a Cursor request fails.
   A Claude Code work order is handed back to Anthropic once, which rebuilds the workspace, and the session fails when that second setup fails too.
   To start the worker even when setup fails, set `requires = "completion"` on the rule.
 - The session waits while prerequisites run, so set a `timeout` on each prerequisite.
