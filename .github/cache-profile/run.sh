@@ -19,6 +19,9 @@ for sampler in vmstat iostat pidstat; do
   echo "$!" >> "$profile_out/samplers.pid"
 done
 trap 'xargs -r kill < "$profile_out/samplers.pid" 2>/dev/null || true' EXIT
+if [[ "$PROFILE_PROVIDER" == coder && -f "$CODER_CACHE_JOB_DIR/go-metrics.json" ]]; then
+  cp "$CODER_CACHE_JOB_DIR/go-metrics.json" "$profile_out/before-bundle-metrics.json"
+fi
 date -u +%FT%TZ > "$profile_out/start.txt"
 set +e
 if [[ "$mode" == baseline ]]; then
