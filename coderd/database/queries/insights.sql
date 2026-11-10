@@ -399,7 +399,17 @@ WITH
 		FROM
 			(SELECT DISTINCT slug FROM usage_slugs) AS names
 		WHERE
-			(
+			-- Port-shaped names are always port traffic: workspaceapps routes
+			-- them as ports before looking up slugs, so an app with such a slug
+			-- can't be opened. Otherwise one app slugged like a port sends every
+			-- other template's usage of that port down the slow walk below.
+			-- Keep in sync with strconv.ParseUint(strings.TrimSuffix(name, "s"),
+			-- 10, 16) in coderd/workspaceapps/request.go.
+			NOT CASE
+				WHEN names.slug ~ '^[0-9]+s?$' THEN rtrim(names.slug, 's')::numeric <= 65535
+				ELSE FALSE
+			END
+			AND (
 				SELECT
 					TRUE
 				FROM
