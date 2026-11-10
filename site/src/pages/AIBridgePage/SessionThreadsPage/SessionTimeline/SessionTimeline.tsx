@@ -249,7 +249,13 @@ const ToolCallBlock: React.FC<ToolCallBlockProps> = ({
 						timestamp={timestamp}
 						serverURL={serverURL}
 					/>
-					<pre className="flex gap-4 bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto">
+					<pre
+						// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users scroll long input from here.
+						tabIndex={0}
+						role="region"
+						aria-label={`${tool} input`}
+						className="flex gap-4 bg-surface-secondary rounded-md m-4 p-4 text-sm font-mono text-content-primary overflow-x-auto focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+					>
 						<span>
 							<HighlightText text={tool} highlight={highlight} />
 						</span>

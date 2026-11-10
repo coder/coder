@@ -23,6 +23,16 @@ const fallbackLog: WorkspaceAgentLogSource = {
 	workspace_agent_id: "",
 };
 
+const LogsViewport: React.FC<React.ComponentProps<"div">> = (props) => (
+	<div
+		{...props}
+		// oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- keyboard users scroll the logs from here.
+		tabIndex={0}
+		role="region"
+		aria-label="Agent logs"
+	/>
+);
+
 type AgentLogsProps = Omit<
 	React.ComponentProps<typeof List>,
 	"children" | "itemSize" | "itemCount" | "itemKey"
@@ -108,6 +118,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 	return (
 		<div className="bg-surface-secondary relative">
 			<List
+				outerElementType={LogsViewport}
 				{...listProps}
 				ref={mergeListRef}
 				itemCount={logs.length}
@@ -118,6 +129,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 				// top from startupLogs
 				className={cn(
 					"py-4 [&>div]:relative bg-surface-secondary",
+					"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 					// Add extra padding so that overflow indicator can't
 					// fully cover up lines of text
 					overflowed && "pb-10",
