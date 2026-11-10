@@ -142,7 +142,7 @@ export const SingleSignOnSection: React.FC<SingleSignOnSectionProps> = ({
 	return (
 		<div id="sso-section" data-testid="sso-section">
 			<SettingsHeader>
-				<SettingsHeaderTitle hierarchy="secondary">
+				<SettingsHeaderTitle level="h2" hierarchy="secondary">
 					Single Sign On
 				</SettingsHeaderTitle>
 				<SettingsHeaderDescription>
