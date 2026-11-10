@@ -181,13 +181,29 @@ func (p *ProviderCircuitBreakers) Execute(endpoint, model string, w http.Respons
 	sw := &statusCapturingWriter{ResponseWriter: w, statusCode: http.StatusOK}
 
 	var handlerErr error
-	_, err := cb.Execute(func() (struct{}, error) {
+	var aborted bool
+	_, err := cb.Execute(func() (_ struct{}, err error) {
+		// ReverseProxy panics with ErrAbortHandler to abort response forwarding
+		// after an error reading from upstream or writing to the client.
+		// Classify by HTTP status, then re-panic outside gobreaker.
+		defer func() {
+			if v := recover(); v != nil {
+				//nolint:errorlint // Compare directly, ReverseProxy panics with bare ErrAbortHandler, not a wrapped error.
+				if v != http.ErrAbortHandler {
+					panic(v)
+				}
+				aborted = true
+			}
+			if p.isFailure(sw.statusCode) {
+				err = xerrors.Errorf("upstream error: %d", sw.statusCode)
+			}
+		}()
 		handlerErr = handler(sw)
-		if p.isFailure(sw.statusCode) {
-			return struct{}{}, xerrors.Errorf("upstream error: %d", sw.statusCode)
-		}
 		return struct{}{}, nil
 	})
+	if aborted {
+		panic(http.ErrAbortHandler)
+	}
 
 	if errors.Is(err, gobreaker.ErrOpenState) || errors.Is(err, gobreaker.ErrTooManyRequests) {
 		if p.metrics != nil {

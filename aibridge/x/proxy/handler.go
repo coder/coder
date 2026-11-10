@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/utils"
+	"github.com/coder/coder/v2/aibridge/x/proxy/replaybody"
 	"github.com/coder/quartz"
 )
 
@@ -46,6 +47,16 @@ type forwardingHandler struct {
 	inflight  *aibridge.InflightGate
 	recorder  recorder.Recorder
 	breaker   *circuitbreaker.ProviderCircuitBreakers
+}
+
+// forwardResult describes how forwarding one request ended.
+type forwardResult struct {
+	// status is the final upstream status. Zero when no upstream response was
+	// accepted.
+	status int
+	// response captures the final upstream response body. Nil when no upstream
+	// response was accepted.
+	response *replaybody.TeeBuffer
 }
 
 var _ http.Handler = (*forwardingHandler)(nil)
@@ -78,18 +89,6 @@ func newForwardingHandler(prov provider.Provider, logger slog.Logger, m *metrics
 	}
 	h.errorLog = slog.Stdlib(context.Background(), h.logger, slog.LevelWarn)
 	return h, nil
-}
-
-func (h *forwardingHandler) newProxy(cred credential.Credential) *httputil.ReverseProxy {
-	return &httputil.ReverseProxy{
-		Rewrite: func(pr *httputil.ProxyRequest) {
-			rewriteForwardingURL(pr, h.provider.RoutePrefix(), h.baseURL)
-			pr.Out.Header = prepareForwardingHeaders(pr.Out.Header, cred)
-		},
-		Transport:     keypool.NewKeyFailoverTransport(h.transport, h.failover),
-		FlushInterval: -1,
-		ErrorLog:      h.errorLog,
-	}
 }
 
 func rewriteForwardingURL(pr *httputil.ProxyRequest, routePrefix string, baseURL *url.URL) {
@@ -126,7 +125,7 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, span := h.tracer.Start(ctx, "Proxy")
 	defer span.End()
 	r = r.WithContext(ctx)
-	logger, record, _ := h.checkRequest(w, r)
+	logger, record, cred := h.checkRequest(w, r)
 	if record == nil {
 		return
 	}
@@ -138,13 +137,14 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		logger.Debug(ctx, "full duplex unavailable, early replies drain the request body first", slog.Error(err))
 	}
 
-	var err error
-	defer func() { h.finishForwarding(ctx, record, logger, err) }()
 	route := strings.TrimPrefix(r.URL.Path, "/"+h.provider.Name())
-	err = h.breaker.Execute(route, "", w, func(rw http.ResponseWriter) error {
-		// Capture stays dormant until lifecycle recording activates forwarding.
-		return h.forward(rw, r, logger)
-	})
+	if err := h.breaker.Execute(route, "", w, func(rw http.ResponseWriter) error {
+		outbound, body := replaybody.NewRequest(r)
+		defer func() { _ = body.Close() }()
+		return h.forward(rw, outbound, cred, &forwardResult{}, logger)
+	}); err != nil {
+		span.SetStatus(codes.Error, "forwarding failed")
+	}
 }
 
 // checkRequest validates a bridged request without reading its body. On rejection
@@ -235,14 +235,45 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 	return logger, ir, cred
 }
 
-func (*forwardingHandler) forward(w http.ResponseWriter, _ *http.Request, _ slog.Logger) error {
-	// TODO: forward only when lifecycle recording is connected.
-	// https://linear.app/codercom/issue/AIGOV-615
-	http.Error(w, "bridged routes are not yet implemented in proxy mode", http.StatusNotImplemented)
-	return nil
-}
-
-func (*forwardingHandler) finishForwarding(context.Context, *recorder.InterceptionRecord, slog.Logger, error) {
-	// TODO: finalize the outcome and lifecycle records, including breaker rejection.
-	// https://linear.app/codercom/issue/AIGOV-615
+// forward proxies r upstream and writes the final response after key failover
+// to w. When no upstream response is accepted, it writes an error response and
+// returns the cause.
+func (h *forwardingHandler) forward(w http.ResponseWriter, r *http.Request, cred credential.Credential, res *forwardResult, logger slog.Logger) (err error) {
+	defer func() {
+		// The capture keeps the upstream body open until it is closed.
+		if res.response != nil {
+			_ = res.response.Close()
+		}
+	}()
+	proxy := &httputil.ReverseProxy{
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			rewriteForwardingURL(pr, h.provider.RoutePrefix(), h.baseURL)
+			pr.Out.Header = prepareForwardingHeaders(pr.Out.Header, cred)
+		},
+		Transport:     keypool.NewKeyFailoverTransport(h.transport, h.failover),
+		FlushInterval: -1,
+		// Only the final response returned by key failover is observed.
+		ModifyResponse: func(resp *http.Response) error {
+			if resp.StatusCode == http.StatusSwitchingProtocols {
+				return xerrors.New("upstream protocol upgrades are not supported")
+			}
+			res.status = resp.StatusCode
+			res.response = replaybody.NewResponse(resp)
+			return nil
+		},
+		ErrorHandler: func(w http.ResponseWriter, r *http.Request, proxyErr error) {
+			err = proxyErr
+			ctx := r.Context()
+			//nolint:errcheck // AsType returns the match; only its presence matters.
+			if _, ok := errors.AsType[*http.MaxBytesError](proxyErr); ok {
+				routing.WriteRequestBodyTooLarge(ctx, w)
+				return
+			}
+			logger.Warn(ctx, "upstream proxy error", slog.Error(proxyErr))
+			http.Error(w, "upstream proxy error", http.StatusBadGateway)
+		},
+		ErrorLog: h.errorLog,
+	}
+	proxy.ServeHTTP(w, r)
+	return err
 }
