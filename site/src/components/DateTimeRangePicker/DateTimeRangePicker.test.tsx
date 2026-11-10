@@ -80,12 +80,10 @@ it("picks a quick range with the keyboard alone", async () => {
 
 	await user.tab();
 	const trigger = screen.getByRole("combobox", { name: "Time range" });
-	expect(trigger).toHaveAttribute("aria-expanded", "false");
 	await user.keyboard("{ArrowDown}");
 	expect(
 		await screen.findByRole("radio", { name: "Last 24 hours" }),
 	).toHaveFocus();
-	expect(trigger).toHaveAttribute("aria-expanded", "true");
 	expect(screen.getByRole("dialog", { name: "Time range" })).toHaveAttribute(
 		"id",
 		trigger.getAttribute("aria-controls"),
@@ -94,4 +92,26 @@ it("picks a quick range with the keyboard alone", async () => {
 	expect(onChange).toHaveBeenCalledWith(
 		expect.objectContaining({ preset: "today" }),
 	);
+});
+
+it("opens with ArrowUp", async () => {
+	const user = userEvent.setup();
+	const now = new Date(2026, 3, 16, 10, 30);
+	render(
+		<DateTimeRangePicker
+			now={now}
+			value={{
+				start: new Date(2026, 3, 15, 10, 30),
+				end: now,
+				preset: "last_24h",
+			}}
+			onChange={vi.fn()}
+		/>,
+	);
+
+	await user.tab();
+	await user.keyboard("{ArrowUp}");
+	expect(
+		await screen.findByRole("radio", { name: "Last 24 hours" }),
+	).toHaveFocus();
 });

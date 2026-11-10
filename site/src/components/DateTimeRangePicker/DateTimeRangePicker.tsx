@@ -120,7 +120,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 	now,
 	presets,
 	size = "sm",
-	label,
+	label = "Time range",
 	minDate,
 	maxDays,
 }) => {
@@ -176,6 +176,13 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 		const { start, end } = preset.range(currentTime);
 		onChange({ start, end, preset: preset.id });
 		setOpen(false);
+	};
+
+	const handleTriggerKeyDown = (event: React.KeyboardEvent) => {
+		if (!open && (event.key === "ArrowDown" || event.key === "ArrowUp")) {
+			event.preventDefault();
+			handleOpenChange(true);
+		}
 	};
 
 	// Roving focus for the quick-pick radiogroup.
@@ -261,8 +268,6 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 		activePreset?.label ??
 		formatCustomLabel(value.start, value.end);
 
-	const accessibleName = label ?? "Time range";
-
 	const selectedQuickPickIndex = customExpanded
 		? quickPresets.length
 		: Math.max(
@@ -279,18 +284,10 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 					className="group gap-2 pr-1.5"
 					// The visible text is the combobox value, not its name.
 					role="combobox"
-					aria-label={accessibleName}
+					aria-label={label}
 					aria-expanded={open}
-					aria-controls={contentId}
-					onKeyDown={(event) => {
-						if (
-							!open &&
-							(event.key === "ArrowDown" || event.key === "ArrowUp")
-						) {
-							event.preventDefault();
-							handleOpenChange(true);
-						}
-					}}
+					aria-controls={open ? contentId : undefined}
+					onKeyDown={handleTriggerKeyDown}
 				>
 					<span
 						className={cn(
@@ -315,7 +312,7 @@ export const DateTimeRangePicker: React.FC<DateTimeRangePickerProps> = ({
 				className="w-auto p-0 overflow-x-hidden overflow-y-auto"
 				align="end"
 				id={contentId}
-				aria-label={accessibleName}
+				aria-label={label}
 			>
 				<div className="flex">
 					{/* Quick picks. This list is the entire dropdown until the
