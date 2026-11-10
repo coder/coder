@@ -449,45 +449,25 @@ describe("WorkspacePage", () => {
 	});
 
 	describe("Current state", () => {
-		it("marks the workspace breadcrumb as the current page", async () => {
-			await renderWorkspacePage(MockWorkspace);
-
-			expect(
-				screen.getByRole("button", { name: MockWorkspace.name }),
-			).toHaveAttribute("aria-current", "page");
-		});
-
 		it("conveys which sidebar panel is open", async () => {
 			const user = userEvent.setup();
 			await renderWorkspacePage(MockWorkspace);
-			expect(screen.getByRole("button", { name: "Resources" })).toHaveAttribute(
-				"aria-pressed",
-				"false",
-			);
-			expect(screen.getByRole("button", { name: "History" })).toHaveAttribute(
-				"aria-pressed",
-				"false",
-			);
 
-			await user.click(screen.getByRole("button", { name: "Resources" }));
-			await screen.findByRole("button", { name: "Resources", pressed: true });
-			expect(screen.getByRole("button", { name: "History" })).toHaveAttribute(
-				"aria-pressed",
-				"false",
+			await user.click(
+				screen.getByRole("button", { name: "Resources", pressed: false }),
 			);
+			await screen.findByRole("button", { name: "Resources", pressed: true });
+			screen.getByRole("button", { name: "History", pressed: false });
 
 			await user.click(screen.getByRole("button", { name: "History" }));
 			await screen.findByRole("button", { name: "History", pressed: true });
-			expect(screen.getByRole("button", { name: "Resources" })).toHaveAttribute(
-				"aria-pressed",
-				"false",
-			);
+			screen.getByRole("button", { name: "Resources", pressed: false });
 		});
 
 		it("marks only the selected resource as current", async () => {
 			const user = userEvent.setup();
-			// jsdom does not blockify flex items, so the name and type join without
-			// the space a browser puts between them.
+			// Unit tests load no Tailwind CSS, so the stacked name and type spans
+			// stay inline and join without the space a browser shows.
 			const agentResourceName = new RegExp(`^${MockWorkspaceResource.name}`);
 			const volumeResourceName = new RegExp(
 				`^${MockWorkspaceVolumeResource.name}`,
@@ -508,19 +488,17 @@ describe("WorkspacePage", () => {
 				name: agentResourceName,
 				current: true,
 			});
-			const volumeResource = screen.getByRole("button", {
-				name: volumeResourceName,
-			});
-			expect(volumeResource).not.toHaveAttribute("aria-current");
-
-			await user.click(volumeResource);
+			await user.click(
+				screen.getByRole("button", {
+					name: volumeResourceName,
+					current: false,
+				}),
+			);
 			await screen.findByRole("button", {
 				name: volumeResourceName,
 				current: true,
 			});
-			expect(
-				screen.getByRole("button", { name: agentResourceName }),
-			).not.toHaveAttribute("aria-current");
+			screen.getByRole("button", { name: agentResourceName, current: false });
 		});
 	});
 

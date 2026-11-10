@@ -318,7 +318,7 @@ export const FilterComboboxList: React.FC<FilterComboboxListProps> = ({
 	return (
 		<CommandPrimitive.List
 			data-slot="combobox-list"
-			// A filter category can hold several values.
+			// Several filter values can be applied at once.
 			aria-multiselectable
 			className={cn(
 				"min-h-0 scroll-py-1 overflow-y-auto overscroll-contain p-1",

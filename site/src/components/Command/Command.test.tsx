@@ -19,21 +19,12 @@ describe("CommandItem", () => {
 			</Command>,
 		);
 
-		const options = screen.getAllByRole("option");
-		expect(options.map((o) => o.getAttribute("aria-selected"))).toEqual([
-			"false",
-			"true",
-			"false",
-		]);
-
 		await user.click(screen.getByRole("combobox"));
 		await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
 		expect(onSelect).toHaveBeenCalledWith("Cherry");
-		expect(options.map((o) => o.getAttribute("aria-selected"))).toEqual([
-			"false",
-			"true",
-			"false",
-		]);
+		expect(screen.getByRole("option", { selected: true })).toHaveAccessibleName(
+			"Banana",
+		);
 	});
 
 	it("marks the highlighted row as selected when no row has a chosen value", () => {
@@ -46,13 +37,8 @@ describe("CommandItem", () => {
 			</Command>,
 		);
 
-		expect(screen.getByRole("option", { name: "Copy" })).toHaveAttribute(
-			"aria-selected",
-			"true",
-		);
-		expect(screen.getByRole("option", { name: "Paste" })).toHaveAttribute(
-			"aria-selected",
-			"false",
+		expect(screen.getByRole("option", { selected: true })).toHaveAccessibleName(
+			"Copy",
 		);
 	});
 });

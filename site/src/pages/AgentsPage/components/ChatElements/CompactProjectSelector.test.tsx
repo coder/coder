@@ -44,7 +44,8 @@ describe("CompactProjectSelector", () => {
 		const { onChange } = renderSelector();
 
 		await openSelector();
-		await userEvent.click(await screen.findByRole("option", { name: "Docs" }));
+		await screen.findByRole("option", { name: /No project/, selected: true });
+		await userEvent.click(screen.getByRole("option", { name: "Docs" }));
 
 		expect(onChange).toHaveBeenCalledWith(docsProject);
 	});
@@ -53,9 +54,8 @@ describe("CompactProjectSelector", () => {
 		const { onChange } = renderSelector({ value: launchProject });
 
 		await openSelector();
-		await userEvent.click(
-			await screen.findByRole("option", { name: /No project/ }),
-		);
+		await screen.findByRole("option", { name: "Launch", selected: true });
+		await userEvent.click(screen.getByRole("option", { name: /No project/ }));
 
 		expect(onChange).toHaveBeenCalledWith(null);
 	});

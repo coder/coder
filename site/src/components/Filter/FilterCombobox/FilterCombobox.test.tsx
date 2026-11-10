@@ -185,8 +185,8 @@ describe("FilterCombobox", () => {
 	const expectStatus = (text: string) =>
 		waitFor(() => expect(screen.getByRole("status")).toHaveTextContent(text));
 
-	// cmdk marks the highlighted row with `data-selected`; `aria-selected` reports
-	// whether the row's value is applied.
+	// cmdk marks the highlighted row with `data-selected`; `aria-selected`
+	// reports whether a row's value is applied.
 	const expectHighlighted = (name: string) =>
 		expect(screen.getByRole("option", { name })).toHaveAttribute(
 			"data-selected",
@@ -1041,6 +1041,20 @@ describe("FilterCombobox", () => {
 		await waitFor(() =>
 			expect(onChange).toHaveBeenLastCalledWith("owner:alice zzz"),
 		);
+	});
+
+	it("reports applied values in the flyout and in suggestions", async () => {
+		const { user, input, filtersButton } = setup([ownerCategory], {
+			initialValue: "owner:alice",
+			skipHover: true,
+		});
+
+		await user.click(filtersButton);
+		await user.hover(await screen.findByRole("option", { name: "Owner" }));
+		await screen.findByRole("button", { name: "alice", pressed: true });
+
+		await user.type(input, "ali");
+		await screen.findByRole("option", { name: "alice", selected: true });
 	});
 
 	it("keeps the applied search when a typed drill-in value is committed", async () => {

@@ -76,7 +76,6 @@ export const SidebarIconButton: React.FC<SidebarIconButtonProps> = ({
 				isActive && "opacity-100 relative border-l-border-pending",
 				className,
 			)}
-			// The button opens and closes its panel, so it is a toggle.
 			aria-pressed={isActive}
 			{...buttonProps}
 		/>
