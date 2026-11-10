@@ -433,6 +433,7 @@ const OverrideForm: React.FC<OverrideFormProps> = ({
 							<ComboboxContent
 								align="start"
 								className="w-(--radix-popover-trigger-width)"
+								label="Search groups"
 							>
 								<ComboboxInput placeholder="Search..." />
 								<ComboboxList>

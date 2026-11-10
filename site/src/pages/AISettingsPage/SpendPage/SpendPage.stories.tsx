@@ -189,7 +189,7 @@ export const RetentionLimitedPicker: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await canvas.findByRole("table", { name: "Spend by user" });
-		await userEvent.click(canvas.getByRole("button", { name: "Last 7 days" }));
+		await userEvent.click(canvas.getByRole("combobox", { name: "Time range" }));
 		await userEvent.click(
 			await screen.findByRole("radio", { name: "Custom range" }),
 		);
