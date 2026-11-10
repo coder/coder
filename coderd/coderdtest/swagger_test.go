@@ -6,6 +6,7 @@ import (
 	"go/parser"
 	"go/token"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,6 +15,10 @@ import (
 	"github.com/coder/coder/v2/coderd/apidoc"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 )
+
+// swaggerDoc renders the spec once. swag's ReadDoc writes shared state, so
+// parallel tests that each call it race.
+var swaggerDoc = sync.OnceValue(apidoc.SwaggerInfo.ReadDoc)
 
 func TestEndpointsDocumented(t *testing.T) {
 	t.Parallel()
@@ -38,7 +43,7 @@ func TestChatModelPathParametersFormatted(t *testing.T) {
 			} `json:"parameters"`
 		} `json:"paths"`
 	}
-	require.NoError(t, json.Unmarshal([]byte(apidoc.SwaggerInfo.ReadDoc()), &swagger))
+	require.NoError(t, json.Unmarshal([]byte(swaggerDoc()), &swagger))
 
 	operations := swagger.Paths["/api/v2/organizations/{organization}/chats/models/{model}"]
 	for _, method := range []string{"get", "patch", "delete"} {
@@ -74,7 +79,7 @@ func TestSwaggerParametersValid(t *testing.T) {
 			} `json:"parameters"`
 		} `json:"paths"`
 	}
-	require.NoError(t, json.Unmarshal([]byte(apidoc.SwaggerInfo.ReadDoc()), &swagger))
+	require.NoError(t, json.Unmarshal([]byte(swaggerDoc()), &swagger))
 	require.NotEmpty(t, swagger.Paths)
 
 	for path, operations := range swagger.Paths {

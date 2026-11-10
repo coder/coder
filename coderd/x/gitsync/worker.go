@@ -294,6 +294,8 @@ type MarkStaleParams struct {
 	Origin      string
 	// ChatID, when set, targets a single chat. Subagent chats are
 	// resolved to their root chat, which owns the git refs and PRs.
+	// Both chats must be bound to WorkspaceID or the request is
+	// ignored.
 	ChatID uuid.UUID
 }
 
@@ -311,19 +313,24 @@ func (w *Worker) MarkStale(ctx context.Context, p MarkStaleParams) {
 
 	// When a specific chat is identified, target it directly
 	// instead of broadcasting to every chat on the workspace.
-	// Note: this path does not verify that the chat belongs to
-	// WorkspaceID. This is safe because ChatID originates from
-	// chatd via the agent (trusted data flow), but differs from
-	// the broadcast path which filters by workspace.
+	// ChatID is supplied by the workspace agent (CODER_CHAT_ID),
+	// which anyone with access to the workspace can set, so both
+	// the requested chat and the root chat that receives the ref
+	// must be bound to the calling agent's workspace. Checking the
+	// root as well matters because rebinding a chat's workspace
+	// does not rebind its existing subagent chats.
 	if p.ChatID != uuid.Nil {
-		chat, err := w.store.GetChatByID(ctx, p.ChatID)
-		if err != nil {
-			w.logger.Warn(ctx, "get chat for git ref storage",
-				slog.F("chat_id", p.ChatID),
-				slog.Error(err))
+		chat, ok := w.chatBoundToWorkspace(ctx, p.ChatID, p.WorkspaceID)
+		if !ok {
 			return
 		}
-		w.markStaleSingle(ctx, rootChatID(chat), p.Branch, p.Origin)
+		targetID := rootChatID(chat)
+		if targetID != chat.ID {
+			if _, ok := w.chatBoundToWorkspace(ctx, targetID, p.WorkspaceID); !ok {
+				return
+			}
+		}
+		w.markStaleSingle(ctx, targetID, p.Branch, p.Origin)
 		return
 	}
 
@@ -366,6 +373,29 @@ func (w *Worker) MarkStale(ctx context.Context, p MarkStaleParams) {
 
 		w.markStaleSingle(ctx, status.ChatID, p.Branch, p.Origin)
 	}
+}
+
+// chatBoundToWorkspace loads the chat and reports whether it is bound
+// to workspaceID, logging a warning when it cannot be loaded or is not.
+func (w *Worker) chatBoundToWorkspace(
+	ctx context.Context,
+	chatID, workspaceID uuid.UUID,
+) (database.Chat, bool) {
+	chat, err := w.store.GetChatByID(ctx, chatID)
+	if err != nil {
+		w.logger.Warn(ctx, "get chat for git ref storage",
+			slog.F("chat_id", chatID),
+			slog.Error(err))
+		return database.Chat{}, false
+	}
+	if !chat.WorkspaceID.Valid || chat.WorkspaceID.UUID != workspaceID {
+		w.logger.Warn(ctx, "ignoring git ref for chat not bound to the calling workspace",
+			slog.F("chat_id", chatID),
+			slog.F("chat_workspace_id", chat.WorkspaceID),
+			slog.F("workspace_id", workspaceID))
+		return database.Chat{}, false
+	}
+	return chat, true
 }
 
 // rootChatID returns the ID of the root chat in chat's subagent tree.

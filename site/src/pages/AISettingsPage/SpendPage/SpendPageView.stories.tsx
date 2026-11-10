@@ -130,7 +130,7 @@ export const Mobile: Story = {
 export const NarrowContainer: Story = {
 	decorators: [
 		(Story) => (
-			<div className="w-[580px]">
+			<div className="w-145">
 				<Story />
 			</div>
 		),

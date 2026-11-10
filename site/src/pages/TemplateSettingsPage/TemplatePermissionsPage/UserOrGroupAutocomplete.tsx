@@ -85,7 +85,7 @@ export const UserOrGroupAutocomplete: React.FC<
 			loading={aclAvailableQuery.isFetching}
 			placeholder="Search for user or group"
 			noOptionsText="No users or groups found"
-			className="w-[300px]"
+			className="w-75"
 			id="user-or-group-autocomplete"
 		/>
 	);

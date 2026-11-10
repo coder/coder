@@ -127,10 +127,7 @@ const AttachmentGroup: React.FC<AttachmentGroupProps> = ({
 	}
 	return (
 		<section aria-labelledby={headingId} className="flex flex-col gap-2">
-			<h4
-				id={headingId}
-				className="m-0 text-xs font-medium text-content-secondary"
-			>
+			<h4 id={headingId} className="m-0 text-xs text-content-secondary">
 				{label}
 			</h4>
 			<ul className="flex flex-col gap-2">

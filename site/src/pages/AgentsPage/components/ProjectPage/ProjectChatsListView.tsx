@@ -66,10 +66,7 @@ const ProjectChatsSection: React.FC<ProjectChatsSectionProps> = ({
 			aria-labelledby={headingId}
 			className={cn("flex flex-col gap-3", className)}
 		>
-			<h2
-				id={headingId}
-				className="m-0 text-sm font-medium text-content-primary"
-			>
+			<h2 id={headingId} className="m-0 text-sm text-content-primary">
 				{title}
 			</h2>
 			{children}
