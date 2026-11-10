@@ -55,7 +55,8 @@ as the `docker` starter template's, then cannot reach the server, because their
 agents connect through `host.docker.internal`.
 
 By default, the script waits 60 seconds for the API server's `/healthz` after it
-starts the server, then exits with an error. A cold first start (a new
+starts the server, then exits with an error naming the configured timeout (for
+example, `server did not become ready in 1m0s`). A cold first start (a new
 `.coderv2`, embedded Postgres setup and migrations) can take longer. Pass
 `--health-timeout 3m` to wait longer. The value must be greater than zero.
 

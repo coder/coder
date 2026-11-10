@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"runtime"
+	"slices"
 	"sync/atomic"
 	"testing"
 
@@ -32,83 +33,176 @@ func procNetRow(addr string, port uint16, state string, uid int) string {
 		addr, port, state, uid)
 }
 
-func TestLoopbackListenerUIDs(t *testing.T) {
+const (
+	testPort = 3000 // 0x0BB8
+
+	ipv4Lo     = "0100007F"
+	ipv4Any    = "00000000"
+	ipv4Other  = "0501A8C0" // 192.168.1.5
+	ipv6Any    = "00000000000000000000000000000000"
+	ipv6Mapped = "0000000000000000FFFF00000100007F" // ::ffff:127.0.0.1
+	ipv6Lo     = "00000000000000000000000001000000" // ::1
+)
+
+func TestLoopbackListeners(t *testing.T) {
 	t.Parallel()
 
-	const (
-		port       = 3000 // 0x0BB8
-		ipv4Lo     = "0100007F"
-		ipv4Any    = "00000000"
-		ipv4Other  = "0501A8C0" // 192.168.1.5
-		ipv6Any    = "00000000000000000000000000000000"
-		ipv6Mapped = "0000000000000000FFFF00000100007F" // ::ffff:127.0.0.1
-		ipv6Lo     = "00000000000000000000000001000000" // ::1
-	)
 	cases := []struct {
 		name string
 		text string
-		want []int
+		want []loopbackListener
 	}{
 		{name: "Empty"},
 		{name: "HeaderOnly", text: procNetTCPHeader},
 		{
 			name: "LoopbackOwnUID",
-			text: procNetTCPHeader + procNetRow(ipv4Lo, port, "0A", 1000),
-			want: []int{1000},
+			text: procNetTCPHeader + procNetRow(ipv4Lo, testPort, "0A", 1000),
+			want: []loopbackListener{{uid: 1000, ipv4: true}},
 		},
 		{
 			name: "WildcardForeignUID",
-			text: procNetTCPHeader + procNetRow(ipv4Any, port, "0A", 1001),
-			want: []int{1001},
+			text: procNetTCPHeader + procNetRow(ipv4Any, testPort, "0A", 1001),
+			want: []loopbackListener{{uid: 1001, ipv4: true}},
 		},
 		{
 			name: "IPv6DualStackWildcard",
-			text: procNetTCPHeader + procNetRow(ipv6Any, port, "0A", 1002),
-			want: []int{1002},
+			text: procNetTCPHeader + procNetRow(ipv6Any, testPort, "0A", 1002),
+			want: []loopbackListener{{uid: 1002, anyIPv6: true}},
 		},
 		{
 			name: "IPv6MappedLoopback",
-			text: procNetTCPHeader + procNetRow(ipv6Mapped, port, "0A", 1003),
-			want: []int{1003},
+			text: procNetTCPHeader + procNetRow(ipv6Mapped, testPort, "0A", 1003),
+			want: []loopbackListener{{uid: 1003}},
 		},
 		{
 			name: "EveryMatchingRow",
 			text: procNetTCPHeader +
-				procNetRow(ipv4Lo, port, "0A", 1000) +
-				procNetRow(ipv4Any, port, "0A", 1001),
-			want: []int{1000, 1001},
+				procNetRow(ipv4Lo, testPort, "0A", 1000) +
+				procNetRow(ipv4Any, testPort, "0A", 1001),
+			want: []loopbackListener{{uid: 1000, ipv4: true}, {uid: 1001, ipv4: true}},
 		},
 		{
 			name: "OtherAddresses",
 			text: procNetTCPHeader +
-				procNetRow(ipv4Other, port, "0A", 1001) +
-				procNetRow(ipv6Lo, port, "0A", 1001),
+				procNetRow(ipv4Other, testPort, "0A", 1001) +
+				procNetRow(ipv6Lo, testPort, "0A", 1001),
 		},
 		{
 			name: "OtherPorts",
 			text: procNetTCPHeader +
-				procNetRow(ipv4Lo, port+1, "0A", 1001) +
+				procNetRow(ipv4Lo, testPort+1, "0A", 1001) +
 				procNetRow(ipv4Any, 22, "0A", 1001),
 		},
 		{
 			name: "NotListening",
 			text: procNetTCPHeader +
-				procNetRow(ipv4Lo, port, "01", 1001) + // ESTABLISHED
-				procNetRow(ipv4Any, port, "06", 1001), // TIME_WAIT
+				procNetRow(ipv4Lo, testPort, "01", 1001) + // ESTABLISHED
+				procNetRow(ipv4Any, testPort, "06", 1001), // TIME_WAIT
 		},
 		{
 			name: "MatchAmongOthers",
 			text: procNetTCPHeader +
-				procNetRow(ipv4Lo, port, "01", 1001) +
+				procNetRow(ipv4Lo, testPort, "01", 1001) +
 				procNetRow(ipv4Lo, 8080, "0A", 1001) +
-				procNetRow(ipv4Any, port, "0A", 1000),
-			want: []int{1000},
+				procNetRow(ipv4Any, testPort, "0A", 1000),
+			want: []loopbackListener{{uid: 1000, ipv4: true}},
 		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			assert.Equal(t, tc.want, loopbackListenerUIDs(tc.text, port))
+			assert.Equal(t, tc.want, loopbackListeners(tc.text, testPort))
+		})
+	}
+}
+
+func TestTableListenerUIDs(t *testing.T) {
+	t.Parallel()
+
+	// checkAPIListener compares with the uid of this process.
+	self := os.Getuid()
+	foreign := self + 1
+	listen := func(addr string, uid int) string {
+		return procNetRow(addr, testPort, "0A", uid)
+	}
+	cases := []struct {
+		name string
+		tcp  string
+		tcp6 string
+		want []int
+	}{
+		{name: "NoListener"},
+		{
+			name: "OwnIPv4",
+			tcp:  procNetTCPHeader + listen(ipv4Any, self),
+			want: []int{self},
+		},
+		{
+			// Linux refuses a dual-stack socket next to an IPv4 listener, so
+			// the foreign socket on :: is IPv6-only and gets no request.
+			name: "OwnIPv4AndForeignIPv6Wildcard",
+			tcp:  procNetTCPHeader + listen(ipv4Any, self),
+			tcp6: procNetTCPHeader + listen(ipv6Any, foreign),
+			want: []int{self},
+		},
+		{
+			name: "OwnLoopbackAndForeignIPv6Wildcard",
+			tcp:  procNetTCPHeader + listen(ipv4Lo, self),
+			tcp6: procNetTCPHeader + listen(ipv6Any, foreign),
+			want: []int{self},
+		},
+		{
+			name: "ForeignIPv6WildcardAlone",
+			tcp6: procNetTCPHeader + listen(ipv6Any, foreign),
+			want: []int{foreign},
+		},
+		{
+			name: "OwnIPv4AndForeignIPv4Wildcard",
+			tcp:  procNetTCPHeader + listen(ipv4Lo, self) + listen(ipv4Any, foreign),
+			want: []int{self, foreign},
+		},
+		{
+			name: "OwnIPv4AndForeignMappedLoopback",
+			tcp:  procNetTCPHeader + listen(ipv4Any, self),
+			tcp6: procNetTCPHeader + listen(ipv6Mapped, foreign),
+			want: []int{self, foreign},
+		},
+		{
+			name: "ForeignIPv4AndForeignIPv6Wildcard",
+			tcp:  procNetTCPHeader + listen(ipv4Lo, foreign),
+			tcp6: procNetTCPHeader + listen(ipv6Any, foreign),
+			want: []int{foreign, foreign},
+		},
+		{
+			// An IPv4 socket of another user does not make the socket on ::
+			// harmless, so both still count.
+			name: "ForeignIPv4AndOwnIPv6Wildcard",
+			tcp:  procNetTCPHeader + listen(ipv4Lo, foreign),
+			tcp6: procNetTCPHeader + listen(ipv6Any, self),
+			want: []int{foreign, self},
+		},
+		{
+			name: "OwnIPv6WildcardAlone",
+			tcp6: procNetTCPHeader + listen(ipv6Any, self),
+			want: []int{self},
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			uids := tableListenerUIDs(tc.tcp, tc.tcp6, testPort, self)
+			assert.Equal(t, tc.want, uids)
+
+			// A foreign uid in the result makes the check refuse.
+			logger := slog.Make(sloghuman.Sink(&bytes.Buffer{}))
+			err := checkAPIListener(testutil.Context(t, testutil.WaitShort), logger, testPort,
+				func(int64) ([]int, error) { return uids, nil })
+			if slices.Contains(uids, foreign) {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), fmt.Sprintf("belongs to uid %d", foreign))
+			} else {
+				assert.NoError(t, err)
+			}
 		})
 	}
 }
