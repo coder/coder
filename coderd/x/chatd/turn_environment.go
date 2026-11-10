@@ -505,7 +505,7 @@ func (p *Server) buildTurnEnvironment(
 		// accepts a file part is the one for model.Provider().
 		acceptsFilePart := model.AcceptsFilePartMediaType
 		providerType := string(modelRoute.Provider.Type)
-		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, promptRows[:pendingRowsStart], p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
+		prompt, err = chatprompt.ConvertMessagesWithFiles(ctx, withoutLegacyWorkspaceAwareness(promptRows[:pendingRowsStart]), p.chatFileResolver(providerType), logger, acceptsFilePart, chat.WorkspaceID)
 		if err != nil {
 			return xerrors.Errorf("build chat prompt: %w", err)
 		}
@@ -753,6 +753,7 @@ func (p *Server) buildTurnEnvironment(
 			chatMode:              chat.Mode,
 			planModeInstructions:  planModeInstructions,
 			isRootChat:            isRootChat,
+			workspaceAttached:     chat.WorkspaceID.Valid,
 			acpSubagentsAvailable: acpSubagentsAvailable,
 		},
 	)
@@ -2152,6 +2153,7 @@ type systemPromptBehaviorContext struct {
 	chatMode              database.NullChatMode
 	planModeInstructions  string
 	isRootChat            bool
+	workspaceAttached     bool
 }
 
 // workspaceSkillsForResolution returns the workspace skills the model may
@@ -2191,10 +2193,10 @@ func mergeTurnSkills(
 }
 
 // buildSystemPrompt applies system-level prompt injections in a fixed
-// order: subagent instruction, chat instruction, skill index, memory index,
-// ACP guidance, project instructions, user prompt, then mode overlays. Project
-// instructions precede the user prompt so personal instructions keep the
-// last word.
+// order: workspace awareness, subagent instruction, chat instruction, skill
+// index, memory index, ACP guidance, project instructions, user prompt, then
+// mode overlays. Project instructions precede the user prompt so personal
+// instructions keep the last word.
 func buildSystemPrompt(
 	prompt []fantasy.Message,
 	subagentInstruction string,
@@ -2205,6 +2207,7 @@ func buildSystemPrompt(
 	userPrompt string,
 	behaviorContext systemPromptBehaviorContext,
 ) []fantasy.Message {
+	prompt = chatprompt.InsertSystem(prompt, workspaceAwareness(behaviorContext.workspaceAttached, behaviorContext.isRootChat))
 	if subagentInstruction != "" {
 		prompt = chatprompt.InsertSystem(prompt, subagentInstruction)
 	}

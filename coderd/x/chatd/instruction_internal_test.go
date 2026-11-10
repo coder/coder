@@ -205,8 +205,7 @@ func TestWorkspaceAwarenessSupportsWorkspaceFallback(t *testing.T) {
 	t.Parallel()
 
 	detached := workspaceDetachedAwareness
-	require.Contains(t, detached, "This chat started without an attached workspace")
-	require.Contains(t, detached, "Follow subsequent workspace tool results and context for its current state")
+	require.Contains(t, detached, "No workspace is attached to this chat.")
 	require.Contains(t, detached, "If no workspace is attached, create")
 	require.Contains(t, detached, "Workspace readiness does not guarantee that skills, MCP tools, or context have finished loading")
 	require.Contains(t, detached, "continue with workspace file and shell tools where possible instead of recreating the workspace")
