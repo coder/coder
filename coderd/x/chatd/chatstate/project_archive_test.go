@@ -1,8 +1,12 @@
 package chatstate_test
 
 import (
+	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
+	"errors"
+	"slices"
 	"testing"
 
 	"github.com/google/uuid"
@@ -10,6 +14,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -180,6 +185,69 @@ func TestArchivedChatProjectRejectsChats(t *testing.T) {
 	_, err = chatstate.SetFamilyArchived(ctx, f.DB, f.Pub, chatstate.SetFamilyArchivedInput{RootID: member, Archived: false})
 	require.NoError(t, err)
 	require.False(t, f.readChat(ctx, t, member).ArchivedWithProject)
+}
+
+// TestArchiveProjectChatsRetriesAfterDeadlock models a writer that locks the
+// project's chats out of id order, as a worker's heartbeat over its running
+// chats can. The writer holds the later root while the archive holds the
+// earlier one, then waits for the earlier one. Postgres aborts the archive
+// to break the deadlock, and the archive runs again once the writer commits.
+func TestArchiveProjectChatsRetriesAfterDeadlock(t *testing.T) {
+	t.Parallel()
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedFamilyDeps(t, db)
+
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID})
+	roots := make([]uuid.UUID, 2)
+	for i := range roots {
+		roots[i] = dbgen.Chat(t, db, database.Chat{
+			OrganizationID:    org.ID,
+			OwnerID:           user.ID,
+			ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+			LastModelConfigID: model.ID,
+			Status:            database.ChatStatusWaiting,
+		}).ID
+	}
+	// Postgres orders uuids bytewise, as the archive's root locks do.
+	slices.SortFunc(roots, func(a, b uuid.UUID) int { return bytes.Compare(a[:], b[:]) })
+	first, last := roots[0], roots[1]
+
+	writer, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if err := writer.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+			t.Errorf("roll back the writer: %v", err)
+		}
+	})
+	// The archive starts waiting first, so with the default 1s timeout
+	// its deadlock check runs first and Postgres aborts the archive.
+	_, err = writer.ExecContext(ctx, `SET LOCAL deadlock_timeout = '10s'`)
+	require.NoError(t, err)
+	_, err = writer.ExecContext(ctx, `SELECT id FROM chats WHERE id = $1 FOR UPDATE`, last)
+	require.NoError(t, err)
+
+	archiveErr := make(chan error, 1)
+	go func() {
+		_, _, err := chatstate.ArchiveProjectChats(ctx, db, newRecordingPubsub(), chatstate.ArchiveProjectChatsInput{ProjectID: project.ID})
+		archiveErr <- err
+	}()
+	waitForLockWaiter(ctx, t, sqlDB, "LockChatProjectUnarchivedRootChats")
+
+	_, err = writer.ExecContext(ctx, `SELECT id FROM chats WHERE id = $1 FOR UPDATE`, first)
+	require.NoError(t, err, "the deadlock must abort the archive, not the writer")
+	require.NoError(t, writer.Commit())
+
+	require.NoError(t, testutil.RequireReceive(ctx, t, archiveErr))
+	archivedProject, err := db.GetChatProjectByID(ctx, project.ID)
+	require.NoError(t, err)
+	require.True(t, archivedProject.ArchivedAt.Valid)
+	for _, id := range roots {
+		chat, err := db.GetChatByID(ctx, id)
+		require.NoError(t, err)
+		require.True(t, chat.Archived)
+		require.True(t, chat.ArchivedWithProject)
+	}
 }
 
 // seedChatInState inserts a chat with the status and queue that classify as
