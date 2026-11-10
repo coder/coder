@@ -832,15 +832,15 @@ func validateChatModelOverride(
 	return validateChatModelOverrideEffort(modelConfig, effort)
 }
 
-// validateComputerUseModelProvider rejects models whose AI provider has no
-// computer use tool. Chatd derives the tool flavor from the provider type.
+// validateComputerUseModelProvider rejects models that cannot run computer
+// use. Chatd derives the tool flavor from the provider type and the model.
 func validateComputerUseModelProvider(
 	ctx context.Context,
 	db database.Store,
 	modelConfig database.ChatModelConfig,
 ) (int, *codersdk.Response) {
 	unsupported := &codersdk.Response{
-		Message: "Computer use requires a model from an Anthropic or OpenAI AI provider.",
+		Message: "Computer use requires " + chatprovider.ComputerUseModelRequirement + ".",
 	}
 	if !modelConfig.AIProviderID.Valid {
 		unsupported.Detail = fmt.Sprintf("Model %q has no AI provider.", modelConfig.Model)
@@ -853,16 +853,14 @@ func validateComputerUseModelProvider(
 			Detail:  err.Error(),
 		}
 	}
-	switch chatprovider.NormalizeProvider(string(provider.Type)) {
-	case string(codersdk.ChatComputerUseProviderAnthropic), string(codersdk.ChatComputerUseProviderOpenAI):
+	if _, ok := chatprovider.ComputerUseProvider(provider.Type, modelConfig.Model); ok {
 		return 0, nil
-	default:
-		unsupported.Detail = fmt.Sprintf(
-			"Model %q uses AI provider %q of type %q.",
-			modelConfig.Model, provider.Name, provider.Type,
-		)
-		return http.StatusBadRequest, unsupported
 	}
+	unsupported.Detail = fmt.Sprintf(
+		"Model %q uses AI provider %q of type %q.",
+		modelConfig.Model, provider.Name, provider.Type,
+	)
+	return http.StatusBadRequest, unsupported
 }
 
 func parseChatModelOverrideContext(raw string) (codersdk.ChatModelOverrideContext, error) {
@@ -3263,16 +3261,16 @@ func (api *API) sendChatMessage(
 		sendPlanMode = &resolvedPlanMode
 	}
 
-	busyBehavior := chatd.SendMessageBusyBehaviorQueue
+	var busyBehavior chatd.SendMessageBusyBehavior
 	switch req.BusyBehavior {
-	case codersdk.ChatBusyBehaviorInterrupt:
-		busyBehavior = chatd.SendMessageBusyBehaviorInterrupt
-	case codersdk.ChatBusyBehaviorQueue, "":
-		// Default to queue.
+	case "", codersdk.ChatBusyBehaviorSteer:
+		busyBehavior = chatd.SendMessageBusyBehaviorSteer
+	case codersdk.ChatBusyBehaviorQueue:
+		busyBehavior = chatd.SendMessageBusyBehaviorQueue
 	default:
 		return codersdk.CreateChatMessageResponse{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid busy_behavior value.",
-			Detail:  `Must be "queue" or "interrupt".`,
+			Detail:  `Must be "steer" or "queue".`,
 		})
 	}
 
@@ -3343,8 +3341,9 @@ func (api *API) sendChatMessage(
 	} else {
 		response.Message = new(db2sdk.ChatMessage(sendResult.Message))
 	}
-	// Return the full user-visible inserted batch. A queued send on an errored
-	// chat can promote the previous queue head, which clients must cache.
+	// Return the full user-visible inserted batch, which clients must cache.
+	// A send to an errored or paused chat can also insert queued messages
+	// (see chatd.SendMessageResult.InsertedMessages).
 	for _, inserted := range sendResult.InsertedMessages {
 		if inserted.Visibility == database.ChatMessageVisibilityModel {
 			continue
@@ -3610,6 +3609,10 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 	err = api.chatDaemon.DeleteQueued(ctx, chatID, queuedMessageID)
 	if err != nil {
 		switch {
+		case xerrors.Is(err, chatd.ErrChatArchived):
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Cannot delete queued messages in an archived chat.",
+			})
 		case xerrors.Is(err, chatstate.ErrQueuedMessageNotFound), xerrors.Is(err, sql.ErrNoRows):
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Queued message not found.",
@@ -3622,7 +3625,7 @@ func (api *API) deleteChatQueuedMessage(rw http.ResponseWriter, r *http.Request)
 			// response already written
 		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat has no queued messages to delete.",
+				Message: "Cannot delete this queued message in the chat's current state.",
 				Detail:  err.Error(),
 			})
 		default:
@@ -3689,7 +3692,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	_, txErr := api.chatDaemon.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
+	txErr := api.chatDaemon.PromoteQueued(ctx, chatd.PromoteQueuedOptions{
 		ChatID:          chatID,
 		QueuedMessageID: queuedMessageID,
 	})
@@ -3712,7 +3715,7 @@ func (api *API) promoteChatQueuedMessage(rw http.ResponseWriter, r *http.Request
 			// response already written
 		case errors.Is(txErr, chatstate.ErrTransitionNotAllowed):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "Chat has no queued messages to promote.",
+				Message: "Cannot promote this queued message in the chat's current state.",
 				Detail:  txErr.Error(),
 			})
 		default:
@@ -3846,9 +3849,7 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Cannot edit queued messages in an archived chat.",
 			})
-		case errors.Is(err, chatstate.ErrQueuedMessageNotFound), errors.Is(err, chatstate.ErrTransitionNotAllowed):
-			// Every unarchived, valid state that refuses EditQueuedMessage
-			// has an empty queue, so the row no longer exists.
+		case errors.Is(err, chatstate.ErrQueuedMessageNotFound):
 			httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
 				Message: "Queued message not found.",
 			})
@@ -3862,6 +3863,11 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 			httpapi.ResourceNotFound(rw)
 		case writeChatInvalidState(ctx, rw, err):
 			// response already written
+		case errors.Is(err, chatstate.ErrTransitionNotAllowed):
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: "Cannot edit this queued message in the chat's current state.",
+				Detail:  err.Error(),
+			})
 		case errors.Is(err, chatstate.ErrPausedQueuedHeadUnderEdit):
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: "The chat is paused at a queued message under edit. Finish editing, send, or remove it before editing another.",
@@ -4074,6 +4080,8 @@ func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Success 200 {object} codersdk.Chat
 // @Router /api/v2/chats/{chat}/interrupt [post]
+// @Description Interrupts the active turn of a chat.
+// @Description If the chat has nothing to interrupt, for example because its turn already ended, the endpoint returns the chat unchanged.
 func (api *API) postChatInterrupt(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	chat, err := api.interruptChat(ctx, httpmw.ChatParam(r))
@@ -4094,7 +4102,7 @@ func (api *API) interruptChat(ctx context.Context, chat database.Chat) (codersdk
 		return codersdk.Chat{}, httperror.ErrResourceNotFound
 	}
 
-	updated, err := api.chatDaemon.InterruptChat(ctx, chat)
+	updated, _, err := api.chatDaemon.InterruptChat(ctx, chat)
 	if err != nil {
 		if mutationErr := commonChatMutationError(err, "Cannot interrupt an archived chat."); mutationErr != nil {
 			return codersdk.Chat{}, mutationErr
@@ -7044,7 +7052,7 @@ func (api *API) deleteUserChatCompactionThreshold(rw http.ResponseWriter, r *htt
 // @Accept image/png,image/jpeg,image/gif,image/webp,image/svg+xml,text/plain,text/markdown,text/csv,application/json,application/pdf
 // @Produce json
 // @Param organization query string true "Organization ID" format(uuid)
-// @Param Content-Disposition header string true "Attachment disposition carrying the file name" example(attachment; filename="image.png")
+// @Param Content-Disposition header string true "Attachment disposition carrying the filename as a quoted string." extensions(x-example=attachment; filename="image.png")
 // @Param request body string true "Raw file binary data"
 // @x-apidocgen {"rawBodyFile": "image.png"}
 // @Success 201 {object} codersdk.UploadChatFileResponse
@@ -8436,8 +8444,12 @@ func (api *API) listChatModelConfigsByOrganization(rw http.ResponseWriter, r *ht
 		Providers:            providers,
 		UnsupportedProviders: chatprovider.UnsupportedProviders(availability.configuredProviders),
 	}
+	providerTypes := make(map[uuid.UUID]database.AIProviderType, len(providers))
+	for _, provider := range providers {
+		providerTypes[provider.ID] = database.AIProviderType(provider.Type)
+	}
 	for _, config := range configs {
-		resp.Models = append(resp.Models, convertChatModelConfig(config))
+		resp.Models = append(resp.Models, convertChatModelConfig(config, providerTypes[config.AIProviderID.UUID]))
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
@@ -8568,7 +8580,27 @@ func (api *API) getChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
-	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(config))
+	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(config, api.chatModelConfigProviderType(ctx, config)))
+}
+
+// chatModelConfigProviderType returns the type of the model's AI provider, or
+// an empty type when the provider cannot be read.
+func (api *API) chatModelConfigProviderType(ctx context.Context, config database.ChatModelConfig) database.AIProviderType {
+	if !config.AIProviderID.Valid {
+		return ""
+	}
+	//nolint:gocritic // The provider fetch only reads the redacted descriptor fields.
+	provider, err := api.Database.GetAIProviderByID(dbauthz.AsChatd(ctx), config.AIProviderID.UUID)
+	if err != nil {
+		if !xerrors.Is(err, sql.ErrNoRows) {
+			api.Logger.Warn(ctx, "get AI provider of chat model",
+				slog.F("model_config_id", config.ID),
+				slog.Error(err),
+			)
+		}
+		return ""
+	}
+	return provider.Type
 }
 
 type chatModelConfigProviderModelError struct {
@@ -8775,6 +8807,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 
 	var (
 		inserted         database.ChatModelConfig
+		providerType     database.AIProviderType
 		auditTransitions []chatModelConfigAuditTransition
 	)
 	err := api.inChatModelConfigWriteTx(ctx, insertParams.OrganizationID, func(tx database.Store) error {
@@ -8821,6 +8854,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 		if err := validateChatModelConfigProviderModel(lockedAIProvider, insertParams.Model, req.ModelConfig); err != nil {
 			return err
 		}
+		providerType = lockedAIProvider.Type
 
 		transition, err := ensureDefaultChatModelConfig(ctx, tx, insertParams.OrganizationID)
 		if err != nil {
@@ -8846,7 +8880,7 @@ func (api *API) createChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	api.auditChatModelConfigTransitions(ctx, r, apiKey.UserID, http.StatusCreated, auditTransitions)
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, inserted.ID)
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertChatModelConfig(inserted, providerType))
 }
 
 // @Summary Update an AI model
@@ -9075,7 +9109,7 @@ func (api *API) updateChatModelConfig(rw http.ResponseWriter, r *http.Request) {
 	api.auditChatModelConfigTransitions(ctx, r, apiKey.UserID, http.StatusOK, auditTransitions)
 	publishChatConfigEvent(api.Logger, api.Pubsub, pubsub.ChatConfigEventModelConfig, updated.ID)
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated))
+	httpapi.Write(ctx, rw, http.StatusOK, convertChatModelConfig(updated, api.chatModelConfigProviderType(ctx, updated)))
 }
 
 // @Summary Delete an AI model
@@ -9255,12 +9289,13 @@ func parseChatModelConfigID(rw http.ResponseWriter, r *http.Request) (uuid.UUID,
 	return modelConfigID, true
 }
 
-func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModel {
+func convertChatModelConfig(config database.ChatModelConfig, providerType database.AIProviderType) codersdk.ChatModel {
 	modelConfig := unmarshalChatModelCallConfig(config.Options)
 	var reasoningEffortConfig *codersdk.ChatModelReasoningEffortConfig
 	if modelConfig != nil {
 		reasoningEffortConfig = modelConfig.ReasoningEffort
 	}
+	computerUseProvider, _ := chatprovider.ComputerUseProvider(providerType, config.Model)
 
 	// Active configs always carry a non-null ai_provider_id (CHECK
 	// chat_model_configs_ai_provider_required_when_active).
@@ -9276,6 +9311,7 @@ func convertChatModelConfig(config database.ChatModelConfig) codersdk.ChatModel 
 		CompressionThreshold: config.CompressionThreshold,
 		ModelConfig:          modelConfig,
 		ReasoningEfforts:     chatprovider.SelectableReasoningEfforts(reasoningEffortConfig),
+		ComputerUseProvider:  computerUseProvider,
 		CreatedAt:            config.CreatedAt,
 		UpdatedAt:            config.UpdatedAt,
 	}

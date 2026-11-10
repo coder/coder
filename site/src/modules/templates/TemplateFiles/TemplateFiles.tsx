@@ -62,7 +62,7 @@ export const TemplateFiles: React.FC<TemplateFilesProps> = ({
 		<div>
 			<div className="flex items-start gap-8">
 				{/* top-28 (112px) is a sum of nav height (72px) and TemplateLayout's LinkTabs' mb-10 (40px) */}
-				<div className="sticky top-28 w-[240px] shrink-0 overflow-auto rounded-lg border border-solid border-surface-quaternary py-1">
+				<div className="sticky top-28 w-60 shrink-0 overflow-auto rounded-lg border border-solid border-surface-quaternary py-1">
 					<TemplateFileTree
 						fileTree={fileTree}
 						onSelect={(path: string) => {
@@ -103,7 +103,7 @@ export const TemplateFiles: React.FC<TemplateFilesProps> = ({
 									id={filename}
 									className="overflow-hidden rounded-lg border border-solid border-surface-quaternary"
 								>
-									<header className="flex items-center gap-2 border-0 border-b border-solid border-surface-quaternary px-4 py-2 text-sm font-medium">
+									<header className="flex items-center gap-2 border-0 border-b border-solid border-surface-quaternary px-4 py-2 text-sm">
 										<div className="flex items-center gap-2">
 											<TemplateFileIcon className="text-content-secondary size-icon-xs" />
 											<span
@@ -126,18 +126,10 @@ export const TemplateFiles: React.FC<TemplateFilesProps> = ({
 										</div>
 									</header>
 									<SyntaxHighlighter
+										filename={filename}
 										language={getLanguage(filename)}
 										value={info.value}
 										compareWith={info.previousValue}
-										editorProps={{
-											// 18 is the editor line height
-											height: Math.min(numberOfLines(info.value) * 18, 560),
-											onMount: (editor) => {
-												editor.updateOptions({
-													scrollBeyondLastLine: false,
-												});
-											},
-										}}
 									/>
 								</div>
 							);
@@ -148,27 +140,11 @@ export const TemplateFiles: React.FC<TemplateFilesProps> = ({
 	);
 };
 
-const languageByExtension: Record<string, string> = {
-	tf: "hcl",
-	hcl: "hcl",
-	md: "markdown",
-	mkd: "markdown",
-	sh: "shell",
-	tpl: "tpl",
-	protobuf: "protobuf",
-	nix: "dockerfile",
-	json: "json",
-};
-
+// Everything else is inferred from the file extension by the highlighter.
 const getLanguage = (filename: string) => {
 	// Dockerfile can be like images/Dockerfile or Dockerfile.java
 	if (filename.includes("Dockerfile")) {
 		return "dockerfile";
 	}
-	const extension = filename.split(".").pop();
-	return languageByExtension[extension ?? ""];
-};
-
-const numberOfLines = (content: string) => {
-	return content.split("\n").length;
+	return undefined;
 };

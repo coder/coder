@@ -80,6 +80,11 @@
 									"path": "./install/plan/sizing/10k-users.md"
 								}
 							]
+						},
+						{
+							"title": "Migrate from Ona (formerly Gitpod)",
+							"description": "Move an Ona Enterprise deployment, including runners, projects, policies, and agents, to a self-hosted Coder deployment.",
+							"path": "./install/plan/migrate-from-ona.md"
 						}
 					]
 				},
@@ -632,6 +637,11 @@
 							"title": "Claude Desktop",
 							"description": "Let Claude Desktop access your Coder workspaces.",
 							"path": "./workspaces/workspace-access/claude-desktop.md"
+						},
+						{
+							"title": "Claude Code with a Claude subscription",
+							"description": "Sign in to Claude Code in your Coder workspace with your Claude subscription instead of an API key.",
+							"path": "./workspaces/workspace-access/claude-code-subscription.md"
 						}
 					]
 				},

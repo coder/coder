@@ -144,7 +144,7 @@ Agent Firewall supports two different jail types for process isolation, each wit
 
 The choice of jail type depends on your security requirements, available Linux capabilities, and runtime environment.
 Both nsjail and landjail provide network isolation, but they use different underlying mechanisms. nsjail uses Linux namespaces, while landjail uses Landlock V4.
-Landjail may be preferred in environments where namespace capabilities are limited or unavailable.
+Landjail might be preferred in environments where namespace capabilities are limited or unavailable.
 
 ## Implementation Comparison: Namespaces+iptables vs Landlock V4
 

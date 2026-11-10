@@ -16,7 +16,7 @@ We encourage the latter approach where supported:
 
 - Simplifies the template.
 - Keeps provider credentials out of Coder's database, making it a less valuable target for attackers.
-- Compatible with agent-based authentication schemes, which handle credential rotation or ensure the credentials are not written to disk.
+- Compatible with agent-based authentication schemes, which handle credential rotation or guarantee the credentials are not written to disk.
 
 Generally, you can set up an environment to provide credentials to Coder in these ways:
 

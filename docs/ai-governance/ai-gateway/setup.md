@@ -49,7 +49,7 @@ Each provider gets its own AI Gateway route at `/api/v2/ai-gateway/<provider-nam
 
 > [!NOTE]
 > Provider names must be unique and use lowercase, hyphen-separated identifiers such as `anthropic-corp` or `azure-openai`.
-> Once deleted, another provider may reuse the name.
+> Once deleted, another provider can reuse the name.
 
 ![AI Providers list page](../../images/aibridge/providers-list.png)
 
@@ -86,7 +86,7 @@ Each [standalone gateway](./standalone.md) replica accepts the same API dump set
 
 > [!WARNING]
 > API dumps are intended for short diagnostic sessions only.
-> Dump files contain raw request and response data, which may include proprietary or sensitive information such as prompts, completions, and tool inputs.
+> Dump files contain raw request and response data, which might include proprietary or sensitive information such as prompts, completions, and tool inputs.
 > Protect the target directory and disable dumping when diagnostics are complete.
 
 ## Send actor headers
@@ -112,7 +112,7 @@ ai_gateway:
 The equivalent CLI options are `--ai-gateway-actor-header-id`, `--ai-gateway-actor-header-username`, and `--ai-gateway-actor-header-email`.
 The email header is empty by default.
 To forward email, set `actor_header_email`, for example to `X-AI-Bridge-Actor-Metadata-Email`.
-The setting applies to every configured provider, so enable it only if all of them, and any proxy in between, may receive user email addresses.
+The setting applies to every configured provider, so enable it only if all of them, and any proxy in between, can receive user email addresses.
 For defaults, precedence, and privacy considerations, refer to [Actor header forwarding](./reference.md#actor-header-forwarding).
 
 ## Data Retention

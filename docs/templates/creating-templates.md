@@ -157,7 +157,7 @@ After the build, you will be taken to the new template page.
 
 ### CLI
 
-First, ensure you are logged in to the control plane as a user with permissions to read and write permissions.
+First, make sure you are logged in to the control plane as a user with permissions to read and write permissions.
 
 ```console
 coder login
@@ -187,7 +187,7 @@ You will then see your new template in the dashboard.
 
 ## From scratch (advanced)
 
-There may be cases where you want to create a template from scratch.
+There might be cases where you want to create a template from scratch.
 You can use [any Terraform provider](https://registry.terraform.io) with Coder to create templates for additional clouds (for example, Hetzner, Alibaba) or orchestrators (VMware, Proxmox) that we do not provide example templates for.
 
 Refer to the following resources:

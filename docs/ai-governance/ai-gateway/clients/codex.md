@@ -77,7 +77,7 @@ env_http_headers = { "X-Coder-AI-Governance-Token" = "CODER_API_TOKEN" }
 > [!NOTE]
 > The `base_url` uses `/ai-gateway/chatgpt/v1` instead of `/ai-gateway/openai/v1` to route requests through the ChatGPT provider.
 
-Set your Coder API token and ensure `OPENAI_API_KEY` is not set:
+Set your Coder API token and make sure `OPENAI_API_KEY` is not set:
 
 ```sh
 # Your Coder API token, used for authentication with AI Gateway.

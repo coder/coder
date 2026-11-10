@@ -11,7 +11,7 @@ Alternatively, you can view our [example templates](../../../examples/templates)
 
 For users to connect to a workspace, the template must include a [`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent).
 The associated agent will facilitate [workspace connections](../../workspaces/workspace-access/index.md) via SSH, port forwarding, and IDEs.
-The agent may also display real-time [workspace metadata](./agent-metadata.md) like resource usage.
+The agent can also display real-time [workspace metadata](./agent-metadata.md) like resource usage.
 
 ```tf
 resource "coder_agent" "dev" {
@@ -32,13 +32,13 @@ It also provides all information displayed in the dashboard's workspace view.
 
 ![A healthy workspace agent](../../images/templates/healthy-workspace-agent.png)
 
-Multiple agents may be used in a single template or even a single resource.
-Each agent may have its own apps, startup script, and metadata.
+Multiple agents can be used in a single template or even a single resource.
+Each agent can have its own apps, startup script, and metadata.
 This can be used to associate multiple containers or VMs with a workspace.
 
 ## Resource persistence
 
-The resources you define in a template may be _ephemeral_ or _persistent_.
+The resources you define in a template can be _ephemeral_ or _persistent_.
 Persistent resources stay provisioned when workspaces are stopped, where as ephemeral resources are destroyed and recreated on restart.
 All resources are destroyed when a workspace is deleted.
 
@@ -47,7 +47,7 @@ You can read more about how resource behavior and workspace state in the [worksp
 Template resources follow the [behavior of Terraform resources](https://developer.hashicorp.com/terraform/language/resources/behavior#how-terraform-applies-a-configuration) and can be further configured  using the [lifecycle argument](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle).
 
 A common configuration is a template whose only persistent resource is the home directory.
-This allows the developer to retain their work while ensuring the rest of their environment is consistently up-to-date on each workspace restart.
+This allows the developer to retain their work while making sure the rest of their environment is consistently up-to-date on each workspace restart.
 
 When a workspace is deleted, the control plane essentially runs a [terraform destroy](https://www.terraform.io/cli/commands/destroy) to remove all resources associated with the workspace.
 
@@ -114,6 +114,22 @@ resource "coder_app" "zed" {
 
 Visit our [module registry](https://registry.coder.com/modules) for additional Coder apps from the team and our open source software (OSS) community.
 
+### Session tokens in external app links
+
+An external app's `url` can include the `$SESSION_TOKEN` placeholder so a desktop IDE can sign in to Coder.
+The dashboard and `coder open app` replace the placeholder with the user's session token only when all of these are true:
+
+- The link opens a Coder IDE extension, such as `vscode://coder.coder-remote/open` or `jetbrains://gateway/com.coder.toolbox`.
+- The link's `url` parameter is this deployment's URL, with no path.
+- The placeholder is the whole value of the link's `token` parameter.
+
+When a link with the placeholder doesn't meet these conditions, Coder doesn't add a token.
+`coder open app` prints the link with a warning instead of opening it.
+The dashboard shows the app as disabled, except for `http` and `https` links, which open with the placeholder left in place.
+Links without the placeholder open as written.
+Dev container apps never receive a session token.
+Refer to [Customizing dev containers](../../workspaces/devcontainers/customizing-dev-containers.md) for details.
+
 ## Environment variables
 
 Use the [`coder_env`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/env) resource to inject environment variables into workspace agents.
@@ -162,7 +178,7 @@ resource "coder_script" "install_dependencies" {
 - **Lifecycle control**:
   Run on start (`run_on_start`), stop (`run_on_stop`), or cron schedule (`cron`)
 - **Login blocking**:
-  Use `start_blocks_login = true` to ensure critical setup completes before user access
+  Use `start_blocks_login = true` to make sure critical setup completes before user access
 - **Timeouts**:
   Configure `timeout` for long-running scripts
 - **Custom icons**:

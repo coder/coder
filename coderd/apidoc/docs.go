@@ -4031,8 +4031,8 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "example": "attachment; filename=\"image.png\"",
-                        "description": "Attachment disposition carrying the file name",
+                        "x-example": "attachment; filename=\"image.png\"",
+                        "description": "Attachment disposition carrying the filename as a quoted string.",
                         "name": "Content-Disposition",
                         "in": "header",
                         "required": true
@@ -4621,6 +4621,7 @@ const docTemplate = `{
         },
         "/api/v2/chats/{chat}/interrupt": {
             "post": {
+                "description": "Interrupts the active turn of a chat.\nIf the chat has nothing to interrupt, for example because its turn already ended, the endpoint returns the chat unchanged.",
                 "produces": [
                     "application/json"
                 ],
@@ -10249,12 +10250,11 @@ const docTemplate = `{
                     },
                     {
                         "type": "array",
-                        "format": "uuid",
                         "items": {
                             "type": "string"
                         },
                         "collectionFormat": "csv",
-                        "description": "Filter results by job IDs",
+                        "description": "Filter results by provisioner daemon IDs (UUIDs)",
                         "name": "ids",
                         "in": "query"
                     },
@@ -10360,12 +10360,11 @@ const docTemplate = `{
                     },
                     {
                         "type": "array",
-                        "format": "uuid",
                         "items": {
                             "type": "string"
                         },
                         "collectionFormat": "csv",
-                        "description": "Filter results by job IDs",
+                        "description": "Filter results by job IDs (UUIDs)",
                         "name": "ids",
                         "in": "query"
                     },
@@ -11592,16 +11591,6 @@ const docTemplate = `{
                 ],
                 "summary": "Get the available idp sync claim fields",
                 "operationId": "get-the-available-idp-sync-claim-fields",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -11631,14 +11620,6 @@ const docTemplate = `{
                 "summary": "Get the idp sync claim field values",
                 "operationId": "get-the-idp-sync-claim-field-values",
                 "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
                     {
                         "type": "string",
                         "format": "string",
@@ -19039,7 +19020,7 @@ const docTemplate = `{
                 "parameters": [
                     {
                         "type": "string",
-                        "example": "Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=",
+                        "x-example": "Basic Y2xpZW50X2lkOmNsaWVudF9zZWNyZXQ=",
                         "description": "HTTP Basic credentials, the client_id as the username and the client_secret as the password. A confidential client sends these or the form fields below, not both.",
                         "name": "Authorization",
                         "in": "header"
@@ -22038,12 +22019,12 @@ const docTemplate = `{
         "codersdk.ChatBusyBehavior": {
             "type": "string",
             "enum": [
-                "queue",
-                "interrupt"
+                "steer",
+                "queue"
             ],
             "x-enum-varnames": [
-                "ChatBusyBehaviorQueue",
-                "ChatBusyBehaviorInterrupt"
+                "ChatBusyBehaviorSteer",
+                "ChatBusyBehaviorQueue"
             ]
         },
         "codersdk.ChatClientType": {
@@ -22055,6 +22036,19 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "ChatClientTypeUI",
                 "ChatClientTypeAPI"
+            ]
+        },
+        "codersdk.ChatComputerUseProvider": {
+            "type": "string",
+            "enum": [
+                "anthropic",
+                "openai",
+                "openai-compat"
+            ],
+            "x-enum-varnames": [
+                "ChatComputerUseProviderAnthropic",
+                "ChatComputerUseProviderOpenAI",
+                "ChatComputerUseProviderOpenAICompat"
             ]
         },
         "codersdk.ChatConfig": {
@@ -22655,10 +22649,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "args": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "args_delta": {
                     "type": "string"
@@ -22707,10 +22698,9 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "data": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "Data holds an inline file's bytes, which JSON carries as a base64 string.",
+                    "type": "string",
+                    "format": "byte"
                 },
                 "end_line": {
                     "type": "integer"
@@ -22760,21 +22750,12 @@ const docTemplate = `{
                     "description": "ProviderExecuted indicates the tool call was executed by\nthe provider (e.g. Anthropic computer use).",
                     "type": "boolean"
                 },
-                "provider_metadata": {
-                    "description": "ProviderMetadata holds provider-specific response metadata\n(e.g. Anthropic cache control hints) as raw JSON. Internal\nonly: stripped by db2sdk before API responses.",
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
-                },
                 "reasoning_delta": {
                     "type": "string"
                 },
                 "result": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "Result is the tool output, which can be any JSON value.",
+                    "type": "object"
                 },
                 "result_delta": {
                     "type": "string"
@@ -22937,6 +22918,7 @@ const docTemplate = `{
                     }
                 },
                 "queued_messages": {
+                    "description": "QueuedMessages lists the queued messages in delivery order: steer\nmessages first, then queue messages.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatQueuedMessage"
@@ -22957,6 +22939,14 @@ const docTemplate = `{
                 },
                 "compression_threshold": {
                     "type": "integer"
+                },
+                "computer_use_provider": {
+                    "description": "ComputerUseProvider names the computer use tool that Coder sends for\nthis model. It is omitted when computer use can't run on the model.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatComputerUseProvider"
+                        }
+                    ]
                 },
                 "context_limit": {
                     "type": "integer"
@@ -23865,6 +23855,18 @@ const docTemplate = `{
         "codersdk.ChatQueuedMessage": {
             "type": "object",
             "properties": {
+                "busy_behavior": {
+                    "description": "BusyBehavior is the lane of the message. Steer messages go in\nbefore the next model call, and queue messages go in after the\nturn ends.",
+                    "enum": [
+                        "steer",
+                        "queue"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatBusyBehavior"
+                        }
+                    ]
+                },
                 "chat_id": {
                     "type": "string",
                     "format": "uuid"
@@ -23880,7 +23882,7 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "editing_since": {
-                    "description": "EditingSince is set while the owner edits the message. A message\nunder edit and every message behind it wait until the edit ends; a\nturn that ends at a message under edit pauses the chat.",
+                    "description": "EditingSince is set while the owner edits the message. A message\nunder edit and every message behind it wait until the edit ends. A\nsteer message under edit also holds the steer messages ahead of\nit. A turn that ends at a message under edit pauses the chat.",
                     "type": "string",
                     "format": "date-time"
                 },
@@ -23980,6 +23982,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatStreamMessagePart"
                 },
                 "queued_messages": {
+                    "description": "QueuedMessages lists the queued messages in delivery order: steer\nmessages first, then queue messages.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatQueuedMessage"
@@ -24494,9 +24497,10 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "busy_behavior": {
+                    "description": "BusyBehavior controls when the message reaches the agent if the\nchat is busy. \"steer\", the default, delivers it before the next\nmodel call. \"queue\" delivers it after the active turn ends.",
                     "enum": [
-                        "queue",
-                        "interrupt"
+                        "steer",
+                        "queue"
                     ],
                     "allOf": [
                         {
@@ -24548,7 +24552,7 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.ChatMessage"
                 },
                 "messages": {
-                    "description": "Messages contains all user-visible messages inserted by the send, in\ninsertion order. A queued send on an errored chat may promote the\nprevious queue head, so clients must upsert the full batch.",
+                    "description": "Messages contains all user-visible messages inserted by the send, in\ninsertion order. A send to an errored or paused chat can also insert\nqueued messages: a steer send inserts the queued steer messages\nbefore the new message, and a queue send to an errored chat inserts\nthe steer lane, or the first queue message when that lane is empty.\nClients must upsert the full batch.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.ChatMessage"
@@ -25203,10 +25207,7 @@ const docTemplate = `{
                     ]
                 },
                 "additional_fields": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "build_reason": {
                     "enum": [
@@ -25558,10 +25559,9 @@ const docTemplate = `{
                     }
                 },
                 "state": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "ProvisionerState overrides the provisioner state for this build. JSON\ncarries it as a base64 string.",
+                    "type": "string",
+                    "format": "byte"
                 },
                 "template_version_id": {
                     "type": "string",
@@ -26290,10 +26290,7 @@ const docTemplate = `{
                 },
                 "input_schema": {
                     "description": "InputSchema's JSON key \"input_schema\" uses snake_case for\nSDK consistency, deviating from the camelCase \"inputSchema\"\nconvention used by MCP.",
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "type": "object"
                 },
                 "name": {
                     "type": "string"
@@ -32074,10 +32071,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "default": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "Default is the variable's default as a JSON string, number, or boolean,\nmatching the variable's type.",
+                    "type": "object"
                 },
                 "description": {
                     "type": "string"
@@ -32806,10 +32801,8 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "output": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "Output is the tool output, which can be any JSON value.",
+                    "type": "object"
                 },
                 "tool_call_id": {
                     "type": "string"
@@ -33771,10 +33764,9 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "state": {
-                    "type": "array",
-                    "items": {
-                        "type": "integer"
-                    }
+                    "description": "State is the provisioner state, which JSON carries as a base64 string.",
+                    "type": "string",
+                    "format": "byte"
                 }
             }
         },

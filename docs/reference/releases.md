@@ -28,13 +28,13 @@ The security support version, so n-2 from mainline, receives patches only for se
 
 - Intended for customers with a staging environment
 - Gives earliest access to new features
-- May include minor bugs
+- Might include minor bugs
 - All bugfixes and security patches are supported
 
 ### Stable releases
 
 - Safest upgrade/installation path
-- May not include the latest features
+- Might not include the latest features
 - All bugfixes and security patches are supported
 
 ### Security Support

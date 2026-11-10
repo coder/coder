@@ -34,9 +34,20 @@ type MembersSectionProps = {
 type ProjectDetailsPanelViewProps = {
 	/** The owner's display label. `undefined` while it loads. */
 	readonly ownerLabel: string | undefined;
+	/** Omit when the owner is unknown or still loading to hide the avatar. */
+	readonly ownerAvatar?: {
+		readonly src: string;
+		/** The name whose initial shows when `src` is empty or fails to load. */
+		readonly fallback: string;
+	};
 	readonly createdAt: string;
 	/** Omit to hide the organization row. */
 	readonly organizationLabel?: string;
+	/**
+	 * The organization's icon URL. An empty string shows the name's initial.
+	 * Omit when the organization is unknown to hide the avatar.
+	 */
+	readonly organizationIconUrl?: string;
 	/** `undefined` while the skills load or after loading fails. */
 	readonly skillCount: number | undefined;
 	/** `undefined` while the skills load or after loading fails. */
@@ -58,8 +69,10 @@ export const ProjectDetailsPanelView: React.FC<
 	ProjectDetailsPanelViewProps
 > = ({
 	ownerLabel,
+	ownerAvatar,
 	createdAt,
 	organizationLabel,
+	organizationIconUrl,
 	skillCount,
 	disabledSkillCount,
 	skillsError,
@@ -96,16 +109,19 @@ export const ProjectDetailsPanelView: React.FC<
 
 	return (
 		<section aria-labelledby={headingId} className="flex flex-col gap-3">
-			<h2
-				id={headingId}
-				className="m-0 text-sm font-medium text-content-primary"
-			>
+			<h2 id={headingId} className="m-0 text-sm text-content-primary">
 				Details
 			</h2>
 			<div className="rounded-lg border border-border">
 				<dl className="m-0 flex flex-col gap-2 border-0 border-b border-solid border-border p-4 text-sm">
 					<DetailRow label="Project owner">
-						{ownerLabel ?? (
+						{ownerLabel !== undefined ? (
+							<AvatarValue
+								label={ownerLabel}
+								avatarSrc={ownerAvatar?.src}
+								avatarFallback={ownerAvatar?.fallback}
+							/>
+						) : (
 							<>
 								<Skeleton className="my-1 ml-auto h-3 w-12" />
 								<span className="sr-only">Loading</span>
@@ -129,7 +145,13 @@ export const ProjectDetailsPanelView: React.FC<
 						</Tooltip>
 					</DetailRow>
 					{organizationLabel !== undefined && (
-						<DetailRow label="Organization">{organizationLabel}</DetailRow>
+						<DetailRow label="Organization">
+							<AvatarValue
+								label={organizationLabel}
+								avatarSrc={organizationIconUrl}
+								avatarFallback={organizationLabel}
+							/>
+						</DetailRow>
 					)}
 					<DetailRow label="Skills">
 						{skillCount === undefined && !skillsError ? (
@@ -156,7 +178,7 @@ export const ProjectDetailsPanelView: React.FC<
 				>
 					<h3
 						id={instructionsHeadingId}
-						className="m-0 text-sm font-medium text-content-secondary"
+						className="m-0 text-sm text-content-secondary"
 					>
 						Instructions
 					</h3>
@@ -197,7 +219,7 @@ export const ProjectDetailsPanelView: React.FC<
 								<div className="flex items-start gap-2 rounded-lg border border-border p-3">
 									<p
 										className={cn(
-											"m-0 min-w-0 flex-1 whitespace-pre-wrap break-words text-sm text-content-primary",
+											"m-0 min-w-0 flex-1 whitespace-pre-wrap wrap-break-word text-sm text-content-primary",
 											// Without the editor, this is the only place the full text shows.
 											onEditInstructions && "line-clamp-3",
 										)}
@@ -348,7 +370,7 @@ const MemberTile: React.FC<MemberTileProps> = ({
 			</TooltipTrigger>
 			<TooltipContent
 				side="bottom"
-				className="pointer-events-none max-w-[min(20rem,calc(100vw-2rem))] break-words [[data-radix-popper-content-wrapper]:has(>&)]:pointer-events-none"
+				className="pointer-events-none max-w-[min(20rem,calc(100vw-2rem))] wrap-break-word [[data-radix-popper-content-wrapper]:has(>&)]:pointer-events-none"
 			>
 				{tooltip}
 			</TooltipContent>
@@ -386,16 +408,37 @@ const OverflowTile: React.FC<OverflowTileProps> = ({ entries }) => {
 	);
 };
 
+type AvatarValueProps = {
+	readonly label: string;
+	/** Omit to hide the avatar. An empty string shows the fallback's initial. */
+	readonly avatarSrc: string | undefined;
+	readonly avatarFallback: string | undefined;
+};
+
+/** A detail value with an optional avatar, truncated to one line. */
+const AvatarValue: React.FC<AvatarValueProps> = ({
+	label,
+	avatarSrc,
+	avatarFallback,
+}) => (
+	<span className="flex items-center justify-end gap-1.5">
+		{avatarSrc !== undefined && (
+			<Avatar size="xs" src={avatarSrc} fallback={avatarFallback} />
+		)}
+		<span className="min-w-0 truncate" title={label}>
+			{label}
+		</span>
+	</span>
+);
+
 type DetailRowProps = {
 	readonly label: string;
 	readonly children: React.ReactNode;
 };
 
 const DetailRow: React.FC<DetailRowProps> = ({ label, children }) => (
-	<div className="flex items-start justify-between gap-4">
+	<div className="flex items-center justify-between gap-4">
 		<dt className="shrink-0 text-content-secondary">{label}</dt>
-		<dd className="m-0 min-w-0 break-words text-right font-mono text-content-primary">
-			{children}
-		</dd>
+		<dd className="m-0 min-w-0 text-right text-content-primary">{children}</dd>
 	</div>
 );

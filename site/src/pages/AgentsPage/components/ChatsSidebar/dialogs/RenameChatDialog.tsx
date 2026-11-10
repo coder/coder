@@ -245,7 +245,7 @@ export const RenameChatDialog: React.FC<RenameChatDialogProps> = ({
 						inputRef.current?.select();
 					});
 				}}
-				className="max-w-[440px] p-6 sm:p-6"
+				className="max-w-110 p-6 sm:p-6"
 				aria-describedby={undefined}
 			>
 				<DialogHeader className="flex-row items-center justify-between space-y-0 sm:flex-row">
@@ -264,9 +264,9 @@ export const RenameChatDialog: React.FC<RenameChatDialogProps> = ({
 							}
 						>
 							{isGeneratingTitle ? (
-								<Spinner className="h-[18px] w-[18px]" loading />
+								<Spinner className="h-4.5 w-4.5" loading />
 							) : (
-								<SparklesIcon className="size-[18px]" />
+								<SparklesIcon className="size-icon-sm" />
 							)}
 							Generate
 						</Button>

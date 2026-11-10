@@ -50,7 +50,7 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 	return (
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
 			<DialogContent
-				className="max-h-[85vh] max-w-[90vw] w-full sm:w-fit sm:min-w-[400px] flex flex-col gap-0 p-0"
+				className="max-h-[85vh] max-w-[90vw] w-full sm:w-fit sm:min-w-100 flex flex-col gap-0 p-0"
 				aria-describedby={undefined}
 				onCloseAutoFocus={onCloseAutoFocus}
 			>

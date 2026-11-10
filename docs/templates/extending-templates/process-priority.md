@@ -101,7 +101,7 @@ resource "kubernetes_deployment" "workspace" {
 ### OOM score adjustment fails
 
 If you see `failed to adjust oom score` in stderr but the process still starts, the agent likely lacks permission to write to `/proc/self/oom_score_adj`.
-Ensure the process is dumpable (the agent handles this automatically, but it can fail if the container runtime restricts `prctl` calls).
+Make sure the process is dumpable (the agent handles this automatically, but it can fail if the container runtime restricts `prctl` calls).
 
 ### Nice value is not applied
 
