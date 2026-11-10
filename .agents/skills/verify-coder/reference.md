@@ -25,7 +25,7 @@ Details behind the steps in `SKILL.md`. Paths are relative to this skill's direc
 
 ## State
 
-- `build/verify-coder/run/` holds the env file, `build.log`, `develop.log`, `docker-forward.log` and `docker-forward.pid`, journey pid files and the recorded workspaces. `.coderv2/` holds the built-in Postgres and the CLI session. Both are per checkout and gitignored.
+- `build/verify-coder/run/` holds the env file, `build.log`, `develop.log`, `docker-forward.log` and `docker-forward.pid`, pid files of hand-started helpers and the recorded workspaces. `.coderv2/` holds the built-in Postgres and the CLI session. Both are per checkout and gitignored.
 - `launch.sh` makes `build/verify-coder/` mode 0700, because `develop.log` records the admin password. `VERIFY_CODER_STATE` moves that folder. Point it only at a folder the harness owns: cleanup deletes its `run/` subfolder.
 - A second checkout can run its own instance at the same time. Two instances in one checkout cannot, because they share `.coderv2`.
 
@@ -45,7 +45,7 @@ It changes nothing apart from those two refused sign-ins.
 
 ## Self-test
 
-`scripts/selftest.sh` needs no instance and takes 30 to 60 seconds. Run it after you edit a script or a journey. Checks that would start develop or touch `.coderv2` run a copy of the scripts in a scratch git repo, with stubs for `setsid` (in place of develop), `make`, `curl` and `docker`. It checks:
+`scripts/selftest.sh` needs no instance and takes 30 to 60 seconds. Run it after you edit a script. Checks that would start develop or touch `.coderv2` run a copy of the scripts in a scratch git repo, with stubs for `setsid` (in place of develop), `make`, `curl` and `docker`. It checks:
 
 - the `launch.sh` refusals: `CODER_BUILD_AGPL`, develop.sh flags, server flags outside `server_flag_allowed` and the published default password;
 - that a new database without `CODER_DEV_ADMIN_PASSWORD`, and the allowed server flags, get past those checks;
@@ -58,26 +58,21 @@ It changes nothing apart from those two refused sign-ins.
 - that a Docker error, or a missing docker CLI while a daemon is configured, fails cleanup's leftover inventory;
 - that `docker-forward.py` carries its port to 127.0.0.1 and cleanup recognizes it as a helper;
 - that the default password check covers the admin and the member, and counts any answer but 401 as accepted;
-- that `vc_browser_login` and `vc_fill_secret` pass secrets to agent-browser on stdin;
 - that a sign-in request to 127.0.0.1 and the doctor's requests to the Docker bridge gateway bypass a configured proxy, and that `lib.sh` keeps the caller's `NO_PROXY` and `no_proxy` entries;
 - that cleanup puts the caller's CLI session back with its file mode;
 - that `vc_wait_agent` stops at once on a missing workspace or a failed build;
-- that the coder-agents restore step gives the default back to the old model only while the journey's model holds it, and keeps a newer default;
-- that the web terminal check polls, that create-user waits for the new-user form before it reads it, and that `vc_new_evidence` gives each journey run its own evidence folder.
+- that `vc_new_evidence` gives each run its own evidence folder.
 
 ## Drive
 
-- Web UI: `$VC_WEB_URL` is the production frontend that coder server serves from the built binary. Launch rebuilds it when a `.ts` or `.tsx` file under `site/` changed, so relaunch after a frontend edit. A change to only CSS or static files does not trigger the rebuild: touch a `.tsx` file or run `make -B site/out/index.html` first.
-- `$VC_VITE_URL` is the Vite dev server with hot reload. Use it only to watch an edit live: under host load it failed lazy route imports (`Failed to fetch dynamically imported module`).
-- `vc_ab` runs agent-browser in `$VC_BROWSER_SESSION`. Sessions are host-global, so never use another name. Prefer `find label`, `find role ... --name`, `data-testid` and page titles (`<Page> - Coder`) over refs from an old snapshot.
-- `site/e2e/helpers.ts` has a Playwright recipe for most pages. Translate it, then check the labels against the page source, because the e2e matchers ignore case.
+- Web UI: `$VC_WEB_URL` is the production frontend that coder server serves from the built binary, and `$VC_VITE_URL` is the Vite dev server. Launch rebuilds the frontend when a `.ts` or `.tsx` file under `site/` changed. This skill drives no browser: agent-browser exposes a debugging port and a stream port on 127.0.0.1, so any local account could drive a page signed in as the admin. Report a web UI entry point as not verified.
 - CLI: `vc_coder <args>` runs `scripts/coder-dev.sh` with `CODER_DEV_URL=$VC_API_URL`. The shim uses `.coderv2` and drops `CODER_URL` and `CODER_SESSION_TOKEN`, so it never talks to the deployment your workspace runs on or to a URL an older run saved in `.coderv2`.
 - API: `vc_api /api/v2/<path>` GETs as the admin and fails on an HTTP error. `vc_api_status /api/v2/<path>` prints only the status code. Both keep the token out of the process list. Never echo `.coderv2/session` or pass it as an argument.
 - Logs: `$VC_LOG` holds the `api`, `site` and `build` streams. Launch with `scripts/launch.sh -- --verbose` for debug lines.
 
 ## Hand-driven checks
 
-- Put each sub-feature's files in one `$VC_EVIDENCE/<UTC stamp>-<sub-feature id>/` folder, for example `20261105T090000Z-users-create-cli/`. Name files `<NN>-<entry point>-<state>.<ext>`, such as `01-cli-create.txt` or `02-ui-users-after.png`.
+- Put each sub-feature's files in one `$VC_EVIDENCE/<UTC stamp>-<sub-feature id>/` folder, for example `20261105T090000Z-users-create-cli/`. Name files `<NN>-<entry point>-<state>.<ext>`, such as `01-cli-create.txt` or `02-api-users-after.json`. `vc_new_evidence <sub-feature id>` creates the folder and prints its path.
 - Record each check with `vc_check <name> <command> [args]` and `VC_RESULT_FILE=<folder>/result.txt`. End with `echo "<sub-feature id>: $VC_PASS/$VC_TOTAL checks passed" >>"$VC_RESULT_FILE"`.
 - `vc_check` runs its arguments as one command with errexit and pipefail, not as a shell string. Put pipes and redirects inside a function and pass the function. It always returns 0 and prints PASS or FAIL.
 - Its counters start at 0 each time `lib.sh` is sourced, so run one sub-feature in one shell.
@@ -86,7 +81,7 @@ It changes nothing apart from those two refused sign-ins.
 ## Cleanup
 
 - `cleanup.sh` deletes only the workspaces recorded in `build/verify-coder/run/workspaces` and lists the rest as kept, because a reused `.coderv2` can hold a developer's own workspaces. When it is about to remove a `.coderv2` that `launch.sh` created, it deletes every workspace in it, because the data goes anyway.
-- It closes only `$VC_BROWSER_SESSION`. It stops helpers recorded as `build/verify-coder/run/*.pid` while they still run this checkout's coder binary or this skill's `docker-forward.py`.
+- It stops helpers recorded as `build/verify-coder/run/*.pid` while they still run this checkout's coder binary or this skill's `docker-forward.py`.
 - It sends SIGINT to the develop session it started, then TERM and KILL to leftovers of that session only, and checks that both ports are free. It never kills by process name.
 - Coder server starts its built-in Postgres as a daemon, which can outlive a crashed server. While the pid in `.coderv2/postgres/data/postmaster.pid` is a `postgres` process whose working folder is that data folder, or a live pid that cleanup cannot identify, cleanup keeps the folder, fails and names the pid. Stop that pid with `kill -INT` when no `develop.sh` uses the folder, then run cleanup again.
 - It removes `.coderv2` only when `launch.sh` created it (marker `.coderv2/.verify-coder-created`) and no Postgres runs from it. The marker goes last, so a failed removal can be retried. `--keep-data` deletes the marker, so later cleanups keep the folder too.
@@ -96,8 +91,4 @@ It changes nothing apart from those two refused sign-ins.
 
 ## Gotchas
 
-- Inside a Coder workspace (`CODER_AGENT_URL` set), the dev build names the session cookie `dev_coder_session_token` instead of `coder_session_token` (`scripts/build_go.sh`). Sign in through the form instead of setting cookies by hand.
-- After `agent-browser cookies clear`, a cached `/login` breaks CSRF in the dev site and every POST answers 400. `vc_browser_login` loads `/login` with a unique query to avoid it. See `features/sign-in.md`.
-- At a load average near 30 on 8 cores, pages sometimes took more than 25 seconds to render, which is agent-browser's default timeout. `vc_ab` raises it to 90 seconds (`VERIFY_CODER_BROWSER_TIMEOUT_MS`). A failed journey step saves `fail-<step>.png` and its page errors, console and network requests next to `steps.log`.
-- `vc_browser_login` fills the password through `agent-browser batch` on stdin. For any other secret, use `VC_SECRET=<value> vc_fill_secret <locator words> fill`, for example `vc_fill_secret fill 'input[name=password]'`. Other `vc_ab fill` calls put their text in the process list, so use them only for throwaway values.
 - Sourcing `lib.sh` sets both `NO_PROXY` and `no_proxy` to the entries of both plus 127.0.0.1, localhost, ::1 and 172.17.0.1, because curl would send the password and session token to 127.0.0.1 through a configured proxy.

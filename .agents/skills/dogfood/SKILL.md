@@ -33,7 +33,7 @@ Before starting Coder:
 
 ## Run the instance
 
-Follow `verify-coder`: `scripts/launch.sh`, then `scripts/doctor.sh`, then the journeys or hand-driven checks for the scenarios you chose, then `scripts/cleanup.sh`. Its doctor is the readiness check, and its feature files under `features/` show how to drive each area.
+Follow `verify-coder`: `scripts/launch.sh`, then `scripts/doctor.sh`, then hand-driven checks for the scenarios you chose, then `scripts/cleanup.sh`. Its doctor is the readiness check, and its feature files under `features/` show how to drive each area through the CLI and the API. It drives no browser, so validate UI changes with another tool, and never sign in a browser that exposes a debugging or stream port on a shared host.
 
 ## Validate from the PR context
 
@@ -85,7 +85,7 @@ Do not rely only on direct API calls when the PR changes the user-facing agent e
 
 ### Provider and model setup
 
-`verify-coder` starts the server without the host's provider keys, so nothing spends tokens by itself. `features/coder-agents.md` there sets up a provider against a local fake model. When the PR needs a real model, add the provider through the UI with a key from the dogfood environment.
+`verify-coder` starts the server without the host's provider keys, so nothing spends tokens by itself. `coder exp scaletest llm-mock` serves a local fake OpenAI-compatible model. When the PR needs a real model, add the provider through the UI with a key from the dogfood environment.
 
 Common provider types:
 
@@ -135,7 +135,7 @@ The exact migration checks should come from the PR context. Do not use a generic
 
 ## Evidence to capture
 
-`verify-coder` keeps screenshots, read-backs and logs in its evidence folders. The report also needs:
+`verify-coder` keeps read-backs and logs in its evidence folders. The report also needs:
 
 - PR number and URL.
 - Branch and SHA tested.

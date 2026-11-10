@@ -1,6 +1,6 @@
 ---
 name: verify-coder
-description: "Launch an isolated local Coder from this checkout with scripts/develop.sh, check it with a doctor, drive it the way a user would through the web UI (agent-browser) and the coder CLI, and capture evidence that survives cleanup. Use to prove a Coder change works end to end, to reproduce a bug on the real app, or before calling UI, API or CLI work done. For a PR-scoped dogfood report, use the dogfood skill for scoping and this skill for the run."
+description: "Launch an isolated local Coder from this checkout with scripts/develop.sh, check it with a doctor, drive it through the coder CLI and the API the way a user would, and capture evidence that survives cleanup. Use to prove a Coder change works end to end, to reproduce a bug on the real app, or before calling API or CLI work done. For a PR-scoped dogfood report, use the dogfood skill for scoping and this skill for the run."
 ---
 
 # Verify Coder
@@ -36,21 +36,16 @@ Load the instance in every new shell, each separate tool call included:
 source scripts/lib.sh && vc_load_run
 ```
 
-- Web UI: `vc_browser_login`, then `vc_ab <agent-browser args>` against `$VC_WEB_URL`.
 - CLI: `vc_coder <coder args>`.
 - API: `vc_api /api/v2/<path>` and `vc_api_status /api/v2/<path>`.
-- Journeys, each one feature end to end with its own evidence:
-  - `journeys/create-user.sh` (9 checks, about 15 seconds)
-  - `journeys/templates.sh` (4 checks, needs Docker)
-  - `journeys/workspace.sh` (10 checks, about 2 minutes, needs Docker)
-  - `journeys/coder-agents.sh` (7 checks, starts its own fake LLM)
 - `features/README.md` maps each feature to its entry points and proofs. A proof through one entry point is incomplete when the feature file lists others.
+- This skill drives no browser. A browser that holds an instance session must not expose a debugging or stream port, and agent-browser opens both on 127.0.0.1, where any local account can reach them. For a UI change, name the web UI entry point as not verified.
 
 ## 4. Evidence
 
-- Journeys write `build/verify-coder/evidence/<UTC stamp>-<journey>-<random>/` with screenshots, read-backs, `result.txt` and `steps.log`. For hand-driven checks, follow "Hand-driven checks" in `reference.md`.
-- Prove the real user path, the UI form or the CLI command, and check the side effect through a second view such as the API.
-- Never screenshot a form after typing a real secret, and never save output that echoes one.
+- Put each check's files in a folder from `vc_new_evidence <sub-feature id>`, under `build/verify-coder/evidence/`. Follow "Hand-driven checks" in `reference.md`.
+- Prove the real user path, such as the CLI command, and check the side effect through a second view such as the API.
+- Never save output that echoes a secret.
 - Mock only where a production boundary already isolates the external system, such as an LLM provider.
 
 ## 5. Cleanup

@@ -118,11 +118,9 @@ pid=""
 api_port=""
 web_port=""
 # write_env records the instance. printf %q keeps paths with spaces or shell
-# characters intact when lib.sh sources the file. Journeys drive the
-# production frontend that coder server serves from the embedded build
-# (VC_WEB_URL, the API port). The Vite dev server (VC_VITE_URL) serves
-# thousands of unbundled modules per page, and under host load one failed
-# fetch broke a lazy route import with the app's error page.
+# characters intact when lib.sh sources the file. VC_WEB_URL is the
+# production frontend that coder server serves from the embedded build on the
+# API port, and VC_VITE_URL is the Vite dev server.
 write_env() {
 	{
 		printf 'VC_PID=%q\n' "$pid"
@@ -135,7 +133,6 @@ write_env() {
 			printf 'VC_API_URL=%q\n' "http://127.0.0.1:$api_port"
 			printf 'VC_WEB_URL=%q\n' "http://127.0.0.1:$api_port"
 			printf 'VC_VITE_URL=%q\n' "http://127.0.0.1:$web_port"
-			printf 'VC_BROWSER_SESSION=%q\n' "verify-coder-$api_port"
 		fi
 	} >"$VC_RUN/env"
 }
@@ -216,7 +213,7 @@ run_develop() {
 # still opens WireGuard UDP sockets on every interface, which answer only
 # peers that hold a key.
 # develop.sh reuses a saved CLI session without signing in, even one of
-# another user, and the journeys would then run as that user. launch.sh moves
+# another user, and checks would then run as that user. launch.sh moves
 # a saved session into the private run state, so develop signs in as the
 # admin and saves its own session, and cleanup.sh puts the caller's back.
 if [[ -f "$VC_CONFIG_DIR/session" ]]; then
@@ -234,7 +231,7 @@ kill -0 "$pid" 2>/dev/null || vc_fail "develop.sh exited after it was ready, see
 if default_user="$(vc_default_password_accepted)"; then
 	vc_fail "$default_user signs in with the published default password: run cleanup.sh, then launch.sh --fresh"
 fi
-vc_password_accepted "$password" || vc_fail "the admin password launch.sh used does not sign in, so the journeys would fail: run cleanup.sh, then fix CODER_DEV_ADMIN_PASSWORD or launch.sh --fresh"
+vc_password_accepted "$password" || vc_fail "the admin password launch.sh used does not sign in, so the admin checks would fail: run cleanup.sh, then fix CODER_DEV_ADMIN_PASSWORD or launch.sh --fresh"
 grep -E 'template created in org|starter template setup failed|created member user' "$log" | cut -c1-200 || true
 
 # The docker template's workspace agents reach the server through

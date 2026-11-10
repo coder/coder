@@ -6,29 +6,19 @@
 # Postgres still runs from, the launch lock, how
 # vc_start_develop passes the environment, that a Docker error or a missing
 # docker CLI fails the leftover inventory, the default password check for
-# admin and member, that docker-forward.py carries its port, that secrets
-# reach agent-browser on stdin only, that loopback and gateway requests bypass
-# a proxy, how lib.sh sets NO_PROXY, that cleanup restores the caller's CLI
-# session and its mode, that vc_wait_agent stops early, the coder-agents
-# default model restore, the web terminal poll, the create-user form wait,
-# and the journeys' evidence folders.
+# admin and member, that docker-forward.py carries its port, that loopback and
+# gateway requests bypass a proxy, how lib.sh sets NO_PROXY, that cleanup
+# restores the caller's CLI session and its mode, that vc_wait_agent stops
+# early, and that vc_new_evidence makes separate folders.
 # Usage: selftest.sh   (prints one line per check and a count line)
 set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 
-# Stubs: make stops a launch that got past its refusals before it builds,
-# and agent-browser records its arguments and stdin.
+# Stub: make stops a launch that got past its refusals before it builds.
 mkdir -p "$tmp/bin"
 printf '#!/usr/bin/env bash\necho "selftest: launch reached the build" >&2\nexit 99\n' >"$tmp/bin/make"
-cat >"$tmp/bin/agent-browser" <<'STUB'
-#!/usr/bin/env bash
-printf '%s\n' "$*" >>"$VC_SELFTEST_DIR/argv"
-if [[ " $* " == *" batch "* ]]; then
-	cat >>"$VC_SELFTEST_DIR/stdin"
-fi
-STUB
 # env records its arguments and runs the real env. setsid records the
 # environment and arguments develop.sh would get. VC_SELFTEST_DEVELOP makes it
 # print develop log lines first and, for *-wait, keep running.
@@ -65,7 +55,7 @@ STUB
 mkdir -p "$tmp/bin-built"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/bin-built/make"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/bin-built/docker"
-chmod +x "$tmp/bin/make" "$tmp/bin/agent-browser" "$tmp/bin/env" "$tmp/bin/setsid" "$tmp/bin/curl" "$tmp/bin-built/make" "$tmp/bin-built/docker"
+chmod +x "$tmp/bin/make" "$tmp/bin/env" "$tmp/bin/setsid" "$tmp/bin/curl" "$tmp/bin-built/make" "$tmp/bin-built/docker"
 export VERIFY_CODER_STATE="$tmp/state" VC_SELFTEST_DIR="$tmp"
 # shellcheck source=.agents/skills/verify-coder/scripts/lib.sh
 source "$here/lib.sh"
@@ -531,29 +521,6 @@ docker_forward_carries_port() {
 }
 vc_check docker-forward docker_forward_carries_port
 
-# create-user.sh fills the new user's password with vc_fill_secret, which
-# must keep the value out of the agent-browser arguments.
-journey_fill_keeps_secret_off_argv() {
-	local marker="selftest-$RANDOM-$RANDOM"
-	# shellcheck disable=SC2016 # The pattern is the literal journey line.
-	grep -qF 'VC_SECRET="$password" vc_fill_secret fill' "$here/../journeys/create-user.sh" || {
-		echo "create-user.sh does not fill the password with vc_fill_secret"
-		return 1
-	}
-	VC_SECRET="$marker" VC_BROWSER_SESSION=verify-coder-selftest PATH="$tmp/bin:$PATH" \
-		vc_fill_secret fill 'input[name=password]'
-	if grep -qF "$marker" "$tmp/argv"; then
-		echo "the secret appears in agent-browser arguments"
-		return 1
-	fi
-	grep -qF "$marker" "$tmp/stdin" || {
-		echo "the secret never reached agent-browser stdin"
-		return 1
-	}
-	echo "vc_fill_secret passes the secret on stdin only"
-}
-vc_check fill-secret journey_fill_keeps_secret_off_argv
-
 # Requests to the instance carry the admin password and session token, so
 # they must bypass a configured proxy. A listener stands in for the proxy and
 # records whether anything connected.
@@ -634,22 +601,6 @@ wait_agent_stops_early() {
 }
 vc_check wait-agent wait_agent_stops_early
 
-login_keeps_password_off_argv() {
-	local marker="selftest-$RANDOM-$RANDOM"
-	VC_WEB_URL=http://127.0.0.1:1 VC_BROWSER_SESSION=verify-coder-selftest PATH="$tmp/bin:$PATH" \
-		vc_browser_login "$VC_ADMIN_EMAIL" "$marker"
-	if grep -qF "$marker" "$tmp/argv"; then
-		echo "the password appears in agent-browser arguments"
-		return 1
-	fi
-	grep -qF "$marker" "$tmp/stdin" || {
-		echo "the password never reached agent-browser stdin"
-		return 1
-	}
-	echo "the password reached agent-browser on stdin only"
-}
-vc_check login-argv login_keeps_password_off_argv
-
 # lib.sh keeps the caller's NO_PROXY and no_proxy entries and adds the
 # loopback names and the Docker bridge gateway to both.
 no_proxy_merges() {
@@ -705,99 +656,9 @@ doctor_gateway_bypasses_proxy() {
 }
 vc_check doctor-no-proxy doctor_gateway_bypasses_proxy
 
-# coder-agents.sh restore gives the default back to the model that had it
-# only while the journey's model holds it, keeps a newer default that another
-# admin picked, and passes in each case. A stand-in API keeps the model list
-# in a file.
-# shellcheck disable=SC2034,SC2317 # The loaded function reads these globals and calls these stand-ins.
-restore_keeps_newer_default() {
-	local case default want got rc patched
-	load_function "$here/../journeys/coder-agents.sh" restore
-	out="$tmp/restore" org=selftest-org model_display=journey-model provider_name=selftest-provider
-	mkdir -p "$out"
-	vc_api() { cat "$tmp/models.json"; }
-	vc_api_status() { echo 404; }
-	vc_send() {
-		echo "$1 ${2##*/}" >>"$tmp/sends"
-		case "$1" in
-		PATCH)
-			jq -e --arg id "${2##*/}" 'any(.models[]; .id == $id)' "$tmp/models.json" >/dev/null || return 22
-			jq --arg id "${2##*/}" '.models |= map(.is_default = (.id == $id))' "$tmp/models.json" >"$tmp/models.next"
-			;;
-		# As coderd does, deleting the default makes a remaining model the
-		# default.
-		DELETE) jq --arg id "${2##*/}" '.models |= (map(select(.id != $id)) | if length > 0 and all(.[]; .is_default | not) then .[0].is_default = true else . end)' "$tmp/models.json" >"$tmp/models.next" ;;
-		esac
-		mv "$tmp/models.next" "$tmp/models.json"
-	}
-	for case in journey-default newer-default no-old-default only-journey old-deleted; do
-		rm -f "$tmp/sends"
-		old_default=old models='["old", "newer", "journey"]'
-		case "$case" in
-		journey-default) default=journey want=old ;;
-		newer-default) default=newer want=newer ;;
-		# Another admin added a model while the journey's model was the
-		# first and only default.
-		no-old-default) old_default="" models='["journey", "newer"]' default=journey want=newer ;;
-		only-journey) old_default="" models='["journey"]' default=journey want="" ;;
-		# Another admin deleted the old default during the run.
-		old-deleted) models='["journey", "newer"]' default=journey want=newer ;;
-		esac
-		jq -n --arg d "$default" --argjson ids "$models" '{models: ($ids | map({id: ., is_default: (. == $d)} + (if . == "journey" then {display_name: "journey-model"} else {} end)))}' >"$tmp/models.json"
-		with_errexit restore >/dev/null
-		((rc == 0)) || {
-			echo "$case: restore failed"
-			return 1
-		}
-		got="$(jq -r '[.models[] | select(.is_default)][0].id // ""' "$tmp/models.json")"
-		[[ "$got" == "$want" ]] || {
-			echo "$case: the default is '$got', not '$want'"
-			return 1
-		}
-		jq -e 'all(.models[]; .id != "journey")' "$tmp/models.json" >/dev/null || {
-			echo "$case: the journey's model was not deleted"
-			return 1
-		}
-		patched=no
-		if grep -q '^PATCH ' "$tmp/sends" 2>/dev/null; then
-			patched=yes
-		fi
-		[[ "$patched" == "$([[ "$case" == journey-default ]] && echo yes || echo no)" ]] || {
-			echo "$case: restore sent a default PATCH: $patched"
-			return 1
-		}
-	done
-	echo "restore brings the old default back only from the journey's model, keeps a newer one, and accepts the server's pick"
-}
-vc_check restore-default restore_keeps_newer_default
-
-# The web terminal check polls until the file it wrote appears.
-# shellcheck disable=SC2034,SC2317 # The loaded function reads these globals and calls these stand-ins.
-terminal_polls() {
-	local rc
-	load_function "$here/../journeys/workspace.sh" ui_terminal
-	ui_ws=selftest-ws out="$tmp"
-	vc_ab() { :; }
-	sleep() { :; }
-	vc_coder() {
-		echo try >>"$tmp/terminal-tries"
-		if (($(wc -l <"$tmp/terminal-tries") >= 3)); then
-			echo verify-web-terminal-ok
-		fi
-	}
-	with_errexit ui_terminal >/dev/null
-	((rc == 0)) || {
-		echo "ui_terminal failed although the file appeared on the third read"
-		return 1
-	}
-	echo "the web terminal check polls until the file appears"
-}
-vc_check terminal-poll terminal_polls
-
-# Two journey runs that start in the same second need their own folders, and
-# every journey takes its folder from vc_new_evidence.
+# Two runs that start in the same second need their own evidence folders.
 evidence_folders_unique() {
-	local journey first second
+	local first second
 	VC_EVIDENCE="$tmp/evidence"
 	# Both runs get the same stamp, as two runs in one second would.
 	date() { echo 20260101T000000Z; }
@@ -811,43 +672,9 @@ evidence_folders_unique() {
 		echo "the evidence folder has mode $(stat -c %a "$first"), not 755"
 		return 1
 	}
-	for journey in "$here"/../journeys/*.sh; do
-		# shellcheck disable=SC2016 # The pattern is the literal journey line.
-		if [[ "$(grep -c '^out=' "$journey")" != 1 ]] || ! grep -qE '^out="\$\(vc_new_evidence [a-z-]+\)"$' "$journey"; then
-			echo "${journey##*/} does not take its only evidence folder from vc_new_evidence"
-			return 1
-		fi
-	done
-	echo "vc_new_evidence makes a separate folder per run, and every journey uses it"
+	echo "vc_new_evidence makes a separate folder per run"
 }
 vc_check evidence-folders evidence_folders_unique
-
-# The new-user page sets its title before the form renders, and agent-browser
-# get text does not wait, so create-user.sh waits for the login type field
-# first. The stand-in agent-browser knows the field only after a wait for it.
-# shellcheck disable=SC2034,SC2317 # The loaded function reads these globals and calls these stand-ins.
-form_waits_before_reading() {
-	local rc
-	load_function "$here/../journeys/create-user.sh" fill_form
-	out="$tmp" username=selftest-user email=selftest@example.com password=unused VC_WEB_URL=http://127.0.0.1:1
-	vc_ab() {
-		case "$*" in
-		"wait [data-testid=login-type-input]") touch "$tmp/form-rendered" ;;
-		"get text [data-testid=login-type-input]")
-			[[ -f "$tmp/form-rendered" ]] || return 1
-			echo Password
-			;;
-		esac
-	}
-	vc_fill_secret() { :; }
-	with_errexit fill_form >/dev/null
-	((rc == 0)) || {
-		echo "fill_form read the login type before waiting for the form"
-		return 1
-	}
-	echo "fill_form waits for the form before it reads the login type"
-}
-vc_check form-wait form_waits_before_reading
 
 echo "selftest: $VC_PASS/$VC_TOTAL checks passed"
 ((VC_PASS == VC_TOTAL))

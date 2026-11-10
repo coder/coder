@@ -14,22 +14,13 @@ A user signs in with email and password on `/login` and lands on the workspaces 
 - Open `$VC_WEB_URL/`, which redirects to `/login` when signed out.
 - Run `coder login <url>` in a terminal.
 
-## Driving it with agent-browser and the coder CLI
+## Driving it with the coder CLI and the API
 
 Preconditions:
 
 - `scripts/doctor.sh` passes.
 - Password login is enabled (the default).
 
-- **Sign in.** Run `vc_browser_login`. It clears cookies, opens `/login`, fills the `Email` and `Password` labels, clicks the `Sign In` button, and waits for the path `/workspaces` and the title `Workspaces - Coder`.
-- **Sign in as the member.** Run `vc_browser_login member@coder.com "$VC_ADMIN_PASSWORD"`. The navbar shows no `Admin settings` menu. The member has the admin password only when `develop.sh` created it, so on reused data whose member has another password, use that password or skip this check.
-- **Wrong password.** Fill a wrong password and click `Sign In`. The URL stays on `/login` and an alert heading reads `Incorrect email or password.`
+- **Web UI.** This skill drives no browser, so report `signin-password` and `signin-redirect` as not verified.
 - **CLI.** `.coderv2/session` already holds the admin session that `develop.sh` wrote. Run `vc_coder whoami`. Its output contains `You're authenticated as admin`. Match a substring: without a TTY the line is wrapped in `[` and `]`. For a fresh login into a separate config folder, create a token with `tok="$(vc_coder tokens create --name <name> 2>/dev/null | tail -1)"`, then pipe it to the prompt: `printf '%s\n' "$tok" | env -u CODER_URL -u CODER_SESSION_TOKEN "$(vc_coder_bin)" --global-config "$dir" login "$VC_API_URL"`, with `dir="$(mktemp -d)"` outside the evidence folder, because it then holds a live session file. It prints `Welcome to Coder, admin! You're authenticated.` Afterwards run `vc_coder tokens remove <name>` and `rm -rf "$dir"`. Name the token `vc-login-<stamp>`. As evidence, save only the output of `env -u CODER_URL -u CODER_SESSION_TOKEN "$(vc_coder_bin)" --global-config "$dir" whoami`, never the folder itself. `vc_coder whoami` reads `.coderv2`, not the new folder. Never print the token or pass it as an argument. `coder login` refuses a token in `CODER_SESSION_TOKEN`, and `--token` puts it in the process list.
-- **Proof.** After sign-in, `vc_ab screenshot "$VC_EVIDENCE/<stamp>-signin-password/01-ui-workspaces.png"` and `vc_ab get title`.
 
-## Gotchas
-
-- The login page renders `<title>Sign in to Coder</title>`, but `document.title` read empty in agent-browser. Wait for the `Sign In` button, not the title.
-- On the Vite URL (`$VC_VITE_URL`), after `cookies clear`, opening a cached `/login` leaves a CSRF cookie that does not match the dev site's fixed CSRF header, and the next POST fails with `Something is wrong with your CSRF token`. The UI then shows `Request failed with status code 400`. `vc_browser_login` adds a unique query to `/login` to avoid this. Do the same in any custom sign-in.
-- A successful sign-in both renders a client-side redirect and sets `location.href` for a hard reload (`site/src/pages/LoginPage/LoginPage.tsx`). The workspaces page can render before the reload replaces it. `vc_browser_login` sets a marker on `window` before it clicks `Sign In` and waits until the marker is gone and the title is `Workspaces - Coder`.
-- Inside a Coder workspace the dev build names the session cookie `dev_coder_session_token`. Sign in through the form instead of setting cookies.

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Tears down what launch.sh started: workspaces in the instance, the browser
-# session, the develop process session, and the run state. Evidence and the
+# Tears down what launch.sh started: workspaces in the instance, the develop
+# process session, and the run state. Evidence and the
 # develop log move to build/verify-coder/evidence and are never deleted.
 # Usage: cleanup.sh [--keep-data]
 #   --keep-data  keep .coderv2 even when launch.sh created it, and from then on
@@ -23,7 +23,7 @@ fi
 vc_load_run
 VC_CHECK_LOG="$VC_EVIDENCE/$(date -u +%Y%m%dT%H%M%SZ)-cleanup.log"
 
-# Only workspaces that a journey or vc_record_workspace recorded belong to the
+# Only workspaces that vc_record_workspace recorded belong to the
 # harness. Any other workspace can be a developer's own work in the same
 # .coderv2 or come from another client, so it is listed and kept. When this
 # cleanup removes a .coderv2 that launch.sh created, its database goes too,
@@ -71,23 +71,10 @@ delete_workspaces() {
 	echo "deleted ${#deleted[@]} workspaces, kept $(wc -w <<<"$kept") not recorded by the harness, names in $(basename "$VC_CHECK_LOG")"
 }
 
-close_browser() {
-	if [[ -z "${VC_BROWSER_SESSION:-}" ]]; then
-		echo "no browser session, develop reported no ports"
-		return 0
-	fi
-	if agent-browser session list --json | jq -e --arg s "$VC_BROWSER_SESSION" \
-		'.data.sessions[] | select((if type == "string" then . else .name end) == $s)' >/dev/null; then
-		agent-browser --session "$VC_BROWSER_SESSION" close >/dev/null
-		echo "closed session $VC_BROWSER_SESSION"
-	else
-		echo "no session $VC_BROWSER_SESSION"
-	fi
-}
-
-# launch.sh and the journeys record helpers they start (docker-forward.py,
-# llm-mock) as $VC_RUN/*.pid. Stop only pids that still run this checkout's
-# coder binary or this skill's docker-forward.py.
+# launch.sh records the helpers it starts (docker-forward.py) as
+# $VC_RUN/*.pid, and a hand-driven run records others (llm-mock) the same
+# way. Stop only pids that still run this checkout's coder binary or this
+# skill's docker-forward.py.
 stop_helpers() {
 	local f pid n=0 bin
 	bin="$(vc_coder_bin)"
@@ -132,7 +119,7 @@ archive_logs() {
 		fi
 	done
 	rm -rf "$VC_RUN"
-	echo "moved ${kept[*]:-no logs} to the evidence folder, which keeps every journey and hand-driven folder"
+	echo "moved ${kept[*]:-no logs} to the evidence folder, which keeps every hand-driven folder"
 }
 
 # postgres_running succeeds and prints the pid while Postgres runs from this
@@ -194,7 +181,6 @@ remove_data() {
 }
 
 vc_check workspaces delete_workspaces
-vc_check browser close_browser
 vc_check helpers stop_helpers
 vc_check develop vc_stop_develop "$VC_PID"
 vc_check ports ports_free
