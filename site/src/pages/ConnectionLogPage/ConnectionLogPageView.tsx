@@ -1,4 +1,5 @@
 import type { ConnectionLog } from "#/api/typesGenerated";
+import { NoResultsIllustration } from "#/components/EmptyState/components/NoResultsIllustration";
 import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
@@ -130,7 +131,12 @@ const ConnectionLogTableBody: React.FC<ConnectionLogTableBodyProps> = ({
 		const emptyMessage = isNonInitialPage
 			? "No connection logs available on this page"
 			: "No connection logs available";
-		return <TableEmpty message={emptyMessage} />;
+		return (
+			<TableEmpty
+				image={<NoResultsIllustration className="-mb-5 max-w-full" />}
+				message={emptyMessage}
+			/>
+		);
 	}
 	if (!connectionLogs) {
 		return null;

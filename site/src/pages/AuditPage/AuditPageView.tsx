@@ -1,4 +1,5 @@
 import type { AuditLog } from "#/api/typesGenerated";
+import { NoResultsIllustration } from "#/components/EmptyState/components/NoResultsIllustration";
 import { Margins } from "#/components/Margins/Margins";
 import {
 	PageHeader,
@@ -130,7 +131,12 @@ const AuditTableBody: React.FC<AuditTableBodyProps> = ({
 		const emptyMessage = isNonInitialPage
 			? "No audit logs available on this page"
 			: "No audit logs available";
-		return <TableEmpty message={emptyMessage} />;
+		return (
+			<TableEmpty
+				image={<NoResultsIllustration className="-mb-5 max-w-full" />}
+				message={emptyMessage}
+			/>
+		);
 	}
 	if (!auditLogs) {
 		return null;
