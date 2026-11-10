@@ -11,12 +11,13 @@
  * operands of equality checks or `case` clauses (those usually compare
  * against API values).
  *
- * A phrase is a run of consecutive words that start with an uppercase
- * letter, including lowercase connectors such as "a" or "of" between them
- * ("Create a Template"). A word is reported when it is not the first word
- * of its run, looks like a regular capitalized word ("Workspace"), and is
- * not part of a proper noun from PROPER_NOUNS. Acronyms ("SSH") and
- * mixed-case names ("GitHub") are never reported.
+ * A phrase starts at a capitalized word and runs until sentence or list
+ * punctuation, or an opening bracket or quote. A word is reported when it
+ * is not the first word of its phrase, looks like a regular capitalized
+ * word ("Workspace"), and is not part of a proper noun from PROPER_NOUNS.
+ * Lowercase words do not end a phrase, so both "Create a Template" and
+ * "Browse other Templates" are reported. Acronyms ("SSH") and mixed-case
+ * names ("GitHub") are never reported.
  *
  * For deliberate exceptions, put a comment containing
  * "sentence-case-expect" on the line above the text. Like
@@ -51,7 +52,9 @@ const PROPER_NOUNS = [
 	"Coder Registry",
 	"Coder Technologies",
 	"Coder Workspaces",
+	"Community",
 	"Dynamic Parameters",
+	"Open in Coder",
 	"Organization Workspace Access",
 	"Premium",
 	"Template Admin",
@@ -79,7 +82,11 @@ const PROPER_NOUNS = [
 	"Inc",
 	"JetBrains Gateway",
 	"JetBrains Toolbox",
+	"Markdown",
+	"Mermaid",
+	"React",
 	"Terraform",
+	"Unicode",
 	"Unix",
 	"VS Code",
 	"VS Code Desktop",
@@ -132,26 +139,6 @@ const TRAILING_PUNCTUATION = /[^\p{L}\p{N}]+$/u;
 // A regular capitalized word, like "Workspace" or "Don't".
 const CAPITALIZED_WORD = /^[A-Z][a-z]+(?:['’-][a-z]+)*$/;
 
-// Lowercase words that title case leaves uncapitalized. They continue a
-// phrase, so "Create a Template" is reported like "Create Template".
-const CONNECTORS = new Set([
-	"a",
-	"an",
-	"and",
-	"as",
-	"at",
-	"by",
-	"for",
-	"from",
-	"in",
-	"of",
-	"on",
-	"or",
-	"the",
-	"to",
-	"with",
-]);
-
 // Punctuation that ends a sentence, label, or list item, so the next
 // word starts a new phrase and may be capitalized ("GitHub, GitLab").
 const PHRASE_END = /[.!?:;,]["'’)\]]*$/;
@@ -182,9 +169,15 @@ export function findTitleCaseWords(text) {
 	for (const nounWords of properNounWords) {
 		for (let i = 0; i + nounWords.length <= tokens.length; i++) {
 			const matches = nounWords.every((w, j) => {
-				// Also match a hyphenated compound like "Anthropic-compatible".
+				// Also match a hyphenated compound like "Anthropic-compatible"
+				// and a possessive like "Coder's".
 				const word = tokens[i + j].word;
-				return word === w || word.startsWith(`${w}-`);
+				return (
+					word === w ||
+					word.startsWith(`${w}-`) ||
+					word === `${w}'s` ||
+					word === `${w}’s`
+				);
 			});
 			if (matches) {
 				for (let j = 0; j < nounWords.length; j++) {
@@ -195,27 +188,25 @@ export function findTitleCaseWords(text) {
 	}
 
 	const results = [];
-	let phraseStart = -1;
+	let inPhrase = false;
 	for (let i = 0; i < tokens.length; i++) {
 		const token = tokens[i];
 		const capitalized = /^[A-Z]/.test(token.word);
 		if (token.raw.includes(SUBSTITUTION)) {
 			// Unknown text; keep the current phrase, if any, going.
+		} else if (!inPhrase || token.startsPhrase) {
+			// A lowercase word outside a phrase may continue text from
+			// elsewhere, so only a capitalized word starts a phrase.
+			inPhrase = capitalized;
 		} else if (
-			phraseStart !== -1 &&
-			!token.startsPhrase &&
-			CONNECTORS.has(token.word)
+			capitalized &&
+			CAPITALIZED_WORD.test(token.word) &&
+			!properNounTokens.has(i)
 		) {
-			// Keep the current phrase going.
-		} else if (!capitalized || token.startsPhrase) {
-			phraseStart = capitalized ? i : -1;
-		} else if (phraseStart === -1) {
-			phraseStart = i;
-		} else if (CAPITALIZED_WORD.test(token.word) && !properNounTokens.has(i)) {
 			results.push({ offset: token.offset, word: token.word });
 		}
 		if (PHRASE_END.test(token.raw)) {
-			phraseStart = -1;
+			inPhrase = false;
 		}
 	}
 	return results;
@@ -271,63 +262,180 @@ function rendersSpace(whitespace) {
 	return whitespace.length > 0 && !whitespace.includes("\n");
 }
 
+// Caps the rendered variants checked for one JSX element. Past the cap,
+// further conditional children are treated as substitutions and their
+// JSX is checked on its own.
+const MAX_JSX_VARIANTS = 64;
+
+/**
+ * Returns what an inline JSX expression may render: a JSX node or string
+ * literal to read as text, null for nothing, or "substitution" for an
+ * unknown value. `cond && <b>Text</b>` renders the element or nothing,
+ * and a conditional renders either branch.
+ */
+function renderedOptions(expression) {
+	let node = expression;
+	while (ts.isParenthesizedExpression(node)) {
+		node = node.expression;
+	}
+	if (
+		ts.isJsxElement(node) ||
+		ts.isJsxFragment(node) ||
+		ts.isJsxSelfClosingElement(node) ||
+		ts.isStringLiteral(node) ||
+		ts.isNoSubstitutionTemplateLiteral(node)
+	) {
+		return [node];
+	}
+	if (
+		ts.isBinaryExpression(node) &&
+		node.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
+	) {
+		return [...renderedOptions(node.right), null];
+	}
+	if (ts.isConditionalExpression(node)) {
+		return [
+			...renderedOptions(node.whenTrue),
+			...renderedOptions(node.whenFalse),
+		];
+	}
+	if (
+		node.kind === ts.SyntaxKind.NullKeyword ||
+		node.kind === ts.SyntaxKind.FalseKeyword ||
+		(ts.isIdentifier(node) && node.text === "undefined")
+	) {
+		return [null];
+	}
+	return ["substitution"];
+}
+
 /**
  * Collects the rendered text of a JSX element or fragment, including the
  * text of nested elements, so a phrase that crosses inline markup is
  * checked as one phrase: `Create <strong>New Workspace</strong>` reads as
- * "Create New Workspace". The edge of a nested element joins the text on
- * either side only when JSX renders a space there; otherwise it ends the
- * phrase, because adjacent elements are usually separate labels. Nested
- * nodes that are read here are added to `consumed` so they are not
- * checked again on their own.
+ * "Create New Workspace". JSX that a child expression renders
+ * conditionally is read in place too, once per rendered variant, so
+ * `Create {show && <b>Workspace</b>}` reads as "Create Workspace" and as
+ * "Create".
+ *
+ * The edge of a nested element joins the text on either side only when
+ * JSX renders a space there; otherwise it ends the phrase, because
+ * adjacent elements are usually separate labels. Nested nodes that are
+ * read here are added to `consumed` so they are not checked again on
+ * their own.
  */
 function collectJsxTexts(container, sourceFile, consumed) {
 	const sourceText = sourceFile.text;
-	// Rendered pieces in order: text ranges, substitutions for JSX
-	// expressions, boundaries at the edges of nested elements, and breaks
-	// for self-closing elements.
-	const pieces = [];
-	const addChildren = (node) => {
-		for (const child of node.children) {
-			if (ts.isJsxText(child)) {
-				consumed.add(child);
-				const text = sourceText.slice(child.pos, child.end);
-				// Whitespace with a line break between tags renders nothing.
-				if (!/^\s*$/.test(text) || rendersSpace(text)) {
-					pieces.push({ kind: "text", start: child.pos, end: child.end });
-				}
-			} else if (ts.isJsxExpression(child)) {
-				const expression = child.expression;
-				if (!expression) {
-					// A comment, such as {/* note */}, renders nothing.
-				} else if (
-					ts.isStringLiteral(expression) ||
-					ts.isNoSubstitutionTemplateLiteral(expression)
-				) {
-					// A literal such as {" "} renders as text.
-					consumed.add(expression);
-					pieces.push({
-						kind: "text",
-						start: expression.getStart(sourceFile) + 1,
-						end: expression.end - 1,
-					});
-				} else {
-					pieces.push({ kind: "substitution" });
-				}
-			} else if (ts.isJsxElement(child) || ts.isJsxFragment(child)) {
-				consumed.add(child);
-				pieces.push({ kind: "boundary" });
-				addChildren(child);
-				pieces.push({ kind: "boundary" });
-			} else {
-				// A self-closing element, such as an icon, sits between
-				// separate labels more often than inside a phrase.
-				pieces.push({ kind: "break" });
+	let variants = 1;
+
+	// Appends the rendered pieces of `node` to `pieces`: text ranges,
+	// substitutions for unknown values, boundaries at the edges of nested
+	// elements, breaks for self-closing elements, and choices between the
+	// pieces of each variant a conditional expression renders.
+	const addNode = (node, pieces) => {
+		if (node === null) {
+			return;
+		}
+		if (node === "substitution") {
+			pieces.push({ kind: "substitution" });
+		} else if (ts.isJsxText(node)) {
+			consumed.add(node);
+			const text = sourceText.slice(node.pos, node.end);
+			// Whitespace with a line break between tags renders nothing.
+			if (!/^\s*$/.test(text) || rendersSpace(text)) {
+				pieces.push({ kind: "text", start: node.pos, end: node.end });
 			}
+		} else if (
+			ts.isStringLiteral(node) ||
+			ts.isNoSubstitutionTemplateLiteral(node)
+		) {
+			consumed.add(node);
+			pieces.push({
+				kind: "text",
+				start: node.getStart(sourceFile) + 1,
+				end: node.end - 1,
+			});
+		} else if (ts.isJsxExpression(node)) {
+			// An empty expression, such as {/* note */}, renders nothing.
+			if (node.expression) {
+				addExpression(node.expression, pieces);
+			}
+		} else if (ts.isJsxElement(node) || ts.isJsxFragment(node)) {
+			consumed.add(node);
+			pieces.push({ kind: "boundary", edge: "open" });
+			for (const child of node.children) {
+				addNode(child, pieces);
+			}
+			pieces.push({ kind: "boundary", edge: "close" });
+		} else {
+			// A self-closing element, such as an icon, sits between
+			// separate labels more often than inside a phrase.
+			pieces.push({ kind: "break" });
 		}
 	};
-	addChildren(container);
 
+	const addExpression = (expression, pieces) => {
+		const options = renderedOptions(expression);
+		if (options.length === 1) {
+			addNode(options[0], pieces);
+		} else if (
+			options.every((option) => option === "substitution") ||
+			variants * options.length > MAX_JSX_VARIANTS
+		) {
+			pieces.push({ kind: "substitution" });
+		} else {
+			variants *= options.length;
+			pieces.push({
+				kind: "choice",
+				options: options.map((option) => {
+					const optionPieces = [];
+					addNode(option, optionPieces);
+					return optionPieces;
+				}),
+			});
+		}
+	};
+
+	const rootPieces = [];
+	for (const child of container.children) {
+		addNode(child, rootPieces);
+	}
+
+	const texts = [];
+	for (const pieces of expandChoices(rootPieces)) {
+		texts.push(...joinJsxPieces(pieces, sourceText));
+	}
+	return texts;
+}
+
+/** Expands choice pieces into every linear sequence of pieces. */
+function expandChoices(pieces) {
+	let sequences = [[]];
+	for (const piece of pieces) {
+		if (piece.kind !== "choice") {
+			for (const sequence of sequences) {
+				sequence.push(piece);
+			}
+			continue;
+		}
+		const next = [];
+		for (const option of piece.options) {
+			for (const tail of expandChoices(option)) {
+				for (const sequence of sequences) {
+					next.push([...sequence, ...tail]);
+				}
+			}
+		}
+		sequences = next;
+	}
+	return sequences;
+}
+
+/**
+ * Joins a linear sequence of JSX pieces into phrases, each with its text
+ * and the source position of each character.
+ */
+function joinJsxPieces(pieces, sourceText) {
 	const edgeRendersSpace = (piece, edge) => {
 		if (piece?.kind !== "text") {
 			return false;
@@ -347,7 +455,15 @@ function collectJsxTexts(container, sourceFile, consumed) {
 	};
 	for (let i = 0; i < pieces.length; i++) {
 		const piece = pieces[i];
-		if (piece.kind === "boundary") {
+		if (
+			piece.kind === "boundary" &&
+			piece.edge === "open" &&
+			pieces[i - 1]?.edge === "close"
+		) {
+			// Sibling elements with nothing rendered between them are
+			// separate labels, whatever whitespace they hold inside.
+			endPhrase();
+		} else if (piece.kind === "boundary") {
 			let before = i - 1;
 			while (pieces[before]?.kind === "boundary") {
 				before--;
@@ -468,9 +584,16 @@ export function checkSource(fileName, sourceText) {
 
 	const issues = [];
 	const usedExpectations = new Set();
+	// Conditional JSX is checked once per rendered variant, so the same
+	// word can be reported more than once.
+	const reportedPositions = new Set();
 	for (const { text, positions } of collectTexts(sourceFile)) {
 		for (const { offset, word } of findTitleCaseWords(text)) {
 			const position = positions[offset];
+			if (reportedPositions.has(position)) {
+				continue;
+			}
+			reportedPositions.add(position);
 			const { line, character } =
 				sourceFile.getLineAndCharacterOfPosition(position);
 			if (expectedLines.has(line)) {
@@ -480,6 +603,7 @@ export function checkSource(fileName, sourceText) {
 			issues.push({ position, line: line + 1, column: character + 1, word });
 		}
 	}
+	issues.sort((a, b) => a.position - b.position);
 
 	let fixedText = sourceText;
 	for (const { position } of [...issues].reverse()) {

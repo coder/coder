@@ -33,7 +33,7 @@ export const CreateTemplateGalleryPageView: React.FC<
 								rel="noopener noreferrer"
 								className="flex items-center"
 							>
-								Browse other Templates on the Coder Registry
+								Browse other templates on the Coder Registry
 								<ExternalLinkIcon className="size-icon-sm ml-1" />
 							</a>
 						</Button>

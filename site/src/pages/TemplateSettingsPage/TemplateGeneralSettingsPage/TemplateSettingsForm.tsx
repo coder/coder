@@ -412,7 +412,7 @@ export const TemplateSettingsForm: React.FC<TemplateSettingsFormProps> = ({
 
 			<FormSection
 				title="Port sharing"
-				description="Shared ports with the Public sharing level can be accessed by anyone,
+				description="Shared ports with the public sharing level can be accessed by anyone,
           while ports with the Authenticated sharing level can only be accessed
           by authenticated Coder users. Ports with the owner sharing level can
           only be accessed by the workspace owner."

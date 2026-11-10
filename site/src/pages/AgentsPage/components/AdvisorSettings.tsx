@@ -116,7 +116,7 @@ export const AdvisorSettings: React.FC<AdvisorSettingsProps> = ({
 	return (
 		<AgentSettingLayout
 			title="Advisor"
-			description="Cap advisor usage per turn. Configure its model in Organization settings above. Set uses to 0 for unlimited and tokens to 0 for the server default."
+			description="Cap advisor usage per turn. Configure its model in organization settings above. Set uses to 0 for unlimited and tokens to 0 for the server default."
 			showSave={canSave}
 			isSaving={isSavingAdvisorConfig}
 			isSavedVisible={isSavedVisible}

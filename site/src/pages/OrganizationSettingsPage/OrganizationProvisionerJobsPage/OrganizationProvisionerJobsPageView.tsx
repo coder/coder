@@ -107,7 +107,7 @@ const OrganizationProvisionerJobsPageView: React.FC<
 				<SettingsHeader>
 					<SettingsHeaderTitle>Provisioner jobs</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
-						Provisioner jobs are the individual tasks assigned to Provisioners
+						Provisioner jobs are the individual tasks assigned to provisioners
 						when the workspaces are being built.{" "}
 						<SettingsHeaderDocsLink
 							href={docs("/admin/provisioners/manage-provisioner-jobs")}

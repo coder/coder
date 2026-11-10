@@ -82,7 +82,7 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 							and{" "}
 							<Link size="sm" asChild>
 								<RouterLink to="/deployment/licenses">
-									License consumption
+									license consumption
 								</RouterLink>
 							</Link>{" "}
 							tools.

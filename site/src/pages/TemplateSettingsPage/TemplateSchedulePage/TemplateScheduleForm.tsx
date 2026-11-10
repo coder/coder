@@ -475,9 +475,9 @@ export const TemplateScheduleForm: React.FC<TemplateScheduleFormProps> = ({
 							<StackLabel>
 								Allow users to customize autostop duration for workspaces.
 								<StackLabelHelperText>
-									By default, workspaces will inherit the Autostop timer from
+									By default, workspaces will inherit the autostop timer from
 									this template. Enabling this option allows users to set custom
-									Autostop timers on their workspaces or turn off the timer.
+									autostop timers on their workspaces or turn off the timer.
 								</StackLabelHelperText>
 							</StackLabel>
 						</Label>

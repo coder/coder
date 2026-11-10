@@ -17,10 +17,15 @@ describe("findTitleCaseWords", () => {
 		expect(words("Open in VS Code")).toEqual([]);
 	});
 
-	it("continues a phrase across lowercase connectors", () => {
+	it("continues a phrase across lowercase words", () => {
 		expect(words("Create a Template")).toEqual(["Template"]);
+		expect(words("Browse other Templates")).toEqual(["Templates"]);
 		expect(words("Sign in to Coder")).toEqual([]);
 		expect(words("Create a template")).toEqual([]);
+	});
+
+	it("starts a phrase only at a capitalized word", () => {
+		expect(words("and Workspace Settings")).toEqual(["Settings"]);
 	});
 
 	it("reports regular words that follow an acronym", () => {
@@ -31,6 +36,7 @@ describe("findTitleCaseWords", () => {
 		expect(words("Use Coder Desktop")).toEqual([]);
 		expect(words("Configure AI Gateway keys")).toEqual([]);
 		expect(words("Newer Anthropic-compatible endpoint")).toEqual([]);
+		expect(words("Enhances Coder's parameters")).toEqual([]);
 	});
 
 	it("starts a new phrase after sentence or list punctuation", () => {
@@ -110,11 +116,30 @@ describe("checkSource", () => {
 		);
 	});
 
+	it("checks JSX rendered by conditional expressions in place", () => {
+		const source = [
+			"const a = <p>Create {show && <strong>Workspace</strong>}</p>;",
+			'const b = <p>Create {show ? <b>New Template</b> : "Old Template"}</p>;',
+			"const c = <p>Name {value}</p>;",
+		].join("\n");
+		const { issues, fixedText } = checkSource("file.tsx", source);
+		expect(issues.map(({ line, word }) => [line, word])).toEqual([
+			[1, "Workspace"],
+			[2, "New"],
+			[2, "Template"],
+			[2, "Old"],
+			[2, "Template"],
+		]);
+		expect(fixedText.split("\n")[1]).toBe(
+			'const b = <p>Create {show ? <b>new template</b> : "old template"}</p>;',
+		);
+	});
+
 	it("starts a new phrase at elements without a rendered space", () => {
 		const source = [
 			"const a = (",
 			"\t<div>",
-			"\t\t<h2>Settings</h2>",
+			"\t\t<h2>Settings </h2>",
 			"\t\t<Button>Save</Button>",
 			"\t\t<span>",
 			"\t\t\t<PlayIcon /> Start",

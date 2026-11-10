@@ -106,7 +106,7 @@ const WorkspaceSchedulePage: React.FC = () => {
 							target="_blank"
 							rel="noreferrer"
 						>
-							Prebuilt workspaces scheduling
+							prebuilt workspaces scheduling
 						</Link>{" "}
 						documentation page.
 					</Alert>
