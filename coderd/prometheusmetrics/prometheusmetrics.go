@@ -261,24 +261,29 @@ func WorkspaceStats(ctx context.Context, logger slog.Logger, clk quartz.Clock, r
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
-	collect := func() error {
+	collect := func() {
 		workspaces, err := db.GetWorkspaceLastUsedForMetrics(ctx)
 		if err != nil {
 			logger.Warn(ctx, "failed to load workspace last used times for metrics", slog.Error(err))
-			return nil
+			return
 		}
 		for _, w := range workspaces {
 			lastUsed.WithLabelValues(VectorOperationSet, float64(w.LastUsedAt.Unix()),
 				w.OrganizationName, w.TemplateName, w.OwnerUsername, w.WorkspaceName, w.WorkspaceID.String())
 		}
 		lastUsed.Commit()
-		return nil
 	}
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		_ = collect()
-		_ = clk.TickerFunc(ctx, duration, collect, "workspace_stats").Wait()
+		collect()
+		ticker := clk.TickerFunc(ctx, duration, func() error {
+			collect()
+			return nil
+		}, "workspace_stats")
+		if err := ticker.Wait(); err != nil && !errors.Is(err, context.Canceled) {
+			logger.Warn(ctx, "workspace stats metrics ticker stopped", slog.Error(err))
+		}
 	}()
 	return func() {
 		cancelFunc()
