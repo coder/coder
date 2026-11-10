@@ -19,14 +19,14 @@ Requirements vary depending on the Open Container Initiative (OCI) runtime and t
 When using Docker's default `runc` runtime, Agent Firewall requires the container to have `CAP_NET_ADMIN`.
 This is the minimal capability needed for configuring virtual networking inside the container.
 
-Docker's default seccomp profile may also block certain syscalls (such as `clone`) required for creating unprivileged network namespaces.
-If you encounter these restrictions, you may need to update or override the seccomp profile to allow these syscalls.
+Docker's default seccomp profile might also block certain syscalls (such as `clone`) required for creating unprivileged network namespaces.
+If you encounter these restrictions, you might need to update or override the seccomp profile to allow these syscalls.
 
 [see Docker Seccomp Profile Considerations](#docker-seccomp-profile-considerations)
 
 ### 2. Default `runc` runtime with `CAP_SYS_ADMIN` (testing only)
 
-For development or testing environments, you may grant the container `CAP_SYS_ADMIN`, which implicitly bypasses many of the restrictions in Docker's default seccomp profile.
+For development or testing environments, you can grant the container `CAP_SYS_ADMIN`, which implicitly bypasses many of the restrictions in Docker's default seccomp profile.
 
 - Agent Firewall does not require `CAP_SYS_ADMIN` itself.
 - However, Docker's default seccomp policy commonly blocks namespace-related syscalls unless `CAP_SYS_ADMIN` is present.
@@ -47,7 +47,7 @@ The sysbox-runc runtime provides more complete support for unprivileged user nam
 Docker's default seccomp profile frequently blocks the `clone` syscall, which is required by Agent Firewall when creating unprivileged network namespaces.
 If the `clone` syscall is denied, Agent Firewall will fail to start.
 
-To address this, you may need to modify or override the seccomp profile used by your container to explicitly allow the required `clone` variants.
+To address this, you might need to modify or override the seccomp profile used by your container to explicitly allow the required `clone` variants.
 
 You can find the default Docker seccomp profile for your Docker version here (specify your docker version):
 

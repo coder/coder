@@ -309,14 +309,14 @@ Stop the deployment before deleting its key.
 The standalone gateway image does not need to match the `coderd` image version exactly.
 The components can connect when their AI Gateway API versions are compatible, and `coderd` checks AI Gateway API compatibility whenever a gateway replica connects.
 
-A replica may use the same AI Gateway API version as `coderd` or an earlier minor version of the same major version, but never a newer one.
+A replica can use the same AI Gateway API version as `coderd` or an earlier minor version of the same major version, but never a newer one.
 The gateway treats certain handshake failures from `/api/v2/ai-gateway/serve` as fatal and exits rather than retrying:
 
 - HTTP 400: incompatible API version.
 - HTTP 401: invalid gateway key.
 - HTTP 403: missing entitlement.
 - HTTP 404: endpoint not found.
-  `coderd` may be too old and not expose the `/serve` endpoint.
+  `coderd` might be too old and not expose the `/serve` endpoint.
 
 Sequence changes that move both components:
 

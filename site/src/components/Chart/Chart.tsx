@@ -6,6 +6,7 @@
 import { cn } from "cn";
 import {
 	createContext,
+	useCallback,
 	useContext,
 	useEffect,
 	useId,
@@ -72,14 +73,14 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 				data-chart={chartId}
 				className={cn(
 					"flex aspect-video justify-center text-xs",
-					"[&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground",
+					"[&_.recharts-cartesian-axis-tick_text]:fill-content-secondary",
 					"[&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50",
 					"[&_.recharts-curve.recharts-tooltip-cursor]:stroke-border",
 					"[&_.recharts-dot[stroke='#fff']]:stroke-transparent",
 					"[&_.recharts-layer]:outline-hidden",
 					"[&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border",
-					"[&_.recharts-radial-bar-background-sector]:fill-muted",
-					"[&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted",
+					"[&_.recharts-radial-bar-background-sector]:fill-surface-secondary",
+					"[&_.recharts-rectangle.recharts-tooltip-cursor]:fill-surface-secondary",
 					"[&_.recharts-reference-line_[stroke='#ccc']]:stroke-border",
 					"[&_.recharts-sector[stroke='#fff']]:stroke-transparent",
 					"[&_.recharts-sector]:outline-hidden",
@@ -166,7 +167,86 @@ export function getDailyChartDescription(
 	return `${summary} from ${format(dates[0])} to ${format(dates[dates.length - 1])}. ${hint}`;
 }
 
-export const ChartTooltip = RechartsPrimitive.Tooltip;
+type RechartsTooltipProps = React.ComponentProps<
+	typeof RechartsPrimitive.Tooltip
+>;
+
+type ChartTooltipProps = Omit<RechartsTooltipProps, "content"> & {
+	/** Renders the tooltip body from the props Recharts gives the content. */
+	content: (props: RechartsTooltipProps) => React.ReactNode;
+};
+
+/**
+ * Recharts tooltip that the pointer can reach (WCAG 1.4.13). It is centered
+ * above the active point at the top of the plot, and keeps that point while
+ * hovered. Recharts dismisses it on Escape.
+ */
+export const ChartTooltip: React.FC<ChartTooltipProps> = ({
+	coordinate,
+	viewBox,
+	content,
+	...props
+}) => {
+	const [width, setWidth] = useState(0);
+	// Stable so React does not recreate the observer on every render.
+	const measureContent = useCallback((node: HTMLDivElement | null) => {
+		if (!node) {
+			return;
+		}
+		const observer = new ResizeObserver(() => {
+			// Keep the last width while the content is hidden and empty.
+			if (node.offsetWidth > 0) {
+				setWidth(node.offsetWidth);
+			}
+		});
+		observer.observe(node);
+		return () => observer.disconnect();
+	}, []);
+
+	const plotX = viewBox?.x ?? 0;
+	const maxX = plotX + Math.max((viewBox?.width ?? 0) - width, 0);
+	const x = Math.max(plotX, Math.min((coordinate?.x ?? 0) - width / 2, maxX));
+
+	return (
+		<RechartsPrimitive.Tooltip
+			isAnimationActive={false}
+			{...props}
+			coordinate={coordinate}
+			viewBox={viewBox}
+			position={{ x, y: viewBox?.y ?? 0 }}
+			content={
+				<HoverableTooltipContent
+					containerRef={measureContent}
+					renderContent={content}
+				/>
+			}
+		/>
+	);
+};
+// Recharts finds the tooltip among chart children by display name.
+ChartTooltip.displayName = "Tooltip";
+
+type HoverableTooltipContentProps = RechartsTooltipProps & {
+	containerRef: React.Ref<HTMLDivElement>;
+	renderContent: ChartTooltipProps["content"];
+};
+
+// Recharts keeps its wrapper at pointer-events: none, so only the visible
+// content is hoverable. Stopping mousemove here keeps the chart from moving
+// the active point while the pointer is over the tooltip.
+const HoverableTooltipContent: React.FC<HoverableTooltipContentProps> = ({
+	containerRef,
+	renderContent,
+	...props
+}) => (
+	<div
+		ref={containerRef}
+		className="pointer-events-auto"
+		onMouseMove={(event) => event.stopPropagation()}
+	>
+		{renderContent(props)}
+	</div>
+);
 
 type ChartTooltipContentProps = React.ComponentProps<
 	typeof RechartsPrimitive.Tooltip
@@ -291,7 +371,7 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 						<div
 							key={item.dataKey}
 							className={cn(
-								"flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-content-secondary",
+								"flex w-full flex-wrap items-stretch gap-2 [&>svg]:size-2.5 [&>svg]:text-content-secondary",
 								indicator === "dot" && "items-center",
 							)}
 						>
@@ -305,9 +385,9 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 										!hideIndicator && (
 											<div
 												className={cn(
-													"shrink-0 rounded-[2px] border-(--color-border) bg-(--color-bg)",
+													"shrink-0 rounded-xs border-(--color-border) bg-(--color-bg)",
 													{
-														"h-2.5 w-2.5": indicator === "dot",
+														"size-2.5": indicator === "dot",
 														"w-1": indicator === "line",
 														"w-0 border-[1.5px] border-dashed bg-transparent":
 															indicator === "dashed",

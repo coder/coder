@@ -15,6 +15,13 @@ const openPicker = async () => {
 };
 
 describe("IconField", () => {
+	// IconField lazy-loads the picker. The first import evaluates the emoji
+	// data, which can outlast findByRole's timeout on a busy CI runner, so load
+	// it before any test opens the picker.
+	beforeAll(async () => {
+		await import("./EmojiPicker");
+	});
+
 	it.each([
 		["/emojis/1f524.png", "🔤"],
 		["/emojis/1f9d1-200d-1f4bb.png", "🧑‍💻"],

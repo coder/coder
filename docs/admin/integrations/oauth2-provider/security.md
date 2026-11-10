@@ -39,7 +39,7 @@ The current implementation has these limitations:
 - Implicit grant (`response_type=token`) is not supported.
   OAuth 2.1 deprecated this flow due to token leakage risks, and a request for it redirects to the registered callback with `unsupported_response_type`
 - Limited to opaque access tokens (no support for JSON Web Tokens (JWTs))
-- An application may register at most 32 redirect URIs of at most 2048 bytes each.
+- An application can register at most 32 redirect URIs of at most 2048 bytes each.
   An application that stored a longer list before this limit existed keeps working, but it cannot be saved again until the list fits.
   To fix it, send a `PUT` with a `redirect_uris` list that fits, as shown under [Create an application with the API](./index.md#create-an-application-with-the-api).
   In the web UI, open the application and remove entries from **Redirect URIs** until the list fits.

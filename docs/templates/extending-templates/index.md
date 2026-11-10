@@ -11,7 +11,7 @@ Alternatively, you can view our [example templates](../../../examples/templates)
 
 For users to connect to a workspace, the template must include a [`coder_agent`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent).
 The associated agent will facilitate [workspace connections](../../workspaces/workspace-access/index.md) via SSH, port forwarding, and IDEs.
-The agent may also display real-time [workspace metadata](./agent-metadata.md) like resource usage.
+The agent can also display real-time [workspace metadata](./agent-metadata.md) like resource usage.
 
 ```tf
 resource "coder_agent" "dev" {
@@ -32,13 +32,13 @@ It also provides all information displayed in the dashboard's workspace view.
 
 ![A healthy workspace agent](../../images/templates/healthy-workspace-agent.png)
 
-Multiple agents may be used in a single template or even a single resource.
-Each agent may have its own apps, startup script, and metadata.
+Multiple agents can be used in a single template or even a single resource.
+Each agent can have its own apps, startup script, and metadata.
 This can be used to associate multiple containers or VMs with a workspace.
 
 ## Resource persistence
 
-The resources you define in a template may be _ephemeral_ or _persistent_.
+The resources you define in a template can be _ephemeral_ or _persistent_.
 Persistent resources stay provisioned when workspaces are stopped, where as ephemeral resources are destroyed and recreated on restart.
 All resources are destroyed when a workspace is deleted.
 
@@ -47,7 +47,7 @@ You can read more about how resource behavior and workspace state in the [worksp
 Template resources follow the [behavior of Terraform resources](https://developer.hashicorp.com/terraform/language/resources/behavior#how-terraform-applies-a-configuration) and can be further configured  using the [lifecycle argument](https://developer.hashicorp.com/terraform/language/meta-arguments/lifecycle).
 
 A common configuration is a template whose only persistent resource is the home directory.
-This allows the developer to retain their work while ensuring the rest of their environment is consistently up-to-date on each workspace restart.
+This allows the developer to retain their work while making sure the rest of their environment is consistently up-to-date on each workspace restart.
 
 When a workspace is deleted, the control plane essentially runs a [terraform destroy](https://www.terraform.io/cli/commands/destroy) to remove all resources associated with the workspace.
 
@@ -178,7 +178,7 @@ resource "coder_script" "install_dependencies" {
 - **Lifecycle control**:
   Run on start (`run_on_start`), stop (`run_on_stop`), or cron schedule (`cron`)
 - **Login blocking**:
-  Use `start_blocks_login = true` to ensure critical setup completes before user access
+  Use `start_blocks_login = true` to make sure critical setup completes before user access
 - **Timeouts**:
   Configure `timeout` for long-running scripts
 - **Custom icons**:

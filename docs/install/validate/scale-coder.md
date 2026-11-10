@@ -27,7 +27,7 @@ For a more comprehensive overview, integrate metrics with an observability dashb
 
 ### Observability key metrics
 
-Configure alerting based on these metrics to ensure you surface problems before they affect the end-user experience.
+Configure alerting based on these metrics to make sure you surface problems before they affect the end-user experience.
 
 - CPU and Memory Utilization
   - Monitor the utilization as a fraction of the available resources on the instance.
@@ -148,10 +148,10 @@ You might need to automatically scale the number of provisioner daemon instances
 
 If you stop instances with `SIGHUP`, they will complete their current build job and exit.
 `SIGINT` will cancel the current job, which will result in a failed build.
-Ensure your autoscaler waits long enough for your build jobs to complete before it kills the provisioner daemon process.
+Make sure your autoscaler waits long enough for your build jobs to complete before it kills the provisioner daemon process.
 
 If you deploy in Kubernetes, we recommend a single provisioner daemon per pod.
-On a virtual machine (VM), you can deploy multiple provisioner daemons, ensuring each has a unique `CODER_CACHE_DIRECTORY` value.
+On a virtual machine (VM), you can deploy multiple provisioner daemons, making sure each has a unique `CODER_CACHE_DIRECTORY` value.
 
 Coder's [validated architectures](../plan/sizing/index.md) give specific sizing recommendations for various user scales.
 Since the complexity of builds varies significantly depending on the workspace template, consider this a starting point.
@@ -178,7 +178,7 @@ The control plane maintains a pool of connections to PostgreSQL.
 You can tune the pool size with the following settings:
 
 > [!NOTE]
-> When adjusting these settings, ensure that your PostgreSQL Server has `max_connections` set appropriately to accommodate all control plane replicas multiplied by the maximum number of open connections.
+> When adjusting these settings, make sure that your PostgreSQL Server has `max_connections` set appropriately to accommodate all control plane replicas multiplied by the maximum number of open connections.
 > We recommend configuring an additional 20% of connections to account for churn and other clients.
 >
 > Also note that increasing `max_connections` will result in potentially higher CPU and RAM usage, so you'll need to monitor accordingly.
@@ -215,7 +215,7 @@ By default they also include a DERP Proxy.
 ### Locality
 
 We recommend each geographic cluster of workspaces have an associated deployment of workspace proxies.
-This ensures that users always have a near-optimal proxy path.
+This makes sure that users always have a near-optimal proxy path.
 
 ### Scaling
 

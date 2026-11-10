@@ -658,7 +658,7 @@ Must be at least 1.
 ### Max queued messages per chat
 
 Maximum number of messages that can be queued in a chat.
-Sending a message to a chat whose queue is full fails with HTTP 429.
+Sending a message that would make a full queue longer fails with HTTP 429.
 Must be at least 1.
 
 - Type: `int`
@@ -2144,7 +2144,7 @@ Tune the behavior of the provisioner, which is responsible for creating, updatin
 
 ### Disable Terraform module cache
 
-Disable the reuse of Terraform modules cached at template import for all templates.
+Disable the reuse of Terraform modules and the provider lock file cached at template import for all templates.
 Modules are re-downloaded on every workspace build.
 Individual templates cannot opt back in.
 

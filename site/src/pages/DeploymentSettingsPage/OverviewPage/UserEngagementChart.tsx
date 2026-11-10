@@ -66,10 +66,10 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 					</header>
 
 					<CollapsibleContent
-						className={`
-							pt-2 pl-7 pr-5 space-y-4 font-medium max-w-[720px]
-							[&_p]:m-0 [&_p]:text-sm [&_p]:text-content-secondary
-						`}
+						className={cn(
+							"pt-2 pl-7 pr-5 space-y-4 font-medium max-w-180",
+							"[&_p]:m-0 [&_p]:text-sm [&_p]:text-content-secondary",
+						)}
 					>
 						<p>
 							A user is considered "engaged" if they initiate a connection to
@@ -143,8 +143,9 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 									/>
 									<ChartTooltip
 										cursor={false}
-										content={
+										content={(props) => (
 											<ChartTooltipContent
+												{...props}
 												className="font-medium text-content-secondary"
 												labelClassName="text-content-primary"
 												labelFormatter={(_, p) => {
@@ -159,7 +160,7 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 													});
 												}}
 											/>
-										}
+										)}
 									/>
 									<defs>
 										<linearGradient id="fillUsers" x1="0" y1="0" x2="0" y2="1">
@@ -189,16 +190,16 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 							</ChartContainer>
 						) : (
 							<div
-								className={`
-									w-full h-full flex items-center justify-center
-									text-content-secondary text-sm font-medium
-								`}
+								className={cn(
+									"size-full flex items-center justify-center",
+									"text-content-secondary text-sm font-medium",
+								)}
 							>
 								No data available
 							</div>
 						)
 					) : (
-						<div className="w-full h-full flex items-center justify-center">
+						<div className="size-full flex items-center justify-center">
 							<Spinner loading />
 						</div>
 					)}

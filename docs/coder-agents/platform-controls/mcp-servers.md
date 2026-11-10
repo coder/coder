@@ -97,7 +97,7 @@ Optional fields:
 | `oauth2_resource`       | Resource indicator Uniform Resource Identifier (URI), as defined in RFC 8707. |
 
 The revocation endpoint must use HTTPS.
-Loopback URLs may use HTTP for local development and tests.
+Loopback URLs can use HTTP for local development and tests.
 
 When `oauth2_resource` is set, Coder sends it as the RFC 8707 `resource` parameter on authorization, token, and refresh requests.
 The value must be an absolute URI without a fragment or user information.
@@ -182,6 +182,13 @@ Control which tools from a server are available in chat:
 |-------------------|---------------------------------------------------------------------------------------|
 | `tool_allow_list` | If non-empty, only the listed tool names are exposed. An empty list allows all tools. |
 | `tool_deny_list`  | Listed tool names are always blocked, even if they appear in the allow list.          |
+
+## Tool results
+
+A tool result can include an image or a PDF, and the model receives it as a file.
+The model receives at most one image or PDF from each tool result.
+Models from the Azure OpenAI and Google providers don't receive PDFs.
+If the model can't accept a file's type or size, the model receives a short note in place of the file.
 
 ## Coder identity headers
 
@@ -369,6 +376,9 @@ A subagent chat in plan mode gets none of them.
 | HTTP response body            | 1&nbsp;MiB   |
 | Tool result                   | 256&nbsp;KiB |
 | Time per tool call            | 60&nbsp;s    |
+
+The tool result limit counts images and PDFs at their base64-encoded size.
+A tool result over the limit reaches the model as an error.
 
 ### URL and header requirements
 

@@ -219,3 +219,47 @@ jobs:
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: "codercom/oss-dogfood-vscode-coder:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood-vscode-coder:latest"
         if: matrix.image-version == '22.04'
+
+  notify-slack-on-failure:
+    needs:
+      - build_image
+    runs-on: ubuntu-latest
+    # Only main pushes the image that workspaces pull.
+    if: failure() && github.ref == 'refs/heads/main'
+    permissions: {}
+
+    steps:
+      - name: Send Slack notification
+        run: |
+          ESCAPED_PROMPT=$(printf "%s" "<@U09LQ75AHKR> $BLINK_CI_FAILURE_PROMPT" | jq -Rsa .)
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": "❌ Dogfood image build failed in main",
+                  "emoji": true
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*View failure:* <'"${RUN_URL}"'|Click here>"
+                }
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": '"$ESCAPED_PROMPT"'
+                }
+              }
+            ]
+          }' "${SLACK_WEBHOOK}"
+        env:
+          SLACK_WEBHOOK: ${{ secrets.CI_FAILURE_SLACK_WEBHOOK }}
+          RUN_URL: "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          BLINK_CI_FAILURE_PROMPT: ${{ vars.BLINK_CI_FAILURE_PROMPT }}

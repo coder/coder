@@ -24,8 +24,8 @@ This is helpful in a number of scenarios, including:
 
 Workspaces can be shared through either the Coder CLI or UI.
 
-Before you begin, ensure that you have a version of Coder with workspace sharing enabled and that your account has permission to share workspaces.
-This is true by default if you are an open source software (OSS) user, but deployments with Premium licenses may be restricted by admins.
+Before you begin, make sure that you have a version of Coder with workspace sharing enabled and that your account has permission to share workspaces.
+This is true by default if you are an open source software (OSS) user, but deployments with Premium licenses can be restricted by admins.
 
 ### CLI
 
@@ -100,7 +100,7 @@ Once a workspace is shared, you can find the shared workspace by filtering for "
 #### Access workspace apps in shared workspaces
 
 Sharing a workspace grants SSH and terminal access to other users.
-However, workspace apps like code-server may return a **404 page** for non-owners depending on how the app is routed.
+However, workspace apps like code-server might return a **404 page** for non-owners depending on how the app is routed.
 
 By default, workspace apps that don't set `subdomain = true` use **path-based routing** (for example, `coder.example.com/@user/workspace/apps/code-server/`).
 Path-based apps share the same origin as the Coder dashboard, so Coder blocks non-owners from accessing them to prevent [cross-site scripting risks](../admin/security/security-best-practices.md#disable-path-based-apps).

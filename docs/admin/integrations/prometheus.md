@@ -424,5 +424,5 @@ Whether a metric is exposed as classic or native depends entirely on the Prometh
 * If native histograms are enabled, Prometheus ingests the high-resolution histogram.
 * If not, it falls back to the predefined buckets.
 
-⚠️ Important: classic and native histograms cannot be aggregated together. If Prometheus is switched from classic to native at a certain point in time, dashboards may need to account for that transition.
+⚠️ Important: classic and native histograms cannot be aggregated together. If Prometheus is switched from classic to native at a certain point in time, dashboards might need to account for that transition.
 For this reason, it’s recommended to follow [Prometheus’ migration guidelines](https://prometheus.io/docs/specs/native_histograms/#migration-considerations) when moving from classic to native histograms.

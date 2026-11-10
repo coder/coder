@@ -245,6 +245,17 @@ const buildInlineAttachmentPart = (
 	data: string,
 ): TypesGen.ChatFilePart => buildFilePart({ media_type: mediaType, data });
 
+const mockWorkspaceFileReferencePart: TypesGen.ChatWorkspaceFileReferencePart =
+	{
+		type: "workspace-file-reference",
+		workspace_file_path:
+			"/home/coder/.coder/chats/story-chat/files/dataset.zip",
+		workspace_file_name: "dataset.zip",
+		workspace_file_size: 4096,
+		workspace_file_media_type: "application/zip",
+		workspace_file_workspace_id: "ws-1",
+	};
+
 const buildUserMessage = ({
 	id = 1,
 	text,
@@ -1318,6 +1329,20 @@ export const UserMessageWithMixedAttachments: Story = {
 	),
 };
 
+/** Visual regression: files without text sit as far from the edge as text. */
+export const UserMessageWithFilesOnly: Story = {
+	args: buildStoryArgs({
+		...baseMessage,
+		id: 1,
+		role: "user",
+		content: [
+			buildInlineAttachmentPart("image/png", MockPngBase64),
+			buildTextAttachmentPart("storybook-test-text"),
+			mockWorkspaceFileReferencePart,
+		],
+	}),
+};
+
 /** Text-only messages must not produce spurious image thumbnails. */
 export const UserMessageTextOnly: Story = {
 	args: {
@@ -1536,6 +1561,20 @@ export const UserMessageWithSkillChips: Story = {
 						skill_source: "personal",
 						skill_name: "release-notes",
 					},
+				],
+			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "user",
+				content: [
+					{ type: "text", text: "# Run " },
+					{
+						type: "skill-invocation",
+						skill_source: "project",
+						skill_name: "triage",
+					},
+					{ type: "text", text: " first" },
 				],
 			},
 		]),
@@ -2510,15 +2549,7 @@ export const UserMessageWithWorkspaceFileReference: Story = {
 				role: "user",
 				content: [
 					{ type: "text", text: "Unzip this in my workspace" },
-					{
-						type: "workspace-file-reference",
-						workspace_file_path:
-							"/home/coder/.coder/chats/story-chat/files/dataset.zip",
-						workspace_file_name: "dataset.zip",
-						workspace_file_size: 4096,
-						workspace_file_media_type: "application/zip",
-						workspace_file_workspace_id: "ws-1",
-					},
+					mockWorkspaceFileReferencePart,
 				],
 			},
 		]),

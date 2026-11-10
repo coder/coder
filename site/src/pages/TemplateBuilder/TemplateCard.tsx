@@ -52,7 +52,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 				<h3 id={nameId} className="my-0 text-sm font-bold text-content-primary">
 					{name}
 					{official && (
-						<BadgeCheckIcon className="relative bottom-[2px] inline size-4 ml-1 align-middle text-highlight-sky" />
+						<BadgeCheckIcon className="relative bottom-0.5 inline size-4 ml-1 align-middle text-highlight-sky" />
 					)}
 				</h3>
 				<div className="flex flex-col gap-2">

@@ -298,7 +298,7 @@ For every option and Helm value, refer to the [Agent Relay configuration referen
      --values values.yaml
    ```
 
-The chart runs a single replica with `strategy: Recreate` and creates no Kubernetes RBAC.
+The chart runs a single replica with `strategy: Recreate` and creates no Kubernetes role-based access control (RBAC) resources.
 Agent Relay talks to the Coder control plane over HTTPS and never calls the Kubernetes API.
 
 Pin a chart version in production instead of tracking `latest`.

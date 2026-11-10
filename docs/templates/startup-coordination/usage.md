@@ -16,9 +16,9 @@ When you need to synchronize with another unit, you can use `coder exp sync star
 
 A **unit** is a named phase of work, typically corresponding to a script or initialization task.
 
-- Units **may** declare dependencies on other units, creating an explicit ordering for workspace initialization.
+- Units **can** declare dependencies on other units, creating an explicit ordering for workspace initialization.
 - Units **must** be registered before they can be marked as complete.
-- Units **may** be marked as dependencies before they are registered.
+- Units **can** be marked as dependencies before they are registered.
 - Units **must not** declare cyclic dependencies.
   Attempting to create a cyclic dependency will result in an error.
 
@@ -141,7 +141,7 @@ fi
 ### Complete units that start successfully
 
 Units **must** call `coder exp sync complete` to unblock dependent units.
-Use `trap` to ensure completion even if your script exits early or encounters errors:
+Use `trap` to guarantee completion even if your script exits early or encounters errors:
 
 ```sh
 
@@ -168,7 +168,7 @@ Names should explain what the unit does, not its position in a sequence:
 ### Prefix a unique name to your units
 
 When using `coder exp sync` in modules, note that unit names like `git-clone` might be common.
-Prefix the name of your module to your units to ensure that your unit does not conflict with others.
+Prefix the name of your module to your units to make sure that your unit does not conflict with others.
 
 - Good: `<module>.git-clone`, `<module>.claude`
 - Bad: `git-clone`, `claude`
@@ -236,4 +236,4 @@ coder exp sync start "long-operation" --timeout 10m
 
 No.
 Sync state is kept in-memory only and resets on workspace restart.
-This is intentional to ensure clean initialization on every start.
+This is intentional to make sure initialization is clean on every start.

@@ -61,7 +61,7 @@ Learn more about [change management](./change-management.md).
 > Template update policies are a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
-Licensed template admins may want workspaces to always remain on the latest version of their parent template.
+Licensed template admins might want workspaces to always remain on the latest version of their parent template.
 To do so, enable **Template Update Policies** in the template's general settings.
 All non-admin users of the template will be forced to update their workspaces before starting them once the setting is applied.
 Workspaces which leverage autostart or start-on-connect will be automatically updated on the next startup.

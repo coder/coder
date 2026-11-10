@@ -43,7 +43,7 @@ export const ClickToOpen: Story = {
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
-		await user.click(canvas.getByText("Build timeline", { exact: false }));
+		await user.click(canvas.getByRole("button", { name: "Build timeline" }));
 		await canvas.findByText("provisioning");
 	},
 };
@@ -56,7 +56,7 @@ export const ClickToClose: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		await canvas.findByText("provisioning");
-		await user.click(canvas.getByText("Build timeline", { exact: false }));
+		await user.click(canvas.getByRole("button", { name: "Build timeline" }));
 		await waitFor(() =>
 			expect(canvas.queryByText("workspace boot")).not.toBeInTheDocument(),
 		);
@@ -240,8 +240,8 @@ export const ResourceBarFocused: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		await user.click(canvas.getByRole("button", { name: "View plan details" }));
-		const [firstBar] = await canvas.findAllByRole("img");
-		firstBar.focus();
+		await user.click(canvas.getByRole("textbox"));
+		await user.tab();
 	},
 };
 
@@ -255,6 +255,18 @@ export const NavigateToStartStage: Story = {
 		});
 		await user.click(detailsButton);
 		await canvas.findByText("Startup Script");
+	},
+};
+
+export const ScriptBarFocused: Story = {
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const canvas = within(canvasElement);
+		await user.click(
+			canvas.getByRole("button", { name: "View run startup scripts details" }),
+		);
+		await user.click(canvas.getByRole("textbox"));
+		await user.tab();
 	},
 };
 

@@ -70,7 +70,7 @@ Coder's networking stack has intelligence to attempt a peer-to-peer or [Direct c
 However, this requires some additional protocols like User Datagram Protocol (UDP) and being able to reach a Session Traversal Utilities for Network Address Translation (STUN) server to echo the IP addresses of the local IDE machine and workspace, for sharing using a Wireguard Coordination Server.
 By default, Coder assumes Internet and attempts to reach Google's STUN servers to perform this IP echo.
 
-Operators experimenting with Coder may run into networking issues if UDP (which STUN requires) or the STUN servers are unavailable, potentially resulting in lengthy local IDE and SSH connection times as the Coder control plane attempts to establish these direct connections.
+Operators experimenting with Coder might run into networking issues if UDP (which STUN requires) or the STUN servers are unavailable, potentially resulting in lengthy local IDE and SSH connection times as the Coder control plane attempts to establish these direct connections.
 
 Setting the following flags as shown disables this logic to simplify troubleshooting.
 
@@ -130,7 +130,7 @@ resource "coder_app" "code-server" {
 
 An important concept to understand is that Coder creates workspaces which have an agent that must be able to reach the control plane.
 
-If the [`CODER_ACCESS_URL`](../admin/setup/index.md#access-url) is not accessible from a workspace, the workspace may build, but the agent cannot reach Coder, and thus the missing icons. For example, Terminal, IDEs, Apps.
+If the [`CODER_ACCESS_URL`](../admin/setup/index.md#access-url) is not accessible from a workspace, the workspace might build, but the agent cannot reach Coder, and thus the missing icons. For example, Terminal, IDEs, Apps.
 
 By default, `coder server` automatically creates an Internet-accessible reverse proxy so that workspaces you create can reach the control plane.
 
@@ -185,7 +185,7 @@ psql "postgres://coder@localhost:53737/coder?sslmode=disable&password=I2S...pTk"
 [Coder is on the HashiCorp's Terraform registry](https://registry.terraform.io/providers/coder/coder/latest).
 Check this frequently to make sure you are on the latest version.
 
-Sometimes, the version may change and `resource` configurations will either become deprecated or new ones will be added when you get warnings or errors creating and pushing templates.
+Sometimes, the version might change and `resource` configurations will either become deprecated or new ones will be added when you get warnings or errors creating and pushing templates.
 
 ## How can I set up TLS for my deployment and not create a signed certificate?
 
@@ -421,7 +421,7 @@ For more information on OS prerequisites for Linux, look at the VSCode docs. <ht
 
 ## How can I resolve disconnects when connected to Coder via JetBrains Gateway?
 
-If your JetBrains IDE is disconnected for a long period of time due to a network change (for example turning off a virtual private network (VPN)), you may find that the IDE will not reconnect once the network is re-established (for example turning a VPN back on).
+If your JetBrains IDE is disconnected for a long period of time due to a network change (for example turning off a virtual private network (VPN)), you might find that the IDE will not reconnect once the network is re-established (for example turning a VPN back on).
 When this happens a persistent message will appear similar to the below:
 
 ```console
@@ -479,7 +479,7 @@ For more advanced security needs, consider adopting an endpoint security solutio
 
 ## How do I change the access URL for my control plane?
 
-You may want to change the default domain that's used to access coder, that is, `yourcompany.coder.com` and find yourself unfamiliar with the process.
+You might want to change the default domain that's used to access coder, that is, `yourcompany.coder.com` and find yourself unfamiliar with the process.
 
 To change the access URL associated with your control plane, you can edit any of the following variables:
 

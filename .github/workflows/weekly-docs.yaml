@@ -64,6 +64,7 @@ jobs:
     needs: prepare-linkspector-browser
     # later versions of Ubuntu have disabled unprivileged user namespaces, which are required by the action
     runs-on: ubuntu-22.04
+    environment: ${{ github.event_name != 'pull_request' && 'main' || '' }}
     permissions:
       pull-requests: write # required to post PR review comments by the action
     steps:

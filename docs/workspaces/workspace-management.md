@@ -128,7 +128,7 @@ Note: If a template is updated such that new parameter inputs are required from 
 
 ## Bulk operations
 
-Admins may apply bulk operations (update, delete, start, stop) in the **Workspaces** tab.
+Admins can apply bulk operations (update, delete, start, stop) in the **Workspaces** tab.
 Select the workspaces you'd like to modify with the checkboxes on the left, then use the top-right **Actions** dropdown to apply the operation.
 
 The start and stop operations can be applied even when the selected workspaces are not all in the same state.
