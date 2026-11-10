@@ -16,10 +16,55 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          path: diagnostics
           sparse-checkout: .github/depot-investigate
           persist-credentials: false
+      - name: Keep diagnostics outside source checkout
+        run: |
+          cp -r diagnostics/.github/depot-investigate "$RUNNER_TEMP/depot-probe-scripts"
+          printf 'DEPOT_PROBE_SCRIPTS=%s\n' "$RUNNER_TEMP/depot-probe-scripts" >> "$GITHUB_ENV"
       - name: Inspect runner cache configuration
-        run: python3 .github/depot-investigate/inventory.py
+        run: python3 "$DEPOT_PROBE_SCRIPTS/inventory.py"
+      - name: Checkout original source
+        if: inputs.phase == 'probe'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: 66dca90c912971bd9ce8c7572733b19e0d35b77b
+          fetch-depth: 1
+          persist-credentials: false
+      - name: Setup Go Paths
+        if: inputs.phase == 'probe'
+        uses: ./.github/actions/setup-go-paths
+      - name: Set up mise tools
+        if: inputs.phase == 'probe'
+        uses: ./.github/actions/setup-mise
+        with:
+          install-args: go terraform
+      - name: Install diagnostic tools
+        if: inputs.phase == 'probe'
+        run: sudo apt-get -o DPkg::Lock::Timeout=300 install -y time procps
+      - name: Install timestamp normalizer
+        if: inputs.phase == 'probe'
+        run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/slsyy/mtimehash/cmd/mtimehash
+      - name: Restore application test fixtures
+        if: inputs.phase == 'probe'
+        uses: ./.github/actions/test-cache/download
+        with:
+          key-prefix: test-go-pg-${{ runner.os }}-${{ runner.arch }}
+      - name: Normalize timestamps and Terraform path
+        if: inputs.phase == 'probe'
+        run: |
+          find . -type f ! -path ./.git/\*\* | mtimehash
+          find . -type d ! -path ./.git/\*\* -exec touch -t 200601010000 {} +
+          mkdir -p "$RUNNER_TEMP/sym"
+          source scripts/normalize_path.sh
+          normalize_path_with_symlinks "$RUNNER_TEMP/sym" "$(dirname "$(which terraform)")"
+      - name: Download source modules
+        if: inputs.phase == 'probe'
+        run: ./.github/scripts/retry.sh --timeout 120 -- go mod download
+      - name: Trace live cache behavior and compare service endpoints
+        if: inputs.phase == 'probe'
+        run: bash "$DEPOT_PROBE_SCRIPTS/probe.sh"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
