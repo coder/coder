@@ -8,31 +8,47 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
+import { createMemoryRouter, MemoryRouter, useLocation } from "react-router";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { AppProviders } from "#/App";
 import { API } from "#/api/api";
-import { organizationSkills } from "#/api/queries/organizationSkills";
+import {
+	organizationSkillPreferencesKey,
+	organizationSkills,
+} from "#/api/queries/organizationSkills";
 import { userSkills } from "#/api/queries/userSkills";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
-import { MockMCPServerConfig } from "#/testHelpers/chatEntities";
-import { MockChatProject } from "#/testHelpers/entities";
+import {
+	MockChatQueuedMessage,
+	MockMCPServerConfig,
+} from "#/testHelpers/chatEntities";
+import {
+	MockChatProject,
+	MockUserPreferenceSettings,
+	MockWorkspace,
+} from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
-import { createTestQueryClient } from "#/testHelpers/renderHelpers";
-import { MockSkill } from "#/testHelpers/skills";
-import { mobileViewportMediaQuery } from "#/utils/mobile";
+import {
+	createTestQueryClient,
+	renderWithRouter,
+} from "#/testHelpers/renderHelpers";
+import {
+	MockOrganizationSkillPreferences,
+	MockSkill,
+} from "#/testHelpers/skills";
+import {
+	belowMdViewportMediaQuery,
+	mobileViewportMediaQuery,
+} from "#/utils/mobile";
 import type * as speechRecognition from "../hooks/useSpeechRecognition";
 import { useSpeechRecognition } from "../hooks/useSpeechRecognition";
 import { AgentChatInput, type ChatMessageInputRef } from "./AgentChatInput";
 
-const dashboard = vi.hoisted(() => ({
-	experiments: ["chat-projects"] as string[],
-}));
-
 vi.mock("#/modules/dashboard/useDashboard", () => ({
 	useDashboard: () => ({
 		organizations: [],
-		experiments: dashboard.experiments,
 	}),
 }));
 
@@ -50,12 +66,13 @@ const mockedUseSpeechRecognition = vi.mocked(useSpeechRecognition);
 // implementation rather than a previous stub.
 const originalMatchMedia = window.matchMedia;
 
-const stubViewport = (isMobile: boolean) => {
+const stubViewport = (
+	matches: boolean,
+	mediaQuery = mobileViewportMediaQuery,
+) => {
 	vi.stubGlobal("matchMedia", (query: string) => {
 		const result = originalMatchMedia(query);
-		return query === mobileViewportMediaQuery
-			? { ...result, matches: isMobile }
-			: result;
+		return query === mediaQuery ? { ...result, matches } : result;
 	});
 };
 
@@ -128,7 +145,9 @@ const mockMCPServers = [mockSentryMCP, mockLinearMCP, mockGitHubMCP];
 const mockSelectedMCPServerIds = mockMCPServers.map((server) => server.id);
 
 const renderInput = (children: React.ReactNode) => {
-	return render(<AppProviders>{children}</AppProviders>);
+	return render(<AppProviders>{children}</AppProviders>, {
+		wrapper: MemoryRouter,
+	});
 };
 
 beforeAll(() => {
@@ -141,7 +160,6 @@ beforeAll(() => {
 afterEach(() => {
 	vi.unstubAllGlobals();
 	mockedUseSpeechRecognition.mockReset();
-	dashboard.experiments = ["chat-projects"];
 	vi.restoreAllMocks();
 });
 
@@ -162,6 +180,21 @@ describe("AgentChatInput", () => {
 		expect(screen.getByTestId("chat-composer").parentElement).toHaveClass(
 			"max-w-full",
 		);
+	});
+
+	it("focuses the editor each time the highlight key changes", async () => {
+		const { rerender } = renderInput(<AgentChatInput {...inputProps} />);
+		const editor = screen.getByRole("textbox", { name: "Chat message" });
+
+		for (const highlightKey of ["first-click", "second-click"]) {
+			act(() => editor.blur());
+			rerender(
+				<AppProviders>
+					<AgentChatInput {...inputProps} highlightKey={highlightKey} />
+				</AppProviders>,
+			);
+			await waitFor(() => expect(editor).toHaveFocus());
+		}
 	});
 
 	it("accepts drafts without sending while submission is disabled", async () => {
@@ -206,6 +239,10 @@ describe("AgentChatInput", () => {
 		queryClient.setQueryData(organizationSkills("org-1").queryKey, [
 			{ ...MockSkill, name: "release-notes" },
 		]);
+		queryClient.setQueryData(
+			organizationSkillPreferencesKey("org-1"),
+			MockOrganizationSkillPreferences,
+		);
 
 		render(
 			<AppProviders queryClient={queryClient}>
@@ -215,6 +252,7 @@ describe("AgentChatInput", () => {
 					chatOrganizationId="org-1"
 				/>
 			</AppProviders>,
+			{ wrapper: MemoryRouter },
 		);
 
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
@@ -248,6 +286,10 @@ describe("AgentChatInput", () => {
 		const inputRef = createRef<ChatMessageInputRef>();
 		vi.spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
 		vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		vi.spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
 		const getChatProjectSkills = vi
 			.spyOn(API.experimental, "getChatProjectSkills")
 			.mockResolvedValue([{ ...MockSkill, name: "project-conventions" }]);
@@ -264,6 +306,7 @@ describe("AgentChatInput", () => {
 					chatProjectId="project-1"
 				/>
 			</AppProviders>,
+			{ wrapper: MemoryRouter },
 		);
 
 		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
@@ -277,40 +320,6 @@ describe("AgentChatInput", () => {
 			name: "project-conventions",
 		});
 		expect(getChatProjectSkills).toHaveBeenCalledWith("org-1", "project-1");
-	});
-
-	it("skips the project skills request while the chat-projects experiment is off", async () => {
-		dashboard.experiments = [];
-		const user = userEvent.setup();
-		const getUserSkills = vi
-			.spyOn(API.experimental, "getUserSkills")
-			.mockResolvedValue([]);
-		const getOrganizationSkills = vi
-			.spyOn(API.experimental, "getOrganizationSkills")
-			.mockResolvedValue([]);
-		const getChatProjectSkills = vi
-			.spyOn(API.experimental, "getChatProjectSkills")
-			.mockResolvedValue([]);
-
-		render(
-			<AppProviders queryClient={createTestQueryClient()}>
-				<AgentChatInput
-					{...inputProps}
-					chatOrganizationId="org-1"
-					chatProjectId="project-1"
-				/>
-			</AppProviders>,
-		);
-
-		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
-		await user.paste("/proj");
-		// The skills trigger enables every skills request in the same
-		// render, so the other requests show the trigger activated.
-		await waitFor(() => {
-			expect(getUserSkills).toHaveBeenCalled();
-			expect(getOrganizationSkills).toHaveBeenCalledWith("org-1");
-		});
-		expect(getChatProjectSkills).not.toHaveBeenCalled();
 	});
 
 	it.each([
@@ -333,7 +342,7 @@ describe("AgentChatInput", () => {
 			</AppProviders>
 		);
 
-		const { rerender } = render(renderInput(true));
+		const { rerender } = render(renderInput(true), { wrapper: MemoryRouter });
 		await screen.findByRole("textbox", { name: "Chat message" });
 		expect(getChatProjectSkills).not.toHaveBeenCalled();
 
@@ -380,7 +389,7 @@ describe("AgentChatInput", () => {
 		);
 	});
 
-	it("removes a selected MCP server from the group", async () => {
+	it("turns a server off from the group pill's menu", async () => {
 		const user = userEvent.setup();
 		const onMCPSelectionChange = vi.fn();
 		renderInput(
@@ -394,8 +403,8 @@ describe("AgentChatInput", () => {
 
 		await user.click(screen.getByRole("button", { name: "3 MCPs" }));
 		await user.click(
-			within(screen.getByRole("dialog")).getByRole("button", {
-				name: "Remove Linear",
+			within(screen.getByRole("dialog")).getByRole("switch", {
+				name: "Disable Linear",
 			}),
 		);
 		expect(onMCPSelectionChange).toHaveBeenCalledWith([
@@ -404,7 +413,37 @@ describe("AgentChatInput", () => {
 		]);
 	});
 
-	it("enables an unselected MCP server from the plus menu while the group is collapsed", async () => {
+	it("keeps keyboard focus in the menu through the below-md submenus", async () => {
+		const user = userEvent.setup();
+		stubViewport(true, belowMdViewportMediaQuery);
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				mcpServers={mockMCPServers}
+				selectedMCPServerIds={mockSelectedMCPServerIds}
+				onMCPSelectionChange={vi.fn()}
+				workspaceOptions={[MockWorkspace]}
+				onWorkspaceChange={vi.fn()}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "More options" }));
+		(await screen.findByRole("button", { name: /MCP servers/ })).focus();
+		await user.keyboard("{Enter}");
+		expect(await screen.findByRole("button", { name: "Back" })).toHaveFocus();
+		await user.keyboard("{Enter}");
+		expect(screen.getByRole("button", { name: /MCP servers/ })).toHaveFocus();
+
+		screen.getByRole("button", { name: "Attach workspace" }).focus();
+		await user.keyboard("{Enter}");
+		expect(await screen.findByRole("button", { name: "Back" })).toHaveFocus();
+		await user.keyboard("{Enter}");
+		expect(
+			screen.getByRole("button", { name: "Attach workspace" }),
+		).toHaveFocus();
+	});
+
+	it("enables an unselected MCP server from the MCP servers submenu", async () => {
 		const user = userEvent.setup();
 		const onMCPSelectionChange = vi.fn();
 		renderInput(
@@ -418,6 +457,9 @@ describe("AgentChatInput", () => {
 
 		await user.click(screen.getByRole("button", { name: "More options" }));
 		await user.click(
+			await screen.findByRole("button", { name: /MCP servers/ }),
+		);
+		await user.click(
 			await screen.findByRole("switch", { name: "Enable Notion" }),
 		);
 		expect(onMCPSelectionChange).toHaveBeenCalledWith([
@@ -428,25 +470,54 @@ describe("AgentChatInput", () => {
 		]);
 	});
 
-	it("keeps two active MCP servers as individual pills", async () => {
+	it("announces a disconnected always-on server as always on", async () => {
+		const user = userEvent.setup();
+		const mockDisconnectedSentryMCP = {
+			...mockSentryMCP,
+			auth_connected: false,
+		};
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				mcpServers={[mockDisconnectedSentryMCP, mockLinearMCP]}
+				selectedMCPServerIds={[mockDisconnectedSentryMCP.id, mockLinearMCP.id]}
+				onMCPSelectionChange={vi.fn()}
+			/>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "More options" }));
+		await user.click(
+			await screen.findByRole("button", { name: /MCP servers/ }),
+		);
+		const menu = await screen.findByRole("group", { name: "MCP servers" });
+		expect(menu).toHaveTextContent(/Sentry\s*Always on/);
+		expect(
+			within(menu).getByRole("img", { name: "Not connected" }),
+		).toBeInTheDocument();
+	});
+
+	it("turns a server on from the empty MCP pill", async () => {
 		const user = userEvent.setup();
 		const onMCPSelectionChange = vi.fn();
 		renderInput(
 			<AgentChatInput
 				{...inputProps}
 				mcpServers={[mockLinearMCP, mockGitHubMCP]}
-				selectedMCPServerIds={[mockLinearMCP.id, mockGitHubMCP.id]}
+				selectedMCPServerIds={[]}
 				onMCPSelectionChange={onMCPSelectionChange}
 			/>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "Remove Linear" }));
-		expect(onMCPSelectionChange).toHaveBeenCalledWith([mockGitHubMCP.id]);
+		await user.click(screen.getByRole("button", { name: "Add MCPs" }));
+		await user.click(
+			within(screen.getByRole("dialog")).getByRole("switch", {
+				name: "Enable Linear",
+			}),
+		);
+		expect(onMCPSelectionChange).toHaveBeenCalledWith([mockLinearMCP.id]);
 	});
 
-	it("excludes selected MCP servers that still need OAuth from the group", async () => {
-		const user = userEvent.setup();
-		const onMCPSelectionChange = vi.fn();
+	it("excludes selected MCP servers that still need OAuth from the pill count", () => {
 		renderInput(
 			<AgentChatInput
 				{...inputProps}
@@ -456,15 +527,11 @@ describe("AgentChatInput", () => {
 					mockLinearMCP.id,
 					mockGitHubMCPNeedingAuth.id,
 				]}
-				onMCPSelectionChange={onMCPSelectionChange}
+				onMCPSelectionChange={vi.fn()}
 			/>,
 		);
 
-		await user.click(screen.getByRole("button", { name: "Remove Linear" }));
-		expect(onMCPSelectionChange).toHaveBeenCalledWith([
-			mockSentryMCP.id,
-			mockGitHubMCPNeedingAuth.id,
-		]);
+		expect(screen.getByRole("button", { name: "2 MCPs" })).toBeInTheDocument();
 	});
 
 	it("allows viewing a disabled MCP group without changing its selection", async () => {
@@ -482,14 +549,245 @@ describe("AgentChatInput", () => {
 
 		await user.click(screen.getByRole("button", { name: "3 MCPs" }));
 		await user.click(
-			within(screen.getByRole("dialog")).getByRole("button", {
-				name: "Remove Linear",
+			within(screen.getByRole("dialog")).getByRole("switch", {
+				name: "Disable Linear",
 			}),
 		);
 		expect(onMCPSelectionChange).not.toHaveBeenCalled();
 	});
 
-	it("swaps Stop for the Queue button once a draft is entered while streaming", async () => {
+	it("opens MCP connections settings with a way back to the chat", async () => {
+		const user = userEvent.setup();
+		const onSettingsState = vi.fn();
+		const SettingsPage = () => {
+			onSettingsState(useLocation().state);
+			return null;
+		};
+		renderWithRouter(
+			createMemoryRouter(
+				[
+					{
+						path: "/agents/:chatId",
+						element: (
+							<AgentChatInput
+								{...inputProps}
+								chatOrganizationId="org-1"
+								mcpServers={[mockLinearMCP]}
+								selectedMCPServerIds={[]}
+								onMCPSelectionChange={vi.fn()}
+							/>
+						),
+					},
+					{
+						path: "/agents/settings/mcp-connections",
+						element: <SettingsPage />,
+					},
+				],
+				{ initialEntries: ["/agents/chat-1?tab=git"] },
+			),
+		);
+
+		await user.click(screen.getByRole("button", { name: "More options" }));
+		await user.click(
+			await screen.findByRole("button", { name: /MCP servers/ }),
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Manage MCP connections" }),
+		);
+		await waitFor(() =>
+			expect(onSettingsState).toHaveBeenCalledWith({
+				from: "/agents/chat-1?tab=git",
+				organizationId: "org-1",
+			}),
+		);
+	});
+
+	const renderWithEnterSendPreference = (children: React.ReactNode) => {
+		vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
+			MockUserPreferenceSettings,
+		);
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(preferenceSettingsKey, MockUserPreferenceSettings);
+		return render(
+			<AppProviders queryClient={queryClient}>{children}</AppProviders>,
+			{ wrapper: MemoryRouter },
+		);
+	};
+
+	it.each<{
+		name: string;
+		props: Partial<React.ComponentProps<typeof AgentChatInput>>;
+		busyBehavior: TypesGen.ChatBusyBehavior | undefined;
+	}>([
+		{
+			name: "Cmd/Ctrl+Enter sends the draft for after the turn",
+			props: {},
+			busyBehavior: "queue",
+		},
+		{
+			name: "the After turn shortcut saves an edit without a busy behavior",
+			props: { editingKind: "queued" },
+			busyBehavior: undefined,
+		},
+	])("on a busy chat, $name", async ({ props, busyBehavior }) => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+
+		renderWithEnterSendPreference(
+			<AgentChatInput
+				{...inputProps}
+				onSend={onSend}
+				isStreaming
+				onInterrupt={vi.fn()}
+				{...props}
+			/>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.paste("Run the tests after this");
+		await user.keyboard("{Control>}{Enter}{/Control}");
+		expect(onSend).toHaveBeenCalledWith(
+			"Run the tests after this",
+			busyBehavior,
+		);
+	});
+
+	it("on a busy chat, the After turn shortcut sends nothing from an empty composer", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+		const onPromoteQueuedMessage = vi.fn();
+
+		renderWithEnterSendPreference(
+			<AgentChatInput
+				{...inputProps}
+				onSend={onSend}
+				isStreaming
+				onInterrupt={vi.fn()}
+				queuedMessages={[MockChatQueuedMessage]}
+				onPromoteQueuedMessage={onPromoteQueuedMessage}
+			/>,
+		);
+
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.keyboard("{Control>}{Enter}{/Control}");
+		expect(onSend).not.toHaveBeenCalled();
+		expect(onPromoteQueuedMessage).not.toHaveBeenCalled();
+	});
+
+	it("on a busy chat, a right-click on Send opens a menu that sends after the turn", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				onSend={onSend}
+				isStreaming
+				onInterrupt={vi.fn()}
+				initialValue="Run the tests after this"
+			/>,
+		);
+
+		await user.pointer({
+			keys: "[MouseRight]",
+			target: await screen.findByRole("button", { name: "Send during turn" }),
+		});
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Send after turn" }),
+		);
+		expect(onSend).toHaveBeenCalledWith("Run the tests after this", "queue");
+	});
+
+	it("on a busy chat, Escape closes the send menu and returns focus to Send", async () => {
+		const user = userEvent.setup();
+
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				isStreaming
+				onInterrupt={vi.fn()}
+				initialValue="Run the tests after this"
+			/>,
+		);
+
+		const sendButton = await screen.findByRole("button", {
+			name: "Send during turn",
+		});
+		await user.pointer({ keys: "[MouseRight]", target: sendButton });
+		await screen.findByRole("menu");
+		await user.keyboard("{Escape}");
+		await waitFor(() => expect(sendButton).toHaveFocus());
+	});
+
+	it("on a busy chat, a long press on Send opens the menu and the release does not send", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				onSend={onSend}
+				isStreaming
+				onInterrupt={vi.fn()}
+				initialValue="Run the tests after this"
+			/>,
+		);
+
+		const sendButton = await screen.findByRole("button", {
+			name: "Send during turn",
+		});
+		await user.pointer({ keys: "[TouchA>]", target: sendButton });
+		const sendItem = await screen.findByRole("menuitem", {
+			name: "Send during turn",
+		});
+		await user.pointer({ keys: "[/TouchA]", target: sendButton });
+		expect(onSend).not.toHaveBeenCalled();
+
+		await user.click(sendItem);
+		expect(onSend).toHaveBeenCalledWith("Run the tests after this", undefined);
+	});
+
+	it("closes the send menu when the turn ends, so Send sends again", async () => {
+		const user = userEvent.setup();
+		const onSend = vi.fn();
+		const queryClient = createTestQueryClient();
+		const input = (isStreaming: boolean) => (
+			<AppProviders queryClient={queryClient}>
+				<AgentChatInput
+					{...inputProps}
+					onSend={onSend}
+					isStreaming={isStreaming}
+					onInterrupt={vi.fn()}
+					initialValue="Run the tests after this"
+				/>
+			</AppProviders>
+		);
+		const { rerender } = render(input(true), { wrapper: MemoryRouter });
+
+		await user.pointer({
+			keys: "[MouseRight]",
+			target: await screen.findByRole("button", { name: "Send during turn" }),
+		});
+		await screen.findByRole("menu");
+
+		rerender(input(false));
+		await user.click(screen.getByRole("button", { name: "Send" }));
+		expect(onSend).toHaveBeenCalledWith("Run the tests after this", undefined);
+	});
+
+	it("on an idle chat, a right-click on Send keeps the browser menu", async () => {
+		renderInput(
+			<AgentChatInput {...inputProps} initialValue="Run the tests" />,
+		);
+
+		expect(
+			fireEvent.contextMenu(
+				await screen.findByRole("button", { name: "Send" }),
+			),
+		).toBe(true);
+	});
+
+	it("swaps Stop for the Send button once a draft is entered while streaming", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
 		const onSend = vi.fn();
@@ -517,7 +815,9 @@ describe("AgentChatInput", () => {
 			/>,
 		);
 
-		expect(screen.queryByRole("button", { name: "Queue" })).toBeNull();
+		expect(
+			screen.queryByRole("button", { name: "Send during turn" }),
+		).toBeNull();
 		await user.click(screen.getByRole("button", { name: "Stop" }));
 		expect(onInterrupt).toHaveBeenCalledTimes(1);
 		expect(onSend).not.toHaveBeenCalled();
@@ -529,8 +829,8 @@ describe("AgentChatInput", () => {
 		});
 
 		expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
-		await user.click(screen.getByRole("button", { name: "Queue" }));
-		expect(onSend).toHaveBeenCalledWith("Also update the docs");
+		await user.click(screen.getByRole("button", { name: "Send during turn" }));
+		expect(onSend).toHaveBeenCalledWith("Also update the docs", undefined);
 		expect(onInterrupt).toHaveBeenCalledTimes(1);
 
 		inputRef.current?.clear();
@@ -538,12 +838,49 @@ describe("AgentChatInput", () => {
 			expect(inputRef.current?.getValue()).toBe("");
 		});
 
-		expect(screen.queryByRole("button", { name: "Queue" })).toBeNull();
+		expect(
+			screen.queryByRole("button", { name: "Send during turn" }),
+		).toBeNull();
 		await user.click(screen.getByRole("button", { name: "Stop" }));
 		expect(onInterrupt).toHaveBeenCalledTimes(2);
 	});
 
-	it("shows a disabled Queue button without a spinner while an interrupt is pending", async () => {
+	it.each([
+		["history", "Stop", "onInterrupt"],
+		["queued", "Save Edit", "onSend"],
+	] as const)(
+		"a %s edit while streaming puts %s in the footer slot",
+		async (editingKind, buttonName, calledHandler) => {
+			const user = userEvent.setup();
+			const handlers = { onSend: vi.fn(), onInterrupt: vi.fn() };
+
+			renderInput(
+				<AgentChatInput
+					{...handlers}
+					isDisabled={false}
+					isLoading={false}
+					isStreaming
+					editingKind={editingKind}
+					initialValue="Edited text"
+					selectedModel={modelOptions[0].id}
+					onModelChange={vi.fn()}
+					modelOptions={modelOptions}
+					modelSelectorPlaceholder="Select model"
+					hasModelOptions
+					canConfigureAgentSetup={false}
+					onContentChange={vi.fn()}
+					planModeEnabled={false}
+					onPlanModeToggle={vi.fn()}
+					isModelCatalogLoading={false}
+				/>,
+			);
+
+			await user.click(await screen.findByRole("button", { name: buttonName }));
+			expect(handlers[calledHandler]).toHaveBeenCalledTimes(1);
+		},
+	);
+
+	it("shows a disabled Send button without a spinner while an interrupt is pending", async () => {
 		const user = userEvent.setup();
 		const onSend = vi.fn();
 
@@ -569,10 +906,10 @@ describe("AgentChatInput", () => {
 			/>,
 		);
 
-		const queueButton = screen.getByRole("button", { name: "Queue" });
-		expect(queueButton).toBeDisabled();
-		expect(within(queueButton).queryByTitle("Loading spinner")).toBeNull();
-		await user.click(queueButton);
+		const sendButton = screen.getByRole("button", { name: "Send during turn" });
+		expect(sendButton).toBeDisabled();
+		expect(within(sendButton).queryByTitle("Loading spinner")).toBeNull();
+		await user.click(sendButton);
 		expect(onSend).not.toHaveBeenCalled();
 	});
 
@@ -600,16 +937,16 @@ describe("AgentChatInput", () => {
 		const desktop = renderInput(<AgentChatInput {...props} />);
 		expect(
 			screen
-				.getByRole("button", { name: "Queue" })
+				.getByRole("button", { name: "Send during turn" })
 				.getAttribute("aria-keyshortcuts"),
 		).toMatch(/Enter/);
 		desktop.unmount();
 
 		stubViewport(true);
 		renderInput(<AgentChatInput {...props} />);
-		expect(screen.getByRole("button", { name: "Queue" })).not.toHaveAttribute(
-			"aria-keyshortcuts",
-		);
+		expect(
+			screen.getByRole("button", { name: "Send during turn" }),
+		).not.toHaveAttribute("aria-keyshortcuts");
 	});
 
 	it("keeps Accept and Cancel available while a recording outlives the start of a turn", async () => {
@@ -661,13 +998,13 @@ describe("AgentChatInput", () => {
 	it("lets Escape on a chip's remove button cancel a history edit", async () => {
 		const user = userEvent.setup();
 		const inputRef = createRef<ChatMessageInputRef>();
-		const onCancelHistoryEdit = vi.fn();
+		const onCancelEdit = vi.fn();
 		renderInput(
 			<AgentChatInput
 				{...inputProps}
 				inputRef={inputRef}
-				isEditingHistoryMessage
-				onCancelHistoryEdit={onCancelHistoryEdit}
+				editingKind="history"
+				onCancelEdit={onCancelEdit}
 			/>,
 		);
 		await waitFor(() => expect(inputRef.current).not.toBeNull());
@@ -678,7 +1015,56 @@ describe("AgentChatInput", () => {
 		act(() => remove.focus());
 
 		await user.keyboard("{Escape}");
-		expect(onCancelHistoryEdit).toHaveBeenCalledTimes(1);
+		expect(onCancelEdit).toHaveBeenCalledTimes(1);
+	});
+
+	it.each([
+		["cancel an edit", "onCancelEdit", { editingKind: "history" }],
+		["interrupt a streaming turn", "onInterrupt", { isStreaming: true }],
+	] as const)(
+		"lets Escape that closes a composer popover not %s",
+		async (_, callbackName, props) => {
+			const user = userEvent.setup();
+			const callback = vi.fn();
+			renderInput(
+				<AgentChatInput
+					{...inputProps}
+					{...props}
+					{...{ [callbackName]: callback }}
+					mcpServers={mockMCPServers}
+					selectedMCPServerIds={mockSelectedMCPServerIds}
+					onMCPSelectionChange={vi.fn()}
+				/>,
+			);
+
+			await user.click(screen.getByRole("button", { name: "3 MCPs" }));
+			await screen.findByRole("dialog");
+			await user.keyboard("{Escape}");
+			await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+			expect(callback).not.toHaveBeenCalled();
+
+			await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+			await user.keyboard("{Escape}");
+			expect(callback).toHaveBeenCalledTimes(1);
+		},
+	);
+
+	it("names the cancel button of a queued edit on a paused chat for the send that follows", async () => {
+		const user = userEvent.setup();
+		const onCancelEdit = vi.fn();
+		renderInput(
+			<AgentChatInput
+				{...inputProps}
+				editingKind="queued"
+				isChatPaused
+				onCancelEdit={onCancelEdit}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: "Cancel edit and send unchanged" }),
+		);
+		expect(onCancelEdit).toHaveBeenCalledTimes(1);
 	});
 
 	it("keeps skill chips through a voice recording and its cancellation", async () => {
@@ -698,7 +1084,7 @@ describe("AgentChatInput", () => {
 				<AgentChatInput {...inputProps} inputRef={inputRef} />
 			</AppProviders>
 		);
-		const { rerender } = render(input());
+		const { rerender } = render(input(), { wrapper: MemoryRouter });
 		await waitFor(() => expect(inputRef.current).not.toBeNull());
 		act(() => inputRef.current?.insertSkill("project", "triage"));
 		const chip = {
@@ -1030,5 +1416,69 @@ describe("AgentChatInput", () => {
 		expect(toastError).toHaveBeenCalledWith(
 			"This file type is uploaded into the chat's workspace. Attach a running workspace to the chat, then try again.",
 		);
+	});
+
+	it.each([
+		["sends the queue head when nothing is under edit", {}, true],
+		[
+			"does not send the queue head while the composer edits a message",
+			{ editingKind: "queued" },
+			false,
+		],
+		[
+			"does not send a queue head whose begin request is pending",
+			{ queuedMessageUnderEditID: MockChatQueuedMessage.id },
+			false,
+		],
+		[
+			"does not send a steer head",
+			{
+				queuedMessages: [{ ...MockChatQueuedMessage, busy_behavior: "steer" }],
+			},
+			false,
+		],
+	] satisfies Array<
+		[string, Partial<React.ComponentProps<typeof AgentChatInput>>, boolean]
+	>)("Enter with an empty composer %s", async (_name, props, sendsHead) => {
+		const user = userEvent.setup();
+		const onPromoteQueuedMessage = vi.fn();
+
+		renderInput(
+			<AgentChatInput
+				onSend={vi.fn()}
+				isDisabled={false}
+				isLoading={false}
+				selectedModel={modelOptions[0].id}
+				onModelChange={vi.fn()}
+				modelOptions={modelOptions}
+				modelSelectorPlaceholder="Select model"
+				hasModelOptions
+				canConfigureAgentSetup={false}
+				initialValue=""
+				onContentChange={vi.fn()}
+				planModeEnabled={false}
+				onPlanModeToggle={vi.fn()}
+				isModelCatalogLoading={false}
+				queuedMessages={[MockChatQueuedMessage]}
+				onPromoteQueuedMessage={onPromoteQueuedMessage}
+				{...props}
+			/>,
+		);
+
+		// Plain Enter sends only once the shortcut preference has loaded.
+		await waitFor(() => {
+			expect(
+				screen.getByRole("button", { name: /^(Send|Queue|Save Edit)$/ }),
+			).toHaveAttribute("aria-keyshortcuts", "Enter");
+		});
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.keyboard("{Enter}");
+		if (sendsHead) {
+			expect(onPromoteQueuedMessage).toHaveBeenCalledWith(
+				MockChatQueuedMessage.id,
+			);
+		} else {
+			expect(onPromoteQueuedMessage).not.toHaveBeenCalled();
+		}
 	});
 });

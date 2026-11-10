@@ -103,7 +103,7 @@ const NotificationsPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Notifications Settings")}</title>
+			<title>{pageTitle("Notifications", "Settings")}</title>
 
 			<SettingsHeader>
 				<SettingsHeaderTitle>Notifications</SettingsHeaderTitle>
@@ -162,7 +162,7 @@ const NotificationsPage: React.FC = () => {
 												}}
 											/>
 										</div>
-										<label htmlFor={group} className="font-medium text-sm">
+										<label htmlFor={group} className="text-sm">
 											{group}
 										</label>
 									</header>
@@ -211,10 +211,7 @@ const NotificationsPage: React.FC = () => {
 																);
 															}}
 														/>
-														<label
-															htmlFor={tmpl.id}
-															className="font-medium text-sm"
-														>
+														<label htmlFor={tmpl.id} className="text-sm">
 															{tmpl.name}
 														</label>
 													</div>

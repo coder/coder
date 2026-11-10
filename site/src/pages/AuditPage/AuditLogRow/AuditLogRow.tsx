@@ -9,6 +9,7 @@ import { Avatar } from "#/components/Avatar/Avatar";
 import {
 	Collapsible,
 	CollapsibleContent,
+	CollapsibleTrigger,
 } from "#/components/Collapsible/Collapsible";
 import { Link } from "#/components/Link/Link";
 import { StatusBadge } from "#/components/StatusBadge/StatusBadge";
@@ -64,26 +65,16 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 		>
 			<TableCell className="p-0! border-0 border-t text-base">
 				<Collapsible open={isDiffOpen} onOpenChange={setIsDiffOpen}>
+					{/* oxlint-disable-next-line jsx-a11y/click-events-have-key-events -- Clicking the row is a mouse shortcut; keyboard users use the disclosure button. */}
 					<div
 						className={cn(
 							"flex flex-row items-center gap-4 py-4 px-8",
-							shouldDisplayDiff && "cursor-pointer",
+							shouldDisplayDiff && "relative cursor-pointer",
 						)}
-						{...(shouldDisplayDiff && {
-							tabIndex: 0,
-							role: "button",
-							"aria-expanded": isDiffOpen,
-							onClick: toggle,
-							onKeyDown: (event: React.KeyboardEvent<HTMLDivElement>) => {
-								if (event.key === "Enter" || event.key === " ") {
-									event.preventDefault();
-									toggle();
-								}
-							},
-						})}
+						onClick={toggle}
 					>
-						<div className="flex flex-row items-center gap-4 flex-1">
-							<div className="flex flex-row items-center gap-4 w-full">
+						<div className="flex items-center gap-4 flex-1">
+							<div className="flex items-center gap-4 w-full">
 								{/*
 								 * Session logs don't have an associated user to the log,
 								 * so when it happens we display a default icon to represent non user actions
@@ -95,12 +86,12 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 									/>
 								) : (
 									<Avatar>
-										<NetworkIcon className="h-full w-full p-1" />
+										<NetworkIcon className="size-full p-1" />
 									</Avatar>
 								)}
 
-								<div className="flex flex-row items-baseline justify-between w-full font-normal gap-4">
-									<div className="flex flex-row items-baseline gap-2">
+								<div className="flex items-baseline justify-between w-full font-normal gap-4">
+									<div className="flex items-baseline gap-2">
 										<AuditLogDescription auditLog={auditLog} />
 										{auditLog.is_deleted && (
 											<span className="text-xs text-content-secondary">
@@ -112,14 +103,14 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 										</span>
 									</div>
 
-									<div className="flex flex-row items-center gap-4">
+									<div className="flex items-center gap-4">
 										<StatusBadge isHttpCode code={auditLog.status_code} />
 
 										{/* With multi-org, there is not enough space so show
                       everything in a tooltip. */}
 										{showOrgDetails ? (
-											<Tooltip>
-												<TooltipTrigger asChild>
+											<Tooltip interactive>
+												<TooltipTrigger aria-label="Request details">
 													<InfoIcon className="size-icon-sm text-content-secondary" />
 												</TooltipTrigger>
 												<TooltipContent side="bottom">
@@ -187,7 +178,7 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 												</TooltipContent>
 											</Tooltip>
 										) : (
-											<div className="flex flex-row items-baseline gap-2">
+											<div className="flex items-baseline gap-2">
 												{auditLog.ip && (
 													<span className="text-xs text-content-secondary block">
 														<span>IP: </span>
@@ -228,9 +219,17 @@ export const AuditLogRow: React.FC<AuditLogRowProps> = ({
 						</div>
 
 						{shouldDisplayDiff ? (
-							<div className="size-6 flex items-center justify-center">
-								<ChevronDownIcon open={isDiffOpen} />
-							</div>
+							<CollapsibleTrigger asChild>
+								<button
+									type="button"
+									aria-label="View changes"
+									// The row's own click handler would toggle a second time.
+									onClick={(e) => e.stopPropagation()}
+									className="size-6 flex items-center justify-center p-0 border-0 bg-transparent text-inherit rounded cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+								>
+									<ChevronDownIcon open={isDiffOpen} />
+								</button>
+							</CollapsibleTrigger>
 						) : (
 							<div className="ml-6" />
 						)}

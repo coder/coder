@@ -595,6 +595,22 @@ export const MockUserMember: TypesGen.User = {
 	name: "Mock User The Second",
 };
 
+export const MockWorkspaceUser: TypesGen.WorkspaceUser = {
+	id: MockUserMember.id,
+	username: MockUserMember.username,
+	name: MockUserMember.name,
+	avatar_url: MockUserMember.avatar_url,
+	role: "use",
+};
+
+export const MockWorkspaceUserAdmin: TypesGen.WorkspaceUser = {
+	id: MockUserOwner.id,
+	username: MockUserOwner.username,
+	name: MockUserOwner.name,
+	avatar_url: MockUserOwner.avatar_url,
+	role: "admin",
+};
+
 export const SuspendedMockUser: TypesGen.User = {
 	id: "suspended-mock-user",
 	username: "SuspendedMockUser",
@@ -1898,13 +1914,12 @@ export const MockDormantOutdatedWorkspace: TypesGen.Workspace = {
 	dormant_at: new Date().toISOString(),
 };
 
-export const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace =
-	{
-		...MockWorkspace,
-		id: "test-outdated-workspace-require-active-version",
-		outdated: true,
-		template_require_active_version: true,
-	};
+const MockOutdatedRunningWorkspaceRequireActiveVersion: TypesGen.Workspace = {
+	...MockWorkspace,
+	id: "test-outdated-workspace-require-active-version",
+	outdated: true,
+	template_require_active_version: true,
+};
 
 export const MockOutdatedStoppedWorkspaceRequireActiveVersion: TypesGen.Workspace =
 	{
@@ -3416,6 +3431,12 @@ export const MockChatModelACL: TypesGen.ChatModelACL = {
 		{ ...MockGroup, role: "read" },
 		{ ...MockEveryoneGroup, role: "read" },
 	],
+};
+
+export const MockChatProjectACL: TypesGen.ChatProjectACL = {
+	owner: MockUserOwner,
+	users: [{ ...MockUserMember, role: "admin" }],
+	groups: [{ ...MockGroup, role: "use" }],
 };
 
 export const MockMCPServerConfigACL: TypesGen.MCPServerConfigACL = {

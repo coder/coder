@@ -387,7 +387,6 @@ export const CreateTemplateForm: React.FC<CreateTemplateFormProps> = (
 						{...getFieldHelpers("icon")}
 						disabled={isSubmitting}
 						onChange={onChangeTrimmed(form)}
-						fullWidth
 						onPickEmoji={(value) => form.setFieldValue("icon", value)}
 					/>
 				</FormFields>
@@ -495,7 +494,6 @@ const ProvisionerWarning: React.FC = () => {
 					rel="noreferrer"
 				>
 					Go to provisioner docs
-					<span className="sr-only"> (opens in new tab)</span>
 				</Link>
 			}
 		>

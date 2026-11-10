@@ -78,16 +78,21 @@ To record every debug entry, set `--verbose` or `CODER_VERBOSE=true`.
 
 ### VS Code
 
-Ask the user to run **Coder: Create Support Bundle** from the Command Palette.
-The bundle includes the extension logs and the `coder ssh` logs under `vscode-logs/`.
-For more details, refer to [Generate a support bundle](../../support/support-bundle.md#vs-code).
+The extension starts `coder ssh` with debug logging and passes it the session ID.
+You can get the session ID from VS Code in three ways:
 
-The extension starts `coder ssh` with debug logging.
-It writes the `coder ssh` logs to the directory in the `coder.proxyLogDirectory` VS Code setting.
-If the setting is empty, the extension uses `CODER_SSH_LOG_DIR`, and if that isn't set either, a `log` directory in the extension's global storage.
-In the **Coder** output channel, each line starts with `[client_session_id=<session-id>]`, with the full 32-character session ID.
-The extension keeps the 1,000 most recent entries below the channel's log level and writes them to the channel when a connection fails or the user collects a support bundle.
-To change the number of entries, set `coder.connectionLogBuffer.size`.
+- **Support bundle**: Ask the user to run **Coder: Create Support Bundle** from the Command Palette.
+  If the workspace agent is reachable, the bundle contains the agent log in `agent/logs.txt`.
+  Under `vscode-logs/`, it contains the `coder ssh` logs, the extension logs, and the Remote - SSH logs.
+  For more details, refer to [Generate a support bundle](../../support/support-bundle.md#vs-code).
+- **`coder ssh` log directory**: The extension writes the `coder ssh` logs to the directory in the `coder.proxyLogDirectory` setting.
+  If the setting is empty, it uses `CODER_SSH_LOG_DIR`, and if neither is set, a `log` directory in the extension's global storage.
+  For the file names and contents, refer to [`coder ssh`](#coder-ssh).
+- **Coder output channel**: Each line starts with `[client_session_id=<session-id>]`, with the full 32-character session ID.
+  The extension keeps the 1,000 most recent entries below the channel's log level and writes them to the channel when a connection fails.
+  To change the number of entries, set `coder.connectionLogBuffer.size`.
+  If the window reloaded or closed after the failure, the channel no longer shows the earlier output.
+  To read the saved output, run **Developer: Open Extension Logs Folder** from the Command Palette, then open `Coder.log` in the `coder.coder-remote` folder.
 
 ### JetBrains Toolbox
 
@@ -105,7 +110,7 @@ If Coder bundle collection fails, the plugin attempts to include the SSH logs in
 With earlier plugin versions, **Collect logs** includes only the Toolbox logs.
 These versions write `coder ssh` logs to the [`coder ssh` log directory](#coder-ssh), unless an SSH log directory is set in the plugin settings.
 Ask the user for those files separately and [generate a support bundle with the CLI](../../support/support-bundle.md#generate-with-the-cli).
-For details, refer to [Generate a support bundle](../../support/support-bundle.md) and [JetBrains Toolbox troubleshooting](../../user-guides/workspace-access/jetbrains/toolbox.md#troubleshooting).
+For details, refer to [Generate a support bundle](../../support/support-bundle.md) and [JetBrains Toolbox troubleshooting](../../workspaces/workspace-access/jetbrains/toolbox.md#troubleshooting).
 
 ### Web terminal
 
@@ -178,7 +183,12 @@ Instead, it reports the forwarded channel that Toolbox keeps open as one connect
 
 ## Correlate a session
 
-With a session ID and the logs, rebuild the timeline of the session:
+With a session ID and the logs, rebuild the timeline of the session.
+
+> [!TIP]
+> To see every connection in the session from the dashboard, open the **Connection Log** page, open an entry's details, and select **View related connections**.
+> The page lists the connections in the same workspace that share the client session ID.
+> The details also show the **Client session ID** with a copy button, which you can use to search the `coderd` and agent logs.
 
 1. Search the `coderd` logs for `connection_log` entries where the `ClientSessionID` matches the session ID.
 

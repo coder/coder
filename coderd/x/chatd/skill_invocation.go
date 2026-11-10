@@ -100,7 +100,7 @@ func (p *Server) resolveSkillInvocations(
 			if err != nil {
 				return invokedSkill{}, err
 			}
-			parsed, err := p.loadOrganizationSkillBody(ctx, owner, chat.OrganizationID, part.SkillName, skillLoaderUser)
+			parsed, err := p.loadOrganizationSkillBody(ctx, owner, chat.OwnerID, chat.OrganizationID, part.SkillName, skillLoaderUser)
 			return invokedSkill{body: parsed.Body}, err
 		case codersdk.ChatSkillSourceProject:
 			// Read as chatd behind the chat owner's project usability check,

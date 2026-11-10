@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { ChevronRightIcon } from "lucide-react";
 import { useId } from "react";
 import { Link as RouterLink } from "react-router";
@@ -17,6 +18,14 @@ import {
 } from "#/components/Collapsible/Collapsible";
 import { Link } from "#/components/Link/Link";
 import { Spinner } from "#/components/Spinner/Spinner";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "#/components/Table/Table";
 import { formatDate } from "#/utils/time";
 
 const chartConfig = {
@@ -26,13 +35,13 @@ const chartConfig = {
 	},
 } satisfies ChartConfig;
 
+type UserEngagementDay = {
+	date: string;
+	users: number;
+};
+
 type UserEngagementChartProps = {
-	data:
-		| {
-				date: string;
-				users: number;
-		  }[]
-		| undefined;
+	data: UserEngagementDay[] | undefined;
 };
 
 export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
@@ -50,24 +59,17 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 						</h3>
 
 						<CollapsibleTrigger asChild>
-							<Button
-								className={`
-									h-auto p-0 border-0 bg-transparent font-medium text-content-secondary
-									hover:bg-transparent hover:text-content-primary
-									[&[data-state=open]_svg]:rotate-90
-								`}
-							>
-								<ChevronRightIcon />
+							<DisclosureTrigger>
 								How we calculate engaged users
-							</Button>
+							</DisclosureTrigger>
 						</CollapsibleTrigger>
 					</header>
 
 					<CollapsibleContent
-						className={`
-							pt-2 pl-7 pr-5 space-y-4 font-medium max-w-[720px]
-							[&_p]:m-0 [&_p]:text-sm [&_p]:text-content-secondary
-						`}
+						className={cn(
+							"pt-2 pl-7 pr-5 space-y-4 font-medium max-w-180",
+							"[&_p]:m-0 [&_p]:text-sm [&_p]:text-content-secondary",
+						)}
 					>
 						<p>
 							A user is considered "engaged" if they initiate a connection to
@@ -102,10 +104,10 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 									role="group"
 									aria-roledescription="chart"
 									aria-labelledby={titleId}
-									desc={getDailyChartDescription(
+									desc={`${getDailyChartDescription(
 										"Daily engaged users",
 										data.map((d) => d.date),
-									)}
+									)} Expand the data table below the chart to read every day.`}
 									data={data}
 									margin={{
 										top: 10,
@@ -141,8 +143,9 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 									/>
 									<ChartTooltip
 										cursor={false}
-										content={
+										content={(props) => (
 											<ChartTooltipContent
+												{...props}
 												className="font-medium text-content-secondary"
 												labelClassName="text-content-primary"
 												labelFormatter={(_, p) => {
@@ -157,7 +160,7 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 													});
 												}}
 											/>
-										}
+										)}
 									/>
 									<defs>
 										<linearGradient id="fillUsers" x1="0" y1="0" x2="0" y2="1">
@@ -187,21 +190,82 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 							</ChartContainer>
 						) : (
 							<div
-								className={`
-									w-full h-full flex items-center justify-center
-									text-content-secondary text-sm font-medium
-								`}
+								className={cn(
+									"size-full flex items-center justify-center",
+									"text-content-secondary text-sm font-medium",
+								)}
 							>
 								No data available
 							</div>
 						)
 					) : (
-						<div className="w-full h-full flex items-center justify-center">
+						<div className="size-full flex items-center justify-center">
 							<Spinner loading />
 						</div>
 					)}
 				</div>
+
+				{data && data.length > 0 && <UserEngagementTable data={data} />}
 			</div>
 		</section>
 	);
 };
+
+const DisclosureTrigger: React.FC<React.ComponentProps<typeof Button>> = ({
+	children,
+	className,
+	...props
+}) => (
+	<Button
+		className={cn(
+			"h-auto p-0 border-0 bg-transparent font-medium text-content-secondary",
+			"hover:bg-transparent hover:text-content-primary",
+			"[&[data-state=open]_svg]:rotate-90",
+			className,
+		)}
+		{...props}
+	>
+		<ChevronRightIcon />
+		{children}
+	</Button>
+);
+
+type UserEngagementTableProps = {
+	data: UserEngagementDay[];
+};
+
+// The chart's long description (WCAG 1.1.1): every value it plots, as text.
+const UserEngagementTable: React.FC<UserEngagementTableProps> = ({ data }) => (
+	<Collapsible className="mt-4">
+		<CollapsibleTrigger asChild>
+			<DisclosureTrigger>Data table</DisclosureTrigger>
+		</CollapsibleTrigger>
+		<CollapsibleContent className="pt-4">
+			<Table aria-label="Daily engaged users">
+				<TableHeader>
+					<TableRow>
+						<TableHead>Date</TableHead>
+						<TableHead>Engaged users</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{data.map((d) => (
+						<TableRow key={d.date}>
+							<TableHead
+								scope="row"
+								className="border-0 border-t border-border border-solid font-medium"
+							>
+								{formatDate(new Date(d.date), {
+									hour: undefined,
+									minute: undefined,
+									second: undefined,
+								})}
+							</TableHead>
+							<TableCell>{d.users.toLocaleString("en-US")}</TableCell>
+						</TableRow>
+					))}
+				</TableBody>
+			</Table>
+		</CollapsibleContent>
+	</Collapsible>
+);

@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	stdslog "log/slog" //nolint:depguard // The ACP SDK requires a standard slog logger.
 	"os/exec"
 	"sync"
 	"time"
 
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	acp "github.com/coder/acp-go-sdk"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentproc"
@@ -69,6 +71,7 @@ type process struct {
 }
 
 type launchOptions struct {
+	logger  slog.Logger
 	clock   quartz.Clock
 	execer  agentexec.Execer
 	envInfo usershell.EnvInfoer
@@ -97,6 +100,9 @@ func launch(ctx context.Context, cfg harnessConfig, directory string, handler ac
 		cancel()
 		return nil, err
 	}
+	// Install the logger before the harness can emit output or close its pipe.
+	p.conn = acp.NewClientSideConnection(handler, p, p.stdout)
+	p.conn.SetLogger(stdslog.New(&slogHandler{logger: opts.logger.Named("transport").With(slog.F("harness", cfg.slug))}))
 	cmd.Stderr = &p.stderr
 	if err := cmd.Start(); err != nil {
 		_ = p.stdin.Close()
@@ -104,7 +110,6 @@ func launch(ctx context.Context, cfg harnessConfig, directory string, handler ac
 		cancel()
 		return nil, xerrors.Errorf("start harness: %w", err)
 	}
-	p.conn = acp.NewClientSideConnection(handler, p, p.stdout)
 	go func() {
 		p.err = cmd.Wait()
 		// The shell may exit before its descendants. CommandContext stops

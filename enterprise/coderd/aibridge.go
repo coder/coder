@@ -1055,7 +1055,7 @@ func (api *API) userAISpendStatus(rw http.ResponseWriter, r *http.Request) {
 	)
 
 	budgetPolicy := codersdk.NewAIBudgetPolicyFromString(api.DeploymentValues.AI.BridgeConfig.BudgetPolicy)
-	effectiveGroup, ok, err := budget.ResolveUserEffectiveGroup(ctx, api.Database, user.ID, budgetPolicy)
+	effectiveGroup, ok, err := budget.ResolveUserEffectiveGroup(ctx, api.Database, user.ID, uuid.NullUUID{}, budgetPolicy)
 	if err != nil {
 		logger.Error(ctx, "failed to resolve user AI budget", slog.Error(err))
 		httpapi.InternalServerError(rw, err)

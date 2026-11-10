@@ -1,8 +1,9 @@
 import { cn } from "cn";
 import { PenIcon } from "lucide-react";
-import { useId } from "react";
+import { useId, useState } from "react";
 import type { ChatProjectInstructions } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
+import { Avatar } from "#/components/Avatar/Avatar";
 import { Button } from "#/components/Button/Button";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
@@ -11,13 +12,42 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { DATE_FORMAT, formatDateTime } from "#/utils/time";
+import { RetryButton } from "../RetryButton";
+import { formatMembersHeading, type ProjectAccessEntry } from "./projectAccess";
+
+/** The most avatar tiles the members row shows, including the "+K" tile. */
+const MAX_MEMBER_TILES = 8;
+// Keeps the "+K" tooltip short on large projects; the dialog lists everyone.
+const MAX_TOOLTIP_NAMES = 10;
+
+type MembersSectionProps = {
+	/** `undefined` while the access list loads or after loading fails. */
+	readonly entries: readonly ProjectAccessEntry[] | undefined;
+	readonly error: unknown;
+	readonly isRetrying: boolean;
+	readonly onRetry: () => void;
+	/** Whether the viewer can change access, which relabels the access button. */
+	readonly canManage: boolean;
+	readonly onOpenAccess: (event: React.MouseEvent<HTMLButtonElement>) => void;
+};
 
 type ProjectDetailsPanelViewProps = {
 	/** The owner's display label. `undefined` while it loads. */
 	readonly ownerLabel: string | undefined;
+	/** Omit when the owner is unknown or still loading to hide the avatar. */
+	readonly ownerAvatar?: {
+		readonly src: string;
+		/** The name whose initial shows when `src` is empty or fails to load. */
+		readonly fallback: string;
+	};
 	readonly createdAt: string;
 	/** Omit to hide the organization row. */
 	readonly organizationLabel?: string;
+	/**
+	 * The organization's icon URL. An empty string shows the name's initial.
+	 * Omit when the organization is unknown to hide the avatar.
+	 */
+	readonly organizationIconUrl?: string;
 	/** `undefined` while the skills load or after loading fails. */
 	readonly skillCount: number | undefined;
 	/** `undefined` while the skills load or after loading fails. */
@@ -30,6 +60,8 @@ type ProjectDetailsPanelViewProps = {
 	readonly onRetry: () => void;
 	/** Opens the instructions editor. Omit when the caller cannot edit. */
 	readonly onEditInstructions?: () => void;
+	/** Omit to hide the members section. */
+	readonly members?: MembersSectionProps;
 };
 
 /** The project's shared configuration, shown beside its chats. */
@@ -37,8 +69,10 @@ export const ProjectDetailsPanelView: React.FC<
 	ProjectDetailsPanelViewProps
 > = ({
 	ownerLabel,
+	ownerAvatar,
 	createdAt,
 	organizationLabel,
+	organizationIconUrl,
 	skillCount,
 	disabledSkillCount,
 	skillsError,
@@ -47,6 +81,7 @@ export const ProjectDetailsPanelView: React.FC<
 	error,
 	onRetry,
 	onEditInstructions,
+	members,
 }) => {
 	const headingId = useId();
 	const instructionsHeadingId = useId();
@@ -74,16 +109,19 @@ export const ProjectDetailsPanelView: React.FC<
 
 	return (
 		<section aria-labelledby={headingId} className="flex flex-col gap-3">
-			<h2
-				id={headingId}
-				className="m-0 text-sm font-medium text-content-primary"
-			>
+			<h2 id={headingId} className="m-0 text-sm text-content-primary">
 				Details
 			</h2>
 			<div className="rounded-lg border border-border">
 				<dl className="m-0 flex flex-col gap-2 border-0 border-b border-solid border-border p-4 text-sm">
 					<DetailRow label="Project owner">
-						{ownerLabel ?? (
+						{ownerLabel !== undefined ? (
+							<AvatarValue
+								label={ownerLabel}
+								avatarSrc={ownerAvatar?.src}
+								avatarFallback={ownerAvatar?.fallback}
+							/>
+						) : (
 							<>
 								<Skeleton className="my-1 ml-auto h-3 w-12" />
 								<span className="sr-only">Loading</span>
@@ -107,7 +145,13 @@ export const ProjectDetailsPanelView: React.FC<
 						</Tooltip>
 					</DetailRow>
 					{organizationLabel !== undefined && (
-						<DetailRow label="Organization">{organizationLabel}</DetailRow>
+						<DetailRow label="Organization">
+							<AvatarValue
+								label={organizationLabel}
+								avatarSrc={organizationIconUrl}
+								avatarFallback={organizationLabel}
+							/>
+						</DetailRow>
 					)}
 					<DetailRow label="Skills">
 						{skillCount === undefined && !skillsError ? (
@@ -134,7 +178,7 @@ export const ProjectDetailsPanelView: React.FC<
 				>
 					<h3
 						id={instructionsHeadingId}
-						className="m-0 text-sm font-medium text-content-secondary"
+						className="m-0 text-sm text-content-secondary"
 					>
 						Instructions
 					</h3>
@@ -149,16 +193,22 @@ export const ProjectDetailsPanelView: React.FC<
 					) : (
 						<>
 							{instructions.instructions === "" ? (
-								<div className="flex justify-center rounded-lg border border-dashed border-border px-4 py-6">
+								<div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border px-4 py-5 text-center">
 									{onEditInstructions ? (
-										<Button
-											size="sm"
-											variant="outline"
-											aria-label="Create instructions"
-											onClick={onEditInstructions}
-										>
-											Create
-										</Button>
+										<>
+											<p className="m-0 text-sm text-content-secondary">
+												Set preferences for every chat, like project background,
+												audience, or goals.
+											</p>
+											<Button
+												size="xs"
+												variant="outline"
+												aria-label="Add instructions"
+												onClick={onEditInstructions}
+											>
+												Add
+											</Button>
+										</>
 									) : (
 										<p className="m-0 text-sm text-content-secondary">
 											No instructions
@@ -169,7 +219,7 @@ export const ProjectDetailsPanelView: React.FC<
 								<div className="flex items-start gap-2 rounded-lg border border-border p-3">
 									<p
 										className={cn(
-											"m-0 min-w-0 flex-1 whitespace-pre-wrap break-words text-sm text-content-primary",
+											"m-0 min-w-0 flex-1 whitespace-pre-wrap wrap-break-word text-sm text-content-primary",
 											// Without the editor, this is the only place the full text shows.
 											onEditInstructions && "line-clamp-3",
 										)}
@@ -193,10 +243,193 @@ export const ProjectDetailsPanelView: React.FC<
 						</>
 					)}
 				</section>
+				{members && <MembersSection {...members} />}
 			</div>
 		</section>
 	);
 };
+
+const MembersSection: React.FC<MembersSectionProps> = ({
+	entries,
+	error,
+	isRetrying,
+	onRetry,
+	canManage,
+	onOpenAccess,
+}) => {
+	const headingId = useId();
+	const [rowWidth, setRowWidth] = useState(0);
+	const observeRowWidth = (section: HTMLElement) => {
+		const observer = new ResizeObserver(([entry]) =>
+			setRowWidth(entry.contentRect.width),
+		);
+		observer.observe(section);
+		return () => observer.disconnect();
+	};
+	let heading = "Members";
+	if (entries) {
+		const groupCount = entries.filter((entry) => entry.kind === "group").length;
+		heading = formatMembersHeading(entries.length - groupCount, groupCount);
+	}
+	const maxTiles = rowWidth
+		? Math.min(MAX_MEMBER_TILES, Math.max(1, Math.floor((rowWidth + 4) / 28)))
+		: MAX_MEMBER_TILES;
+	const entryCount = entries?.length ?? 0;
+	const avatarCount = entryCount > maxTiles ? maxTiles - 1 : entryCount;
+	const isLoading = !entries && !error;
+
+	return (
+		<section
+			ref={observeRowWidth}
+			aria-labelledby={headingId}
+			className="flex flex-col gap-3 border-0 border-t border-solid border-border p-4"
+		>
+			<div className="flex items-center justify-between gap-4">
+				<h3
+					id={headingId}
+					className={cn(
+						"m-0 text-sm font-medium text-content-secondary",
+						isLoading && "sr-only",
+					)}
+				>
+					{heading}
+				</h3>
+				{isLoading && <Skeleton className="h-3 w-24" />}
+				<Button size="xs" variant="outline" onClick={onOpenAccess}>
+					{canManage ? "Manage access" : "View access"}
+				</Button>
+			</div>
+			{entries && (
+				<ul
+					aria-label="Project members"
+					className="m-0 flex list-none gap-1 p-0"
+				>
+					{entries.slice(0, avatarCount).map((entry) => (
+						<MemberTile
+							key={`${entry.kind}:${entry.id}`}
+							label={entry.name}
+							tooltip={entry.name}
+						>
+							<Avatar
+								size="sm"
+								src={entry.avatarUrl}
+								fallback={entry.name}
+								aria-hidden="true"
+							/>
+						</MemberTile>
+					))}
+					<OverflowTile entries={entries.slice(avatarCount)} />
+				</ul>
+			)}
+			{isLoading && (
+				<div className="flex gap-1">
+					{Array.from({ length: 3 }, (_, index) => (
+						<Skeleton key={index} className="size-(--avatar-sm) rounded" />
+					))}
+					<span className="sr-only">Loading</span>
+				</div>
+			)}
+			{Boolean(error) && (
+				<ErrorAlert
+					error={error}
+					showDebugDetail={false}
+					actions={
+						<RetryButton
+							size="sm"
+							variant="outline"
+							isRetrying={isRetrying}
+							onRetry={onRetry}
+						/>
+					}
+				/>
+			)}
+		</section>
+	);
+};
+
+type MemberTileProps = {
+	readonly label: string;
+	readonly tooltip: string;
+	readonly children: React.ReactNode;
+};
+
+const MemberTile: React.FC<MemberTileProps> = ({
+	label,
+	tooltip,
+	children,
+}) => (
+	<li className="flex">
+		<Tooltip disableHoverableContent>
+			{/* A button so keyboard users can focus a tile to read its tooltip. */}
+			<TooltipTrigger
+				type="button"
+				aria-label={label}
+				className="relative flex cursor-default rounded-[6px] border-0 bg-transparent p-0 focus-visible:z-10 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+			>
+				{children}
+			</TooltipTrigger>
+			<TooltipContent
+				side="bottom"
+				className="pointer-events-none max-w-[min(20rem,calc(100vw-2rem))] wrap-break-word [[data-radix-popper-content-wrapper]:has(>&)]:pointer-events-none"
+			>
+				{tooltip}
+			</TooltipContent>
+		</Tooltip>
+	</li>
+);
+
+type OverflowTileProps = {
+	readonly entries: readonly ProjectAccessEntry[];
+};
+
+const OverflowTile: React.FC<OverflowTileProps> = ({ entries }) => {
+	if (entries.length === 0) {
+		return null;
+	}
+	const names = entries.slice(0, MAX_TOOLTIP_NAMES).map((entry) => entry.name);
+	const omittedNameCount = entries.length - names.length;
+	return (
+		<MemberTile
+			label={`+${entries.length} more`}
+			tooltip={
+				omittedNameCount > 0
+					? `${names.join(", ")}, and ${omittedNameCount} more`
+					: names.join(", ")
+			}
+		>
+			<Avatar
+				size="sm"
+				aria-hidden="true"
+				className="items-center justify-center"
+			>
+				+{entries.length}
+			</Avatar>
+		</MemberTile>
+	);
+};
+
+type AvatarValueProps = {
+	readonly label: string;
+	/** Omit to hide the avatar. An empty string shows the fallback's initial. */
+	readonly avatarSrc: string | undefined;
+	readonly avatarFallback: string | undefined;
+};
+
+/** A detail value with an optional avatar, truncated to one line. */
+const AvatarValue: React.FC<AvatarValueProps> = ({
+	label,
+	avatarSrc,
+	avatarFallback,
+}) => (
+	<span className="flex items-center justify-end gap-1.5">
+		{avatarSrc !== undefined && (
+			<Avatar size="xs" src={avatarSrc} fallback={avatarFallback} />
+		)}
+		<span className="min-w-0 truncate" title={label}>
+			{label}
+		</span>
+	</span>
+);
 
 type DetailRowProps = {
 	readonly label: string;
@@ -204,10 +437,8 @@ type DetailRowProps = {
 };
 
 const DetailRow: React.FC<DetailRowProps> = ({ label, children }) => (
-	<div className="flex items-start justify-between gap-4">
+	<div className="flex items-center justify-between gap-4">
 		<dt className="shrink-0 text-content-secondary">{label}</dt>
-		<dd className="m-0 min-w-0 break-words text-right font-mono text-content-primary">
-			{children}
-		</dd>
+		<dd className="m-0 min-w-0 text-right text-content-primary">{children}</dd>
 	</div>
 );

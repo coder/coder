@@ -95,7 +95,7 @@ export const Notifications: React.FC<NotificationsProps> = ({
 				align="end"
 				collisionPadding={16}
 				className={cn(
-					"max-w-[400px] p-0 w-auto bg-surface-secondary text-sm text-content-primary",
+					"max-w-100 p-0 w-auto bg-surface-secondary text-sm text-content-primary",
 					severityStyles[severity].border,
 				)}
 			>

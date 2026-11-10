@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { EllipsisVerticalIcon, UserPlusIcon } from "lucide-react";
 import { useQuery } from "react-query";
 import { workspaceSharingSettings } from "#/api/queries/organizations";
@@ -103,7 +104,7 @@ export const AddWorkspaceMemberForm: React.FC<AddWorkspaceMemberFormProps> = ({
 }) => {
 	return (
 		<form action={onSubmit}>
-			<div className="flex flex-row items-center gap-2">
+			<div className="flex items-center gap-2">
 				{children}
 				<Button disabled={disabled || isLoading} type="submit">
 					<Spinner loading={isLoading}>
@@ -224,7 +225,9 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 	);
 
 	const tableHeader = (
-		<TableHeader>
+		<TableHeader
+			className={cn(isCompact && "sticky top-0 z-10 bg-surface-primary")}
+		>
 			<TableRow>
 				<TableHead className="w-[50%] py-2">Member</TableHead>
 				<TableHead className="w-[40%] py-2">Role</TableHead>
@@ -280,10 +283,9 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 											<Button
 												size="icon-lg"
 												variant="subtle"
-												aria-label="Open menu"
+												aria-label={`Open menu for ${group.display_name || group.name}`}
 											>
 												<EllipsisVerticalIcon aria-hidden="true" />
-												<span className="sr-only">Open menu</span>
 											</Button>
 										</DropdownMenuTrigger>
 										<DropdownMenuContent align="end">
@@ -329,10 +331,9 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 											<Button
 												size="icon-lg"
 												variant="subtle"
-												aria-label="Open menu"
+												aria-label={`Open menu for ${user.username}`}
 											>
 												<EllipsisVerticalIcon aria-hidden="true" />
-												<span className="sr-only">Open menu</span>
 											</Button>
 										</DropdownMenuTrigger>
 										<DropdownMenuContent align="end">
@@ -353,26 +354,6 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 		</TableBody>
 	);
 
-	if (isCompact) {
-		return (
-			<div className="flex flex-col gap-4">
-				{Boolean(error) && <ErrorAlert error={error} />}
-				{canShareWorkspace && addMemberForm}
-				{showRestartWarning && (
-					<Alert severity="warning">
-						Workspace restart required for the removal to take effect.
-					</Alert>
-				)}
-				<div>
-					<Table>{tableHeader}</Table>
-					<div className="max-h-60 overflow-y-auto">
-						<Table>{tableBody}</Table>
-					</div>
-				</div>
-			</div>
-		);
-	}
-
 	return (
 		<div className="flex flex-col gap-4">
 			{Boolean(error) && <ErrorAlert error={error} />}
@@ -382,7 +363,21 @@ export const WorkspaceSharingForm: React.FC<WorkspaceSharingFormProps> = ({
 					Workspace restart required for the removal to take effect.
 				</Alert>
 			)}
-			<Table>
+			{/* Screen readers associate headers with cells only within one table. */}
+			<Table
+				aria-label="Shared workspace members and groups"
+				wrapperClassName={cn(isCompact && "max-h-60")}
+				// Without row controls, keyboard users need the scroll area itself to be focusable.
+				wrapperProps={
+					isCompact && !canShareWorkspace
+						? {
+								tabIndex: 0,
+								role: "region",
+								"aria-label": "Shared workspace members and groups",
+							}
+						: undefined
+				}
+			>
 				{tableHeader}
 				{tableBody}
 			</Table>

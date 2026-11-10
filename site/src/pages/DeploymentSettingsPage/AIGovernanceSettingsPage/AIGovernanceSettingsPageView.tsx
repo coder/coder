@@ -33,7 +33,7 @@ export const AIGovernanceSettingsPageView: React.FC<
 					</SettingsHeaderTitle>
 					<SettingsHeaderDescription>
 						Monitor and manage AI requests across your deployment.{" "}
-						<SettingsHeaderDocsLink href={docs("/ai-coder/ai-governance")} />
+						<SettingsHeaderDocsLink href={docs("/ai-governance")} />
 					</SettingsHeaderDescription>
 				</SettingsHeader>
 

@@ -153,6 +153,7 @@ const InnerAutocomplete = <T extends SelectedUser>({
 				<ComboboxContent
 					className="w-(--radix-popover-trigger-width) p-0"
 					shouldFilter={shouldFilter}
+					label="Username or email"
 				>
 					<ComboboxInput
 						placeholder="Username or email"

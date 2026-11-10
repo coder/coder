@@ -57,7 +57,6 @@ export const OverviewPageView: React.FC<OverviewPageViewProps> = ({
 								rel="noreferrer"
 							>
 								Go to experiments docs
-								<span className="sr-only"> (opens in new tab)</span>
 							</Link>
 						}
 					>

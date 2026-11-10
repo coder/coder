@@ -9,12 +9,11 @@ export const AIBridgeSetupAlert: React.FC = () => {
 			severity="info"
 			actions={
 				<Link
-					href={docs("/ai-coder/ai-gateway")}
+					href={docs("/ai-governance/ai-gateway")}
 					target="_blank"
 					rel="noreferrer"
 				>
 					Go to setup guide
-					<span className="sr-only"> (opens in new tab)</span>
 				</Link>
 			}
 		>

@@ -1,13 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, within } from "storybook/test";
 import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
-import { chatProjectInstructionsKey } from "#/api/queries/chatProjects";
+import {
+	chatProjectACLKey,
+	chatProjectInstructionsKey,
+} from "#/api/queries/chatProjects";
 import { chatCostTreeKey, projectChatsKey } from "#/api/queries/chats";
-import { userKey } from "#/api/queries/users";
-import type { Chat } from "#/api/typesGenerated";
+import type { Chat, ChatProjectACL } from "#/api/typesGenerated";
 import { MockChat, mockChatCost } from "#/testHelpers/chatEntities";
 import {
 	MockChatProject,
+	MockChatProjectACL,
 	MockChatProjectInstructions,
 	MockUserMember,
 	MockUserOwner,
@@ -34,6 +37,8 @@ const chatQueries = (chats: Chat[]) => [
 		data: mockChatCost(chat.id, 1_234_000),
 	})),
 ];
+
+const mockACL: ChatProjectACL = { ...MockChatProjectACL, groups: [] };
 
 const meta: Meta<typeof ProjectPage> = {
 	title: "pages/AgentsPage/ProjectPage/ProjectPage",
@@ -76,6 +81,7 @@ const meta: Meta<typeof ProjectPage> = {
 				key: chatProjectSkillsKey(MockChatProject.id),
 				data: MockSkills,
 			},
+			{ key: chatProjectACLKey(MockChatProject.id), data: mockACL },
 		],
 	},
 };
@@ -106,6 +112,7 @@ export const Mobile: Story = {
 				key: chatProjectSkillsKey(MockChatProject.id),
 				data: MockSkills,
 			},
+			{ key: chatProjectACLKey(MockChatProject.id), data: mockACL },
 		],
 	},
 };
@@ -125,7 +132,14 @@ export const OwnedByAnotherUser: Story = {
 				key: chatProjectSkillsKey(MockChatProject.id),
 				data: MockSkills,
 			},
-			{ key: userKey(MockUserMember.id), data: MockUserMember },
+			{
+				key: chatProjectACLKey(MockChatProject.id),
+				data: {
+					owner: MockUserMember,
+					users: [{ ...MockUserOwner, role: "admin" }],
+					groups: [],
+				},
+			},
 		],
 	},
 };
@@ -193,6 +207,7 @@ export const ChatMovedToAnotherProject: Story = {
 				key: chatProjectSkillsKey(MockChatProject.id),
 				data: MockSkills,
 			},
+			{ key: chatProjectACLKey(MockChatProject.id), data: mockACL },
 		],
 	},
 };

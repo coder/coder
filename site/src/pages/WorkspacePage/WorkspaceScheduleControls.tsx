@@ -277,7 +277,7 @@ const ScheduleSettingsLink: React.FC<LinkProps> = ({
 	return (
 		<Link
 			className={cn(
-				"first-letter:uppercase p-0 hover:no-underline text-content-link text-xs",
+				"first-letter:uppercase pl-0 hover:no-underline text-content-link text-xs",
 				className,
 			)}
 			showExternalIcon={false}

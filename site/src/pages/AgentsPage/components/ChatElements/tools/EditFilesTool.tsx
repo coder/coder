@@ -30,7 +30,7 @@ export const EditFilesTool: React.FC<{
 	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
 }> = ({ files, diffs, status, isError, errorMessage, codeDiffDisplayMode }) => {
 	const theme = useTheme();
-	const isDark = theme.palette.mode === "dark";
+	const isDark = theme.mode === "dark";
 	const isRunning = status === "running";
 	const hasDiffs = diffs.some((d) => d !== null);
 	const displayState = resolveAgentDisplayState(
@@ -66,9 +66,7 @@ export const EditFilesTool: React.FC<{
 			<ToolCall.Header iconName="edit_files" label={label} />
 			<ToolCall.Content>
 				{errorDetail && (
-					<pre className="m-0 mt-1.5 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs leading-5 text-content-destructive">
-						{errorDetail}
-					</pre>
+					<ToolCall.ErrorDetail>{errorDetail}</ToolCall.ErrorDetail>
 				)}
 				<div className="mt-1.5 space-y-1.5">
 					{diffs.map((diff, i) =>
@@ -79,8 +77,8 @@ export const EditFilesTool: React.FC<{
 								className="rounded-md border border-solid border-border text-2xs"
 								viewportClassName={
 									isAgentDisplayFullyExpanded(displayState)
-										? "max-h-[80vh]"
-										: "max-h-64"
+										? "max-h-[80vh] [&>div]:block!"
+										: "max-h-64 [&>div]:block!"
 								}
 								ariaLabel={`Diff of ${files[i].path}`}
 							>

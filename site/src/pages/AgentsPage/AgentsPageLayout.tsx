@@ -69,8 +69,8 @@ import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
 import {
-	AGENT_CHAT_STATUS_ORDER,
 	getAgentSidebarFilters,
+	getSidebarChatListInput,
 } from "./utils/agentSidebarFilters";
 import { shouldNavigateAfterArchive } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
@@ -172,19 +172,8 @@ const AgentsPageLayout: React.FC = () => {
 		};
 	}, []);
 
-	const archivedFilter = sidebarFilters.archiveStatus === "archived";
-	const statuses =
-		sidebarFilters.chatStatuses.length === AGENT_CHAT_STATUS_ORDER.length
-			? undefined
-			: sidebarFilters.chatStatuses;
 	const chatsQuery = useInfiniteQuery(
-		infiniteChats({
-			archived: archivedFilter,
-			prStatuses: sidebarFilters.prStatuses,
-			statuses,
-			chatStatus: sidebarFilters.unread ? "unread" : undefined,
-			sources: sidebarFilters.sources,
-		}),
+		infiniteChats(getSidebarChatListInput(sidebarFilters)),
 	);
 	const organizationModels = useOrganizationChatModels(
 		organizations.map((organization) => organization.id),
@@ -516,7 +505,7 @@ const AgentsPageLayout: React.FC = () => {
 				className={cn(
 					"sm:h-full sm:min-h-0 sm:border-b-0",
 					agentId
-						? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b border-border"
+						? "hidden sm:block shrink-0 h-[42dvh] min-h-60 border-b border-border"
 						: isSettingsDetail
 							? "hidden sm:block shrink-0"
 							: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border sm:flex-none sm:border-t-0 sm:border-b-0",
