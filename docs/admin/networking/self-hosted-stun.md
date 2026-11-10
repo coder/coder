@@ -4,12 +4,12 @@ title: Self-host a STUN server
 
 Coder clients and workspace agents use Session Traversal Utilities for Network Address Translation (STUN) servers to discover the addresses they use for direct connections.
 By default, Coder uses Google's public STUN servers.
-This guide is for administrators who want to run their own STUN server with coturn or Tailscale's `stund`, and point Coder at it.
+This guide is for administrators who want to run their own STUN server with coturn and point Coder at it.
 
 Run your own STUN server when:
 
 - Your organization doesn't allow clients or workspaces to contact public STUN servers.
-- Your clients and workspaces share a corporate network that doesn't support network address translation (NAT) hairpinning.
+- Your clients and workspaces share a corporate network where the network address translation (NAT) device by which they reach public STUN servers doesn't support hairpinning.
   Refer to the [NAT hairpinning example](./stun.md#3-direct-connections-with-vpn-and-nat-hairpinning).
 
 If relayed connections are enough for your deployment, you can [disable STUN](../../reference/cli/server/index.md#--derp-server-stun-addresses) instead.
@@ -21,21 +21,13 @@ If relayed connections are enough for your deployment, you can [disable STUN](..
   Use an address on your corporate network if all clients and workspaces connect through it.
 - A firewall rule that allows inbound UDP traffic on port 3478 from every network your clients and workspaces connect from.
 - A network path that preserves each client's source IP address and port.
-  Proxies, ingress controllers, and load balancers that replace the source address prevent STUN from working.
+  Reverse proxies, ingress controllers, and load balancers that replace the source address prevent STUN from working.
   Kubernetes clusters usually expose services this way, so run the STUN server on a VM instead.
-- Coder's built-in relay, which is enabled by default.
-  Refer to [Configure Coder](#configure-coder) for details.
-
-## Choose a STUN server
-
-Both servers in this guide work with Coder direct connections.
-
-| Server                                                                | Install options                          | Notes                                                                                                                   |
-|-----------------------------------------------------------------------|------------------------------------------|-------------------------------------------------------------------------------------------------------------------------|
-| [coturn](https://github.com/coturn/coturn)                            | Linux packages, official container image | Recommended. coturn is also a Traversal Using Relays around NAT (TURN) server, so this guide runs it in STUN-only mode. |
-| [`stund`](https://github.com/tailscale/tailscale/tree/main/cmd/stund) | Build from source with Go                | A single binary from Tailscale. It ignores requests from generic STUN test tools, so use `coder netcheck` to test it.   |
 
 ## Run coturn
+
+[coturn](https://github.com/coturn/coturn) is a STUN and Traversal Using Relays around NAT (TURN) server.
+This guide runs it in STUN-only mode.
 
 <div class="tabs">
 
@@ -104,64 +96,6 @@ On other container platforms, expose UDP port 3478 without a proxy that replaces
 
 </div>
 
-## Run stund
-
-`stund` doesn't publish packages or container images, so you build it with Go.
-
-1. Install [Go](https://go.dev/doc/install) on the VM.
-
-1. Build `stund`:
-
-   ```sh
-   go install tailscale.com/cmd/stund@latest
-   ```
-
-1. Copy the binary to `/usr/local/bin`:
-
-   ```sh
-   sudo install -m 0755 "$(go env GOPATH)/bin/stund" /usr/local/bin/stund
-   ```
-
-1. Create `/etc/systemd/system/stund.service` with this content:
-
-   ```ini
-   [Unit]
-   Description=Tailscale STUN server (stund)
-   After=network-online.target
-   Wants=network-online.target
-
-   [Service]
-   ExecStart=/usr/local/bin/stund -stun :3478 -http 127.0.0.1:3479
-   DynamicUser=yes
-   Restart=on-failure
-
-   [Install]
-   WantedBy=multi-user.target
-   ```
-
-   By default, `stund` also serves a debug and metrics endpoint on port 3479 on every interface.
-   `-http 127.0.0.1:3479` keeps that endpoint off the network.
-
-1. Reload systemd so it finds the new unit:
-
-   ```sh
-   sudo systemctl daemon-reload
-   ```
-
-1. Enable and start the service:
-
-   ```sh
-   sudo systemctl enable --now stund
-   ```
-
-1. Confirm that the service is running:
-
-   ```sh
-   systemctl is-active stund
-   ```
-
-   The command prints `active`.
-
 ## Configure Coder
 
 Set [`CODER_DERP_SERVER_STUN_ADDRESSES`](../../reference/cli/server/index.md#--derp-server-stun-addresses) to a comma-separated list of your STUN servers, in `host:port` form:
@@ -190,9 +124,10 @@ Keep these behaviors in mind:
   Hostnames must resolve from every network your clients and workspaces use.
 - Run at least 2 STUN servers on separate hosts.
   Coder queries each server separately, so direct connections keep working if one server goes down.
-- Coder applies this setting only when its built-in relay is enabled, which is the default.
-  If you set `CODER_DERP_SERVER_ENABLE=false` and provide your own relay map with `CODER_DERP_CONFIG_URL` or `CODER_DERP_CONFIG_PATH`, Coder ignores `CODER_DERP_SERVER_STUN_ADDRESSES`.
-  Add your STUN servers to that relay map instead.
+- `CODER_DERP_SERVER_STUN_ADDRESSES` is a setting of Coder's built-in relay, which is enabled by default.
+  If you turn off the built-in relay with `CODER_DERP_SERVER_ENABLE=false` and provide a [custom relay map](./index.md#custom-relays) with `CODER_DERP_CONFIG_URL` or `CODER_DERP_CONFIG_PATH`, Coder ignores this setting.
+  Add each STUN server to your relay map instead, as its own region with a unique `RegionID`.
+  Give each region one node with a unique `Name`, the STUN server's `HostName`, `"STUNOnly": true`, and `"STUNPort": 3478`.
 
 ## Verify direct connections
 
@@ -202,7 +137,7 @@ Run these commands from a client on a network your users connect from.
    This example uses `jq` to shorten the `coder netcheck` output:
 
    ```sh
-   coder netcheck | jq '{udp: .derp.netcheck.UDP, stun: [.derp.regions[] | select(.region.RegionCode | startswith("coder_stun")) | .node_reports[0] | {host: .node.HostName, can_stun: .stun.CanSTUN}]}'
+   coder netcheck | jq '{udp: .derp.netcheck.UDP, stun: [.derp.regions[].node_reports[] | select(.node.STUNOnly) | {host: .node.HostName, can_stun: .stun.CanSTUN}]}'
    ```
 
    Each of your STUN servers appears with `"can_stun": true`:

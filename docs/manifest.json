@@ -1431,7 +1431,7 @@
 						},
 						{
 							"title": "Self-host a STUN server",
-							"description": "Run your own STUN server with coturn or Tailscale's stund and configure Coder to use it for direct connections.",
+							"description": "Run your own STUN server with coturn and configure Coder to use it for direct connections.",
 							"path": "./admin/networking/self-hosted-stun.md"
 						},
 						{
