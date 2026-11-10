@@ -55,7 +55,7 @@ export const ResourcesSidebar: React.FC<ResourcesSidebarProps> = ({
 				>
 					<div className="flex items-center justify-center leading-none size-4 p-0.5">
 						<ExternalImage
-							className="w-full h-full object-contain"
+							className="size-full object-contain"
 							src={getResourceIconPath(r.type)}
 							alt=""
 						/>

@@ -293,7 +293,7 @@ function DiffFileTree({
 	return (
 		<FileTree
 			model={model}
-			className="block h-full min-h-0 w-full"
+			className="block size-full min-h-0"
 			style={fileTreeStyle}
 		/>
 	);

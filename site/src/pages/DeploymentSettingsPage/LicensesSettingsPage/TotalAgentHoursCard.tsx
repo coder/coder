@@ -214,10 +214,7 @@ export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 						)}
 						{isUnlimited ? (
 							<div
-								className={cn(
-									"relative z-10 h-full w-full",
-									unlimitedBarClassName,
-								)}
+								className={cn("relative z-10 size-full", unlimitedBarClassName)}
 							/>
 						) : (
 							<div
