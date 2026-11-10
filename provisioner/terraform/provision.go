@@ -81,7 +81,8 @@ func (s *server) Init(
 	defer cancel()
 	defer kill()
 
-	e := s.executor(sess.Files, database.ProvisionerJobTimingStageInit)
+	e, unlock := s.executor(sess.Files, database.ProvisionerJobTimingStageInit)
+	defer unlock()
 	if err := e.checkMinVersion(ctx); err != nil {
 		return provisionersdk.InitErrorf("%s", err.Error())
 	}
@@ -213,7 +214,8 @@ func (s *server) Plan(
 	defer cancel()
 	defer kill()
 
-	e := s.executor(sess.Files, database.ProvisionerJobTimingStagePlan)
+	e, unlock := s.executor(sess.Files, database.ProvisionerJobTimingStagePlan)
+	defer unlock()
 	if err := e.checkMinVersion(ctx); err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
@@ -259,13 +261,11 @@ func (s *server) Plan(
 		graphErr error
 	)
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
-	e.mut.Lock()
 	wg.Go(func() {
 		rawGraph, graphErr = e.graph(ctx, killCtx)
 	})
 	resp, plan, err := e.plan(ctx, killCtx, env, vars, sess, request)
 	wg.Wait()
-	e.mut.Unlock()
 	endStage(err)
 	if err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
@@ -291,7 +291,8 @@ func (s *server) Graph(
 	defer cancel()
 	defer kill()
 
-	e := s.executor(sess.Files, database.ProvisionerJobTimingStageGraph)
+	e, unlock := s.executor(sess.Files, database.ProvisionerJobTimingStageGraph)
+	defer unlock()
 	if err := e.checkMinVersion(ctx); err != nil {
 		return provisionersdk.GraphError("%s", err.Error())
 	}
@@ -313,9 +314,7 @@ func (s *server) Graph(
 		plan := sessState.plan
 		if plan == nil {
 			var err error
-			e.mut.Lock()
 			plan, err = e.parsePlan(ctx, killCtx, e.files.PlanFilePath())
-			e.mut.Unlock()
 			if err != nil {
 				return provisionersdk.GraphError("parse plan for graph: %s", err)
 			}
@@ -327,9 +326,7 @@ func (s *server) Graph(
 			planConfig = plan.Config
 		}
 	case proto.GraphSource_SOURCE_STATE:
-		e.mut.Lock()
 		tfState, err := e.state(ctx, killCtx)
-		e.mut.Unlock()
 		if err != nil {
 			return provisionersdk.GraphError("load tfstate for graph: %s", err)
 		}
@@ -366,9 +363,7 @@ func (s *server) Graph(
 	}
 	var err error
 	if rawGraph == "" {
-		e.mut.Lock()
 		rawGraph, err = e.graph(ctx, killCtx)
-		e.mut.Unlock()
 	}
 	endStage(err)
 	if err != nil {
@@ -469,7 +464,8 @@ func (s *server) Apply(
 	defer cancel()
 	defer kill()
 
-	e := s.executor(sess.Files, database.ProvisionerJobTimingStageApply)
+	e, unlock := s.executor(sess.Files, database.ProvisionerJobTimingStageApply)
+	defer unlock()
 	if err := e.checkMinVersion(ctx); err != nil {
 		return provisionersdk.ApplyErrorf("%s", err.Error())
 	}

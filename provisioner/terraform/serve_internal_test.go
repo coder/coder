@@ -140,7 +140,8 @@ func Test_terraformVersion(t *testing.T) {
 		}
 
 		// Executors use the same cache.
-		e := srv.executor(tfpath.Layout(tempDir), database.ProvisionerJobTimingStageInit)
+		e, unlock := srv.executor(tfpath.Layout(tempDir), database.ProvisionerJobTimingStageInit)
+		defer unlock()
 		for range 3 {
 			again, err := e.version(ctx)
 			require.NoError(t, err)

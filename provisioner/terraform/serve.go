@@ -138,7 +138,6 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 		options.ExitTimeout = jobreaper.HungJobExitTimeout
 	}
 	return provisionersdk.Serve(ctx, &server{
-		execMut:       &sync.Mutex{},
 		binaryPath:    options.BinaryPath,
 		cachePath:     options.CachePath,
 		cliConfigPath: options.CliConfigPath,
@@ -149,7 +148,8 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 }
 
 type server struct {
-	execMut       *sync.Mutex
+	// execMut is held by one RPC at a time; see executor.
+	execMut       sync.Mutex
 	binaryPath    string
 	cachePath     string
 	cliConfigPath string
@@ -232,15 +232,19 @@ func (s *server) startTrace(ctx context.Context, name string, opts ...trace.Span
 	))...)
 }
 
-func (s *server) executor(files tfpath.Layout, stage database.ProvisionerJobTimingStage) *executor {
+// executor returns the executor for one RPC and the function that releases
+// it. Only one RPC runs Terraform at a time: sessions share the plugin cache
+// directory, and a job can be abandoned while its Terraform command is still
+// exiting. The commands of one RPC may run side by side.
+func (s *server) executor(files tfpath.Layout, stage database.ProvisionerJobTimingStage) (*executor, func()) {
+	s.execMut.Lock()
 	return &executor{
 		server:        s,
-		mut:           s.execMut,
 		binaryPath:    s.binaryPath,
 		cachePath:     s.cachePath,
 		cliConfigPath: s.cliConfigPath,
 		files:         files,
 		logger:        s.logger.Named("executor"),
 		timings:       newTimingAggregator(stage),
-	}
+	}, s.execMut.Unlock
 }
