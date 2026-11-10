@@ -20,6 +20,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { docs } from "#/utils/docs";
+import { clampContent } from "#/utils/text";
 import { JsonPrettyPrinter } from "../../JsonPrettyPrinter";
 import { AgenticLoopTable } from "./AgenticLoopTable";
 import { HighlightText } from "./HighlightText";
@@ -30,6 +31,10 @@ import {
 	matchesNetworkCallSearch,
 } from "./sessionSearch";
 import { ToolCallTable } from "./ToolCallTable";
+
+// Threads repeat the same toggles, so each toggle's name ends with the start of
+// the text it belongs to.
+const TOGGLE_CONTEXT_MAX_CHARS = 40;
 
 type ExpandableTextProps = {
 	maxHeight: number;
@@ -73,6 +78,7 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 	}, []);
 
 	const isExpandable = fullHeight > maxHeight;
+	const toggleLabel = isExpanded ? "Collapse" : "Show more";
 
 	return (
 		<div className="relative">
@@ -100,9 +106,10 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 						size="sm"
 						variant="outline"
 						className="bg-surface-primary shadow-xs"
+						aria-label={`${toggleLabel}: ${clampContent(text, TOGGLE_CONTEXT_MAX_CHARS)}`}
 						onClick={() => setUserToggled((prev) => !(prev ?? expandToMatch))}
 					>
-						{isExpanded ? "Collapse" : "Show more"}
+						{toggleLabel}
 					</Button>
 				</div>
 			)}
@@ -112,6 +119,7 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 
 type CollapseButtonProps = {
 	isOpen: boolean;
+	accessibleNameSuffix?: string;
 	onClick: () => void;
 	children: React.ReactNode;
 	className?: string;
@@ -119,6 +127,7 @@ type CollapseButtonProps = {
 
 const CollapseButton: React.FC<CollapseButtonProps> = ({
 	isOpen,
+	accessibleNameSuffix,
 	onClick,
 	children,
 }) => (
@@ -137,6 +146,9 @@ const CollapseButton: React.FC<CollapseButtonProps> = ({
 		/>
 		<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 		{children}
+		{accessibleNameSuffix && (
+			<span className="sr-only">{accessibleNameSuffix}</span>
+		)}
 	</Button>
 );
 
@@ -424,6 +436,10 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 						<div>
 							<CollapseButton
 								isOpen={agenticLoopOpen}
+								accessibleNameSuffix={
+									thread.prompt &&
+									`for prompt: ${clampContent(thread.prompt, TOGGLE_CONTEXT_MAX_CHARS)}`
+								}
 								onClick={toggleAgenticLoop}
 							>
 								<span className="text-sm font-normal">Agentic loop</span>
