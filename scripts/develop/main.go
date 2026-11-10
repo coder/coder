@@ -728,7 +728,7 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	}
 
 	if !cfg.skipSetup {
-		client, err := setupFirstUser(ctx, logger, cfg, apiURL)
+		client, err := setupFirstUser(ctx, logger, cfg, apiURL, procListenerUIDs)
 		if err != nil {
 			return xerrors.Errorf("setup: %w", err)
 		}
@@ -976,7 +976,13 @@ func waitForHealthy(ctx context.Context, clk quartz.Clock, logger slog.Logger, c
 	return nil
 }
 
-func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, apiURL string) (*codersdk.Client, error) {
+func setupFirstUser(ctx context.Context, logger slog.Logger, cfg *devConfig, apiURL string, lookup listenerLookup) (*codersdk.Client, error) {
+	// Check before the first request. The requests below carry the saved
+	// session token and the admin password.
+	if err := checkAPIListener(ctx, logger, cfg.apiPort, lookup); err != nil {
+		return nil, err
+	}
+
 	serverURL, _ := url.Parse(apiURL)
 	client := codersdk.New(serverURL)
 	cfgRoot := config.Root(cfg.configDir)
