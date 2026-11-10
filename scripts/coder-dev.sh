@@ -57,10 +57,12 @@ coder-slim)
 	# changes, this simplifies usage of this script for development.
 	# NOTE: we send all output of `make` to /dev/null so that we do not break
 	# scripts that read the output of this command.
+	# make runs from the project root, where the toolchain versions that
+	# mise.toml pins apply, whatever the caller's working directory.
 	if [[ -t 1 ]]; then
-		DEVELOP_IN_CODER="${DEVELOP_IN_CODER}" make -j "${RELATIVE_BINARY_PATH}"
+		(cd "$PROJECT_ROOT" && DEVELOP_IN_CODER="${DEVELOP_IN_CODER}" make -j "${RELATIVE_BINARY_PATH}")
 	else
-		DEVELOP_IN_CODER="${DEVELOP_IN_CODER}" make -j "${RELATIVE_BINARY_PATH}" >/dev/null 2>&1
+		(cd "$PROJECT_ROOT" && DEVELOP_IN_CODER="${DEVELOP_IN_CODER}" make -j "${RELATIVE_BINARY_PATH}" >/dev/null 2>&1)
 	fi
 	;;
 coder)

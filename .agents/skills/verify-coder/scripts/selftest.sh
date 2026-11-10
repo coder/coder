@@ -9,7 +9,8 @@
 # admin and member, that docker-forward.py carries its port, that loopback and
 # gateway requests bypass a proxy, how lib.sh sets NO_PROXY, that cleanup
 # restores the caller's CLI session and its mode, that vc_wait_agent stops
-# early, and that vc_new_evidence makes separate folders.
+# early, that vc_new_evidence makes separate folders, and that vc_check fails
+# a step on any failed command.
 # Usage: selftest.sh   (prints one line per check and a count line)
 set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
@@ -693,7 +694,11 @@ check_fails_failed_steps() {
 		echo "after the failed pipeline"
 	}
 	for step in failed_middle failed_stage; do
-		out="$(vc_check "$step" "$step")"
+		# selftest.sh sets pipefail, and the subshell would inherit it.
+		out="$(
+			set +o pipefail
+			vc_check "$step" "$step"
+		)"
 		[[ "$out" == "FAIL $step:"* ]] || {
 			echo "vc_check passed a step with a failed command: $out"
 			return 1
@@ -702,6 +707,28 @@ check_fails_failed_steps() {
 	echo "vc_check fails a step on any failed command or pipeline stage"
 }
 vc_check check-errexit check_fails_failed_steps
+
+# vc_coder works from any folder: scripts/coder-dev.sh builds from the repo
+# root, where mise.toml pins the toolchain. A stand-in make records its folder
+# and stops the shim before it runs a binary.
+coder_works_outside_root() {
+	local rc=0
+	# coder-dev.sh resolves paths under build/ before it builds, so a fresh
+	# checkout needs the (gitignored) folder.
+	mkdir -p "$tmp/bin-make" "$VC_ROOT/build"
+	# scripts/lib.sh checks the make version first, so that call reaches the
+	# real make.
+	# shellcheck disable=SC2016 # The stand-in expands $1 itself.
+	printf '#!/bin/bash\n[[ "$1" != --version ]] || exec %q --version\npwd -P >"%s/make-cwd"\nexit 3\n' "$(command -v make)" "$tmp" >"$tmp/bin-make/make"
+	chmod +x "$tmp/bin-make/make"
+	(cd "$tmp" && PATH="$tmp/bin-make:$PATH" VC_API_URL=http://127.0.0.1:1 vc_coder --version >/dev/null 2>&1) || rc=$?
+	[[ "$rc" != 0 && "$(cat "$tmp/make-cwd" 2>/dev/null)" == "$(cd "$VC_ROOT" && pwd -P)" ]] || {
+		echo "vc_coder from $tmp ran make in '$(cat "$tmp/make-cwd" 2>/dev/null)' (exit $rc), not the repo root"
+		return 1
+	}
+	echo "vc_coder builds from the repo root when called from another folder"
+}
+vc_check coder-cwd coder_works_outside_root
 
 echo "selftest: $VC_PASS/$VC_TOTAL checks passed"
 ((VC_PASS == VC_TOTAL))

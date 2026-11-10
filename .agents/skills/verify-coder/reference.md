@@ -61,7 +61,9 @@ It changes nothing apart from those two refused sign-ins.
 - that a sign-in request to 127.0.0.1 and the doctor's requests to the Docker bridge gateway bypass a configured proxy, and that `lib.sh` keeps the caller's `NO_PROXY` and `no_proxy` entries;
 - that cleanup puts the caller's CLI session back with its file mode;
 - that `vc_wait_agent` stops at once on a missing workspace or a failed build;
-- that `vc_new_evidence` gives each run its own evidence folder.
+- that `vc_new_evidence` gives each run its own evidence folder;
+- that `vc_check` fails a step on any failed command or pipeline stage;
+- that `vc_coder` builds from the repo root when called from another folder.
 
 ## Drive
 
