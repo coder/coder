@@ -51,29 +51,29 @@ var (
 	// matching.
 	// TODO: return these errors to the client in a more structured/comparable
 	//       way.
-	ErrInvalidKey                   = rejection("invalid key")
-	ErrUnknownKey                   = rejection("unknown key")
-	ErrExpired                      = rejection("expired")
-	ErrUnknownUser                  = rejection("unknown user")
-	ErrDeletedUser                  = rejection("deleted user")
-	ErrInactiveUser                 = rejection("inactive user")
-	ErrSystemUser                   = rejection("system user")
-	ErrAmbiguousAuth                = rejection("direct and delegated authentication are mutually exclusive")
-	ErrInvalidDelegatedOrganization = rejection("invalid delegated_organization_id")
-	ErrWorkspaceAttribution         = rejection("invalid workspace attribution")
-	ErrUnknownWorkspace             = rejection("unknown workspace")
-	ErrUnknownOrganizationMember    = rejection("user is not a member of the request organization")
-	ErrNoOrganization               = rejection("no organization could be resolved for the user")
+	ErrInvalidKey                   = rejectionError("invalid key")
+	ErrUnknownKey                   = rejectionError("unknown key")
+	ErrExpired                      = rejectionError("expired")
+	ErrUnknownUser                  = rejectionError("unknown user")
+	ErrDeletedUser                  = rejectionError("deleted user")
+	ErrInactiveUser                 = rejectionError("inactive user")
+	ErrSystemUser                   = rejectionError("system user")
+	ErrAmbiguousAuth                = rejectionError("direct and delegated authentication are mutually exclusive")
+	ErrInvalidDelegatedOrganization = rejectionError("invalid delegated_organization_id")
+	ErrWorkspaceAttribution         = rejectionError("invalid workspace attribution")
+	ErrUnknownWorkspace             = rejectionError("unknown workspace")
+	ErrUnknownOrganizationMember    = rejectionError("user is not a member of the request organization")
+	ErrNoOrganization               = rejectionError("no organization could be resolved for the user")
 
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
 )
 
-// rejection is an IsAuthorized error that refuses the request. The gateway
+// rejectionError is an IsAuthorized error that refuses the request. The gateway
 // answers it with a 403. Every other IsAuthorized error is a failure of coderd
 // itself and carries [proto.ErrCodeInternal], so the gateway answers a 500.
-type rejection string
+type rejectionError string
 
-func (r rejection) Error() string { return string(r) }
+func (r rejectionError) Error() string { return string(r) }
 
 var _ aibridged.DRPCServer = &Server{}
 
@@ -822,7 +822,7 @@ externalAuthLoop:
 // TODO: replace with logic from [httpmw.ExtractAPIKey].
 func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest) (*proto.IsAuthorizedResponse, error) {
 	resp, err := s.authorize(ctx, in)
-	var r rejection
+	var r rejectionError
 	if err != nil && !errors.As(err, &r) {
 		return nil, drpcerr.WithCode(err, proto.ErrCodeInternal)
 	}
