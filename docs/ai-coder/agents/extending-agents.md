@@ -337,7 +337,7 @@ When you create or update a skill through the API without setting `model_invocab
 - New content without the key leaves the setting as it was.
 
 Coder removes the key before it stores the file, so the stored file never disagrees with the setting.
-Coder removes the key even when it ignores the value, such as `disable-model-invocation: "true"`, so check `model_invocable` in the response after you upload a skill.
+Coder also removes a key whose value it ignores, such as `disable-model-invocation: "true"`, so check `model_invocable` in the response to confirm the setting.
 
 When you download or export a manual-only skill, Coder adds `disable-model-invocation: true` back, so other tools also treat the file as manual-only.
 A file that the extra line would push over the 64&nbsp;KB limit downloads without it.

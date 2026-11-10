@@ -30,8 +30,6 @@ const copy: SkillsCopy = {
 };
 
 const mockReviewSkill = { ...MockSkill, name: "review-sql", enabled: true };
-const mockReviewSkillContent =
-	'---\nname: review-sql\ndescription: "Review SQL."\n---\nCheck the queries.\n';
 
 const renderTable = () => {
 	vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([
@@ -88,7 +86,7 @@ describe("SkillsTable download", () => {
 		vi.spyOn(API.experimental, "getOrganizationSkillByName").mockResolvedValue({
 			...mockReviewSkill,
 			model_invocable: false,
-			content: mockReviewSkillContent,
+			content: "---\nname: review-sql\n---\nCheck the queries.\n",
 		});
 		const { user } = renderTable();
 
