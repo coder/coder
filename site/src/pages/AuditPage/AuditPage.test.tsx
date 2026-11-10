@@ -1,10 +1,4 @@
-import {
-	createEvent,
-	fireEvent,
-	screen,
-	waitFor,
-	within,
-} from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
 import { API } from "#/api/api";
@@ -87,7 +81,7 @@ describe("AuditPage", () => {
 		screen.getByTestId(`audit-log-row-${MockAuditLog2.id}`);
 	});
 
-	it("toggles an expandable audit row with Enter", async () => {
+	it("toggles an expandable audit row once per Enter, Space, or click", async () => {
 		vi.spyOn(API, "getAuditLogs").mockResolvedValue({
 			audit_logs: [MockAuditLog],
 			count: 1,
@@ -96,49 +90,19 @@ describe("AuditPage", () => {
 
 		await renderPage();
 
+		const user = userEvent.setup();
 		const row = screen.getByTestId(`audit-log-row-${MockAuditLog.id}`);
-		const expandableRowButton = within(row).getByRole("button");
+		const toggle = within(row).getByRole("button", { name: "View changes" });
 
-		expect(screen.queryByText(/ttl:/i)).not.toBeInTheDocument();
+		toggle.focus();
+		await user.keyboard("{Enter}");
+		expect(toggle).toHaveAttribute("aria-expanded", "true");
 
-		fireEvent.keyDown(expandableRowButton, { key: "Enter" });
+		await user.keyboard(" ");
+		expect(toggle).toHaveAttribute("aria-expanded", "false");
 
-		expect(screen.getAllByText(/ttl:/i)).toHaveLength(2);
-
-		fireEvent.keyDown(expandableRowButton, { key: "Enter" });
-
-		await waitFor(() => {
-			expect(screen.queryByText(/ttl:/i)).not.toBeInTheDocument();
-		});
-	});
-
-	it("toggles an expandable audit row with Space and prevents default", async () => {
-		vi.spyOn(API, "getAuditLogs").mockResolvedValue({
-			audit_logs: [MockAuditLog],
-			count: 1,
-			count_cap: 0,
-		});
-
-		await renderPage();
-
-		const row = screen.getByTestId(`audit-log-row-${MockAuditLog.id}`);
-		const expandableRowButton = within(row).getByRole("button");
-		const spaceEvent = createEvent.keyDown(expandableRowButton, {
-			key: " ",
-			code: "Space",
-		});
-		const preventDefaultSpy = vi.spyOn(spaceEvent, "preventDefault");
-
-		fireEvent(expandableRowButton, spaceEvent);
-
-		expect(preventDefaultSpy).toHaveBeenCalled();
-		expect(screen.getAllByText(/ttl:/i)).toHaveLength(2);
-
-		fireEvent.keyDown(expandableRowButton, { key: " " });
-
-		await waitFor(() => {
-			expect(screen.queryByText(/ttl:/i)).not.toBeInTheDocument();
-		});
+		await user.click(toggle);
+		expect(toggle).toHaveAttribute("aria-expanded", "true");
 	});
 
 	describe("Filtering", () => {

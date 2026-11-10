@@ -95,7 +95,7 @@ const renderDiagram = async (
  */
 export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 	const theme = useTheme();
-	const isDark = theme.palette.mode === "dark";
+	const isDark = theme.mode === "dark";
 	const isIncomplete = useIsCodeFenceIncomplete();
 	const [state, setState] = useState<RenderState>({ status: "pending" });
 	const { openLightbox, lightbox } = useLightbox();

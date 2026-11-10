@@ -66,11 +66,9 @@ export const WorkspacesButton: React.FC<WorkspacesButtonProps> = ({
 			<ComboboxContent
 				align="end"
 				className="w-[320px] max-w-[320px] overflow-hidden"
+				label="Search workspace templates"
 			>
-				<ComboboxInput
-					placeholder="Type/select a workspace template"
-					aria-label="Template select for workspace"
-				/>
+				<ComboboxInput placeholder="Type/select a workspace template" />
 				<ComboboxList
 					// Cap the list to the popover's available height minus the search
 					// input and footer. A nested max-height (e.g. 380px) larger than

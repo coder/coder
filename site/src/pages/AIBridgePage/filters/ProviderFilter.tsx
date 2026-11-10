@@ -68,6 +68,7 @@ export const ProviderFilter: React.FC<ProviderFilterProps> = ({
 			onSelect={(option) => menu.selectOption(option)}
 			selectedOption={menu.selectedOption ?? undefined}
 			width={width}
+			searchLabel="Search provider"
 			selectFilterSearch={
 				<ComboboxInput
 					placeholder="Search provider..."
