@@ -15,6 +15,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -258,4 +259,61 @@ func TestCompressorHeadings(t *testing.T) {
 	files, err := os.ReadDir(srcDir)
 	require.NoError(t, err)
 	require.Len(t, files, 1)
+}
+
+type writeHeaderCounter struct {
+	*httptest.ResponseRecorder
+	writeHeaderCalls int
+}
+
+func (w *writeHeaderCounter) WriteHeader(code int) {
+	w.writeHeaderCalls++
+	w.ResponseRecorder.WriteHeader(code)
+}
+
+func (w *writeHeaderCounter) Write(b []byte) (int, error) {
+	if w.writeHeaderCalls == 0 {
+		w.writeHeaderCalls++
+	}
+	return w.ResponseRecorder.Write(b)
+}
+
+func TestCompressorMissingCacheFile(t *testing.T) {
+	t.Parallel()
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	tempDir := t.TempDir()
+	cacheDir := filepath.Join(tempDir, "cache")
+	err := os.MkdirAll(cacheDir, 0o700)
+	require.NoError(t, err)
+	srcDir := filepath.Join(tempDir, "src")
+	err = os.MkdirAll(srcDir, 0o700)
+	require.NoError(t, err)
+	err = os.WriteFile(filepath.Join(srcDir, "file.html"), []byte("textstring"), 0o600)
+	require.NoError(t, err)
+
+	compressor := NewCompressor(logger, 5, cacheDir, http.FS(os.DirFS(srcDir)))
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	req := httptest.NewRequestWithContext(ctx, "GET", "/file.html", nil)
+	req.Header.Set("Accept-Encoding", "gzip")
+	first := httptest.NewRecorder()
+	compressor.ServeHTTP(first, req)
+	require.Equal(t, http.StatusOK, first.Code)
+	require.Equal(t, "gzip", first.Header().Get("Content-Encoding"))
+
+	cachePath := getCacheKey("gzip", req).filePath(cacheDir)
+	require.NoError(t, os.Remove(cachePath))
+
+	rec := &writeHeaderCounter{ResponseRecorder: httptest.NewRecorder()}
+	compressor.ServeHTTP(rec, req)
+	resp := rec.Result()
+	defer resp.Body.Close()
+
+	require.Equal(t, 1, rec.writeHeaderCalls)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	require.Empty(t, rec.Header().Get("Content-Encoding"))
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, "textstring", string(body))
 }
