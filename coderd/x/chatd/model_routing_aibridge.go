@@ -259,20 +259,9 @@ func (p *Server) newModel(
 	stageRT := &stageSpanRoundTripper{base: baseRT, stages: p.stages, stageModel: opts.StageModel}
 
 	config := fantasyConfigForAIBridge(route.Provider.Type, req.ModelName)
-	openAIConfig := req.CallConfig.OpenAIConfig
-	// Force the use of the Responses API for Bedrock models inferred to the OpenAI client.
-	if route.Provider.Type == database.AIProviderTypeBedrock &&
-		config.ProviderHint == fantasyopenai.Name &&
-		(openAIConfig == nil || openAIConfig.UseResponsesAPI == nil) {
-		if openAIConfig == nil {
-			openAIConfig = &codersdk.ChatModelOpenAIConfig{}
-		}
-		force := true
-		openAIConfig.UseResponsesAPI = &force
-	}
 	extraHeaders := mergeConfigBetaHeaders(req.ExtraHeaders, config.ProviderHint, req.CallConfig)
 	callConfig := req.CallConfig
-	callConfig.OpenAIConfig = openAIConfig
+	callConfig.OpenAIConfig = withProviderResponsesAPIDefault(route.Provider.Type, config.ProviderHint, req.CallConfig.OpenAIConfig)
 	model, err := newLanguageModel(
 		config.ProviderHint,
 		req.ModelName,
@@ -289,6 +278,35 @@ func (p *Server) newModel(
 	// Safe to mutate: the model has not sent a request yet.
 	stageRT.stageModel.Provider = model.Provider()
 	return model, nil
+}
+
+// withProviderResponsesAPIDefault sets an unset Responses API choice from the
+// provider type: Bedrock serves OpenAI-format models only through Responses,
+// and an Azure deployment name does not identify the model, so Azure uses
+// Chat Completions. It returns a copy and never mutates config.
+func withProviderResponsesAPIDefault(
+	providerType database.AIProviderType,
+	providerHint string,
+	config *codersdk.ChatModelOpenAIConfig,
+) *codersdk.ChatModelOpenAIConfig {
+	if providerHint != fantasyopenai.Name || (config != nil && config.UseResponsesAPI != nil) {
+		return config
+	}
+	var useResponses bool
+	switch providerType {
+	case database.AIProviderTypeBedrock:
+		useResponses = true
+	case database.AIProviderTypeAzure:
+		useResponses = false
+	default:
+		return config
+	}
+	var out codersdk.ChatModelOpenAIConfig
+	if config != nil {
+		out = *config
+	}
+	out.UseResponsesAPI = &useResponses
+	return &out
 }
 
 func coerceBedrockReasoningSummary(providerType database.AIProviderType, model string, callConfig codersdk.ChatModelCallConfig) codersdk.ChatModelCallConfig {

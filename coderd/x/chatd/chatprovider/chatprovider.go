@@ -143,10 +143,15 @@ var mediaByRoute = map[mediaRoute]routeMedia{
 	{provider: database.AIProviderTypeOpenai, transport: fantasyopenai.Name}: {
 		images: commonImageTypes, pdf: true, audio: true,
 	},
+	// Azure takes the Responses API only when a model config forces it, and
+	// its PDF support there is not verified.
+	{provider: database.AIProviderTypeAzure, transport: fantasyopenai.Name, responses: true}: {
+		images: commonImageTypes,
+	},
 	// Azure Chat Completions rejects file content parts with HTTP 400, and
 	// Gemini's OpenAI-compatible endpoint does not process them, so neither
 	// route takes PDFs.
-	{provider: database.AIProviderTypeAzure, transport: fantasyopenaicompat.Name}: {
+	{provider: database.AIProviderTypeAzure, transport: fantasyopenai.Name}: {
 		images: commonImageTypes, audio: true,
 	},
 	{provider: database.AIProviderTypeGoogle, transport: fantasyopenaicompat.Name}: {
@@ -558,7 +563,7 @@ func bedrockIsAnthropicModel(model string) bool {
 // ClientProvider returns the fantasy provider whose client chatd builds for a
 // model on an AI provider of the given type. Bedrock serves Claude models in
 // the Anthropic Messages format and other models through the OpenAI Responses
-// API.
+// API. Azure OpenAI serves the OpenAI API, so it shares the OpenAI client.
 func ClientProvider(providerType database.AIProviderType, model string) string {
 	switch providerType {
 	case database.AIProviderTypeAnthropic:
@@ -570,7 +575,7 @@ func ClientProvider(providerType database.AIProviderType, model string) string {
 			return fantasyanthropic.Name
 		}
 		return fantasyopenai.Name
-	case database.AIProviderTypeOpenai:
+	case database.AIProviderTypeOpenai, database.AIProviderTypeAzure:
 		return fantasyopenai.Name
 	default:
 		return fantasyopenaicompat.Name

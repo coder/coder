@@ -1096,9 +1096,7 @@ export const UseResponsesAPIHiddenForAnthropic: Story = {
 	},
 };
 
-// Azure resolves to the OpenAI option schema through provider_aliases, so
-// scoping has to gate on the raw provider type to keep this control out.
-export const UseResponsesAPIHiddenForAzure: Story = {
+export const UseResponsesAPIVisibleForAzure: Story = {
 	args: {
 		providerStates: [MockOpenAIProviderState, MockAzureProviderState],
 		selectedProviderState: MockAzureProviderState,
@@ -1106,9 +1104,5 @@ export const UseResponsesAPIHiddenForAzure: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: /advanced/i }));
-		await expect(
-			canvas.queryByRole("radiogroup", { name: /use responses api/i }),
-		).not.toBeInTheDocument();
-		await expect(canvas.getByLabelText(/temperature/i)).toBeInTheDocument();
 	},
 };

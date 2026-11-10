@@ -103,7 +103,7 @@ func TestAIBridgeProviderFormatMapping(t *testing.T) {
 		{name: "OpenAICompat", providerType: database.AIProviderTypeOpenaiCompat, model: "qwen/qwen3", wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
 		{name: "Anthropic", providerType: database.AIProviderTypeAnthropic, model: "claude-opus-4-6", wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
 		{name: "Google", providerType: database.AIProviderTypeGoogle, model: "gemini-2.5-flash", wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
-		{name: "Azure", providerType: database.AIProviderTypeAzure, model: "gpt-4o", wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
+		{name: "Azure", providerType: database.AIProviderTypeAzure, model: "gpt-4o", wantProvider: "openai", wantBaseURL: "http://coder-aibridge/v1"},
 		{name: "Copilot", providerType: database.AIProviderTypeCopilot, model: "gpt-4o", wantProvider: "openai-compat", wantBaseURL: "http://coder-aibridge/v1"},
 		{name: "BedrockAnthropicModel", providerType: database.AIProviderTypeBedrock, model: "anthropic.claude-sonnet-5", wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
 		{name: "BedrockClaudeAlias", providerType: database.AIProviderTypeBedrock, model: "claude-sonnet-4-6", wantProvider: "anthropic", wantBaseURL: "http://coder-aibridge"},
@@ -665,14 +665,17 @@ func TestAIGatewayModelAppliesResponsesAPIOverride(t *testing.T) {
 	forceCompletions := false
 
 	tests := []struct {
-		name     string
-		model    string
-		override *bool
-		wantPath string
+		name         string
+		providerType database.AIProviderType
+		model        string
+		override     *bool
+		wantPath     string
 	}{
-		{name: "ForceResponsesOnUnknownModel", model: "gpt-9-brand-new", override: &forceResponses, wantPath: "/v1/responses"},
-		{name: "ForceCompletionsOnKnownModel", model: "gpt-4o", override: &forceCompletions, wantPath: "/v1/chat/completions"},
-		{name: "UnsetKeepsKnownModelList", model: "gpt-4o", override: nil, wantPath: "/v1/responses"},
+		{name: "ForceResponsesOnUnknownModel", providerType: database.AIProviderTypeOpenai, model: "gpt-9-brand-new", override: &forceResponses, wantPath: "/v1/responses"},
+		{name: "ForceCompletionsOnKnownModel", providerType: database.AIProviderTypeOpenai, model: "gpt-4o", override: &forceCompletions, wantPath: "/v1/chat/completions"},
+		{name: "UnsetKeepsKnownModelList", providerType: database.AIProviderTypeOpenai, model: "gpt-4o", override: nil, wantPath: "/v1/responses"},
+		{name: "AzureUnsetUsesChatCompletions", providerType: database.AIProviderTypeAzure, model: "gpt-6-luna", override: nil, wantPath: "/v1/chat/completions"},
+		{name: "AzureForceResponses", providerType: database.AIProviderTypeAzure, model: "gpt-6-luna", override: &forceResponses, wantPath: "/v1/responses"},
 	}
 
 	for _, tt := range tests {
@@ -681,7 +684,7 @@ func TestAIGatewayModelAppliesResponsesAPIOverride(t *testing.T) {
 
 			paths := make(chan string, 1)
 			server := newServer(t, paths)
-			provider := aibridgeTestAIProvider(uuid.New(), "primary-openai", database.AIProviderTypeOpenai)
+			provider := aibridgeTestAIProvider(uuid.New(), "primary", tt.providerType)
 			req := aibridgeTestRequest(database.Chat{ID: uuid.New(), OwnerID: uuid.New()}, tt.model)
 			req.CallConfig = callConfig(tt.override)
 
@@ -738,6 +741,25 @@ func TestAIGatewayModelChatCompletionsTokenLimitField(t *testing.T) {
 					OpenAI: &codersdk.ChatModelOpenAIProviderOptions{MaxCompletionTokens: new(int64(16384))},
 				},
 			},
+			wantField:   "max_completion_tokens",
+			wantLimit:   16384,
+			absentField: "max_tokens",
+		},
+		{
+			name:         "AzureUnknownReasoningModel",
+			providerType: database.AIProviderTypeAzure,
+			model:        "gpt-6-luna",
+			wantField:    "max_completion_tokens",
+			wantLimit:    float64(callLimit),
+			absentField:  "max_tokens",
+		},
+		{
+			name:         "AzureConfiguredMaxCompletionTokens",
+			providerType: database.AIProviderTypeAzure,
+			model:        "my-prod-deployment",
+			callConfig: codersdk.ChatModelCallConfig{ProviderOptions: &codersdk.ChatModelProviderOptions{
+				OpenAI: &codersdk.ChatModelOpenAIProviderOptions{MaxCompletionTokens: new(int64(16384))},
+			}},
 			wantField:   "max_completion_tokens",
 			wantLimit:   16384,
 			absentField: "max_tokens",

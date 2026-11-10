@@ -73,11 +73,11 @@
 				"json_name": "openai_config.use_responses_api",
 				"go_name": "OpenaiConfig.UseResponsesAPI",
 				"type": "boolean",
-				"description": "Override which OpenAI API this model uses. Leave unset to decide from the provider SDK's known-model list, true to force the Responses API, false to force Chat Completions. Azure OpenAI providers ignore this and always follow the known-model list.",
+				"description": "Override which OpenAI API this model uses. Leave unset to decide from the provider SDK's known-model list, true to force the Responses API, false to force Chat Completions. Azure OpenAI providers use Chat Completions unless this is true, because a deployment name does not identify the model.",
 				"label": "Use Responses API",
 				"required": false,
 				"input_type": "select",
-				"visible_for_providers": ["openai"]
+				"visible_for_providers": ["openai", "azure"]
 			},
 			{
 				"json_name": "openai_config.reasoning_model",
@@ -87,7 +87,7 @@
 				"label": "Reasoning Model",
 				"required": false,
 				"input_type": "select",
-				"visible_for_providers": ["openai", "bedrock"]
+				"visible_for_providers": ["openai", "bedrock", "azure"]
 			}
 		]
 	},

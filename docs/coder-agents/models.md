@@ -286,6 +286,7 @@ These fields appear dynamically in the admin UI when you select a provider.
 
 > [!NOTE]
 > Azure OpenAI uses the same options as OpenAI except Reasoning Mode.
+> Azure OpenAI models use the Chat Completions API unless you set **Use Responses API** to On, because the deployment name doesn't identify the model.
 > AWS Bedrock uses the same model configuration options as Anthropic (thinking budget, reasoning effort).
 
 ### Prompt caching
