@@ -142,7 +142,7 @@ export const ModelRow: React.FC<ModelRowProps> = ({
 						{providerLabel}
 					</span>
 				) : (
-					<span className="truncate text-sm font-medium leading-6 text-content-secondary">
+					<span className="truncate text-sm leading-6 text-content-secondary">
 						Unset
 					</span>
 				)}

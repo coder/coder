@@ -143,7 +143,7 @@ const DefaultView: React.FC<DefaultViewProps> = ({
 			<div className="space-y-3">
 				{visibleRecentChats.length > 0 && (
 					<div>
-						<h3 className="m-0 mb-3 text-sm font-medium text-content-secondary">
+						<h3 className="m-0 mb-3 text-sm text-content-secondary">
 							Recent chats
 						</h3>
 						<ScrollArea {...SCROLL_AREA_PROPS}>

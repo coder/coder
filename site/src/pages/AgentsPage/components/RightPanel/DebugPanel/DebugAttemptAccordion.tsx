@@ -111,7 +111,7 @@ export const DebugAttemptAccordion: React.FC<DebugAttemptAccordionProps> = ({
 											Attempt {attempt.attempt_number}
 										</span>
 										{attempt.method || attempt.path ? (
-											<span className="truncate font-mono text-xs font-medium text-content-secondary">
+											<span className="truncate font-mono text-xs text-content-secondary">
 												{[attempt.method, attempt.path]
 													.filter(Boolean)
 													.join(" ")}

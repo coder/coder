@@ -463,7 +463,7 @@ const TemplateUsagePanel: React.FC<TemplateUsagePanelProps> = ({
 											<BlocksIcon className="size-icon-sm text-content-secondary" />
 										)}
 									</div>
-									<div className="flex items-center gap-2 text-sm font-medium w-50">
+									<div className="flex items-center gap-2 text-sm w-50">
 										{usage.display_name}
 										{accountingDescription && (
 											<InfoTooltip size="small">
@@ -539,12 +539,10 @@ const TemplateParametersUsagePanel: React.FC<
 								</p>
 							</div>
 							<div className="flex-1 text-sm grid grid-cols-[1fr_auto] gap-x-4 items-baseline">
-								<div className="font-medium text-sm text-content-secondary py-1">
-									Value
-								</div>
+								<div className="text-sm text-content-secondary py-1">Value</div>
 								<Tooltip>
 									<TooltipTrigger asChild>
-										<div className="font-medium text-sm text-content-secondary text-right py-1 cursor-default">
+										<div className="text-sm text-content-secondary text-right py-1 cursor-default">
 											Count
 										</div>
 									</TooltipTrigger>

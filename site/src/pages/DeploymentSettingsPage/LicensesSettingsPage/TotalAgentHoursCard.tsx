@@ -230,7 +230,7 @@ export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 						)}
 					</div>
 
-					<div className="flex items-start justify-between gap-3 text-sm font-medium">
+					<div className="flex items-start justify-between gap-3 text-sm">
 						<p className="m-0 whitespace-nowrap text-content-primary">
 							<span className="text-content-secondary">Used: </span>
 							<span
