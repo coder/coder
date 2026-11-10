@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	tfjson "github.com/hashicorp/terraform-json"
@@ -247,21 +248,36 @@ func (s *server) Plan(
 		return provisionersdk.PlanErrorf("plan vars: %s", err)
 	}
 
+	// Graph the configuration while Terraform plans it, so the Graph RPC
+	// doesn't have to run Terraform again. `terraform graph` only reads the
+	// configuration and the state, and takes no state lock. The graph
+	// reflects the state before apply; the Graph RPC builds it again after
+	// apply when that state added nodes for orphaned or deposed objects.
+	var (
+		wg       sync.WaitGroup
+		rawGraph string
+		graphErr error
+	)
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
-	result, err := e.plan(ctx, killCtx, env, vars, sess, request)
+	e.mut.Lock()
+	wg.Go(func() {
+		rawGraph, graphErr = e.graph(ctx, killCtx)
+	})
+	resp, plan, err := e.plan(ctx, killCtx, env, vars, sess, request)
+	wg.Wait()
+	e.mut.Unlock()
 	endStage(err)
 	if err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
+	if graphErr != nil {
+		s.logger.Warn(ctx, "terraform graph failed during plan, the graph stage will retry it", slog.Error(graphErr))
+	}
 
 	// Graph reuses the parsed plan and the graph instead of running
 	// Terraform again.
-	s.setSessionState(sess.Context(), sess, sessionState{plan: result.plan, graph: result.graph})
-	if result.graphErr != nil {
-		s.logger.Warn(ctx, "terraform graph failed during plan, the graph stage will retry it", slog.Error(result.graphErr))
-	}
+	s.setSessionState(sess.Context(), sess, sessionState{plan: plan, graph: rawGraph})
 
-	resp := result.response
 	resp.Timings = e.timings.aggregate()
 	return resp
 }

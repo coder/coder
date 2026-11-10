@@ -38,7 +38,7 @@ type executor struct {
 	binaryPath string
 	// cachePath and files must not be used by multiple processes at once,
 	// except for read-only commands that take no state lock, such as the
-	// `terraform show` and `terraform graph` that plan runs concurrently.
+	// `terraform graph` that Plan runs alongside `terraform plan`.
 	cachePath     string
 	cliConfigPath string
 	files         tfpath.Layout
@@ -318,27 +318,14 @@ func checksumFileCRC32(ctx context.Context, logger slog.Logger, path string) uin
 	return crc32.ChecksumIEEE(content)
 }
 
-// planResult holds the Plan response plus what later RPCs of the session
-// reuse.
-type planResult struct {
-	response *proto.PlanComplete
-	// plan is the parsed plan file, so the Graph RPC does not have to run
-	// `terraform show` on it again.
-	plan *tfjson.Plan
-	// graph is the output of `terraform graph`, computed while the plan
-	// file was being parsed. graphErr records why it is unavailable, in
-	// which case the Graph RPC runs the command itself.
-	graph    string
-	graphErr error
-}
-
+// plan must only be called while the lock is held. It also returns the parsed
+// plan file, so the Graph RPC does not have to run `terraform show` on it
+// again.
+//
 // revive:disable-next-line:flag-parameter
-func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*planResult, error) {
+func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*proto.PlanComplete, *tfjson.Plan, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
-
-	e.mut.Lock()
-	defer e.mut.Unlock()
 
 	metadata := req.Metadata
 
@@ -370,32 +357,17 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	err := e.execWriteOutput(ctx, killCtx, args, env, outWriter, errWriter)
 	if err != nil {
-		return nil, xerrors.Errorf("terraform plan: %w", err)
+		return nil, nil, xerrors.Errorf("terraform plan: %w", err)
 	}
 
-	// Compute the dependency graph now, concurrently with parsing the plan
-	// file, instead of running it serially in the Graph RPC. Both commands
-	// are read only and take no state lock. The graph comes from the
-	// configuration and the state before apply; the Graph RPC builds it again
-	// after apply when that state added nodes for orphaned or deposed objects.
-	var (
-		wg       sync.WaitGroup
-		rawGraph string
-		graphErr error
-	)
-	wg.Go(func() {
-		rawGraph, graphErr = e.graph(ctx, killCtx)
-	})
-
 	plan, err := e.parsePlan(ctx, killCtx, planfilePath)
-	wg.Wait()
 	if err != nil {
-		return nil, xerrors.Errorf("show terraform plan file: %w", err)
+		return nil, nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
 
 	planJSON, err := json.Marshal(plan)
 	if err != nil {
-		return nil, xerrors.Errorf("marshal plan: %w", err)
+		return nil, nil, xerrors.Errorf("marshal plan: %w", err)
 	}
 
 	isPrebuildClaimAttempt := !destroy &&
@@ -406,7 +378,6 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		// point of prebuilding if the expensive resource is replaced
 		// once claimed!
 		if hasResourceReplacement(plan) {
-			// Lock held before calling (see top of method).
 			e.logDrift(ctx, killCtx, planfilePath, logr)
 		}
 	} else if reps := findAllResourceReplacements(plan); len(reps) > 0 {
@@ -417,7 +388,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 
 	state, err := ConvertPlanState(plan)
 	if err != nil {
-		return nil, xerrors.Errorf("convert plan state: %w", err)
+		return nil, nil, xerrors.Errorf("convert plan state: %w", err)
 	}
 
 	var resReps []*proto.ResourceReplacement
@@ -437,12 +408,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		ResourceReplacements: resReps,
 	}
 
-	return &planResult{
-		response: msg,
-		plan:     plan,
-		graph:    rawGraph,
-		graphErr: graphErr,
-	}, nil
+	return msg, plan, nil
 }
 
 func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
