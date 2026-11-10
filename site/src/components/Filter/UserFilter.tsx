@@ -101,12 +101,12 @@ export const UserMenu: React.FC<UserMenuProps> = ({
 			onSelect={menu.selectOption}
 			selectedOption={menu.selectedOption ?? undefined}
 			width={width}
+			searchLabel="Search user"
 			selectFilterSearch={
 				<ComboboxInput
 					placeholder="Search user..."
 					value={menu.query}
 					onValueChange={menu.setQuery}
-					aria-label="Search user"
 				/>
 			}
 		/>
