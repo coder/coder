@@ -263,6 +263,8 @@ func TestForwardingKeyOutcomes(t *testing.T) {
 		name       string
 		statuses   []int
 		wantStatus int
+		// wantErr is the key pool error forwarding reports. Only Kind is compared.
+		wantErr *keypool.Error
 	}{
 		{
 			name:       "Rotation",
@@ -273,6 +275,7 @@ func TestForwardingKeyOutcomes(t *testing.T) {
 			name:       "Exhausted",
 			statuses:   []int{http.StatusUnauthorized, http.StatusUnauthorized},
 			wantStatus: http.StatusBadGateway,
+			wantErr:    &keypool.Error{Kind: keypool.ErrorKindUnauthorized},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -295,6 +298,13 @@ func TestForwardingKeyOutcomes(t *testing.T) {
 			require.Equal(t, len(tc.statuses), attempts)
 			require.Equal(t, tc.wantStatus, response.Code)
 			require.Equal(t, tc.wantStatus, call.status)
+			if tc.wantErr == nil {
+				require.NoError(t, call.err)
+			} else {
+				keyErr, ok := errors.AsType[*keypool.Error](call.err)
+				require.True(t, ok, "unexpected forwarding error: %v", call.err)
+				require.Equal(t, tc.wantErr.Kind, keyErr.Kind)
+			}
 			require.NotNil(t, call.responseBody)
 			_, err := call.responseBody.Wait(codertestutil.Context(t, codertestutil.WaitShort))
 			require.NoError(t, err)
@@ -317,7 +327,7 @@ func TestForwardingBYOKOutcomes(t *testing.T) {
 			newProvider: func(_ *testing.T, pool *keypool.Pool) provider.Provider {
 				return provider.NewOpenAI(config.OpenAI{BaseURL: "https://upstream.example.test", KeyPool: pool})
 			},
-			auth: http.Header{"Authorization": {"Bearer user-secret-key"}},
+			auth: http.Header{"Authorization": {"Bearer " + userSecretKey}},
 		},
 		{
 			name: "AnthropicAPIKey",
@@ -333,7 +343,7 @@ func TestForwardingBYOKOutcomes(t *testing.T) {
 			newProvider: func(*testing.T, *keypool.Pool) provider.Provider {
 				return provider.NewCopilot(config.Copilot{BaseURL: "https://upstream.example.test"})
 			},
-			auth: http.Header{"Authorization": {"Bearer user-secret-key"}},
+			auth: http.Header{"Authorization": {"Bearer " + userSecretKey}},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -393,7 +403,7 @@ func TestForwardingStreamsAndCancels(t *testing.T) {
 	defer cancel()
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, gateway.URL+"/openai/v1/chat/completions", strings.NewReader("request"))
 	require.NoError(t, err)
-	req.Header.Set("Authorization", "Bearer user-secret-key")
+	req.Header.Set("Authorization", "Bearer "+userSecretKey)
 	resp, err := gateway.Client().Do(req)
 	require.NoError(t, err)
 	defer resp.Body.Close()
@@ -477,7 +487,7 @@ func TestForwardingAbortDoesNotTripBreaker(t *testing.T) {
 	send := func(ctx context.Context) *http.Response {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, gateway.URL+"/openai/v1/chat/completions", strings.NewReader("{}"))
 		require.NoError(t, err)
-		req.Header.Set("Authorization", "Bearer user-secret-key")
+		req.Header.Set("Authorization", "Bearer "+userSecretKey)
 		resp, err := gateway.Client().Do(req)
 		require.NoError(t, err)
 		return resp
