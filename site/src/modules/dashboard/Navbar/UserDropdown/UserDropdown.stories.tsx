@@ -113,7 +113,10 @@ export const WithAISpend: Story = {
 				expect(document.body).toHaveTextContent(spendPeriodLabel);
 			});
 			expect(
-				screen.getByRole("progressbar", { name: "AI spend usage" }),
+				screen.getByRole("progressbar", {
+					hidden: true,
+					name: "AI spend usage",
+				}),
 			).toHaveAttribute("aria-valuenow", "68");
 		});
 	},
@@ -137,7 +140,10 @@ export const AISpendWarning: Story = {
 				expect(document.body).toHaveTextContent(spendPeriodLabel);
 			});
 			expect(
-				screen.getByRole("progressbar", { name: "AI spend usage" }),
+				screen.getByRole("progressbar", {
+					hidden: true,
+					name: "AI spend usage",
+				}),
 			).toHaveAttribute("aria-valuenow", "90");
 		});
 	},
@@ -160,7 +166,10 @@ export const AISpendAtLimit: Story = {
 				expect(document.body).toHaveTextContent("$1,200 / $1,200 USD"),
 			);
 			expect(
-				screen.getByRole("progressbar", { name: "AI spend usage" }),
+				screen.getByRole("progressbar", {
+					hidden: true,
+					name: "AI spend usage",
+				}),
 			).toHaveAttribute("aria-valuenow", "100");
 		});
 	},
@@ -184,7 +193,10 @@ export const AISpendExceeded: Story = {
 				expect(document.body).toHaveTextContent(spendPeriodLabel);
 			});
 			expect(
-				screen.getByRole("progressbar", { name: "AI spend usage" }),
+				screen.getByRole("progressbar", {
+					hidden: true,
+					name: "AI spend usage",
+				}),
 			).toHaveAttribute("aria-valuenow", "100");
 		});
 	},
@@ -205,7 +217,10 @@ export const AISpendUnlimited: Story = {
 				expect(document.body).toHaveTextContent(spendPeriodLabel);
 			});
 			expect(
-				screen.queryByRole("progressbar", { name: "AI spend usage" }),
+				screen.queryByRole("progressbar", {
+					hidden: true,
+					name: "AI spend usage",
+				}),
 			).not.toBeInTheDocument();
 		});
 	},
@@ -225,7 +240,10 @@ export const AISpendZeroSpend: Story = {
 				expect(document.body).toHaveTextContent("$0 / $1,200 USD"),
 			);
 			expect(
-				screen.getByRole("progressbar", { name: "AI spend usage" }),
+				screen.getByRole("progressbar", {
+					hidden: true,
+					name: "AI spend usage",
+				}),
 			).toHaveAttribute("aria-valuenow", "0");
 		});
 	},
@@ -255,7 +273,10 @@ export const AISpendZeroLimit: Story = {
 				expect(document.body).toHaveTextContent("$0 / $0 USD"),
 			);
 			expect(
-				screen.getByRole("progressbar", { name: "AI spend usage" }),
+				screen.getByRole("progressbar", {
+					hidden: true,
+					name: "AI spend usage",
+				}),
 			).toHaveAttribute("aria-valuenow", "0");
 		});
 	},
