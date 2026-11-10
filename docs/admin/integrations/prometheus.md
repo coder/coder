@@ -419,7 +419,7 @@ In the example, the inner `max by` keeps one series per app, and the outer `sum`
 ### Workspace last used time
 
 `coderd_workspace_last_used_timestamp_seconds` reports when each workspace was last used, as a Unix timestamp in seconds.
-It's the value the [dormancy threshold](../templates/managing-templates/schedule.md#dormancy-threshold) measures inactivity from.
+It's the value the [dormancy threshold](../../templates/managing-templates/schedule.md#dormancy-threshold) measures inactivity from.
 
 The metric is off by default.
 Enable it with the flag `--prometheus-collect-workspace-stats` or the environment variable `CODER_PROMETHEUS_COLLECT_WORKSPACE_STATS`.
