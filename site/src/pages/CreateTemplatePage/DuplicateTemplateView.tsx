@@ -1,5 +1,6 @@
 import { useQuery } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
+import { checkAuthorization } from "#/api/queries/authCheck";
 import {
 	JobError,
 	template,
@@ -14,6 +15,8 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "#/modules/dashboard/useFeatureVisibility";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
+import { templatePermissionChecks } from "#/modules/permissions/templates";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import type { CreateTemplatePageViewProps } from "./types";
 import { firstVersionFromFile, getFormPermissions, newTemplate } from "./utils";
@@ -26,24 +29,31 @@ export const DuplicateTemplateView: React.FC<CreateTemplatePageViewProps> = ({
 	isCreating,
 }) => {
 	const navigate = useNavigate();
-	const { entitlements } = useDashboard();
+	const { entitlements, showOrganizations } = useDashboard();
 	const [searchParams] = useSearchParams();
 	const templateQuery = useQuery(
 		template(searchParams.get("fromTemplate") as string),
 	);
+	const permissionsQuery = useQuery({
+		...checkAuthorization({
+			checks: templatePermissionChecks(templateQuery.data?.id ?? ""),
+		}),
+		enabled: templateQuery.isSuccess,
+	});
+	const canUpdateTemplate = permissionsQuery.data?.canUpdateTemplate ?? false;
 	const activeVersionId = templateQuery.data?.active_version_id ?? "";
 	const templateVersionQuery = useQuery({
 		...templateVersion(activeVersionId),
-		enabled: templateQuery.isSuccess,
+		enabled: canUpdateTemplate,
 	});
 	const templateVersionVariablesQuery = useQuery({
 		...templateVersionVariables(activeVersionId),
-		enabled: templateQuery.isSuccess,
+		enabled: canUpdateTemplate,
 	});
 	const { workspace_prebuilds: prebuildsEnabled } = useFeatureVisibility();
 	const presetsQuery = useQuery({
 		...templateVersionPresets(activeVersionId),
-		enabled: templateQuery.isSuccess && prebuildsEnabled,
+		enabled: canUpdateTemplate && prebuildsEnabled,
 	});
 	const totalPrebuilds =
 		presetsQuery.data?.reduce(
@@ -52,10 +62,12 @@ export const DuplicateTemplateView: React.FC<CreateTemplatePageViewProps> = ({
 		) ?? 0;
 	const isLoading =
 		templateQuery.isLoading ||
+		permissionsQuery.isLoading ||
 		templateVersionQuery.isLoading ||
 		templateVersionVariablesQuery.isLoading;
 	const loadingError =
 		templateQuery.error ||
+		permissionsQuery.error ||
 		templateVersionQuery.error ||
 		templateVersionVariablesQuery.error;
 
@@ -71,12 +83,19 @@ export const DuplicateTemplateView: React.FC<CreateTemplatePageViewProps> = ({
 		return <Loader />;
 	}
 
-	if (loadingError) {
+	if (
+		loadingError &&
+		(!templateQuery.data ||
+			!permissionsQuery.data ||
+			!templateVersionQuery.data ||
+			!templateVersionVariablesQuery.data)
+	) {
 		return <ErrorAlert error={loadingError} />;
 	}
 
 	return (
-		<>
+		<RequirePermission isFeatureVisible={canUpdateTemplate}>
+			{Boolean(loadingError) && <ErrorAlert error={loadingError} />}
 			{totalPrebuilds > 0 && (
 				<Alert severity="warning" className="mb-4">
 					This template has prebuilds configured. Duplicating this template will
@@ -85,6 +104,7 @@ export const DuplicateTemplateView: React.FC<CreateTemplatePageViewProps> = ({
 				</Alert>
 			)}
 			<CreateTemplateForm
+				showOrganizationPicker={showOrganizations}
 				{...formPermissions}
 				variablesSectionRef={variablesSectionRef}
 				onOpenBuildLogsDrawer={onOpenBuildLogsDrawer}
@@ -97,7 +117,7 @@ export const DuplicateTemplateView: React.FC<CreateTemplatePageViewProps> = ({
 				logs={templateVersionLogsQuery.data}
 				onSubmit={async (formData) => {
 					await onCreateTemplate({
-						organization: (templateQuery.data as Template).organization_name,
+						organization: formData.organization,
 						version: firstVersionFromFile(
 							(templateVersionQuery.data as TemplateVersion).job.file_id,
 							formData.user_variable_values,
@@ -108,6 +128,6 @@ export const DuplicateTemplateView: React.FC<CreateTemplatePageViewProps> = ({
 					});
 				}}
 			/>
-		</>
+		</RequirePermission>
 	);
 };

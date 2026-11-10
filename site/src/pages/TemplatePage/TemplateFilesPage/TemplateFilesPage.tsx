@@ -7,8 +7,10 @@ import {
 	templateFiles,
 } from "#/api/queries/templates";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import { Loader } from "#/components/Loader/Loader";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { TemplateFiles } from "#/modules/templates/TemplateFiles/TemplateFiles";
 import { useTemplateLayoutContext } from "#/pages/TemplatePage/TemplateLayout";
 import { docs } from "#/utils/docs";
@@ -28,30 +30,40 @@ const TemplateFilesPage: React.FC = () => {
 			navigate(location.pathname, { replace: true, state: {} });
 		}
 	}, [justCreated, navigate, location.pathname]);
-	const { template, activeVersion } = useTemplateLayoutContext();
-	const { data: currentFiles } = useQuery(
-		templateFiles(activeVersion.job.file_id),
-	);
-	const previousVersionQuery = useQuery(
-		previousTemplateVersion(
+	const { template, activeVersion, permissions } = useTemplateLayoutContext();
+	const currentFilesQuery = useQuery({
+		...templateFiles(activeVersion.job.file_id),
+		enabled: permissions.canUpdateTemplate,
+	});
+	const currentFiles = currentFilesQuery.data;
+	const previousVersionQuery = useQuery({
+		...previousTemplateVersion(
 			organizationName,
 			template.name,
 			activeVersion.name,
 		),
-	);
+		enabled: permissions.canUpdateTemplate,
+	});
 	const previousVersion = previousVersionQuery.data;
 	const hasPreviousVersion =
 		previousVersionQuery.isSuccess && previousVersion !== null;
-	const { data: previousFiles } = useQuery({
+	const previousFilesQuery = useQuery({
 		...templateFiles(previousVersion?.job.file_id ?? ""),
-		enabled: hasPreviousVersion,
+		enabled: permissions.canUpdateTemplate && hasPreviousVersion,
 	});
+	const previousFiles = previousFilesQuery.data;
+	const error =
+		currentFilesQuery.error ??
+		previousVersionQuery.error ??
+		previousFilesQuery.error;
 	const shouldDisplayFiles =
 		currentFiles && (!hasPreviousVersion || previousFiles);
 
 	return (
-		<>
+		<RequirePermission isFeatureVisible={permissions.canUpdateTemplate}>
 			<title>{getTemplatePageTitle("Source Code", template)}</title>
+
+			{Boolean(error) && <ErrorAlert error={error} />}
 
 			{justCreated && (
 				<Alert severity="info" dismissible className="mb-6">
@@ -97,10 +109,10 @@ const TemplateFilesPage: React.FC = () => {
 					currentFiles={currentFiles}
 					baseFiles={previousFiles}
 				/>
-			) : (
+			) : !error ? (
 				<Loader />
-			)}
-		</>
+			) : null}
+		</RequirePermission>
 	);
 };
 

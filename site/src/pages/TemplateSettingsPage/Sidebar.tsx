@@ -3,25 +3,33 @@ import {
 	SettingsSidebarNavItem,
 } from "#/components/Sidebar/Sidebar";
 
-export const Sidebar: React.FC = () => {
+export const Sidebar: React.FC<{ canUpdateTemplate: boolean }> = ({
+	canUpdateTemplate,
+}) => {
 	return (
 		<BaseSidebar>
 			<div className="flex flex-col gap-1">
-				<SettingsSidebarNavItem end href="">
-					General
-				</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="permissions">
-					Permissions
-				</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="variables">
-					Variables
-				</SettingsSidebarNavItem>
+				{canUpdateTemplate && (
+					<>
+						<SettingsSidebarNavItem end href="">
+							General
+						</SettingsSidebarNavItem>
+						<SettingsSidebarNavItem href="permissions">
+							Permissions
+						</SettingsSidebarNavItem>
+						<SettingsSidebarNavItem href="variables">
+							Variables
+						</SettingsSidebarNavItem>
+					</>
+				)}
 				<SettingsSidebarNavItem href="parameters">
 					Parameters
 				</SettingsSidebarNavItem>
-				<SettingsSidebarNavItem href="schedule">
-					Schedule
-				</SettingsSidebarNavItem>
+				{canUpdateTemplate && (
+					<SettingsSidebarNavItem href="schedule">
+						Schedule
+					</SettingsSidebarNavItem>
+				)}
 			</div>
 		</BaseSidebar>
 	);

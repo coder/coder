@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "react-query";
 import { Navigate, useNavigate, useSearchParams } from "react-router";
-import { deploymentConfig } from "#/api/queries/deployment";
+import { isApiError } from "#/api/errors";
 import {
 	createTemplateFromBuilder,
 	recordTemplateBuilderSession,
 	templateBuilderBases,
 } from "#/api/queries/templateBuilder";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import { generateUUID } from "#/utils/random";
 import { TemplateBuilderPageView } from "./TemplateBuilderPageView";
@@ -28,7 +30,11 @@ const TemplateBuilderPage: React.FC = () => {
 	const getLink = useLinks();
 	const { permissions } = useAuthenticated();
 	const [searchParams, setSearchParams] = useSearchParams();
-	const { data, error, isLoading } = useQuery(deploymentConfig());
+	const basesQuery = useQuery({
+		...templateBuilderBases(),
+		enabled: permissions.createTemplates,
+		retry: false,
+	});
 	const createMutation = useMutation(createTemplateFromBuilder());
 	const { mutate: recordSession } = useMutation(recordTemplateBuilderSession());
 
@@ -36,9 +42,7 @@ const TemplateBuilderPage: React.FC = () => {
 	// across wizard_entry and compose_completion telemetry events.
 	const sessionId = useMemo(() => generateUUID(), []);
 
-	const builderDisabled = data?.config?.template_builder?.disabled ?? false;
-	const wizardReady =
-		!builderDisabled && !isLoading && permissions.createTemplates;
+	const wizardReady = Boolean(basesQuery.data) && permissions.createTemplates;
 
 	// Report wizard_entry once the builder is ready and accessible.
 	const reportEntry = useCallback(() => {
@@ -76,11 +80,6 @@ const TemplateBuilderPage: React.FC = () => {
 		reportEntry();
 	}, [wizardReady, reportEntry]);
 
-	const basesQuery = useQuery({
-		...templateBuilderBases(),
-		enabled: wizardReady,
-	});
-
 	// ?base= is the only search param accepted on entry. It is consumed
 	// here: resolved against the available bases, stored in local state,
 	// and removed from the URL before the wizard mounts.
@@ -99,18 +98,24 @@ const TemplateBuilderPage: React.FC = () => {
 		setSearchParams(next, { replace: true });
 	}, [baseParam, basesQuery.data, searchParams, setSearchParams]);
 
-	// Hold the wizard until ?base= has been fully consumed so it mounts
-	// exactly once with its initial state settled.
-	if (isLoading || baseParam) {
-		return <Loader />;
-	}
-
 	if (!permissions.createTemplates) {
-		return <Navigate to="/templates" replace />;
+		return <RequirePermission isFeatureVisible={false} />;
 	}
 
-	if (builderDisabled) {
-		return <Navigate to="/templates/new" replace />;
+	if (basesQuery.error && !basesQuery.data) {
+		// Disabled builders have no API routes.
+		if (
+			isApiError(basesQuery.error) &&
+			basesQuery.error.response.status === 404
+		) {
+			return <Navigate to="/templates/new" replace />;
+		}
+		return <ErrorAlert error={basesQuery.error} />;
+	}
+
+	// Consume ?base= before mounting the wizard with its initial selection.
+	if (basesQuery.isPending || baseParam) {
+		return <Loader />;
 	}
 
 	const handleCreate = (
@@ -139,7 +144,7 @@ const TemplateBuilderPage: React.FC = () => {
 		<>
 			<title>{pageTitle("Create Template")}</title>
 			<TemplateBuilderPageView
-				error={error}
+				error={basesQuery.error}
 				basesData={basesQuery.data}
 				preselectedBase={preselectedBase}
 				onCreateTemplate={handleCreate}

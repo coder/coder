@@ -1,7 +1,11 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { HttpResponse, http } from "msw";
 import { API } from "#/api/api";
+import type { AuthorizationRequest } from "#/api/typesGenerated";
 import {
+	MockOrganization,
+	MockOrganization2,
 	MockTemplate,
 	MockTemplateExample,
 	MockTemplateVersion,
@@ -11,6 +15,7 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import { server } from "#/testHelpers/server";
 import CreateTemplatePage from "./CreateTemplatePage";
 
 const renderPage = async (searchParams: URLSearchParams) => {
@@ -104,41 +109,79 @@ test("Create template from starter template", { timeout: 20_000 }, async () => {
 	});
 });
 
-test("Create template from duplicating a template", async () => {
-	vi.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
-	vi.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
-	vi.spyOn(API, "getTemplateVersionVariables").mockResolvedValue([
-		MockTemplateVersionVariable1,
-	]);
+test.each([false, true])(
+	"Create template from duplicating a template (cross-organization: %s)",
+	async (crossOrganization) => {
+		const destination = crossOrganization ? MockOrganization2.name : "default";
+		if (crossOrganization) {
+			vi.spyOn(API, "getOrganizations").mockResolvedValue([
+				MockOrganization,
+				MockOrganization2,
+			]);
+			vi.spyOn(API, "getProvisionerDaemonsByOrganization").mockResolvedValue(
+				[],
+			);
+			server.use(
+				http.post<never, AuthorizationRequest>(
+					"/api/v2/authcheck",
+					async ({ request }) => {
+						const { checks } = await request.json();
+						return HttpResponse.json(
+							Object.fromEntries(
+								Object.keys(checks).map((name) => [
+									name,
+									name !== MockOrganization.id,
+								]),
+							),
+						);
+					},
+				),
+			);
+		}
+		vi.spyOn(API, "getTemplateVersionPresets").mockResolvedValue([]);
+		vi.spyOn(API, "getTemplateByName").mockResolvedValue(MockTemplate);
+		vi.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
+		vi.spyOn(API, "getTemplateVersionVariables").mockResolvedValue([
+			MockTemplateVersionVariable1,
+		]);
 
-	const searchParams = new URLSearchParams({
-		fromTemplate: MockTemplate.id,
-	});
-	const { router } = await renderPage(searchParams);
-	// Name and display name are using copy prefixes
-	expect(screen.getByLabelText(/Name/)).toHaveValue(
-		`${MockTemplate.name}-copy`,
-	);
-	expect(screen.getByLabelText(/Display name/)).toHaveValue(
-		`Copy of ${MockTemplate.display_name}`,
-	);
-	// Variables are using the same values
-	expect(
-		screen.getByLabelText(MockTemplateVersionVariable1.description, {
-			exact: false,
-		}),
-	).toHaveValue(MockTemplateVersionVariable1.value);
-	// Create template
-	vi.spyOn(API, "createTemplateVersion").mockResolvedValue(MockTemplateVersion);
-	vi.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
-	vi.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate);
-	await userEvent.click(screen.getByRole("button", { name: /save/i }));
-	await waitFor(() => {
-		expect(router.state.location.pathname).toEqual(
-			`/templates/${MockTemplate.name}/files`,
+		const searchParams = new URLSearchParams({
+			fromTemplate: MockTemplate.id,
+		});
+		const { router } = await renderPage(searchParams);
+		// Name and display name are using copy prefixes
+		expect(screen.getByLabelText(/Name/)).toHaveValue(
+			`${MockTemplate.name}-copy`,
 		);
-	});
-});
+		expect(screen.getByLabelText(/Display name/)).toHaveValue(
+			`Copy of ${MockTemplate.display_name}`,
+		);
+		// Variables are using the same values
+		expect(
+			screen.getByLabelText(MockTemplateVersionVariable1.description, {
+				exact: false,
+			}),
+		).toHaveValue(MockTemplateVersionVariable1.value);
+		// Create template
+		vi.spyOn(API, "createTemplateVersion").mockResolvedValue(
+			MockTemplateVersion,
+		);
+		vi.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
+		vi.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate);
+		await userEvent.click(screen.getByRole("button", { name: /save/i }));
+		await waitFor(() => {
+			expect(router.state.location.pathname).toEqual(
+				crossOrganization
+					? `/templates/${destination}/${MockTemplate.name}/files`
+					: `/templates/${MockTemplate.name}/files`,
+			);
+		});
+		expect(API.createTemplate).toHaveBeenCalledWith(
+			destination,
+			expect.objectContaining({ template_version_id: MockTemplateVersion.id }),
+		);
+	},
+);
 
 test("The page displays an error if the upload fails", async () => {
 	const errMsg = "Unsupported content type header";

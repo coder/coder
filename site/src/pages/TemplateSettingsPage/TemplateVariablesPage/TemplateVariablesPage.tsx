@@ -21,13 +21,14 @@ import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Loader } from "#/components/Loader/Loader";
 import { toast } from "#/components/Toaster/toast";
 import { linkToTemplate, useLinks } from "#/modules/navigation";
+import { RequirePermission } from "#/modules/permissions/RequirePermission";
 import { pageTitle } from "#/utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
 
 const TemplateVariablesPage: React.FC = () => {
 	const getLink = useLinks();
-	const { template } = useTemplateSettings();
+	const { template, permissions } = useTemplateSettings();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const versionId = template.active_version_id;
@@ -38,6 +39,7 @@ const TemplateVariablesPage: React.FC = () => {
 		isLoading: isVersionLoading,
 	} = useQuery({
 		...templateVersion(versionId),
+		enabled: permissions.canUpdateTemplate,
 		placeholderData: keepPreviousData,
 	});
 	const {
@@ -46,6 +48,7 @@ const TemplateVariablesPage: React.FC = () => {
 		isLoading: isVariablesLoading,
 	} = useQuery({
 		...templateVersionVariables(versionId),
+		enabled: permissions.canUpdateTemplate,
 		placeholderData: keepPreviousData,
 	});
 
@@ -90,7 +93,7 @@ const TemplateVariablesPage: React.FC = () => {
 	}
 
 	return (
-		<>
+		<RequirePermission isFeatureVisible={permissions.canUpdateTemplate}>
 			<title>{pageTitle(template.name, "Template variables")}</title>
 
 			<TemplateVariablesPageView
@@ -111,7 +114,7 @@ const TemplateVariablesPage: React.FC = () => {
 					await buildVersion(request);
 				}}
 			/>
-		</>
+		</RequirePermission>
 	);
 };
 

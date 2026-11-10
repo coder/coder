@@ -18,6 +18,7 @@ import { createDayString } from "#/utils/createDayString";
 import type { TemplateVersionFiles } from "#/utils/templateVersion";
 
 export type TemplateVersionPageViewProps = {
+	canUpdateTemplate: boolean;
 	organizationName: string;
 	templateName: string;
 	versionName: string;
@@ -31,6 +32,7 @@ export type TemplateVersionPageViewProps = {
 export const TemplateVersionPageView: React.FC<
 	TemplateVersionPageViewProps
 > = ({
+	canUpdateTemplate,
 	organizationName,
 	templateName,
 	versionName,
@@ -56,12 +58,14 @@ export const TemplateVersionPageView: React.FC<
 								</RouterLink>
 							</Button>
 						)}
-						<Button variant="outline" asChild>
-							<RouterLink to={`${templateLink}/versions/${versionName}/edit`}>
-								<EditIcon className="size-icon-sm!" />
-								Edit
-							</RouterLink>
-						</Button>
+						{canUpdateTemplate && (
+							<Button variant="outline" asChild>
+								<RouterLink to={`${templateLink}/versions/${versionName}/edit`}>
+									<EditIcon className="size-icon-sm!" />
+									Edit
+								</RouterLink>
+							</Button>
+						)}
 					</>
 				}
 			>
@@ -69,7 +73,9 @@ export const TemplateVersionPageView: React.FC<
 				<PageHeaderTitle>{versionName}</PageHeaderTitle>
 			</PageHeader>
 
-			{!currentFiles && !error && <Loader />}
+			{(!currentVersion || (canUpdateTemplate && !currentFiles)) && !error && (
+				<Loader />
+			)}
 
 			<div className="flex flex-col gap-8">
 				{Boolean(error) && <ErrorAlert error={error} />}
@@ -78,7 +84,7 @@ export const TemplateVersionPageView: React.FC<
 						{currentVersion.message}
 					</TemplateUpdateMessage>
 				)}
-				{currentVersion && currentFiles && (
+				{currentVersion && (
 					<>
 						<Stats className="justify-between">
 							<div className="flex flex-wrap items-center">
@@ -108,13 +114,15 @@ export const TemplateVersionPageView: React.FC<
 							</a>
 						</Stats>
 
-						<TemplateFiles
-							organizationName={organizationName}
-							templateName={templateName}
-							versionName={versionName}
-							currentFiles={currentFiles}
-							baseFiles={baseFiles}
-						/>
+						{canUpdateTemplate && currentFiles && (
+							<TemplateFiles
+								organizationName={organizationName}
+								templateName={templateName}
+								versionName={versionName}
+								currentFiles={currentFiles}
+								baseFiles={baseFiles}
+							/>
+						)}
 					</>
 				)}
 			</div>
