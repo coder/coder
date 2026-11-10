@@ -247,10 +247,6 @@ func (s *server) Plan(
 		return provisionersdk.PlanErrorf("plan vars: %s", err)
 	}
 
-	// Graph reuses the parsed plan and the graph instead of running
-	// Terraform again, so they must not outlive a later Plan that fails.
-	sessState := s.sessionState(sess.Context(), sess)
-	sessState.plan, sessState.graph = nil, ""
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
 	result, err := e.plan(ctx, killCtx, env, vars, sess, request)
 	endStage(err)
@@ -258,6 +254,9 @@ func (s *server) Plan(
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
 
+	// Graph reuses the parsed plan and the graph instead of running
+	// Terraform again.
+	sessState := s.sessionState(sess.Context(), sess)
 	sessState.plan = result.plan
 	sessState.graph = result.graph
 	if result.graphErr != nil {

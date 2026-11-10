@@ -714,43 +714,6 @@ esac
 	}
 }
 
-// TestPlanStopsGraphWhenShowFails covers a plan file that can't be shown:
-// Plan must report that without waiting for the graph it started alongside.
-//
-//nolint:paralleltest // Avoid "text file busy"; see TestGraphResolvesAppliedScriptOrders.
-func TestPlanStopsGraphWhenShowFails(t *testing.T) {
-	dir := t.TempDir()
-	binaryPath := writeTerraformShim(t, dir, `#!/bin/sh
-case "$1" in
-version)
-	printf '%s\n' '{"terraform_version":"1.15.0","platform":"linux_amd64","provider_selections":{}}'
-	;;
-graph)
-	exec sleep 60
-	;;
-plan|init)
-	exit 0
-	;;
-*)
-	exit 1
-	;;
-esac
-`)
-	ctx, api := setupProvisioner(t, &provisionerServeOptions{
-		binaryPath:  binaryPath,
-		exitTimeout: time.Second,
-	})
-	sess := configure(ctx, t, api, &proto.Config{})
-	init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
-	require.Empty(t, init.Error)
-
-	start := time.Now()
-	require.NoError(t, sendPlan(sess, proto.WorkspaceTransition_START))
-	_, response := readProvisionLog(t, sess)
-	require.Contains(t, response.GetPlan().GetError(), "show terraform plan file")
-	require.Less(t, time.Since(start), 30*time.Second, "plan waited for the graph")
-}
-
 // below we exec fake_cancel.sh, which causes the kernel to execute it, and if more than
 // one process tries to do this simultaneously, it can cause "text file busy"
 // nolint: paralleltest

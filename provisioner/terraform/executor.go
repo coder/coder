@@ -378,29 +378,20 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	// are read only and take no state lock. The graph comes from the
 	// configuration and the state before apply; the Graph RPC builds it again
 	// after apply when that state added nodes for orphaned or deposed objects.
-	type graphResult struct {
-		raw string
-		err error
-	}
-	graphCtx, cancelGraph := context.WithCancel(ctx)
-	defer cancelGraph()
-	graphKillCtx, killGraph := context.WithCancel(killCtx)
-	defer killGraph()
-	graphDone := make(chan graphResult, 1)
-	go func() {
-		raw, err := e.graph(graphCtx, graphKillCtx)
-		graphDone <- graphResult{raw: raw, err: err}
-	}()
+	var (
+		wg       sync.WaitGroup
+		rawGraph string
+		graphErr error
+	)
+	wg.Go(func() {
+		rawGraph, graphErr = e.graph(ctx, killCtx)
+	})
 
 	plan, err := e.parsePlan(ctx, killCtx, planfilePath)
+	wg.Wait()
 	if err != nil {
-		// Nothing will use the graph, so stop it rather than wait for it.
-		cancelGraph()
-		killGraph()
-		<-graphDone
 		return nil, xerrors.Errorf("show terraform plan file: %w", err)
 	}
-	graph := <-graphDone
 
 	planJSON, err := json.Marshal(plan)
 	if err != nil {
@@ -449,8 +440,8 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	return &planResult{
 		response: msg,
 		plan:     plan,
-		graph:    graph.raw,
-		graphErr: graph.err,
+		graph:    rawGraph,
+		graphErr: graphErr,
 	}, nil
 }
 
