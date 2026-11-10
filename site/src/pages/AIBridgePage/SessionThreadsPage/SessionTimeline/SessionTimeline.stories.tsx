@@ -217,7 +217,7 @@ export const SecondThreadLoopOpen: Story = {
 	play: async ({ canvas }) => {
 		await userEvent.click(
 			canvas.getByRole("button", {
-				name: "(Show more) Agentic loop for prompt: Please refactor the authentication modul…",
+				name: /^\(Show more\) Agentic loop for prompt: Please refactor the authentication/,
 			}),
 		);
 	},
