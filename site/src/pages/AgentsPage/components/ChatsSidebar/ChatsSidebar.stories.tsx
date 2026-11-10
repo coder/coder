@@ -1936,6 +1936,16 @@ export const WithMultiplePRs: Story = {
 	},
 };
 
+export const WithMultiplePRsSelected: Story = {
+	args: WithMultiplePRs.args,
+	parameters: {
+		reactRouter: reactRouterParameters({
+			location: { path: "/agents/multi-pr" },
+			routing: agentsRouting,
+		}),
+	},
+};
+
 // Enough PRs to show the submenu's height limit.
 export const WithManyPRs: Story = {
 	args: {
@@ -3237,7 +3247,7 @@ export const ProjectFolderChatsLoadingNextPage: Story = {
 	// end to scroll into view.
 	decorators: [
 		(Story) => (
-			<div className="h-[500px] w-[360px]">
+			<div className="h-125 w-90">
 				<Story />
 			</div>
 		),

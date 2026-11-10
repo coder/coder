@@ -313,7 +313,7 @@ export const ChatSharingPopoverContent: React.FC<
 	return (
 		<PopoverContent
 			align="end"
-			className="w-[calc(100vw-2rem)] p-3 sm:w-[580px] sm:p-4"
+			className="w-[calc(100vw-2rem)] p-3 sm:w-145 sm:p-4"
 		>
 			<div className="flex items-center justify-between gap-2 mb-4">
 				<h3 className="text-lg font-semibold m-0">Chat sharing</h3>

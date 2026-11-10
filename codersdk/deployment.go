@@ -4506,7 +4506,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Max Queued Messages Per Chat",
-			Description: "Maximum number of messages that can be queued in a chat. Sending a message to a chat whose queue is full fails with HTTP 429. Must be at least 1.",
+			Description: "Maximum number of messages that can be queued in a chat. Sending a message that would make a full queue longer fails with HTTP 429. Must be at least 1.",
 			Flag:        "chat-max-queued-messages-per-chat",
 			Env:         "CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT",
 			Value:       &c.AI.Chat.MaxQueuedMessagesPerChat,

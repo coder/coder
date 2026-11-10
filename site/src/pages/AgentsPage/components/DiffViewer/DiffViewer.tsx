@@ -16,7 +16,10 @@ import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useTheme } from "#/theme/context";
 import { countChangedLines } from "../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../utils/diffColors";
-import { SEPARATOR_CSS } from "../ChatElements/tools/utils";
+import {
+	DIFFS_GIT_COLOR_STYLE,
+	SEPARATOR_CSS,
+} from "../ChatElements/tools/utils";
 import { useActiveFileTracking } from "./useActiveFileTracking";
 
 type DiffViewerProps = {
@@ -65,6 +68,7 @@ const diffViewerStyle = {
 	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
 	"--diffs-font-size": "11px",
 	"--diffs-line-height": `${DIFF_VIEWER_LINE_HEIGHT}px`,
+	...DIFFS_GIT_COLOR_STYLE,
 } satisfies React.CSSProperties;
 
 const diffViewerMetrics: Partial<VirtualFileMetrics> = {
@@ -338,7 +342,7 @@ function SkeletonFile({ groups }: { groups: readonly (readonly string[])[] }) {
 		<div>
 			<div className="flex h-8 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-2.5">
 				<div className="flex items-center gap-2">
-					<Skeleton className="size-3 rounded-[2px]" />
+					<Skeleton className="size-3 rounded-xs" />
 					<Skeleton className="h-3 w-44" />
 				</div>
 				<Skeleton className="h-5 w-14 rounded-[3px]" />

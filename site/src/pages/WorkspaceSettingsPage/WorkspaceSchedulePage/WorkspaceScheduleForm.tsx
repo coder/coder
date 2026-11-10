@@ -313,7 +313,7 @@ export const WorkspaceScheduleForm: React.FC<WorkspaceScheduleFormProps> = ({
 							Days of Week
 						</legend>
 
-						<div className="flex flex-row flex-wrap gap-x-4 gap-y-2 pt-1">
+						<div className="flex flex-wrap gap-x-4 gap-y-2 pt-1">
 							{checkboxes.map((checkbox) => (
 								<div key={checkbox.name} className="flex items-center gap-2">
 									<Checkbox

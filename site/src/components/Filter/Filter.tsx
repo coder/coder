@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ExternalLinkIcon, SlidersHorizontalIcon } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
 	getValidationErrorMessage,
 	hasError,
@@ -115,7 +115,7 @@ const BaseSkeleton: React.FC<SkeletonProps> = ({
 };
 
 export const MenuSkeleton: React.FC = () => {
-	return <BaseSkeleton className="min-w-[200px] shrink-0" />;
+	return <BaseSkeleton className="min-w-50 shrink-0" />;
 };
 
 type FilterProps = React.ComponentProps<"div"> & {
@@ -149,6 +149,7 @@ export const Filter: React.FC<FilterProps> = ({
 	// remove this; render keys would cause the component to remount too often
 	const [queryCopy, setQueryCopy] = useState(filter.query);
 	const textboxInputRef = useRef<HTMLInputElement>(null);
+	const errorId = useId();
 
 	// Conditionally re-syncs the parent and local filter queries
 	useEffect(() => {
@@ -194,6 +195,7 @@ export const Filter: React.FC<FilterProps> = ({
 							value={queryCopy}
 							aria-label="Filter"
 							aria-invalid={shouldDisplayError}
+							aria-describedby={hasError(error) ? errorId : undefined}
 							onChange={(query) => {
 								setQueryCopy(query);
 								filter.debounceUpdate(query);
@@ -210,7 +212,7 @@ export const Filter: React.FC<FilterProps> = ({
 							placeholder="Search..."
 						/>
 						{hasError(error) && (
-							<span className="text-content-destructive text-sm">
+							<span id={errorId} className="text-content-destructive text-sm">
 								{getValidationErrorMessage(error)}
 							</span>
 						)}

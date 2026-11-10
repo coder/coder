@@ -79,7 +79,7 @@ export const WorkspacesEmpty: React.FC<WorkspacesEmptyProps> = ({
 			description={`${defaultMessage} Select one template below to start.`}
 			cta={
 				<div>
-					<div className="flex flex-wrap gap-4 mb-6 justify-center max-w-[800px]">
+					<div className="flex flex-wrap gap-4 mb-6 justify-center max-w-200">
 						{featuredTemplates?.map((t) => (
 							<Link
 								key={t.id}
