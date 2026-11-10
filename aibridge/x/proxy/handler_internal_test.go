@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -42,6 +43,8 @@ import (
 	codertestutil "github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
+
+const userSecretKey = "user-secret-key"
 
 type credentialErrorProvider struct {
 	provider.Provider
@@ -95,6 +98,24 @@ func (b *unreadBody) Close() error {
 	return nil
 }
 
+type failingStartRecorder struct{ testutil.MockRecorder }
+
+func (*failingStartRecorder) RecordInterception(context.Context, *recorder.InterceptionRecord) error {
+	return io.ErrClosedPipe
+}
+
+type blockingEndRecorder struct {
+	testutil.MockRecorder
+	started chan context.Context
+	release chan struct{}
+}
+
+func (r *blockingEndRecorder) RecordInterceptionEnded(ctx context.Context, req *recorder.InterceptionRecordEnded) error {
+	r.started <- ctx
+	<-r.release
+	return r.MockRecorder.RecordInterceptionEnded(ctx, req)
+}
+
 func requestWithAuth(t *testing.T, body io.Reader) *http.Request {
 	t.Helper()
 	ctx := aibcontext.AsActor(t.Context(), aibcontext.Actor{
@@ -104,7 +125,7 @@ func requestWithAuth(t *testing.T, body io.Reader) *http.Request {
 		Email:    "actor@example.test",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", body).WithContext(ctx)
-	req.Header.Set("Authorization", "Bearer user-secret-key")
+	req.Header.Set("Authorization", "Bearer "+userSecretKey)
 	return req
 }
 
@@ -118,7 +139,7 @@ func newTestForwardingHandler(t *testing.T, prov provider.Provider, m *metrics.M
 		defer gate.Close()
 		require.NoError(t, gate.Shutdown(codertestutil.Context(t, codertestutil.WaitLong)))
 	})
-	h, err := newForwardingHandler(prov, logger, m, noop.NewTracerProvider().Tracer(t.Name()), gate, &struct{ recorder.Recorder }{})
+	h, err := newForwardingHandler(prov, logger, m, noop.NewTracerProvider().Tracer(t.Name()), gate, &testutil.MockRecorder{})
 	require.NoError(t, err)
 	return h
 }
@@ -364,7 +385,7 @@ func TestCheckRequest(t *testing.T) {
 					require.Contains(t, entries[0].Fields, slog.Error(tc.wantLogError))
 					require.Contains(t, entries[0].Fields, slog.F("path", req.URL.Path))
 				}
-				require.NotContains(t, fmt.Sprint(entries), "user-secret-key", "rejection logs must not include credentials")
+				require.NotContains(t, fmt.Sprint(entries), userSecretKey, "rejection logs must not include credentials")
 			})
 		}
 	})
@@ -380,7 +401,7 @@ func TestCheckRequest(t *testing.T) {
 			{
 				name:     "BYOK",
 				wantKind: credential.KindBYOK,
-				wantHint: utils.MaskSecret("user-secret-key"),
+				wantHint: utils.MaskSecret(userSecretKey),
 			},
 			{
 				name:       "KeyPool",
@@ -443,8 +464,17 @@ func TestForwardingHandlerOpenCircuit(t *testing.T) {
 	prov := provider.NewOpenAI(config.OpenAI{CircuitBreaker: &cfg})
 	logger := slogtest.Make(t, nil)
 	gate := aibridge.NewInflightGate(logger)
-	t.Cleanup(gate.Close)
-	handler, err := newForwardingHandler(prov, logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, &testutil.MockRecorder{})
+	rec := &testutil.MockRecorder{}
+	t.Cleanup(func() {
+		defer gate.Close()
+		require.NoError(t, gate.Shutdown(codertestutil.Context(t, codertestutil.WaitLong)))
+		starts := rec.RecordedInterceptions()
+		require.Len(t, starts, 1)
+		end := rec.RecordedInterceptionEnd(starts[0].ID)
+		require.NotNil(t, end)
+		require.Equal(t, recorder.ErrorTypeServerError, end.ErrorType)
+	})
+	handler, err := newForwardingHandler(prov, logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, rec)
 	require.NoError(t, err)
 	const route = "/v1/responses"
 	require.NoError(t, handler.breaker.Execute(route, "", httptest.NewRecorder(), func(w http.ResponseWriter) error {
@@ -601,7 +631,7 @@ func TestForwardingProviderCredentials(t *testing.T) {
 			// ReverseProxy removes headers nominated by Connection.
 			// Handler must restore the BYOK credential.
 			header:   http.Header{"Connection": {"Authorization"}},
-			wantAuth: http.Header{"Authorization": {"Bearer user-secret-key"}},
+			wantAuth: http.Header{"Authorization": {"Bearer " + userSecretKey}},
 		},
 		{
 			name: "AnthropicAPIKey",
@@ -734,4 +764,172 @@ func TestForwardingFailoverRetry(t *testing.T) {
 	require.Equal(t, "ok", response.Body.String())
 	require.EqualValues(t, 1, rejected.eofs.Load(), "rejected responses must be drained")
 	require.EqualValues(t, 1, rejected.closes.Load(), "rejected responses must be closed")
+}
+
+func TestForwardingRecordingDoesNotBlockResponse(t *testing.T) {
+	t.Parallel()
+	h := newTestForwardingHandler(t, provider.NewOpenAI(config.OpenAI{BaseURL: "https://upstream.example.test"}), nil)
+	rec := &blockingEndRecorder{started: make(chan context.Context, 1), release: make(chan struct{})}
+	unblock := sync.OnceFunc(func() { close(rec.release) })
+	t.Cleanup(unblock)
+	h.recorder = rec
+	h.transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		_, err := io.Copy(io.Discard, r.Body)
+		return &http.Response{StatusCode: http.StatusOK, Header: http.Header{}, Body: io.NopCloser(strings.NewReader("ok"))}, err
+	})
+	req := requestWithAuth(t, strings.NewReader("{}"))
+	response := httptest.NewRecorder()
+	returned := make(chan struct{})
+	before := time.Now()
+	go func() {
+		defer close(returned)
+		h.ServeHTTP(response, req)
+	}()
+	codertestutil.TryReceive(codertestutil.Context(t, codertestutil.WaitShort), t, returned)
+	after := time.Now()
+	require.Equal(t, "ok", response.Body.String())
+	recordCtx := codertestutil.RequireReceive(codertestutil.Context(t, codertestutil.WaitShort), t, rec.started)
+	require.NoError(t, recordCtx.Err(), "handler return must not cancel recording")
+	deadline, ok := recordCtx.Deadline()
+	require.True(t, ok)
+	require.WithinRange(t, deadline, before.Add(recorder.DefaultAsyncTimeout), time.Now().Add(recorder.DefaultAsyncTimeout))
+
+	shutdownCtx, stop := context.WithCancel(t.Context())
+	stop()
+	require.ErrorIs(t, h.inflight.Shutdown(shutdownCtx), context.Canceled, "recording must retain admission")
+	unblock()
+	require.NoError(t, h.inflight.Shutdown(codertestutil.Context(t, codertestutil.WaitLong)))
+	starts := rec.RecordedInterceptions()
+	require.Len(t, starts, 1)
+	end := rec.RecordedInterceptionEnd(starts[0].ID)
+	require.NotNil(t, end)
+	require.WithinRange(t, end.EndedAt, before, after)
+}
+
+// Forwarding records the interception start before contacting upstream and its
+// end before releasing admission.
+func TestForwardingRecordsInterception(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name           string
+		pooled         bool
+		failStart      bool
+		transportError bool
+		readError      bool
+		abort          bool
+		statuses       []int
+		wantStatus     int
+		wantError      recorder.ErrorType
+		wantHint       string
+	}{
+		{
+			name:       "Success",
+			statuses:   []int{http.StatusOK},
+			wantStatus: http.StatusOK,
+			wantHint:   utils.MaskSecret(userSecretKey),
+		},
+		{
+			name:       "UpstreamError",
+			statuses:   []int{http.StatusTooManyRequests},
+			wantStatus: http.StatusTooManyRequests,
+			wantError:  recorder.ErrorTypeFromStatus(http.StatusTooManyRequests),
+			wantHint:   utils.MaskSecret(userSecretKey),
+		},
+		{
+			name:       "PooledKey",
+			pooled:     true,
+			statuses:   []int{http.StatusUnauthorized, http.StatusOK},
+			wantStatus: http.StatusOK,
+			wantHint:   utils.MaskSecret("second-key"),
+		},
+		{
+			name:       "StartFails",
+			failStart:  true,
+			wantStatus: http.StatusInternalServerError,
+		},
+		{
+			name:           "TransportError",
+			transportError: true,
+			wantStatus:     http.StatusBadGateway,
+			wantError:      recorder.ErrorTypeUnknown,
+			wantHint:       utils.MaskSecret(userSecretKey),
+		},
+		{
+			name:       "ReadError",
+			readError:  true,
+			statuses:   []int{http.StatusOK},
+			wantStatus: http.StatusOK,
+			wantError:  recorder.ErrorTypeUnknown,
+			wantHint:   utils.MaskSecret(userSecretKey),
+		},
+		{
+			name:       "Abort",
+			readError:  true,
+			abort:      true,
+			statuses:   []int{http.StatusOK},
+			wantStatus: http.StatusOK,
+			wantError:  recorder.ErrorTypeUnknown,
+			wantHint:   utils.MaskSecret(userSecretKey),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var calls atomic.Int32
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				if tc.readError {
+					w.Header().Set("Content-Length", "100")
+				}
+				w.WriteHeader(tc.statuses[calls.Add(1)-1])
+				if tc.readError {
+					_, _ = io.WriteString(w, "chunk")
+				}
+			}))
+			t.Cleanup(upstream.Close)
+
+			cfg := config.OpenAI{BaseURL: upstream.URL}
+			if tc.pooled {
+				cfg.KeyPool = newTestPool(t, "first-key", "second-key")
+			}
+			rec := &testutil.MockRecorder{}
+			var r recorder.Recorder = rec
+			if tc.failStart {
+				r = &failingStartRecorder{}
+			}
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+			gate := aibridge.NewInflightGate(logger)
+			t.Cleanup(gate.Close)
+
+			h, err := newForwardingHandler(provider.NewOpenAI(cfg), logger, nil, noop.NewTracerProvider().Tracer(t.Name()), gate, r)
+			require.NoError(t, err)
+			if tc.transportError {
+				h.transport = roundTripFunc(func(*http.Request) (*http.Response, error) { return nil, io.ErrClosedPipe })
+			}
+			req := requestWithAuth(t, strings.NewReader("{}"))
+			if tc.pooled {
+				req.Header.Del("Authorization")
+			}
+
+			response := httptest.NewRecorder()
+			if tc.abort {
+				// Set ServerContextKey so ReverseProxy panics with ErrAbortHandler
+				// when it reads the truncated upstream body.
+				req = req.WithContext(context.WithValue(req.Context(), http.ServerContextKey, &http.Server{ReadHeaderTimeout: codertestutil.WaitShort}))
+				require.PanicsWithValue(t, http.ErrAbortHandler, func() { h.ServeHTTP(response, req) })
+			} else {
+				h.ServeHTTP(response, req)
+			}
+			require.NoError(t, gate.Shutdown(codertestutil.Context(t, codertestutil.WaitLong)))
+			require.Equal(t, tc.wantStatus, response.Code)
+			require.EqualValues(t, len(tc.statuses), calls.Load())
+			if tc.failStart {
+				return
+			}
+			starts := rec.RecordedInterceptions()
+			require.Len(t, starts, 1)
+			end := rec.RecordedInterceptionEnd(starts[0].ID)
+			require.NotNil(t, end)
+			require.Equal(t, tc.wantError, end.ErrorType)
+			require.Equal(t, tc.wantHint, end.CredentialHint)
+		})
+	}
 }
