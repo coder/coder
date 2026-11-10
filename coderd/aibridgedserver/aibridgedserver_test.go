@@ -238,6 +238,7 @@ func TestAuthorization(t *testing.T) {
 			if tc.expectedErr != nil {
 				require.Error(t, err)
 				require.ErrorIs(t, err, tc.expectedErr)
+				require.Zero(t, drpcerr.Code(err), "a rejection must not be marked internal")
 			} else {
 				expected := proto.IsAuthorizedResponse{
 					OwnerId:            user.ID.String(),
@@ -422,6 +423,7 @@ func TestAuthorization_Delegated(t *testing.T) {
 			if tc.expectedErr != nil {
 				require.Error(t, err)
 				require.ErrorIs(t, err, tc.expectedErr)
+				require.Zero(t, drpcerr.Code(err), "a rejection must not be marked internal")
 				return
 			}
 			require.NoError(t, err)
@@ -531,6 +533,7 @@ func TestAuthorization_WorkspaceAttribution(t *testing.T) {
 			resp, err := srv.IsAuthorized(t.Context(), &proto.IsAuthorizedRequest{Key: key.ID + "-" + secret})
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
+				require.Zero(t, drpcerr.Code(err), "a rejection must not be marked internal")
 				return
 			}
 			require.NoError(t, err)
@@ -856,6 +859,7 @@ func TestAuthorization_WorkspaceOrgResolution(t *testing.T) {
 			resp, err := srv.IsAuthorized(ctx, &proto.IsAuthorizedRequest{Key: token})
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
+				require.Zero(t, drpcerr.Code(err), "a rejection must not be marked internal")
 				return
 			}
 			require.NoError(t, err)
@@ -960,6 +964,7 @@ func TestAuthorization_DelegatedOrgResolution(t *testing.T) {
 			resp, err := srv.IsAuthorized(ctx, req)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
+				require.Zero(t, drpcerr.Code(err), "a rejection must not be marked internal")
 				require.Nil(t, resp)
 				return
 			}
@@ -1121,6 +1126,7 @@ func TestAuthorization_EffectiveGroupOrgResolution(t *testing.T) {
 			resp, err := srv.IsAuthorized(ctx, req)
 			if wantOrgID == uuid.Nil {
 				require.ErrorIs(t, err, aibridgedserver.ErrNoOrganization)
+				require.Zero(t, drpcerr.Code(err), "a rejection must not be marked internal")
 				require.Nil(t, resp)
 				return
 			}

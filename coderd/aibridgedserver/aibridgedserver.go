@@ -51,22 +51,29 @@ var (
 	// matching.
 	// TODO: return these errors to the client in a more structured/comparable
 	//       way.
-	ErrInvalidKey                   = xerrors.New("invalid key")
-	ErrUnknownKey                   = xerrors.New("unknown key")
-	ErrExpired                      = xerrors.New("expired")
-	ErrUnknownUser                  = xerrors.New("unknown user")
-	ErrDeletedUser                  = xerrors.New("deleted user")
-	ErrInactiveUser                 = xerrors.New("inactive user")
-	ErrSystemUser                   = xerrors.New("system user")
-	ErrAmbiguousAuth                = xerrors.New("direct and delegated authentication are mutually exclusive")
-	ErrInvalidDelegatedOrganization = xerrors.New("invalid delegated_organization_id")
-	ErrWorkspaceAttribution         = xerrors.New("invalid workspace attribution")
-	ErrUnknownWorkspace             = xerrors.New("unknown workspace")
-	ErrUnknownOrganizationMember    = xerrors.New("user is not a member of the request organization")
-	ErrNoOrganization               = xerrors.New("no organization could be resolved for the user")
+	ErrInvalidKey                   = rejection("invalid key")
+	ErrUnknownKey                   = rejection("unknown key")
+	ErrExpired                      = rejection("expired")
+	ErrUnknownUser                  = rejection("unknown user")
+	ErrDeletedUser                  = rejection("deleted user")
+	ErrInactiveUser                 = rejection("inactive user")
+	ErrSystemUser                   = rejection("system user")
+	ErrAmbiguousAuth                = rejection("direct and delegated authentication are mutually exclusive")
+	ErrInvalidDelegatedOrganization = rejection("invalid delegated_organization_id")
+	ErrWorkspaceAttribution         = rejection("invalid workspace attribution")
+	ErrUnknownWorkspace             = rejection("unknown workspace")
+	ErrUnknownOrganizationMember    = rejection("user is not a member of the request organization")
+	ErrNoOrganization               = rejection("no organization could be resolved for the user")
 
 	ErrNoExternalAuthLinkFound = xerrors.New("no external auth link found")
 )
+
+// rejection is an IsAuthorized error that refuses the request. The gateway
+// answers it with a 403. Every other IsAuthorized error is a failure of coderd
+// itself and carries [proto.ErrCodeInternal], so the gateway answers a 500.
+type rejection string
+
+func (r rejection) Error() string { return string(r) }
 
 var _ aibridged.DRPCServer = &Server{}
 
@@ -814,6 +821,15 @@ externalAuthLoop:
 //
 // TODO: replace with logic from [httpmw.ExtractAPIKey].
 func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest) (*proto.IsAuthorizedResponse, error) {
+	resp, err := s.authorize(ctx, in)
+	var r rejection
+	if err != nil && !errors.As(err, &r) {
+		return nil, drpcerr.WithCode(err, proto.ErrCodeInternal)
+	}
+	return resp, err
+}
+
+func (s *Server) authorize(ctx context.Context, in *proto.IsAuthorizedRequest) (*proto.IsAuthorizedResponse, error) {
 	//nolint:gocritic // AIBridged has specific authz rules.
 	ctx = dbauthz.AsAIBridged(ctx)
 
@@ -856,7 +872,7 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}
 	if err != nil {
 		s.logger.Warn(ctx, "failed to retrieve API key by id", slog.F("key_id", keyID), slog.Error(err))
-		return nil, internalError(xerrors.Errorf("get API key %s: %w", keyID, err))
+		return nil, xerrors.Errorf("get API key %s: %w", keyID, err)
 	}
 
 	// Key has not expired.
@@ -877,7 +893,7 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	}
 	if err != nil {
 		s.logger.Warn(ctx, "failed to retrieve API key user", slog.F("key_id", keyID), slog.F("user_id", key.UserID), slog.Error(err))
-		return nil, internalError(xerrors.Errorf("get user %s: %w", key.UserID, err))
+		return nil, xerrors.Errorf("get user %s: %w", key.UserID, err)
 	}
 
 	// User is active, not deleted, and not a system user.
@@ -917,13 +933,6 @@ func (s *Server) IsAuthorized(ctx context.Context, in *proto.IsAuthorizedRequest
 	resp.OrganizationId = org.ID.String()
 	resp.OrganizationSource = string(org.Source)
 	return resp, nil
-}
-
-// internalError marks err as a failure of coderd, such as a failed database
-// query, rather than a rejection of the request. The gateway answers an error
-// carrying [proto.ErrCodeInternal] with a 500 instead of a 403.
-func internalError(err error) error {
-	return drpcerr.WithCode(err, proto.ErrCodeInternal)
 }
 
 // workspaceAttribution parses the workspace UUID from a strict server-minted
