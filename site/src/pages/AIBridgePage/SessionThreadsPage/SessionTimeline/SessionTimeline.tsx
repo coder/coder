@@ -20,6 +20,7 @@ import {
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { docs } from "#/utils/docs";
+import { clampContent } from "#/utils/text";
 import { JsonPrettyPrinter } from "../../JsonPrettyPrinter";
 import { AgenticLoopTable } from "./AgenticLoopTable";
 import { HighlightText } from "./HighlightText";
@@ -30,6 +31,10 @@ import {
 	matchesNetworkCallSearch,
 } from "./sessionSearch";
 import { ToolCallTable } from "./ToolCallTable";
+
+// Threads repeat the same toggles, so each toggle's name ends with the start of
+// the text it belongs to.
+const TOGGLE_CONTEXT_MAX_CHARS = 40;
 
 type ExpandableTextProps = {
 	maxHeight: number;
@@ -73,6 +78,7 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 	}, []);
 
 	const isExpandable = fullHeight > maxHeight;
+	const toggleLabel = isExpanded ? "Collapse" : "Show more";
 
 	return (
 		<div className="relative">
@@ -100,9 +106,10 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 						size="sm"
 						variant="outline"
 						className="bg-surface-primary shadow-xs"
+						aria-label={`${toggleLabel}: ${clampContent(text, TOGGLE_CONTEXT_MAX_CHARS)}`}
 						onClick={() => setUserToggled((prev) => !(prev ?? expandToMatch))}
 					>
-						{isExpanded ? "Collapse" : "Show more"}
+						{toggleLabel}
 					</Button>
 				</div>
 			)}
@@ -112,6 +119,7 @@ const ExpandableText: React.FC<ExpandableTextProps> = ({
 
 type CollapseButtonProps = {
 	isOpen: boolean;
+	accessibleNameSuffix?: string;
 	onClick: () => void;
 	children: React.ReactNode;
 	className?: string;
@@ -119,6 +127,7 @@ type CollapseButtonProps = {
 
 const CollapseButton: React.FC<CollapseButtonProps> = ({
 	isOpen,
+	accessibleNameSuffix,
 	onClick,
 	children,
 }) => (
@@ -137,6 +146,9 @@ const CollapseButton: React.FC<CollapseButtonProps> = ({
 		/>
 		<span className="sr-only">({isOpen ? "Hide" : "Show more"})</span>
 		{children}
+		{accessibleNameSuffix && (
+			<span className="sr-only">{accessibleNameSuffix}</span>
+		)}
 	</Button>
 );
 
@@ -345,7 +357,7 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 	);
 
 	return (
-		<>
+		<li>
 			<div className="border border-solid border-border-control rounded-md flex flex-col items-start w-full lg:w-auto lg:flex-row gap-6 p-2">
 				<div className="flex flex-col gap-1 mb-2 min-w-0 flex-1 w-full">
 					{thread.prompt && (
@@ -424,6 +436,10 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 						<div>
 							<CollapseButton
 								isOpen={agenticLoopOpen}
+								accessibleNameSuffix={
+									thread.prompt &&
+									`for prompt: ${clampContent(thread.prompt, TOGGLE_CONTEXT_MAX_CHARS)}`
+								}
 								onClick={toggleAgenticLoop}
 							>
 								<span className="text-sm font-normal">Agentic loop</span>
@@ -470,10 +486,10 @@ const ThreadItem: React.FC<ThreadItemProps> = ({
 				</BracketConnector>
 			) : (
 				// Spacer to create visual gap between threads. Hidden on the
-				// last thread via the wrapper div's :last-child selector.
+				// last thread via the list's :last-child selector.
 				<div className="h-4 thread-gap" />
 			)}
-		</>
+		</li>
 	);
 };
 
@@ -645,7 +661,10 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 						</div>
 					)}
 					{/* threads */}
-					<div className="[&>.thread-gap:last-child]:hidden">
+					<ol
+						aria-label="Threads"
+						className="list-none m-0 p-0 [&>li:last-child>.thread-gap]:hidden"
+					>
 						{threadItems.map(({ thread, classification }) => (
 							<ThreadItem
 								key={thread.id}
@@ -657,7 +676,7 @@ export const SessionTimeline: React.FC<SessionTimelineProps> = ({
 								highlight={searchQuery}
 							/>
 						))}
-					</div>
+					</ol>
 					{isSearching && !hasAnyMatches ? (
 						<p
 							className="m-0 py-4 text-sm font-normal text-content-secondary"

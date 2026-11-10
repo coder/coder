@@ -1401,8 +1401,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			{queuedMessages.length > 0 && (
 				<QueuedMessagesList
 					messages={queuedMessages}
-					onDelete={(id) => onDeleteQueuedMessage?.(id)}
-					onPromote={(id) => onPromoteQueuedMessage?.(id)}
+					onDelete={onDeleteQueuedMessage}
+					onPromote={onPromoteQueuedMessage}
 					onEdit={onEditQueuedMessage}
 					onEndEdit={onEndQueuedMessageEdit}
 					isChatPaused={isChatPaused}
@@ -2078,7 +2078,7 @@ const WorkspacePickerList: React.FC<WorkspacePickerListProps> = ({
 	onSelect,
 }) => {
 	return (
-		<Command loop>
+		<Command loop label="Search workspaces">
 			<CommandInput placeholder="Search workspaces..." className="text-xs" />
 			<CommandList>
 				<CommandEmpty className="text-xs">No workspaces found</CommandEmpty>

@@ -2257,6 +2257,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 	const callID = "call-screenshot-1"
 	const toolName = "computer"
 	const mimeType = "image/png"
+	const filename = "screenshot.png"
 
 	// Use PartFromContent (the production write path) to
 	// produce the SDK part, rather than hand-crafting JSON.
@@ -2269,6 +2270,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 		Result: fantasy.ToolResultOutputContentMedia{
 			Data:      mediaImageData,
 			MediaType: mimeType,
+			Filename:  filename,
 		},
 	})
 
@@ -2301,6 +2303,7 @@ func TestMediaToolResultRoundTrip(t *testing.T) {
 	require.True(t, ok, "expected ToolResultOutputContentMedia, got %T", resultPart.Output)
 	require.Equal(t, mediaImageData, mediaOutput.Data)
 	require.Equal(t, mimeType, mediaOutput.MediaType)
+	require.Equal(t, filename, mediaOutput.Filename)
 }
 
 func toolCallAndResultMessages(t *testing.T, result codersdk.ChatMessagePart) []database.ChatMessage {

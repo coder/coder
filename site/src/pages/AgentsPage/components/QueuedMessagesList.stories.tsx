@@ -54,6 +54,25 @@ export const SingleMessage: Story = {
 	},
 };
 
+export const ReadOnly: Story = {
+	args: {
+		messages: [MockChatQueuedMessage],
+		onDelete: undefined,
+		onPromote: undefined,
+		onEdit: undefined,
+		onEndEdit: undefined,
+	},
+};
+
+export const RemoveOnly: Story = {
+	args: {
+		messages: [MockChatQueuedMessage],
+		onPromote: undefined,
+		onEdit: undefined,
+		onEndEdit: undefined,
+	},
+};
+
 // Several messages queued up at once. The phone viewport hides the
 // Enter-to-send hint below the sm breakpoint.
 export const SeveralMessages: Story = {
