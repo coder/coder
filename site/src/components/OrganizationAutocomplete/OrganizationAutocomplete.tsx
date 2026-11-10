@@ -140,6 +140,7 @@ export const OrganizationAutocomplete: React.FC<
 								<CommandItem
 									key={org.id}
 									value={`${org.display_name} ${org.name}`}
+									aria-selected={value?.id === org.id}
 									onSelect={() => {
 										onChange(org);
 										setOpen(false);

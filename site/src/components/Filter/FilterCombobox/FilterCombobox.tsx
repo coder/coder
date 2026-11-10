@@ -882,6 +882,7 @@ function MainPanel({
 								)}
 								key={token}
 								value={token}
+								aria-selected={selected}
 								onSelect={() => onToggleInlineOption(token)}
 							>
 								<OptionRowContent
@@ -906,6 +907,7 @@ function MainPanel({
 								)}
 								key={suggestion.token}
 								value={suggestion.token}
+								aria-selected={suggestion.selected}
 								onSelect={() => onSelectSuggestion(suggestion.token)}
 							>
 								<OptionRowContent
@@ -1232,6 +1234,7 @@ function FlyoutCategoryPanel({
 							)}
 							key={token}
 							type="button"
+							aria-pressed={selected}
 							// Keep focus in the combobox input so keyboard navigation continues.
 							onMouseDown={(event) => event.preventDefault()}
 							onClick={() => onSelectOption(token)}
@@ -1339,6 +1342,7 @@ function CategoryOptionsList({
 							)}
 							key={token}
 							value={token}
+							aria-selected={selected}
 							onSelect={() => onSelectOption(token)}
 						>
 							<OptionRowContent

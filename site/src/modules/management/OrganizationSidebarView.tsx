@@ -93,6 +93,9 @@ export const OrganizationSidebarView: React.FC<
 										<CommandItem
 											key={organization.id}
 											value={`${organization.display_name} ${organization.name}`}
+											aria-selected={
+												activeOrganization?.name === organization.name
+											}
 											onSelect={() => {
 												setIsPopoverOpen(false);
 												navigate(urlForSubpage(organization.name));

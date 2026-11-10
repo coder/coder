@@ -171,6 +171,7 @@ export const ComboboxItem = ({
 	return (
 		<CommandItem
 			value={value}
+			aria-selected={isSelected}
 			className={className}
 			onSelect={(itemValue) => {
 				setOpen(false);
