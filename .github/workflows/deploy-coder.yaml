@@ -1,0 +1,49 @@
+name: Deploy Coder
+
+on:
+  push:
+    branches: [deploy/main]
+    paths: ["deploy/**", ".github/workflows/deploy-coder.yaml"]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-coder
+  cancel-in-progress: false
+
+env:
+  CHART_VERSION: "2.x.y"       # pin the version
+  NAMESPACE: coder
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production     # lets you add approval gates
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: azure/setup-helm@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          echo "${{ secrets.KUBE_CONFIG_B64 }}" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+
+      - name: Add Coder Helm repo
+        run: |
+          helm repo add coder-v2 https://helm.coder.com/v2
+          helm repo update
+
+      - name: Lint / dry run
+        run: |
+          helm upgrade --install coder coder-v2/coder \
+            --namespace $NAMESPACE --version $CHART_VERSION \
+            -f deploy/values.yaml --dry-run
+
+      - name: Deploy
+        run: |
+          helm upgrade --install coder coder-v2/coder \
+            --namespace $NAMESPACE --create-namespace \
+            --version $CHART_VERSION \
+            -f deploy/values.yaml \
+            --atomic --timeout 10m
