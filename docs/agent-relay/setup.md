@@ -226,7 +226,7 @@ resource "coder_script" "setup" {
   agent_id     = coder_agent.main.id
   display_name = "Workspace setup"
   run_on_start = true
-  timeout      = 120
+  timeout      = 120 # 2 minutes
   script       = file("${path.module}/setup.sh")
 }
 
@@ -254,10 +254,12 @@ The module READMEs for [`coder/agent-relay-claude-code`](https://registry.coder.
   A Claude Code work order is handed back to Anthropic once, which rebuilds the workspace, and the session fails when that second setup fails too.
   To start the worker even when setup fails, set `requires = "completion"` on the rule.
 - The session waits while prerequisites run, so set a `timeout` on each prerequisite.
-  The build and setup together must fit the provider's budget:
-  - For a Cursor pool, keep them well under Agent Relay's startup grace of 15&nbsp;minutes, after which it deletes a workspace whose worker hasn't started.
-  - For a Claude Code pool, keep them under the pool's `dispatch_deadline`, 5&nbsp;minutes by default and at most 15, counted from when Anthropic issues the work order.
-    Past it, Anthropic redelivers the work order and Agent Relay rebuilds the workspace, so setup that can't fit reruns on every delivery and the session is never served.
+  The `timeout` is in seconds and bounds one script, so the `120` in the example gives its setup script two minutes.
+  Choose the timeouts so that the build plus the sum of the setup timeouts fits the pool's budget:
+  - For a Cursor pool, the budget is the reaper's [startup grace](./configuration.md#--reap-startup-grace), 15&nbsp;minutes from the start of the build by default.
+    Past it, Agent Relay fails the request and deletes the workspace.
+  - For a Claude Code pool, the budget is the pool's [build budget](./claude-code.md#build-budget), 5&nbsp;minutes by default and at most 15, counted from when Anthropic issues the work order.
+    If setup can't fit it, the session is never served: Anthropic redelivers the work order once, and the rebuilt workspace runs the same setup and fails it too.
 
 ## Step 4: Configure provider pools
 

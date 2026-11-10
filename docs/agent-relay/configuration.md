@@ -292,6 +292,24 @@ Workspace statuses and session attachment arrive with the workspace list, so thi
 The Helm chart has no dedicated value for this option.
 Set it with [`extraEnv`](#helm-values).
 
+### `--reap-startup-grace`
+
+| Property    | Value                                              |
+|-------------|----------------------------------------------------|
+| Type        | <code>duration</code>                              |
+| Environment | <code>$CODER_AGENT_RELAY_REAP_STARTUP_GRACE</code> |
+| YAML        | <code>reapStartupGrace</code>                      |
+| Helm        | <code>reapStartupGrace</code>                      |
+| Default     | <code>15m0s</code>                                 |
+
+How long the reaper waits, from the start of the latest build, for the build to finish and the worker to report in.
+Past it, Agent Relay deletes a workspace that's still building, and fails the session of a built workspace where the worker never started.
+A workspace that's still building also waits for its pool's `dispatch_deadline` when that's longer.
+Must be positive.
+A short grace can cut off slow agent connections and slow worker startups.
+When the template orders the worker after setup scripts, this is the budget those scripts share with the build.
+Refer to [Start the worker after workspace setup](./setup.md#start-the-worker-after-workspace-setup).
+
 ### `--reap-keepalive-refresh-before`
 
 | Property    | Value                                                         |
