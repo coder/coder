@@ -1,49 +1,57 @@
+# Deploys Coder to Kubernetes using the official Helm chart.
+#
+# Required (Settings -> Secrets and variables -> Actions):
+#   secrets.KUBE_CONFIG_B64          base64-encoded kubeconfig for the cluster
+#   secrets.CODER_PG_CONNECTION_URL  postgres://user:pass@host:5432/coder?sslmode=disable
 name: Deploy Coder
 
 on:
   push:
-    branches: [deploy/main]
+    branches: [main]
     paths: ["deploy/**", ".github/workflows/deploy-coder.yaml"]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: deploy-coder
   cancel-in-progress: false
 
 env:
-  CHART_VERSION: "2.x.y"       # pin the version
+  CHART_VERSION: "2.38.7"
   NAMESPACE: coder
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    environment: production     # lets you add approval gates
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@2f5e7bc67f1f9972ab16657bb795f36d8f04de0e # v5.1.0
 
       - name: Configure kubeconfig
+        env:
+          KUBE_CONFIG_B64: ${{ secrets.KUBE_CONFIG_B64 }}
         run: |
           mkdir -p ~/.kube
-          echo "${{ secrets.KUBE_CONFIG_B64 }}" | base64 -d > ~/.kube/config
+          echo "$KUBE_CONFIG_B64" | base64 -d > ~/.kube/config
           chmod 600 ~/.kube/config
 
-      - name: Add Coder Helm repo
+      - name: Create namespace and database secret
+        env:
+          PG_URL: ${{ secrets.CODER_PG_CONNECTION_URL }}
+        run: |
+          kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+          kubectl -n "$NAMESPACE" create secret generic coder-db-url \
+            --from-literal=url="$PG_URL" --dry-run=client -o yaml | kubectl apply -f -
+
+      - name: Deploy with Helm
         run: |
           helm repo add coder-v2 https://helm.coder.com/v2
           helm repo update
-
-      - name: Lint / dry run
-        run: |
           helm upgrade --install coder coder-v2/coder \
-            --namespace $NAMESPACE --version $CHART_VERSION \
-            -f deploy/values.yaml --dry-run
-
-      - name: Deploy
-        run: |
-          helm upgrade --install coder coder-v2/coder \
-            --namespace $NAMESPACE --create-namespace \
-            --version $CHART_VERSION \
+            --namespace "$NAMESPACE" \
+            --version "$CHART_VERSION" \
             -f deploy/values.yaml \
-            --atomic --timeout 10m
+            --wait --timeout 10m
