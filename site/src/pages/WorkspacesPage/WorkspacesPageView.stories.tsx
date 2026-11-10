@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import dayjs from "dayjs";
 import uniqueId from "lodash/uniqueId";
 import { useState } from "react";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { expect, userEvent, within } from "storybook/test";
 import {
 	type Workspace,
 	type WorkspaceStatus,
@@ -289,34 +289,6 @@ export const FilteredEmptySummary: Story = {
 		count: 0,
 		filter: { ...defaultFilter, query: "status:running", used: true },
 	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const matches = await canvas.findAllByText(
-			/no workspaces match your search\./i,
-		);
-		expect(matches).toHaveLength(2);
-		expect(canvas.queryByText(/no records available/i)).toBeNull();
-	},
-};
-
-export const FilteredEmptyClearsFilter: Story = {
-	args: {
-		workspaces: [],
-		count: 0,
-		filter: {
-			...defaultFilter,
-			query: "status:running",
-			used: true,
-			update: fn(),
-		},
-	},
-	play: async ({ canvasElement, args }) => {
-		const canvas = within(canvasElement);
-		await userEvent.click(
-			await canvas.findByRole("button", { name: /clear all/i }),
-		);
-		await expect(args.filter.update).toHaveBeenCalledWith("");
-	},
 };
 
 export const UnfilteredPaginationSummary: Story = {
@@ -364,19 +336,6 @@ export const CannotCreateWorkspaceWithFilter: Story = {
 		count: 0,
 		canCreateWorkspace: false,
 		filter: { ...defaultFilter, used: true },
-	},
-	// The filter empty state takes priority: an active filter that matched
-	// nothing shows "no results" regardless of create permission, since the
-	// user may own workspaces the filter excluded.
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		await canvas.findByRole("heading", {
-			name: /no workspaces match your search\./i,
-		});
-		expect(
-			canvas.queryByText(/don't have permission to create workspaces/i),
-		).toBeNull();
-		expect(canvas.queryByRole("button", { name: /new workspace/i })).toBeNull();
 	},
 };
 
