@@ -15,7 +15,16 @@ import {
 	menuSeparatorClass,
 } from "./menuClasses";
 
-export const DropdownMenu = DropdownMenuPrimitive.Root;
+/**
+ * Non-modal by default: a modal menu sets `aria-hidden` on the rest of the
+ * page while its focusable controls stay in the tab order, which axe reports
+ * as aria-hidden-focus.
+ */
+export const DropdownMenu: React.FC<
+	React.ComponentProps<typeof DropdownMenuPrimitive.Root>
+> = ({ modal = false, ...props }) => {
+	return <DropdownMenuPrimitive.Root modal={modal} {...props} />;
+};
 
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
 
@@ -23,12 +32,24 @@ export const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup;
 
 export const DropdownMenuContent: React.FC<
 	React.ComponentProps<typeof DropdownMenuPrimitive.Content>
-> = ({ className, sideOffset = 4, ...props }) => {
+> = ({ className, sideOffset = 4, onFocusOutside, ...props }) => {
 	return (
 		<DropdownMenuPrimitive.Portal>
 			<DropdownMenuPrimitive.Content
 				sideOffset={sideOffset}
 				className={cn(menuContentClass, className)}
+				// An item that opens a dialog moves focus into it. Keep that from
+				// counting as an outside interaction, so focus returns to the
+				// trigger when the dialog closes.
+				onFocusOutside={(event) => {
+					onFocusOutside?.(event);
+					if (
+						event.target instanceof Element &&
+						event.target.closest('[role="dialog"], [role="alertdialog"]')
+					) {
+						event.preventDefault();
+					}
+				}}
 				{...props}
 			/>
 		</DropdownMenuPrimitive.Portal>
