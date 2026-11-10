@@ -11,6 +11,7 @@ import {
 	MockChatProviderConfig,
 } from "#/testHelpers/chatModels";
 import {
+	compactionTriggerTokens,
 	countConfiguredProviderConfigs,
 	filterModelsWithEnabledProvider,
 	formatProviderLabel,
@@ -1144,5 +1145,54 @@ describe("resolveModelSelector", () => {
 				contextLimit: 128_000,
 			},
 		]);
+	});
+});
+
+describe("compactionTriggerTokens", () => {
+	it("scales the window by the threshold", () => {
+		expect(compactionTriggerTokens(128_000, 80)).toBe(102_400);
+		expect(compactionTriggerTokens(1_000, 70)).toBe(700);
+	});
+
+	it("returns undefined when the window is unknown", () => {
+		expect(compactionTriggerTokens(0, 80)).toBe(undefined);
+		expect(compactionTriggerTokens(undefined, 80)).toBeUndefined();
+	});
+
+	it("rounds up to the first integer token count that reaches the threshold", () => {
+		expect(compactionTriggerTokens(101, 70)).toBe(71);
+		expect(compactionTriggerTokens(3, 70)).toBe(3);
+	});
+
+	it("matches the backend percentage comparison at floating-point boundaries", () => {
+		expect((37120 / 128000) * 100).toBeLessThan(29);
+		expect((37121 / 128000) * 100).toBeGreaterThanOrEqual(29);
+		expect(compactionTriggerTokens(128000, 29)).toBe(37121);
+	});
+
+	it("requires positive usage even at a zero threshold", () => {
+		expect(compactionTriggerTokens(128000, 0)).toBe(1);
+	});
+
+	it.each([undefined, Number.NaN, Number.POSITIVE_INFINITY])(
+		"does not invent a trigger for unknown threshold %j",
+		(threshold) => {
+			expect(compactionTriggerTokens(1000, threshold)).toBeUndefined();
+		},
+	);
+
+	it.each([-1, 101])("normalizes out-of-range threshold %i", (threshold) => {
+		expect(compactionTriggerTokens(1000, threshold)).toBe(700);
+	});
+
+	it.each([-1, Number.NaN, Number.POSITIVE_INFINITY])(
+		"rejects invalid window %j",
+		(limit) => {
+			expect(compactionTriggerTokens(limit, 70)).toBeUndefined();
+		},
+	);
+
+	it("returns undefined at 100% because compaction never triggers", () => {
+		expect(compactionTriggerTokens(128_000, 100)).toBe(undefined);
 	});
 });

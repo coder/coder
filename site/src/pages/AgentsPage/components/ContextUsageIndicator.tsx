@@ -1,4 +1,5 @@
 import { cn } from "cn";
+import { useRef, useState } from "react";
 import {
 	BotIcon,
 	CircleAlertIcon,
@@ -263,7 +264,22 @@ export const ContextUsageIndicator: React.FC<{
 	onRefreshContext?: () => void;
 	onManageServers?: () => void;
 	isRefreshingContext?: boolean;
-}> = ({ usage, onRefreshContext, onManageServers, isRefreshingContext }) => {
+	/**
+	 * Opens the Details panel. Receives the trigger so the panel can return
+	 * focus to it when it closes.
+	 */
+	onOpenDetails?: (opener: HTMLButtonElement | null) => void;
+}> = ({
+	usage,
+	onRefreshContext,
+	onManageServers,
+	isRefreshingContext,
+	onOpenDetails,
+}) => {
+	const [open, setOpen] = useState(false);
+	const triggerRef = useRef<HTMLButtonElement>(null);
+	// Details takes focus itself, so closing for it must not refocus the trigger.
+	const isOpeningDetails = useRef(false);
 	const usedTokens = hasFiniteTokenValue(usage.usedTokens)
 		? usage.usedTokens
 		: undefined;
@@ -439,6 +455,7 @@ export const ContextUsageIndicator: React.FC<{
 
 	const triggerButton = (
 		<button
+			ref={triggerRef}
 			type="button"
 			aria-label={ariaLabel}
 			className="inline-flex h-7 shrink-0 items-center gap-2 rounded-md border-none bg-transparent px-1 text-xs outline-hidden transition-colors hover:bg-surface-secondary/60 focus-visible:ring-2 focus-visible:ring-content-link"
@@ -475,15 +492,36 @@ export const ContextUsageIndicator: React.FC<{
 	);
 
 	return (
-		<Popover>
+		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
 			<PopoverContent
 				side="top"
 				align="end"
 				className="mobile-full-width-dropdown w-76 text-xs pb-1 font-normal"
+				onCloseAutoFocus={(event) => {
+					if (isOpeningDetails.current) {
+						isOpeningDetails.current = false;
+						event.preventDefault();
+					}
+				}}
 			>
 				<div className="text-xs text-content-primary px-4 pt-2 pb-3">
-					<div className="pt-1 text-sm font-semibold leading-6">Context</div>
+					<div className="flex items-center justify-between gap-2 pt-1">
+						<div className="text-sm font-semibold leading-6">Context</div>
+						{onOpenDetails && (
+							<Button
+								size="xs"
+								variant="subtle"
+								onClick={() => {
+									isOpeningDetails.current = true;
+									setOpen(false);
+									onOpenDetails(triggerRef.current);
+								}}
+							>
+								Details
+							</Button>
+						)}
+					</div>
 					{hasReportedUsage ? (
 						hasPercent ? (
 							<div className="flex gap-2 items-center pt-2">

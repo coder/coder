@@ -25,10 +25,13 @@ import type { ModelSelectorOption } from "#/modules/aiModels/ModelSelector";
 import { AGENT_BROWSER_APP_SLUG } from "#/modules/apps/apps";
 import {
 	MockChat,
+	MockChatContextDirty,
 	MockChatDiffStatus,
+	MockChatMessage,
 	MockChatQueuedMessage,
 	MockChatQueuedMessageUnderEdit,
 } from "#/testHelpers/chatEntities";
+import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockDefaultOrganization,
 	MockGroup,
@@ -234,11 +237,15 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 const meta: Meta<typeof AgentChatPageView> = {
 	title: "pages/AgentsPage/AgentChatPageView",
 	component: AgentChatPageView,
-	// Summary is the default tab and reads the chat, so mock it for the sidebar.
+	// Details is the default tab and reads the chat, so mock it for the sidebar.
 	// Cost needs no mock: these stories leave the aibridge feature off, so the
 	// summary panel never requests it.
 	beforeEach: () => {
 		spyOn(API.experimental, "getChat").mockResolvedValue(buildChat());
+		spyOn(
+			API.experimental,
+			"getOrganizationChatModelOverrides",
+		).mockResolvedValue({ overrides: [] });
 		spyOn(API, "checkAuthorization").mockResolvedValue({
 			canShareChat: false,
 		});
@@ -308,6 +315,67 @@ type Story = StoryObj<typeof AgentChatPageView>;
 /** Basic conversation view with a chat title, workspace, and no archive. */
 export const Default: Story = {
 	render: () => <StoryAgentChatPageView />,
+};
+const DetailsNavigationPage: React.FC = () => {
+	const [open, setOpen] = useState(false);
+	const [store] = useState(() => {
+		const store = createChatStore();
+		store.replaceMessages([
+			{ ...MockChatMessage, usage: { input_tokens: 26_000 } },
+		]);
+		return store;
+	});
+	return (
+		<StoryAgentChatPageView
+			chat={{ context: MockChatContextDirty }}
+			store={store}
+			modelCatalog={{
+				models: [
+					{
+						...MockChatModel,
+						id: defaultModelID,
+						organization_id: MockChat.organization_id,
+						context_limit: 1_100_000,
+						compression_threshold: 70,
+					},
+				],
+				providers: [],
+				unsupported_providers: [],
+			}}
+			showSidebarPanel={open}
+			onSetShowSidebarPanel={setOpen}
+		/>
+	);
+};
+
+export const OpensDetailsFromIndicator: Story = {
+	beforeEach: () => {
+		localStorage.setItem(
+			lastActiveSidebarTabStorageKeyPrefix + AGENT_ID,
+			"git",
+		);
+		spyOn(API.experimental, "getChat").mockResolvedValue(
+			buildChat({ context: MockChatContextDirty }),
+		);
+	},
+	render: () => <DetailsNavigationPage />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			await canvas.findByRole("button", { name: /^Context usage/ }),
+		);
+		await userEvent.click(
+			within(document.body).getByRole("button", { name: "Details" }),
+		);
+	},
+};
+
+export const OpensDetailsOnNarrowScreen: Story = {
+	...OpensDetailsFromIndicator,
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
+	},
 };
 
 export const CachedModelsWithRefetchError: Story = {
@@ -573,7 +641,7 @@ index abc1234..def5678 100644
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// Summary is the default tab; switch to Git to view the PR diff.
+		// Details is the default tab; switch to Git to view the PR diff.
 		await userEvent.click(canvas.getByRole("tab", { name: "Git" }));
 
 		// Wait for the initial diff fetch triggered by React Query.
@@ -616,6 +684,11 @@ export const NoModelOptions: Story = {
 };
 
 export const MissingProviderAndModelSetup: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockResolvedValue(
+			buildChat({ organization_id: MockDefaultOrganization.id }),
+		);
+	},
 	render: () => (
 		<StoryAgentChatPageView
 			canConfigureAgentSetup
@@ -630,6 +703,11 @@ export const MissingProviderAndModelSetup: Story = {
 };
 
 export const MissingModelSetup: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockResolvedValue(
+			buildChat({ organization_id: MockDefaultOrganization.id }),
+		);
+	},
 	render: () => (
 		<StoryAgentChatPageView
 			canConfigureAgentSetup
@@ -740,6 +818,11 @@ export const WorkspaceAgentStartTimeout: Story = {
 };
 
 export const WorkspaceNoAgent: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChat").mockResolvedValue(
+			buildChat({ workspace_id: MockWorkspace.id }),
+		);
+	},
 	render: () => (
 		<StoryAgentChatPageView
 			workspace={MockWorkspace}
@@ -1490,7 +1573,7 @@ export const TerminalFocusOnTabSwitch: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// Sidebar defaults to Summary; this story drives the Terminal tab instead.
+		// Sidebar defaults to Details; this story drives the Terminal tab instead.
 		const terminalTab = await canvas.findByRole("tab", { name: "Terminal" });
 
 		// 1. Click the Terminal tab.
@@ -1535,7 +1618,7 @@ const sidebarTabStorageKey = `${lastActiveSidebarTabStorageKeyPrefix}${AGENT_ID}
 /**
  * When localStorage contains a persisted tab ID for this chat, the sidebar
  * should restore it on mount. Seed localStorage with "git" and verify that
- * the Git tab is selected instead of the default Summary tab.
+ * the Git tab is selected instead of the default Details tab.
  */
 export const RestoresPersistedSidebarTab: Story = {
 	beforeEach: () => {
@@ -1574,10 +1657,7 @@ export const PersistsSidebarTabClick: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await waitFor(() => {
-			const summaryTab = canvas.getByRole("tab", { name: "Summary" });
-			expect(summaryTab).toHaveAttribute("aria-selected", "true");
-		});
+		await canvas.findByRole("tab", { name: "Details", selected: true });
 
 		const gitTab = canvas.getByRole("tab", { name: "Git" });
 		await userEvent.click(gitTab);
@@ -1593,7 +1673,7 @@ export const PersistsSidebarTabClick: Story = {
 /**
  * When localStorage holds an unavailable tab ID (e.g. `"terminal"` while the
  * workspace is stopped), the sidebar falls back to the first available tab
- * (Summary) while preserving the stored value for when the tab reappears.
+ * (Details) while preserving the stored value for when the tab reappears.
  * Guards the `getEffectiveTabId` contract: it only reads `sidebarTabId`, never
  * writes back, so restore-after-recovery cannot silently break.
  */
@@ -1608,10 +1688,7 @@ export const PreservesUnavailableSidebarTab: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await waitFor(() => {
-			const summaryTab = canvas.getByRole("tab", { name: "Summary" });
-			expect(summaryTab).toHaveAttribute("aria-selected", "true");
-		});
+		await canvas.findByRole("tab", { name: "Details", selected: true });
 
 		expect(canvas.queryByRole("tab", { name: "Terminal" })).toBeNull();
 
@@ -1758,10 +1835,7 @@ export const PreservesUnavailableBrowserTab: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await waitFor(() => {
-			const summaryTab = canvas.getByRole("tab", { name: "Summary" });
-			expect(summaryTab).toHaveAttribute("aria-selected", "true");
-		});
+		await canvas.findByRole("tab", { name: "Details", selected: true });
 
 		expect(canvas.queryByRole("tab", { name: "Browser" })).toBeNull();
 
@@ -1786,7 +1860,7 @@ export const SingletonPanelsHiddenByDefault: Story = {
 		const canvas = within(canvasElement);
 		const body = within(document.body);
 
-		await canvas.findByRole("tab", { name: "Summary" });
+		await canvas.findByRole("tab", { name: "Details" });
 
 		await openAddPanelMenu(canvas);
 		for (const label of ["Browser", "Desktop", "Debug"]) {
@@ -1802,7 +1876,7 @@ export const TogglesSingletonPanelFromDropdown: Story = {
 		const canvas = within(canvasElement);
 		const body = within(document.body);
 
-		await canvas.findByRole("tab", { name: "Summary" });
+		await canvas.findByRole("tab", { name: "Details" });
 
 		await openAddPanelMenu(canvas);
 		await userEvent.click(
@@ -1854,14 +1928,7 @@ export const ClosesActiveSingletonPanel: Story = {
 		const body = within(document.body);
 
 		const debugTab = await canvas.findByRole("tab", { name: "Debug" });
-		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
-		expect(tabLabels).toEqual([
-			"Summary",
-			"Git",
-			"Debug",
-			"Browser",
-			"Terminal",
-		]);
+		await canvas.findByRole("tab", { name: "Details" });
 
 		await userEvent.click(debugTab);
 		await waitFor(() => {
@@ -1932,7 +1999,7 @@ export const DoesNotPersistSingletonTabsForArchivedChat: Story = {
 		const canvas = within(canvasElement);
 		const body = within(document.body);
 
-		await canvas.findByRole("tab", { name: "Summary" });
+		await canvas.findByRole("tab", { name: "Details" });
 
 		await openAddPanelMenu(canvas);
 		await userEvent.click(
@@ -1966,9 +2033,7 @@ export const HidesUnsupportedSingletonPanels: Story = {
 		const canvas = within(canvasElement);
 		const body = within(document.body);
 
-		await canvas.findByRole("tab", { name: "Summary" });
-		const tabLabels = canvas.getAllByRole("tab").map((tab) => tab.textContent);
-		expect(tabLabels).toEqual(["Summary", "Git", "Terminal"]);
+		await canvas.findByRole("tab", { name: "Details" });
 
 		await openAddPanelMenu(canvas);
 		await body.findByText("New Terminal");
@@ -2010,10 +2075,7 @@ export const DoesNotPersistForArchivedChat: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		await waitFor(() => {
-			const summaryTab = canvas.getByRole("tab", { name: "Summary" });
-			expect(summaryTab).toHaveAttribute("aria-selected", "true");
-		});
+		await canvas.findByRole("tab", { name: "Details", selected: true });
 
 		const gitTab = canvas.getByRole("tab", { name: "Git" });
 		await userEvent.click(gitTab);

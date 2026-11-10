@@ -103,6 +103,8 @@ export {
 export type { ChatMessageInputRef } from "./ChatMessageInput/ChatMessageInput";
 export type { AgentContextUsage } from "./ContextUsageIndicator";
 
+const noContextUsage: AgentContextUsage = {};
+
 type WorkspaceUploadsProps = {
 	uploads: readonly WorkspaceFileUpload[];
 	// Present only when the chat has a bound workspace with a
@@ -199,13 +201,14 @@ type AgentChatInputProps = {
 
 	// Optional context-usage summary shown to the left of the send button.
 	// Fields the provider has not reported render as fallback values.
-	// Omit entirely to hide the indicator.
-	contextUsage?: AgentContextUsage;
+	// Omit entirely to hide the indicator; null shows it with no usage yet.
+	contextUsage?: AgentContextUsage | null;
 	// Re-pins the chat to the workspace's latest context snapshot,
 	// surfaced by the context indicator when the pinned context has
 	// drifted.
 	onRefreshContext?: () => void;
 	isRefreshingContext?: boolean;
+	onOpenDetails?: (opener: HTMLButtonElement | null) => void;
 	attachments?: readonly File[];
 	onAttach?: (files: File[]) => void;
 	onRemoveAttachment?: (attachment: number | File) => void;
@@ -570,6 +573,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	contextUsage,
 	onRefreshContext,
 	isRefreshingContext,
+	onOpenDetails,
 	attachments = [],
 	onAttach,
 	onRemoveAttachment,
@@ -1939,12 +1943,13 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 								)}
 							>
 								<ContextUsageIndicator
-									usage={contextUsage}
+									usage={contextUsage ?? noContextUsage}
 									onRefreshContext={onRefreshContext}
 									isRefreshingContext={isRefreshingContext}
 									onManageServers={
 										isReadOnlyView ? undefined : handleManageConnections
 									}
+									onOpenDetails={onOpenDetails}
 								/>
 							</div>
 						)}

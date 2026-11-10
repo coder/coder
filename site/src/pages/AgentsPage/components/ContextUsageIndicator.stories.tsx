@@ -17,6 +17,7 @@ const meta: Meta<typeof ContextUsageIndicator> = {
 	args: {
 		onRefreshContext: fn(),
 		onManageServers: fn(),
+		onOpenDetails: fn(),
 	},
 };
 

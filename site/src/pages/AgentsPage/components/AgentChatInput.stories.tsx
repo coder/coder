@@ -54,6 +54,7 @@ const meta: Meta<typeof AgentChatInput> = {
 	},
 	args: {
 		onSend: fn(),
+		onOpenDetails: fn(),
 		onContentChange: fn(),
 		onModelChange: fn(),
 		initialValue: "",
@@ -1307,7 +1308,7 @@ export const StreamingWithDraftMobile: Story = {
 	},
 };
 
-/** Tooltip lists the chat's pinned context resources. */
+/** The composer links to Details even when the pinned snapshot has issues. */
 export const WithContextFiles: Story = {
 	args: {
 		contextUsage: {
