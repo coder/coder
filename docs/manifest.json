@@ -84,17 +84,17 @@
 						{
 							"title": "Migrate to Coder",
 							"description": "Move developer environments from another platform to a self-hosted Coder deployment.",
-							"path": "./install/plan/migrate-to-coder.md",
+							"path": "./install/plan/migrate.md",
 							"children": [
 								{
 									"title": "Migrate from Ona (formerly Gitpod)",
 									"description": "Move an Ona Enterprise deployment, including runners, projects, policies, and agents, to a self-hosted Coder deployment.",
-									"path": "./install/plan/migrate-from-ona.md"
+									"path": "./install/plan/migrate/ona.md"
 								},
 								{
 									"title": "Migrate from Microsoft Dev Box",
 									"description": "Move Microsoft Dev Box dev centers, projects, and pools to Coder templates, with Windows workspaces on Azure.",
-									"path": "./install/plan/migrate-from-dev-box.md"
+									"path": "./install/plan/migrate/dev-box.md"
 								}
 							]
 						}
