@@ -25,7 +25,7 @@ Autostart must be enabled in the template settings by your administrator.
 
 Use autostart to start a workspace at a specified time and which days of the week.
 Also, you can choose your preferred timezone.
-Admins may restrict which days of the week your workspace is allowed to autostart.
+Admins can restrict which days of the week your workspace is allowed to autostart.
 
 ![Autostart UI](../images/workspaces/autostart.png)
 
@@ -81,7 +81,7 @@ To avoid unexpected cloud costs, close your connections, this includes IDE windo
 > Autostop requirement is a Premium feature.
 > [Learn more](https://coder.com/pricing#compare-plans).
 
-Licensed template admins may enforce a required stop for workspaces to apply updates or undergo maintenance.
+Licensed template admins can enforce a required stop for workspaces to apply updates or undergo maintenance.
 These stops ignore any active connections or inactivity bumps.
 Rather than being specified with a CRON, admins set a frequency for updates, either in **days** or **weeks**.
 Workspaces will apply the template autostop requirement on the given day **in the user's timezone** and specified quiet hours (see below).
@@ -137,4 +137,4 @@ Dormancy automatically deletes workspaces that remain unused for long durations.
 Template admins configure a dormancy threshold that determines how long a workspace can be inactive before it is marked as `dormant`.
 A separate setting determines how long workspaces will remain in the dormant state before automatic deletion.
 
-Licensed admins may also configure failure cleanup, which will automatically delete workspaces that remain in a `failed` state for too long.
+Licensed admins can also configure failure cleanup, which will automatically delete workspaces that remain in a `failed` state for too long.

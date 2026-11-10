@@ -401,7 +401,7 @@ export const WithCustomRenderOption: Story = {
 	render: function WithCustomRenderOptionStory() {
 		const [value, setValue] = useState<User | null>(null);
 		return (
-			<div className="w-[350px]">
+			<div className="w-87.5">
 				<Autocomplete
 					value={value}
 					onChange={setValue}
@@ -436,7 +436,7 @@ export const WithStartAdornment: Story = {
 	render: function WithStartAdornmentStory() {
 		const [value, setValue] = useState<User | null>(users[0]);
 		return (
-			<div className="w-[350px]">
+			<div className="w-87.5">
 				<Autocomplete
 					value={value}
 					onChange={setValue}

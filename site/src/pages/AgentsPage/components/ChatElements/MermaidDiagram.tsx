@@ -95,7 +95,7 @@ const renderDiagram = async (
  */
 export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 	const theme = useTheme();
-	const isDark = theme.palette.mode === "dark";
+	const isDark = theme.mode === "dark";
 	const isIncomplete = useIsCodeFenceIncomplete();
 	const [state, setState] = useState<RenderState>({ status: "pending" });
 	const { openLightbox, lightbox } = useLightbox();
@@ -138,14 +138,12 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 					<TriangleAlertIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
 					<div className="min-w-0">
 						<p className="m-0 font-medium">Could not render Mermaid diagram</p>
-						<pre className="m-0 mt-1 whitespace-pre-wrap break-words font-mono text-[11px] leading-snug opacity-90">
+						<pre className="m-0 mt-1 whitespace-pre-wrap wrap-break-word font-mono text-[11px] leading-snug opacity-90">
 							{state.message.trim()}
 						</pre>
 					</div>
 				</div>
-				<div className="[&>*]:my-0 [&>*]:rounded-none [&>*]:border-0">
-					{fallback}
-				</div>
+				<div className="*:my-0 *:rounded-none *:border-0">{fallback}</div>
 			</div>
 		);
 	}
@@ -180,7 +178,7 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 						>
 							<div
 								style={{ width: fittedWidth(state.svg) }}
-								className="max-h-[85vh] max-w-[90vw] overflow-auto rounded-md border border-solid border-border bg-surface-primary p-6 [&>svg]:block [&>svg]:h-auto [&>svg]:w-full [&>svg]:!max-w-none"
+								className="max-h-[85vh] max-w-[90vw] overflow-auto rounded-md border border-solid border-border bg-surface-primary p-6 [&>svg]:block [&>svg]:h-auto [&>svg]:w-full [&>svg]:max-w-none!"
 								// oxlint-disable-next-line react/no-danger -- DOMPurify sanitizes the SVG.
 								dangerouslySetInnerHTML={{ __html: state.svg }}
 							/>

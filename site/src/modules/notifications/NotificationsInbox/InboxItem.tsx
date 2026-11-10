@@ -86,7 +86,7 @@ export const InboxItem: React.FC<InboxItemProps> = ({
 					</>
 				)}
 
-				<span className="mt-auto text-content-secondary text-xs font-medium whitespace-nowrap">
+				<span className="mt-auto text-content-secondary text-xs whitespace-nowrap">
 					{relativeTime(new Date(notification.created_at))}
 				</span>
 			</div>

@@ -290,11 +290,11 @@ export function Autocomplete<TOption>({
 						}}
 						onKeyDownCapture={handleInlineKeyDown}
 						className={cn(
-							`flex h-10 w-full items-center rounded-md border border-border border-solid
-							bg-transparent px-3 py-2 text-sm shadow-xs transition-colors
-							placeholder:text-content-secondary text-content-primary
-							focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
-							disabled:cursor-not-allowed disabled:opacity-50`,
+							"flex h-10 w-full items-center rounded-md border border-border border-solid",
+							"bg-transparent px-3 py-2 text-sm shadow-xs transition-colors",
+							"placeholder:text-content-secondary text-content-primary",
+							"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+							"disabled:cursor-not-allowed disabled:opacity-50",
 							className,
 						)}
 					/>
@@ -372,12 +372,13 @@ export function Autocomplete<TOption>({
 						aria-describedby={triggerAriaDescribedBy}
 						aria-labelledby={triggerAriaLabelledBy}
 						disabled={disabled}
-						className={`flex h-10 w-full items-center justify-between gap-2
-							rounded-md border border-border border-solid bg-transparent px-3 py-2
-							text-sm shadow-xs transition-colors
-							placeholder:text-content-secondary
-							focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
-							disabled:cursor-not-allowed disabled:opacity-50`}
+						className={cn(
+							"flex h-10 w-full items-center justify-between gap-2",
+							"rounded-md border border-border border-solid bg-transparent px-3 py-2",
+							"text-sm shadow-xs transition-colors",
+							"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+							"disabled:cursor-not-allowed disabled:opacity-50",
+						)}
 					>
 						<span className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
 							{startAdornment}
@@ -409,7 +410,12 @@ export function Autocomplete<TOption>({
 					<button
 						type="button"
 						onClick={handleClear}
-						className="absolute right-[33px] top-1/2 -translate-y-1/2 flex items-center justify-center size-6 p-0 border-0 bg-transparent rounded hover:bg-surface-secondary transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+						className={cn(
+							"absolute right-[33px] top-1/2 -translate-y-1/2",
+							"flex items-center justify-center size-6 rounded transition-colors",
+							"hover:bg-surface-secondary",
+							"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+						)}
 						aria-label="Clear selection"
 					>
 						<XIcon className="size-4 text-content-secondary hover:text-content-primary" />
@@ -421,7 +427,10 @@ export function Autocomplete<TOption>({
 				align="start"
 				onKeyDownCapture={handleKeyDown}
 			>
-				<Command shouldFilter={controlledInputValue === undefined}>
+				<Command
+					shouldFilter={controlledInputValue === undefined}
+					label={placeholder}
+				>
 					<CommandInput
 						placeholder={placeholder}
 						value={inputValue}

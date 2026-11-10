@@ -37,7 +37,7 @@ export const TableHeader: React.FC<React.ComponentProps<"thead">> = ({
 const tableBodyVariants = cva(null, {
 	variants: {
 		size: {
-			lg: "[&>tr>*]:box-border [&>tr>*]:h-[72px]",
+			lg: "[&>tr>*]:box-border [&>tr>*]:h-18",
 		},
 	},
 });
@@ -119,7 +119,7 @@ export const TableHead: React.FC<React.ComponentProps<"th">> = ({
 		<th
 			className={cn(
 				"p-3 text-left align-middle font-semibold",
-				"has-[[role=checkbox]]:pr-0 *:[[role=checkbox]]:translate-y-[2px]",
+				"has-[[role=checkbox]]:pr-0 *:[[role=checkbox]]:translate-y-0.5",
 				className,
 			)}
 			scope={scope}
@@ -137,7 +137,7 @@ export const TableCell: React.FC<React.ComponentProps<"td">> = ({
 			{...props}
 			className={cn(
 				"border-0 border-t border-border border-solid",
-				"p-3 align-middle has-[[role=checkbox]]:pr-0 *:[[role=checkbox]]:translate-y-[2px]",
+				"p-3 align-middle has-[[role=checkbox]]:pr-0 *:[[role=checkbox]]:translate-y-0.5",
 				className,
 			)}
 		/>

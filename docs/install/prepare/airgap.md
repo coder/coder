@@ -109,6 +109,7 @@ ENV TF_CLI_CONFIG_FILE=/home/coder/.terraformrc
 
 > [!NOTE]
 > If you are bundling Terraform providers into your Coder image, be sure the provider version matches any templates or [example templates](../../../examples/templates) you intend to use.
+> After you change the bundled provider versions, push new versions of your templates and update workspaces to them.
 
 ```tf
 # filesystem-mirror-example.tfrc
@@ -252,8 +253,8 @@ To use Coder modules in offline installations, you can either:
 
 ## Firewall exceptions
 
-In restricted internet networks, Coder may require connection to internet.
-Ensure that the following web addresses are accessible from the machine where Coder is installed.
+In restricted internet networks, Coder might require connection to internet.
+Make sure that the following web addresses are accessible from the machine where Coder is installed.
 
 - code-server.dev (install via Arch User Repository (AUR))
 - open-vsx.org (optional if someone would use code-server)

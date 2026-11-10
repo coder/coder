@@ -16,7 +16,10 @@ import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { useTheme } from "#/theme/context";
 import { countChangedLines } from "../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../utils/diffColors";
-import { SEPARATOR_CSS } from "../ChatElements/tools/utils";
+import {
+	DIFFS_GIT_COLOR_STYLE,
+	SEPARATOR_CSS,
+} from "../ChatElements/tools/utils";
 import { useActiveFileTracking } from "./useActiveFileTracking";
 
 type DiffViewerProps = {
@@ -65,6 +68,7 @@ const diffViewerStyle = {
 	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
 	"--diffs-font-size": "11px",
 	"--diffs-line-height": `${DIFF_VIEWER_LINE_HEIGHT}px`,
+	...DIFFS_GIT_COLOR_STYLE,
 } satisfies React.CSSProperties;
 
 const diffViewerMetrics: Partial<VirtualFileMetrics> = {
@@ -197,12 +201,12 @@ function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
 						{fileDiff.prevName}
 					</span>
 				)}
-				<span className="truncate text-xs font-medium text-content-primary">
+				<span className="truncate text-xs text-content-primary">
 					{fileDiff.name}
 				</span>
 			</div>
 			{(additions > 0 || deletions > 0) && (
-				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs font-medium leading-5">
+				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs leading-5">
 					{deletions > 0 && (
 						<span className="flex items-center bg-surface-git-deleted px-1 text-git-deleted-bright">
 							&minus;{deletions}
@@ -289,7 +293,7 @@ function DiffFileTree({
 	return (
 		<FileTree
 			model={model}
-			className="block h-full min-h-0 w-full"
+			className="block size-full min-h-0"
 			style={fileTreeStyle}
 		/>
 	);
@@ -338,7 +342,7 @@ function SkeletonFile({ groups }: { groups: readonly (readonly string[])[] }) {
 		<div>
 			<div className="flex h-8 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-2.5">
 				<div className="flex items-center gap-2">
-					<Skeleton className="size-3 rounded-[2px]" />
+					<Skeleton className="size-3 rounded-xs" />
 					<Skeleton className="h-3 w-44" />
 				</div>
 				<Skeleton className="h-5 w-14 rounded-[3px]" />
@@ -397,7 +401,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 }) => {
 	const theme = useTheme();
 	const codeViewRef = useRef<CodeViewHandle<string, undefined>>(null);
-	const isDark = theme.palette.mode === "dark";
+	const isDark = theme.mode === "dark";
 	const [activeFile, setActiveFile] = useState<string | null>(null);
 
 	// Measure the diff container so the file tree only appears when there is

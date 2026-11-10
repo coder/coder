@@ -134,7 +134,7 @@ const ProjectSkillActionButton: React.FC<ProjectSkillActionButtonProps> = ({
 			</Button>
 		</TooltipTrigger>
 		<TooltipContent className="max-w-64">
-			<span className="block break-words font-medium">{skill.name}</span>
+			<span className="block wrap-break-word font-medium">{skill.name}</span>
 			{skill.description && <span className="block">{skill.description}</span>}
 		</TooltipContent>
 	</Tooltip>

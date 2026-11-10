@@ -528,17 +528,13 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 							<span
 								key={prTitle}
 								ref={observePrTitle}
-								className="min-w-0 truncate text-sm font-medium text-content-primary"
+								className="min-w-0 truncate text-sm text-content-primary"
 								data-testid="git-panel-pr-title"
 							>
 								{prTitle}
 							</span>
 						</TooltipTrigger>
-						<TooltipContent
-							side="bottom"
-							align="start"
-							className="max-w-[260px]"
-						>
+						<TooltipContent side="bottom" align="start" className="max-w-65">
 							{prTitle}
 						</TooltipContent>
 					</Tooltip>
@@ -676,7 +672,7 @@ const GitViewSwitcher: React.FC<GitViewSwitcherProps> = ({
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
 				align="start"
-				className="w-(--radix-dropdown-menu-trigger-width) min-w-[240px] p-1"
+				className="w-(--radix-dropdown-menu-trigger-width) min-w-60 p-1"
 			>
 				{items.map((item) => {
 					const isActive = item.id === activeItem.id;
@@ -758,7 +754,7 @@ const RemoteContent: React.FC<{
 						<GitBranchIcon className="size-5 text-content-secondary" />
 					)}
 				</div>
-				<p className="text-sm font-medium text-content-primary">{title}</p>
+				<p className="text-sm text-content-primary">{title}</p>
 				<p className="mt-1 max-w-52 text-xs text-content-secondary">{body}</p>
 			</div>
 		);

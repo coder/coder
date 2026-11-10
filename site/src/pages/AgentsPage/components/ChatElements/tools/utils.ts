@@ -417,17 +417,25 @@ export function getFileViewerOptionsMinimal(isDark: boolean) {
 export const stripSvnIndexHeaders = (patch: string): string =>
 	patch.replace(/^Index: .*\n={3,}\n/gm, "");
 
-export const DIFFS_FONT_STYLE = {
-	"--diffs-font-family": '"Geist Mono Variable", monospace, monospace',
-	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
-	"--diffs-font-size": "11px",
-	"--diffs-line-height": "1.5",
+/**
+ * Diff addition and deletion colors from the dashboard theme, so diffs follow
+ * the active theme variant, including the colorblind ones.
+ */
+export const DIFFS_GIT_COLOR_STYLE = {
 	"--diffs-addition-color-override": "hsl(var(--git-added))",
 	"--diffs-deletion-color-override": "hsl(var(--git-deleted))",
 	"--diffs-bg-addition-override": "hsl(var(--surface-git-added))",
 	"--diffs-bg-deletion-override": "hsl(var(--surface-git-deleted))",
 	"--diffs-bg-addition-number-override": "hsl(var(--surface-git-added))",
 	"--diffs-bg-deletion-number-override": "hsl(var(--surface-git-deleted))",
+};
+
+export const DIFFS_FONT_STYLE = {
+	"--diffs-font-family": '"Geist Mono Variable", monospace, monospace',
+	"--diffs-header-font-family": '"Geist Variable", system-ui, sans-serif',
+	"--diffs-font-size": "11px",
+	"--diffs-line-height": "1.5",
+	...DIFFS_GIT_COLOR_STYLE,
 	"--diffs-bg-selection-override": "hsl(var(--content-link) / 0.08)",
 	"--diffs-bg-selection-number-override": "hsl(var(--content-link) / 0.13)",
 	"--diffs-selection-number-fg": "hsl(var(--content-link))",

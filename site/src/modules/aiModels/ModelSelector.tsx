@@ -214,14 +214,14 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 			>
 				<Command
 					shouldFilter={false}
-					className="[&_[cmdk-input-wrapper]]:border-0 [&_[cmdk-input-wrapper]]:border-border [&_[cmdk-input-wrapper]]:border-b [&_[cmdk-input-wrapper]]:border-solid [&_[cmdk-input-wrapper]]:px-3 [&_[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
+					label="Search models"
+					className="**:[[cmdk-input-wrapper]]:border-0 **:[[cmdk-input-wrapper]]:border-border **:[[cmdk-input-wrapper]]:border-b **:[[cmdk-input-wrapper]]:border-solid **:[[cmdk-input-wrapper]]:px-3 **:[[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
 				>
 					<CommandInput
 						value={search}
 						onValueChange={setSearch}
 						placeholder="Search..."
-						aria-label="Search models"
-						className="h-auto py-0 text-xs font-normal leading-[18px] text-content-primary placeholder:text-content-disabled"
+						className="h-auto py-0 text-xs font-normal leading-4.5 text-content-primary placeholder:text-content-disabled"
 					/>
 					<CommandList
 						id={listboxId}
@@ -232,7 +232,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 								"mobile-full-width-dropdown-scroll-area",
 						)}
 					>
-						<CommandEmpty className="py-3 text-xs font-normal leading-[18px] text-content-secondary">
+						<CommandEmpty className="py-3 text-xs font-normal leading-4.5 text-content-secondary">
 							{emptyMessage}
 						</CommandEmpty>
 						{unsetLabel &&
@@ -249,7 +249,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 											!value && "bg-surface-secondary",
 										)}
 									>
-										<span className="min-w-0 truncate text-left text-xs font-medium leading-[18px] text-content-secondary">
+										<span className="min-w-0 truncate text-left text-xs leading-4.5 text-content-secondary">
 											{unsetLabel}
 										</span>
 										<CheckIcon
@@ -281,7 +281,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 										</span>
 									}
 									className={cn(
-										"p-1 [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:leading-[18px] [&_[cmdk-group-heading]]:text-content-secondary",
+										"p-1 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-1 **:[[cmdk-group-heading]]:text-xs **:[[cmdk-group-heading]]:font-semibold **:[[cmdk-group-heading]]:leading-4.5 **:[[cmdk-group-heading]]:text-content-secondary",
 										index > 0 && "border-0 border-t border-solid border-border",
 									)}
 								>
@@ -345,7 +345,7 @@ const ReasoningEffortRow: React.FC<ReasoningEffortRowProps> = ({
 	return (
 		<div className="flex items-center gap-3 border-0 border-t border-solid border-border px-3 py-2">
 			<div className="flex shrink-0 items-center gap-1">
-				<span className="text-xs font-medium leading-[18px] text-content-secondary">
+				<span className="text-xs leading-4.5 text-content-secondary">
 					Effort
 				</span>
 				<Tooltip>
@@ -358,7 +358,7 @@ const ReasoningEffortRow: React.FC<ReasoningEffortRowProps> = ({
 							<InfoIcon aria-hidden="true" className="size-3" />
 						</button>
 					</TooltipTrigger>
-					<TooltipContent side="top" className="max-w-[240px]">
+					<TooltipContent side="top" className="max-w-60">
 						Controls how much reasoning the model performs before responding.
 						Higher effort can improve quality but is slower and costs more.
 					</TooltipContent>
@@ -385,7 +385,7 @@ const ReasoningEffortRow: React.FC<ReasoningEffortRowProps> = ({
 					<span
 						key={effort}
 						className={cn(
-							"[grid-area:1/1] rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-medium leading-[18px] text-content-secondary",
+							"[grid-area:1/1] rounded bg-surface-secondary px-1.5 py-0.5 text-xs font-medium leading-4.5 text-content-secondary",
 							index !== effortIndex && "invisible",
 						)}
 					>
@@ -417,11 +417,11 @@ const ModelOptionItem: React.FC<ModelOptionItemProps> = ({
 				isSelected && "bg-surface-secondary",
 			)}
 		>
-			<span className="min-w-0 truncate text-left text-xs font-medium leading-[18px] text-content-secondary">
+			<span className="min-w-0 truncate text-left text-xs leading-4.5 text-content-secondary">
 				{option.displayName}
 			</span>
 			{option.contextLimit != null && option.contextLimit > 0 && (
-				<span className="shrink-0 truncate text-left text-xs font-medium leading-[18px] text-content-secondary">
+				<span className="shrink-0 truncate text-left text-xs leading-4.5 text-content-secondary">
 					({formatContextLimit(option.contextLimit)})
 				</span>
 			)}

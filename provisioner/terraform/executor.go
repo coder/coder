@@ -200,9 +200,9 @@ func (e *executor) checkMinVersion(ctx context.Context) error {
 	return nil
 }
 
-// version doesn't need the lock because it doesn't read or write to any state.
+// version doesn't need e.mut because it doesn't touch the working directory.
 func (e *executor) version(ctx context.Context) (*version.Version, error) {
-	return versionFromBinaryPath(ctx, e.binaryPath)
+	return e.server.terraformVersion(ctx)
 }
 
 func versionFromBinaryPath(ctx context.Context, binaryPath string) (*version.Version, error) {

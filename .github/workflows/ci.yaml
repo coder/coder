@@ -1776,6 +1776,7 @@ jobs:
     needs:
       - required
     runs-on: ubuntu-latest
+    environment: main
     if: failure() && github.ref == 'refs/heads/main'
 
     steps:

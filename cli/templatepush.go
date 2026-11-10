@@ -435,8 +435,8 @@ func (pf *templateUploadFlags) checkForLockfile(inv *serpent.Invocation) error {
 
 	if !hasLockfile {
 		cliui.Warn(inv.Stdout, "No .terraform.lock.hcl file found",
-			"When provisioning, Coder will be unable to cache providers without a lockfile and must download them from the internet each time.",
-			"Create one by running "+pretty.Sprint(cliui.DefaultStyles.Code, "terraform init")+" in your template directory.",
+			"Coder generates one during import so workspace builds can reuse cached providers, but provider versions may change between pushes.",
+			"To pin them, create one by running "+pretty.Sprint(cliui.DefaultStyles.Code, "terraform init")+" in your template directory.",
 		)
 	}
 	return nil
