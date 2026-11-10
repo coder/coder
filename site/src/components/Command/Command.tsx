@@ -8,7 +8,7 @@ export const Command: React.FC<
 	return (
 		<CommandPrimitive
 			className={cn(
-				"flex h-full w-full flex-col overflow-hidden rounded-md bg-surface-primary text-content-primary",
+				"flex size-full flex-col overflow-hidden rounded-md bg-surface-primary text-content-primary",
 				className,
 			)}
 			{...props}
@@ -64,8 +64,8 @@ export const CommandGroup: React.FC<
 		<CommandPrimitive.Group
 			className={cn(
 				"overflow-hidden p-2 text-content-primary",
-				"[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs",
-				"[&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-content-secondary",
+				"**:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-1.5 **:[[cmdk-group-heading]]:text-xs",
+				"**:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:text-content-secondary",
 				className,
 			)}
 			{...props}

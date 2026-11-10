@@ -201,11 +201,25 @@ export const MultipleThreads: Story = {
 		// With no active query, the long prompt starts collapsed (Show more),
 		// not auto-expanded (Collapse).
 		await expect(
-			await canvas.findByRole("button", { name: "Show more" }),
+			await canvas.findByRole("button", {
+				name: "Show more: Review the deployment pipeline, inspect…",
+			}),
 		).toBeInTheDocument();
 		await expect(
-			canvas.queryByRole("button", { name: "Collapse" }),
+			canvas.queryByRole("button", { name: /^Collapse/ }),
 		).not.toBeInTheDocument();
+	},
+};
+
+// Each loop toggle is named after its thread's prompt.
+export const SecondThreadLoopOpen: Story = {
+	args: { threads: [mockThread, mockThreadLong] },
+	play: async ({ canvas }) => {
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: /^\(Show more\) Agentic loop for prompt: Please refactor the authentication/,
+			}),
+		);
 	},
 };
 
@@ -221,7 +235,7 @@ export const SearchExpandsPromptOnMatch: Story = {
 		// the expanded prompt exposes the Collapse toggle.
 		await expect(canvas.getByText("zebra-relay")).toBeInTheDocument();
 		await expect(
-			canvas.getByRole("button", { name: "Collapse" }),
+			canvas.getByRole("button", { name: /^Collapse/ }),
 		).toBeInTheDocument();
 	},
 };

@@ -543,7 +543,7 @@ const MaskableTextArea: React.FC<MaskableInputProps> = ({
 				ref={textareaRef}
 				id={id}
 				className={cn(
-					"overflow-y-auto max-h-[500px]",
+					"overflow-y-auto max-h-125",
 					masked && !showMaskedInput && "[-webkit-text-security:disc]",
 				)}
 				value={value}
@@ -622,7 +622,7 @@ const OptionDisplay: React.FC<OptionDisplayProps> = ({ option }) => {
 			{option.description && (
 				<Tooltip>
 					<TooltipTrigger asChild>
-						<InfoIcon className="w-3.5 h-3.5 text-content-secondary" />
+						<InfoIcon className="size-3.5 text-content-secondary" />
 					</TooltipTrigger>
 					<TooltipContent side="right" sideOffset={10}>
 						{option.description}
