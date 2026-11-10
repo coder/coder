@@ -256,8 +256,9 @@ The module READMEs for [`coder/agent-relay-claude-code`](https://registry.coder.
   Choose the timeouts so that the build plus the sum of the setup timeouts fits the pool's budget:
   - For a Cursor pool, the budget is the reaper's [startup grace](./configuration.md#--reap-startup-grace), 15&nbsp;minutes from the start of the build by default.
     Past it, Agent Relay fails the request and deletes the workspace.
-  - For a Claude Code pool, the budget is the pool's [build budget](./claude-code.md#build-budget), 5&nbsp;minutes by default and at most 15, counted from when Anthropic issues the work order.
-    If the build and setup don't fit it, the session is never served: Anthropic offers the session again, and each new build runs the same setup from the start.
+  - For a Claude Code pool, the budget is the pool's [build budget](./claude-code.md#build-budget), 5&nbsp;minutes by default and at most 15.
+    The budget starts when Anthropic issues the work order.
+    If the build and setup don't fit it, no worker ever serves the session: Anthropic offers the session again, and each new build runs the same setup from the start.
 
 ## Step 4: Configure provider pools
 
