@@ -83,7 +83,7 @@ export const MixedToggles: Story = {
 		});
 		expect(
 			within(table).getByRole("columnheader", {
-				name: "Coder Agents workspace creation",
+				name: "Agent access",
 			}),
 		).toBeInTheDocument();
 		const rows = within(table).getAllByRole("row");
