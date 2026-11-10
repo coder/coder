@@ -248,8 +248,11 @@ The module READMEs for [`coder/agent-relay-claude-code`](https://registry.coder.
 - Coder can't order the `startup_script` attribute of `coder_agent`.
   Move setup steps that the worker depends on into `coder_script` resources.
 - If a prerequisite fails or times out, Coder skips the module's scripts and the worker never starts.
-  About a minute later, a Cursor request fails.
+  Agent Relay newer than v0.15.0 fails the session about a minute later.
+  v0.15.0 and older wait out the [startup grace](./configuration.md#--reap-startup-grace) first, 15&nbsp;minutes by default.
+  A Cursor request fails at that point.
   For Claude Code, Agent Relay hands the work order back to Anthropic once, rebuilds the workspace when Anthropic redelivers it, and fails the session if the second setup fails too.
+  On a claimed prebuild, the status item keeps reporting the prebuild's `idle`, so Agent Relay neither fails the session nor deletes the workspace.
   To start the worker even when setup fails, set `requires = "completion"` on the rule.
 - The session waits while prerequisites run, so set a `timeout` on each prerequisite.
   The `timeout` is in seconds and bounds one script.
@@ -258,7 +261,7 @@ The module READMEs for [`coder/agent-relay-claude-code`](https://registry.coder.
     Past it, Agent Relay fails the request and deletes the workspace.
   - For a Claude Code pool, the budget is the pool's [build budget](./claude-code.md#build-budget), 5&nbsp;minutes by default and at most 15.
     The budget starts when Anthropic issues the work order.
-    If the build and setup don't fit it, no worker ever serves the session: Anthropic offers the session again, and each new build runs the same setup from the start.
+    If the build and setup keep overrunning it, no worker ever serves the session: Anthropic offers the session again, and each new build runs the same setup from the start.
 
 ## Step 4: Configure provider pools
 

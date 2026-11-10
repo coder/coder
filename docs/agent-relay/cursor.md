@@ -212,6 +212,8 @@ Prebuilds require a Premium license.
 The `coder/agent-relay-cursor` module supports prebuilds without changes.
 An unclaimed prebuild reports `idle`, which Agent Relay ignores.
 When a session claims the prebuild, Coder applies the session's parameters and the module starts the worker.
+When the template orders the module after setup scripts, setup runs again on the claim, and the status item keeps reporting `idle` until the worker starts.
+If that setup fails, the status stays `idle` and Agent Relay neither fails the session nor deletes the workspace.
 
 Add a preset with a `prebuilds` block to the template:
 
