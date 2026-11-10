@@ -595,6 +595,22 @@ export const MockUserMember: TypesGen.User = {
 	name: "Mock User The Second",
 };
 
+export const MockWorkspaceUser: TypesGen.WorkspaceUser = {
+	id: MockUserMember.id,
+	username: MockUserMember.username,
+	name: MockUserMember.name,
+	avatar_url: MockUserMember.avatar_url,
+	role: "use",
+};
+
+export const MockWorkspaceUserAdmin: TypesGen.WorkspaceUser = {
+	id: MockUserOwner.id,
+	username: MockUserOwner.username,
+	name: MockUserOwner.name,
+	avatar_url: MockUserOwner.avatar_url,
+	role: "admin",
+};
+
 export const SuspendedMockUser: TypesGen.User = {
 	id: "suspended-mock-user",
 	username: "SuspendedMockUser",

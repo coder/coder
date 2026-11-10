@@ -68,7 +68,7 @@ describe("UsersPageFilter", () => {
 			preset: "all_time",
 		});
 
-		await user.click(screen.getByRole("button", { name: "Last seen" }));
+		await user.click(screen.getByRole("combobox", { name: "Last seen" }));
 		await user.click(await screen.findByRole("radio", { name: "Last 7 days" }));
 
 		expect(onLastSeenChange).toHaveBeenCalledWith(
