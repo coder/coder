@@ -45,7 +45,8 @@ describe(TemplateCard.name, () => {
 		).toHaveFocus();
 		await userEvent.keyboard(" ");
 		expect(onSelectDocker).toHaveBeenCalledTimes(1);
-		// Radix selects on focus while an arrow key is held down.
+		// Hold the key: Radix moves focus in a timeout and only selects on focus
+		// while an arrow key is down, so a single press releases it too early.
 		await userEvent.keyboard("{ArrowRight>}");
 		await waitFor(() => expect(onSelectKubernetes).toHaveBeenCalledTimes(1));
 		await userEvent.keyboard("{/ArrowRight}");
