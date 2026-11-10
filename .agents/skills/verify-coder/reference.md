@@ -72,7 +72,7 @@ It changes nothing apart from those two refused sign-ins.
 
 ## Hand-driven checks
 
-- Put each sub-feature's files in one `$VC_EVIDENCE/<UTC stamp>-<sub-feature id>/` folder, for example `20261105T090000Z-users-create-cli/`. Name files `<NN>-<entry point>-<state>.<ext>`, such as `01-cli-create.txt` or `02-api-users-after.json`. `vc_new_evidence <sub-feature id>` creates the folder and prints its path.
+- Put each sub-feature's files in one `$VC_EVIDENCE/<UTC stamp>-<sub-feature id>-<random>/` folder, for example `20261105T090000Z-users-create-cli-a1B2/`. Name files `<NN>-<entry point>-<state>.<ext>`, such as `01-cli-create.txt` or `02-api-users-after.json`. `vc_new_evidence <sub-feature id>` creates the folder and prints its path.
 - Record each check with `vc_check <name> <command> [args]` and `VC_RESULT_FILE=<folder>/result.txt`. End with `echo "<sub-feature id>: $VC_PASS/$VC_TOTAL checks passed" >>"$VC_RESULT_FILE"`.
 - `vc_check` runs its arguments as one command with errexit and pipefail, not as a shell string. Put pipes and redirects inside a function and pass the function. It always returns 0 and prints PASS or FAIL.
 - Its counters start at 0 each time `lib.sh` is sourced, so run one sub-feature in one shell.

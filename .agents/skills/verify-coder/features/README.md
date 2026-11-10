@@ -20,7 +20,7 @@ This folder is the maintained source for verifying the Coder features listed bel
 
 - Capture the action and the resulting state: the command output, and an API read before and after.
 - Prove each mutation from a second view: the API after a CLI change.
-- Put hand-driven artifacts in `$VC_EVIDENCE/<UTC stamp>-<sub-feature id>/`, named `<NN>-<entry point>-<state>.<ext>` (see "Hand-driven checks" in `reference.md`).
+- Put hand-driven artifacts in the folder that `vc_new_evidence <sub-feature id>` creates, `$VC_EVIDENCE/<UTC stamp>-<sub-feature id>-<random>/`, named `<NN>-<entry point>-<state>.<ext>` (see "Hand-driven checks" in `reference.md`).
 - Report an entry point you could not reach with the command you ran and the missing precondition. Do not report it as verified through another entry point.
 
 ## Feature entry contract

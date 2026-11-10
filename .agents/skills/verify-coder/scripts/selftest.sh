@@ -13,7 +13,8 @@
 # Usage: selftest.sh   (prints one line per check and a count line)
 set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
-tmp="$(mktemp -d)"
+# /proc/<pid>/exe holds canonical paths, so tmp must be canonical too.
+tmp="$(cd "$(mktemp -d)" && pwd -P)"
 trap 'rm -rf "$tmp"' EXIT
 
 # Stub: make stops a launch that got past its refusals before it builds.
@@ -161,7 +162,7 @@ vc_check start-develop start_develop_isolates
 # data. The stub develop exits at once, so launch.sh stops after that start.
 setup_binds_loopback() {
 	local kind
-	# A copy instead of a move would get the umask's mode, not the session's.
+	# Writing the file anew (cat >) would get the umask's mode, not the session's.
 	umask 022
 	unset CODER_DEV_ADMIN_PASSWORD
 	for kind in fresh new-data reused-data; do
@@ -312,6 +313,7 @@ cleanup_keeps_running_postgres() {
 				sleep 0.1
 			done
 			grep -q '^State:.Z' "/proc/$pid/status" 2>/dev/null || {
+				kill "${others[@]}" 2>/dev/null || true
 				echo "zombie: the stand-in never became a zombie"
 				return 1
 			}
@@ -333,6 +335,7 @@ cleanup_keeps_running_postgres() {
 				sleep 0.1
 			done
 			[[ "$(readlink "/proc/$pid/exe" 2>/dev/null)" == "$tmp/fake/$case/postgres" ]] || {
+				kill "$pid" "${others[@]}" 2>/dev/null || true
 				echo "deleted-binary: the stand-in never ran its binary"
 				return 1
 			}
@@ -542,7 +545,7 @@ vc_check no-proxy loopback_bypasses_proxy
 # back when .coderv2 stays.
 cleanup_restores_caller_session() {
 	local dead flags mode
-	# A copy instead of a move would get the umask's mode, not the session's.
+	# Writing the file anew (cat >) would get the umask's mode, not the session's.
 	umask 022
 	for flags in "" --keep-data; do
 		scratch_reset
@@ -675,6 +678,30 @@ evidence_folders_unique() {
 	echo "vc_new_evidence makes a separate folder per run"
 }
 vc_check evidence-folders evidence_folders_unique
+
+# vc_check fails a step when any command in it fails, a pipeline stage
+# included, not only when its last command fails.
+# shellcheck disable=SC2317 # vc_check calls the steps by name.
+check_fails_failed_steps() {
+	local step out
+	failed_middle() {
+		false
+		echo "after the failed command"
+	}
+	failed_stage() {
+		false | true
+		echo "after the failed pipeline"
+	}
+	for step in failed_middle failed_stage; do
+		out="$(vc_check "$step" "$step")"
+		[[ "$out" == "FAIL $step:"* ]] || {
+			echo "vc_check passed a step with a failed command: $out"
+			return 1
+		}
+	done
+	echo "vc_check fails a step on any failed command or pipeline stage"
+}
+vc_check check-errexit check_fails_failed_steps
 
 echo "selftest: $VC_PASS/$VC_TOTAL checks passed"
 ((VC_PASS == VC_TOTAL))

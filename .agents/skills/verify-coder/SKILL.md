@@ -55,4 +55,4 @@ scripts/cleanup.sh              # also removes .coderv2 when launch.sh created i
 scripts/cleanup.sh --keep-data  # keep .coderv2, and treat it as yours from then on
 ```
 
-Run it after every attempt, failed ones too. A FAIL line keeps the run state, so fix the cause and run it again. It deletes only the workspaces the harness recorded. Run `vc_record_workspace <owner>/<name>` before you create one by hand.
+Run it after every attempt, failed ones too. A FAIL line keeps the run state, so fix the cause and run it again. It deletes the workspaces the harness recorded, and every workspace when it removes a `.coderv2` that `launch.sh` created. Run `vc_record_workspace <owner>/<name>` before you create one by hand.

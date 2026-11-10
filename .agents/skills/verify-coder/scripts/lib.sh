@@ -50,11 +50,11 @@ vc_fail() {
 VC_PASS=0
 VC_TOTAL=0
 # vc_check runs one step and prints "PASS|FAIL <name>: <last output line>".
-# The step runs with errexit and pipefail on, so any failing command fails it. It must not
-# run inside an if test: bash ignores errexit there, and every step would pass.
-# It works the same in a hand-driven shell and leaves its errexit state alone.
-# VC_CHECK_LOG keeps full output, VC_RESULT_FILE the lines. A caller's
-# vc_on_fail <name> function, when defined, runs after a failed step.
+# The step runs with errexit and pipefail on, so any failing command fails
+# it. It must not run inside an if test: bash ignores errexit there, and every
+# step would pass. It works the same in a hand-driven shell and leaves its
+# errexit state alone. VC_CHECK_LOG keeps full output, VC_RESULT_FILE the
+# lines.
 vc_check() {
 	local _vc_name="$1" _vc_out _vc_rc _vc_status=FAIL _vc_errexit=0
 	shift
@@ -77,9 +77,6 @@ vc_check() {
 	fi
 	if [[ -n "${VC_CHECK_LOG:-}" ]]; then
 		printf '== %s %s (exit %d)\n%s\n' "$_vc_status" "$_vc_name" "$_vc_rc" "$_vc_out" >>"$VC_CHECK_LOG"
-	fi
-	if ((_vc_rc != 0)) && declare -F vc_on_fail >/dev/null; then
-		vc_on_fail "$_vc_name" >/dev/null 2>&1 || true
 	fi
 	_vc_out="${_vc_out##*$'\n'}"
 	_vc_out="$_vc_status $_vc_name: ${_vc_out:0:160}"
