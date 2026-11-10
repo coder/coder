@@ -564,6 +564,22 @@ type sqlcQuerier interface {
 	GetChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) ([]GetChatProjectMemoriesByProjectIDRow, error)
 	GetChatProjectMemoryByID(ctx context.Context, id uuid.UUID) (GetChatProjectMemoryByIDRow, error)
 	GetChatProjectMemoryByName(ctx context.Context, arg GetChatProjectMemoryByNameParams) (GetChatProjectMemoryByNameRow, error)
+	// Aggregates pin usage over each active, non-system user's accessible
+	// projects. No identifiers leave this query.
+	// Users act on pins by pinning, reordering, or unpinning a project.
+	GetChatProjectPinTelemetry(ctx context.Context) (GetChatProjectPinTelemetryRow, error)
+	// Returns the projects from GetChatProjectsOwnedOrSharedWithUserID with the
+	// user's active pin and aggregates over the user's own top-level,
+	// non-archived chats. Entries match regardless of the actions they grant,
+	// so callers must authorize each row; pins on projects the user can no
+	// longer see are never returned.
+	// Users who can use each project: the owner, granted users who are
+	// organization members, and members of granted groups (including the
+	// Everyone group). Counted only while project sharing is available;
+	// otherwise every project counts its owner alone. Suspended users cannot
+	// sign in, so they are not counted.
+	// Read through idx_chats_owner.
+	GetChatProjectSummariesByUserID(ctx context.Context, arg GetChatProjectSummariesByUserIDParams) ([]GetChatProjectSummariesByUserIDRow, error)
 	// Entries match regardless of the actions they grant, so callers must
 	// authorize each row.
 	GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]ChatProject, error)
@@ -1498,8 +1514,8 @@ type sqlcQuerier interface {
 	PinChatByID(ctx context.Context, id uuid.UUID) error
 	// Pins a project, or moves an already pinned project, to pin_order. Without
 	// pin_order a new pin goes to the end and an existing pin keeps its place.
-	// Positions count only pins the user can still see and are clamped to
-	// [1, count]. Pins on projects the user can no longer see move
+	// Positions count only pins the user can still see, as the summaries do, and
+	// are clamped to [1, count]. Pins on projects the user can no longer see move
 	// after the visible ones. Callers must hold the per-user pin lock so
 	// concurrent writes cannot interleave.
 	PinChatProject(ctx context.Context, arg PinChatProjectParams) error

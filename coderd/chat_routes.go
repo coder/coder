@@ -116,6 +116,7 @@ func (api *API) registerExperimentalChatRoutes(r chi.Router, apiKeyMiddleware fu
 	r.Route("/chats", func(r chi.Router) {
 		r.Use(apiKeyMiddleware)
 		r.Get("/projects", api.listChatProjects)
+		r.Get("/projects/summaries", api.listChatProjectSummaries)
 		// Reserve the promoted /config segment so it returns 404 instead
 		// of falling into the {chat} wildcard and failing UUID parsing
 		// with a 400.

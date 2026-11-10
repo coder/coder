@@ -3879,6 +3879,23 @@ func (q *querier) GetChatProjectMemoryByName(ctx context.Context, arg database.G
 	return row, nil
 }
 
+func (q *querier) GetChatProjectPinTelemetry(ctx context.Context) (database.GetChatProjectPinTelemetryRow, error) {
+	// Telemetry queries are called from system contexts only.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.GetChatProjectPinTelemetryRow{}, err
+	}
+	return q.db.GetChatProjectPinTelemetry(ctx)
+}
+
+// GetChatProjectSummariesByUserID returns the caller's own pins and chat
+// counts, so it only answers for the actor.
+func (q *querier) GetChatProjectSummariesByUserID(ctx context.Context, arg database.GetChatProjectSummariesByUserIDParams) ([]database.GetChatProjectSummariesByUserIDRow, error) {
+	if err := requireActorIsUser(ctx, arg.UserID); err != nil {
+		return nil, err
+	}
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectSummariesByUserID)(ctx, arg)
+}
+
 func (q *querier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]database.ChatProject, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatProjectsOwnedOrSharedWithUserID)(ctx, userID)
 }

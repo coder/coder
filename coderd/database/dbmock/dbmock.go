@@ -3638,6 +3638,36 @@ func (mr *MockStoreMockRecorder) GetChatProjectMemoryByName(ctx, arg any) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectMemoryByName", reflect.TypeOf((*MockStore)(nil).GetChatProjectMemoryByName), ctx, arg)
 }
 
+// GetChatProjectPinTelemetry mocks base method.
+func (m *MockStore) GetChatProjectPinTelemetry(ctx context.Context) (database.GetChatProjectPinTelemetryRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatProjectPinTelemetry", ctx)
+	ret0, _ := ret[0].(database.GetChatProjectPinTelemetryRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatProjectPinTelemetry indicates an expected call of GetChatProjectPinTelemetry.
+func (mr *MockStoreMockRecorder) GetChatProjectPinTelemetry(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectPinTelemetry", reflect.TypeOf((*MockStore)(nil).GetChatProjectPinTelemetry), ctx)
+}
+
+// GetChatProjectSummariesByUserID mocks base method.
+func (m *MockStore) GetChatProjectSummariesByUserID(ctx context.Context, arg database.GetChatProjectSummariesByUserIDParams) ([]database.GetChatProjectSummariesByUserIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatProjectSummariesByUserID", ctx, arg)
+	ret0, _ := ret[0].([]database.GetChatProjectSummariesByUserIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatProjectSummariesByUserID indicates an expected call of GetChatProjectSummariesByUserID.
+func (mr *MockStoreMockRecorder) GetChatProjectSummariesByUserID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatProjectSummariesByUserID", reflect.TypeOf((*MockStore)(nil).GetChatProjectSummariesByUserID), ctx, arg)
+}
+
 // GetChatProjectsOwnedOrSharedWithUserID mocks base method.
 func (m *MockStore) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]database.ChatProject, error) {
 	m.ctrl.T.Helper()
