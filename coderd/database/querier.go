@@ -575,7 +575,8 @@ type sqlcQuerier interface {
 	// longer see are never returned.
 	// Users who can use each project: the owner, granted users who are
 	// organization members, and members of granted groups (including the
-	// Everyone group). Grants count only while sharing is enabled.
+	// Everyone group). Grants count only while sharing is enabled. Suspended
+	// users cannot sign in, so they are not counted.
 	// Read through idx_chats_owner.
 	GetChatProjectSummariesByUserID(ctx context.Context, arg GetChatProjectSummariesByUserIDParams) ([]GetChatProjectSummariesByUserIDRow, error)
 	// Entries match regardless of the actions they grant, so callers must
@@ -1512,7 +1513,10 @@ type sqlcQuerier interface {
 	PinChatByID(ctx context.Context, id uuid.UUID) error
 	// Pins a project, or moves an already pinned project, to pin_order. Without
 	// pin_order a new pin goes to the end and an existing pin keeps its place.
-	// Positions are clamped to [1, count].
+	// Positions count only pins the user can still see, as the summaries do, and
+	// are clamped to [1, count]. Pins on projects the user can no longer see move
+	// after the visible ones. Callers must hold the per-user pin lock so
+	// concurrent writes cannot interleave.
 	// Under READ COMMITTED, concurrent pin operations for the same
 	// user may momentarily produce duplicate pin_order values because
 	// each CTE snapshot does not see the other's writes. The next
@@ -1596,7 +1600,9 @@ type sqlcQuerier interface {
 	UnpinChatByID(ctx context.Context, id uuid.UUID) error
 	// Turns a pin into a tombstone and compacts the remaining pins to 1..N.
 	// The source is kept so telemetry can tell which pins users removed.
-	// Unpinning a project that is not pinned changes nothing.
+	// Unpinning a project that is not pinned changes nothing. Like
+	// PinChatProject, pins the user can still see come first, and callers must
+	// hold the per-user pin lock.
 	UnpinChatProject(ctx context.Context, arg UnpinChatProjectParams) error
 	UnsetDefaultChatModelConfigs(ctx context.Context, organizationID uuid.UUID) error
 	UpdateAIBridgeInterceptionEnded(ctx context.Context, arg UpdateAIBridgeInterceptionEndedParams) (AIBridgeInterception, error)

@@ -8,11 +8,33 @@ WHERE user_id = @user_id::uuid AND unpinned_at IS NULL;
 -- name: PinChatProject :exec
 -- Pins a project, or moves an already pinned project, to pin_order. Without
 -- pin_order a new pin goes to the end and an existing pin keeps its place.
--- Positions are clamped to [1, count].
+-- Positions count only pins the user can still see, as the summaries do, and
+-- are clamped to [1, count]. Pins on projects the user can no longer see move
+-- after the visible ones. Callers must hold the per-user pin lock so
+-- concurrent writes cannot interleave.
 WITH current_pins AS (
-    SELECT project_id, ROW_NUMBER() OVER (ORDER BY pin_order ASC, project_id ASC) :: integer AS position
-    FROM chat_project_pins
-    WHERE user_id = @user_id::uuid AND unpinned_at IS NULL
+    SELECT project_id, stale, ROW_NUMBER() OVER (ORDER BY stale ASC, pin_order ASC, project_id ASC) :: integer AS position
+    FROM (
+        SELECT p.project_id, p.pin_order, NOT (
+            -- Same access predicate as GetChatProjectSummariesByUserID.
+            cp.owner_id = @user_id::uuid
+            OR (
+                (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
+                    SELECT group_id::text FROM group_members WHERE user_id = @user_id::uuid
+                    UNION ALL
+                    SELECT organization_id::text FROM organization_members WHERE user_id = @user_id::uuid
+                ))
+                AND EXISTS (
+                    SELECT 1 FROM organization_members
+                    WHERE organization_members.user_id = @user_id::uuid
+                        AND organization_members.organization_id = cp.organization_id
+                )
+            )
+        ) AS stale
+        FROM chat_project_pins p
+        JOIN chat_projects cp ON cp.id = p.project_id
+        WHERE p.user_id = @user_id::uuid AND p.unpinned_at IS NULL
+    ) pins
 ),
 -- Under READ COMMITTED, concurrent pin operations for the same
 -- user may momentarily produce duplicate pin_order values because
@@ -20,7 +42,7 @@ WITH current_pins AS (
 -- pin/unpin/reorder operation's ROW_NUMBER() self-heals the
 -- sequence, so this is acceptable.
 ranked AS (
-    SELECT project_id, ROW_NUMBER() OVER (ORDER BY position ASC) :: integer AS position
+    SELECT project_id, stale, ROW_NUMBER() OVER (ORDER BY position ASC) :: integer AS position
     FROM current_pins
     WHERE project_id <> @project_id::uuid
 ),
@@ -30,13 +52,13 @@ target AS (
         (SELECT position FROM current_pins WHERE project_id = @project_id::uuid),
         pinned_count + 1
     ), 1), pinned_count + 1) :: integer AS position
-    FROM (SELECT COUNT(*) :: integer AS pinned_count FROM ranked) counts
+    FROM (SELECT COUNT(*) FILTER (WHERE NOT stale) :: integer AS pinned_count FROM ranked) counts
 ),
 shifted AS (
     UPDATE chat_project_pins p
     SET pin_order = CASE WHEN ranked.position >= target.position THEN ranked.position + 1 ELSE ranked.position END
     FROM ranked CROSS JOIN target
-    WHERE p.user_id = @user_id::uuid AND p.project_id = ranked.project_id
+    WHERE p.user_id = @user_id::uuid AND p.project_id = ranked.project_id AND p.unpinned_at IS NULL
 )
 INSERT INTO chat_project_pins (user_id, project_id, pin_order, source)
 SELECT @user_id::uuid, @project_id::uuid, target.position, 'user'
@@ -49,23 +71,42 @@ ON CONFLICT (user_id, project_id) DO UPDATE SET
 -- name: UnpinChatProject :exec
 -- Turns a pin into a tombstone and compacts the remaining pins to 1..N.
 -- The source is kept so telemetry can tell which pins users removed.
--- Unpinning a project that is not pinned changes nothing.
+-- Unpinning a project that is not pinned changes nothing. Like
+-- PinChatProject, pins the user can still see come first, and callers must
+-- hold the per-user pin lock.
 WITH target AS (
     SELECT project_id
     FROM chat_project_pins
     WHERE user_id = @user_id::uuid AND project_id = @project_id::uuid AND unpinned_at IS NULL
 ),
 updates AS (
-    SELECT project_id, ROW_NUMBER() OVER (ORDER BY pin_order ASC, project_id ASC) :: integer AS pin_order, NULL::timestamptz AS unpinned_at
-    FROM chat_project_pins
-    WHERE user_id = @user_id::uuid AND unpinned_at IS NULL AND project_id <> @project_id::uuid
+    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY NOT (
+        -- Same access predicate as GetChatProjectSummariesByUserID.
+        cp.owner_id = @user_id::uuid
+        OR (
+            (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
+                SELECT group_id::text FROM group_members WHERE user_id = @user_id::uuid
+                UNION ALL
+                SELECT organization_id::text FROM organization_members WHERE user_id = @user_id::uuid
+            ))
+            AND EXISTS (
+                SELECT 1 FROM organization_members
+                WHERE organization_members.user_id = @user_id::uuid
+                    AND organization_members.organization_id = cp.organization_id
+            )
+        )
+    ) ASC, p.pin_order ASC, p.project_id ASC) :: integer AS pin_order, NULL::timestamptz AS unpinned_at
+    FROM chat_project_pins p
+    JOIN chat_projects cp ON cp.id = p.project_id
+    WHERE p.user_id = @user_id::uuid AND p.unpinned_at IS NULL AND p.project_id <> @project_id::uuid
     UNION ALL
     SELECT project_id, 0, NOW() FROM target
 )
 UPDATE chat_project_pins p
 SET pin_order = updates.pin_order, unpinned_at = updates.unpinned_at
 FROM updates
-WHERE p.user_id = @user_id::uuid AND p.project_id = updates.project_id AND EXISTS (SELECT 1 FROM target);
+WHERE p.user_id = @user_id::uuid AND p.project_id = updates.project_id AND p.unpinned_at IS NULL
+    AND EXISTS (SELECT 1 FROM target);
 
 -- name: GetChatProjectSummariesByUserID :many
 -- Returns the projects from GetChatProjectsOwnedOrSharedWithUserID with the
@@ -92,7 +133,8 @@ WITH accessible AS (
 ),
 -- Users who can use each project: the owner, granted users who are
 -- organization members, and members of granted groups (including the
--- Everyone group). Grants count only while sharing is enabled.
+-- Everyone group). Grants count only while sharing is enabled. Suspended
+-- users cannot sign in, so they are not counted.
 project_members AS (
     SELECT id AS project_id, owner_id AS user_id FROM accessible
     UNION
@@ -116,7 +158,7 @@ member_counts AS (
     SELECT project_members.project_id, COUNT(*) AS member_count
     FROM project_members
     JOIN users ON users.id = project_members.user_id
-    WHERE users.deleted = false AND users.is_system = false
+    WHERE users.deleted = false AND users.is_system = false AND users.status <> 'suspended'
     GROUP BY project_members.project_id
 ),
 -- Read through idx_chats_owner.
@@ -140,7 +182,10 @@ own_chats AS (
 SELECT
     sqlc.embed(chat_projects),
     (pins.project_id IS NOT NULL)::boolean AS pinned,
-    COALESCE(pins.pin_order, 0)::integer AS pin_order,
+    -- Numbered over the returned pins, so pins the user can no longer see
+    -- leave no gaps.
+    (CASE WHEN pins.project_id IS NULL THEN 0
+        ELSE ROW_NUMBER() OVER (PARTITION BY pins.project_id IS NULL ORDER BY pins.pin_order, chat_projects.id) END)::integer AS pin_order,
     COALESCE(own_chats.chat_count, 0)::bigint AS own_chat_count,
     COALESCE(own_chats.unread_count, 0)::bigint AS own_unread_count,
     COALESCE(own_chats.running, false)::boolean AS own_running,

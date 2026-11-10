@@ -263,7 +263,8 @@ type ChatProjectSummary struct {
 	// LastActivityAt is the latest update to one of the caller's chats.
 	LastActivityAt *time.Time `json:"last_activity_at,omitempty" format:"date-time"`
 	// MemberCount counts users who can use the project, including the owner.
-	// It is 1 when chat sharing is unavailable.
+	// Suspended users are not counted. It is 1 when chat sharing is
+	// unavailable.
 	MemberCount int64 `json:"member_count"`
 }
 

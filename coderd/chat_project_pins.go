@@ -4,6 +4,9 @@ import (
 	"database/sql"
 	"net/http"
 
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -11,6 +14,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -66,8 +70,24 @@ func (api *API) putChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Summaries list only projects the user owns or that are shared with
+	// them, so role-based read access alone would leave the pin invisible.
+	usable, err := chatd.ChatProjectUsableBy(ctx, api.Database, project, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking chat project access.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	if !usable {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	// The body is optional because pin_order is.
 	var req codersdk.PinChatProjectRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
+	if r.ContentLength != 0 && !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
 	var pinOrder sql.NullInt32
@@ -79,11 +99,16 @@ func (api *API) putChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 		pinOrder = sql.NullInt32{Int32: *req.PinOrder, Valid: true}
 	}
 
-	err := api.Database.PinChatProject(ctx, database.PinChatProjectParams{
-		UserID:    apiKey.UserID,
-		ProjectID: project.ID,
-		PinOrder:  pinOrder,
-	})
+	err = api.Database.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(ctx, chatProjectsOwnerLockID(apiKey.UserID)); err != nil {
+			return xerrors.Errorf("lock chat project pins: %w", err)
+		}
+		return tx.PinChatProject(ctx, database.PinChatProjectParams{
+			UserID:    apiKey.UserID,
+			ProjectID: project.ID,
+			PinOrder:  pinOrder,
+		})
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to pin chat project.",
@@ -112,10 +137,15 @@ func (api *API) deleteChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := api.Database.UnpinChatProject(ctx, database.UnpinChatProjectParams{
-		UserID:    apiKey.UserID,
-		ProjectID: project.ID,
-	})
+	err := api.Database.InTx(func(tx database.Store) error {
+		if err := tx.AcquireLock(ctx, chatProjectsOwnerLockID(apiKey.UserID)); err != nil {
+			return xerrors.Errorf("lock chat project pins: %w", err)
+		}
+		return tx.UnpinChatProject(ctx, database.UnpinChatProjectParams{
+			UserID:    apiKey.UserID,
+			ProjectID: project.ID,
+		})
+	}, nil)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to unpin chat project.",
@@ -124,4 +154,12 @@ func (api *API) deleteChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
+}
+
+// chatProjectsOwnerLockID serializes one user's project creates and pin
+// writes. Pin writes renumber every pin of the user, so overlapping writes
+// would otherwise deadlock or write positions onto rows another write just
+// unpinned.
+func chatProjectsOwnerLockID(userID uuid.UUID) int64 {
+	return database.GenLockID("chat-projects-owner:" + userID.String())
 }

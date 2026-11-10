@@ -5306,17 +5306,17 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                  | Type                                         | Required | Restrictions | Description                                                                                                       |
-|-----------------------|----------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------|
-| `last_activity_at`    | string                                       | false    |              | Last activity at is the latest update to one of the caller's chats.                                               |
-| `member_count`        | integer                                      | false    |              | Member count counts users who can use the project, including the owner. It is 1 when chat sharing is unavailable. |
-| `own_chat_count`      | integer                                      | false    |              |                                                                                                                   |
-| `own_needs_attention` | boolean                                      | false    |              | Own needs attention reports a chat that requires action, failed, or is paused.                                    |
-| `own_running`         | boolean                                      | false    |              |                                                                                                                   |
-| `own_unread_count`    | integer                                      | false    |              |                                                                                                                   |
-| `pin_order`           | integer                                      | false    |              | Pin order is the 1-based position among pinned projects, or 0.                                                    |
-| `pinned`              | boolean                                      | false    |              |                                                                                                                   |
-| `project`             | [codersdk.ChatProject](#codersdkchatproject) | false    |              |                                                                                                                   |
+| Name                  | Type                                         | Required | Restrictions | Description                                                                                                                                        |
+|-----------------------|----------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `last_activity_at`    | string                                       | false    |              | Last activity at is the latest update to one of the caller's chats.                                                                                |
+| `member_count`        | integer                                      | false    |              | Member count counts users who can use the project, including the owner. Suspended users are not counted. It is 1 when chat sharing is unavailable. |
+| `own_chat_count`      | integer                                      | false    |              |                                                                                                                                                    |
+| `own_needs_attention` | boolean                                      | false    |              | Own needs attention reports a chat that requires action, failed, or is paused.                                                                     |
+| `own_running`         | boolean                                      | false    |              |                                                                                                                                                    |
+| `own_unread_count`    | integer                                      | false    |              |                                                                                                                                                    |
+| `pin_order`           | integer                                      | false    |              | Pin order is the 1-based position among pinned projects, or 0.                                                                                     |
+| `pinned`              | boolean                                      | false    |              |                                                                                                                                                    |
+| `project`             | [codersdk.ChatProject](#codersdkchatproject) | false    |              |                                                                                                                                                    |
 
 ## codersdk.ChatProjectUser
 

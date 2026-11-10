@@ -2,12 +2,14 @@ package coderd_test
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -50,11 +52,20 @@ func TestChatProjectPins(t *testing.T) {
 
 	err := client.PinChatProject(ctx, orgID, a.ID, codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(0))})
 	requireSDKError(t, err, http.StatusBadRequest)
+	// The body is optional.
+	res, err := client.Request(ctx, http.MethodPut, fmt.Sprintf("/api/experimental/organizations/%s/chats/projects/%s/pin", orgID, b.ID), nil)
+	require.NoError(t, err)
+	_ = res.Body.Close()
+	require.Equal(t, http.StatusNoContent, res.StatusCode)
 
 	// Pins need read access. Sharing does not pin, and a pin that outlives
 	// access stays hidden.
 	other, otherUser := newChatProjectMember(t, client, orgID)
 	requireSDKError(t, other.PinChatProject(ctx, orgID, a.ID, codersdk.PinChatProjectRequest{}), http.StatusNotFound)
+	// Role-based read access is not enough: the project would be missing
+	// from the site owner's summaries.
+	otherOwn := createChatProject(t, other, orgID, "Pin Other")
+	requireSDKError(t, client.PinChatProject(ctx, orgID, otherOwn.ID, codersdk.PinChatProjectRequest{}), http.StatusNotFound)
 	setRole := func(role codersdk.ChatProjectRole) {
 		require.NoError(t, client.UpdateChatProjectACL(ctx, orgID, a.ID, codersdk.UpdateChatProjectACL{
 			UserRoles: map[string]codersdk.ChatProjectRole{otherUser.ID.String(): role},
@@ -62,11 +73,48 @@ func TestChatProjectPins(t *testing.T) {
 	}
 	setRole(codersdk.ChatProjectRoleUse)
 	require.False(t, chatProjectSummariesByID(ctx, t, other)[a.ID].Pinned)
-	require.NoError(t, other.PinChatProject(ctx, orgID, a.ID, codersdk.PinChatProjectRequest{}))
-	require.True(t, chatProjectSummariesByID(ctx, t, other)[a.ID].Pinned)
+	require.NoError(t, other.PinChatProject(ctx, orgID, a.ID, codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(1))}))
+	requirePinOrders(ctx, t, other, map[uuid.UUID]int32{a.ID: 1, otherOwn.ID: 2})
 	setRole(codersdk.ChatProjectRoleDeleted)
 	require.NotContains(t, chatProjectSummariesByID(ctx, t, other), a.ID)
 	requireSDKError(t, other.UnpinChatProject(ctx, orgID, a.ID), http.StatusNotFound)
+	// The hidden pin takes no position, either in summaries or in
+	// requested positions.
+	requirePinOrders(ctx, t, other, map[uuid.UUID]int32{otherOwn.ID: 1})
+	otherNew := createChatProject(t, other, orgID, "Pin Other New")
+	require.NoError(t, other.PinChatProject(ctx, orgID, otherOwn.ID, codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(2))}))
+	requirePinOrders(ctx, t, other, map[uuid.UUID]int32{otherNew.ID: 1, otherOwn.ID: 2})
+}
+
+func TestChatProjectPinsConcurrentWrites(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, _ := newChatProjectClient(t)
+	orgID := coderdtest.CreateFirstUser(t, client.Client).OrganizationID
+	projects := make([]codersdk.ChatProject, 4)
+	for i := range projects {
+		projects[i] = createChatProject(t, client, orgID, fmt.Sprintf("Concurrent %d", i))
+	}
+
+	// Each round pins half of the projects at the top and unpins the other
+	// half at the same time, so the writes renumber the same rows.
+	for round := range 10 {
+		var eg errgroup.Group
+		for i, project := range projects {
+			eg.Go(func() error {
+				if (i+round)%2 == 0 {
+					return client.UnpinChatProject(ctx, orgID, project.ID)
+				}
+				return client.PinChatProject(ctx, orgID, project.ID, codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(1))})
+			})
+		}
+		require.NoError(t, eg.Wait())
+		summaries := chatProjectSummariesByID(ctx, t, client)
+		for i, project := range projects {
+			require.Equal(t, (i+round)%2 != 0, summaries[project.ID].Pinned, project.Name)
+		}
+	}
 }
 
 func TestChatProjectSummaries(t *testing.T) {
@@ -122,6 +170,9 @@ func TestChatProjectSummaries(t *testing.T) {
 	require.NoError(t, client.DeleteOrganizationMember(ctx, orgID, carol.Username))
 	// The Everyone group's ID is the organization ID.
 	everyone := share("Summary Everyone", nil, []uuid.UUID{orgID})
+	// Suspended users cannot use any project.
+	_, err := client.UpdateUserStatus(ctx, bob.Username, codersdk.UserStatusSuspended)
+	require.NoError(t, err)
 
 	type summary struct {
 		chats, unread, members int64
@@ -141,13 +192,12 @@ func TestChatProjectSummaries(t *testing.T) {
 	}
 	summaries := chatProjectSummariesByID(ctx, t, client)
 	for project, want := range map[uuid.UUID]summary{
-		// The owner plus alice and bob, who are granted directly and through
-		// the group.
-		busy.ID: {3, 1, 3, true, true, latestUpdate(unread, running, paused)},
+		// The owner plus alice, who is granted directly and through the group.
+		busy.ID: {3, 1, 2, true, true, latestUpdate(unread, running, paused)},
 		// Carol left the organization.
 		quiet.ID: {1, 0, 1, false, false, latestUpdate(read)},
-		// Organization members, without system users or carol.
-		everyone.ID: {0, 0, 3, false, false, time.Time{}},
+		// Organization members, without system users, carol or bob.
+		everyone.ID: {0, 0, 2, false, false, time.Time{}},
 	} {
 		got := summaries[project]
 		require.True(t, got.Pinned)
@@ -218,6 +268,21 @@ func TestListChatsPinnedProjectsOnly(t *testing.T) {
 		[]uuid.UUID{pinnedChat.ID, inPinned.ID, unfiled.ID},
 		chatIDs(append(firstPage, secondPage...)),
 	)
+
+	// A chat in a project the viewer can no longer see is listed like an
+	// unfiled chat.
+	member, memberUser := newChatProjectMember(t, client, orgID)
+	setRole := func(role codersdk.ChatProjectRole) {
+		require.NoError(t, client.UpdateChatProjectACL(ctx, orgID, unpinned.ID, codersdk.UpdateChatProjectACL{
+			UserRoles: map[string]codersdk.ChatProjectRole{memberUser.ID.String(): role},
+		}))
+	}
+	setRole(codersdk.ChatProjectRoleUse)
+	revoked := createChatInProject(t, member, orgID, &unpinned.ID)
+	setRole(codersdk.ChatProjectRoleDeleted)
+	memberChats, err := member.ListChats(ctx, &codersdk.ListChatsOptions{PinnedProjectsOnly: true})
+	require.NoError(t, err)
+	require.Contains(t, chatIDs(memberChats), revoked.ID)
 
 	// Other callers still see every chat.
 	all, err := client.ListChats(ctx, nil)

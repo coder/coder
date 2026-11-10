@@ -3673,7 +3673,8 @@ export interface ChatProjectSummary {
 	readonly last_activity_at?: string;
 	/**
 	 * MemberCount counts users who can use the project, including the owner.
-	 * It is 1 when chat sharing is unavailable.
+	 * Suspended users are not counted. It is 1 when chat sharing is
+	 * unavailable.
 	 */
 	readonly member_count: number;
 }

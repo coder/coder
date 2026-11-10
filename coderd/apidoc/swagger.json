@@ -21707,7 +21707,7 @@
 					"format": "date-time"
 				},
 				"member_count": {
-					"description": "MemberCount counts users who can use the project, including the owner.\nIt is 1 when chat sharing is unavailable.",
+					"description": "MemberCount counts users who can use the project, including the owner.\nSuspended users are not counted. It is 1 when chat sharing is\nunavailable.",
 					"type": "integer"
 				},
 				"own_chat_count": {
