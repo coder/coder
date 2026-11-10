@@ -95,7 +95,7 @@ export const AnnouncementBannerSettings: React.FC<
 						{!isEntitled && (
 							<>
 								{" "}
-								Your license does not include Service banners.{" "}
+								Your license does not include service banners.{" "}
 								<Link href="mailto:sales@coder.com" showExternalIcon={false}>
 									Contact sales
 								</Link>{" "}

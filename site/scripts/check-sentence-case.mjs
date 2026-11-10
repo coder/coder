@@ -263,12 +263,131 @@ function isNonDisplayLiteral(node) {
 const SUBSTITUTION = "\uE000";
 
 /**
+ * Returns true when JSX renders the whitespace at one edge of a text
+ * piece. JSX drops leading and trailing whitespace that contains a line
+ * break.
+ */
+function rendersSpace(whitespace) {
+	return whitespace.length > 0 && !whitespace.includes("\n");
+}
+
+/**
+ * Collects the rendered text of a JSX element or fragment, including the
+ * text of nested elements, so a phrase that crosses inline markup is
+ * checked as one phrase: `Create <strong>New Workspace</strong>` reads as
+ * "Create New Workspace". The edge of a nested element joins the text on
+ * either side only when JSX renders a space there; otherwise it ends the
+ * phrase, because adjacent elements are usually separate labels. Nested
+ * nodes that are read here are added to `consumed` so they are not
+ * checked again on their own.
+ */
+function collectJsxTexts(container, sourceFile, consumed) {
+	const sourceText = sourceFile.text;
+	// Rendered pieces in order: text ranges, substitutions for JSX
+	// expressions, boundaries at the edges of nested elements, and breaks
+	// for self-closing elements.
+	const pieces = [];
+	const addChildren = (node) => {
+		for (const child of node.children) {
+			if (ts.isJsxText(child)) {
+				consumed.add(child);
+				const text = sourceText.slice(child.pos, child.end);
+				// Whitespace with a line break between tags renders nothing.
+				if (!/^\s*$/.test(text) || rendersSpace(text)) {
+					pieces.push({ kind: "text", start: child.pos, end: child.end });
+				}
+			} else if (ts.isJsxExpression(child)) {
+				const expression = child.expression;
+				if (!expression) {
+					// A comment, such as {/* note */}, renders nothing.
+				} else if (
+					ts.isStringLiteral(expression) ||
+					ts.isNoSubstitutionTemplateLiteral(expression)
+				) {
+					// A literal such as {" "} renders as text.
+					consumed.add(expression);
+					pieces.push({
+						kind: "text",
+						start: expression.getStart(sourceFile) + 1,
+						end: expression.end - 1,
+					});
+				} else {
+					pieces.push({ kind: "substitution" });
+				}
+			} else if (ts.isJsxElement(child) || ts.isJsxFragment(child)) {
+				consumed.add(child);
+				pieces.push({ kind: "boundary" });
+				addChildren(child);
+				pieces.push({ kind: "boundary" });
+			} else {
+				// A self-closing element, such as an icon, sits between
+				// separate labels more often than inside a phrase.
+				pieces.push({ kind: "break" });
+			}
+		}
+	};
+	addChildren(container);
+
+	const edgeRendersSpace = (piece, edge) => {
+		if (piece?.kind !== "text") {
+			return false;
+		}
+		const text = sourceText.slice(piece.start, piece.end);
+		const whitespace = text.match(edge === "end" ? /\s*$/ : /^\s*/)[0];
+		return rendersSpace(whitespace);
+	};
+
+	const texts = [];
+	let current = { text: "", positions: [] };
+	const endPhrase = () => {
+		if (current.text.trim()) {
+			texts.push(current);
+		}
+		current = { text: "", positions: [] };
+	};
+	for (let i = 0; i < pieces.length; i++) {
+		const piece = pieces[i];
+		if (piece.kind === "boundary") {
+			let before = i - 1;
+			while (pieces[before]?.kind === "boundary") {
+				before--;
+			}
+			let after = i + 1;
+			while (pieces[after]?.kind === "boundary") {
+				after++;
+			}
+			if (
+				!edgeRendersSpace(pieces[before], "end") &&
+				!edgeRendersSpace(pieces[after], "start")
+			) {
+				endPhrase();
+			}
+		} else if (piece.kind === "break") {
+			endPhrase();
+		} else if (piece.kind === "substitution") {
+			// Pad with spaces so the substitution is a token of its own.
+			current.text += ` ${SUBSTITUTION} `;
+			current.positions.push(-1, -1, -1);
+		} else {
+			current.text += sourceText.slice(piece.start, piece.end);
+			for (let position = piece.start; position < piece.end; position++) {
+				current.positions.push(position);
+			}
+		}
+	}
+	endPhrase();
+	return texts;
+}
+
+/**
  * Collects every displayed text node as its text plus the source position
- * of each character. Substitutions in template literals map to -1.
+ * of each character. Substitutions in template literals and JSX map to -1.
  */
 function collectTexts(sourceFile) {
 	const sourceText = sourceFile.text;
 	const texts = [];
+	// JSX nodes already read as part of an enclosing element's text.
+	const consumed = new Set();
 	const addRange = (start, end) => {
 		texts.push({
 			text: sourceText.slice(start, end),
@@ -277,12 +396,15 @@ function collectTexts(sourceFile) {
 	};
 	const visit = (node) => {
 		switch (node.kind) {
-			case ts.SyntaxKind.JsxText:
-				addRange(node.getStart(sourceFile), node.end);
+			case ts.SyntaxKind.JsxElement:
+			case ts.SyntaxKind.JsxFragment:
+				if (!consumed.has(node)) {
+					texts.push(...collectJsxTexts(node, sourceFile, consumed));
+				}
 				break;
 			case ts.SyntaxKind.StringLiteral:
 			case ts.SyntaxKind.NoSubstitutionTemplateLiteral:
-				if (!isNonDisplayLiteral(node)) {
+				if (!consumed.has(node) && !isNonDisplayLiteral(node)) {
 					addRange(node.getStart(sourceFile), node.end);
 				}
 				break;

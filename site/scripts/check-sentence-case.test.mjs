@@ -90,6 +90,41 @@ describe("checkSource", () => {
 		expect(fixedText.split("\n")[0]).toBe("const a = `New ${label} provider`;");
 	});
 
+	it("checks JSX text across inline elements as one phrase", () => {
+		const source = [
+			"const a = <p>Create <strong>Workspace</strong></p>;",
+			"const b = <p>Create <strong>New Workspace</strong></p>;",
+			'const c = <p>Create{" "}',
+			"\t<strong>Template</strong>",
+			"</p>;",
+		].join("\n");
+		const { issues, fixedText } = checkSource("file.tsx", source);
+		expect(issues.map(({ line, word }) => [line, word])).toEqual([
+			[1, "Workspace"],
+			[2, "New"],
+			[2, "Workspace"],
+			[4, "Template"],
+		]);
+		expect(fixedText.split("\n")[1]).toBe(
+			"const b = <p>Create <strong>new workspace</strong></p>;",
+		);
+	});
+
+	it("starts a new phrase at elements without a rendered space", () => {
+		const source = [
+			"const a = (",
+			"\t<div>",
+			"\t\t<h2>Settings</h2>",
+			"\t\t<Button>Save</Button>",
+			"\t\t<span>",
+			"\t\t\t<PlayIcon /> Start",
+			"\t\t</span>",
+			"\t</div>",
+			");",
+		].join("\n");
+		expect(checkSource("file.tsx", source).issues).toEqual([]);
+	});
+
 	it("lowercases reported words in the fixed text", () => {
 		const { fixedText } = checkSource(
 			"file.tsx",
