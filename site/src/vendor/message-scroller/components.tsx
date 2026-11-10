@@ -39,6 +39,20 @@ function useMessageScrollerUserLayoutIntent() {
   return React.useContext(MessageScrollerUserLayoutIntentContext)
 }
 
+const noop = () => {}
+
+// LOCAL CHANGE
+/**
+ * Returns a callback that reconciles the scroll position with the current
+ * layout. The resize observers defer that to the next frame, so content that
+ * shrinks on every frame of an animation can clamp the view for a frame when
+ * the deferred pass runs before the animation's write. Call it right after
+ * writing each frame's size. A no-op outside a MessageScroller.
+ */
+function useMessageScrollerLayoutSync() {
+  return React.useContext(MessageScrollerContext)?.handleResize ?? noop
+}
+
 function useMessageScrollerContext() {
   const context = React.useContext(MessageScrollerContext)
 
@@ -541,6 +555,7 @@ export {
   useMessageScroller,
   // LOCAL CHANGE
   useMessageScrollerUserLayoutIntent,
+  useMessageScrollerLayoutSync, // LOCAL CHANGE
   useMessageScrollerScrollable,
   useMessageScrollerVisibility,
 }
