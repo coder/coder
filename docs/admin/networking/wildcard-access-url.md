@@ -137,6 +137,31 @@ Each proxy's wildcard domain must have corresponding DNS records:
 *.london.coder.example.com    A    <london-proxy-ip>
 ```
 
+### Apps in the dashboard
+
+The right panel of [Coder Agents](../../coder-agents/index.md) shows workspace apps and port previews in a frame.
+The browser loads a frame only if the Content Security Policy (CSP) of the dashboard page allows the origin of the app in its `frame-src` directive.
+Coder adds the hosts that serve workspace apps to the `frame-src` directive of its policy, for example the wildcard access URL and the wildcard access URL of each workspace proxy.
+
+Browsers enforce every policy that a page gets, so a second policy can only remove access.
+If a reverse proxy, load balancer, or ingress in front of Coder adds its own `Content-Security-Policy` header to dashboard pages, remove that header or change its `frame-src` directive.
+That directive must allow `'self'`, the wildcard access URL, and the URL and the wildcard access URL of each workspace proxy.
+`CODER_ADDITIONAL_CSP_POLICY` doesn't change that header, because it changes only the policy that Coder sends.
+
+If an app redirects to another origin in the frame, for example an external sign-in page, add that origin to the policy that Coder sends:
+
+```sh
+export CODER_ADDITIONAL_CSP_POLICY="frame-src https://sso.example.com"
+```
+
+An app can't load in a frame if the app, or a proxy in front of the wildcard access URL, sends an `X-Frame-Options` header or a CSP `frame-ancestors` directive that doesn't allow the dashboard.
+
+The browser keeps the policy that it got when the page loaded.
+After you add a workspace proxy, users must reload the dashboard to load apps from it.
+
+When a policy on the dashboard page blocks the origin of the app, the right panel tells the user why and shows an **Open app in new tab** button.
+The block doesn't apply to a new tab, because `frame-src` applies only to frames.
+
 ## Template Configuration
 
 In your Coder templates, enable subdomain applications using the `subdomain` parameter:
@@ -172,34 +197,6 @@ If workspace applications are not working:
 
 3. Make sure TLS certificates cover the wildcard domain
 4. Confirm template `coder_app` resources have `subdomain = true`
-
-### Apps are blocked in the dashboard
-
-The right panel of [Coder Agents](../../coder-agents/index.md) shows workspace apps and port previews in a frame.
-The browser loads a frame only if the Content Security Policy (CSP) of the dashboard page allows the origin of the app in its `frame-src` directive.
-Coder adds the hosts that serve workspace apps to the `frame-src` directive of its policy, for example the wildcard access URL and the wildcard access URL of each workspace proxy.
-
-When the browser blocks an app, the right panel shows **Your browser blocked this app**, a message, and an **Open app in new tab** button.
-The block doesn't apply to a new tab, because `frame-src` applies only to frames.
-Use what you see in the right panel to find the cause and the fix:
-
-| What you see in the right panel                                                                    | Cause                                                                                                                                                                                                    | Fix                                                                                                                                                                                                                                                                                               |
-|----------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| A Coder message says that a `Content-Security-Policy` header that Coder didn't send blocks the app | A reverse proxy, load balancer, or ingress in front of Coder adds its own `Content-Security-Policy` header to dashboard pages. Browsers enforce every policy, so a second policy can only remove access. | Remove that header for Coder, or add the hosts that serve workspace apps to its `frame-src` directive: the wildcard access URL, and the URL and the wildcard access URL of each workspace proxy. `CODER_ADDITIONAL_CSP_POLICY` doesn't help, because it changes only the policy that Coder sends. |
-| A Coder message says that Coder's security policy didn't allow the app when the page loaded        | The browser keeps the policy that it got when the page loaded. A workspace proxy was added or registered after that.                                                                                     | Reload the page. If the app is still blocked, the app probably redirects to another origin. Use the fix in the next row.                                                                                                                                                                          |
-| The browser shows "This content is blocked" and no Coder message                                   | The app redirected to another origin, for example an external sign-in page.                                                                                                                              | Open the app in a new tab, or allow that origin with `CODER_ADDITIONAL_CSP_POLICY="frame-src https://sso.example.com"`.                                                                                                                                                                           |
-| The browser shows "`<host>` refused to connect"                                                    | The app, or a proxy in front of the wildcard access URL, sends an `X-Frame-Options` header or a CSP `frame-ancestors` directive. The dashboard can't detect this.                                        | Remove that header for the wildcard access URL, or open the app in a new tab.                                                                                                                                                                                                                     |
-
-Users who can't edit the deployment configuration see shorter messages that tell them to reload the page or to contact an administrator.
-
-To find out if something other than Coder adds a policy, read the CSP headers of a dashboard page:
-
-```sh
-curl -sI https://coder.example.com/login | grep -i content-security-policy
-```
-
-Coder's policy always contains `report-uri /api/v2/csp/reports`.
-If the output has more than one `Content-Security-Policy` line, or a line without `report-uri /api/v2/csp/reports`, something other than Coder adds a policy.
 
 ## See also
 
