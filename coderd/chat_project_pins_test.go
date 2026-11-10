@@ -5,7 +5,9 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -21,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -133,11 +136,14 @@ func TestChatProjectSummaries(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	client, api := newChatProjectClientWithAPI(t)
+	db, ps := dbtestutil.NewDB(t)
+	client, api := newChatProjectClientWithAPI(t, func(options *coderdtest.Options) {
+		options.Database, options.Pubsub = db, ps
+	})
 	firstUser := coderdtest.CreateFirstUser(t, client.Client)
 	orgID, me := firstUser.OrganizationID, firstUser.UserID
 	model := createChatModel(t, client)
-	_, alice := newChatProjectMember(t, client, orgID)
+	aliceClient, alice := newChatProjectMember(t, client, orgID)
 	_, bob := newChatProjectMember(t, client, orgID)
 	_, carol := newChatProjectMember(t, client, orgID)
 	group := dbgen.Group(t, api.Database, database.Group{OrganizationID: orgID})
@@ -218,6 +224,21 @@ func TestChatProjectSummaries(t *testing.T) {
 		gotSummary := summary{got.OwnChatCount, got.OwnUnreadCount, got.MemberCount, got.OwnRunning, got.OwnNeedsAttention, lastActivity}
 		require.Equal(t, want, gotSummary, got.Project.Name)
 	}
+	requireSummariesMatchList(ctx, t, aliceClient)
+
+	// Without project sharing, as with its experiment off in a release
+	// build, grants still decide which projects are visible, as in the
+	// project list, but only owners are counted.
+	require.NoError(t, aliceClient.PinChatProject(ctx, orgID, busy.ID, codersdk.PinChatProjectRequest{}))
+	rows, err := db.GetChatProjectSummariesByUserID(ctx, database.GetChatProjectSummariesByUserIDParams{UserID: alice.ID, ACLEnabled: true})
+	require.NoError(t, err)
+	aliceSummaries := make(map[uuid.UUID]database.GetChatProjectSummariesByUserIDRow, len(rows))
+	for _, row := range rows {
+		aliceSummaries[row.ChatProject.ID] = row
+	}
+	require.Contains(t, aliceSummaries, busy.ID)
+	require.EqualValues(t, 1, aliceSummaries[busy.ID].PinOrder)
+	require.EqualValues(t, 1, aliceSummaries[busy.ID].MemberCount)
 }
 
 //nolint:paralleltest // Disabling chat sharing flips a process-wide RBAC switch.
@@ -261,12 +282,13 @@ func TestChatProjectsSharingDisabled(t *testing.T) {
 
 	// A pin from before sharing was disabled takes no visible position.
 	require.NoError(t, db.PinChatProject(ctx, database.PinChatProjectParams{
-		UserID: memberUser.ID, ProjectID: project.ID, SharingEnabled: true, PinOrder: sql.NullInt32{Int32: 1, Valid: true},
+		UserID: memberUser.ID, ProjectID: project.ID, ACLEnabled: true, PinOrder: sql.NullInt32{Int32: 1, Valid: true},
 	}))
 	x := createChatProject(t, member, orgID, "Hidden Pin X")
 	y := createChatProject(t, member, orgID, "Hidden Pin Y")
 	requirePinOrders(ctx, t, member, map[uuid.UUID]int32{x.ID: 1, y.ID: 2})
 	require.NotContains(t, chatProjectSummariesByID(ctx, t, member), project.ID)
+	requireSummariesMatchList(ctx, t, member)
 	require.NoError(t, member.PinChatProject(ctx, orgID, y.ID, codersdk.PinChatProjectRequest{PinOrder: ptr.Ref(int32(1))}))
 	requirePinOrders(ctx, t, member, map[uuid.UUID]int32{y.ID: 1, x.ID: 2})
 	require.NoError(t, member.UnpinChatProject(ctx, orgID, x.ID))
@@ -317,8 +339,18 @@ func TestListChatsPinnedProjectsOnly(t *testing.T) {
 	}
 	setRole(codersdk.ChatProjectRoleUse)
 	revoked := createChatInProject(t, member, orgID, &unpinned.ID)
-	setRole(codersdk.ChatProjectRoleDeleted)
+	// Grants count: the member sees the project, so its chats are listed
+	// only after the member pins it.
 	memberChats, err := member.ListChats(ctx, &codersdk.ListChatsOptions{PinnedProjectsOnly: true})
+	require.NoError(t, err)
+	require.NotContains(t, chatIDs(memberChats), revoked.ID)
+	require.NoError(t, member.PinChatProject(ctx, orgID, unpinned.ID, codersdk.PinChatProjectRequest{}))
+	memberChats, err = member.ListChats(ctx, &codersdk.ListChatsOptions{PinnedProjectsOnly: true})
+	require.NoError(t, err)
+	require.Contains(t, chatIDs(memberChats), revoked.ID)
+	require.NoError(t, member.UnpinChatProject(ctx, orgID, unpinned.ID))
+	setRole(codersdk.ChatProjectRoleDeleted)
+	memberChats, err = member.ListChats(ctx, &codersdk.ListChatsOptions{PinnedProjectsOnly: true})
 	require.NoError(t, err)
 	require.Contains(t, chatIDs(memberChats), revoked.ID)
 
@@ -337,6 +369,18 @@ func chatProjectSummariesByID(ctx context.Context, t testing.TB, client *codersd
 		byID[summary.Project.ID] = summary
 	}
 	return byID
+}
+
+// requireSummariesMatchList checks that the summaries cover exactly the
+// projects in the project list.
+func requireSummariesMatchList(ctx context.Context, t testing.TB, client *codersdk.ExperimentalClient) {
+	t.Helper()
+	projects, err := client.ListChatProjects(ctx)
+	require.NoError(t, err)
+	require.ElementsMatch(t,
+		slice.List(projects, func(project codersdk.ChatProject) uuid.UUID { return project.ID }),
+		slices.Collect(maps.Keys(chatProjectSummariesByID(ctx, t, client))),
+	)
 }
 
 // requirePinOrders checks each project's pin order; 0 means not pinned.

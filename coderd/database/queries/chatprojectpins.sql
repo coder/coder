@@ -19,7 +19,7 @@ WITH current_pins AS (
             -- Same access predicate as GetChatProjectSummariesByUserID.
             cp.owner_id = @user_id::uuid
             OR (
-                @sharing_enabled::boolean
+                @acl_enabled::boolean
                 AND (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
                     SELECT group_id::text FROM group_members WHERE user_id = @user_id::uuid
                     UNION ALL
@@ -85,7 +85,7 @@ updates AS (
         -- Same access predicate as GetChatProjectSummariesByUserID.
         cp.owner_id = @user_id::uuid
         OR (
-            @sharing_enabled::boolean
+            @acl_enabled::boolean
             AND (cp.user_acl ? (@user_id::uuid)::text OR cp.group_acl ?| ARRAY(
                 SELECT group_id::text FROM group_members WHERE user_id = @user_id::uuid
                 UNION ALL
@@ -121,8 +121,9 @@ WITH accessible AS (
     FROM chat_projects
     WHERE owner_id = @user_id::uuid
         OR (
-            -- Grants count only while sharing is enabled.
-            @sharing_enabled::boolean
+            -- Grants count only while RBAC honors them, as in
+            -- GetChatProjectsOwnedOrSharedWithUserID after authorization.
+            @acl_enabled::boolean
             AND (user_acl ? (@user_id::uuid)::text OR group_acl ?| ARRAY(
                 SELECT group_id::text FROM group_members WHERE user_id = @user_id::uuid
                 UNION ALL
@@ -137,15 +138,16 @@ WITH accessible AS (
 ),
 -- Users who can use each project: the owner, granted users who are
 -- organization members, and members of granted groups (including the
--- Everyone group). Grants count only while sharing is enabled. Suspended
--- users cannot sign in, so they are not counted.
+-- Everyone group). Counted only while project sharing is available;
+-- otherwise every project counts its owner alone. Suspended users cannot
+-- sign in, so they are not counted.
 project_members AS (
     SELECT id AS project_id, owner_id AS user_id FROM accessible
     UNION
     SELECT granted.project_id, organization_members.user_id
     FROM (
         SELECT id AS project_id, organization_id, jsonb_object_keys(user_acl)::uuid AS user_id
-        FROM accessible WHERE @sharing_enabled::boolean
+        FROM accessible WHERE @count_shared_members::boolean
     ) granted
     JOIN organization_members
         ON organization_members.user_id = granted.user_id
@@ -154,7 +156,7 @@ project_members AS (
     SELECT granted.project_id, group_members_expanded.user_id
     FROM (
         SELECT id AS project_id, jsonb_object_keys(group_acl)::uuid AS group_id
-        FROM accessible WHERE @sharing_enabled::boolean
+        FROM accessible WHERE @count_shared_members::boolean
     ) granted
     JOIN group_members_expanded ON group_members_expanded.group_id = granted.group_id
 ),
@@ -195,7 +197,7 @@ SELECT
     COALESCE(own_chats.running, false)::boolean AS own_running,
     COALESCE(own_chats.needs_attention, false)::boolean AS own_needs_attention,
     own_chats.last_activity_at,
-    (CASE WHEN @sharing_enabled::boolean THEN COALESCE(member_counts.member_count, 0) ELSE 1 END)::bigint AS member_count
+    (CASE WHEN @count_shared_members::boolean THEN COALESCE(member_counts.member_count, 0) ELSE 1 END)::bigint AS member_count
 FROM chat_projects
 JOIN accessible ON accessible.id = chat_projects.id
 LEFT JOIN member_counts ON member_counts.project_id = chat_projects.id

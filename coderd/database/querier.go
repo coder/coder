@@ -575,8 +575,9 @@ type sqlcQuerier interface {
 	// longer see are never returned.
 	// Users who can use each project: the owner, granted users who are
 	// organization members, and members of granted groups (including the
-	// Everyone group). Grants count only while sharing is enabled. Suspended
-	// users cannot sign in, so they are not counted.
+	// Everyone group). Counted only while project sharing is available;
+	// otherwise every project counts its owner alone. Suspended users cannot
+	// sign in, so they are not counted.
 	// Read through idx_chats_owner.
 	GetChatProjectSummariesByUserID(ctx context.Context, arg GetChatProjectSummariesByUserIDParams) ([]GetChatProjectSummariesByUserIDRow, error)
 	// Entries match regardless of the actions they grant, so callers must

@@ -34,8 +34,9 @@ func (api *API) listChatProjectSummaries(rw http.ResponseWriter, r *http.Request
 	apiKey := httpmw.APIKey(r)
 
 	rows, err := api.Database.GetChatProjectSummariesByUserID(ctx, database.GetChatProjectSummariesByUserIDParams{
-		UserID:         apiKey.UserID,
-		SharingEnabled: api.chatProjectSharingEnabled(),
+		UserID:             apiKey.UserID,
+		ACLEnabled:         !api.chatSharingDisabled(),
+		CountSharedMembers: api.chatProjectSharingAvailable(),
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -94,10 +95,10 @@ func (api *API) putChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("lock chat project pins: %w", err)
 		}
 		return tx.PinChatProject(ctx, database.PinChatProjectParams{
-			UserID:         apiKey.UserID,
-			ProjectID:      project.ID,
-			SharingEnabled: api.chatProjectSharingEnabled(),
-			PinOrder:       pinOrder,
+			UserID:     apiKey.UserID,
+			ProjectID:  project.ID,
+			ACLEnabled: !api.chatSharingDisabled(),
+			PinOrder:   pinOrder,
 		})
 	}, nil)
 	if err != nil {
@@ -132,9 +133,9 @@ func (api *API) deleteChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("lock chat project pins: %w", err)
 		}
 		return tx.UnpinChatProject(ctx, database.UnpinChatProjectParams{
-			UserID:         apiKey.UserID,
-			ProjectID:      project.ID,
-			SharingEnabled: api.chatProjectSharingEnabled(),
+			UserID:     apiKey.UserID,
+			ProjectID:  project.ID,
+			ACLEnabled: !api.chatSharingDisabled(),
 		})
 	}, nil)
 	if err != nil {
@@ -147,14 +148,16 @@ func (api *API) deleteChatProjectPin(rw http.ResponseWriter, r *http.Request) {
 	rw.WriteHeader(http.StatusNoContent)
 }
 
-// chatProjectSharingEnabled reports whether project grants count. Sharing is
-// available when the project ACL routes are, under the same experiment gate.
-func (api *API) chatProjectSharingEnabled() bool {
+// chatProjectSharingAvailable reports whether summaries count the users a
+// project is shared with. It matches the gate on the project ACL routes.
+// Which projects are visible does not depend on it: grants count wherever
+// RBAC honors them, which is whenever chatSharingDisabled is false.
+func (api *API) chatProjectSharingAvailable() bool {
 	return !api.chatSharingDisabled() && (buildinfo.IsDev() || api.Experiments.Enabled(codersdk.ExperimentChatProjectSharing))
 }
 
 // authorizeChatProjectPin writes a 404 and returns false unless the caller
-// owns the project or holds a grant on it while sharing is enabled.
+// owns the project or holds a grant on it that RBAC honors.
 // Summaries list only those projects, so role-based read access alone would
 // leave the pin invisible.
 func (api *API) authorizeChatProjectPin(rw http.ResponseWriter, r *http.Request, project database.ChatProject) bool {
@@ -162,7 +165,7 @@ func (api *API) authorizeChatProjectPin(rw http.ResponseWriter, r *http.Request,
 	userID := httpmw.APIKey(r).UserID
 	// A pin is a personal preference, so reading the project is enough.
 	if !api.Authorize(r, policy.ActionRead, project.RBACObject()) ||
-		(project.OwnerID != userID && !api.chatProjectSharingEnabled()) {
+		(project.OwnerID != userID && api.chatSharingDisabled()) {
 		httpapi.ResourceNotFound(rw)
 		return false
 	}

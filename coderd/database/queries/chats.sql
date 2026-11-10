@@ -690,7 +690,7 @@ WHERE
                     AND (
                         cp.owner_id = @viewer_id::uuid
                         OR (
-                            @project_sharing_enabled::boolean
+                            @acl_enabled::boolean
                             AND (cp.user_acl ? (@viewer_id::uuid)::text OR cp.group_acl ?| ARRAY(
                                 SELECT group_id::text FROM group_members WHERE user_id = @viewer_id::uuid
                                 UNION ALL

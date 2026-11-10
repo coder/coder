@@ -8127,8 +8127,9 @@ WITH accessible AS (
     FROM chat_projects
     WHERE owner_id = $2::uuid
         OR (
-            -- Grants count only while sharing is enabled.
-            $1::boolean
+            -- Grants count only while RBAC honors them, as in
+            -- GetChatProjectsOwnedOrSharedWithUserID after authorization.
+            $3::boolean
             AND (user_acl ? ($2::uuid)::text OR group_acl ?| ARRAY(
                 SELECT group_id::text FROM group_members WHERE user_id = $2::uuid
                 UNION ALL
@@ -8207,8 +8208,9 @@ ORDER BY lower(chat_projects.name), chat_projects.id
 `
 
 type GetChatProjectSummariesByUserIDParams struct {
-	SharingEnabled bool      `db:"sharing_enabled" json:"sharing_enabled"`
-	UserID         uuid.UUID `db:"user_id" json:"user_id"`
+	CountSharedMembers bool      `db:"count_shared_members" json:"count_shared_members"`
+	UserID             uuid.UUID `db:"user_id" json:"user_id"`
+	ACLEnabled         bool      `db:"acl_enabled" json:"acl_enabled"`
 }
 
 type GetChatProjectSummariesByUserIDRow struct {
@@ -8230,11 +8232,12 @@ type GetChatProjectSummariesByUserIDRow struct {
 // longer see are never returned.
 // Users who can use each project: the owner, granted users who are
 // organization members, and members of granted groups (including the
-// Everyone group). Grants count only while sharing is enabled. Suspended
-// users cannot sign in, so they are not counted.
+// Everyone group). Counted only while project sharing is available;
+// otherwise every project counts its owner alone. Suspended users cannot
+// sign in, so they are not counted.
 // Read through idx_chats_owner.
 func (q *sqlQuerier) GetChatProjectSummariesByUserID(ctx context.Context, arg GetChatProjectSummariesByUserIDParams) ([]GetChatProjectSummariesByUserIDRow, error) {
-	rows, err := q.db.QueryContext(ctx, getChatProjectSummariesByUserID, arg.SharingEnabled, arg.UserID)
+	rows, err := q.db.QueryContext(ctx, getChatProjectSummariesByUserID, arg.CountSharedMembers, arg.UserID, arg.ACLEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -8348,10 +8351,10 @@ ON CONFLICT (user_id, project_id) DO UPDATE SET
 `
 
 type PinChatProjectParams struct {
-	UserID         uuid.UUID     `db:"user_id" json:"user_id"`
-	ProjectID      uuid.UUID     `db:"project_id" json:"project_id"`
-	SharingEnabled bool          `db:"sharing_enabled" json:"sharing_enabled"`
-	PinOrder       sql.NullInt32 `db:"pin_order" json:"pin_order"`
+	UserID     uuid.UUID     `db:"user_id" json:"user_id"`
+	ProjectID  uuid.UUID     `db:"project_id" json:"project_id"`
+	ACLEnabled bool          `db:"acl_enabled" json:"acl_enabled"`
+	PinOrder   sql.NullInt32 `db:"pin_order" json:"pin_order"`
 }
 
 // Pins a project, or moves an already pinned project, to pin_order. Without
@@ -8369,7 +8372,7 @@ func (q *sqlQuerier) PinChatProject(ctx context.Context, arg PinChatProjectParam
 	_, err := q.db.ExecContext(ctx, pinChatProject,
 		arg.UserID,
 		arg.ProjectID,
-		arg.SharingEnabled,
+		arg.ACLEnabled,
 		arg.PinOrder,
 	)
 	return err
@@ -8413,9 +8416,9 @@ WHERE p.user_id = $1::uuid AND p.project_id = updates.project_id AND p.unpinned_
 `
 
 type UnpinChatProjectParams struct {
-	UserID         uuid.UUID `db:"user_id" json:"user_id"`
-	ProjectID      uuid.UUID `db:"project_id" json:"project_id"`
-	SharingEnabled bool      `db:"sharing_enabled" json:"sharing_enabled"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	ProjectID  uuid.UUID `db:"project_id" json:"project_id"`
+	ACLEnabled bool      `db:"acl_enabled" json:"acl_enabled"`
 }
 
 // Turns a pin into a tombstone and compacts the remaining pins to 1..N.
@@ -8424,7 +8427,7 @@ type UnpinChatProjectParams struct {
 // PinChatProject, pins the user can still see come first, and callers must
 // hold the per-user pin lock.
 func (q *sqlQuerier) UnpinChatProject(ctx context.Context, arg UnpinChatProjectParams) error {
-	_, err := q.db.ExecContext(ctx, unpinChatProject, arg.UserID, arg.ProjectID, arg.SharingEnabled)
+	_, err := q.db.ExecContext(ctx, unpinChatProject, arg.UserID, arg.ProjectID, arg.ACLEnabled)
 	return err
 }
 
@@ -11849,28 +11852,28 @@ LIMIT
 `
 
 type GetChatsParams struct {
-	OwnedOnly             bool                  `db:"owned_only" json:"owned_only"`
-	SharedOnly            bool                  `db:"shared_only" json:"shared_only"`
-	ViewerID              uuid.UUID             `db:"viewer_id" json:"viewer_id"`
-	SharedWithUserID      uuid.UUID             `db:"shared_with_user_id" json:"shared_with_user_id"`
-	SharedWithGroupIds    []string              `db:"shared_with_group_ids" json:"shared_with_group_ids"`
-	Archived              sql.NullBool          `db:"archived" json:"archived"`
-	ProjectID             uuid.NullUUID         `db:"project_id" json:"project_id"`
-	PinnedProjectsOnly    sql.NullBool          `db:"pinned_projects_only" json:"pinned_projects_only"`
-	ProjectSharingEnabled bool                  `db:"project_sharing_enabled" json:"project_sharing_enabled"`
-	AfterID               uuid.UUID             `db:"after_id" json:"after_id"`
-	LabelFilter           pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
-	DiffURL               sql.NullString        `db:"diff_url" json:"diff_url"`
-	TitleQuery            string                `db:"title_query" json:"title_query"`
-	HasUnread             sql.NullBool          `db:"has_unread" json:"has_unread"`
-	ChatStatuses          []string              `db:"chat_statuses" json:"chat_statuses"`
-	PullRequestStatuses   []string              `db:"pull_request_statuses" json:"pull_request_statuses"`
-	PrNumber              int32                 `db:"pr_number" json:"pr_number"`
-	RepoQuery             string                `db:"repo_query" json:"repo_query"`
-	PrTitleQuery          string                `db:"pr_title_query" json:"pr_title_query"`
-	Search                string                `db:"search" json:"search"`
-	OffsetOpt             int32                 `db:"offset_opt" json:"offset_opt"`
-	LimitOpt              int32                 `db:"limit_opt" json:"limit_opt"`
+	OwnedOnly           bool                  `db:"owned_only" json:"owned_only"`
+	SharedOnly          bool                  `db:"shared_only" json:"shared_only"`
+	ViewerID            uuid.UUID             `db:"viewer_id" json:"viewer_id"`
+	SharedWithUserID    uuid.UUID             `db:"shared_with_user_id" json:"shared_with_user_id"`
+	SharedWithGroupIds  []string              `db:"shared_with_group_ids" json:"shared_with_group_ids"`
+	Archived            sql.NullBool          `db:"archived" json:"archived"`
+	ProjectID           uuid.NullUUID         `db:"project_id" json:"project_id"`
+	PinnedProjectsOnly  sql.NullBool          `db:"pinned_projects_only" json:"pinned_projects_only"`
+	ACLEnabled          bool                  `db:"acl_enabled" json:"acl_enabled"`
+	AfterID             uuid.UUID             `db:"after_id" json:"after_id"`
+	LabelFilter         pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
+	DiffURL             sql.NullString        `db:"diff_url" json:"diff_url"`
+	TitleQuery          string                `db:"title_query" json:"title_query"`
+	HasUnread           sql.NullBool          `db:"has_unread" json:"has_unread"`
+	ChatStatuses        []string              `db:"chat_statuses" json:"chat_statuses"`
+	PullRequestStatuses []string              `db:"pull_request_statuses" json:"pull_request_statuses"`
+	PrNumber            int32                 `db:"pr_number" json:"pr_number"`
+	RepoQuery           string                `db:"repo_query" json:"repo_query"`
+	PrTitleQuery        string                `db:"pr_title_query" json:"pr_title_query"`
+	Search              string                `db:"search" json:"search"`
+	OffsetOpt           int32                 `db:"offset_opt" json:"offset_opt"`
+	LimitOpt            int32                 `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetChatsRow struct {
@@ -11888,7 +11891,7 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		arg.Archived,
 		arg.ProjectID,
 		arg.PinnedProjectsOnly,
-		arg.ProjectSharingEnabled,
+		arg.ACLEnabled,
 		arg.AfterID,
 		arg.LabelFilter,
 		arg.DiffURL,
