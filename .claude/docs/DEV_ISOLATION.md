@@ -34,8 +34,7 @@ Linux. The Prometheus UI port `9090` and Delve port `12345` remain hardcoded.
 
 ## Other useful develop flags and environment variables
 
-The develop script also supports these existing flags and environment
-variables:
+The develop script also supports these flags and environment variables:
 
 | Purpose                           | Flag                 | Environment variable         |
 |-----------------------------------|----------------------|------------------------------|

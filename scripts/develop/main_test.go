@@ -723,7 +723,8 @@ func TestWaitForHealthyImmediate(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := slog.Make(sloghuman.Sink(&bytes.Buffer{}))
-	err := waitForHealthy(ctx, logger, srv.URL, 100*time.Millisecond)
+	cfg := &devConfig{healthTimeout: 100 * time.Millisecond}
+	err := waitForHealthy(ctx, logger, cfg, srv.URL)
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, requests.Load())
 }
@@ -737,7 +738,8 @@ func TestWaitForHealthyTimeout(t *testing.T) {
 	// when waitForHealthy returns.
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := slog.Make(sloghuman.Sink(&bytes.Buffer{}))
-	err := waitForHealthy(ctx, logger, "http://127.0.0.1:1", 10*time.Millisecond)
+	cfg := &devConfig{healthTimeout: 10 * time.Millisecond}
+	err := waitForHealthy(ctx, logger, cfg, "http://127.0.0.1:1")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "server did not become ready in 10ms")
 	assert.ErrorIs(t, err, context.DeadlineExceeded)

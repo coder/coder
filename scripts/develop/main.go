@@ -706,7 +706,7 @@ func develop(ctx context.Context, logger slog.Logger, cfg *devConfig) error {
 	}
 
 	apiURL := fmt.Sprintf("http://127.0.0.1:%d", cfg.apiPort)
-	if err := waitForHealthy(ctx, logger, apiURL, cfg.healthTimeout); err != nil {
+	if err := waitForHealthy(ctx, logger, cfg, apiURL); err != nil {
 		return err
 	}
 
@@ -917,9 +917,11 @@ func startServerDebug(cfg *devConfig, serverArgs []string, group *procGroup) err
 	return nil
 }
 
-func waitForHealthy(ctx context.Context, logger slog.Logger, apiURL string, timeout time.Duration) error {
+// waitForHealthy waits up to cfg.healthTimeout for the API server's
+// /healthz at apiURL to return OK.
+func waitForHealthy(ctx context.Context, logger slog.Logger, cfg *devConfig, apiURL string) error {
 	logger.Info(ctx, "waiting for server to become ready")
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	ctx, cancel := context.WithTimeout(ctx, cfg.healthTimeout)
 	defer cancel()
 
 	healthy := func(ctx context.Context) bool {
@@ -947,7 +949,7 @@ func waitForHealthy(ctx context.Context, logger slog.Logger, apiURL string, time
 			})
 	}
 	if err != nil {
-		return xerrors.Errorf("server did not become ready in %s: %w", timeout, err)
+		return xerrors.Errorf("server did not become ready in %s: %w", cfg.healthTimeout, err)
 	}
 	logger.Info(ctx, "server is ready to accept connections")
 	return nil
