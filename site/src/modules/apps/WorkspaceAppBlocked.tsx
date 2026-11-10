@@ -1,5 +1,9 @@
 import { cn } from "cn";
-import { ExternalLinkIcon, SquareArrowOutUpRightIcon } from "lucide-react";
+import {
+	ExternalLinkIcon,
+	RotateCwIcon,
+	SquareArrowOutUpRightIcon,
+} from "lucide-react";
 import { Button } from "#/components/Button/Button";
 import { NewTabLabel } from "#/components/Link/Link";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
@@ -60,26 +64,38 @@ const CSPBlockedContent: React.FC<CSPBlockedProps> = ({
 				/>
 			</div>
 			<div className="flex flex-wrap justify-center gap-2">
-				<Button size="sm" asChild>
+				{block.byCoderPolicy && (
+					<Button size="sm" onClick={() => location.reload()}>
+						<RotateCwIcon />
+						Reload page
+					</Button>
+				)}
+				<Button
+					size="sm"
+					variant={block.byCoderPolicy ? "outline" : "default"}
+					asChild
+				>
 					<a href={block.src} target="_blank" rel="noreferrer">
 						<ExternalLinkIcon />
 						Open app in new tab
 						<NewTabLabel />
 					</a>
 				</Button>
-				<Button size="sm" variant="outline" asChild>
-					<a
-						href={docs(
-							"/admin/networking/wildcard-access-url#apps-in-the-dashboard",
-						)}
-						target="_blank"
-						rel="noreferrer"
-					>
-						<SquareArrowOutUpRightIcon />
-						Learn more about blocked apps
-						<NewTabLabel />
-					</a>
-				</Button>
+				{!block.byCoderPolicy && (
+					<Button size="sm" variant="outline" asChild>
+						<a
+							href={docs(
+								"/admin/networking/wildcard-access-url#apps-in-the-dashboard",
+							)}
+							target="_blank"
+							rel="noreferrer"
+						>
+							<SquareArrowOutUpRightIcon />
+							Learn more about blocked apps
+							<NewTabLabel />
+						</a>
+					</Button>
+				)}
 			</div>
 		</>
 	);
@@ -93,19 +109,11 @@ const CSPBlockedMessage: React.FC<CSPBlockedProps> = ({
 		<InlineCode className="wrap-anywhere">{block.origin}</InlineCode>
 	);
 
-	if (block.byCoderPolicy && canEditDeploymentConfig) {
-		return (
-			<>
-				Coder's security policy did not allow {origin} when this page loaded.
-				Reload the page. If the app is still blocked, read the docs.
-			</>
-		);
-	}
 	if (block.byCoderPolicy) {
 		return (
 			<>
-				This page's security policy blocked {origin}. Reload the page. If the
-				app is still blocked, contact your Coder administrator.
+				Coder's security policy did not allow {origin} when this page loaded.
+				Reload the page to get the current policy.
 			</>
 		);
 	}
