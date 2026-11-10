@@ -197,6 +197,7 @@ const StoryAgentChatPageView: React.FC<StoryProps> = ({
 		handleEditQueuedMessage: fn(),
 		handleEndQueuedMessageEdit: fn(),
 		queuedMessageUnderEditID: null,
+		isProjectArchived: false,
 		hasMoreMessages: false,
 		isFetchingMoreMessages: false,
 		isHydratingMessages: false,
@@ -325,7 +326,7 @@ export const Archived: Story = {
 	),
 };
 
-/** An agent archived with its project points to unarchiving the project. */
+/** An archived agent in an archived project points to unarchiving the project. */
 export const ArchivedWithProject: Story = {
 	render: () => (
 		<StoryAgentChatPageView

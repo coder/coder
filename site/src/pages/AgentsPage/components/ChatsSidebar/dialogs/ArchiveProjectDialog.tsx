@@ -301,13 +301,16 @@ const ArchiveSummary: React.FC<ArchiveSummaryProps> = ({
 		<>
 			{errorAlert}
 			<p className="m-0 text-sm text-content-secondary">
-				{preview.chat_count === 0
-					? "This project has no chats to archive."
-					: `${plural(preview.chat_count, "chat", "chats")} will be archived. ${
-							retentionDays > 0
-								? `Archived chats are permanently deleted after ${plural(retentionDays, "day", "days")}. Unarchiving the project after that won't bring them back.`
-								: "Archived chats are kept until you unarchive the project."
-						}`}
+				{preview.chat_count === 0 ? (
+					"This project has no chats to archive."
+				) : (
+					<>
+						{plural(preview.chat_count, "chat", "chats")} will be archived.{" "}
+						{retentionDays > 0
+							? `Archived chats are permanently deleted after ${plural(retentionDays, "day", "days")}. Unarchiving the project after that won't bring them back.`
+							: "Archived chats are kept until you unarchive the project."}
+					</>
+				)}
 			</p>
 			{preview.active_chat_count > 0 && (
 				<Alert severity="warning" prominent>

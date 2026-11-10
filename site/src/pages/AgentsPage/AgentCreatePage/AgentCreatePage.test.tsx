@@ -732,10 +732,17 @@ describe("AgentCreatePage project frame", () => {
 			}),
 		);
 		const user = userEvent.setup();
+		const toastSuccess = vi.spyOn(toast, "success");
 
 		const { router } = renderAgentsRoutes();
 
-		await user.click(await screen.findByRole("button", { name: "Unarchive" }));
+		// Without a delay, the second click lands before the button disables.
+		await userEvent
+			.setup({ delay: null })
+			.dblClick(await screen.findByRole("button", { name: "Unarchive" }));
+		await waitFor(() =>
+			expect(toastSuccess).toHaveBeenCalledWith("Project unarchived"),
+		);
 		await openProjectAction(user, "Archive project");
 		const dialog = await screen.findByRole("dialog", {
 			name: "Archive project",
@@ -762,7 +769,7 @@ describe("AgentCreatePage project frame", () => {
 
 	it("opens a project in neither list by finding it in the user's organizations", async () => {
 		// An organization admin can manage another user's unshared project.
-		const project = {
+		const mockUnlistedProject = {
 			...MockChatProject,
 			organization_id: MockOrganization2.id,
 		};
@@ -773,8 +780,8 @@ describe("AgentCreatePage project frame", () => {
 			),
 			http.get(singleProjectRoute, ({ params }) =>
 				params.organizationId === MockOrganization2.id &&
-				params.projectId === project.id
-					? HttpResponse.json(project)
+				params.projectId === mockUnlistedProject.id
+					? HttpResponse.json(mockUnlistedProject)
 					: HttpResponse.json(
 							{ message: "Resource not found" },
 							{ status: 404 },
@@ -784,9 +791,9 @@ describe("AgentCreatePage project frame", () => {
 
 		renderAgentsRoutes();
 
-		await screen.findByRole("heading", { name: project.name });
+		await screen.findByRole("heading", { name: mockUnlistedProject.name });
 		expect(renderedProjects.at(-1)).toMatchObject({
-			id: project.id,
+			id: mockUnlistedProject.id,
 			organization_id: MockOrganization2.id,
 		});
 	});

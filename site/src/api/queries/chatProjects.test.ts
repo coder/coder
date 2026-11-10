@@ -19,6 +19,7 @@ import {
 	deleteChatProject,
 	setChatProjectRole,
 	unarchiveChatProject,
+	unlistedChatProject,
 	updateChatProject,
 } from "./chatProjects";
 import {
@@ -135,6 +136,37 @@ describe("chat project mutations", () => {
 				expect(isInvalidated(queryClient, key)).toBe(true);
 			}
 		}
+		vi.restoreAllMocks();
+	});
+
+	it("updates a project found outside both lists without adding it to them", async () => {
+		vi.spyOn(API.experimental, "getChatProject").mockResolvedValue(
+			MockChatProject,
+		);
+		vi.spyOn(API.experimental, "archiveChatProject").mockResolvedValue(
+			MockArchivedChatProject,
+		);
+		const queryClient = seed();
+		const mockOtherProject = { ...MockChatProject, id: "other-project" };
+		queryClient.setQueryData(chatProjectsKey, [mockOtherProject]);
+		queryClient.setQueryData(archivedChatProjectsKey, []);
+		const unlisted = unlistedChatProject(MockChatProject.id, [
+			MockChatProject.organization_id,
+		]);
+		await queryClient.fetchQuery(unlisted);
+
+		await new MutationObserver(
+			queryClient,
+			archiveChatProject(queryClient),
+		).mutate({ project: MockChatProject, stopActiveChats: false });
+
+		expect(queryClient.getQueryData(chatProjectsKey)).toEqual([
+			mockOtherProject,
+		]);
+		expect(queryClient.getQueryData(archivedChatProjectsKey)).toEqual([]);
+		expect(queryClient.getQueryData(unlisted.queryKey)).toEqual(
+			MockArchivedChatProject,
+		);
 		vi.restoreAllMocks();
 	});
 });

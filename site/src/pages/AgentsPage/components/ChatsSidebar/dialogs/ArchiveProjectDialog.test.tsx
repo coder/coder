@@ -204,7 +204,7 @@ describe("ArchiveProjectDialog", () => {
 
 		const deleteOption = screen.getByRole("radio", { name: "Delete them" });
 		await waitFor(() => expect(deleteOption).toBeChecked());
-		expect(screen.getByRole("textbox")).toBeInTheDocument();
+		expect(screen.getByRole("textbox")).not.toHaveFocus();
 		expect(deleteOption).toHaveFocus();
 	});
 

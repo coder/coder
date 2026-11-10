@@ -54,7 +54,7 @@ type ProjectDetailsPanelViewProps = {
 	readonly disabledSkillCount: number | undefined;
 	readonly skillsError: unknown;
 	readonly onOpenSkills: (event: React.MouseEvent<HTMLButtonElement>) => void;
-	/** Shows an edit icon on the skills button. Without it, the dialog only lists skills. */
+	/** Shows an edit icon on the skills button. */
 	readonly canEditSkills: boolean;
 	/** `undefined` until the instructions load. */
 	readonly instructions: ChatProjectInstructions | undefined;

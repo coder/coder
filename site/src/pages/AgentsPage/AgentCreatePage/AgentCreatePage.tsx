@@ -107,19 +107,12 @@ const AgentCreatePage: React.FC = () => {
 	return <AgentCreatePageContent key={projectId} projectId={projectId} />;
 };
 
-type AgentCreatePageContentProps = {
-	readonly projectId: string | undefined;
-};
-
-const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
-	projectId,
-}) => {
-	const queryClient = useQueryClient();
-	const location = useLocation();
-	const navigate = useNavigate();
-	const [searchParams] = useSearchParams();
-	const { permissions } = useAuthenticated();
-	const { experiments, organizations } = useDashboard();
+/**
+ * Finds the route's project in the active list, then the archived list, then
+ * by ID in each of the user's organizations.
+ */
+const useProjectLookup = (projectId: string | undefined) => {
+	const { organizations } = useDashboard();
 	const projectQuery = useQuery({
 		...chatProject(projectId),
 		enabled: projectId !== undefined,
@@ -142,8 +135,6 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		archivedProjectQuery.data === null &&
 		archivedProjectQuery.isFetchedAfterMount &&
 		!archivedProjectQuery.error;
-	// Organization admins and site Owners can open projects that are neither
-	// theirs nor shared with them.
 	const unlistedProjectQuery = useQuery({
 		...unlistedChatProject(
 			projectId,
@@ -169,6 +160,24 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	].find((query) => query.error);
 	const projectLookupError =
 		projectId !== undefined && !project ? failedProjectQuery?.error : undefined;
+	return { project, isProjectMissing, failedProjectQuery, projectLookupError };
+};
+
+type AgentCreatePageContentProps = {
+	readonly projectId: string | undefined;
+};
+
+const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
+	projectId,
+}) => {
+	const queryClient = useQueryClient();
+	const location = useLocation();
+	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
+	const { permissions } = useAuthenticated();
+	const { experiments } = useDashboard();
+	const { project, isProjectMissing, failedProjectQuery, projectLookupError } =
+		useProjectLookup(projectId);
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));

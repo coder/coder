@@ -57,6 +57,9 @@ export const archivedChatProject = (projectId: string | undefined) =>
 			projects.find((project) => project.id === projectId) ?? null,
 	});
 
+const unlistedChatProjectKey = (projectId: string | undefined) =>
+	[...chatProjectsKey, projectId, "unlisted"] as const;
+
 /**
  * Finds a project in any of the given organizations. Organization admins and
  * site Owners can manage projects that are neither theirs nor shared with
@@ -68,7 +71,7 @@ export const unlistedChatProject = (
 	organizationIds: readonly string[],
 ) =>
 	queryOptions({
-		queryKey: [...chatProjectsKey, projectId, "unlisted", organizationIds],
+		queryKey: [...unlistedChatProjectKey(projectId), organizationIds],
 		queryFn: async () => {
 			if (projectId === undefined) {
 				return null;
@@ -186,7 +189,7 @@ const setCachedProjectArchiveState = (
 		]);
 	}
 	queryClient.setQueriesData<TypesGen.ChatProject | null>(
-		{ queryKey: [...chatProjectsKey, project.id, "unlisted"] },
+		{ queryKey: unlistedChatProjectKey(project.id) },
 		(cached) => (cached ? project : cached),
 	);
 };

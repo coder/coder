@@ -69,6 +69,34 @@ export const ActiveChats: Story = {
 	},
 };
 
+/** One running chat gets the singular warning. */
+export const OneActiveChat: Story = {
+	parameters: {
+		queries: [
+			{
+				key: chatProjectArchivePreviewKey(MockChatProject.id),
+				data: { chat_count: 5, active_chat_count: 1 },
+			},
+			{ key: chatRetentionDaysKey, data: { retention_days: 30 } },
+			{ key: projectChatWorkspacesKey(MockChatProject.id), data: [] },
+		],
+	},
+};
+
+/** A project without chats skips the count and the retention sentence. */
+export const NoChats: Story = {
+	parameters: {
+		queries: [
+			{
+				key: chatProjectArchivePreviewKey(MockChatProject.id),
+				data: { chat_count: 0, active_chat_count: 0 },
+			},
+			{ key: chatRetentionDaysKey, data: { retention_days: 30 } },
+			{ key: projectChatWorkspacesKey(MockChatProject.id), data: [] },
+		],
+	},
+};
+
 export const Workspaces: Story = {
 	parameters: {
 		queries: [
