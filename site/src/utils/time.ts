@@ -24,6 +24,16 @@ const TIME_CONSTANTS = {
 };
 
 export type TimeUnit = "days" | "hours";
+
+/** Returns undefined for a missing or unparsable date string. */
+export const parseDate = (value: string | undefined): Date | undefined => {
+	if (!value) {
+		return undefined;
+	}
+	const date = new Date(value);
+	return Number.isNaN(date.getTime()) ? undefined : date;
+};
+
 type DateTimeInput = Date | string | number | Dayjs | null | undefined;
 
 // Standard format strings

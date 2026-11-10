@@ -359,6 +359,77 @@ func TestAgentConnReadFileInRoot(t *testing.T) {
 	require.NotContains(t, err.Error(), outsideBytes)
 }
 
+// TestAgentConnBoundsResponseBodies verifies that workspace code serving
+// the agent API cannot make coderd read unbounded bodies.
+func TestAgentConnBoundsResponseBodies(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+	clientID := uuid.New()
+	agentID := uuid.New()
+	clientConn, _ := newTailnetConn(t, derpMap, clientID, "client")
+	agentTailnetConn, agentIP := newTailnetConn(t, derpMap, agentID, "agent")
+	stitchTailnet(t, map[uuid.UUID]*tailnet.Conn{
+		clientID: clientConn,
+		agentID:  agentTailnetConn,
+	})
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v0/read-file", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(strings.Repeat("a", 100)))
+	})
+	mux.HandleFunc("/api/v0/listening-ports", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"ports":"` + strings.Repeat("a", 33<<20)))
+	})
+	mux.HandleFunc("/api/v0/containers", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusConflict)
+		_, _ = w.Write([]byte(`{"message":"` + strings.Repeat("a", 1<<20)))
+	})
+	mux.HandleFunc("/api/v0/containers/devcontainers/", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"message":"` + strings.Repeat("a", 1<<20)))
+	})
+	serveTailnetHTTP(t, agentTailnetConn, mux)
+
+	conn := workspacesdk.NewAgentConn(clientConn, workspacesdk.AgentConnOptions{
+		AgentID: agentID,
+	})
+	require.True(t, clientConn.AwaitReachable(ctx, agentIP))
+
+	reader, _, err := conn.ReadFile(ctx, "/file", 0, 10)
+	require.NoError(t, err)
+	got, err := io.ReadAll(reader)
+	require.NoError(t, reader.Close())
+	require.ErrorContains(t, err, "workspace agent response exceeds 10 bytes")
+	require.Len(t, got, 10)
+
+	_, err = conn.ListeningPorts(ctx)
+	require.ErrorContains(t, err, "workspace agent response exceeds 33554432 bytes")
+
+	for _, tc := range []struct {
+		name   string
+		status int
+		call   func() error
+	}{
+		{name: "ErrorStatus", status: http.StatusConflict, call: func() error {
+			_, err := conn.ListContainers(ctx)
+			return err
+		}},
+		{name: "UnexpectedSuccessStatus", status: http.StatusOK, call: func() error {
+			return conn.DeleteDevcontainer(ctx, "id")
+		}},
+	} {
+		err := tc.call()
+		var sdkErr *codersdk.Error
+		require.ErrorAs(t, err, &sdkErr, tc.name)
+		require.Equal(t, tc.status, sdkErr.StatusCode(), tc.name)
+		require.Contains(t, sdkErr.Detail, "workspace agent response exceeds 65536 bytes", tc.name)
+	}
+}
+
 func newTailnetConn(t *testing.T, derpMap *tailcfg.DERPMap, id uuid.UUID, name string) (*tailnet.Conn, netip.Addr) {
 	t.Helper()
 

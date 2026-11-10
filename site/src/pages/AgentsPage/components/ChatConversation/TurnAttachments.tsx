@@ -26,7 +26,7 @@ type StackSlotProps = {
 const StackSlot: React.FC<StackSlotProps> = ({ className, children }) => (
 	<span
 		className={cn(
-			"inline-flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-secondary ring-1 ring-surface-secondary transition not-first:-ml-1.5 group-hover/attachments:bg-surface-tertiary group-hover/attachments:ring-surface-tertiary",
+			"inline-flex size-5 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-secondary ring-1 ring-surface-secondary transition not-first:-ml-1.5 group-hover/attachments:bg-surface-tertiary group-hover/attachments:ring-surface-tertiary",
 			className,
 		)}
 	>

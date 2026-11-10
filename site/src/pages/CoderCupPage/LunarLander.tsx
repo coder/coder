@@ -2623,7 +2623,7 @@ export const LunarLander: React.FC = () => {
 	}, []);
 
 	return (
-		<div ref={containerRef} className="w-full h-full bg-black">
+		<div ref={containerRef} className="size-full bg-black">
 			<canvas
 				ref={canvasRef}
 				className="block"

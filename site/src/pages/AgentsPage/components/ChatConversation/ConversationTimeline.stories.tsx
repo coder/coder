@@ -245,6 +245,17 @@ const buildInlineAttachmentPart = (
 	data: string,
 ): TypesGen.ChatFilePart => buildFilePart({ media_type: mediaType, data });
 
+const mockWorkspaceFileReferencePart: TypesGen.ChatWorkspaceFileReferencePart =
+	{
+		type: "workspace-file-reference",
+		workspace_file_path:
+			"/home/coder/.coder/chats/story-chat/files/dataset.zip",
+		workspace_file_name: "dataset.zip",
+		workspace_file_size: 4096,
+		workspace_file_media_type: "application/zip",
+		workspace_file_workspace_id: "ws-1",
+	};
+
 const buildUserMessage = ({
 	id = 1,
 	text,
@@ -798,6 +809,40 @@ export const UserMessageBubbleAlignment: Story = {
 	},
 };
 
+/** User messages render Markdown, with chips inline even inside emphasis. */
+export const UserMessageWithMarkdown: Story = {
+	args: buildStoryArgs({
+		...baseMessage,
+		id: 1,
+		role: "user",
+		content: [
+			buildTextPart("Why does `make test` fail in **"),
+			{
+				type: "file-reference",
+				file_name: "site/src/components/Button.tsx",
+				start_line: 42,
+				end_line: 42,
+				content: "export const Button = ...",
+			},
+			buildTextPart(
+				[
+					"**?",
+					"Steps so far:",
+					"- reran it",
+					"- cleared the cache",
+					"",
+					"```go",
+					"func main() {",
+					'\tfmt.Println("hello")',
+					"}",
+					"```",
+					"Thanks!",
+				].join("\n"),
+			),
+		],
+	}),
+};
+
 /** Regression guard: a single image attachment must not be duplicated. */
 export const UserMessageWithSingleImage: Story = {
 	args: {
@@ -1284,6 +1329,20 @@ export const UserMessageWithMixedAttachments: Story = {
 	),
 };
 
+/** Visual regression: files without text sit as far from the edge as text. */
+export const UserMessageWithFilesOnly: Story = {
+	args: buildStoryArgs({
+		...baseMessage,
+		id: 1,
+		role: "user",
+		content: [
+			buildInlineAttachmentPart("image/png", MockPngBase64),
+			buildTextAttachmentPart("storybook-test-text"),
+			mockWorkspaceFileReferencePart,
+		],
+	}),
+};
+
 /** Text-only messages must not produce spurious image thumbnails. */
 export const UserMessageTextOnly: Story = {
 	args: {
@@ -1504,6 +1563,20 @@ export const UserMessageWithSkillChips: Story = {
 					},
 				],
 			},
+			{
+				...baseMessage,
+				id: 3,
+				role: "user",
+				content: [
+					{ type: "text", text: "# Run " },
+					{
+						type: "skill-invocation",
+						skill_source: "project",
+						skill_name: "triage",
+					},
+					{ type: "text", text: " first" },
+				],
+			},
 		]),
 	},
 };
@@ -1701,14 +1774,9 @@ export const UserMessageCopyButton: Story = {
 		expect(editButton).toBeInTheDocument();
 
 		// Behavioral: clicking edit fires onEditUserMessage with the
-		// correct message ID and text.
+		// message ID.
 		await userEvent.click(editButton);
-		expect(args.onEditUserMessage).toHaveBeenCalledWith(
-			1,
-			"Can you fix this bug?",
-			undefined,
-			undefined,
-		);
+		expect(args.onEditUserMessage).toHaveBeenCalledWith(1);
 
 		// Behavioral: clicking copy writes the raw markdown to the
 		// clipboard.
@@ -2481,15 +2549,7 @@ export const UserMessageWithWorkspaceFileReference: Story = {
 				role: "user",
 				content: [
 					{ type: "text", text: "Unzip this in my workspace" },
-					{
-						type: "workspace-file-reference",
-						workspace_file_path:
-							"/home/coder/.coder/chats/story-chat/files/dataset.zip",
-						workspace_file_name: "dataset.zip",
-						workspace_file_size: 4096,
-						workspace_file_media_type: "application/zip",
-						workspace_file_workspace_id: "ws-1",
-					},
+					mockWorkspaceFileReferencePart,
 				],
 			},
 		]),

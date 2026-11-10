@@ -3,14 +3,14 @@ title: Users
 ---
 
 By default, Coder is accessible via password authentication.
-For production deployments, we recommend using an SSO authentication provider with multi-factor authentication (MFA).
-It is your responsibility to ensure the auth provider enforces MFA correctly.
+For production deployments, we recommend using a single sign-on (SSO) authentication provider with multi-factor authentication (MFA).
+It is your responsibility to make sure the auth provider enforces MFA correctly.
 
 <a id="configuring-sso"></a>
 
 ## Configure SSO
 
-- [OpenID Connect](./oidc-auth/index.md) (for example, Okta, KeyCloak, PingFederate, Azure AD)
+- [OpenID Connect](./oidc-auth/index.md) (for example, Okta, KeyCloak, PingFederate, Azure Active Directory (AD))
 - [GitHub](./github-auth.md) (or GitHub Enterprise)
 
 ## Groups
@@ -55,7 +55,7 @@ Dormant accounts do not count towards the total number of licensed seats in a Co
 When a user's account is marked as _suspended_ in Coder, it means that the account has been temporarily deactivated, and the user is unable to access the platform.
 
 Only user administrators or owners have the necessary permissions to manage suspended accounts and decide whether to lift the suspension and allow the user back into the Coder environment.
-This level of control ensures that administrators can enforce security measures and handle any compliance-related issues promptly.
+This level of control makes sure that administrators can enforce security measures and handle any compliance-related issues promptly.
 
 Similar to dormant users, suspended users do not count towards the total number of licensed seats.
 

@@ -1,5 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { Terminal } from "@xterm/xterm";
 import { HttpResponse, http } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
@@ -228,6 +229,19 @@ describe("TerminalPage", () => {
 		await userEvent.type(terminal[0], "{Shift>}{Enter}{/Shift}");
 		const req = JSON.parse(new TextDecoder().decode((await msg) as Uint8Array));
 		expect(req.data).toBe("\x1b\r");
+	});
+
+	it("rebuilds the glyph cache when a font finishes loading", async () => {
+		createWorkspaceTerminalWebSocket();
+		const { unmount } = await renderTerminal();
+		const clearTextureAtlas = vi.spyOn(Terminal.prototype, "clearTextureAtlas");
+
+		document.fonts.dispatchEvent(new Event("loadingdone"));
+		expect(clearTextureAtlas).toHaveBeenCalledOnce();
+
+		unmount();
+		document.fonts.dispatchEvent(new Event("loadingdone"));
+		expect(clearTextureAtlas).toHaveBeenCalledOnce();
 	});
 
 	it("shows confirmation dialog when command param is present", async () => {

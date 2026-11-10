@@ -17,11 +17,15 @@
 
 versions: [main]
 sections:
-  - about.yml
+  - home.yml
   - get-started.yml
   - install.yml
-  - user-guides.yml
+  - templates.yml
+  - workspaces.yml
+  - coder-agents.yml
+  - ai-governance.yml
+  - agent-relay.yml
+  - mcp-server.yml
   - admin.yml
-  - ai-coder.yml
-  - tutorials.yml
   - reference.yml
+  - support.yml

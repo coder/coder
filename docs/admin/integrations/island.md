@@ -28,7 +28,7 @@ This Application Group object will be referenced when creating browser policies.
 
 ## Advanced Data Loss Protection
 
-Integrate Island's advanced data loss prevention (DLP) capabilities with Coder's cloud development environment (CDE), enabling you to control the "last mile" between developers' CDE and their local devices, ensuring that sensitive IP remains in your centralized environment.
+Integrate Island's advanced data loss prevention (DLP) capabilities with Coder's cloud development environment (CDE), enabling you to control the "last mile" between developers' CDE and their local devices, making sure that sensitive IP remains in your centralized environment.
 
 ### Block cut, copy, paste, printing, screen share
 
@@ -94,7 +94,7 @@ Integrate Island's advanced data loss prevention (DLP) capabilities with Coder's
 
 ## Application Awareness and Boundaries
 
-Ensure that Coder is only accessed through the Island browser, guaranteeing that your browser-level DLP policies are always enforced, and developers can't sidestep such policies simply by using another browser.
+Make sure that Coder is only accessed through the Island browser, guaranteeing that your browser-level DLP policies are always enforced, and developers can't sidestep such policies simply by using another browser.
 
 ### Configure browser enforcement, conditional access policies
 

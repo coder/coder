@@ -195,13 +195,34 @@ describe("isKnownComputerUseModel", () => {
 		}
 	});
 
-	it("matches a curated model with a non-normalized provider", () => {
-		expect(isKnownComputerUseModel(" Anthropic ", "claude-opus-5")).toBe(true);
+	it("matches curated Claude models in Bedrock model IDs", () => {
+		for (const modelId of [
+			"anthropic.claude-opus-5-5",
+			"us.anthropic.claude-opus-5-5",
+			"global.anthropic.claude-sonnet-5-5",
+			"anthropic.claude-opus-5-v1:0",
+		]) {
+			expect(isKnownComputerUseModel("anthropic", modelId), modelId).toBe(true);
+		}
 	});
 
 	it("does not match uncurated models, prefixes, or other providers", () => {
-		expect(isKnownComputerUseModel("anthropic", "claude-opus-5-5")).toBe(false);
+		expect(isKnownComputerUseModel("anthropic", "claude-haiku-4-5")).toBe(
+			false,
+		);
 		expect(isKnownComputerUseModel("anthropic", "claude-opus")).toBe(false);
 		expect(isKnownComputerUseModel("openai", "claude-opus-5")).toBe(false);
+		expect(
+			isKnownComputerUseModel(
+				"anthropic",
+				"anthropic.claude-sonnet-4-6-20260101-v1:0",
+			),
+		).toBe(false);
+		expect(
+			isKnownComputerUseModel("anthropic", "us.anthropic.claude-haiku-4-5"),
+		).toBe(false);
+		expect(
+			isKnownComputerUseModel("openai", "us.anthropic.claude-opus-5-5"),
+		).toBe(false);
 	});
 });
