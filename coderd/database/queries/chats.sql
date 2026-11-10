@@ -665,6 +665,48 @@ WHERE
         WHEN sqlc.narg('project_id')::uuid IS NOT NULL THEN chats_expanded.project_id = sqlc.narg('project_id')::uuid
         ELSE true
     END
+    -- The sidebar lists a chat in a project only when the viewer pinned
+    -- the project or the chat itself. Filtering here, not after the
+    -- query, keeps cursor pages full.
+    AND CASE
+        WHEN sqlc.narg('pinned_projects_only')::boolean THEN (
+            chats_expanded.project_id IS NULL
+            OR chats_expanded.pin_order > 0
+            OR EXISTS (
+                SELECT 1
+                FROM chat_project_pins
+                WHERE chat_project_pins.user_id = @viewer_id::uuid
+                    AND chat_project_pins.project_id = chats_expanded.project_id
+                    AND chat_project_pins.unpinned_at IS NULL
+            )
+            -- A chat in a project the viewer can no longer use stays
+            -- listed: the project is missing from the viewer's projects, so
+            -- the sidebar is the only place left to find the chat. Same
+            -- access predicate as PinChatProject.
+            OR NOT EXISTS (
+                SELECT 1
+                FROM chat_projects cp
+                WHERE cp.id = chats_expanded.project_id
+                    AND (
+                        cp.owner_id = @viewer_id::uuid
+                        OR (
+                            @acl_enabled::boolean
+                            AND (cp.user_acl ? (@viewer_id::uuid)::text OR cp.group_acl ?| ARRAY(
+                                SELECT group_id::text FROM group_members WHERE user_id = @viewer_id::uuid
+                                UNION ALL
+                                SELECT organization_id::text FROM organization_members WHERE user_id = @viewer_id::uuid
+                            ))
+                            AND EXISTS (
+                                SELECT 1 FROM organization_members
+                                WHERE organization_members.user_id = @viewer_id::uuid
+                                    AND organization_members.organization_id = cp.organization_id
+                            )
+                        )
+                    )
+            )
+        )
+        ELSE true
+    END
     AND CASE
         -- Cursor pagination: the last element on a page acts as the cursor.
         -- The 4-tuple matches the ORDER BY below. All columns sort DESC
