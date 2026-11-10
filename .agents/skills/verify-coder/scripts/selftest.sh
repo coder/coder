@@ -7,9 +7,11 @@
 # vc_start_develop passes the environment, that a Docker error or a missing
 # docker CLI fails the leftover inventory, the default password check for
 # admin and member, that docker-forward.py carries its port, that secrets
-# reach agent-browser on stdin only, that loopback requests bypass a proxy,
-# that cleanup restores the caller's CLI session, and that vc_wait_agent stops
-# early.
+# reach agent-browser on stdin only, that loopback and gateway requests bypass
+# a proxy, how lib.sh sets NO_PROXY, that cleanup restores the caller's CLI
+# session and its mode, that vc_wait_agent stops early, the coder-agents
+# default model restore, the web terminal poll, and the journeys' evidence
+# folders.
 # Usage: selftest.sh   (prints one line per check and a count line)
 set -euo pipefail
 here="$(dirname "${BASH_SOURCE[0]}")"
@@ -430,26 +432,67 @@ default_password_checks_users() {
 }
 vc_check default-users default_password_checks_users
 
+# start_http_server <address> <folder> serves the folder and sets http_port
+# and http_pid.
+start_http_server() {
+	http_port=""
+	: >"$tmp/http-$1.log"
+	# Port 0 lets the kernel pick a free port, which the server then prints.
+	(cd "$2" && exec python3 -u -m http.server 0 --bind "$1") >"$tmp/http-$1.log" 2>&1 &
+	http_pid=$!
+	for _ in $(seq 50); do
+		http_port="$(sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' "$tmp/http-$1.log" | head -n 1)"
+		[[ -z "$http_port" ]] || return 0
+		sleep 0.2
+	done
+	kill "$http_pid" 2>/dev/null || true
+	echo "the stand-in server on $1 did not start"
+	return 1
+}
+
+# start_proxy starts a listener that stands in for a proxy, records in
+# proxy.log whether anything connected, and sets proxy_port and proxy_pid.
+start_proxy() {
+	proxy_port=""
+	: >"$tmp/proxy.log"
+	python3 -u -c '
+import socket
+s = socket.socket(); s.bind(("127.0.0.1", 0)); s.listen()
+print("port", s.getsockname()[1], flush=True)
+c, _ = s.accept(); print("connected", flush=True)
+' >"$tmp/proxy.log" 2>&1 &
+	proxy_pid=$!
+	for _ in $(seq 50); do
+		proxy_port="$(sed -n 's/^port //p' "$tmp/proxy.log")"
+		[[ -z "$proxy_port" ]] || return 0
+		sleep 0.1
+	done
+	kill "$proxy_pid" 2>/dev/null || true
+	echo "the stand-in proxy did not start"
+	return 1
+}
+
+# load_function <script> <name> defines one function of a skill script
+# without running the script, so a check can call it with stand-ins.
+load_function() {
+	local def
+	def="$(sed -n "/^$2() {/,/^}/p" "$1")"
+	[[ -n "$def" ]] || {
+		echo "${1##*/} has no function $2"
+		return 1
+	}
+	eval "$def"
+}
+
 # docker-forward.py carries the one port it was given from its listen address
 # to 127.0.0.1, and cleanup recognizes it as a helper to stop. 127.0.0.2
 # stands in for the Docker bridge gateway.
 docker_forward_carries_port() {
-	local port="" out="" www="$tmp/www" fw rc=0
+	local out="" www="$tmp/www" fw rc=0 port
 	mkdir -p "$www"
 	echo selftest-forward >"$www/x"
-	# Port 0 lets the kernel pick a free port, which the server then prints.
-	(cd "$www" && exec python3 -u -m http.server 0 --bind 127.0.0.1) >"$tmp/www.log" 2>&1 &
-	local server=$!
-	for _ in $(seq 50); do
-		port="$(sed -n 's/.* port \([0-9][0-9]*\).*/\1/p' "$tmp/www.log" | head -n 1)"
-		[[ -z "$port" ]] || break
-		sleep 0.2
-	done
-	[[ -n "$port" ]] || {
-		kill "$server" 2>/dev/null || true
-		echo "the stand-in API server did not start"
-		return 1
-	}
+	start_http_server 127.0.0.1 "$www"
+	port="$http_port"
 	python3 "$VC_SKILL_SCRIPTS/docker-forward.py" 127.0.0.2 "$port" >"$tmp/forward.log" 2>&1 &
 	fw=$!
 	for _ in $(seq 50); do
@@ -457,7 +500,7 @@ docker_forward_carries_port() {
 		sleep 0.2
 	done
 	vc_is_docker_forward "$fw" || rc=1
-	kill "$server" "$fw" 2>/dev/null || true
+	kill "$http_pid" "$fw" 2>/dev/null || true
 	[[ "$out" == selftest-forward ]] || {
 		echo "docker-forward.py did not carry port $port: ${out:-no answer}"
 		return 1
@@ -497,28 +540,11 @@ vc_check fill-secret journey_fill_keeps_secret_off_argv
 # they must bypass a configured proxy. A listener stands in for the proxy and
 # records whether anything connected.
 loopback_bypasses_proxy() {
-	local port="" proxy
-	python3 -u -c '
-import socket, sys
-s = socket.socket(); s.bind(("127.0.0.1", 0)); s.listen()
-print("port", s.getsockname()[1], flush=True)
-c, _ = s.accept(); print("connected", flush=True)
-' >"$tmp/proxy.log" 2>&1 &
-	proxy=$!
-	for _ in $(seq 50); do
-		port="$(sed -n 's/^port //p' "$tmp/proxy.log")"
-		[[ -z "$port" ]] || break
-		sleep 0.1
-	done
-	[[ -n "$port" ]] || {
-		kill "$proxy" 2>/dev/null || true
-		echo "the stand-in proxy did not start"
-		return 1
-	}
-	VC_API_URL=http://127.0.0.1:1 http_proxy="http://127.0.0.1:$port" HTTP_PROXY="http://127.0.0.1:$port" ALL_PROXY="http://127.0.0.1:$port" \
+	start_proxy
+	VC_API_URL=http://127.0.0.1:1 http_proxy="http://127.0.0.1:$proxy_port" HTTP_PROXY="http://127.0.0.1:$proxy_port" ALL_PROXY="http://127.0.0.1:$proxy_port" \
 		vc_password_accepted "selftest-$RANDOM" || true
 	sleep 0.5
-	kill "$proxy" 2>/dev/null || true
+	kill "$proxy_pid" 2>/dev/null || true
 	if grep -q connected "$tmp/proxy.log"; then
 		echo "a sign-in request to 127.0.0.1 went through the proxy"
 		return 1
@@ -530,7 +556,9 @@ vc_check no-proxy loopback_bypasses_proxy
 # launch.sh moves the caller's saved CLI session aside, and cleanup.sh puts it
 # back when .coderv2 stays.
 cleanup_restores_caller_session() {
-	local dead flags
+	local dead flags mode
+	# A copy instead of a move would get the umask's mode, not the session's.
+	umask 022
 	for flags in "" --keep-data; do
 		scratch_reset
 		mkdir -p "$scratch_run" "$repo/build/verify-coder/evidence" "$scratch_config"
@@ -538,6 +566,7 @@ cleanup_restores_caller_session() {
 			touch "$scratch_config/.verify-coder-created"
 		fi
 		echo selftest-caller-session >"$scratch_run/caller-session"
+		chmod 600 "$scratch_run/caller-session"
 		echo selftest-admin-session >"$scratch_config/session"
 		true &
 		dead=$!
@@ -548,8 +577,13 @@ cleanup_restores_caller_session() {
 			echo "cleanup.sh ${flags:-without flags} exited $rc and did not restore the caller's session: ${out##*$'\n'}"
 			return 1
 		}
+		mode="$(stat -c %a "$scratch_config/session")"
+		[[ "$mode" == 600 ]] || {
+			echo "cleanup.sh ${flags:-without flags} restored the session with mode $mode, not 600"
+			return 1
+		}
 	done
-	echo "cleanup.sh puts the caller's CLI session back, with and without --keep-data"
+	echo "cleanup.sh puts the caller's CLI session back with mode 600, with and without --keep-data"
 }
 vc_check caller-session cleanup_restores_caller_session
 
@@ -597,6 +631,132 @@ login_keeps_password_off_argv() {
 	echo "the password reached agent-browser on stdin only"
 }
 vc_check login-argv login_keeps_password_off_argv
+
+# lib.sh keeps the caller's NO_PROXY and no_proxy entries and adds the
+# loopback names and the Docker bridge gateway to both.
+no_proxy_merges() {
+	local got want="upper.example,lower.example,127.0.0.1,localhost,::1,172.17.0.1"
+	# shellcheck disable=SC2016 # The inner shell expands them.
+	got="$(env -i PATH="$PATH" NO_PROXY=upper.example no_proxy=lower.example bash -c 'source "$1" && echo "$NO_PROXY|$no_proxy"' _ "$here/lib.sh")"
+	[[ "$got" == "$want|$want" ]] || {
+		echo "NO_PROXY|no_proxy after sourcing lib.sh: $got"
+		return 1
+	}
+	echo "lib.sh keeps the caller's NO_PROXY and no_proxy and adds the loopback and bridge hosts to both"
+}
+vc_check no-proxy-env no_proxy_merges
+
+# The doctor reaches the Docker bridge gateway, which NO_PROXY may not name,
+# so its requests there must bypass a configured proxy. 127.0.0.2 stands in
+# for the gateway, and stand-ins answer for docker and the forward helper.
+# shellcheck disable=SC2034,SC2317 # The loaded function reads these globals and calls these stand-ins.
+doctor_gateway_bypasses_proxy() {
+	local www="$tmp/doctor-www" rc=0
+	load_function "$here/doctor.sh" docker_forward
+	mkdir -p "$www" "$VC_RUN"
+	echo ok >"$www/healthz"
+	start_http_server 127.0.0.2 "$www"
+	start_proxy
+	echo "$$" >"$VC_RUN/docker-forward.pid"
+	docker() { :; }
+	vc_docker_gateway() { echo 127.0.0.2; }
+	vc_is_docker_forward() { :; }
+	VC_API_PORT="$http_port" VC_WEB_PORT=1 http_proxy="http://127.0.0.1:$proxy_port" HTTP_PROXY="http://127.0.0.1:$proxy_port" ALL_PROXY="http://127.0.0.1:$proxy_port" \
+		docker_forward || rc=$?
+	kill "$http_pid" "$proxy_pid" 2>/dev/null || true
+	if grep -q connected "$tmp/proxy.log"; then
+		echo "a doctor request to the gateway went through the proxy"
+		return 1
+	fi
+	((rc == 0)) || {
+		echo "docker_forward failed with exit $rc"
+		return 1
+	}
+	echo "the doctor reaches the gateway without the proxy"
+}
+vc_check doctor-no-proxy doctor_gateway_bypasses_proxy
+
+# coder-agents.sh restore gives the default back to the model that had it
+# only while the journey's model holds it, keeps a newer default that another
+# admin picked, and passes in each case. A stand-in API keeps the model list
+# in a file.
+# shellcheck disable=SC2034,SC2317 # The loaded function reads these globals and calls these stand-ins.
+restore_keeps_newer_default() {
+	local case default want got
+	load_function "$here/../journeys/coder-agents.sh" restore
+	out="$tmp/restore" org=selftest-org model_display=journey-model provider_name=selftest-provider
+	mkdir -p "$out"
+	vc_api() { cat "$tmp/models.json"; }
+	vc_api_status() { echo 404; }
+	vc_send() {
+		echo "$1 ${2##*/}" >>"$tmp/sends"
+		case "$1" in
+		PATCH) jq --arg id "${2##*/}" '.models |= map(.is_default = (.id == $id))' "$tmp/models.json" >"$tmp/models.next" ;;
+		DELETE) jq --arg id "${2##*/}" '.models |= map(select(.id != $id))' "$tmp/models.json" >"$tmp/models.next" ;;
+		esac
+		mv "$tmp/models.next" "$tmp/models.json"
+	}
+	for case in journey-default newer-default no-old-default; do
+		rm -f "$tmp/sends"
+		old_default=old
+		case "$case" in
+		journey-default) default=journey want=old ;;
+		newer-default) default=newer want=newer ;;
+		no-old-default) old_default="" default=journey want="" ;;
+		esac
+		jq -n --arg d "$default" '{models: ([{id: "old"}, {id: "newer"}, {id: "journey", display_name: "journey-model"}] | map(.is_default = (.id == $d)))}' >"$tmp/models.json"
+		restore >/dev/null || {
+			echo "$case: restore failed"
+			return 1
+		}
+		got="$(jq -r '[.models[] | select(.is_default)][0].id // ""' "$tmp/models.json")"
+		[[ "$got" == "$want" ]] || {
+			echo "$case: the default is '$got', not '$want'"
+			return 1
+		}
+		jq -e 'all(.models[]; .id != "journey")' "$tmp/models.json" >/dev/null || {
+			echo "$case: the journey's model was not deleted"
+			return 1
+		}
+	done
+	echo "restore brings the old default back only from the journey's model, and keeps a newer one"
+}
+vc_check restore-default restore_keeps_newer_default
+
+# The web terminal check polls until the file it wrote appears.
+# shellcheck disable=SC2034,SC2317 # The loaded function reads these globals and calls these stand-ins.
+terminal_polls() {
+	load_function "$here/../journeys/workspace.sh" ui_terminal
+	ui_ws=selftest-ws out="$tmp"
+	vc_ab() { :; }
+	sleep() { :; }
+	vc_coder() {
+		echo try >>"$tmp/terminal-tries"
+		if (($(wc -l <"$tmp/terminal-tries") >= 3)); then
+			echo verify-web-terminal-ok
+		fi
+	}
+	ui_terminal >/dev/null || {
+		echo "ui_terminal failed although the file appeared on the third read"
+		return 1
+	}
+	echo "the web terminal check polls until the file appears"
+}
+vc_check terminal-poll terminal_polls
+
+# Two journey runs that start in the same second need their own folders.
+journeys_use_unique_evidence() {
+	local journey
+	for journey in "$here"/../journeys/*.sh; do
+		# shellcheck disable=SC2016 # The pattern is the literal journey line.
+		grep -qE '^out="\$\(mktemp -d "\$VC_EVIDENCE/.+-XXXX"\)"$' "$journey" || {
+			echo "${journey##*/} does not create its evidence folder with mktemp -d"
+			return 1
+		}
+	done
+	echo "every journey creates its own evidence folder with mktemp -d"
+}
+vc_check evidence-folders journeys_use_unique_evidence
 
 echo "selftest: $VC_PASS/$VC_TOTAL checks passed"
 ((VC_PASS == VC_TOTAL))

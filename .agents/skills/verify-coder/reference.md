@@ -45,7 +45,7 @@ It changes nothing apart from those two refused sign-ins.
 
 ## Self-test
 
-`scripts/selftest.sh` needs no instance and takes about 20 seconds. Run it after you edit `launch.sh`, `lib.sh` or `cleanup.sh`. Checks that would start develop or touch `.coderv2` run a copy of the scripts in a scratch git repo, with stubs for `setsid` (in place of develop), `make`, `curl` and `docker`. It checks:
+`scripts/selftest.sh` needs no instance and takes 30 to 40 seconds. Run it after you edit a script or a journey. Checks that would start develop or touch `.coderv2` run a copy of the scripts in a scratch git repo, with stubs for `setsid` (in place of develop), `make`, `curl` and `docker`. It checks:
 
 - the `launch.sh` refusals: `CODER_BUILD_AGPL`, develop.sh flags, server flags outside `server_flag_allowed` and the published default password;
 - that a new database without `CODER_DEV_ADMIN_PASSWORD`, and the allowed server flags, get past those checks;
@@ -59,8 +59,11 @@ It changes nothing apart from those two refused sign-ins.
 - that `docker-forward.py` carries its port to 127.0.0.1 and cleanup recognizes it as a helper;
 - that the default password check covers the admin and the member, and counts any answer but 401 as accepted;
 - that `vc_browser_login` and `vc_fill_secret` pass secrets to agent-browser on stdin;
-- that a sign-in request to 127.0.0.1 bypasses a configured proxy;
-- that cleanup puts the caller's CLI session back.
+- that a sign-in request to 127.0.0.1 and the doctor's requests to the Docker bridge gateway bypass a configured proxy, and that `lib.sh` keeps the caller's `NO_PROXY` and `no_proxy` entries;
+- that cleanup puts the caller's CLI session back with its file mode;
+- that `vc_wait_agent` stops at once on a missing workspace or a failed build;
+- that the coder-agents restore step gives the default back to the old model only while the journey's model holds it, and keeps a newer default;
+- that the web terminal check polls, and that each journey creates its own evidence folder with `mktemp -d`.
 
 ## Drive
 
@@ -97,4 +100,4 @@ It changes nothing apart from those two refused sign-ins.
 - After `agent-browser cookies clear`, a cached `/login` breaks CSRF in the dev site and every POST answers 400. `vc_browser_login` loads `/login` with a unique query to avoid it. See `features/sign-in.md`.
 - At a load average near 30 on 8 cores, pages sometimes took more than 25 seconds to render, which is agent-browser's default timeout. `vc_ab` raises it to 90 seconds (`VERIFY_CODER_BROWSER_TIMEOUT_MS`). A failed journey step saves `fail-<step>.png` and its page errors, console and network requests next to `steps.log`.
 - `vc_browser_login` fills the password through `agent-browser batch` on stdin. For any other secret, use `VC_SECRET=<value> vc_fill_secret <locator words> fill`, for example `vc_fill_secret fill 'input[name=password]'`. Other `vc_ab fill` calls put their text in the process list, so use them only for throwaway values.
-- Sourcing `lib.sh` adds 127.0.0.1, localhost, ::1 and 172.17.0.1 to `NO_PROXY`, because curl would send the password and session token to 127.0.0.1 through a configured proxy.
+- Sourcing `lib.sh` sets both `NO_PROXY` and `no_proxy` to the entries of both plus 127.0.0.1, localhost, ::1 and 172.17.0.1, because curl would send the password and session token to 127.0.0.1 through a configured proxy.

@@ -15,15 +15,15 @@ export VC_ROOT VC_STATE VC_RUN VC_EVIDENCE VC_CONFIG_DIR VC_SKILL_SCRIPTS VC_ADM
 
 # curl sends requests to 127.0.0.1 through http_proxy or ALL_PROXY too, and
 # they carry the admin password and session token, so loopback requests and
-# the Docker bridge forward bypass any proxy. Sourcing lib.sh therefore
-# changes NO_PROXY and no_proxy.
-for _vc_host in 127.0.0.1 localhost ::1 172.17.0.1; do
-	case ",${NO_PROXY:-}," in
-	*",$_vc_host,"*) ;;
-	*) NO_PROXY="${NO_PROXY:+$NO_PROXY,}$_vc_host" ;;
-	esac
+# the Docker bridge forward bypass any proxy. Sourcing lib.sh therefore sets
+# NO_PROXY and no_proxy to the entries of both plus these hosts.
+IFS=, read -ra _vc_hosts <<<"${NO_PROXY:-},${no_proxy:-},127.0.0.1,localhost,::1,172.17.0.1"
+NO_PROXY=""
+for _vc_host in "${_vc_hosts[@]}"; do
+	[[ -n "$_vc_host" && ",$NO_PROXY," != *",$_vc_host,"* ]] || continue
+	NO_PROXY="${NO_PROXY:+$NO_PROXY,}$_vc_host"
 done
-unset _vc_host
+unset _vc_host _vc_hosts
 no_proxy="$NO_PROXY"
 export NO_PROXY no_proxy
 
@@ -336,12 +336,6 @@ vc_ab() {
 		agent-browser --session "$VC_BROWSER_SESSION" "$@"
 }
 
-# vc_browser_login signs in through the real login form and waits for the
-# workspaces page, the same synchronization point as site/e2e/helpers.ts login.
-# On the Vite dev server (VC_VITE_URL), a cached /login after a cookie clear
-# sets no fixed csrf_token cookie (site/vite.config.mts), and every POST then
-# fails with a CSRF 400. The unique query forces a fresh response there and
-# costs nothing on the embedded frontend.
 # vc_fill_secret <locator words...> fills the element with VC_SECRET through
 # agent-browser batch on stdin, so the value stays out of the process list.
 # Example: VC_SECRET="$password" vc_fill_secret find label Password fill
@@ -349,6 +343,12 @@ vc_fill_secret() {
 	jq -cn --args '[$ARGS.positional + [env.VC_SECRET]]' "$@" | vc_ab batch --bail >/dev/null
 }
 
+# vc_browser_login signs in through the real login form and waits for the
+# workspaces page, the same synchronization point as site/e2e/helpers.ts login.
+# On the Vite dev server (VC_VITE_URL), a cached /login after a cookie clear
+# sets no fixed csrf_token cookie (site/vite.config.mts), and every POST then
+# fails with a CSRF 400. The unique query forces a fresh response there and
+# costs nothing on the embedded frontend.
 vc_browser_login() {
 	local email="${1:-$VC_ADMIN_EMAIL}" password="${2:-$VC_ADMIN_PASSWORD}"
 	vc_ab cookies clear >/dev/null

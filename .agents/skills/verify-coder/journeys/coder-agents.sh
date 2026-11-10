@@ -178,7 +178,7 @@ vc_send() {
 # before while the journey's model still has it, and deletes the journey's
 # model and provider.
 restore() {
-	local model_id chat_id
+	local model_id chat_id want_default
 	if [[ -f "$out/06-chat-url.txt" ]]; then
 		chat_id="$(sed 's#.*/agents/##; s#[?].*##' "$out/06-chat-url.txt")"
 		# The API refuses to archive an archived chat, so a retry skips it.
@@ -189,10 +189,14 @@ restore() {
 	fi
 	model_id="$(vc_api "/api/v2/organizations/$org/chats/models" | jq -r --arg d "$model_display" '[.models[] | select(.display_name == $d)][0].id // empty')"
 	# Another admin can have picked a newer default meanwhile, so the old
-	# default comes back only while the journey's model still has it.
-	if [[ -n "$old_default" && -n "$model_id" ]] &&
-		vc_api "/api/v2/organizations/$org/chats/models" | jq -e --arg m "$model_id" '[.models[] | select(.is_default)][0].id == $m' >/dev/null; then
-		vc_send PATCH "/api/v2/organizations/$org/chats/models/$old_default" '{"is_default": true}'
+	# default comes back only while the journey's model still has it, and a
+	# newer default stays.
+	want_default="$(vc_api "/api/v2/organizations/$org/chats/models" | jq -r '[.models[] | select(.is_default)][0].id // empty')"
+	if [[ -n "$model_id" && "$want_default" == "$model_id" ]]; then
+		want_default="$old_default"
+		if [[ -n "$old_default" ]]; then
+			vc_send PATCH "/api/v2/organizations/$org/chats/models/$old_default" '{"is_default": true}'
+		fi
 	fi
 	if [[ -n "$model_id" ]]; then
 		vc_send DELETE "/api/v2/organizations/$org/chats/models/$model_id"
@@ -201,8 +205,8 @@ restore() {
 		vc_send DELETE "/api/v2/ai/providers/$provider_name"
 	fi
 	vc_api "/api/v2/organizations/$org/chats/models" >"$out/08-api-models-after.json"
-	jq -e --arg d "$model_display" --arg o "$old_default" \
-		'([.models[] | select(.display_name == $d)] | length == 0) and ([.models[] | select(.is_default)][0].id // "") == $o' \
+	jq -e --arg d "$model_display" --arg w "$want_default" \
+		'([.models[] | select(.display_name == $d)] | length == 0) and ([.models[] | select(.is_default)][0].id // "") == $w' \
 		"$out/08-api-models-after.json" >/dev/null || {
 		echo "the model list still has the journey's model or the wrong default"
 		return 1
@@ -211,7 +215,7 @@ restore() {
 		echo "provider $provider_name still exists"
 		return 1
 	}
-	echo "chat archived, default model ${old_default:-none} restored, journey model and provider deleted"
+	echo "chat archived, default model is ${want_default:-none}, journey model and provider deleted"
 }
 
 mock_stops() {
