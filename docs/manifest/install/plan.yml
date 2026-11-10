@@ -7,4 +7,4 @@ children:
     description: Learn about Coder's architecture and the components that make up a deployment.
     path: ./install/plan/architecture.md
   - include: install/plan/sizing.yml
-  - include: install/plan/migrate-to-coder.yml
+  - include: install/plan/migrate.yml
