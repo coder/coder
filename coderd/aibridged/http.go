@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/aibridge"
@@ -21,6 +22,7 @@ var (
 	ErrConnect               = xerrors.New("could not connect to coderd")
 	ErrUnauthorized          = xerrors.New("unauthorized")
 	ErrAcquireRequestHandler = xerrors.New("failed to acquire request handler")
+	ErrAuthorizationCheck    = xerrors.New("internal server error checking authorization")
 	ErrBudgetCheck           = xerrors.New("internal server error checking user AI budget")
 )
 
@@ -88,6 +90,9 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	if delegated {
 		authReq = &proto.IsAuthorizedRequest{KeyId: delegatedID}
+		if attr, ok := agplaibridge.DelegatedAttributionFromContext(ctx); ok && attr.DelegatedOrganizationID != uuid.Nil {
+			authReq.DelegatedOrganizationId = attr.DelegatedOrganizationID.String()
+		}
 	} else {
 		authReq = &proto.IsAuthorizedRequest{Key: key}
 	}
@@ -131,6 +136,14 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	resp, err := client.IsAuthorized(ctx, authReq)
 	if err != nil {
+		// coderd marks its own failures, such as a database error, so they are
+		// not reported as a rejected request. Every other error, including any
+		// from a coderd that does not mark its failures, stays a 403.
+		if drpcerr.Code(err) == proto.ErrCodeInternal {
+			logger.Warn(ctx, "key authorization check failed internally", slog.Error(err))
+			http.Error(rw, ErrAuthorizationCheck.Error(), http.StatusInternalServerError)
+			return
+		}
 		logger.Warn(ctx, "key authorization check failed", slog.Error(err))
 		http.Error(rw, ErrUnauthorized.Error(), http.StatusForbidden)
 		return

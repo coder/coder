@@ -3,7 +3,10 @@ title: Troubleshooting
 ---
 
 `coder ping <workspace>` will ping the workspace agent and print diagnostics on the state of the connection.
-These diagnostics are created by inspecting both the client and agent network configurations, and provide insights into why a direct connection may be impeded, or why the quality of one might be degraded.
+These diagnostics are created by inspecting both the client and agent network configurations, and provide insights into why a direct connection might be impeded, or why the quality of one might be degraded.
+
+If your workspace has more than one agent, run `coder ping <workspace>.<agent>` to select the agent to ping.
+For a workspace owned by another user, include the owner: `coder ping <owner>/<workspace>.<agent>`.
 
 The `-v/--verbose` flag can be appended to the command to print client debug logs.
 
@@ -37,17 +40,17 @@ When set, this will be reflected in the output of `coder ping`.
 
 ### UDP Blocked
 
-Some corporate firewalls block UDP traffic.
-Direct connections require UDP traffic to be allowed between the client and agent, as well as between the client/agent and STUN servers in most cases.
+Some corporate firewalls block User Datagram Protocol (UDP) traffic.
+Direct connections require UDP traffic to be allowed between the client and agent, as well as between the client/agent and Session Traversal Utilities for Network Address Translation (STUN) servers in most cases.
 `coder ping` will indicate if either the Coder agent or client had issues sending or receiving UDP packets to STUN servers.
 
-If this is the case, you may need to add exceptions to the firewall to allow UDP for Coder workspaces, clients, and STUN servers.
+If this is the case, you might need to add exceptions to the firewall to allow UDP for Coder workspaces, clients, and STUN servers.
 
 ### Endpoint-Dependent NAT (Hard NAT)
 
 Hard NATs prevent public endpoints gathered from STUN servers from being used by the peer to establish a direct connection.
-Typically, if only one side of the connection is behind a hard NAT, direct connections can still be established easily.
-However, if both sides are behind hard NATs, direct connections may take longer to establish or may not be possible at all.
+Typically, if only one side of the connection is behind a hard Network Address Translation (NAT), direct connections can still be established easily.
+However, if both sides are behind hard NATs, direct connections might take longer to establish or might not be possible at all.
 
 `coder ping` will indicate if it's possible the client or agent is behind a hard NAT.
 
@@ -55,26 +58,26 @@ Learn more about [STUN and NAT](./stun.md).
 
 ### No STUN Servers
 
-If there are no STUN servers available within a deployment's DERP MAP, direct connections may not be possible.
+If there are no STUN servers available within a deployment's Designated Encrypted Relay for Packets (DERP) map, direct connections might not be possible.
 Notable exceptions are if the client and agent are on the same network, or if either is able to use UPnP instead of STUN to resolve the public IP of the other.
 `coder ping` will indicate if no STUN servers were found.
 
 ### Endpoint Firewalls
 
-Direct connections may also be impeded if one side is behind a hard NAT and the other is running a firewall that blocks ingress traffic from unknown 5-tuples (Protocol, Source IP, Source Port, Destination IP, Destination Port).
+Direct connections might also be impeded if one side is behind a hard NAT and the other is running a firewall that blocks ingress traffic from unknown 5-tuples (Protocol, Source IP, Source Port, Destination IP, Destination Port).
 
-If this is suspected, you may need to add an exception for Coder to the firewall, or reconfigure the hard NAT.
+If this is suspected, you might need to add an exception for Coder to the firewall, or reconfigure the hard NAT.
 
 ### VPNs
 
-If a VPN is the default route for all IP traffic, it may interfere with the ability for clients and agents to form direct connections.
+If a virtual private network (VPN) is the default route for all IP traffic, it might interfere with the ability for clients and agents to form direct connections.
 This happens if the NAT does not permit traffic to be ['hairpinned'](./stun.md#3-direct-connections-with-vpn-and-nat-hairpinning) from the public IP address of the NAT (determined via STUN) to the internal IP address of the agent.
 
-If this is the case, you may need to add exceptions to the VPN for Coder, modify the NAT configuration, or deploy an internal STUN server.
+If this is the case, you might need to add exceptions to the VPN for Coder, modify the NAT configuration, or deploy an internal STUN server.
 
 ### Low MTU
 
-If a network interface on the side of either the client or agent has an MTU smaller than 1378, any direct connections form may have degraded quality or might hang entirely.
+If a network interface on the side of either the client or agent has a maximum transmission unit (MTU) smaller than 1378, any direct connections form might have degraded quality or might hang entirely.
 
 Use `coder ping` to check for MTU issues, as it inspects network interfaces on both the client and the workspace agent:
 

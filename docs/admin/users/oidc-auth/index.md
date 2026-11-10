@@ -6,10 +6,10 @@ The following steps through how to integrate any OpenID Connect provider (Okta, 
 
 ## Step 1: Set Redirect URI with your OIDC provider
 
-Your OIDC provider will ask you for the following parameter:
+Your OpenID Connect (OIDC) provider will ask you for the following parameter:
 
 - **Redirect URI**:
-  Set to `https://coder.domain.com/api/v2/users/oidc/callback`
+  Set to the Uniform Resource Identifier (URI) `https://coder.domain.com/api/v2/users/oidc/callback`
 
 ## Step 2: Configure Coder with the OpenID Connect credentials
 
@@ -30,7 +30,7 @@ To troubleshoot claims, set `CODER_LOG_FILTER=".*got oidc claims.*"` and follow 
 Coder will log the claim fields returned by the upstream identity provider in a message containing the string `got oidc claims`, as well as the user info returned.
 
 > [!NOTE]
-> If you need to ensure that Coder only uses information from the ID token and does not hit the UserInfo endpoint, you can set the configuration option `CODER_OIDC_IGNORE_USERINFO=true`.
+> If you need to make sure that Coder only uses information from the ID token and does not hit the UserInfo endpoint, you can set the configuration option `CODER_OIDC_IGNORE_USERINFO=true`.
 
 ### Email Addresses
 
@@ -63,7 +63,7 @@ If your upstream identity provider uses a different claim, you can set `CODER_OI
 
 > [!NOTE]
 > If this claim is empty, the email address will be stripped of the domain, and become the username (for example, `example@coder.com` becomes `example`).
-> To avoid conflicts, Coder may also append a random word to the resulting username.
+> To avoid conflicts, Coder might also append a random word to the resulting username.
 
 ## OIDC Login Customization
 
@@ -120,11 +120,11 @@ CODER_DISABLE_PASSWORD_AUTH=true
 ## SCIM
 
 > [!IMPORTANT]
-> SCIM is a Premium feature ([learn more](https://coder.com/pricing#compare-plans)).
+> System for Cross-domain Identity Management (SCIM) is a Premium feature ([learn more](https://coder.com/pricing#compare-plans)).
 >
 > Coder's SCIM 2.0 implementation is not a fully certified or guaranteed implementation of the [SCIM 2.0 specification](https://datatracker.ietf.org/doc/html/rfc7644).
 > It is intended to cover common user provisioning and deprovisioning flows with the major identity providers (Okta, Microsoft Entra ID, and so on).
-> Specific attributes, endpoints, or behaviors required by your IdP may not be supported, and compatibility may change between releases.
+> Specific attributes, endpoints, or behaviors required by your IdP might not be supported, and compatibility might change between releases.
 > If you depend on a specific SCIM behavior, [contact us](https://coder.com/contact) before rolling it out broadly.
 > See [coder/coder#15830](https://github.com/coder/coder/issues/15830) for tracked gaps and ongoing work.
 
@@ -138,7 +138,7 @@ CODER_SCIM_AUTH_HEADER="your-api-key"
 
 ### SCIM 2.0 handler
 
-Coder includes an opt-in SCIM 2.0 handler that follows [RFC 7644](https://datatracker.ietf.org/doc/html/rfc7644) and has been verified against an external SCIM 2.0 compliance suite.
+Coder includes an opt-in SCIM 2.0 handler that follows [Request for Comments (RFC) 7644](https://datatracker.ietf.org/doc/html/rfc7644) and has been verified against an external SCIM 2.0 compliance suite.
 It supports the following:
 
 - User provisioning and deprovisioning

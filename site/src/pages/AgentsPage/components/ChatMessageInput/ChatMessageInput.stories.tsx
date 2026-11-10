@@ -48,7 +48,7 @@ const meta: Meta<typeof ChatMessageInput> = {
 	},
 	decorators: [
 		(Story) => (
-			<div className="w-[520px] space-y-3 rounded-md border border-border border-solid p-4">
+			<div className="w-130 space-y-3 rounded-md border border-border border-solid p-4">
 				<button type="button" className="text-content-secondary text-sm">
 					Outside target
 				</button>
@@ -206,6 +206,14 @@ export const SkillChipBetweenText: Story = {
 	play: async ({ canvasElement }) => {
 		await typeInEditor(canvasElement, "Use /rev");
 		await userEvent.keyboard("{Enter}on the latest diff");
+	},
+};
+
+export const SelectedSkillChip: Story = {
+	play: async ({ canvasElement }) => {
+		await typeInEditor(canvasElement, "/rev");
+		await userEvent.keyboard("{Enter}on the latest diff");
+		await userEvent.keyboard("{Control>}a{/Control}");
 	},
 };
 

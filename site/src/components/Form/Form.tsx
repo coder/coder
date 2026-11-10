@@ -83,14 +83,14 @@ export const FormSection: React.FC<FormSectionProps> = ({
 			ref={ref}
 			className={cn(
 				"flex items-start flex-col gap-4 lg:gap-6",
-				direction === "horizontal" && "lg:flex-row lg:gap-[120px]",
+				direction === "horizontal" && "lg:flex-row lg:gap-30",
 				classes.root,
 			)}
 		>
 			<div
 				className={cn(
 					"w-full shrink-0 top-24",
-					direction === "horizontal" && "lg:sticky lg:max-w-[312px]",
+					direction === "horizontal" && "lg:sticky lg:max-w-78",
 					classes.sectionInfo,
 				)}
 			>

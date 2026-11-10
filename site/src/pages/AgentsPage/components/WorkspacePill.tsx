@@ -135,7 +135,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 		>
 			{/* Sizing (floor, growth, natural-width cap) is owned by the
 			 * wrapper in AgentChatInput; this span just fills it. */}
-			<span className="inline-flex w-full min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs font-medium text-content-secondary">
+			<span className="inline-flex w-full min-w-0 items-center overflow-hidden rounded-full bg-surface-secondary text-xs text-content-secondary">
 				<Tooltip
 					open={!inOverflowPopover && tooltipOpen}
 					onOpenChange={(v) => setTooltipOpen(v && !open)}
@@ -174,7 +174,7 @@ export const WorkspacePill: React.FC<WorkspacePillProps> = ({
 				align="start"
 				// Above the composer on mobile so the opening press cannot
 				// release onto a menu item.
-				className="mobile-full-width-dropdown mobile-full-width-dropdown-above-composer w-48 p-1 [&_[role=menuitem]]:text-xs [&_[role=menuitem]]:py-1 [&_svg]:size-3.5! [&_img]:size-3.5!"
+				className="mobile-full-width-dropdown mobile-full-width-dropdown-above-composer w-48 p-1 **:[[role=menuitem]]:text-xs **:[[role=menuitem]]:py-1 [&_svg]:size-3.5! [&_img]:size-3.5!"
 			>
 				{/* Scrolls within the capped above-composer height on mobile;
 				 * no-op on desktop. overflow-x-hidden avoids a horizontal

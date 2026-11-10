@@ -2,15 +2,15 @@
 title: Amazon Web Services
 ---
 
-This guide is designed to get you up and running with a Coder proof-of-concept on AWS EKS using a [Coder-provided CloudFormation Template](https://codermktplc-assets.s3.us-east-1.amazonaws.com/community-edition/eks-cluster.yaml).
-The deployed AWS Coder Reference Architecture is below: ![Coder on AWS EKS](../../../images/platforms/aws/aws-coder-refarch-v1.png)
+This guide is designed to get you up and running with a Coder proof-of-concept on AWS Elastic Kubernetes Service (EKS) using a [Coder-provided CloudFormation Template](https://codermktplc-assets.s3.us-east-1.amazonaws.com/community-edition/eks-cluster.yaml).
+The deployed AWS Coder Reference Architecture is below: ![Coder on AWS Elastic Kubernetes Service (EKS)](../../../images/platforms/aws/aws-coder-refarch-v1.png)
 
-If you are familiar with EC2 however, you can use our [install script](../../cli.md) to run Coder on any popular Linux distribution.
+If you are familiar with Amazon Elastic Compute Cloud (EC2) however, you can use our [install script](../../../get-started/index.md#step-2-install-and-start-coder) to run Coder on any popular Linux distribution.
 
 ## Requirements
 
 This guide assumes your AWS account has `AdministratorAccess` permissions given the number and types of AWS Services deployed.
-After deployment of Coder into a AWS POC or Sandbox account, it is recommended that the permissions be scaled back to only what your deployment requires.
+After deployment of Coder into a AWS proof of concept (POC) or Sandbox account, it is recommended that the permissions be scaled back to only what your deployment requires.
 
 ## Launch Coder Community Edition from the from AWS Marketplace
 
@@ -54,7 +54,7 @@ We recommend starting with a Kubernetes template since Coder Community Edition i
 
 ### Next steps
 
-- [IDEs with Coder](../../../user-guides/workspace-access/index.md)
-- [Writing custom templates for Coder](../../../admin/templates/index.md)
+- [IDEs with Coder](../../../workspaces/workspace-access/index.md)
+- [Writing custom templates for Coder](../../../templates/index.md)
 - [Configure the control plane](../../../admin/setup/index.md)
 - [Use your own domain + TLS](../../../admin/setup/index.md#tls--reverse-proxy)

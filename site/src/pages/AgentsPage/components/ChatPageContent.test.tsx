@@ -148,6 +148,7 @@ const renderChatPageInput = (
 			selectedMCPServerIds={[]}
 			onMCPSelectionChange={vi.fn()}
 			isWorkspaceLoading={false}
+			queuedMessageUnderEditID={null}
 			{...overrides}
 		/>,
 	);
@@ -232,7 +233,7 @@ describe("ChatPageInput", () => {
 			isOwner: true,
 			canUpdateChat: true,
 			archived: true,
-			canDelete: true,
+			canDelete: false,
 			canPromote: false,
 		},
 	])(

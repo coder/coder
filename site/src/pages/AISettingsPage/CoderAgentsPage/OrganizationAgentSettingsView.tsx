@@ -1,9 +1,7 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { ChatComputerUseProviders } from "#/api/typesGenerated";
 import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { InfoTooltip } from "#/components/InfoTooltip/InfoTooltip";
-import { normalizeProvider } from "#/modules/aiModels/helpers";
 import { isKnownComputerUseModel } from "#/modules/aiModels/knownModels/catalog";
 import {
 	bindingCompactionTriggerSource,
@@ -92,33 +90,14 @@ const settings: readonly {
 		context: "computer_use",
 		title: "Computer use",
 		description:
-			"Used by the computer use subagent to operate the virtual desktop. Only Anthropic and OpenAI models are supported.",
+			"Used by the computer use subagent to operate the virtual desktop. Supports Anthropic, OpenAI, and OpenAI-compatible models, and Claude models from AWS Bedrock.",
 		unsetPlaceholder: "Use default model",
-		// This row lists only Anthropic and OpenAI models, so a saved model can
-		// be unavailable here while it stays enabled.
+		// This row lists only models that support computer use, so a saved model
+		// can be unavailable here while it stays enabled.
 		unavailableModelWarning:
 			"The saved model is no longer available for computer use and will be ignored until you choose a new override.",
 	},
 ];
-
-const getProviderType = (
-	model: TypesGen.ChatModel,
-	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
-) => providerInfoByID.get(model.ai_provider_id)?.provider ?? "";
-
-// The API rejects computer use overrides for other provider types.
-const filterComputerUseProviderModels = (
-	models: readonly TypesGen.ChatModel[],
-	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
-) =>
-	models.filter((model) => {
-		const providerType = normalizeProvider(
-			getProviderType(model, providerInfoByID),
-		);
-		return ChatComputerUseProviders.some(
-			(provider) => provider === providerType,
-		);
-	});
 
 // Computer use falls back to the organization default model when the override
 // is unset or missing from computerUseProviderModels, so the warning follows
@@ -128,7 +107,6 @@ const isUnverifiedComputerUseModel = (
 	defaultModelID: string | undefined,
 	computerUseProviderModels: readonly TypesGen.ChatModel[],
 	enabledModels: readonly TypesGen.ChatModel[],
-	providerInfoByID: ReadonlyMap<string, ProviderInfo>,
 ) => {
 	const effectiveModel =
 		computerUseProviderModels.find((model) => model.id === selectedModelID) ??
@@ -136,11 +114,12 @@ const isUnverifiedComputerUseModel = (
 	if (effectiveModel === undefined) {
 		return false;
 	}
-	const providerType = getProviderType(effectiveModel, providerInfoByID);
+	const computerUseProvider = effectiveModel.computer_use_provider;
 	return (
-		!isKnownComputerUseModel(providerType, effectiveModel.model) ||
+		computerUseProvider === undefined ||
+		!isKnownComputerUseModel(computerUseProvider, effectiveModel.model) ||
 		// The OpenAI computer tool exists only on the Responses API.
-		(normalizeProvider(providerType) === "openai" &&
+		(computerUseProvider === "openai" &&
 			effectiveModel.model_config?.openai_config?.use_responses_api === false)
 	);
 };
@@ -210,7 +189,6 @@ type ComputerUseModelWarningProps = {
 	defaultModelID: string | undefined;
 	computerUseProviderModels: readonly TypesGen.ChatModel[];
 	enabledModels: readonly TypesGen.ChatModel[];
-	providerInfoByID: ReadonlyMap<string, ProviderInfo>;
 };
 
 const ComputerUseModelWarning: React.FC<ComputerUseModelWarningProps> = ({
@@ -218,7 +196,6 @@ const ComputerUseModelWarning: React.FC<ComputerUseModelWarningProps> = ({
 	defaultModelID,
 	computerUseProviderModels,
 	enabledModels,
-	providerInfoByID,
 }) => {
 	if (
 		!isUnverifiedComputerUseModel(
@@ -226,7 +203,6 @@ const ComputerUseModelWarning: React.FC<ComputerUseModelWarningProps> = ({
 			defaultModelID,
 			computerUseProviderModels,
 			enabledModels,
-			providerInfoByID,
 		)
 	) {
 		return null;
@@ -272,9 +248,10 @@ const OrganizationAgentSettingsView: React.FC<
 				)
 			: [];
 
-	const computerUseProviderModels = filterComputerUseProviderModels(
-		enabledModels,
-		providerInfoByID,
+	// The API rejects computer use overrides for models without a computer use
+	// provider.
+	const computerUseProviderModels = enabledModels.filter(
+		(model) => model.computer_use_provider !== undefined,
 	);
 
 	return (
@@ -345,7 +322,6 @@ const OrganizationAgentSettingsView: React.FC<
 												defaultModelID={defaultModelID}
 												computerUseProviderModels={computerUseProviderModels}
 												enabledModels={enabledModels}
-												providerInfoByID={providerInfoByID}
 											/>
 										)
 									: undefined

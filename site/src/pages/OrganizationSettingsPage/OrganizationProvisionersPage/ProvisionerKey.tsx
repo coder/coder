@@ -58,7 +58,7 @@ export const ProvisionerKey: React.FC<ProvisionerKeyProps> = ({ name }) => {
 	const info = infoByType[type];
 
 	return (
-		<span className="flex items-center gap-1 whitespace-nowrap text-xs font-medium text-content-secondary">
+		<span className="flex items-center gap-1 whitespace-nowrap text-xs text-content-secondary">
 			{name}
 			{info && (
 				<Tooltip>

@@ -39,6 +39,7 @@ export const MockComputerUseChatModel: ChatModel = {
 	ai_provider_id: "provider-anthropic",
 	model: "claude-opus-5",
 	display_name: "Claude Opus 5",
+	computer_use_provider: "anthropic",
 };
 
 export const MockDefaultChatModel: ChatModel = {

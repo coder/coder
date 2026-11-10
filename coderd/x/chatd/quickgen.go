@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -31,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatretry"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
 const titleGenerationPrompt = "Write a short title for the user's message. " +
@@ -57,16 +59,14 @@ const titleGenerationPrompt = "Write a short title for the user's message. " +
 // across repeated runs over the same input. Fantasy providers drop
 // this with a call warning for models that reject it (OpenAI
 // reasoning models, Anthropic thinking models), but only for model
-// names they recognize. generateQuickgenObject handles models that
-// reject the parameter at the API instead.
+// names they recognize. quickgenParamModel handles models that reject
+// the parameter at the API instead.
 const quickgenTemperature = 0.0
 
 // generateQuickgenObject generates a structured object with provider
-// retries and the pinned quickgen temperature. Model aliases served
-// through gateways such as AI Bridge are not recognized by fantasy's
-// per-model parameter stripping and can reject temperature with a
-// bad-request error, so the call is retried without temperature when
-// the model rejects it.
+// retries and the pinned quickgen temperature. Callers pass a model
+// from resolveModelCall, whose quickgenParamModel drops parameters the
+// model rejects.
 func generateQuickgenObject[T any](
 	ctx context.Context,
 	model fantasy.LanguageModel,
@@ -77,16 +77,111 @@ func generateQuickgenObject[T any](
 	var result *fantasy.ObjectResult[T]
 	err := chatretry.Retry(ctx, maxRetries, func(retryCtx context.Context) error {
 		var genErr error
-		result, genErr = generateObject[T](retryCtx, model, call)
-		if call.Temperature != nil && isTemperatureRejectedError(genErr) {
-			// The model rejects the temperature parameter. Drop it
-			// for this and any later retry attempts.
-			call.Temperature = nil
-			result, genErr = generateObject[T](retryCtx, model, call)
-		}
+		result, genErr = object.Generate[T](retryCtx, model, call)
 		return genErr
 	}, nil)
 	return result, err
+}
+
+// quickgenParamRejectionTTL bounds how long a replica remembers that a
+// model rejected a quickgen parameter, so a provider that starts
+// accepting it again, or a model name pointed at a different backend,
+// is picked up without a restart.
+const quickgenParamRejectionTTL = 6 * time.Hour
+
+// quickgenParam is an object-generation request parameter that some
+// models reject with a bad request.
+type quickgenParam int
+
+const (
+	// quickgenParamToolChoice is the forced tool_choice that tool-mode
+	// object generation sends.
+	quickgenParamToolChoice quickgenParam = iota
+	quickgenParamTemperature
+)
+
+type quickgenParamKey struct {
+	providerID uuid.UUID
+	model      string
+	param      quickgenParam
+}
+
+// withQuickgenParamFallback wraps model in a quickgenParamModel that
+// shares rejections with every other model resolved by this replica.
+func (p *Server) withQuickgenParamFallback(model chatprovider.Model, providerID uuid.UUID) chatprovider.Model {
+	return model.WithLanguageModel(&quickgenParamModel{
+		LanguageModel: model.LanguageModel(),
+		rejections:    &p.quickgenParamRejections,
+		clock:         p.clock,
+		providerID:    providerID,
+		model:         model.ModelID(),
+	})
+}
+
+// quickgenParamModel drops object-generation parameters the model
+// rejects and remembers each rejection, so later calls for the same
+// provider and model skip it. Some models, such as Claude Opus 5.5,
+// reject both the forced tool_choice of tool-mode generation and the
+// temperature parameter. Gateway model aliases cannot be matched by
+// name, so rejections are learned from bad-request errors.
+type quickgenParamModel struct {
+	fantasy.LanguageModel
+	// rejections maps a quickgenParamKey to the time.Time of the latest
+	// rejection.
+	rejections *sync.Map
+	clock      quartz.Clock
+	providerID uuid.UUID
+	model      string
+}
+
+// GenerateObject falls back to parsing a JSON text response when the
+// model rejects the forced tool_choice, and drops temperature when the
+// model rejects it. Providers report one rejected parameter per
+// response, so each attempt learns at most one.
+func (m *quickgenParamModel) GenerateObject(ctx context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
+	const maxAttempts = 3
+	var (
+		resp *fantasy.ObjectResponse
+		err  error
+	)
+	for range maxAttempts {
+		textMode := m.rejected(quickgenParamToolChoice)
+		attempt := call
+		if m.rejected(quickgenParamTemperature) {
+			attempt.Temperature = nil
+		}
+		if textMode {
+			resp, err = object.GenerateWithText(ctx, m.LanguageModel, attempt)
+		} else {
+			resp, err = m.LanguageModel.GenerateObject(ctx, attempt)
+		}
+		switch {
+		case !textMode && isToolChoiceRejectedError(err):
+			m.reject(quickgenParamToolChoice)
+		case attempt.Temperature != nil && isTemperatureRejectedError(err):
+			m.reject(quickgenParamTemperature)
+		default:
+			return resp, err
+		}
+	}
+	return resp, err
+}
+
+func (m *quickgenParamModel) key(param quickgenParam) quickgenParamKey {
+	return quickgenParamKey{providerID: m.providerID, model: m.model, param: param}
+}
+
+func (m *quickgenParamModel) rejected(param quickgenParam) bool {
+	v, ok := m.rejections.Load(m.key(param))
+	if !ok {
+		return false
+	}
+	at, ok := v.(time.Time)
+	return ok && m.clock.Since(at) < quickgenParamRejectionTTL
+}
+
+func (m *quickgenParamModel) reject(param quickgenParam) {
+	m.rejections.Store(m.key(param), m.clock.Now())
 }
 
 // isTemperatureRejectedError reports whether a provider rejected the
@@ -106,33 +201,6 @@ func isTemperatureRejectedError(err error) bool {
 	}
 	text := strings.ToLower(providerErr.Error() + " " + string(providerErr.ResponseBody))
 	return strings.Contains(text, "temperature")
-}
-
-// generateObject generates a structured object, falling back to
-// text-mode generation when the provider rejects the forced tool_choice
-// that tool-mode generation sends. Some models, such as Claude Opus 5.5,
-// return a bad request for tool_choice "tool" and "any", and gateway
-// model aliases cannot be matched by name.
-func generateObject[T any](
-	ctx context.Context,
-	model fantasy.LanguageModel,
-	call fantasy.ObjectCall,
-) (*fantasy.ObjectResult[T], error) {
-	result, err := object.Generate[T](ctx, model, call)
-	if isToolChoiceRejectedError(err) {
-		return object.Generate[T](ctx, textObjectModel{LanguageModel: model}, call)
-	}
-	return result, err
-}
-
-// textObjectModel generates objects by parsing a JSON text response
-// instead of forcing a tool call.
-type textObjectModel struct {
-	fantasy.LanguageModel
-}
-
-func (m textObjectModel) GenerateObject(ctx context.Context, call fantasy.ObjectCall) (*fantasy.ObjectResponse, error) {
-	return object.GenerateWithText(ctx, m.LanguageModel, call)
 }
 
 // isToolChoiceRejectedError reports whether a provider rejected the
@@ -1137,7 +1205,7 @@ func generateChatSummary(
 	var result *fantasy.ObjectResult[generatedChatSummary]
 	err := chatretry.Retry(ctx, maxRetries, func(retryCtx context.Context) error {
 		var genErr error
-		result, genErr = generateObject[generatedChatSummary](retryCtx, model, call)
+		result, genErr = object.Generate[generatedChatSummary](retryCtx, model, call)
 		return genErr
 	}, nil)
 	if err != nil {
