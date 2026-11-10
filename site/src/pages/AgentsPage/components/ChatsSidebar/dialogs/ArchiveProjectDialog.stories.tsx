@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn, userEvent, within } from "storybook/test";
+import { fn, screen, spyOn, userEvent } from "storybook/test";
+import { API } from "#/api/api";
 import { chatProjectArchivePreviewKey } from "#/api/queries/chatProjects";
 import { chatRetentionDaysKey } from "#/api/queries/chats";
 import {
@@ -7,12 +8,13 @@ import {
 	MockStoppedWorkspace,
 	MockUserOwner,
 	MockWorkspace,
+	mockApiError,
 } from "#/testHelpers/entities";
 import { withAuthProvider } from "#/testHelpers/storybook";
 import {
 	type ProjectChatWorkspace,
 	projectChatWorkspacesKey,
-} from "../../../utils/projectArchiveWorkspaces";
+} from "../../../utils/agentWorkspaceUtils";
 import { ArchiveProjectDialog } from "./ArchiveProjectDialog";
 
 const mockWorkspaces: ProjectChatWorkspace[] = [
@@ -85,11 +87,66 @@ export const Workspaces: Story = {
 
 /** Deleting the workspaces asks for the project name. */
 export const DeleteWorkspaces: Story = {
-	parameters: Workspaces.parameters,
-	play: async ({ canvasElement }) => {
-		const body = within(canvasElement.ownerDocument.body);
+	parameters: {
+		queries: [
+			{
+				key: chatProjectArchivePreviewKey(MockChatProject.id),
+				data: { chat_count: 1, active_chat_count: 0 },
+			},
+			{ key: chatRetentionDaysKey, data: { retention_days: 1 } },
+			{
+				key: projectChatWorkspacesKey(MockChatProject.id),
+				data: mockWorkspaces,
+			},
+		],
+	},
+	play: async () => {
 		await userEvent.click(
-			await body.findByRole("radio", { name: "Delete them" }),
+			await screen.findByRole("radio", { name: "Delete them" }),
+		);
+	},
+};
+
+export const Loading: Story = {
+	parameters: { queries: [] },
+	beforeEach: () => {
+		const pending = new Promise<never>(() => {});
+		spyOn(API.experimental, "getChatProjectArchivePreview").mockReturnValue(
+			pending,
+		);
+		spyOn(API.experimental, "getChatRetentionDays").mockReturnValue(pending);
+		spyOn(API.experimental, "getChats").mockReturnValue(pending);
+	},
+};
+
+/** Without the preview, the dialog can't tell whether chats are running. */
+export const PreviewError: Story = {
+	parameters: {
+		queries: [
+			{ key: chatRetentionDaysKey, data: { retention_days: 30 } },
+			{ key: projectChatWorkspacesKey(MockChatProject.id), data: [] },
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjectArchivePreview").mockRejectedValue(
+			mockApiError({ message: "Failed to count the project's chats." }),
+		);
+	},
+};
+
+export const WorkspacesError: Story = {
+	parameters: {
+		queries: [
+			{
+				key: chatProjectArchivePreviewKey(MockChatProject.id),
+				data: { chat_count: 5, active_chat_count: 0 },
+			},
+			{ key: chatRetentionDaysKey, data: { retention_days: 30 } },
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockRejectedValue(
+			mockApiError({ message: "Failed to list your chats." }),
 		);
 	},
 };

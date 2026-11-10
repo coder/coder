@@ -20,7 +20,6 @@ export const ProjectChatsList: React.FC<ProjectChatsListProps> = ({
 	// Absent when the page renders outside the agents layout, which hides the
 	// row actions.
 	const outletContext = useOutletContext<AgentsPageOutletContext | undefined>();
-	// An archived project's page lists the chats archived with it.
 	const isArchived = Boolean(project.archived_at);
 	const chatsQuery = useInfiniteQuery(projectChats(project.id, isArchived));
 	// Watch events and moves update cached rows in place, so a chat archived

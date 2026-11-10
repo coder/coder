@@ -143,7 +143,7 @@ export const ProjectChatsListView: React.FC<ProjectChatsListViewProps> = ({
 							    beside it. */}
 							<div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-content-secondary">
 								{isArchived
-									? "No chats were archived with this project."
+									? "No archived chats."
 									: "No chats yet. Every chat will leverage the same settings and history."}
 							</div>
 							{errorAlert}

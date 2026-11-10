@@ -151,7 +151,7 @@ type ChatActionsMenuItemsProps = {
 	 * Set when the chat's project is archived: its chats come back only
 	 * with the project.
 	 */
-	readonly isProjectArchived?: boolean;
+	readonly isProjectArchived: boolean;
 	readonly onArchiveAndDeleteWorkspace: () => void;
 	/** When omitted, the "Rename chat" item is hidden. */
 	readonly onOpenRenameDialog?: () => void;
@@ -198,7 +198,8 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 	const [confirmation, setConfirmation] = useState<TypesGen.Workspace>();
 	const isArchiving =
 		useIsMutating({ mutationKey: chatArchiveMutationKey(chat.id) }) > 0;
-	// The server is the source of truth: it refuses the unarchive with 409.
+	// A chat doesn't carry its project's archive state, so look the project
+	// up among archived ones. The server's 409 still covers a stale list.
 	const archivedProjectQuery = useQuery({
 		...archivedChatProject(chat.project_id),
 		enabled:
@@ -337,6 +338,18 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 	);
 };
 
+type MenuItemHintProps = {
+	readonly id: string;
+	readonly children: React.ReactNode;
+};
+
+/** Explains why the menu item that names it in aria-describedby is disabled. */
+const MenuItemHint: React.FC<MenuItemHintProps> = ({ id, children }) => (
+	<div id={id} className="max-w-56 px-2 py-1.5 text-xs text-content-secondary">
+		{children}
+	</div>
+);
+
 const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	chat,
 	canManage,
@@ -353,7 +366,7 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 	onMarkUnread,
 	onArchiveAgent,
 	onUnarchiveAgent,
-	isProjectArchived = false,
+	isProjectArchived,
 	onArchiveAndDeleteWorkspace,
 	onOpenRenameDialog,
 	prStatuses,
@@ -517,12 +530,9 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 							Unarchive agent
 						</Item>
 						{isProjectArchived && (
-							<div
-								id={unarchiveBlockedHintId}
-								className="max-w-56 px-2 py-1.5 text-xs text-content-secondary"
-							>
+							<MenuItemHint id={unarchiveBlockedHintId}>
 								Unarchive the project to restore this chat.
-							</div>
+							</MenuItemHint>
 						)}
 						{subagentToggle}
 						{readToggle}
@@ -579,14 +589,11 @@ const ChatActionsMenuItems: React.FC<ChatActionsMenuItemsProps> = ({
 						</Item>
 					)}
 					{isArchiveBlocked && (
-						<div
-							id={archiveBlockedHintId}
-							className="max-w-56 px-2 py-1.5 text-xs text-content-secondary"
-						>
+						<MenuItemHint id={archiveBlockedHintId}>
 							{archiveBlockedReason === "paused"
 								? "Finish editing the queued message first."
 								: "Interrupt or wait for the agent to finish first."}
-						</div>
+						</MenuItemHint>
 					)}
 				</>
 			)}

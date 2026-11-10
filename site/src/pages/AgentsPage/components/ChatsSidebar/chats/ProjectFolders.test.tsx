@@ -126,6 +126,8 @@ describe("ProjectFolders", () => {
 		const user = userEvent.setup();
 		const { rerender } = renderProjectFolders([]);
 
+		// The section toggle, Archived projects, then the empty state's button.
+		await user.tab();
 		await user.tab();
 		await user.tab();
 		const newProjectButton = screen.getByRole("button", {

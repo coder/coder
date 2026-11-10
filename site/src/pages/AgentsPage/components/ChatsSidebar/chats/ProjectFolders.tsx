@@ -61,9 +61,9 @@ type ProjectFoldersProps = {
 	readonly onOpenProjectDialog: OpenProjectDialog;
 	readonly onArchive: ArchiveProject;
 	readonly onDelete: DeleteProject;
-	readonly onOpenArchivedProjects: (
-		event: React.MouseEvent<HTMLButtonElement>,
-	) => void;
+	readonly onOpenArchivedProjects: () => void;
+	/** Receives the Archived projects button, which project dialogs refocus. */
+	readonly archivedProjectsButtonRef?: React.Ref<HTMLButtonElement>;
 	readonly isLoading: boolean;
 	readonly error: unknown;
 	/**
@@ -88,6 +88,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	onArchive,
 	onDelete,
 	onOpenArchivedProjects,
+	archivedProjectsButtonRef,
 	isLoading,
 	error,
 	isLoadError,
@@ -127,6 +128,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 					actions={
 						<>
 							<Button
+								ref={archivedProjectsButtonRef}
 								variant="subtle"
 								size="icon"
 								className="size-7"

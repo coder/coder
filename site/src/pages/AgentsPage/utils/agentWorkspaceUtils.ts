@@ -1,15 +1,29 @@
-import type { QueryClient } from "react-query";
+import { mutationOptions, type QueryClient, queryOptions } from "react-query";
 import { API } from "#/api/api";
 import { getErrorMessage, isWorkspaceNotFound } from "#/api/errors";
-import { ArchiveAndDeleteError } from "#/api/queries/chats";
-import { workspaceBuildsKey } from "#/api/queries/workspaceBuilds";
-import { workspaceById } from "#/api/queries/workspaces";
+import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
+	ArchiveAndDeleteError,
+	chatsByWorkspace,
+	DEFAULT_CHAT_PAGE_LIMIT,
+	invalidateChatsByWorkspace,
+} from "#/api/queries/chats";
+import { workspaceBuildsKey } from "#/api/queries/workspaceBuilds";
+import { workspaceQuotaKey } from "#/api/queries/workspaceQuota";
+import {
+	invalidateWorkspaceListQueries,
+	workspaceById,
+	workspaceByIdKey,
+} from "#/api/queries/workspaces";
+import {
+	type Chat,
+	type ChatProject,
 	PrebuildsSystemUserID,
 	type Workspace,
 	type WorkspaceBuild,
 } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
+import { isWorkspaceOn } from "#/utils/workspace";
 
 /**
  * Returns the moment a workspace's identity transferred to its
@@ -238,3 +252,172 @@ export function notifyArchiveAndDeleteFailed(
 		},
 	);
 }
+
+/** A workspace behind one of the user's own chats in a project. */
+export type ProjectChatWorkspace = {
+	readonly workspace: Workspace;
+	/** True when the workspace existed before the chats that use it. */
+	readonly existedBeforeChat: boolean;
+};
+
+export type ProjectWorkspaceAction = "leave" | "stop" | "delete";
+type ProjectWorkspaceChange = Exclude<ProjectWorkspaceAction, "leave">;
+
+const listOwnProjectChats = async (projectId: string, signal: AbortSignal) => {
+	const chats: Chat[] = [];
+	for (let offset = 0; ; offset += DEFAULT_CHAT_PAGE_LIMIT) {
+		const page = await API.experimental.getChats(
+			{
+				limit: DEFAULT_CHAT_PAGE_LIMIT,
+				offset,
+				q: "archived:false source:created_by_me",
+				project_id: projectId,
+			},
+			signal,
+		);
+		chats.push(...page);
+		if (page.length < DEFAULT_CHAT_PAGE_LIMIT) {
+			return chats;
+		}
+	}
+};
+
+export const projectChatWorkspacesKey = (projectId: string) =>
+	[...chatProjectsKey, projectId, "own-chat-workspaces"] as const;
+
+/**
+ * Lists the workspaces behind the user's own unarchived chats in a project,
+ * by name. Workspaces that no longer exist are left out.
+ */
+export const projectChatWorkspaces = (
+	queryClient: QueryClient,
+	project: ChatProject,
+) =>
+	queryOptions({
+		queryKey: projectChatWorkspacesKey(project.id),
+		queryFn: async ({ signal }): Promise<ProjectChatWorkspace[]> => {
+			const chats = await listOwnProjectChats(project.id, signal);
+			// A workspace counts as created by a chat when it appeared after the
+			// first chat that uses it.
+			const firstChatCreatedAt = new Map<string, string>();
+			for (const chat of chats.flatMap((root) => [
+				root,
+				...(root.children ?? []),
+			])) {
+				if (!chat.workspace_id) {
+					continue;
+				}
+				const current = firstChatCreatedAt.get(chat.workspace_id);
+				if (!current || new Date(chat.created_at) < new Date(current)) {
+					firstChatCreatedAt.set(chat.workspace_id, chat.created_at);
+				}
+			}
+			const results = await Promise.all(
+				[...firstChatCreatedAt].map(async ([workspaceId, chatCreatedAt]) => {
+					const action = await fetchArchiveAndDeleteAction(
+						queryClient,
+						workspaceId,
+						chatCreatedAt,
+					);
+					const workspace = queryClient.getQueryData<Workspace>(
+						workspaceByIdKey(workspaceId),
+					);
+					if (action === "archive-only" || !workspace) {
+						return [];
+					}
+					return [{ workspace, existedBeforeChat: action === "confirm" }];
+				}),
+			);
+			return results
+				.flat()
+				.sort((a, b) => a.workspace.name.localeCompare(b.workspace.name));
+		},
+	});
+
+// GET /chats/by-workspace accepts at most this many workspace IDs.
+const chatsByWorkspaceLimit = 25;
+
+const findWorkspacesInUse = async (
+	queryClient: QueryClient,
+	workspaceIds: readonly string[],
+) => {
+	const inUse = new Set<string>();
+	for (let i = 0; i < workspaceIds.length; i += chatsByWorkspaceLimit) {
+		const chatByWorkspace = await queryClient.fetchQuery({
+			...chatsByWorkspace(workspaceIds.slice(i, i + chatsByWorkspaceLimit)),
+			staleTime: 0,
+		});
+		for (const workspaceId of Object.keys(chatByWorkspace)) {
+			inUse.add(workspaceId);
+		}
+	}
+	return inUse;
+};
+
+export type ProjectWorkspaceActionResult = {
+	readonly failed: ReadonlyArray<{
+		readonly workspace: Workspace;
+		readonly error: unknown;
+	}>;
+	/** Workspaces another unarchived chat still uses. */
+	readonly skipped: readonly Workspace[];
+};
+
+/**
+ * Stops or deletes the workspaces behind the user's chats once their project
+ * is archived. Workspaces another unarchived chat still uses are skipped, and
+ * running workspaces are the only ones stopped. A failed in-use check rejects
+ * before any workspace changes.
+ */
+export const projectWorkspaceAction = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: async ({
+			action,
+			workspaces,
+		}: {
+			action: ProjectWorkspaceChange;
+			workspaces: readonly Workspace[];
+		}): Promise<ProjectWorkspaceActionResult> => {
+			const inUse = await findWorkspacesInUse(
+				queryClient,
+				workspaces.map(({ id }) => id),
+			);
+			const failed: Array<{ workspace: Workspace; error: unknown }> = [];
+			await Promise.all(
+				workspaces
+					.filter(({ id }) => !inUse.has(id))
+					.map(async (workspace) => {
+						try {
+							if (action === "delete") {
+								notifyDeleteQueueState(
+									workspace,
+									await API.deleteWorkspace(workspace.id),
+								);
+							} else if (isWorkspaceOn(workspace)) {
+								await API.stopWorkspace(workspace.id);
+							}
+						} catch (error) {
+							if (!isWorkspaceNotFound(error)) {
+								failed.push({ workspace, error });
+							}
+						}
+					}),
+			);
+			return {
+				failed,
+				skipped: workspaces.filter(({ id }) => inUse.has(id)),
+			};
+		},
+		onSettled: (_result, _error, { action, workspaces }) => {
+			void invalidateWorkspaceListQueries(queryClient);
+			void invalidateChatsByWorkspace(queryClient);
+			for (const workspace of workspaces) {
+				void queryClient.invalidateQueries({
+					queryKey: workspaceByIdKey(workspace.id),
+				});
+			}
+			if (action === "delete") {
+				void queryClient.invalidateQueries({ queryKey: workspaceQuotaKey });
+			}
+		},
+	});

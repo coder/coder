@@ -1,11 +1,8 @@
-import { useMutation, useQueryClient } from "react-query";
-import { getErrorMessage } from "#/api/errors";
-import { unarchiveChatProject } from "#/api/queries/chatProjects";
 import type { ChatProject } from "#/api/typesGenerated";
 import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { Button } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { toast } from "#/components/Toaster/toast";
+import { useUnarchiveChatProject } from "../../hooks/useUnarchiveChatProject";
 
 type ArchivedProjectBannerProps = {
 	readonly project: ChatProject;
@@ -15,13 +12,7 @@ type ArchivedProjectBannerProps = {
 export const ArchivedProjectBanner: React.FC<ArchivedProjectBannerProps> = ({
 	project,
 }) => {
-	const queryClient = useQueryClient();
-	const unarchiveMutation = useMutation({
-		...unarchiveChatProject(queryClient),
-		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to unarchive project."));
-		},
-	});
+	const { unarchive, isPending } = useUnarchiveChatProject(project);
 
 	return (
 		<Alert
@@ -32,10 +23,10 @@ export const ArchivedProjectBanner: React.FC<ArchivedProjectBannerProps> = ({
 					<Button
 						size="sm"
 						variant="outline"
-						disabled={unarchiveMutation.isPending}
-						onClick={() => unarchiveMutation.mutate(project)}
+						disabled={isPending}
+						onClick={unarchive}
 					>
-						<Spinner loading={unarchiveMutation.isPending} />
+						<Spinner loading={isPending} />
 						Unarchive
 					</Button>
 				)

@@ -127,9 +127,8 @@ type ChatsPanelProps = {
 	readonly onOpenProjectDialog: OpenProjectDialog;
 	readonly onArchiveProject: ArchiveProject;
 	readonly onDeleteProject: DeleteProject;
-	readonly onOpenArchivedProjects: (
-		event: React.MouseEvent<HTMLButtonElement>,
-	) => void;
+	readonly onOpenArchivedProjects: () => void;
+	readonly archivedProjectsButtonRef?: React.Ref<HTMLButtonElement>;
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
 	readonly modelConfigs: readonly ChatModel[];
@@ -169,6 +168,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	onArchiveProject,
 	onDeleteProject,
 	onOpenArchivedProjects,
+	archivedProjectsButtonRef,
 	chats,
 	chatErrorReasons,
 	modelConfigs,
@@ -628,6 +628,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 									onArchive={onArchiveProject}
 									onDelete={onDeleteProject}
 									onOpenArchivedProjects={onOpenArchivedProjects}
+									archivedProjectsButtonRef={archivedProjectsButtonRef}
 									isLoading={isProjectsLoading}
 									error={projectsError}
 									isLoadError={isProjectsLoadError}

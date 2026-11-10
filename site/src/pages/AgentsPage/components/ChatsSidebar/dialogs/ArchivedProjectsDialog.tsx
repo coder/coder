@@ -1,10 +1,6 @@
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
-import { getErrorMessage } from "#/api/errors";
-import {
-	archivedChatProjects,
-	unarchiveChatProject,
-} from "#/api/queries/chatProjects";
+import { archivedChatProjects } from "#/api/queries/chatProjects";
 import type { ChatProject } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
@@ -17,7 +13,7 @@ import {
 } from "#/components/Dialog/Dialog";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { toast } from "#/components/Toaster/toast";
+import { useUnarchiveChatProject } from "../../../hooks/useUnarchiveChatProject";
 import { buildAgentProjectPath } from "../../../utils/navigation";
 import { ChatProjectIcon } from "../../ChatProjectIcon";
 
@@ -61,17 +57,7 @@ const ArchivedProjectsList: React.FC<ArchivedProjectsListProps> = ({
 	locationSearch,
 	onOpenProject,
 }) => {
-	const queryClient = useQueryClient();
 	const projectsQuery = useQuery(archivedChatProjects());
-	const unarchiveMutation = useMutation({
-		...unarchiveChatProject(queryClient),
-		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to unarchive project."));
-		},
-	});
-	const unarchivingProjectId = unarchiveMutation.isPending
-		? unarchiveMutation.variables.id
-		: undefined;
 
 	if (projectsQuery.error && !projectsQuery.data) {
 		return (
@@ -110,15 +96,13 @@ const ArchivedProjectsList: React.FC<ArchivedProjectsListProps> = ({
 		);
 	}
 	return (
-		<ul className="m-0 flex list-none flex-col gap-1 p-0">
+		<ul className="m-0 flex min-w-0 list-none flex-col gap-1 p-0">
 			{projectsQuery.data.map((project) => (
 				<ArchivedProjectRow
 					key={project.id}
 					project={project}
 					locationSearch={locationSearch}
-					isUnarchiving={unarchivingProjectId === project.id}
 					onOpen={onOpenProject}
-					onUnarchive={() => unarchiveMutation.mutate(project)}
 				/>
 			))}
 		</ul>
@@ -128,49 +112,48 @@ const ArchivedProjectsList: React.FC<ArchivedProjectsListProps> = ({
 type ArchivedProjectRowProps = {
 	readonly project: ChatProject;
 	readonly locationSearch: string;
-	readonly isUnarchiving: boolean;
 	readonly onOpen: () => void;
-	readonly onUnarchive: () => void;
 };
 
 const ArchivedProjectRow: React.FC<ArchivedProjectRowProps> = ({
 	project,
 	locationSearch,
-	isUnarchiving,
 	onOpen,
-	onUnarchive,
-}) => (
-	<li className="flex min-w-0 items-center gap-3 py-1">
-		<ChatProjectIcon
-			project={project}
-			className="size-4 text-content-secondary"
-		/>
-		<span className="min-w-0 flex-1 truncate text-sm text-content-primary">
-			{project.name}
-		</span>
-		<Button asChild size="sm" variant="outline">
-			<RouterLink
-				to={{
-					pathname: buildAgentProjectPath({ projectId: project.id }),
-					search: locationSearch,
-				}}
-				aria-label={`Open ${project.name}`}
-				onClick={onOpen}
-			>
-				Open
-			</RouterLink>
-		</Button>
-		{project.permissions.archive && (
-			<Button
-				size="sm"
-				variant="outline"
-				aria-label={`Unarchive ${project.name}`}
-				disabled={isUnarchiving}
-				onClick={onUnarchive}
-			>
-				<Spinner loading={isUnarchiving} />
-				Unarchive
+}) => {
+	const { unarchive, isPending } = useUnarchiveChatProject(project);
+	return (
+		<li className="flex items-center gap-3 py-1">
+			<ChatProjectIcon
+				project={project}
+				className="size-4 text-content-secondary"
+			/>
+			<span className="min-w-0 flex-1 truncate text-sm text-content-primary">
+				{project.name}
+			</span>
+			<Button asChild size="sm" variant="outline">
+				<RouterLink
+					to={{
+						pathname: buildAgentProjectPath({ projectId: project.id }),
+						search: locationSearch,
+					}}
+					aria-label={`Open ${project.name}`}
+					onClick={onOpen}
+				>
+					Open
+				</RouterLink>
 			</Button>
-		)}
-	</li>
-);
+			{project.permissions.archive && (
+				<Button
+					size="sm"
+					variant="outline"
+					aria-label={`Unarchive ${project.name}`}
+					disabled={isPending}
+					onClick={unarchive}
+				>
+					<Spinner loading={isPending} />
+					Unarchive
+				</Button>
+			)}
+		</li>
+	);
+};

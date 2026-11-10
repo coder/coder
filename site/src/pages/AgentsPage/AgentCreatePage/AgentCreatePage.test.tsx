@@ -27,6 +27,7 @@ import {
 	MockUnsetUserChatPersonalModelOverrides,
 } from "#/testHelpers/chatModels";
 import {
+	MockArchivedChatProject,
 	MockChatProject,
 	MockDefaultOrganization,
 	MockFailedWorkspaceBuild,
@@ -692,10 +693,6 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("opens an archived project with its archived chats, unarchives it, and stays on the page when archiving it again", async () => {
-		const archivedProject = {
-			...MockChatProject,
-			archived_at: "2026-11-10T00:00:00Z",
-		};
 		let isArchived = true;
 		const projectRequests: string[] = [];
 		const projectRoute = `/api/experimental/organizations/${MockChatProject.organization_id}/chats/projects/:projectId`;
@@ -706,7 +703,7 @@ describe("AgentCreatePage project frame", () => {
 				return HttpResponse.json(
 					listsArchived !== isArchived
 						? []
-						: [isArchived ? archivedProject : MockChatProject],
+						: [isArchived ? MockArchivedChatProject : MockChatProject],
 				);
 			}),
 			http.get(`${projectRoute}/archive-preview`, () =>
@@ -718,7 +715,7 @@ describe("AgentCreatePage project frame", () => {
 			http.post(`${projectRoute}/archive`, () => {
 				isArchived = true;
 				projectRequests.push("archive");
-				return HttpResponse.json(archivedProject);
+				return HttpResponse.json(MockArchivedChatProject);
 			}),
 			http.post(`${projectRoute}/unarchive`, () => {
 				isArchived = false;

@@ -5,7 +5,6 @@ import { useLocation, useNavigate } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import {
 	deleteChatProject,
-	unarchiveChatProject,
 	updateChatProject,
 } from "#/api/queries/chatProjects";
 import type { ChatProject } from "#/api/typesGenerated";
@@ -19,6 +18,7 @@ import {
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
 import { toast } from "#/components/Toaster/toast";
+import { useUnarchiveChatProject } from "../../hooks/useUnarchiveChatProject";
 import { draftStorageKeys } from "../AgentCreateForm";
 import {
 	hasProjectManageAction,
@@ -66,12 +66,7 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 		},
 	});
 
-	const unarchiveMutation = useMutation({
-		...unarchiveChatProject(queryClient),
-		onError: (error) => {
-			toast.error(getErrorMessage(error, "Failed to unarchive project."));
-		},
-	});
+	const { unarchive } = useUnarchiveChatProject(project);
 
 	const [isEditOpen, setIsEditOpen] = useState(false);
 	const [isArchiveOpen, setIsArchiveOpen] = useState(false);
@@ -122,7 +117,7 @@ export const ProjectHeaderSection: React.FC<ProjectHeaderSectionProps> = ({
 										setIsEditOpen(true);
 									}}
 									onArchive={() => setIsArchiveOpen(true)}
-									onUnarchive={() => unarchiveMutation.mutate(project)}
+									onUnarchive={unarchive}
 									onDelete={() => setIsDeleteOpen(true)}
 								/>
 							</DropdownMenuContent>

@@ -9,6 +9,7 @@ import type {
 import { toast } from "#/components/Toaster/toast";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
+	MockArchivedChatProject,
 	MockChatProject,
 	MockStoppedWorkspace,
 	MockWorkspace,
@@ -22,16 +23,25 @@ const chatCreatedAt = "2026-10-01T00:00:00Z";
 // Created after the chats, so each counts as created by its chat.
 const workspaceCreatedAt = "2026-10-02T00:00:00Z";
 
-const workspace = (overrides: Partial<Workspace>): Workspace => ({
+const mockWorkspace = (id: string): Workspace => ({
 	...MockWorkspace,
+	id,
+	name: id,
 	created_at: workspaceCreatedAt,
-	...overrides,
 });
+const mockRunningWorkspace = mockWorkspace("running");
+const mockInUseWorkspace = mockWorkspace("in-use");
+const mockStoppedWorkspace: Workspace = {
+	...mockWorkspace("stopped"),
+	latest_build: MockStoppedWorkspace.latest_build,
+};
+const mockDeletableWorkspace = mockWorkspace("deletable");
+const mockFailingWorkspace = mockWorkspace("failing");
 
 const mockApi = ({
 	preview = { chat_count: 2, active_chat_count: 0 },
-	workspaces = [] as Workspace[],
-	workspacesInUse = [] as string[],
+	workspaces = [],
+	workspacesInUse = [],
 }: {
 	preview?: ChatProjectArchivePreview;
 	workspaces?: Workspace[];
@@ -65,7 +75,7 @@ const mockApi = ({
 	);
 	const archive = vi
 		.spyOn(API.experimental, "archiveChatProject")
-		.mockResolvedValue({ ...MockChatProject, archived_at: chatCreatedAt });
+		.mockResolvedValue(MockArchivedChatProject);
 	const stop = vi
 		.spyOn(API, "stopWorkspace")
 		.mockResolvedValue(MockWorkspaceBuildDelete);
@@ -145,16 +155,13 @@ describe("ArchiveProjectDialog", () => {
 
 	it("stops running workspaces no other chat uses after archiving", async () => {
 		const user = userEvent.setup();
-		const running = workspace({ id: "running", name: "running" });
-		const inUse = workspace({ id: "in-use", name: "in-use" });
-		const stopped = workspace({
-			id: "stopped",
-			name: "stopped",
-			latest_build: MockStoppedWorkspace.latest_build,
-		});
 		const { stop } = mockApi({
-			workspaces: [running, inUse, stopped],
-			workspacesInUse: [inUse.id],
+			workspaces: [
+				mockRunningWorkspace,
+				mockInUseWorkspace,
+				mockStoppedWorkspace,
+			],
+			workspacesInUse: [mockInUseWorkspace.id],
 		});
 		const warningToast = vi.spyOn(toast, "warning");
 		await renderDialog();
@@ -163,16 +170,16 @@ describe("ArchiveProjectDialog", () => {
 		await user.click(screen.getByRole("button", { name: "Archive project" }));
 
 		await waitFor(() => expect(warningToast).toHaveBeenCalled());
-		expect(stop.mock.calls).toEqual([[running.id]]);
+		expect(stop.mock.calls).toEqual([[mockRunningWorkspace.id]]);
 	});
 
 	it("deletes workspaces only once the project name is typed, and reports failures", async () => {
 		const user = userEvent.setup();
-		const deletable = workspace({ id: "deletable", name: "deletable" });
-		const failing = workspace({ id: "failing", name: "failing" });
-		const { archive, remove } = mockApi({ workspaces: [deletable, failing] });
+		const { archive, remove } = mockApi({
+			workspaces: [mockDeletableWorkspace, mockFailingWorkspace],
+		});
 		remove.mockImplementation(async (id) => {
-			if (id === failing.id) {
+			if (id === mockFailingWorkspace.id) {
 				throw mockApiError({ message: "Delete refused" });
 			}
 			return MockWorkspaceBuildDelete;
@@ -189,8 +196,8 @@ describe("ArchiveProjectDialog", () => {
 
 		await waitFor(() => expect(errorToast).toHaveBeenCalled());
 		expect(remove.mock.calls.map(([id]) => id).sort()).toEqual([
-			deletable.id,
-			failing.id,
+			mockDeletableWorkspace.id,
+			mockFailingWorkspace.id,
 		]);
 		expect(errorToast.mock.calls[0][0]).toMatch(
 			/1 workspace could not be deleted/,

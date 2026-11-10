@@ -140,11 +140,9 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 		archivedProjectQuery.isFetchedAfterMount &&
 		!archivedProjectQuery.error;
 	// A failed background refetch keeps the cached project usable.
-	const failedProjectQuery = projectQuery.error
-		? projectQuery
-		: archivedProjectQuery.error
-			? archivedProjectQuery
-			: undefined;
+	const failedProjectQuery = [projectQuery, archivedProjectQuery].find(
+		(query) => query.error,
+	);
 	const projectLookupError =
 		projectId !== undefined && !project ? failedProjectQuery?.error : undefined;
 	const aiGatewayDisabled = !useAIGatewayEnabled();

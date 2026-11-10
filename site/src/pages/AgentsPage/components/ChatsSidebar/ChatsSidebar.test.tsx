@@ -32,6 +32,7 @@ import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockAppearanceConfig,
+	MockArchivedChatProject,
 	MockBuildInfo,
 	MockChatProject,
 	MockDefaultOrganization,
@@ -668,10 +669,7 @@ describe("ChatsSidebar projects", () => {
 				"/api/experimental/organizations/:organization/chats/projects/:project/archive",
 				async ({ params, request }) => {
 					archiveRequests.push([params.project, await request.json()]);
-					return HttpResponse.json({
-						...MockChatProject,
-						archived_at: oneWeekAgo,
-					});
+					return HttpResponse.json(MockArchivedChatProject);
 				},
 			),
 		);
@@ -699,13 +697,12 @@ describe("ChatsSidebar projects", () => {
 
 	it("unarchives a project from the archived projects list", async () => {
 		const user = userEvent.setup();
-		const archivedProject = { ...MockChatProject, archived_at: oneWeekAgo };
 		const unarchivedProjectIds: unknown[] = [];
 		server.use(
 			http.get("/api/experimental/chats/projects", ({ request }) =>
 				HttpResponse.json(
 					new URL(request.url).searchParams.get("archived") === "true"
-						? [archivedProject]
+						? [MockArchivedChatProject]
 						: [],
 				),
 			),

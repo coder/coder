@@ -155,7 +155,9 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		open: boolean;
 	}>({ project: null, open: false });
 	const [isArchivedProjectsOpen, setIsArchivedProjectsOpen] = useState(false);
-	const archivedProjectsFocusReturn = useDialogFocusReturn();
+	// The archive dialog's opener, a folder menu item, is gone once it closes,
+	// and an archived project's folder leaves the list.
+	const projectArchiveFocusReturn = useDialogFocusReturn();
 
 	const openProjectDialog = (dialog: ProjectDialogState) => {
 		if (dialog.mode === "create") {
@@ -277,10 +279,8 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 					setArchiveDialog({ project, open: true })
 				}
 				onDeleteProject={openDeleteProjectDialog}
-				onOpenArchivedProjects={(event) => {
-					archivedProjectsFocusReturn.rememberTrigger(event);
-					setIsArchivedProjectsOpen(true);
-				}}
+				onOpenArchivedProjects={() => setIsArchivedProjectsOpen(true)}
+				archivedProjectsButtonRef={projectArchiveFocusReturn.setPrimaryFallback}
 				chats={chats}
 				chatErrorReasons={chatErrorReasons}
 				modelConfigs={modelConfigs}
@@ -368,12 +368,13 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				onClose={() =>
 					setArchiveDialog((current) => ({ ...current, open: false }))
 				}
+				onCloseAutoFocus={projectArchiveFocusReturn.restoreFocus}
 			/>
 			<ArchivedProjectsDialog
 				open={isArchivedProjectsOpen}
 				onOpenChange={setIsArchivedProjectsOpen}
 				locationSearch={location.search}
-				onCloseAutoFocus={archivedProjectsFocusReturn.restoreFocus}
+				onCloseAutoFocus={projectArchiveFocusReturn.restoreFocus}
 			/>
 			{onRenameTitle && (
 				<RenameChatDialog

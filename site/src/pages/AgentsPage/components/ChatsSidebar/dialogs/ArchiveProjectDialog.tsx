@@ -11,6 +11,7 @@ import { chatRetentionDays } from "#/api/queries/chats";
 import type {
 	ChatProject,
 	ChatProjectArchivePreview,
+	Workspace,
 } from "#/api/typesGenerated";
 import { Alert } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -29,30 +30,26 @@ import {
 	DialogTitle,
 } from "#/components/Dialog/Dialog";
 import { Label } from "#/components/Label/Label";
+import { Link } from "#/components/Link/Link";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
-import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	type ProjectChatWorkspace,
 	type ProjectWorkspaceAction,
+	type ProjectWorkspaceActionResult,
 	projectChatWorkspaces,
-	runProjectWorkspaceAction,
-} from "../../../utils/projectArchiveWorkspaces";
+	projectWorkspaceAction,
+} from "../../../utils/agentWorkspaceUtils";
 
 const plural = (count: number, singular: string, pluralForm: string) =>
 	`${count} ${count === 1 ? singular : pluralForm}`;
 
-const retentionSentence = (retentionDays: number) =>
-	retentionDays > 0
-		? `Archived chats are permanently deleted after ${plural(retentionDays, "day", "days")}. Unarchiving the project after that won't bring them back.`
-		: "Archived chats are kept until you unarchive the project.";
-
 type ArchiveRequest = {
 	readonly stopActiveChats: boolean;
 	readonly workspaceAction: ProjectWorkspaceAction;
-	readonly workspaces: readonly ProjectChatWorkspace[];
+	readonly workspaces: readonly Workspace[];
 };
 
 type ArchiveProjectDialogProps = {
@@ -77,31 +74,45 @@ export const ArchiveProjectDialog: React.FC<ArchiveProjectDialogProps> = ({
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const archiveMutation = useMutation(archiveChatProject(queryClient));
+	const workspaceMutation = useMutation({
+		...projectWorkspaceAction(queryClient),
+		onSuccess: (result, { action }) =>
+			notifyWorkspaceActionResult(action, result, navigate),
+		onError: (error) => {
+			toast.error(
+				getErrorMessage(
+					error,
+					"Failed to check whether your workspaces are still in use.",
+				),
+				{
+					description:
+						"The project was archived, and its workspaces were left as they were.",
+				},
+			);
+		},
+	});
 
 	const archive = (
-		archivedProject: ChatProject,
+		projectToArchive: ChatProject,
 		{ stopActiveChats, workspaceAction, workspaces }: ArchiveRequest,
 	) => {
 		archiveMutation.mutate(
-			{ project: archivedProject, stopActiveChats },
+			{ project: projectToArchive, stopActiveChats },
 			{
 				onSuccess: () => {
 					onClose();
 					toast.success("Project archived");
 					if (workspaceAction !== "leave") {
-						void runProjectWorkspaceAction(
-							queryClient,
-							workspaceAction,
-							workspaces.map(({ workspace }) => workspace),
-							navigate,
-						);
+						workspaceMutation.mutate({ action: workspaceAction, workspaces });
 					}
 				},
 				onError: async (error) => {
 					// A chat can start after the preview loaded. The refreshed
 					// preview shows the warning and the button that stops it.
 					if (getErrorStatus(error) === 409) {
-						const previewKey = chatProjectArchivePreviewKey(archivedProject.id);
+						const previewKey = chatProjectArchivePreviewKey(
+							projectToArchive.id,
+						);
 						await queryClient.refetchQueries({ queryKey: previewKey });
 						const preview =
 							queryClient.getQueryData<ChatProjectArchivePreview>(previewKey);
@@ -119,7 +130,7 @@ export const ArchiveProjectDialog: React.FC<ArchiveProjectDialogProps> = ({
 		<Dialog
 			open={open}
 			onOpenChange={(next) => {
-				// Closing mid-request would drop the workspace follow-up.
+				// The request can't be cancelled, and a 409 is reported in here.
 				if (!next && !archiveMutation.isPending) {
 					onClose();
 				}
@@ -153,26 +164,22 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 	onArchive,
 }) => {
 	const queryClient = useQueryClient();
-	const { user } = useAuthenticated();
 	const previewQuery = useQuery(chatProjectArchivePreview(project));
 	const retentionQuery = useQuery(chatRetentionDays());
-	const workspacesQuery = useQuery(
-		projectChatWorkspaces(queryClient, project, user.id),
-	);
+	const workspacesQuery = useQuery(projectChatWorkspaces(queryClient, project));
 	const [workspaceAction, setWorkspaceAction] =
 		useState<ProjectWorkspaceAction>("leave");
 	const confirmation = useDeleteConfirmation(project.name, true);
-	const radioGroupLabelId = useId();
 
 	const preview = previewQuery.data;
-	const retentionDays = retentionQuery.data?.retention_days;
 	const activeChatCount = preview?.active_chat_count ?? 0;
 	const workspaces = workspacesQuery.data ?? [];
 	const isDeleting = workspaceAction === "delete" && workspaces.length > 0;
-	const summaryError = previewQuery.error ?? retentionQuery.error;
+	// A failed refetch leaves a preview that may miss newly active chats.
 	const canArchive =
 		preview !== undefined &&
-		retentionDays !== undefined &&
+		!previewQuery.error &&
+		retentionQuery.data !== undefined &&
 		!isArchiving &&
 		(!isDeleting || confirmation.confirmed);
 
@@ -184,12 +191,12 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 		onArchive({
 			stopActiveChats: activeChatCount > 0,
 			workspaceAction: workspaces.length > 0 ? workspaceAction : "leave",
-			workspaces,
+			workspaces: workspaces.map(({ workspace }) => workspace),
 		});
 	};
 
 	return (
-		<form className="flex flex-col gap-6" onSubmit={onSubmit}>
+		<form className="flex min-w-0 flex-col gap-6" onSubmit={onSubmit}>
 			<DialogHeader>
 				<DialogTitle>Archive project</DialogTitle>
 				<DialogDescription>
@@ -199,118 +206,24 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 			</DialogHeader>
 
 			<div className="flex flex-col gap-4">
-				{summaryError ? (
-					<ErrorAlert
-						error={summaryError}
-						actions={
-							<Button
-								type="button"
-								size="sm"
-								variant="outline"
-								onClick={() => {
-									void previewQuery.refetch();
-									void retentionQuery.refetch();
-								}}
-							>
-								Retry
-							</Button>
-						}
-					/>
-				) : preview === undefined || retentionDays === undefined ? (
-					<div role="status" className="flex flex-col gap-2">
-						<span className="sr-only">Loading project chats</span>
-						<Skeleton variant="text" className="w-1/3" />
-						<Skeleton variant="text" className="w-full" />
-					</div>
-				) : (
-					<>
-						<p className="m-0 text-sm text-content-secondary">
-							{plural(preview.chat_count, "chat", "chats")} will be archived.{" "}
-							{retentionSentence(retentionDays)}
-						</p>
-						{activeChatCount > 0 && (
-							<Alert severity="warning" prominent>
-								{activeChatCount === 1
-									? "1 chat is running."
-									: `${activeChatCount} chats are running.`}{" "}
-								Archiving stops them and discards any reply in progress. Queued
-								messages are kept.
-							</Alert>
-						)}
-					</>
-				)}
-
-				{workspacesQuery.isLoading ? (
-					<div role="status" className="flex flex-col gap-2">
-						<span className="sr-only">Loading your workspaces</span>
-						<Skeleton variant="text" className="w-1/2" />
-						<Skeleton variant="text" className="w-2/3" />
-					</div>
-				) : workspacesQuery.error ? (
-					<ErrorAlert
-						error={workspacesQuery.error}
-						actions={
-							<Button
-								type="button"
-								size="sm"
-								variant="outline"
-								onClick={() => void workspacesQuery.refetch()}
-							>
-								Retry
-							</Button>
-						}
-					/>
-				) : (
-					workspaces.length > 0 && (
-						<div className="flex flex-col gap-3">
-							<p
-								id={radioGroupLabelId}
-								className="m-0 text-sm font-medium text-content-primary"
-							>
-								Workspaces used by your chats in this project
-							</p>
-							<ul className="m-0 flex list-none flex-col gap-1 p-0 text-sm text-content-secondary">
-								{workspaces.map(({ workspace, existedBeforeChat }) => (
-									<li key={workspace.id} className="flex items-center gap-2">
-										<span className="truncate">{workspace.name}</span>
-										{existedBeforeChat && (
-											<Badge size="sm">existing workspace</Badge>
-										)}
-									</li>
-								))}
-							</ul>
-							<RadioGroup
-								aria-labelledby={radioGroupLabelId}
-								value={workspaceAction}
-								onValueChange={(value) => {
-									if (
-										value === "leave" ||
-										value === "stop" ||
-										value === "delete"
-									) {
-										setWorkspaceAction(value);
-									}
-								}}
-							>
-								<WorkspaceActionOption value="leave" label="Leave them" />
-								<WorkspaceActionOption value="stop" label="Stop them" />
-								<WorkspaceActionOption value="delete" label="Delete them" />
-							</RadioGroup>
-							{isDeleting && (
-								<DeleteConfirmationField
-									confirmation={confirmation}
-									label={
-										<>
-											Type <strong>{project.name}</strong> to delete these
-											workspaces
-										</>
-									}
-									entity="project"
-								/>
-							)}
-						</div>
-					)
-				)}
+				<ArchiveSummary
+					preview={preview}
+					retentionDays={retentionQuery.data?.retention_days}
+					error={previewQuery.error ?? retentionQuery.error}
+					onRetry={() => {
+						void previewQuery.refetch();
+						void retentionQuery.refetch();
+					}}
+				/>
+				<ProjectWorkspacesSection
+					project={project}
+					workspaces={workspacesQuery.data}
+					error={workspacesQuery.error}
+					onRetry={() => void workspacesQuery.refetch()}
+					action={workspaceAction}
+					onActionChange={setWorkspaceAction}
+					confirmation={confirmation}
+				/>
 			</div>
 
 			<DialogFooter>
@@ -335,6 +248,150 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 	);
 };
 
+type RetryButtonProps = {
+	readonly onRetry: () => void;
+};
+
+const RetryButton: React.FC<RetryButtonProps> = ({ onRetry }) => (
+	<Button type="button" size="sm" variant="outline" onClick={onRetry}>
+		Retry
+	</Button>
+);
+
+type ArchiveSummaryProps = {
+	readonly preview: ChatProjectArchivePreview | undefined;
+	readonly retentionDays: number | undefined;
+	readonly error: unknown;
+	readonly onRetry: () => void;
+};
+
+const ArchiveSummary: React.FC<ArchiveSummaryProps> = ({
+	preview,
+	retentionDays,
+	error,
+	onRetry,
+}) => {
+	const errorAlert = Boolean(error) && (
+		<ErrorAlert error={error} actions={<RetryButton onRetry={onRetry} />} />
+	);
+	if (preview === undefined || retentionDays === undefined) {
+		return (
+			errorAlert || (
+				<div role="status" className="flex flex-col gap-2">
+					<span className="sr-only">Loading project chats</span>
+					<Skeleton variant="text" className="w-1/3" />
+					<Skeleton variant="text" className="w-full" />
+				</div>
+			)
+		);
+	}
+	return (
+		<>
+			{errorAlert}
+			<p className="m-0 text-sm text-content-secondary">
+				{plural(preview.chat_count, "chat", "chats")} will be archived.{" "}
+				{retentionDays > 0
+					? `Archived chats are permanently deleted after ${plural(retentionDays, "day", "days")}. Unarchiving the project after that won't bring them back.`
+					: "Archived chats are kept until you unarchive the project."}
+			</p>
+			{preview.active_chat_count > 0 && (
+				<Alert severity="warning" prominent>
+					{plural(preview.active_chat_count, "chat is", "chats are")} running.
+					Archiving stops them and discards any reply in progress. Queued
+					messages are kept.
+				</Alert>
+			)}
+		</>
+	);
+};
+
+type ProjectWorkspacesSectionProps = {
+	readonly project: ChatProject;
+	readonly workspaces: readonly ProjectChatWorkspace[] | undefined;
+	readonly error: unknown;
+	readonly onRetry: () => void;
+	readonly action: ProjectWorkspaceAction;
+	readonly onActionChange: (action: ProjectWorkspaceAction) => void;
+	readonly confirmation: ReturnType<typeof useDeleteConfirmation>;
+};
+
+/** Offers to stop or delete the workspaces behind the user's own chats. */
+const ProjectWorkspacesSection: React.FC<ProjectWorkspacesSectionProps> = ({
+	project,
+	workspaces,
+	error,
+	onRetry,
+	action,
+	onActionChange,
+	confirmation,
+}) => {
+	const radioGroupLabelId = useId();
+	const errorAlert = Boolean(error) && (
+		<ErrorAlert error={error} actions={<RetryButton onRetry={onRetry} />} />
+	);
+	if (workspaces === undefined) {
+		return (
+			errorAlert || (
+				<div role="status" className="flex flex-col gap-2">
+					<span className="sr-only">Loading your workspaces</span>
+					<Skeleton variant="text" className="w-1/2" />
+					<Skeleton variant="text" className="w-2/3" />
+				</div>
+			)
+		);
+	}
+	if (workspaces.length === 0) {
+		return errorAlert;
+	}
+	return (
+		<div className="flex flex-col gap-3">
+			{errorAlert}
+			<p
+				id={radioGroupLabelId}
+				className="m-0 text-sm font-medium text-content-primary"
+			>
+				Workspaces used by your chats in this project
+			</p>
+			<ul className="m-0 flex list-none flex-col gap-1 p-0 text-sm text-content-secondary">
+				{workspaces.map(({ workspace, existedBeforeChat }) => (
+					<li key={workspace.id} className="flex min-w-0 items-center gap-2">
+						<span className="truncate">{workspace.name}</span>
+						{existedBeforeChat && (
+							<Badge size="sm" className="shrink-0">
+								Existing workspace
+							</Badge>
+						)}
+					</li>
+				))}
+			</ul>
+			<RadioGroup
+				aria-labelledby={radioGroupLabelId}
+				value={action}
+				onValueChange={(value) => {
+					if (value === "leave" || value === "stop" || value === "delete") {
+						onActionChange(value);
+					}
+				}}
+			>
+				<WorkspaceActionOption value="leave" label="Leave them" />
+				<WorkspaceActionOption value="stop" label="Stop them" />
+				<WorkspaceActionOption value="delete" label="Delete them" />
+			</RadioGroup>
+			{action === "delete" && (
+				<DeleteConfirmationField
+					confirmation={confirmation}
+					label={
+						<>
+							Type <strong>{project.name}</strong> to delete these workspaces
+						</>
+					}
+					entity="project"
+				/>
+			)}
+		</div>
+	);
+};
+
 type WorkspaceActionOptionProps = {
 	readonly value: ProjectWorkspaceAction;
 	readonly label: string;
@@ -352,5 +409,64 @@ const WorkspaceActionOption: React.FC<WorkspaceActionOptionProps> = ({
 				{label}
 			</Label>
 		</div>
+	);
+};
+
+type WorkspaceLinkProps = {
+	readonly workspace: Workspace;
+	readonly onOpen: (path: string) => void;
+};
+
+const WorkspaceLink: React.FC<WorkspaceLinkProps> = ({ workspace, onOpen }) => {
+	const path = `/@${workspace.owner_name}/${workspace.name}`;
+	return (
+		<Link
+			href={path}
+			showExternalIcon={false}
+			onClick={(event) => {
+				event.preventDefault();
+				onOpen(path);
+			}}
+		>
+			{workspace.name}
+		</Link>
+	);
+};
+
+/** One toast that links every workspace that was skipped or failed. */
+const notifyWorkspaceActionResult = (
+	action: Exclude<ProjectWorkspaceAction, "leave">,
+	{ failed, skipped }: ProjectWorkspaceActionResult,
+	onOpenWorkspace: (path: string) => void,
+) => {
+	if (failed.length === 0 && skipped.length === 0) {
+		return;
+	}
+	const description = (
+		<ul className="m-0 flex list-none flex-col gap-1 p-0">
+			{failed.map(({ workspace, error }) => (
+				<li key={workspace.id}>
+					<WorkspaceLink workspace={workspace} onOpen={onOpenWorkspace} />:{" "}
+					{getErrorMessage(error, "Request failed.")}
+				</li>
+			))}
+			{skipped.map((workspace) => (
+				<li key={workspace.id}>
+					<WorkspaceLink workspace={workspace} onOpen={onOpenWorkspace} />:
+					still used by an unarchived chat.
+				</li>
+			))}
+		</ul>
+	);
+	if (failed.length > 0) {
+		toast.error(
+			`The project was archived, but ${plural(failed.length, "workspace", "workspaces")} could not be ${action === "stop" ? "stopped" : "deleted"}.`,
+			{ description },
+		);
+		return;
+	}
+	toast.warning(
+		`The project was archived. ${plural(skipped.length, "workspace", "workspaces")} still in use ${skipped.length === 1 ? "was" : "were"} skipped.`,
+		{ description },
 	);
 };

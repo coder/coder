@@ -25,7 +25,7 @@ type ProjectActionsMenuItemsProps = {
 	readonly project: Pick<ChatProject, "permissions" | "archived_at">;
 	readonly onEdit: () => void;
 	readonly onArchive: () => void;
-	/** Omit where archived projects are never listed. */
+	/** When omitted, an archived project gets no "Unarchive project" item. */
 	readonly onUnarchive?: () => void;
 	readonly onDelete: () => void;
 };
@@ -33,8 +33,11 @@ type ProjectActionsMenuItemsProps = {
 /** Reports whether ProjectActionsMenuItems renders any permission-gated item. */
 export const hasProjectManageAction = ({
 	permissions,
-}: Pick<ChatProject, "permissions">) =>
-	permissions.update || permissions.archive || permissions.delete;
+	archived_at,
+}: Pick<ChatProject, "permissions" | "archived_at">) =>
+	(permissions.update && !archived_at) ||
+	permissions.archive ||
+	permissions.delete;
 
 /** Project actions shared by dropdown and context menus. */
 export const ProjectActionsMenuItems: React.FC<
@@ -51,7 +54,6 @@ export const ProjectActionsMenuItems: React.FC<
 	onDelete,
 }) => {
 	const { permissions } = project;
-	// An archived project can't be edited until it is unarchived.
 	const isArchived = Boolean(project.archived_at);
 	return (
 		<>

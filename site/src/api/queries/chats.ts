@@ -113,7 +113,7 @@ export type ChatListInput = Readonly<{
 
 type ChatSearchParams = Readonly<{ q: string }>;
 
-const chatsByWorkspaceKey = (workspaceIds: readonly string[]) =>
+export const chatsByWorkspaceKey = (workspaceIds: readonly string[]) =>
 	[...chatsByWorkspaceFamilyKey, workspaceIds] as const;
 
 export const CHAT_LIST_PR_STATUS_ORDER = [
@@ -1376,7 +1376,7 @@ export const replaceChatMessagesHistory = (
 	);
 };
 
-const DEFAULT_CHAT_PAGE_LIMIT = 50;
+export const DEFAULT_CHAT_PAGE_LIMIT = 50;
 export const CHAT_SEARCH_LIMIT = 50;
 
 type UpdateChatWorkspaceVariables = {
@@ -1544,10 +1544,7 @@ export const infiniteProjectFolderChats = (
 export const archivedProjectChatsKey = (projectId: string) =>
 	[...projectChatsKey(projectId), { archived: true }] as const;
 
-/**
- * Root chats in one project, newest first. An archived project's page lists
- * its archived chats instead.
- */
+/** Root chats in one project with the given archived state, newest first. */
 export const projectChats = (projectId: string, archived = false) => {
 	const limit = DEFAULT_CHAT_PAGE_LIMIT;
 

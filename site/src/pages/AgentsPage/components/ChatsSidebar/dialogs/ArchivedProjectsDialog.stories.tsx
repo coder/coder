@@ -1,17 +1,25 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn } from "storybook/test";
+import { fn, spyOn } from "storybook/test";
+import { API } from "#/api/api";
 import { archivedChatProjectsKey } from "#/api/queries/chatProjects";
-import { MockChatProject } from "#/testHelpers/entities";
+import {
+	MockArchivedChatProject,
+	MockUserOwner,
+	mockApiError,
+} from "#/testHelpers/entities";
+import { withAuthProvider } from "#/testHelpers/storybook";
 import { ArchivedProjectsDialog } from "./ArchivedProjectsDialog";
 
 const meta = {
 	title: "pages/AgentsPage/ArchivedProjectsDialog",
 	component: ArchivedProjectsDialog,
+	decorators: [withAuthProvider],
 	args: {
 		open: true,
 		onOpenChange: fn(),
 		locationSearch: "",
 	},
+	parameters: { user: MockUserOwner },
 } satisfies Meta<typeof ArchivedProjectsDialog>;
 
 export default meta;
@@ -24,12 +32,11 @@ export const Default: Story = {
 			{
 				key: archivedChatProjectsKey,
 				data: [
-					{ ...MockChatProject, archived_at: "2026-11-10T12:00:00Z" },
+					MockArchivedChatProject,
 					{
-						...MockChatProject,
+						...MockArchivedChatProject,
 						id: "billing",
-						name: "Billing migration",
-						archived_at: "2026-11-09T12:00:00Z",
+						name: "Billing migration with a name long enough to truncate in the row",
 						permissions: {
 							update: false,
 							delete: false,
@@ -46,5 +53,21 @@ export const Default: Story = {
 export const Empty: Story = {
 	parameters: {
 		queries: [{ key: archivedChatProjectsKey, data: [] }],
+	},
+};
+
+export const Loading: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+};
+
+export const LoadError: Story = {
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to list archived projects." }),
+		);
 	},
 };
