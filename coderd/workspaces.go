@@ -3032,6 +3032,14 @@ func convertWorkspace(
 			if agent.ParentID.Valid {
 				continue
 			}
+			// A workload shape only defines the daemons cloned from it.
+			// It never connects, which must not make the workspace
+			// unhealthy.
+			// The API redacts environment values, so only the presence of the
+			// marker is checked here.
+			if _, isShape := agent.EnvironmentVariables[codersdk.WorkloadShapeEnv]; isShape {
+				continue
+			}
 			if !agent.Health.Healthy {
 				failingAgents = append(failingAgents, agent.ID)
 			}

@@ -4958,6 +4958,26 @@ export interface CreateUserSecretRequest {
 	readonly enabled?: boolean;
 }
 
+// From codersdk/workloads.go
+/**
+ * CreateWorkloadRequest asks for a new runtime workload in a workspace.
+ */
+export interface CreateWorkloadRequest {
+	/**
+	 * Name is optional. It must be a valid agent name.
+	 */
+	readonly name?: string;
+	/**
+	 * Shape selects the template-declared shape by agent name. It may be
+	 * empty when the workspace has exactly one shape.
+	 */
+	readonly shape?: string;
+	/**
+	 * Command is run by the new daemon once it starts.
+	 */
+	readonly command?: string;
+}
+
 // From codersdk/workspaces.go
 /**
  * CreateWorkspaceBuildOnSuccessRequest queues a follow-up build that
@@ -5794,6 +5814,7 @@ export type Experiment =
 	| "mcp-server-http"
 	| "no_nats_pubsub"
 	| "notifications"
+	| "runtime-workloads"
 	| "workspace-build-updates"
 	| "workspace-capable-licensing"
 	| "workspace-usage";
@@ -5873,6 +5894,7 @@ export const Experiments: Experiment[] = [
 	"mcp-server-http",
 	"no_nats_pubsub",
 	"notifications",
+	"runtime-workloads",
 	"workspace-build-updates",
 	"workspace-capable-licensing",
 	"workspace-usage",
@@ -12270,6 +12292,204 @@ export interface WebsocketReport extends BaseReport {
 	readonly body: string;
 	readonly code: number;
 }
+
+// From codersdk/workloads.go
+/**
+ * Workload is a workspace daemon provisioned at runtime.
+ */
+export interface Workload {
+	/**
+	 * ID is also the ID of the workload's workspace agent once it exists.
+	 */
+	readonly id: string;
+	readonly name: string;
+	readonly workspace_id: string;
+	readonly shape: string;
+	readonly status: WorkloadStatus;
+	readonly command?: string;
+	readonly created_at: string;
+	readonly requested_by_id: string;
+	readonly requested_by_username: string;
+	/**
+	 * Identity is set once the pod exists.
+	 */
+	readonly identity?: string;
+	readonly pod?: WorkloadPod;
+}
+
+// From codersdk/workloads.go
+export type WorkloadAttestation = "agent-token" | "kubernetes-pod";
+
+export const WorkloadAttestations: WorkloadAttestation[] = [
+	"agent-token",
+	"kubernetes-pod",
+];
+
+// From codersdk/workloads.go
+/**
+ * WorkloadIdentity describes who a workspace daemon is.
+ */
+export interface WorkloadIdentity {
+	/**
+	 * ID is unique per daemon. For a runtime daemon it is the workspace ID
+	 * and the pod UID; for a declared daemon, the workspace ID and agent ID.
+	 */
+	readonly id: string;
+	readonly kind: WorkloadIdentityKind;
+	readonly attestation: WorkloadAttestation;
+	readonly agent_id: string;
+	readonly agent_name: string;
+	readonly workspace_id: string;
+	readonly workspace_name: string;
+	/**
+	 * OwnerID is the user the daemon is associated with: the workspace owner.
+	 */
+	readonly owner_id: string;
+	readonly owner_username: string;
+	/**
+	 * Shape is the name of the template-declared agent a runtime daemon was
+	 * cloned from.
+	 */
+	readonly shape?: string;
+	/**
+	 * RequestedByID is the user who asked for a runtime daemon.
+	 */
+	readonly requested_by_id?: string;
+	readonly requested_by_username?: string;
+	readonly pod?: WorkloadPod;
+}
+
+// From codersdk/workloads.go
+export type WorkloadIdentityKind = "declared" | "runtime";
+
+export const WorkloadIdentityKinds: WorkloadIdentityKind[] = [
+	"declared",
+	"runtime",
+];
+
+// From codersdk/workloads.go
+/**
+ * WorkloadOperatorPod is a pod in the operator's namespace that carries the
+ * operator's workload labels.
+ */
+export interface WorkloadOperatorPod {
+	readonly workload_id: string;
+	readonly name: string;
+	readonly uid: string;
+	readonly service_account: string;
+	readonly phase: string;
+	/**
+	 * Created is true when this operator process created the pod itself.
+	 * Labels can be set by anyone who can create pods, so coderd only binds
+	 * a workload's identity to a pod the operator vouches for this way.
+	 */
+	readonly created: boolean;
+}
+
+// From codersdk/workloads.go
+/**
+ * WorkloadOperatorShape is a shape an operator found in its namespace.
+ */
+export interface WorkloadOperatorShape {
+	/**
+	 * Deployment is the name of the Deployment that holds the pod template.
+	 */
+	readonly deployment: string;
+	/**
+	 * AgentToken is the shape agent's token from the pod template. It proves
+	 * that the Deployment belongs to that agent's workspace build.
+	 */
+	readonly agent_token: string;
+}
+
+// From codersdk/workloads.go
+/**
+ * WorkloadOperatorShapeStatus reports whether coderd accepted a shape.
+ */
+export interface WorkloadOperatorShapeStatus {
+	readonly deployment: string;
+	readonly agent_id?: string;
+	readonly agent_name?: string;
+	readonly workspace_id?: string;
+	readonly error?: string;
+}
+
+// From codersdk/workloads.go
+/**
+ * WorkloadOperatorSyncRequest is the operator's full view of its namespace.
+ * The operator sends it periodically.
+ */
+export interface WorkloadOperatorSyncRequest {
+	readonly namespace: string;
+	/**
+	 * Issuer, Audience and JWKS let coderd verify pod tokens from the
+	 * operator's cluster without access to that cluster.
+	 */
+	readonly issuer: string;
+	readonly audience: string;
+	readonly jwks: Record<string, string>;
+	readonly shapes: readonly WorkloadOperatorShape[];
+	readonly pods: readonly WorkloadOperatorPod[];
+}
+
+// From codersdk/workloads.go
+/**
+ * WorkloadOperatorSyncResponse is the set of workloads the operator must
+ * keep running. The operator deletes its pods that are not listed.
+ */
+export interface WorkloadOperatorSyncResponse {
+	readonly shapes: readonly WorkloadOperatorShapeStatus[];
+	readonly workloads: readonly WorkloadOperatorWorkload[];
+}
+
+// From codersdk/workloads.go
+/**
+ * WorkloadOperatorWorkload is a workload that should have a pod.
+ */
+export interface WorkloadOperatorWorkload {
+	readonly id: string;
+	readonly name: string;
+	readonly deployment: string;
+	readonly workspace_id: string;
+	/**
+	 * PodUID is the pod the workload's identity is bound to. It is empty
+	 * until coderd has accepted a pod the operator created.
+	 */
+	readonly pod_uid?: string;
+}
+
+// From codersdk/workloads.go
+/**
+ * WorkloadPod identifies the pod a runtime daemon runs in.
+ */
+export interface WorkloadPod {
+	readonly namespace: string;
+	readonly name: string;
+	readonly uid: string;
+	readonly service_account?: string;
+}
+
+// From codersdk/workloads.go
+/**
+ * WorkloadShapeEnv marks a template-declared agent as a shape: a daemon
+ * definition that is never started itself and is cloned for each runtime
+ * workload. The template sets it in the agent's env.
+ */
+export const WorkloadShapeEnv = "CODER_WORKLOAD_SHAPE";
+
+// From codersdk/workloads.go
+export type WorkloadStatus =
+	| "disconnected"
+	| "pending"
+	| "running"
+	| "starting";
+
+export const WorkloadStatuses: WorkloadStatus[] = [
+	"disconnected",
+	"pending",
+	"running",
+	"starting",
+];
 
 // From codersdk/workspaces.go
 /**

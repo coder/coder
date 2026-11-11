@@ -106,6 +106,7 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
 	"github.com/coder/coder/v2/coderd/x/gitsync"
+	"github.com/coder/coder/v2/coderd/x/workloads"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/codersdk/healthsdk"
@@ -722,6 +723,7 @@ func New(options *Options) *API {
 		UsageInserter:               options.UsageInserter,
 		FileCache:                   files.New(options.PrometheusRegistry, options.Authorizer),
 		Experiments:                 experiments,
+		workloads:                   workloads.NewRegistry(options.Clock),
 		WebpushDispatcher:           options.WebPushDispatcher,
 		healthCheckGroup:            &singleflight.Group[string, *healthsdk.HealthcheckReport]{},
 		Acquirer:                    acquirer,
@@ -1140,8 +1142,9 @@ func New(options *Options) *API {
 	})
 
 	workspaceAgentInfo := httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
-		DB:       options.Database,
-		Optional: false,
+		DB:                   options.Database,
+		Optional:             false,
+		ResolveIdentityToken: api.resolveAgentPodToken,
 	})
 
 	// API rate limit middleware. The counter is local and not shared between
@@ -1566,6 +1569,7 @@ func New(options *Options) *API {
 					httpmw.ExtractOrganizationParam(options.Database),
 				)
 				api.registerOrganizationChatRoutes(r)
+				api.registerWorkloadOperatorRoutes(r)
 				r.Get("/", api.organization)
 				r.Post("/templateversions", api.postTemplateVersionsByOrganization)
 				r.Route("/templates", func(r chi.Router) {
@@ -1855,6 +1859,8 @@ func New(options *Options) *API {
 				r.Get("/gitauth", api.workspaceAgentsGitAuth)
 				r.Get("/external-auth", api.workspaceAgentsExternalAuth)
 				r.Get("/gitsshkey", api.agentGitSSHKey)
+				r.With(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentRuntimeWorkloads)).
+					Get("/identity", api.workspaceAgentIdentity)
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
 				r.Get("/reinit", api.workspaceAgentReinit)
 				r.Route("/experimental", func(r chi.Router) {
@@ -1899,6 +1905,7 @@ func New(options *Options) *API {
 				)
 				r.Get("/", api.workspace)
 				r.Patch("/", api.patchWorkspace)
+				api.registerWorkspaceWorkloadRoutes(r)
 				r.Route("/builds", func(r chi.Router) {
 					r.Get("/", api.workspaceBuilds)
 					r.Post("/", api.postWorkspaceBuilds)
@@ -2330,6 +2337,12 @@ type API struct {
 	// stored rules, falling back to Experiments. Use it instead of
 	// Experiments for every experiment in codersdk.ExperimentsUserScoped.
 	ExperimentEvaluator *experimentrules.Evaluator
+
+	// workloads tracks workload operators and pending runtime workloads.
+	// It is in memory, so it only works with a single coderd replica.
+	workloads *workloads.Registry
+	// workloadSync serializes operator syncs.
+	workloadSync sync.Mutex
 
 	healthCheckGroup    *singleflight.Group[string, *healthsdk.HealthcheckReport]
 	healthCheckCache    atomic.Pointer[healthsdk.HealthcheckReport]

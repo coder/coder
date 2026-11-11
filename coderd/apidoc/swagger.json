@@ -10210,6 +10210,57 @@
 				]
 			}
 		},
+		"/api/v2/organizations/{organization}/workload-operators/{operator}/sync": {
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Organizations"],
+				"summary": "Sync a workload operator (experimental)",
+				"operationId": "sync-workload-operator",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"description": "Operator name",
+						"name": "operator",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Operator state",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.WorkloadOperatorSyncRequest"
+						}
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.WorkloadOperatorSyncResponse"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/v2/prebuilds/settings": {
 			"get": {
 				"produces": ["application/json"],
@@ -14451,6 +14502,30 @@
 				]
 			}
 		},
+		"/api/v2/workspaceagents/me/identity": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Agents"],
+				"summary": "Get the workload identity of the calling agent (experimental)",
+				"operationId": "get-workspace-agent-identity",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.WorkloadIdentity"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/v2/workspaceagents/me/log-source": {
 			"post": {
 				"consumes": ["application/json"],
@@ -16648,6 +16723,123 @@
 						"CoderSessionToken": []
 					}
 				]
+			}
+		},
+		"/api/v2/workspaces/{workspace}/workloads": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Workspaces"],
+				"summary": "List runtime workloads (experimental)",
+				"operationId": "list-workspace-workloads",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace ID",
+						"name": "workspace",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/codersdk.Workload"
+							}
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			},
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Workspaces"],
+				"summary": "Create a runtime workload (experimental)",
+				"operationId": "create-workspace-workload",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace ID",
+						"name": "workspace",
+						"in": "path",
+						"required": true
+					},
+					{
+						"description": "Create workload request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.CreateWorkloadRequest"
+						}
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Created",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Workload"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
+		"/api/v2/workspaces/{workspace}/workloads/{workload}": {
+			"delete": {
+				"tags": ["Workspaces"],
+				"summary": "Delete a runtime workload (experimental)",
+				"operationId": "delete-workspace-workload",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workspace ID",
+						"name": "workspace",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Workload ID",
+						"name": "workload",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"204": {
+						"description": "No Content"
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/oauth2/authorize": {
@@ -23101,6 +23293,23 @@
 				}
 			}
 		},
+		"codersdk.CreateWorkloadRequest": {
+			"type": "object",
+			"properties": {
+				"command": {
+					"description": "Command is run by the new daemon once it starts.",
+					"type": "string"
+				},
+				"name": {
+					"description": "Name is optional. It must be a valid agent name.",
+					"type": "string"
+				},
+				"shape": {
+					"description": "Shape selects the template-declared shape by agent name. It may be\nempty when the workspace has exactly one shape.",
+					"type": "string"
+				}
+			}
+		},
 		"codersdk.CreateWorkspaceBuildOnSuccessRequest": {
 			"type": "object",
 			"required": ["transition"],
@@ -24077,7 +24286,8 @@
 				"chat-inline-mcp-servers",
 				"enable-ai-workspace-debug",
 				"chat-stage-metrics",
-				"chat-acp-subagents"
+				"chat-acp-subagents",
+				"runtime-workloads"
 			],
 			"x-enum-comments": {
 				"ExperimentAIGatewayReverseProxy": "Uses stateless reverse proxy routing when MCP injection is not configured.",
@@ -24093,6 +24303,7 @@
 				"ExperimentMCPServerHTTP": "Enables the MCP HTTP server functionality.",
 				"ExperimentNoNATSPubsub": "Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.",
 				"ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
+				"ExperimentRuntimeWorkloads": "Enables runtime-provisioned workspace daemons with pod-attested identities.",
 				"ExperimentWorkspaceBuildUpdates": "Enables publishing workspace build updates to the all builds pubsub channel.",
 				"ExperimentWorkspaceCapableLicensing": "Counts only users holding the workspace-create permission toward the license seat limit.",
 				"ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
@@ -24113,7 +24324,8 @@
 				"Enables inline MCP servers declared on POST /chats.",
 				"Enables debugging failed workspace builds with Coder Agents.",
 				"Exposes chat lifecycle stage durations as Prometheus metrics.",
-				"Enables workspace-local ACP subagent tools in root chats."
+				"Enables workspace-local ACP subagent tools in root chats.",
+				"Enables runtime-provisioned workspace daemons with pod-attested identities."
 			],
 			"x-enum-varnames": [
 				"ExperimentExample",
@@ -24131,7 +24343,8 @@
 				"ExperimentChatInlineMCPServers",
 				"ExperimentEnableAIWorkspaceDebug",
 				"ExperimentChatStageMetrics",
-				"ExperimentChatACPSubagents"
+				"ExperimentChatACPSubagents",
+				"ExperimentRuntimeWorkloads"
 			]
 		},
 		"codersdk.ExperimentRule": {
@@ -31751,6 +31964,275 @@
 					"type": "string"
 				}
 			}
+		},
+		"codersdk.Workload": {
+			"type": "object",
+			"properties": {
+				"command": {
+					"type": "string"
+				},
+				"created_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"id": {
+					"description": "ID is also the ID of the workload's workspace agent once it exists.",
+					"type": "string",
+					"format": "uuid"
+				},
+				"identity": {
+					"description": "Identity is set once the pod exists.",
+					"type": "string"
+				},
+				"name": {
+					"type": "string"
+				},
+				"pod": {
+					"$ref": "#/definitions/codersdk.WorkloadPod"
+				},
+				"requested_by_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"requested_by_username": {
+					"type": "string"
+				},
+				"shape": {
+					"type": "string"
+				},
+				"status": {
+					"$ref": "#/definitions/codersdk.WorkloadStatus"
+				},
+				"workspace_id": {
+					"type": "string",
+					"format": "uuid"
+				}
+			}
+		},
+		"codersdk.WorkloadAttestation": {
+			"type": "string",
+			"enum": ["agent-token", "kubernetes-pod"],
+			"x-enum-varnames": [
+				"WorkloadAttestationAgentToken",
+				"WorkloadAttestationKubernetesPod"
+			]
+		},
+		"codersdk.WorkloadIdentity": {
+			"type": "object",
+			"properties": {
+				"agent_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"agent_name": {
+					"type": "string"
+				},
+				"attestation": {
+					"$ref": "#/definitions/codersdk.WorkloadAttestation"
+				},
+				"id": {
+					"description": "ID is unique per daemon. For a runtime daemon it is the workspace ID\nand the pod UID; for a declared daemon, the workspace ID and agent ID.",
+					"type": "string"
+				},
+				"kind": {
+					"$ref": "#/definitions/codersdk.WorkloadIdentityKind"
+				},
+				"owner_id": {
+					"description": "OwnerID is the user the daemon is associated with: the workspace owner.",
+					"type": "string",
+					"format": "uuid"
+				},
+				"owner_username": {
+					"type": "string"
+				},
+				"pod": {
+					"$ref": "#/definitions/codersdk.WorkloadPod"
+				},
+				"requested_by_id": {
+					"description": "RequestedByID is the user who asked for a runtime daemon.",
+					"type": "string",
+					"format": "uuid"
+				},
+				"requested_by_username": {
+					"type": "string"
+				},
+				"shape": {
+					"description": "Shape is the name of the template-declared agent a runtime daemon was\ncloned from.",
+					"type": "string"
+				},
+				"workspace_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"workspace_name": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.WorkloadIdentityKind": {
+			"type": "string",
+			"enum": ["declared", "runtime"],
+			"x-enum-varnames": [
+				"WorkloadIdentityKindDeclared",
+				"WorkloadIdentityKindRuntime"
+			]
+		},
+		"codersdk.WorkloadOperatorPod": {
+			"type": "object",
+			"properties": {
+				"created": {
+					"description": "Created is true when this operator process created the pod itself.\nLabels can be set by anyone who can create pods, so coderd only binds\na workload's identity to a pod the operator vouches for this way.",
+					"type": "boolean"
+				},
+				"name": {
+					"type": "string"
+				},
+				"phase": {
+					"type": "string"
+				},
+				"service_account": {
+					"type": "string"
+				},
+				"uid": {
+					"type": "string"
+				},
+				"workload_id": {
+					"type": "string",
+					"format": "uuid"
+				}
+			}
+		},
+		"codersdk.WorkloadOperatorShape": {
+			"type": "object",
+			"properties": {
+				"agent_token": {
+					"description": "AgentToken is the shape agent's token from the pod template. It proves\nthat the Deployment belongs to that agent's workspace build.",
+					"type": "string"
+				},
+				"deployment": {
+					"description": "Deployment is the name of the Deployment that holds the pod template.",
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.WorkloadOperatorShapeStatus": {
+			"type": "object",
+			"properties": {
+				"agent_id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"agent_name": {
+					"type": "string"
+				},
+				"deployment": {
+					"type": "string"
+				},
+				"error": {
+					"type": "string"
+				},
+				"workspace_id": {
+					"type": "string",
+					"format": "uuid"
+				}
+			}
+		},
+		"codersdk.WorkloadOperatorSyncRequest": {
+			"type": "object",
+			"properties": {
+				"audience": {
+					"type": "string"
+				},
+				"issuer": {
+					"description": "Issuer, Audience and JWKS let coderd verify pod tokens from the\noperator's cluster without access to that cluster.",
+					"type": "string"
+				},
+				"jwks": {
+					"type": "object"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"pods": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.WorkloadOperatorPod"
+					}
+				},
+				"shapes": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.WorkloadOperatorShape"
+					}
+				}
+			}
+		},
+		"codersdk.WorkloadOperatorSyncResponse": {
+			"type": "object",
+			"properties": {
+				"shapes": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.WorkloadOperatorShapeStatus"
+					}
+				},
+				"workloads": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.WorkloadOperatorWorkload"
+					}
+				}
+			}
+		},
+		"codersdk.WorkloadOperatorWorkload": {
+			"type": "object",
+			"properties": {
+				"deployment": {
+					"type": "string"
+				},
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"name": {
+					"type": "string"
+				},
+				"pod_uid": {
+					"description": "PodUID is the pod the workload's identity is bound to. It is empty\nuntil coderd has accepted a pod the operator created.",
+					"type": "string"
+				},
+				"workspace_id": {
+					"type": "string",
+					"format": "uuid"
+				}
+			}
+		},
+		"codersdk.WorkloadPod": {
+			"type": "object",
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"namespace": {
+					"type": "string"
+				},
+				"service_account": {
+					"type": "string"
+				},
+				"uid": {
+					"type": "string"
+				}
+			}
+		},
+		"codersdk.WorkloadStatus": {
+			"type": "string",
+			"enum": ["pending", "starting", "running", "disconnected"],
+			"x-enum-varnames": [
+				"WorkloadStatusPending",
+				"WorkloadStatusStarting",
+				"WorkloadStatusRunning",
+				"WorkloadStatusDisconnected"
+			]
 		},
 		"codersdk.Workspace": {
 			"type": "object",

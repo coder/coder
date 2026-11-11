@@ -54,6 +54,10 @@ type ExtractWorkspaceAgentAndLatestBuildConfig struct {
 	// requests without the a token or with an invalid token will be allowed to
 	// continue and no workspace agent will be set on the request context.
 	Optional bool
+	// ResolveIdentityToken maps a credential that is not an agent token,
+	// such as a Kubernetes pod token, to the auth token of the agent it
+	// identifies. It is only consulted for credentials that are not UUIDs.
+	ResolveIdentityToken func(ctx context.Context, token string) (uuid.UUID, error)
 }
 
 // ExtractWorkspaceAgentAndLatestBuild requires authentication using a valid agent token.
@@ -83,6 +87,17 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 				return
 			}
 			token, err := uuid.Parse(tokenValue)
+			if err != nil && opts.ResolveIdentityToken != nil {
+				token, err = opts.ResolveIdentityToken(ctx, tokenValue)
+				if err != nil {
+					// The reason can name pods and namespaces, so it is
+					// not returned to an unauthenticated caller.
+					optionalWrite(http.StatusUnauthorized, codersdk.Response{
+						Message: "Workspace agent identity token not accepted.",
+					})
+					return
+				}
+			}
 			if err != nil {
 				optionalWrite(http.StatusUnauthorized, codersdk.Response{
 					Message: "Workspace agent token invalid.",
