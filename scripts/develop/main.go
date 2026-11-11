@@ -64,6 +64,8 @@ const (
 	prometheusImage        = "prom/prometheus:v3.11.2"
 	defaultAccessURL       = "http://127.0.0.1:%d"
 	defaultPassword        = "SomeSecurePassword!"
+	defaultBindAddress     = "0.0.0.0"
+	loopbackBindAddress    = "127.0.0.1"
 	defaultStarterTemplate = "docker"
 	healthTimeout          = 60 * time.Second
 	shutdownTimeout        = 15 * time.Second
@@ -91,123 +93,9 @@ func main() {
 	var cfg devConfig
 
 	cmd := &serpent.Command{
-		Use:   "develop",
-		Short: "Orchestrate the Coder development environment.",
-		Options: serpent.OptionSet{
-			{
-				Flag:        "port",
-				Env:         "CODER_DEV_PORT",
-				Default:     defaultAPIPort,
-				Description: "API server port.",
-				Value:       serpent.Int64Of(&cfg.apiPort),
-			},
-			{
-				Flag:        "web-port",
-				Env:         "CODER_DEV_WEB_PORT",
-				Default:     defaultWebPort,
-				Description: "Frontend dev server port.",
-				Value:       serpent.Int64Of(&cfg.webPort),
-			},
-			{
-				Flag:        "proxy-port",
-				Env:         "CODER_DEV_PROXY_PORT",
-				Default:     defaultProxyPort,
-				Description: "Workspace proxy port.",
-				Value:       serpent.Int64Of(&cfg.proxyPort),
-			},
-			{
-				Flag:        "prometheus-port",
-				Env:         "CODER_DEV_PROMETHEUS_PORT",
-				Default:     defaultPrometheusPort,
-				Description: "Prometheus metrics port. Set to 0 to disable.",
-				Value:       serpent.Int64Of(&cfg.coderMetricsPort),
-			},
-			{
-				Flag:        "port-offset",
-				Env:         "CODER_DEV_PORT_OFFSET",
-				Default:     "false",
-				Description: "Apply a deterministic per-worktree offset to default API, web, proxy, and Coder metrics ports. Useful when running multiple worktrees in parallel.",
-				Value:       serpent.BoolOf(&cfg.portOffsetEnabled),
-			},
-			{
-				Flag:        "prometheus-server",
-				Env:         "CODER_DEV_PROMETHEUS_SERVER",
-				Description: "Run a Prometheus server to scrape and visualize metrics. Requires Docker. Linux only.",
-				Value:       serpent.BoolOf(&cfg.prometheusServer),
-			},
-			{
-				Flag:        "agpl",
-				Env:         "CODER_BUILD_AGPL",
-				Description: "Build AGPL-licensed code only.",
-				Value:       serpent.BoolOf(&cfg.agpl),
-			},
-			{
-				Flag:        "access-url",
-				Env:         "CODER_DEV_ACCESS_URL",
-				Default:     defaultAccessURL,
-				Description: "Override access URL. The %d placeholder will be replaced with the API port. Set to empty to enable devtunnel (pit-1.try.coder.app).",
-				Value:       serpent.StringOf(&cfg.accessURL),
-			},
-			{
-				Flag:        "password",
-				Env:         "CODER_DEV_ADMIN_PASSWORD",
-				Default:     defaultPassword,
-				Description: "Admin user password.",
-				Value:       serpent.StringOf(&cfg.password),
-			},
-			{
-				Flag:        "use-proxy",
-				Description: "Start a workspace proxy.",
-				Value:       serpent.BoolOf(&cfg.useProxy),
-			},
-			{
-				Flag:        "debug",
-				Description: "Run under Delve debugger.",
-				Value:       serpent.BoolOf(&cfg.debug),
-			},
-			{
-				Flag:        "skip-setup",
-				Env:         "CODER_DEV_SKIP_SETUP",
-				Description: "Don't attempt to create a first user or other resources. Will cause multi-organization, starter-template, and use-proxy to be ignored.",
-				Value:       serpent.BoolOf(&cfg.skipSetup),
-			},
-			{
-				Flag:        "multi-organization",
-				Description: "Create a second organization.",
-				Value:       serpent.BoolOf(&cfg.multiOrg),
-			},
-			{
-				Flag:        "starter-template",
-				Env:         "CODER_DEV_STARTER_TEMPLATE",
-				Default:     defaultStarterTemplate,
-				Description: "Starter template to create (empty to skip).",
-				Value:       serpent.StringOf(&cfg.starterTemplate),
-			},
-			{
-				Flag:        "db-rollback",
-				Env:         "CODER_DEV_DB_ROLLBACK",
-				Description: "Roll back database migrations that no longer exist on the current branch.",
-				Value:       serpent.BoolOf(&cfg.dbRollback),
-			},
-			{
-				Flag:        "db-reset",
-				Env:         "CODER_DEV_DB_RESET",
-				Description: "Destroy the development database and start fresh.",
-				Value:       serpent.BoolOf(&cfg.dbReset),
-			},
-			{
-				Flag:        "db-continue",
-				Env:         "CODER_DEV_DB_CONTINUE",
-				Description: "Accept changed migration files and update tracking. Use when you've manually fixed the DB to match the new migrations.",
-				Value:       serpent.BoolOf(&cfg.dbContinue),
-			},
-			{
-				Flag:        "env-file",
-				Env:         "CODER_DEV_ENV_FILE",
-				Description: "Path to a .env file to load before starting. Variables in the file do not override existing environment variables. Note: unquoted and double-quoted values undergo $VAR expansion against other entries in the same file (not the process environment); use single quotes for literal dollar signs.",
-				Value:       serpent.StringOf(&cfg.envFile),
-			},
-		},
+		Use:     "develop",
+		Short:   "Orchestrate the Coder development environment.",
+		Options: cfg.options(),
 		Handler: func(inv *serpent.Invocation) error {
 			cfg.serverExtraArgs = inv.Args
 			cfg.portExplicit = portExplicitFromInvocation(inv)
@@ -230,6 +118,132 @@ func main() {
 	}
 }
 
+// options binds the develop flags and environment variables to the config.
+func (c *devConfig) options() serpent.OptionSet {
+	return serpent.OptionSet{
+		{
+			Flag:        "port",
+			Env:         "CODER_DEV_PORT",
+			Default:     defaultAPIPort,
+			Description: "API server port.",
+			Value:       serpent.Int64Of(&c.apiPort),
+		},
+		{
+			Flag:        "web-port",
+			Env:         "CODER_DEV_WEB_PORT",
+			Default:     defaultWebPort,
+			Description: "Frontend dev server port.",
+			Value:       serpent.Int64Of(&c.webPort),
+		},
+		{
+			Flag:        "proxy-port",
+			Env:         "CODER_DEV_PROXY_PORT",
+			Default:     defaultProxyPort,
+			Description: "Workspace proxy port.",
+			Value:       serpent.Int64Of(&c.proxyPort),
+		},
+		{
+			Flag:        "prometheus-port",
+			Env:         "CODER_DEV_PROMETHEUS_PORT",
+			Default:     defaultPrometheusPort,
+			Description: "Prometheus metrics port. Set to 0 to disable.",
+			Value:       serpent.Int64Of(&c.coderMetricsPort),
+		},
+		{
+			Flag:        "port-offset",
+			Env:         "CODER_DEV_PORT_OFFSET",
+			Default:     "false",
+			Description: "Apply a deterministic per-worktree offset to default API, web, proxy, and Coder metrics ports. Useful when running multiple worktrees in parallel.",
+			Value:       serpent.BoolOf(&c.portOffsetEnabled),
+		},
+		{
+			Flag:        "prometheus-server",
+			Env:         "CODER_DEV_PROMETHEUS_SERVER",
+			Description: "Run a Prometheus server to scrape and visualize metrics. Requires Docker. Linux only.",
+			Value:       serpent.BoolOf(&c.prometheusServer),
+		},
+		{
+			Flag:        "agpl",
+			Env:         "CODER_BUILD_AGPL",
+			Description: "Build AGPL-licensed code only.",
+			Value:       serpent.BoolOf(&c.agpl),
+		},
+		{
+			Flag:        "access-url",
+			Env:         "CODER_DEV_ACCESS_URL",
+			Default:     defaultAccessURL,
+			Description: "Override access URL. The %d placeholder will be replaced with the API port. Set to empty to enable devtunnel (pit-1.try.coder.app).",
+			Value:       serpent.StringOf(&c.accessURL),
+		},
+		{
+			Flag:        "bind-address",
+			Env:         "CODER_DEV_BIND_ADDRESS",
+			Default:     defaultBindAddress,
+			Description: "Address the API server, the frontend dev server and Prometheus listen on: 0.0.0.0 (every interface) or 127.0.0.1 (loopback only). Workspaces in Docker containers cannot reach a loopback-bound server.",
+			Value:       serpent.StringOf(&c.bindAddress),
+		},
+		{
+			Flag:        "password",
+			Env:         "CODER_DEV_ADMIN_PASSWORD",
+			Default:     defaultPassword,
+			Description: "Admin user password.",
+			Value:       serpent.StringOf(&c.password),
+		},
+		{
+			Flag:        "use-proxy",
+			Description: "Start a workspace proxy.",
+			Value:       serpent.BoolOf(&c.useProxy),
+		},
+		{
+			Flag:        "debug",
+			Description: "Run under Delve debugger.",
+			Value:       serpent.BoolOf(&c.debug),
+		},
+		{
+			Flag:        "skip-setup",
+			Env:         "CODER_DEV_SKIP_SETUP",
+			Description: "Don't attempt to create a first user or other resources. Will cause multi-organization, starter-template, and use-proxy to be ignored.",
+			Value:       serpent.BoolOf(&c.skipSetup),
+		},
+		{
+			Flag:        "multi-organization",
+			Description: "Create a second organization.",
+			Value:       serpent.BoolOf(&c.multiOrg),
+		},
+		{
+			Flag:        "starter-template",
+			Env:         "CODER_DEV_STARTER_TEMPLATE",
+			Default:     defaultStarterTemplate,
+			Description: "Starter template to create (empty to skip).",
+			Value:       serpent.StringOf(&c.starterTemplate),
+		},
+		{
+			Flag:        "db-rollback",
+			Env:         "CODER_DEV_DB_ROLLBACK",
+			Description: "Roll back database migrations that no longer exist on the current branch.",
+			Value:       serpent.BoolOf(&c.dbRollback),
+		},
+		{
+			Flag:        "db-reset",
+			Env:         "CODER_DEV_DB_RESET",
+			Description: "Destroy the development database and start fresh.",
+			Value:       serpent.BoolOf(&c.dbReset),
+		},
+		{
+			Flag:        "db-continue",
+			Env:         "CODER_DEV_DB_CONTINUE",
+			Description: "Accept changed migration files and update tracking. Use when you've manually fixed the DB to match the new migrations.",
+			Value:       serpent.BoolOf(&c.dbContinue),
+		},
+		{
+			Flag:        "env-file",
+			Env:         "CODER_DEV_ENV_FILE",
+			Description: "Path to a .env file to load before starting. Variables in the file do not override existing environment variables. Note: unquoted and double-quoted values undergo $VAR expansion against other entries in the same file (not the process environment); use single quotes for literal dollar signs.",
+			Value:       serpent.StringOf(&c.envFile),
+		},
+	}
+}
+
 type devConfig struct {
 	apiPort           int64
 	webPort           int64
@@ -239,6 +253,7 @@ type devConfig struct {
 	prometheusServer  bool
 	agpl              bool
 	accessURL         string
+	bindAddress       string
 	password          string
 	useProxy          bool
 	debug             bool
@@ -343,6 +358,33 @@ func (c *devConfig) applyPortOffset() {
 	}
 }
 
+// listenAddress joins the bind address and a port.
+func (c *devConfig) listenAddress(port int64) string {
+	return net.JoinHostPort(c.bindAddress, strconv.FormatInt(port, 10))
+}
+
+// prometheusReusable reports whether a running Prometheus container, given
+// as docker inspect "{{.State.Running}} {{json .Args}}" output, listens on
+// the current bind address.
+func (c *devConfig) prometheusReusable(inspect string) bool {
+	return strings.Contains(inspect, `"--web.listen-address=`+c.listenAddress(prometheusServerPort)+`"`)
+}
+
+// prometheusRunArgs builds the docker run arguments for the Prometheus UI.
+func (c *devConfig) prometheusRunArgs(configPath, dataDir string) []string {
+	return []string{
+		"run",
+		"--rm",
+		"--name", prometheusContainerName,
+		"--net=host",
+		"-v", configPath + ":/etc/prometheus/prometheus.yml:ro",
+		"-v", dataDir + ":/prometheus",
+		prometheusImage,
+		"--config.file=/etc/prometheus/prometheus.yml",
+		"--web.listen-address=" + c.listenAddress(prometheusServerPort),
+	}
+}
+
 func (c *devConfig) applyDefaultPortOffset(port *int64) portSource {
 	if c.portOffset == 0 {
 		return portSourceDefault
@@ -352,6 +394,12 @@ func (c *devConfig) applyDefaultPortOffset(port *int64) portSource {
 }
 
 func (c *devConfig) validate() error {
+	// develop's own health check, the Vite proxy and the Prometheus scrape
+	// target reach the API on 127.0.0.1, so only the wildcard and loopback
+	// addresses work.
+	if c.bindAddress != defaultBindAddress && c.bindAddress != loopbackBindAddress {
+		return xerrors.Errorf("--bind-address must be %s or %s, got %q", defaultBindAddress, loopbackBindAddress, c.bindAddress)
+	}
 	if c.agpl && c.useProxy {
 		return xerrors.New("cannot use both --agpl and --use-proxy")
 	}
@@ -766,33 +814,37 @@ func buildBinary(ctx context.Context, logger slog.Logger, cfg *devConfig) error 
 }
 
 func startServer(cfg *devConfig, group *procGroup) error {
-	serverArgs := []string{
-		"--global-config", cfg.configDir,
-		"server",
-		"--http-address", fmt.Sprintf("0.0.0.0:%d", cfg.apiPort),
-		"--swagger-enable",
-		"--dangerous-allow-cors-requests=true",
-		"--enable-terraform-debug-mode",
-	}
-	if cfg.accessURL != "" {
-		// Setting access url to `""` enables a `try.coder.app` url
-		serverArgs = append(serverArgs, "--access-url", cfg.accessURL)
-	}
-	if cfg.coderMetricsPort != 0 {
-		serverArgs = append(serverArgs,
-			"--prometheus-enable",
-			"--prometheus-address", fmt.Sprintf("0.0.0.0:%d", cfg.coderMetricsPort),
-			"--prometheus-collect-agent-stats",
-			"--prometheus-collect-db-metrics",
-		)
-	}
-	serverArgs = append(serverArgs, cfg.serverExtraArgs...)
-
+	serverArgs := cfg.serverArgs()
 	if cfg.debug {
 		return startServerDebug(cfg, serverArgs, group)
 	}
 	cmd := cfg.cmd(group.Ctx(), cfg.binaryPath, serverArgs...)
 	return group.Start("api", cmd)
+}
+
+// serverArgs builds the coder server command line.
+func (c *devConfig) serverArgs() []string {
+	serverArgs := []string{
+		"--global-config", c.configDir,
+		"server",
+		"--http-address", c.listenAddress(c.apiPort),
+		"--swagger-enable",
+		"--dangerous-allow-cors-requests=true",
+		"--enable-terraform-debug-mode",
+	}
+	if c.accessURL != "" {
+		// Setting access url to `""` enables a `try.coder.app` url
+		serverArgs = append(serverArgs, "--access-url", c.accessURL)
+	}
+	if c.coderMetricsPort != 0 {
+		serverArgs = append(serverArgs,
+			"--prometheus-enable",
+			"--prometheus-address", c.listenAddress(c.coderMetricsPort),
+			"--prometheus-collect-agent-stats",
+			"--prometheus-collect-db-metrics",
+		)
+	}
+	return append(serverArgs, c.serverExtraArgs...)
 }
 
 func startServerDebug(cfg *devConfig, serverArgs []string, group *procGroup) error {
@@ -1154,19 +1206,29 @@ func startPrometheusServer(ctx context.Context, logger slog.Logger, cfg *devConf
 	}
 
 	// If the port is already in use, check whether it's our
-	// container from a previous run. If so, reuse it.
+	// container from a previous run. Reuse it only when it listens on
+	// the current bind address, so a loopback run never claims a UI that
+	// listens on every interface. A running container usually belongs to
+	// another live develop run, so a mismatch skips it instead of
+	// replacing it.
 	if isPortBusy(ctx, prometheusServerPort) {
 		out, err := exec.CommandContext(ctx, "docker", "inspect",
-			"-f", "{{.State.Running}}",
+			"-f", "{{.State.Running}} {{json .Args}}",
 			prometheusContainerName).Output()
-		if err == nil && strings.TrimSpace(string(out)) == "true" {
+		if err != nil || !strings.HasPrefix(string(out), "true ") {
+			logger.Info(ctx, "prometheus server port already in use, skipping",
+				slog.F("port", prometheusServerPort))
+			return false, nil
+		}
+		if cfg.prometheusReusable(string(out)) {
 			logger.Info(ctx, "reusing existing prometheus server",
 				slog.F("ui", fmt.Sprintf("http://localhost:%d", prometheusServerPort)),
 				slog.F("note", fmt.Sprintf("scrape target may differ from current --prometheus-port %d; restart to apply", cfg.coderMetricsPort)))
 			return true, nil
 		}
-		logger.Info(ctx, "prometheus server port already in use, skipping",
-			slog.F("port", prometheusServerPort))
+		logger.Warn(ctx, "a running prometheus server listens on another address, skipping",
+			slog.F("container", prometheusContainerName),
+			slog.F("bind_address", cfg.bindAddress))
 		return false, nil
 	}
 
@@ -1229,16 +1291,7 @@ scrape_configs:
 		return false, xerrors.Errorf("chmod prometheus config: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, "docker", "run", //nolint:gosec // args are all controlled constants or our own temp file path
-		"--rm",
-		"--name", prometheusContainerName,
-		"--net=host",
-		"-v", tmpFile.Name()+":/etc/prometheus/prometheus.yml:ro",
-		"-v", prometheusDataDir+":/prometheus",
-		prometheusImage,
-		"--config.file=/etc/prometheus/prometheus.yml",
-		fmt.Sprintf("--web.listen-address=0.0.0.0:%d", prometheusServerPort),
-	)
+	cmd := exec.CommandContext(ctx, "docker", cfg.prometheusRunArgs(tmpFile.Name(), prometheusDataDir)...) //nolint:gosec // args are all controlled constants or our own temp file path
 
 	named := logger.Named("prometheus")
 	w := &logWriter{logger: named}
@@ -1275,7 +1328,12 @@ scrape_configs:
 }
 
 func pnpmCmd(ctx context.Context, cfg *devConfig) *exec.Cmd {
-	cmd := cfg.cmd(ctx, "pnpm", "--dir", "./site", "dev", "--host")
+	// A bare --host keeps Vite's default of every IPv4 and IPv6 interface.
+	host := []string{"--host"}
+	if cfg.bindAddress != defaultBindAddress {
+		host = append(host, cfg.bindAddress)
+	}
+	cmd := cfg.cmd(ctx, "pnpm", append([]string{"--dir", "./site", "dev"}, host...)...)
 	cmd.Env = append(cmd.Env,
 		fmt.Sprintf("PORT=%d", cfg.webPort),
 		fmt.Sprintf("CODER_HOST=http://127.0.0.1:%d", cfg.apiPort),
@@ -1320,20 +1378,32 @@ func portSourceLabel(source portSource, offset int) string {
 	}
 }
 
-func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig, prometheusServerStarted bool) {
-	ifaces := []string{"localhost"}
+// bannerHosts lists the hosts the banner shows URLs for. A loopback bind
+// answers on localhost only. The default listens on every interface, so the
+// banner lists each IPv4 interface and, inside a workspace, the Coder Desktop
+// names.
+func bannerHosts(bindAddress string) []string {
+	if bindAddress == loopbackBindAddress {
+		return []string{"localhost"}
+	}
+	hosts := []string{"localhost"}
 	if addrs, err := net.InterfaceAddrs(); err == nil {
 		for _, addr := range addrs {
 			if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() && ipnet.IP.To4() != nil {
-				ifaces = append(ifaces, ipnet.IP.String())
+				hosts = append(hosts, ipnet.IP.String())
 			}
 		}
 	}
 	if os.Getenv("CODER") == "true" {
 		// Inside a workspace, add Coder Desktop entry.
-		ifaces = append(ifaces, fmt.Sprintf("%s.%s.me.coder", os.Getenv("CODER_WORKSPACE_AGENT_NAME"), os.Getenv("CODER_WORKSPACE_NAME")))
-		ifaces = append(ifaces, fmt.Sprintf("%s.%s.%s.coder", os.Getenv("CODER_WORKSPACE_AGENT_NAME"), os.Getenv("CODER_WORKSPACE_NAME"), os.Getenv("CODER_WORKSPACE_OWNER_NAME")))
+		hosts = append(hosts, fmt.Sprintf("%s.%s.me.coder", os.Getenv("CODER_WORKSPACE_AGENT_NAME"), os.Getenv("CODER_WORKSPACE_NAME")))
+		hosts = append(hosts, fmt.Sprintf("%s.%s.%s.coder", os.Getenv("CODER_WORKSPACE_AGENT_NAME"), os.Getenv("CODER_WORKSPACE_NAME"), os.Getenv("CODER_WORKSPACE_OWNER_NAME")))
 	}
+	return hosts
+}
+
+func printBanner(ctx context.Context, logger slog.Logger, cfg *devConfig, prometheusServerStarted bool) {
+	ifaces := bannerHosts(cfg.bindAddress)
 	var b strings.Builder
 	w := 64
 	line := func(content ...string) {

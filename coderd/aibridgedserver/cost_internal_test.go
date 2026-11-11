@@ -20,14 +20,14 @@ func TestComputeCost(t *testing.T) {
 
 	tests := []struct {
 		name                                                         string
-		price                                                        database.AIModelPrice
+		price                                                        database.GetAIModelPriceForProviderRow
 		inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens int64
 		want                                                         int64
 		wantOutOfRange                                               bool
 	}{
 		{
 			name: "all priced",
-			price: database.AIModelPrice{
+			price: database.GetAIModelPriceForProviderRow{
 				InputPrice:      nullInt64(3_000_000),
 				OutputPrice:     nullInt64(6_000_000),
 				CacheReadPrice:  nullInt64(300_000),
@@ -42,7 +42,7 @@ func TestComputeCost(t *testing.T) {
 		},
 		{
 			name: "null cache write price treated as zero",
-			price: database.AIModelPrice{
+			price: database.GetAIModelPriceForProviderRow{
 				InputPrice:      nullInt64(3_000_000),
 				OutputPrice:     nullInt64(6_000_000),
 				CacheReadPrice:  nullInt64(300_000),
@@ -57,7 +57,7 @@ func TestComputeCost(t *testing.T) {
 		},
 		{
 			name:             "all prices null is zero cost",
-			price:            database.AIModelPrice{},
+			price:            database.GetAIModelPriceForProviderRow{},
 			inputTokens:      100,
 			outputTokens:     200,
 			cacheReadTokens:  50,
@@ -66,7 +66,7 @@ func TestComputeCost(t *testing.T) {
 		},
 		{
 			name: "zero tokens is zero cost",
-			price: database.AIModelPrice{
+			price: database.GetAIModelPriceForProviderRow{
 				InputPrice:  nullInt64(3_000_000),
 				OutputPrice: nullInt64(6_000_000),
 			},
@@ -74,7 +74,7 @@ func TestComputeCost(t *testing.T) {
 		},
 		{
 			name: "integer division truncates",
-			price: database.AIModelPrice{
+			price: database.GetAIModelPriceForProviderRow{
 				// 1 token at 1 micro-unit per million tokens rounds down to 0.
 				InputPrice: nullInt64(1),
 			},
@@ -83,7 +83,7 @@ func TestComputeCost(t *testing.T) {
 		},
 		{
 			name: "price just below one micro-unit per token floors to zero",
-			price: database.AIModelPrice{
+			price: database.GetAIModelPriceForProviderRow{
 				InputPrice: nullInt64(999_999),
 			},
 			inputTokens: 1, // 1 * 999_999 = 999_999, below 1_000_000
@@ -91,7 +91,7 @@ func TestComputeCost(t *testing.T) {
 		},
 		{
 			name: "sub-unit price summed across tokens still floors to zero",
-			price: database.AIModelPrice{
+			price: database.GetAIModelPriceForProviderRow{
 				InputPrice: nullInt64(999),
 			},
 			inputTokens: 1000, // 1000 * 999 = 999_000, below 1_000_000
@@ -99,7 +99,7 @@ func TestComputeCost(t *testing.T) {
 		},
 		{
 			name: "sub-unit price crosses one micro-unit once the product reaches 1e6",
-			price: database.AIModelPrice{
+			price: database.GetAIModelPriceForProviderRow{
 				InputPrice: nullInt64(999),
 			},
 			inputTokens: 1002, // 1002 times 999 is 1_000_998.
@@ -110,7 +110,7 @@ func TestComputeCost(t *testing.T) {
 			// model the overflow point is ~123e9 tokens (123e9 * 75e6 = 9.225e18,
 			// just over int64 max 9.223e18); 122e9 stays just under.
 			name: "large token count at a high price does not overflow",
-			price: database.AIModelPrice{
+			price: database.GetAIModelPriceForProviderRow{
 				InputPrice: nullInt64(75_000_000), // $75 per 1M tokens
 			},
 			inputTokens: 122_000_000_000, // 122e9 * 75e6 = 9.15e18 < int64 max
@@ -120,7 +120,7 @@ func TestComputeCost(t *testing.T) {
 			// Each category costs 37.5 micro-units, so truncating per category
 			// gives 37 + 37 = 74.
 			name: "each category truncates before the sum",
-			price: database.AIModelPrice{
+			price: database.GetAIModelPriceForProviderRow{
 				InputPrice:  nullInt64(37_500_000),
 				OutputPrice: nullInt64(37_500_000),
 			},
@@ -130,19 +130,19 @@ func TestComputeCost(t *testing.T) {
 		},
 		{
 			name:        "cost exactly at the bound is in range",
-			price:       database.AIModelPrice{InputPrice: nullInt64(oneMicroPerToken)},
+			price:       database.GetAIModelPriceForProviderRow{InputPrice: nullInt64(oneMicroPerToken)},
 			inputTokens: bound,
 			want:        bound,
 		},
 		{
 			name:           "cost one micro-unit above the bound is out of range",
-			price:          database.AIModelPrice{InputPrice: nullInt64(oneMicroPerToken)},
+			price:          database.GetAIModelPriceForProviderRow{InputPrice: nullInt64(oneMicroPerToken)},
 			inputTokens:    bound + 1,
 			wantOutOfRange: true,
 		},
 		{
 			name:           "cost of int64 max is out of range",
-			price:          database.AIModelPrice{InputPrice: nullInt64(oneMicroPerToken)},
+			price:          database.GetAIModelPriceForProviderRow{InputPrice: nullInt64(oneMicroPerToken)},
 			inputTokens:    math.MaxInt64,
 			wantOutOfRange: true,
 		},
@@ -150,7 +150,7 @@ func TestComputeCost(t *testing.T) {
 			// Each category fits on its own; only their sum exceeds the bound,
 			// so the range check has to run on the total.
 			name: "sum of in-range categories above the bound is out of range",
-			price: database.AIModelPrice{
+			price: database.GetAIModelPriceForProviderRow{
 				InputPrice:  nullInt64(oneMicroPerToken),
 				OutputPrice: nullInt64(oneMicroPerToken),
 			},
@@ -162,7 +162,7 @@ func TestComputeCost(t *testing.T) {
 			// The cost column forbids negatives, so an implausible token count
 			// is rejected here rather than failing the insert.
 			name: "negative cost is out of range",
-			price: database.AIModelPrice{
+			price: database.GetAIModelPriceForProviderRow{
 				InputPrice: nullInt64(3_000_000),
 			},
 			inputTokens:    -1_000_000,

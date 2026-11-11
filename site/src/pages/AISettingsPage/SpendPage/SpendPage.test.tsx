@@ -196,7 +196,7 @@ it("applies a date preset and resets pagination", async () => {
 	const user = userEvent.setup();
 	const { router, spendSpy } = renderSpend(`${initialSearch}&page=2`);
 	await screen.findByRole("table", { name: "Spend by user" });
-	await user.click(screen.getByRole("button", { name: /Feb 10.*Mar 12/ }));
+	await user.click(screen.getByRole("combobox", { name: "Time range" }));
 	await user.click(await screen.findByRole("radio", { name: "Last 7 days" }));
 	const window = {
 		period_start: fixedNow.subtract(7, "day").toISOString(),
@@ -235,7 +235,7 @@ it("keeps the retention bound while a filtered report is pending", async () => {
 	// The picker stays usable with the bound the first report delivered, so
 	// every preset it offers requests a period that starts within retention.
 	const requestsBeforePicking = spendSpy.mock.calls.length;
-	await user.click(screen.getByRole("button", { name: /Feb 10.*Mar 12/ }));
+	await user.click(screen.getByRole("combobox", { name: "Time range" }));
 	const offered = screen
 		.getAllByRole("radio", { name: /^Last \d+ (days|hours)$/ })
 		.map((preset) => preset.textContent ?? "");
@@ -247,7 +247,9 @@ it("keeps the retention bound while a filtered report is pending", async () => {
 		);
 		// The trigger shows the applied preset once the URL updates; reopen it
 		// for the next one.
-		await user.click(await screen.findByRole("button", { name: label }));
+		const trigger = screen.getByRole("combobox", { name: "Time range" });
+		await waitFor(() => expect(trigger).toHaveTextContent(label));
+		await user.click(trigger);
 	}
 	const presetRequests = spendSpy.mock.calls.slice(requestsBeforePicking);
 	expect(presetRequests).toHaveLength(offered.length);
@@ -269,7 +271,7 @@ it("applies a second range from the keyboard after the first one resolves", asyn
 	const { spendSpy } = renderSpend();
 	await screen.findByRole("table", { name: "Spend by user" });
 
-	await user.click(screen.getByRole("button", { name: /Feb 10.*Mar 12/ }));
+	await user.click(screen.getByRole("combobox", { name: "Time range" }));
 	await user.click(await screen.findByRole("radio", { name: "Last 7 days" }));
 	await waitFor(() =>
 		expect(spendSpy).toHaveBeenCalledWith(
@@ -279,7 +281,11 @@ it("applies a second range from the keyboard after the first one resolves", asyn
 			}),
 		),
 	);
-	await screen.findByRole("button", { name: "Last 7 days" });
+	await waitFor(() =>
+		expect(
+			screen.getByRole("combobox", { name: "Time range" }),
+		).toHaveTextContent("Last 7 days"),
+	);
 
 	// Focus returned to the picker when its popover closed, so Enter reopens it.
 	await user.keyboard("{Enter}");

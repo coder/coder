@@ -5,7 +5,15 @@ import {
 	ShieldIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { createContext, useContext, useId, useState } from "react";
+import {
+	createContext,
+	useContext,
+	useId,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
+import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import {
 	Tooltip,
 	TooltipContent,
@@ -15,7 +23,7 @@ import { useMessageScrollerUserLayoutIntent } from "#/vendor/message-scroller";
 import { Shimmer } from "../Shimmer";
 import { TranscriptRow } from "../TranscriptRow";
 import { ToolIcon } from "./ToolIcon";
-import type { ToolStatus } from "./utils";
+import { followLogEnd, type ToolStatus } from "./utils";
 
 /**
  * Shared display states for tool call rows.
@@ -60,7 +68,7 @@ const PolicyProvider: React.FC<{
 				<div role="group" aria-labelledby={badgeId}>
 					<span
 						id={badgeId}
-						className="mb-0.5 flex w-fit items-center gap-1 rounded border border-solid border-border px-1 text-[11px] leading-4 text-content-secondary"
+						className="mb-0.5 flex w-fit items-center gap-1 rounded border border-solid px-1 text-[11px] leading-4 text-content-secondary"
 					>
 						<ShieldIcon aria-hidden className="size-3 shrink-0" />
 						Modified by policy
@@ -109,6 +117,8 @@ type ToolCallRootProps = Omit<React.ComponentProps<"div">, "children"> & {
 	expanded?: boolean;
 	onExpandedChange?: (expanded: boolean) => void;
 	ariaLabel?: ToolCallAriaLabel;
+	/** At the transcript's end, expanding also resumes following new output. */
+	revealEndOnExpand?: boolean;
 };
 
 /**
@@ -129,6 +139,7 @@ const Root: React.FC<ToolCallRootProps> = ({
 	expanded: expandedProp,
 	onExpandedChange,
 	ariaLabel,
+	revealEndOnExpand = false,
 	className,
 	...divProps
 }) => {
@@ -148,7 +159,9 @@ const Root: React.FC<ToolCallRootProps> = ({
 	const failed = status !== "running" && (isError || status === "error");
 	const userLayoutIntent = useMessageScrollerUserLayoutIntent();
 	const onToggle = (event: React.MouseEvent<HTMLElement>) => {
-		userLayoutIntent(event.currentTarget);
+		userLayoutIntent(event.currentTarget, {
+			revealEnd: revealEndOnExpand && !expanded,
+		});
 		const nextView: ToolCallView = expanded ? "collapsed" : "expanded";
 		if (controlledView === undefined) {
 			setUncontrolledView(nextView);
@@ -219,7 +232,7 @@ const HeaderButton: React.FC<ToolCallHeaderButtonProps> = ({
 		<TranscriptRow
 			asChild
 			className={cn(
-				"m-0 min-w-0 max-w-full gap-2 border-0 bg-transparent p-0 text-left font-[inherit] text-inherit text-content-secondary transition-colors",
+				"m-0 min-w-0 max-w-full gap-2 bg-transparent p-0 text-left font-[inherit] text-content-secondary transition-colors",
 				collapsible && "cursor-pointer hover:text-content-primary",
 				className,
 			)}
@@ -432,6 +445,76 @@ const Content: React.FC<ToolCallContentProps> = ({ children }) => {
 	return children;
 };
 
+type ToolCallErrorDetailProps = {
+	children: string;
+};
+
+/** Shows a failed call's error message in the expanded row body. */
+const ErrorDetail: React.FC<ToolCallErrorDetailProps> = ({ children }) => (
+	<pre className="m-0 mt-1.5 whitespace-pre-wrap wrap-break-word bg-transparent p-0 font-mono text-xs leading-5 text-content-destructive">
+		{children}
+	</pre>
+);
+
+type ToolCallScrollableProps = Omit<
+	React.ComponentProps<typeof ScrollArea>,
+	| "viewportAriaLabel"
+	| "viewportRef"
+	| "viewportTabIndex"
+	| "scrollBarClassName"
+	| "horizontalScrollBarClassName"
+> & {
+	/** Accessible name of the scrollable region. */
+	ariaLabel: string;
+	/**
+	 * Keeps the newest content in view as the content grows, while the
+	 * reader is at the end.
+	 */
+	followEnd?: boolean;
+};
+
+/**
+ * Keyboard-focusable scroll region for tool-call output. Callers own the
+ * box styling, including the height cap on the viewport.
+ */
+const Scrollable: React.FC<ToolCallScrollableProps> = ({
+	ariaLabel,
+	followEnd = false,
+	children,
+	...props
+}) => {
+	const viewportRef = useRef<HTMLDivElement>(null);
+	const contentRef = useRef<HTMLDivElement>(null);
+
+	// A ResizeObserver also sees growth from children that rerender on
+	// their own, such as smoothly streamed text.
+	useLayoutEffect(() => {
+		const content = contentRef.current;
+		if (!followEnd || !content) {
+			return;
+		}
+		let scrollHeight = followLogEnd(viewportRef.current, 0);
+		const observer = new ResizeObserver(() => {
+			scrollHeight = followLogEnd(viewportRef.current, scrollHeight);
+		});
+		observer.observe(content);
+		return () => observer.disconnect();
+	}, [followEnd]);
+
+	return (
+		<ScrollArea
+			viewportRef={viewportRef}
+			viewportTabIndex={0}
+			viewportAriaLabel={ariaLabel}
+			scrollBarClassName="w-1.5"
+			horizontalScrollBarClassName="h-1.5"
+			{...props}
+		>
+			{followEnd ? <div ref={contentRef}>{children}</div> : children}
+		</ScrollArea>
+	);
+};
+
 export const ToolCall = {
 	Root,
 	PolicyProvider,
@@ -447,4 +530,6 @@ export const ToolCall = {
 	State,
 	Header,
 	Content,
+	ErrorDetail,
+	Scrollable,
 };

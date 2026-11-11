@@ -1,5 +1,4 @@
 import type React from "react";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { formatContextLimit } from "#/modules/aiModels/ModelSelector";
 import { ProviderIcon } from "#/modules/aiModels/ProviderIcon";
 import { formatProviderLabel } from "#/utils/aiProviders";
@@ -29,18 +28,18 @@ const ModelRow: React.FC<{ model: unknown }> = ({ model }) => {
 
 	return (
 		<div className="grid grid-cols-[minmax(0,1fr)_96px_56px] items-center gap-x-2 px-2 py-1">
-			<span className="min-w-0 truncate text-xs font-medium leading-[18px] text-content-primary">
+			<span className="min-w-0 truncate text-xs leading-4.5 text-content-primary">
 				{title}
 			</span>
 			{effortRange ? (
-				<span className="shrink-0 text-right text-xs font-normal leading-[18px] tabular-nums text-content-secondary">
+				<span className="shrink-0 text-right text-xs font-normal leading-4.5 tabular-nums text-content-secondary">
 					{effortRange}
 				</span>
 			) : (
 				<span aria-hidden="true" />
 			)}
 			{context ? (
-				<span className="shrink-0 text-right text-xs font-normal leading-[18px] tabular-nums text-content-secondary">
+				<span className="shrink-0 text-right text-xs font-normal leading-4.5 tabular-nums text-content-secondary">
 					({context})
 				</span>
 			) : (
@@ -71,26 +70,20 @@ const ListSubagentModelsContent: React.FC<{ models: unknown[] }> = ({
 	}
 
 	return (
-		<ScrollArea
-			className="mt-1.5 rounded-md border border-solid border-border"
+		<ToolCall.Scrollable
+			className="mt-1.5 rounded-md border border-solid"
 			viewportClassName="max-h-64"
-			viewportTabIndex={0}
-			viewportAriaLabel="Available models"
-			scrollBarClassName="w-1.5"
+			ariaLabel="Available models"
 		>
 			<div className="px-1 py-1">
 				{Array.from(grouped.entries(), ([provider, providerModels], index) => (
 					<div
 						key={provider}
-						className={
-							index > 0
-								? "border-0 border-t border-solid border-border"
-								: undefined
-						}
+						className={index > 0 ? "border-t border-solid" : undefined}
 					>
 						<div className="flex items-center gap-1.5 px-2 py-1">
 							<ProviderIcon provider={provider} className="size-3.5" />
-							<span className="text-xs font-semibold leading-[18px] text-content-secondary">
+							<span className="text-xs font-semibold leading-4.5 text-content-secondary">
 								{formatProviderLabel(provider)}
 							</span>
 						</div>
@@ -102,7 +95,7 @@ const ListSubagentModelsContent: React.FC<{ models: unknown[] }> = ({
 					</div>
 				))}
 			</div>
-		</ScrollArea>
+		</ToolCall.Scrollable>
 	);
 };
 

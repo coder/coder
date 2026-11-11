@@ -33,10 +33,10 @@ func TestRuntimeAudit(t *testing.T) {
 	t.Parallel()
 
 	// Cannot run `/copy` meta command over Exec, so comment it out.
-	runtimeAuditScript = strings.ReplaceAll(runtimeAuditScript, "\\copy", "-- \\copy")
+	script := strings.ReplaceAll(runtimeAuditScript, "\\copy", "-- \\copy")
 
 	// Use the SELECT instead
-	runtimeAuditScript = strings.ReplaceAll(runtimeAuditScript, "-- SELECT * FROM _workspace_usage_results", "SELECT * FROM _workspace_usage_results")
+	script = strings.ReplaceAll(script, "-- SELECT * FROM _workspace_usage_results", "SELECT * FROM _workspace_usage_results")
 
 	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 
@@ -330,7 +330,7 @@ func TestRuntimeAudit(t *testing.T) {
 		workspaces[i] = wrk
 	}
 
-	row, err := sqlDB.Query(runtimeAuditScript)
+	row, err := sqlDB.Query(script)
 	require.NoError(t, err)
 
 	found := make(map[uuid.UUID]auditRow)

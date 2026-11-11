@@ -6,6 +6,7 @@ import {
 	useMatch,
 	useSearchParams,
 } from "react-router";
+import type { Organization } from "#/api/typesGenerated";
 import {
 	Sidebar as BaseSidebar,
 	SettingsSidebarNavItem as SidebarNavItem,
@@ -23,6 +24,8 @@ type AISettingsSidebarViewProps = {
 	canAccessOrganizationModels?: boolean;
 	canShareOrganizationMCPServers?: boolean;
 	canViewOrganizationInstructions: boolean;
+	/** Organizations whose skills the user can read. */
+	skillOrganizations?: readonly Organization[];
 };
 
 const SubNavItem: React.FC<{ href: To; children?: React.ReactNode }> = ({
@@ -34,7 +37,7 @@ const SubNavItem: React.FC<{ href: To; children?: React.ReactNode }> = ({
 		className={({ isActive }) =>
 			cn(
 				"relative -ml-px text-sm text-content-secondary no-underline font-medium py-2 pl-4 pr-3 transition-colors",
-				"border-0 border-solid border-l border-l-transparent hover:text-content-primary",
+				"border-solid border-l border-l-transparent hover:text-content-primary",
 				isActive &&
 					"border-l-content-primary font-semibold text-content-primary",
 			)
@@ -45,7 +48,7 @@ const SubNavItem: React.FC<{ href: To; children?: React.ReactNode }> = ({
 );
 
 const SubNavGroup: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-	<div className="flex flex-col gap-1 ml-3 border-0 border-solid border-l border-l-border">
+	<div className="flex flex-col gap-1 ml-3 border-solid border-l border-l-border">
 		{children}
 	</div>
 );
@@ -89,6 +92,7 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 	canAccessOrganizationModels = false,
 	canShareOrganizationMCPServers = false,
 	canViewOrganizationInstructions,
+	skillOrganizations = [],
 }) => {
 	const [searchParams] = useSearchParams();
 	const organizationName = searchParams.get(modelOrganizationSearchParam);
@@ -115,6 +119,16 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 	const instructionsPath = organizationScopedPath(
 		"/ai/settings/instructions",
 		organizationName,
+	);
+	// The Skills page denies an organization the user cannot read rather than
+	// replacing it, so only carry over an organization it will show.
+	const skillsPath = organizationScopedPath(
+		"/ai/settings/skills",
+		skillOrganizations.some(
+			(organization) => organization.name === organizationName,
+		)
+			? organizationName
+			: null,
 	);
 
 	return (
@@ -152,6 +166,9 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 							<SubNavItem href="/ai/settings/templates">Templates</SubNavItem>
 						)}
 						<SubNavItem href={instructionsPath}>Instructions</SubNavItem>
+						{permissions.viewAnyOrganizationSkills && (
+							<SubNavItem href={skillsPath}>Skills</SubNavItem>
+						)}
 						<SubNavItem href="/ai/settings/lifecycle">Lifecycle</SubNavItem>
 					</SubNavGroup>
 				)}
@@ -185,6 +202,12 @@ const AISettingsSidebarView: React.FC<AISettingsSidebarViewProps> = ({
 					canViewOrganizationInstructions && (
 						<SubNavGroup>
 							<SubNavItem href={instructionsPath}>Instructions</SubNavItem>
+						</SubNavGroup>
+					)}
+				{!permissions.editDeploymentConfig &&
+					permissions.viewAnyOrganizationSkills && (
+						<SubNavGroup>
+							<SubNavItem href={skillsPath}>Skills</SubNavItem>
 						</SubNavGroup>
 					)}
 			</div>

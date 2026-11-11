@@ -50,6 +50,8 @@ import (
 var bedrockSupportedBetaFlags = map[string]bool{
 	// Supported on Claude 3.7 Sonnet.
 	"computer-use-2025-01-24": true,
+	// Supported on Claude Opus 4.5 and later. Enables computer_20251124.
+	"computer-use-2025-11-24": true,
 	// Supported on Claude 3.7 Sonnet and Claude 4+.
 	"token-efficient-tools-2025-02-19": true,
 	// Supported on Claude 4+ models.
@@ -724,14 +726,19 @@ func bedrockModelSupportsAdaptiveThinking(model string) bool {
 
 // bedrockModelRequiresAdaptiveThinking returns true if the given Bedrock model
 // ID only supports the "adaptive" thinking type and rejects the legacy
-// "enabled" + budget_tokens shape with a 400.
+// "enabled" + budget_tokens shape with a 400. The Opus 5, Sonnet 5, Fable 5,
+// and Mythos 5 prefixes also match their point releases.
 //
 // See https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-7.html
+// and https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-adaptive-thinking.html
 func bedrockModelRequiresAdaptiveThinking(model string) bool {
 	return strings.Contains(model, "anthropic.claude-opus-4-7") ||
 		strings.Contains(model, "anthropic.claude-opus-4-8") ||
-		strings.Contains(model, "anthropic.claude-opus-5-5") ||
-		strings.Contains(model, "anthropic.claude-sonnet-5")
+		strings.Contains(model, "anthropic.claude-opus-5") ||
+		strings.Contains(model, "anthropic.claude-sonnet-5") ||
+		strings.Contains(model, "anthropic.claude-haiku-5-5") ||
+		strings.Contains(model, "anthropic.claude-fable-5") ||
+		strings.Contains(model, "anthropic.claude-mythos-5")
 }
 
 // filterBedrockBetaFlags removes unsupported beta flags from the Anthropic-Beta

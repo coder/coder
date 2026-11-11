@@ -81,7 +81,7 @@ type OrganizationMemberWithUserData struct {
 	Name             string     `table:"name" json:"name,omitempty"`
 	AvatarURL        string     `json:"avatar_url,omitempty"`
 	Email            string     `json:"email"`
-	Status           UserStatus `json:"status" enums:"active,suspended"`
+	Status           UserStatus `json:"status"`
 	LoginType        LoginType  `json:"login_type"`
 	LastSeenAt       time.Time  `table:"last seen at" json:"last_seen_at,omitempty" format:"date-time"`
 	UserCreatedAt    time.Time  `table:"user created at" json:"user_created_at" format:"date-time"`
@@ -128,7 +128,7 @@ type CreateTemplateVersionRequest struct {
 	Message string `json:"message,omitempty" validate:"lt=1048577"`
 	// TemplateID optionally associates a version with a template.
 	TemplateID      uuid.UUID                `json:"template_id,omitempty" format:"uuid"`
-	StorageMethod   ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required" enums:"file"`
+	StorageMethod   ProvisionerStorageMethod `json:"storage_method" validate:"oneof=file,required"`
 	FileID          uuid.UUID                `json:"file_id,omitempty" validate:"required_without=ExampleID" format:"uuid"`
 	ExampleID       string                   `json:"example_id,omitempty" validate:"required_without=FileID"`
 	Provisioner     ProvisionerType          `json:"provisioner" validate:"oneof=terraform echo,required"`
@@ -175,10 +175,10 @@ type CreateTemplateRequest struct {
 	// workspaces created from this template. Defaults to 0 (disabled).
 	TimeTilAutostopNotifyMillis *int64 `json:"time_til_autostop_notify_ms,omitempty"`
 	// AutostopRequirement allows optionally specifying the autostop requirement
-	// for workspaces created from this template. This is an enterprise feature.
+	// for workspaces created from this template. This is a Premium feature.
 	AutostopRequirement *TemplateAutostopRequirement `json:"autostop_requirement,omitempty"`
 	// AutostartRequirement allows optionally specifying the autostart allowed days
-	// for workspaces created from this template. This is an enterprise feature.
+	// for workspaces created from this template. This is a Premium feature.
 	AutostartRequirement *TemplateAutostartRequirement `json:"autostart_requirement,omitempty"`
 
 	// Allow users to cancel in-progress workspace jobs.
@@ -186,14 +186,14 @@ type CreateTemplateRequest struct {
 	AllowUserCancelWorkspaceJobs *bool `json:"allow_user_cancel_workspace_jobs"`
 
 	// AllowUserAutostart allows users to set a schedule for autostarting their
-	// workspace. By default this is true. This can only be disabled when using
-	// an enterprise license.
+	// workspace. By default this is true. This can only be disabled with a
+	// Premium license.
 	AllowUserAutostart *bool `json:"allow_user_autostart,omitempty"`
 
 	// AllowUserAutostop allows users to set a custom workspace TTL to use in
 	// place of the template's DefaultTTL field. By default this is true. If
-	// false, the DefaultTTL will always be used. This can only be disabled when
-	// using an enterprise license.
+	// false, the DefaultTTL will always be used. This can only be disabled with a
+	// Premium license.
 	AllowUserAutostop *bool `json:"allow_user_autostop,omitempty"`
 
 	// FailureTTLMillis allows optionally specifying the max lifetime before Coder
@@ -262,9 +262,11 @@ type CreateWorkspaceRequest struct {
 	TTLMillis         *int64    `json:"ttl_ms,omitempty"`
 	// RichParameterValues allows for additional parameters to be provided
 	// during the initial provision.
-	RichParameterValues     []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
-	AutomaticUpdates        AutomaticUpdates          `json:"automatic_updates,omitempty"`
-	TemplateVersionPresetID uuid.UUID                 `json:"template_version_preset_id,omitempty" format:"uuid"`
+	RichParameterValues []WorkspaceBuildParameter `json:"rich_parameter_values,omitempty"`
+	// Secrets sets the workspace's initial secrets.
+	Secrets                 []WorkspaceSecretInput `json:"secrets,omitempty"`
+	AutomaticUpdates        AutomaticUpdates       `json:"automatic_updates,omitempty"`
+	TemplateVersionPresetID uuid.UUID              `json:"template_version_preset_id,omitempty" format:"uuid"`
 }
 
 func (c *Client) OrganizationByName(ctx context.Context, name string) (Organization, error) {

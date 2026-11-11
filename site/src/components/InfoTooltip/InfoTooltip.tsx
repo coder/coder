@@ -1,10 +1,9 @@
 import { cn } from "cn";
 import { InfoIcon, TriangleAlertIcon } from "lucide-react";
 import {
-	TOOLTIP_DELAY_DURATION,
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
+	type TooltipSide,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 
@@ -16,6 +15,7 @@ type InfoTooltipProps = {
 	type?: InfoTooltipType;
 	size?: InfoTooltipSize;
 	ariaLabel?: string;
+	side?: TooltipSide;
 	children: React.ReactNode;
 };
 
@@ -39,29 +39,28 @@ export const InfoTooltip: React.FC<InfoTooltipProps> = ({
 	type = "info",
 	size = "medium",
 	ariaLabel = "More info",
+	side = "right",
 }) => {
 	const Icon = typeIcon[type];
 
 	return (
-		<TooltipProvider delayDuration={TOOLTIP_DELAY_DURATION}>
-			<Tooltip>
-				<TooltipTrigger
-					type="button"
-					aria-label={ariaLabel}
-					className={cn(
-						"flex items-center justify-center p-0",
-						"border-0 border-none bg-transparent cursor-default",
-						"transition-colors",
-						sizeClasses[size],
-						typeIconColor[type],
-					)}
-				>
-					<Icon />
-				</TooltipTrigger>
-				<TooltipContent side="right" align="center" className="max-w-xs">
-					{children}
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
+		<Tooltip interactive>
+			<TooltipTrigger
+				type="button"
+				aria-label={ariaLabel}
+				className={cn(
+					"flex items-center justify-center p-0",
+					"border-none bg-transparent cursor-default",
+					"transition-colors",
+					sizeClasses[size],
+					typeIconColor[type],
+				)}
+			>
+				<Icon />
+			</TooltipTrigger>
+			<TooltipContent side={side} align="center" className="max-w-xs">
+				{children}
+			</TooltipContent>
+		</Tooltip>
 	);
 };

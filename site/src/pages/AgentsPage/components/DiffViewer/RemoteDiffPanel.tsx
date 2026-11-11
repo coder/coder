@@ -1,9 +1,4 @@
-import {
-	ArrowLeftIcon,
-	CopyIcon,
-	ExternalLinkIcon,
-	GitBranchIcon,
-} from "lucide-react";
+import { ArrowLeftIcon, CopyIcon, GitBranchIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useQuery } from "react-query";
 import { chatDiffContents } from "#/api/queries/chats";
@@ -37,7 +32,7 @@ const BranchCopyButton: React.FC<{ branch: string }> = ({ branch }) => {
 					type="button"
 					onClick={() => copyToClipboard(branch)}
 					aria-label={`Copy branch name: ${branch}`}
-					className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary"
+					className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-sm bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary"
 				>
 					{showCopiedSuccess ? (
 						<CheckIcon className="size-3" />
@@ -113,9 +108,6 @@ export const RemoteDiffPanel: React.FC<RemoteDiffPanelProps> = ({
 	// ---------------------------------------------------------------
 	const pullRequestUrl = diffStatus?.url;
 	const parsedPr = pullRequestUrl ? parsePullRequestUrl(pullRequestUrl) : null;
-	// The server synthesizes /tree/<branch> URLs for refs without
-	// a PR, so classify before rendering the PR link.
-	const hasPullRequest = Boolean(diffStatus?.pr_number ?? parsedPr);
 	const baseBranch = diffStatus?.base_branch;
 	// A cleared PR clears head_branch but keeps git_branch.
 	const headBranch = diffStatus?.head_branch || diffStatus?.git_branch;
@@ -127,7 +119,7 @@ export const RemoteDiffPanel: React.FC<RemoteDiffPanelProps> = ({
 		<div className="flex h-full flex-col">
 			{/* Compact PR/branch sub-header */}
 			{(pullRequestUrl || baseBranch || headBranch) && (
-				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-3 py-1.5">
+				<div className="flex shrink-0 items-center gap-2 border-b border-solid px-3 py-1.5">
 					<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
 						{baseBranch || headBranch ? (
 							<>
@@ -151,24 +143,13 @@ export const RemoteDiffPanel: React.FC<RemoteDiffPanelProps> = ({
 							<span className="truncate">{pullRequestUrl}</span>
 						)}
 					</div>
-					<div className="ml-auto flex shrink-0 items-center gap-1.5">
+					<div className="ml-auto flex shrink-0">
 						{diffStatus?.additions || diffStatus?.deletions ? (
 							<DiffStatBadge
 								additions={diffStatus.additions}
 								deletions={diffStatus.deletions}
 							/>
 						) : null}
-						{pullRequestUrl && hasPullRequest && (
-							<a
-								href={pullRequestUrl}
-								target="_blank"
-								rel="noreferrer"
-								className="inline-flex items-center gap-1 rounded-sm border border-solid border-border px-2 text-[13px] font-medium leading-5 text-content-primary no-underline transition-colors hover:bg-surface-secondary"
-							>
-								View PR
-								<ExternalLinkIcon className="size-3" />
-							</a>
-						)}
 					</div>
 				</div>
 			)}

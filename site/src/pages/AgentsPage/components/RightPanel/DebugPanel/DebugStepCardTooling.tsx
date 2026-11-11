@@ -2,10 +2,9 @@ import { cn } from "cn";
 import { WrenchIcon } from "lucide-react";
 import { useState } from "react";
 import { Badge } from "#/components/Badge/Badge";
+import { clampContent, exceedsClampThreshold } from "#/utils/text";
 import { CopyableCodeBlock, RoleBadge } from "./DebugPanelPrimitives";
 import {
-	clampContent,
-	exceedsClampThreshold,
 	MESSAGE_CONTENT_CLAMP_CHARS,
 	type MessagePart,
 } from "./debugPanelUtils";
@@ -32,7 +31,7 @@ export const ToolPayloadDisclosure: React.FC<ToolPayloadDisclosureProps> = ({
 
 	return (
 		<div className="mt-2 space-y-1">
-			<p className="text-2xs font-medium uppercase tracking-wide text-content-tertiary">
+			<p className="text-2xs font-medium uppercase tracking-wide text-content-secondary">
 				{label}
 			</p>
 			<CopyableCodeBlock code={code} label={copyLabel} className="max-h-56" />
@@ -69,7 +68,7 @@ export const ToolEventCard: React.FC<ToolEventCardProps> = ({
 			<div className="flex min-w-0 flex-wrap items-center gap-2">
 				<ToolBadge label={badgeLabel} />
 				{toolCallId ? (
-					<span className="min-w-0 truncate font-mono text-2xs text-content-tertiary">
+					<span className="min-w-0 truncate font-mono text-2xs text-content-secondary">
 						{toolCallId}
 					</span>
 				) : null}
@@ -124,12 +123,12 @@ const TranscriptTextRow: React.FC<MessageRowProps> = ({ msg, clamp }) => {
 			<div className="flex items-center gap-2">
 				<RoleBadge role={msg.role} />
 				{msg.toolName ? (
-					<span className="min-w-0 truncate font-mono text-2xs text-content-tertiary">
+					<span className="min-w-0 truncate font-mono text-2xs text-content-secondary">
 						{msg.toolName}
 					</span>
 				) : null}
 				{msg.toolCallId && !msg.toolName ? (
-					<span className="min-w-0 truncate font-mono text-2xs text-content-tertiary">
+					<span className="min-w-0 truncate font-mono text-2xs text-content-secondary">
 						{msg.toolCallId}
 					</span>
 				) : null}
@@ -148,7 +147,7 @@ const TranscriptTextRow: React.FC<MessageRowProps> = ({ msg, clamp }) => {
 						<button
 							type="button"
 							onClick={() => setExpanded((prev) => !prev)}
-							className="border-0 bg-transparent p-0 text-2xs font-medium text-content-link transition-colors hover:underline"
+							className="bg-transparent p-0 text-2xs font-medium text-content-link transition-colors hover:underline"
 							aria-label={`See ${expanded ? "less" : "more"} of ${msg.role} message`}
 						>
 							{expanded ? "see less" : "see more"}

@@ -12,14 +12,10 @@ const (
 	debugCleanupRetryDelay = 500 * time.Millisecond
 	debugCleanupAttempts   = 3
 	debugCleanupTimeout    = 5 * time.Second
-	// debugCreateRunTimeout caps how long a CreateRun insert can
-	// block the caller's critical path. Debug persistence is
-	// best-effort, so the turn proceeds without debug rows if the
-	// DB is slow or locked. Matches the manual-title budget.
-	debugCreateRunTimeout = 5 * time.Second
 	// debugFinalizeTimeout caps best-effort debug run finalization
-	// outside the runner's canceled context.
-	debugFinalizeTimeout = 5 * time.Second
+	// outside the caller's canceled context.
+	debugFinalizeTimeout          = 5 * time.Second
+	shortTextDebugFinalizeTimeout = 10 * time.Second
 	// debugCleanupClockSkew gives cleanup cutoffs tolerance for cross-
 	// replica clock drift. The cutoff is sampled from the DB
 	// (updated_at returned by the status transition), and
@@ -29,9 +25,9 @@ const (
 	// even though the insert physically happened after commit.
 	// Subtracting this buffer ensures the fast retry path cannot
 	// delete replacement rows when clocks drift by up to this
-	// amount; rows within the buffer survive the fast cleanup but
-	// are still finalized (and eligible for stale-sweep cleanup) by
-	// the existing FinalizeStale background loop.
+	// amount; rows within the buffer survive the fast cleanup, and
+	// dbpurge deletes them once they age past the debug retention
+	// window.
 	debugCleanupClockSkew = 30 * time.Second
 )
 

@@ -125,12 +125,12 @@ func TestModelTransportConsumersAgree(t *testing.T) {
 	serviceTier := "auto"
 
 	cases := []struct {
-		name           string
-		modelID        string
-		override       *bool
-		wantPath       string
-		wantOptions    fantasy.ProviderOptionsData
-		wantAcceptText bool
+		name            string
+		modelID         string
+		override        *bool
+		wantPath        string
+		wantOptions     fantasy.ProviderOptionsData
+		wantAcceptAudio bool
 	}{
 		{
 			name:        "ForceResponsesOnUnknownModel",
@@ -140,12 +140,12 @@ func TestModelTransportConsumersAgree(t *testing.T) {
 			wantOptions: &fantasyopenai.ResponsesProviderOptions{},
 		},
 		{
-			name:           "ForceCompletionsOnKnownModel",
-			modelID:        responsesModel,
-			override:       &forceCompletions,
-			wantPath:       "/chat/completions",
-			wantOptions:    &fantasyopenai.ProviderOptions{},
-			wantAcceptText: true,
+			name:            "ForceCompletionsOnKnownModel",
+			modelID:         responsesModel,
+			override:        &forceCompletions,
+			wantPath:        "/chat/completions",
+			wantOptions:     &fantasyopenai.ProviderOptions{},
+			wantAcceptAudio: true,
 		},
 		{
 			name:        "UnsetFollowsKnownModelList",
@@ -211,7 +211,7 @@ func TestModelTransportConsumersAgree(t *testing.T) {
 			}, nil)
 			require.IsType(t, tc.wantOptions, effortOptions[fantasyopenai.Name])
 
-			require.Equal(t, tc.wantAcceptText, model.AcceptsFilePartMediaType("text/plain"))
+			require.Equal(t, tc.wantAcceptAudio, model.AcceptsFilePartMediaType("audio/mpeg"))
 			require.True(t, model.AcceptsFilePartMediaType("image/png"))
 		})
 	}
@@ -309,6 +309,96 @@ func TestModelFromConfig_OpenAIReasoningModelOverride(t *testing.T) {
 				require.Equal(t, 0.7, body["temperature"])
 				require.Equal(t, 0.9, body["top_p"])
 			}
+		})
+	}
+}
+
+// Encrypted reasoning is the only replayable reasoning state when responses
+// are not stored, so every Responses call must request it without changing
+// the configured or default store setting.
+func TestProviderOptionsForCall_OpenAIResponsesEncryptedReasoning(t *testing.T) {
+	t.Parallel()
+
+	const encryptedReasoning = string(fantasyopenai.IncludeReasoningEncryptedContent)
+	const fileSearchResults = string(fantasyopenai.IncludeFileSearchCallResults)
+	effort := &codersdk.ChatModelReasoningEffortConfig{
+		Default: new(codersdk.ChatModelReasoningEffortHigh),
+		Max:     new(codersdk.ChatModelReasoningEffortHigh),
+	}
+
+	for _, tc := range []struct {
+		name         string
+		useResponses bool
+		config       codersdk.ChatModelCallConfig
+		wantInclude  []any
+		wantStore    any
+	}{
+		{
+			name:         "Default",
+			useResponses: true,
+			wantInclude:  []any{encryptedReasoning},
+			wantStore:    false,
+		},
+		{
+			name:         "EffortOnly",
+			useResponses: true,
+			config:       codersdk.ChatModelCallConfig{ReasoningEffort: effort},
+			wantInclude:  []any{encryptedReasoning},
+			wantStore:    false,
+		},
+		{
+			name:         "ConfiguredStoreAndInclude",
+			useResponses: true,
+			config: codersdk.ChatModelCallConfig{
+				ReasoningEffort: effort,
+				ProviderOptions: &codersdk.ChatModelProviderOptions{
+					OpenAI: &codersdk.ChatModelOpenAIProviderOptions{
+						Store:   new(true),
+						Include: []string{fileSearchResults},
+					},
+				},
+			},
+			wantInclude: []any{fileSearchResults, encryptedReasoning},
+			wantStore:   true,
+		},
+		{
+			name:   "ChatCompletions",
+			config: codersdk.ChatModelCallConfig{ReasoningEffort: effort},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			bodies := make(chan []byte, 1)
+			serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				bodies <- req.RawBody
+				return chattest.OpenAINonStreamingResponse("ok")
+			})
+			model, err := chatprovider.ModelFromConfig(
+				fantasyopenai.Name, "gpt-5",
+				chatprovider.ProviderAPIKeys{
+					ByProvider:        map[string]string{fantasyopenai.Name: "test-key"},
+					BaseURLByProvider: map[string]string{fantasyopenai.Name: serverURL},
+				},
+				chatprovider.UserAgent(), nil, nil,
+				&codersdk.ChatModelCallConfig{OpenAIConfig: &codersdk.ChatModelOpenAIConfig{UseResponsesAPI: &tc.useResponses}},
+			)
+			require.NoError(t, err)
+
+			_, err = model.LanguageModel().Generate(t.Context(), fantasy.Call{
+				Prompt:          []fantasy.Message{{Role: fantasy.MessageRoleUser, Content: []fantasy.MessagePart{fantasy.TextPart{Text: "hello"}}}},
+				ProviderOptions: chatprovider.ProviderOptionsForCall(model, tc.config, nil),
+			})
+			require.NoError(t, err)
+
+			var body map[string]any
+			require.NoError(t, json.Unmarshal(<-bodies, &body))
+			if !tc.useResponses {
+				require.NotContains(t, body, "include")
+				return
+			}
+			require.Equal(t, tc.wantInclude, body["include"])
+			require.Equal(t, tc.wantStore, body["store"])
 		})
 	}
 }

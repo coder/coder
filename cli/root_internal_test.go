@@ -34,6 +34,8 @@ import (
 func TestMain(m *testing.M) {
 	// Report multi-second pauses of the whole process, see coder/internal#1365.
 	testutil.StartStallDetector(5 * time.Second)
+	// Fail with a heap profile before a runaway allocation pushes the runner into swap.
+	testutil.StartMemoryGuardFromEnv()
 	if runtime.GOOS == "windows" {
 		// Don't run goleak on windows tests, they're super flaky right now.
 		// See: https://github.com/coder/coder/issues/8954
@@ -386,6 +388,115 @@ func TestPrintDeprecatedOptions(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, stderr.String(),
 			"setting nothing should not produce a deprecation warning")
+	})
+}
+
+func TestWarnConflictingOptions(t *testing.T) {
+	t.Parallel()
+
+	makeCmd := func() *serpent.Command {
+		var (
+			columns []string
+			output  string
+		)
+		return &serpent.Command{
+			Use: "test",
+			Options: serpent.OptionSet{
+				{
+					Flag:          "column",
+					FlagShorthand: "c",
+					Default:       "foo,bar",
+					Value:         serpent.EnumArrayOf(&columns, "foo", "bar"),
+				},
+				{
+					Flag:          "output",
+					FlagShorthand: "o",
+					Default:       "table",
+					Value:         serpent.EnumOf(&output, "table", "json"),
+				},
+			},
+			Middleware: WarnConflictingOptions(),
+			Handler: func(_ *serpent.Invocation) error {
+				return nil
+			},
+		}
+	}
+
+	t.Run("ColumnWithNonTableOutput_Warning", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := makeCmd()
+		var stderr bytes.Buffer
+		inv := cmd.Invoke("-c", "foo", "-o", "json")
+		inv.Stderr = &stderr
+		err := inv.Run()
+		require.NoError(t, err)
+		require.Contains(t, stderr.String(), "WARN: ")
+		require.Contains(t, stderr.String(), "--column only applies to table output")
+	})
+
+	t.Run("ColumnWithTableOutput_NoWarning", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := makeCmd()
+		var stderr bytes.Buffer
+		inv := cmd.Invoke("-c", "foo", "-o", "table")
+		inv.Stderr = &stderr
+		err := inv.Run()
+		require.NoError(t, err)
+		require.Empty(t, stderr.String())
+	})
+
+	t.Run("ColumnWithDefaultTableOutput_NoWarning", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := makeCmd()
+		var stderr bytes.Buffer
+		inv := cmd.Invoke("-c", "foo")
+		inv.Stderr = &stderr
+		err := inv.Run()
+		require.NoError(t, err)
+		require.Empty(t, stderr.String())
+	})
+
+	t.Run("NoColumnFlag_NoWarning", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := makeCmd()
+		var stderr bytes.Buffer
+		inv := cmd.Invoke("-o", "json")
+		inv.Stderr = &stderr
+		err := inv.Run()
+		require.NoError(t, err)
+		require.Empty(t, stderr.String())
+	})
+
+	t.Run("NoOutputFlag_NoWarning", func(t *testing.T) {
+		t.Parallel()
+
+		var columns []string
+		cmd := &serpent.Command{
+			Use: "test",
+			Options: serpent.OptionSet{
+				{
+					Flag:          "column",
+					FlagShorthand: "c",
+					Default:       "foo,bar",
+					Value:         serpent.EnumArrayOf(&columns, "foo", "bar"),
+				},
+			},
+			Middleware: WarnConflictingOptions(),
+			Handler: func(_ *serpent.Invocation) error {
+				return nil
+			},
+		}
+		var stderr bytes.Buffer
+		inv := cmd.Invoke("-c", "foo")
+		inv.Stderr = &stderr
+		err := inv.Run()
+		require.NoError(t, err)
+		require.Empty(t, stderr.String(),
+			"a command with no --output flag always renders a table, so no warning should be printed")
 	})
 }
 

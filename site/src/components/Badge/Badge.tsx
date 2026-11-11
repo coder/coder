@@ -7,36 +7,32 @@ import { cn } from "cn";
 import { Slot } from "radix-ui";
 
 const badgeVariants = cva(
-	`
-	inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-nowrap
-	transition-colors [&_svg]:py-0.5 border-solid
-	[&_svg]:pointer-events-none
-	`,
+	cn(
+		"inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-nowrap",
+		"transition-colors [&_svg]:py-0.5 border-solid",
+		"[&_svg]:pointer-events-none",
+	),
 	{
 		variants: {
 			variant: {
 				default:
-					"border-surface-secondary bg-surface-secondary text-content-secondary shadow-sm",
-				outline:
-					"border-border bg-transparent text-content-primary shadow-none",
+					"border-transparent bg-surface-secondary text-content-secondary",
+				outline: "bg-transparent text-content-primary shadow-none",
 				dashed:
-					"border-dashed border-border bg-surface-secondary text-content-secondary shadow-none",
+					"border-dashed bg-surface-secondary text-content-secondary shadow-none",
 				warning:
-					"border-highlight-orange bg-surface-orange text-highlight-orange shadow-sm",
+					"border-highlight-orange bg-surface-orange text-highlight-orange",
 				destructive:
-					"border-border-destructive bg-surface-red text-highlight-red shadow-sm",
-				green:
-					"border-border-green bg-surface-green text-highlight-green shadow-sm",
-				purple:
-					"border-border-purple bg-surface-purple text-highlight-purple shadow-sm",
+					"border-border-destructive bg-surface-red text-highlight-red",
+				green: "border-border-green bg-surface-green text-highlight-green",
+				purple: "border-border-purple bg-surface-purple text-highlight-purple",
 				magenta:
-					"border-border-magenta bg-surface-magenta text-highlight-magenta shadow-sm",
-				info: "border-border-pending bg-surface-sky text-highlight-sky shadow-sm",
+					"border-border-magenta bg-surface-magenta text-highlight-magenta",
+				info: "border-border-pending bg-surface-sky text-highlight-sky",
 			},
 			size: {
-				xs: "border-0 text-2xs font-normal h-[18px] rounded",
-				sm: "text-2xs font-normal py-1",
-				md: "text-xs font-normal py-1",
+				sm: "h-4.5 border-0 rounded-sm text-2xs font-normal",
+				md: "h-6.5 py-1 text-xs font-normal",
 			},
 			svgSize: {
 				xs: "[&_svg]:size-icon-xs",
@@ -62,7 +58,7 @@ const badgeVariants = cva(
 			{
 				hover: true,
 				variant: "info",
-				class: "hover:bg-surface-info/20",
+				class: "hover:bg-highlight-sky/20",
 			},
 		],
 		defaultVariants: {
@@ -102,7 +98,5 @@ export const Badge: React.FC<BadgeProps> = ({
 };
 
 export const BadgeGroup: React.FC<React.PropsWithChildren> = ({ children }) => {
-	return (
-		<div className="flex flex-row items-center gap-2 mb-4">{children}</div>
-	);
+	return <div className="flex items-center gap-2 mb-4">{children}</div>;
 };

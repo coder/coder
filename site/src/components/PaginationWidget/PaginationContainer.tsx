@@ -9,7 +9,9 @@ export type PaginationResult<Data = unknown> = PaginationResultInfo & {
 
 type PaginationProps = React.ComponentProps<"div"> & {
 	query: PaginationResult;
-	paginationUnitLabel: string;
+	paginationUnitLabel: React.ComponentProps<
+		typeof PaginationAmount
+	>["paginationUnitLabel"];
 };
 
 export const PaginationContainer: React.FC<PaginationProps> = ({

@@ -22,7 +22,6 @@ import (
 	"go.uber.org/goleak"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/aisdk-go"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -34,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/toolsdk"
+	"github.com/coder/coder/v2/codersdk/toolsdk/tooldef"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -261,9 +261,9 @@ func TestGenericToolArgumentValidation(t *testing.T) {
 
 			called := false
 			tool := toolsdk.Tool[arguments, struct{}]{
-				Tool: aisdk.Tool{
+				Tool: tooldef.Tool{
 					Name: "test_validation",
-					Schema: aisdk.Schema{
+					Schema: tooldef.Schema{
 						Properties: map[string]any{
 							"mode": map[string]any{
 								"type": "string",
@@ -303,9 +303,9 @@ func TestGenericToolArgumentValidation_TypedDecode(t *testing.T) {
 	}
 	called := false
 	tool := toolsdk.Tool[arguments, struct{}]{
-		Tool: aisdk.Tool{
+		Tool: tooldef.Tool{
 			Name: "test_typed_decode",
-			Schema: aisdk.Schema{
+			Schema: tooldef.Schema{
 				Properties: map[string]any{
 					"port": map[string]any{"type": "number"},
 				},
@@ -335,9 +335,9 @@ func TestGenericToolArgumentValidation_PreservesLargeInteger(t *testing.T) {
 	const value = int64(9007199254740993)
 	var received int64
 	tool := toolsdk.Tool[arguments, struct{}]{
-		Tool: aisdk.Tool{
+		Tool: tooldef.Tool{
 			Name: "test_large_integer",
-			Schema: aisdk.Schema{
+			Schema: tooldef.Schema{
 				Properties: map[string]any{
 					"value": map[string]any{"type": "integer"},
 				},
@@ -361,9 +361,9 @@ func TestGenericToolArgumentValidation_OmittedArguments(t *testing.T) {
 
 	called := false
 	tool := toolsdk.Tool[toolsdk.NoArgs, struct{}]{
-		Tool: aisdk.Tool{
+		Tool: tooldef.Tool{
 			Name:   "test_omitted_arguments",
-			Schema: aisdk.Schema{Properties: map[string]any{}},
+			Schema: tooldef.Schema{Properties: map[string]any{}},
 		},
 		Handler: func(context.Context, toolsdk.Deps, toolsdk.NoArgs) (struct{}, error) {
 			called = true
@@ -384,9 +384,9 @@ func TestGenericToolArgumentValidation_Concurrent(t *testing.T) {
 		Labels map[string]string `json:"labels"`
 	}
 	tool := toolsdk.Tool[arguments, struct{}]{
-		Tool: aisdk.Tool{
+		Tool: tooldef.Tool{
 			Name: "test_concurrent_validation",
-			Schema: aisdk.Schema{
+			Schema: tooldef.Schema{
 				Properties: map[string]any{
 					"labels": map[string]any{
 						"type": "object",
@@ -470,25 +470,6 @@ func TestTools(t *testing.T) {
 				Output:    "test log message",
 			},
 		},
-	})
-
-	t.Run("ReportTask", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitShort)
-		tb, err := toolsdk.NewDeps(memberClient, toolsdk.WithTaskReporter(func(args toolsdk.ReportTaskArgs) error {
-			return agentClient.PatchAppStatus(ctx, agentsdk.PatchAppStatus{
-				AppSlug: "some-agent-app",
-				Message: args.Summary,
-				URI:     args.Link,
-				State:   codersdk.WorkspaceAppStatusState(args.State),
-			})
-		}))
-		require.NoError(t, err)
-		_, err = testTool(t, toolsdk.ReportTask, tb, toolsdk.ReportTaskArgs{
-			Summary: "test summary",
-			State:   "complete",
-			Link:    "https://example.com",
-		})
-		require.NoError(t, err)
 	})
 
 	t.Run("GetWorkspace", func(t *testing.T) {
@@ -1688,6 +1669,7 @@ func TestTools(t *testing.T) {
 			offset    *int64
 			content   string
 			linesRead int
+			note      string
 			error     string
 		}{
 			{
@@ -1708,6 +1690,23 @@ func TestTools(t *testing.T) {
 				offset:    ptr.Ref[int64](2),
 				content:   "2\ttwo",
 				linesRead: 1,
+				note:      "Showing lines 2-2 of 3. To read more, call this tool again with offset=3.",
+			},
+			{
+				name:      "Offset0Limit1",
+				path:      filePath,
+				limit:     ptr.Ref[int64](1),
+				offset:    ptr.Ref[int64](0),
+				content:   "1\tone",
+				linesRead: 1,
+				note:      "Showing lines 1-1 of 3. To read more, call this tool again with offset=2.",
+			},
+			{
+				name:      "Offset2ReadsToEnd",
+				path:      filePath,
+				offset:    ptr.Ref[int64](2),
+				content:   "2\ttwo\n3\tthree",
+				linesRead: 2,
 			},
 		}
 
@@ -1729,6 +1728,7 @@ func TestTools(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, tt.content, resp.Content)
 				require.Equal(t, tt.linesRead, resp.LinesRead)
+				require.Equal(t, tt.note, resp.Note)
 				require.Equal(t, 3, resp.TotalLines)
 			})
 		}
@@ -2061,7 +2061,7 @@ func TestWithRecovery(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 		fakeTool := toolsdk.GenericTool{
-			Tool: aisdk.Tool{
+			Tool: tooldef.Tool{
 				Name:        "echo",
 				Description: "Echoes the input.",
 			},
@@ -2079,7 +2079,7 @@ func TestWithRecovery(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		t.Parallel()
 		fakeTool := toolsdk.GenericTool{
-			Tool: aisdk.Tool{
+			Tool: tooldef.Tool{
 				Name:        "fake_tool",
 				Description: "Returns an error for testing.",
 			},
@@ -2096,7 +2096,7 @@ func TestWithRecovery(t *testing.T) {
 	t.Run("Panic", func(t *testing.T) {
 		t.Parallel()
 		panicTool := toolsdk.GenericTool{
-			Tool: aisdk.Tool{
+			Tool: tooldef.Tool{
 				Name:        "panic_tool",
 				Description: "Panics for testing.",
 			},
@@ -2123,7 +2123,7 @@ func TestWithCleanContext(t *testing.T) {
 		// This test is to ensure that the context values are not set in the
 		// toolsdk package.
 		ctxTool := toolsdk.GenericTool{
-			Tool: aisdk.Tool{
+			Tool: tooldef.Tool{
 				Name:        "context_tool",
 				Description: "Returns the context value for testing.",
 			},
@@ -2145,7 +2145,7 @@ func TestWithCleanContext(t *testing.T) {
 		// This test is to ensure that the context is canceled properly.
 		callCh := make(chan struct{})
 		ctxTool := toolsdk.GenericTool{
-			Tool: aisdk.Tool{
+			Tool: tooldef.Tool{
 				Name:        "context_tool",
 				Description: "Returns the context value for testing.",
 			},
@@ -2192,7 +2192,7 @@ func TestWithCleanContext(t *testing.T) {
 		// This test ensures that the context deadline is propagated to the child
 		// from the parent.
 		ctxTool := toolsdk.GenericTool{
-			Tool: aisdk.Tool{
+			Tool: tooldef.Tool{
 				Name:        "context_tool_deadline",
 				Description: "Checks if context has deadline.",
 			},
@@ -2282,60 +2282,6 @@ func TestMain(m *testing.M) {
 	}
 
 	os.Exit(code)
-}
-
-func TestReportTaskNilPointerDeref(t *testing.T) {
-	t.Parallel()
-
-	// Create deps without a task reporter (simulating remote MCP server scenario)
-	client, _ := coderdtest.NewWithDatabase(t, nil)
-	deps, err := toolsdk.NewDeps(client)
-	require.NoError(t, err)
-
-	// Prepare test arguments
-	args := toolsdk.ReportTaskArgs{
-		Summary: "Test task",
-		Link:    "https://example.com",
-		State:   string(codersdk.WorkspaceAppStatusStateWorking),
-	}
-
-	_, err = toolsdk.ReportTask.Handler(t.Context(), deps, args)
-
-	// We expect an error, not a panic
-	require.Error(t, err)
-	require.Contains(t, err.Error(), "task reporting not available")
-}
-
-func TestReportTaskWithReporter(t *testing.T) {
-	t.Parallel()
-
-	// Create deps with a task reporter
-	client, _ := coderdtest.NewWithDatabase(t, nil)
-
-	called := false
-	reporter := func(args toolsdk.ReportTaskArgs) error {
-		called = true
-		require.Equal(t, "Test task", args.Summary)
-		require.Equal(t, "https://example.com", args.Link)
-		require.Equal(t, string(codersdk.WorkspaceAppStatusStateWorking), args.State)
-		return nil
-	}
-
-	deps, err := toolsdk.NewDeps(client, toolsdk.WithTaskReporter(reporter))
-	require.NoError(t, err)
-
-	args := toolsdk.ReportTaskArgs{
-		Summary: "Test task",
-		Link:    "https://example.com",
-		State:   string(codersdk.WorkspaceAppStatusStateWorking),
-	}
-
-	result, err := toolsdk.ReportTask.Handler(t.Context(), deps, args)
-	require.NoError(t, err)
-	require.True(t, called)
-
-	// Verify response
-	require.Equal(t, "Thanks for reporting!", result.Message)
 }
 
 func TestNormalizeWorkspaceInput(t *testing.T) {

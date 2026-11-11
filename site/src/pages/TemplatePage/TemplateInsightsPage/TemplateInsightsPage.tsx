@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import {
+	BlocksIcon,
 	CircleCheckIcon,
 	CircleXIcon,
 	SquareArrowOutUpRightIcon,
@@ -52,7 +53,13 @@ import {
 import { getTemplatePageTitle } from "../utils";
 import { ActiveUserChart } from "./ActiveUserChart";
 import { type InsightsInterval, IntervalMenu } from "./IntervalMenu";
-import { lastWeeks } from "./utils";
+import {
+	accountingRowDescription,
+	activeTimePercentage,
+	appUsageKey,
+	lastWeeks,
+	upperBoundLabel,
+} from "./utils";
 import { numberOfWeeksOptions, WeekPicker } from "./WeekPicker";
 
 const DEFAULT_NUMBER_OF_WEEKS = numberOfWeeksOptions[0];
@@ -237,6 +244,7 @@ export const TemplateInsightsPageView: React.FC<
 				<TemplateUsagePanel
 					className="col-span-2"
 					data={templateInsights.data?.report?.apps_usage}
+					activeSeconds={templateInsights.data?.report?.usage_total_seconds}
 					error={templateInsights.error}
 				/>
 				<UsersActivityPanel
@@ -395,46 +403,74 @@ const UsersActivityPanel: React.FC<UsersActivityPanelProps> = ({
 
 type TemplateUsagePanelProps = {
 	data: readonly TemplateAppUsage[] | undefined;
+	activeSeconds: number | undefined;
 	error: unknown;
 } & PanelProps;
 
 const TemplateUsagePanel: React.FC<TemplateUsagePanelProps> = ({
 	data,
+	activeSeconds = 0,
 	error,
 	className,
 	...panelProps
 }) => {
-	// The API returns a row for each app, even if the user didn't use it.
 	const validUsage = data
 		?.filter((u) => u.seconds > 0)
 		.sort((a, b) => b.seconds - a.seconds);
-	const totalInSeconds =
-		validUsage?.reduce((total, usage) => total + usage.seconds, 0) ?? 1;
 	const usageCount = validUsage?.length ?? 0;
 
 	return (
 		<Panel {...panelProps} className={cn("overflow-y-auto", className)}>
 			<PanelHeader>
-				<PanelTitle>App & IDE Usage</PanelTitle>
+				<PanelTitle className="flex items-center gap-2">
+					App & IDE Usage
+					<InfoTooltip size="small">
+						<TooltipTitle>How is app usage calculated?</TooltipTitle>
+						<TooltipMessage>
+							Each bar is the app's share of the time users were active in
+							workspaces. Apps used at the same time each count, so the shares
+							can add up to more than 100%.
+						</TooltipMessage>
+					</InfoTooltip>
+				</PanelTitle>
 			</PanelHeader>
 			<PanelContent error={error} data={validUsage}>
 				<div className="flex flex-col gap-6">
 					{(validUsage || []).map((usage, i) => {
-						const percentage = (usage.seconds / totalInSeconds) * 100;
+						const percentage = activeTimePercentage(
+							usage.seconds,
+							activeSeconds,
+						);
+						const percentageLabel = upperBoundLabel(
+							usage,
+							`${Math.floor(percentage)}%`,
+						);
+						const timeLabel = upperBoundLabel(usage, formatTime(usage.seconds));
+						const accountingDescription = accountingRowDescription(usage);
 						const colorStop =
 							usageCount <= 1 ? 0 : (i / (usageCount - 1)) * 100;
 						return (
-							<div key={usage.slug} className="flex items-center gap-6">
+							<div key={appUsageKey(usage)} className="flex items-center gap-6">
 								<div className="flex items-center gap-2">
 									<div className="flex justify-center items-center size-5">
-										<ExternalImage
-											src={usage.icon}
-											alt=""
-											className="h-full w-full object-contain"
-										/>
+										{usage.icon ? (
+											<ExternalImage
+												src={usage.icon}
+												alt=""
+												className="size-full object-contain"
+											/>
+										) : (
+											<BlocksIcon className="size-icon-sm text-content-secondary" />
+										)}
 									</div>
-									<div className="text-sm font-medium w-[200px]">
+									<div className="flex items-center gap-2 text-sm w-50">
 										{usage.display_name}
+										{accountingDescription && (
+											<InfoTooltip size="small">
+												<TooltipTitle>Usage accounting</TooltipTitle>
+												<TooltipMessage>{accountingDescription}</TooltipMessage>
+											</InfoTooltip>
+										)}
 									</div>
 								</div>
 								<Tooltip>
@@ -450,15 +486,15 @@ const TemplateUsagePanel: React.FC<TemplateUsagePanelProps> = ({
 										</div>
 									</TooltipTrigger>
 									<TooltipContent>
-										{Math.floor(percentage)}%
+										{percentageLabel} of active time
 										<TooltipArrow className="fill-border" />
 									</TooltipContent>
 								</Tooltip>
-								<div className="flex flex-col text-sm font-normal shrink-0 leading-normal text-content-secondary w-[120px]">
-									{formatTime(usage.seconds)}
+								<div className="flex flex-col text-sm font-normal shrink-0 leading-normal text-content-secondary w-30">
+									{timeLabel}
 									{usage.times_used > 0 && (
 										<span className="text-[12px] text-content-disabled">
-											Opened {usage.times_used.toLocaleString()}{" "}
+											Opened {usage.times_used.toLocaleString("en-US")}{" "}
 											{usage.times_used === 1 ? "time" : "times"}
 										</span>
 									)}
@@ -494,21 +530,19 @@ const TemplateParametersUsagePanel: React.FC<
 					return (
 						<div
 							key={parameter.name}
-							className="flex items-start gap-6 border-0 border-t border-solid border-surface-quaternary p-6 -mx-6 first:border-t-0"
+							className="flex items-start gap-6 border-t border-solid border-surface-quaternary p-6 -mx-6 first:border-t-0"
 						>
 							<div className="flex-1">
 								<div className="font-medium">{label}</div>
-								<p className="text-sm m-0 text-content-secondary max-w-[400px]">
+								<p className="text-sm m-0 text-content-secondary max-w-100">
 									{parameter.description}
 								</p>
 							</div>
 							<div className="flex-1 text-sm grid grid-cols-[1fr_auto] gap-x-4 items-baseline">
-								<div className="font-medium text-sm text-content-secondary py-1">
-									Value
-								</div>
+								<div className="text-sm text-content-secondary py-1">Value</div>
 								<Tooltip>
 									<TooltipTrigger asChild>
-										<div className="font-medium text-sm text-content-secondary text-right py-1 cursor-default">
+										<div className="text-sm text-content-secondary text-right py-1 cursor-default">
 											Count
 										</div>
 									</TooltipTrigger>
@@ -574,7 +608,7 @@ const ParameterUsageLabel: React.FC<ParameterUsageLabelProps> = ({
 						<ExternalImage
 							alt=""
 							src={icon}
-							className="w-full h-full object-contain"
+							className="size-full object-contain"
 							aria-labelledby={ariaId}
 						/>
 					</div>
@@ -696,7 +730,7 @@ const PanelContent: React.FC<PanelContentProps> = ({
 	return (
 		<div className="flex-1 px-6 pb-6">
 			{!error && !data ? (
-				<Loader className="h-full min-h-[200px]" />
+				<Loader className="h-full min-h-50" />
 			) : error || !data || data.length === 0 ? (
 				<NoDataAvailable error={error} />
 			) : (
@@ -717,7 +751,7 @@ const NoDataAvailable: React.FC<NoDataAvailableProps> = ({
 	return (
 		<div
 			{...props}
-			className="flex justify-center items-center text-sm font-normal py-2 text-content-secondary text-center h-full min-h-[200px]"
+			className="flex justify-center items-center text-sm font-normal py-2 text-content-secondary text-center h-full min-h-50"
 		>
 			{error
 				? getErrorDetail(error) ||

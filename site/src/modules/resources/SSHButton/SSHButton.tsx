@@ -1,5 +1,7 @@
 import { useQuery } from "react-query";
 import { deploymentSSHConfig } from "#/api/queries/deployment";
+import type { Workspace } from "#/api/typesGenerated";
+import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { ChevronDownIcon } from "#/components/AnimatedIcons/ChevronDown";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
@@ -13,21 +15,46 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import { Spinner } from "#/components/Spinner/Spinner";
+import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { docs } from "#/utils/docs";
+import { getWorkspaceAgents } from "#/utils/workspace";
 
 type AgentSSHButtonProps = {
-	workspaceName: string;
+	workspace: Workspace;
 	agentName: string;
-	workspaceOwnerUsername: string;
 };
 
 export const AgentSSHButton: React.FC<AgentSSHButtonProps> = ({
-	workspaceName,
+	workspace,
 	agentName,
-	workspaceOwnerUsername,
 }) => {
-	const { data } = useQuery(deploymentSSHConfig());
+	const { user } = useAuthenticated();
+	const { data, isLoading, error } = useQuery(deploymentSSHConfig());
 	const sshSuffix = data?.hostname_suffix;
+	const configCommand = sshSuffix ? "coder config-ssh" : undefined;
+	const isSingleAgent = getWorkspaceAgents(workspace).length === 1;
+	let connectCommand: string | undefined;
+	if (!isLoading) {
+		if (sshSuffix) {
+			const shortHostname = `${workspace.name}.${sshSuffix}`;
+			const hostnamePrefix = data?.hostname_prefix;
+			// SSH selects legacy prefix blocks before suffix blocks.
+			const matchesLegacyPrefix = hostnamePrefix
+				? shortHostname.toLowerCase().startsWith(hostnamePrefix.toLowerCase())
+				: false;
+			// Shared workspaces need the full hostname; SSH has no workspace.owner form.
+			connectCommand =
+				isSingleAgent && user.id === workspace.owner_id && !matchesLegacyPrefix
+					? `ssh ${shortHostname}`
+					: `ssh ${agentName}.${workspace.name}.${workspace.owner_name}.${sshSuffix}`;
+		} else {
+			// The CLI needs no SSH config, so it remains usable without a suffix.
+			connectCommand = isSingleAgent
+				? `coder ssh ${workspace.owner_name}/${workspace.name}`
+				: `coder ssh ${workspace.owner_name}/${workspace.name}.${agentName}`;
+		}
+	}
 
 	return (
 		<Popover>
@@ -41,39 +68,49 @@ export const AgentSSHButton: React.FC<AgentSSHButtonProps> = ({
 			<PopoverContent
 				onOpenAutoFocus={(event) => event.preventDefault()}
 				align="end"
-				className="py-4 px-6 w-80 text-content-secondary mt-[2px] bg-surface-secondary"
+				className="py-4 px-6 w-80 text-content-secondary mt-0.5 bg-surface-secondary"
 			>
 				<HelpPopoverText>
 					Run the following commands to connect with SSH:
 				</HelpPopoverText>
 
-				<ol style={{ margin: 0, padding: 0 }}>
-					<div className="flex flex-col gap-1 mt-3">
-						<SSHStep
-							helpText="Configure SSH hosts on machine:"
-							codeExample="coder config-ssh"
-						/>
-						<SSHStep
-							helpText="Connect to the agent:"
-							codeExample={`ssh ${agentName}.${workspaceName}.${workspaceOwnerUsername}.${sshSuffix}`}
-						/>
-					</div>
-				</ol>
+				{error && (
+					<ErrorAlert error={error} showDebugDetail={false} className="mt-3" />
+				)}
+
+				<Spinner loading={connectCommand === undefined} className="mt-3">
+					<ol style={{ margin: 0, padding: 0 }}>
+						<div className="flex flex-col gap-1 mt-3">
+							{configCommand && (
+								<SSHStep
+									helpText="Configure SSH hosts on machine:"
+									codeExample={configCommand}
+								/>
+							)}
+							{connectCommand && (
+								<SSHStep
+									helpText="Connect to the agent:"
+									codeExample={connectCommand}
+								/>
+							)}
+						</div>
+					</ol>
+				</Spinner>
 
 				<HelpPopoverLinksGroup>
 					<HelpPopoverLink href="/install">Install Coder CLI</HelpPopoverLink>
-					<HelpPopoverLink href={docs("/user-guides/workspace-access/vscode")}>
+					<HelpPopoverLink href={docs("/workspaces/workspace-access/vscode")}>
 						Connect via VS Code Remote SSH
 					</HelpPopoverLink>
 					<HelpPopoverLink
-						href={docs("/user-guides/workspace-access/jetbrains")}
+						href={docs("/workspaces/workspace-access/jetbrains")}
 					>
 						Connect via JetBrains IDEs
 					</HelpPopoverLink>
-					<HelpPopoverLink href={docs("/user-guides/desktop")}>
+					<HelpPopoverLink href={docs("/workspaces/desktop")}>
 						Connect via Coder Desktop
 					</HelpPopoverLink>
-					<HelpPopoverLink href={docs("/user-guides/workspace-access#ssh")}>
+					<HelpPopoverLink href={docs("/workspaces/workspace-access#ssh")}>
 						SSH configuration
 					</HelpPopoverLink>
 				</HelpPopoverLinksGroup>

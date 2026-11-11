@@ -4,8 +4,17 @@
  */
 
 import { cn } from "cn";
-import { createContext, useContext, useId, useMemo } from "react";
+import {
+	createContext,
+	useCallback,
+	useContext,
+	useEffect,
+	useId,
+	useMemo,
+	useState,
+} from "react";
 import * as RechartsPrimitive from "recharts";
+import { formatDate } from "#/utils/time";
 
 // Format: { THEME_NAME: CSS_SELECTOR }
 const THEMES = { light: "", dark: ".dark" } as const;
@@ -22,6 +31,7 @@ export type ChartConfig = {
 
 type ChartContextProps = {
 	config: ChartConfig;
+	setAnnouncement: (announcement: string) => void;
 };
 
 const ChartContext = createContext<ChartContextProps | null>(null);
@@ -53,21 +63,24 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 }) => {
 	const uniqueId = useId();
 	const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`;
+	const [announcement, setAnnouncement] = useState("");
+	// Keeps announcement updates from re-rendering every useChart consumer.
+	const contextValue = useMemo(() => ({ config, setAnnouncement }), [config]);
 
 	return (
-		<ChartContext.Provider value={{ config }}>
+		<ChartContext.Provider value={contextValue}>
 			<div
 				data-chart={chartId}
 				className={cn(
 					"flex aspect-video justify-center text-xs",
-					"[&_.recharts-cartesian-axis-tick_text]:fill-muted-foreground",
+					"[&_.recharts-cartesian-axis-tick_text]:fill-content-secondary",
 					"[&_.recharts-cartesian-grid_line[stroke='#ccc']]:stroke-border/50",
 					"[&_.recharts-curve.recharts-tooltip-cursor]:stroke-border",
 					"[&_.recharts-dot[stroke='#fff']]:stroke-transparent",
 					"[&_.recharts-layer]:outline-hidden",
 					"[&_.recharts-polar-grid_[stroke='#ccc']]:stroke-border",
-					"[&_.recharts-radial-bar-background-sector]:fill-muted",
-					"[&_.recharts-rectangle.recharts-tooltip-cursor]:fill-muted",
+					"[&_.recharts-radial-bar-background-sector]:fill-surface-secondary",
+					"[&_.recharts-rectangle.recharts-tooltip-cursor]:fill-surface-secondary",
 					"[&_.recharts-reference-line_[stroke='#ccc']]:stroke-border",
 					"[&_.recharts-sector[stroke='#fff']]:stroke-transparent",
 					"[&_.recharts-sector]:outline-hidden",
@@ -82,6 +95,19 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 				<RechartsPrimitive.ResponsiveContainer>
 					{children}
 				</RechartsPrimitive.ResponsiveContainer>
+				{/*
+					The tooltip is hidden while inactive, so it can't be a live region.
+					This element stays mounted and mirrors the active tooltip's text so
+					screen readers announce each point as users move through the chart.
+				*/}
+				<div
+					role="status"
+					className="sr-only"
+					aria-live="polite"
+					aria-atomic="true"
+				>
+					{announcement}
+				</div>
 			</div>
 		</ChartContext.Provider>
 	);
@@ -120,7 +146,107 @@ ${colorConfig
 	);
 };
 
-export const ChartTooltip = RechartsPrimitive.Tooltip;
+/**
+ * Builds the `desc` for a daily chart: a summary of the date range and a hint
+ * about the keyboard navigation provided by recharts' `accessibilityLayer`.
+ */
+export function getDailyChartDescription(
+	summary: string,
+	dates: readonly string[],
+): string {
+	const hint = "Use the left and right arrow keys to read each day.";
+	if (dates.length === 0) {
+		return `${summary}. ${hint}`;
+	}
+	const format = (date: string) =>
+		formatDate(new Date(date), {
+			hour: undefined,
+			minute: undefined,
+			second: undefined,
+		});
+	return `${summary} from ${format(dates[0])} to ${format(dates[dates.length - 1])}. ${hint}`;
+}
+
+type RechartsTooltipProps = React.ComponentProps<
+	typeof RechartsPrimitive.Tooltip
+>;
+
+type ChartTooltipProps = Omit<RechartsTooltipProps, "content"> & {
+	/** Renders the tooltip body from the props Recharts gives the content. */
+	content: (props: RechartsTooltipProps) => React.ReactNode;
+};
+
+/**
+ * Recharts tooltip that the pointer can reach (WCAG 1.4.13). It is centered
+ * above the active point at the top of the plot, and keeps that point while
+ * hovered. Recharts dismisses it on Escape.
+ */
+export const ChartTooltip: React.FC<ChartTooltipProps> = ({
+	coordinate,
+	viewBox,
+	content,
+	...props
+}) => {
+	const [width, setWidth] = useState(0);
+	// Stable so React does not recreate the observer on every render.
+	const measureContent = useCallback((node: HTMLDivElement | null) => {
+		if (!node) {
+			return;
+		}
+		const observer = new ResizeObserver(() => {
+			// Keep the last width while the content is hidden and empty.
+			if (node.offsetWidth > 0) {
+				setWidth(node.offsetWidth);
+			}
+		});
+		observer.observe(node);
+		return () => observer.disconnect();
+	}, []);
+
+	const plotX = viewBox?.x ?? 0;
+	const maxX = plotX + Math.max((viewBox?.width ?? 0) - width, 0);
+	const x = Math.max(plotX, Math.min((coordinate?.x ?? 0) - width / 2, maxX));
+
+	return (
+		<RechartsPrimitive.Tooltip
+			isAnimationActive={false}
+			{...props}
+			coordinate={coordinate}
+			viewBox={viewBox}
+			position={{ x, y: viewBox?.y ?? 0 }}
+			content={
+				<HoverableTooltipContent
+					containerRef={measureContent}
+					renderContent={content}
+				/>
+			}
+		/>
+	);
+};
+// Recharts finds the tooltip among chart children by display name.
+ChartTooltip.displayName = "Tooltip";
+
+type HoverableTooltipContentProps = RechartsTooltipProps & {
+	containerRef: React.Ref<HTMLDivElement>;
+	renderContent: ChartTooltipProps["content"];
+};
+
+// Recharts keeps its wrapper at pointer-events: none, so only the visible
+// content is hoverable. Stopping mousemove here keeps the chart from moving
+// the active point while the pointer is over the tooltip.
+const HoverableTooltipContent: React.FC<HoverableTooltipContentProps> = ({
+	containerRef,
+	renderContent,
+	...props
+}) => (
+	<div
+		ref={containerRef}
+		className="pointer-events-auto"
+		onMouseMove={(event) => event.stopPropagation()}
+	>
+		{renderContent(props)}
+	</div>
+);
 
 type ChartTooltipContentProps = React.ComponentProps<
 	typeof RechartsPrimitive.Tooltip
@@ -132,7 +258,6 @@ type ChartTooltipContentProps = React.ComponentProps<
 	indicator?: "line" | "dot" | "dashed";
 	nameKey?: string;
 	labelKey?: string;
-	ref?: React.Ref<HTMLDivElement>;
 };
 
 export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
@@ -149,11 +274,12 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 	label,
 	labelFormatter,
 	labelClassName,
-	ref,
 }) => {
-	const { config } = useChart();
+	const { config, setAnnouncement } = useChart();
+	const isActive = Boolean(active && payload?.length);
 
-	const tooltipLabel = useMemo(() => {
+	// The label's inner content, or null when no label row is rendered.
+	const labelContent = useMemo((): { node: React.ReactNode } | null => {
 		if (hideLabel || !payload?.length) {
 			return null;
 		}
@@ -167,59 +293,90 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 				: itemConfig?.label;
 
 		if (labelFormatter) {
-			return (
-				<div className={cn("font-medium", labelClassName)}>
-					{labelFormatter(value, payload)}
-				</div>
-			);
+			return { node: labelFormatter(value, payload) };
 		}
 
-		if (!value) {
-			return null;
-		}
+		return value ? { node: value } : null;
+	}, [label, labelFormatter, payload, hideLabel, config, labelKey]);
 
-		return <div className={cn("font-medium", labelClassName)}>{value}</div>;
-	}, [
-		label,
-		labelFormatter,
-		payload,
-		hideLabel,
-		labelClassName,
-		config,
-		labelKey,
-	]);
+	const items = (payload ?? []).map((item, index) => {
+		const key = `${nameKey || item.name || item.dataKey || "value"}`;
+		return {
+			item,
+			itemConfig: getPayloadConfigFromPayload(config, item, key),
+			formatted:
+				formatter && item?.value !== undefined && item.name
+					? {
+							node: formatter(item.value, item.name, item, index, item.payload),
+						}
+					: null,
+		};
+	});
 
-	if (!active || !payload?.length) {
+	// Built from the same values the tooltip renders, so screen readers hear
+	// what sighted users see. Non-text nodes (icons, custom elements) are skipped.
+	const announcement = isActive
+		? [
+				labelContent?.node,
+				...items.flatMap(({ item, itemConfig, formatted }) =>
+					formatted
+						? [formatted.node]
+						: [
+								itemConfig?.label || item.name,
+								// Matches the rendered row, which hides falsy values.
+								item.value ? item.value.toLocaleString() : undefined,
+							],
+				),
+			]
+				.filter(
+					(part): part is string | number =>
+						(typeof part === "string" && part !== "") ||
+						typeof part === "number",
+				)
+				.join(" ")
+		: "";
+
+	// The live region lives in ChartContainer, so the text is pushed up after
+	// render. Updating another component's state during render isn't allowed.
+	useEffect(() => {
+		setAnnouncement(announcement);
+	}, [announcement, setAnnouncement]);
+
+	// Clear the announcement when the tooltip is removed from the chart.
+	useEffect(() => () => setAnnouncement(""), [setAnnouncement]);
+
+	if (!isActive || !payload) {
 		return null;
 	}
+
+	const tooltipLabel = labelContent ? (
+		<div className={cn("font-medium", labelClassName)}>{labelContent.node}</div>
+	) : null;
 
 	const nestLabel = payload.length === 1 && indicator !== "dot";
 
 	return (
 		<div
-			ref={ref}
 			className={cn(
-				"grid min-w-32 items-start gap-1 rounded-lg border border-solid border-border bg-surface-primary px-3 py-2 text-xs shadow-xl",
+				"grid min-w-32 items-start gap-1 rounded-lg border border-solid bg-surface-primary px-3 py-2 text-xs shadow-xl",
 				className,
 			)}
 		>
 			{!nestLabel ? tooltipLabel : null}
 			<div className="grid gap-1.5">
-				{payload.map((item, index) => {
-					const key = `${nameKey || item.name || item.dataKey || "value"}`;
-					const itemConfig = getPayloadConfigFromPayload(config, item, key);
+				{items.map(({ item, itemConfig, formatted }) => {
 					const indicatorColor = color || item.payload.fill || item.color;
 
 					return (
 						<div
 							key={item.dataKey}
 							className={cn(
-								"flex w-full flex-wrap items-stretch gap-2 [&>svg]:h-2.5 [&>svg]:w-2.5 [&>svg]:text-content-secondary",
+								"flex w-full flex-wrap items-stretch gap-2 [&>svg]:size-2.5 [&>svg]:text-content-secondary",
 								indicator === "dot" && "items-center",
 							)}
 						>
-							{formatter && item?.value !== undefined && item.name ? (
-								formatter(item.value, item.name, item, index, item.payload)
+							{formatted ? (
+								formatted.node
 							) : (
 								<>
 									{itemConfig?.icon ? (
@@ -228,9 +385,9 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 										!hideIndicator && (
 											<div
 												className={cn(
-													"shrink-0 rounded-[2px] border-(--color-border) bg-(--color-bg)",
+													"shrink-0 rounded-xs border-(--color-border) bg-(--color-bg)",
 													{
-														"h-2.5 w-2.5": indicator === "dot",
+														"size-2.5": indicator === "dot",
 														"w-1": indicator === "line",
 														"w-0 border-[1.5px] border-dashed bg-transparent":
 															indicator === "dashed",

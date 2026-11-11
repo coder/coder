@@ -1,7 +1,11 @@
 package chattest_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
+	"io"
+	"net/http"
 	"sync/atomic"
 	"testing"
 
@@ -10,323 +14,149 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattest"
+	"github.com/coder/coder/v2/testutil"
 )
 
-func TestOpenAI_Streaming(t *testing.T) {
-	t.Parallel()
-
-	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		return chattest.OpenAIStreamingResponse(
-			append(
-				append(
-					chattest.OpenAITextChunks("Hello", "Hi"),
-					chattest.OpenAITextChunks(" world", " there")...,
-				),
-				chattest.OpenAITextChunks("!", "!")...,
-			)...,
-		)
-	})
-
-	// Create fantasy client pointing to our test server
-	client, err := fantasyopenai.New(
-		fantasyopenai.WithAPIKey("test-key"),
-		fantasyopenai.WithBaseURL(serverURL),
-	)
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	model, err := client.LanguageModel(ctx, "gpt-4")
-	require.NoError(t, err)
-
-	call := fantasy.Call{
-		Prompt: []fantasy.Message{
-			{
-				Role: fantasy.MessageRoleUser,
-				Content: []fantasy.MessagePart{
-					fantasy.TextPart{Text: "Say hello"},
-				},
-			},
-		},
-	}
-
-	stream, err := model.Stream(ctx, call)
-	require.NoError(t, err)
-
-	// We expect chunks in order: one choice per chunk
-	// So we get: "Hello" (choice 0), "Hi" (choice 1), " world" (choice 0), " there" (choice 1), "!" (choice 0), "!" (choice 1)
-	expectedDeltas := []string{"Hello", "Hi", " world", " there", "!", "!"}
-	deltaIndex := 0
-
-	for part := range stream {
-		if part.Type == fantasy.StreamPartTypeTextDelta {
-			// Verify we're getting deltas in the expected order
-			require.Less(t, deltaIndex, len(expectedDeltas), "Received more deltas than expected")
-			require.Equal(t, expectedDeltas[deltaIndex], part.Delta,
-				"Delta at index %d should be %q, got %q", deltaIndex, expectedDeltas[deltaIndex], part.Delta)
-			deltaIndex++
-		}
-	}
-
-	// Verify we received all expected deltas
-	require.Equal(t, len(expectedDeltas), deltaIndex, "Expected %d deltas, got %d", len(expectedDeltas), deltaIndex)
+var openAIAPIs = []struct {
+	name string
+	opts []fantasyopenai.Option
+}{
+	{name: "Completions"},
+	{name: "Responses", opts: []fantasyopenai.Option{fantasyopenai.WithUseResponsesAPI()}},
 }
 
-func TestOpenAI_Streaming_ResponsesAPI(t *testing.T) {
-	t.Parallel()
-
-	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		return chattest.OpenAIStreamingResponse(
-			append(
-				append(
-					chattest.OpenAITextChunks("First", "Second"),
-					chattest.OpenAITextChunks(" output", " output")...,
-				),
-				chattest.OpenAITextChunks("!", "!")...,
-			)...,
-		)
-	})
-
-	// Create fantasy client pointing to our test server (responses API)
-	client, err := fantasyopenai.New(
+func newOpenAIModel(t *testing.T, serverURL string, opts []fantasyopenai.Option) fantasy.LanguageModel {
+	t.Helper()
+	client, err := fantasyopenai.New(append([]fantasyopenai.Option{
 		fantasyopenai.WithAPIKey("test-key"),
 		fantasyopenai.WithBaseURL(serverURL),
-		fantasyopenai.WithUseResponsesAPI(),
-	)
+	}, opts...)...)
 	require.NoError(t, err)
-
-	ctx := context.Background()
-	model, err := client.LanguageModel(ctx, "gpt-4")
+	model, err := client.LanguageModel(context.Background(), "gpt-4")
 	require.NoError(t, err)
+	return model
+}
 
-	call := fantasy.Call{
-		Prompt: []fantasy.Message{
-			{
-				Role: fantasy.MessageRoleUser,
-				Content: []fantasy.MessagePart{
-					fantasy.TextPart{Text: "Say hello"},
+func TestOpenAI_StreamingText(t *testing.T) {
+	t.Parallel()
+
+	for _, api := range openAIAPIs {
+		t.Run(api.name, func(t *testing.T) {
+			t.Parallel()
+
+			serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				return chattest.OpenAIStreamingResponse(
+					append(
+						append(
+							chattest.OpenAITextChunks("Hello", "Hi"),
+							chattest.OpenAITextChunks(" world", " there")...,
+						),
+						chattest.OpenAITextChunks("!", "!")...,
+					)...,
+				)
+			})
+			model := newOpenAIModel(t, serverURL, api.opts)
+
+			stream, err := model.Stream(context.Background(), fantasy.Call{
+				Prompt: []fantasy.Message{
+					{
+						Role:    fantasy.MessageRoleUser,
+						Content: []fantasy.MessagePart{fantasy.TextPart{Text: "Say hello"}},
+					},
 				},
-			},
-		},
-	}
+			})
+			require.NoError(t, err)
 
-	stream, err := model.Stream(ctx, call)
-	require.NoError(t, err)
-
-	var parts []fantasy.StreamPart
-	for part := range stream {
-		parts = append(parts, part)
-	}
-
-	// Verify we received the chunks in order
-	require.Greater(t, len(parts), 0)
-
-	// Extract text deltas from parts and verify they match expected chunks in order
-	// We expect: "First", " output", "!" for choice 0, and "Second", " output", "!" for choice 1
-	var allDeltas []string
-	for _, part := range parts {
-		if part.Type == fantasy.StreamPartTypeTextDelta {
-			allDeltas = append(allDeltas, part.Delta)
-		}
-	}
-
-	// Verify we received deltas (responses API may handle multiple choices differently)
-	// If we got text deltas, verify the content
-	if len(allDeltas) > 0 {
-		allText := ""
-		for _, delta := range allDeltas {
-			allText += delta
-		}
-		require.Contains(t, allText, "First")
-		require.Contains(t, allText, "Second")
-		require.Contains(t, allText, "output")
-		require.Contains(t, allText, "!")
-	} else {
-		// If no text deltas, at least verify we got some parts (may be different format)
-		require.Greater(t, len(parts), 0, "Expected at least one stream part")
+			var deltas []string
+			for part := range stream {
+				require.NotEqual(t, fantasy.StreamPartTypeError, part.Type, "stream error: %v", part.Error)
+				if part.Type == fantasy.StreamPartTypeTextDelta {
+					deltas = append(deltas, part.Delta)
+				}
+			}
+			require.Equal(t, []string{"Hello", "Hi", " world", " there", "!", "!"}, deltas)
+		})
 	}
 }
 
-func TestOpenAI_NonStreaming_CompletionsAPI(t *testing.T) {
+func TestOpenAI_NonStreamingText(t *testing.T) {
 	t.Parallel()
 
-	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		return chattest.OpenAINonStreamingResponse("First response")
-	})
+	for _, api := range openAIAPIs {
+		t.Run(api.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Create fantasy client pointing to our test server (completions API)
-	client, err := fantasyopenai.New(
-		fantasyopenai.WithAPIKey("test-key"),
-		fantasyopenai.WithBaseURL(serverURL),
-	)
-	require.NoError(t, err)
+			serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				return chattest.OpenAINonStreamingResponse("First response")
+			})
+			model := newOpenAIModel(t, serverURL, api.opts)
 
-	ctx := context.Background()
-	model, err := client.LanguageModel(ctx, "gpt-4")
-	require.NoError(t, err)
-
-	call := fantasy.Call{
-		Prompt: []fantasy.Message{
-			{
-				Role: fantasy.MessageRoleUser,
-				Content: []fantasy.MessagePart{
-					fantasy.TextPart{Text: "Test message"},
+			response, err := model.Generate(context.Background(), fantasy.Call{
+				Prompt: []fantasy.Message{
+					{
+						Role:    fantasy.MessageRoleUser,
+						Content: []fantasy.MessagePart{fantasy.TextPart{Text: "Test message"}},
+					},
 				},
-			},
-		},
+			})
+			require.NoError(t, err)
+			require.NotNil(t, response)
+			require.Equal(t, "First response", response.Content.Text())
+		})
 	}
-
-	response, err := model.Generate(ctx, call)
-	require.NoError(t, err)
-	require.NotNil(t, response)
 }
 
 func TestOpenAI_ToolCalls(t *testing.T) {
 	t.Parallel()
 
-	var requestCount atomic.Int32
-	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		switch requestCount.Add(1) {
-		case 1:
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("get_weather", `{"location":"San Francisco"}`),
-			)
-		default:
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAITextChunks("The weather in San Francisco is 72F.")...,
-			)
-		}
-	})
+	for _, api := range openAIAPIs {
+		t.Run(api.name, func(t *testing.T) {
+			t.Parallel()
 
-	// Create fantasy client pointing to our test server
-	client, err := fantasyopenai.New(
-		fantasyopenai.WithAPIKey("test-key"),
-		fantasyopenai.WithBaseURL(serverURL),
-	)
-	require.NoError(t, err)
+			var requestCount atomic.Int32
+			serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
+				switch requestCount.Add(1) {
+				case 1:
+					return chattest.OpenAIStreamingResponse(
+						chattest.OpenAIToolCallChunk("get_weather", `{"location":"San Francisco"}`),
+					)
+				default:
+					return chattest.OpenAIStreamingResponse(
+						chattest.OpenAITextChunks("The weather in San Francisco is 72F.")...,
+					)
+				}
+			})
+			model := newOpenAIModel(t, serverURL, api.opts)
 
-	ctx := context.Background()
-	model, err := client.LanguageModel(ctx, "gpt-4")
-	require.NoError(t, err)
-
-	type weatherInput struct {
-		Location string `json:"location"`
-	}
-	var toolCallCount atomic.Int32
-	weatherTool := fantasy.NewAgentTool(
-		"get_weather",
-		"Get weather for a location.",
-		func(ctx context.Context, input weatherInput, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			toolCallCount.Add(1)
-			require.Equal(t, "San Francisco", input.Location)
-			return fantasy.NewTextResponse("72F"), nil
-		},
-	)
-
-	agent := fantasy.NewAgent(
-		model,
-		fantasy.WithSystemPrompt("You are a helpful assistant."),
-		fantasy.WithTools(weatherTool),
-	)
-
-	result, err := agent.Stream(ctx, fantasy.AgentStreamCall{
-		Prompt: "What's the weather in San Francisco?",
-	})
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.Equal(t, int32(1), toolCallCount.Load(), "expected exactly one tool execution")
-	require.GreaterOrEqual(t, requestCount.Load(), int32(2), "expected follow-up model call after tool execution")
-}
-
-func TestOpenAI_ToolCalls_ResponsesAPI(t *testing.T) {
-	t.Parallel()
-
-	var requestCount atomic.Int32
-	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		switch requestCount.Add(1) {
-		case 1:
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAIToolCallChunk("get_weather", `{"location":"San Francisco"}`),
-			)
-		default:
-			return chattest.OpenAIStreamingResponse(
-				chattest.OpenAITextChunks("The weather in San Francisco is 72F.")...,
-			)
-		}
-	})
-
-	client, err := fantasyopenai.New(
-		fantasyopenai.WithAPIKey("test-key"),
-		fantasyopenai.WithBaseURL(serverURL),
-		fantasyopenai.WithUseResponsesAPI(),
-	)
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	model, err := client.LanguageModel(ctx, "gpt-4")
-	require.NoError(t, err)
-
-	type weatherInput struct {
-		Location string `json:"location"`
-	}
-	var toolCallCount atomic.Int32
-	weatherTool := fantasy.NewAgentTool(
-		"get_weather",
-		"Get weather for a location.",
-		func(ctx context.Context, input weatherInput, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
-			toolCallCount.Add(1)
-			require.Equal(t, "San Francisco", input.Location)
-			return fantasy.NewTextResponse("72F"), nil
-		},
-	)
-
-	agent := fantasy.NewAgent(
-		model,
-		fantasy.WithSystemPrompt("You are a helpful assistant."),
-		fantasy.WithTools(weatherTool),
-	)
-
-	result, err := agent.Stream(ctx, fantasy.AgentStreamCall{
-		Prompt: "What's the weather in San Francisco?",
-	})
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	require.Equal(t, int32(1), toolCallCount.Load(), "expected exactly one tool execution")
-	require.GreaterOrEqual(t, requestCount.Load(), int32(2), "expected follow-up model call after tool execution")
-}
-
-func TestOpenAI_NonStreaming_ResponsesAPI(t *testing.T) {
-	t.Parallel()
-
-	serverURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
-		return chattest.OpenAINonStreamingResponse("First output")
-	})
-
-	// Create fantasy client pointing to our test server (responses API)
-	client, err := fantasyopenai.New(
-		fantasyopenai.WithAPIKey("test-key"),
-		fantasyopenai.WithBaseURL(serverURL),
-		fantasyopenai.WithUseResponsesAPI(),
-	)
-	require.NoError(t, err)
-
-	ctx := context.Background()
-	model, err := client.LanguageModel(ctx, "gpt-4")
-	require.NoError(t, err)
-
-	call := fantasy.Call{
-		Prompt: []fantasy.Message{
-			{
-				Role: fantasy.MessageRoleUser,
-				Content: []fantasy.MessagePart{
-					fantasy.TextPart{Text: "Test message"},
+			type weatherInput struct {
+				Location string `json:"location"`
+			}
+			var toolCallCount atomic.Int32
+			weatherTool := fantasy.NewAgentTool(
+				"get_weather",
+				"Get weather for a location.",
+				func(ctx context.Context, input weatherInput, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
+					toolCallCount.Add(1)
+					require.Equal(t, "San Francisco", input.Location)
+					return fantasy.NewTextResponse("72F"), nil
 				},
-			},
-		},
-	}
+			)
 
-	response, err := model.Generate(ctx, call)
-	require.NoError(t, err)
-	require.NotNil(t, response)
+			agent := fantasy.NewAgent(
+				model,
+				fantasy.WithSystemPrompt("You are a helpful assistant."),
+				fantasy.WithTools(weatherTool),
+			)
+
+			result, err := agent.Stream(context.Background(), fantasy.AgentStreamCall{
+				Prompt: "What's the weather in San Francisco?",
+			})
+			require.NoError(t, err)
+			require.NotNil(t, result)
+			require.Equal(t, int32(1), toolCallCount.Load(), "expected exactly one tool execution")
+			require.GreaterOrEqual(t, requestCount.Load(), int32(2), "expected follow-up model call after tool execution")
+		})
+	}
 }
 
 func TestOpenAI_Streaming_MismatchReturnsErrorPart(t *testing.T) {
@@ -421,4 +251,59 @@ func TestOpenAI_NonStreaming_MismatchReturnsError_ResponsesAPI(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "streaming response for non-streaming request")
+}
+
+func TestOpenAI_ResponsesAPI_UnstoredItemReference(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name       string
+		store      bool
+		refs       []string
+		typed      bool
+		wantStatus int
+	}{
+		{name: "UnstoredReasoning", refs: []string{"rs_served"}, wantStatus: http.StatusNotFound},
+		{name: "UnstoredWebSearch", refs: []string{"ws_served"}, wantStatus: http.StatusNotFound},
+		{name: "UnstoredTyped", refs: []string{"ws_served"}, typed: true, wantStatus: http.StatusNotFound},
+		{name: "Stored", store: true, refs: []string{"rs_served", "ws_served"}, wantStatus: http.StatusOK},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			serverURL := chattest.NewOpenAI(t, func(*chattest.OpenAIRequest) chattest.OpenAIResponse {
+				resp := chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("done")...)
+				resp.Reasoning = &chattest.OpenAIReasoningItem{ID: "rs_served", EncryptedContent: "encrypted"}
+				resp.WebSearch = &chattest.OpenAIWebSearchCall{ID: "ws_served", Queries: []string{"go"}}
+				return resp
+			})
+			post := func(store bool, input []any) int {
+				body, err := json.Marshal(map[string]any{
+					"model": "gpt-4", "stream": true, "store": store, "input": input,
+				})
+				require.NoError(t, err)
+				req, err := http.NewRequestWithContext(testutil.Context(t, testutil.WaitShort), http.MethodPost, serverURL+"/responses", bytes.NewReader(body))
+				require.NoError(t, err)
+				resp, err := http.DefaultClient.Do(req)
+				require.NoError(t, err)
+				_, err = io.Copy(io.Discard, resp.Body)
+				require.NoError(t, err)
+				require.NoError(t, resp.Body.Close())
+				return resp.StatusCode
+			}
+
+			user := map[string]any{"role": "user", "content": "search"}
+			require.Equal(t, http.StatusOK, post(tc.store, []any{user}))
+			// openai-go leaves out the optional type on item references.
+			input := []any{user}
+			for _, id := range tc.refs {
+				ref := map[string]any{"id": id}
+				if tc.typed {
+					ref["type"] = "item_reference"
+				}
+				input = append(input, ref)
+			}
+			require.Equal(t, tc.wantStatus, post(true, input))
+		})
+	}
 }

@@ -394,6 +394,10 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		disconnectReason = make([]string, 0, count)
 		disconnectTime   = make([]time.Time, 0, count)
 		clientSessionID  = make([]string, 0, count)
+		rxBytes          = make([]int64, 0, count)
+		rxBytesValid     = make([]bool, 0, count)
+		txBytes          = make([]int64, 0, count)
+		txBytesValid     = make([]bool, 0, count)
 	)
 
 	appendEntry := func(e batchEntry) {
@@ -415,6 +419,10 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		disconnectReason = append(disconnectReason, e.DisconnectReason.String)
 		disconnectTime = append(disconnectTime, e.disconnectTime)
 		clientSessionID = append(clientSessionID, e.ClientSessionID.String)
+		rxBytes = append(rxBytes, e.RxBytes.Int64)
+		rxBytesValid = append(rxBytesValid, e.RxBytes.Valid)
+		txBytes = append(txBytes, e.TxBytes.Int64)
+		txBytesValid = append(txBytesValid, e.TxBytes.Valid)
 	}
 
 	for _, entry := range b.dedupedBatch {
@@ -443,6 +451,10 @@ func (b *DBBatcher) buildParams() database.BatchUpsertConnectionLogsParams {
 		DisconnectReason: disconnectReason,
 		DisconnectTime:   disconnectTime,
 		ClientSessionID:  clientSessionID,
+		RxBytes:          rxBytes,
+		RxBytesValid:     rxBytesValid,
+		TxBytes:          txBytes,
+		TxBytesValid:     txBytesValid,
 	}
 }
 

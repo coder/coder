@@ -69,6 +69,7 @@ type Handler struct {
 	repoRoots     map[string]struct{}     // watched repo roots
 	lastSnapshots map[string]repoSnapshot // last emitted snapshot per repo
 	lastScanAt    time.Time               // when the last scan completed
+	scanned       bool                    // whether Scan has emitted a message
 	scanTrigger   chan struct{}           // buffered(1), poked by triggers
 }
 
@@ -151,7 +152,10 @@ func (h *Handler) RequestScan() {
 }
 
 // Scan performs a scan of all subscribed repos and computes deltas
-// against the previously emitted snapshots.
+// against the previously emitted snapshots. The first scan always
+// returns a message, even with no repos, so a new connection starts
+// from a known state. Later scans return nil while no repos are
+// subscribed.
 func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMessage {
 	if !h.gitAvailable() {
 		return nil
@@ -162,9 +166,10 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 	for r := range h.repoRoots {
 		roots = append(roots, r)
 	}
+	scanned := h.scanned
 	h.mu.Unlock()
 
-	if len(roots) == 0 {
+	if len(roots) == 0 && scanned {
 		return nil
 	}
 
@@ -231,6 +236,7 @@ func (h *Handler) Scan(ctx context.Context) *codersdk.WorkspaceAgentGitServerMes
 	}
 
 	h.lastScanAt = now
+	h.scanned = true
 
 	// Always emit when any root is subscribed. A no-delta scan sends
 	// ScannedAt + empty Repositories (omitted via omitempty) so the

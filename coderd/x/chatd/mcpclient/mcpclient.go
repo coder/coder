@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"slices"
 	"strings"
 	"sync"
@@ -24,6 +26,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/clientcredentials"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -31,6 +34,7 @@ import (
 	aidmcp "github.com/coder/coder/v2/aibridge/mcp"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatfiles"
 	"github.com/coder/safedial"
 )
 
@@ -137,6 +141,13 @@ type Server struct {
 	ToolAllowList []string
 	ToolDenyList  []string
 	ModelIntent   bool
+}
+
+// InProcessServer supplies an MCP server for an in-memory connection.
+type InProcessServer struct {
+	ID     uuid.UUID
+	Slug   string
+	Server *mcp.Server
 }
 
 // Transport selects the MCP HTTP transport used to reach a Server.
@@ -266,6 +277,29 @@ func ConnectInline(
 	)
 }
 
+// ConnectInProcess connects to local MCP servers without HTTP or auth headers.
+// It caps tool counts, definition sizes, and result sizes.
+func ConnectInProcess(
+	ctx context.Context,
+	logger slog.Logger,
+	servers []InProcessServer,
+) ([]fantasy.AgentTool, []ConnectSummary, func()) {
+	converted := make([]Server, 0, len(servers))
+	inProcessServers := make(map[uuid.UUID]*mcp.Server, len(servers))
+	for _, srv := range servers {
+		converted = append(converted, Server{ID: srv.ID, Slug: srv.Slug})
+		inProcessServers[srv.ID] = srv.Server
+	}
+	return connectAllWithHooks(
+		ctx, logger, converted, nil, uuid.Nil, nil, nil,
+		connectOptions{
+			timeout:          connectTimeout,
+			kind:             connectionKindInProcess,
+			inProcessServers: inProcessServers,
+		},
+	)
+}
+
 // connectHooks carries test-only instrumentation for connect
 // internals. The zero value is used in production.
 type connectHooks struct {
@@ -284,15 +318,16 @@ const (
 	// connectionKindInline is a server declared inline on a chat by the
 	// chat owner. It is untrusted and subject to caps and redaction.
 	connectionKindInline
+	connectionKindInProcess
 )
 
-// connectOptions carries the per-connect settings shared by every
-// server in one ConnectAll or ConnectInline call.
 type connectOptions struct {
 	httpClient *http.Client
 	timeout    time.Duration
 	hooks      connectHooks
 	kind       connectionKind
+
+	inProcessServers map[uuid.UUID]*mcp.Server
 }
 
 func connectAllWithHooks(
@@ -438,10 +473,8 @@ func connectAllWithHooks(
 		)
 	})
 
-	// Warn about name collisions that may result from sanitization
-	// and truncation. When two tools resolve to the same name, the
-	// LLM tool-call dispatch map keeps only one, so the other
-	// becomes silently unreachable.
+	// Sanitization and truncation can create duplicate names. Callers must
+	// resolve these collisions before passing tools to the model.
 	for i := 1; i < len(tools); i++ {
 		if tools[i-1].Info().Name == tools[i].Info().Name {
 			prevTool, ok := tools[i-1].(MCPToolIdentifier)
@@ -480,35 +513,43 @@ func connectOne(
 	opts connectOptions,
 	redactor secretRedactor,
 ) ([]fantasy.AgentTool, *mcp.ClientSession, error) {
-	headers := buildAuthHeaders(ctx, logger, srv, tokensByConfigID, userID, oidcSrc)
+	limits, capped := opts.kind.toolLimits()
+	var (
+		tr  mcp.Transport
+		err error
+	)
+	if opts.kind == connectionKindInProcess {
+		tr, err = inMemoryTransport(opts.inProcessServers[srv.ID])
+	} else {
+		headers := buildAuthHeaders(ctx, logger, srv, tokensByConfigID, userID, oidcSrc)
 
-	// When opted-in, merge Coder identity headers BEFORE the
-	// transport is created so any auth header already set above
-	// wins on a conflict. Conflict detection uses
-	// http.CanonicalHeaderKey because the upstream transport applies
-	// http.Header.Set, which canonicalizes keys; without that, an
-	// admin-configured header that differs only in case from a Coder
-	// identity header would land in the request map twice and the
-	// surviving value would be non-deterministic.
-	if srv.ForwardCoderHeaders {
-		canonicalAuth := make(map[string]struct{}, len(headers))
-		for k := range headers {
-			canonicalAuth[http.CanonicalHeaderKey(k)] = struct{}{}
-		}
-		for k, v := range coderHeaders {
-			if _, exists := canonicalAuth[http.CanonicalHeaderKey(k)]; exists {
-				continue
+		// When opted-in, merge Coder identity headers BEFORE the
+		// transport is created so any auth header already set above
+		// wins on a conflict. Conflict detection uses
+		// http.CanonicalHeaderKey because the upstream transport applies
+		// http.Header.Set, which canonicalizes keys; without that, an
+		// admin-configured header that differs only in case from a Coder
+		// identity header would land in the request map twice and the
+		// surviving value would be non-deterministic.
+		if srv.ForwardCoderHeaders {
+			canonicalAuth := make(map[string]struct{}, len(headers))
+			for k := range headers {
+				canonicalAuth[http.CanonicalHeaderKey(k)] = struct{}{}
 			}
-			headers[k] = v
+			for k, v := range coderHeaders {
+				if _, exists := canonicalAuth[http.CanonicalHeaderKey(k)]; exists {
+					continue
+				}
+				headers[k] = v
+			}
 		}
-	}
 
-	maxResultBytes, maxEventSize := 0, 0
-	if opts.kind == connectionKindInline {
-		maxResultBytes = maxInlineToolResultBytes
-		maxEventSize = maxInlineHTTPResponseBytes
+		maxEventSize := 0
+		if opts.kind == connectionKindInline {
+			maxEventSize = maxInlineHTTPResponseBytes
+		}
+		tr, err = createTransport(srv, headers, opts.httpClient, maxEventSize)
 	}
-	tr, err := createTransport(srv, headers, opts.httpClient, maxEventSize)
 	if err != nil {
 		return nil, nil, xerrors.Errorf(
 			"create transport: %w", err,
@@ -547,10 +588,8 @@ func connectOne(
 		}
 		toolsResult, err := session.ListTools(connectCtx, nil)
 		if err != nil {
-			// Deliver the result before closing: Close sends a
-			// DELETE on the SDK's detached context and can wedge,
-			// which would otherwise convert a fast ListTools
-			// failure into a budget timeout for the caller.
+			// Deliver errors before closing: HTTP session cleanup can block
+			// on a DELETE request and exhaust the connection budget.
 			resCh <- connectResult{err: xerrors.Errorf("list tools: %w", err)}
 			_ = session.Close()
 			return
@@ -562,11 +601,8 @@ func connectOne(
 	select {
 	case res = <-resCh:
 	case <-connectCtx.Done():
-		// Abandon the wedged goroutine; it exits once the
-		// transport's dial or response-header timeout fires. The
-		// reaper drains its late result and closes any session
-		// that still materialized so nothing leaks. It must not
-		// hold locks or block the caller.
+		// Do not wait for transport cleanup after the connection budget
+		// expires. Close any session returned after the timeout separately.
 		go func() {
 			if late := <-resCh; late.session != nil {
 				_ = late.session.Close()
@@ -601,22 +637,20 @@ func connectOne(
 		}
 
 		tools = append(
-			tools, newMCPTool(srv.ID, srv.Slug, mcpTool, session, srv.ModelIntent, redactor, maxResultBytes),
+			tools, newMCPTool(srv.ID, srv.Slug, mcpTool, session, srv.ModelIntent, redactor, limits.resultBytes, limits.resultTextOnly),
 		)
 	}
 
-	if opts.kind == connectionKindInline {
-		if err := validateInlineToolDefinitions(tools); err != nil {
+	if capped {
+		if err := validateToolDefinitions(tools, limits); err != nil {
 			go func() { _ = session.Close() }()
 			return nil, nil, err
 		}
 	}
 
 	if len(tools) == 0 {
-		// Close the discarded session asynchronously: Close sends
-		// a DELETE on the SDK's detached context, so a server that
-		// wedges after a successful connect would otherwise hold
-		// the caller far past the connect budget.
+		// Close asynchronously because HTTP session cleanup can block
+		// on a DELETE request after the connection budget expires.
 		go func() { _ = session.Close() }()
 		return nil, nil, nil
 	}
@@ -634,15 +668,55 @@ const (
 	maxInlineToolResultBytes      = 256 << 10
 )
 
-// validateInlineToolDefinitions rejects a tool list that exceeds
-// the inline server count or size caps. Sizes are measured on the
-// redacted definitions the model sees. The whole server is skipped
-// rather than truncated so the model never sees a partial tool set.
-func validateInlineToolDefinitions(tools []fantasy.AgentTool) error {
-	if len(tools) > maxInlineTools {
+// Cap model-visible tool definitions and persisted tool result text even
+// for in-process servers. Their media is trusted, so only the chatloop
+// tool media cap bounds it.
+const (
+	maxInProcessTools                = 64
+	maxInProcessToolDefinitionBytes  = 64 << 10
+	maxInProcessToolDefinitionsBytes = 256 << 10
+	maxInProcessToolResultTextBytes  = 256 << 10
+)
+
+type toolLimits struct {
+	tools            int
+	definitionBytes  int
+	definitionsBytes int
+	resultBytes      int
+	// resultTextOnly excludes media from resultBytes.
+	resultTextOnly bool
+}
+
+func (kind connectionKind) toolLimits() (toolLimits, bool) {
+	switch kind {
+	case connectionKindInline:
+		return toolLimits{
+			tools:            maxInlineTools,
+			definitionBytes:  maxInlineToolDefinitionBytes,
+			definitionsBytes: maxInlineToolDefinitionsBytes,
+			resultBytes:      maxInlineToolResultBytes,
+		}, true
+	case connectionKindInProcess:
+		return toolLimits{
+			tools:            maxInProcessTools,
+			definitionBytes:  maxInProcessToolDefinitionBytes,
+			definitionsBytes: maxInProcessToolDefinitionsBytes,
+			resultBytes:      maxInProcessToolResultTextBytes,
+			resultTextOnly:   true,
+		}, true
+	default:
+		return toolLimits{}, false
+	}
+}
+
+// Measure definitions after redaction, as the model sees them.
+// Reject the whole server on a limit violation so the model does not
+// receive a partial tool set.
+func validateToolDefinitions(tools []fantasy.AgentTool, limits toolLimits) error {
+	if len(tools) > limits.tools {
 		return xerrors.Errorf(
-			"inline MCP server returned %d tools, maximum is %d",
-			len(tools), maxInlineTools,
+			"MCP server returned %d tools, maximum is %d",
+			len(tools), limits.tools,
 		)
 	}
 
@@ -650,23 +724,32 @@ func validateInlineToolDefinitions(tools []fantasy.AgentTool) error {
 	for _, tool := range tools {
 		definition, err := json.Marshal(tool.Info())
 		if err != nil {
-			return xerrors.Errorf("marshal inline MCP tool definition: %w", err)
+			return xerrors.Errorf("marshal MCP tool definition: %w", err)
 		}
-		if len(definition) > maxInlineToolDefinitionBytes {
+		if len(definition) > limits.definitionBytes {
 			return xerrors.Errorf(
-				"inline MCP tool definition exceeds maximum size of %d bytes",
-				maxInlineToolDefinitionBytes,
+				"MCP tool definition exceeds maximum size of %d bytes",
+				limits.definitionBytes,
 			)
 		}
 		totalBytes += len(definition)
-		if totalBytes > maxInlineToolDefinitionsBytes {
+		if totalBytes > limits.definitionsBytes {
 			return xerrors.Errorf(
-				"inline MCP tool definitions exceed maximum total size of %d bytes",
-				maxInlineToolDefinitionsBytes,
+				"MCP tool definitions exceed maximum total size of %d bytes",
+				limits.definitionsBytes,
 			)
 		}
 	}
 	return nil
+}
+
+// Closing the client session ends the server session through the shared pipe.
+func inMemoryTransport(srv *mcp.Server) (mcp.Transport, error) {
+	serverTransport, clientTransport := mcp.NewInMemoryTransports()
+	if _, err := srv.Connect(context.Background(), serverTransport, nil); err != nil {
+		return nil, xerrors.Errorf("connect in-process server: %w", err)
+	}
+	return clientTransport, nil
 }
 
 func createTransport(
@@ -905,24 +988,22 @@ func truncateSummaryError(msg string) string {
 	return msg[:cut] + "... (truncated)"
 }
 
-// MCPToolIdentifier is implemented by tools that originate from
-// an MCP server config and can report the config's database ID.
+// MCPToolIdentifier reports a tool's server ID, which may be a database
+// config ID or an ID derived from an internal server's slug.
 type MCPToolIdentifier interface {
 	MCPServerConfigID() uuid.UUID
 }
 
-// AppendInline appends inline tools to an existing tool
-// list. When an inline tool has the same name as an existing
-// tool, the existing tool wins and the inline one is dropped
-// with a warning: org-configured and built-in tools must never be
-// shadowed by an end-user-chosen server.
-func AppendInline(
+// AppendTools appends tools and warns on duplicate names, keeping the
+// first tool. Callers must append sources in trust order to prevent
+// less trusted tools from replacing trusted tools.
+func AppendTools(
 	ctx context.Context,
 	logger slog.Logger,
 	tools []fantasy.AgentTool,
-	inline []fantasy.AgentTool,
+	newTools []fantasy.AgentTool,
 ) []fantasy.AgentTool {
-	if len(inline) == 0 {
+	if len(newTools) == 0 {
 		return tools
 	}
 	existing := make(map[string]struct{}, len(tools))
@@ -930,7 +1011,7 @@ func AppendInline(
 		existing[tool.Info().Name] = struct{}{}
 	}
 	out := slices.Clone(tools)
-	for _, tool := range inline {
+	for _, tool := range newTools {
 		name := tool.Info().Name
 		if _, ok := existing[name]; ok {
 			var configID uuid.UUID
@@ -938,7 +1019,7 @@ func AppendInline(
 				configID = ident.MCPServerConfigID()
 			}
 			logger.Warn(ctx,
-				"inline MCP tool name collides with an existing tool; inline tool dropped",
+				"tool name collides with an earlier tool; MCP tool dropped",
 				slog.F("tool_name", name),
 				slog.F("config_id", configID),
 			)
@@ -1002,9 +1083,9 @@ func newServerRedactor(kind connectionKind, srv Server) secretRedactor {
 	}
 	values := []string{srv.URL}
 	if u, err := url.Parse(srv.URL); err == nil {
-		for _, path := range []string{u.EscapedPath(), u.Path} {
-			values = append(values, path)
-			values = append(values, strings.Split(path, "/")...)
+		for _, urlPath := range []string{u.EscapedPath(), u.Path} {
+			values = append(values, urlPath)
+			values = append(values, strings.Split(urlPath, "/")...)
 		}
 	}
 	for _, value := range srv.Headers {
@@ -1096,6 +1177,7 @@ func (r secretRedactor) redactResponse(response fantasy.ToolResponse) fantasy.To
 	response.Content = r.redactString(response.Content)
 	response.Data = r.redactBytes(response.Data)
 	response.MediaType = r.redactString(response.MediaType)
+	response.Filename = r.redactString(response.Filename)
 	response.Metadata = r.redactString(response.Metadata)
 	return response
 }
@@ -1114,7 +1196,9 @@ type mcpToolWrapper struct {
 	session      *mcp.ClientSession
 	redactor     secretRedactor
 	// maxResultBytes caps the serialized tool result; 0 means no cap.
-	maxResultBytes  int
+	maxResultBytes int
+	// resultTextOnly excludes media from maxResultBytes.
+	resultTextOnly  bool
 	providerOptions fantasy.ProviderOptions
 }
 
@@ -1134,6 +1218,7 @@ func newMCPTool(
 	modelIntent bool,
 	redactor secretRedactor,
 	maxResultBytes int,
+	resultTextOnly bool,
 ) *mcpToolWrapper {
 	properties, required := splitInputSchema(tool.InputSchema)
 	// Model-visible fields are redacted once here. originalName is
@@ -1150,6 +1235,7 @@ func newMCPTool(
 		session:        session,
 		redactor:       redactor,
 		maxResultBytes: maxResultBytes,
+		resultTextOnly: resultTextOnly,
 	}
 }
 
@@ -1251,15 +1337,19 @@ func (t *mcpToolWrapper) Run(
 	if err != nil {
 		resp = fantasy.NewTextErrorResponse(t.redactor.redactString(err.Error()))
 	} else {
-		// Structured content is redacted before convertCallResult encodes it
+		// Structured content is redacted before ConvertCallResult encodes it
 		// as JSON, where escaping would hide a secret from the string match.
 		if result != nil {
 			result.StructuredContent = t.redactor.redactValue(result.StructuredContent)
 		}
-		resp = t.redactor.redactResponse(convertCallResult(result))
+		resp = t.redactor.redactResponse(ConvertCallResult(result))
 	}
-	// Measure the result as the model receives it: Data is sent base64-encoded.
-	if t.maxResultBytes > 0 && len(resp.Content)+len(resp.MediaType)+base64.StdEncoding.EncodedLen(len(resp.Data)) > t.maxResultBytes {
+	resultBytes := len(resp.Content)
+	if !t.resultTextOnly {
+		// Measure the result as the model receives it: Data is sent base64-encoded.
+		resultBytes += len(resp.MediaType) + base64.StdEncoding.EncodedLen(len(resp.Data))
+	}
+	if t.maxResultBytes > 0 && resultBytes > t.maxResultBytes {
 		return fantasy.NewTextErrorResponse(fmt.Sprintf(
 			"tool result exceeded maximum size of %d bytes", t.maxResultBytes,
 		)), nil
@@ -1307,9 +1397,11 @@ func unwrapModelIntent(input string) string {
 	return input
 }
 
+// ConvertCallResult converts an MCP tool result into a fantasy tool response.
 // fantasy permits one media payload per response, so only the first eligible
-// binary block is kept alongside the text.
-func convertCallResult(
+// binary block is kept alongside the text. Callers apply redaction and size
+// limits.
+func ConvertCallResult(
 	result *mcp.CallToolResult,
 ) fantasy.ToolResponse {
 	if result == nil {
@@ -1365,6 +1457,7 @@ func convertCallResult(
 						Type:      blobType,
 						Data:      c.Resource.Blob,
 						MediaType: c.Resource.MIMEType,
+						Filename:  resourceFilename(c.Resource.URI, c.Resource.MIMEType),
 						IsError:   result.IsError,
 					}
 					binaryResult = &res
@@ -1414,6 +1507,48 @@ func convertCallResult(
 	resp := fantasy.NewTextResponse(strings.Join(textParts, "\n"))
 	resp.IsError = result.IsError
 	return resp
+}
+
+// resourceFilename returns the last element of an MCP resource URI path,
+// with the canonical extension of mediaType appended when the name's own
+// extension does not map to mediaType, because providers such as OpenAI
+// detect the file type from the extension. The name follows the rule for
+// uploaded file names, chatfiles.NormalizeStoredFileName, but truncation
+// shortens only the stem so that the extension stays. It returns "" when
+// the URI does not name a file or mediaType has no known extension.
+func resourceFilename(uri, mediaType string) string {
+	u, err := url.Parse(uri)
+	if err != nil {
+		return ""
+	}
+	name := path.Base(u.Path)
+	if name == "." || name == "/" {
+		return ""
+	}
+	baseType, _, err := mime.ParseMediaType(mediaType)
+	if err != nil {
+		return ""
+	}
+	ext := path.Ext(name)
+	// TypeByExtension adds a charset parameter to text types.
+	if extType, _, err := mime.ParseMediaType(mime.TypeByExtension(ext)); err == nil && extType == baseType {
+		name = strings.TrimSuffix(name, ext)
+	} else if baseType == "application/pdf" {
+		ext = ".pdf"
+	} else {
+		exts, err := mime.ExtensionsByType(baseType)
+		if err != nil || len(exts) == 0 {
+			return ""
+		}
+		ext = exts[0]
+	}
+	// NormalizeStoredFileName returns valid UTF-8, so ToValidUTF8 drops only
+	// a rune that the cut splits.
+	stem := chatfiles.NormalizeStoredFileName(name)
+	if limit := chatfiles.MaxStoredFileNameBytes - len(ext); len(stem) > limit {
+		stem = strings.ToValidUTF8(stem[:limit], "")
+	}
+	return stem + ext
 }
 
 // RefreshResult contains the outcome of an OAuth2 token refresh
@@ -1475,8 +1610,9 @@ func RefreshFailureReason(err error) string {
 
 // RefreshOAuth2Token checks whether the given MCP user token is
 // expired (or within 10 seconds of expiry) and refreshes it using
-// the OAuth2 credentials from the server config. If the token is
-// still valid, no network call is made and Refreshed is false.
+// the OAuth2 credentials from the server config, sending the config's
+// RFC 8707 resource indicator when set. If the token is still valid,
+// no network call is made and Refreshed is false.
 //
 // The caller is responsible for persisting the result when
 // Refreshed is true.
@@ -1486,14 +1622,6 @@ func RefreshOAuth2Token(
 	cfg database.MCPServerConfig,
 	tok database.MCPServerUserToken,
 ) (RefreshResult, error) {
-	oauth2Cfg := &oauth2.Config{
-		ClientID:     cfg.OAuth2ClientID,
-		ClientSecret: cfg.OAuth2ClientSecret,
-		Endpoint: oauth2.Endpoint{
-			TokenURL: cfg.OAuth2TokenURL,
-		},
-	}
-
 	oldToken := &oauth2.Token{
 		AccessToken:  tok.AccessToken,
 		RefreshToken: tok.RefreshToken,
@@ -1501,6 +1629,38 @@ func RefreshOAuth2Token(
 	}
 	if tok.Expiry.Valid {
 		oldToken.Expiry = tok.Expiry.Time
+	}
+	// Valid uses a 10-second expiry window, so tokens about to
+	// expire are also refreshed proactively.
+	if oldToken.Valid() {
+		return RefreshResult{
+			AccessToken:  tok.AccessToken,
+			RefreshToken: tok.RefreshToken,
+			TokenType:    tok.TokenType,
+			Expiry:       oldToken.Expiry,
+		}, nil
+	}
+	if tok.RefreshToken == "" {
+		return RefreshResult{}, xerrors.New("refresh oauth2 token: token expired and refresh token is not set")
+	}
+
+	params := url.Values{
+		"grant_type":    {"refresh_token"},
+		"refresh_token": {tok.RefreshToken},
+	}
+	if cfg.OAuth2Resource != "" {
+		params.Set("resource", cfg.OAuth2Resource)
+	}
+	// oauth2.Config cannot add parameters to refresh requests. The
+	// clientcredentials token source sends EndpointParams verbatim,
+	// allows overriding grant_type, and shares oauth2.Config's token
+	// request code: auth style detection, *oauth2.RetrieveError, and
+	// keeping the request's refresh_token when the response omits it.
+	refreshCfg := &clientcredentials.Config{
+		ClientID:       cfg.OAuth2ClientID,
+		ClientSecret:   cfg.OAuth2ClientSecret,
+		TokenURL:       cfg.OAuth2TokenURL,
+		EndpointParams: params,
 	}
 
 	// Cap the refresh HTTP call so a stalled token endpoint
@@ -1515,10 +1675,7 @@ func RefreshOAuth2Token(
 	refreshClient.CheckRedirect = safedial.CheckSameOriginRedirect
 	refreshCtx = context.WithValue(refreshCtx, oauth2.HTTPClient, &refreshClient)
 
-	// TokenSource automatically refreshes expired tokens. It
-	// uses a 10-second expiry window, so tokens about to expire
-	// are also refreshed proactively.
-	newToken, err := oauth2Cfg.TokenSource(refreshCtx, oldToken).Token()
+	newToken, err := refreshCfg.Token(refreshCtx)
 	if err != nil {
 		return RefreshResult{}, xerrors.Errorf("refresh oauth2 token: %w", err)
 	}

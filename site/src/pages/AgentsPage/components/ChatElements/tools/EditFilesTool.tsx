@@ -2,7 +2,6 @@ import type { FileDiffMetadata } from "@pierre/diffs";
 import { FileDiff } from "@pierre/diffs/react";
 import type React from "react";
 import type * as TypesGen from "#/api/typesGenerated";
-import { ScrollArea } from "#/components/ScrollArea/ScrollArea";
 import { useTheme } from "#/theme/context";
 import { getPathBasename } from "../../../utils/path";
 import { DiffFileHeader } from "./DiffFileHeader";
@@ -31,7 +30,7 @@ export const EditFilesTool: React.FC<{
 	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
 }> = ({ files, diffs, status, isError, errorMessage, codeDiffDisplayMode }) => {
 	const theme = useTheme();
-	const isDark = theme.palette.mode === "dark";
+	const isDark = theme.mode === "dark";
 	const isRunning = status === "running";
 	const hasDiffs = diffs.some((d) => d !== null);
 	const displayState = resolveAgentDisplayState(
@@ -67,25 +66,21 @@ export const EditFilesTool: React.FC<{
 			<ToolCall.Header iconName="edit_files" label={label} />
 			<ToolCall.Content>
 				{errorDetail && (
-					<pre className="m-0 mt-1.5 whitespace-pre-wrap break-all border-0 bg-transparent p-0 font-mono text-xs leading-5 text-content-destructive">
-						{errorDetail}
-					</pre>
+					<ToolCall.ErrorDetail>{errorDetail}</ToolCall.ErrorDetail>
 				)}
 				<div className="mt-1.5 space-y-1.5">
 					{diffs.map((diff, i) =>
 						diff ? (
-							<ScrollArea
+							<ToolCall.Scrollable
 								key={files[i].path}
 								data-testid="edit-file-diff"
-								className="rounded-md border border-solid border-border text-2xs"
+								className="rounded-md border border-solid text-2xs"
 								viewportClassName={
 									isAgentDisplayFullyExpanded(displayState)
-										? "max-h-[80vh]"
-										: "max-h-64"
+										? "max-h-[80vh] [&>div]:block!"
+										: "max-h-64 [&>div]:block!"
 								}
-								viewportTabIndex={0}
-								viewportAriaLabel={`Diff of ${files[i].path}`}
-								scrollBarClassName="w-1.5"
+								ariaLabel={`Diff of ${files[i].path}`}
 							>
 								<FileDiff
 									fileDiff={stripNoNewline(diff)}
@@ -95,7 +90,7 @@ export const EditFilesTool: React.FC<{
 										<DiffFileHeader file={fileDiff} />
 									)}
 								/>
-							</ScrollArea>
+							</ToolCall.Scrollable>
 						) : null,
 					)}
 				</div>

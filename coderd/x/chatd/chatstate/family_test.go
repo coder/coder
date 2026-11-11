@@ -2,6 +2,8 @@ package chatstate_test
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"testing"
 
 	"github.com/google/uuid"
@@ -265,20 +267,7 @@ func TestCreateChildChatWaitsForFamilyArchive(t *testing.T) {
 		createErr <- err
 	}()
 
-	// Wait until the child creation blocks on the root row lock.
-	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
-		var waiting int
-		err := sqlDB.QueryRowContext(ctx, `
-SELECT COUNT(*)
-FROM pg_stat_activity
-WHERE datname = current_database()
-	AND pid <> pg_backend_pid()
-	AND wait_event_type = 'Lock'
-	AND query LIKE '%-- name: GetChatByIDForShare%'
-`).Scan(&waiting)
-		return err == nil && waiting == 1
-	}, testutil.IntervalFast, "wait for child creation to block on the root lock")
-	require.NoError(t, ctx.Err(), "waiting for child creation to block")
+	waitForLockWaiter(ctx, t, sqlDB, "GetChatByIDForShare")
 	select {
 	case err := <-createErr:
 		t.Fatalf("child creation finished while the archive held the root lock: %v", err)
@@ -302,6 +291,126 @@ WHERE datname = current_database()
 	ids, err := db.GetChatFamilyIDsByRootID(ctx, root.ID)
 	require.NoError(t, err)
 	require.Equal(t, []uuid.UUID{root.ID}, ids, "no child may join the archived family")
+}
+
+// TestSetFamilyProjectLocksRootFirst holds the root row, as a finishing
+// step does, and checks that the move waits on the root before it locks
+// a subagent chat. Locking a member first deadlocks against archive and
+// against steps that lock the root.
+func TestSetFamilyProjectLocksRootFirst(t *testing.T) {
+	t.Parallel()
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedFamilyDeps(t, db)
+
+	root := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "root",
+		Status:            database.ChatStatusRunning,
+	})
+	child := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "child",
+		Status:            database.ChatStatusWaiting,
+		ParentChatID:      uuid.NullUUID{UUID: root.ID, Valid: true},
+		RootChatID:        uuid.NullUUID{UUID: root.ID, Valid: true},
+	})
+	project := dbgen.ChatProject(t, db, database.ChatProject{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+	})
+
+	finish, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if err := finish.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+			t.Errorf("roll back the finishing transaction: %v", err)
+		}
+	})
+	_, err = finish.ExecContext(ctx, `UPDATE chats SET status = 'waiting' WHERE id = $1`, root.ID)
+	require.NoError(t, err)
+
+	moveErr := make(chan error, 1)
+	go func() {
+		_, err := chatstate.SetFamilyProject(ctx, db, newRecordingPubsub(), chatstate.SetFamilyProjectInput{
+			RootID:    root.ID,
+			ProjectID: uuid.NullUUID{UUID: project.ID, Valid: true},
+		})
+		moveErr <- err
+	}()
+	waitForLockWaiter(ctx, t, sqlDB, "GetChatByIDForUpdate")
+
+	_, err = finish.ExecContext(ctx, `SELECT id FROM chats WHERE id = $1 FOR UPDATE NOWAIT`, child.ID)
+	require.NoError(t, err, "the move must not lock a subagent chat before the root")
+	require.NoError(t, finish.Commit())
+	// The step committed waiting before the move read the root, so the
+	// move sees an idle family.
+	require.NoError(t, testutil.RequireReceive(ctx, t, moveErr))
+
+	moved, err := db.GetChatByID(ctx, root.ID)
+	require.NoError(t, err)
+	require.Equal(t, uuid.NullUUID{UUID: project.ID, Valid: true}, moved.ProjectID)
+	unchanged, err := db.GetChatByID(ctx, child.ID)
+	require.NoError(t, err)
+	require.False(t, unchanged.ProjectID.Valid, "subagent chats use the root's project")
+}
+
+// TestSetFamilyProjectKeepsTheCurrentProject moves a running root chat to
+// the project it is already in, which changes and publishes nothing.
+func TestSetFamilyProjectKeepsTheCurrentProject(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedFamilyDeps(t, db)
+	project := dbgen.ChatProject(t, db, database.ChatProject{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+	})
+	root := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		LastModelConfigID: model.ID,
+		Title:             "root",
+		Status:            database.ChatStatusRunning,
+		ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+	})
+	before, err := db.GetChatByID(ctx, root.ID)
+	require.NoError(t, err)
+
+	publisher := newRecordingPubsub()
+	chats, err := chatstate.SetFamilyProject(ctx, db, publisher, chatstate.SetFamilyProjectInput{
+		RootID:    root.ID,
+		ProjectID: root.ProjectID,
+	})
+	require.NoError(t, err)
+	require.Empty(t, chats)
+	require.Empty(t, publisher.channels)
+	after, err := db.GetChatByID(ctx, root.ID)
+	require.NoError(t, err)
+	require.Equal(t, before, after)
+}
+
+// waitForLockWaiter waits until exactly one other session waits on a row
+// lock while it runs the named sqlc query.
+func waitForLockWaiter(ctx context.Context, t *testing.T, sqlDB *sql.DB, queryName string) {
+	t.Helper()
+	testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+		var waiting int
+		err := sqlDB.QueryRowContext(ctx, `
+SELECT COUNT(*)
+FROM pg_stat_activity
+WHERE datname = current_database()
+	AND pid <> pg_backend_pid()
+	AND wait_event_type = 'Lock'
+	AND query LIKE '%-- name: ' || $1 || '%'
+`, queryName).Scan(&waiting)
+		return err == nil && waiting == 1
+	}, testutil.IntervalFast, "wait for %s to block on a row lock", queryName)
+	require.NoError(t, ctx.Err(), "waiting for %s to block", queryName)
 }
 
 func seedFamilyDeps(t *testing.T, db database.Store) (database.User, database.Organization, database.ChatModelConfig) {

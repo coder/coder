@@ -131,7 +131,7 @@ const stepCircleVariants = cva(
 			variant: {
 				complete: "border-border-success bg-surface-green",
 				current: "border-border-success",
-				upcoming: "border-border text-content-secondary",
+				upcoming: "text-content-secondary",
 			},
 		},
 	},
@@ -159,6 +159,7 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
 }) => {
 	const variant = useContext(VariantContext);
 	const label = typeof children === "string" ? children : `step ${step}`;
+	const ariaCurrent = variant === "current" ? "step" : undefined;
 
 	if (onClick) {
 		return (
@@ -166,9 +167,10 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
 				type="button"
 				onClick={onClick}
 				aria-label={`Go to ${label}`}
+				aria-current={ariaCurrent}
 				className={cn(
-					"flex items-center gap-2 w-full text-left text-content-primary p-0 bg-transparent border-0 cursor-pointer rounded-sm",
-					"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-border-primary",
+					"flex items-center gap-2 w-full text-left text-content-primary p-0 bg-transparent cursor-pointer rounded-sm",
+					"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 				)}
 			>
 				<div className={stepCircleVariants({ variant })}>{step}</div>
@@ -178,7 +180,7 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
 	}
 
 	return (
-		<div className="flex items-center gap-2">
+		<div className="flex items-center gap-2" aria-current={ariaCurrent}>
 			<div className={stepCircleVariants({ variant })}>{step}</div>
 			<span className={stepLabelVariants({ variant })}>{children}</span>
 		</div>
@@ -188,20 +190,17 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
 // CSS dashed borders cannot set dash length, so draw a 4px dash,
 // 4px gap pattern under a transparent border instead.
 const dashedDivider =
-	"border-transparent bg-origin-border bg-repeat-y bg-left-top bg-size-[1px_8px] bg-[linear-gradient(var(--color-border)_4px,transparent_4px)]";
+	"border-transparent bg-origin-border bg-repeat-y bg-top-left bg-size-[1px_8px] bg-[linear-gradient(var(--color-border)_4px,transparent_4px)]";
 
-const stepDividerVariants = cva(
-	"border-0 border-l border-solid mx-3 -translate-x-px",
-	{
-		variants: {
-			variant: {
-				complete: "border-border-success",
-				current: dashedDivider,
-				upcoming: dashedDivider,
-			},
+const stepDividerVariants = cva("border-l border-solid mx-3 -translate-x-px", {
+	variants: {
+		variant: {
+			complete: "border-border-success",
+			current: dashedDivider,
+			upcoming: dashedDivider,
 		},
 	},
-);
+});
 
 type StepDividerProps = React.PropsWithChildren<{
 	className?: string;
@@ -240,9 +239,9 @@ const BaseTemplateSelection: React.FC<BaseTemplateSelectionProps> = ({
 					onClick={onClick}
 					aria-label={`Configure ${template.name}`}
 					className={cn(
-						"flex items-center gap-2 w-full text-left p-1 rounded-sm bg-transparent border-0 cursor-pointer",
+						"flex items-center gap-2 w-full text-left p-1 rounded-sm bg-transparent cursor-pointer",
 						"text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
-						"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-border-primary",
+						"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 					)}
 				>
 					<Avatar src={template.iconUrl} size="sm" variant="icon" />
@@ -278,9 +277,9 @@ const ModuleSelection: React.FC<ModuleSelectionProps> = ({
 					onClick={() => onSelectModule(module.id)}
 					aria-label={`Configure ${module.name}`}
 					className={cn(
-						"flex items-start w-full text-left p-1 mb-1 rounded-sm bg-transparent border-0 cursor-pointer",
+						"flex items-start w-full text-left p-1 mb-1 rounded-sm bg-transparent cursor-pointer",
 						"text-sm text-content-secondary hover:text-content-primary hover:bg-surface-secondary",
-						"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-border-primary",
+						"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 					)}
 				>
 					<div className="h-lh content-center">

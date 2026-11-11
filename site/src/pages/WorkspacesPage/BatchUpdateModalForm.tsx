@@ -99,22 +99,22 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({
 	return (
 		<div
 			className={cn(
-				"rounded-md px-4 py-3 border border-solid border-border text-sm",
+				"rounded-md px-4 py-3 border border-solid text-sm",
 				className,
 			)}
 		>
-			<div className="flex flex-row flex-wrap grow items-center gap-3">
+			<div className="flex flex-wrap grow items-center gap-3">
 				<Avatar size="sm" variant="icon" src={workspaceIconUrl} />
 				<div className="flex flex-col gap-0.5">
-					<span className="flex flex-row items-center gap-2">
+					<span className="flex items-center gap-2">
 						<span className="leading-tight">{workspaceName}</span>
 						{running && (
-							<Badge size="xs" variant="warning">
+							<Badge size="sm" variant="warning">
 								Running
 							</Badge>
 						)}
 						{transitioning && (
-							<Badge size="xs" variant="warning">
+							<Badge size="sm" variant="warning">
 								Getting latest status
 							</Badge>
 						)}
@@ -132,7 +132,7 @@ const PanelListItem: React.FC<{ children: React.ReactNode }> = ({
 	children,
 }) => {
 	return (
-		<li className="not-last:border-b-border not-last:border-b not-last:border-solid border-0">
+		<li className="not-last:border-b-border not-last:border-b not-last:border-solid">
 			{children}
 		</li>
 	);
@@ -178,7 +178,7 @@ const RunningWorkspacesWarning: React.FC<RunningWorkspacesWarningProps> = ({
 			ref={containerRef}
 			className="rounded-md border-border-warning border border-solid p-4"
 		>
-			<h4 className="m-0 font-semibold flex flex-row items-center gap-2 text-content-primary">
+			<h4 className="m-0 font-semibold flex items-center gap-2 text-content-primary">
 				<TriangleAlertIcon className="text-content-warning" size={16} />
 				Running workspaces detected
 			</h4>
@@ -273,7 +273,7 @@ const ContainerFooter: React.FC<ContainerFooterProps> = ({
 				// Also have to subtract padding here to make sure footer is
 				// full-bleed, and there's no risk of the border getting
 				// confused for the outline of one of the panels
-				"border-0 border-t border-solid border-t-border pt-8 -mx-8 px-8",
+				"border-t border-solid border-t-border pt-8 -mx-8 px-8",
 				className,
 			)}
 		>
@@ -302,7 +302,7 @@ const WorkspacesListSection: React.FC<WorkspacesListSectionProps> = ({
 				</p>
 			</div>
 
-			<ul className="m-0 list-none p-0 flex flex-col rounded-md border border-solid border-border">
+			<ul className="m-0 list-none p-0 flex flex-col rounded-md border border-solid">
 				{children}
 			</ul>
 		</section>
@@ -550,7 +550,7 @@ const ReviewForm: React.FC<ReviewFormProps> = ({
 								{dormant.map((ws) => (
 									<li
 										key={ws.id}
-										className="not-last:border-b-border not-last:border-b not-last:border-solid border-0"
+										className="not-last:border-b-border not-last:border-b not-last:border-solid"
 									>
 										<ReviewPanel
 											className="border-none"
@@ -567,7 +567,7 @@ const ReviewForm: React.FC<ReviewFormProps> = ({
 				</ContainerBody>
 
 				<ContainerFooter>
-					<div className="flex flex-row flex-wrap justify-end gap-4">
+					<div className="flex flex-wrap justify-end gap-4">
 						<Button variant="outline" onClick={onCancel}>
 							Cancel
 						</Button>

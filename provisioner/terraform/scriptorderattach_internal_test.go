@@ -34,8 +34,8 @@ func scriptOrderAttachTestDependency(
 	}
 }
 
-func scriptOrderAttachTestStartGraph(runtime string, dependencies ...scriptorder.Dependency) scriptorder.Graph {
-	return scriptorder.Graph{RuntimeAddress: runtime, Phase: scriptorder.PhaseStart, Dependencies: dependencies}
+func scriptOrderAttachTestStartGraph(agentAddress string, dependencies ...scriptorder.Dependency) scriptorder.Graph {
+	return scriptorder.Graph{RuntimeAddress: agentAddress, Phase: scriptorder.PhaseStart, Dependencies: dependencies}
 }
 
 func scriptOrderAttachTestPrerequisites(script *proto.Script) []string {
