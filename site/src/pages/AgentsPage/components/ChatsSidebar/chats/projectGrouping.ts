@@ -115,6 +115,13 @@ export const countProjectFolderPins = ({
 	return pinnedIds.size;
 };
 
+/** Names a project, with its organization label when it has one. */
+export const getProjectLabel = (
+	project: ChatProject,
+	organizationLabel: string | undefined,
+) =>
+	organizationLabel ? `${project.name} (${organizationLabel})` : project.name;
+
 /**
  * Maps project IDs to their organization's name for projects whose name is
  * also used in another organization, so same-named projects stay
