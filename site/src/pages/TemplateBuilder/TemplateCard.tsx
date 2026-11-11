@@ -34,7 +34,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 				"flex flex-col pt-4 px-4 pb-6 rounded",
 				"bg-surface-secondary border border-solid",
 				"cursor-pointer",
-				selected ? "border-border-pending" : "border-border",
+				selected && "border-border-pending",
 			)}
 			onClick={() => onSelect?.()}
 		>
