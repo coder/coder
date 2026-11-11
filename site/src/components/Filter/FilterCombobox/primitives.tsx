@@ -299,7 +299,7 @@ export const FilterComboboxFlyoutContent: React.FC<
 			// one. Focus returning to the input must not close the flyout.
 			onInteractOutside={(event) => event.preventDefault()}
 			className={cn(
-				"flex max-h-[min(20rem,var(--radix-popper-available-height))] w-max min-w-40 max-w-64 flex-col overflow-y-hidden border-border p-2",
+				"flex max-h-[min(20rem,var(--radix-popper-available-height))] w-max min-w-40 max-w-64 flex-col overflow-y-hidden p-2",
 				className,
 			)}
 			{...props}
