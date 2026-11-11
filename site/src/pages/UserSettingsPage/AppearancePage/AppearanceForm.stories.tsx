@@ -8,6 +8,8 @@ import type {
 } from "#/api/typesGenerated";
 import { CONCRETE_THEMES } from "#/theme";
 import { AppearanceForm } from "./AppearanceForm";
+import { withAuthProvider } from "#/testHelpers/storybook";
+import { MockUserMember } from "#/testHelpers/entities";
 
 const onUpdateTheme = action("update");
 
@@ -105,6 +107,10 @@ const meta: Meta<typeof AppearanceForm> = {
 		activeScheme: "dark",
 		onSubmit: (update) => Promise.resolve(onUpdateTheme(update)),
 	},
+	parameters: {
+		user: MockUserMember,
+	},
+	decorators: [withAuthProvider],
 };
 
 export default meta;
