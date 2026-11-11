@@ -386,7 +386,6 @@ type ProjectWorkspacesSectionProps = {
 	readonly confirmation: ReturnType<typeof useDeleteConfirmation>;
 };
 
-/** Offers to stop or delete the workspaces behind the user's own chats. */
 const ProjectWorkspacesSection: React.FC<ProjectWorkspacesSectionProps> = ({
 	project,
 	workspaces,
@@ -428,12 +427,15 @@ const ProjectWorkspacesSection: React.FC<ProjectWorkspacesSectionProps> = ({
 	return (
 		<div className="flex flex-col gap-3">
 			{errorAlert}
-			<p
-				id={radioGroupLabelId}
-				className="m-0 text-sm font-medium text-content-primary"
-			>
-				Workspaces used by your chats in this project
-			</p>
+			<div className="flex items-center gap-2">
+				<p
+					id={radioGroupLabelId}
+					className="m-0 text-sm font-medium text-content-primary"
+				>
+					Workspaces used by your chats in this project
+				</p>
+				<Spinner loading={isRetrying} label="Refreshing your workspaces" />
+			</div>
 			<ul className="m-0 flex list-none flex-col gap-1 p-0 text-sm text-content-secondary">
 				{workspaces.map(({ workspace, existedBeforeChat }) => (
 					<li key={workspace.id} className="flex min-w-0 items-center gap-2">
