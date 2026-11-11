@@ -205,6 +205,17 @@ export const WithoutDeletePermission: Story = {
 	},
 };
 
+/** The header actions menu of an active project, with Archive project. */
+export const ProjectActionsMenu: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			await within(canvasElement).findByRole("button", {
+				name: "Project actions",
+			}),
+		);
+	},
+};
+
 /** A chat that moved to another project leaves the list before the refetch. */
 export const ChatMovedToAnotherProject: Story = {
 	parameters: {
