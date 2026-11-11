@@ -359,7 +359,7 @@ const docTemplate = `{
         },
         "/api/experimental/organizations/{organization}/ai/spend": {
             "get": {
-                "description": "Returns the AI spend of the organization in the period, read from the daily spend aggregate: the number of users with spend, the total spend of all users, the median spend across users with spend, the daily spend as one interval per UTC day in the period (omitting days after the current day), and one page of users, most spend first, with the groups their spend was attributed to. The count, totals, and daily spend cover every user with spend.\nThe optional period_start and period_end query parameters set the period. They must be provided together, be at 00:00:00 UTC, and span at most 31 days. When both are omitted, the current budget period is used.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
+                "description": "Returns the AI spend of the organization in the period, read from the daily spend aggregate: the number of users with spend, the total spend of all users, the median spend across users with spend, the daily spend as one interval per UTC day in the period (omitting days after the current day, and with the current day only including the spend recorded so far), and one page of users, most spend first, with the groups their spend was attributed to. The count, totals, and daily spend cover every user with spend.\nThe optional period_start and period_end query parameters set the period. They must be provided together, be at 00:00:00 UTC, and span at most 31 days. When both are omitted, the current budget period is used.\nUnknown query parameters are rejected.\nRequires organization-level administrator permissions.",
                 "produces": [
                     "application/json"
                 ],
@@ -29005,7 +29005,7 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "intervals": {
-                    "description": "Intervals holds the daily spend, one interval per UTC day in the period\n(omitting days after the current day). Days without spend are zero.",
+                    "description": "Intervals holds the daily spend, one interval per UTC day in the period\n(omitting days after the current day). Days without spend are zero. When\nthe period includes the current day, its interval only has the spend\nrecorded so far.",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.OrganizationAISpendOverviewInterval"

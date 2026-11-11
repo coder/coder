@@ -1453,7 +1453,7 @@ func validateUTCDayStart(query url.Values, period aiSpendPeriod) []codersdk.Vali
 // EXPERIMENTAL: this endpoint is experimental and is subject to change.
 //
 // @Summary Get organization AI spend overview
-// @Description Returns the AI spend of the organization in the period, read from the daily spend aggregate: the number of users with spend, the total spend of all users, the median spend across users with spend, the daily spend as one interval per UTC day in the period (omitting days after the current day), and one page of users, most spend first, with the groups their spend was attributed to. The count, totals, and daily spend cover every user with spend.
+// @Description Returns the AI spend of the organization in the period, read from the daily spend aggregate: the number of users with spend, the total spend of all users, the median spend across users with spend, the daily spend as one interval per UTC day in the period (omitting days after the current day, and with the current day only including the spend recorded so far), and one page of users, most spend first, with the groups their spend was attributed to. The count, totals, and daily spend cover every user with spend.
 // @Description The optional period_start and period_end query parameters set the period. They must be provided together, be at 00:00:00 UTC, and span at most 31 days. When both are omitted, the current budget period is used.
 // @Description Unknown query parameters are rejected.
 // @Description Requires organization-level administrator permissions.

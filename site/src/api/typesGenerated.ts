@@ -8066,7 +8066,9 @@ export interface OrganizationAISpendOverview extends AISpendPeriodWindow {
 	readonly totals: OrganizationAISpendOverviewTotals;
 	/**
 	 * Intervals holds the daily spend, one interval per UTC day in the period
-	 * (omitting days after the current day). Days without spend are zero.
+	 * (omitting days after the current day). Days without spend are zero. When
+	 * the period includes the current day, its interval only has the spend
+	 * recorded so far.
 	 */
 	readonly intervals: readonly OrganizationAISpendOverviewInterval[];
 	/**

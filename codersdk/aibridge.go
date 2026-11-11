@@ -724,7 +724,9 @@ type OrganizationAISpendOverview struct {
 	Count  int64                             `json:"count"`
 	Totals OrganizationAISpendOverviewTotals `json:"totals"`
 	// Intervals holds the daily spend, one interval per UTC day in the period
-	// (omitting days after the current day). Days without spend are zero.
+	// (omitting days after the current day). Days without spend are zero. When
+	// the period includes the current day, its interval only has the spend
+	// recorded so far.
 	Intervals []OrganizationAISpendOverviewInterval `json:"intervals"`
 	// Users is the requested page, most spend first.
 	Users []OrganizationAISpendOverviewUser `json:"users"`
