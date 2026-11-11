@@ -609,6 +609,13 @@ describe("ChatsSidebar projects", () => {
 							project_id: mockOtherProject.id,
 							pin_order: 1,
 						}),
+						// Another user's pin is not the viewer's, so no icon.
+						buildChat({
+							id: "shared-chat",
+							owner_id: "another-user",
+							project_id: MockChatProject.id,
+							pin_order: 1,
+						}),
 					]}
 				/>
 			</Wrapper>,
@@ -617,6 +624,7 @@ describe("ChatsSidebar projects", () => {
 		expect(
 			await screen.findByRole("img", { name: label }),
 		).toHaveAccessibleName(label);
+		expect(screen.getAllByRole("img", { name: /^Launch/ })).toHaveLength(1);
 	});
 
 	it("opens the folder of the project being viewed until the user collapses it", async () => {
