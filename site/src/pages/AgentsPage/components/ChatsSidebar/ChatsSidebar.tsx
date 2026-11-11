@@ -381,6 +381,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 			<ArchivedProjectsDialog
 				open={isArchivedProjectsOpen}
 				onOpenChange={setIsArchivedProjectsOpen}
+				organizations={organizations}
 				locationSearch={location.search}
 				onCloseAutoFocus={projectArchiveFocusReturn.restoreFocus}
 			/>
