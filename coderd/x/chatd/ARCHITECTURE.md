@@ -1397,7 +1397,7 @@ The following chat stream events, delivered to the client over WebSocket, are su
 - `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history. On streams opened with `snapshot_version` it includes `from_message_id`, the lowest message ID the edit removed, and the client drops its messages from that ID on. On other streams, the `message` events that follow replace the whole history.
   - TODO (#29808): on the first sync with an `after_id`, this is emitted only when message `after_id` is deleted or missing. Describe this here.
 
-On streams opened with `snapshot_version`, `message`, `queue_update`, and `history_reset` (the versioned events) include the `snapshot_version` of the commit that made the change: the message's `revision`, the chat's `queue_version`, and the `revision` of the messages the edit removed. A client reconnects with the highest one it applied. Other streams do not set it.
+On streams opened with `snapshot_version`, `message`, `queue_update`, and `history_reset` (the versioned events) include the chat's `snapshot_version` when the change was made: the message's `revision`, the chat's `queue_version`, and the `revision` of the messages the edit removed. A client reconnects with the highest one it applied. Other streams do not set it.
 
 ## Endpoint lifecycle
 
@@ -1447,7 +1447,7 @@ Initial null state:
 - preview part sequence is `0`;
 - `attempt_retired` is false;
 
-When the client opens the stream with a `snapshot_version` parameter, the synchronized `history_version` and `queue_version` start one below it instead of at `0`, so the first sync resends the messages and queue written by that commit. The stream then ignores `after_id`.
+When the client opens the stream with a `snapshot_version` parameter, the synchronized `history_version` and `queue_version` start one below it instead of at `0`, so the first sync sends the messages and the queue that last changed at that version or later. The stream then ignores `after_id`.
 
 ## Stream loop operations
 

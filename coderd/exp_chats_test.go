@@ -10826,8 +10826,8 @@ func TestStreamChat(t *testing.T) {
 			}
 			require.Equal(t, 1, resets)
 		}
-		// A resume at or after a commit resends that commit's messages, which
-		// the tab holds.
+		// A stream opened at a snapshot version resends the messages written
+		// at that version or later, which the tab already has.
 		requireOnlyResent := func(held []int64, events []codersdk.ChatStreamEvent) {
 			t.Helper()
 			for _, event := range events {

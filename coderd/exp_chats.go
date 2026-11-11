@@ -2046,8 +2046,8 @@ func (api *API) getChatMessages(rw http.ResponseWriter, r *http.Request) {
 	if beforeID == 0 && afterID == 0 {
 		// A cursored page can leave out newer messages, so only the newest
 		// page reports a snapshot version. chat was read before the messages
-		// and the queue, so a stream opened at this version resends a change
-		// committed between those reads.
+		// and the queue, so a stream opened at this version can resend a
+		// change committed between those reads.
 		snapshotVersion = chat.SnapshotVersion
 		queuedMessages, err = api.Database.GetChatQueuedMessages(ctx, chatID)
 		if err != nil {
@@ -3947,20 +3947,21 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Produce json
 // @Param chat path string true "Chat ID" format(uuid)
 // @Param after_id query int false "Skip snapshot messages with id at or before this cursor. Ignored when snapshot_version is set"
-// @Param snapshot_version query int false "Send the changes with this snapshot version or a later one"
+// @Param snapshot_version query int false "Send what changed at this snapshot version or later"
 // @Success 200 {array} codersdk.ChatStreamEvent
 // @Router /api/v2/chats/{chat}/stream [get]
 // @Description
 // @Description Each WebSocket message is a JSON array of events.
 // @Description
-// @Description The server increases a chat's `snapshot_version` by 1 each time it commits a change to the chat's messages, queue, or status.
-// @Description Each change has the `snapshot_version` of the commit that made it.
+// @Description The server increases a chat's `snapshot_version` by 1 each time it changes the chat's messages, queue, or status.
+// @Description A change's `snapshot_version` is the chat's `snapshot_version` when the server made the change.
 // @Description Only the newest messages page, which `GET /api/v2/chats/{chat}/messages` returns when you set neither `before_id` nor `after_id`, includes the chat's `snapshot_version`.
-// @Description The server reads `snapshot_version` before the messages and the queue, so a change that it commits between those reads is in the page, and the stream sends that change again.
+// @Description The server reads `snapshot_version` before the messages and the queue, so the page can include changes with a higher `snapshot_version`.
+// @Description The stream can send changes that are already in the page.
 // @Description
 // @Description The server reads the chat when the stream opens and each time the chat changes.
 // @Description Each read sends the changes since the previous read.
-// @Description When you set `snapshot_version` to a value `S`, the first read sends every change with a `snapshot_version` of `S` or greater:
+// @Description When you set `snapshot_version` to a value `S`, the first read sends what changed at a `snapshot_version` of `S` or greater:
 // @Description
 // @Description - A `message` event for each message that is not deleted.
 // @Description - A `history_reset` event for each edit.
@@ -3975,8 +3976,9 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Description The `status`, `error`, `action_required`, `retry`, and `preview_reset` events of the read come after them.
 // @Description The server sends `message_part` events between reads.
 // @Description
-// @Description A `history_reset` event on such a stream includes `history_reset.from_message_id`, the lowest message ID that the edit removed.
-// @Description Remove every message with that ID or higher.
+// @Description A `history_reset` event on such a stream includes `history_reset.from_message_id`, the ID of a message that was edited.
+// @Description The edit deleted that message and every message after it.
+// @Description When managing history state, delete every message with that ID or higher.
 // @Description After the `history_reset` event, the stream sends each message with that ID or higher that isn't deleted.
 // @Description
 // @Description On each new connection, the server sends the chat's current status again.
@@ -3985,7 +3987,8 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Description
 // @Description When you don't set `snapshot_version`, the events don't include `snapshot_version`, and `history_reset` events don't include `from_message_id`.
 // @Description After a `history_reset` event, the server sends every message in the chat as `message` events.
-// @Description The server sends this `history_reset` event and the whole history on each connection to a chat with a message that an edit removed, unless `after_id` is the ID of a message in the chat that no edit removed.
+// @Description On a new connection, when `after_id` is the ID of a message in the chat that isn't deleted, the server sends only the messages with a higher ID that aren't deleted.
+// @Description When `after_id` is unset or is the ID of a deleted message in the chat, the server sends every message that isn't deleted, after a `history_reset` event if the chat has a deleted message.
 // @Description
 // @Description When the server can't subscribe to the chat or read it, the server returns `500 Internal Server Error` and doesn't open the WebSocket connection.
 func (api *API) streamChat(rw http.ResponseWriter, r *http.Request) {

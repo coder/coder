@@ -191,7 +191,7 @@ Each event has a `type` field:
 | `queue_update`    | The queued message list changed (the event includes the whole list)                                                     |
 | `action_required` | The agent called a tool you provided, so run the tool and send the result with `POST /api/v2/chats/{chat}/tool-results` |
 
-The server increases a chat's `snapshot_version` each time it commits a change to the chat's messages, queue, or status.
+The server increases a chat's `snapshot_version` each time it changes the chat's messages, queue, or status.
 To keep your client in sync with the chat:
 
 1. Request the newest messages page with `GET /api/v2/chats/{chat}/messages`, without `before_id` or `after_id`.
@@ -219,7 +219,7 @@ Apply the change again: a `message` event replaces the message with the same ID,
 Each connection also sends `action_required` again while its tool calls wait for results, so run each tool call ID once.
 
 If you applied a `history_reset` event after you sent a `before_id` request, discard that request's response.
-Then send the `before_id` request again with the lowest message ID that you hold.
+Then send the `before_id` request again with the lowest message ID that you have.
 
 Send actions, such as new messages, edits, and tool results, as REST requests.
 Do not apply their response bodies to your client's state, because the stream sends the result of each action.

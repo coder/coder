@@ -3137,11 +3137,14 @@ export interface ChatMessagesResponse {
 	 */
 	readonly turn_start_id?: number;
 	/**
-	 * SnapshotVersion is the chat's snapshot_version, read before the rest
-	 * of this page. The page can hold changes made after it, and a stream
-	 * opened with it sends them again. Pass it as the stream's
-	 * snapshot_version parameter. It is set only on pages requested without
-	 * before_id or after_id.
+	 * SnapshotVersion is the chat's snapshot version, a number that the
+	 * server increases each time it changes the chat's messages, queue or
+	 * status. The server sets it only when the request has neither
+	 * before_id nor after_id. Pass it as the stream's snapshot_version
+	 * parameter. The server reads this version before the page's messages
+	 * and queued messages, so the page can include changes made at a
+	 * higher version. The stream can send changes that are already in the
+	 * page.
 	 */
 	readonly snapshot_version?: number;
 }
@@ -3894,9 +3897,10 @@ export interface ChatStreamEvent {
 	readonly history_reset?: ChatStreamHistoryReset;
 	/**
 	 * SnapshotVersion is set on the message, queue_update and history_reset
-	 * events of streams opened with a snapshot_version. It is the snapshot
-	 * version of the commit that made the change. A client reconnects with
-	 * the highest one it has received.
+	 * events of streams opened with a snapshot_version. It is the chat's
+	 * snapshot version when the change that the event reports was made. To
+	 * reconnect, open the stream with the highest one received from the
+	 * messages page or from events.
 	 */
 	readonly snapshot_version?: number;
 }
@@ -3927,13 +3931,14 @@ export const ChatStreamEventTypes: ChatStreamEventType[] = [
 
 // From codersdk/chats.go
 /**
- * ChatStreamHistoryReset describes which messages a history_reset removes.
+ * ChatStreamHistoryReset identifies the messages that an edit deleted.
  */
 export interface ChatStreamHistoryReset {
 	/**
-	 * FromMessageID is the lowest message ID the edit removed. The client
-	 * drops its messages with this ID or higher. Only messages written by
-	 * the edit or a later commit follow.
+	 * FromMessageID is the ID of a message that was edited. The edit deleted
+	 * that message and every message after it. When managing history state,
+	 * delete every message with this ID or higher. The messages that follow
+	 * were written by the edit or after it and should be kept.
 	 */
 	readonly from_message_id: number;
 }
@@ -10086,19 +10091,21 @@ export interface StatsCollectionConfig {
  */
 export interface StreamChatOptions {
 	/**
-	 * AfterID limits the initial snapshot to messages created
-	 * after the given ID. This is useful for relay connections
-	 * that only need live message_part events. Without SnapshotVersion, a
-	 * connection to a chat with a deleted message resends the whole
-	 * history, unless AfterID is the ID of a message of the chat that is
-	 * not deleted.
+	 * AfterID is a message ID that selects the messages the stream sends
+	 * when it opens. The server uses it only when SnapshotVersion is unset.
+	 * When AfterID is the ID of a non-deleted message in the chat, the
+	 * stream sends only the non-deleted messages with a higher ID. When it
+	 * is unset or the ID of a deleted message in the chat, the stream sends
+	 * every non-deleted message, after a history_reset event if the chat
+	 * has a deleted message.
 	 */
 	readonly AfterID: number | null;
 	/**
-	 * SnapshotVersion is the snapshot version of the caller's state: the
-	 * one from ChatMessagesResponse, or the highest one from the stream's
-	 * events. When it is set, the stream sends the changes made at or after
-	 * it, and the server ignores AfterID.
+	 * SnapshotVersion is a snapshot version of the chat. When it is set,
+	 * the stream sends what changed at that version or later: each
+	 * non-deleted message written, a history_reset event for each edit,
+	 * and the queue if it changed. Set it to the highest one received in a
+	 * ChatMessagesResponse or a ChatStreamEvent.
 	 */
 	readonly SnapshotVersion: number;
 }
