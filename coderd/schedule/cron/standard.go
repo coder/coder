@@ -15,8 +15,9 @@ import (
 // matches.
 //
 // The spec must not start with CRON_TZ= or TZ=, and descriptors such as
-// @daily are not supported. timeZone is an IANA time zone name other than
-// "Local". A spec that never runs, such as "0 0 30 2 *", is an error.
+// @daily are not supported. timeZone is an IANA time zone name. Names that
+// zone data files hold but that are not zones, such as "Local", are errors. A
+// spec that never runs, such as "0 0 30 2 *", is an error.
 //
 // The schedule follows local time across daylight saving changes. A repeated
 // local time runs at its first instance only. A nonexistent local time runs at
@@ -43,22 +44,38 @@ func Standard(spec, timeZone string) (*Schedule, error) {
 	switch timeZone {
 	case "":
 		return nil, xerrors.New("time zone is empty")
-	case "Local":
-		return nil, xerrors.New(`time zone "Local" is not supported, use an IANA time zone name`)
+	case "Local", "localtime", "posixrules", "Factory":
+		// Files that sit next to the zones in the zone data: they are not zones,
+		// and what they hold depends on the host.
+		return nil, xerrors.Errorf("time zone %q is not supported, use an IANA time zone name", timeZone)
 	}
-	if _, err := time.LoadLocation(timeZone); err != nil {
+	loc, err := time.LoadLocation(timeZone)
+	if err != nil {
 		return nil, xerrors.Errorf("load time zone %q: %w", timeZone, err)
 	}
+	return standardIn(fields, loc)
+}
 
-	sched, err := parse("CRON_TZ=" + timeZone + " " + strings.Join(fields, " "))
+// standardIn is Standard for fields that have passed its checks and a zone
+// that the caller loaded.
+func standardIn(fields []string, loc *time.Location) (*Schedule, error) {
+	cronStr := strings.Join(fields, " ")
+	parsed, err := defaultParser.Parse(cronStr)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("parse schedule: %w", err)
 	}
-	sched.wallClock = true
+	spec, ok := parsed.(*rbcron.SpecSchedule)
+	if !ok {
+		return nil, xerrors.Errorf("expected *cron.SpecSchedule but got %T", parsed)
+	}
+	spec.Location = loc
+	sched := &Schedule{sched: spec, cronStr: cronStr, wallClock: true}
 
-	// Min would never return for a schedule without a run.
-	if naive := sched.naive(); naive.Next(intervalAnchor).IsZero() {
-		return nil, xerrors.Errorf("schedule %q never runs", strings.Join(fields, " "))
+	// Any start works, because nextReading searches past the longest gap
+	// between runs of a spec that runs at all.
+	naive := sched.naive()
+	if nextReading(&naive, time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC)).IsZero() {
+		return nil, xerrors.Errorf("schedule %q never runs", cronStr)
 	}
 	return sched, nil
 }
@@ -71,16 +88,29 @@ func (s Schedule) naive() rbcron.SpecSchedule {
 	return naive
 }
 
+// maxReadings bounds the walk in nextWallClock. A reading more than 28 hours
+// after t resolves to an instant after t, and the walk starts at most 26 hours
+// before t, so at most 54 hours of readings come first: 3,240 for a schedule
+// that matches every minute.
+const maxReadings = 1 << 13
+
 // nextWallClock implements Next for schedules from Standard. It walks the
 // matching wall-clock readings in order and returns the first one whose
 // instant is after t. A reading that repeats resolves to the instant of its
 // first occurrence, so its second occurrence is not after t once the first
 // has passed. Readings that do not exist resolve to the same instant, so they
-// run once.
+// run once. It returns the zero time when a step does not move forward or the
+// walk reaches maxReadings, which real zone data cannot cause.
 func (s Schedule) nextWallClock(t time.Time) time.Time {
 	loc := s.sched.Location
 	naive := s.naive()
-	for wall := nextReading(&naive, wallClock(t, loc)); !wall.IsZero(); wall = nextReading(&naive, wall) {
+	wall := wallClock(t, loc)
+	for range maxReadings {
+		next := nextReading(&naive, wall)
+		if next.IsZero() || !next.After(wall) {
+			return time.Time{}
+		}
+		wall = next
 		if instant := resolveWallClock(wall, loc); instant.After(t) {
 			return instant.In(t.Location())
 		}
@@ -111,90 +141,107 @@ func wallClock(t time.Time, loc *time.Location) time.Time {
 	return time.Date(year, month, day, hour, minute, second, local.Nanosecond(), time.UTC)
 }
 
+// A UTC offset is at most 25:59:59 either way (RFC 8536), so the instant at
+// which a clock shows a reading is within 26 hours of the reading read as UTC.
+// Zone periods last days, so one probe every four hours sees every offset in
+// effect in that range, with a margin at both ends.
+const (
+	probeSpan = 28 * time.Hour
+	probeStep = 4 * time.Hour
+)
+
 // resolveWallClock returns the instant at which the wall clock in loc shows
 // wall, a reading held as a UTC time. For a reading that occurs twice it
 // returns the first occurrence. For a reading that does not exist it returns
-// the start of the zone period after the gap. It never decreases as wall
-// increases.
+// the instant of the clock change. It never decreases as wall increases. It
+// works from the offsets of the zone, never from its period bounds, which Go
+// reports wrongly after the last transition in the zone data. Every loop in it
+// has a fixed bound.
 func resolveWallClock(wall time.Time, loc *time.Location) time.Time {
-	// A zone offset is within 26 hours of UTC (RFC 8536 allows up to 25:59:59,
-	// and old data such as America/Metlakatla in 1867 goes past 15 hours), so
-	// no instant that shows wall is earlier than this. Walk the zone periods
-	// from here.
-	for instant := wall.Add(-26 * time.Hour); ; {
-		local := instant.In(loc)
-		_, offset := local.Zone()
-		shift := time.Duration(offset) * time.Second
-		start, end := local.ZoneBounds()
-
-		switch {
-		case !end.IsZero() && !wall.Before(end.Add(shift)):
-			// The period ends before the clock reaches wall.
-			instant = end
-		case !start.IsZero() && wall.Before(start.Add(shift)):
-			// The clock skipped wall when this period started.
-			return start
+	// Each offset in effect gives one instant at which the clock could show
+	// wall. It does when the offset is still in effect at that instant.
+	var first, before, after time.Time
+	for probe := -probeSpan; probe <= probeSpan; probe += probeStep {
+		_, offset := wall.Add(probe).In(loc).Zone()
+		instant := wall.Add(-time.Duration(offset) * time.Second)
+		switch shown := wallClock(instant, loc); {
+		case shown.Equal(wall):
+			if first.IsZero() || instant.Before(first) {
+				first = instant
+			}
+		case shown.Before(wall):
+			if before.IsZero() || instant.After(before) {
+				before = instant
+			}
 		default:
-			return wall.Add(-shift)
+			if after.IsZero() || instant.Before(after) {
+				after = instant
+			}
 		}
 	}
+	if !first.IsZero() {
+		return first
+	}
+
+	// The clock skipped wall. At before it shows less, at after it shows more,
+	// so the change is between them. Find the first second that shows wall or
+	// more.
+	if before.IsZero() || after.IsZero() || !before.Before(after) {
+		// Real zone data cannot get here.
+		_, offset := wall.In(loc).Zone()
+		return wall.Add(-time.Duration(offset) * time.Second)
+	}
+	for range 64 {
+		mid := before.Add(after.Sub(before) / 2).Truncate(time.Second)
+		if !mid.After(before) {
+			break
+		}
+		if wallClock(mid, loc).Before(wall) {
+			before = mid
+		} else {
+			after = mid
+		}
+	}
+	return after
 }
 
-// intervalAnchor starts the scan of MinInterval. The 28 years from it hold
-// every calendar a year can have (leap or not, starting on each weekday), so
-// they hold the shortest gap of every year.
-var intervalAnchor = time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC)
-
-// MinInterval returns the shortest time between two consecutive runs of the
-// schedule, measured on its wall clock. It looks at 28 years of runs from
-// 2000-01-01, which is enough to see the shortest gap in any year. It returns
-// the length of that period when fewer than two runs fall inside it.
+// MinInterval returns the shortest distance between two times of day at which
+// the schedule runs, counted around the clock: the distance from the last time
+// of day to the first time of the next day counts too, and a schedule with one
+// time of day gives 24 hours. It reads only the hour and minute fields, so it
+// needs no time zone and no calendar.
+//
+// For every value of the day of month, month and day of week fields,
+// MinInterval is never longer than the shortest time between two runs on the
+// wall clock. It is shorter when the closest pair of times crosses midnight and
+// the day fields never match two days in a row: "0,58 0,23 * * 1" gives two
+// minutes, and its runs are 58 minutes apart at least. So a check that rejects
+// a schedule when MinInterval is below a minimum can reject a schedule that the
+// minimum would allow. Above 24 hours it says nothing.
 //
 // Daylight saving changes do not count. Clocks going forward can make one gap
 // shorter by up to the size of the change: runs at 01:30 and 03:30 are two
 // hours apart on the wall clock and one hour apart on that day.
-//
-// Unlike Min, which only looks at one week from 1970-01-01, MinInterval sees
-// close runs on days that week does not contain.
 func (s Schedule) MinInterval() time.Duration {
-	// Every matching day runs at the same times of day.
-	var times []time.Duration
+	var first, last time.Duration
+	shortest := 24 * time.Hour
+	seen := false
 	for hour := range 24 {
 		if s.sched.Hour&(1<<hour) == 0 {
 			continue
 		}
 		for minute := range 60 {
-			if s.sched.Minute&(1<<minute) != 0 {
-				times = append(times, time.Duration(hour)*time.Hour+time.Duration(minute)*time.Minute)
+			if s.sched.Minute&(1<<minute) == 0 {
+				continue
 			}
+			timeOfDay := time.Duration(hour)*time.Hour + time.Duration(minute)*time.Minute
+			if !seen {
+				first, seen = timeOfDay, true
+			} else {
+				shortest = min(shortest, timeOfDay-last)
+			}
+			last = timeOfDay
 		}
 	}
-
-	end := intervalAnchor.AddDate(28, 0, 0)
-	shortest := end.Sub(intervalAnchor)
-	for i := 1; i < len(times); i++ {
-		shortest = min(shortest, times[i]-times[i-1])
-	}
-
-	// Gaps from the last run of a matching day to the first run of the next.
-	// The shortest one is between two days in a row, so stop once it shows.
-	naive := s.naive()
-	lastOfDay := times[len(times)-1]
-	nextDay := 24*time.Hour + times[0] - lastOfDay
-	for day := naive.Next(intervalAnchor); !day.IsZero() && !day.After(end); {
-		midnight := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, time.UTC)
-		last := midnight.Add(lastOfDay)
-		// The first run after midnight is the first run of the next matching day.
-		next := naive.Next(midnight.AddDate(0, 0, 1).Add(-time.Second))
-		if next.IsZero() || next.After(end) {
-			break
-		}
-		gap := next.Sub(last)
-		shortest = min(shortest, gap)
-		if gap == nextDay {
-			break
-		}
-		day = next
-	}
-	return shortest
+	return min(shortest, 24*time.Hour+first-last)
 }

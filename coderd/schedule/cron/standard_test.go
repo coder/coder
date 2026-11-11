@@ -1,12 +1,20 @@
 package cron_test
 
 import (
+	"archive/zip"
+	"fmt"
+	"go/build"
+	"io"
+	"math/rand/v2"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/schedule/cron"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestStandard(t *testing.T) {
@@ -87,9 +95,15 @@ func TestStandard(t *testing.T) {
 			{name: "MinuteOutOfRange", spec: "60 * * * *", zone: "UTC", wantErr: "above maximum"},
 			{name: "NotANumber", spec: "a * * * *", zone: "UTC", wantErr: "parse"},
 			{name: "NeverRuns", spec: "0 0 30 2 *", zone: "UTC", wantErr: "never runs"},
+			{name: "NeverRunsInShortMonth", spec: "0 0 31 4,6,9,11 *", zone: "UTC", wantErr: "never runs"},
 			{name: "EmptyZone", spec: "0 9 * * *", zone: "", wantErr: "time zone is empty"},
-			{name: "LocalZone", spec: "0 9 * * *", zone: "Local", wantErr: "Local"},
 			{name: "UnknownZone", spec: "0 9 * * *", zone: "Nowhere/Land", wantErr: "unknown time zone"},
+			// These names load as zones on hosts that have the files, and what
+			// they hold depends on the host.
+			{name: "LocalZone", spec: "0 9 * * *", zone: "Local", wantErr: `"Local" is not supported`},
+			{name: "LocaltimeFile", spec: "0 9 * * *", zone: "localtime", wantErr: `"localtime" is not supported`},
+			{name: "PosixrulesFile", spec: "0 9 * * *", zone: "posixrules", wantErr: `"posixrules" is not supported`},
+			{name: "FactoryZone", spec: "0 9 * * *", zone: "Factory", wantErr: `"Factory" is not supported`},
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -147,6 +161,7 @@ func TestStandard_Next(t *testing.T) {
 			// America/Metlakatla moved from UTC+15:13:42 to UTC-08:46:18 on
 			// 1867-10-19, so 15:00 on October 19 happened twice. The first
 			// instance is the one at the old offset, a day before the second.
+			// Zone data before 1970 needs no special case.
 			name: "RepeatedTimeWithOffsetAboveFourteenHours",
 			spec: "0 15 * * *",
 			zone: "America/Metlakatla",
@@ -329,6 +344,23 @@ func TestStandard_Next_DST(t *testing.T) {
 			from: "2026-04-04T12:00:00+11:00",
 			want: []string{"2026-04-05T01:45:00+11:00", "2026-04-06T01:45:00+10:30"},
 		},
+		// The Chatham Islands are at UTC+12:45 and UTC+13:45, east of every
+		// other zone in use. Clocks go forward on 2026-09-27 (02:45 to 03:45)
+		// and back on 2026-04-05 (03:45 to 02:45).
+		{
+			name: "ChathamSpring/NonexistentTimeRunsAfterChange",
+			spec: "30 3 * * *",
+			zone: "Pacific/Chatham",
+			from: "2026-09-26T12:00:00+12:45",
+			want: []string{"2026-09-27T03:45:00+13:45", "2026-09-28T03:30:00+13:45"},
+		},
+		{
+			name: "ChathamFall/RepeatedTimeRunsAtFirstInstance",
+			spec: "15 3 * * *",
+			zone: "Pacific/Chatham",
+			from: "2026-04-04T12:00:00+13:45",
+			want: []string{"2026-04-05T03:15:00+13:45", "2026-04-06T03:15:00+12:45"},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -341,76 +373,157 @@ func TestStandard_Next_DST(t *testing.T) {
 	}
 }
 
-// TestStandard_Next_AroundDST compares Next with a minute-by-minute
-// reading of the RFC rules, over three days around each clock change.
-func TestStandard_Next_AroundDST(t *testing.T) {
+// TestStandard_Next_AroundClockChanges compares Next with a minute-by-minute
+// reading of the RFC rules, over three days around every clock change of each
+// zone and around December 31, in years up to 2100. Past the last change in a
+// zone's data, Go computes offsets from a rule instead of a list, and the data
+// that Go embeds in a binary reaches that point after 2007 for most zones, so
+// both sources of zone data run.
+func TestStandard_Next_AroundClockChanges(t *testing.T) {
 	t.Parallel()
 
-	// Only the hour and minute fields are restricted, so whether a wall-clock
-	// minute matches depends only on its time of day.
+	// A spec that restricts the day fields still has the model's times of day.
 	specs := []string{
-		"* * * * *",
 		"*/5 * * * *",
 		"0 * * * *",
 		"*/20 1 * * *",
-		"*/30 1-3 * * *",
 		"30 1 * * *",
-		"45 1 * * *",
-		"59 1 * * *",
-		"0 2 * * *",
-		"15 2 * * *",
+		"15 3 * * *",
+		"45 2 * * *",
 		"30 2 * * *",
+		"30 3 * * *",
 		"0 2,3 * * *",
-		"0 3 * * *",
+		"59 23 * * *",
+		"0 0 * * *",
+		"59 23 31 12 *",
+		"0 0 1 1 *",
 	}
-	windows := []struct {
-		name  string
-		zone  string
-		start string
-	}{
-		{"NewYorkSpring", "America/New_York", "2026-03-07T00:00:00Z"},
-		{"NewYorkFall", "America/New_York", "2026-10-31T00:00:00Z"},
-		{"BerlinSpring", "Europe/Berlin", "2026-03-28T00:00:00Z"},
-		{"BerlinFall", "Europe/Berlin", "2026-10-24T00:00:00Z"},
-		{"LordHoweSpring", "Australia/Lord_Howe", "2026-10-03T00:00:00Z"},
-		{"LordHoweFall", "Australia/Lord_Howe", "2026-04-03T12:00:00Z"},
-	}
-	for _, w := range windows {
-		t.Run(w.name, func(t *testing.T) {
-			t.Parallel()
-			loc := mustLocation(t, w.zone)
-			from := mustParseTime(t, time.RFC3339, w.start)
-			to := from.Add(72 * time.Hour)
-			_, offsetFrom := from.In(loc).Zone()
-			_, offsetTo := to.In(loc).Zone()
-			require.NotEqual(t, offsetFrom, offsetTo, "window must contain a clock change")
+	zones := []string{"America/New_York", "Europe/Berlin", "Australia/Lord_Howe", "Pacific/Chatham"}
+	years := []int{2026, 2028, 2040, 2096, 2100}
 
-			for _, spec := range specs {
-				sched, err := cron.Standard(spec, w.zone)
-				require.NoError(t, err)
+	for _, source := range zoneSources() {
+		for _, zone := range zones {
+			loc := source.load(t, zone)
+			for _, year := range years {
+				windows := clockChangeWindows(loc, year)
+				// Two clock changes, and December 31.
+				require.Len(t, windows, 3, "%s %s %d", source.name, zone, year)
+				for _, from := range windows {
+					t.Run(fmt.Sprintf("%s/%s/%s", source.name, zone, from.Format("2006-01-02")), func(t *testing.T) {
+						t.Parallel()
+						to := from.Add(72 * time.Hour)
+						for _, spec := range specs {
+							sched, err := cron.StandardIn(spec, loc)
+							require.NoError(t, err)
 
-				want := wantOccurrences(t, spec, loc, from, to)
-				var got []time.Time
-				// Start just before from, because Next excludes its input.
-				for cur := from.Add(-time.Nanosecond); ; {
-					next := sched.Next(cur)
-					require.Truef(t, next.After(cur), "%s: Next(%s) = %s is not after its input", spec, cur, next)
-					if !next.Before(to) {
-						break
-					}
-					got = append(got, next)
-					cur = next
-				}
-				require.Lenf(t, got, len(want), "%s: number of runs", spec)
-				for i := range want {
-					if !want[i].Equal(got[i]) {
-						require.Failf(t, "wrong run", "%s: run %d: want %s, got %s",
-							spec, i, want[i].In(loc).Format(time.RFC3339), got[i].In(loc).Format(time.RFC3339))
-					}
+							want := wantOccurrences(t, spec, loc, from, to)
+							var got []time.Time
+							// Start just before from, because Next excludes its input.
+							for cur := from.Add(-time.Nanosecond); ; {
+								next := nextWithin(t, sched, cur)
+								require.Truef(t, next.After(cur), "%s: Next(%s) = %s is not after its input", spec, cur, next)
+								if !next.Before(to) {
+									break
+								}
+								got = append(got, next)
+								cur = next
+							}
+							require.Lenf(t, got, len(want), "%s: number of runs", spec)
+							for i := range want {
+								if !want[i].Equal(got[i]) {
+									require.Failf(t, "wrong run", "%s: run %d: want %s, got %s",
+										spec, i, want[i].In(loc).Format(time.RFC3339), got[i].In(loc).Format(time.RFC3339))
+								}
+							}
+						}
+					})
 				}
 			}
+		}
+	}
+}
+
+// TestStandard_Next_Terminates calls Next from many instants around December
+// 31 of every leap year up to 2100, in several zones and both sources of zone
+// data. Each call has a deadline, so a Next that never returns fails the test
+// and does not hang the run.
+func TestStandard_Next_Terminates(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		spec    string
+		maxWait time.Duration
+	}{
+		{"0 9 * * *", 25 * time.Hour},
+		{"*/15 * * * *", 75 * time.Minute},
+		{"59 23 31 12 *", 367 * 24 * time.Hour},
+		{"0 0 1 1 *", 367 * 24 * time.Hour},
+	}
+	zones := []string{
+		"America/New_York", "Europe/Berlin", "Australia/Sydney",
+		"Australia/Lord_Howe", "Pacific/Chatham", "Asia/Kolkata", "UTC",
+	}
+	for _, source := range zoneSources() {
+		for _, zone := range zones {
+			loc := source.load(t, zone)
+			t.Run(source.name+"/"+zone, func(t *testing.T) {
+				t.Parallel()
+				for _, tc := range testCases {
+					sched, err := cron.StandardIn(tc.spec, loc)
+					require.NoError(t, err)
+					for year := 2028; year <= 2100; year += 4 {
+						// Four days, a prime number of minutes apart.
+						start := time.Date(year, time.December, 29, 0, 0, 0, 0, time.UTC)
+						for from := start; from.Before(start.Add(96 * time.Hour)); from = from.Add(41 * time.Minute) {
+							next := nextWithin(t, sched, from)
+							require.Truef(t, next.After(from), "%s %s: Next(%s) = %s is not after its input", zone, tc.spec, from, next)
+							require.LessOrEqualf(t, next.Sub(from), tc.maxWait, "%s %s: Next(%s) = %s", zone, tc.spec, from, next)
+						}
+					}
+				}
+			})
+		}
+	}
+
+	// The case that hung: the last period of America/New_York ends before the
+	// instant on December 31 of a leap year, in Go's rule-based zone data.
+	for _, source := range zoneSources() {
+		t.Run(source.name+"/FirstReport", func(t *testing.T) {
+			t.Parallel()
+			sched, err := cron.StandardIn("0 9 * * *", source.load(t, "America/New_York"))
+			require.NoError(t, err)
+			next := nextWithin(t, sched, time.Date(2040, 12, 30, 15, 0, 0, 0, time.UTC))
+			require.Equal(t, time.Date(2040, 12, 31, 14, 0, 0, 0, time.UTC), next)
 		})
 	}
+}
+
+// Weekly and Daily keep the daylight saving behavior of robfig/cron, which
+// Standard replaces. This pins them, so that a change that sends them through
+// the wall-clock path shows up here.
+func TestWeeklyAndDaily_DaylightSaving(t *testing.T) {
+	t.Parallel()
+	newYork := mustLocation(t, "America/New_York")
+
+	t.Run("WeeklyRunsRepeatedTimeTwice", func(t *testing.T) {
+		t.Parallel()
+		sched, err := cron.Weekly("CRON_TZ=America/New_York 30 1 * * *")
+		require.NoError(t, err)
+		from := mustParseTime(t, time.RFC3339, "2026-10-31T12:00:00-04:00").In(newYork)
+		require.Equal(t,
+			[]string{"2026-11-01T01:30:00-04:00", "2026-11-01T01:30:00-05:00", "2026-11-02T01:30:00-05:00"},
+			nextN(t, sched, from, 3))
+	})
+
+	t.Run("DailySkipsNonexistentTime", func(t *testing.T) {
+		t.Parallel()
+		sched, err := cron.Daily("CRON_TZ=America/New_York 30 2 * * *")
+		require.NoError(t, err)
+		from := mustParseTime(t, time.RFC3339, "2026-03-07T12:00:00-05:00").In(newYork)
+		require.Equal(t,
+			[]string{"2026-03-09T02:30:00-04:00", "2026-03-10T02:30:00-04:00"},
+			nextN(t, sched, from, 2))
+	})
 }
 
 func TestSchedule_MinInterval(t *testing.T) {
@@ -425,20 +538,24 @@ func TestSchedule_MinInterval(t *testing.T) {
 		{name: "EveryMinute", spec: "* * * * *", zone: "UTC", want: time.Minute},
 		{name: "EveryFiveMinutes", spec: "*/5 * * * *", zone: "UTC", want: 5 * time.Minute},
 		{name: "Hourly", spec: "0 * * * *", zone: "UTC", want: time.Hour},
-		{name: "Daily", spec: "0 9 * * *", zone: "UTC", want: 24 * time.Hour},
+		{name: "OneTimeOfDay", spec: "0 9 * * *", zone: "UTC", want: 24 * time.Hour},
 		{name: "Weekdays", spec: "0 9 * * 1-5", zone: "UTC", want: 24 * time.Hour},
-		{name: "TwoDaysAWeek", spec: "0 9 * * 1,3", zone: "UTC", want: 48 * time.Hour},
-		{name: "Weekly", spec: "0 9 * * 1", zone: "UTC", want: 7 * 24 * time.Hour},
-		{name: "Monthly", spec: "0 0 1 * *", zone: "UTC", want: 28 * 24 * time.Hour},
+		// Above 24 hours MinInterval says only 24 hours.
+		{name: "Weekly", spec: "0 9 * * 1", zone: "UTC", want: 24 * time.Hour},
+		{name: "Monthly", spec: "0 0 1 * *", zone: "UTC", want: 24 * time.Hour},
+		{name: "LeapDay", spec: "0 0 29 2 *", zone: "UTC", want: 24 * time.Hour},
+		{name: "TwoTimesOfDay", spec: "0 9,17 * * *", zone: "UTC", want: 8 * time.Hour},
 		{name: "GapAcrossMidnight", spec: "55 23,0 * * *", zone: "UTC", want: time.Hour},
-		{name: "DayOfMonthOrDayOfWeek", spec: "0 0 13 * 5", zone: "UTC", want: 24 * time.Hour},
-		// With both day fields set, a run is on either, and the closest runs
-		// need a year where November 27 is a Wednesday (2002).
-		{name: "DayOfMonthAndDayOfWeekInOneMonth", spec: "0 0 27 11 4", zone: "UTC", want: 24 * time.Hour},
-		{name: "GapAcrossMidnightInOneMonth", spec: "55 23,0 27 11 4", zone: "UTC", want: time.Hour},
-		// Min looks at one week from 1970-01-01 and reports 30m for these.
-		{name: "CloseRunsOnTheFifteenth", spec: "0,30,32 12 15 * *", zone: "UTC", want: 2 * time.Minute},
-		{name: "CloseRunsInFebruary", spec: "0,30,32 12 * 2 *", zone: "UTC", want: 2 * time.Minute},
+		{name: "CloseTimesOnTheFifteenth", spec: "0,30,32 12 15 * *", zone: "UTC", want: 2 * time.Minute},
+		{name: "CloseTimesInFebruary", spec: "0,30,32 12 * 2 *", zone: "UTC", want: 2 * time.Minute},
+		// The runs of both are a minute or an hour apart, where the day of
+		// month and the day of week fall on neighboring days.
+		{name: "DayOfMonthOrDayOfWeek", spec: "0,59 0,23 15 6 0", zone: "UTC", want: time.Minute},
+		{name: "DayOfMonthOrDayOfWeekHours", spec: "0 0,23 15 6 0", zone: "UTC", want: time.Hour},
+		// Too short: only Mondays run, and the Monday runs are 58 minutes
+		// apart at least, but 23:58 and 00:00 are two minutes apart on the
+		// clock.
+		{name: "OverStrictAcrossMidnight", spec: "0,58 0,23 * * 1", zone: "UTC", want: 2 * time.Minute},
 		{name: "IgnoresDaylightSaving", spec: "30 2 * * *", zone: "America/New_York", want: 24 * time.Hour},
 	}
 	for _, tc := range testCases {
@@ -449,17 +566,137 @@ func TestSchedule_MinInterval(t *testing.T) {
 			require.Equal(t, tc.want, sched.MinInterval())
 		})
 	}
+}
 
-	// Schedules that run once a year or less report at least a year, so no
-	// minimum interval rejects them.
-	for _, spec := range []string{"0 0 29 2 *", "0 0 1 1 *"} {
-		t.Run("Rare/"+spec, func(t *testing.T) {
-			t.Parallel()
-			sched, err := cron.Standard(spec, "UTC")
-			require.NoError(t, err)
-			require.GreaterOrEqual(t, sched.MinInterval(), 365*24*time.Hour)
-		})
+// TestSchedule_MinInterval_NeverLongerThanRunGap checks MinInterval of random
+// specs against the runs of a day-by-day model of cron over four years: it is
+// never longer than the shortest time between two runs, and it is equal to it
+// when every day runs.
+func TestSchedule_MinInterval_NeverLongerThanRunGap(t *testing.T) {
+	t.Parallel()
+
+	rng := rand.New(rand.NewPCG(20261111, 32063))
+	list := func(lo, hi int) []int {
+		values := make([]int, 1+rng.IntN(3))
+		for i := range values {
+			values[i] = lo + rng.IntN(hi-lo+1)
+		}
+		return values
 	}
+	field := func(star int, values []int) string {
+		if rng.IntN(star) == 0 {
+			return "*"
+		}
+		parts := make([]string, len(values))
+		for i, v := range values {
+			parts[i] = fmt.Sprint(v)
+		}
+		return strings.Join(parts, ",")
+	}
+
+	first := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	last := time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC)
+	compared, equalWhenEveryDayRuns := 0, 0
+	for range 400 {
+		minutes, hours := list(0, 59), list(0, 23)
+		doms, months, dows := list(1, 31), list(1, 12), list(0, 6)
+		spec := strings.Join([]string{
+			field(8, minutes), field(4, hours), field(2, doms), field(2, months), field(2, dows),
+		}, " ")
+		sched, err := cron.Standard(spec, "UTC")
+		if err != nil {
+			// Not a schedule that runs, such as the 31st of April.
+			continue
+		}
+
+		timesOfDay := runsOfDay(t, spec)
+		var (
+			shortest time.Duration
+			previous time.Time
+			runs     int
+		)
+		for day := first; day.Before(last); day = day.AddDate(0, 0, 1) {
+			if !dayRuns(t, spec, day) {
+				continue
+			}
+			for _, tod := range timesOfDay {
+				run := day.Add(tod)
+				if runs > 0 && (shortest == 0 || run.Sub(previous) < shortest) {
+					shortest = run.Sub(previous)
+				}
+				previous = run
+				runs++
+			}
+		}
+		if runs < 2 {
+			continue
+		}
+		compared++
+		require.LessOrEqualf(t, sched.MinInterval(), shortest, "spec %q", spec)
+		fields := strings.Fields(spec)
+		if fields[2] == "*" && fields[3] == "*" && fields[4] == "*" {
+			require.Equalf(t, shortest, sched.MinInterval(), "spec %q", spec)
+			equalWhenEveryDayRuns++
+		}
+	}
+	// The generator must cover many specs, and many that run every day.
+	require.Greater(t, compared, 250)
+	require.Greater(t, equalWhenEveryDayRuns, 10)
+}
+
+// zoneSource loads time zones from one source of zone data.
+type zoneSource struct {
+	name string
+	load func(t *testing.T, name string) *time.Location
+}
+
+// zoneSources returns the zone data of the host and the data that Go embeds in
+// a binary that imports time/tzdata, as cmd/coder does. The embedded data holds
+// only the changes before 2008 for most zones, and a rule for later years.
+func zoneSources() []zoneSource {
+	return []zoneSource{
+		{name: "host", load: func(t *testing.T, name string) *time.Location {
+			t.Helper()
+			return mustLocation(t, name)
+		}},
+		{name: "embedded", load: func(t *testing.T, name string) *time.Location {
+			t.Helper()
+			archive, err := zip.OpenReader(filepath.Join(build.Default.GOROOT, "lib", "time", "zoneinfo.zip"))
+			require.NoError(t, err)
+			defer archive.Close()
+			file, err := archive.Open(name)
+			require.NoError(t, err)
+			defer file.Close()
+			data, err := io.ReadAll(file)
+			require.NoError(t, err)
+			loc, err := time.LoadLocationFromTZData(name, data)
+			require.NoError(t, err)
+			return loc
+		}},
+	}
+}
+
+// clockChangeWindows returns the start of a three-day window around each clock
+// change of loc in year, and of one around December 31.
+func clockChangeWindows(loc *time.Location, year int) []time.Time {
+	var windows []time.Time
+	for day := time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC); day.Year() == year; day = day.AddDate(0, 0, 1) {
+		_, today := day.In(loc).Zone()
+		_, tomorrow := day.AddDate(0, 0, 1).In(loc).Zone()
+		if today != tomorrow {
+			windows = append(windows, day.Add(-24*time.Hour))
+		}
+	}
+	return append(windows, time.Date(year, time.December, 30, 0, 0, 0, 0, time.UTC))
+}
+
+// nextWithin returns sched.Next(from), and fails the test when that takes
+// longer than testutil.WaitShort.
+func nextWithin(t *testing.T, sched *cron.Schedule, from time.Time) time.Time {
+	t.Helper()
+	next := make(chan time.Time, 1)
+	go func() { next <- sched.Next(from) }()
+	return testutil.RequireReceive(testutil.Context(t, testutil.WaitShort), t, next)
 }
 
 // nextN returns the n occurrences after from, formatted in from's location.
@@ -475,27 +712,23 @@ func nextN(t *testing.T, sched *cron.Schedule, from time.Time, n int) []string {
 }
 
 // wantOccurrences returns the runs of spec in loc within [from, to), found by
-// reading the RFC rules minute by minute. spec must restrict only the minute
-// and hour fields, and from must not be inside a repeated period.
+// reading the RFC rules minute by minute. from must not be inside a repeated
+// period.
 func wantOccurrences(t *testing.T, spec string, loc *time.Location, from, to time.Time) []time.Time {
 	t.Helper()
 
-	// UTC has no clock changes, so a UTC schedule shows which times of day
-	// the fields select.
+	// UTC has no clock changes, so a UTC schedule lists the wall-clock
+	// readings that match the fields.
 	utc, err := cron.Standard(spec, "UTC")
 	require.NoError(t, err)
-	day := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	selected := make(map[time.Duration]bool, 24*60)
-	for tod := time.Duration(0); tod < 24*time.Hour; tod += time.Minute {
-		selected[tod] = utc.Next(day.Add(tod - time.Second)).Equal(day.Add(tod))
-	}
-	timeOfDay := func(wall time.Time) time.Duration {
-		return time.Duration(wall.Hour())*time.Hour + time.Duration(wall.Minute())*time.Minute
+	matching := make(map[int64]bool)
+	for reading := utc.Next(from.Add(-48 * time.Hour)); reading.Before(to.Add(48 * time.Hour)); reading = utc.Next(reading) {
+		matching[reading.Unix()] = true
 	}
 
 	var (
 		want     []time.Time
-		seen     = make(map[time.Time]bool)
+		seen     = make(map[int64]bool)
 		prevWall time.Time
 	)
 	add := func(instant time.Time) {
@@ -511,17 +744,60 @@ func wantOccurrences(t *testing.T, spec string, loc *time.Location, from, to tim
 		// first one after the change.
 		if !prevWall.IsZero() {
 			for skipped := prevWall.Add(time.Minute); skipped.Before(wall); skipped = skipped.Add(time.Minute) {
-				if selected[timeOfDay(skipped)] {
+				if matching[skipped.Unix()] {
 					add(instant)
 				}
 			}
 		}
 		// A wall-clock minute that already happened is a repeat.
-		if !seen[wall] && selected[timeOfDay(wall)] {
+		if !seen[wall.Unix()] && matching[wall.Unix()] {
 			add(instant)
 		}
-		seen[wall] = true
+		seen[wall.Unix()] = true
 		prevWall = wall
 	}
 	return want
+}
+
+// runsOfDay returns the times of day, in order, at which spec runs on a day
+// that it runs.
+func runsOfDay(t *testing.T, spec string) []time.Duration {
+	t.Helper()
+	fields := strings.Fields(spec)
+	every, err := cron.Standard(strings.Join([]string{fields[0], fields[1], "*", "*", "*"}, " "), "UTC")
+	require.NoError(t, err)
+	day := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	var times []time.Duration
+	for run := every.Next(day.Add(-time.Second)); run.Before(day.AddDate(0, 0, 1)); run = every.Next(run) {
+		times = append(times, run.Sub(day))
+	}
+	return times
+}
+
+// dayRuns reports whether spec runs on day, by the rule of cron: the month
+// must match, and the day of month and day of week must both match, or either
+// when both fields are restricted.
+func dayRuns(t *testing.T, spec string, day time.Time) bool {
+	t.Helper()
+	fields := strings.Fields(spec)
+	matches := func(field string, value int) bool {
+		if field == "*" {
+			return true
+		}
+		for _, part := range strings.Split(field, ",") {
+			if part == fmt.Sprint(value) {
+				return true
+			}
+		}
+		return false
+	}
+	if !matches(fields[3], int(day.Month())) {
+		return false
+	}
+	dom := matches(fields[2], day.Day())
+	dow := matches(fields[4], int(day.Weekday()))
+	if fields[2] == "*" || fields[4] == "*" {
+		return dom && dow
+	}
+	return dom || dow
 }

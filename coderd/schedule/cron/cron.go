@@ -176,9 +176,13 @@ func (s Schedule) Cron() string {
 	return s.cronStr
 }
 
-// Next returns the next time in the schedule after t, or the zero time when
-// there is none. For a schedule from Standard, it follows the daylight saving
-// rules that Standard documents.
+// Next returns the next time in the schedule after t. The zero time means that
+// Next found no run, which does not happen for a schedule from Standard: it
+// always has a later run, because Standard rejects a spec that never runs and
+// Next searches past the longest gap between runs (eight years, between two
+// leap days across 2100). A caller treats the zero time from such a schedule as
+// an error and not as the end of the schedule. For a schedule from Standard,
+// Next follows the daylight saving rules that Standard documents.
 func (s Schedule) Next(t time.Time) time.Time {
 	if s.wallClock {
 		return s.nextWallClock(t)
@@ -218,8 +222,9 @@ var (
 //   - Then, the minimum duration of s d(min)
 //     = min( t(n) - t(n-1) ∀ n ∈ N, t(n) < t(max) )
 //
-// Min suits schedules that repeat every week. For other schedules, such as
-// those from Standard, use MinInterval.
+// Min looks at one week from 1970-01-01, so for a schedule that restricts the
+// day of month or the month it can report more than the shortest time between
+// runs. For those schedules use MinInterval.
 func (s Schedule) Min() time.Duration {
 	durMin := tMax.Sub(t0)
 	tPrev := s.Next(t0)
