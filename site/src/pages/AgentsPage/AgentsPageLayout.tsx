@@ -112,7 +112,9 @@ export const shouldInvalidateFilteredChatList = (
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 
 // Project summaries count the user's chats, unread chats, and running chats.
+// A chat that pauses for input publishes only action_required.
 const PROJECT_SUMMARY_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
+	"action_required",
 	"chat_summary_change",
 	"created",
 	"deleted",

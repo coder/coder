@@ -1000,24 +1000,27 @@ describe("AgentsPageLayout pinned projects", () => {
 		});
 	});
 
-	it("refreshes project summaries when a chat in a project changes", async () => {
-		vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
-		const getSummaries = vi
-			.spyOn(API.experimental, "getChatProjectSummaries")
-			.mockResolvedValue([]);
-		const publishChatWatchEvent = mockChatWatchSocket();
-		renderLayout();
-		await waitFor(() => expect(getSummaries).toHaveBeenCalledTimes(1));
-		await waitFor(() => expect(apiModule.watchChats).toHaveBeenCalled());
+	it.each<TypesGen.ChatWatchEventKind>(["status_change", "action_required"])(
+		"refreshes project summaries on a %s event for a chat in a project",
+		async (kind) => {
+			vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
+			const getSummaries = vi
+				.spyOn(API.experimental, "getChatProjectSummaries")
+				.mockResolvedValue([]);
+			const publishChatWatchEvent = mockChatWatchSocket();
+			renderLayout();
+			await waitFor(() => expect(getSummaries).toHaveBeenCalledTimes(1));
+			await waitFor(() => expect(apiModule.watchChats).toHaveBeenCalled());
 
-		publishChatWatchEvent({
-			kind: "status_change",
-			chat: { ...MockChat, project_id: "project-a" },
-		});
+			publishChatWatchEvent({
+				kind,
+				chat: { ...MockChat, project_id: "project-a" },
+			});
 
-		// The refresh is debounced, so it arrives after the event.
-		await waitFor(() => expect(getSummaries).toHaveBeenCalledTimes(2), {
-			timeout: 3000,
-		});
-	});
+			// The refresh is debounced, so it arrives after the event.
+			await waitFor(() => expect(getSummaries).toHaveBeenCalledTimes(2), {
+				timeout: 3000,
+			});
+		},
+	);
 });
