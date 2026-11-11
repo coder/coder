@@ -202,10 +202,13 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 	const workspaces = workspacesQuery.data ?? [];
 	const isDeleting = workspaceAction === "delete" && workspaces.length > 0;
 	// A failed refetch leaves a preview that may miss newly active chats.
+	// Until the workspaces load, the user hasn't seen the stop and delete
+	// choices; if they fail to load, archiving leaves them alone.
 	const canArchive =
 		preview !== undefined &&
 		!previewQuery.error &&
 		retentionQuery.data !== undefined &&
+		!workspacesQuery.isPending &&
 		!isArchiving &&
 		(!isDeleting || confirmation.confirmed);
 
@@ -519,8 +522,9 @@ const notifyWorkspaceActionResult = (
 		);
 		return;
 	}
+	// Persistent like error toasts, so there is time to reach the links.
 	toast.warning(
 		`The project was archived. ${plural(skipped.length, "workspace", "workspaces")} still in use ${skipped.length === 1 ? "was" : "were"} skipped.`,
-		{ id: toastId, description },
+		{ id: toastId, description, duration: Number.POSITIVE_INFINITY },
 	);
 };

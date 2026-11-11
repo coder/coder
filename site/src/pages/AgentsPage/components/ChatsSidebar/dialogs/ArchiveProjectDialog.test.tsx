@@ -9,6 +9,7 @@ import type {
 } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { MockChat } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockArchivedChatProject,
 	MockChatProject,
@@ -91,8 +92,15 @@ const renderDialog = async () => {
 	renderWithAuth(
 		<ArchiveProjectDialog project={MockChatProject} open onClose={onClose} />,
 	);
-	// The confirm button waits for the preview.
+	// The confirm button waits for the preview and the workspace list.
 	await screen.findByText(/will be archived/);
+	await waitFor(() =>
+		expect(
+			screen.getByRole("button", {
+				name: /^(Archive project|Stop chats? and archive)$/,
+			}),
+		).toBeEnabled(),
+	);
 	return { onClose };
 };
 
@@ -271,10 +279,37 @@ describe("ArchiveProjectDialog", () => {
 		expect(stop.mock.calls).toEqual([[mockStoppedWorkspace.id]]);
 		// The skip replaces the archived toast instead of stacking under it.
 		expect(successToast).toHaveBeenCalledWith("Project archived");
+		// It also stays up, so there is time to reach its workspace links.
 		expect(warningToast).toHaveBeenCalledWith(
 			expect.anything(),
-			expect.objectContaining({ id: successToast.mock.results[0]?.value }),
+			expect.objectContaining({
+				id: successToast.mock.results[0]?.value,
+				duration: Number.POSITIVE_INFINITY,
+			}),
 		);
+	});
+
+	it("waits for the workspace list before archiving", async () => {
+		const user = userEvent.setup();
+		const { archive } = mockApi();
+		const chats = createDeferred<Chat[]>();
+		vi.mocked(API.experimental.getChats).mockReturnValue(chats.promise);
+		renderWithAuth(
+			<ArchiveProjectDialog project={MockChatProject} open onClose={vi.fn()} />,
+		);
+		await screen.findByText(/will be archived/);
+
+		await user.click(screen.getByRole("button", { name: "Archive project" }));
+		expect(archive).not.toHaveBeenCalled();
+
+		chats.resolve([]);
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: "Archive project" }),
+			).toBeEnabled(),
+		);
+		await user.click(screen.getByRole("button", { name: "Archive project" }));
+		await waitFor(() => expect(archive).toHaveBeenCalledTimes(1));
 	});
 
 	it("archives once and still stops workspaces when confirm is double-clicked", async () => {
