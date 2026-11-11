@@ -52,6 +52,7 @@ import { getOwnPinnedChats } from "../../../utils/pinnedChats";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
 import { canManageChat } from "../../ChatActionsMenuItems";
 import { useMoveChatToProject } from "../../MoveToProjectMenuItems";
+import { useMoveToUnpinnedProjectDialog } from "../../MoveToUnpinnedProjectDialog";
 import { FilterPopover } from "../filters/FilterPopover";
 import { normalizeLocationSearch } from "../locationSearch";
 import { SettingsNavItem } from "../settings/SettingsNavItem";
@@ -281,6 +282,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 
 	const dragInstructionsId = useId();
 	const moveMutation = useMoveChatToProject();
+	const moveToUnpinnedProjectDialog = useMoveToUnpinnedProjectDialog();
 
 	const handleDragEnd = (event: DragEndEvent) => {
 		const { source, target } = event.operation;
@@ -576,6 +578,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						icon={FolderKanbanIcon}
 						label="Projects"
 						active={isProjectsActive}
+						// Moved chats can be found here, so the move dialog returns
+						// focus here when the chat leaves the sidebar.
+						ref={moveToUnpinnedProjectDialog?.setFocusFallback}
 						to={{ pathname: "/agents/projects", search: locationSearch }}
 					/>
 				)}

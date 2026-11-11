@@ -67,6 +67,7 @@ import {
 	sidebarViewFromPath,
 } from "./components/ChatsSidebar/ChatsSidebar";
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
+import { MoveToUnpinnedProjectDialogProvider } from "./components/MoveToUnpinnedProjectDialog";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
@@ -526,68 +527,70 @@ const AgentsPageLayout: React.FC = () => {
 	};
 
 	return (
-		<div
-			data-testid="agents-page-layout"
-			className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
-		>
-			<title>{pageTitle("Agents")}</title>
-			<ResizableChatsSidebarFrame
-				className={cn(
-					"sm:h-full sm:min-h-0 sm:border-b-0",
-					agentId
-						? "hidden sm:block shrink-0 h-[42dvh] min-h-60 border-b border-border"
-						: isSettingsDetail
-							? "hidden sm:block shrink-0"
-							: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border sm:flex-none sm:border-t-0 sm:border-b-0",
-					isSidebarCollapsed && "sm:hidden",
-				)}
-			>
-				<ChatsSidebar
-					chats={chatList}
-					currentUserId={user.id}
-					chatErrorReasons={sidebarChatErrorReasons}
-					modelConfigs={organizationModels.models}
-					isLoadingModelConfigs={organizationModels.isLoading}
-					onArchiveSuccess={clearChatErrorReason}
-					navigateAfterArchive={navigateAfterArchive}
-					onRenameTitle={requestRenameTitle}
-					onProposeTitle={requestProposeTitle}
-					chatPendingRename={chatPendingRename}
-					onChatPendingRenameChange={setChatPendingRename}
-					onBeforeNewAgent={handleNewAgent}
-					isSearchDialogOpen={isSearchDialogOpen}
-					onSearchDialogOpenChange={setIsSearchDialogOpen}
-					isCreating={false}
-					isLoading={chatsQuery.isLoading}
-					loadError={chatsQuery.error}
-					onRetryLoad={() => void chatsQuery.refetch()}
-					hasNextPage={chatsQuery.hasNextPage}
-					onLoadMore={() => void chatsQuery.fetchNextPage()}
-					isFetchingNextPage={chatsQuery.isFetchingNextPage}
-					sidebarFilters={sidebarFilters}
-					onSidebarFiltersChange={setSidebarFilters}
-					onCollapse={() => setIsSidebarCollapsed(true)}
-					isPersonalModelOverridesEnabled={
-						personalModelOverridesQuery.data?.enabled
-					}
-					isAdmin={isAgentsAdmin}
-					canManageAgentSettings={canManageAgentSettings}
-				/>
-			</ResizableChatsSidebarFrame>
+		<MoveToUnpinnedProjectDialogProvider>
 			<div
-				data-testid="agents-main-panel"
-				className={cn(
-					"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary sm:relative",
-					isSettingsIndex ? "hidden sm:flex" : "flex",
-					!agentId &&
-						!isSettingsDetail &&
-						sidebarView.panel === "chats" &&
-						"contents sm:flex sm:flex-1 sm:flex-col",
-				)}
+				data-testid="agents-page-layout"
+				className="flex h-full min-h-0 flex-col overflow-hidden bg-surface-primary sm:flex-row"
 			>
-				<Outlet context={outletContextValue} />
+				<title>{pageTitle("Agents")}</title>
+				<ResizableChatsSidebarFrame
+					className={cn(
+						"sm:h-full sm:min-h-0 sm:border-b-0",
+						agentId
+							? "hidden sm:block shrink-0 h-[42dvh] min-h-60 border-b border-border"
+							: isSettingsDetail
+								? "hidden sm:block shrink-0"
+								: "order-2 sm:order-0 flex-1 min-h-0 border-b border-border sm:flex-none sm:border-t-0 sm:border-b-0",
+						isSidebarCollapsed && "sm:hidden",
+					)}
+				>
+					<ChatsSidebar
+						chats={chatList}
+						currentUserId={user.id}
+						chatErrorReasons={sidebarChatErrorReasons}
+						modelConfigs={organizationModels.models}
+						isLoadingModelConfigs={organizationModels.isLoading}
+						onArchiveSuccess={clearChatErrorReason}
+						navigateAfterArchive={navigateAfterArchive}
+						onRenameTitle={requestRenameTitle}
+						onProposeTitle={requestProposeTitle}
+						chatPendingRename={chatPendingRename}
+						onChatPendingRenameChange={setChatPendingRename}
+						onBeforeNewAgent={handleNewAgent}
+						isSearchDialogOpen={isSearchDialogOpen}
+						onSearchDialogOpenChange={setIsSearchDialogOpen}
+						isCreating={false}
+						isLoading={chatsQuery.isLoading}
+						loadError={chatsQuery.error}
+						onRetryLoad={() => void chatsQuery.refetch()}
+						hasNextPage={chatsQuery.hasNextPage}
+						onLoadMore={() => void chatsQuery.fetchNextPage()}
+						isFetchingNextPage={chatsQuery.isFetchingNextPage}
+						sidebarFilters={sidebarFilters}
+						onSidebarFiltersChange={setSidebarFilters}
+						onCollapse={() => setIsSidebarCollapsed(true)}
+						isPersonalModelOverridesEnabled={
+							personalModelOverridesQuery.data?.enabled
+						}
+						isAdmin={isAgentsAdmin}
+						canManageAgentSettings={canManageAgentSettings}
+					/>
+				</ResizableChatsSidebarFrame>
+				<div
+					data-testid="agents-main-panel"
+					className={cn(
+						"min-h-0 min-w-0 flex-1 flex-col bg-surface-primary sm:relative",
+						isSettingsIndex ? "hidden sm:flex" : "flex",
+						!agentId &&
+							!isSettingsDetail &&
+							sidebarView.panel === "chats" &&
+							"contents sm:flex sm:flex-1 sm:flex-col",
+					)}
+				>
+					<Outlet context={outletContextValue} />
+				</div>
 			</div>
-		</div>
+		</MoveToUnpinnedProjectDialogProvider>
 	);
 };
 export default AgentsPageLayout;
