@@ -142,7 +142,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	);
 	useDragDropMonitor({
 		onDragEnd: ({ operation: { source }, canceled }) => {
-			const project = pinnedProjectOf(source);
+			const project = pinnedProjectOf(source)?.project;
 			if (canceled || !project || !isSortable(source)) {
 				return;
 			}
@@ -237,6 +237,10 @@ type ProjectFolderProps = {
 	readonly registerToggle: (element: HTMLButtonElement | null) => void;
 };
 
+/** The folder's name, with its organization when another folder shares it. */
+const projectLabelOf = (project: ChatProject, organizationLabel?: string) =>
+	organizationLabel ? `${project.name} (${organizationLabel})` : project.name;
+
 type SortableProjectFolderProps = Omit<ProjectFolderProps, "handleRef"> & {
 	readonly index: number;
 };
@@ -252,7 +256,10 @@ const SortableProjectFolder: React.FC<SortableProjectFolderProps> = ({
 		group: PROJECT_PIN_DRAG_TYPE,
 		type: PROJECT_PIN_DRAG_TYPE,
 		accept: PROJECT_PIN_DRAG_TYPE,
-		data: { project: props.project } satisfies ProjectPinDragData,
+		data: {
+			project: props.project,
+			label: projectLabelOf(props.project, props.organizationLabel),
+		} satisfies ProjectPinDragData,
 	});
 	return (
 		<div ref={ref} className={cn(isDragging && "opacity-50")}>
@@ -283,9 +290,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	const projectPathname = buildAgentProjectPath({ projectId: project.id });
 	const projectPath: To = { pathname: projectPathname, search: locationSearch };
 	const isOnProjectPage = useMatch(projectPathname) !== null;
-	const projectLabel = organizationLabel
-		? `${project.name} (${organizationLabel})`
-		: project.name;
+	const projectLabel = projectLabelOf(project, organizationLabel);
 	const toggleRef = useRef<HTMLButtonElement>(null);
 	// Keeps the closing menu from pulling focus back out of the composer.
 	const newChatPickedRef = useRef(false);
