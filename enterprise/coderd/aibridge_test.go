@@ -476,28 +476,39 @@ func TestAIBridgeListSessions(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		_, user2 := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
 
 		now := dbtime.Now()
 
 		// Session from user1 with provider "anthropic" and client "claude-code".
 		s1EndedAt := now.Add(time.Minute)
 		s1 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID:  firstUser.UserID,
-			Provider:     "anthropic",
-			ProviderName: "anthropic-prod",
-			Model:        "claude-4",
-			StartedAt:    now,
-			Client:       sql.NullString{String: "claude-code", Valid: true},
+			InitiatorID:    firstUser.UserID,
+			Provider:       "anthropic",
+			ProviderName:   "anthropic-prod",
+			Model:          "claude-4",
+			StartedAt:      now,
+			Client:         sql.NullString{String: "claude-code", Valid: true},
+			OrganizationID: uuid.NullUUID{UUID: firstUser.OrganizationID, Valid: true},
+			OrganizationSource: database.NullAIBridgeInterceptionOrganizationSource{
+				AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceWorkspace,
+				Valid:                                  true,
+			},
 		}, &s1EndedAt)
 
 		// Session from user2 with provider "openai".
 		s2EndedAt := now.Add(-time.Hour + time.Minute)
 		s2 := dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
-			InitiatorID:  user2.ID,
-			Provider:     "openai",
-			ProviderName: "openai-prod",
-			Model:        "gpt-4",
-			StartedAt:    now.Add(-time.Hour),
+			InitiatorID:    user2.ID,
+			Provider:       "openai",
+			ProviderName:   "openai-prod",
+			Model:          "gpt-4",
+			StartedAt:      now.Add(-time.Hour),
+			OrganizationID: uuid.NullUUID{UUID: otherOrg.ID, Valid: true},
+			OrganizationSource: database.NullAIBridgeInterceptionOrganizationSource{
+				AIBridgeInterceptionOrganizationSource: database.AibridgeInterceptionOrganizationSourceWorkspace,
+				Valid:                                  true,
+			},
 		}, &s2EndedAt)
 
 		// Filter by initiator.
@@ -565,6 +576,24 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.EqualValues(t, 1, res.Count)
 		require.Len(t, res.Sessions, 1)
 		require.Equal(t, s2.ID.String(), res.Sessions[0].ID)
+
+		// Filter by organization name.
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Organization: otherOrg.Name,
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Len(t, res.Sessions, 1)
+		require.Equal(t, s2.ID.String(), res.Sessions[0].ID)
+
+		// Filter by organization ID.
+		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+			Organization: firstUser.OrganizationID.String(),
+		})
+		require.NoError(t, err)
+		require.EqualValues(t, 1, res.Count)
+		require.Len(t, res.Sessions, 1)
+		require.Equal(t, s1.ID.String(), res.Sessions[0].ID)
 
 		// Filter by session_id with no match.
 		res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
@@ -777,6 +806,16 @@ func TestAIBridgeListSessions(t *testing.T) {
 					{
 						Field:  "started_before",
 						Detail: `Query param "started_before" has invalid value: "started_before" must be after "started_after" if set`,
+					},
+				},
+			},
+			{
+				name: "UnknownOrganization",
+				q:    "organization:unknown",
+				want: []codersdk.ValidationError{
+					{
+						Field:  "organization",
+						Detail: `Query param "organization" has invalid value: organization "unknown" either does not exist, or you are unauthorized to view it`,
 					},
 				},
 			},
