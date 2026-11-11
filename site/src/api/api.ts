@@ -3310,9 +3310,54 @@ class ExperimentalApiMethods {
 		);
 		return response.data;
 	};
-	getChatProjects = async (): Promise<TypesGen.ChatProject[]> => {
+	getChatProjects = async (params?: {
+		archived?: boolean;
+	}): Promise<TypesGen.ChatProject[]> => {
 		const response = await this.axios.get<TypesGen.ChatProject[]>(
 			"/api/experimental/chats/projects",
+			{ params },
+		);
+		return response.data;
+	};
+
+	getChatProject = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<TypesGen.ChatProject> => {
+		const response = await this.axios.get<TypesGen.ChatProject>(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}`,
+		);
+		return response.data;
+	};
+
+	archiveChatProject = async (
+		organizationId: string,
+		projectId: string,
+		req: TypesGen.ArchiveChatProjectRequest,
+	): Promise<TypesGen.ChatProject> => {
+		const response = await this.axios.post<TypesGen.ChatProject>(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/archive`,
+			req,
+		);
+		return response.data;
+	};
+
+	unarchiveChatProject = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<TypesGen.ChatProject> => {
+		const response = await this.axios.post<TypesGen.ChatProject>(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/unarchive`,
+		);
+		return response.data;
+	};
+
+	getChatProjectArchivePreview = async (
+		organizationId: string,
+		projectId: string,
+	): Promise<TypesGen.ChatProjectArchivePreview> => {
+		const response = await this.axios.get<TypesGen.ChatProjectArchivePreview>(
+			`/api/experimental/organizations/${organizationId}/chats/projects/${projectId}/archive-preview`,
 		);
 		return response.data;
 	};

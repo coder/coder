@@ -1,10 +1,16 @@
-import { MutationObserver } from "react-query";
+import { MutationObserver, type QueryClient } from "react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type { ChatProjectRole } from "#/api/typesGenerated";
-import { MockChatProject, mockApiError } from "#/testHelpers/entities";
+import {
+	MockArchivedChatProject,
+	MockChatProject,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import {
+	archiveChatProject,
+	archivedChatProjectsKey,
 	chatProject,
 	chatProjectACLKey,
 	chatProjectInstructionsKey,
@@ -12,6 +18,8 @@ import {
 	createChatProject,
 	deleteChatProject,
 	setChatProjectRole,
+	unarchiveChatProject,
+	unlistedChatProject,
 	updateChatProject,
 } from "./chatProjects";
 import {
@@ -19,6 +27,7 @@ import {
 	chatListFamilyKey,
 	chatMessagesKey,
 	chatSearchFamilyKey,
+	chatsByWorkspace,
 } from "./chats";
 
 describe("chatProject", () => {
@@ -74,6 +83,91 @@ describe("chat project mutations", () => {
 		}
 		// A chat's nested queries do not depend on its project.
 		expect(isInvalidated(queryClient, messagesKey)).toBe(false);
+	});
+
+	it("moves a project between the active and archived lists and refreshes its chats", async () => {
+		const mockOtherProject = { ...MockChatProject, id: "other-project" };
+		vi.spyOn(API.experimental, "archiveChatProject").mockResolvedValue(
+			MockArchivedChatProject,
+		);
+		vi.spyOn(API.experimental, "unarchiveChatProject").mockResolvedValue(
+			MockChatProject,
+		);
+		const cases = [
+			{
+				run: (queryClient: QueryClient) =>
+					new MutationObserver(
+						queryClient,
+						archiveChatProject(queryClient),
+					).mutate({ project: MockChatProject, stopActiveChats: false }),
+				before: { active: [MockChatProject, mockOtherProject], archived: [] },
+				after: {
+					active: [mockOtherProject],
+					archived: [MockArchivedChatProject],
+				},
+			},
+			{
+				run: (queryClient: QueryClient) =>
+					new MutationObserver(
+						queryClient,
+						unarchiveChatProject(queryClient),
+					).mutate(MockArchivedChatProject),
+				before: {
+					active: [mockOtherProject],
+					archived: [MockArchivedChatProject],
+				},
+				after: { active: [MockChatProject, mockOtherProject], archived: [] },
+			},
+		];
+		for (const { run, before, after } of cases) {
+			const queryClient = seed();
+			const byWorkspaceKey = chatsByWorkspace(["workspace-1"]).queryKey;
+			queryClient.setQueryData(byWorkspaceKey, {});
+			queryClient.setQueryData(chatProjectsKey, before.active);
+			queryClient.setQueryData(archivedChatProjectsKey, before.archived);
+
+			await run(queryClient);
+
+			expect(queryClient.getQueryData(chatProjectsKey)).toEqual(after.active);
+			expect(queryClient.getQueryData(archivedChatProjectsKey)).toEqual(
+				after.archived,
+			);
+			for (const key of [...chatKeys, byWorkspaceKey]) {
+				expect(isInvalidated(queryClient, key)).toBe(true);
+			}
+		}
+		vi.restoreAllMocks();
+	});
+
+	it("updates a project found outside both lists without adding it to them", async () => {
+		vi.spyOn(API.experimental, "getChatProject").mockResolvedValue(
+			MockChatProject,
+		);
+		vi.spyOn(API.experimental, "archiveChatProject").mockResolvedValue(
+			MockArchivedChatProject,
+		);
+		const queryClient = seed();
+		const mockOtherProject = { ...MockChatProject, id: "other-project" };
+		queryClient.setQueryData(chatProjectsKey, [mockOtherProject]);
+		queryClient.setQueryData(archivedChatProjectsKey, []);
+		const unlisted = unlistedChatProject(MockChatProject.id, [
+			MockChatProject.organization_id,
+		]);
+		await queryClient.fetchQuery(unlisted);
+
+		await new MutationObserver(
+			queryClient,
+			archiveChatProject(queryClient),
+		).mutate({ project: MockChatProject, stopActiveChats: false });
+
+		expect(queryClient.getQueryData(chatProjectsKey)).toEqual([
+			mockOtherProject,
+		]);
+		expect(queryClient.getQueryData(archivedChatProjectsKey)).toEqual([]);
+		expect(queryClient.getQueryData(unlisted.queryKey)).toEqual(
+			MockArchivedChatProject,
+		);
+		vi.restoreAllMocks();
 	});
 });
 
