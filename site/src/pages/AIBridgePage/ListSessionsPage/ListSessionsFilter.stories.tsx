@@ -59,11 +59,8 @@ export const Default: Story = {
 		expect(canvas.queryByRole("button", { name: /filters/i })).toBeNull();
 		expect(canvas.getByLabelText("Filter")).toBeVisible();
 
-		// The picker trigger renders the committed preset label and opens
-		// to the quick-pick list with that preset selected.
-		await userEvent.click(
-			canvas.getByRole("button", { name: /Last 24 hours/ }),
-		);
+		// The picker opens with the committed preset selected.
+		await userEvent.click(canvas.getByRole("combobox", { name: "Time range" }));
 		await waitFor(() => {
 			expect(
 				screen.getByRole("radio", { name: "Custom range" }),

@@ -5398,6 +5398,10 @@ CREATE UNIQUE INDEX workspace_app_audit_sessions_unique_index ON workspace_app_a
 
 COMMENT ON INDEX workspace_app_audit_sessions_unique_index IS 'Unique index to ensure that we do not allow duplicate entries from multiple transactions.';
 
+CREATE INDEX workspace_app_stats_session_ended_at_idx ON workspace_app_stats USING btree (session_ended_at);
+
+COMMENT ON INDEX workspace_app_stats_session_ended_at_idx IS 'Supports the session_ended_at range filter in GetTemplateAppInsightsByTemplate (insights metrics collector).';
+
 CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING btree (workspace_id);
 
 CREATE INDEX workspace_app_statuses_app_id_idx ON workspace_app_statuses USING btree (app_id, created_at DESC);

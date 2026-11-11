@@ -39,7 +39,7 @@ import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";
 const BREADCRUMB_SEGMENT_CLASS = cn(
 	"flex items-center flex-row flex-nowrap gap-2",
 	"max-w-40 whitespace-nowrap cursor-default",
-	"m-0 p-0 border-0 bg-transparent text-inherit rounded-sm",
+	"m-0 p-0 bg-transparent text-inherit rounded-sm",
 	"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 );
 const BREADCRUMB_TEXT_CLASS = "overflow-x-hidden text-ellipsis";

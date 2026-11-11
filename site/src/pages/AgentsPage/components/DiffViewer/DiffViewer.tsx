@@ -186,7 +186,7 @@ function gitStatusForFile(
 function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
 	const { additions, deletions } = countChangedLines(fileDiff);
 	return (
-		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-2.5 font-sans text-sm">
+		<div className="flex h-8 min-w-0 items-center justify-between gap-3 border-b border-solid bg-surface-secondary py-2 pr-1.5 pl-2.5 font-sans text-sm">
 			<div className="flex min-w-0 items-baseline gap-2 overflow-hidden">
 				<span
 					className={cn(
@@ -206,7 +206,7 @@ function HeaderContent({ fileDiff }: { fileDiff: FileDiffMetadata }) {
 				</span>
 			</div>
 			{(additions > 0 || deletions > 0) && (
-				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid border-border font-mono text-xs leading-5">
+				<span className="inline-flex shrink-0 flex-row-reverse items-stretch overflow-hidden rounded-[3px] border border-solid font-mono text-xs leading-5">
 					{deletions > 0 && (
 						<span className="flex items-center bg-surface-git-deleted px-1 text-git-deleted-bright">
 							&minus;{deletions}
@@ -340,7 +340,7 @@ function SkeletonSeparator() {
 function SkeletonFile({ groups }: { groups: readonly (readonly string[])[] }) {
 	return (
 		<div>
-			<div className="flex h-8 items-center justify-between gap-3 border-0 border-b border-solid border-border bg-surface-secondary py-2 pr-1.5 pl-2.5">
+			<div className="flex h-8 items-center justify-between gap-3 border-b border-solid bg-surface-secondary py-2 pr-1.5 pl-2.5">
 				<div className="flex items-center gap-2">
 					<Skeleton className="size-3 rounded-xs" />
 					<Skeleton className="h-3 w-44" />
@@ -401,7 +401,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 }) => {
 	const theme = useTheme();
 	const codeViewRef = useRef<CodeViewHandle<string, undefined>>(null);
-	const isDark = theme.palette.mode === "dark";
+	const isDark = theme.mode === "dark";
 	const [activeFile, setActiveFile] = useState<string | null>(null);
 
 	// Measure the diff container so the file tree only appears when there is
@@ -521,7 +521,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 			className="flex h-full min-h-0 min-w-0 overflow-hidden"
 		>
 			{showTree && (
-				<aside className="h-full min-h-0 w-72 shrink-0 border-0 border-r border-solid border-border">
+				<aside className="h-full min-h-0 w-72 shrink-0 border-r border-solid">
 					<DiffFileTree
 						files={sortedFiles}
 						activePath={activeFile}
