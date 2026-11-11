@@ -142,11 +142,13 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 
 	const preview = previewQuery.data;
 	const activeChatCount = preview?.active_chat_count ?? 0;
+	// Retention only describes what happens to archived chats.
+	const needsRetention = preview?.chat_count !== 0;
 	// A failed refetch leaves a preview that may miss newly active chats.
 	const canArchive =
 		preview !== undefined &&
 		!previewQuery.error &&
-		retentionQuery.data !== undefined &&
+		(!needsRetention || retentionQuery.data !== undefined) &&
 		!isArchiving;
 
 	const onSubmit = (event: React.FormEvent<HTMLFormElement>) => {
@@ -186,7 +188,9 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 				<ArchiveSummary
 					preview={preview}
 					retentionDays={retentionQuery.data?.retention_days}
-					error={previewQuery.error ?? retentionQuery.error}
+					error={
+						previewQuery.error ?? (needsRetention ? retentionQuery.error : null)
+					}
 					onRetry={() => {
 						void previewQuery.refetch();
 						void retentionQuery.refetch();
@@ -242,7 +246,10 @@ const ArchiveSummary: React.FC<ArchiveSummaryProps> = ({
 	const errorAlert = Boolean(error) && (
 		<ErrorAlert error={error} actions={<RetryButton onRetry={onRetry} />} />
 	);
-	if (preview === undefined || retentionDays === undefined) {
+	if (
+		preview === undefined ||
+		(preview.chat_count > 0 && retentionDays === undefined)
+	) {
 		return (
 			errorAlert || (
 				<div role="status" className="flex flex-col gap-2">
@@ -256,7 +263,7 @@ const ArchiveSummary: React.FC<ArchiveSummaryProps> = ({
 	return (
 		<>
 			{errorAlert}
-			{preview.chat_count > 0 && (
+			{preview.chat_count > 0 && retentionDays !== undefined && (
 				<p className="m-0 text-sm text-content-secondary">
 					{plural(preview.chat_count, "chat", "chats")} will be archived.{" "}
 					{retentionDays > 0
