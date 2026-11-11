@@ -36,7 +36,8 @@ export const useMoveChatToProject = () => {
 		// A chat that is not pinned leaves the sidebar when it moves into a
 		// project the user has not pinned. A chat that was already in another
 		// unpinned project was not in the sidebar to begin with.
-		// The summaries may not have loaded yet; without them, no dialog opens.
+		// Summaries that are not cached yet are fetched first, so the dialog can
+		// still open; only a failed fetch skips it.
 		onSuccess: (_data, { chatId, projectId }, context) => {
 			void queryClient.ensureQueryData(chatProjectSummaries()).then(
 				(summaries) => {

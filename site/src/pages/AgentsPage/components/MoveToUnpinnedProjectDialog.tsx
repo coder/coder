@@ -20,7 +20,6 @@ import { focusFirstVisible } from "../utils/focus";
 import { buildAgentProjectPath } from "../utils/navigation";
 
 type MoveToUnpinnedProjectDialogControls = {
-	/** Opens the dialog for a chat that moved into an unpinned project. */
 	readonly show: (project: ChatProject, chatId: string) => void;
 	/**
 	 * Registers what moves focus when the dialog closes and the moved chat has
