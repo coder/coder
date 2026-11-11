@@ -1,10 +1,12 @@
+import { useDragDropMonitor } from "@dnd-kit/react";
+import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { cn } from "cn";
 import { ChevronRightIcon, EllipsisVerticalIcon } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { NavLink, type To, useLocation, useMatch } from "react-router";
 import { getErrorMessage } from "#/api/errors";
-import { unpinChatProject } from "#/api/queries/chatProjects";
+import { pinChatProject, unpinChatProject } from "#/api/queries/chatProjects";
 import type { ChatListInput } from "#/api/queries/chats";
 import type {
 	Chat,
@@ -36,6 +38,13 @@ import { ChatProjectIcon } from "../../ChatProjectIcon";
 import { ChatDropArea } from "./ChatDropArea";
 import { ProjectActionsMenuItems } from "./ProjectActionsMenuItems";
 import { ProjectFolderChats } from "./ProjectFolderChats";
+import {
+	applyLocalPinOrder,
+	movePinnedId,
+	PROJECT_PIN_DRAG_TYPE,
+	type ProjectPinDragData,
+	pinnedProjectOf,
+} from "./projectDrag";
 import { getOrganizationLabels } from "./projectGrouping";
 
 /** Acts on one project, such as editing or deleting it. */
@@ -44,6 +53,8 @@ export type ProjectAction = (project: ChatProject) => void;
 export type ProjectFoldersProps = {
 	/** The user's pinned projects, in pin order. */
 	readonly pinnedProjects: readonly ChatProjectSummary[];
+	/** Describes how to reorder a pinned project with the keyboard. */
+	readonly dragInstructionsId: string;
 	readonly organizations: readonly Organization[];
 	readonly chatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
 	/** The Pinned section lists these, so folders only count them. */
@@ -59,9 +70,10 @@ export type ProjectFoldersProps = {
 	readonly emptyMessage: string;
 };
 
-/** Lists the pinned project folders. */
+/** Lists the pinned project folders, which drag to reorder the pins. */
 export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	pinnedProjects,
+	dragInstructionsId,
 	organizations,
 	chatsByProjectId,
 	pinnedChatsByProjectId,
@@ -77,10 +89,48 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 }) => {
 	const location = useLocation();
 	const queryClient = useQueryClient();
+	const pinOptions = pinChatProject(queryClient);
+	const reorderMutation = useMutation({
+		...pinOptions,
+		onError: (error, variables, context) => {
+			pinOptions.onError?.(error, variables, context);
+			toast.error(getErrorMessage(error, "Failed to reorder pinned projects."));
+		},
+	});
 	const unpinMutation = useMutation({
 		...unpinChatProject(queryClient),
 		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to unpin project."));
+		},
+	});
+	// Holds a drop's order until the reordered summaries reach the cache, so
+	// the folders do not jump back while the drop renders.
+	const [localPinOrder, setLocalPinOrder] = useState<string[] | null>(null);
+	const [seenPinnedProjects, setSeenPinnedProjects] = useState(pinnedProjects);
+	if (pinnedProjects !== seenPinnedProjects) {
+		setSeenPinnedProjects(pinnedProjects);
+		setLocalPinOrder(null);
+	}
+	const sortedPinnedProjects = applyLocalPinOrder(
+		pinnedProjects,
+		localPinOrder,
+		(summary) => summary.project.id,
+	);
+	useDragDropMonitor({
+		onDragEnd: ({ operation: { source }, canceled }) => {
+			const project = pinnedProjectOf(source);
+			if (canceled || !project || !isSortable(source)) {
+				return;
+			}
+			const order = movePinnedId(
+				sortedPinnedProjects.map((summary) => summary.project.id),
+				project.id,
+				source.index,
+			);
+			if (order) {
+				setLocalPinOrder(order);
+				reorderMutation.mutate({ project, pinOrder: source.index + 1 });
+			}
 		},
 	});
 	const organizationLabels = getOrganizationLabels(
@@ -101,10 +151,12 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 				/>
 			)}
 			{isLoading && <Skeleton className="ml-2.5 h-3.5 w-20" />}
-			{pinnedProjects.map(({ project, own_unread_count }) => (
-				<ProjectFolder
+			{sortedPinnedProjects.map(({ project, own_unread_count }, index) => (
+				<SortableProjectFolder
 					key={project.id}
 					project={project}
+					index={index}
+					dragInstructionsId={dragInstructionsId}
 					unreadCount={own_unread_count}
 					organizationLabel={organizationLabels.get(project.id)}
 					chats={chatsByProjectId.get(project.id) ?? []}
@@ -125,6 +177,9 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 
 type ProjectFolderProps = {
 	readonly project: ChatProject;
+	/** Makes the project link the drag handle that reorders the pins. */
+	readonly handleRef: (element: Element | null) => void;
+	readonly dragInstructionsId: string;
 	readonly unreadCount: number;
 	readonly organizationLabel: string | undefined;
 	readonly chats: readonly Chat[];
@@ -139,8 +194,34 @@ type ProjectFolderProps = {
 	readonly emptyMessage: string;
 };
 
+type SortableProjectFolderProps = Omit<ProjectFolderProps, "handleRef"> & {
+	readonly index: number;
+};
+
+const SortableProjectFolder: React.FC<SortableProjectFolderProps> = ({
+	index,
+	...props
+}) => {
+	const { ref, handleRef, isDragging } = useSortable({
+		id: `project-pin:${props.project.id}`,
+		index,
+		// Its own group, so pinned projects never sort among pinned chats.
+		group: PROJECT_PIN_DRAG_TYPE,
+		type: PROJECT_PIN_DRAG_TYPE,
+		accept: PROJECT_PIN_DRAG_TYPE,
+		data: { project: props.project } satisfies ProjectPinDragData,
+	});
+	return (
+		<div ref={ref} className={cn(isDragging && "opacity-50")}>
+			<ProjectFolder {...props} handleRef={handleRef} />
+		</div>
+	);
+};
+
 const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	project,
+	handleRef,
+	dragInstructionsId,
 	unreadCount,
 	organizationLabel,
 	chats,
@@ -207,12 +288,14 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 							/>
 						</Button>
 						<NavLink
+							ref={handleRef}
 							to={projectPath}
 							aria-label={
 								!expanded && unreadCount > 0
 									? `${projectLabel}, ${unreadCount} unread ${unreadCount === 1 ? "chat" : "chats"}`
 									: projectLabel
 							}
+							aria-describedby={dragInstructionsId}
 							className="flex min-w-0 flex-1 items-center gap-2 py-1 text-[13px] no-underline"
 						>
 							{({ isActive }) => (

@@ -1,8 +1,12 @@
 import { MutationObserver } from "react-query";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { API } from "#/api/api";
-import type { ChatProjectRole } from "#/api/typesGenerated";
-import { MockChatProject, mockApiError } from "#/testHelpers/entities";
+import type { ChatProjectRole, ChatProjectSummary } from "#/api/typesGenerated";
+import {
+	MockChatProject,
+	MockChatProjectSummary,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import {
 	chatProject,
@@ -12,6 +16,7 @@ import {
 	chatProjectsKey,
 	createChatProject,
 	deleteChatProject,
+	pinChatProject,
 	setChatProjectRole,
 	unpinChatProject,
 	updateChatProject,
@@ -78,14 +83,68 @@ describe("chat project mutations", () => {
 		expect(isInvalidated(queryClient, messagesKey)).toBe(false);
 	});
 
-	it("refreshes the summaries and chat lists, not searches, after an unpin", async () => {
-		const queryClient = seed();
-		queryClient.setQueryData(chatProjectSummariesKey, []);
-		await settle(unpinChatProject(queryClient));
-		expect(isInvalidated(queryClient, chatProjectSummariesKey)).toBe(true);
-		expect(isInvalidated(queryClient, chatKeys[0])).toBe(true);
-		expect(isInvalidated(queryClient, chatProjectsKey)).toBe(false);
-		expect(isInvalidated(queryClient, chatKeys[1])).toBe(false);
+	it("refreshes the summaries and chat lists, not searches, after a pin change", async () => {
+		for (const factory of [pinChatProject, unpinChatProject]) {
+			const queryClient = seed();
+			queryClient.setQueryData(chatProjectSummariesKey, []);
+			await settle(factory(queryClient));
+			expect(isInvalidated(queryClient, chatProjectSummariesKey)).toBe(true);
+			expect(isInvalidated(queryClient, chatKeys[0])).toBe(true);
+			expect(isInvalidated(queryClient, chatProjectsKey)).toBe(false);
+			expect(isInvalidated(queryClient, chatKeys[1])).toBe(false);
+		}
+	});
+
+	it("moves a pinned project in the cached order and restores it when the move fails", async () => {
+		const mockBillingSummary = {
+			...MockChatProjectSummary,
+			project: { ...MockChatProject, id: "billing-project" },
+			pin_order: 2,
+		};
+		const queryClient = createTestQueryClient();
+		// Keeps the summaries cached without an observer.
+		queryClient.setQueryDefaults(chatProjectSummariesKey, {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(chatProjectSummariesKey, [
+			MockChatProjectSummary,
+			mockBillingSummary,
+		]);
+		const pinOrderById = () =>
+			Object.fromEntries(
+				(
+					queryClient.getQueryData<ChatProjectSummary[]>(
+						chatProjectSummariesKey,
+					) ?? []
+				).map((s) => [s.project.id, s.pin_order]),
+			);
+		let rejectPin: (error: unknown) => void = () => {};
+		vi.spyOn(API.experimental, "pinChatProject").mockReturnValue(
+			new Promise((_resolve, reject) => {
+				rejectPin = reject;
+			}),
+		);
+		onTestFinished(() => {
+			vi.restoreAllMocks();
+		});
+
+		const move = new MutationObserver(
+			queryClient,
+			pinChatProject(queryClient),
+		).mutate({ project: mockBillingSummary.project, pinOrder: 1 });
+		await vi.waitFor(() =>
+			expect(pinOrderById()).toEqual({
+				[mockBillingSummary.project.id]: 1,
+				[MockChatProject.id]: 2,
+			}),
+		);
+
+		rejectPin(mockApiError({}));
+		await expect(move).rejects.toBeDefined();
+		expect(pinOrderById()).toEqual({
+			[MockChatProject.id]: 1,
+			[mockBillingSummary.project.id]: 2,
+		});
 	});
 });
 

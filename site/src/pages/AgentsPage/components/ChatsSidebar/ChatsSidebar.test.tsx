@@ -1449,7 +1449,12 @@ describe("ChatsSidebar project drops", () => {
 		);
 		layoutDropTargets("Fix invoice dates", rowTop);
 
-		screen.getByRole("link", { description: DRAG_INSTRUCTIONS }).focus();
+		screen
+			.getByRole("link", {
+				name: /Fix invoice dates/,
+				description: DRAG_INSTRUCTIONS,
+			})
+			.focus();
 		await user.keyboard("[Space]");
 		await user.keyboard(key);
 		await waitFor(() =>
@@ -1497,7 +1502,12 @@ describe("ChatsSidebar project drops", () => {
 			scrollTop = 150;
 		});
 
-		screen.getByRole("link", { description: DRAG_INSTRUCTIONS }).focus();
+		screen
+			.getByRole("link", {
+				name: /Fix invoice dates/,
+				description: DRAG_INSTRUCTIONS,
+			})
+			.focus();
 		await user.keyboard("[Space]");
 		await user.keyboard("[ArrowDown]");
 		await waitFor(() =>
@@ -1591,10 +1601,9 @@ describe("ChatsSidebar pinned reordering", () => {
 
 	// dnd-kit's keyboard sensor picks the drop target from measured rects, so
 	// the rows stack in document order and ArrowDown reaches the next row.
-	const layoutSortableRows = () => {
-		const rows = screen.getAllByRole("link", {
-			description: DRAG_INSTRUCTIONS,
-		});
+	const layoutSortableRows = (
+		rows = screen.getAllByRole("link", { description: DRAG_INSTRUCTIONS }),
+	) => {
 		mockLayout((element) => {
 			const held = rows.filter((row) => element.contains(row));
 			if (held.length > 1) {
@@ -1675,6 +1684,49 @@ describe("ChatsSidebar pinned reordering", () => {
 			}
 		},
 	);
+
+	it("reorders pinned projects apart from pinned chats", async () => {
+		const user = userEvent.setup();
+		const mockOpsProject = { ...MockChatProject, id: "ops", name: "Ops" };
+		const pins: unknown[] = [];
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject, mockOpsProject]),
+			),
+			http.put(
+				"/api/experimental/organizations/:organization/chats/projects/:project/pin",
+				async ({ params, request }) => {
+					pins.push([params.project, await request.json()]);
+					return new HttpResponse(null, { status: 204 });
+				},
+			),
+		);
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[buildChat({ id: "pinned", title: "Pinned", pin_order: 1 })]}
+				/>
+			</Wrapper>,
+		);
+
+		const launch = await screen.findByRole("link", { name: "Launch" });
+		layoutSortableRows([launch, screen.getByRole("link", { name: "Ops" })]);
+		launch.focus();
+		await user.keyboard("[Space]");
+		await user.keyboard("[ArrowDown]");
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				"Project Launch is at position 2 of 2.",
+			),
+		);
+		await waitFor(() => expect(launch).toHaveFocus());
+		await user.keyboard("[Space]");
+
+		await waitFor(() =>
+			expect(pins).toEqual([[MockChatProject.id, { pin_order: 2 }]]),
+		);
+	});
 });
 
 type MenuUser = ReturnType<typeof userEvent.setup>;

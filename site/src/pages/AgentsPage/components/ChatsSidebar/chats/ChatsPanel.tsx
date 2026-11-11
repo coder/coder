@@ -81,8 +81,11 @@ import { LoadMoreSentinel } from "./LoadMoreSentinel";
 import { PinnedSection } from "./PinnedSection";
 import type { ProjectAction } from "./ProjectFolders";
 import {
+	applyLocalPinOrder,
 	movedChatOf,
 	moveKeyboardChatDrag,
+	movePinnedId,
+	pinnedProjectOf,
 	projectIdForDrop,
 	refocusKeyboardPinDrag,
 	SyncDragTargetOnScroll,
@@ -268,12 +271,11 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		}
 	}, [chats]);
 
-	const sortedPinnedChats = localPinOrder
-		? localPinOrder
-				.map((id) => pinnedChats.find((c) => c.id === id))
-				.filter((c) => c !== undefined)
-		: pinnedChats;
-
+	const sortedPinnedChats = applyLocalPinOrder(
+		pinnedChats,
+		localPinOrder,
+		(chat) => chat.id,
+	);
 	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
 	const projectNameById = new Map(projects.map((p) => [p.id, p.name]));
 
@@ -301,18 +303,20 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 
 		// dnd-kit has already moved the dragged pin to source.index, so the drop
 		// target does not matter. The pins can change during a drag, so the old
-		// index comes from the chat ID.
-		if (disablePinnedReordering || !isSortable(source)) {
+		// index comes from the chat ID. ProjectFolders reorders pinned projects.
+		if (
+			disablePinnedReordering ||
+			!isSortable(source) ||
+			pinnedProjectOf(source)
+		) {
 			return;
 		}
 		const chatId = String(source.id);
-		const from = pinnedChatIds.indexOf(chatId);
-		const to = source.index;
-		if (from === -1 || from === to) {
-			return;
+		const order = movePinnedId(pinnedChatIds, chatId, source.index);
+		if (order) {
+			setLocalPinOrder(order);
+			reorderMutation.mutate({ chatId, pinOrder: source.index + 1 });
 		}
-		setLocalPinOrder(pinnedChatIds.toSpliced(from, 1).toSpliced(to, 0, chatId));
-		reorderMutation.mutate({ chatId, pinOrder: to + 1 });
 	};
 
 	// Auto-expand ancestors of the active chat so it's always visible.
@@ -671,6 +675,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 														chatProjectsEnabled
 															? {
 																	pinnedProjects,
+																	dragInstructionsId,
 																	organizations,
 																	chatsByProjectId,
 																	pinnedChatsByProjectId,
@@ -793,7 +798,8 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						</DragOverlay>
 						<ChatDragAnnouncer
 							instructionsId={dragInstructionsId}
-							pinCount={pinnedChatIds.length}
+							chatPinCount={pinnedChatIds.length}
+							projectPinCount={pinnedProjects.length}
 						/>
 					</DragDropProvider>
 				</ScrollArea>

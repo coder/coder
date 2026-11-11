@@ -66,6 +66,58 @@ const invalidateProjectPins = (queryClient: QueryClient) =>
 		queryClient.invalidateQueries({ queryKey: chatListFamilyKey }),
 	]);
 
+type PinChatProjectVariables = {
+	project: TypesGen.ChatProject;
+	pinOrder?: number;
+};
+
+/** Pins a project at the end, or moves a pinned project to pinOrder. */
+export const pinChatProject = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: ({ project, pinOrder }: PinChatProjectVariables) =>
+			API.experimental.pinChatProject(
+				project.organization_id,
+				project.id,
+				pinOrder,
+			),
+		// A move shows at once, and a summaries fetch already in flight cannot
+		// put the project back while the request runs.
+		onMutate: async ({ project, pinOrder }: PinChatProjectVariables) => {
+			if (pinOrder === undefined) {
+				return { previousSummaries: undefined };
+			}
+			await queryClient.cancelQueries({ queryKey: chatProjectSummariesKey });
+			const previousSummaries = queryClient.getQueryData<
+				TypesGen.ChatProjectSummary[]
+			>(chatProjectSummariesKey);
+			const pinnedIds = getPinnedProjectSummaries(previousSummaries ?? [])
+				.map((s) => s.project.id)
+				.filter((id) => id !== project.id)
+				.toSpliced(pinOrder - 1, 0, project.id);
+			const pinOrderById = new Map(pinnedIds.map((id, i) => [id, i + 1]));
+			queryClient.setQueryData<TypesGen.ChatProjectSummary[]>(
+				chatProjectSummariesKey,
+				(summaries) =>
+					summaries?.map((s) => {
+						const order = pinOrderById.get(s.project.id);
+						return order === undefined
+							? s
+							: { ...s, pinned: true, pin_order: order };
+					}),
+			);
+			return { previousSummaries };
+		},
+		onError: (_error, _variables, context) => {
+			if (context?.previousSummaries) {
+				queryClient.setQueryData(
+					chatProjectSummariesKey,
+					context.previousSummaries,
+				);
+			}
+		},
+		onSettled: () => invalidateProjectPins(queryClient),
+	});
+
 /** Unpins a project, which also takes its chats out of the sidebar. */
 export const unpinChatProject = (queryClient: QueryClient) =>
 	mutationOptions({

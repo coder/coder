@@ -3095,6 +3095,22 @@ const mockOtherOrganizationProjectSummary: TypesGen.ChatProjectSummary = {
 	pin_order: 3,
 };
 
+export const PinnedProjectDragged: Story = {
+	args: { chats: [mockLooseChat] },
+	parameters: {
+		queries: [
+			{
+				key: chatProjectSummariesKey,
+				data: [MockChatProjectSummary, mockBillingProjectSummary],
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		await startKeyboardDrag(canvasElement, /^Launch$/);
+		await userEvent.keyboard("[ArrowDown]");
+	},
+};
+
 export const LooseChatDragMutesUnavailableTargets: Story = {
 	args: { chats: [mockLooseChat] },
 	parameters: {

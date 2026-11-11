@@ -1,6 +1,6 @@
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, useLocation } from "react-router";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
@@ -21,6 +21,8 @@ type ProjectFoldersOptions = {
 	readonly error?: unknown;
 	readonly route?: string;
 	readonly withComposer?: boolean;
+	readonly onToggle?: (projectId: string) => void;
+	readonly onRetry?: () => void;
 };
 
 // Stands in for the project page's composer, which takes focus when a New
@@ -39,61 +41,26 @@ const ComposerStandIn: React.FC = () => {
 	return <input ref={inputRef} aria-label="Composer" />;
 };
 
-const projectFoldersElement = (
+const renderProjectFolders = (
 	projects: readonly ChatProject[],
 	{
 		error,
 		route = "/agents",
 		withComposer = false,
+		onToggle = vi.fn(),
+		onRetry = vi.fn(),
 	}: ProjectFoldersOptions = {},
-) => (
-	<MemoryRouter initialEntries={[route]}>
-		<ProjectFolders
-			pinnedProjects={projects.map((project) => ({
-				...MockChatProjectSummary,
-				project,
-			}))}
-			organizations={[MockDefaultOrganization]}
-			chatsByProjectId={new Map()}
-			pinnedChatsByProjectId={new Map()}
-			chatListInput={{}}
-			expandedProjectIds={{}}
-			onToggle={vi.fn()}
-			onEdit={vi.fn()}
-			onDelete={vi.fn()}
-			emptyMessage="No chats yet"
-			isLoading={false}
-			error={error}
-			onRetry={vi.fn()}
-		/>
-		{withComposer && <ComposerStandIn />}
-	</MemoryRouter>
-);
-
-const renderProjectFolders = (
-	projects: readonly ChatProject[],
-	options?: ProjectFoldersOptions,
 ) =>
-	render(projectFoldersElement(projects, options), { wrapper: QueryWrapper });
-
-const QueryWrapper: React.FC<React.PropsWithChildren> = ({ children }) => {
-	const [queryClient] = useState(createTestQueryClient);
-	return (
-		<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-	);
-};
-
-describe("ProjectFolders", () => {
-	it("keeps cached folders usable when a refetch fails", async () => {
-		const user = userEvent.setup();
-		const onToggle = vi.fn();
-		const onRetry = vi.fn();
-
-		render(
-			<MemoryRouter>
+	render(
+		<QueryClientProvider client={createTestQueryClient()}>
+			<MemoryRouter initialEntries={[route]}>
 				<ProjectFolders
-					pinnedProjects={[MockChatProjectSummary]}
-					organizations={[MockDefaultOrganization]}
+					pinnedProjects={projects.map((project) => ({
+						...MockChatProjectSummary,
+						project,
+					}))}
+					dragInstructionsId="drag-instructions"
+					organizations={[MockDefaultOrganization, MockOrganization2]}
 					chatsByProjectId={new Map()}
 					pinnedChatsByProjectId={new Map()}
 					chatListInput={{}}
@@ -103,12 +70,24 @@ describe("ProjectFolders", () => {
 					onDelete={vi.fn()}
 					emptyMessage="No chats yet"
 					isLoading={false}
-					error={new Error("Projects unavailable")}
+					error={error}
 					onRetry={onRetry}
 				/>
-			</MemoryRouter>,
-			{ wrapper: QueryWrapper },
-		);
+				{withComposer && <ComposerStandIn />}
+			</MemoryRouter>
+		</QueryClientProvider>,
+	);
+
+describe("ProjectFolders", () => {
+	it("keeps cached folders usable when a refetch fails", async () => {
+		const user = userEvent.setup();
+		const onToggle = vi.fn();
+		const onRetry = vi.fn();
+		renderProjectFolders([MockChatProject], {
+			error: new Error("Projects unavailable"),
+			onToggle,
+			onRetry,
+		});
 
 		await user.click(
 			screen.getByRole("button", { name: `Expand ${MockChatProject.name}` }),
@@ -183,29 +162,7 @@ describe("ProjectFolders", () => {
 			organization_id: MockOrganization2.id,
 		};
 
-		render(
-			<MemoryRouter>
-				<ProjectFolders
-					pinnedProjects={[
-						MockChatProjectSummary,
-						{ ...MockChatProjectSummary, project: otherProject },
-					]}
-					organizations={[MockDefaultOrganization, MockOrganization2]}
-					chatsByProjectId={new Map()}
-					pinnedChatsByProjectId={new Map()}
-					chatListInput={{}}
-					expandedProjectIds={{}}
-					onToggle={onToggle}
-					onEdit={vi.fn()}
-					onDelete={vi.fn()}
-					emptyMessage="No chats yet"
-					isLoading={false}
-					error={undefined}
-					onRetry={vi.fn()}
-				/>
-			</MemoryRouter>,
-			{ wrapper: QueryWrapper },
-		);
+		renderProjectFolders([MockChatProject, otherProject], { onToggle });
 
 		const otherLabel = `${otherProject.name} (${MockOrganization2.display_name})`;
 		const defaultLabel = `${MockChatProject.name} (${MockDefaultOrganization.display_name})`;
