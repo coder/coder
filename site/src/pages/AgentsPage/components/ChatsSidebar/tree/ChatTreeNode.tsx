@@ -3,7 +3,6 @@ import {
 	ChevronDownIcon,
 	ChevronRightIcon,
 	EllipsisVerticalIcon,
-	FolderIcon,
 	UsersIcon,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -76,7 +75,6 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		onArchiveSuccess,
 		navigateAfterArchive,
 		onOpenRenameDialog,
-		projectNameById,
 	} = useChatTree();
 	const chatID = chat.id;
 	const isActiveChat = activeChatId === chatID;
@@ -136,11 +134,6 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	}, [isStaleTurnSummary]);
 	const displayedTurnSummary = isStaleTurnSummary ? undefined : lastTurnSummary;
 	const isSharedChat = chat.shared;
-	// Only pinned chats leave their project's folder, so only they show it.
-	const pinnedChatProjectName =
-		chat.pin_order > 0 && chat.project_id
-			? projectNameById.get(chat.project_id)
-			: undefined;
 	const subtitle =
 		errorReason || streamingSubtitle || displayedTurnSummary || modelName;
 	const {
@@ -357,15 +350,6 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 							</div>
 						)}
 					</NavLink>
-					{pinnedChatProjectName && (
-						<span className="my-1 flex h-6 shrink-0 items-center">
-							<FolderIcon
-								role="img"
-								aria-label={pinnedChatProjectName}
-								className="size-3 text-content-secondary"
-							/>
-						</span>
-					)}
 					<div className="relative my-1 flex w-7 shrink-0 flex-col items-end self-stretch">
 						<div className="flex h-6 w-7 shrink-0 items-center justify-end">
 							{isArchivingThisChat ? (

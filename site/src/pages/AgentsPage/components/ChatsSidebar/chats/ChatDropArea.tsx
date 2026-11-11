@@ -30,7 +30,10 @@ export const ChatDropArea: React.FC<ChatDropAreaProps> = ({
 	const { ref, isDropTarget } = useDroppable({
 		id: target.kind === "project" ? `project:${target.projectId}` : "unfiled",
 		data: { dropTarget: target } satisfies DropTargetData,
-		disabled: !movedChat || unavailable,
+		// A folder that cannot take the chat still takes a drop, which moves
+		// nothing, so the drop does not reach Chats around it and take the chat
+		// out of its project.
+		disabled: !movedChat || (unavailable && target.kind === "unfiled"),
 		// The default detector falls back to the dragged row's overlap, which
 		// would hand a drop on a muted folder to the target next to it.
 		collisionDetector: pointerIntersection,
@@ -46,6 +49,7 @@ export const ChatDropArea: React.FC<ChatDropAreaProps> = ({
 				"rounded-md",
 				target.kind === "project" ? "group/project-drop" : "group/drop",
 				isDropTarget &&
+					!unavailable &&
 					"outline-solid outline-1 -outline-offset-1 outline-content-link",
 			)}
 		>
