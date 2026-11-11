@@ -157,7 +157,7 @@ export const CoderAgentsProductCard: React.FC<CoderAgentsProductCardProps> = ({
 					? "border-border-destructive"
 					: isSoftLimitReached
 						? "border-border-warning"
-						: "border-border",
+						: "",
 			)}
 			headerEnd={
 				isHardLimitExceeded ? (

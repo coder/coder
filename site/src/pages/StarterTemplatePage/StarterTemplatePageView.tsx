@@ -67,7 +67,7 @@ export const StarterTemplatePageView: React.FC<
 			</PageHeader>
 
 			<div
-				className="bg-surface-secondary border border-solid border-border rounded-lg"
+				className="bg-surface-secondary border border-solid rounded-lg"
 				id="readme"
 			>
 				<div className="px-8 pt-2 pb-12 max-w-215">

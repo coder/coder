@@ -29,7 +29,7 @@ const buttonVariants = cva(
 					"disabled:bg-surface-secondary aria-disabled:bg-surface-secondary",
 				),
 				outline: cn(
-					"border border-border bg-transparent text-content-primary",
+					"border bg-transparent text-content-primary",
 					"not-aria-disabled:hover:bg-surface-secondary",
 				),
 				subtle: cn(
