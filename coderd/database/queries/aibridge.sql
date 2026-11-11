@@ -345,6 +345,11 @@ WHERE
 		WHEN @session_id::text != '' THEN aibridge_interceptions.session_id = @session_id::text
 		ELSE true
 	END
+	-- Filter organization_id
+	AND CASE
+		WHEN @organization_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.organization_id = @organization_id::uuid
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in CountAuthorizedAIBridgeSessions
 	-- @authorize_filter
 ;
@@ -437,6 +442,11 @@ session_page AS (
 			WHEN @session_id::text != '' THEN ai.session_id = @session_id::text
 			ELSE true
 		END
+		-- Filter organization_id
+		AND CASE
+			WHEN @organization_id::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.organization_id = @organization_id::uuid
+			ELSE true
+		END
 		-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeSessions
 		-- @authorize_filter
 	GROUP BY
@@ -484,7 +494,8 @@ SELECT
 	sp.last_active_at AS last_active_at,
 	COALESCE(bnc.total, 0)::bigint AS network_calls_total,
 	COALESCE(bnc.blocked, 0)::bigint AS network_calls_blocked,
-	COALESCE(sr.firewall_active, false) AS firewall_active
+	COALESCE(sr.firewall_active, false) AS firewall_active,
+	sorg.organizations::jsonb AS organizations
 FROM
 	session_page sp
 JOIN
@@ -502,6 +513,26 @@ LEFT JOIN LATERAL (
 		AND ai.initiator_id = sp.initiator_id
 		AND ai.ended_at IS NOT NULL
 ) sr ON true
+LEFT JOIN LATERAL (
+	-- Organizations this session's interceptions were attributed to, with
+	-- every source used for each organization.
+	SELECT COALESCE(jsonb_agg(jsonb_build_object(
+		'id', o.id,
+		'name', o.name,
+		'display_name', o.display_name,
+		'icon', o.icon,
+		'sources', so.sources
+	) ORDER BY o.name), '[]'::jsonb) AS organizations
+	FROM (
+		SELECT ai.organization_id,
+			ARRAY_AGG(DISTINCT ai.organization_source ORDER BY ai.organization_source) AS sources
+		FROM aibridge_interceptions ai
+		WHERE ai.id = ANY(sr.interception_ids)
+			AND ai.organization_id IS NOT NULL
+		GROUP BY ai.organization_id
+	) so
+	JOIN organizations o ON o.id = so.organization_id
+) sorg ON true
 LEFT JOIN LATERAL (
 	-- Aggregate tokens only for this session's interceptions.
 	SELECT
