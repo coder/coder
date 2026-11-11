@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("#/components/Toaster/toast", () => ({
 	toast: {
@@ -9,17 +9,23 @@ vi.mock("#/components/Toaster/toast", () => ({
 	},
 }));
 
+import { API } from "#/api/api";
 import { ArchiveAndDeleteError } from "#/api/queries/chats";
 import {
+	type Chat,
 	PrebuildsSystemUserID,
 	type Workspace,
 	type WorkspaceBuild,
 } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
+import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChatProject, MockWorkspace } from "#/testHelpers/entities";
+import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import {
 	isWorkspaceAutoCreated,
 	notifyArchiveAndDeleteFailed,
 	notifyDeleteQueueState,
+	projectChatWorkspaces,
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 	workspaceAcquiredAt,
@@ -647,5 +653,71 @@ describe("notifyArchiveAndDeleteFailed", () => {
 		expect(options.action.label).toBe("Open workspace");
 		options.action.onClick();
 		expect(onOpen).toHaveBeenCalledWith("/@carol/raw-ws");
+	});
+});
+
+describe("projectChatWorkspaces", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	const mockChatWorkspace = (name: string, createdAt: string): Workspace => ({
+		...MockWorkspace,
+		id: name,
+		name,
+		created_at: createdAt,
+	});
+	const mockProjectChat = (
+		id: string,
+		createdAt: string,
+		workspaceId: string,
+		children: Chat[] = [],
+	): Chat => ({
+		...MockChat,
+		id,
+		created_at: createdAt,
+		project_id: MockChatProject.id,
+		workspace_id: workspaceId,
+		children,
+	});
+
+	it("lists each workspace once and flags the ones older than their first chat", async () => {
+		const chatCreatedAt = "2026-10-01T00:00:00Z";
+		const existing = mockChatWorkspace("existing", "2026-09-01T00:00:00Z");
+		const shared = mockChatWorkspace("shared", "2026-10-02T00:00:00Z");
+		const subagent = mockChatWorkspace("subagent", "2026-10-02T00:00:00Z");
+		const workspaces = [existing, shared, subagent];
+		// Newest first, like the API. The shared workspace appeared after the
+		// older chat that uses it, so a chat created it.
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue([
+			mockProjectChat("newest", "2026-10-05T00:00:00Z", shared.id),
+			mockProjectChat("older", chatCreatedAt, shared.id, [
+				mockProjectChat("subagent", chatCreatedAt, subagent.id),
+			]),
+			mockProjectChat("existing", chatCreatedAt, existing.id),
+			mockProjectChat("deleted", chatCreatedAt, "deleted"),
+		]);
+		vi.spyOn(API, "getWorkspace").mockImplementation(async (id) => {
+			const found = workspaces.find((ws) => ws.id === id);
+			if (!found) {
+				throw {
+					isAxiosError: true,
+					response: { status: 404, data: { message: "Workspace not found" } },
+				};
+			}
+			return found;
+		});
+		vi.spyOn(API, "getWorkspaceBuilds").mockResolvedValue([]);
+		const queryClient = createTestQueryClient();
+
+		const result = await queryClient.fetchQuery(
+			projectChatWorkspaces(queryClient, MockChatProject),
+		);
+
+		expect(result).toEqual([
+			{ workspace: existing, existedBeforeChat: true },
+			{ workspace: shared, existedBeforeChat: false },
+			{ workspace: subagent, existedBeforeChat: false },
+		]);
 	});
 });
