@@ -18,7 +18,10 @@ export type ChatTreeContextValue = {
 	readonly navigateAfterArchive: (chatId: string) => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
 	readonly dragInstructionsId: string;
-	/** Maps the ID of every project the user can see to its name. */
+	/**
+	 * Maps the ID of every project the user can see to its label: its name, and
+	 * its organization when a project in another organization has that name.
+	 */
 	readonly projectNameById: ReadonlyMap<string, string>;
 };
 

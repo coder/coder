@@ -577,6 +577,40 @@ describe("ChatsSidebar projects", () => {
 		).toBeInTheDocument();
 	});
 
+	it("names the organization of a pinned chat's project whose name is shared", async () => {
+		const mockOtherProject = {
+			...MockChatProject,
+			id: "other-project",
+			organization_id: MockOrganization2.id,
+		};
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject, mockOtherProject]),
+			),
+		);
+		const label = `${MockChatProject.name} (${MockOrganization2.display_name})`;
+
+		render(
+			<Wrapper organizations={[MockDefaultOrganization, MockOrganization2]}>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "pinned-chat",
+							title: "Pinned chat",
+							project_id: mockOtherProject.id,
+							pin_order: 1,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		expect(
+			await screen.findByRole("img", { name: label }),
+		).toHaveAccessibleName(label);
+	});
+
 	it("opens the folder of the project being viewed until the user collapses it", async () => {
 		const user = userEvent.setup();
 		server.use(
