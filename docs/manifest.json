@@ -1014,7 +1014,7 @@
 								},
 								{
 									"title": "JetBrains",
-									"description": "Use Claude Agent and Codex in JetBrains Air with AI Gateway from a Coder workspace.",
+									"description": "Use Claude Agent and Codex in JetBrains IDEs with AI Gateway from a Coder workspace.",
 									"path": "./ai-governance/ai-gateway/clients/jetbrains.md",
 									"state": ["premium"]
 								},
