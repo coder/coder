@@ -1,11 +1,13 @@
 import { mutationOptions, type QueryClient, queryOptions } from "react-query";
 import { API } from "#/api/api";
 import { getErrorMessage, isWorkspaceNotFound } from "#/api/errors";
-import { chatProjectArchiveDialogKey } from "#/api/queries/chatProjects";
+import {
+	listOwnProjectChats,
+	projectChatWorkspacesKey,
+} from "#/api/queries/chatProjects";
 import {
 	ArchiveAndDeleteError,
 	chatsByWorkspace,
-	DEFAULT_CHAT_PAGE_LIMIT,
 	invalidateChatsByWorkspace,
 } from "#/api/queries/chats";
 import { workspaceBuildsKey } from "#/api/queries/workspaceBuilds";
@@ -16,7 +18,6 @@ import {
 	workspaceByIdKey,
 } from "#/api/queries/workspaces";
 import {
-	type Chat,
 	type ChatProject,
 	PrebuildsSystemUserID,
 	type Workspace,
@@ -264,27 +265,7 @@ export type ProjectChatWorkspace = {
 /** "leave" is a UI choice; only stop and delete reach the workspace mutation. */
 export type ProjectWorkspaceAction = "leave" | "stop" | "delete";
 
-const listOwnProjectChats = async (projectId: string, signal: AbortSignal) => {
-	const chats: Chat[] = [];
-	for (let offset = 0; ; offset += DEFAULT_CHAT_PAGE_LIMIT) {
-		const page = await API.experimental.getChats(
-			{
-				limit: DEFAULT_CHAT_PAGE_LIMIT,
-				offset,
-				q: "archived:false source:created_by_me",
-				project_id: projectId,
-			},
-			signal,
-		);
-		chats.push(...page);
-		if (page.length < DEFAULT_CHAT_PAGE_LIMIT) {
-			return chats;
-		}
-	}
-};
-
-export const projectChatWorkspacesKey = (projectId: string) =>
-	[...chatProjectArchiveDialogKey(projectId), "own-chat-workspaces"] as const;
+const workspaceClassificationBatchSize = 5;
 
 /**
  * Lists the workspaces behind the user's own unarchived chats in a project,
@@ -313,25 +294,38 @@ export const projectChatWorkspaces = (
 					firstChatCreatedAt.set(chat.workspace_id, chat.created_at);
 				}
 			}
-			const results = await Promise.all(
-				[...firstChatCreatedAt].map(async ([workspaceId, chatCreatedAt]) => {
-					const action = await fetchArchiveAndDeleteAction(
-						queryClient,
-						workspaceId,
-						chatCreatedAt,
-					);
-					const workspace = queryClient.getQueryData<Workspace>(
-						workspaceByIdKey(workspaceId),
-					);
-					if (action === "archive-only" || !workspace) {
-						return [];
-					}
-					return [{ workspace, existedBeforeChat: action === "confirm" }];
-				}),
+			const classify = async ([workspaceId, chatCreatedAt]: [
+				string,
+				string,
+			]): Promise<ProjectChatWorkspace[]> => {
+				const action = await fetchArchiveAndDeleteAction(
+					queryClient,
+					workspaceId,
+					chatCreatedAt,
+				);
+				const workspace = queryClient.getQueryData<Workspace>(
+					workspaceByIdKey(workspaceId),
+				);
+				if (action === "archive-only" || !workspace) {
+					return [];
+				}
+				return [{ workspace, existedBeforeChat: action === "confirm" }];
+			};
+			// Each workspace costs a workspace and a build history request, so
+			// a project with many workspaces fetches them a batch at a time.
+			const entries = [...firstChatCreatedAt];
+			const results: ProjectChatWorkspace[] = [];
+			for (
+				let i = 0;
+				i < entries.length;
+				i += workspaceClassificationBatchSize
+			) {
+				const batch = entries.slice(i, i + workspaceClassificationBatchSize);
+				results.push(...(await Promise.all(batch.map(classify))).flat());
+			}
+			return results.sort((a, b) =>
+				a.workspace.name.localeCompare(b.workspace.name),
 			);
-			return results
-				.flat()
-				.sort((a, b) => a.workspace.name.localeCompare(b.workspace.name));
 		},
 	});
 
@@ -353,6 +347,7 @@ const findWorkspacesInUse = async (
 	return inUse;
 };
 
+/** What a stop or delete left undone, for the toast that reports it. */
 export type ProjectWorkspaceActionResult = {
 	readonly failed: ReadonlyArray<{
 		readonly workspace: Workspace;

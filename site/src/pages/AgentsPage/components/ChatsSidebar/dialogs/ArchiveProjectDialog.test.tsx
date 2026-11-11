@@ -10,6 +10,7 @@ import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { projectChatWorkspacesKey } from "#/api/queries/chatProjects";
 import type {
 	Chat,
 	ChatProjectArchivePreview,
@@ -27,7 +28,6 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
-import { projectChatWorkspacesKey } from "../../../utils/agentWorkspaceUtils";
 import { ArchiveProjectDialog } from "./ArchiveProjectDialog";
 
 const chatCreatedAt = "2026-10-01T00:00:00Z";

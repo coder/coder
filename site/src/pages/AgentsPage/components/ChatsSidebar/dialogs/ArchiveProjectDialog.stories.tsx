@@ -1,7 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useQuery, useQueryClient } from "react-query";
 import { fn, screen, spyOn, userEvent } from "storybook/test";
 import { API } from "#/api/api";
-import { chatProjectArchivePreviewKey } from "#/api/queries/chatProjects";
+import {
+	chatProjectArchivePreviewKey,
+	projectChatWorkspacesKey,
+} from "#/api/queries/chatProjects";
 import { chatRetentionDaysKey } from "#/api/queries/chats";
 import {
 	MockChatProject,
@@ -13,7 +17,7 @@ import {
 import { withAuthProvider } from "#/testHelpers/storybook";
 import {
 	type ProjectChatWorkspace,
-	projectChatWorkspacesKey,
+	projectChatWorkspaces,
 } from "../../../utils/agentWorkspaceUtils";
 import { ArchiveProjectDialog } from "./ArchiveProjectDialog";
 
@@ -110,6 +114,36 @@ export const Workspaces: Story = {
 				data: mockWorkspaces,
 			},
 		],
+	},
+};
+
+/** Cached workspace rows stay listed while the list refreshes. */
+export const WorkspacesRefreshing: Story = {
+	parameters: {
+		queries: [
+			{
+				key: chatProjectArchivePreviewKey(MockChatProject.id),
+				data: { chat_count: 1, active_chat_count: 0 },
+			},
+			{ key: chatRetentionDaysKey, data: { retention_days: 1 } },
+			{
+				key: projectChatWorkspacesKey(MockChatProject.id),
+				data: mockWorkspaces,
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChats").mockReturnValue(new Promise(() => {}));
+	},
+	render: function WorkspacesRefreshingRender(args) {
+		// Seeded data never goes stale in Storybook, so a stale-on-mount
+		// observer starts the refresh.
+		const queryClient = useQueryClient();
+		useQuery({
+			...projectChatWorkspaces(queryClient, MockChatProject),
+			staleTime: 0,
+		});
+		return <ArchiveProjectDialog {...args} />;
 	},
 };
 

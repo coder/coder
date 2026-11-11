@@ -4,6 +4,7 @@ import { getErrorStatus } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	chatEntitiesFamilyKey,
+	DEFAULT_CHAT_PAGE_LIMIT,
 	invalidateChatListQueries,
 	invalidateChatSearches,
 	invalidateChatsByWorkspace,
@@ -106,6 +107,36 @@ export const chatProjectArchiveDialogKey = (projectId: string) =>
 
 export const chatProjectArchivePreviewKey = (projectId: string) =>
 	[...chatProjectArchiveDialogKey(projectId), "preview"] as const;
+
+/**
+ * Caches the workspaces behind the user's own unarchived chats in a project,
+ * under the archive dialog's queries so they refresh together.
+ */
+export const projectChatWorkspacesKey = (projectId: string) =>
+	[...chatProjectArchiveDialogKey(projectId), "own-chat-workspaces"] as const;
+
+/** Reads every page of the user's own unarchived chats in a project. */
+export const listOwnProjectChats = async (
+	projectId: string,
+	signal: AbortSignal,
+) => {
+	const chats: TypesGen.Chat[] = [];
+	for (let offset = 0; ; offset += DEFAULT_CHAT_PAGE_LIMIT) {
+		const page = await API.experimental.getChats(
+			{
+				limit: DEFAULT_CHAT_PAGE_LIMIT,
+				offset,
+				q: "archived:false source:created_by_me",
+				project_id: projectId,
+			},
+			signal,
+		);
+		chats.push(...page);
+		if (page.length < DEFAULT_CHAT_PAGE_LIMIT) {
+			return chats;
+		}
+	}
+};
 
 /** Counts the chats that archiving a project archives and stops. */
 export const chatProjectArchivePreview = (project: TypesGen.ChatProject) =>
