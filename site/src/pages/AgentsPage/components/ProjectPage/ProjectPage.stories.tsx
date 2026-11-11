@@ -59,6 +59,7 @@ const meta: Meta<typeof ProjectPage> = {
 	],
 	args: {
 		project: MockChatProject,
+		canStartChats: true,
 		children: (
 			<div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-border text-sm text-content-secondary">
 				Composer
@@ -119,6 +120,14 @@ export const Mobile: Story = {
 			},
 			{ key: chatProjectACLKey(MockChatProject.id), data: mockACL },
 		],
+	},
+};
+
+/** An admin can manage the project but can't start chats in it. */
+export const NotSharedWithUser: Story = {
+	args: {
+		project: { ...MockChatProject, owner_id: MockUserMember.id },
+		canStartChats: false,
 	},
 };
 

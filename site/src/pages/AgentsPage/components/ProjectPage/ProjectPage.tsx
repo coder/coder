@@ -3,15 +3,25 @@ import { ArchivedProjectBanner } from "./ArchivedProjectBanner";
 import { ProjectChatsList } from "./ProjectChatsList";
 import { ProjectDetailsPanel } from "./ProjectDetailsPanel";
 import { ProjectHeaderSection } from "./ProjectHeaderSection";
+import { UnsharedProjectBanner } from "./UnsharedProjectBanner";
 
 type ProjectPageProps = {
 	readonly project: ChatProject;
-	/** The new chat composer, replaced by a banner while the project is archived. */
+	/**
+	 * False when the user can manage the project but it isn't shared with
+	 * them, so only its owner and sharees can start chats in it.
+	 */
+	readonly canStartChats: boolean;
+	/**
+	 * The new chat composer, replaced by a banner while the project is
+	 * archived or when the user can't start chats in it.
+	 */
 	readonly children: React.ReactNode;
 };
 
 export const ProjectPage: React.FC<ProjectPageProps> = ({
 	project,
+	canStartChats,
 	children,
 }) => (
 	// flex-1 and min-h-0 bound the page to the layout's height at every
@@ -22,8 +32,10 @@ export const ProjectPage: React.FC<ProjectPageProps> = ({
 			<div className="flex flex-col gap-14">
 				{project.archived_at ? (
 					<ArchivedProjectBanner project={project} />
-				) : (
+				) : canStartChats ? (
 					children
+				) : (
+					<UnsharedProjectBanner />
 				)}
 				{/* Columns follow the page width rather than the viewport, which
 				    the agents sidebar narrows. */}

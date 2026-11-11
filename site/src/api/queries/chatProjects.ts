@@ -94,10 +94,14 @@ export const unlistedChatProject = (
 		},
 	});
 
-const archivePreviewKeySuffix = "archive-preview";
+const archiveDialogKeySegment = "archive-dialog";
+
+/** Prefixes the queries the archive dialog reads for one project. */
+export const chatProjectArchiveDialogKey = (projectId: string) =>
+	[...chatProjectsKey, projectId, archiveDialogKeySegment] as const;
 
 export const chatProjectArchivePreviewKey = (projectId: string) =>
-	[...chatProjectsKey, projectId, archivePreviewKeySuffix] as const;
+	[...chatProjectArchiveDialogKey(projectId), "preview"] as const;
 
 /** Counts the chats that archiving a project archives and stops. */
 export const chatProjectArchivePreview = (project: TypesGen.ChatProject) =>
@@ -141,22 +145,22 @@ export const updateChatProject = (queryClient: QueryClient) =>
 			queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
 	});
 
-const isArchivePreviewKey = (queryKey: readonly unknown[]) =>
-	queryKey.length === 3 && queryKey[2] === archivePreviewKeySuffix;
+const isArchiveDialogKey = (queryKey: readonly unknown[]) =>
+	queryKey[chatProjectsKey.length + 1] === archiveDialogKeySegment;
 
 /** Refreshes the projects and every cached chat a project change can touch. */
 const invalidateProjectsAndChats = (queryClient: QueryClient) =>
 	Promise.all([
 		queryClient.invalidateQueries({
 			queryKey: chatProjectsKey,
-			predicate: ({ queryKey }) => !isArchivePreviewKey(queryKey),
+			predicate: ({ queryKey }) => !isArchiveDialogKey(queryKey),
 		}),
 		// The archive dialog stays mounted while it closes after archiving, so
-		// a refetched preview would flash the emptied project's counts. The
-		// next dialog fetches a fresh preview when it mounts.
+		// refetching its queries would flash the emptied project. The next
+		// dialog fetches them fresh when it mounts.
 		queryClient.invalidateQueries({
 			queryKey: chatProjectsKey,
-			predicate: ({ queryKey }) => isArchivePreviewKey(queryKey),
+			predicate: ({ queryKey }) => isArchiveDialogKey(queryKey),
 			refetchType: "none",
 		}),
 		invalidateChatListQueries(queryClient),

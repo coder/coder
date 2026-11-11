@@ -1,7 +1,7 @@
 import { mutationOptions, type QueryClient, queryOptions } from "react-query";
 import { API } from "#/api/api";
 import { getErrorMessage, isWorkspaceNotFound } from "#/api/errors";
-import { chatProjectsKey } from "#/api/queries/chatProjects";
+import { chatProjectArchiveDialogKey } from "#/api/queries/chatProjects";
 import {
 	ArchiveAndDeleteError,
 	chatsByWorkspace,
@@ -283,7 +283,7 @@ const listOwnProjectChats = async (projectId: string, signal: AbortSignal) => {
 };
 
 export const projectChatWorkspacesKey = (projectId: string) =>
-	[...chatProjectsKey, projectId, "own-chat-workspaces"] as const;
+	[...chatProjectArchiveDialogKey(projectId), "own-chat-workspaces"] as const;
 
 /**
  * Lists the workspaces behind the user's own unarchived chats in a project,

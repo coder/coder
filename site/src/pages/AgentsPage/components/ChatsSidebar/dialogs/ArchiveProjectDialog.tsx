@@ -1,6 +1,7 @@
 import { useId, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
+import type { ExternalToast } from "sonner";
 import { getErrorMessage, getErrorStatus } from "#/api/errors";
 import {
 	archiveChatProject,
@@ -76,7 +77,7 @@ export const ArchiveProjectDialog: React.FC<ArchiveProjectDialogProps> = ({
 	const archiveMutation = useMutation(archiveChatProject(queryClient));
 	// The workspace outcome replaces the "Project archived" toast, so one
 	// toast summarizes the whole archive.
-	const archivedToastIdRef = useRef<string | number>(undefined);
+	const archivedToastIdRef = useRef<ExternalToast["id"]>(undefined);
 	const workspaceMutation = useMutation({
 		...projectWorkspaceAction(queryClient),
 		onSuccess: (result, { action }) =>
@@ -471,14 +472,14 @@ const WorkspaceLink: React.FC<WorkspaceLinkProps> = ({ workspace, onOpen }) => {
 };
 
 /**
- * Replaces the archived toast with one that links every workspace that was
- * skipped or failed.
+ * One toast that links every workspace that was skipped or failed, replacing
+ * the toast with toastId when given.
  */
 const notifyWorkspaceActionResult = (
 	action: Exclude<ProjectWorkspaceAction, "leave">,
 	{ failed, skipped }: ProjectWorkspaceActionResult,
 	onOpenWorkspace: (path: string) => void,
-	toastId: string | number | undefined,
+	toastId: ExternalToast["id"],
 ) => {
 	if (failed.length === 0 && skipped.length === 0) {
 		return;

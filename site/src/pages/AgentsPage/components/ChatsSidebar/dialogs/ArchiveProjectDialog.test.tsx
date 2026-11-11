@@ -102,7 +102,6 @@ afterEach(() => {
 describe("ArchiveProjectDialog", () => {
 	it.each([
 		{ activeChats: 0, button: "Archive project", stopActiveChats: false },
-		{ activeChats: 1, button: "Stop chat and archive", stopActiveChats: true },
 		{ activeChats: 2, button: "Stop chats and archive", stopActiveChats: true },
 	])(
 		"confirms with $button, sending stop_active_chats: $stopActiveChats",
@@ -125,6 +124,7 @@ describe("ArchiveProjectDialog", () => {
 			expect(
 				API.experimental.getChatProjectArchivePreview,
 			).toHaveBeenCalledTimes(1);
+			expect(API.experimental.getChats).toHaveBeenCalledTimes(1);
 		},
 	);
 

@@ -559,18 +559,8 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			) : isPrefillLoading ? (
 				<Loader className="flex-1" label="Loading workspace build logs" />
 			) : project ? (
-				<ProjectPage project={project}>
-					{isProjectUnlisted ? (
-						<Alert severity="info" prominent>
-							<AlertTitle>This project isn't shared with you.</AlertTitle>
-							<AlertDescription>
-								Only its owner and the people it is shared with can start chats
-								in it.
-							</AlertDescription>
-						</Alert>
-					) : (
-						form
-					)}
+				<ProjectPage project={project} canStartChats={!isProjectUnlisted}>
+					{form}
 				</ProjectPage>
 			) : (
 				<AgentCreateFormFrame>{form}</AgentCreateFormFrame>

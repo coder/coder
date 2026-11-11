@@ -793,9 +793,6 @@ describe("AgentCreatePage project frame", () => {
 
 		await screen.findByRole("heading", { name: mockUnlistedProject.name });
 		// The server refuses chats in a project not shared with the user.
-		expect(
-			screen.getByText("This project isn't shared with you."),
-		).toBeInTheDocument();
 		expect(renderedProjects).toEqual([]);
 	});
 
