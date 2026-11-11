@@ -273,7 +273,9 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 				/>
 				<ProjectWorkspacesSection
 					project={project}
-					workspaces={workspacesQuery.isError ? undefined : workspacesQuery.data}
+					workspaces={
+						workspacesQuery.isError ? undefined : workspacesQuery.data
+					}
 					error={workspacesQuery.error}
 					isRetrying={workspacesQuery.isFetching}
 					onRetry={() => void workspacesQuery.refetch()}
