@@ -1344,10 +1344,17 @@ func TestChatProjectPinTelemetry(t *testing.T) {
 	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: userA.ID, ProjectID: a2.ID, Source: database.ChatProjectPinSourceUser})
 	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: userA.ID, ProjectID: a3.ID, UnpinnedAt: sql.NullTime{Time: dbtime.Now(), Valid: true}})
 	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: userB.ID, ProjectID: b1.ID})
+	// A group from another organization does not give F, who is outside
+	// a1's organization, a project.
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	userF := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: userF.ID, OrganizationID: otherOrg.ID})
+	foreignGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: foreignGroup.ID, UserID: userF.ID})
 	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
 		ID:       a1.ID,
 		UserACL:  database.ChatACL{userC.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
-		GroupACL: database.ChatACL{},
+		GroupACL: database.ChatACL{foreignGroup.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
 	}))
 
 	_, snapshot := collectSnapshot(ctx, t, db, nil)

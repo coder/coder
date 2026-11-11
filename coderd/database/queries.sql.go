@@ -8010,8 +8010,13 @@ WITH project_users AS (
     WHERE $1::boolean
     UNION
     SELECT granted.project_id, group_members_expanded.user_id
-    FROM (SELECT id AS project_id, jsonb_object_keys(group_acl)::uuid AS group_id FROM chat_projects) granted
+    FROM (
+        SELECT id AS project_id, organization_id, jsonb_object_keys(group_acl)::uuid AS group_id FROM chat_projects
+    ) granted
     JOIN group_members_expanded ON group_members_expanded.group_id = granted.group_id
+    JOIN organization_members
+        ON organization_members.user_id = group_members_expanded.user_id
+        AND organization_members.organization_id = granted.organization_id
     WHERE $1::boolean
 ),
 per_user AS (
@@ -8160,10 +8165,15 @@ project_members AS (
     UNION
     SELECT granted.project_id, group_members_expanded.user_id
     FROM (
-        SELECT id AS project_id, jsonb_object_keys(group_acl)::uuid AS group_id
+        SELECT id AS project_id, organization_id, jsonb_object_keys(group_acl)::uuid AS group_id
         FROM accessible WHERE $1::boolean
     ) granted
     JOIN group_members_expanded ON group_members_expanded.group_id = granted.group_id
+    -- A granted group from another organization only reaches its members
+    -- who also belong to the project's organization.
+    JOIN organization_members
+        ON organization_members.user_id = group_members_expanded.user_id
+        AND organization_members.organization_id = granted.organization_id
 ),
 member_counts AS (
     SELECT project_members.project_id, COUNT(*) AS member_count

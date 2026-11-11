@@ -176,6 +176,18 @@ func TestChatProjectSummaries(t *testing.T) {
 	none := uuid.NullUUID{}
 
 	busy := share("Summary Busy", []uuid.UUID{alice.ID}, []uuid.UUID{group.ID})
+	// The ACL API keeps groups from other organizations it finds stored, but
+	// they reach only members of the project's organization, so dave is not
+	// counted.
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	dave := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: dave.ID, OrganizationID: otherOrg.ID})
+	foreignGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: foreignGroup.ID, UserID: dave.ID})
+	stored, err := db.GetChatProjectByID(ctx, busy.ID)
+	require.NoError(t, err)
+	stored.GroupACL[foreignGroup.ID.String()] = database.ChatACLEntry{Permissions: []policy.Action{policy.ActionRead}}
+	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{ID: busy.ID, UserACL: stored.UserACL, GroupACL: stored.GroupACL}))
 	unread := newChat(busy, me, database.ChatStatusWaiting, true, none)
 	running := newChat(busy, me, database.ChatStatusRunning, false, none)
 	paused := newChat(busy, me, database.ChatStatusPaused, false, none)
@@ -190,7 +202,7 @@ func TestChatProjectSummaries(t *testing.T) {
 	// The Everyone group's ID is the organization ID.
 	everyone := share("Summary Everyone", nil, []uuid.UUID{orgID})
 	// Suspended users cannot use any project.
-	_, err := client.UpdateUserStatus(ctx, bob.Username, codersdk.UserStatusSuspended)
+	_, err = client.UpdateUserStatus(ctx, bob.Username, codersdk.UserStatusSuspended)
 	require.NoError(t, err)
 
 	type summary struct {
