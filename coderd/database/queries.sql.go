@@ -8385,6 +8385,31 @@ func (q *sqlQuerier) IsChatProjectUsableByUserID(ctx context.Context, arg IsChat
 	return column_1, err
 }
 
+const lockChatProjectUnarchivedChildChats = `-- name: LockChatProjectUnarchivedChildChats :exec
+SELECT id
+FROM chats
+WHERE root_chat_id IN (
+        SELECT roots.id
+        FROM chats roots
+        WHERE roots.project_id = $1::uuid
+            AND roots.parent_chat_id IS NULL
+            AND NOT roots.archived
+    )
+    AND NOT archived
+ORDER BY id
+FOR UPDATE
+`
+
+// Locks the unarchived subagent chats of the project's unarchived root
+// chats in id order. Run it after LockChatProjectUnarchivedRootChats in the
+// same transaction, so it sees every child and keeps the root-then-child
+// order other family writers use. Later statements then read each child's
+// committed status and queue, and no child can change before the archive.
+func (q *sqlQuerier) LockChatProjectUnarchivedChildChats(ctx context.Context, projectID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, lockChatProjectUnarchivedChildChats, projectID)
+	return err
+}
+
 const lockChatProjectUnarchivedRootChats = `-- name: LockChatProjectUnarchivedRootChats :exec
 SELECT id
 FROM chats

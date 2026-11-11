@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -186,4 +187,104 @@ func requireChatArchived(ctx context.Context, t *testing.T, client *codersdk.Exp
 	chat, err := client.GetChat(ctx, chatID)
 	require.NoError(t, err)
 	require.Equal(t, want, chat.Archived)
+}
+
+// TestChatProjectWriteRacingArchive starts each project write while an
+// archive holds the project row lock, then archives the project. The write
+// passed the early archived check, so it must wait for the lock and then
+// reject the archived project.
+func TestChatProjectWriteRacingArchive(t *testing.T) {
+	t.Parallel()
+
+	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	client, _ := newChatProjectClient(t, func(opts *coderdtest.Options) {
+		opts.Database = db
+		opts.Pubsub = ps
+	})
+	orgID := coderdtest.CreateFirstUser(t, client.Client).OrganizationID
+	_, member := newChatProjectMember(t, client, orgID)
+
+	for _, tc := range []struct {
+		name  string
+		write func(ctx context.Context, projectID, memoryID uuid.UUID) error
+	}{
+		{name: "UpdateProject", write: func(ctx context.Context, projectID, _ uuid.UUID) error {
+			_, err := client.UpdateChatProject(ctx, orgID, projectID, codersdk.UpdateChatProjectRequest{Name: ptr.Ref("Renamed")})
+			return err
+		}},
+		{name: "UpdateACL", write: func(ctx context.Context, projectID, _ uuid.UUID) error {
+			return client.UpdateChatProjectACL(ctx, orgID, projectID, codersdk.UpdateChatProjectACL{
+				UserRoles: map[string]codersdk.ChatProjectRole{member.ID.String(): codersdk.ChatProjectRoleUse},
+			})
+		}},
+		{name: "UpdateInstructions", write: func(ctx context.Context, projectID, _ uuid.UUID) error {
+			_, err := client.UpdateChatProjectInstructions(ctx, orgID, projectID, codersdk.UpdateChatProjectInstructionsRequest{Instructions: "Changed."})
+			return err
+		}},
+		{name: "DeleteInstructions", write: func(ctx context.Context, projectID, _ uuid.UUID) error {
+			return client.DeleteChatProjectInstructions(ctx, orgID, projectID)
+		}},
+		{name: "CreateSkill", write: func(ctx context.Context, projectID, _ uuid.UUID) error {
+			_, err := client.CreateChatProjectSkill(ctx, orgID, projectID, codersdk.CreateSkillRequest{
+				Content: userSkillMarkdown("other", "Other", "Other."),
+			})
+			return err
+		}},
+		{name: "UpdateSkill", write: func(ctx context.Context, projectID, _ uuid.UUID) error {
+			_, err := client.UpdateChatProjectSkill(ctx, orgID, projectID, "deploy", codersdk.UpdateSkillRequest{Enabled: ptr.Ref(false)})
+			return err
+		}},
+		{name: "DeleteSkill", write: func(ctx context.Context, projectID, _ uuid.UUID) error {
+			return client.DeleteChatProjectSkill(ctx, orgID, projectID, "deploy")
+		}},
+		{name: "CreateMemory", write: func(ctx context.Context, projectID, _ uuid.UUID) error {
+			_, err := client.CreateChatProjectMemory(ctx, orgID, projectID, codersdk.CreateChatProjectMemoryRequest{
+				Name: "other", Description: "Other", Body: "Other.",
+			})
+			return err
+		}},
+		{name: "DeleteMemory", write: func(ctx context.Context, projectID, memoryID uuid.UUID) error {
+			return client.DeleteChatProjectMemory(ctx, orgID, projectID, memoryID)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitLong)
+			project := createChatProject(t, client, orgID, "Race "+tc.name)
+			memory, err := client.CreateChatProjectMemory(ctx, orgID, project.ID, codersdk.CreateChatProjectMemoryRequest{
+				Name: "notes", Description: "Notes", Body: "Keep this.",
+			})
+			require.NoError(t, err)
+			_, err = client.CreateChatProjectSkill(ctx, orgID, project.ID, codersdk.CreateSkillRequest{
+				Content: userSkillMarkdown("deploy", "Deploy", "Run make deploy."),
+			})
+			require.NoError(t, err)
+			_, err = client.UpdateChatProjectInstructions(ctx, orgID, project.ID, codersdk.UpdateChatProjectInstructionsRequest{Instructions: "Be brief."})
+			require.NoError(t, err)
+
+			archive, err := sqlDB.BeginTx(ctx, nil)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = archive.Rollback() })
+			var archivePID int
+			require.NoError(t, archive.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&archivePID))
+			_, err = archive.ExecContext(ctx, `SELECT id FROM chat_projects WHERE id = $1 FOR UPDATE`, project.ID)
+			require.NoError(t, err)
+
+			writeErr := make(chan error, 1)
+			go func() { writeErr <- tc.write(ctx, project.ID, memory.ID) }()
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				var waiting bool
+				err := sqlDB.QueryRowContext(ctx,
+					`SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE $1::int = ANY(pg_blocking_pids(pid)))`,
+					archivePID).Scan(&waiting)
+				return err == nil && waiting
+			}, testutil.IntervalFast, "wait for the write to block on the project lock")
+			_, err = archive.ExecContext(ctx, `UPDATE chat_projects SET archived_at = now() WHERE id = $1`, project.ID)
+			require.NoError(t, err)
+			require.NoError(t, archive.Commit())
+
+			sdkErr := requireSDKError(t, testutil.RequireReceive(ctx, t, writeErr), http.StatusConflict)
+			require.Equal(t, "Chat project is archived.", sdkErr.Message)
+		})
+	}
 }

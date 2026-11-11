@@ -236,12 +236,23 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := api.Database.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{
-		ID:          project.ID,
-		Name:        name,
-		Description: description,
-		Icon:        icon,
-	})
+	var updated database.ChatProject
+	err := api.Database.InTx(func(tx database.Store) error {
+		if err := lockUnarchivedChatProject(ctx, tx.GetChatProjectByIDForUpdate, project.ID); err != nil {
+			return err
+		}
+		var err error
+		updated, err = tx.UpdateChatProjectByID(ctx, database.UpdateChatProjectByIDParams{
+			ID:          project.ID,
+			Name:        name,
+			Description: description,
+			Icon:        icon,
+		})
+		return err
+	}, nil)
+	if writeChatProjectArchivedError(ctx, rw, err) {
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to update chat project.",
@@ -470,6 +481,42 @@ func rejectArchivedChatProject(ctx context.Context, rw http.ResponseWriter, proj
 }
 
 var chatProjectArchivedResponse = codersdk.Response{Message: "Chat project is archived."}
+
+// errChatProjectArchived reports that a project write found the project
+// archived under the project's row lock.
+var errChatProjectArchived = xerrors.New("chat project is archived")
+
+// lockUnarchivedChatProject locks the project row with lock, a
+// GetChatProjectByIDFor* query of the write's transaction, and returns
+// errChatProjectArchived if the project is archived. Archiving locks the row
+// FOR UPDATE, so a write that holds the lock until commit either commits
+// before the archive or sees it. Use FOR SHARE unless the transaction later
+// takes a stronger lock on the row, such as an update of the row or a skill
+// insert, whose trigger locks it FOR NO KEY UPDATE: two writers upgrading
+// from FOR SHARE would deadlock, so those use FOR UPDATE.
+func lockUnarchivedChatProject(ctx context.Context, lock func(context.Context, uuid.UUID) (database.ChatProject, error), projectID uuid.UUID) error {
+	// The caller authorized the write, and roles that grant update without
+	// read can write.
+	//nolint:gocritic // See above.
+	project, err := lock(dbauthz.AsSystemRestricted(ctx), projectID)
+	if err != nil {
+		return xerrors.Errorf("lock chat project: %w", err)
+	}
+	if project.ArchivedAt.Valid {
+		return errChatProjectArchived
+	}
+	return nil
+}
+
+// writeChatProjectArchivedError writes a 409 response and returns true when
+// err reports an archived project.
+func writeChatProjectArchivedError(ctx context.Context, rw http.ResponseWriter, err error) bool {
+	if !errors.Is(err, errChatProjectArchived) {
+		return false
+	}
+	httpapi.Write(ctx, rw, http.StatusConflict, chatProjectArchivedResponse)
+	return true
+}
 
 func (api *API) authorizeChatProjectChange(rw http.ResponseWriter, r *http.Request, action policy.Action, object rbac.Objecter) bool {
 	if !api.Authorize(r, policy.ActionRead, object) {
