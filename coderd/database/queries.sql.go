@@ -1128,19 +1128,25 @@ WHERE
 		WHEN $8::text != '' THEN aibridge_interceptions.session_id = $8::text
 		ELSE true
 	END
+	-- Filter organization_id
+	AND CASE
+		WHEN $9::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN aibridge_interceptions.organization_id = $9::uuid
+		ELSE true
+	END
 	-- Authorize Filter clause will be injected below in CountAuthorizedAIBridgeSessions
 	-- @authorize_filter
 `
 
 type CountAIBridgeSessionsParams struct {
-	StartedAfter  time.Time `db:"started_after" json:"started_after"`
-	StartedBefore time.Time `db:"started_before" json:"started_before"`
-	InitiatorID   uuid.UUID `db:"initiator_id" json:"initiator_id"`
-	Provider      string    `db:"provider" json:"provider"`
-	ProviderName  string    `db:"provider_name" json:"provider_name"`
-	Model         string    `db:"model" json:"model"`
-	Client        string    `db:"client" json:"client"`
-	SessionID     string    `db:"session_id" json:"session_id"`
+	StartedAfter   time.Time `db:"started_after" json:"started_after"`
+	StartedBefore  time.Time `db:"started_before" json:"started_before"`
+	InitiatorID    uuid.UUID `db:"initiator_id" json:"initiator_id"`
+	Provider       string    `db:"provider" json:"provider"`
+	ProviderName   string    `db:"provider_name" json:"provider_name"`
+	Model          string    `db:"model" json:"model"`
+	Client         string    `db:"client" json:"client"`
+	SessionID      string    `db:"session_id" json:"session_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
 func (q *sqlQuerier) CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error) {
@@ -1153,6 +1159,7 @@ func (q *sqlQuerier) CountAIBridgeSessions(ctx context.Context, arg CountAIBridg
 		arg.Model,
 		arg.Client,
 		arg.SessionID,
+		arg.OrganizationID,
 	)
 	var count int64
 	err := row.Scan(&count)
@@ -2384,6 +2391,11 @@ session_page AS (
 			WHEN $9::text != '' THEN ai.session_id = $9::text
 			ELSE true
 		END
+		-- Filter organization_id
+		AND CASE
+			WHEN $10::uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN ai.organization_id = $10::uuid
+			ELSE true
+		END
 		-- Authorize Filter clause will be injected below in ListAuthorizedAIBridgeSessions
 		-- @authorize_filter
 	GROUP BY
@@ -2405,8 +2417,8 @@ session_page AS (
 	ORDER BY
 		last_active_at DESC,
 		ai.session_id DESC
-	LIMIT COALESCE(NULLIF($11::integer, 0), 100)
-	OFFSET $10
+	LIMIT COALESCE(NULLIF($12::integer, 0), 100)
+	OFFSET $11
 )
 SELECT
 	sp.session_id,
@@ -2431,7 +2443,8 @@ SELECT
 	sp.last_active_at AS last_active_at,
 	COALESCE(bnc.total, 0)::bigint AS network_calls_total,
 	COALESCE(bnc.blocked, 0)::bigint AS network_calls_blocked,
-	COALESCE(sr.firewall_active, false) AS firewall_active
+	COALESCE(sr.firewall_active, false) AS firewall_active,
+	sorg.organizations::jsonb AS organizations
 FROM
 	session_page sp
 JOIN
@@ -2449,6 +2462,26 @@ LEFT JOIN LATERAL (
 		AND ai.initiator_id = sp.initiator_id
 		AND ai.ended_at IS NOT NULL
 ) sr ON true
+LEFT JOIN LATERAL (
+	-- Organizations this session's interceptions were attributed to, with
+	-- every source used for each organization.
+	SELECT COALESCE(jsonb_agg(jsonb_build_object(
+		'id', o.id,
+		'name', o.name,
+		'display_name', o.display_name,
+		'icon', o.icon,
+		'sources', so.sources
+	) ORDER BY o.name), '[]'::jsonb) AS organizations
+	FROM (
+		SELECT ai.organization_id,
+			ARRAY_AGG(DISTINCT ai.organization_source ORDER BY ai.organization_source) AS sources
+		FROM aibridge_interceptions ai
+		WHERE ai.id = ANY(sr.interception_ids)
+			AND ai.organization_id IS NOT NULL
+		GROUP BY ai.organization_id
+	) so
+	JOIN organizations o ON o.id = so.organization_id
+) sorg ON true
 LEFT JOIN LATERAL (
 	-- Aggregate tokens only for this session's interceptions.
 	SELECT
@@ -2514,6 +2547,7 @@ type ListAIBridgeSessionsParams struct {
 	Model          string    `db:"model" json:"model"`
 	Client         string    `db:"client" json:"client"`
 	SessionID      string    `db:"session_id" json:"session_id"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 	Offset         int32     `db:"offset_" json:"offset_"`
 	Limit          int32     `db:"limit_" json:"limit_"`
 }
@@ -2542,6 +2576,7 @@ type ListAIBridgeSessionsRow struct {
 	NetworkCallsTotal     int64           `db:"network_calls_total" json:"network_calls_total"`
 	NetworkCallsBlocked   int64           `db:"network_calls_blocked" json:"network_calls_blocked"`
 	FirewallActive        bool            `db:"firewall_active" json:"firewall_active"`
+	Organizations         json.RawMessage `db:"organizations" json:"organizations"`
 }
 
 // Returns paginated sessions with aggregated metadata, token counts, and
@@ -2568,6 +2603,7 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 		arg.Model,
 		arg.Client,
 		arg.SessionID,
+		arg.OrganizationID,
 		arg.Offset,
 		arg.Limit,
 	)
@@ -2602,6 +2638,7 @@ func (q *sqlQuerier) ListAIBridgeSessions(ctx context.Context, arg ListAIBridgeS
 			&i.NetworkCallsTotal,
 			&i.NetworkCallsBlocked,
 			&i.FirewallActive,
+			&i.Organizations,
 		); err != nil {
 			return nil, err
 		}
