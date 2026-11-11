@@ -156,6 +156,7 @@ export const RetentionError: Story = {
 				key: chatProjectArchivePreviewKey(MockChatProject.id),
 				data: { chat_count: 5, active_chat_count: 0 },
 			},
+			{ key: projectChatWorkspacesKey(MockChatProject.id), data: [] },
 		],
 	},
 	beforeEach: () => {
