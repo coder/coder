@@ -503,6 +503,17 @@ const WorkspaceLink: React.FC<WorkspaceLinkProps> = ({ workspace, onOpen }) => {
 			href={path}
 			showExternalIcon={false}
 			onClick={(event) => {
+				// Toasts render outside the router, so plain clicks navigate here
+				// and modified clicks keep the browser's behavior.
+				if (
+					event.button !== 0 ||
+					event.metaKey ||
+					event.ctrlKey ||
+					event.shiftKey ||
+					event.altKey
+				) {
+					return;
+				}
 				event.preventDefault();
 				onOpen(path);
 			}}

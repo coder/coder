@@ -1,4 +1,10 @@
-import { screen, waitFor } from "@testing-library/react";
+import {
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -90,7 +96,7 @@ const mockApi = ({
 
 const renderDialog = async () => {
 	const onClose = vi.fn();
-	renderWithAuth(
+	const { router } = renderWithAuth(
 		<ArchiveProjectDialog project={MockChatProject} open onClose={onClose} />,
 	);
 	// The confirm button waits for the preview and the workspace list.
@@ -102,7 +108,7 @@ const renderDialog = async () => {
 			}),
 		).toBeEnabled(),
 	);
-	return { onClose };
+	return { onClose, router };
 };
 
 afterEach(() => {
@@ -230,7 +236,7 @@ describe("ArchiveProjectDialog", () => {
 		});
 		const successToast = vi.spyOn(toast, "success");
 		const warningToast = vi.spyOn(toast, "warning");
-		await renderDialog();
+		const { router } = await renderDialog();
 
 		await user.click(await screen.findByRole("radio", { name: "Stop them" }));
 		// Both workspaces change state while the dialog is open: the running
@@ -266,6 +272,19 @@ describe("ArchiveProjectDialog", () => {
 				id: successToast.mock.results[0]?.value,
 				duration: Number.POSITIVE_INFINITY,
 			}),
+		);
+		const description = warningToast.mock.calls[0]?.[1]?.description;
+		const toastContent = render(
+			typeof description === "function" ? description() : description,
+		);
+		const link = within(toastContent.container).getByRole("link", {
+			name: mockInUseWorkspace.name,
+		});
+		// A modified click opens the link natively instead of navigating here.
+		expect(fireEvent.click(link, { ctrlKey: true })).toBe(true);
+		expect(fireEvent.click(link)).toBe(false);
+		expect(router.state.location.pathname).toBe(
+			`/@${mockInUseWorkspace.owner_name}/${mockInUseWorkspace.name}`,
 		);
 	});
 
