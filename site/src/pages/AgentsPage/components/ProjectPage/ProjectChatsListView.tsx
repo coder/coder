@@ -138,7 +138,7 @@ export const ProjectChatsListView: React.FC<ProjectChatsListViewProps> = ({
 						<>
 							{/* Fills the grid row so the box matches the details panel
 							    beside it. */}
-							<div className="flex flex-1 items-center justify-center rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-content-secondary">
+							<div className="flex flex-1 items-center justify-center rounded-lg border border-dashed px-4 py-8 text-center text-sm text-content-secondary">
 								No chats yet. Every chat will leverage the same settings and
 								history.
 							</div>

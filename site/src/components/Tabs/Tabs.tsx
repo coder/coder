@@ -128,10 +128,7 @@ export const LinkTabs = ({
 				data-slot="link-tabs"
 				// Because the Tailwind preflight is not used, its necessary to set border style to solid and
 				// reset all border widths to 0 https://tailwindcss.com/docs/border-width#using-without-preflight
-				className={cn(
-					"border-0 border-b border-solid border-border",
-					className,
-				)}
+				className={cn("border-0 border-b border-solid", className)}
 				{...htmlProps}
 			/>
 		</LinkTabsContext.Provider>
