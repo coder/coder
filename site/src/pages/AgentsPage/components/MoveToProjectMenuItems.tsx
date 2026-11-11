@@ -37,12 +37,18 @@ export const useMoveChatToProject = () => {
 	return useMutation({
 		...options,
 		// A chat that is not pinned leaves the sidebar when it moves into a
-		// project the user has not pinned.
+		// project the user has not pinned. A chat that was already in another
+		// unpinned project was not in the sidebar to begin with.
 		onSuccess: (_data, { chatId, projectId }, context) => {
-			const summary = queryClient
-				.getQueryData<ChatProjectSummary[]>(chatProjectSummariesKey)
-				?.find((s) => s.project.id === projectId);
-			if (summary && !summary.pinned && !context?.wasChatPinned) {
+			const summaries = queryClient.getQueryData<ChatProjectSummary[]>(
+				chatProjectSummariesKey,
+			);
+			const summary = summaries?.find((s) => s.project.id === projectId);
+			const previous = context?.previousProjectId
+				? summaries?.find((s) => s.project.id === context.previousProjectId)
+				: undefined;
+			const wasHidden = previous !== undefined && !previous.pinned;
+			if (summary && !summary.pinned && !context?.wasChatPinned && !wasHidden) {
 				moveToUnpinnedProjectDialog?.show(summary.project, chatId);
 			}
 		},

@@ -60,6 +60,7 @@ const MoveButton: React.FC<{ withChatActions: boolean }> = ({
 const moveChat = async ({
 	chatPinned = false,
 	projectPinned = false,
+	fromUnpinnedProject = false,
 	withChatActions = false,
 }) => {
 	const user = userEvent.setup();
@@ -72,12 +73,19 @@ const moveChat = async ({
 	queryClient.setQueryData(chatEntityKey(MockChat.id), {
 		...MockChat,
 		pin_order: chatPinned ? 1 : 0,
+		project_id: fromUnpinnedProject ? "previous-project" : undefined,
 	});
 	queryClient.setQueryData(chatProjectSummariesKey, [
 		{
 			...MockChatProjectSummary,
 			pinned: projectPinned,
 			pin_order: projectPinned ? 1 : 0,
+		},
+		{
+			...MockChatProjectSummary,
+			project: { ...MockChatProject, id: "previous-project" },
+			pinned: false,
+			pin_order: 0,
 		},
 	]);
 	render(
@@ -152,8 +160,9 @@ describe("MoveToUnpinnedProjectDialog", () => {
 	it.each([
 		{ chatPinned: true, projectPinned: false },
 		{ chatPinned: false, projectPinned: true },
+		{ fromUnpinnedProject: true },
 	])(
-		"stays closed when a pin keeps the chat in the sidebar (%o)",
+		"stays closed when the chat stays in or was already out of the sidebar (%o)",
 		async (pins) => {
 			await moveChat(pins);
 			expect(screen.queryByRole("dialog")).toBeNull();
