@@ -851,8 +851,8 @@ describe("ChatsSidebar projects", () => {
 			mockArchivedBillingProject,
 			mockArchivedDocsProject,
 		];
-		const launchFailure = createDeferred<void>();
-		const billingSuccess = createDeferred<void>();
+		const launchFailure = createDeferred<undefined>();
+		const billingSuccess = createDeferred<undefined>();
 		server.use(
 			http.get("/api/experimental/chats/projects", ({ request }) =>
 				HttpResponse.json(
@@ -897,7 +897,7 @@ describe("ChatsSidebar projects", () => {
 			}),
 		);
 		await user.click(screen.getByRole("button", { name: "Unarchive Billing" }));
-		launchFailure.resolve();
+		launchFailure.resolve(undefined);
 		await waitFor(() =>
 			expect(
 				screen.getByRole("button", {
@@ -905,7 +905,7 @@ describe("ChatsSidebar projects", () => {
 				}),
 			).toBeEnabled(),
 		);
-		billingSuccess.resolve();
+		billingSuccess.resolve(undefined);
 
 		await waitFor(() =>
 			expect(
