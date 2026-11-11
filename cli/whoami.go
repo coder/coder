@@ -72,6 +72,11 @@ func (r *RootCmd) whoami() *serpent.Command {
 			if err != nil {
 				return noUser(err)
 			}
+			// A workload's pod token can reach the user API within its
+			// scopes, but it is not a user login.
+			if r.workloadCredentials && identity != nil {
+				return noUser(nil)
+			}
 
 			// Fetch the user info
 			resp, err := client.User(ctx, codersdk.Me)

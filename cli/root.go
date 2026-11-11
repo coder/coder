@@ -597,12 +597,15 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 
 // RootCmd contains parameters and helpers useful to all commands.
 type RootCmd struct {
-	clientURL     *url.URL
-	token         string
-	tokenBackend  sessionstore.Backend
-	globalConfig  string
-	header        []string
-	headerCommand string
+	clientURL *url.URL
+	token     string
+	// workloadCredentials is true when the URL and token come from the
+	// runtime workload the command runs in, not from a login.
+	workloadCredentials bool
+	tokenBackend        sessionstore.Backend
+	globalConfig        string
+	header              []string
+	headerCommand       string
 
 	forceTTY           bool
 	noOpen             bool
@@ -740,6 +743,7 @@ func (r *RootCmd) ensureTLSConfig() error {
 // InitClient creates and configures a new client with authentication, telemetry,
 // and version checks.
 func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) {
+	r.useWorkloadCredentials()
 	if err := r.ensureClientURL(); err != nil {
 		return nil, err
 	}
@@ -790,6 +794,34 @@ func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) 
 	}
 
 	return codersdk.New(r.clientURL, clientOpts...), nil
+}
+
+// useWorkloadCredentials makes commands that call the user API work inside
+// a runtime workload. Nobody is logged in there: the workload's pod token is
+// its credential, and what it may do is decided by its identity's scopes.
+// An explicit URL, token or login takes precedence.
+func (r *RootCmd) useWorkloadCredentials() {
+	if r.token != "" || (r.clientURL != nil && r.clientURL.String() != "") {
+		return
+	}
+	tokenFile, rawURL := os.Getenv(envAgentPodTokenFile), os.Getenv(envAgentURL)
+	if tokenFile == "" || rawURL == "" {
+		return
+	}
+	if _, err := r.createConfig().URL().Read(); err == nil {
+		return
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return
+	}
+	token, err := os.ReadFile(tokenFile)
+	if err != nil {
+		return
+	}
+	r.clientURL = u
+	r.token = strings.TrimSpace(string(token))
+	r.workloadCredentials = true
 }
 
 // TryInitClient is similar to InitClient but doesn't error when credentials are missing.

@@ -16,6 +16,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/cli/workloadoperator"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -38,12 +39,23 @@ func formatWorkloadIdentity(identity codersdk.WorkloadIdentity) string {
 	}
 	_, _ = fmt.Fprintf(&b, "  Daemon:        %s (%s)\n", identity.AgentName, identity.AgentID)
 	_, _ = fmt.Fprintf(&b, "  Workspace:     %s/%s (%s)\n", identity.OwnerUsername, identity.WorkspaceName, identity.WorkspaceID)
-	_, _ = fmt.Fprintf(&b, "  Acts for user: %s (%s)\n", identity.OwnerUsername, identity.OwnerID)
+	if identity.IdentityID != uuid.Nil {
+		scopes := "none"
+		if len(identity.Scopes) > 0 {
+			names := make([]string, 0, len(identity.Scopes))
+			for _, scope := range identity.Scopes {
+				names = append(names, string(scope))
+			}
+			scopes = strings.Join(names, ", ")
+		}
+		_, _ = fmt.Fprintf(&b, "  Identity ID:   %s\n", identity.IdentityID)
+		_, _ = fmt.Fprintf(&b, "  Sponsor:       %s (%s)\n", identity.SponsorUsername, identity.SponsorID)
+		_, _ = fmt.Fprintf(&b, "  Scopes:        %s\n", scopes)
+	} else {
+		_, _ = fmt.Fprintf(&b, "  Acts for user: %s (%s)\n", identity.OwnerUsername, identity.OwnerID)
+	}
 	if identity.Shape != "" {
 		_, _ = fmt.Fprintf(&b, "  Shape:         %s\n", identity.Shape)
-	}
-	if identity.RequestedByUsername != "" {
-		_, _ = fmt.Fprintf(&b, "  Requested by:  %s (%s)\n", identity.RequestedByUsername, identity.RequestedByID)
 	}
 	if identity.Pod != nil {
 		_, _ = fmt.Fprintf(&b, "  Pod:           %s/%s (%s)\n", identity.Pod.Namespace, identity.Pod.Name, identity.Pod.UID)
@@ -111,7 +123,8 @@ type workloadRow struct {
 	Name              string `json:"-" table:"name,default_sort"`
 	Status            string `json:"-" table:"status"`
 	Shape             string `json:"-" table:"shape"`
-	RequestedBy       string `json:"-" table:"requested by"`
+	Sponsor           string `json:"-" table:"sponsor"`
+	Scopes            string `json:"-" table:"scopes"`
 	Identity          string `json:"-" table:"identity"`
 	Pod               string `json:"-" table:"pod"`
 }
@@ -120,12 +133,20 @@ func workloadRows(workloads []codersdk.Workload) []workloadRow {
 	rows := make([]workloadRow, 0, len(workloads))
 	for _, workload := range workloads {
 		row := workloadRow{
-			Workload:    workload,
-			Name:        workload.Name,
-			Status:      string(workload.Status),
-			Shape:       workload.Shape,
-			RequestedBy: workload.RequestedByUsername,
-			Identity:    workload.Identity,
+			Workload: workload,
+			Name:     workload.Name,
+			Status:   string(workload.Status),
+			Shape:    workload.Shape,
+			Sponsor:  workload.SponsorUsername,
+			Scopes:   "none",
+			Identity: workload.Identity,
+		}
+		if len(workload.Scopes) > 0 {
+			names := make([]string, 0, len(workload.Scopes))
+			for _, scope := range workload.Scopes {
+				names = append(names, string(scope))
+			}
+			row.Scopes = strings.Join(names, ",")
 		}
 		if workload.Pod != nil {
 			row.Pod = workload.Pod.Namespace + "/" + workload.Pod.Name
@@ -143,9 +164,10 @@ func (r *RootCmd) run() *serpent.Command {
 		remove  string
 		noWait  bool
 		timeout time.Duration
+		scopes  []string
 	)
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]workloadRow{}, []string{"name", "status", "shape", "requested by", "identity"}),
+		cliui.TableFormat([]workloadRow{}, []string{"name", "status", "shape", "sponsor", "scopes", "identity"}),
 		cliui.JSONFormat(),
 	)
 	cmd := &serpent.Command{
@@ -215,6 +237,7 @@ func (r *RootCmd) run() *serpent.Command {
 				Name:    name,
 				Shape:   shape,
 				Command: shellquote.Join(inv.Args[1:]...),
+				Scopes:  slice.StringEnums[codersdk.APIKeyScope](scopes),
 			})
 			if err != nil {
 				return err
@@ -259,6 +282,11 @@ func (r *RootCmd) run() *serpent.Command {
 			Flag:        "remove",
 			Description: "Remove the named workload instead of starting one.",
 			Value:       serpent.StringOf(&remove),
+		},
+		{
+			Flag:        "scope",
+			Description: "A permission the workload may use on your behalf, as an API token scope such as workspace:read. Repeat it for several. Without any, the workload can do nothing in Coder.",
+			Value:       serpent.StringArrayOf(&scopes),
 		},
 		{
 			Flag:        "no-wait",

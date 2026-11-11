@@ -21,7 +21,7 @@ USAGE:
        $ coder run --remove workload-1a2b3c4d my-workspace
 
 OPTIONS:
-  -c, --column [name|status|shape|requested by|identity|pod] (default: name,status,shape,requested by,identity)
+  -c, --column [name|status|shape|sponsor|scopes|identity|pod] (default: name,status,shape,sponsor,scopes,identity)
           Columns to display in table output.
 
   -l, --list bool
@@ -38,6 +38,11 @@ OPTIONS:
 
       --remove string
           Remove the named workload instead of starting one.
+
+      --scope string-array
+          A permission the workload may use on your behalf, as an API token
+          scope such as workspace:read. Repeat it for several. Without any, the
+          workload can do nothing in Coder.
 
       --shape string
           The workload shape to clone, by agent name. Only needed when the

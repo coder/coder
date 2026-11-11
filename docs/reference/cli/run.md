@@ -65,6 +65,14 @@ List the workspace's workloads instead of starting one.
 
 Remove the named workload instead of starting one.
 
+### --scope
+
+| Property | Value                     |
+|----------|---------------------------|
+| Type     | <code>string-array</code> |
+
+A permission the workload may use on your behalf, as an API token scope such as workspace:read. Repeat it for several. Without any, the workload can do nothing in Coder.
+
 ### --no-wait
 
 | Property | Value             |
@@ -84,10 +92,10 @@ How long to wait for the workload to start and its command to finish.
 
 ### -c, --column
 
-| Property | Value                                                           |
-|----------|-----------------------------------------------------------------|
-| Type     | <code>[name\|status\|shape\|requested by\|identity\|pod]</code> |
-| Default  | <code>name,status,shape,requested by,identity</code>            |
+| Property | Value                                                              |
+|----------|--------------------------------------------------------------------|
+| Type     | <code>[name\|status\|shape\|sponsor\|scopes\|identity\|pod]</code> |
+| Default  | <code>name,status,shape,sponsor,scopes,identity</code>             |
 
 Columns to display in table output.
 
