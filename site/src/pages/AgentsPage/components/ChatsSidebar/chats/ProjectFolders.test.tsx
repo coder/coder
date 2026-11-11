@@ -61,6 +61,7 @@ const projectFoldersElement = (
 			onOpenProjectDialog={vi.fn()}
 			onArchive={vi.fn()}
 			onDelete={vi.fn()}
+			onOpenArchivedProjects={vi.fn()}
 			emptyMessage="No chats yet"
 			isLoading={false}
 			error={error}
@@ -102,6 +103,7 @@ describe("ProjectFolders", () => {
 					onOpenProjectDialog={vi.fn()}
 					onArchive={vi.fn()}
 					onDelete={vi.fn()}
+					onOpenArchivedProjects={vi.fn()}
 					emptyMessage="No chats yet"
 					isLoading={false}
 					error={new Error("Projects unavailable")}
@@ -124,6 +126,8 @@ describe("ProjectFolders", () => {
 		const user = userEvent.setup();
 		const { rerender } = renderProjectFolders([]);
 
+		// The section toggle, Archived projects, then the empty state's button.
+		await user.tab();
 		await user.tab();
 		await user.tab();
 		const newProjectButton = screen.getByRole("button", {
@@ -237,6 +241,7 @@ describe("ProjectFolders", () => {
 					onOpenProjectDialog={vi.fn()}
 					onArchive={vi.fn()}
 					onDelete={vi.fn()}
+					onOpenArchivedProjects={vi.fn()}
 					emptyMessage="No chats yet"
 					isLoading={false}
 					error={undefined}

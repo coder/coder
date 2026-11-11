@@ -1,5 +1,10 @@
 import { cn } from "cn";
-import { ChevronRightIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
+import {
+	ArchiveIcon,
+	ChevronRightIcon,
+	EllipsisVerticalIcon,
+	PlusIcon,
+} from "lucide-react";
 import { useRef, useState } from "react";
 import { NavLink, type To, useLocation, useMatch } from "react-router";
 import type { ChatListInput } from "#/api/queries/chats";
@@ -60,6 +65,9 @@ type ProjectFoldersProps = {
 	readonly onOpenProjectDialog: OpenProjectDialog;
 	readonly onArchive: ArchiveProject;
 	readonly onDelete: DeleteProject;
+	readonly onOpenArchivedProjects: () => void;
+	/** Receives the Archived projects button, which project dialogs refocus. */
+	readonly archivedProjectsButtonRef?: React.Ref<HTMLButtonElement>;
 	readonly isLoading: boolean;
 	readonly error: unknown;
 	/**
@@ -83,6 +91,8 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	onOpenProjectDialog,
 	onArchive,
 	onDelete,
+	onOpenArchivedProjects,
+	archivedProjectsButtonRef,
 	isLoading,
 	error,
 	isLoadError,
@@ -120,17 +130,29 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 						onToggle: () => setExpanded(!isExpanded),
 					}}
 					actions={
-						isShowingHeaderNewProject && (
+						<>
 							<Button
+								ref={archivedProjectsButtonRef}
 								variant="subtle"
 								size="icon"
 								className="size-7"
-								aria-label="New project"
-								onClick={openCreateDialog}
+								aria-label="Archived projects"
+								onClick={onOpenArchivedProjects}
 							>
-								<PlusIcon />
+								<ArchiveIcon />
 							</Button>
-						)
+							{isShowingHeaderNewProject && (
+								<Button
+									variant="subtle"
+									size="icon"
+									className="size-7"
+									aria-label="New project"
+									onClick={openCreateDialog}
+								>
+									<PlusIcon />
+								</Button>
+							)}
+						</>
 					}
 				/>
 			</ProjectsSectionDropArea>

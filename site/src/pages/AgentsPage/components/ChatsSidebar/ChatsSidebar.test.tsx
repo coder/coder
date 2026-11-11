@@ -718,6 +718,45 @@ describe("ChatsSidebar projects", () => {
 		await waitFor(() => expect(actionsButton).toHaveFocus());
 	});
 
+	it("unarchives a project from the archived projects list", async () => {
+		const user = userEvent.setup();
+		const unarchivedProjectIds: unknown[] = [];
+		server.use(
+			http.get("/api/experimental/chats/projects", ({ request }) =>
+				HttpResponse.json(
+					new URL(request.url).searchParams.get("archived") === "true"
+						? [MockArchivedChatProject]
+						: [],
+				),
+			),
+			http.post(
+				"/api/experimental/organizations/:organization/chats/projects/:project/unarchive",
+				({ params }) => {
+					unarchivedProjectIds.push(params.project);
+					return HttpResponse.json(MockChatProject);
+				},
+			),
+		);
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", { name: "Archived projects" }),
+		);
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Unarchive ${MockChatProject.name}`,
+			}),
+		);
+
+		await waitFor(() =>
+			expect(unarchivedProjectIds).toEqual([MockChatProject.id]),
+		);
+	});
+
 	it("opens the folder of the project being viewed until the user collapses it", async () => {
 		const user = userEvent.setup();
 		server.use(

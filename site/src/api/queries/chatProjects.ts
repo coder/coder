@@ -39,6 +39,13 @@ export const archivedChatProjectsKey = [
 	"archived",
 ] as const;
 
+/** Lists the archived projects the current user owns or that are shared with them. */
+export const archivedChatProjects = () =>
+	queryOptions({
+		queryKey: archivedChatProjectsKey,
+		queryFn: () => API.experimental.getChatProjects({ archived: true }),
+	});
+
 const unlistedChatProjectKey = (projectId: string | undefined) =>
 	[...chatProjectsKey, projectId, "unlisted"] as const;
 

@@ -19,10 +19,11 @@ import {
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
 import { buildAgentProjectPath } from "../../utils/navigation";
 import { draftStorageKeys } from "../AgentCreateForm";
-import { returnFocusTo } from "../useDialogFocusReturn";
+import { returnFocusTo, useDialogFocusReturn } from "../useDialogFocusReturn";
 import { ChatsPanel } from "./chats/ChatsPanel";
 import type { ProjectDialogState } from "./chats/ProjectFolders";
 import { getOrganizationLabels } from "./chats/projectGrouping";
+import { ArchivedProjectsDialog } from "./dialogs/ArchivedProjectsDialog";
 import { ArchiveProjectDialog } from "./dialogs/ArchiveProjectDialog";
 import {
 	ChatProjectDialog,
@@ -154,6 +155,10 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		trigger: HTMLButtonElement | null;
 		open: boolean;
 	}>({ project: null, trigger: null, open: false });
+	const [isArchivedProjectsOpen, setIsArchivedProjectsOpen] = useState(false);
+	// Project dialogs fall back to the Archived projects button: an archived
+	// project's folder, and its actions button, leave the list.
+	const projectArchiveFocusReturn = useDialogFocusReturn();
 
 	const openProjectDialog = (dialog: ProjectDialogState) => {
 		if (dialog.mode === "create") {
@@ -275,6 +280,8 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 					setArchiveDialog({ project, trigger, open: true })
 				}
 				onDeleteProject={openDeleteProjectDialog}
+				onOpenArchivedProjects={() => setIsArchivedProjectsOpen(true)}
+				archivedProjectsButtonRef={projectArchiveFocusReturn.setPrimaryFallback}
 				chats={chats}
 				chatErrorReasons={chatErrorReasons}
 				modelConfigs={modelConfigs}
@@ -366,7 +373,16 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 					if (archiveDialog.trigger) {
 						returnFocusTo(archiveDialog.trigger)(event);
 					}
+					if (!event.defaultPrevented) {
+						projectArchiveFocusReturn.restoreFocus(event);
+					}
 				}}
+			/>
+			<ArchivedProjectsDialog
+				open={isArchivedProjectsOpen}
+				onOpenChange={setIsArchivedProjectsOpen}
+				locationSearch={location.search}
+				onCloseAutoFocus={projectArchiveFocusReturn.restoreFocus}
 			/>
 			{onRenameTitle && (
 				<RenameChatDialog
