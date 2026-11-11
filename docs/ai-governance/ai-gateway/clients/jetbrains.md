@@ -40,8 +40,6 @@ Configure [Claude Code](./claude-code.md#centralized-api-key) and [Codex](./code
 1. Next to **New Session**, select a Claude Agent or Codex preset.
 1. Send a prompt.
 
-The session appears in the AI Gateway [sessions list](../audit.md#sessions-list).
-
 **References:**
 [Agents in IntelliJ IDEA](https://www.jetbrains.com/help/idea/agents-in-ide.html),
 [Configure agent authorization](https://www.jetbrains.com/help/air-ides/air-configure-authorization.html)
