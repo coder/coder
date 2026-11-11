@@ -22,6 +22,7 @@ import {
 	type Workspace,
 	type WorkspaceBuild,
 } from "#/api/typesGenerated";
+import { DEFAULT_RECORDS_PER_PAGE } from "#/components/PaginationWidget/utils";
 import { toast } from "#/components/Toaster/toast";
 import { isWorkspaceOn } from "#/utils/workspace";
 
@@ -334,17 +335,15 @@ export const projectChatWorkspaces = (
 		},
 	});
 
-// GET /chats/by-workspace accepts at most this many workspace IDs.
-const chatsByWorkspaceLimit = 25;
-
+// GET /chats/by-workspace accepts at most one page of workspace IDs.
 const findWorkspacesInUse = async (
 	queryClient: QueryClient,
 	workspaceIds: readonly string[],
 ) => {
 	const inUse = new Set<string>();
-	for (let i = 0; i < workspaceIds.length; i += chatsByWorkspaceLimit) {
+	for (let i = 0; i < workspaceIds.length; i += DEFAULT_RECORDS_PER_PAGE) {
 		const chatByWorkspace = await queryClient.fetchQuery({
-			...chatsByWorkspace(workspaceIds.slice(i, i + chatsByWorkspaceLimit)),
+			...chatsByWorkspace(workspaceIds.slice(i, i + DEFAULT_RECORDS_PER_PAGE)),
 			staleTime: 0,
 		});
 		for (const workspaceId of Object.keys(chatByWorkspace)) {

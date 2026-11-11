@@ -99,8 +99,10 @@ export const ArchiveProjectDialog: React.FC<ArchiveProjectDialogProps> = ({
 	});
 
 	// isPending reaches the form only after the mutation cache notifies, so
-	// a double click would send a second request. Its 409 would replace the
-	// first request's result, skipping the toast and the workspace action.
+	// a double click would send a second request. That mutate() call replaces
+	// the first call's callbacks, so the first request's success would neither
+	// close the dialog, toast, nor start the workspace action, and the second
+	// request fails because the project is already archived.
 	const isSubmittingRef = useRef(false);
 
 	const archive = (
@@ -522,7 +524,7 @@ const notifyWorkspaceActionResult = (
 		return;
 	}
 	const description = (
-		<ul className="m-0 flex list-none flex-col gap-1 p-0">
+		<ul className="m-0 flex max-h-[40vh] list-none flex-col gap-1 overflow-y-auto p-0">
 			{failed.map(({ workspace, error }) => (
 				<li key={workspace.id}>
 					<WorkspaceLink workspace={workspace} onOpen={onOpenWorkspace} />:{" "}
