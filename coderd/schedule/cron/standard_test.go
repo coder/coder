@@ -568,10 +568,54 @@ func TestSchedule_MinInterval(t *testing.T) {
 	}
 }
 
+// TestSchedule_MinInterval_Limits pins the two limits that MinInterval documents,
+// with the runs that Next gives.
+func TestSchedule_MinInterval_Limits(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OffsetChangeShortensAGap", func(t *testing.T) {
+		t.Parallel()
+		newYork := mustLocation(t, "America/New_York")
+		sched, err := cron.Standard("1,58 1,3 * * *", "America/New_York")
+		require.NoError(t, err)
+		require.Equal(t, 57*time.Minute, sched.MinInterval())
+
+		// Clocks go forward on 2026-03-08, so 01:58 EST and 03:01 EDT are three
+		// minutes apart.
+		from := mustParseTime(t, time.RFC3339, "2026-03-08T01:30:00-05:00").In(newYork)
+		first := sched.Next(from)
+		second := sched.Next(first)
+		require.Equal(t, time.Date(2026, 3, 8, 6, 58, 0, 0, time.UTC), first.UTC())
+		require.Equal(t, time.Date(2026, 3, 8, 7, 1, 0, 0, time.UTC), second.UTC())
+		require.Equal(t, 3*time.Minute, second.Sub(first))
+		require.Less(t, second.Sub(first), sched.MinInterval())
+	})
+
+	t.Run("PairAcrossMidnightWithoutDaysInARow", func(t *testing.T) {
+		t.Parallel()
+		sched, err := cron.Standard("0,58 0,23 * * 1", "UTC")
+		require.NoError(t, err)
+		require.Equal(t, 2*time.Minute, sched.MinInterval())
+
+		// Only Mondays run, so 23:58 and 00:00 never happen two minutes apart.
+		var shortest time.Duration
+		previous := sched.Next(time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC))
+		for range 16 {
+			next := sched.Next(previous)
+			if shortest == 0 || next.Sub(previous) < shortest {
+				shortest = next.Sub(previous)
+			}
+			previous = next
+		}
+		require.Equal(t, 58*time.Minute, shortest)
+		require.Greater(t, shortest, sched.MinInterval())
+	})
+}
+
 // TestSchedule_MinInterval_NeverLongerThanRunGap checks MinInterval of random
-// specs against the runs of a day-by-day model of cron over four years: it is
-// never longer than the shortest time between two runs, and it is equal to it
-// when every day runs.
+// specs against the runs of a day-by-day model of cron over four years, in UTC,
+// which has no offset change: it is never longer than the shortest time between
+// two runs, and it is equal to it when every day runs.
 func TestSchedule_MinInterval_NeverLongerThanRunGap(t *testing.T) {
 	t.Parallel()
 

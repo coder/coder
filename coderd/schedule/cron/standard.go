@@ -207,21 +207,26 @@ func resolveWallClock(wall time.Time, loc *time.Location) time.Time {
 
 // MinInterval returns the shortest distance between two times of day at which
 // the schedule runs, counted around the clock: the distance from the last time
-// of day to the first time of the next day counts too, and a schedule with one
-// time of day gives 24 hours. It reads only the hour and minute fields, so it
-// needs no time zone and no calendar.
+// of day to the first time of the next day counts too. A schedule with one time
+// of day gives 24 hours. It reads only the hour and minute fields, so it needs
+// no time zone and no calendar.
 //
-// For every value of the day of month, month and day of week fields,
-// MinInterval is never longer than the shortest time between two runs on the
-// wall clock. It is shorter when the closest pair of times crosses midnight and
-// the day fields never match two days in a row: "0,58 0,23 * * 1" gives two
-// minutes, and its runs are 58 minutes apart at least. So a check that rejects
-// a schedule when MinInterval is below a minimum can reject a schedule that the
-// minimum would allow. Above 24 hours it says nothing.
+// While the UTC offset of the zone does not change, no two runs are closer than
+// this value, whatever the day of month, month and day of week fields say. It
+// has two limits:
 //
-// Daylight saving changes do not count. Clocks going forward can make one gap
-// shorter by up to the size of the change: runs at 01:30 and 03:30 are two
-// hours apart on the wall clock and one hour apart on that day.
+//   - A change of the UTC offset (daylight saving) can shorten a gap that
+//     spans it, by up to the size of the change. "1,58 1,3 * * *" in
+//     America/New_York gives 57 minutes, and on 2026-03-08 its runs at 01:58 and
+//     03:01 are 3 minutes apart.
+//   - A pair of times across midnight counts even when the day fields never
+//     match two days in a row, at any length of interval, also below 24 hours.
+//     "0,58 0,23 * * 1" gives 2 minutes, and its runs are 58 minutes apart at
+//     least. A check that rejects a schedule when MinInterval is below a
+//     minimum can reject a schedule that the minimum would allow.
+//
+// Above 24 hours it says nothing: a schedule that runs once a week gives 24
+// hours.
 func (s Schedule) MinInterval() time.Duration {
 	var first, last time.Duration
 	shortest := 24 * time.Hour
