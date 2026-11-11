@@ -32,6 +32,7 @@ import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
 import {
 	MockAppearanceConfig,
+	MockArchivedChatProject,
 	MockBuildInfo,
 	MockChatProject,
 	MockDefaultOrganization,
@@ -648,6 +649,73 @@ describe("ChatsSidebar projects", () => {
 				name: `Delete "${MockChatProject.name}" from ${MockOrganization2.display_name}`,
 			}),
 		).toBeInTheDocument();
+	});
+
+	it("archives a project from its folder menu", async () => {
+		const user = userEvent.setup();
+		const archiveRequests: unknown[] = [];
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+			http.get(
+				"/api/experimental/organizations/:organization/chats/projects/:project/archive-preview",
+				() => HttpResponse.json({ chat_count: 1, active_chat_count: 0 }),
+			),
+			http.get("/api/v2/chats/config/retention-days", () =>
+				HttpResponse.json({ retention_days: 0 }),
+			),
+			http.post(
+				"/api/experimental/organizations/:organization/chats/projects/:project/archive",
+				async ({ params, request }) => {
+					archiveRequests.push([params.project, await request.json()]);
+					return HttpResponse.json(MockArchivedChatProject);
+				},
+			),
+		);
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
+		);
+		await user.click(screen.getByRole("menuitem", { name: "Archive project" }));
+		await screen.findByText(/will be archived/);
+		await user.click(screen.getByRole("button", { name: "Archive project" }));
+
+		await waitFor(() =>
+			expect(archiveRequests).toEqual([
+				[MockChatProject.id, { stop_active_chats: false }],
+			]),
+		);
+	});
+
+	it("returns focus to the folder's actions button when archiving is cancelled", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject]),
+			),
+		);
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+		const actionsButton = await screen.findByRole("button", {
+			name: `Open project actions for ${MockChatProject.name}`,
+		});
+
+		await user.click(actionsButton);
+		await user.click(screen.getByRole("menuitem", { name: "Archive project" }));
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		await waitFor(() => expect(actionsButton).toHaveFocus());
 	});
 
 	it("opens the folder of the project being viewed until the user collapses it", async () => {
