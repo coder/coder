@@ -20,7 +20,7 @@ func TestStandardWebhooks(t *testing.T) {
 	// https://github.com/standard-webhooks/standard-webhooks/blob/main/libraries/go/webhook_test.go
 	// (TestWebhookSign). Its timestamp is 1614265330.
 	const (
-		vectorSecret = "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"
+		vectorSecret = "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw" //nolint:gosec // Public test vector from the Standard Webhooks repository.
 		vectorID     = "msg_p5jXN8AQM9LWM0D4loKWxJek"
 		vectorTS     = "1614265330"
 		vectorBody   = `{"test": 2432232314}`

@@ -265,8 +265,8 @@ func TestErrorsDoNotLeakCredentials(t *testing.T) {
 	// Each canary stands for a value that must never appear in an error: the
 	// stored secret, a received token or signature, an expected signature.
 	const (
-		secretCanary   = "CANARY-SECRET-0f9e8d7c6b5a4938"
-		tokenCanary    = "CANARY-TOKEN-1a2b3c4d5e6f7089"
+		secretCanary   = "CANARY-SECRET-0f9e8d7c6b5a4938" //nolint:gosec // Fixture that must never appear in an error.
+		tokenCanary    = "CANARY-TOKEN-1a2b3c4d5e6f7089"  //nolint:gosec // Fixture that must never appear in an error.
 		receivedCanary = "CANARY-RECEIVED-77665544"
 	)
 

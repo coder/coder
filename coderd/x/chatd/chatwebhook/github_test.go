@@ -20,7 +20,7 @@ func TestGitHub(t *testing.T) {
 		vectorSig    = "sha256=757107ea0eb2509fc211221cce984b8a37570b6d7586c22c46f4379c8b043e17"
 	)
 
-	const secret = "j9X0c2Vy-Z2l0aHViLXRlc3Qtc2VjcmV0LTAxMjM0NTY"
+	const secret = "j9X0c2Vy-Z2l0aHViLXRlc3Qtc2VjcmV0LTAxMjM0NTY" //nolint:gosec // Test fixture, not a credential.
 	signHex := func(secret string, body []byte) string {
 		return hex.EncodeToString(hmacSHA256([]byte(secret), body))
 	}
