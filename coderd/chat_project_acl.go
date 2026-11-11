@@ -173,6 +173,9 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("get chat project for update: %w", err)
 		}
 		aReq.Old = current
+		if current.ArchivedAt.Valid {
+			return errChatProjectArchived
+		}
 		validErrs, err := validateChatProjectACLOrganization(ctx, tx, project, userRoles, groupRoles)
 		if err != nil {
 			return err
@@ -202,6 +205,9 @@ func (api *API) patchChatProjectACL(rw http.ResponseWriter, r *http.Request) {
 				Message:     "Invalid request to update chat project ACL.",
 				Validations: validationErr.validations,
 			})
+			return
+		}
+		if writeChatProjectArchivedError(ctx, rw, err) {
 			return
 		}
 		if errors.Is(err, sql.ErrNoRows) {
