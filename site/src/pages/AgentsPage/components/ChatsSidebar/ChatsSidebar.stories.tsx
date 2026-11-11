@@ -2979,6 +2979,27 @@ export const ProjectFolderCollapsed: Story = {
 	},
 };
 
+export const PinnedChatsAndProjects: Story = {
+	args: {
+		chats: [
+			buildChat({
+				id: "pinned-project-chat",
+				title: "Pinned chat in a project",
+				project_id: MockChatProject.id,
+				pin_order: 1,
+			}),
+			buildChat({ id: "pinned-chat", title: "Pinned chat", pin_order: 2 }),
+			mockLooseChat,
+		],
+	},
+	parameters: {
+		queries: [
+			{ key: chatProjectsKey, data: [MockChatProject] },
+			{ key: chatProjectSummariesKey, data: [MockChatProjectSummary] },
+		],
+	},
+};
+
 export const ProjectFolderWithUnreadChats: Story = {
 	args: { chats: mockProjectChats },
 	parameters: {

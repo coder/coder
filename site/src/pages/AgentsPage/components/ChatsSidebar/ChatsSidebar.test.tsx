@@ -577,6 +577,40 @@ describe("ChatsSidebar projects", () => {
 		).toBeInTheDocument();
 	});
 
+	it("names the organization of a pinned chat's project whose name is shared", async () => {
+		const mockOtherProject = {
+			...MockChatProject,
+			id: "other-project",
+			organization_id: MockOrganization2.id,
+		};
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject, mockOtherProject]),
+			),
+		);
+		const label = `${MockChatProject.name} (${MockOrganization2.display_name})`;
+
+		render(
+			<Wrapper organizations={[MockDefaultOrganization, MockOrganization2]}>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "pinned-chat",
+							title: "Pinned chat",
+							project_id: mockOtherProject.id,
+							pin_order: 1,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		expect(
+			await screen.findByRole("img", { name: label }),
+		).toHaveAccessibleName(label);
+	});
+
 	it("opens the folder of the project being viewed until the user collapses it", async () => {
 		const user = userEvent.setup();
 		server.use(
@@ -1345,6 +1379,40 @@ describe("ChatsSidebar project drops", () => {
 		expect(await dragRowOntoBilling(row)).toEqual(
 			body ? [["c1", { project_id: body }]] : [],
 		);
+	});
+
+	// The folder sits inside Chats, which would remove the chat from its
+	// project if it took the drop.
+	it("moves nothing on a mouse drag of a project chat onto its own folder", async () => {
+		server.use(http.get("/api/v2/chats", () => HttpResponse.json([])));
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([mockBillingProject, mockOpsProject]),
+			),
+		);
+		render(
+			<Wrapper initialEntry={`/agents/projects/${mockBillingProject.id}`}>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "c1",
+							title: "Fix invoice dates",
+							organization_id: mockBillingProject.organization_id,
+							project_id: mockBillingProject.id,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+		await screen.findByRole("link", { name: /Fix invoice dates/ });
+		layoutDropTargets("Fix invoice dates", 240);
+
+		await mouseDragRow("Fix invoice dates", 40);
+		expect(update).not.toHaveBeenCalled();
 	});
 
 	// A failed projects request shows project chats under Chats, where a drop
