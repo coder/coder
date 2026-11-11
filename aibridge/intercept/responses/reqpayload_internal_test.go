@@ -123,6 +123,28 @@ func TestCorrelatingToolCallID(t *testing.T) {
 			name:    "missing call id",
 			payload: []byte(`{"input":[{"type":"function_call_output","output":"ok"}]}`),
 		},
+		{
+			name:     "tool result followed by developer message",
+			payload:  []byte(`{"model":"gpt-5","input":[{"role":"user","content":"hi"},{"type":"custom_tool_call","call_id":"call_custom","name":"exec","input":"pwd"},{"type":"custom_tool_call_output","call_id":"call_custom","output":"/home"},{"type":"message","role":"developer","content":[{"type":"input_text","text":"Approved command prefix saved"}]}]}`),
+			wantCall: new("call_custom"),
+		},
+		{
+			name:     "tool result followed by system, developer and reasoning items",
+			payload:  []byte(`{"model":"gpt-5","input":[{"role":"user","content":"hi"},{"type":"function_call_output","call_id":"call_abc","output":"r1"},{"role":"system","content":"sys"},{"type":"reasoning","id":"rs_1","summary":[]},{"role":"developer","content":"dev"}]}`),
+			wantCall: new("call_abc"),
+		},
+		{
+			name:    "user message followed by developer message after older tool result",
+			payload: []byte(`{"model":"gpt-5","input":[{"type":"function_call_output","call_id":"call_first","output":"r1"},{"role":"user","content":"hi"},{"role":"developer","content":"dev"}]}`),
+		},
+		{
+			name:    "only developer and system messages",
+			payload: []byte(`{"model":"gpt-5","input":[{"role":"system","content":"sys"},{"role":"developer","content":"dev"}]}`),
+		},
+		{
+			name:    "tool result missing call id followed by developer message does not fall back to older result",
+			payload: []byte(`{"model":"gpt-5","input":[{"type":"function_call_output","call_id":"call_first","output":"r1"},{"type":"function_call_output","output":"r2"},{"role":"developer","content":"dev"}]}`),
+		},
 	}
 
 	for _, tc := range tests {
