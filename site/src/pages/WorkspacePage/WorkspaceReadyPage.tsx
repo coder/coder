@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import {
+	keepPreviousData,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { API } from "#/api/api";
 import {
 	type ApiError,
@@ -237,12 +242,13 @@ export const WorkspaceReadyPage: React.FC<WorkspaceReadyPageProps> = ({
 	// Workloads start and stop without a workspace build, so nothing pushes
 	// their changes to this page.
 	const { experiments } = useDashboard();
+	const [showFinishedWorkloads, setShowFinishedWorkloads] = useState(false);
 	const workloadsQuery = useQuery({
-		...workspaceWorkloads(workspace.id),
-		enabled:
-			experiments.includes("runtime-workloads") &&
-			workspace.latest_build.status === "running",
+		...workspaceWorkloads(workspace.id, showFinishedWorkloads),
+		// What ran stays on record after the workspace stops.
+		enabled: experiments.includes("runtime-workloads"),
 		refetchInterval: 5_000,
+		placeholderData: keepPreviousData,
 	});
 
 	const checkEphemeralParameters = async (
@@ -338,6 +344,8 @@ export const WorkspaceReadyPage: React.FC<WorkspaceReadyPageProps> = ({
 				timings={timingsQuery.data}
 				workloads={workloadsQuery.data}
 				workloadsError={workloadsQuery.error}
+				showFinishedWorkloads={showFinishedWorkloads}
+				onShowFinishedWorkloadsChange={setShowFinishedWorkloads}
 				handleStart={async (buildParameters) => {
 					const { hasEphemeral, ephemeralParameters } =
 						await checkEphemeralParameters(buildParameters);

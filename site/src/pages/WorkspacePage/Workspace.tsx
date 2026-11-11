@@ -32,6 +32,8 @@ type WorkspaceProps = {
 	timings?: TypesGen.WorkspaceBuildTimings;
 	workloads?: readonly TypesGen.Workload[];
 	workloadsError?: unknown;
+	showFinishedWorkloads?: boolean;
+	onShowFinishedWorkloadsChange?: (show: boolean) => void;
 	sharingDisabled?: boolean;
 	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleStop: () => void;
@@ -58,6 +60,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 	timings,
 	workloads,
 	workloadsError,
+	showFinishedWorkloads = false,
+	onShowFinishedWorkloadsChange,
 	handleStart,
 	handleStop,
 	handleRestart,
@@ -247,6 +251,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 									workspaceName={workspace.name}
 									workloads={workloads}
 									error={workloadsError}
+									showFinished={showFinishedWorkloads}
+									onShowFinishedChange={onShowFinishedWorkloadsChange}
 								/>
 							)}
 

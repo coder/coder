@@ -35701,19 +35701,142 @@ func (q *sqlQuerier) ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (
 	return i, err
 }
 
-const getWorkloadIdentitiesByWorkspaceID = `-- name: GetWorkloadIdentitiesByWorkspaceID :many
+const finishWorkloadIdentity = `-- name: FinishWorkloadIdentity :one
+UPDATE
+	workload_identities
+SET
+	finished_at = $1,
+	end_reason = $2,
+	exit_code = $3,
+	output_tail = $4
+WHERE
+	id = $5
+	AND finished_at IS NULL
+RETURNING id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, name, command, scopes, image, network, mounts, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail
+`
+
+type FinishWorkloadIdentityParams struct {
+	FinishedAt sql.NullTime  `db:"finished_at" json:"finished_at"`
+	EndReason  string        `db:"end_reason" json:"end_reason"`
+	ExitCode   sql.NullInt32 `db:"exit_code" json:"exit_code"`
+	OutputTail string        `db:"output_tail" json:"output_tail"`
+	ID         uuid.UUID     `db:"id" json:"id"`
+}
+
+// FinishWorkloadIdentity ends a workload. From then on the identity
+// authorizes nothing. It returns no row when the workload was already over,
+// so that an ending is recorded once.
+func (q *sqlQuerier) FinishWorkloadIdentity(ctx context.Context, arg FinishWorkloadIdentityParams) (WorkloadIdentity, error) {
+	row := q.db.QueryRowContext(ctx, finishWorkloadIdentity,
+		arg.FinishedAt,
+		arg.EndReason,
+		arg.ExitCode,
+		arg.OutputTail,
+		arg.ID,
+	)
+	var i WorkloadIdentity
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.SponsorID,
+		&i.WorkspaceID,
+		&i.WorkspaceAgentID,
+		&i.Name,
+		&i.Command,
+		pq.Array(&i.Scopes),
+		&i.Image,
+		&i.Network,
+		pq.Array(&i.Mounts),
+		&i.Runtime,
+		&i.SandboxID,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.EndReason,
+		&i.ExitCode,
+		&i.OutputTail,
+	)
+	return i, err
+}
+
+const getFinishedWorkloadIdentitiesByWorkspaceID = `-- name: GetFinishedWorkloadIdentitiesByWorkspaceID :many
 SELECT
-	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, name, command, scopes, runtime, sandbox_id, started_at, revoked_at
+	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, name, command, scopes, image, network, mounts, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail
 FROM
 	workload_identities
 WHERE
 	workspace_id = $1
-	AND revoked_at IS NULL
+	AND finished_at IS NOT NULL
+ORDER BY
+	finished_at DESC
+LIMIT
+	$2 :: integer
+`
+
+type GetFinishedWorkloadIdentitiesByWorkspaceIDParams struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	LimitOpt    int32     `db:"limit_opt" json:"limit_opt"`
+}
+
+// GetFinishedWorkloadIdentitiesByWorkspaceID returns the most recently
+// finished workloads of a workspace, newest first.
+func (q *sqlQuerier) GetFinishedWorkloadIdentitiesByWorkspaceID(ctx context.Context, arg GetFinishedWorkloadIdentitiesByWorkspaceIDParams) ([]WorkloadIdentity, error) {
+	rows, err := q.db.QueryContext(ctx, getFinishedWorkloadIdentitiesByWorkspaceID, arg.WorkspaceID, arg.LimitOpt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkloadIdentity
+	for rows.Next() {
+		var i WorkloadIdentity
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.OrganizationID,
+			&i.SponsorID,
+			&i.WorkspaceID,
+			&i.WorkspaceAgentID,
+			&i.Name,
+			&i.Command,
+			pq.Array(&i.Scopes),
+			&i.Image,
+			&i.Network,
+			pq.Array(&i.Mounts),
+			&i.Runtime,
+			&i.SandboxID,
+			&i.StartedAt,
+			&i.FinishedAt,
+			&i.EndReason,
+			&i.ExitCode,
+			&i.OutputTail,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkloadIdentitiesByWorkspaceID = `-- name: GetWorkloadIdentitiesByWorkspaceID :many
+SELECT
+	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, name, command, scopes, image, network, mounts, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail
+FROM
+	workload_identities
+WHERE
+	workspace_id = $1
+	AND finished_at IS NULL
 ORDER BY
 	created_at ASC
 `
 
-// GetWorkloadIdentitiesByWorkspaceID does not return revoked identities.
+// GetWorkloadIdentitiesByWorkspaceID returns the live workloads of a
+// workspace.
 func (q *sqlQuerier) GetWorkloadIdentitiesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]WorkloadIdentity, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkloadIdentitiesByWorkspaceID, workspaceID)
 	if err != nil {
@@ -35733,10 +35856,16 @@ func (q *sqlQuerier) GetWorkloadIdentitiesByWorkspaceID(ctx context.Context, wor
 			&i.Name,
 			&i.Command,
 			pq.Array(&i.Scopes),
+			&i.Image,
+			&i.Network,
+			pq.Array(&i.Mounts),
 			&i.Runtime,
 			&i.SandboxID,
 			&i.StartedAt,
-			&i.RevokedAt,
+			&i.FinishedAt,
+			&i.EndReason,
+			&i.ExitCode,
+			&i.OutputTail,
 		); err != nil {
 			return nil, err
 		}
@@ -35753,15 +35882,15 @@ func (q *sqlQuerier) GetWorkloadIdentitiesByWorkspaceID(ctx context.Context, wor
 
 const getWorkloadIdentityByID = `-- name: GetWorkloadIdentityByID :one
 SELECT
-	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, name, command, scopes, runtime, sandbox_id, started_at, revoked_at
+	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, name, command, scopes, image, network, mounts, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail
 FROM
 	workload_identities
 WHERE
 	id = $1
 `
 
-// GetWorkloadIdentityByID also returns revoked identities. Callers that
-// authorize with the identity must check revoked_at.
+// GetWorkloadIdentityByID also returns finished identities. Callers that
+// authorize with the identity must check finished_at.
 func (q *sqlQuerier) GetWorkloadIdentityByID(ctx context.Context, id uuid.UUID) (WorkloadIdentity, error) {
 	row := q.db.QueryRowContext(ctx, getWorkloadIdentityByID, id)
 	var i WorkloadIdentity
@@ -35775,10 +35904,16 @@ func (q *sqlQuerier) GetWorkloadIdentityByID(ctx context.Context, id uuid.UUID) 
 		&i.Name,
 		&i.Command,
 		pq.Array(&i.Scopes),
+		&i.Image,
+		&i.Network,
+		pq.Array(&i.Mounts),
 		&i.Runtime,
 		&i.SandboxID,
 		&i.StartedAt,
-		&i.RevokedAt,
+		&i.FinishedAt,
+		&i.EndReason,
+		&i.ExitCode,
+		&i.OutputTail,
 	)
 	return i, err
 }
@@ -35806,7 +35941,7 @@ VALUES (
 	$8,
 	$9
 )
-RETURNING id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, name, command, scopes, runtime, sandbox_id, started_at, revoked_at
+RETURNING id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, name, command, scopes, image, network, mounts, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail
 `
 
 type InsertWorkloadIdentityParams struct {
@@ -35844,31 +35979,42 @@ func (q *sqlQuerier) InsertWorkloadIdentity(ctx context.Context, arg InsertWorkl
 		&i.Name,
 		&i.Command,
 		pq.Array(&i.Scopes),
+		&i.Image,
+		&i.Network,
+		pq.Array(&i.Mounts),
 		&i.Runtime,
 		&i.SandboxID,
 		&i.StartedAt,
-		&i.RevokedAt,
+		&i.FinishedAt,
+		&i.EndReason,
+		&i.ExitCode,
+		&i.OutputTail,
 	)
 	return i, err
 }
 
-const revokeWorkloadIdentityByID = `-- name: RevokeWorkloadIdentityByID :exec
+const updateWorkloadIdentityOutcome = `-- name: UpdateWorkloadIdentityOutcome :exec
 UPDATE
 	workload_identities
 SET
-	revoked_at = $1
+	exit_code = COALESCE(exit_code, $1),
+	output_tail = CASE WHEN output_tail = '' THEN $2 ELSE output_tail END
 WHERE
-	id = $2
-	AND revoked_at IS NULL
+	id = $3
+	AND finished_at IS NOT NULL
 `
 
-type RevokeWorkloadIdentityByIDParams struct {
-	RevokedAt sql.NullTime `db:"revoked_at" json:"revoked_at"`
-	ID        uuid.UUID    `db:"id" json:"id"`
+type UpdateWorkloadIdentityOutcomeParams struct {
+	ExitCode   sql.NullInt32 `db:"exit_code" json:"exit_code"`
+	OutputTail string        `db:"output_tail" json:"output_tail"`
+	ID         uuid.UUID     `db:"id" json:"id"`
 }
 
-func (q *sqlQuerier) RevokeWorkloadIdentityByID(ctx context.Context, arg RevokeWorkloadIdentityByIDParams) error {
-	_, err := q.db.ExecContext(ctx, revokeWorkloadIdentityByID, arg.RevokedAt, arg.ID)
+// UpdateWorkloadIdentityOutcome adds what the daemon knows about how a
+// workload ended to one that was finished before the daemon reported in,
+// for example a workload a user removed.
+func (q *sqlQuerier) UpdateWorkloadIdentityOutcome(ctx context.Context, arg UpdateWorkloadIdentityOutcomeParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkloadIdentityOutcome, arg.ExitCode, arg.OutputTail, arg.ID)
 	return err
 }
 
@@ -35878,26 +36024,35 @@ UPDATE
 SET
 	runtime = $1,
 	sandbox_id = $2,
-	started_at = $3
+	image = $3,
+	network = $4,
+	mounts = $5,
+	started_at = $6
 WHERE
-	id = $4
-	AND revoked_at IS NULL
-RETURNING id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, name, command, scopes, runtime, sandbox_id, started_at, revoked_at
+	id = $7
+	AND finished_at IS NULL
+RETURNING id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, name, command, scopes, image, network, mounts, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail
 `
 
 type UpdateWorkloadIdentitySandboxParams struct {
 	Runtime   string       `db:"runtime" json:"runtime"`
 	SandboxID string       `db:"sandbox_id" json:"sandbox_id"`
+	Image     string       `db:"image" json:"image"`
+	Network   string       `db:"network" json:"network"`
+	Mounts    []string     `db:"mounts" json:"mounts"`
 	StartedAt sql.NullTime `db:"started_at" json:"started_at"`
 	ID        uuid.UUID    `db:"id" json:"id"`
 }
 
 // UpdateWorkloadIdentitySandbox records the sandbox the daemon started for
-// the workload.
+// the workload and what its policy settled on.
 func (q *sqlQuerier) UpdateWorkloadIdentitySandbox(ctx context.Context, arg UpdateWorkloadIdentitySandboxParams) (WorkloadIdentity, error) {
 	row := q.db.QueryRowContext(ctx, updateWorkloadIdentitySandbox,
 		arg.Runtime,
 		arg.SandboxID,
+		arg.Image,
+		arg.Network,
+		pq.Array(arg.Mounts),
 		arg.StartedAt,
 		arg.ID,
 	)
@@ -35912,10 +36067,16 @@ func (q *sqlQuerier) UpdateWorkloadIdentitySandbox(ctx context.Context, arg Upda
 		&i.Name,
 		&i.Command,
 		pq.Array(&i.Scopes),
+		&i.Image,
+		&i.Network,
+		pq.Array(&i.Mounts),
 		&i.Runtime,
 		&i.SandboxID,
 		&i.StartedAt,
-		&i.RevokedAt,
+		&i.FinishedAt,
+		&i.EndReason,
+		&i.ExitCode,
+		&i.OutputTail,
 	)
 	return i, err
 }

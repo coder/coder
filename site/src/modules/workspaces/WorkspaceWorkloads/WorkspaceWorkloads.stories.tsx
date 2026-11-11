@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
+	MockFinishedWorkload,
 	MockStartingWorkload,
 	MockWorkload,
 	mockApiError,
@@ -13,6 +14,7 @@ const meta: Meta<typeof WorkspaceWorkloads> = {
 		workspaceName: "dev",
 		workloads: [MockWorkload],
 		error: undefined,
+		showFinished: false,
 	},
 };
 
@@ -36,6 +38,30 @@ export const EveryStatus: Story = {
 				identity:
 					"test-workspace/workload/1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
 				scopes: [],
+			},
+		],
+	},
+};
+
+export const WithFinished: Story = {
+	args: {
+		showFinished: true,
+		workloads: [
+			MockWorkload,
+			MockFinishedWorkload,
+			{
+				...MockFinishedWorkload,
+				id: "removed",
+				name: "old-agent",
+				status: "removed",
+				exit_code: undefined,
+			},
+			{
+				...MockFinishedWorkload,
+				id: "failed",
+				name: "bad-image",
+				status: "failed",
+				exit_code: undefined,
 			},
 		],
 	},

@@ -1,19 +1,31 @@
 package cli
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
+	"os/exec"
+	"os/signal"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/kballard/go-shellquote"
+	"github.com/mattn/go-isatty"
+	"golang.org/x/term"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/pty"
 	"github.com/coder/serpent"
 )
 
@@ -130,6 +142,10 @@ type workloadRow struct {
 	Command           string `json:"-" table:"command"`
 	Identity          string `json:"-" table:"identity"`
 	Sandbox           string `json:"-" table:"sandbox"`
+	Network           string `json:"-" table:"network"`
+	Image             string `json:"-" table:"image"`
+	Started           string `json:"-" table:"started"`
+	Finished          string `json:"-" table:"finished"`
 }
 
 func workloadRows(workloads []codersdk.Workload) []workloadRow {
@@ -143,6 +159,15 @@ func workloadRows(workloads []codersdk.Workload) []workloadRow {
 			Scopes:   joinWorkloadScopes(workload.Scopes, ","),
 			Command:  workload.Command,
 			Identity: workload.ID.String(),
+			Network:  string(workload.Network),
+			Image:    workload.Image,
+			Started:  workload.CreatedAt.Local().Format(time.DateTime),
+		}
+		if workload.ExitCode != nil {
+			row.Status = fmt.Sprintf("%s (%d)", workload.Status, *workload.ExitCode)
+		}
+		if workload.FinishedAt != nil {
+			row.Finished = workload.FinishedAt.Local().Format(time.DateTime)
 		}
 		if workload.Sandbox != nil {
 			row.Sandbox = workload.Sandbox.Runtime + ":" + workload.Sandbox.ID
@@ -157,16 +182,22 @@ func workloadRows(workloads []codersdk.Workload) []workloadRow {
 
 func (r *RootCmd) run() *serpent.Command {
 	var (
-		name   string
-		agent  string
-		image  string
-		scopes []string
-		detach bool
-		list   bool
-		remove string
+		name    string
+		agent   string
+		image   string
+		scopes  []string
+		network string
+		mounts  []string
+		stdin   bool
+		tty     bool
+		detach  bool
+		list    bool
+		all     bool
+		remove  string
+		logs    string
 	)
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]workloadRow{}, []string{"name", "status", "sponsor", "scopes", "command", "identity"}),
+		cliui.TableFormat([]workloadRow{}, []string{"name", "status", "sponsor", "scopes", "command", "started", "identity"}),
 		cliui.JSONFormat(),
 	)
 	cmd := &serpent.Command{
@@ -186,8 +217,16 @@ func (r *RootCmd) run() *serpent.Command {
 					Command:     "coder run my-workspace --scope workspace:read --scope template:read -- coder list",
 				},
 				Example{
-					Description: "List the workloads of a workspace",
+					Description: "Work in a sandbox with a terminal",
+					Command:     "coder run -it my-workspace -- sh",
+				},
+				Example{
+					Description: "List the running workloads of a workspace",
 					Command:     "coder run --list my-workspace",
+				},
+				Example{
+					Description: "List all of them, with what became of each",
+					Command:     "coder run --all my-workspace",
 				},
 				Example{
 					Description: "Remove a workload",
@@ -206,8 +245,8 @@ func (r *RootCmd) run() *serpent.Command {
 				return err
 			}
 
-			if list {
-				workloads, err := client.WorkspaceWorkloads(ctx, workspace.ID)
+			if list || all {
+				workloads, err := client.WorkspaceWorkloads(ctx, workspace.ID, codersdk.WorkspaceWorkloadsOptions{Finished: all})
 				if err != nil {
 					return err
 				}
@@ -219,7 +258,7 @@ func (r *RootCmd) run() *serpent.Command {
 				return err
 			}
 			if remove != "" {
-				workloads, err := client.WorkspaceWorkloads(ctx, workspace.ID)
+				workloads, err := client.WorkspaceWorkloads(ctx, workspace.ID, codersdk.WorkspaceWorkloadsOptions{})
 				if err != nil {
 					return err
 				}
@@ -236,15 +275,45 @@ func (r *RootCmd) run() *serpent.Command {
 				return nil
 			}
 
+			if logs != "" {
+				// Live workloads are listed first, so a running workload
+				// wins over an earlier one of the same name.
+				workloads, err := client.WorkspaceWorkloads(ctx, workspace.ID, codersdk.WorkspaceWorkloadsOptions{Finished: true})
+				if err != nil {
+					return err
+				}
+				idx := slices.IndexFunc(workloads, func(workload codersdk.Workload) bool {
+					return workload.Name == logs || workload.ID.String() == logs
+				})
+				if idx < 0 {
+					return xerrors.Errorf("workspace %q has no workload %q", workspace.Name, logs)
+				}
+				return followWorkload(ctx, inv, client, workloads[idx])
+			}
+
 			if len(inv.Args) < 2 {
 				return xerrors.New("a command is required: coder run <workspace> -- <command>")
+			}
+			if stdin != tty {
+				return xerrors.New("a terminal needs both --interactive and --tty: use -it")
+			}
+			if detach && tty {
+				return xerrors.New("--detach cannot be combined with -it")
+			}
+			workloadMounts := make([]codersdk.WorkloadMount, 0, len(mounts))
+			for _, mount := range mounts {
+				workloadMounts = append(workloadMounts, codersdk.ParseWorkloadMount(mount))
 			}
 			workload, err := client.CreateWorkspaceWorkload(ctx, workspace.ID, codersdk.CreateWorkloadRequest{
 				Name:    name,
 				Agent:   agent,
 				Command: shellquote.Join(inv.Args[1:]...),
 				Image:   image,
+				Network: codersdk.WorkloadNetwork(network),
+				Mounts:  workloadMounts,
 				Scopes:  slice.StringEnums[codersdk.APIKeyScope](scopes),
+
+				Interactive: stdin && tty,
 			})
 			if err != nil {
 				return err
@@ -253,16 +322,29 @@ func (r *RootCmd) run() *serpent.Command {
 				_, err = fmt.Fprintln(inv.Stdout, workload.Name)
 				return err
 			}
-
-			exitCode := -1
-			err = client.WorkspaceWorkloadLogs(ctx, workspace.ID, workload.ID, func(event codersdk.WorkloadLogEvent) error {
-				if event.ExitCode != nil {
-					exitCode = *event.ExitCode
-					return nil
+			if stdin && tty {
+				// The terminal shows the output. What remains to learn
+				// afterwards is how the command ended.
+				if err := attachWorkloadTerminal(ctx, inv, client, workload); err != nil {
+					return err
 				}
-				_, err := fmt.Fprintln(inv.Stdout, event.Output)
-				return err
-			})
+				exitCode := -1
+				err = client.WorkspaceWorkloadLogs(ctx, workspace.ID, workload.ID, func(event codersdk.WorkloadLogEvent) error {
+					if event.ExitCode != nil {
+						exitCode = *event.ExitCode
+					}
+					return nil
+				})
+				if err != nil {
+					return xerrors.Errorf("learn how workload %s ended: %w", workload.Name, err)
+				}
+				if exitCode != 0 {
+					return ExitError(exitCode, nil)
+				}
+				return nil
+			}
+
+			err = followWorkload(ctx, inv, client, workload)
 			if ctx.Err() != nil {
 				// Interrupted: the workload must not outlive the command
 				// that was attached to it.
@@ -271,17 +353,7 @@ func (r *RootCmd) run() *serpent.Command {
 				_ = client.DeleteWorkspaceWorkload(removeCtx, workspace.ID, workload.ID)
 				return ctx.Err()
 			}
-			if err != nil {
-				return xerrors.Errorf("follow workload %s: %w", workload.Name, err)
-			}
-			switch exitCode {
-			case 0:
-				return nil
-			case -1:
-				return xerrors.Errorf("lost track of workload %s before it exited", workload.Name)
-			default:
-				return ExitError(exitCode, nil)
-			}
+			return err
 		},
 	}
 	cmd.Options = serpent.OptionSet{
@@ -297,13 +369,35 @@ func (r *RootCmd) run() *serpent.Command {
 		},
 		{
 			Flag:        "image",
-			Description: "The image for the workload's sandbox. Defaults to the one the workspace's daemon is configured with.",
+			Description: "The image for the workload's sandbox. The workspace's template sets the default and decides which others are allowed.",
 			Value:       serpent.StringOf(&image),
+		},
+		{
+			Flag:        "network",
+			Description: "What the sandbox can reach: \"none\" or \"outbound\". The workspace's template sets the default. With \"none\" the workload can still reach Coder, and nothing else.",
+			Value:       serpent.StringOf(&network),
+		},
+		{
+			Flag:        "mount",
+			Description: "A directory of the workspace to show in the sandbox, at the same path. It is read-only unless followed by \":rw\". Repeat it for several. The workspace's template decides which directories may be shared; without this flag the workload sees nothing of the workspace.",
+			Value:       serpent.StringArrayOf(&mounts),
 		},
 		{
 			Flag:        "agent",
 			Description: "The workspace daemon to run the workload in, by name. Only needed when the workspace has several.",
 			Value:       serpent.StringOf(&agent),
+		},
+		{
+			Flag:          "interactive",
+			FlagShorthand: "i",
+			Description:   "Keep the command's input open. Use it with --tty, as -it.",
+			Value:         serpent.BoolOf(&stdin),
+		},
+		{
+			Flag:          "tty",
+			FlagShorthand: "t",
+			Description:   "Give the command a terminal and attach to it. Use it with --interactive, as -it.",
+			Value:         serpent.BoolOf(&tty),
 		},
 		{
 			Flag:          "detach",
@@ -314,8 +408,19 @@ func (r *RootCmd) run() *serpent.Command {
 		{
 			Flag:          "list",
 			FlagShorthand: "l",
-			Description:   "List the workspace's workloads instead of running one.",
+			Description:   "List the workspace's running workloads instead of running one.",
 			Value:         serpent.BoolOf(&list),
+		},
+		{
+			Flag:          "all",
+			FlagShorthand: "a",
+			Description:   "List the workspace's workloads, including the most recent ones that are over.",
+			Value:         serpent.BoolOf(&all),
+		},
+		{
+			Flag:        "logs",
+			Description: "Print the output of a workload, by name or identity, instead of running one. A running workload is followed until it ends. For one that is over, the end of its output was kept.",
+			Value:       serpent.StringOf(&logs),
 		},
 		{
 			Flag:        "remove",
@@ -325,4 +430,163 @@ func (r *RootCmd) run() *serpent.Command {
 	}
 	formatter.AttachOptions(&cmd.Options)
 	return cmd
+}
+
+// followWorkload prints a workload's output until its command ends, and
+// ends the way the command did. For a workload that is over it prints what
+// was kept of its output.
+func followWorkload(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, workload codersdk.Workload) error {
+	exitCode := -1
+	err := client.WorkspaceWorkloadLogs(ctx, workload.WorkspaceID, workload.ID, func(event codersdk.WorkloadLogEvent) error {
+		if event.ExitCode != nil {
+			exitCode = *event.ExitCode
+			return nil
+		}
+		_, err := fmt.Fprintln(inv.Stdout, event.Output)
+		return err
+	})
+	if err != nil {
+		return xerrors.Errorf("follow workload %s: %w", workload.Name, err)
+	}
+	switch {
+	case exitCode == 0:
+		return nil
+	case exitCode == -1 && workload.FinishedAt != nil:
+		_, _ = fmt.Fprintf(inv.Stderr, "Workload %s is over (%s). Its exit code is not known.\n", workload.Name, workload.Status)
+		return nil
+	case exitCode == -1:
+		return xerrors.Errorf("lost track of workload %s before it exited", workload.Name)
+	default:
+		return ExitError(exitCode, nil)
+	}
+}
+
+// attachWorkloadTerminal connects the caller's terminal to an interactive
+// workload until the workload's command ends.
+func attachWorkloadTerminal(ctx context.Context, inv *serpent.Invocation, client *codersdk.Client, workload codersdk.Workload) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var width, height uint16
+	stdoutFile, validOut := inv.Stdout.(*os.File)
+	if validOut && isatty.IsTerminal(stdoutFile.Fd()) {
+		if w, h, err := term.GetSize(int(stdoutFile.Fd())); err == nil {
+			//nolint:gosec // A terminal's size fits.
+			width, height = uint16(w), uint16(h)
+		}
+	}
+	// Raw mode, so that control characters reach the workload.
+	if stdinFile, ok := inv.Stdin.(*os.File); ok && isatty.IsTerminal(stdinFile.Fd()) {
+		state, err := pty.MakeInputRaw(stdinFile.Fd())
+		if err != nil {
+			return xerrors.Errorf("set the terminal to raw mode: %w", err)
+		}
+		defer func() { _ = pty.RestoreTerminal(stdinFile.Fd(), state) }()
+	}
+
+	conn, err := client.AttachWorkspaceWorkload(ctx, workload.WorkspaceID, workload.ID, height, width)
+	if err != nil {
+		return xerrors.Errorf("attach to workload %s: %w", workload.Name, err)
+	}
+	defer conn.Close()
+
+	encoder := json.NewEncoder(conn)
+	go func() {
+		input := bufio.NewScanner(inv.Stdin)
+		// Byte by byte: a line would only be sent once it is complete.
+		input.Split(bufio.ScanBytes)
+		for input.Scan() {
+			if err := encoder.Encode(map[string]string{"data": input.Text()}); err != nil {
+				return
+			}
+		}
+	}()
+	if validOut {
+		resized := listenWindowSize(ctx)
+		go func() {
+			for {
+				select {
+				case <-ctx.Done():
+					return
+				case <-resized:
+				}
+				w, h, err := term.GetSize(int(stdoutFile.Fd()))
+				if err != nil {
+					continue
+				}
+				_ = encoder.Encode(map[string]int{"width": w, "height": h})
+			}
+		}()
+	}
+	_, _ = io.Copy(inv.Stdout, conn)
+	return nil
+}
+
+// workloadInit starts a workload's command inside its sandbox. The sandbox's
+// channel to Coder is a unix socket, which many programs cannot use, so this
+// first offers the channel on a loopback address and points CODER_URL at it.
+// Everything here runs inside the sandbox and holds no secret: whatever can
+// reach the loopback address could reach the socket as well.
+func (*RootCmd) workloadInit() *serpent.Command {
+	return &serpent.Command{
+		Use:        "workload-init -- <command> [args...]",
+		Short:      "Run a workload's command inside its sandbox",
+		Hidden:     true,
+		Middleware: serpent.RequireRangeArgs(1, -1),
+		Handler: func(inv *serpent.Invocation) error {
+			ctx := inv.Context()
+			env := os.Environ()
+			if socket := os.Getenv(codersdk.WorkloadSocketEnv); socket != "" {
+				// A sandbox without a network still has loopback.
+				listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:0")
+				if err == nil {
+					defer listener.Close()
+					proxy := &httputil.ReverseProxy{
+						Rewrite: func(pr *httputil.ProxyRequest) {
+							pr.SetURL(&url.URL{Scheme: "http", Host: "coder.workload"})
+						},
+						Transport: &http.Transport{
+							DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+								return (&net.Dialer{}).DialContext(ctx, "unix", socket)
+							},
+						},
+						FlushInterval: -1,
+					}
+					server := &http.Server{Handler: proxy, ReadHeaderTimeout: 30 * time.Second}
+					go func() { _ = server.Serve(listener) }()
+					defer server.Close()
+					env = append(env, "CODER_URL=http://"+listener.Addr().String())
+				}
+			}
+
+			if term := os.Getenv(codersdk.WorkloadTermEnv); term != "" {
+				env = slices.DeleteFunc(env, func(kv string) bool {
+					return strings.HasPrefix(kv, "TERM=") || strings.HasPrefix(kv, codersdk.WorkloadTermEnv+"=")
+				})
+				env = append(env, "TERM="+term)
+			}
+
+			//nolint:gosec // Running the given command is this command's purpose.
+			cmd := exec.Command(inv.Args[0], inv.Args[1:]...)
+			cmd.Env = env
+			cmd.Stdin, cmd.Stdout, cmd.Stderr = inv.Stdin, inv.Stdout, inv.Stderr
+			if err := cmd.Start(); err != nil {
+				return xerrors.Errorf("start workload command: %w", err)
+			}
+			signals := make(chan os.Signal, 4)
+			signal.Notify(signals, StopSignals...)
+			defer signal.Stop(signals)
+			go func() {
+				for sig := range signals {
+					_ = cmd.Process.Signal(sig)
+				}
+			}()
+			err := cmd.Wait()
+			var exitErr *exec.ExitError
+			if xerrors.As(err, &exitErr) {
+				return ExitError(exitErr.ExitCode(), nil)
+			}
+			return err
+		},
+	}
 }

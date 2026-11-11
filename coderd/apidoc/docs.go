@@ -16389,6 +16389,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v2/workspaceagents/me/workloads/{workload}/exit": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Report that a workload is over (experimental)",
+                "operationId": "post-workspace-agent-workload-exit",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workload ID",
+                        "name": "workload",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "How the workload ended",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AgentWorkloadExit"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/workspaceagents/{workspaceagent}": {
             "get": {
                 "produces": [
@@ -18726,6 +18770,12 @@ const docTemplate = `{
                         "name": "workspace",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Also list the most recent finished workloads",
+                        "name": "finished",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -18825,6 +18875,58 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/workspaces/{workspace}/workloads/{workload}/attach": {
+            "get": {
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Attach to a workload's terminal (experimental)",
+                "operationId": "workspace-workload-attach",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workload ID",
+                        "name": "workload",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Terminal height",
+                        "name": "height",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Terminal width",
+                        "name": "width",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
                     }
                 },
                 "security": [
@@ -21431,6 +21533,22 @@ const docTemplate = `{
                 "AgentSubsystemEnvbuilder",
                 "AgentSubsystemExectrace"
             ]
+        },
+        "codersdk.AgentWorkloadExit": {
+            "type": "object",
+            "properties": {
+                "exit_code": {
+                    "description": "ExitCode is nil when the daemon does not know it.",
+                    "type": "integer"
+                },
+                "output_tail": {
+                    "description": "OutputTail is the end of the workload's output.",
+                    "type": "string"
+                },
+                "reason": {
+                    "$ref": "#/definitions/codersdk.WorkloadEndReason"
+                }
+            }
         },
         "codersdk.AppFamilyName": {
             "type": "string",
@@ -25602,12 +25720,31 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "image": {
-                    "description": "Image overrides the image the daemon uses for sandboxes.",
+                    "description": "Image asks for another image than the daemon's default. The\ntemplate decides which images are allowed.",
                     "type": "string"
+                },
+                "interactive": {
+                    "description": "Interactive gives the command a terminal that the sponsor can attach\nto.",
+                    "type": "boolean"
+                },
+                "mounts": {
+                    "description": "Mounts asks for directories of the workspace to be visible in the\nsandbox. The template decides which directories may be shared.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkloadMount"
+                    }
                 },
                 "name": {
                     "description": "Name is optional. It must be a valid agent name.",
                     "type": "string"
+                },
+                "network": {
+                    "description": "Network asks for another network than the daemon's default. Asking\nfor none is always allowed.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.WorkloadNetwork"
+                        }
+                    ]
                 },
                 "scopes": {
                     "description": "Scopes are the API key scopes the workload may use on the sponsor's\nbehalf. Without any, the workload can do nothing in Coder.",
@@ -31139,6 +31276,7 @@ const docTemplate = `{
                 "chat_model_config",
                 "chat_automation",
                 "user_secret",
+                "workload_identity",
                 "user_skill",
                 "organization_skill",
                 "chat_instruction_settings",
@@ -31189,6 +31327,7 @@ const docTemplate = `{
                 "ResourceTypeChatModelConfig",
                 "ResourceTypeChatAutomation",
                 "ResourceTypeUserSecret",
+                "ResourceTypeWorkloadIdentity",
                 "ResourceTypeUserSkill",
                 "ResourceTypeOrganizationSkill",
                 "ResourceTypeChatInstructionSettings",
@@ -34585,7 +34724,13 @@ const docTemplate = `{
                     "format": "date-time"
                 },
                 "exit_code": {
+                    "description": "ExitCode is the command's exit code, when it is known.",
                     "type": "integer"
+                },
+                "finished_at": {
+                    "description": "FinishedAt is set once the workload is over.",
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "id": {
                     "description": "ID is the workload's identity ID.",
@@ -34596,8 +34741,21 @@ const docTemplate = `{
                     "description": "Identity is the workload's identity as it is displayed.",
                     "type": "string"
                 },
+                "image": {
+                    "description": "Image, Network and Mounts are what the daemon's policy settled on.",
+                    "type": "string"
+                },
+                "mounts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkloadMount"
+                    }
+                },
                 "name": {
                     "type": "string"
+                },
+                "network": {
+                    "$ref": "#/definitions/codersdk.WorkloadNetwork"
                 },
                 "sandbox": {
                     "$ref": "#/definitions/codersdk.WorkloadSandbox"
@@ -34635,6 +34793,23 @@ const docTemplate = `{
             "x-enum-varnames": [
                 "WorkloadAttestationAgentToken",
                 "WorkloadAttestationWorkspaceDaemon"
+            ]
+        },
+        "codersdk.WorkloadEndReason": {
+            "type": "string",
+            "enum": [
+                "exited",
+                "removed",
+                "stopped",
+                "lost",
+                "failed"
+            ],
+            "x-enum-varnames": [
+                "WorkloadEndReasonExited",
+                "WorkloadEndReasonRemoved",
+                "WorkloadEndReasonStopped",
+                "WorkloadEndReasonLost",
+                "WorkloadEndReasonFailed"
             ]
         },
         "codersdk.WorkloadIdentity": {
@@ -34723,6 +34898,29 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkloadMount": {
+            "type": "object",
+            "properties": {
+                "path": {
+                    "type": "string"
+                },
+                "writable": {
+                    "description": "Writable lets the workload change the directory. Without it the\nworkload can only read.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.WorkloadNetwork": {
+            "type": "string",
+            "enum": [
+                "none",
+                "outbound"
+            ],
+            "x-enum-varnames": [
+                "WorkloadNetworkNone",
+                "WorkloadNetworkOutbound"
+            ]
+        },
         "codersdk.WorkloadSandbox": {
             "type": "object",
             "properties": {
@@ -34741,14 +34939,22 @@ const docTemplate = `{
             "enum": [
                 "starting",
                 "running",
+                "unknown",
                 "exited",
-                "unknown"
+                "removed",
+                "stopped",
+                "lost",
+                "failed"
             ],
             "x-enum-varnames": [
                 "WorkloadStatusStarting",
                 "WorkloadStatusRunning",
+                "WorkloadStatusUnknown",
                 "WorkloadStatusExited",
-                "WorkloadStatusUnknown"
+                "WorkloadStatusRemoved",
+                "WorkloadStatusStopped",
+                "WorkloadStatusLost",
+                "WorkloadStatusFailed"
             ]
         },
         "codersdk.Workspace": {

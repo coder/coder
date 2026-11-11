@@ -7274,13 +7274,25 @@ func (s *MethodTestSuite) TestWorkloadIdentities() {
 	}))
 	s.Run("UpdateWorkloadIdentitySandbox", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
-		arg := database.UpdateWorkloadIdentitySandboxParams{ID: identity.ID, Runtime: "docker", SandboxID: "abc"}
+		arg := database.UpdateWorkloadIdentitySandboxParams{ID: identity.ID, Runtime: "docker", SandboxID: "abc", Image: "alpine"}
 		dbm.EXPECT().UpdateWorkloadIdentitySandbox(gomock.Any(), arg).Return(identity, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(identity)
 	}))
-	s.Run("RevokeWorkloadIdentityByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
-		arg := database.RevokeWorkloadIdentityByIDParams{ID: uuid.New()}
-		dbm.EXPECT().RevokeWorkloadIdentityByID(gomock.Any(), arg).Return(nil).AnyTimes()
+	s.Run("GetFinishedWorkloadIdentitiesByWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
+		arg := database.GetFinishedWorkloadIdentitiesByWorkspaceIDParams{WorkspaceID: identity.WorkspaceID, LimitOpt: 10}
+		dbm.EXPECT().GetFinishedWorkloadIdentitiesByWorkspaceID(gomock.Any(), arg).Return([]database.WorkloadIdentity{identity}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.WorkloadIdentity{identity})
+	}))
+	s.Run("FinishWorkloadIdentity", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
+		arg := database.FinishWorkloadIdentityParams{ID: identity.ID, EndReason: "exited"}
+		dbm.EXPECT().FinishWorkloadIdentity(gomock.Any(), arg).Return(identity, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(identity)
+	}))
+	s.Run("UpdateWorkloadIdentityOutcome", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.UpdateWorkloadIdentityOutcomeParams{ID: uuid.New(), OutputTail: "done"}
+		dbm.EXPECT().UpdateWorkloadIdentityOutcome(gomock.Any(), arg).Return(nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 }

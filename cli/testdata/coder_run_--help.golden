@@ -19,9 +19,17 @@ USAGE:
        $ coder run my-workspace --scope workspace:read --scope template:read --
   coder list
   
-    - List the workloads of a workspace:
+    - Work in a sandbox with a terminal:
+  
+       $ coder run -it my-workspace -- sh
+  
+    - List the running workloads of a workspace:
   
        $ coder run --list my-workspace
+  
+    - List all of them, with what became of each:
+  
+       $ coder run --all my-workspace
   
     - Remove a workload:
   
@@ -32,21 +40,44 @@ OPTIONS:
           The workspace daemon to run the workload in, by name. Only needed when
           the workspace has several.
 
-  -c, --column [name|status|sponsor|scopes|command|identity|sandbox] (default: name,status,sponsor,scopes,command,identity)
+  -a, --all bool
+          List the workspace's workloads, including the most recent ones that
+          are over.
+
+  -c, --column [name|status|sponsor|scopes|command|identity|sandbox|network|image|started|finished] (default: name,status,sponsor,scopes,command,started,identity)
           Columns to display in table output.
 
   -d, --detach bool
           Start the workload and print its name instead of following its output.
 
       --image string
-          The image for the workload's sandbox. Defaults to the one the
-          workspace's daemon is configured with.
+          The image for the workload's sandbox. The workspace's template sets
+          the default and decides which others are allowed.
+
+  -i, --interactive bool
+          Keep the command's input open. Use it with --tty, as -it.
 
   -l, --list bool
-          List the workspace's workloads instead of running one.
+          List the workspace's running workloads instead of running one.
+
+      --logs string
+          Print the output of a workload, by name or identity, instead of
+          running one. A running workload is followed until it ends. For one
+          that is over, the end of its output was kept.
+
+      --mount string-array
+          A directory of the workspace to show in the sandbox, at the same path.
+          It is read-only unless followed by ":rw". Repeat it for several. The
+          workspace's template decides which directories may be shared; without
+          this flag the workload sees nothing of the workspace.
 
       --name string
           A name for the workload.
+
+      --network string
+          What the sandbox can reach: "none" or "outbound". The workspace's
+          template sets the default. With "none" the workload can still reach
+          Coder, and nothing else.
 
   -o, --output table|json (default: table)
           Output format.
@@ -58,6 +89,10 @@ OPTIONS:
           A permission the workload may use on your behalf, as an API token
           scope such as workspace:read. Repeat it for several. Without any, the
           workload can do nothing in Coder.
+
+  -t, --tty bool
+          Give the command a terminal and attach to it. Use it with
+          --interactive, as -it.
 
 ———
 Run `coder --help` for a list of global options.

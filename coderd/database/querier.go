@@ -312,6 +312,10 @@ type sqlcQuerier interface {
 	// The query finds presets where all preset parameters are present in the provided parameters,
 	// and returns the preset with the most parameters (largest subset).
 	FindMatchingPresetID(ctx context.Context, arg FindMatchingPresetIDParams) (uuid.UUID, error)
+	// FinishWorkloadIdentity ends a workload. From then on the identity
+	// authorizes nothing. It returns no row when the workload was already over,
+	// so that an ending is recorded once.
+	FinishWorkloadIdentity(ctx context.Context, arg FinishWorkloadIdentityParams) (WorkloadIdentity, error)
 	// AI Gateway cost for one chat tree: the root chat plus every subagent
 	// beneath it. The spawning chat's ID is recorded as the interception session
 	// ID (see chatprovider.CoderHeaders), so a subagent's requests are attributed
@@ -693,6 +697,9 @@ type sqlcQuerier interface {
 	// param created_at_opt: The created_at timestamp to filter by. This parameter is usd for pagination - it fetches notifications created before the specified timestamp if it is not the zero value
 	// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
 	GetFilteredInboxNotificationsByUserID(ctx context.Context, arg GetFilteredInboxNotificationsByUserIDParams) ([]InboxNotification, error)
+	// GetFinishedWorkloadIdentitiesByWorkspaceID returns the most recently
+	// finished workloads of a workspace, newest first.
+	GetFinishedWorkloadIdentitiesByWorkspaceID(ctx context.Context, arg GetFinishedWorkloadIdentitiesByWorkspaceIDParams) ([]WorkloadIdentity, error)
 	GetForcedMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]MCPServerConfig, error)
 	GetGitSSHKey(ctx context.Context, userID uuid.UUID) (GitSSHKey, error)
 	GetGroupAIBudget(ctx context.Context, groupID uuid.UUID) (GroupAIBudget, error)
@@ -1100,10 +1107,11 @@ type sqlcQuerier interface {
 	GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
 	GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]WebpushSubscription, error)
 	GetWebpushVAPIDKeys(ctx context.Context) (GetWebpushVAPIDKeysRow, error)
-	// GetWorkloadIdentitiesByWorkspaceID does not return revoked identities.
+	// GetWorkloadIdentitiesByWorkspaceID returns the live workloads of a
+	// workspace.
 	GetWorkloadIdentitiesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]WorkloadIdentity, error)
-	// GetWorkloadIdentityByID also returns revoked identities. Callers that
-	// authorize with the identity must check revoked_at.
+	// GetWorkloadIdentityByID also returns finished identities. Callers that
+	// authorize with the identity must check finished_at.
 	GetWorkloadIdentityByID(ctx context.Context, id uuid.UUID) (WorkloadIdentity, error)
 	GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (GetWorkspaceACLByIDRow, error)
 	GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentAndWorkspaceByIDRow, error)
@@ -1519,7 +1527,6 @@ type sqlcQuerier interface {
 	// consumers can keep tracking queued messages by id.
 	ReorderChatQueuedMessageToFront(ctx context.Context, arg ReorderChatQueuedMessageToFrontParams) (int64, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
-	RevokeWorkloadIdentityByID(ctx context.Context, arg RevokeWorkloadIdentityByIDParams) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
 	// for the table.
@@ -1769,8 +1776,12 @@ type sqlcQuerier interface {
 	UpdateUserThemePreference(ctx context.Context, arg UpdateUserThemePreferenceParams) (UserConfig, error)
 	UpdateUserThinkingDisplayMode(ctx context.Context, arg UpdateUserThinkingDisplayModeParams) (string, error)
 	UpdateVolumeResourceMonitor(ctx context.Context, arg UpdateVolumeResourceMonitorParams) error
+	// UpdateWorkloadIdentityOutcome adds what the daemon knows about how a
+	// workload ended to one that was finished before the daemon reported in,
+	// for example a workload a user removed.
+	UpdateWorkloadIdentityOutcome(ctx context.Context, arg UpdateWorkloadIdentityOutcomeParams) error
 	// UpdateWorkloadIdentitySandbox records the sandbox the daemon started for
-	// the workload.
+	// the workload and what its policy settled on.
 	UpdateWorkloadIdentitySandbox(ctx context.Context, arg UpdateWorkloadIdentitySandboxParams) (WorkloadIdentity, error)
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (WorkspaceTable, error)
 	UpdateWorkspaceACLByID(ctx context.Context, arg UpdateWorkspaceACLByIDParams) error

@@ -1862,6 +1862,7 @@ func New(options *Options) *API {
 				r.Get("/gitsshkey", api.agentGitSSHKey)
 				r.With(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentRuntimeWorkloads)).
 					Get("/identity", api.workspaceAgentIdentity)
+				api.registerAgentWorkloadRoutes(r)
 				r.Post("/log-source", api.workspaceAgentPostLogSource)
 				r.Get("/reinit", api.workspaceAgentReinit)
 				r.Route("/experimental", func(r chi.Router) {

@@ -3002,9 +3002,10 @@ class ApiMethods {
 		return res.data;
 	};
 
-	getWorkspaceWorkloads = async (workspaceId: string) => {
+	getWorkspaceWorkloads = async (workspaceId: string, finished: boolean) => {
 		const res = await this.axios.get<TypesGen.Workload[]>(
 			`/api/v2/workspaces/${workspaceId}/workloads`,
+			{ params: finished ? { finished: true } : undefined },
 		);
 		return res.data;
 	};

@@ -36,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/agent/reaper"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/serpent"
@@ -68,6 +69,10 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		devcontainers                   bool
 		workloadRuntime                 string
 		workloadImage                   string
+		workloadAllowedImages           []string
+		workloadNetwork                 string
+		workloadAllowedNetworks         []string
+		workloadAllowedMounts           []string
 		devcontainerProjectDiscovery    bool
 		devcontainerDiscoveryAutostart  bool
 		socketServerEnabled             bool
@@ -343,9 +348,16 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 							StateDir: filepath.Join(os.TempDir(), "coder-workloads"),
 							CLIPath:  cliPath,
 						},
+						Policy: agentworkload.Policy{
+							DefaultImage:    workloadImage,
+							AllowedImages:   workloadAllowedImages,
+							DefaultNetwork:  codersdk.WorkloadNetwork(workloadNetwork),
+							AllowedNetworks: slice.StringEnums[codersdk.WorkloadNetwork](workloadAllowedNetworks),
+							AllowedMounts:   workloadAllowedMounts,
+						},
 						CoderURL:     &agentAuth.agentURL,
 						SessionToken: client.GetSessionToken,
-						DefaultImage: workloadImage,
+						ReportExit:   client.ReportWorkloadExit,
 					})
 					if err != nil {
 						// Workloads are optional. The daemon itself must
@@ -581,6 +593,35 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_WORKLOAD_IMAGE",
 			Description: "The image for workload sandboxes that do not name one.",
 			Value:       serpent.StringOf(&workloadImage),
+			Hidden:      true,
+		},
+		{
+			Flag:        "workload-allowed-images",
+			Env:         "CODER_AGENT_WORKLOAD_ALLOWED_IMAGES",
+			Description: "Patterns of other images a workload may ask for. Without any, only the default image is allowed.",
+			Value:       serpent.StringArrayOf(&workloadAllowedImages),
+			Hidden:      true,
+		},
+		{
+			Flag:        "workload-network",
+			Env:         "CODER_AGENT_WORKLOAD_NETWORK",
+			Description: "The network of workload sandboxes that do not name one: \"outbound\" or \"none\". A workload reaches Coder in both.",
+			Default:     string(codersdk.WorkloadNetworkOutbound),
+			Value:       serpent.StringOf(&workloadNetwork),
+			Hidden:      true,
+		},
+		{
+			Flag:        "workload-allowed-mounts",
+			Env:         "CODER_AGENT_WORKLOAD_ALLOWED_MOUNTS",
+			Description: "Directories that may be shared with a workload, together with everything below them. Without any, a workload sees nothing of the workspace.",
+			Value:       serpent.StringArrayOf(&workloadAllowedMounts),
+			Hidden:      true,
+		},
+		{
+			Flag:        "workload-allowed-networks",
+			Env:         "CODER_AGENT_WORKLOAD_ALLOWED_NETWORKS",
+			Description: "Other networks a workload may ask for. \"none\" is always allowed.",
+			Value:       serpent.StringArrayOf(&workloadAllowedNetworks),
 			Hidden:      true,
 		},
 		{

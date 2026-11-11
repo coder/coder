@@ -3002,6 +3002,13 @@ func (q *querier) FindMatchingPresetID(ctx context.Context, arg database.FindMat
 	return q.db.FindMatchingPresetID(ctx, arg)
 }
 
+func (q *querier) FinishWorkloadIdentity(ctx context.Context, arg database.FinishWorkloadIdentityParams) (database.WorkloadIdentity, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.WorkloadIdentity{}, err
+	}
+	return q.db.FinishWorkloadIdentity(ctx, arg)
+}
+
 func (q *querier) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
 	// The aggregate covers one chat tree, so it is authorized through the
 	// root chat. Members cannot read interception rows back, but they can
@@ -4290,6 +4297,13 @@ func (q *querier) GetFileTemplates(ctx context.Context, fileID uuid.UUID) ([]dat
 
 func (q *querier) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg database.GetFilteredInboxNotificationsByUserIDParams) ([]database.InboxNotification, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetFilteredInboxNotificationsByUserID)(ctx, arg)
+}
+
+func (q *querier) GetFinishedWorkloadIdentitiesByWorkspaceID(ctx context.Context, arg database.GetFinishedWorkloadIdentitiesByWorkspaceIDParams) ([]database.WorkloadIdentity, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetFinishedWorkloadIdentitiesByWorkspaceID(ctx, arg)
 }
 
 func (q *querier) GetForcedMCPServerConfigsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.MCPServerConfig, error) {
@@ -7697,13 +7711,6 @@ func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) 
 	return q.db.RevokeDBCryptKey(ctx, activeKeyDigest)
 }
 
-func (q *querier) RevokeWorkloadIdentityByID(ctx context.Context, arg database.RevokeWorkloadIdentityByIDParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return err
-	}
-	return q.db.RevokeWorkloadIdentityByID(ctx, arg)
-}
-
 func (q *querier) SelectUsageEventsForPublishing(ctx context.Context, arg time.Time) ([]database.UsageEvent, error) {
 	// ActionUpdate because we're updating the publish_started_at column.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceUsageEvent); err != nil {
@@ -9182,6 +9189,13 @@ func (q *querier) UpdateVolumeResourceMonitor(ctx context.Context, arg database.
 	}
 
 	return q.db.UpdateVolumeResourceMonitor(ctx, arg)
+}
+
+func (q *querier) UpdateWorkloadIdentityOutcome(ctx context.Context, arg database.UpdateWorkloadIdentityOutcomeParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkloadIdentityOutcome(ctx, arg)
 }
 
 func (q *querier) UpdateWorkloadIdentitySandbox(ctx context.Context, arg database.UpdateWorkloadIdentitySandboxParams) (database.WorkloadIdentity, error) {

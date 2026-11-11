@@ -23,8 +23,8 @@ VALUES (
 )
 RETURNING *;
 
--- GetWorkloadIdentityByID also returns revoked identities. Callers that
--- authorize with the identity must check revoked_at.
+-- GetWorkloadIdentityByID also returns finished identities. Callers that
+-- authorize with the identity must check finished_at.
 -- name: GetWorkloadIdentityByID :one
 SELECT
 	*
@@ -33,7 +33,8 @@ FROM
 WHERE
 	id = @id;
 
--- GetWorkloadIdentitiesByWorkspaceID does not return revoked identities.
+-- GetWorkloadIdentitiesByWorkspaceID returns the live workloads of a
+-- workspace.
 -- name: GetWorkloadIdentitiesByWorkspaceID :many
 SELECT
 	*
@@ -41,29 +42,67 @@ FROM
 	workload_identities
 WHERE
 	workspace_id = @workspace_id
-	AND revoked_at IS NULL
+	AND finished_at IS NULL
 ORDER BY
 	created_at ASC;
 
+-- GetFinishedWorkloadIdentitiesByWorkspaceID returns the most recently
+-- finished workloads of a workspace, newest first.
+-- name: GetFinishedWorkloadIdentitiesByWorkspaceID :many
+SELECT
+	*
+FROM
+	workload_identities
+WHERE
+	workspace_id = @workspace_id
+	AND finished_at IS NOT NULL
+ORDER BY
+	finished_at DESC
+LIMIT
+	@limit_opt :: integer;
+
 -- UpdateWorkloadIdentitySandbox records the sandbox the daemon started for
--- the workload.
+-- the workload and what its policy settled on.
 -- name: UpdateWorkloadIdentitySandbox :one
 UPDATE
 	workload_identities
 SET
 	runtime = @runtime,
 	sandbox_id = @sandbox_id,
+	image = @image,
+	network = @network,
+	mounts = @mounts,
 	started_at = @started_at
 WHERE
 	id = @id
-	AND revoked_at IS NULL
+	AND finished_at IS NULL
 RETURNING *;
 
--- name: RevokeWorkloadIdentityByID :exec
+-- FinishWorkloadIdentity ends a workload. From then on the identity
+-- authorizes nothing. It returns no row when the workload was already over,
+-- so that an ending is recorded once.
+-- name: FinishWorkloadIdentity :one
 UPDATE
 	workload_identities
 SET
-	revoked_at = @revoked_at
+	finished_at = @finished_at,
+	end_reason = @end_reason,
+	exit_code = @exit_code,
+	output_tail = @output_tail
 WHERE
 	id = @id
-	AND revoked_at IS NULL;
+	AND finished_at IS NULL
+RETURNING *;
+
+-- UpdateWorkloadIdentityOutcome adds what the daemon knows about how a
+-- workload ended to one that was finished before the daemon reported in,
+-- for example a workload a user removed.
+-- name: UpdateWorkloadIdentityOutcome :exec
+UPDATE
+	workload_identities
+SET
+	exit_code = COALESCE(exit_code, @exit_code),
+	output_tail = CASE WHEN output_tail = '' THEN @output_tail ELSE output_tail END
+WHERE
+	id = @id
+	AND finished_at IS NOT NULL;

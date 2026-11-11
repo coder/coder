@@ -2048,6 +2048,21 @@ func (mr *MockStoreMockRecorder) FindMatchingPresetID(ctx, arg any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FindMatchingPresetID", reflect.TypeOf((*MockStore)(nil).FindMatchingPresetID), ctx, arg)
 }
 
+// FinishWorkloadIdentity mocks base method.
+func (m *MockStore) FinishWorkloadIdentity(ctx context.Context, arg database.FinishWorkloadIdentityParams) (database.WorkloadIdentity, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FinishWorkloadIdentity", ctx, arg)
+	ret0, _ := ret[0].(database.WorkloadIdentity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FinishWorkloadIdentity indicates an expected call of FinishWorkloadIdentity.
+func (mr *MockStoreMockRecorder) FinishWorkloadIdentity(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FinishWorkloadIdentity", reflect.TypeOf((*MockStore)(nil).FinishWorkloadIdentity), ctx, arg)
+}
+
 // GetAIBridgeChatCost mocks base method.
 func (m *MockStore) GetAIBridgeChatCost(ctx context.Context, rootChatID uuid.UUID) (database.GetAIBridgeChatCostRow, error) {
 	m.ctrl.T.Helper()
@@ -4431,6 +4446,21 @@ func (m *MockStore) GetFilteredInboxNotificationsByUserID(ctx context.Context, a
 func (mr *MockStoreMockRecorder) GetFilteredInboxNotificationsByUserID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFilteredInboxNotificationsByUserID", reflect.TypeOf((*MockStore)(nil).GetFilteredInboxNotificationsByUserID), ctx, arg)
+}
+
+// GetFinishedWorkloadIdentitiesByWorkspaceID mocks base method.
+func (m *MockStore) GetFinishedWorkloadIdentitiesByWorkspaceID(ctx context.Context, arg database.GetFinishedWorkloadIdentitiesByWorkspaceIDParams) ([]database.WorkloadIdentity, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFinishedWorkloadIdentitiesByWorkspaceID", ctx, arg)
+	ret0, _ := ret[0].([]database.WorkloadIdentity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFinishedWorkloadIdentitiesByWorkspaceID indicates an expected call of GetFinishedWorkloadIdentitiesByWorkspaceID.
+func (mr *MockStoreMockRecorder) GetFinishedWorkloadIdentitiesByWorkspaceID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFinishedWorkloadIdentitiesByWorkspaceID", reflect.TypeOf((*MockStore)(nil).GetFinishedWorkloadIdentitiesByWorkspaceID), ctx, arg)
 }
 
 // GetForcedMCPServerConfigsByOrganization mocks base method.
@@ -10425,20 +10455,6 @@ func (mr *MockStoreMockRecorder) RevokeDBCryptKey(ctx, activeKeyDigest any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeDBCryptKey", reflect.TypeOf((*MockStore)(nil).RevokeDBCryptKey), ctx, activeKeyDigest)
 }
 
-// RevokeWorkloadIdentityByID mocks base method.
-func (m *MockStore) RevokeWorkloadIdentityByID(ctx context.Context, arg database.RevokeWorkloadIdentityByIDParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RevokeWorkloadIdentityByID", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// RevokeWorkloadIdentityByID indicates an expected call of RevokeWorkloadIdentityByID.
-func (mr *MockStoreMockRecorder) RevokeWorkloadIdentityByID(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeWorkloadIdentityByID", reflect.TypeOf((*MockStore)(nil).RevokeWorkloadIdentityByID), ctx, arg)
-}
-
 // SelectUsageEventsForPublishing mocks base method.
 func (m *MockStore) SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]database.UsageEvent, error) {
 	m.ctrl.T.Helper()
@@ -12323,6 +12339,20 @@ func (m *MockStore) UpdateVolumeResourceMonitor(ctx context.Context, arg databas
 func (mr *MockStoreMockRecorder) UpdateVolumeResourceMonitor(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateVolumeResourceMonitor", reflect.TypeOf((*MockStore)(nil).UpdateVolumeResourceMonitor), ctx, arg)
+}
+
+// UpdateWorkloadIdentityOutcome mocks base method.
+func (m *MockStore) UpdateWorkloadIdentityOutcome(ctx context.Context, arg database.UpdateWorkloadIdentityOutcomeParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkloadIdentityOutcome", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkloadIdentityOutcome indicates an expected call of UpdateWorkloadIdentityOutcome.
+func (mr *MockStoreMockRecorder) UpdateWorkloadIdentityOutcome(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkloadIdentityOutcome", reflect.TypeOf((*MockStore)(nil).UpdateWorkloadIdentityOutcome), ctx, arg)
 }
 
 // UpdateWorkloadIdentitySandbox mocks base method.

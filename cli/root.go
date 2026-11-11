@@ -177,6 +177,7 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.syncCommand(),
 		r.updateUserEmail(),
 		r.experimentRulesCommand(),
+		r.workloadInit(),
 	}
 }
 

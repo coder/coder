@@ -73,6 +73,22 @@ type ValidateAPIKeyConfig struct {
 	ResolveWorkloadIdentity func(ctx context.Context, token, identity string) (*ValidateAPIKeyResult, bool)
 }
 
+// WorkloadAPIKeyIDPrefix starts the ID of the API key a workload identity
+// is presented as on user API routes. No such key exists in the database,
+// and real API key IDs never contain a colon.
+const WorkloadAPIKeyIDPrefix = "workload:"
+
+// WorkloadIdentityID returns the workload identity a request was made as,
+// when it was made by a workload through its workspace daemon.
+func WorkloadIdentityID(key database.APIKey) (uuid.UUID, bool) {
+	raw, ok := strings.CutPrefix(key.ID, WorkloadAPIKeyIDPrefix)
+	if !ok {
+		return uuid.Nil, false
+	}
+	id, err := uuid.Parse(raw)
+	return id, err == nil
+}
+
 // ValidateAPIKeyResult is the outcome of successful validation.
 type ValidateAPIKeyResult struct {
 	Key        database.APIKey
@@ -301,6 +317,11 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 		// agent token is no credential at all.
 		if identity := r.Header.Get(codersdk.WorkloadIdentityHeader); identity != "" {
 			if result, ok := cfg.ResolveWorkloadIdentity(ctx, tokenFunc(r), identity); ok {
+				// The request log names the workload on every request it
+				// makes, reads included.
+				if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
+					rl.WithFields(slog.F("api_key_id", result.Key.ID), slog.F("workload_identity_id", identity))
+				}
 				return result, nil
 			}
 		}

@@ -40,6 +40,7 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"ChatModelConfig":                  {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"MCPServerConfig":                  {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"UserSecret":                       {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
+	"WorkloadIdentity":                 {codersdk.AuditActionStart, codersdk.AuditActionStop, codersdk.AuditActionConnect},
 	"Skill":                            {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AuditableOrganizationSkill":       {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AuditableChatProjectSkill":        {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
@@ -662,6 +663,30 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"mode":       ActionTrack,
 		"condition":  ActionTrack,
 		"revision":   ActionTrack,
+	},
+	&database.WorkloadIdentity{}: {
+		"id":                 ActionTrack,
+		"organization_id":    ActionTrack,
+		"sponsor_id":         ActionTrack,
+		"workspace_id":       ActionTrack,
+		"workspace_agent_id": ActionTrack,
+		"name":               ActionTrack,
+		"command":            ActionTrack,
+		"scopes":             ActionTrack,
+		"image":              ActionTrack,
+		"network":            ActionTrack,
+		"mounts":             ActionTrack,
+		"runtime":            ActionTrack,
+		"sandbox_id":         ActionTrack,
+		"end_reason":         ActionTrack,
+		"exit_code":          ActionTrack,
+
+		// A workload's output can hold anything it printed.
+		"output_tail": ActionSecret,
+
+		"created_at":  ActionIgnore,
+		"started_at":  ActionIgnore,
+		"finished_at": ActionIgnore,
 	},
 	&database.UserSecret{}: {
 		"id":          ActionTrack,

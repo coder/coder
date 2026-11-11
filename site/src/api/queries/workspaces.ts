@@ -64,10 +64,10 @@ export const workspaceByOwnerAndName = (owner: string, name: string) => {
 	};
 };
 
-export const workspaceWorkloads = (workspaceId: string) => {
+export const workspaceWorkloads = (workspaceId: string, finished: boolean) => {
 	return {
-		queryKey: [...workspaceByIdKey(workspaceId), "workloads"],
-		queryFn: () => API.getWorkspaceWorkloads(workspaceId),
+		queryKey: [...workspaceByIdKey(workspaceId), "workloads", { finished }],
+		queryFn: () => API.getWorkspaceWorkloads(workspaceId, finished),
 	};
 };
 

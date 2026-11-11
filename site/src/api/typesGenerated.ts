@@ -1666,6 +1666,23 @@ export const AgentSubsystems: AgentSubsystem[] = [
 
 // From codersdk/workloads.go
 /**
+ * AgentWorkloadExit is what a workspace daemon reports when a workload is
+ * over.
+ */
+export interface AgentWorkloadExit {
+	/**
+	 * ExitCode is nil when the daemon does not know it.
+	 */
+	readonly exit_code?: number;
+	readonly reason: WorkloadEndReason;
+	/**
+	 * OutputTail is the end of the workload's output.
+	 */
+	readonly output_tail?: string;
+}
+
+// From codersdk/workloads.go
+/**
  * AgentWorkloadSpec is what coderd asks a workspace daemon to run.
  */
 export interface AgentWorkloadSpec {
@@ -1676,7 +1693,17 @@ export interface AgentWorkloadSpec {
 	readonly id: string;
 	readonly name: string;
 	readonly command: string;
+	/**
+	 * Image, Network and Mounts are requests. The daemon's policy, which
+	 * the template sets, decides whether to honor them.
+	 */
 	readonly image?: string;
+	readonly network?: WorkloadNetwork;
+	readonly mounts?: readonly WorkloadMount[];
+	/**
+	 * Interactive gives the command a terminal.
+	 */
+	readonly interactive?: boolean;
 }
 
 // From codersdk/workloads.go
@@ -1687,6 +1714,12 @@ export interface AgentWorkloadState {
 	readonly id: string;
 	readonly name: string;
 	readonly sandbox: WorkloadSandbox;
+	/**
+	 * Image, Network and Mounts are what the daemon's policy settled on.
+	 */
+	readonly image: string;
+	readonly network: WorkloadNetwork;
+	readonly mounts?: readonly WorkloadMount[];
 	readonly running: boolean;
 	readonly exit_code?: number;
 	readonly started_at: string;
@@ -5005,9 +5038,25 @@ export interface CreateWorkloadRequest {
 	 */
 	readonly command: string;
 	/**
-	 * Image overrides the image the daemon uses for sandboxes.
+	 * Image asks for another image than the daemon's default. The
+	 * template decides which images are allowed.
 	 */
 	readonly image?: string;
+	/**
+	 * Network asks for another network than the daemon's default. Asking
+	 * for none is always allowed.
+	 */
+	readonly network?: WorkloadNetwork;
+	/**
+	 * Mounts asks for directories of the workspace to be visible in the
+	 * sandbox. The template decides which directories may be shared.
+	 */
+	readonly mounts?: readonly WorkloadMount[];
+	/**
+	 * Interactive gives the command a terminal that the sponsor can attach
+	 * to.
+	 */
+	readonly interactive?: boolean;
 	/**
 	 * Scopes are the API key scopes the workload may use on the sponsor's
 	 * behalf. Without any, the workload can do nothing in Coder.
@@ -9477,6 +9526,7 @@ export type ResourceType =
 	| "user_ai_budget_override"
 	| "user_secret"
 	| "user_skill"
+	| "workload_identity"
 	| "workspace"
 	| "workspace_agent"
 	| "workspace_app"
@@ -9527,6 +9577,7 @@ export const ResourceTypes: ResourceType[] = [
 	"user_ai_budget_override",
 	"user_secret",
 	"user_skill",
+	"workload_identity",
 	"workspace",
 	"workspace_agent",
 	"workspace_app",
@@ -12345,9 +12396,22 @@ export interface Workload {
 	readonly agent_id: string;
 	readonly agent_name: string;
 	readonly status: WorkloadStatus;
-	readonly exit_code?: number;
 	readonly command: string;
 	readonly created_at: string;
+	/**
+	 * FinishedAt is set once the workload is over.
+	 */
+	readonly finished_at?: string;
+	/**
+	 * ExitCode is the command's exit code, when it is known.
+	 */
+	readonly exit_code?: number;
+	/**
+	 * Image, Network and Mounts are what the daemon's policy settled on.
+	 */
+	readonly image?: string;
+	readonly network?: WorkloadNetwork;
+	readonly mounts?: readonly WorkloadMount[];
 	/**
 	 * Identity is the workload's identity as it is displayed.
 	 */
@@ -12371,6 +12435,22 @@ export type WorkloadAttestation = "agent-token" | "workspace-daemon";
 export const WorkloadAttestations: WorkloadAttestation[] = [
 	"agent-token",
 	"workspace-daemon",
+];
+
+// From codersdk/workloads.go
+export type WorkloadEndReason =
+	| "exited"
+	| "failed"
+	| "lost"
+	| "removed"
+	| "stopped";
+
+export const WorkloadEndReasons: WorkloadEndReason[] = [
+	"exited",
+	"failed",
+	"lost",
+	"removed",
+	"stopped",
 ];
 
 // From codersdk/workloads.go
@@ -12446,6 +12526,25 @@ export interface WorkloadLogEvent {
 
 // From codersdk/workloads.go
 /**
+ * WorkloadMount is a directory of the workspace that a workload's sandbox
+ * can see, at the same path.
+ */
+export interface WorkloadMount {
+	readonly path: string;
+	/**
+	 * Writable lets the workload change the directory. Without it the
+	 * workload can only read.
+	 */
+	readonly writable?: boolean;
+}
+
+// From codersdk/workloads.go
+export type WorkloadNetwork = "none" | "outbound";
+
+export const WorkloadNetworks: WorkloadNetwork[] = ["none", "outbound"];
+
+// From codersdk/workloads.go
+/**
  * WorkloadSandbox is where a workload runs inside its workspace daemon.
  */
 export interface WorkloadSandbox {
@@ -12468,14 +12567,33 @@ export interface WorkloadSandbox {
 export const WorkloadSocketEnv = "CODER_WORKLOAD_SOCKET";
 
 // From codersdk/workloads.go
-export type WorkloadStatus = "exited" | "running" | "starting" | "unknown";
+export type WorkloadStatus =
+	| "exited"
+	| "failed"
+	| "lost"
+	| "removed"
+	| "running"
+	| "starting"
+	| "stopped"
+	| "unknown";
 
 export const WorkloadStatuses: WorkloadStatus[] = [
 	"exited",
+	"failed",
+	"lost",
+	"removed",
 	"running",
 	"starting",
+	"stopped",
 	"unknown",
 ];
+
+// From codersdk/workloads.go
+/**
+ * WorkloadTermEnv carries the terminal type for an interactive
+ * workload's command past the program that starts it.
+ */
+export const WorkloadTermEnv = "CODER_WORKLOAD_TERM";
 
 // From codersdk/workspaces.go
 /**
@@ -13528,6 +13646,17 @@ export const WorkspaceTransitions: WorkspaceTransition[] = [
 // From codersdk/workspaces.go
 export interface WorkspaceUser extends MinimalUser {
 	readonly role: WorkspaceRole;
+}
+
+// From codersdk/workloads.go
+/**
+ * WorkspaceWorkloadsOptions selects which workloads to list.
+ */
+export interface WorkspaceWorkloadsOptions {
+	/**
+	 * Finished also lists the most recent workloads that are over.
+	 */
+	readonly Finished: boolean;
 }
 
 // From codersdk/workspaces.go

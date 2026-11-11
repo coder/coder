@@ -8,9 +8,16 @@ INSERT INTO workload_identities (
 	name,
 	command,
 	scopes,
+	image,
+	network,
+	mounts,
 	runtime,
 	sandbox_id,
-	started_at
+	started_at,
+	finished_at,
+	end_reason,
+	exit_code,
+	output_tail
 )
 VALUES (
 	'8c2f4b1e-6d3a-4e7f-9b0c-1a5d7e9f2c4b',
@@ -22,7 +29,14 @@ VALUES (
 	'workload-1',
 	'echo hello',
 	'{workspace:read}',
+	'alpine:3.22',
+	'none',
+	'{/projects/demo}',
 	'docker',
 	'3f1c0a527c9e4d0b8a570d6f1c2b3a4e',
-	'2024-11-02 13:10:01.000000+02'
+	'2024-11-02 13:10:01.000000+02',
+	'2024-11-02 13:10:02.000000+02',
+	'exited',
+	0,
+	'hello'
 );

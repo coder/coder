@@ -3916,6 +3916,7 @@ const (
 	ResourceTypeChatProjectInstructions      ResourceType = "chat_project_instructions"
 	ResourceTypeOrganizationSkill            ResourceType = "organization_skill"
 	ResourceTypeChatProjectSkill             ResourceType = "chat_project_skill"
+	ResourceTypeWorkloadIdentity             ResourceType = "workload_identity"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -4002,7 +4003,8 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeChatOrganizationSystemPrompt,
 		ResourceTypeChatProjectInstructions,
 		ResourceTypeOrganizationSkill,
-		ResourceTypeChatProjectSkill:
+		ResourceTypeChatProjectSkill,
+		ResourceTypeWorkloadIdentity:
 		return true
 	}
 	return false
@@ -4058,6 +4060,7 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeChatProjectInstructions,
 		ResourceTypeOrganizationSkill,
 		ResourceTypeChatProjectSkill,
+		ResourceTypeWorkloadIdentity,
 	}
 }
 
@@ -6825,7 +6828,7 @@ type WebpushSubscription struct {
 	EndpointAuthKey   string    `db:"endpoint_auth_key" json:"endpoint_auth_key"`
 }
 
-// A workload identity is a principal for a workload that runs in a sandbox inside a workspace daemon. It acts with the permissions of its sponsor, narrowed to its scopes.
+// A workload identity is a principal for a workload that runs in a sandbox inside a workspace daemon. It acts with the permissions of its sponsor, narrowed to its scopes. The row outlives the workload as the record of what ran.
 type WorkloadIdentity struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
@@ -6839,12 +6842,23 @@ type WorkloadIdentity struct {
 	Command          string    `db:"command" json:"command"`
 	// API key scope names. An empty list grants nothing.
 	Scopes  []string `db:"scopes" json:"scopes"`
+	Image   string   `db:"image" json:"image"`
+	Network string   `db:"network" json:"network"`
+	// Directories of the workspace that the sandbox can see, each followed by :rw when it can write to it.
+	Mounts  []string `db:"mounts" json:"mounts"`
 	Runtime string   `db:"runtime" json:"runtime"`
 	// The sandbox the daemon reported for the workload, as its runtime names it.
 	SandboxID string `db:"sandbox_id" json:"sandbox_id"`
 	// When the daemon reported the sandbox. NULL while the workload is starting.
 	StartedAt sql.NullTime `db:"started_at" json:"started_at"`
-	RevokedAt sql.NullTime `db:"revoked_at" json:"revoked_at"`
+	// When the workload was over. From then on the identity authorizes nothing. NULL while the workload is live.
+	FinishedAt sql.NullTime `db:"finished_at" json:"finished_at"`
+	// Why the workload is over: exited, removed, stopped, lost or failed.
+	EndReason string `db:"end_reason" json:"end_reason"`
+	// The exit code of the command, when it is known.
+	ExitCode sql.NullInt32 `db:"exit_code" json:"exit_code"`
+	// The end of the workload's output, kept for the record.
+	OutputTail string `db:"output_tail" json:"output_tail"`
 }
 
 // Joins in the display name information such as username, avatar, and organization name.

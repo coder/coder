@@ -1,0 +1,203 @@
+# Design notes
+
+What this proof of concept is meant to grow into. Nothing in this file is
+built unless it says so. [EVALUATION.md](EVALUATION.md) explains why these
+are the next steps.
+
+## One primitive for commands and agents
+
+A workload is a command in a sandbox with an identity. An agent is a
+workload whose command is an agent harness. There is no second mechanism.
+
+| What runs                    | How                                                                           | State                                   |
+|------------------------------|-------------------------------------------------------------------------------|-----------------------------------------|
+| A one-off command            | `coder run dev -- make test`                                                  | Built                                   |
+| A long-running process       | `coder run -d --name indexer dev -- ./index`                                  | Built                                   |
+| A shell                      | `coder run -it dev -- sh`                                                     | Built                                   |
+| An agent with a terminal UI  | `coder run -it --image <agent image> --mount /projects/repo:rw dev -- claude` | Mechanics built, not run with a harness |
+| A headless agent             | `coder run -d --image <agent image> dev -- claude -p "..."`                   | Mechanics built, not run with a harness |
+| An agent driven from the web | A native session whose harness runs in a sandbox                              | Designed below                          |
+
+What the mechanics give an agent today: a terminal, a working directory
+shared with the human, an image the template allows, an identity, scoped use
+of Coder's API from any HTTP client, and a record of the run. What they do
+not give it is a model. That is the first thing to build.
+
+## Agents
+
+### Model access through the channel
+
+A harness needs a model endpoint and insists on some credential for it. The
+aim is that the endpoint is Coder's AI Gateway and the credential is the
+workload identity, so that no key of any kind is in the sandbox.
+
+```text
+harness in the sandbox
+   |  ANTHROPIC_BASE_URL=$CODER_URL/api/v2/ai-gateway/anthropic
+   |  OPENAI_BASE_URL=$CODER_URL/api/v2/ai-gateway/openai/v1
+   |  a placeholder where the client demands a key
+   v
+loopback address -> channel -> workspace daemon
+   |  removes every credential header, adds its agent token and the
+   |  workload identity (as it does for every request today)
+   v
+coderd, in front of the AI Gateway
+   |  verifies the vouch exactly as the API does; requires a scope for
+   |  model use; marks the request as delegated by that workload identity
+   v
+AI Gateway
+      authorizes as the sponsor; records the interception, its prompts,
+      tool calls and tokens under the workload identity; applies the
+      sponsor's budget and the provider keys that only the gateway holds
+```
+
+The pieces, and what exists already:
+
+- **In the sandbox.** The program that starts the command already offers
+  the channel on a loopback address and sets `CODER_URL` (built). It would
+  also set the two base URLs and placeholders when the workload has the
+  scope.
+- **In the daemon.** The channel already replaces credentials on every
+  request (built). It must also remove `X-Api-Key` and
+  `X-Coder-AI-Governance-Token`, which the gateway reads and the API does
+  not.
+- **In coderd.** The gateway has a precedent for a caller that is vouched
+  for and not authenticated by a key: Coder's own chat service reaches the
+  gateway in-process with a delegated API key ID, and the gateway then only
+  checks that the key is alive
+  (`coderd/aibridge/factory.go`, `coderd/aibridgedserver`). A workload is
+  the same case with a different voucher. A middleware in front of the
+  gateway's data plane resolves the vouch with the function the API uses
+  (`vouchedWorkloadIdentity` in `coderd/workloads.go`) and puts the
+  workload identity on the request. The gateway's authorization step
+  accepts it, checks that the workload is not over and its sponsor is
+  active, and returns the sponsor as the owner.
+- **In the record.** Interceptions get a nullable `workload_identity_id`
+  next to the initiator. The gateway's session views, usage and budgets
+  then answer "which agent" as well as "which user".
+- **A scope.** Model use needs a scope of its own, so that a workload with
+  no scopes still cannot spend its sponsor's budget.
+
+Why it is not built here: the gateway's HTTP routes are registered by the
+enterprise package and need a license, so they do not exist on this
+deployment and the change could not be run.
+
+### Native sessions
+
+The branch `feat/native-workspace-agents` drives Claude Code, Codex and
+OpenCode from the web UI. A session there is a harness process that the
+workspace agent starts and talks to, shown in the browser over the Agent
+Client Protocol through a relay in coderd. Read against this design:
+
+| On that branch                                                                    | With workloads                                                 |
+|-----------------------------------------------------------------------------------|----------------------------------------------------------------|
+| Harnesses are child processes of the agent, as the same user                      | Each session's harness runs in its own sandbox                 |
+| Sessions share the home directory and every provider credential                   | A sandbox holds no credential and sees only shared directories |
+| A session has no owner and no record in Coder                                     | A session is a workload: sponsor, scopes, record, audit        |
+| Model access is a provider key or gateway token copied into the workspace by hand | Model access through the channel, as above                     |
+| Any user who may connect to the workspace drives every session                    | Only the sponsor attaches to a workload                        |
+
+The fusion keeps that branch's session manager and harness adapters and
+changes where they run:
+
+- **The manager runs inside the sandbox**, next to the harness, as the
+  workload's command. The adapters prove that a harness process is theirs
+  by user ID, process namespace and files, so they must share a sandbox
+  with it. Running only the harness in a sandbox would mean rewriting those
+  checks.
+- **One sandbox per session.** Sessions then stop sharing a harness server,
+  a home directory and a connection pool.
+- **The protocol crosses the channel.** A sandbox can only dial out, so the
+  manager holds a connection open to its daemon on a path the daemon keeps
+  to itself, and the daemon pairs it with the browser's connection that
+  coderd relays. `coder run -it` already carries a terminal along the same
+  three hops (browser or CLI, coderd, daemon, sandbox), so the transport is
+  proven.
+- **Opening the native terminal UI** is attaching to the workload.
+- **A session that ends keeps its disk**, so that it can be resumed. That
+  is the next section.
+
+What is left of the trust question from that branch is the same as for any
+workload: the daemon vouches, and the template decides what a sandbox may
+be.
+
+## Disk snapshots
+
+A workload's disk should be able to outlive it, so that a later workload
+can pick up where it stopped: resume an agent's session, look at what a
+failed run left behind, or try two continuations of one state.
+
+### Model
+
+- **A snapshot is a record in Coder**, in the organization of the
+  workspace, with the workload it was taken from, its sponsor, the runtime's
+  reference to the data, a digest, a size and an expiry.
+- **Attaching makes a new workload with a new identity.** An identity is
+  the record of one run and is never reused. The new workload's record
+  names the snapshot it started from, so the chain of runs can be followed.
+- **Nothing is inherited but the disk.** Scopes, network and shared
+  directories are granted anew by `coder run`, within today's policy. A
+  snapshot taken by a workload with no network cannot become a way to
+  carry data out later without someone granting a network.
+- **Only the sponsor attaches**, and only in the workspace the snapshot was
+  taken in, until there is a reason to share.
+
+```sh
+coder run --keep dev --name fix-1 -- agent ...       # keep the disk when it ends
+coder run --from fix-1 dev -- agent --resume         # a new workload on that disk
+coder run --from fix-1 -it dev -- sh                 # or look around in it
+coder run --all dev                                  # shows which runs have a disk
+coder run --forget fix-1 dev                         # delete the disk
+```
+
+### In the runtime
+
+The runtime interface gets two additions: a sandbox can be snapshotted, and
+a workload's spec can name a snapshot to start from.
+
+- **Docker.** A snapshot is `docker commit` of the exited container into an
+  image that only the daemon may name, and attaching is `docker run` from
+  that image. Layers are copy-on-write, so a snapshot costs what the run
+  changed, and several workloads can start from one snapshot. This was
+  tried by hand in the pod of this proof of concept: a container that wrote
+  20 MB was committed and a new sandbox, with the same restrictions,
+  started from it and saw the files.
+- **MicroVMs.** A snapshot is a snapshot of the VM's block device. A runtime
+  that can also save memory could resume a workload mid-thought instead of
+  restarting its command.
+
+What a snapshot holds is the sandbox's own filesystem. It does not hold
+shared directories, which belong to the workspace, or running processes.
+
+### Where the data lives
+
+| Place                                 | Survives a workspace stop  | Cost                                                                                                                    |
+|---------------------------------------|----------------------------|-------------------------------------------------------------------------------------------------------------------------|
+| Docker's storage in the pod, as today | No                         | Nothing to build. Good for retries within a session.                                                                    |
+| The same on a persistent volume       | Yes                        | A volume per workspace. Images stay cached too, which makes `coder run` faster after a start.                           |
+| An image registry or object store     | Yes, and across workspaces | The daemon must not hold the credential. coderd would take the upload over the daemon's connection and own the storage. |
+
+The persistent volume is the first step. The third option is what "attach
+from another workspace" would need.
+
+### Risks to design for
+
+- **A snapshot is data at rest** that an agent wrote. It needs an expiry, a
+  quota and the same access rule as the workload's output.
+- **A snapshot is a way to persist.** A workload that was subverted can
+  leave something behind for the next run, which may have wider scopes. The
+  chain of runs is on record, and policy can refuse to start from a
+  snapshot with more scopes than the run that made it.
+- **Root in the daemon's container can alter stored data.** coderd records
+  the digest when the snapshot is taken and the daemon checks it when
+  attaching, so that a change is at least noticed.
+
+### With a checkout
+
+For an agent that works on source code, the disk is the lesser half. The
+checkout lives in a shared directory. The pattern that fits is a Git
+worktree per workload in the shared directory, mounted writable into that
+workload alone, with the main checkout mounted read-only or not at all.
+The worktree is then the durable result that the human reviews, and the
+snapshot holds the agent's own state. `coder run` could create and remove
+the worktree itself.

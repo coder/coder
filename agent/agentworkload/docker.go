@@ -37,6 +37,11 @@ const (
 // into it except its own channel and, read-only, the coder CLI. For
 // containers to be unable to reach each other, run the Docker daemon with
 // inter-container communication disabled, and do not let it listen on TCP.
+//
+// When the CLI is offered, it also starts the workload: it gives programs
+// that cannot use a unix socket a loopback address for the channel, then
+// runs the command. That is plumbing inside the sandbox and holds no
+// secret.
 type DockerRuntime struct {
 	// Docker is the docker CLI. It defaults to "docker".
 	Docker string
@@ -107,19 +112,42 @@ func (d *DockerRuntime) Start(ctx context.Context, spec Spec, channel http.Handl
 		"run", "--detach",
 		"--name", "coder-workload-" + spec.ID.String(),
 		"--label", dockerLabel + "=" + spec.ID.String(),
+		"--init",
 		"--cap-drop", "ALL",
 		"--security-opt", "no-new-privileges",
 		"--user", "1000:1000",
 		"--pids-limit", "512",
+		"--network", dockerNetwork(spec.Network),
 		"--volume", dir + ":" + sandboxChannelDir + ":ro",
 		"--env", codersdk.WorkloadSocketEnv + "=" + sandboxSocket,
 		"--env", "HOME=/tmp",
 		"--env", "CODER_WORKLOAD_NAME=" + spec.Name,
 	}
-	if d.CLIPath != "" {
-		args = append(args, "--volume", d.CLIPath+":"+sandboxCLI+":ro")
+	if spec.Interactive {
+		args = append(args, "--interactive", "--tty")
+		if d.CLIPath != "" {
+			// The CLI that starts the command asks a terminal what it can
+			// do and waits for the answer, swallowing what is typed in the
+			// meantime. It does not ask a dumb terminal. It then gives the
+			// command the real terminal type.
+			args = append(args, "--env", "TERM=dumb", "--env", codersdk.WorkloadTermEnv+"=xterm-256color")
+		}
 	}
-	args = append(args, spec.Image, "sh", "-c", spec.Command)
+	for _, mount := range spec.Mounts {
+		mode := "ro"
+		if mount.Writable {
+			mode = "rw"
+		}
+		args = append(args, "--volume", mount.Path+":"+mount.Path+":"+mode)
+	}
+	args = append(args, spec.Image)
+	if d.CLIPath != "" {
+		// The image goes last among the options, so the mount is inserted
+		// before it.
+		args = append(args[:len(args)-1], "--volume", d.CLIPath+":"+sandboxCLI+":ro", spec.Image,
+			sandboxCLI, "exp", "workload-init", "--")
+	}
+	args = append(args, "sh", "-c", spec.Command)
 	containerID, err := d.docker(ctx, args...)
 	if err != nil {
 		_ = server.Close()
@@ -127,6 +155,15 @@ func (d *DockerRuntime) Start(ctx context.Context, spec Spec, channel http.Handl
 		return nil, err
 	}
 	return &dockerSandbox{runtime: d, containerID: containerID, dir: dir, server: server}, nil
+}
+
+// dockerNetwork maps a workload's network to a Docker network. Without a
+// network a container still has loopback and its channel, which is a file.
+func dockerNetwork(network codersdk.WorkloadNetwork) string {
+	if network == codersdk.WorkloadNetworkNone {
+		return "none"
+	}
+	return "bridge"
 }
 
 // Sweep implements Runtime.
@@ -156,6 +193,16 @@ func (s *dockerSandbox) Logs(ctx context.Context, w io.Writer) error {
 	cmd := s.runtime.command(ctx, "logs", "--follow", s.containerID)
 	cmd.Stdout, cmd.Stderr = w, w
 	return cmd.Run()
+}
+
+func (s *dockerSandbox) AttachCommand() (string, []string) {
+	bin := s.runtime.Docker
+	if bin == "" {
+		bin = "docker"
+	}
+	// Without detach keys, nothing typed into the workload's terminal can
+	// be taken for an instruction to Docker.
+	return bin, []string{"attach", "--detach-keys", "ctrl-@,ctrl-@,ctrl-@", s.containerID}
 }
 
 func (s *dockerSandbox) Wait(ctx context.Context) (int, error) {

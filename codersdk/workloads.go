@@ -6,11 +6,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/websocket"
 )
 
 const (
@@ -23,6 +28,65 @@ const (
 	// of a unix socket that leads to Coder's API as that workload. The
 	// socket is the workload's identity: the sandbox holds no credential.
 	WorkloadSocketEnv = "CODER_WORKLOAD_SOCKET"
+	// WorkloadTermEnv carries the terminal type for an interactive
+	// workload's command past the program that starts it.
+	WorkloadTermEnv = "CODER_WORKLOAD_TERM"
+)
+
+// WorkloadNetwork is what a workload's sandbox can reach over the network.
+// Its channel to Coder works in every mode.
+type WorkloadNetwork string
+
+const (
+	// WorkloadNetworkNone gives the sandbox no network at all. Coder,
+	// through the channel, is the only thing it can talk to.
+	WorkloadNetworkNone WorkloadNetwork = "none"
+	// WorkloadNetworkOutbound gives the sandbox ordinary outbound network
+	// access. It still cannot reach other sandboxes.
+	WorkloadNetworkOutbound WorkloadNetwork = "outbound"
+)
+
+// WorkloadMount is a directory of the workspace that a workload's sandbox
+// can see, at the same path.
+type WorkloadMount struct {
+	Path string `json:"path"`
+	// Writable lets the workload change the directory. Without it the
+	// workload can only read.
+	Writable bool `json:"writable,omitempty"`
+}
+
+// String formats the mount the way the CLI accepts it.
+func (m WorkloadMount) String() string {
+	if m.Writable {
+		return m.Path + ":rw"
+	}
+	return m.Path
+}
+
+// ParseWorkloadMount parses "path" or "path:rw".
+func ParseWorkloadMount(raw string) WorkloadMount {
+	if path, ok := strings.CutSuffix(raw, ":rw"); ok {
+		return WorkloadMount{Path: path, Writable: true}
+	}
+	return WorkloadMount{Path: strings.TrimSuffix(raw, ":ro")}
+}
+
+// WorkloadEndReason says why a workload is over.
+type WorkloadEndReason string
+
+const (
+	// WorkloadEndReasonExited means the command ran to its end.
+	WorkloadEndReasonExited WorkloadEndReason = "exited"
+	// WorkloadEndReasonRemoved means a user removed the workload.
+	WorkloadEndReasonRemoved WorkloadEndReason = "removed"
+	// WorkloadEndReasonStopped means the workspace daemon shut down, as it
+	// does when the workspace stops.
+	WorkloadEndReasonStopped WorkloadEndReason = "stopped"
+	// WorkloadEndReasonLost means the sandbox disappeared: it was killed
+	// from outside, or its daemon went away without saying so.
+	WorkloadEndReasonLost WorkloadEndReason = "lost"
+	// WorkloadEndReasonFailed means the sandbox never started.
+	WorkloadEndReasonFailed WorkloadEndReason = "failed"
 )
 
 // WorkloadIdentityKind says what kind of principal a process acts as.
@@ -87,7 +151,9 @@ type WorkloadIdentity struct {
 	Sandbox *WorkloadSandbox `json:"sandbox,omitempty"`
 }
 
-// WorkloadStatus is the lifecycle of a workload.
+// WorkloadStatus is the lifecycle of a workload. A workload is live while
+// it is starting, running or unknown. Every other status is final: the
+// workload is over and its identity can no longer be used.
 type WorkloadStatus string
 
 const (
@@ -96,11 +162,19 @@ const (
 	WorkloadStatusStarting WorkloadStatus = "starting"
 	// WorkloadStatusRunning means the workload's command is running.
 	WorkloadStatusRunning WorkloadStatus = "running"
-	// WorkloadStatusExited means the command has finished. The identity
-	// can no longer be used.
-	WorkloadStatusExited WorkloadStatus = "exited"
 	// WorkloadStatusUnknown means the workspace daemon cannot be reached.
 	WorkloadStatusUnknown WorkloadStatus = "unknown"
+	// WorkloadStatusExited means the command ran to its end.
+	WorkloadStatusExited WorkloadStatus = "exited"
+	// WorkloadStatusRemoved means a user removed the workload.
+	WorkloadStatusRemoved WorkloadStatus = "removed"
+	// WorkloadStatusStopped means the workload ended with its workspace
+	// daemon, as it does when the workspace stops.
+	WorkloadStatusStopped WorkloadStatus = "stopped"
+	// WorkloadStatusLost means the sandbox disappeared.
+	WorkloadStatusLost WorkloadStatus = "lost"
+	// WorkloadStatusFailed means the sandbox never started.
+	WorkloadStatusFailed WorkloadStatus = "failed"
 )
 
 // Workload is a command that runs in a sandbox inside a workspace daemon,
@@ -113,9 +187,16 @@ type Workload struct {
 	AgentID     uuid.UUID      `json:"agent_id" format:"uuid"`
 	AgentName   string         `json:"agent_name"`
 	Status      WorkloadStatus `json:"status"`
-	ExitCode    *int           `json:"exit_code,omitempty"`
 	Command     string         `json:"command"`
 	CreatedAt   time.Time      `json:"created_at" format:"date-time"`
+	// FinishedAt is set once the workload is over.
+	FinishedAt *time.Time `json:"finished_at,omitempty" format:"date-time"`
+	// ExitCode is the command's exit code, when it is known.
+	ExitCode *int `json:"exit_code,omitempty"`
+	// Image, Network and Mounts are what the daemon's policy settled on.
+	Image   string          `json:"image,omitempty"`
+	Network WorkloadNetwork `json:"network,omitempty"`
+	Mounts  []WorkloadMount `json:"mounts,omitempty"`
 	// Identity is the workload's identity as it is displayed.
 	Identity string `json:"identity"`
 	// SponsorID is the user account whose permissions bound what the
@@ -136,8 +217,18 @@ type CreateWorkloadRequest struct {
 	Agent string `json:"agent,omitempty"`
 	// Command is run by a shell inside the sandbox.
 	Command string `json:"command"`
-	// Image overrides the image the daemon uses for sandboxes.
+	// Image asks for another image than the daemon's default. The
+	// template decides which images are allowed.
 	Image string `json:"image,omitempty"`
+	// Network asks for another network than the daemon's default. Asking
+	// for none is always allowed.
+	Network WorkloadNetwork `json:"network,omitempty"`
+	// Mounts asks for directories of the workspace to be visible in the
+	// sandbox. The template decides which directories may be shared.
+	Mounts []WorkloadMount `json:"mounts,omitempty"`
+	// Interactive gives the command a terminal that the sponsor can attach
+	// to.
+	Interactive bool `json:"interactive,omitempty"`
 	// Scopes are the API key scopes the workload may use on the sponsor's
 	// behalf. Without any, the workload can do nothing in Coder.
 	Scopes []APIKeyScope `json:"scopes,omitempty"`
@@ -157,17 +248,37 @@ type AgentWorkloadSpec struct {
 	ID      uuid.UUID `json:"id" format:"uuid"`
 	Name    string    `json:"name"`
 	Command string    `json:"command"`
-	Image   string    `json:"image,omitempty"`
+	// Image, Network and Mounts are requests. The daemon's policy, which
+	// the template sets, decides whether to honor them.
+	Image   string          `json:"image,omitempty"`
+	Network WorkloadNetwork `json:"network,omitempty"`
+	Mounts  []WorkloadMount `json:"mounts,omitempty"`
+	// Interactive gives the command a terminal.
+	Interactive bool `json:"interactive,omitempty"`
 }
 
 // AgentWorkloadState is a workload as its workspace daemon sees it.
 type AgentWorkloadState struct {
-	ID        uuid.UUID       `json:"id" format:"uuid"`
-	Name      string          `json:"name"`
-	Sandbox   WorkloadSandbox `json:"sandbox"`
+	ID      uuid.UUID       `json:"id" format:"uuid"`
+	Name    string          `json:"name"`
+	Sandbox WorkloadSandbox `json:"sandbox"`
+	// Image, Network and Mounts are what the daemon's policy settled on.
+	Image     string          `json:"image"`
+	Network   WorkloadNetwork `json:"network"`
+	Mounts    []WorkloadMount `json:"mounts,omitempty"`
 	Running   bool            `json:"running"`
 	ExitCode  *int            `json:"exit_code,omitempty"`
 	StartedAt time.Time       `json:"started_at" format:"date-time"`
+}
+
+// AgentWorkloadExit is what a workspace daemon reports when a workload is
+// over.
+type AgentWorkloadExit struct {
+	// ExitCode is nil when the daemon does not know it.
+	ExitCode *int              `json:"exit_code,omitempty"`
+	Reason   WorkloadEndReason `json:"reason"`
+	// OutputTail is the end of the workload's output.
+	OutputTail string `json:"output_tail,omitempty"`
 }
 
 // CreateWorkspaceWorkload runs a command in a new sandbox of a workspace.
@@ -184,9 +295,23 @@ func (c *Client) CreateWorkspaceWorkload(ctx context.Context, workspaceID uuid.U
 	return workload, ReadBodyAsJSON(res, &workload)
 }
 
-// WorkspaceWorkloads lists the workloads of a workspace.
-func (c *Client) WorkspaceWorkloads(ctx context.Context, workspaceID uuid.UUID) ([]Workload, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/workloads", workspaceID), nil)
+// WorkspaceWorkloadsOptions selects which workloads to list.
+type WorkspaceWorkloadsOptions struct {
+	// Finished also lists the most recent workloads that are over.
+	Finished bool
+}
+
+// WorkspaceWorkloads lists the workloads of a workspace: the live ones,
+// oldest first, followed by finished ones when asked, newest first.
+func (c *Client) WorkspaceWorkloads(ctx context.Context, workspaceID uuid.UUID, opts WorkspaceWorkloadsOptions) ([]Workload, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/workloads", workspaceID), nil,
+		func(r *http.Request) {
+			if opts.Finished {
+				q := r.URL.Query()
+				q.Set("finished", "true")
+				r.URL.RawQuery = q.Encode()
+			}
+		})
 	if err != nil {
 		return nil, err
 	}
@@ -242,6 +367,39 @@ func DecodeWorkloadLogEvents(r io.Reader, handle func(WorkloadLogEvent) error) e
 		}
 	}
 	return scanner.Err()
+}
+
+// AttachWorkspaceWorkload connects to the terminal of an interactive
+// workload. The connection carries what a reconnecting PTY carries: JSON
+// messages with input and window sizes one way, raw output the other.
+func (c *Client) AttachWorkspaceWorkload(ctx context.Context, workspaceID, workloadID uuid.UUID, height, width uint16) (net.Conn, error) {
+	serverURL, err := c.URL.Parse(fmt.Sprintf("/api/v2/workspaces/%s/workloads/%s/attach", workspaceID, workloadID))
+	if err != nil {
+		return nil, xerrors.Errorf("parse url: %w", err)
+	}
+	q := serverURL.Query()
+	q.Set("height", strconv.Itoa(int(height)))
+	q.Set("width", strconv.Itoa(int(width)))
+	serverURL.RawQuery = q.Encode()
+
+	// Non-browser websocket auth uses the session token header. A cookie
+	// jar is not used.
+	httpClient := *c.HTTPClient
+	httpClient.Jar = nil
+	headers := http.Header{}
+	headers.Set(SessionTokenHeader, c.SessionToken())
+	//nolint:bodyclose // The websocket owns the response body.
+	conn, res, err := websocket.Dial(ctx, serverURL.String(), &websocket.DialOptions{
+		HTTPClient: &httpClient,
+		HTTPHeader: headers,
+	})
+	if err != nil {
+		if res == nil {
+			return nil, err
+		}
+		return nil, ReadBodyAsError(res)
+	}
+	return websocket.NetConn(context.Background(), conn, websocket.MessageBinary), nil
 }
 
 // WorkloadIdentity returns the identity coderd sees for the caller. It

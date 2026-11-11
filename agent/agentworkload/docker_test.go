@@ -49,6 +49,8 @@ func TestDockerRuntime(t *testing.T) {
 	})
 	sandbox, err := rt.Start(ctx, agentworkload.Spec{
 		ID: id, Name: "alpha", Command: "echo hi; coder identity", Image: "alpine:3.22",
+		Network: codersdk.WorkloadNetworkNone,
+		Mounts:  []codersdk.WorkloadMount{{Path: "/projects/repo"}, {Path: "/projects/scratch", Writable: true}},
 	}, channel)
 	require.NoError(t, err)
 	require.Equal(t, "container-1", sandbox.ID())
@@ -57,22 +59,29 @@ func TestDockerRuntime(t *testing.T) {
 	require.NoError(t, err)
 	args := strings.Split(strings.TrimSpace(strings.Split(string(raw), "----")[0]), "\n")
 	channelDir := filepath.Join(stateDir, id.String())
-	// The sandbox gets no privileges, and nothing of the workspace except
-	// its own channel and the CLI, both read-only.
+	// The sandbox gets no privileges, no network, and nothing of the
+	// workspace except its own channel and the CLI, both read-only. The
+	// CLI starts the command.
 	require.Equal(t, []string{
 		"run", "--detach",
 		"--name", "coder-workload-" + id.String(),
 		"--label", "com.coder.workload=" + id.String(),
+		"--init",
 		"--cap-drop", "ALL",
 		"--security-opt", "no-new-privileges",
 		"--user", "1000:1000",
 		"--pids-limit", "512",
+		"--network", "none",
 		"--volume", channelDir + ":/run/coder:ro",
 		"--env", codersdk.WorkloadSocketEnv + "=/run/coder/workload.sock",
 		"--env", "HOME=/tmp",
 		"--env", "CODER_WORKLOAD_NAME=alpha",
+		"--volume", "/projects/repo:/projects/repo:ro",
+		"--volume", "/projects/scratch:/projects/scratch:rw",
 		"--volume", "/opt/coder:/usr/local/bin/coder:ro",
-		"alpine:3.22", "sh", "-c", "echo hi; coder identity",
+		"alpine:3.22",
+		"/usr/local/bin/coder", "exp", "workload-init", "--",
+		"sh", "-c", "echo hi; coder identity",
 	}, args)
 
 	// The channel is served on the socket in the mounted directory.

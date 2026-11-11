@@ -1502,6 +1502,21 @@ export const MockWorkload: TypesGen.Workload = {
 	sandbox: { runtime: "docker", id: "3f1c0a527c9e4d0b8a570d6f1c2b3a4e" },
 };
 
+export const MockFinishedWorkload: TypesGen.Workload = {
+	...MockWorkload,
+	id: "5d4c3b2a-1f0e-4d9c-8b7a-6f5e4d3c2b1a",
+	name: "run-tests",
+	status: "exited",
+	command: "go test ./coderd/...",
+	created_at: "2024-03-26T14:20:00Z",
+	finished_at: "2024-03-26T14:31:00Z",
+	exit_code: 1,
+	identity: "test-workspace/workload/5d4c3b2a-1f0e-4d9c-8b7a-6f5e4d3c2b1a",
+	scopes: [],
+	image: "alpine:3.22",
+	network: "none",
+};
+
 export const MockStartingWorkload: TypesGen.Workload = {
 	id: "0f9e8d7c-6b5a-4c3d-2e1f-0a9b8c7d6e5f",
 	name: "review-pr",

@@ -63,6 +63,7 @@ const (
 	// the chat automations experiment was removed.
 	ResourceTypeChatAutomation               ResourceType = "chat_automation"
 	ResourceTypeUserSecret                   ResourceType = "user_secret"
+	ResourceTypeWorkloadIdentity             ResourceType = "workload_identity"
 	ResourceTypeUserSkill                    ResourceType = "user_skill"
 	ResourceTypeOrganizationSkill            ResourceType = "organization_skill"
 	ResourceTypeChatInstructionSettings      ResourceType = "chat_instruction_settings"
@@ -157,6 +158,8 @@ func (r ResourceType) FriendlyString() string {
 		return "chat automation"
 	case ResourceTypeUserSecret:
 		return "user secret"
+	case ResourceTypeWorkloadIdentity:
+		return "workload"
 	case ResourceTypeUserSkill:
 		return "user skill"
 	case ResourceTypeOrganizationSkill:

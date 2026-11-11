@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/coder/coder/v2/cli/cliui"
@@ -72,7 +73,7 @@ func (r *RootCmd) whoami() *serpent.Command {
 			}
 			// A workload can reach the user API within its scopes, but
 			// nobody is logged in.
-			if r.workloadSocket != "" && identity != nil {
+			if os.Getenv(codersdk.WorkloadSocketEnv) != "" && identity != nil {
 				return noUser(nil)
 			}
 

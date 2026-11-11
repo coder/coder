@@ -8,6 +8,11 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"path"
+	"path/filepath"
+	"slices"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,25 +21,129 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/reconnectingpty"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/websocket"
 )
 
-// exitedRetention is how long a finished workload's sandbox is kept, so that
-// its output and exit code can still be read.
-const exitedRetention = 2 * time.Minute
+const (
+	// exitedRetention is how long a finished workload's sandbox is kept, so
+	// that its output can still be followed to the end.
+	exitedRetention = 2 * time.Minute
+	// outputTailBytes bounds how much of a workload's output is reported
+	// to coderd when the workload is over.
+	outputTailBytes = 16 << 10
+)
+
+// Policy is what the daemon allows a workload to ask for. The template sets
+// it, so a sponsor chooses within what the template's author permits.
+type Policy struct {
+	// DefaultImage is used when a workload does not name an image. It is
+	// always allowed.
+	DefaultImage string
+	// AllowedImages are patterns, as in path.Match, of other images a
+	// workload may name.
+	AllowedImages []string
+	// DefaultNetwork is used when a workload does not name a network. Empty
+	// means outbound.
+	DefaultNetwork codersdk.WorkloadNetwork
+	// AllowedNetworks are other networks a workload may name.
+	AllowedNetworks []codersdk.WorkloadNetwork
+	// AllowedMounts are directories of the workspace that may be shared
+	// with a workload, together with everything below them. Without any,
+	// a workload sees nothing of the workspace.
+	AllowedMounts []string
+}
+
+// mounts checks the directories a workload asks to see. Symbolic links are
+// resolved first, so that a link cannot lead out of an allowed directory.
+func (p Policy) mounts(requested []codersdk.WorkloadMount) ([]codersdk.WorkloadMount, error) {
+	mounts := make([]codersdk.WorkloadMount, 0, len(requested))
+	for _, mount := range requested {
+		if !filepath.IsAbs(mount.Path) {
+			return nil, xerrors.Errorf("the directory %q to share with the workload must be an absolute path", mount.Path)
+		}
+		resolved, err := filepath.EvalSymlinks(filepath.Clean(mount.Path))
+		if err != nil {
+			return nil, xerrors.Errorf("the directory %q to share with the workload does not exist here", mount.Path)
+		}
+		allowed := false
+		for _, root := range p.AllowedMounts {
+			if root == "" {
+				continue
+			}
+			root, err := filepath.EvalSymlinks(filepath.Clean(root))
+			if err != nil {
+				continue
+			}
+			if resolved == root || strings.HasPrefix(resolved, strings.TrimSuffix(root, "/")+"/") {
+				allowed = true
+				break
+			}
+		}
+		if !allowed {
+			return nil, xerrors.Errorf("this workspace's template does not allow sharing %q with workloads", mount.Path)
+		}
+		mounts = append(mounts, codersdk.WorkloadMount{Path: resolved, Writable: mount.Writable})
+	}
+	return mounts, nil
+}
+
+func (p Policy) image(requested string) (string, error) {
+	if requested == "" || requested == p.DefaultImage {
+		if p.DefaultImage == "" {
+			return "", xerrors.New("this workspace's template sets no image for workloads")
+		}
+		return p.DefaultImage, nil
+	}
+	for _, pattern := range p.AllowedImages {
+		if pattern == "" {
+			continue
+		}
+		if ok, _ := path.Match(pattern, requested); ok {
+			return requested, nil
+		}
+	}
+	return "", xerrors.Errorf("this workspace's template does not allow the image %q for workloads", requested)
+}
+
+func (p Policy) network(requested codersdk.WorkloadNetwork) (codersdk.WorkloadNetwork, error) {
+	def := p.DefaultNetwork
+	if def == "" {
+		def = codersdk.WorkloadNetworkOutbound
+	}
+	if requested == "" || requested == def {
+		return def, nil
+	}
+	if requested != codersdk.WorkloadNetworkNone && requested != codersdk.WorkloadNetworkOutbound {
+		return "", xerrors.Errorf("unknown workload network %q", requested)
+	}
+	// Asking for less than the default is always fine.
+	if requested == codersdk.WorkloadNetworkNone || slices.Contains(p.AllowedNetworks, requested) {
+		return requested, nil
+	}
+	return "", xerrors.Errorf("this workspace's template does not allow the network %q for workloads", requested)
+}
 
 // Options configures a Supervisor.
 type Options struct {
 	Logger  slog.Logger
 	Runtime Runtime
+	Policy  Policy
 	// CoderURL is where the daemon reaches coderd.
 	CoderURL *url.URL
 	// SessionToken returns the daemon's own credential. It is added to
 	// forwarded requests and never reaches a sandbox.
 	SessionToken func() string
-	// DefaultImage is used when a workload does not name an image.
-	DefaultImage string
+	// Execer runs the terminal of an interactive workload. It defaults to
+	// agentexec.DefaultExecer.
+	Execer agentexec.Execer
+	// ReportExit tells coderd that a workload is over. coderd records it
+	// and revokes the workload's identity. Nil reports nothing; coderd then
+	// finds out the next time it asks what runs.
+	ReportExit func(ctx context.Context, id uuid.UUID, exit codersdk.AgentWorkloadExit) error
 }
 
 // Supervisor runs workloads for one workspace daemon.
@@ -101,8 +210,15 @@ func (s *Supervisor) Start(ctx context.Context, spec Spec) (codersdk.AgentWorklo
 	if spec.ID == uuid.Nil || spec.Command == "" {
 		return codersdk.AgentWorkloadState{}, xerrors.New("a workload needs an identity and a command")
 	}
-	if spec.Image == "" {
-		spec.Image = s.opts.DefaultImage
+	var err error
+	if spec.Image, err = s.opts.Policy.image(spec.Image); err != nil {
+		return codersdk.AgentWorkloadState{}, err
+	}
+	if spec.Network, err = s.opts.Policy.network(spec.Network); err != nil {
+		return codersdk.AgentWorkloadState{}, err
+	}
+	if spec.Mounts, err = s.opts.Policy.mounts(spec.Mounts); err != nil {
+		return codersdk.AgentWorkloadState{}, err
 	}
 	s.mu.Lock()
 	if _, exists := s.workloads[spec.ID]; exists {
@@ -126,29 +242,108 @@ func (s *Supervisor) Start(ctx context.Context, spec Spec) (codersdk.AgentWorklo
 	w.sandbox = sandbox
 	s.mu.Unlock()
 	s.opts.Logger.Info(ctx, "started workload",
-		slog.F("workload_id", spec.ID), slog.F("name", spec.Name), slog.F("sandbox", sandbox.ID()))
+		slog.F("workload_id", spec.ID), slog.F("name", spec.Name), slog.F("sandbox", sandbox.ID()),
+		slog.F("image", spec.Image), slog.F("network", spec.Network))
 
 	s.watchers.Add(1)
-	go func() {
-		defer s.watchers.Done()
-		ctx := context.Background()
-		code, err := sandbox.Wait(ctx)
-		if err != nil {
-			s.opts.Logger.Warn(ctx, "wait for workload", slog.F("workload_id", spec.ID), slog.Error(err))
-		}
-		s.mu.Lock()
-		w.exitCode = code
-		s.mu.Unlock()
-		close(w.done)
-		s.opts.Logger.Info(ctx, "workload command exited", slog.F("workload_id", spec.ID), slog.F("exit_code", code))
-
-		select {
-		case <-time.After(exitedRetention):
-			_ = s.Remove(ctx, spec.ID)
-		case <-s.closed:
-		}
-	}()
+	go s.watch(w)
 	return s.state(w), nil
+}
+
+// watch waits for a workload to end, tells coderd, and removes the sandbox
+// once its output has had time to be read.
+func (s *Supervisor) watch(w *workload) {
+	defer s.watchers.Done()
+	ctx := context.Background()
+	id := w.spec.ID
+
+	code, err := w.sandbox.Wait(ctx)
+	exit := codersdk.AgentWorkloadExit{Reason: codersdk.WorkloadEndReasonExited, ExitCode: &code}
+	select {
+	case <-s.closed:
+		// The daemon is shutting down and took the workload with it.
+		exit = codersdk.AgentWorkloadExit{Reason: codersdk.WorkloadEndReasonStopped}
+	default:
+		if err != nil {
+			// The sandbox is gone and nobody knows how its command ended.
+			s.opts.Logger.Warn(ctx, "wait for workload", slog.F("workload_id", id), slog.Error(err))
+			exit = codersdk.AgentWorkloadExit{Reason: codersdk.WorkloadEndReasonLost}
+		}
+	}
+	s.mu.Lock()
+	w.exitCode = code
+	s.mu.Unlock()
+	close(w.done)
+	s.opts.Logger.Info(ctx, "workload is over",
+		slog.F("workload_id", id), slog.F("reason", exit.Reason), slog.F("exit_code", code))
+
+	exit.OutputTail = s.outputTail(w.sandbox)
+	s.report(id, exit)
+
+	select {
+	case <-time.After(exitedRetention):
+		_ = s.Remove(ctx, id)
+	case <-s.closed:
+	}
+}
+
+// outputTail returns the end of a finished workload's output.
+func (*Supervisor) outputTail(sandbox Sandbox) string {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	tail := &tailWriter{limit: outputTailBytes}
+	_ = sandbox.Logs(ctx, tail)
+	return tail.String()
+}
+
+// report tells coderd that a workload is over. It is best effort: coderd
+// also notices by itself when it next asks the daemon what runs.
+func (s *Supervisor) report(id uuid.UUID, exit codersdk.AgentWorkloadExit) {
+	if s.opts.ReportExit == nil {
+		return
+	}
+	const attempts = 3
+	for attempt := 1; attempt <= attempts; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err := s.opts.ReportExit(ctx, id, exit)
+		cancel()
+		if err == nil {
+			return
+		}
+		s.opts.Logger.Warn(context.Background(), "report workload exit",
+			slog.F("workload_id", id), slog.F("attempt", attempt), slog.Error(err))
+		if attempt == attempts {
+			return
+		}
+		select {
+		case <-time.After(2 * time.Second):
+		case <-s.closed:
+			// The daemon is going away: retry without waiting.
+		}
+	}
+}
+
+// tailWriter keeps the last limit bytes written to it.
+type tailWriter struct {
+	mu    sync.Mutex
+	limit int
+	buf   []byte
+}
+
+func (t *tailWriter) Write(p []byte) (int, error) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.buf = append(t.buf, p...)
+	if len(t.buf) > t.limit {
+		t.buf = t.buf[len(t.buf)-t.limit:]
+	}
+	return len(p), nil
+}
+
+func (t *tailWriter) String() string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return string(t.buf)
 }
 
 // Remove stops a workload and removes its sandbox.
@@ -163,7 +358,8 @@ func (s *Supervisor) Remove(ctx context.Context, id uuid.UUID) error {
 	return w.sandbox.Close(ctx)
 }
 
-// Close removes every workload.
+// Close removes every workload. It tells coderd that they stopped with the
+// daemon.
 func (s *Supervisor) Close() error {
 	s.closeOnce.Do(func() { close(s.closed) })
 	defer s.watchers.Wait()
@@ -184,6 +380,9 @@ func (s *Supervisor) state(w *workload) codersdk.AgentWorkloadState {
 		ID:        w.spec.ID,
 		Name:      w.spec.Name,
 		Sandbox:   codersdk.WorkloadSandbox{Runtime: s.opts.Runtime.Name()},
+		Image:     w.spec.Image,
+		Network:   w.spec.Network,
+		Mounts:    w.spec.Mounts,
 		Running:   true,
 		StartedAt: w.startedAt,
 	}
@@ -213,6 +412,7 @@ func (s *Supervisor) Routes() http.Handler {
 	r.Post("/", s.handleStart)
 	r.Get("/", s.handleList)
 	r.Get("/{workload}/logs", s.handleLogs)
+	r.Get("/{workload}/attach", s.handleAttach)
 	r.Delete("/{workload}", s.handleRemove)
 	return r
 }
@@ -223,7 +423,10 @@ func (s *Supervisor) handleStart(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	state, err := s.Start(ctx, Spec{ID: req.ID, Name: req.Name, Command: req.Command, Image: req.Image})
+	state, err := s.Start(ctx, Spec{
+		ID: req.ID, Name: req.Name, Command: req.Command,
+		Image: req.Image, Network: req.Network, Mounts: req.Mounts, Interactive: req.Interactive,
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "The workload could not be started.",
@@ -244,25 +447,25 @@ func (s *Supervisor) handleList(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, states)
 }
 
-func (s *Supervisor) workloadParam(rw http.ResponseWriter, r *http.Request) (*workload, uuid.UUID, bool) {
+func (s *Supervisor) workloadParam(rw http.ResponseWriter, r *http.Request) (*workload, bool) {
 	id, err := uuid.Parse(chi.URLParam(r, "workload"))
 	if err != nil {
 		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{Message: "The workload ID must be a UUID."})
-		return nil, uuid.Nil, false
+		return nil, false
 	}
 	w, ok := s.get(id)
 	if !ok {
 		httpapi.ResourceNotFound(rw)
-		return nil, id, false
+		return nil, false
 	}
-	return w, id, true
+	return w, true
 }
 
 // handleLogs streams the workload's output as newline-delimited events and
 // ends with its exit code.
 func (s *Supervisor) handleLogs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	w, _, ok := s.workloadParam(rw, r)
+	w, ok := s.workloadParam(rw, r)
 	if !ok {
 		return
 	}
@@ -296,6 +499,50 @@ func (s *Supervisor) handleLogs(rw http.ResponseWriter, r *http.Request) {
 		send(codersdk.WorkloadLogEvent{ExitCode: &code})
 	case <-ctx.Done():
 	}
+}
+
+// handleAttach connects the caller to the terminal of an interactive
+// workload. The daemon runs the runtime's attach command in a terminal of
+// its own and speaks the reconnecting PTY protocol over a websocket.
+func (s *Supervisor) handleAttach(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	w, ok := s.workloadParam(rw, r)
+	if !ok {
+		return
+	}
+	if !w.spec.Interactive {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "The workload was not started with a terminal.",
+		})
+		return
+	}
+	height, _ := strconv.ParseUint(r.URL.Query().Get("height"), 10, 16)
+	width, _ := strconv.ParseUint(r.URL.Query().Get("width"), 10, 16)
+
+	ws, err := websocket.Accept(rw, r, &websocket.AcceptOptions{CompressionMode: websocket.CompressionDisabled})
+	if err != nil {
+		return
+	}
+	defer ws.Close(websocket.StatusNormalClosure, "")
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	conn := websocket.NetConn(ctx, ws, websocket.MessageBinary)
+	defer conn.Close()
+
+	execer := s.opts.Execer
+	if execer == nil {
+		execer = agentexec.DefaultExecer
+	}
+	name, args := w.sandbox.AttachCommand()
+	terminal := reconnectingpty.New(ctx, s.opts.Logger, execer, execer.PTYCommandContext(ctx, name, args...), &reconnectingpty.Options{
+		// The terminal belongs to this connection: the workload itself
+		// keeps running in its sandbox when the caller goes away.
+		Timeout:     time.Second,
+		BackendType: "buffered",
+	})
+	defer terminal.Close(nil)
+	//nolint:gosec // A terminal's size fits.
+	_ = terminal.Attach(ctx, uuid.NewString(), conn, uint16(height), uint16(width), s.opts.Logger)
 }
 
 func (s *Supervisor) handleRemove(rw http.ResponseWriter, r *http.Request) {

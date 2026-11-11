@@ -26,9 +26,17 @@ Run a command as a workload: in a sandbox that the workspace's daemon creates, w
 
      $ coder run my-workspace --scope workspace:read --scope template:read -- coder list
 
-  - List the workloads of a workspace:
+  - Work in a sandbox with a terminal:
+
+     $ coder run -it my-workspace -- sh
+
+  - List the running workloads of a workspace:
 
      $ coder run --list my-workspace
+
+  - List all of them, with what became of each:
+
+     $ coder run --all my-workspace
 
   - Remove a workload:
 
@@ -59,7 +67,23 @@ A permission the workload may use on your behalf, as an API token scope such as 
 |----------|---------------------|
 | Type     | <code>string</code> |
 
-The image for the workload's sandbox. Defaults to the one the workspace's daemon is configured with.
+The image for the workload's sandbox. The workspace's template sets the default and decides which others are allowed.
+
+### --network
+
+| Property | Value               |
+|----------|---------------------|
+| Type     | <code>string</code> |
+
+What the sandbox can reach: "none" or "outbound". The workspace's template sets the default. With "none" the workload can still reach Coder, and nothing else.
+
+### --mount
+
+| Property | Value                     |
+|----------|---------------------------|
+| Type     | <code>string-array</code> |
+
+A directory of the workspace to show in the sandbox, at the same path. It is read-only unless followed by ":rw". Repeat it for several. The workspace's template decides which directories may be shared; without this flag the workload sees nothing of the workspace.
 
 ### --agent
 
@@ -68,6 +92,22 @@ The image for the workload's sandbox. Defaults to the one the workspace's daemon
 | Type     | <code>string</code> |
 
 The workspace daemon to run the workload in, by name. Only needed when the workspace has several.
+
+### -i, --interactive
+
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
+
+Keep the command's input open. Use it with --tty, as -it.
+
+### -t, --tty
+
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
+
+Give the command a terminal and attach to it. Use it with --interactive, as -it.
 
 ### -d, --detach
 
@@ -83,7 +123,23 @@ Start the workload and print its name instead of following its output.
 |----------|-------------------|
 | Type     | <code>bool</code> |
 
-List the workspace's workloads instead of running one.
+List the workspace's running workloads instead of running one.
+
+### -a, --all
+
+| Property | Value             |
+|----------|-------------------|
+| Type     | <code>bool</code> |
+
+List the workspace's workloads, including the most recent ones that are over.
+
+### --logs
+
+| Property | Value               |
+|----------|---------------------|
+| Type     | <code>string</code> |
+
+Print the output of a workload, by name or identity, instead of running one. A running workload is followed until it ends. For one that is over, the end of its output was kept.
 
 ### --remove
 
@@ -95,10 +151,10 @@ Remove the named workload instead of running one.
 
 ### -c, --column
 
-| Property | Value                                                                    |
-|----------|--------------------------------------------------------------------------|
-| Type     | <code>[name\|status\|sponsor\|scopes\|command\|identity\|sandbox]</code> |
-| Default  | <code>name,status,sponsor,scopes,command,identity</code>                 |
+| Property | Value                                                                                                       |
+|----------|-------------------------------------------------------------------------------------------------------------|
+| Type     | <code>[name\|status\|sponsor\|scopes\|command\|identity\|sandbox\|network\|image\|started\|finished]</code> |
+| Default  | <code>name,status,sponsor,scopes,command,started,identity</code>                                            |
 
 Columns to display in table output.
 

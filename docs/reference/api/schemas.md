@@ -1697,6 +1697,24 @@ None
 |-------------------------------------|
 | `envbox`, `envbuilder`, `exectrace` |
 
+## codersdk.AgentWorkloadExit
+
+```json
+{
+  "exit_code": 0,
+  "output_tail": "string",
+  "reason": "exited"
+}
+```
+
+### Properties
+
+| Name          | Type                                                     | Required | Restrictions | Description                                        |
+|---------------|----------------------------------------------------------|----------|--------------|----------------------------------------------------|
+| `exit_code`   | integer                                                  | false    |              | Exit code is nil when the daemon does not know it. |
+| `output_tail` | string                                                   | false    |              | Output tail is the end of the workload's output.   |
+| `reason`      | [codersdk.WorkloadEndReason](#codersdkworkloadendreason) | false    |              |                                                    |
+
 ## codersdk.AppFamilyName
 
 ```json
@@ -7699,7 +7717,15 @@ This is required on creation to enable a user-flow of validating a template work
   "agent": "string",
   "command": "string",
   "image": "string",
+  "interactive": true,
+  "mounts": [
+    {
+      "path": "string",
+      "writable": true
+    }
+  ],
   "name": "string",
+  "network": "none",
   "scopes": [
     "all"
   ]
@@ -7708,13 +7734,16 @@ This is required on creation to enable a user-flow of validating a template work
 
 ### Properties
 
-| Name      | Type                                                  | Required | Restrictions | Description                                                                                                                    |
-|-----------|-------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------|
-| `agent`   | string                                                | false    |              | Agent selects the workspace daemon by name. It may be empty when the workspace has exactly one.                                |
-| `command` | string                                                | false    |              | Command is run by a shell inside the sandbox.                                                                                  |
-| `image`   | string                                                | false    |              | Image overrides the image the daemon uses for sandboxes.                                                                       |
-| `name`    | string                                                | false    |              | Name is optional. It must be a valid agent name.                                                                               |
-| `scopes`  | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              | Scopes are the API key scopes the workload may use on the sponsor's behalf. Without any, the workload can do nothing in Coder. |
+| Name          | Type                                                      | Required | Restrictions | Description                                                                                                                      |
+|---------------|-----------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------|
+| `agent`       | string                                                    | false    |              | Agent selects the workspace daemon by name. It may be empty when the workspace has exactly one.                                  |
+| `command`     | string                                                    | false    |              | Command is run by a shell inside the sandbox.                                                                                    |
+| `image`       | string                                                    | false    |              | Image asks for another image than the daemon's default. The template decides which images are allowed.                           |
+| `interactive` | boolean                                                   | false    |              | Interactive gives the command a terminal that the sponsor can attach to.                                                         |
+| `mounts`      | array of [codersdk.WorkloadMount](#codersdkworkloadmount) | false    |              | Mounts asks for directories of the workspace to be visible in the sandbox. The template decides which directories may be shared. |
+| `name`        | string                                                    | false    |              | Name is optional. It must be a valid agent name.                                                                                 |
+| `network`     | [codersdk.WorkloadNetwork](#codersdkworkloadnetwork)      | false    |              | Network asks for another network than the daemon's default. Asking for none is always allowed.                                   |
+| `scopes`      | array of [codersdk.APIKeyScope](#codersdkapikeyscope)     | false    |              | Scopes are the API key scopes the workload may use on the sponsor's behalf. Without any, the workload can do nothing in Coder.   |
 
 ## codersdk.CreateWorkspaceBuildOnSuccessRequest
 
@@ -14746,9 +14775,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_organization_system_prompt`, `chat_project`, `chat_project_instructions`, `chat_project_memory`, `chat_project_skill`, `convert_login`, `custom_role`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `organization_skill`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `ai_gateway_key`, `ai_provider`, `ai_provider_key`, `ai_seat`, `api_key`, `chat`, `chat_automation`, `chat_instruction_settings`, `chat_model_config`, `chat_operational_settings`, `chat_organization_system_prompt`, `chat_project`, `chat_project_instructions`, `chat_project_memory`, `chat_project_skill`, `convert_login`, `custom_role`, `experiment_rule`, `git_ssh_key`, `group`, `group_ai_budget`, `health_settings`, `idp_sync_settings_group`, `idp_sync_settings_organization`, `idp_sync_settings_role`, `license`, `mcp_server_config`, `notification_template`, `notifications_settings`, `oauth2_provider_app`, `oauth2_provider_app_secret`, `oauth2_provider_settings`, `organization`, `organization_member`, `organization_skill`, `prebuilds_settings`, `task`, `template`, `template_version`, `user`, `user_ai_budget_override`, `user_secret`, `user_skill`, `workload_identity`, `workspace`, `workspace_agent`, `workspace_app`, `workspace_build`, `workspace_proxy` |
 
 ## codersdk.Response
 
@@ -18857,9 +18886,18 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "command": "string",
   "created_at": "2019-08-24T14:15:22Z",
   "exit_code": 0,
+  "finished_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "identity": "string",
+  "image": "string",
+  "mounts": [
+    {
+      "path": "string",
+      "writable": true
+    }
+  ],
   "name": "string",
+  "network": "none",
   "sandbox": {
     "id": "string",
     "runtime": "string"
@@ -18876,22 +18914,26 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                                  | Required | Restrictions | Description                                                                      |
-|--------------------|-------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------|
-| `agent_id`         | string                                                | false    |              |                                                                                  |
-| `agent_name`       | string                                                | false    |              |                                                                                  |
-| `command`          | string                                                | false    |              |                                                                                  |
-| `created_at`       | string                                                | false    |              |                                                                                  |
-| `exit_code`        | integer                                               | false    |              |                                                                                  |
-| `id`               | string                                                | false    |              | ID is the workload's identity ID.                                                |
-| `identity`         | string                                                | false    |              | Identity is the workload's identity as it is displayed.                          |
-| `name`             | string                                                | false    |              |                                                                                  |
-| `sandbox`          | [codersdk.WorkloadSandbox](#codersdkworkloadsandbox)  | false    |              |                                                                                  |
-| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              | Scopes narrow the sponsor's permissions. An empty list grants nothing.           |
-| `sponsor_id`       | string                                                | false    |              | Sponsor ID is the user account whose permissions bound what the workload may do. |
-| `sponsor_username` | string                                                | false    |              |                                                                                  |
-| `status`           | [codersdk.WorkloadStatus](#codersdkworkloadstatus)    | false    |              |                                                                                  |
-| `workspace_id`     | string                                                | false    |              |                                                                                  |
+| Name               | Type                                                      | Required | Restrictions | Description                                                                      |
+|--------------------|-----------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------|
+| `agent_id`         | string                                                    | false    |              |                                                                                  |
+| `agent_name`       | string                                                    | false    |              |                                                                                  |
+| `command`          | string                                                    | false    |              |                                                                                  |
+| `created_at`       | string                                                    | false    |              |                                                                                  |
+| `exit_code`        | integer                                                   | false    |              | Exit code is the command's exit code, when it is known.                          |
+| `finished_at`      | string                                                    | false    |              | Finished at is set once the workload is over.                                    |
+| `id`               | string                                                    | false    |              | ID is the workload's identity ID.                                                |
+| `identity`         | string                                                    | false    |              | Identity is the workload's identity as it is displayed.                          |
+| `image`            | string                                                    | false    |              | Image, Network and Mounts are what the daemon's policy settled on.               |
+| `mounts`           | array of [codersdk.WorkloadMount](#codersdkworkloadmount) | false    |              |                                                                                  |
+| `name`             | string                                                    | false    |              |                                                                                  |
+| `network`          | [codersdk.WorkloadNetwork](#codersdkworkloadnetwork)      | false    |              |                                                                                  |
+| `sandbox`          | [codersdk.WorkloadSandbox](#codersdkworkloadsandbox)      | false    |              |                                                                                  |
+| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope)     | false    |              | Scopes narrow the sponsor's permissions. An empty list grants nothing.           |
+| `sponsor_id`       | string                                                    | false    |              | Sponsor ID is the user account whose permissions bound what the workload may do. |
+| `sponsor_username` | string                                                    | false    |              |                                                                                  |
+| `status`           | [codersdk.WorkloadStatus](#codersdkworkloadstatus)        | false    |              |                                                                                  |
+| `workspace_id`     | string                                                    | false    |              |                                                                                  |
 
 ## codersdk.WorkloadAttestation
 
@@ -18906,6 +18948,20 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | Value(s)                          |
 |-----------------------------------|
 | `agent-token`, `workspace-daemon` |
+
+## codersdk.WorkloadEndReason
+
+```json
+"exited"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                         |
+|--------------------------------------------------|
+| `exited`, `failed`, `lost`, `removed`, `stopped` |
 
 ## codersdk.WorkloadIdentity
 
@@ -18984,6 +19040,36 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `exit_code` | integer | false    |              |             |
 | `output`    | string  | false    |              |             |
 
+## codersdk.WorkloadMount
+
+```json
+{
+  "path": "string",
+  "writable": true
+}
+```
+
+### Properties
+
+| Name       | Type    | Required | Restrictions | Description                                                                             |
+|------------|---------|----------|--------------|-----------------------------------------------------------------------------------------|
+| `path`     | string  | false    |              |                                                                                         |
+| `writable` | boolean | false    |              | Writable lets the workload change the directory. Without it the workload can only read. |
+
+## codersdk.WorkloadNetwork
+
+```json
+"none"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)           |
+|--------------------|
+| `none`, `outbound` |
+
 ## codersdk.WorkloadSandbox
 
 ```json
@@ -19010,9 +19096,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 #### Enumerated Values
 
-| Value(s)                                   |
-|--------------------------------------------|
-| `exited`, `running`, `starting`, `unknown` |
+| Value(s)                                                                           |
+|------------------------------------------------------------------------------------|
+| `exited`, `failed`, `lost`, `removed`, `running`, `starting`, `stopped`, `unknown` |
 
 ## codersdk.Workspace
 

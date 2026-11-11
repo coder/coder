@@ -2,7 +2,8 @@
 """Validates workloads that run inside a workspace daemon.
 
 It expects what README.md sets up: coderd with the runtime-workloads
-experiment and a running workspace from the template in this directory.
+experiment and a running workspace from the template in this directory, with
+the template's default policy (no network unless asked for, one image).
 
 Settings come from the environment:
 
@@ -148,9 +149,30 @@ def agents(ws):
     return [a for r in ws["latest_build"]["resources"] for a in (r.get("agents") or [])]
 
 
-def workloads():
-    out = coder("run", "--list", WORKSPACE, "--output", "json")
-    return json.loads(out.stdout or "[]")
+# Records of workloads from before this run. Names repeat across runs, so
+# the checks must not mistake an old record for a new one.
+EARLIER = set()
+
+
+def workloads(finished=False):
+    out = coder("run", "--all" if finished else "--list", WORKSPACE, "--output", "json")
+    return [w for w in json.loads(out.stdout or "[]") if w["id"] not in EARLIER]
+
+
+def latest_records():
+    """Returns this run's workloads by name. If a name repeats, the most recent one wins."""
+    records = {}
+    for workload in workloads(finished=True):
+        records.setdefault(workload["name"], workload)
+    return records
+
+
+def finished_workload(name):
+    """Returns the record of this run's workload that is over, or None while it is live or unknown."""
+    for workload in workloads(finished=True):
+        if workload["name"] == name and workload.get("finished_at"):
+            return workload
+    return None
 
 
 def wait_until(predicate, timeout=300, interval=2):
@@ -173,13 +195,14 @@ def workspace_pod(ws):
     return items[0] if items else None
 
 
-def in_pod(pod_name, script):
-    return kubectl("exec", pod_name, "--", "sh", "-c", script)
+def in_pod(pod_name, script, container="sandbox"):
+    """Runs a script in the workspace pod: in the container that hosts workloads, or in the human's."""
+    return kubectl("exec", pod_name, "-c", container, "--", "sh", "-c", script)
 
 
-def daemon_token(pod_name):
-    """Reads the workspace daemon's agent token, as root in the workspace can."""
-    return in_pod(pod_name, 'printf %s "$CODER_AGENT_TOKEN"').stdout.strip()
+def daemon_token(pod_name, container="sandbox"):
+    """Reads a workspace daemon's agent token, as root in its container can."""
+    return in_pod(pod_name, 'printf %s "$CODER_AGENT_TOKEN"', container).stdout.strip()
 
 
 def sandbox_containers(pod_name):
@@ -187,20 +210,26 @@ def sandbox_containers(pod_name):
     return out.stdout.split()
 
 
-def run_workload(command, name=None, scopes=(), detach=False, target=None, timeout=300):
+def run_workload(command, name=None, scopes=(), detach=False, target=None, timeout=300, network=None, image=None, mounts=()):
     args = ["run", target or WORKSPACE]
+    for mount in mounts:
+        args += ["--mount", mount]
     if name:
         args += ["--name", name]
     for scope in scopes:
         args += ["--scope", scope]
+    if network:
+        args += ["--network", network]
+    if image:
+        args += ["--image", image]
     if detach:
         args.append("--detach")
     return coder(*args, "--", *command, timeout=timeout)
 
 
-def probe(script, name=None, scopes=()):
+def probe(script, name=None, scopes=(), network=None, mounts=()):
     """Runs a shell script as a workload. Returns its output split by `@@ marker` lines."""
-    out = run_workload(["sh", "-c", script], name=name, scopes=scopes)
+    out = run_workload(["sh", "-c", script], name=name, scopes=scopes, network=network, mounts=mounts)
     sections, current = {}, None
     for line in out.stdout.splitlines():
         if line.startswith("@@ "):
@@ -248,26 +277,28 @@ def main():
     status, experiments = http("GET", "/api/v2/experiments", token=token)
     report.check("P2", "the runtime-workloads experiment is enabled", "runtime-workloads" in experiments, experiments)
     remove_all_workloads()
+    EARLIER.update(w["id"] for w in workloads(finished=True))
     dev = workspace(WORKSPACE)
     pod = workspace_pod(dev)
     pod_name = pod["metadata"]["name"]
-    daemons = agents(dev)
+    daemons = {a["name"]: a for a in agents(dev)}
     report.check(
-        "P3", "the workspace has one daemon, connected, in one pod",
-        len(daemons) == 1 and daemons[0]["status"] == "connected" and dev["health"]["healthy"],
-        f"agents={[(a['name'], a['status']) for a in daemons]} pod={pod_name}",
+        "P3", "the workspace is one pod with two daemons: the human's, and one that runs workloads",
+        sorted(daemons) == ["main", "sandbox"] and all(a["status"] == "connected" for a in daemons.values())
+        and dev["health"]["healthy"],
+        f"agents={[(name, a['status']) for name, a in sorted(daemons.items())]} pod={pod_name}",
     )
-    daemon = daemons[0]
+    human_daemon, daemon = daemons["main"], daemons["sandbox"]
     build_before = dev["latest_build"]["id"]
 
     # ------------------------------------------------------------------
     report.section("A. The workspace daemon and the human")
-    out = in_pod(pod_name, f"CODER_AGENT_URL={POD_API} $(ls -d /tmp/coder.*/coder | head -1) identity --output json")
+    out = in_pod(pod_name, f"CODER_AGENT_URL={POD_API} $(ls -d /tmp/coder.*/coder | head -1) identity --output json", "dev")
     human = json.loads(out.stdout)
     report.check(
-        "A1", "the workspace daemon has its own identity, resting on its agent token",
+        "A1", "the human's daemon has its own identity, resting on its agent token",
         human["kind"] == "daemon" and human["attestation"] == "agent-token"
-        and human["id"] == f"{dev['id']}/agent/{daemon['id']}" and human["owner_username"] == user,
+        and human["id"] == f"{dev['id']}/agent/{human_daemon['id']}" and human["owner_username"] == user,
         f"id={human['id']} kind={human['kind']} attestation={human['attestation']}",
     )
     out = coder("whoami")
@@ -295,7 +326,8 @@ def main():
         out.returncode == 0 and first.get("kind") == "workload" and first.get("attestation") == "workspace-daemon"
         and first.get("id") == f"{dev['id']}/workload/{first.get('identity_id')}"
         and first.get("sponsor_username") == user and first.get("scopes", []) == []
-        and first.get("agent_id") == daemon["id"] and first.get("sandbox", {}).get("runtime") == "docker",
+        and first.get("agent_id") == daemon["id"] and first.get("agent_name") == "sandbox"
+        and first.get("sandbox", {}).get("runtime") == "docker",
         f"id={first.get('id')}\nsponsor={first.get('sponsor_username')} scopes={first.get('scopes', [])} "
         f"sandbox={first.get('sandbox', {}).get('runtime')} took {elapsed:.1f}s" if first else out.stderr[-400:],
     )
@@ -318,7 +350,8 @@ def main():
 
     out_alpha = run_workload(["sleep", "900"], name="alpha", detach=True)
     # beta listens on a port, so that C5 can tell blocked from absent.
-    out_beta = run_workload(["nc", "-lk", "-p", "8080", "-e", "echo", "beta-says-hi"], name="beta", scopes=READ_SCOPES, detach=True)
+    out_beta = run_workload(["nc", "-lk", "-p", "8080", "-e", "echo", "beta-says-hi"], name="beta",
+                            scopes=READ_SCOPES, detach=True, network="outbound")
     listed = {w["name"]: w for w in workloads()}
     alpha, beta = listed.get("alpha"), listed.get("beta")
     report.check(
@@ -335,9 +368,18 @@ def main():
     same_pod = workspace_pod(now)["metadata"]["uid"] == pod["metadata"]["uid"]
     report.check(
         "B5", "nothing was provisioned: no workspace build, no new pod, no new agent",
-        now["latest_build"]["id"] == build_before and same_pod and len(agents(now)) == 1
+        now["latest_build"]["id"] == build_before and same_pod and len(agents(now)) == 2
         and not any("workload" in p["metadata"]["name"] for p in pods),
         f"latest build unchanged; pods in the namespace: {len(pods)}; agents in the workspace: {len(agents(now))}",
+    )
+
+    typed = "echo typed-$((6*7))\ncoder identity --output json 2>/dev/null | grep '\"name\"'\nexit 4\n"
+    out = run([CODER, "run", "-it", WORKSPACE, "--name", "terminal", "--", "sh"], stdin=typed, timeout=120)
+    report.check(
+        "B6", "`coder run -it` gives the sponsor a terminal inside the sandbox, as the workload",
+        out.returncode == 4 and "typed-42" in out.stdout and '"name": "terminal"' in out.stdout,
+        f"exit code {out.returncode}; saw typed-42: {'typed-42' in out.stdout}; identity inside: "
+        f"{[line.strip() for line in out.stdout.splitlines() if line.strip().startswith(chr(34) + 'name')][:1]}",
     )
 
     # ------------------------------------------------------------------
@@ -366,7 +408,7 @@ touch /run/coder/x 2>&1
 ls /var/run/docker.sock /tmp/coder-workloads /tmp/coder.* 2>&1 | sed 's/^ls: //'
 echo "@@ processes"
 ls /proc | grep -c -E '^[0-9]+$'
-tr '\\0' ' ' < /proc/1/cmdline | cut -c1-12
+tr '\\0' ' ' < /proc/1/cmdline | cut -c1-17
 echo "@@ network"
 nc -w 3 {beta_ip} 8080 </dev/null >/dev/null 2>&1 && echo beta-reached || echo beta-blocked
 nc -w 3 {gateway} 2375 </dev/null >/dev/null 2>&1 && echo docker-api-reached || echo docker-api-unreachable
@@ -379,8 +421,10 @@ wget -q -O- --header "{IDENTITY_HEADER}: {beta['id']}" {POD_API}/api/v2/workspac
 wget -q -O- --header "{IDENTITY_HEADER}: {beta['id']}" {POD_API}/api/v2/workspaceagents/me/identity 2>&1 | tail -1
 echo "@@ view"
 coder exp api workspaces 2>/dev/null
+echo "@@ plain-client"
+wget -q -O- $CODER_URL/api/v2/workspaceagents/me/identity 2>&1
 echo "@@ end"
-""", name="mallory")
+""", name="mallory", network="outbound")
     mallory = api_json(sections.get("identity", ""))
     claimed = api_json(sections.get("claims-beta", ""))
     report.check(
@@ -391,8 +435,10 @@ echo "@@ end"
     )
     env = sections.get("env", "").splitlines()
     report.check(
-        "C2", "the sandbox holds no credential: no agent token, no session token, only the path of its channel",
-        env[:1] == ["0"] and [line.split("=")[0] for line in env[1:]] == ["CODER_WORKLOAD_NAME", "CODER_WORKLOAD_SOCKET"],
+        "C2", "the sandbox holds no credential: no agent token, no session token, only where its channel is",
+        env[:1] == ["0"]
+        and [line.split("=")[0] for line in env[1:]] == ["CODER_URL", "CODER_WORKLOAD_NAME", "CODER_WORKLOAD_SOCKET"]
+        and env[1].startswith("CODER_URL=http://127.0.0.1:"),
         env,
     )
     report.check(
@@ -405,8 +451,8 @@ echo "@@ end"
     processes = sections.get("processes", "").splitlines()
     report.check(
         "C4", "it sees only its own processes, not the daemon's or Docker's",
-        len(processes) >= 2 and int(processes[0]) <= 6 and processes[1].startswith("sh -c"),
-        f"{processes[0] if processes else '?'} processes visible; PID 1 is `{processes[1] if len(processes) > 1 else '?'}...`",
+        len(processes) >= 2 and int(processes[0]) <= 8 and "docker-init" in processes[1],
+        f"{processes[0] if processes else '?'} processes visible; PID 1 is `{processes[1] if len(processes) > 1 else '?'}`",
     )
     report.check(
         "C5", "it cannot reach another workload's sandbox or the Docker API over the network",
@@ -429,6 +475,12 @@ echo "@@ end"
         "C8", "scopes are not inherited: beta may read workspaces, and a workload beside it without scopes sees none",
         isinstance(view, dict) and view.get("count") == 0 and view.get("workspaces") == [] and "end" in sections,
         f"workspaces visible to mallory: {view.get('count') if isinstance(view, dict) else view}",
+    )
+    plain = api_json(sections.get("plain-client", ""))
+    report.check(
+        "C12", "an ordinary HTTP client in the sandbox reaches Coder as the workload, without any token",
+        plain.get("identity_id") == mallory.get("identity_id") and plain.get("kind") == "workload",
+        f"wget $CODER_URL/api/v2/workspaceagents/me/identity -> {plain.get('kind')} {plain.get('identity_id')}",
     )
 
     other_token = None
@@ -529,29 +581,147 @@ echo "@@ end"
         report.info("D7 skipped: set OTHER_WORKSPACE to a running workspace from this template that another user owns")
 
     # ------------------------------------------------------------------
-    report.section("E. Revocation and lifecycle")
+    report.section("E. What a sandbox may be is the template's decision")
+    sections, out = probe(f"""
+echo "@@ interfaces"
+ls /sys/class/net
+echo "@@ outside"
+wget -q -T 4 -O /dev/null {POD_API}/healthz 2>&1 && echo reached || echo unreachable
+echo "@@ coder"
+wget -q -O- $CODER_URL/api/v2/workspaceagents/me/identity 2>&1
+echo "@@ end"
+""", name="offline")
+    offline = api_json(sections.get("coder", ""))
+    report.check(
+        "E1", "by default a sandbox has no network at all, and still reaches Coder as itself",
+        sections.get("interfaces", "").split() == ["lo"] and sections.get("outside", "").splitlines()[-1:] == ["unreachable"]
+        and offline.get("name") == "offline" and offline.get("kind") == "workload",
+        f"interfaces={sections.get('interfaces', '').split()}; coderd directly: {sections.get('outside', '').splitlines()[-1:]}; "
+        f"through its channel: {offline.get('kind')} {offline.get('name')}",
+    )
+    records = latest_records()
+    report.check(
+        "E2", "outbound network is granted only on request, and what was granted is on record",
+        records.get("offline", {}).get("network") == "none" and records.get("beta", {}).get("network") == "outbound"
+        and records.get("mallory", {}).get("network") == "outbound" and records.get("alpha", {}).get("network") == "none",
+        {name: records.get(name, {}).get("network") for name in ("alpha", "offline", "beta", "mallory")},
+    )
+    out = run_workload(["true"], name="other-image", image="busybox")
+    record = finished_workload("other-image")
+    report.check(
+        "E3", "an image the template does not allow is refused, and the attempt is on record",
+        out.returncode != 0 and "does not allow the image" in out.stderr and record is not None and record["status"] == "failed",
+        out.stderr.strip().splitlines()[-1:] + [f"record: {record['status'] if record else None}"],
+    )
+    out = run_workload(["true"], scopes=["coder:all"])
+    report.check(
+        "E4", "a workload cannot be given all of its sponsor's permissions",
+        out.returncode != 0 and "every permission" in out.stderr, out.stderr.strip().splitlines()[-2:-1],
+    )
+
+    # The human keeps a project where the template allows sharing, and
+    # other things where it does not.
+    in_pod(pod_name, "mkdir -p /projects/repo /projects/scratch && echo 'from the human' > /projects/repo/README "
+                     "&& chmod 777 /projects/scratch && rm -f /projects/scratch/out /projects/way-out "
+                     "&& ln -s /root /projects/way-out && echo private > /root/notes", "dev")
+    unshared, _ = probe('echo "@@ projects"; ls /projects 2>&1; echo "@@ end"', name="unshared")
+    shared, _ = probe("""
+echo "@@ read"; cat /projects/repo/README
+echo "@@ write"; touch /projects/repo/changed 2>&1
+echo "@@ scratch"; echo 'from the workload' > /projects/scratch/out && echo written
+echo "@@ around"; ls /projects; cat /root/notes 2>&1
+echo "@@ end"
+""", name="shared", mounts=["/projects/repo", "/projects/scratch:rw"])
+    seen_by_human = in_pod(pod_name, "cat /projects/scratch/out; ls /projects/repo", "dev").stdout.split("\n")
+    report.check(
+        "E5", "a workload sees nothing of the workspace unless a directory is shared with it, read-only by default",
+        "No such file or directory" in unshared.get("projects", "") and shared.get("read") == "from the human"
+        and "Read-only file system" in shared.get("write", "") and shared.get("scratch") == "written"
+        and seen_by_human[:2] == ["from the workload", "README"]
+        and shared.get("around", "").splitlines()[:2] == ["repo", "scratch"] and "private" not in shared.get("around", ""),
+        f"unshared: {unshared.get('projects', '')}; shared read: {shared.get('read')}; write to the read-only one: "
+        f"{shared.get('write', '')[-22:]}; the human finds in the writable one: {seen_by_human[0]}",
+    )
+    refused = {}
+    for path in ("/root", "/projects/../root", "/projects/way-out", "/tmp/coder-workloads", "/var/run/docker.sock"):
+        out = run_workload(["true"], mounts=[path])
+        refused[path] = out.returncode != 0 and ("does not allow sharing" in out.stderr or "does not exist" in out.stderr)
+    report.check(
+        "E6", "only what the template allows can be shared: not the home directory, not by a detour, not Docker",
+        all(refused.values()), refused,
+    )
+
+    # ------------------------------------------------------------------
+    report.section("F. Where workloads run")
+    spec = pod["spec"]
+    containers = {c["name"]: c for c in spec["containers"]}
+    uid_map = in_pod(pod_name, "cat /proc/self/uid_map").stdout.split()
+    report.check(
+        "F1", "the pod is not privileged, and root in it is an unprivileged user on the node",
+        spec.get("hostUsers") is False and not any((c.get("securityContext") or {}).get("privileged") for c in spec["containers"])
+        and len(uid_map) == 3 and uid_map[0] == "0" and int(uid_map[1]) > 65535,
+        f"hostUsers={spec.get('hostUsers')}; privileged containers: 0; uid 0 in the pod is uid {uid_map[1] if len(uid_map) == 3 else '?'} on the node",
+    )
+    dev_view = in_pod(pod_name, "grep CapEff /proc/1/status; ls /var/run/docker.sock /tmp/coder-workloads 2>&1 | grep -c 'No such file'; "
+                      "which docker >/dev/null 2>&1 && echo has-docker || echo no-docker", "dev").stdout.split()
+    cap_eff = int(dev_view[1], 16) if len(dev_view) > 1 else -1
+    report.check(
+        "F2", "the human's container is ordinary: no added capabilities, no Docker, no view of the sandboxes' channels",
+        not (containers["dev"].get("securityContext") or {}) and cap_eff >= 0 and not cap_eff & (1 << 21)
+        and dev_view[2:] == ["2", "no-docker"],
+        f"CapEff={dev_view[1] if len(dev_view) > 1 else '?'} (no CAP_SYS_ADMIN); docker socket and channel directory absent",
+    )
+    human_token = daemon_token(pod_name, "dev")
+    git_key = {
+        "the daemon that runs workloads": http("GET", "/api/v2/workspaceagents/me/gitsshkey", token=token_of_daemon)[0],
+        "the human's daemon": http("GET", "/api/v2/workspaceagents/me/gitsshkey", token=human_token)[0],
+    }
+    report.check(
+        "F3", "the daemon that runs workloads cannot fetch the owner's Git SSH key, so an escaped workload could not either",
+        git_key == {"the daemon that runs workloads": 403, "the human's daemon": 200}, git_key,
+    )
+    status = vouch("/api/v2/workspaces", human_token, beta["id"])
+    report.check(
+        "F4", "the human's daemon cannot vouch for workloads: only the daemon that runs them can",
+        status == 401, f"the human's daemon vouching for beta -> {status}",
+    )
+
+    # ------------------------------------------------------------------
+    report.section("G. Revocation, lifecycle and the record")
     out = coder("run", "--remove", "alpha", WORKSPACE)
     status = vouch("/api/v2/workspaceagents/me/identity", token_of_daemon, alpha["id"])
     gone = wait_until(lambda: alpha["sandbox"]["id"][:12] not in " ".join(sandbox_containers(pod_name)), timeout=60)
+    record = finished_workload("alpha")
     report.check(
-        "E1", "removing a workload revokes its identity at once, even for its own daemon, and stops its sandbox",
-        out.returncode == 0 and status == 401 and bool(gone), f"daemon vouching for alpha -> {status}; sandbox removed={bool(gone)}",
+        "G1", "removing a workload revokes its identity at once, even for its own daemon, and stops its sandbox",
+        out.returncode == 0 and status == 401 and bool(gone) and record is not None and record["status"] == "removed",
+        f"daemon vouching for alpha -> {status}; sandbox removed={bool(gone)}; record: {record['status'] if record else None}",
     )
-    out = run_workload(["sh", "-c", "sleep 8"], name="shortlived", detach=True)
+    out = run_workload(["sh", "-c", "echo working; sleep 8; echo finished >&2; exit 5"], name="shortlived", detach=True)
     short = next(w for w in workloads() if w["name"] == "shortlived")
     before = vouch("/api/v2/workspaceagents/me/identity", token_of_daemon, short["id"])
-    dropped = wait_until(lambda: not any(w["name"] == "shortlived" for w in workloads()), timeout=60)
+    record = wait_until(lambda: finished_workload("shortlived"), timeout=60)
     after = vouch("/api/v2/workspaceagents/me/identity", token_of_daemon, short["id"])
     report.check(
-        "E2", "an identity lasts as long as its command: once the command exits, it is revoked",
-        before == 200 and bool(dropped) and after == 401, f"while running -> {before}; after it exited -> {after}",
+        "G2", "an identity lasts as long as its command; nobody has to watch for its end to be recorded",
+        before == 200 and record is not None and record["status"] == "exited" and record.get("exit_code") == 5 and after == 401,
+        f"while running -> {before}; after it exited -> {after}; record: {record['status'] if record else None} "
+        f"({record.get('exit_code') if record else None})",
+    )
+    _, raw = http("GET", f"/api/v2/workspaces/{dev['id']}/workloads/{short['id']}/logs", token=token)
+    events = [json.loads(line) for line in str(raw).splitlines() if line.strip().startswith("{")]
+    report.check(
+        "G3", "the output and exit code of a finished workload can still be read",
+        [e.get("output") for e in events if "output" in e] == ["working", "finished"] and events[-1:] == [{"exit_code": 5}],
+        events,
     )
     in_pod(pod_name, f"docker rm --force {beta['sandbox']['id']} >/dev/null")
-    dropped = wait_until(lambda: not any(w["name"] == "beta" for w in workloads()), timeout=60)
+    record = wait_until(lambda: finished_workload("beta"), timeout=60)
     status = vouch("/api/v2/workspaceagents/me/identity", token_of_daemon, beta["id"])
     report.check(
-        "E3", "killing a sandbox behind Coder's back ends the workload and its identity",
-        bool(dropped) and status == 401, f"beta listed={not dropped}; daemon vouching for beta -> {status}",
+        "G4", "killing a sandbox behind Coder's back ends the workload and its identity, and that is recorded too",
+        record is not None and record["status"] in ("lost", "exited") and status == 401,
+        f"record: {record['status'] if record else None} ({record.get('exit_code') if record else None}); daemon vouching for beta -> {status}",
     )
 
     run_workload(["sleep", "900"], name="survivor", detach=True)
@@ -560,14 +730,24 @@ echo "@@ end"
     pod_gone = wait_until(lambda: workspace_pod(workspace(WORKSPACE)) is None, timeout=300)
     status = vouch("/api/v2/workspaceagents/me/identity", token_of_daemon, survivor["id"])
     listed = workloads()
+    record = finished_workload("survivor")
     report.check(
-        "E4", "stopping the workspace ends every workload: the pod, the sandboxes and the identities go together",
-        out.returncode == 0 and bool(pod_gone) and status == 401 and listed == [],
-        f"pod gone={bool(pod_gone)}; the old daemon vouching for survivor -> {status}; workloads listed={len(listed)}",
+        "G5", "stopping the workspace ends every workload: the pod, the sandboxes and the identities go together",
+        out.returncode == 0 and bool(pod_gone) and status == 401 and listed == []
+        and record is not None and record["status"] in ("stopped", "lost"),
+        f"pod gone={bool(pod_gone)}; the old daemon vouching for survivor -> {status}; running workloads listed={len(listed)}; "
+        f"record: {record['status'] if record else None}",
+    )
+    history = {name: w["status"] for name, w in latest_records().items()}
+    report.check(
+        "G6", "what ran stays on record after the workspace has stopped",
+        {"first", "alpha", "beta", "mallory", "shortlived", "survivor"} <= set(history) and len(history) >= 10,
+        f"{len(history)} workloads on record, for example " + ", ".join(
+            f"{name}: {history.get(name)}" for name in ("first", "alpha", "beta", "shortlived", "survivor", "other-image")),
     )
     out = coder("start", WORKSPACE, "--yes", timeout=600)
     restarted = wait_until(
-        lambda: (lambda ws: ws if [a["status"] for a in agents(ws)] == ["connected"] else None)(workspace(WORKSPACE)),
+        lambda: (lambda ws: ws if sorted(a["status"] for a in agents(ws)) == ["connected", "connected"] else None)(workspace(WORKSPACE)),
         timeout=420,
     )
     fresh = {}
@@ -582,20 +762,20 @@ echo "@@ end"
     new_token = daemon_token(workspace_pod(workspace(WORKSPACE))["metadata"]["name"]) if restarted else ""
     status = vouch("/api/v2/workspaceagents/me/identity", new_token, survivor["id"])
     report.check(
-        "E5", "starting it again brings back the daemon and no workloads; new workloads get new identities",
-        out.returncode == 0 and restarted is not None and fresh.get("kind") == "workload"
+        "G7", "starting it again brings back the daemons and no workloads; new workloads get new identities",
+        out.returncode == 0 and restarted is not None and fresh.get("kind") == "workload" and workloads() == []
         and fresh.get("identity_id") not in {None, first.get("identity_id"), survivor["id"]} and status == 401,
         f"new identity {fresh.get('id')}; the new daemon vouching for the old survivor -> {status}",
     )
 
     # ------------------------------------------------------------------
-    report.section("F. Footprint")
+    report.section("H. Footprint")
     kinds = {}
     for kind in ("deployments", "pods", "secrets", "serviceaccounts", "roles", "rolebindings"):
         items = json.loads(kubectl("get", kind, "-o", "json").stdout)["items"]
         kinds[kind] = sorted(i["metadata"]["name"] for i in items)
     report.check(
-        "F1", "the namespace holds only workspaces: no operator, no extra service account, role or secret",
+        "H1", "the namespace holds only workspaces: no operator, no extra service account, role or secret",
         all(name.startswith("coder-") for name in kinds["deployments"] + kinds["pods"])
         and kinds["secrets"] == [] and kinds["serviceaccounts"] == ["default"]
         and kinds["roles"] == [] and kinds["rolebindings"] == [],
@@ -603,7 +783,8 @@ echo "@@ end"
     )
     bindings = json.loads(kubectl("get", "clusterrolebindings", "-o", "json", namespaced=False).stdout)["items"]
     mine = [b["metadata"]["name"] for b in bindings if any(s.get("namespace") == NAMESPACE for s in (b.get("subjects") or []))]
-    report.check("F2", "nothing in the namespace is bound to a cluster-wide role", mine == [], mine)
+    report.check("H2", "nothing in the namespace is bound to a cluster-wide role", mine == [], mine)
+    report.info("The audit log entries for workloads are checked by the Go test TestWorkloads: the audit log needs a license to run.")
 
     ok = report.finish()
     return 0 if ok else 1
