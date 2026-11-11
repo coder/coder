@@ -233,14 +233,15 @@ func (api *API) aiBridgeListSessions(rw http.ResponseWriter, r *http.Request) {
 	err := api.Database.InTx(func(db database.Store) error {
 		var err error
 		count, err = db.CountAIBridgeSessions(ctx, database.CountAIBridgeSessionsParams{
-			StartedAfter:  filter.StartedAfter,
-			StartedBefore: filter.StartedBefore,
-			InitiatorID:   filter.InitiatorID,
-			Provider:      filter.Provider,
-			ProviderName:  filter.ProviderName,
-			Model:         filter.Model,
-			Client:        filter.Client,
-			SessionID:     filter.SessionID,
+			StartedAfter:   filter.StartedAfter,
+			StartedBefore:  filter.StartedBefore,
+			InitiatorID:    filter.InitiatorID,
+			Provider:       filter.Provider,
+			ProviderName:   filter.ProviderName,
+			Model:          filter.Model,
+			Client:         filter.Client,
+			SessionID:      filter.SessionID,
+			OrganizationID: filter.OrganizationID,
 		})
 		if err != nil {
 			return xerrors.Errorf("count authorized aibridge sessions: %w", err)

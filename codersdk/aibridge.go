@@ -359,6 +359,9 @@ type AIBridgeListSessionsFilter struct {
 	Client       string `json:"client,omitempty"`
 	SessionID    string `json:"session_id,omitempty"`
 
+	// Organization is an organization ID or name.
+	Organization string `json:"organization,omitempty"`
+
 	// AfterSessionID is a cursor for pagination. It is the session ID of the
 	// last session in the previous page.
 	AfterSessionID string `json:"after_session_id,omitempty"`
@@ -393,6 +396,9 @@ func (f AIBridgeListSessionsFilter) asRequestOption() RequestOption {
 		}
 		if f.SessionID != "" {
 			params = append(params, fmt.Sprintf("session_id:%q", f.SessionID))
+		}
+		if f.Organization != "" {
+			params = append(params, fmt.Sprintf("organization:%q", f.Organization))
 		}
 		if f.FilterQuery != "" {
 			params = append(params, f.FilterQuery)
