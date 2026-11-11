@@ -261,8 +261,8 @@ export type ProjectChatWorkspace = {
 	readonly existedBeforeChat: boolean;
 };
 
+/** "leave" is a UI choice; only stop and delete reach the workspace mutation. */
 export type ProjectWorkspaceAction = "leave" | "stop" | "delete";
-type ProjectWorkspaceChange = Exclude<ProjectWorkspaceAction, "leave">;
 
 const listOwnProjectChats = async (projectId: string, signal: AbortSignal) => {
 	const chats: Chat[] = [];
@@ -374,7 +374,7 @@ export const projectWorkspaceAction = (queryClient: QueryClient) =>
 			action,
 			workspaces,
 		}: {
-			action: ProjectWorkspaceChange;
+			action: Exclude<ProjectWorkspaceAction, "leave">;
 			workspaces: readonly Workspace[];
 			/** The caller's toast for the outcome; the requests ignore it. */
 			toastId?: string | number;
