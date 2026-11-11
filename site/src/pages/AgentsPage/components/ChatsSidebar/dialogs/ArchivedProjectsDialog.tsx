@@ -17,6 +17,7 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnarchiveChatProject } from "../../../hooks/useUnarchiveChatProject";
 import { buildAgentProjectPath } from "../../../utils/navigation";
 import { ChatProjectIcon } from "../../ChatProjectIcon";
+import { RetryButton } from "../../RetryButton";
 import {
 	getOrganizationLabels,
 	getProjectLabel,
@@ -72,7 +73,6 @@ const ArchivedProjectsList: React.FC<ArchivedProjectsListProps> = ({
 	const projectsQuery = useQuery(archivedChatProjects());
 	const projects = projectsQuery.data;
 	const rowActionsRef = useRef(new Map<string, HTMLElement>());
-	// Row indexes of pending unarchives, by project ID.
 	const pendingUnarchivesRef = useRef(new Map<string, number>());
 	const emptyStateRef = useRef<HTMLParagraphElement>(null);
 
@@ -121,13 +121,12 @@ const ArchivedProjectsList: React.FC<ArchivedProjectsListProps> = ({
 		<ErrorAlert
 			error={projectsQuery.error}
 			actions={
-				<Button
+				<RetryButton
 					size="sm"
 					variant="outline"
-					onClick={() => void projectsQuery.refetch()}
-				>
-					Retry
-				</Button>
+					isRetrying={projectsQuery.isFetching}
+					onRetry={() => void projectsQuery.refetch()}
+				/>
 			}
 		/>
 	) : null;

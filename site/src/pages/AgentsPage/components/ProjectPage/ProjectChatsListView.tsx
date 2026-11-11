@@ -21,7 +21,6 @@ type ProjectChatsListViewProps = {
 	readonly actions?: ProjectChatRowActions;
 	/** Fetches and shows each chat's AI Gateway cost. */
 	readonly showCost: boolean;
-	/** Lists an archived project's chats, whose empty state differs. */
 	readonly isArchived?: boolean;
 };
 
