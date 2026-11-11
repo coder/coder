@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useQuery } from "react-query";
-import { fn, screen, spyOn } from "storybook/test";
+import { fn, screen, spyOn, userEvent } from "storybook/test";
 import { API } from "#/api/api";
 import {
 	archivedChatProjects,
@@ -153,5 +153,51 @@ export const RefetchError: Story = {
 	},
 	play: async () => {
 		await screen.findByRole("button", { name: "Retry" });
+	},
+};
+
+/** The Unarchive button spins and disables while its request is pending. */
+export const UnarchivePending: Story = {
+	parameters: {
+		queries: [
+			{ key: archivedChatProjectsKey, data: [MockArchivedChatProject] },
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "unarchiveChatProject").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("button", {
+				name: `Unarchive ${MockArchivedChatProject.name}`,
+			}),
+		);
+	},
+};
+
+/** A rejected unarchive keeps the row and re-enables its button. */
+export const UnarchiveError: Story = {
+	parameters: {
+		queries: [
+			{ key: archivedChatProjectsKey, data: [MockArchivedChatProject] },
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "unarchiveChatProject").mockRejectedValue(
+			mockApiError({ message: "Failed to unarchive project." }),
+		);
+		// The failed request still refreshes the list.
+		spyOn(API.experimental, "getChatProjects").mockResolvedValue([
+			MockArchivedChatProject,
+		]);
+	},
+	play: async () => {
+		await userEvent.click(
+			await screen.findByRole("button", {
+				name: `Unarchive ${MockArchivedChatProject.name}`,
+			}),
+		);
 	},
 };
