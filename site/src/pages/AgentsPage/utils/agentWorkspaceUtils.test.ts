@@ -9,6 +9,7 @@ vi.mock("#/components/Toaster/toast", () => ({
 	},
 }));
 
+import { MutationObserver } from "react-query";
 import { API } from "#/api/api";
 import { ArchiveAndDeleteError } from "#/api/queries/chats";
 import {
@@ -19,13 +20,18 @@ import {
 } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { MockChat } from "#/testHelpers/chatEntities";
-import { MockChatProject, MockWorkspace } from "#/testHelpers/entities";
+import {
+	MockChatProject,
+	MockWorkspace,
+	MockWorkspaceBuild,
+} from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import {
 	isWorkspaceAutoCreated,
 	notifyArchiveAndDeleteFailed,
 	notifyDeleteQueueState,
 	projectChatWorkspaces,
+	projectWorkspaceAction,
 	resolveArchiveAndDeleteAction,
 	shouldNavigateAfterArchive,
 	workspaceAcquiredAt,
@@ -747,6 +753,42 @@ describe("projectChatWorkspaces", () => {
 		);
 
 		expect(result).toHaveLength(7);
+		expect(maxInFlight).toBe(5);
+	});
+});
+
+describe("projectWorkspaceAction", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	it("stops at most five workspaces at a time", async () => {
+		const workspaces = Array.from({ length: 7 }, (_, index) => ({
+			...MockWorkspace,
+			id: `workspace-${index}`,
+			name: `workspace-${index}`,
+		}));
+		vi.spyOn(API.experimental, "getChatsByWorkspace").mockResolvedValue({});
+		let inFlight = 0;
+		let maxInFlight = 0;
+		vi.spyOn(API, "getWorkspace").mockImplementation(async (id) => {
+			inFlight++;
+			maxInFlight = Math.max(maxInFlight, inFlight);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			inFlight--;
+			return workspaces.find((ws) => ws.id === id) ?? MockWorkspace;
+		});
+		const stop = vi
+			.spyOn(API, "stopWorkspace")
+			.mockResolvedValue(MockWorkspaceBuild);
+		const queryClient = createTestQueryClient();
+
+		await new MutationObserver(
+			queryClient,
+			projectWorkspaceAction(queryClient),
+		).mutate({ action: "stop", workspaces });
+
+		expect(stop).toHaveBeenCalledTimes(7);
 		expect(maxInFlight).toBe(5);
 	});
 });
