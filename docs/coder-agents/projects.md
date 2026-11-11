@@ -75,7 +75,8 @@ Unarchiving restores the chats that were archived with the project.
 You can't unarchive a single chat while its project is archived.
 Unarchive the project instead.
 
-The API equivalents are `POST /api/experimental/organizations/{organization}/chats/projects/{project}/archive` and `.../unarchive`.
+The API equivalents are `POST /api/experimental/organizations/{organization}/chats/projects/{project}/archive` and `POST /api/experimental/organizations/{organization}/chats/projects/{project}/unarchive`.
+When chats in the project are running, the archive request returns `409 Conflict` unless its body is `{"stop_active_chats": true}`.
 List archived projects with `GET /api/experimental/chats/projects?archived=true`.
 
 ## Add chats to a project
