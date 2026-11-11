@@ -119,9 +119,9 @@ export const MoveToUnpinnedProjectDialog: React.FC<
 				<DialogHeader>
 					<DialogTitle>Chat moved to {project.name}</DialogTitle>
 					<DialogDescription>
-						Chats in {project.name} appear in the sidebar only while you have
-						the project pinned. Pin it to keep this chat in the sidebar, or find
-						the chat on the project page.
+						This chat appears in the sidebar only while {project.name} is
+						pinned. Pin the project to keep it there, or find the chat on the
+						project page.
 					</DialogDescription>
 				</DialogHeader>
 				<DialogFooter>
