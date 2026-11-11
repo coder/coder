@@ -25,7 +25,7 @@ import (
 // @Accept json
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param project path string true "Chat project ID" format(uuid)
-// @Param request body codersdk.PinChatProjectRequest true "Pin chat project request"
+// @Param request body codersdk.PinChatProjectRequest false "Pin chat project request"
 // @Success 204
 // @Router /api/experimental/organizations/{organization}/chats/projects/{project}/pin [put]
 // @x-apidocgen {"skip": true}
