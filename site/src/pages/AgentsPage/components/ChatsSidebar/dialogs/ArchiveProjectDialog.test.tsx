@@ -71,6 +71,27 @@ describe("ArchiveProjectDialog", () => {
 		},
 	);
 
+	it("archives a project without chats when the retention period fails to load", async () => {
+		const user = userEvent.setup();
+		const { archive } = mockApi({
+			preview: { chat_count: 0, active_chat_count: 0 },
+		});
+		vi.mocked(API.experimental.getChatRetentionDays).mockRejectedValue(
+			mockApiError({ message: "Failed to load the retention period." }),
+		);
+		renderWithAuth(
+			<ArchiveProjectDialog project={MockChatProject} open onClose={vi.fn()} />,
+		);
+		await screen.findByText(/has no chats to archive/);
+		await waitFor(() =>
+			expect(API.experimental.getChatRetentionDays).toHaveBeenCalled(),
+		);
+
+		await user.click(screen.getByRole("button", { name: "Archive project" }));
+
+		await waitFor(() => expect(archive).toHaveBeenCalledTimes(1));
+	});
+
 	it("asks to stop a chat that started after the preview loaded", async () => {
 		const user = userEvent.setup();
 		const { archive } = mockApi({

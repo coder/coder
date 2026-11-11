@@ -32,6 +32,9 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+const mockLongProjectName =
+	"Launch plan for the quarterly release with a name long enough to truncate";
+
 /** A shared project the viewer can't unarchive offers only Open. */
 export const Default: Story = {
 	parameters: {
@@ -90,6 +93,38 @@ export const SameNameInTwoOrganizations: Story = {
 					{
 						...MockArchivedChatProject,
 						id: "launch-2",
+						organization_id: MockOrganization2.id,
+					},
+				],
+			},
+		],
+	},
+};
+
+/** Long names and organization labels both truncate beside the actions. */
+export const LongNamesInTwoOrganizations: Story = {
+	args: {
+		organizations: [
+			{
+				...MockDefaultOrganization,
+				display_name: "Platform engineering and developer experience",
+			},
+			{
+				...MockOrganization2,
+				display_name: "Customer success and solutions engineering",
+			},
+		],
+	},
+	parameters: {
+		queries: [
+			{
+				key: archivedChatProjectsKey,
+				data: [
+					{ ...MockArchivedChatProject, name: mockLongProjectName },
+					{
+						...MockArchivedChatProject,
+						id: "launch-2",
+						name: mockLongProjectName,
 						organization_id: MockOrganization2.id,
 					},
 				],

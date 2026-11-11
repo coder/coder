@@ -155,7 +155,10 @@ const ArchivedProjectsList: React.FC<ArchivedProjectsListProps> = ({
 								unarchivedRowRef.current = { projectId: project.id, index };
 							}}
 							onUnarchiveError={() => {
-								unarchivedRowRef.current = null;
+								// Another row's unarchive may have replaced the record.
+								if (unarchivedRowRef.current?.projectId === project.id) {
+									unarchivedRowRef.current = null;
+								}
 							}}
 							actionRef={(element) => {
 								if (!element) {
@@ -209,7 +212,7 @@ const ArchivedProjectRow: React.FC<ArchivedProjectRowProps> = ({
 			<span className="flex min-w-0 flex-1 items-baseline gap-2 text-sm">
 				<span className="truncate text-content-primary">{project.name}</span>
 				{organizationLabel && (
-					<span className="shrink-0 text-content-secondary">
+					<span className="max-w-1/2 shrink-0 truncate text-content-secondary">
 						{organizationLabel}
 					</span>
 				)}
