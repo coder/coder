@@ -58,8 +58,8 @@ func (v standardWebhooksVerifier) Verify(header http.Header, body []byte, secret
 		return reject("webhook-signature header missing")
 	}
 	mac := hmac.New(sha256.New, key)
-	mac.Write([]byte(id + "." + timestamp + "."))
-	mac.Write(body)
+	_, _ = mac.Write([]byte(id + "." + timestamp + "."))
+	_, _ = mac.Write(body)
 	expected := mac.Sum(nil)
 
 	// A sender can list several signatures, for example during secret

@@ -31,7 +31,7 @@ func (githubVerifier) Verify(header http.Header, body []byte, secret string, _ t
 		return reject("signature is not hex")
 	}
 	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write(body)
+	_, _ = mac.Write(body)
 	if !hmac.Equal(received, mac.Sum(nil)) {
 		return reject("signature does not match")
 	}
