@@ -71,7 +71,7 @@ const ListSubagentModelsContent: React.FC<{ models: unknown[] }> = ({
 
 	return (
 		<ToolCall.Scrollable
-			className="mt-1.5 rounded-md border border-solid border-border"
+			className="mt-1.5 rounded-md border border-solid"
 			viewportClassName="max-h-64"
 			ariaLabel="Available models"
 		>
@@ -79,11 +79,7 @@ const ListSubagentModelsContent: React.FC<{ models: unknown[] }> = ({
 				{Array.from(grouped.entries(), ([provider, providerModels], index) => (
 					<div
 						key={provider}
-						className={
-							index > 0
-								? "border-0 border-t border-solid border-border"
-								: undefined
-						}
+						className={index > 0 ? "border-t border-solid" : undefined}
 					>
 						<div className="flex items-center gap-1.5 px-2 py-1">
 							<ProviderIcon provider={provider} className="size-3.5" />

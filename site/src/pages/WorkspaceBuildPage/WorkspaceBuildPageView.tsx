@@ -168,7 +168,7 @@ export const WorkspaceBuildPageView: React.FC<WorkspaceBuildPageViewProps> = ({
 				</Sidebar>
 
 				<ScrollArea>
-					<div className="flex items-center justify-between border-0 border-b border-solid border-border relative">
+					<div className="flex items-center justify-between border-b border-solid relative">
 						<Tabs
 							value={selectedTab}
 							onValueChange={(value: string) => {

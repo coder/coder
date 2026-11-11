@@ -80,7 +80,7 @@ const CollapsibleSection: React.FC<{
 			onOpenChange={onOpenChange}
 			className={cn("p-4", className)}
 		>
-			<CollapsibleTrigger className="flex w-full cursor-pointer items-start gap-2 border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary">
+			<CollapsibleTrigger className="flex w-full cursor-pointer items-start gap-2 bg-transparent p-0 text-left transition-colors hover:text-content-primary">
 				{open ? (
 					<ChevronDownIcon className="mt-1 size-4 shrink-0 text-content-secondary" />
 				) : (
@@ -306,7 +306,7 @@ export const ModelFormFields: React.FC<{
 					{organizationField}
 				</div>
 
-				<div className="overflow-hidden rounded-lg border border-solid border-border">
+				<div className="overflow-hidden rounded-lg border border-solid">
 					<CollapsibleSection
 						title="Cost estimate"
 						description={
@@ -341,7 +341,7 @@ export const ModelFormFields: React.FC<{
 							description="Tune provider-specific behavior like reasoning, tool calling, and web search."
 							open={showProviderConfig}
 							onOpenChange={setShowProviderConfig}
-							className="border-0 border-t border-solid border-border"
+							className="border-t border-solid"
 							contentClassName="pt-3 pl-6"
 						>
 							<ModelConfigFields
@@ -365,7 +365,7 @@ export const ModelFormFields: React.FC<{
 						description="Low-level parameters like temperature and penalties. Rarely need changing."
 						open={showAdvanced}
 						onOpenChange={setShowAdvanced}
-						className="border-0 border-t border-solid border-border"
+						className="border-t border-solid"
 						contentClassName="grid grid-cols-2 gap-3 pt-3 pl-6 sm:grid-cols-3"
 					>
 						<GeneralModelConfigFields

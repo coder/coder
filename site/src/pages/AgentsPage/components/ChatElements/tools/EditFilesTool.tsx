@@ -30,7 +30,7 @@ export const EditFilesTool: React.FC<{
 	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
 }> = ({ files, diffs, status, isError, errorMessage, codeDiffDisplayMode }) => {
 	const theme = useTheme();
-	const isDark = theme.palette.mode === "dark";
+	const isDark = theme.mode === "dark";
 	const isRunning = status === "running";
 	const hasDiffs = diffs.some((d) => d !== null);
 	const displayState = resolveAgentDisplayState(
@@ -74,7 +74,7 @@ export const EditFilesTool: React.FC<{
 							<ToolCall.Scrollable
 								key={files[i].path}
 								data-testid="edit-file-diff"
-								className="rounded-md border border-solid border-border text-2xs"
+								className="rounded-md border border-solid text-2xs"
 								viewportClassName={
 									isAgentDisplayFullyExpanded(displayState)
 										? "max-h-[80vh] [&>div]:block!"

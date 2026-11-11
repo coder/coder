@@ -115,7 +115,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 				<CollapsibleTrigger asChild>
 					<button
 						type="button"
-						className="group flex w-full items-center gap-2 border-0 bg-transparent px-3 py-2 text-left transition-colors hover:bg-surface-secondary/25 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
+						className="group flex w-full items-center gap-2 bg-transparent px-3 py-2 text-left transition-colors hover:bg-surface-secondary/25 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link"
 					>
 						<div className="min-w-0 flex flex-1 items-center gap-2 overflow-hidden">
 							<span className="shrink-0 text-xs text-content-secondary">
@@ -153,7 +153,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 					</button>
 				</CollapsibleTrigger>
 
-				<CollapsibleContent className="space-y-3 border-0 border-t border-solid border-border/30 bg-surface-primary/10 px-3 pb-3 pt-3">
+				<CollapsibleContent className="space-y-3 border-t border-solid border-border/30 bg-surface-primary/10 px-3 pb-3 pt-3">
 					{/* ── Metadata bar ────────────────────────────── */}
 					<div className="flex flex-wrap gap-x-3 gap-y-1 text-xs leading-5 text-content-secondary">
 						{model ? <MetadataItem label="Model" value={model} /> : null}
@@ -281,7 +281,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 										<button
 											type="button"
 											onClick={() => setShowAllMessages(true)}
-											className="border-0 bg-transparent p-0 text-2xs font-medium text-content-link transition-colors hover:underline"
+											className="bg-transparent p-0 text-2xs font-medium text-content-link transition-colors hover:underline"
 										>
 											Show all {totalMessages} messages
 										</button>
@@ -292,7 +292,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 										<button
 											type="button"
 											onClick={() => setShowAllMessages(false)}
-											className="border-0 bg-transparent p-0 text-2xs font-medium text-content-link transition-colors hover:underline"
+											className="bg-transparent p-0 text-2xs font-medium text-content-link transition-colors hover:underline"
 										>
 											Show last {TRANSCRIPT_PREVIEW_COUNT} only
 										</button>
@@ -377,7 +377,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 						<CollapsibleTrigger asChild>
 							<button
 								type="button"
-								className="group/raw flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:text-content-primary"
+								className="group/raw flex items-center gap-1.5 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:text-content-primary"
 							>
 								<ChevronDownIcon className="size-3 transition-transform group-data-[state=open]/raw:rotate-180" />
 								Request body
@@ -397,7 +397,7 @@ export const DebugStepCard: React.FC<DebugStepCardProps> = ({ step }) => {
 							<CollapsibleTrigger asChild>
 								<button
 									type="button"
-									className="group/raw flex items-center gap-1.5 border-0 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:text-content-primary"
+									className="group/raw flex items-center gap-1.5 bg-transparent p-0 text-xs font-medium text-content-secondary transition-colors hover:text-content-primary"
 								>
 									<ChevronDownIcon className="size-3 transition-transform group-data-[state=open]/raw:rotate-180" />
 									Response body

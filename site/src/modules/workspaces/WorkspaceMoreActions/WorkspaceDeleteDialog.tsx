@@ -79,7 +79,7 @@ export const WorkspaceDeleteDialog: React.FC<WorkspaceDeleteDialogProps> = ({
 			disabled={!confirmation.confirmed}
 			description={
 				<>
-					<div className="flex items-center justify-between rounded-md border border-solid border-border p-4 mb-5 leading-snug">
+					<div className="flex items-center justify-between rounded-md border border-solid p-4 mb-5 leading-snug">
 						<div>
 							<p className="m-0 text-base font-semibold text-content-primary">
 								{workspace.name}

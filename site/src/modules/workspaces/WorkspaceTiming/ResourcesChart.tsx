@@ -4,8 +4,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
-import type { Theme } from "#/theme";
-import { useTheme } from "#/theme/context";
 import { FocusableBar } from "./Chart/Bar";
 import {
 	Chart,
@@ -59,8 +57,6 @@ export const ResourcesChart: React.FC<ResourcesChartProps> = ({
 			(!isCoderResource(t.name) || isStageBoundary(t.name)) &&
 			t.name.includes(filter),
 	);
-	const theme = useTheme();
-	const legendsByAction = getLegendsByAction(theme);
 	const visibleLegends = [...new Set(visibleTimings.map((t) => t.action))].map(
 		(a) => legendsByAction[a] ?? { label: a },
 	);
@@ -105,7 +101,7 @@ export const ResourcesChart: React.FC<ResourcesChartProps> = ({
 												value={duration}
 												offset={calcOffset(t.range, generalTiming)}
 												scale={scale}
-												colors={legend.colors}
+												className={legend.className}
 											/>
 										</TooltipTrigger>
 										<TooltipContent
@@ -142,36 +138,23 @@ export const isCoderResource = (resource: string) => {
 // ProvisionerTiming to catch missing actions in the record. As a "workaround"
 // for now, we are using undefined since we don't have noUncheckedIndexedAccess
 // enabled.
-function getLegendsByAction(
-	theme: Theme,
-): Record<string, ChartLegend | undefined> {
-	return {
-		"state refresh": {
-			label: "state refresh",
-		},
-		provision: {
-			label: "provision",
-		},
-		create: {
-			label: "create",
-			colors: {
-				fill: theme.roles.success.background,
-				stroke: theme.roles.success.outline,
-			},
-		},
-		delete: {
-			label: "delete",
-			colors: {
-				fill: theme.roles.warning.background,
-				stroke: theme.roles.warning.outline,
-			},
-		},
-		read: {
-			label: "read",
-			colors: {
-				fill: theme.roles.active.background,
-				stroke: theme.roles.active.outline,
-			},
-		},
-	};
-}
+const legendsByAction: Record<string, ChartLegend | undefined> = {
+	"state refresh": {
+		label: "state refresh",
+	},
+	provision: {
+		label: "provision",
+	},
+	create: {
+		label: "create",
+		className: "bg-chart-success border-chart-success-border",
+	},
+	delete: {
+		label: "delete",
+		className: "bg-chart-warning border-chart-warning-border",
+	},
+	read: {
+		label: "read",
+		className: "bg-chart-active border-chart-active-border",
+	},
+};

@@ -100,7 +100,7 @@ export const PillToggle: React.FC<PillToggleProps> = ({
 			type="button"
 			aria-pressed={isActive}
 			className={cn(
-				"inline-flex items-center gap-1 rounded-full border-0 px-2.5 py-0.5 text-2xs font-medium transition-colors",
+				"inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-2xs font-medium transition-colors",
 				isActive
 					? "bg-surface-secondary text-content-primary"
 					: "bg-transparent text-content-secondary hover:text-content-primary hover:bg-surface-secondary/50",
