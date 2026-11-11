@@ -265,7 +265,9 @@ export type ProjectChatWorkspace = {
 /** "leave" is a UI choice; only stop and delete reach the workspace mutation. */
 export type ProjectWorkspaceAction = "leave" | "stop" | "delete";
 
-const workspaceClassificationBatchSize = 5;
+// Workspace lookups and actions run this many at a time, since each one
+// costs at least one request per workspace.
+const workspaceBatchSize = 5;
 
 /**
  * Lists the workspaces behind the user's own unarchived chats in a project,
@@ -311,16 +313,10 @@ export const projectChatWorkspaces = (
 				}
 				return [{ workspace, existedBeforeChat: action === "confirm" }];
 			};
-			// Each workspace costs a workspace and a build history request, so
-			// a project with many workspaces fetches them a batch at a time.
 			const entries = [...firstChatCreatedAt];
 			const results: ProjectChatWorkspace[] = [];
-			for (
-				let i = 0;
-				i < entries.length;
-				i += workspaceClassificationBatchSize
-			) {
-				const batch = entries.slice(i, i + workspaceClassificationBatchSize);
+			for (let i = 0; i < entries.length; i += workspaceBatchSize) {
+				const batch = entries.slice(i, i + workspaceBatchSize);
 				results.push(...(await Promise.all(batch.map(classify))).flat());
 			}
 			return results.sort((a, b) =>
@@ -379,34 +375,36 @@ export const projectWorkspaceAction = (queryClient: QueryClient) =>
 				workspaces.map(({ id }) => id),
 			);
 			const failed: Array<{ workspace: Workspace; error: unknown }> = [];
-			await Promise.all(
-				workspaces
-					.filter(({ id }) => !inUse.has(id))
-					.map(async (workspace) => {
-						try {
-							if (action === "delete") {
-								notifyDeleteQueueState(
-									workspace,
-									await API.deleteWorkspace(workspace.id),
-								);
-							} else {
-								// The dialog's copy can be stale: the workspace may have
-								// started or stopped while the dialog was open.
-								const current = await queryClient.fetchQuery({
-									...workspaceById(workspace.id),
-									staleTime: 0,
-								});
-								if (isWorkspaceOn(current)) {
-									await API.stopWorkspace(workspace.id);
-								}
-							}
-						} catch (error) {
-							if (!isWorkspaceNotFound(error)) {
-								failed.push({ workspace, error });
-							}
+			const apply = async (workspace: Workspace) => {
+				try {
+					if (action === "delete") {
+						notifyDeleteQueueState(
+							workspace,
+							await API.deleteWorkspace(workspace.id),
+						);
+					} else {
+						// The dialog's copy can be stale: the workspace may have
+						// started or stopped while the dialog was open.
+						const current = await queryClient.fetchQuery({
+							...workspaceById(workspace.id),
+							staleTime: 0,
+						});
+						if (isWorkspaceOn(current)) {
+							await API.stopWorkspace(workspace.id);
 						}
-					}),
-			);
+					}
+				} catch (error) {
+					if (!isWorkspaceNotFound(error)) {
+						failed.push({ workspace, error });
+					}
+				}
+			};
+			const candidates = workspaces.filter(({ id }) => !inUse.has(id));
+			for (let i = 0; i < candidates.length; i += workspaceBatchSize) {
+				await Promise.all(
+					candidates.slice(i, i + workspaceBatchSize).map(apply),
+				);
+			}
 			return {
 				failed,
 				skipped: workspaces.filter(({ id }) => inUse.has(id)),

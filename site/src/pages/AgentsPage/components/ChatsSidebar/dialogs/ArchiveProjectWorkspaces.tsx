@@ -21,7 +21,7 @@ import type {
 } from "../../../utils/agentWorkspaceUtils";
 import { RetryButton } from "../../RetryButton";
 
-/** Counts a noun, choosing its singular or plural form. */
+/** Prefixes the count; only exactly 1 takes the singular, 0 and all else the plural. */
 export const plural = (count: number, singular: string, pluralForm: string) =>
 	`${count} ${count === 1 ? singular : pluralForm}`;
 

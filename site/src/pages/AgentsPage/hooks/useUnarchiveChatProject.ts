@@ -7,9 +7,6 @@ import {
 import type { ChatProject } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 
-const unarchiveChatProjectMutationKey = (projectId: string) =>
-	[...chatProjectsKey, "unarchive", projectId] as const;
-
 /**
  * Unarchives one project and toasts the outcome. Every caller for the same
  * project shares the pending state, so a project page's menu and banner
@@ -20,7 +17,7 @@ export const useUnarchiveChatProject = (
 	onError?: () => void,
 ) => {
 	const queryClient = useQueryClient();
-	const mutationKey = unarchiveChatProjectMutationKey(project.id);
+	const mutationKey = [...chatProjectsKey, "unarchive", project.id];
 	const options = unarchiveChatProject(queryClient);
 	const mutation = useMutation({
 		...options,
