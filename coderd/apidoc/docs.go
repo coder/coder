@@ -34510,6 +34510,7 @@ const docTemplate = `{
                     }
                 },
                 "environment_variables": {
+                    "description": "EnvironmentVariables lists the variables set on the agent. Non-empty\nvalues are redacted as \"***REDACTED***\" because they often hold credentials.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "string"
