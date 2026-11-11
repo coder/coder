@@ -8,7 +8,7 @@ title: Projects
 
 Projects group related Coder Agents chats.
 Every chat in a project gets the project's instructions, skills, and memory, so you don't repeat the same context in each chat.
-Select **Projects** below **New chat** in the **Agents** page sidebar to see your projects as cards, in a **Your projects** tab for projects you own and a **Shared with you** tab for projects other users share with you.
+Select **Projects** below **New chat** in the **Agents** page sidebar to see your projects as cards, in a **Your projects** tab for projects you own and a **Shared with you** tab for projects that other users own and you can use.
 Each card shows whether one of your chats in the project needs attention or is running, or else how many of your chats are unread or read.
 It also shows how many users can use the project and when your chats in it last changed.
 [Pinned projects](#pin-a-project) also appear in the sidebar.

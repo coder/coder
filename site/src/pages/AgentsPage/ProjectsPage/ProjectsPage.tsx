@@ -31,13 +31,16 @@ import { type ProjectsByTab, ProjectsPageView } from "./ProjectsPageView";
 
 const tabSearchParam = "tab";
 
-const compareNames = (a: ChatProjectSummary, b: ChatProjectSummary) =>
-	a.project.name
-		.toLowerCase()
-		.localeCompare(b.project.name.toLowerCase(), "en-US");
+type DialogState = { readonly project?: ChatProject; readonly open: boolean };
 
+const compareNames = (a: ChatProjectSummary, b: ChatProjectSummary) =>
+	a.project.name.localeCompare(b.project.name, "en-US", {
+		sensitivity: "accent",
+	});
+
+// Projects without chats have no activity and sort as the oldest.
 const activityTime = (summary: ChatProjectSummary) =>
-	summary.last_activity_at ? Date.parse(summary.last_activity_at) : undefined;
+	summary.last_activity_at ? Date.parse(summary.last_activity_at) : 0;
 
 const compareSummaries = (a: ChatProjectSummary, b: ChatProjectSummary) => {
 	if (a.pinned !== b.pinned) {
@@ -46,20 +49,10 @@ const compareSummaries = (a: ChatProjectSummary, b: ChatProjectSummary) => {
 	if (a.pinned) {
 		return a.pin_order - b.pin_order || compareNames(a, b);
 	}
-	const aTime = activityTime(a);
-	const bTime = activityTime(b);
-	// Projects without chats have no activity and go last.
-	if (aTime === undefined || bTime === undefined) {
-		if (aTime === bTime) {
-			return compareNames(a, b);
-		}
-		return aTime === undefined ? 1 : -1;
-	}
-	return bTime - aTime || compareNames(a, b);
+	return activityTime(b) - activityTime(a) || compareNames(a, b);
 };
 
 /**
- * Splits the summaries into the user's own projects and others' projects.
  * Each tab lists pinned projects first in pin order, then the rest by latest
  * activity, then projects without chats, with ties broken by name.
  */
@@ -83,12 +76,42 @@ const ProjectsPage: React.FC = () => {
 	const summariesQuery = useQuery(chatProjectSummaries());
 	const createMutation = useMutation(createChatProject(queryClient));
 	const updateMutation = useMutation(updateChatProject(queryClient));
-	const deleteMutation = useMutation(deleteChatProject(queryClient));
-	// Pinning without a pin order writes nothing optimistically, so there is
-	// nothing to roll back.
-	const pinMutation = useMutation({
-		...pinChatProject(queryClient),
+	// Each dialog keeps its project after closing so the exit animation does
+	// not flash empty. Without a project, the project dialog creates one.
+	const [projectDialog, setProjectDialog] = useState<DialogState>({
+		open: false,
+	});
+	const [deleteDialog, setDeleteDialog] = useState<DialogState>({
+		open: false,
+	});
+	const newProjectButtonRef = useRef<HTMLButtonElement>(null);
+	// The dialogs have no trigger to return focus to, so they return it to
+	// the button that opened them.
+	const returnFocusRef = useRef<HTMLElement | null>(null);
+	const deleteMutation = useMutation({
+		...deleteChatProject(queryClient),
+		onSuccess: (_data, project) => {
+			// Nothing can open the deleted project's composer again.
+			const draftKeys = draftStorageKeys(project.id);
+			localStorage.removeItem(draftKeys.text);
+			localStorage.removeItem(draftKeys.attachments);
+			// The dialog can be dismissed while the delete runs and reopened for
+			// another project, which must stay open.
+			if (deleteDialog.project?.id === project.id) {
+				setDeleteDialog({ project, open: false });
+				// The project's card is gone, so focus moves to New project.
+				requestAnimationFrame(() => newProjectButtonRef.current?.focus());
+			}
+		},
 		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to delete project."));
+		},
+	});
+	const pinOptions = pinChatProject(queryClient);
+	const pinMutation = useMutation({
+		...pinOptions,
+		onError: (error, variables, context) => {
+			pinOptions.onError?.(error, variables, context);
 			toast.error(getErrorMessage(error, "Failed to pin project."));
 		},
 	});
@@ -98,19 +121,6 @@ const ProjectsPage: React.FC = () => {
 			toast.error(getErrorMessage(error, "Failed to unpin project."));
 		},
 	});
-	// Each dialog keeps its project after closing so the exit animation does
-	// not flash empty. Without a project, the project dialog creates one.
-	const [projectDialog, setProjectDialog] = useState<{
-		project?: ChatProject;
-		open: boolean;
-	}>({ open: false });
-	const [deleteDialog, setDeleteDialog] = useState<{
-		project?: ChatProject;
-		open: boolean;
-	}>({ open: false });
-	// The dialogs have no trigger to return focus to, so they return it to
-	// the button that opened them.
-	const returnFocusRef = useRef<HTMLElement | null>(null);
 	const restoreFocus = () => {
 		const target = returnFocusRef.current;
 		requestAnimationFrame(() => target?.focus());
@@ -142,51 +152,24 @@ const ProjectsPage: React.FC = () => {
 		setProjectDialog((current) => ({ ...current, open: false }));
 		restoreFocus();
 	};
-	const handleProjectSubmit = ({
+	// Returning the save's promise keeps Save disabled until it settles.
+	const handleProjectSubmit = async ({
 		organizationId,
 		...request
 	}: ChatProjectFormValues) => {
 		const { project } = projectDialog;
 		if (project) {
-			updateMutation.mutate(
-				{ project, request },
-				{ onSuccess: closeProjectDialog },
-			);
+			await updateMutation.mutateAsync({ project, request });
 		} else if (organizationId) {
-			createMutation.mutate(
-				{ organizationId, request },
-				{ onSuccess: closeProjectDialog },
-			);
+			await createMutation.mutateAsync({ organizationId, request });
 		}
+		closeProjectDialog();
 	};
 
 	const closeDeleteDialog = () => {
 		setDeleteDialog((current) => ({ ...current, open: false }));
 		restoreFocus();
 	};
-	const handleDeleteProject = () => {
-		const { project } = deleteDialog;
-		if (!project) {
-			return;
-		}
-		deleteMutation.mutate(project, {
-			onSuccess: () => {
-				// Nothing can open the deleted project's composer again.
-				const draftKeys = draftStorageKeys(project.id);
-				localStorage.removeItem(draftKeys.text);
-				localStorage.removeItem(draftKeys.attachments);
-				setDeleteDialog((current) =>
-					current.project?.id === project.id
-						? { ...current, open: false }
-						: current,
-				);
-			},
-			onError: (error) => {
-				toast.error(getErrorMessage(error, "Failed to delete project."));
-			},
-		});
-	};
-
 	return (
 		<>
 			<title>{pageTitle("Projects", "Agents")}</title>
@@ -200,8 +183,9 @@ const ProjectsPage: React.FC = () => {
 				error={summariesQuery.error}
 				onRetry={() => void summariesQuery.refetch()}
 				projectLinkSearch={projectLinkSearch}
-				onCreateProject={(returnFocusTo) =>
-					openProjectDialog(undefined, returnFocusTo)
+				newProjectButtonRef={newProjectButtonRef}
+				onCreateProject={() =>
+					openProjectDialog(undefined, newProjectButtonRef.current)
 				}
 				onPin={(project) => pinMutation.mutate({ project })}
 				onUnpin={(project) => unpinMutation.mutate(project)}
@@ -227,7 +211,9 @@ const ProjectsPage: React.FC = () => {
 			/>
 			<DeleteDialog
 				isOpen={deleteDialog.open}
-				onConfirm={handleDeleteProject}
+				onConfirm={() =>
+					deleteDialog.project && deleteMutation.mutate(deleteDialog.project)
+				}
 				onCancel={closeDeleteDialog}
 				entity="project"
 				name={deleteDialog.project?.name ?? ""}

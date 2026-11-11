@@ -28,16 +28,13 @@ import { ChatProjectIcon } from "../components/ChatProjectIcon";
 import { ProjectActionsMenuItems } from "../components/ChatsSidebar/chats/ProjectActionsMenuItems";
 import { getChatStatusDisplay } from "../components/ChatsSidebar/tree/statusConfig";
 
-/** Receives the button that opened an action, to return focus to it. */
-type ProjectCardAction = (returnFocusTo: HTMLElement | null) => void;
-
 type ProjectCardProps = {
 	readonly summary: ChatProjectSummary;
 	readonly to: To;
 	readonly onPin: () => void;
 	readonly onUnpin: () => void;
-	readonly onEdit: ProjectCardAction;
-	readonly onDelete: ProjectCardAction;
+	readonly onEdit: (returnFocusTo: HTMLElement | null) => void;
+	readonly onDelete: (returnFocusTo: HTMLElement | null) => void;
 };
 
 const compactNumber = new Intl.NumberFormat("en-US", {
@@ -72,7 +69,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 			<div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-solid border-border bg-surface-secondary">
 				<ChatProjectIcon project={project} className="size-4" />
 			</div>
-			<div className="flex min-w-0 flex-col gap-1">
+			<div className="flex flex-col gap-1">
 				<h2 className="m-0 truncate text-sm font-semibold">
 					<Link
 						to={to}
@@ -91,7 +88,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 			</div>
 			<div
 				id={footerId}
-				className="mt-auto flex min-w-0 items-center gap-3 text-xs text-content-secondary"
+				className="mt-auto flex items-center gap-3 text-xs text-content-secondary"
 			>
 				<ActivityLabel summary={summary} />
 				{member_count > 1 ? (
@@ -100,7 +97,9 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 						<span aria-hidden="true" className="tabular-nums">
 							{compactNumber.format(member_count).toLowerCase()}
 						</span>
-						<span className="sr-only">{`${fullNumber.format(member_count)} members`}</span>
+						<span className="sr-only">
+							{fullNumber.format(member_count)} members
+						</span>
 					</span>
 				) : (
 					<span className="flex shrink-0 items-center">
@@ -128,7 +127,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 								variant="subtle"
 								size="icon"
 								aria-label={`Unpin ${project.name}`}
-								className="group/pin size-7 min-w-0 text-content-secondary"
+								className="group/pin size-7"
 								onClick={onUnpin}
 							>
 								<PinIcon className="group-hover/pin:hidden group-focus-visible/pin:hidden" />
@@ -146,7 +145,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 							size="icon"
 							aria-label={`Open project actions for ${project.name}`}
 							className={cn(
-								"size-7 min-w-0 opacity-0 [@media(hover:none)]:opacity-100",
+								"size-7 opacity-0 [@media(hover:none)]:opacity-100",
 								"group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100",
 							)}
 						>
@@ -170,25 +169,25 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 	);
 };
 
-const ActivityLabel: React.FC<{ readonly summary: ChatProjectSummary }> = ({
-	summary,
-}) => {
+type ActivityLabelProps = {
+	readonly summary: ChatProjectSummary;
+};
+
+const ActivityLabel: React.FC<ActivityLabelProps> = ({ summary }) => {
 	const { own_needs_attention, own_running, own_unread_count } = summary;
-	const [icon, label] = own_needs_attention
-		? [<CircleAlertIcon />, "Needs attention"]
-		: own_running
-			? [<runningStatus.icon className={runningStatus.className} />, "Thinking"]
-			: own_unread_count > 0
-				? [
-						<span className="size-2 rounded-full bg-content-link" />,
-						`${own_unread_count} unread`,
-					]
-				: [
-						null,
-						summary.own_chat_count > 0
-							? `${summary.own_chat_count} read`
-							: "No chats",
-					];
+	let icon: React.ReactNode = null;
+	let label =
+		summary.own_chat_count > 0 ? `${summary.own_chat_count} read` : "No chats";
+	if (own_needs_attention) {
+		icon = <CircleAlertIcon />;
+		label = "Needs attention";
+	} else if (own_running) {
+		icon = <runningStatus.icon className={runningStatus.className} />;
+		label = "Thinking";
+	} else if (own_unread_count > 0) {
+		icon = <span className="size-2 rounded-full bg-content-link" />;
+		label = `${own_unread_count} unread`;
+	}
 	return (
 		<span
 			className={cn(

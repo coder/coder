@@ -13,7 +13,7 @@ import { buildAgentProjectPath } from "../utils/navigation";
 import { ProjectCard } from "./ProjectCard";
 
 /** The Projects page tabs: projects the user owns, or others' projects. */
-export type ProjectsTab = "yours" | "shared";
+type ProjectsTab = "yours" | "shared";
 
 /** The project summaries on each tab, in display order. */
 export type ProjectsByTab = Readonly<
@@ -34,7 +34,8 @@ type ProjectsPageViewProps = {
 	readonly onRetry: () => void;
 	/** The query string that project links keep, such as sidebar filters. */
 	readonly projectLinkSearch: string;
-	readonly onCreateProject: (returnFocusTo: HTMLElement) => void;
+	readonly newProjectButtonRef: React.Ref<HTMLButtonElement>;
+	readonly onCreateProject: () => void;
 	readonly onPin: (project: ChatProject) => void;
 	readonly onUnpin: (project: ChatProject) => void;
 	readonly onEdit: ProjectAction;
@@ -49,77 +50,78 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 	error,
 	onRetry,
 	projectLinkSearch,
+	newProjectButtonRef,
 	onCreateProject,
 	onPin,
 	onUnpin,
 	onEdit,
 	onDelete,
 }) => {
-	const renderTab = (value: ProjectsTab) => {
-		if (!projects) {
-			return error ? (
+	const summaries = projects?.[tab];
+	// Only the selected tab's content is mounted, so both tabs render this.
+	const content = (
+		<>
+			{Boolean(error) && (
 				<ErrorAlert
 					error={error}
+					className="mb-6"
 					actions={
 						<Button size="sm" variant="outline" onClick={onRetry}>
 							Retry
 						</Button>
 					}
 				/>
-			) : (
-				<div role="status" className={gridClassName}>
-					<span className="sr-only">Loading projects</span>
-					{Array.from({ length: 6 }, (_, index) => (
-						<Skeleton key={index} className="h-36 rounded-lg" />
-					))}
-				</div>
-			);
-		}
-		const summaries = projects[value];
-		if (summaries.length === 0) {
-			return value === "yours" ? (
-				<EmptyProjects
-					title="No projects yet"
-					description="Projects group related chats and give each one shared instructions, skills, and memory."
-				>
-					<Button
-						variant="outline"
-						onClick={(event) => onCreateProject(event.currentTarget)}
+			)}
+			{!summaries ? (
+				!error && (
+					<ProjectGrid role="status">
+						<span className="sr-only">Loading projects</span>
+						{Array.from({ length: 6 }, (_, index) => (
+							<Skeleton key={index} className="h-36 rounded-lg" />
+						))}
+					</ProjectGrid>
+				)
+			) : summaries.length === 0 ? (
+				tab === "yours" ? (
+					<EmptyProjects
+						title="No projects yet"
+						description="Projects group related chats and give each one shared instructions, skills, and memory."
 					>
-						<PlusIcon />
-						New project
-					</Button>
-				</EmptyProjects>
-			) : (
-				<EmptyProjects
-					title="No shared projects yet"
-					description="Projects that other users share with you appear here."
-				/>
-			);
-		}
-		return (
-			<div className={gridClassName}>
-				{summaries.map((summary) => (
-					<ProjectCard
-						key={summary.project.id}
-						summary={summary}
-						to={{
-							pathname: buildAgentProjectPath({
-								projectId: summary.project.id,
-							}),
-							search: projectLinkSearch,
-						}}
-						onPin={() => onPin(summary.project)}
-						onUnpin={() => onUnpin(summary.project)}
-						onEdit={(returnFocusTo) => onEdit(summary.project, returnFocusTo)}
-						onDelete={(returnFocusTo) =>
-							onDelete(summary.project, returnFocusTo)
-						}
+						<Button variant="outline" onClick={onCreateProject}>
+							<PlusIcon />
+							New project
+						</Button>
+					</EmptyProjects>
+				) : (
+					<EmptyProjects
+						title="No shared projects yet"
+						description="Projects that other users share with you appear here."
 					/>
-				))}
-			</div>
-		);
-	};
+				)
+			) : (
+				<ProjectGrid>
+					{summaries.map((summary) => (
+						<ProjectCard
+							key={summary.project.id}
+							summary={summary}
+							to={{
+								pathname: buildAgentProjectPath({
+									projectId: summary.project.id,
+								}),
+								search: projectLinkSearch,
+							}}
+							onPin={() => onPin(summary.project)}
+							onUnpin={() => onUnpin(summary.project)}
+							onEdit={(returnFocusTo) => onEdit(summary.project, returnFocusTo)}
+							onDelete={(returnFocusTo) =>
+								onDelete(summary.project, returnFocusTo)
+							}
+						/>
+					))}
+				</ProjectGrid>
+			)}
+		</>
+	);
 
 	return (
 		<div className="order-last flex min-h-0 flex-1 flex-col overflow-auto px-4 pt-6 sm:order-0 sm:px-[85.5px]">
@@ -129,8 +131,9 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 						Projects
 					</h1>
 					<Button
+						ref={newProjectButtonRef}
 						variant="outline"
-						onClick={(event) => onCreateProject(event.currentTarget)}
+						onClick={onCreateProject}
 					>
 						<PlusIcon />
 						New project
@@ -147,10 +150,10 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 						<TabsTrigger value="shared">Shared with you</TabsTrigger>
 					</TabsList>
 					<TabsContent value="yours" className="pt-6">
-						{renderTab("yours")}
+						{content}
 					</TabsContent>
 					<TabsContent value="shared" className="pt-6">
-						{renderTab("shared")}
+						{content}
 					</TabsContent>
 				</Tabs>
 			</div>
@@ -159,7 +162,12 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 };
 
 // Columns follow the page width, which the agents sidebar narrows.
-const gridClassName = "grid grid-cols-1 gap-4 @xl:grid-cols-2 @4xl:grid-cols-3";
+const ProjectGrid: React.FC<React.ComponentProps<"div">> = (props) => (
+	<div
+		className="grid grid-cols-1 gap-4 @xl:grid-cols-2 @4xl:grid-cols-3"
+		{...props}
+	/>
+);
 
 type EmptyProjectsProps = {
 	readonly title: string;

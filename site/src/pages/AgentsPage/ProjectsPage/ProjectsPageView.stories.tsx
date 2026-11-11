@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn, screen, within } from "storybook/test";
+import { fn, screen, userEvent, within } from "storybook/test";
 import type { ChatProject, ChatProjectSummary } from "#/api/typesGenerated";
 import {
 	MockChatProject,
@@ -20,7 +20,7 @@ const projectSummary = (
 	project: { ...MockChatProject, description: "", ...project },
 });
 
-const yourProjects: ChatProjectSummary[] = [
+const mockYourProjects: ChatProjectSummary[] = [
 	projectSummary(
 		{ id: "launch", name: "Launch", description: "Chats for the launch work." },
 		{
@@ -52,9 +52,7 @@ const yourProjects: ChatProjectSummary[] = [
 			id: "billing",
 			name: "Billing",
 			description:
-				"Invoices, usage metering, and the payment provider integration. ".repeat(
-					4,
-				),
+				"Invoices, usage metering, refunds, and the payment provider integration, including the webhooks that reconcile failed charges every night.",
 		},
 		{
 			own_chat_count: 3,
@@ -70,12 +68,16 @@ const yourProjects: ChatProjectSummary[] = [
 			description: "Feedback rounds on new screens.",
 			icon: "/emojis/1f3a8.png",
 		},
-		{ own_chat_count: 3, member_count: 2 },
+		{
+			own_chat_count: 3,
+			member_count: 2,
+			last_activity_at: "2026-10-01T12:00:00Z",
+		},
 	),
 	projectSummary({ id: "empty", name: "Experiments" }),
 ];
 
-const sharedProjects: ChatProjectSummary[] = [
+const mockSharedProjects: ChatProjectSummary[] = [
 	projectSummary(
 		{
 			id: "oncall",
@@ -105,8 +107,7 @@ const meta: Meta<typeof ProjectsPageView> = {
 	args: {
 		tab: "yours",
 		onTabChange: fn(),
-		projects: { yours: yourProjects, shared: sharedProjects },
-		error: undefined,
+		projects: { yours: mockYourProjects, shared: mockSharedProjects },
 		onRetry: fn(),
 		projectLinkSearch: "",
 		onCreateProject: fn(),
@@ -138,17 +139,34 @@ export const LoadError: Story = {
 };
 
 export const NoProjects: Story = {
-	args: { projects: { yours: [], shared: sharedProjects } },
+	args: { projects: { yours: [], shared: mockSharedProjects } },
 };
 
 export const NoSharedProjects: Story = {
-	args: { tab: "shared", projects: { yours: yourProjects, shared: [] } },
+	args: { tab: "shared", projects: { yours: mockYourProjects, shared: [] } },
 };
 
-/** Keyboard focus on a pin swaps it for the unpin button and its tooltip. */
+/** Focusing the pin button swaps its icon to unpin and opens its tooltip. */
 export const UnpinFocused: Story = {
 	play: async ({ canvasElement }) => {
 		within(canvasElement).getByRole("button", { name: "Unpin Launch" }).focus();
 		await screen.findByRole("tooltip");
+	},
+};
+
+export const ActionsMenuOpen: Story = {
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Open project actions for Experiments",
+			}),
+		);
+	},
+};
+
+export const Mobile: Story = {
+	parameters: {
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
 	},
 };

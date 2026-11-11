@@ -29,8 +29,6 @@ const renderCard = (overrides: Partial<ChatProjectSummary> = {}) => {
 	return callbacks;
 };
 
-const unpinned = { pinned: false, pin_order: 0 };
-
 describe("ProjectCard", () => {
 	// The card link's description is what a screen reader announces for the
 	// card's status.
@@ -68,7 +66,7 @@ describe("ProjectCard", () => {
 
 	it("pins from the actions menu with the keyboard", async () => {
 		const user = userEvent.setup();
-		const { onPin } = renderCard(unpinned);
+		const { onPin } = renderCard({ pinned: false, pin_order: 0 });
 		// The link, then the actions button.
 		await user.tab();
 		await user.tab();
