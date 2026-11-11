@@ -17,7 +17,8 @@ type ChatDropAreaProps = React.PropsWithChildren<{
  * Takes the drop of a chat that it would move. dnd-kit leaves disabled targets
  * out of the collision and of the keyboard stops; during a drag, headers mute
  * themselves with the group-data-[drop=unavailable]/drop variant, or /project-drop
- * in a folder, since pinned folders sit inside the Chats drop area.
+ * in a folder. A folder that cannot take the chat stays enabled and takes its
+ * drop as a no-op, so Chats around it cannot take the chat out of its project.
  */
 export const ChatDropArea: React.FC<ChatDropAreaProps> = ({
 	target,
@@ -30,9 +31,6 @@ export const ChatDropArea: React.FC<ChatDropAreaProps> = ({
 	const { ref, isDropTarget } = useDroppable({
 		id: target.kind === "project" ? `project:${target.projectId}` : "unfiled",
 		data: { dropTarget: target } satisfies DropTargetData,
-		// A folder that cannot take the chat still takes a drop, which moves
-		// nothing, so the drop does not reach Chats around it and take the chat
-		// out of its project.
 		disabled: !movedChat || (unavailable && target.kind === "unfiled"),
 		// The default detector falls back to the dragged row's overlap, which
 		// would hand a drop on a muted folder to the target next to it.

@@ -577,7 +577,7 @@ describe("ChatsSidebar projects", () => {
 		).toBeInTheDocument();
 	});
 
-	it("names the organization of a pinned chat's project whose name is shared", async () => {
+	it("names a pinned chat's project from the summaries, with its organization when its name is shared", async () => {
 		const mockOtherProject = {
 			...MockChatProject,
 			id: "other-project",
@@ -585,7 +585,15 @@ describe("ChatsSidebar projects", () => {
 		};
 		server.use(
 			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json([MockChatProject, mockOtherProject]),
+				HttpResponse.json({ message: "boom" }, { status: 500 }),
+			),
+			http.get("/api/experimental/chats/projects/summaries", () =>
+				HttpResponse.json(
+					[MockChatProject, mockOtherProject].map((project) => ({
+						...MockChatProjectSummary,
+						project,
+					})),
+				),
 			),
 		);
 		const label = `${MockChatProject.name} (${MockOrganization2.display_name})`;
@@ -1864,9 +1872,14 @@ describe("ChatsSidebar pinned reordering", () => {
 		},
 	);
 
-	it("reorders pinned projects apart from pinned chats", async () => {
+	it("reorders pinned projects apart from pinned chats, by their full names", async () => {
 		const user = userEvent.setup();
-		const mockOpsProject = { ...MockChatProject, id: "ops", name: "Ops" };
+		const mockOpsProject = {
+			...MockChatProject,
+			id: "ops",
+			organization_id: MockOrganization2.id,
+		};
+		const launchName = `Launch (${MockDefaultOrganization.display_name})`;
 		const pins: unknown[] = [];
 		server.use(
 			http.get("/api/experimental/chats/projects", () =>
@@ -1881,7 +1894,7 @@ describe("ChatsSidebar pinned reordering", () => {
 			),
 		);
 		render(
-			<Wrapper>
+			<Wrapper organizations={[MockDefaultOrganization, MockOrganization2]}>
 				<ChatsSidebar
 					{...defaultProps}
 					chats={[buildChat({ id: "pinned", title: "Pinned", pin_order: 1 })]}
@@ -1889,14 +1902,17 @@ describe("ChatsSidebar pinned reordering", () => {
 			</Wrapper>,
 		);
 
-		const launch = await screen.findByRole("link", { name: "Launch" });
-		layoutSortableRows([launch, screen.getByRole("link", { name: "Ops" })]);
+		const launch = await screen.findByRole("link", { name: launchName });
+		layoutSortableRows([
+			launch,
+			screen.getByRole("link", { name: /My Organization 2/ }),
+		]);
 		launch.focus();
 		await user.keyboard("[Space]");
 		await user.keyboard("[ArrowDown]");
 		await waitFor(() =>
 			expect(screen.getByRole("status")).toHaveTextContent(
-				"Project Launch is at position 2 of 2.",
+				`Project ${launchName} is at position 2 of 2.`,
 			),
 		);
 		await waitFor(() => expect(launch).toHaveFocus());

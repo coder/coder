@@ -44,21 +44,24 @@ export const PROJECT_PIN_DRAG_TYPE = "project-pin";
 
 /**
  * Carries the whole project, not its ID: the drop sends the pin request with
- * its organization and the announcements read its name, even if the summaries
- * change during the drag.
+ * its organization and the announcements read the folder's label, even if the
+ * summaries change during the drag.
  */
-export type ProjectPinDragData = { readonly project: ChatProject };
+export type ProjectPinDragData = {
+	readonly project: ChatProject;
+	readonly label: string;
+};
 
 const isProjectPinDragData = (
 	data: Record<string, unknown>,
 ): data is ProjectPinDragData => "project" in data;
 
-/** The project of a pinned project drag, or undefined for any other drag. */
+/** The data of a pinned project drag, or undefined for any other drag. */
 export const pinnedProjectOf = (
 	source: Draggable | null,
-): ChatProject | undefined =>
+): ProjectPinDragData | undefined =>
 	source?.type === PROJECT_PIN_DRAG_TYPE && isProjectPinDragData(source.data)
-		? source.data.project
+		? source.data
 		: undefined;
 
 const isChatDragData = (data: Record<string, unknown>): data is ChatDragData =>
@@ -136,9 +139,9 @@ const announcedTarget = (target: Droppable | null): string | undefined => {
  */
 export const chatDragAnnouncements = {
 	dragstart: ({ operation: { source } }: DragStartEvent) => {
-		const project = pinnedProjectOf(source);
+		const project = pinnedProjectOf(source)?.label;
 		if (project) {
-			return `Picked up project ${project.name}.`;
+			return `Picked up project ${project}.`;
 		}
 		const chat = draggedChatOf(source);
 		return chat && `Picked up chat ${chat.title}.`;
@@ -148,10 +151,10 @@ export const chatDragAnnouncements = {
 		chatPinCount: number,
 		projectPinCount: number,
 	) => {
-		const project = pinnedProjectOf(source);
+		const project = pinnedProjectOf(source)?.label;
 		if (project) {
 			return isSortable(target)
-				? `Project ${project.name} is at position ${target.index + 1} of ${projectPinCount}.`
+				? `Project ${project} is at position ${target.index + 1} of ${projectPinCount}.`
 				: undefined;
 		}
 		const chat = movedChatOf(source);
@@ -171,11 +174,11 @@ export const chatDragAnnouncements = {
 			: `Chat ${chat.title} is not over a project or Chats.`;
 	},
 	dragend: ({ operation: { source, target }, canceled }: DragEndEvent) => {
-		const project = pinnedProjectOf(source);
+		const project = pinnedProjectOf(source)?.label;
 		if (project) {
 			return canceled
-				? `Moving project ${project.name} was canceled.`
-				: `Project ${project.name} was dropped.`;
+				? `Moving project ${project} was canceled.`
+				: `Project ${project} was dropped.`;
 		}
 		const chat = draggedChatOf(source);
 		if (!chat) {
