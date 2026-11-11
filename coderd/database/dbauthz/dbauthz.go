@@ -7528,6 +7528,13 @@ func (q *querier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, er
 }
 
 // Project chats can belong to sharees, so update is checked on all chats.
+func (q *querier) LockChatProjectUnarchivedChildChats(ctx context.Context, projectID uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return err
+	}
+	return q.db.LockChatProjectUnarchivedChildChats(ctx, projectID)
+}
+
 func (q *querier) LockChatProjectUnarchivedRootChats(ctx context.Context, projectID uuid.UUID) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
 		return err

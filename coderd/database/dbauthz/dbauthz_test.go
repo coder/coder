@@ -1407,6 +1407,11 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().LockChatProjectUnarchivedRootChats(gomock.Any(), projectID).Return(nil).AnyTimes()
 		check.Args(projectID).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns()
 	}))
+	s.Run("LockChatProjectUnarchivedChildChats", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		projectID := uuid.New()
+		dbm.EXPECT().LockChatProjectUnarchivedChildChats(gomock.Any(), projectID).Return(nil).AnyTimes()
+		check.Args(projectID).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns()
+	}))
 	s.Run("ArchiveChatsOfChatProject", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.ArchiveChatsOfChatProjectParams{ProjectID: uuid.New(), StoppedError: json.RawMessage(`{"message":"stopped"}`)}
 		ids := []uuid.UUID{uuid.New()}
