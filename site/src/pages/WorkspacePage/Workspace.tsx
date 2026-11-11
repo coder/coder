@@ -242,8 +242,7 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 								</section>
 							)}
 
-							{(Boolean(workloadsError) ||
-								(workloads !== undefined && workloads.length > 0)) && (
+							{(Boolean(workloadsError) || workloads !== undefined) && (
 								<WorkspaceWorkloads
 									workspaceName={workspace.name}
 									workloads={workloads}
