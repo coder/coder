@@ -149,8 +149,8 @@ type ChatActionsMenuItemsProps = {
 	readonly onArchiveAgent: () => void;
 	readonly onUnarchiveAgent: () => void;
 	/**
-	 * Set while "Unarchive agent" must stay disabled: a chat comes back only
-	 * with its project, so the project must be known to be active.
+	 * A chat comes back only with its project, so unarchiving waits until the
+	 * project is known to be active.
 	 */
 	readonly unarchiveBlockedReason: UnarchiveBlockedReason | undefined;
 	readonly onArchiveAndDeleteWorkspace: () => void;
