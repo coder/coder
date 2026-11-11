@@ -16,6 +16,10 @@ type Story = StoryObj<typeof MoveToUnpinnedProjectDialog>;
 
 export const Default: Story = {};
 
+export const LongProjectName: Story = {
+	args: { project: { ...MockChatProject, name: "a".repeat(64) } },
+};
+
 export const PinFailed: Story = {
 	decorators: [withToaster],
 	beforeEach: () => {

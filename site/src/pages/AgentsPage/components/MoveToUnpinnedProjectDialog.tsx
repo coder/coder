@@ -130,8 +130,10 @@ export const MoveToUnpinnedProjectDialog: React.FC<
 		<Dialog open={open} onOpenChange={(next) => !next && onClose()}>
 			<DialogContent onCloseAutoFocus={onCloseAutoFocus}>
 				<DialogHeader>
-					<DialogTitle>Chat moved to {project.name}</DialogTitle>
-					<DialogDescription>
+					<DialogTitle className="wrap-anywhere">
+						Chat moved to {project.name}
+					</DialogTitle>
+					<DialogDescription className="wrap-anywhere">
 						This chat appears in the sidebar only while {project.name} is
 						pinned. Pin the project to keep it there, or find the chat on the
 						project page.
