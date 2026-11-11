@@ -6,6 +6,7 @@ Each page has the right shape for its job, sits in the right place, and renders.
 
 - The docs pages the change adds or edits, in full, and their entries in `docs/manifest/`.
 - Rules: every page under `docs/.style/` whose front matter `review-personas` list includes `structure`.
+  The `reader` group loads each page once for all its personas, as `SKILL.md` step 5 describes. Do not load a page again.
   These include [Follow the Diátaxis framework](../../../../docs/.style/content-guidelines.md#follow-the-diátaxis-framework), [Structural rules](../../../../docs/.style/content-guidelines.md#structural-rules), and [Procedural writing](../../../../docs/.style/style-guide/procedural-writing.md).
 
 ## Method

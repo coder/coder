@@ -6,7 +6,7 @@ Every claim the docs make about the product is true in the code at the head of t
 
 - The change model from `SKILL.md` step 4.
 - Rules: every page under `docs/.style/` whose front matter `review-personas` list includes `accuracy`.
-  Find them with `grep -rlE '^review-personas:.*\baccuracy\b' docs/.style`.
+  The `facts` group loads each page once for all its personas, as `SKILL.md` step 5 describes. Do not load a page again.
 
 ## Method
 

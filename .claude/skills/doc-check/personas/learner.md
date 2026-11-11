@@ -7,6 +7,7 @@ A reader who knows nothing about this change reads the docs as they will be afte
 - Only the docs pages the change adds or edits, as they are at the head of this change, plus the pages they link to for the task.
 - Do not read the code, the diff, the PR description, or the change model until step 3.
 - Rules: every page under `docs/.style/` whose front matter `review-personas` list includes `learner`.
+  The `reader` group loads each page once for all its personas, as `SKILL.md` step 5 describes. Do not load a page again.
 
 ## Method
 

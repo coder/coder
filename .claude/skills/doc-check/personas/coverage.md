@@ -7,6 +7,7 @@ Every behavior that changes how a customer uses the product has docs, and the do
 - The change model from `SKILL.md` step 4.
 - [`path-priors.md`](../path-priors.md).
 - Rules: every page under `docs/.style/` whose front matter `review-personas` list includes `coverage`.
+  The `facts` group loads each page once for all its personas, as `SKILL.md` step 5 describes. Do not load a page again.
 
 ## Method
 

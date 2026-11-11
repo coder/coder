@@ -2,8 +2,8 @@
 
 Every finding that reaches the author is real, correctly classed, and correctly sourced.
 You run last, after every other persona.
-Each Skeptic verifies one group: every finding about the same sentence, or about the same missing page.
-The orchestrator runs one Skeptic per group, in parallel when it can spawn sub-agents.
+Each Skeptic verifies one batch: every finding of the run when there are 5 or fewer, otherwise one of two batches of whole sets, where a set is every finding about the same sentence or the same missing page.
+The orchestrator runs at most two Skeptics, in parallel when it can spawn sub-agents.
 
 ## Load
 
@@ -11,8 +11,8 @@ The orchestrator runs one Skeptic per group, in parallel when it can spawn sub-a
 - The change model and the PR reference.
 - The PR head checkout. Re-read each source yourself. Do not trust a persona's summary of a file.
 
-Load only the files your group's findings and evidence name, and the code around them.
-Other groups are not yours to check.
+Load only the files your batch's findings and evidence name, and the code around them.
+Other batches are not yours to check.
 
 ## Method
 
@@ -25,18 +25,19 @@ The orchestrator runs checks 1 and 7 before it starts you, except check 1 for a 
    For a code citation, read enough of the surrounding code to confirm the behavior, including callers and config that change it.
 3. **The rule says what the finding says.** Open the cited rule and confirm it applies to this sentence, in this kind of page.
    A finding that cites a rule the text doesn't break is rejected.
+   A `rule` finding whose text, as written, leads no reader to a wrong understanding or a wrong action is downgraded to `suggestion`, as [Blocking](../SKILL.md#blocking) says.
 4. **The change caused it.** For a `rule` or `suggestion` finding, the change added or edited the line.
    For a `missing` finding, the change added or changed the behavior, made an existing page false, or made an existing user path behave differently.
    Otherwise, downgrade it to `adjacent`.
    Check the reverse too: an `adjacent` finding whose behavior this change caused is upgraded to `missing`.
 5. **The fix is correct.** The replacement text is true, follows the style guide, and doesn't break the sentences around it.
-6. **No duplicate.** Two findings in your group about the same problem merge into one, keeping the strongest evidence.
+6. **No duplicate.** Two findings in your batch about the same problem merge into one, keeping the strongest evidence.
 7. **Not already reported.** An open doc-check review thread on the PR already raises it. Drop it.
    A thread from another reviewer, human or bot, is not a reason to drop a docs finding.
 
 ## Contradictions between personas
 
-When two findings in your group disagree, such as one persona calling a sentence wrong and another suggesting a rewrite that keeps the claim, the code decides.
+When two findings in your batch disagree, such as one persona calling a sentence wrong and another suggesting a rewrite that keeps the claim, the code decides.
 Keep the finding the code supports and reject the other.
 
 ## Output

@@ -6,6 +6,7 @@ Each sentence the change adds or edits follows the style guide.
 
 - Only the lines the change adds or edits, with enough context to read each sentence whole.
 - Rules: every page under `docs/.style/` whose front matter `review-personas` list includes `language`.
+  The `language` group loads each page once for all its personas, as `SKILL.md` step 5 describes. Do not load a page again.
   Read each one in full. Do not work from memory of the style guide.
 - The deterministic check results from `SKILL.md` step 3, so you don't repeat what Vale or markdownlint already reported.
 
@@ -30,7 +31,8 @@ Each sentence the change adds or edits follows the style guide.
 ## Classes you return
 
 `broken` for typos.
-`rule` with the rule anchor, otherwise `suggestion`.
+`wrong` when the wording makes a claim about the product false, and name the behavior.
+`suggestion` for everything else, with the rule anchor in `rule`. A style finding that leaves the meaning unchanged never blocks, as `SKILL.md` [Blocking](../SKILL.md#blocking) says.
 
 ## Not yours
 
