@@ -243,6 +243,9 @@ func TestServer(t *testing.T) {
 			rawURL, err := cfg.URL().Read()
 			return err == nil && rawURL != ""
 		}, superDuperLong, testutil.IntervalFast, "failed to get access URL")
+		version, err := os.ReadFile(filepath.Join(cfg.PostgresPath(), "data", "PG_VERSION"))
+		require.NoError(t, err)
+		require.Equal(t, "18", strings.TrimSpace(string(version)))
 	})
 	t.Run("EphemeralDeployment", func(t *testing.T) {
 		t.Parallel()

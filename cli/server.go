@@ -2475,6 +2475,15 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 		return "", nil, xerrors.New("The built-in PostgreSQL cannot run as the root user. Create a non-root user and run again!")
 	}
 
+	pgVersion, binariesPath, freshData, err := config.BuiltinPostgresConfig(cfg.PostgresPath())
+	if err != nil {
+		return "", nil, err
+	}
+	if pgVersion == embeddedpostgres.V13 {
+		logger.Warn(ctx, "built-in PostgreSQL 13 is end-of-life; migrate to an external database",
+			slog.F("guide", "https://coder.com/docs/admin/setup#migrating-from-the-built-in-database-to-an-external-database"))
+	}
+
 	cachePath := filepath.Join(cfg.PostgresPath(), "cache")
 	if customCacheDir != "" {
 		cachePath = filepath.Join(customCacheDir, "postgres")
@@ -2502,7 +2511,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	// Important: if retryPortDiscovery is changed to not include flag.Lookup("test.v") != nil,
 	// the retry logic below also needs to be updated to ensure we don't delete an
 	// existing database
-	retryPortDiscovery := errors.Is(err, os.ErrNotExist) && flag.Lookup("test.v") != nil
+	retryPortDiscovery := freshData && errors.Is(err, os.ErrNotExist) && flag.Lookup("test.v") != nil
 	if retryPortDiscovery {
 		maxAttempts = 10
 	}
@@ -2537,8 +2546,8 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 
 		ep := embeddedpostgres.NewDatabase(
 			embeddedpostgres.DefaultConfig().
-				Version(embeddedpostgres.V13).
-				BinariesPath(filepath.Join(cfg.PostgresPath(), "bin")).
+				Version(pgVersion).
+				BinariesPath(binariesPath).
 				// Default BinaryRepositoryURL repo1.maven.org is flaky.
 				BinaryRepositoryURL("https://repo.maven.apache.org/maven2").
 				DataPath(filepath.Join(cfg.PostgresPath(), "data")).
