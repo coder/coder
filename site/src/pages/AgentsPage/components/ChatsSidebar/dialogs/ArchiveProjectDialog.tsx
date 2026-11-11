@@ -200,7 +200,8 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 
 	const preview = previewQuery.data;
 	const activeChatCount = preview?.active_chat_count ?? 0;
-	// A failed refetch keeps stale rows; never stop or delete from them.
+	// A failed refetch keeps stale rows; show the error instead and never stop
+	// or delete from them.
 	const workspaces = workspacesQuery.isError
 		? []
 		: (workspacesQuery.data ?? []);
@@ -272,7 +273,7 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 				/>
 				<ProjectWorkspacesSection
 					project={project}
-					workspaces={workspacesQuery.data}
+					workspaces={workspacesQuery.isError ? undefined : workspacesQuery.data}
 					error={workspacesQuery.error}
 					isRetrying={workspacesQuery.isFetching}
 					onRetry={() => void workspacesQuery.refetch()}

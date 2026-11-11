@@ -8,7 +8,9 @@ type ArchivedProjectBannerProps = {
 	readonly project: ChatProject;
 };
 
-/** Replaces an archived project's composer, with a way to unarchive it. */
+/**
+ * Says the project is archived and, when the user may, offers to unarchive it.
+ */
 export const ArchivedProjectBanner: React.FC<ArchivedProjectBannerProps> = ({
 	project,
 }) => {

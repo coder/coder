@@ -372,12 +372,18 @@ const getUnarchiveBlockedReason = (
 	if (!isProjectLookupNeeded) {
 		return undefined;
 	}
-	if (query.data !== undefined) {
-		return query.data ? "projectArchived" : undefined;
+	if (query.data) {
+		return "projectArchived";
 	}
-	return query.isError && !query.isFetching
-		? "projectCheckFailed"
-		: "checkingProject";
+	// Cached "not archived" data is stale while a refetch runs or after one
+	// fails, since the project may have been archived in the meantime.
+	if (query.isFetching) {
+		return "checkingProject";
+	}
+	if (query.isError) {
+		return "projectCheckFailed";
+	}
+	return query.data === null ? undefined : "checkingProject";
 };
 
 type MenuItemHintProps = {
