@@ -112,9 +112,11 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 }) => {
 	const location = useLocation();
 	const queryClient = useQueryClient();
+	const unpinOptions = unpinChatProject(queryClient);
 	const unpinMutation = useMutation({
-		...unpinChatProject(queryClient),
-		onError: (error) => {
+		...unpinOptions,
+		onError: (error, project, context) => {
+			unpinOptions.onError?.(error, project, context);
 			toast.error(getErrorMessage(error, "Failed to unpin project."));
 		},
 	});

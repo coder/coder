@@ -839,6 +839,23 @@ describe("ChatsSidebar unpin focus", () => {
 		);
 	};
 
+	it("removes the folder before the unpin request settles", async () => {
+		renderPinnedProjects([MockChatProject]);
+		server.use(
+			http.delete(
+				"/api/experimental/organizations/:organization/chats/projects/:project/pin",
+				() => new Promise<never>(() => {}),
+			),
+		);
+		await unpinWithKeyboard(MockChatProject.name);
+
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("link", { name: MockChatProject.name }),
+			).toBeNull(),
+		);
+	});
+
 	it.each([
 		{ unpinned: MockChatProject.name, next: mockOpsProject.name },
 		{ unpinned: mockOpsProject.name, next: MockChatProject.name },
