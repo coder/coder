@@ -148,6 +148,23 @@ export const Loading: Story = {
 };
 
 /** Without the preview, the dialog can't tell whether chats are running. */
+/** The chat count loaded, but the retention period did not. */
+export const RetentionError: Story = {
+	parameters: {
+		queries: [
+			{
+				key: chatProjectArchivePreviewKey(MockChatProject.id),
+				data: { chat_count: 5, active_chat_count: 0 },
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatRetentionDays").mockRejectedValue(
+			mockApiError({ message: "Failed to load the retention period." }),
+		);
+	},
+};
+
 export const PreviewError: Story = {
 	parameters: {
 		queries: [
