@@ -1282,7 +1282,7 @@ func (api *API) aiSpendRetainedPeriod(ctx context.Context, rw http.ResponseWrite
 	// request supplied the period.
 	if r.URL.Query().Has("period_start") {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Query parameter \"period_start\" is older than the configured AI Gateway data retention window (%s).", retention),
+			Message: fmt.Sprintf("Query parameter \"period_start\" must not be before %s, the start of the configured AI Gateway data retention window.", period.retentionStart.Format(time.RFC3339Nano)),
 		})
 		return aiSpendPeriod{}, false
 	}
