@@ -720,4 +720,33 @@ describe("projectChatWorkspaces", () => {
 			{ workspace: subagent, existedBeforeChat: false },
 		]);
 	});
+
+	it("looks up at most five workspaces at a time", async () => {
+		const workspaces = Array.from({ length: 7 }, (_, index) =>
+			mockChatWorkspace(`workspace-${index}`, "2026-09-01T00:00:00Z"),
+		);
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue(
+			workspaces.map((ws) =>
+				mockProjectChat(`chat-${ws.id}`, "2026-10-01T00:00:00Z", ws.id),
+			),
+		);
+		let inFlight = 0;
+		let maxInFlight = 0;
+		vi.spyOn(API, "getWorkspace").mockImplementation(async (id) => {
+			inFlight++;
+			maxInFlight = Math.max(maxInFlight, inFlight);
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			inFlight--;
+			return workspaces.find((ws) => ws.id === id) ?? workspaces[0];
+		});
+		vi.spyOn(API, "getWorkspaceBuilds").mockResolvedValue([]);
+		const queryClient = createTestQueryClient();
+
+		const result = await queryClient.fetchQuery(
+			projectChatWorkspaces(queryClient, MockChatProject),
+		);
+
+		expect(result).toHaveLength(7);
+		expect(maxInFlight).toBe(5);
+	});
 });

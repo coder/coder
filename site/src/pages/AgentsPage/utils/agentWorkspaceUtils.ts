@@ -283,6 +283,8 @@ const listOwnProjectChats = async (projectId: string, signal: AbortSignal) => {
 	}
 };
 
+const workspaceClassificationBatchSize = 5;
+
 export const projectChatWorkspacesKey = (projectId: string) =>
 	[...chatProjectArchiveDialogKey(projectId), "own-chat-workspaces"] as const;
 
@@ -313,25 +315,38 @@ export const projectChatWorkspaces = (
 					firstChatCreatedAt.set(chat.workspace_id, chat.created_at);
 				}
 			}
-			const results = await Promise.all(
-				[...firstChatCreatedAt].map(async ([workspaceId, chatCreatedAt]) => {
-					const action = await fetchArchiveAndDeleteAction(
-						queryClient,
-						workspaceId,
-						chatCreatedAt,
-					);
-					const workspace = queryClient.getQueryData<Workspace>(
-						workspaceByIdKey(workspaceId),
-					);
-					if (action === "archive-only" || !workspace) {
-						return [];
-					}
-					return [{ workspace, existedBeforeChat: action === "confirm" }];
-				}),
+			const classify = async ([workspaceId, chatCreatedAt]: [
+				string,
+				string,
+			]): Promise<ProjectChatWorkspace[]> => {
+				const action = await fetchArchiveAndDeleteAction(
+					queryClient,
+					workspaceId,
+					chatCreatedAt,
+				);
+				const workspace = queryClient.getQueryData<Workspace>(
+					workspaceByIdKey(workspaceId),
+				);
+				if (action === "archive-only" || !workspace) {
+					return [];
+				}
+				return [{ workspace, existedBeforeChat: action === "confirm" }];
+			};
+			// Each workspace costs a workspace and a build history request, so
+			// a project with many workspaces fetches them a batch at a time.
+			const entries = [...firstChatCreatedAt];
+			const results: ProjectChatWorkspace[] = [];
+			for (
+				let i = 0;
+				i < entries.length;
+				i += workspaceClassificationBatchSize
+			) {
+				const batch = entries.slice(i, i + workspaceClassificationBatchSize);
+				results.push(...(await Promise.all(batch.map(classify))).flat());
+			}
+			return results.sort((a, b) =>
+				a.workspace.name.localeCompare(b.workspace.name),
 			);
-			return results
-				.flat()
-				.sort((a, b) => a.workspace.name.localeCompare(b.workspace.name));
 		},
 	});
 
