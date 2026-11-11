@@ -105,6 +105,19 @@ func (tx *Tx) loadState(snapshot *ChatSnapshot) (database.Chat, ExecutionState, 
 	return tx.readState()
 }
 
+// queueState returns the snapshot's queue state when one is given,
+// otherwise a fresh read.
+func (tx *Tx) queueState(snapshot *ChatSnapshot) (QueueState, error) {
+	if snapshot != nil {
+		return snapshot.Queue, nil
+	}
+	queue, err := LoadQueueState(tx.ctx, tx.store, tx.chatID)
+	if err != nil {
+		return QueueState{}, xerrors.Errorf("load queue state: %w", err)
+	}
+	return queue, nil
+}
+
 // readState reads the current chat row and queue state from the
 // active transaction and classifies the execution state. Returns
 // ErrChatNotFound if the chat row was deleted in this transaction (or
@@ -124,11 +137,12 @@ func (tx *Tx) readState() (database.Chat, ExecutionState, error) {
 	return chat, ClassifyExecutionState(chat, queue, true), nil
 }
 
-// requireFromAllowed loads the current state and validates t against
-// the transition matrix. Returns the loaded chat and execution state
-// on success, [ErrInvalidState] when the chat is in an invalid state
-// and t is not [TransitionReconcileInvalidState], and a typed
-// *TransitionError otherwise.
+// requireFromAllowed validates t against the transition matrix from
+// snapshot, or from a fresh read when snapshot is nil. Returns that
+// chat and execution state on success, [ErrInvalidState] when the chat
+// is in an invalid state and t is not
+// [TransitionReconcileInvalidState], and a typed *TransitionError
+// otherwise.
 func (tx *Tx) requireFromAllowed(t Transition, snapshot *ChatSnapshot) (database.Chat, ExecutionState, error) {
 	chat, from, err := tx.loadState(snapshot)
 	if err != nil {

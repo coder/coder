@@ -605,9 +605,9 @@ func (tx *Tx) SendMessage(input SendMessageInput) (SendMessageResult, error) {
 	if err != nil {
 		return SendMessageResult{}, xerrors.Errorf("count queued messages: %w", err)
 	}
-	queue, err := LoadQueueState(tx.ctx, tx.store, tx.chatID)
+	queue, err := tx.queueState(input.Snapshot)
 	if err != nil {
-		return SendMessageResult{}, xerrors.Errorf("load queue state: %w", err)
+		return SendMessageResult{}, err
 	}
 	if err := sendMessageQueueCapacityError(from, queue, input.BusyBehavior, queuedCount, input.MaxQueueSize); err != nil {
 		return SendMessageResult{}, err

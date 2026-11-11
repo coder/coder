@@ -218,15 +218,20 @@ func TestChatMachine_Update_ValidatesFromSnapshot(t *testing.T) {
 
 	for _, tc := range []struct {
 		name            string
+		transition      func(*chatstate.Tx, *chatstate.ChatSnapshot, *testFixture) error
 		passSnapshot    bool
 		wantGetChatByID int
 		wantQueueHead   int
 	}{
 		// The publication read, plus queue head reads after the lock
 		// and for publication.
-		{name: "WithSnapshot", passSnapshot: true, wantGetChatByID: 1, wantQueueHead: 2},
+		{name: "FinishTurn/WithSnapshot", transition: finishTurnFromSnapshot, passSnapshot: true, wantGetChatByID: 1, wantQueueHead: 2},
 		// Without a snapshot the transition reads the chat itself.
-		{name: "WithoutSnapshot", passSnapshot: false, wantGetChatByID: 2, wantQueueHead: 3},
+		{name: "FinishTurn/WithoutSnapshot", transition: finishTurnFromSnapshot, passSnapshot: false, wantGetChatByID: 2, wantQueueHead: 3},
+		// SendMessage also checks queue capacity against the snapshot's
+		// queue state.
+		{name: "SendMessage/WithSnapshot", transition: sendMessageFromSnapshot, passSnapshot: true, wantGetChatByID: 1, wantQueueHead: 2},
+		{name: "SendMessage/WithoutSnapshot", transition: sendMessageFromSnapshot, passSnapshot: false, wantGetChatByID: 2, wantQueueHead: 4},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -240,8 +245,7 @@ func TestChatMachine_Update_ValidatesFromSnapshot(t *testing.T) {
 				if !tc.passSnapshot {
 					snapshot = nil
 				}
-				_, err := tx.FinishTurn(chatstate.FinishTurnInput{Snapshot: snapshot})
-				return err
+				return tc.transition(tx, snapshot, f)
 			})
 			require.NoError(t, err)
 
@@ -249,6 +253,21 @@ func TestChatMachine_Update_ValidatesFromSnapshot(t *testing.T) {
 			require.Equal(t, tc.wantQueueHead, counts.queueHead)
 		})
 	}
+}
+
+func finishTurnFromSnapshot(tx *chatstate.Tx, snapshot *chatstate.ChatSnapshot, _ *testFixture) error {
+	_, err := tx.FinishTurn(chatstate.FinishTurnInput{Snapshot: snapshot})
+	return err
+}
+
+func sendMessageFromSnapshot(tx *chatstate.Tx, snapshot *chatstate.ChatSnapshot, f *testFixture) error {
+	_, err := tx.SendMessage(chatstate.SendMessageInput{
+		Snapshot:     snapshot,
+		Message:      userTextMessage("queued", f.User.ID, f.Model.ID),
+		BusyBehavior: chatstate.BusyBehaviorQueue,
+		MaxQueueSize: codersdk.DefaultChatMaxQueuedMessagesPerChat,
+	})
+	return err
 }
 
 func TestChatMachine_Update_SnapshotMatchesDatabase(t *testing.T) {
