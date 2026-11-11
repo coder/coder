@@ -1471,6 +1471,12 @@ type sqlcQuerier interface {
 	// allocate a new snapshot version in one round trip.
 	LockChatAndBumpSnapshotVersion(ctx context.Context, id uuid.UUID) (Chat, error)
 	LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, error)
+	// Locks the unarchived subagent chats of the project's unarchived root
+	// chats in id order. Run it after LockChatProjectUnarchivedRootChats in the
+	// same transaction, so it sees every child and keeps the root-then-child
+	// order other family writers use. Later statements then read each child's
+	// committed status and queue, and no child can change before the archive.
+	LockChatProjectUnarchivedChildChats(ctx context.Context, projectID uuid.UUID) error
 	// Sub-chat creation holds its root FOR SHARE, so this waits for it. At
 	// READ COMMITTED, the default isolation, a later statement then sees every
 	// child committed during the wait.

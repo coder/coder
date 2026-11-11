@@ -5336,6 +5336,14 @@ func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) LockChatProjectUnarchivedChildChats(ctx context.Context, projectID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.LockChatProjectUnarchivedChildChats(ctx, projectID)
+	m.queryLatencies.WithLabelValues("LockChatProjectUnarchivedChildChats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatProjectUnarchivedChildChats").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) LockChatProjectUnarchivedRootChats(ctx context.Context, projectID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.LockChatProjectUnarchivedRootChats(ctx, projectID)
