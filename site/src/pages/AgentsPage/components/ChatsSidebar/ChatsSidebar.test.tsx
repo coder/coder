@@ -914,6 +914,77 @@ describe("ChatsSidebar projects", () => {
 		);
 	});
 
+	it("keeps the focus handoff of an unarchive when a later one finishes first", async () => {
+		const user = userEvent.setup();
+		const mockArchivedDocsProject = {
+			...MockArchivedChatProject,
+			id: "docs",
+			name: "Docs",
+		};
+		let archivedProjects = [
+			MockArchivedChatProject,
+			mockArchivedBillingProject,
+			mockArchivedDocsProject,
+		];
+		const unarchiveResponses = new Map([
+			[MockChatProject.id, createDeferred<undefined>()],
+			[mockArchivedBillingProject.id, createDeferred<undefined>()],
+		]);
+		server.use(
+			http.get("/api/experimental/chats/projects", ({ request }) =>
+				HttpResponse.json(
+					new URL(request.url).searchParams.get("archived") === "true"
+						? archivedProjects
+						: [],
+				),
+			),
+			http.post(
+				"/api/experimental/organizations/:organization/chats/projects/:project/unarchive",
+				async ({ params }) => {
+					await unarchiveResponses.get(String(params.project))?.promise;
+					archivedProjects = archivedProjects.filter(
+						({ id }) => id !== params.project,
+					);
+					return HttpResponse.json({
+						...MockArchivedChatProject,
+						id: params.project,
+						archived_at: undefined,
+					});
+				},
+			),
+		);
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", { name: "Archived projects" }),
+		);
+		await user.click(
+			await screen.findByRole("button", { name: "Unarchive Billing" }),
+		);
+		await user.click(
+			screen.getByRole("button", { name: `Unarchive ${MockChatProject.name}` }),
+		);
+		unarchiveResponses.get(MockChatProject.id)?.resolve(undefined);
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("button", {
+					name: `Unarchive ${MockChatProject.name}`,
+				}),
+			).toBeNull(),
+		);
+		unarchiveResponses.get(mockArchivedBillingProject.id)?.resolve(undefined);
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: "Unarchive Docs" }),
+			).toHaveFocus(),
+		);
+	});
+
 	it("retries a failed refresh of the archived projects list", async () => {
 		const user = userEvent.setup();
 		let failsArchivedList = false;

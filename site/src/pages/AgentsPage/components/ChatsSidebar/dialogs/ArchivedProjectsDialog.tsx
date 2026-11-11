@@ -64,8 +64,6 @@ type ArchivedProjectsListProps = {
 	readonly onOpenProject: () => void;
 };
 
-type UnarchivedRow = { readonly projectId: string; readonly index: number };
-
 const ArchivedProjectsList: React.FC<ArchivedProjectsListProps> = ({
 	organizations,
 	locationSearch,
@@ -74,18 +72,27 @@ const ArchivedProjectsList: React.FC<ArchivedProjectsListProps> = ({
 	const projectsQuery = useQuery(archivedChatProjects());
 	const projects = projectsQuery.data;
 	const rowActionsRef = useRef(new Map<string, HTMLElement>());
-	const unarchivedRowRef = useRef<UnarchivedRow | null>(null);
+	// Row indexes of pending unarchives, by project ID.
+	const pendingUnarchivesRef = useRef(new Map<string, number>());
 	const emptyStateRef = useRef<HTMLParagraphElement>(null);
 
 	// An unarchived row unmounts with its focused button, which leaves focus on
-	// the body or the dialog. Hand it to the row that took its place, else the
-	// previous row, else the empty state.
+	// the body or the dialog. Hand it to the first enabled action from the row
+	// that took its place onward, else before it, else the empty state.
 	useEffect(() => {
-		const row = unarchivedRowRef.current;
-		if (!row || !projects || projects.some((p) => p.id === row.projectId)) {
+		if (!projects) {
 			return;
 		}
-		unarchivedRowRef.current = null;
+		let removedIndex: number | undefined;
+		for (const [projectId, index] of pendingUnarchivesRef.current) {
+			if (!projects.some((p) => p.id === projectId)) {
+				pendingUnarchivesRef.current.delete(projectId);
+				removedIndex = removedIndex ?? index;
+			}
+		}
+		if (removedIndex === undefined) {
+			return;
+		}
 		const active = document.activeElement;
 		if (
 			active &&
@@ -94,10 +101,19 @@ const ArchivedProjectsList: React.FC<ArchivedProjectsListProps> = ({
 		) {
 			return;
 		}
-		const next = projects[Math.min(row.index, projects.length - 1)];
-		const target = next
-			? rowActionsRef.current.get(next.id)
-			: emptyStateRef.current;
+		const start = Math.min(removedIndex, projects.length);
+		const candidates = [
+			...projects.slice(start),
+			...projects.slice(0, start).reverse(),
+		].map((p) => rowActionsRef.current.get(p.id));
+		const target =
+			projects.length === 0
+				? emptyStateRef.current
+				: candidates.find(
+						(action) =>
+							action &&
+							!(action instanceof HTMLButtonElement && action.disabled),
+					);
 		target?.focus();
 	}, [projects]);
 
@@ -152,13 +168,10 @@ const ArchivedProjectsList: React.FC<ArchivedProjectsListProps> = ({
 							locationSearch={locationSearch}
 							onOpen={onOpenProject}
 							onUnarchive={() => {
-								unarchivedRowRef.current = { projectId: project.id, index };
+								pendingUnarchivesRef.current.set(project.id, index);
 							}}
 							onUnarchiveError={() => {
-								// Another row's unarchive may have replaced the record.
-								if (unarchivedRowRef.current?.projectId === project.id) {
-									unarchivedRowRef.current = null;
-								}
+								pendingUnarchivesRef.current.delete(project.id);
 							}}
 							actionRef={(element) => {
 								if (!element) {
