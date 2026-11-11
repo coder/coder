@@ -55,11 +55,15 @@ export const MoveToUnpinnedProjectDialogProvider: React.FC<
 	const focusFallbackRef = useRef<HTMLElement | null>(null);
 	// The menu that moved the chat often unmounts with its row, or is still
 	// closing when the move finishes, so Radix would return focus to the body.
+	// A small screen keeps the sidebar's copy of the button mounted but hidden.
 	const restoreFocus = (event: Event) => {
 		const target =
-			document.querySelector<HTMLElement>(
-				`[data-chat-actions-for="${dialog.chatId}"]:not(:disabled)`,
-			) ?? focusFallbackRef.current;
+			[
+				...document.querySelectorAll<HTMLElement>(
+					`[data-chat-actions-for="${dialog.chatId}"]:not(:disabled)`,
+				),
+			].find((element) => element.checkVisibility?.() ?? true) ??
+			focusFallbackRef.current;
 		if (target?.isConnected) {
 			event.preventDefault();
 			target.focus();

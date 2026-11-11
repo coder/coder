@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, useLocation } from "react-router";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { API } from "#/api/api";
 import { chatProjectSummariesKey } from "#/api/queries/chatProjects";
 import { chatEntityKey } from "#/api/queries/chats";
@@ -19,9 +19,10 @@ import {
 	useMoveToUnpinnedProjectDialog,
 } from "./MoveToUnpinnedProjectDialog";
 
-const MoveButton: React.FC<{ withChatActions: boolean }> = ({
-	withChatActions,
-}) => {
+const MoveButton: React.FC<{
+	withChatActions: boolean;
+	withHiddenChatActions: boolean;
+}> = ({ withChatActions, withHiddenChatActions }) => {
 	const move = useMoveChatToProject();
 	const location = useLocation();
 	const dialog = useMoveToUnpinnedProjectDialog();
@@ -37,6 +38,20 @@ const MoveButton: React.FC<{ withChatActions: boolean }> = ({
 				>
 					Move
 				</button>
+			)}
+			{/* Stands in for the sidebar that a small screen hides behind the chat. */}
+			{withHiddenChatActions && (
+				<div hidden>
+					<ChatActionsMenu
+						chat={MockChat}
+						canManage
+						hasWorkspace={false}
+						onArchiveAgent={vi.fn()}
+						onUnarchiveAgent={vi.fn()}
+					>
+						<button type="button">Open hidden agent actions</button>
+					</ChatActionsMenu>
+				</div>
 			)}
 			{withChatActions && (
 				<ChatActionsMenu
@@ -62,6 +77,7 @@ const moveChat = async ({
 	projectPinned = false,
 	fromUnpinnedProject = false,
 	withChatActions = false,
+	withHiddenChatActions = false,
 }) => {
 	const user = userEvent.setup();
 	vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
@@ -92,7 +108,10 @@ const moveChat = async ({
 		<QueryClientProvider client={queryClient}>
 			<MemoryRouter initialEntries={["/agents"]}>
 				<MoveToUnpinnedProjectDialogProvider>
-					<MoveButton withChatActions={withChatActions} />
+					<MoveButton
+						withChatActions={withChatActions}
+						withHiddenChatActions={withHiddenChatActions}
+					/>
 				</MoveToUnpinnedProjectDialogProvider>
 			</MemoryRouter>
 		</QueryClientProvider>,
@@ -140,12 +159,25 @@ describe("MoveToUnpinnedProjectDialog", () => {
 
 	it.each([
 		{ withChatActions: true, focused: "Open agent actions" },
+		{
+			withChatActions: true,
+			withHiddenChatActions: true,
+			focused: "Open agent actions",
+		},
 		{ withChatActions: false, focused: "Projects" },
 	])(
-		"closes without pinning and returns focus to $focused",
-		async ({ withChatActions, focused }) => {
+		"closes without pinning and returns focus to $focused (%o)",
+		async ({ withChatActions, withHiddenChatActions, focused }) => {
+			// jsdom has no layout, so the hidden attribute stands in for the
+			// CSS that hides the sidebar.
+			Element.prototype.checkVisibility = function () {
+				return !this.closest("[hidden]");
+			};
+			onTestFinished(() => {
+				Reflect.deleteProperty(Element.prototype, "checkVisibility");
+			});
 			const pin = vi.spyOn(API.experimental, "pinChatProject");
-			const user = await moveChat({ withChatActions });
+			const user = await moveChat({ withChatActions, withHiddenChatActions });
 
 			await user.click(await screen.findByRole("button", { name: "Close" }));
 

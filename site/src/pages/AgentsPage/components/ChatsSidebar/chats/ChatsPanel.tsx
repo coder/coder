@@ -585,8 +585,8 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						icon={FolderKanbanIcon}
 						label="Projects"
 						active={isProjectsActive}
-						// Moved chats and the last unpinned project's chats can be found
-						// here, so focus returns here when they leave the sidebar.
+						// Takes focus when the move dialog's chat or the last pinned
+						// project leaves the sidebar, since both can be found here.
 						ref={(element) => {
 							projectsNavItemRef.current = element;
 							moveToUnpinnedProjectDialog?.setFocusFallback(element);
