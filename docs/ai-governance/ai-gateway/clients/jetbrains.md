@@ -42,6 +42,15 @@ The session appears in the AI Gateway [sessions list](../audit.md#sessions-list)
 > This label is expected, because `ANTHROPIC_AUTH_TOKEN` holds your Coder token.
 > If you select **JetBrains AI** or a configured provider instead, requests go to that provider and bypass AI Gateway.
 
+## BYOK
+
+Air agents read the same Bring Your Own Key (BYOK) settings as their CLIs.
+To use BYOK, configure the workspace as described for [Claude Code](./claude-code.md#byok-personal-api-key) and [Codex](./codex.md#byok-personal-api-key).
+
+> [!NOTE]
+> Claude Agent can't use a Claude subscription in the chat surface.
+> To use a [Claude subscription](./claude-code.md#byok-claude-subscription), run Claude Code in the [terminal surface](https://www.jetbrains.com/help/air-ides/air-manage-agents.html) instead.
+
 **References:**
 [Agents in IntelliJ IDEA](https://www.jetbrains.com/help/idea/agents-in-ide.html),
 [Configure agent authorization](https://www.jetbrains.com/help/air-ides/air-configure-authorization.html)
