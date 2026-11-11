@@ -1,7 +1,8 @@
+import { useEffect, useRef } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { archivedChatProjects } from "#/api/queries/chatProjects";
-import type { ChatProject } from "#/api/typesGenerated";
+import type { ChatProject, Organization } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -16,10 +17,13 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnarchiveChatProject } from "../../../hooks/useUnarchiveChatProject";
 import { buildAgentProjectPath } from "../../../utils/navigation";
 import { ChatProjectIcon } from "../../ChatProjectIcon";
+import { getOrganizationLabels } from "../chats/projectGrouping";
 
 type ArchivedProjectsDialogProps = {
 	readonly open: boolean;
 	readonly onOpenChange: (open: boolean) => void;
+	/** Labels same-named projects with their organization. */
+	readonly organizations: readonly Organization[];
 	/** Kept on project links, since the sidebar filters live in it. */
 	readonly locationSearch: string;
 	readonly onCloseAutoFocus?: (event: Event) => void;
@@ -29,6 +33,7 @@ type ArchivedProjectsDialogProps = {
 export const ArchivedProjectsDialog: React.FC<ArchivedProjectsDialogProps> = ({
 	open,
 	onOpenChange,
+	organizations,
 	locationSearch,
 	onCloseAutoFocus,
 }) => (
@@ -42,6 +47,7 @@ export const ArchivedProjectsDialog: React.FC<ArchivedProjectsDialogProps> = ({
 				</DialogDescription>
 			</DialogHeader>
 			<ArchivedProjectsList
+				organizations={organizations}
 				locationSearch={locationSearch}
 				onOpenProject={() => onOpenChange(false)}
 			/>
@@ -50,78 +56,141 @@ export const ArchivedProjectsDialog: React.FC<ArchivedProjectsDialogProps> = ({
 );
 
 type ArchivedProjectsListProps = {
+	readonly organizations: readonly Organization[];
 	readonly locationSearch: string;
 	readonly onOpenProject: () => void;
 };
 
+type UnarchivedRow = { readonly projectId: string; readonly index: number };
+
 const ArchivedProjectsList: React.FC<ArchivedProjectsListProps> = ({
+	organizations,
 	locationSearch,
 	onOpenProject,
 }) => {
 	const projectsQuery = useQuery(archivedChatProjects());
+	const projects = projectsQuery.data;
+	const rowActionsRef = useRef(new Map<string, HTMLElement>());
+	const unarchivedRowRef = useRef<UnarchivedRow | null>(null);
+	const emptyStateRef = useRef<HTMLParagraphElement>(null);
 
-	if (projectsQuery.error && !projectsQuery.data) {
+	// An unarchived row unmounts with its focused button, which leaves focus on
+	// the body or the dialog. Hand it to the row that took its place, else the
+	// previous row, else the empty state.
+	useEffect(() => {
+		const row = unarchivedRowRef.current;
+		if (!row || !projects || projects.some((p) => p.id === row.projectId)) {
+			return;
+		}
+		unarchivedRowRef.current = null;
+		const active = document.activeElement;
+		if (
+			active &&
+			active !== document.body &&
+			active.getAttribute("role") !== "dialog"
+		) {
+			return;
+		}
+		const next = projects[Math.min(row.index, projects.length - 1)];
+		const target = next
+			? rowActionsRef.current.get(next.id)
+			: emptyStateRef.current;
+		target?.focus();
+	}, [projects]);
+
+	const errorAlert = projectsQuery.error ? (
+		<ErrorAlert
+			error={projectsQuery.error}
+			actions={
+				<Button
+					size="sm"
+					variant="outline"
+					onClick={() => void projectsQuery.refetch()}
+				>
+					Retry
+				</Button>
+			}
+		/>
+	) : null;
+	if (!projects) {
 		return (
-			<ErrorAlert
-				error={projectsQuery.error}
-				actions={
-					<Button
-						size="sm"
-						variant="outline"
-						onClick={() => void projectsQuery.refetch()}
-					>
-						Retry
-					</Button>
-				}
-			/>
+			errorAlert ?? (
+				<div role="status" className="flex flex-col gap-3">
+					<span className="sr-only">Loading archived projects</span>
+					{[0, 1, 2].map((index) => (
+						<div key={index} className="flex items-center gap-3">
+							<Skeleton className="size-4 shrink-0" />
+							<Skeleton variant="text" className="w-1/3" />
+						</div>
+					))}
+				</div>
+			)
 		);
 	}
-	if (!projectsQuery.data) {
-		return (
-			<div role="status" className="flex flex-col gap-3">
-				<span className="sr-only">Loading archived projects</span>
-				{[0, 1, 2].map((index) => (
-					<div key={index} className="flex items-center gap-3">
-						<Skeleton className="size-4 shrink-0" />
-						<Skeleton variant="text" className="w-1/3" />
-					</div>
-				))}
-			</div>
-		);
-	}
-	if (projectsQuery.data.length === 0) {
-		return (
-			<p className="m-0 rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-content-secondary">
-				No archived projects.
-			</p>
-		);
-	}
+	const organizationLabels = getOrganizationLabels(projects, organizations);
 	return (
-		<ul className="m-0 flex min-w-0 list-none flex-col gap-1 p-0">
-			{projectsQuery.data.map((project) => (
-				<ArchivedProjectRow
-					key={project.id}
-					project={project}
-					locationSearch={locationSearch}
-					onOpen={onOpenProject}
-				/>
-			))}
-		</ul>
+		<>
+			{errorAlert}
+			{projects.length === 0 ? (
+				<p
+					ref={emptyStateRef}
+					tabIndex={-1}
+					className="m-0 rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-content-secondary outline-hidden"
+				>
+					No archived projects.
+				</p>
+			) : (
+				<ul className="m-0 flex min-w-0 list-none flex-col gap-1 p-0">
+					{projects.map((project, index) => (
+						<ArchivedProjectRow
+							key={project.id}
+							project={project}
+							organizationLabel={organizationLabels.get(project.id)}
+							locationSearch={locationSearch}
+							onOpen={onOpenProject}
+							onUnarchive={() => {
+								unarchivedRowRef.current = { projectId: project.id, index };
+							}}
+							actionRef={(element) => {
+								if (!element) {
+									return;
+								}
+								rowActionsRef.current.set(project.id, element);
+								return () => {
+									rowActionsRef.current.delete(project.id);
+								};
+							}}
+						/>
+					))}
+				</ul>
+			)}
+		</>
 	);
 };
 
 type ArchivedProjectRowProps = {
 	readonly project: ChatProject;
+	readonly organizationLabel: string | undefined;
 	readonly locationSearch: string;
 	readonly onOpen: () => void;
+	readonly onUnarchive: () => void;
+	/** Receives the row's last action, which takes focus from a removed row. */
+	readonly actionRef: React.RefCallback<HTMLElement>;
 };
 
 const ArchivedProjectRow: React.FC<ArchivedProjectRowProps> = ({
 	project,
+	organizationLabel,
 	locationSearch,
 	onOpen,
+	onUnarchive,
+	actionRef,
 }) => {
 	const { unarchive, isPending } = useUnarchiveChatProject(project);
+	const canUnarchive = project.permissions.archive;
+	const projectLabel = organizationLabel
+		? `${project.name} (${organizationLabel})`
+		: project.name;
 	return (
 		<li className="flex items-center gap-3 py-1">
 			<ChatProjectIcon
@@ -129,7 +198,7 @@ const ArchivedProjectRow: React.FC<ArchivedProjectRowProps> = ({
 				className="size-4 text-content-secondary"
 			/>
 			<span className="min-w-0 flex-1 truncate text-sm text-content-primary">
-				{project.name}
+				{projectLabel}
 			</span>
 			<Button asChild size="sm" variant="outline">
 				<RouterLink
@@ -137,19 +206,24 @@ const ArchivedProjectRow: React.FC<ArchivedProjectRowProps> = ({
 						pathname: buildAgentProjectPath({ projectId: project.id }),
 						search: locationSearch,
 					}}
-					aria-label={`Open ${project.name}`}
+					ref={canUnarchive ? undefined : actionRef}
+					aria-label={`Open ${projectLabel}`}
 					onClick={onOpen}
 				>
 					Open
 				</RouterLink>
 			</Button>
-			{project.permissions.archive && (
+			{canUnarchive && (
 				<Button
+					ref={actionRef}
 					size="sm"
 					variant="outline"
-					aria-label={`Unarchive ${project.name}`}
+					aria-label={`Unarchive ${projectLabel}`}
 					disabled={isPending}
-					onClick={unarchive}
+					onClick={() => {
+						onUnarchive();
+						unarchive();
+					}}
 				>
 					<Spinner loading={isPending} />
 					Unarchive

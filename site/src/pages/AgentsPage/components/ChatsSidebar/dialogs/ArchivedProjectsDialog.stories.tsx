@@ -1,9 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { fn, spyOn } from "storybook/test";
+import { useQuery } from "react-query";
+import { fn, spyOn, within } from "storybook/test";
 import { API } from "#/api/api";
-import { archivedChatProjectsKey } from "#/api/queries/chatProjects";
+import {
+	archivedChatProjects,
+	archivedChatProjectsKey,
+} from "#/api/queries/chatProjects";
 import {
 	MockArchivedChatProject,
+	MockDefaultOrganization,
+	MockOrganization2,
 	MockUserOwner,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -17,6 +23,7 @@ const meta = {
 	args: {
 		open: true,
 		onOpenChange: fn(),
+		organizations: [MockDefaultOrganization, MockOrganization2],
 		locationSearch: "",
 	},
 	parameters: { user: MockUserOwner },
@@ -69,5 +76,47 @@ export const LoadError: Story = {
 		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
 			mockApiError({ message: "Failed to list archived projects." }),
 		);
+	},
+};
+
+/** Same-named projects in two organizations show the organization. */
+export const SameNameInTwoOrganizations: Story = {
+	parameters: {
+		queries: [
+			{
+				key: archivedChatProjectsKey,
+				data: [
+					MockArchivedChatProject,
+					{
+						...MockArchivedChatProject,
+						id: "launch-2",
+						organization_id: MockOrganization2.id,
+					},
+				],
+			},
+		],
+	},
+};
+
+/** A failed refresh keeps the cached rows below the error. */
+export const RefetchError: Story = {
+	parameters: {
+		queries: [
+			{ key: archivedChatProjectsKey, data: [MockArchivedChatProject] },
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to refresh archived projects." }),
+		);
+	},
+	render: function RefetchErrorRender(args) {
+		// Seeded data never goes stale in Storybook, so a stale-on-mount
+		// observer refetches it and fails on top of the cached rows.
+		useQuery({ ...archivedChatProjects(), staleTime: 0, retry: false });
+		return <ArchivedProjectsDialog {...args} />;
+	},
+	play: async () => {
+		await within(document.body).findByRole("button", { name: "Retry" });
 	},
 };
