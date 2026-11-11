@@ -1,7 +1,10 @@
 import { Button, type ButtonProps } from "#/components/Button/Button";
 import { Spinner } from "#/components/Spinner/Spinner";
 
-type RetryButtonProps = Pick<ButtonProps, "aria-label" | "size" | "variant"> & {
+type RetryButtonProps = Pick<
+	ButtonProps,
+	"aria-label" | "ref" | "size" | "variant"
+> & {
 	isRetrying: boolean;
 	onRetry: () => void;
 };
