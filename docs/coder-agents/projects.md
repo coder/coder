@@ -28,6 +28,7 @@ Any organization member who can use Coder Agents can create projects in that org
 Each user can own up to 100 projects across all organizations.
 
 A project is private to its owner.
+When the experimental `chat-project-sharing` feature is enabled (`--experiments=chat-project-sharing`), the owner can share a project with other users and groups, who can then start chats in it.
 Coder records project, instruction, skill, and memory changes in the [audit log](../admin/security/audit-logs.md).
 
 ## Create a project
