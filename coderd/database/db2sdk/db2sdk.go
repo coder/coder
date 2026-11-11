@@ -1928,7 +1928,12 @@ func decodeChatLastError(raw pqtype.NullRawMessage) *codersdk.ChatError {
 
 // ChatProject converts a project with the caller's permissions on it.
 func ChatProject(project database.ChatProject, permissions codersdk.ChatProjectPermissions) codersdk.ChatProject {
+	var archivedAt *time.Time
+	if project.ArchivedAt.Valid {
+		archivedAt = &project.ArchivedAt.Time
+	}
 	return codersdk.ChatProject{
+		ArchivedAt:     archivedAt,
 		Permissions:    permissions,
 		ID:             project.ID,
 		OrganizationID: project.OrganizationID,

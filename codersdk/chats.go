@@ -235,9 +235,14 @@ type ChatProject struct {
 	Description string `json:"description"`
 	// Icon is a URL, typically an emoji image under /emojis, or empty for the
 	// default folder glyph.
-	Icon        string                 `json:"icon"`
-	CreatedAt   time.Time              `json:"created_at" format:"date-time"`
-	UpdatedAt   time.Time              `json:"updated_at" format:"date-time"`
+	Icon      string    `json:"icon"`
+	CreatedAt time.Time `json:"created_at" format:"date-time"`
+	UpdatedAt time.Time `json:"updated_at" format:"date-time"`
+	// ArchivedAt is set while the project is archived. An archived
+	// project's settings, sharing, instructions, skills and memories
+	// cannot change, chats cannot be created in it or moved into it,
+	// and its chats can only be unarchived by unarchiving the project.
+	ArchivedAt  *time.Time             `json:"archived_at,omitempty" format:"date-time"`
 	Permissions ChatProjectPermissions `json:"permissions"`
 }
 
@@ -246,6 +251,26 @@ type ChatProjectPermissions struct {
 	Update bool `json:"update"`
 	Delete bool `json:"delete"`
 	Share  bool `json:"share"`
+	// Archive covers archiving and unarchiving the project.
+	Archive bool `json:"archive"`
+}
+
+// ArchiveChatProjectRequest archives a chat project and every chat in it.
+type ArchiveChatProjectRequest struct {
+	// StopActiveChats confirms that active chats in the project are
+	// stopped and archived. Without it, a project with active chats is
+	// not archived.
+	StopActiveChats bool `json:"stop_active_chats"`
+}
+
+// ChatProjectArchivePreview counts what archiving a project affects.
+type ChatProjectArchivePreview struct {
+	// ChatCount is the number of unarchived root chats in the project,
+	// of every owner.
+	ChatCount int64 `json:"chat_count"`
+	// ActiveChatCount is the number of those chats that archiving stops
+	// because they or one of their subagent chats are active.
+	ActiveChatCount int64 `json:"active_chat_count"`
 }
 
 // CreateChatProjectRequest creates a chat project in the organization named
@@ -2568,6 +2593,22 @@ func (c *ExperimentalClient) DeleteChatProject(ctx context.Context, organization
 		return ReadBodyAsError(res)
 	}
 	return nil
+}
+
+// ArchiveChatProject archives a chat project and every chat in it.
+func (c *ExperimentalClient) ArchiveChatProject(ctx context.Context, organizationID, projectID uuid.UUID, req ArchiveChatProjectRequest) (ChatProject, error) {
+	return requestJSON[ChatProject](ctx, c.Client, http.MethodPost, chatProjectPath(organizationID, projectID)+"/archive", http.StatusOK, req)
+}
+
+// UnarchiveChatProject unarchives a chat project and the chats archived
+// with it.
+func (c *ExperimentalClient) UnarchiveChatProject(ctx context.Context, organizationID, projectID uuid.UUID) (ChatProject, error) {
+	return requestJSON[ChatProject](ctx, c.Client, http.MethodPost, chatProjectPath(organizationID, projectID)+"/unarchive", http.StatusOK, nil)
+}
+
+// ChatProjectArchivePreview counts the chats archiving a project affects.
+func (c *ExperimentalClient) ChatProjectArchivePreview(ctx context.Context, organizationID, projectID uuid.UUID) (ChatProjectArchivePreview, error) {
+	return requestJSON[ChatProjectArchivePreview](ctx, c.Client, http.MethodGet, chatProjectPath(organizationID, projectID)+"/archive-preview", http.StatusOK, nil)
 }
 
 // ChatProjectACL returns who a chat project is shared with.
