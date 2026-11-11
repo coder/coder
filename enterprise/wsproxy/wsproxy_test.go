@@ -875,6 +875,7 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = serpent.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
 		deploymentValues.Experiments = []string{
 			"*",
+			string(codersdk.ExperimentChatUIAnnotations),
 		}
 
 		proxyStatsCollectorFlushCh := make(chan chan<- struct{}, 1)
@@ -935,6 +936,7 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 			AppHostname:     opts.AppHost,
 			DisablePathApps: opts.DisablePathApps,
 			FlushStats:      proxyStatsCollectorFlushCh,
+			Experiments:     codersdk.Experiments{codersdk.ExperimentChatUIAnnotations},
 		})
 
 		return &apptest.Deployment{
@@ -962,6 +964,7 @@ func TestWorkspaceProxyWorkspaceApps_BlockDirect(t *testing.T) {
 		deploymentValues.Dangerous.AllowPathAppSiteOwnerAccess = serpent.Bool(opts.DangerousAllowPathAppSiteOwnerAccess)
 		deploymentValues.Experiments = []string{
 			"*",
+			string(codersdk.ExperimentChatUIAnnotations),
 		}
 
 		proxyStatsCollectorFlushCh := make(chan chan<- struct{}, 1)
@@ -1022,6 +1025,7 @@ func TestWorkspaceProxyWorkspaceApps_BlockDirect(t *testing.T) {
 			DisablePathApps: opts.DisablePathApps,
 			FlushStats:      proxyStatsCollectorFlushCh,
 			BlockDirect:     true,
+			Experiments:     codersdk.Experiments{codersdk.ExperimentChatUIAnnotations},
 		})
 
 		return &apptest.Deployment{
