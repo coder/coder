@@ -38,7 +38,7 @@ export const SyntaxHighlighter: React.FC<SyntaxHighlighterProps> = ({
 	// Shared by both `File` and `MultiFileDiff`, whose options extend this type.
 	const options: BaseCodeOptions = {
 		theme: coderShikiThemes,
-		themeType: theme.palette.mode,
+		themeType: theme.mode,
 		disableFileHeader: true,
 		overflow: "scroll",
 	};
@@ -50,7 +50,7 @@ export const SyntaxHighlighter: React.FC<SyntaxHighlighterProps> = ({
 	};
 
 	return (
-		<div data-pixel="ignore" className="max-h-[560px] overflow-auto">
+		<div data-pixel="ignore" className="max-h-140 overflow-auto">
 			{compareWith && value !== compareWith ? (
 				<MultiFileDiff
 					oldFile={{ ...file, contents: compareWith }}

@@ -159,6 +159,7 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
 }) => {
 	const variant = useContext(VariantContext);
 	const label = typeof children === "string" ? children : `step ${step}`;
+	const ariaCurrent = variant === "current" ? "step" : undefined;
 
 	if (onClick) {
 		return (
@@ -166,6 +167,7 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
 				type="button"
 				onClick={onClick}
 				aria-label={`Go to ${label}`}
+				aria-current={ariaCurrent}
 				className={cn(
 					"flex items-center gap-2 w-full text-left text-content-primary p-0 bg-transparent cursor-pointer rounded-sm",
 					"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
@@ -178,7 +180,7 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
 	}
 
 	return (
-		<div className="flex items-center gap-2">
+		<div className="flex items-center gap-2" aria-current={ariaCurrent}>
 			<div className={stepCircleVariants({ variant })}>{step}</div>
 			<span className={stepLabelVariants({ variant })}>{children}</span>
 		</div>
@@ -188,7 +190,7 @@ const StepIndicator: React.FC<StepIndicatorProps> = ({
 // CSS dashed borders cannot set dash length, so draw a 4px dash,
 // 4px gap pattern under a transparent border instead.
 const dashedDivider =
-	"border-transparent bg-origin-border bg-repeat-y bg-left-top bg-size-[1px_8px] bg-[linear-gradient(var(--color-border)_4px,transparent_4px)]";
+	"border-transparent bg-origin-border bg-repeat-y bg-top-left bg-size-[1px_8px] bg-[linear-gradient(var(--color-border)_4px,transparent_4px)]";
 
 const stepDividerVariants = cva("border-l border-solid mx-3 -translate-x-px", {
 	variants: {

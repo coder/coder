@@ -21,7 +21,7 @@ export const WorkspaceBuildLogsSection: React.FC<
 			>
 				Build logs
 			</header>
-			<div className="h-[400px] overflow-y-auto">
+			<div className="h-100 overflow-y-auto">
 				{logs ? (
 					<WorkspaceBuildLogs
 						sticky
@@ -29,7 +29,7 @@ export const WorkspaceBuildLogsSection: React.FC<
 						className="rounded-none border-none"
 					/>
 				) : (
-					<div className="flex items-center justify-center w-full h-full">
+					<div className="flex items-center justify-center size-full">
 						<Loader />
 					</div>
 				)}

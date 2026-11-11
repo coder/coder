@@ -44,7 +44,7 @@ const severityStyles: Record<ThemeRole, { svgColor: string; border: string }> =
 		},
 		info: {
 			svgColor: "[&_svg]:text-content-secondary",
-			border: "",
+			border: "border-border",
 		},
 		success: {
 			svgColor: "[&_svg]:text-border-success",
@@ -56,7 +56,7 @@ const severityStyles: Record<ThemeRole, { svgColor: string; border: string }> =
 		},
 		inactive: {
 			svgColor: "[&_svg]:text-content-disabled",
-			border: "",
+			border: "border-border",
 		},
 		danger: {
 			svgColor: "[&_svg]:text-border-warning",
@@ -95,7 +95,7 @@ export const Notifications: React.FC<NotificationsProps> = ({
 				align="end"
 				collisionPadding={16}
 				className={cn(
-					"max-w-[400px] p-0 w-auto bg-surface-secondary text-sm text-content-primary",
+					"max-w-100 p-0 w-auto bg-surface-secondary text-sm text-content-primary",
 					severityStyles[severity].border,
 				)}
 			>

@@ -980,7 +980,7 @@ const GenericToolRenderer: React.FC<ToolRendererProps> = ({
 	modelIntent,
 }) => {
 	const theme = useTheme();
-	const isDark = theme.palette.mode === "dark";
+	const isDark = theme.mode === "dark";
 	const toolInput = formatToolInput(args);
 	const mediaResult = isMedia ? parseMediaToolResult(result) : null;
 	// Media payloads are base64 blobs; keep them out of the text formatters.

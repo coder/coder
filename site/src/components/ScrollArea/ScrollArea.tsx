@@ -43,7 +43,7 @@ export const ScrollArea: React.FC<ScrollAreaProps> = ({
 				tabIndex={viewportTabIndex}
 				role={viewportAriaLabel ? "region" : undefined}
 				aria-label={viewportAriaLabel}
-				className={cn("h-full w-full rounded-[inherit]", viewportClassName)}
+				className={cn("size-full rounded-[inherit]", viewportClassName)}
 			>
 				{children}
 			</ScrollAreaPrimitive.Viewport>

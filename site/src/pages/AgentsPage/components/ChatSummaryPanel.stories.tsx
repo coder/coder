@@ -64,7 +64,7 @@ const mockRequests = ({
 
 // The Summary tab fills the right panel, so give stories a bounded height.
 const PanelFrame = (Story: React.FC) => (
-	<div className="h-[420px] w-[420px] max-w-full border border-solid">
+	<div className="size-105 max-w-full border border-solid">
 		<Story />
 	</div>
 );

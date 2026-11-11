@@ -2017,6 +2017,7 @@ export interface BuildInfoResponse {
 
 // From codersdk/workspacebuilds.go
 export type BuildReason =
+	| "autodelete"
 	| "autostart"
 	| "autostop"
 	| "cli"
@@ -2028,6 +2029,7 @@ export type BuildReason =
 	| "vscode_connection";
 
 export const BuildReasons: BuildReason[] = [
+	"autodelete",
 	"autostart",
 	"autostop",
 	"cli",
@@ -2304,9 +2306,9 @@ export interface ChatAutoArchiveDaysResponse {
 }
 
 // From codersdk/chats.go
-export type ChatBusyBehavior = "interrupt" | "queue";
+export type ChatBusyBehavior = "queue" | "steer";
 
-export const ChatBusyBehaviors: ChatBusyBehavior[] = ["interrupt", "queue"];
+export const ChatBusyBehaviors: ChatBusyBehavior[] = ["queue", "steer"];
 
 // From codersdk/chats.go
 export type ChatClientType = "api" | "ui";
@@ -2322,11 +2324,12 @@ export const ChatCompactionThresholdKeyPrefix =
 	"chat_compaction_threshold_pct:";
 
 // From codersdk/chats.go
-export type ChatComputerUseProvider = "anthropic" | "openai";
+export type ChatComputerUseProvider = "anthropic" | "openai" | "openai-compat";
 
 export const ChatComputerUseProviders: ChatComputerUseProvider[] = [
 	"anthropic",
 	"openai",
+	"openai-compat",
 ];
 
 // From codersdk/deployment.go
@@ -3116,6 +3119,10 @@ export interface ChatMessagesPaginationOptions {
  */
 export interface ChatMessagesResponse {
 	readonly messages: readonly ChatMessage[];
+	/**
+	 * QueuedMessages lists the queued messages in delivery order: steer
+	 * messages first, then queue messages.
+	 */
 	readonly queued_messages: readonly ChatQueuedMessage[];
 	readonly has_more: boolean;
 	/**
@@ -3722,12 +3729,19 @@ export interface ChatQueuedMessage {
 	readonly chat_id: string;
 	readonly model_config_id?: string;
 	readonly content: readonly ChatMessagePart[];
+	/**
+	 * BusyBehavior is the lane of the message. Steer messages go in
+	 * before the next model call, and queue messages go in after the
+	 * turn ends.
+	 */
+	readonly busy_behavior: ChatBusyBehavior;
 	readonly created_at: string;
 	readonly reasoning_effort?: string;
 	/**
 	 * EditingSince is set while the owner edits the message. A message
-	 * under edit and every message behind it wait until the edit ends; a
-	 * turn that ends at a message under edit pauses the chat.
+	 * under edit and every message behind it wait until the edit ends. A
+	 * steer message under edit also holds the steer messages ahead of
+	 * it. A turn that ends at a message under edit pauses the chat.
 	 */
 	readonly editing_since?: string;
 }
@@ -3854,6 +3868,10 @@ export interface ChatStreamEvent {
 	readonly status?: ChatStreamStatus;
 	readonly error?: ChatError;
 	readonly retry?: ChatStreamRetry;
+	/**
+	 * QueuedMessages lists the queued messages in delivery order: steer
+	 * messages first, then queue messages.
+	 */
 	readonly queued_messages?: readonly ChatQueuedMessage[];
 	readonly action_required?: ChatStreamActionRequired;
 }
@@ -4392,6 +4410,11 @@ export interface CreateChatMessageRequest {
 	 * nil: no change, empty: remove all.
 	 */
 	readonly inline_mcp_servers?: InlineMCPServerRequest[];
+	/**
+	 * BusyBehavior controls when the message reaches the agent if the
+	 * chat is busy. "steer", the default, delivers it before the next
+	 * model call. "queue" delivers it after the active turn ends.
+	 */
 	readonly busy_behavior?: ChatBusyBehavior;
 	/**
 	 * PlanMode switches the chat's persistent plan mode.
@@ -4409,8 +4432,11 @@ export interface CreateChatMessageResponse {
 	readonly message?: ChatMessage;
 	/**
 	 * Messages contains all user-visible messages inserted by the send, in
-	 * insertion order. A queued send on an errored chat may promote the
-	 * previous queue head, so clients must upsert the full batch.
+	 * insertion order. A send to an errored or paused chat can also insert
+	 * queued messages: a steer send inserts the queued steer messages
+	 * before the new message, and a queue send to an errored chat inserts
+	 * the steer lane, or the first queue message when that lane is empty.
+	 * Clients must upsert the full batch.
 	 */
 	readonly messages?: readonly ChatMessage[];
 	readonly queued_message?: ChatQueuedMessage;
@@ -6633,10 +6659,14 @@ export interface IssueReconnectingPTYSignedTokenResponse {
 }
 
 // From codersdk/provisionerdaemons.go
-export type JobErrorCode = "INSUFFICIENT_QUOTA" | "REQUIRED_TEMPLATE_VARIABLES";
+export type JobErrorCode =
+	| "INSUFFICIENT_QUOTA"
+	| "MISSING_TEMPLATE_PARAMETER"
+	| "REQUIRED_TEMPLATE_VARIABLES";
 
 export const JobErrorCodes: JobErrorCode[] = [
 	"INSUFFICIENT_QUOTA",
+	"MISSING_TEMPLATE_PARAMETER",
 	"REQUIRED_TEMPLATE_VARIABLES",
 ];
 
@@ -6783,11 +6813,19 @@ export interface LoggingConfig {
 }
 
 // From codersdk/apikey.go
-export type LoginType = "github" | "none" | "oidc" | "password" | "token" | "";
+export type LoginType =
+	| "github"
+	| "none"
+	| "oauth2_provider_app"
+	| "oidc"
+	| "password"
+	| "token"
+	| "";
 
 export const LoginTypes: LoginType[] = [
 	"github",
 	"none",
+	"oauth2_provider_app",
 	"oidc",
 	"password",
 	"token",

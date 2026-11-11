@@ -29,7 +29,7 @@ export const WriteFileTool: React.FC<{
 	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
 }> = ({ path, diff, status, isError, errorMessage, codeDiffDisplayMode }) => {
 	const theme = useTheme();
-	const isDark = theme.palette.mode === "dark";
+	const isDark = theme.mode === "dark";
 	const hasDiff = diff !== null;
 	const isRunning = status === "running";
 	const displayState = resolveAgentDisplayState(

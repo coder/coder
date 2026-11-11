@@ -74,7 +74,7 @@ const meta: Meta<typeof ConversationTimeline> = {
 		(Story) => (
 			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
 				<MessageScroller.Root>
-					<MessageScroller.Viewport className="max-h-[600px] overflow-auto">
+					<MessageScroller.Viewport className="max-h-150 overflow-auto">
 						<MessageScroller.Content>
 							<Story />
 						</MessageScroller.Content>

@@ -227,7 +227,7 @@ export const DebugRunCard: React.FC<DebugRunCardProps> = ({
 								>
 									<h4
 										id={mcpConnectHeadingId}
-										className="m-0 text-xs font-medium text-content-secondary"
+										className="m-0 text-xs text-content-secondary"
 									>
 										MCP server connections
 									</h4>

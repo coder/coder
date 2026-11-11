@@ -61,7 +61,7 @@ export const OrganizationMembersPageView: React.FC<
 
 				<UsersFilter {...filterProps} />
 				{!canViewMembers && (
-					<div className="flex flex-row text-content-warning gap-2 items-center text-sm font-medium">
+					<div className="flex text-content-warning gap-2 items-center text-sm">
 						<TriangleAlertIcon className="size-icon-sm" />
 						<p>
 							You do not have permission to view members other than yourself.
