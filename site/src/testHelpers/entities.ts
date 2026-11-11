@@ -558,6 +558,7 @@ export const MockChatProject: TypesGen.ChatProject = {
 	permissions: { update: true, delete: true, share: true, archive: true },
 };
 
+/** The archived variant of MockChatProject. */
 export const MockArchivedChatProject: TypesGen.ChatProject = {
 	...MockChatProject,
 	archived_at: "2026-11-10T12:00:00Z",
