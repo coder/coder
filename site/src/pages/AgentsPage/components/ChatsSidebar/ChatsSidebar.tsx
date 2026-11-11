@@ -5,7 +5,6 @@ import { getErrorMessage } from "#/api/errors";
 import {
 	chatProjectSummaries,
 	chatProjects,
-	createChatProject,
 	deleteChatProject,
 	getPinnedProjectSummaries,
 	updateChatProject,
@@ -19,10 +18,8 @@ import {
 	useDashboard,
 } from "#/modules/dashboard/useDashboard";
 import type { AgentSidebarFilters } from "../../utils/agentSidebarFilters";
-import { buildAgentProjectPath } from "../../utils/navigation";
 import { draftStorageKeys } from "../AgentCreateForm";
 import { ChatsPanel } from "./chats/ChatsPanel";
-import type { ProjectDialogState } from "./chats/ProjectFolders";
 import { getOrganizationLabels } from "./chats/projectGrouping";
 import {
 	ChatProjectDialog,
@@ -126,7 +123,6 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		enabled: chatProjectsEnabled,
 	});
 	const pinnedProjects = getPinnedProjectSummaries(summariesQuery.data ?? []);
-	const createProjectMutation = useMutation(createChatProject(queryClient));
 	const updateProjectMutation = useMutation(updateChatProject(queryClient));
 	const deleteProjectMutation = useMutation({
 		...deleteChatProject(queryClient),
@@ -145,9 +141,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 
 	// Each dialog keeps its content after closing so the exit animation does
 	// not flash empty.
-	const [projectDialog, setProjectDialog] = useState<ProjectDialogState>({
-		mode: "create",
-	});
+	const [editedProject, setEditedProject] = useState<ChatProject>();
 	const [isProjectDialogOpen, setIsProjectDialogOpen] = useState(false);
 	const [deleteDialog, setDeleteDialog] = useState<{
 		project: ChatProject | null;
@@ -155,40 +149,21 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		open: boolean;
 	}>({ project: null, open: false });
 
-	const openProjectDialog = (dialog: ProjectDialogState) => {
-		if (dialog.mode === "create") {
-			createProjectMutation.reset();
-		} else {
-			updateProjectMutation.reset();
-		}
-		setProjectDialog(dialog);
+	const openProjectDialog = (project: ChatProject) => {
+		updateProjectMutation.reset();
+		setEditedProject(project);
 		setIsProjectDialogOpen(true);
 	};
 	const closeProjectDialog = () => setIsProjectDialogOpen(false);
 
 	const handleProjectSubmit = ({
-		organizationId,
+		organizationId: _,
 		...request
 	}: ChatProjectFormValues) => {
-		if (projectDialog.mode === "edit") {
+		if (editedProject) {
 			updateProjectMutation.mutate(
-				{ project: projectDialog.project, request },
+				{ project: editedProject, request },
 				{ onSuccess: closeProjectDialog },
-			);
-			return;
-		}
-		if (organizationId) {
-			createProjectMutation.mutate(
-				{ organizationId, request },
-				{
-					onSuccess: (project) => {
-						closeProjectDialog();
-						navigate({
-							pathname: buildAgentProjectPath({ projectId: project.id }),
-							search: location.search,
-						});
-					},
-				},
 			);
 		}
 	};
@@ -264,13 +239,13 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 		<div className="relative flex size-full min-h-0 border-0 border-r border-solid overflow-hidden">
 			<ChatsPanel
 				chatProjectsEnabled={chatProjectsEnabled}
+				projects={projectsQuery.data ?? []}
 				pinnedProjects={pinnedProjects}
 				organizations={organizations}
 				isPinnedProjectsLoading={summariesQuery.isLoading}
 				pinnedProjectsError={summariesQuery.error}
-				isPinnedProjectsLoadError={summariesQuery.isLoadingError}
 				onRetryPinnedProjects={() => void summariesQuery.refetch()}
-				onOpenProjectDialog={openProjectDialog}
+				onEditProject={openProjectDialog}
 				onDeleteProject={openDeleteProjectDialog}
 				chats={chats}
 				chatErrorReasons={chatErrorReasons}
@@ -325,23 +300,13 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 			<ChatProjectDialog
 				organizations={organizations}
 				initialOrganizationId={initialOrganizationId}
-				project={
-					projectDialog.mode === "edit" ? projectDialog.project : undefined
-				}
+				project={editedProject}
 				open={isProjectDialogOpen}
 				onOpenChange={(open) => {
 					if (!open) closeProjectDialog();
 				}}
-				isSubmitting={
-					projectDialog.mode === "edit"
-						? updateProjectMutation.isPending
-						: createProjectMutation.isPending
-				}
-				error={
-					projectDialog.mode === "edit"
-						? updateProjectMutation.error
-						: createProjectMutation.error
-				}
+				isSubmitting={updateProjectMutation.isPending}
+				error={updateProjectMutation.error}
 				onSubmit={handleProjectSubmit}
 			/>
 			<DeleteDialog
