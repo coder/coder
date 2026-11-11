@@ -269,7 +269,7 @@ describe("ChatTopBar archive state", () => {
 		{
 			projectState: "failed to load",
 			archivedProjects: () => Promise.reject(new Error("Request rejected")),
-			hint: "Couldn't check whether the project is archived.",
+			hint: "Couldn't check whether the project is archived. Reopen this menu to retry.",
 		},
 	])(
 		"does not unarchive a chat whose project $projectState",
@@ -294,6 +294,44 @@ describe("ChatTopBar archive state", () => {
 			expect(API.experimental.updateChat).not.toHaveBeenCalled();
 		},
 	);
+
+	it("retries a failed project lookup when the menu reopens", async () => {
+		const user = userEvent.setup();
+		mockArchiveAndDeleteApi(chat.created_at);
+		let failsLookup = true;
+		vi.spyOn(API.experimental, "getChatProjects").mockImplementation(() =>
+			failsLookup
+				? Promise.reject(new Error("Request rejected"))
+				: Promise.resolve([]),
+		);
+		renderTopBar({ ...chat, archived: true, project_id: MockChatProject.id });
+		const menuButton = await screen.findByRole("button", {
+			name: "Open agent actions",
+		});
+
+		await user.click(menuButton);
+		await screen.findByRole("menuitem", {
+			name: "Unarchive agent",
+			description:
+				"Couldn't check whether the project is archived. Reopen this menu to retry.",
+		});
+		await user.keyboard("{Escape}");
+		failsLookup = false;
+		await user.click(menuButton);
+		// The hint goes away once the retried lookup finds the project active.
+		await waitFor(() =>
+			expect(
+				screen.getByRole("menuitem", { name: "Unarchive agent" }),
+			).not.toHaveAccessibleDescription(),
+		);
+		await user.click(screen.getByRole("menuitem", { name: "Unarchive agent" }));
+
+		await waitFor(() =>
+			expect(API.experimental.updateChat).toHaveBeenCalledWith(chat.id, {
+				archived: false,
+			}),
+		);
+	});
 
 	it("tracks pending archives across navigation without blocking other chats", async () => {
 		const user = userEvent.setup();

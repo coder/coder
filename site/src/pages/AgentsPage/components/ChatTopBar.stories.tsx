@@ -1,6 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Outlet, useLocation } from "react-router";
-import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
+import {
+	expect,
+	fn,
+	screen,
+	spyOn,
+	userEvent,
+	waitFor,
+	within,
+} from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
@@ -796,5 +804,41 @@ export const ArchivedWithProject: Story = {
 		await userEvent.click(
 			within(canvasElement).getByRole("button", { name: "Open agent actions" }),
 		);
+	},
+};
+
+/** The project's archive state is still loading, so unarchiving waits. */
+export const ArchivedWithProjectChecking: Story = {
+	args: {
+		chat: { ...mockLaunchChat, archived: true },
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Open agent actions" }),
+		);
+	},
+};
+
+/** The project's archive state failed to load, so unarchiving waits. */
+export const ArchivedWithProjectCheckFailed: Story = {
+	args: {
+		chat: { ...mockLaunchChat, archived: true },
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjects").mockRejectedValue(
+			mockApiError({ message: "Failed to load projects." }),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Open agent actions" }),
+		);
+		// Opening the menu retries the lookup, which fails again.
+		await screen.findByText(/Couldn't check whether the project is archived/);
 	},
 };

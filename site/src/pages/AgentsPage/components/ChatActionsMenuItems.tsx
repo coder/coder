@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { useId, useState } from "react";
 import {
+	type UseQueryResult,
 	useIsMutating,
 	useMutation,
 	useQuery,
@@ -148,8 +149,8 @@ type ChatActionsMenuItemsProps = {
 	readonly onArchiveAgent: () => void;
 	readonly onUnarchiveAgent: () => void;
 	/**
-	 * Why "Unarchive agent" is disabled: the chat's project is archived, and
-	 * its chats come back only with the project, or that is still unknown.
+	 * Set while "Unarchive agent" must stay disabled: a chat comes back only
+	 * with its project, so the project must be known to be active.
 	 */
 	readonly unarchiveBlockedReason: UnarchiveBlockedReason | undefined;
 	readonly onArchiveAndDeleteWorkspace: () => void;
@@ -213,6 +214,11 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 		isProjectLookupNeeded,
 		archivedProjectQuery,
 	);
+	const retryFailedProjectLookup = (open: boolean) => {
+		if (open && unarchiveBlockedReason === "projectCheckFailed") {
+			void archivedProjectQuery.refetch();
+		}
+	};
 	const options = archiveAndDeleteChat(queryClient);
 	const mutation = useMutation({
 		...options,
@@ -303,7 +309,7 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 	return (
 		<>
 			{variant === "context" ? (
-				<ContextMenu>
+				<ContextMenu onOpenChange={retryFailedProjectLookup}>
 					<ContextMenuTrigger asChild disabled={disabled}>
 						{children}
 					</ContextMenuTrigger>
@@ -312,7 +318,7 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 					</ContextMenuContent>
 				</ContextMenu>
 			) : (
-				<DropdownMenu>
+				<DropdownMenu onOpenChange={retryFailedProjectLookup}>
 					<DropdownMenuTrigger asChild disabled={disabled}>
 						{children}
 					</DropdownMenuTrigger>
@@ -351,12 +357,16 @@ type UnarchiveBlockedReason =
 const unarchiveBlockedHints: Record<UnarchiveBlockedReason, string> = {
 	projectArchived: "Unarchive the project to restore this chat.",
 	checkingProject: "Checking whether the project is archived.",
-	projectCheckFailed: "Couldn't check whether the project is archived.",
+	projectCheckFailed:
+		"Couldn't check whether the project is archived. Reopen this menu to retry.",
 };
 
 const getUnarchiveBlockedReason = (
 	isProjectLookupNeeded: boolean,
-	query: { data: TypesGen.ChatProject | null | undefined; isError: boolean },
+	query: Pick<
+		UseQueryResult<TypesGen.ChatProject | null>,
+		"data" | "isError" | "isFetching"
+	>,
 ): UnarchiveBlockedReason | undefined => {
 	if (!isProjectLookupNeeded) {
 		return undefined;
@@ -364,7 +374,9 @@ const getUnarchiveBlockedReason = (
 	if (query.data !== undefined) {
 		return query.data ? "projectArchived" : undefined;
 	}
-	return query.isError ? "projectCheckFailed" : "checkingProject";
+	return query.isError && !query.isFetching
+		? "projectCheckFailed"
+		: "checkingProject";
 };
 
 type MenuItemHintProps = {
