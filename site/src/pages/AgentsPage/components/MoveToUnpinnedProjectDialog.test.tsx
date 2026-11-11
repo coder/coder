@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useRef } from "react";
 import { QueryClientProvider } from "react-query";
 import { MemoryRouter, useLocation } from "react-router";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
@@ -12,6 +13,7 @@ import {
 	MockChatProjectSummary,
 } from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
+import { focusFirstVisible } from "../utils/focus";
 import { ChatActionsMenu } from "./ChatActionsMenuItems";
 import { useMoveChatToProject } from "./MoveToProjectMenuItems";
 import {
@@ -22,10 +24,13 @@ import {
 const MoveButton: React.FC<{
 	withChatActions: boolean;
 	withHiddenChatActions: boolean;
-}> = ({ withChatActions, withHiddenChatActions }) => {
+	withHiddenProjects: boolean;
+}> = ({ withChatActions, withHiddenChatActions, withHiddenProjects }) => {
 	const move = useMoveChatToProject();
 	const location = useLocation();
 	const dialog = useMoveToUnpinnedProjectDialog();
+	const projectsRef = useRef<HTMLButtonElement | null>(null);
+	const filterRef = useRef<HTMLButtonElement | null>(null);
 	return (
 		<>
 			{/* The button leaves after the move, like the chat's sidebar row. */}
@@ -64,8 +69,26 @@ const MoveButton: React.FC<{
 					<button type="button">Open agent actions</button>
 				</ChatActionsMenu>
 			)}
-			<button type="button" ref={dialog?.setFocusFallback}>
-				Projects
+			{/* Stands in for the sidebar's Projects link, which a small screen
+			    hides, and its chat filters. */}
+			<div hidden={withHiddenProjects}>
+				<button
+					type="button"
+					ref={(element) => {
+						projectsRef.current = element;
+						dialog?.setFocusFallback(
+							element
+								? () =>
+										focusFirstVisible([projectsRef.current, filterRef.current])
+								: undefined,
+						);
+					}}
+				>
+					Projects
+				</button>
+			</div>
+			<button type="button" ref={filterRef}>
+				Filter agents
 			</button>
 			<output aria-label="Location">{location.pathname}</output>
 		</>
@@ -78,6 +101,7 @@ const moveChat = async ({
 	fromUnpinnedProject = false,
 	withChatActions = false,
 	withHiddenChatActions = false,
+	withHiddenProjects = false,
 	summariesCached = true,
 }) => {
 	const user = userEvent.setup();
@@ -119,6 +143,7 @@ const moveChat = async ({
 					<MoveButton
 						withChatActions={withChatActions}
 						withHiddenChatActions={withHiddenChatActions}
+						withHiddenProjects={withHiddenProjects}
 					/>
 				</MoveToUnpinnedProjectDialogProvider>
 			</MemoryRouter>
@@ -182,9 +207,19 @@ describe("MoveToUnpinnedProjectDialog", () => {
 			focused: "Open agent actions",
 		},
 		{ withChatActions: false, focused: "Projects" },
+		{
+			withChatActions: false,
+			withHiddenProjects: true,
+			focused: "Filter agents",
+		},
 	])(
 		"closes without pinning and returns focus to $focused (%o)",
-		async ({ withChatActions, withHiddenChatActions, focused }) => {
+		async ({
+			withChatActions,
+			withHiddenChatActions,
+			withHiddenProjects,
+			focused,
+		}) => {
 			// jsdom has no layout, so the hidden attribute stands in for the
 			// CSS that hides the sidebar.
 			Element.prototype.checkVisibility = function () {
@@ -194,7 +229,11 @@ describe("MoveToUnpinnedProjectDialog", () => {
 				Reflect.deleteProperty(Element.prototype, "checkVisibility");
 			});
 			const pin = vi.spyOn(API.experimental, "pinChatProject");
-			const user = await moveChat({ withChatActions, withHiddenChatActions });
+			const user = await moveChat({
+				withChatActions,
+				withHiddenChatActions,
+				withHiddenProjects,
+			});
 
 			await user.click(await screen.findByRole("button", { name: "Close" }));
 

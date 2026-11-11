@@ -602,7 +602,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						// project leaves the sidebar, since both can be found here.
 						ref={(element) => {
 							projectsNavItemRef.current = element;
-							moveToUnpinnedProjectDialog?.setFocusFallback(element);
+							moveToUnpinnedProjectDialog?.setFocusFallback(
+								element ? focusSidebarFallback : undefined,
+							);
 						}}
 						to={{ pathname: "/agents/projects", search: locationSearch }}
 					/>

@@ -16,16 +16,17 @@ import {
 } from "#/components/Dialog/Dialog";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
+import { focusFirstVisible } from "../utils/focus";
 import { buildAgentProjectPath } from "../utils/navigation";
 
 type MoveToUnpinnedProjectDialogControls = {
 	/** Opens the dialog for a chat that moved into an unpinned project. */
 	readonly show: (project: ChatProject, chatId: string) => void;
 	/**
-	 * Registers the element that takes focus when the dialog closes and the
-	 * moved chat has no actions button on screen.
+	 * Registers what moves focus when the dialog closes and the moved chat has
+	 * no actions button on screen. It returns whether an element took focus.
 	 */
-	readonly setFocusFallback: (element: HTMLElement | null) => void;
+	readonly setFocusFallback: (focus: (() => boolean) | undefined) => void;
 };
 
 const MoveToUnpinnedProjectContext = createContext<
@@ -52,29 +53,28 @@ export const MoveToUnpinnedProjectDialogProvider: React.FC<
 		chatId?: string;
 		open: boolean;
 	}>({ open: false });
-	const focusFallbackRef = useRef<HTMLElement | null>(null);
+	const focusFallbackRef = useRef<(() => boolean) | undefined>(undefined);
 	// The menu that moved the chat often unmounts with its row, or is still
 	// closing when the move finishes, so Radix would return focus to the body.
 	// A small screen keeps the sidebar's copy of the button mounted but hidden.
 	const restoreFocus = (event: Event) => {
-		const target =
-			[
+		const focused =
+			focusFirstVisible([
 				...document.querySelectorAll<HTMLElement>(
 					`[data-chat-actions-for="${dialog.chatId}"]:not(:disabled)`,
 				),
-			].find((element) => element.checkVisibility?.() ?? true) ??
-			focusFallbackRef.current;
-		if (target?.isConnected) {
+			]) ||
+			(focusFallbackRef.current?.() ?? false);
+		if (focused) {
 			event.preventDefault();
-			target.focus();
 		}
 	};
 	return (
 		<MoveToUnpinnedProjectContext
 			value={{
 				show: (project, chatId) => setDialog({ project, chatId, open: true }),
-				setFocusFallback: (element) => {
-					focusFallbackRef.current = element;
+				setFocusFallback: (focus) => {
+					focusFallbackRef.current = focus;
 				},
 			}}
 		>
