@@ -119,6 +119,8 @@ type ChatsPanelProps = {
 	readonly chatProjectsEnabled: boolean;
 	/** The user's pinned projects, in pin order. */
 	readonly pinnedProjects: readonly ChatProjectSummary[];
+	/** Every project's summary, pinned or not. */
+	readonly projectSummaries: readonly ChatProjectSummary[];
 	readonly organizations: readonly Organization[];
 	readonly isPinnedProjectsLoading: boolean;
 	readonly pinnedProjectsError: unknown;
@@ -158,6 +160,7 @@ type ChatsPanelProps = {
 export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	chatProjectsEnabled,
 	pinnedProjects,
+	projectSummaries,
 	organizations,
 	isPinnedProjectsLoading,
 	pinnedProjectsError,
@@ -231,12 +234,12 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		folderProjectIds,
 	} = groupChatsByProject(
 		unpinnedOwnedChats,
-		pinnedProjects,
+		projectSummaries,
 		isPinnedProjectsLoading,
 	);
 	const { chatsByProjectId: pinnedChatsByProjectId } = groupChatsByProject(
 		pinnedChats,
-		pinnedProjects,
+		projectSummaries,
 	);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
