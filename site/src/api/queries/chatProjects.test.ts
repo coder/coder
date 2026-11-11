@@ -149,7 +149,7 @@ describe("chat project mutations", () => {
 });
 
 describe("pinChatProject ordering", () => {
-	const [launch, billing, ops] = ["launch", "billing", "ops"].map(
+	const [mockLaunch, mockBilling, mockOps] = ["launch", "billing", "ops"].map(
 		(id, index) => ({
 			...MockChatProjectSummary,
 			project: { ...MockChatProject, id },
@@ -162,7 +162,11 @@ describe("pinChatProject ordering", () => {
 		for (const key of [chatProjectSummariesKey, chatListFamilyKey]) {
 			queryClient.setQueryDefaults(key, { gcTime: Number.POSITIVE_INFINITY });
 		}
-		queryClient.setQueryData(chatProjectSummariesKey, [launch, billing, ops]);
+		queryClient.setQueryData(chatProjectSummariesKey, [
+			mockLaunch,
+			mockBilling,
+			mockOps,
+		]);
 		const chatListKey = [...chatListFamilyKey, { q: "" }];
 		queryClient.setQueryData(chatListKey, {});
 		const requests: { id: string; settle: (error?: unknown) => void }[] = [];
@@ -196,24 +200,24 @@ describe("pinChatProject ordering", () => {
 
 	it("sends queued moves one at a time, in order", async () => {
 		const { requests, pin, move } = setup();
-		const first = move(ops, 1);
-		const second = move(billing, 1);
+		const first = move(mockOps, 1);
+		const second = move(mockBilling, 1);
 		await vi.waitFor(() => expect(requests).toHaveLength(1));
 		expect(pin).toHaveBeenCalledTimes(1);
-		expect(requests[0].id).toBe(ops.project.id);
+		expect(requests[0].id).toBe(mockOps.project.id);
 
 		requests[0].settle();
 		await first;
 		await vi.waitFor(() => expect(requests).toHaveLength(2));
-		expect(requests[1].id).toBe(billing.project.id);
+		expect(requests[1].id).toBe(mockBilling.project.id);
 		requests[1].settle();
 		await second;
 	});
 
 	it("keeps a later queued move when an earlier one fails", async () => {
 		const { requests, move, pinnedIds } = setup();
-		const first = move(ops, 1);
-		const second = move(billing, 1);
+		const first = move(mockOps, 1);
+		const second = move(mockBilling, 1);
 		await vi.waitFor(() =>
 			expect(pinnedIds()).toEqual(["billing", "ops", "launch"]),
 		);
@@ -229,7 +233,7 @@ describe("pinChatProject ordering", () => {
 
 	it("refreshes only the summaries after a move, since no chat changes lists", async () => {
 		const { queryClient, chatListKey, requests, move } = setup();
-		const moved = move(ops, 1);
+		const moved = move(mockOps, 1);
 		await vi.waitFor(() => expect(requests).toHaveLength(1));
 		requests[0].settle();
 		await moved;
