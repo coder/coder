@@ -194,7 +194,7 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({
 		>
 			<nav
 				aria-label="Emoji categories"
-				className="flex justify-between border-b border-solid px-1.5"
+				className="flex justify-between border-b px-1.5"
 			>
 				{emojiData.categories.map((category, i) => {
 					const isCurrent = search === "" && activeCategory === i;
@@ -207,7 +207,7 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({
 							title={category.label}
 							onClick={() => scrollToCategory(i)}
 							className={cn(
-								"flex size-8 cursor-pointer items-center justify-center rounded-md border-b-2 border-solid border-transparent bg-transparent p-0 text-content-secondary",
+								"flex size-8 cursor-pointer items-center justify-center rounded-md border-b-2 border-transparent bg-transparent p-0 text-content-secondary",
 								"hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ring-inset",
 								"aria-[current]:rounded-b-none aria-[current]:border-content-link aria-[current]:text-content-primary [&_svg]:size-4",
 							)}

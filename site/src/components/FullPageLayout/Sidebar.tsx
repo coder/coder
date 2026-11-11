@@ -5,7 +5,7 @@ import { TopbarIconButton } from "./Topbar";
 export const Sidebar: React.FC<React.ComponentProps<"div">> = (props) => {
 	return (
 		<div
-			className="flex flex-col gap-px w-64 border-solid border-r border-r-border h-full py-2 shrink-0 overflow-y-auto"
+			className="flex flex-col gap-px w-64 border-r border-r-border h-full py-2 shrink-0 overflow-y-auto"
 			{...props}
 		/>
 	);
@@ -36,7 +36,7 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
 		<button
 			className={cn(
 				"text-sm text-content-secondary font-medium py-2 pl-3.5 pr-4 text-left bg-transparent cursor-pointer",
-				"border-l-2 border-solid border-l-transparent",
+				"border-l-2 border-l-transparent",
 				"hover:bg-surface-secondary transition ease-in-out duration-150",
 				isActive &&
 					"font-semibold text-content-primary bg-surface-tertiary hover:bg-surface-tertiary border-l-content-primary",

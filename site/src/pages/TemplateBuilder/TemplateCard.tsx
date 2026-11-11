@@ -32,7 +32,7 @@ export const TemplateCard: React.FC<TemplateCardProps> = ({
 		<div
 			className={cn(
 				"flex flex-col pt-4 px-4 pb-6 rounded",
-				"bg-surface-secondary border border-solid",
+				"bg-surface-secondary border",
 				"cursor-pointer",
 				selected && "border-border-pending",
 			)}

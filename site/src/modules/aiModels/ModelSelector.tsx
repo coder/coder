@@ -215,7 +215,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 				<Command
 					shouldFilter={false}
 					label="Search models"
-					className="**:[[cmdk-input-wrapper]]:border-b **:[[cmdk-input-wrapper]]:border-solid **:[[cmdk-input-wrapper]]:px-3 **:[[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
+					className="**:[[cmdk-input-wrapper]]:border-b **:[[cmdk-input-wrapper]]:px-3 **:[[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
 				>
 					<CommandInput
 						value={search}
@@ -282,7 +282,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 									}
 									className={cn(
 										"p-1 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-1 **:[[cmdk-group-heading]]:text-xs **:[[cmdk-group-heading]]:font-semibold **:[[cmdk-group-heading]]:leading-4.5 **:[[cmdk-group-heading]]:text-content-secondary",
-										index > 0 && "border-t border-solid",
+										index > 0 && "border-t",
 									)}
 								>
 									{providerOptions.map((option) => (
@@ -343,7 +343,7 @@ const ReasoningEffortRow: React.FC<ReasoningEffortRowProps> = ({
 	const effortIndex = valueIndex >= 0 ? valueIndex : 0;
 
 	return (
-		<div className="flex items-center gap-3 border-t border-solid px-3 py-2">
+		<div className="flex items-center gap-3 border-t px-3 py-2">
 			<div className="flex shrink-0 items-center gap-1">
 				<span className="text-xs leading-4.5 text-content-secondary">
 					Effort

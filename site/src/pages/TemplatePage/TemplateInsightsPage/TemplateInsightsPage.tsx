@@ -530,7 +530,7 @@ const TemplateParametersUsagePanel: React.FC<
 					return (
 						<div
 							key={parameter.name}
-							className="flex items-start gap-6 border-t border-solid border-surface-quaternary p-6 -mx-6 first:border-t-0"
+							className="flex items-start gap-6 border-t border-surface-quaternary p-6 -mx-6 first:border-t-0"
 						>
 							<div className="flex-1">
 								<div className="font-medium">{label}</div>
@@ -684,7 +684,7 @@ const Panel: React.FC<PanelProps> = ({ children, className, ...attrs }) => {
 		<div
 			{...attrs}
 			className={cn(
-				"flex flex-col rounded-lg bg-surface-secondary border border-solid border-surface-quaternary",
+				"flex flex-col rounded-lg bg-surface-secondary border border-surface-quaternary",
 				className,
 			)}
 		>

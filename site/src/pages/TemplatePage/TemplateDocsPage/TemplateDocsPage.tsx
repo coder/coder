@@ -10,10 +10,7 @@ export default function TemplateDocsPage() {
 	return (
 		<>
 			<title>{pageTitle(template.name, "Documentation")}</title>
-			<div
-				className="bg-surface-primary border border-solid rounded-lg"
-				id="readme"
-			>
+			<div className="bg-surface-primary border rounded-lg" id="readme">
 				<div className="text-content-secondary font-semibold py-4 px-6 border-b">
 					README.md
 				</div>

@@ -73,7 +73,7 @@ const SyncCard: React.FC<SyncCardProps> = ({
 	return (
 		<div
 			className={cn(
-				"flex flex-col gap-4 rounded-md border border-solid p-4",
+				"flex flex-col gap-4 rounded-md border p-4",
 				active && "ring-2 ring-content-link",
 			)}
 		>

@@ -21,7 +21,7 @@ const graphemeSegmenter =
 		: undefined;
 
 const avatarVariants = cva(
-	"relative flex shrink-0 overflow-hidden rounded border border-solid bg-surface-secondary text-content-secondary",
+	"relative flex shrink-0 overflow-hidden rounded border bg-surface-secondary text-content-secondary",
 	{
 		variants: {
 			size: {

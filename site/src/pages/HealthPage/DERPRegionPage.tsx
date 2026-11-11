@@ -164,7 +164,7 @@ const DERPRegionPage: React.FC = () => {
 					return (
 						<section
 							key={node.HostName}
-							className="border border-solid rounded-lg overflow-hidden text-sm"
+							className="border rounded-lg overflow-hidden text-sm"
 						>
 							<header className="p-6 flex justify-between items-center">
 								<div>
@@ -207,14 +207,11 @@ const DERPRegionPage: React.FC = () => {
 									))}
 								</TableBody>
 							</Table>
-							<Logs
-								lines={logs?.flat() ?? []}
-								className="border-t border-solid"
-							/>
+							<Logs lines={logs?.flat() ?? []} className="border-t" />
 							{report.client_errs.length > 0 && (
 								<Logs
 									lines={report.client_errs.flat()}
-									className="border-t border-solid bg-surface-destructive text-content-destructive"
+									className="border-t bg-surface-destructive text-content-destructive"
 								/>
 							)}
 						</section>
