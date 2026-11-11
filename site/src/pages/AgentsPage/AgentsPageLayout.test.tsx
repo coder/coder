@@ -11,6 +11,7 @@ import { useOutletContext, useParams } from "react-router";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
+import { chatProjectSummariesKey } from "#/api/queries/chatProjects";
 import {
 	chat as chatById,
 	chatDiffContents,
@@ -28,6 +29,8 @@ import { MockChat } from "#/testHelpers/chatEntities";
 import { MockUnsetUserChatPersonalModelOverrides } from "#/testHelpers/chatModels";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
+	MockChatProject,
+	MockChatProjectSummary,
 	MockWorkspace,
 	MockWorkspaceBuildDelete,
 	MockWorkspaceQuota,
@@ -999,6 +1002,50 @@ describe("AgentsPageLayout pinned projects", () => {
 		expect(getChats.mock.calls[0][0]).toMatchObject({
 			pinned_projects_only: true,
 		});
+	});
+
+	it("leaves a new chat in an unpinned project out of the sidebar's chat list", async () => {
+		// The refetch after the event stays pending, so the list shows what the
+		// watch handler wrote.
+		vi.spyOn(API.experimental, "getChats")
+			.mockResolvedValueOnce([])
+			.mockReturnValue(new Promise(() => {}));
+		vi.spyOn(API.experimental, "getChatProjectSummaries").mockResolvedValue([
+			{ ...MockChatProjectSummary, pinned: false, pin_order: 0 },
+		]);
+		const publishChatWatchEvent = mockChatWatchSocket();
+		const { queryClient } = renderLayout();
+		const sidebarChatIds = () =>
+			queryClient
+				.getQueryData<InfiniteData<Chat[]>>(
+					infiniteChats({
+						sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
+						pinnedProjectsOnly: true,
+					}).queryKey,
+				)
+				?.pages.flat()
+				.map((chat) => chat.id);
+		await waitFor(() => expect(sidebarChatIds()).toEqual([]));
+		await waitFor(() =>
+			expect(queryClient.getQueryData(chatProjectSummariesKey)).toBeDefined(),
+		);
+		await waitFor(() => expect(apiModule.watchChats).toHaveBeenCalled());
+
+		publishChatWatchEvent({
+			kind: "created",
+			chat: {
+				...MockChat,
+				id: "unpinned-project-chat",
+				project_id: MockChatProject.id,
+			},
+		});
+		publishChatWatchEvent({
+			kind: "created",
+			chat: { ...MockChat, id: "loose-chat", project_id: undefined },
+		});
+
+		await waitFor(() => expect(sidebarChatIds()).toContain("loose-chat"));
+		expect(sidebarChatIds()).not.toContain("unpinned-project-chat");
 	});
 
 	it.each<ChatWatchEventKind>(["status_change", "action_required"])(
