@@ -1895,6 +1895,14 @@ func (q *querier) ArchiveChatByID(ctx context.Context, id uuid.UUID) ([]database
 	return q.db.ArchiveChatByID(ctx, id)
 }
 
+// Project chats can belong to sharees, so update is checked on all chats.
+func (q *querier) ArchiveChatsOfChatProject(ctx context.Context, arg database.ArchiveChatsOfChatProjectParams) ([]uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.ArchiveChatsOfChatProject(ctx, arg)
+}
+
 func (q *querier) ArchiveUnusedTemplateVersions(ctx context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
 	tpl, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
 	if err != nil {
@@ -2106,6 +2114,15 @@ func (q *querier) CountChatCapacityQueuedByPool(ctx context.Context, staleSecond
 		return database.CountChatCapacityQueuedByPoolRow{}, err
 	}
 	return q.db.CountChatCapacityQueuedByPool(ctx, staleSeconds)
+}
+
+// The counts span every user's chats in the project, so read is checked on
+// all chats.
+func (q *querier) CountChatProjectArchivePreview(ctx context.Context, projectID uuid.UUID) (database.CountChatProjectArchivePreviewRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
+		return database.CountChatProjectArchivePreviewRow{}, err
+	}
+	return q.db.CountChatProjectArchivePreview(ctx, projectID)
 }
 
 func (q *querier) CountChatProjectMemoriesByProjectID(ctx context.Context, projectID uuid.UUID) (int64, error) {
@@ -3815,6 +3832,10 @@ func (q *querier) GetChatPlanModeInstructions(ctx context.Context) (string, erro
 
 func (q *querier) GetChatProjectByID(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
 	return fetch(q.log, q.auth, q.db.GetChatProjectByID)(ctx, id)
+}
+
+func (q *querier) GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
+	return fetch(q.log, q.auth, q.db.GetChatProjectByIDForShare)(ctx, id)
 }
 
 func (q *querier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
@@ -7506,6 +7527,14 @@ func (q *querier) LockChatByID(ctx context.Context, id uuid.UUID) (uuid.UUID, er
 	return q.db.LockChatByID(ctx, id)
 }
 
+// Project chats can belong to sharees, so update is checked on all chats.
+func (q *querier) LockChatProjectUnarchivedRootChats(ctx context.Context, projectID uuid.UUID) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return err
+	}
+	return q.db.LockChatProjectUnarchivedRootChats(ctx, projectID)
+}
+
 func (q *querier) LockOrganizationMembersByUserIDsForShare(ctx context.Context, arg database.LockOrganizationMembersByUserIDsForShareParams) ([]uuid.UUID, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceOrganizationMember.InOrg(arg.OrganizationID)); err != nil {
 		return nil, err
@@ -7794,6 +7823,14 @@ func (q *querier) UnarchiveChatByID(ctx context.Context, id uuid.UUID) ([]databa
 	return q.db.UnarchiveChatByID(ctx, id)
 }
 
+// Project chats can belong to sharees, so update is checked on all chats.
+func (q *querier) UnarchiveChatsOfChatProject(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
+		return nil, err
+	}
+	return q.db.UnarchiveChatsOfChatProject(ctx, projectID)
+}
+
 func (q *querier) UnarchiveTemplateVersion(ctx context.Context, arg database.UnarchiveTemplateVersionParams) error {
 	v, err := q.db.GetTemplateVersionByID(ctx, arg.TemplateVersionID)
 	if err != nil {
@@ -8076,6 +8113,19 @@ func (q *querier) UpdateChatProjectACLByID(ctx context.Context, arg database.Upd
 		return q.db.GetChatProjectByID(ctx, arg.ID)
 	}
 	return fetchAndExec(q.log, q.auth, policy.ActionShare, fetch, q.db.UpdateChatProjectACLByID)(ctx, arg)
+}
+
+// Archiving is gated like deleting: it archives every user's chats in the
+// project.
+func (q *querier) UpdateChatProjectArchivedAt(ctx context.Context, arg database.UpdateChatProjectArchivedAtParams) (database.ChatProject, error) {
+	project, err := q.db.GetChatProjectByID(ctx, arg.ID)
+	if err != nil {
+		return database.ChatProject{}, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionDelete, project); err != nil {
+		return database.ChatProject{}, err
+	}
+	return q.db.UpdateChatProjectArchivedAt(ctx, arg)
 }
 
 func (q *querier) UpdateChatProjectByID(ctx context.Context, arg database.UpdateChatProjectByIDParams) (database.ChatProject, error) {

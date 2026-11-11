@@ -168,6 +168,14 @@ func (m queryMetricsStore) ArchiveChatByID(ctx context.Context, id uuid.UUID) ([
 	return r0, r1
 }
 
+func (m queryMetricsStore) ArchiveChatsOfChatProject(ctx context.Context, arg database.ArchiveChatsOfChatProjectParams) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.ArchiveChatsOfChatProject(ctx, arg)
+	m.queryLatencies.WithLabelValues("ArchiveChatsOfChatProject").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ArchiveChatsOfChatProject").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) ArchiveUnusedTemplateVersions(ctx context.Context, arg database.ArchiveUnusedTemplateVersionsParams) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.ArchiveUnusedTemplateVersions(ctx, arg)
@@ -357,6 +365,14 @@ func (m queryMetricsStore) CountChatCapacityQueuedByPool(ctx context.Context, st
 	r0, r1 := m.s.CountChatCapacityQueuedByPool(ctx, staleSeconds)
 	m.queryLatencies.WithLabelValues("CountChatCapacityQueuedByPool").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatCapacityQueuedByPool").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) CountChatProjectArchivePreview(ctx context.Context, projectID uuid.UUID) (database.CountChatProjectArchivePreviewRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.CountChatProjectArchivePreview(ctx, projectID)
+	m.queryLatencies.WithLabelValues("CountChatProjectArchivePreview").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "CountChatProjectArchivePreview").Inc()
 	return r0, r1
 }
 
@@ -1893,6 +1909,14 @@ func (m queryMetricsStore) GetChatProjectByID(ctx context.Context, id uuid.UUID)
 	r0, r1 := m.s.GetChatProjectByID(ctx, id)
 	m.queryLatencies.WithLabelValues("GetChatProjectByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectByID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatProjectByIDForShare(ctx context.Context, id uuid.UUID) (database.ChatProject, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectByIDForShare(ctx, id)
+	m.queryLatencies.WithLabelValues("GetChatProjectByIDForShare").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectByIDForShare").Inc()
 	return r0, r1
 }
 
@@ -5312,6 +5336,14 @@ func (m queryMetricsStore) LockChatByID(ctx context.Context, id uuid.UUID) (uuid
 	return r0, r1
 }
 
+func (m queryMetricsStore) LockChatProjectUnarchivedRootChats(ctx context.Context, projectID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.LockChatProjectUnarchivedRootChats(ctx, projectID)
+	m.queryLatencies.WithLabelValues("LockChatProjectUnarchivedRootChats").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "LockChatProjectUnarchivedRootChats").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) LockOrganizationMembersByUserIDsForShare(ctx context.Context, arg database.LockOrganizationMembersByUserIDsForShareParams) ([]uuid.UUID, error) {
 	start := time.Now()
 	r0, r1 := m.s.LockOrganizationMembersByUserIDsForShare(ctx, arg)
@@ -5560,6 +5592,14 @@ func (m queryMetricsStore) UnarchiveChatByID(ctx context.Context, id uuid.UUID) 
 	return r0, r1
 }
 
+func (m queryMetricsStore) UnarchiveChatsOfChatProject(ctx context.Context, projectID uuid.UUID) ([]uuid.UUID, error) {
+	start := time.Now()
+	r0, r1 := m.s.UnarchiveChatsOfChatProject(ctx, projectID)
+	m.queryLatencies.WithLabelValues("UnarchiveChatsOfChatProject").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnarchiveChatsOfChatProject").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) UnarchiveTemplateVersion(ctx context.Context, arg database.UnarchiveTemplateVersionParams) error {
 	start := time.Now()
 	r0 := m.s.UnarchiveTemplateVersion(ctx, arg)
@@ -5767,6 +5807,14 @@ func (m queryMetricsStore) UpdateChatProjectACLByID(ctx context.Context, arg dat
 	m.queryLatencies.WithLabelValues("UpdateChatProjectACLByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectACLByID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpdateChatProjectArchivedAt(ctx context.Context, arg database.UpdateChatProjectArchivedAtParams) (database.ChatProject, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateChatProjectArchivedAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateChatProjectArchivedAt").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateChatProjectArchivedAt").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateChatProjectByID(ctx context.Context, arg database.UpdateChatProjectByIDParams) (database.ChatProject, error) {
