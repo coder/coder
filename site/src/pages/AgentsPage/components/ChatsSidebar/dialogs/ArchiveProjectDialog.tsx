@@ -44,6 +44,7 @@ import {
 	projectChatWorkspaces,
 	projectWorkspaceAction,
 } from "../../../utils/agentWorkspaceUtils";
+import { RetryButton } from "../../RetryButton";
 
 const plural = (count: number, singular: string, pluralForm: string) =>
 	`${count} ${count === 1 ? singular : pluralForm}`;
@@ -256,6 +257,7 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 					error={
 						previewQuery.error ?? (needsRetention ? retentionQuery.error : null)
 					}
+					isRetrying={previewQuery.isFetching || retentionQuery.isFetching}
 					onRetry={() => {
 						void previewQuery.refetch();
 						void retentionQuery.refetch();
@@ -265,6 +267,7 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 					project={project}
 					workspaces={workspacesQuery.data}
 					error={workspacesQuery.error}
+					isRetrying={workspacesQuery.isFetching}
 					onRetry={() => void workspacesQuery.refetch()}
 					action={workspaceAction}
 					onActionChange={setWorkspaceAction}
@@ -298,20 +301,11 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 	);
 };
 
-type RetryButtonProps = {
-	readonly onRetry: () => void;
-};
-
-const RetryButton: React.FC<RetryButtonProps> = ({ onRetry }) => (
-	<Button type="button" size="sm" variant="outline" onClick={onRetry}>
-		Retry
-	</Button>
-);
-
 type ArchiveSummaryProps = {
 	readonly preview: ChatProjectArchivePreview | undefined;
 	readonly retentionDays: number | undefined;
 	readonly error: unknown;
+	readonly isRetrying: boolean;
 	readonly onRetry: () => void;
 };
 
@@ -319,10 +313,21 @@ const ArchiveSummary: React.FC<ArchiveSummaryProps> = ({
 	preview,
 	retentionDays,
 	error,
+	isRetrying,
 	onRetry,
 }) => {
 	const errorAlert = Boolean(error) && (
-		<ErrorAlert error={error} actions={<RetryButton onRetry={onRetry} />} />
+		<ErrorAlert
+			error={error}
+			actions={
+				<RetryButton
+					size="sm"
+					variant="outline"
+					isRetrying={isRetrying}
+					onRetry={onRetry}
+				/>
+			}
+		/>
 	);
 	if (
 		preview === undefined ||
@@ -364,6 +369,7 @@ type ProjectWorkspacesSectionProps = {
 	readonly project: ChatProject;
 	readonly workspaces: readonly ProjectChatWorkspace[] | undefined;
 	readonly error: unknown;
+	readonly isRetrying: boolean;
 	readonly onRetry: () => void;
 	readonly action: ProjectWorkspaceAction;
 	readonly onActionChange: (action: ProjectWorkspaceAction) => void;
@@ -375,6 +381,7 @@ const ProjectWorkspacesSection: React.FC<ProjectWorkspacesSectionProps> = ({
 	project,
 	workspaces,
 	error,
+	isRetrying,
 	onRetry,
 	action,
 	onActionChange,
@@ -382,7 +389,17 @@ const ProjectWorkspacesSection: React.FC<ProjectWorkspacesSectionProps> = ({
 }) => {
 	const radioGroupLabelId = useId();
 	const errorAlert = Boolean(error) && (
-		<ErrorAlert error={error} actions={<RetryButton onRetry={onRetry} />} />
+		<ErrorAlert
+			error={error}
+			actions={
+				<RetryButton
+					size="sm"
+					variant="outline"
+					isRetrying={isRetrying}
+					onRetry={onRetry}
+				/>
+			}
+		/>
 	);
 	if (workspaces === undefined) {
 		return (
