@@ -636,7 +636,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								hasFetchMoreError={hasFetchMoreError}
 								onFetchMoreMessages={onFetchMoreMessages}
 								onEditUserMessage={
-									// An archived chat has no composer to edit in.
 									isArchived || isOtherUserReadOnly
 										? undefined
 										: editing.handleBeginHistoryEdit
