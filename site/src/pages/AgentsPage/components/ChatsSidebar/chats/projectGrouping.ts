@@ -14,16 +14,21 @@ type ChatsGroupedByProject = {
 
 /**
  * Splits chats into the folders of the user's pinned projects. Chats with a
- * project are held back while the summaries load; once loaded, a chat whose
- * project is not pinned stays unfiled so it never leaves the sidebar.
+ * project are held back while the summaries load, and so are unpinned chats
+ * of a project the summaries list as unpinned, which the chat list keeps
+ * until it refetches. A chat whose project the summaries lack stays unfiled
+ * so it never leaves the sidebar.
  */
 export const groupChatsByProject = (
 	chats: readonly Chat[],
-	pinnedProjects: readonly ChatProjectSummary[],
+	summaries: readonly ChatProjectSummary[],
 	isLoadingProjects = false,
 ): ChatsGroupedByProject => {
 	const folderProjectIds = new Set(
-		pinnedProjects.map((summary) => summary.project.id),
+		summaries.filter((s) => s.pinned).map((s) => s.project.id),
+	);
+	const unpinnedProjectIds = new Set(
+		summaries.filter((s) => !s.pinned).map((s) => s.project.id),
 	);
 	const chatsByProjectId = new Map<string, Chat[]>();
 	const unfiledChats: Chat[] = [];
@@ -35,7 +40,11 @@ export const groupChatsByProject = (
 			} else {
 				chatsByProjectId.set(chat.project_id, [chat]);
 			}
-		} else if (!chat.project_id || !isLoadingProjects) {
+		} else if (
+			!chat.project_id ||
+			(!isLoadingProjects &&
+				(chat.pin_order > 0 || !unpinnedProjectIds.has(chat.project_id)))
+		) {
 			unfiledChats.push(chat);
 		}
 	}
