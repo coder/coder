@@ -1,25 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useEffect } from "react";
+import { fn } from "storybook/test";
 import { MockChatProject } from "#/testHelpers/entities";
-import {
-	MoveToUnpinnedProjectDialogProvider,
-	useShowMoveToUnpinnedProjectDialog,
-} from "./MoveToUnpinnedProjectDialog";
+import { MoveToUnpinnedProjectDialog } from "./MoveToUnpinnedProjectDialog";
 
-// Stands in for a move that just finished into an unpinned project.
-const MovedChat: React.FC = () => {
-	const show = useShowMoveToUnpinnedProjectDialog();
-	useEffect(() => show?.(MockChatProject), [show]);
-	return null;
-};
-
-const meta: Meta<typeof MoveToUnpinnedProjectDialogProvider> = {
+const meta: Meta<typeof MoveToUnpinnedProjectDialog> = {
 	title: "pages/AgentsPage/MoveToUnpinnedProjectDialog",
-	component: MoveToUnpinnedProjectDialogProvider,
-	args: { children: <MovedChat /> },
+	component: MoveToUnpinnedProjectDialog,
+	args: { project: MockChatProject, open: true, onClose: fn() },
 };
 
 export default meta;
-type Story = StoryObj<typeof MoveToUnpinnedProjectDialogProvider>;
+type Story = StoryObj<typeof MoveToUnpinnedProjectDialog>;
 
 export const Default: Story = {};

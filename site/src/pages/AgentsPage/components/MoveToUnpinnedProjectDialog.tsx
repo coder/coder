@@ -64,7 +64,8 @@ type MoveToUnpinnedProjectDialogProps = {
 	readonly onClose: () => void;
 };
 
-const MoveToUnpinnedProjectDialog: React.FC<
+/** Explains that a moved chat left the sidebar, and offers to pin its project. */
+export const MoveToUnpinnedProjectDialog: React.FC<
 	MoveToUnpinnedProjectDialogProps
 > = ({ project, open, onClose }) => {
 	const queryClient = useQueryClient();

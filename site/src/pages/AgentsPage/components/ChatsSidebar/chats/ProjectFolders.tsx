@@ -43,7 +43,7 @@ type ProjectFoldersProps = {
 	/** The user's pinned projects, in pin order. */
 	readonly pinnedProjects: readonly ChatProjectSummary[];
 	/** Describes how to reorder a pinned project with the keyboard. */
-	readonly dragInstructionsId?: string;
+	readonly dragInstructionsId: string;
 	readonly organizations: readonly Organization[];
 	readonly chatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
 	/** The Pinned section lists these, so folders only count them. */
@@ -124,7 +124,7 @@ type ProjectFolderProps = {
 	readonly project: ChatProject;
 	/** Makes the project link the drag handle that reorders the pins. */
 	readonly handleRef: (element: Element | null) => void;
-	readonly dragInstructionsId: string | undefined;
+	readonly dragInstructionsId: string;
 	readonly unreadCount: number;
 	readonly organizationLabel: string | undefined;
 	readonly chats: readonly Chat[];

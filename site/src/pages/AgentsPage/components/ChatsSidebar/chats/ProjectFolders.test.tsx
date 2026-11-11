@@ -57,6 +57,7 @@ const renderProjectFolders = (
 					...MockChatProjectSummary,
 					project,
 				}))}
+				dragInstructionsId="drag-instructions"
 				organizations={[MockDefaultOrganization, MockOrganization2]}
 				chatsByProjectId={new Map()}
 				pinnedChatsByProjectId={new Map()}
