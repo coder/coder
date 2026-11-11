@@ -364,6 +364,27 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectedClient: aibclient.Unknown,
 		},
 		{
+			// A developer message after the tool result, as Codex sends after
+			// "Yes, and don't ask again", must not break correlation.
+			name:                        "streaming_custom_tool_result_developer_message",
+			fixture:                     fixtures.OaiResponsesStreamingCustomToolResultDeveloperMessage,
+			streaming:                   true,
+			expectModel:                 "gpt-5",
+			expectCorrelatingToolCallID: new("call_2gSnF58IEhXLwlbnqbm5XKMd"),
+			expectTokenUsage: &recorder.TokenUsageRecord{
+				MsgID:         "resp_0c26996bc41c2a0500696942f1a2b3819fc4d5e6f7a8b9c0d1",
+				ProviderModel: "gpt-5-2025-08-07",
+				Input:         112,
+				Output:        14,
+				ExtraTokenTypes: map[string]int64{
+					"output_reasoning": 0,
+					"total_tokens":     126,
+				},
+				Metadata: recorder.Metadata{recorder.MetadataKeyServiceTier: "default"},
+			},
+			expectedClient: aibclient.Unknown,
+		},
+		{
 			// web_search_call is a hosted tool executed server-side by the
 			// provider. It carries an item id but no call_id, so the recorded
 			// ToolCallID must be empty and the ItemID must be the output item's

@@ -165,6 +165,9 @@ var (
 	//go:embed openai/responses/streaming/custom_tool_result.txtar
 	OaiResponsesStreamingCustomToolResult []byte
 
+	//go:embed openai/responses/streaming/custom_tool_result_developer_message.txtar
+	OaiResponsesStreamingCustomToolResultDeveloperMessage []byte
+
 	//go:embed openai/responses/streaming/conversation.txtar
 	OaiResponsesStreamingConversation []byte
 
