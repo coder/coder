@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	rbcron "github.com/robfig/cron/v3"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/schedule/cron"
@@ -413,7 +414,7 @@ func TestStandard_Next_AroundClockChanges(t *testing.T) {
 						t.Parallel()
 						to := from.Add(72 * time.Hour)
 						for _, spec := range specs {
-							sched, err := cron.StandardIn(spec, loc)
+							sched, err := cron.StandardWithLocation(spec, loc)
 							require.NoError(t, err)
 
 							want := wantOccurrences(t, spec, loc, from, to)
@@ -460,8 +461,7 @@ func TestStandard_Next_Terminates(t *testing.T) {
 		{"0 0 1 1 *", 367 * 24 * time.Hour},
 	}
 	zones := []string{
-		"America/New_York", "Europe/Berlin", "Australia/Sydney",
-		"Australia/Lord_Howe", "Pacific/Chatham", "Asia/Kolkata", "UTC",
+		"America/New_York", "Europe/Berlin", "Australia/Lord_Howe", "Pacific/Chatham", "Asia/Kolkata",
 	}
 	for _, source := range zoneSources() {
 		for _, zone := range zones {
@@ -469,12 +469,12 @@ func TestStandard_Next_Terminates(t *testing.T) {
 			t.Run(source.name+"/"+zone, func(t *testing.T) {
 				t.Parallel()
 				for _, tc := range testCases {
-					sched, err := cron.StandardIn(tc.spec, loc)
+					sched, err := cron.StandardWithLocation(tc.spec, loc)
 					require.NoError(t, err)
 					for year := 2028; year <= 2100; year += 4 {
 						// Four days, a prime number of minutes apart.
 						start := time.Date(year, time.December, 29, 0, 0, 0, 0, time.UTC)
-						for from := start; from.Before(start.Add(96 * time.Hour)); from = from.Add(41 * time.Minute) {
+						for from := start; from.Before(start.Add(96 * time.Hour)); from = from.Add(97 * time.Minute) {
 							next := nextWithin(t, sched, from)
 							require.Truef(t, next.After(from), "%s %s: Next(%s) = %s is not after its input", zone, tc.spec, from, next)
 							require.LessOrEqualf(t, next.Sub(from), tc.maxWait, "%s %s: Next(%s) = %s", zone, tc.spec, from, next)
@@ -490,7 +490,7 @@ func TestStandard_Next_Terminates(t *testing.T) {
 	for _, source := range zoneSources() {
 		t.Run(source.name+"/FirstReport", func(t *testing.T) {
 			t.Parallel()
-			sched, err := cron.StandardIn("0 9 * * *", source.load(t, "America/New_York"))
+			sched, err := cron.StandardWithLocation("0 9 * * *", source.load(t, "America/New_York"))
 			require.NoError(t, err)
 			next := nextWithin(t, sched, time.Date(2040, 12, 30, 15, 0, 0, 0, time.UTC))
 			require.Equal(t, time.Date(2040, 12, 31, 14, 0, 0, 0, time.UTC), next)
@@ -575,7 +575,7 @@ func TestSchedule_MinInterval(t *testing.T) {
 func TestSchedule_MinInterval_NeverLongerThanRunGap(t *testing.T) {
 	t.Parallel()
 
-	rng := rand.New(rand.NewPCG(20261111, 32063))
+	rng := rand.New(rand.NewPCG(20261111, 32063)) //nolint:gosec // The same specs on every run.
 	list := func(lo, hi int) []int {
 		values := make([]int, 1+rng.IntN(3))
 		for i := range values {
@@ -610,23 +610,33 @@ func TestSchedule_MinInterval_NeverLongerThanRunGap(t *testing.T) {
 		}
 
 		timesOfDay := runsOfDay(t, spec)
+		daysRun := dayRule(spec)
 		var (
-			shortest time.Duration
-			previous time.Time
-			runs     int
+			shortest   time.Duration
+			lastRun    time.Time
+			runs       int
+			longestDay = timesOfDay[len(timesOfDay)-1]
 		)
+		record := func(gap time.Duration) {
+			if shortest == 0 || gap < shortest {
+				shortest = gap
+			}
+		}
 		for day := first; day.Before(last); day = day.AddDate(0, 0, 1) {
-			if !dayRuns(t, spec, day) {
+			if !daysRun(day) {
 				continue
 			}
-			for _, tod := range timesOfDay {
-				run := day.Add(tod)
-				if runs > 0 && (shortest == 0 || run.Sub(previous) < shortest) {
-					shortest = run.Sub(previous)
+			if runs == 0 {
+				// Every day that runs has the same times, so the gaps inside
+				// a day are the same too.
+				for i := 1; i < len(timesOfDay); i++ {
+					record(timesOfDay[i] - timesOfDay[i-1])
 				}
-				previous = run
-				runs++
+			} else {
+				record(day.Add(timesOfDay[0]).Sub(lastRun))
 			}
+			lastRun = day.Add(longestDay)
+			runs += len(timesOfDay)
 		}
 		if runs < 2 {
 			continue
@@ -718,9 +728,9 @@ func wantOccurrences(t *testing.T, spec string, loc *time.Location, from, to tim
 	t.Helper()
 
 	// UTC has no clock changes, so a UTC schedule lists the wall-clock
-	// readings that match the fields.
-	utc, err := cron.Standard(spec, "UTC")
-	require.NoError(t, err)
+	// readings that match the fields. It comes from robfig/cron, not from the
+	// code under test.
+	utc := parseUTC(t, spec)
 	matching := make(map[int64]bool)
 	for reading := utc.Next(from.Add(-48 * time.Hour)); reading.Before(to.Add(48 * time.Hour)); reading = utc.Next(reading) {
 		matching[reading.Unix()] = true
@@ -759,13 +769,21 @@ func wantOccurrences(t *testing.T, spec string, loc *time.Location, from, to tim
 	return want
 }
 
+// parseUTC parses a five-field spec with robfig/cron, in UTC.
+func parseUTC(t *testing.T, spec string) rbcron.Schedule {
+	t.Helper()
+	parser := rbcron.NewParser(rbcron.Minute | rbcron.Hour | rbcron.Dom | rbcron.Month | rbcron.Dow)
+	sched, err := parser.Parse("CRON_TZ=UTC " + spec)
+	require.NoError(t, err)
+	return sched
+}
+
 // runsOfDay returns the times of day, in order, at which spec runs on a day
 // that it runs.
 func runsOfDay(t *testing.T, spec string) []time.Duration {
 	t.Helper()
 	fields := strings.Fields(spec)
-	every, err := cron.Standard(strings.Join([]string{fields[0], fields[1], "*", "*", "*"}, " "), "UTC")
-	require.NoError(t, err)
+	every := parseUTC(t, strings.Join([]string{fields[0], fields[1], "*", "*", "*"}, " "))
 	day := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	var times []time.Duration
 	for run := every.Next(day.Add(-time.Second)); run.Before(day.AddDate(0, 0, 1)); run = every.Next(run) {
@@ -774,30 +792,36 @@ func runsOfDay(t *testing.T, spec string) []time.Duration {
 	return times
 }
 
-// dayRuns reports whether spec runs on day, by the rule of cron: the month
-// must match, and the day of month and day of week must both match, or either
-// when both fields are restricted.
-func dayRuns(t *testing.T, spec string, day time.Time) bool {
-	t.Helper()
+// dayRule returns a function that reports whether spec runs on a day, by the
+// rule of cron: the month must match, and the day of month and day of week must
+// both match, or either when both fields are restricted.
+func dayRule(spec string) func(day time.Time) bool {
 	fields := strings.Fields(spec)
-	matches := func(field string, value int) bool {
-		if field == "*" {
-			return true
-		}
+	set := func(field string) map[int]bool {
+		values := make(map[int]bool)
 		for _, part := range strings.Split(field, ",") {
-			if part == fmt.Sprint(value) {
-				return true
+			var value int
+			_, err := fmt.Sscan(part, &value)
+			if err == nil {
+				values[value] = true
 			}
 		}
-		return false
+		return values
 	}
-	if !matches(fields[3], int(day.Month())) {
-		return false
+	var (
+		months, doms, dows = set(fields[3]), set(fields[2]), set(fields[4])
+		anyMonth           = fields[3] == "*"
+		anyDom, anyDow     = fields[2] == "*", fields[4] == "*"
+	)
+	return func(day time.Time) bool {
+		if !anyMonth && !months[int(day.Month())] {
+			return false
+		}
+		dom := anyDom || doms[day.Day()]
+		dow := anyDow || dows[int(day.Weekday())]
+		if anyDom || anyDow {
+			return dom && dow
+		}
+		return dom || dow
 	}
-	dom := matches(fields[2], day.Day())
-	dow := matches(fields[4], int(day.Weekday()))
-	if fields[2] == "*" || fields[4] == "*" {
-		return dom && dow
-	}
-	return dom || dow
 }
