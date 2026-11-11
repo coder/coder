@@ -34,6 +34,10 @@ export const chatProject = (projectId: string | undefined) =>
 			projects.find((project) => project.id === projectId) ?? null,
 	});
 
+/**
+ * Caches the archived-project list. It nests under chatProjectsKey, so
+ * invalidating the active list also refetches it.
+ */
 export const archivedChatProjectsKey = [
 	...chatProjectsKey,
 	"archived",
