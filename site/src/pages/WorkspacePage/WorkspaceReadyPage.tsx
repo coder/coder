@@ -25,6 +25,7 @@ import {
 } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
 import { toast } from "#/components/Toaster/toast";
 import { useWorkspaceBuildLogs } from "#/hooks/useWorkspaceBuildLogs";
+import { useDashboard } from "#/modules/dashboard/useDashboard";
 import { EphemeralParametersDialog } from "#/modules/workspaces/EphemeralParametersDialog/EphemeralParametersDialog";
 import { WorkspaceErrorDialog } from "#/modules/workspaces/ErrorDialog/WorkspaceErrorDialog";
 import type { WorkspacePermissions } from "#/modules/workspaces/permissions";
@@ -33,7 +34,6 @@ import {
 	useWorkspaceUpdate,
 	WorkspaceUpdateDialogs,
 } from "#/modules/workspaces/WorkspaceUpdateDialogs";
-import { hasWorkloadShape } from "#/modules/workspaces/WorkspaceWorkloads/workloadAgents";
 import { pageTitle } from "#/utils/page";
 import { Workspace } from "./Workspace";
 
@@ -236,9 +236,12 @@ export const WorkspaceReadyPage: React.FC<WorkspaceReadyPageProps> = ({
 
 	// Workloads start and stop without a workspace build, so nothing pushes
 	// their changes to this page.
+	const { experiments } = useDashboard();
 	const workloadsQuery = useQuery({
 		...workspaceWorkloads(workspace.id),
-		enabled: hasWorkloadShape(workspace.latest_build.resources),
+		enabled:
+			experiments.includes("runtime-workloads") &&
+			workspace.latest_build.status === "running",
 		refetchInterval: 5_000,
 	});
 

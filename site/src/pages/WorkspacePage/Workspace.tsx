@@ -7,10 +7,6 @@ import { ProvisionerStatusAlert } from "#/modules/provisioners/ProvisionerStatus
 import { AgentRow } from "#/modules/resources/AgentRow";
 import { WorkspaceTimings } from "#/modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import { WorkspaceWorkloads } from "#/modules/workspaces/WorkspaceWorkloads/WorkspaceWorkloads";
-import {
-	hasWorkloadShape,
-	withoutWorkloadAgents,
-} from "#/modules/workspaces/WorkspaceWorkloads/workloadAgents";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
@@ -93,9 +89,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 		}
 	};
 
-	const resources = withoutWorkloadAgents(
-		workspace.latest_build.resources,
-	).sort((a, b) => countAgents(b) - countAgents(a));
+	const resources = [...workspace.latest_build.resources].sort(
+		(a, b) => countAgents(b) - countAgents(a),
+	);
 	const visibleResources = resources.filter((r) => !r.hide);
 	const resourcesNav = useResourcesNav(visibleResources);
 	const selectedResource = resources.find(
@@ -246,7 +242,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 								</section>
 							)}
 
-							{hasWorkloadShape(workspace.latest_build.resources) && (
+							{(Boolean(workloadsError) ||
+								(workloads !== undefined && workloads.length > 0)) && (
 								<WorkspaceWorkloads
 									workspaceName={workspace.name}
 									workloads={workloads}

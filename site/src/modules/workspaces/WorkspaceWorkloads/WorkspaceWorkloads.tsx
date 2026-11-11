@@ -22,10 +22,10 @@ const statusDisplay: Record<
 	WorkloadStatus,
 	{ label: string; variant: StatusIndicatorProps["variant"] }
 > = {
-	pending: { label: "Pending", variant: "pending" },
 	starting: { label: "Starting", variant: "pending" },
 	running: { label: "Running", variant: "success" },
-	disconnected: { label: "Disconnected", variant: "warning" },
+	exited: { label: "Exited", variant: "inactive" },
+	unknown: { label: "Unknown", variant: "warning" },
 };
 
 type WorkspaceWorkloadsProps = {
@@ -36,7 +36,8 @@ type WorkspaceWorkloadsProps = {
 };
 
 /**
- * Lists the daemons started in a workspace at runtime with `coder run`.
+ * Lists the workloads that run in sandboxes inside a workspace, started
+ * with `coder run`.
  */
 export const WorkspaceWorkloads: React.FC<WorkspaceWorkloadsProps> = ({
 	workspaceName,
@@ -58,8 +59,9 @@ export const WorkspaceWorkloads: React.FC<WorkspaceWorkloadsProps> = ({
 					Workloads
 				</h3>
 				<p className="m-0 text-sm text-content-secondary">
-					Daemons started in this workspace at runtime. Each one has its own
-					identity and can only use its sponsor's permissions within its scopes.
+					Commands running in sandboxes inside this workspace. Each one has its
+					own identity and can only use its sponsor's permissions within its
+					scopes.
 				</p>
 			</header>
 
@@ -109,25 +111,17 @@ export const WorkspaceWorkloads: React.FC<WorkspaceWorkloadsProps> = ({
 										</StatusIndicator>
 									</TableCell>
 									<TableCell>
-										{workload.command ? (
-											<code className="font-mono whitespace-pre-wrap break-all text-content-primary">
-												{workload.command}
-											</code>
-										) : (
-											"None"
-										)}
+										<code className="font-mono whitespace-pre-wrap break-all text-content-primary">
+											{workload.command}
+										</code>
 									</TableCell>
 									<TableCell>
-										{workload.identity ? (
-											<CopyableValue
-												value={workload.identity}
-												className="font-mono break-all"
-											>
-												{workload.identity}
-											</CopyableValue>
-										) : (
-											"Not assigned yet"
-										)}
+										<CopyableValue
+											value={workload.identity}
+											className="font-mono break-all"
+										>
+											{workload.identity}
+										</CopyableValue>
 									</TableCell>
 									<TableCell className="whitespace-nowrap">
 										{workload.sponsor_username}

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import {
-	MockPendingWorkload,
+	MockStartingWorkload,
 	MockWorkload,
 	mockApiError,
 } from "#/testHelpers/entities";
@@ -25,24 +25,18 @@ export const EveryStatus: Story = {
 	args: {
 		workloads: [
 			MockWorkload,
+			MockStartingWorkload,
 			{
 				...MockWorkload,
-				id: "starting",
-				name: "write-docs",
-				status: "starting",
-				command: undefined,
-				identity: "test-workspace/pod/0f9e8d7c-6b5a-4c3d-2e1f-0a9b8c7d6e5f",
-			},
-			{
-				...MockWorkload,
-				id: "disconnected",
+				id: "unknown",
 				name: "nightly-triage",
-				status: "disconnected",
+				status: "unknown",
 				command:
 					"set -eu\ngit fetch origin\n./scripts/triage.sh --since yesterday --label needs-triage --assign-to-oncall",
-				identity: "test-workspace/pod/1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+				identity:
+					"test-workspace/workload/1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+				scopes: [],
 			},
-			MockPendingWorkload,
 		],
 	},
 };

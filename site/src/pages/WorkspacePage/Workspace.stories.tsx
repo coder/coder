@@ -113,30 +113,7 @@ export const RunningWithChildAgent: Story = {
 export const RunningWithWorkloads: Story = {
 	args: {
 		...Running.args,
-		workspace: {
-			...Mocks.MockWorkspace,
-			latest_build: {
-				...Mocks.MockWorkspace.latest_build,
-				resources: [
-					{
-						...Mocks.MockWorkspaceResource,
-						agents: [
-							{
-								...Mocks.MockWorkspaceAgent,
-								lifecycle_state: "ready",
-							},
-						],
-					},
-					{
-						...Mocks.MockWorkspaceResource,
-						id: "test-workload-shape-resource",
-						name: "workload",
-						agents: [Mocks.MockWorkloadShapeAgent, Mocks.MockWorkloadAgent],
-					},
-				],
-			},
-		},
-		workloads: [Mocks.MockWorkload, Mocks.MockPendingWorkload],
+		workloads: [Mocks.MockWorkload, Mocks.MockStartingWorkload],
 	},
 };
 

@@ -6,7 +6,6 @@ import {
 } from "#/api/api";
 import type { FieldError } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
-import { WorkloadShapeEnv } from "#/api/typesGenerated";
 import type { ProxyLatencyReport } from "#/contexts/useProxyLatency";
 import type { Permissions } from "#/modules/permissions";
 import type { OrganizationPermissions } from "#/modules/permissions/organizations";
@@ -1487,58 +1486,32 @@ export const MockWorkspaceAgentOff: TypesGen.WorkspaceAgent = {
 	},
 };
 
-export const MockWorkloadShapeAgent: TypesGen.WorkspaceAgent = {
-	...MockWorkspaceAgent,
-	id: "test-workload-shape-agent",
-	name: "workload",
-	status: "timeout",
-	lifecycle_state: "created",
-	apps: [],
-	environment_variables: { [WorkloadShapeEnv]: "***REDACTED***" },
-};
-
-export const MockWorkloadAgent: TypesGen.WorkspaceAgent = {
-	...MockWorkloadShapeAgent,
-	id: "test-workload-agent",
-	parent_id: MockWorkloadShapeAgent.id,
-	name: "fix-flaky-test",
-	status: "connected",
-	lifecycle_state: "ready",
-};
-
 export const MockWorkload: TypesGen.Workload = {
-	id: MockWorkloadAgent.id,
-	name: MockWorkloadAgent.name,
+	id: "7c4e2b1a-5a0e-4b6f-9d8c-3f2a1b0c9d8e",
+	name: "fix-flaky-test",
 	workspace_id: "test-workspace",
-	shape: MockWorkloadShapeAgent.name,
+	agent_id: MockWorkspaceAgent.id,
+	agent_name: MockWorkspaceAgent.name,
 	status: "running",
 	command: "claude -p 'fix the flaky test in coderd/workspaces_test.go'",
 	created_at: "2024-03-26T15:00:00Z",
-	requested_by_id: "test-user",
-	requested_by_username: "testuser",
-	identity: "test-workspace/pod/7c4e2b1a-5a0e-4b6f-9d8c-3f2a1b0c9d8e",
-	pod: {
-		namespace: "coder-workspaces",
-		name: "workload-fix-flaky-test",
-		uid: "7c4e2b1a-5a0e-4b6f-9d8c-3f2a1b0c9d8e",
-		service_account: "coder-workload",
-	},
-	identity_id: "test-workload-identity",
+	identity: "test-workspace/workload/7c4e2b1a-5a0e-4b6f-9d8c-3f2a1b0c9d8e",
 	sponsor_id: "test-user",
 	sponsor_username: "testuser",
 	scopes: ["workspace:read", "template:read"],
+	sandbox: { runtime: "docker", id: "3f1c0a527c9e4d0b8a570d6f1c2b3a4e" },
 };
 
-export const MockPendingWorkload: TypesGen.Workload = {
-	id: "test-pending-workload",
+export const MockStartingWorkload: TypesGen.Workload = {
+	id: "0f9e8d7c-6b5a-4c3d-2e1f-0a9b8c7d6e5f",
 	name: "review-pr",
 	workspace_id: MockWorkload.workspace_id,
-	shape: MockWorkload.shape,
-	status: "pending",
+	agent_id: MockWorkload.agent_id,
+	agent_name: MockWorkload.agent_name,
+	status: "starting",
+	command: "gh pr review 1234",
 	created_at: "2024-03-26T15:04:00Z",
-	requested_by_id: MockWorkload.requested_by_id,
-	requested_by_username: MockWorkload.requested_by_username,
-	identity_id: "test-pending-workload-identity",
+	identity: "test-workspace/workload/0f9e8d7c-6b5a-4c3d-2e1f-0a9b8c7d6e5f",
 	sponsor_id: MockWorkload.sponsor_id,
 	sponsor_username: MockWorkload.sponsor_username,
 	scopes: [],
