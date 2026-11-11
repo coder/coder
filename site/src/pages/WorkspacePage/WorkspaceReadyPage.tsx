@@ -16,6 +16,7 @@ import {
 	startWorkspace,
 	stopWorkspace,
 	toggleFavorite,
+	workspaceWorkloads,
 } from "#/api/queries/workspaces";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
@@ -32,6 +33,7 @@ import {
 	useWorkspaceUpdate,
 	WorkspaceUpdateDialogs,
 } from "#/modules/workspaces/WorkspaceUpdateDialogs";
+import { hasWorkloadShape } from "#/modules/workspaces/WorkspaceWorkloads/workloadAgents";
 import { pageTitle } from "#/utils/page";
 import { Workspace } from "./Workspace";
 
@@ -232,6 +234,14 @@ export const WorkspaceReadyPage: React.FC<WorkspaceReadyPageProps> = ({
 		},
 	});
 
+	// Workloads start and stop without a workspace build, so nothing pushes
+	// their changes to this page.
+	const workloadsQuery = useQuery({
+		...workspaceWorkloads(workspace.id),
+		enabled: hasWorkloadShape(workspace.latest_build.resources),
+		refetchInterval: 5_000,
+	});
+
 	const checkEphemeralParameters = async (
 		buildParameters?: TypesGen.WorkspaceBuildParameter[],
 	) => {
@@ -323,6 +333,8 @@ export const WorkspaceReadyPage: React.FC<WorkspaceReadyPageProps> = ({
 				template={template}
 				buildLogs={buildLogs}
 				timings={timingsQuery.data}
+				workloads={workloadsQuery.data}
+				workloadsError={workloadsQuery.error}
 				handleStart={async (buildParameters) => {
 					const { hasEphemeral, ephemeralParameters } =
 						await checkEphemeralParameters(buildParameters);

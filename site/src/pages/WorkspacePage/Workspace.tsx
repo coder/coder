@@ -6,6 +6,11 @@ import { linkToTemplate, useLinks } from "#/modules/navigation";
 import { ProvisionerStatusAlert } from "#/modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "#/modules/resources/AgentRow";
 import { WorkspaceTimings } from "#/modules/workspaces/WorkspaceTiming/WorkspaceTimings";
+import { WorkspaceWorkloads } from "#/modules/workspaces/WorkspaceWorkloads/WorkspaceWorkloads";
+import {
+	hasWorkloadShape,
+	withoutWorkloadAgents,
+} from "#/modules/workspaces/WorkspaceWorkloads/workloadAgents";
 import type { WorkspacePermissions } from "../../modules/workspaces/permissions";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
@@ -29,6 +34,8 @@ type WorkspaceProps = {
 	buildLogs?: TypesGen.ProvisionerJobLog[];
 	latestVersion?: TypesGen.TemplateVersion;
 	timings?: TypesGen.WorkspaceBuildTimings;
+	workloads?: readonly TypesGen.Workload[];
+	workloadsError?: unknown;
 	sharingDisabled?: boolean;
 	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleStop: () => void;
@@ -53,6 +60,8 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 	latestVersion,
 	permissions,
 	timings,
+	workloads,
+	workloadsError,
 	handleStart,
 	handleStop,
 	handleRestart,
@@ -84,9 +93,9 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 		}
 	};
 
-	const resources = [...workspace.latest_build.resources].sort(
-		(a, b) => countAgents(b) - countAgents(a),
-	);
+	const resources = withoutWorkloadAgents(
+		workspace.latest_build.resources,
+	).sort((a, b) => countAgents(b) - countAgents(a));
 	const visibleResources = resources.filter((r) => !r.hide);
 	const resourcesNav = useResourcesNav(visibleResources);
 	const selectedResource = resources.find(
@@ -235,6 +244,14 @@ export const Workspace: React.FC<WorkspaceProps> = ({
 										</div>
 									)}
 								</section>
+							)}
+
+							{hasWorkloadShape(workspace.latest_build.resources) && (
+								<WorkspaceWorkloads
+									workspaceName={workspace.name}
+									workloads={workloads}
+									error={workloadsError}
+								/>
 							)}
 
 							<WorkspaceTimings

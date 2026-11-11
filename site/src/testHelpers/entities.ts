@@ -6,6 +6,7 @@ import {
 } from "#/api/api";
 import type { FieldError } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
+import { WorkloadShapeEnv } from "#/api/typesGenerated";
 import type { ProxyLatencyReport } from "#/contexts/useProxyLatency";
 import type { Permissions } from "#/modules/permissions";
 import type { OrganizationPermissions } from "#/modules/permissions/organizations";
@@ -1484,6 +1485,55 @@ export const MockWorkspaceAgentOff: TypesGen.WorkspaceAgent = {
 		healthy: false,
 		reason: "agent is shutting down",
 	},
+};
+
+export const MockWorkloadShapeAgent: TypesGen.WorkspaceAgent = {
+	...MockWorkspaceAgent,
+	id: "test-workload-shape-agent",
+	name: "workload",
+	status: "timeout",
+	lifecycle_state: "created",
+	apps: [],
+	environment_variables: { [WorkloadShapeEnv]: "***REDACTED***" },
+};
+
+export const MockWorkloadAgent: TypesGen.WorkspaceAgent = {
+	...MockWorkloadShapeAgent,
+	id: "test-workload-agent",
+	parent_id: MockWorkloadShapeAgent.id,
+	name: "fix-flaky-test",
+	status: "connected",
+	lifecycle_state: "ready",
+};
+
+export const MockWorkload: TypesGen.Workload = {
+	id: MockWorkloadAgent.id,
+	name: MockWorkloadAgent.name,
+	workspace_id: "test-workspace",
+	shape: MockWorkloadShapeAgent.name,
+	status: "running",
+	command: "claude -p 'fix the flaky test in coderd/workspaces_test.go'",
+	created_at: "2024-03-26T15:00:00Z",
+	requested_by_id: "test-user",
+	requested_by_username: "testuser",
+	identity: "test-workspace/pod/7c4e2b1a-5a0e-4b6f-9d8c-3f2a1b0c9d8e",
+	pod: {
+		namespace: "coder-workspaces",
+		name: "workload-fix-flaky-test",
+		uid: "7c4e2b1a-5a0e-4b6f-9d8c-3f2a1b0c9d8e",
+		service_account: "coder-workload",
+	},
+};
+
+export const MockPendingWorkload: TypesGen.Workload = {
+	id: "test-pending-workload",
+	name: "review-pr",
+	workspace_id: MockWorkload.workspace_id,
+	shape: MockWorkload.shape,
+	status: "pending",
+	created_at: "2024-03-26T15:04:00Z",
+	requested_by_id: MockWorkload.requested_by_id,
+	requested_by_username: MockWorkload.requested_by_username,
 };
 
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {
