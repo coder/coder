@@ -237,7 +237,6 @@ type ProjectFolderProps = {
 	readonly registerToggle: (element: HTMLButtonElement | null) => void;
 };
 
-/** The folder's name, with its organization when another folder shares it. */
 /** Names a project, adding its organization when another project shares the name. */
 export const projectLabelOf = (
 	project: ChatProject,

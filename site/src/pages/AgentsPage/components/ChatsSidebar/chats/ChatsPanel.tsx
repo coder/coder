@@ -279,7 +279,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
 	const projects = projectSummaries.map((summary) => summary.project);
 	const organizationLabels = getOrganizationLabels(projects, organizations);
-	const projectNameById = new Map(
+	const projectLabelById = new Map(
 		projects.map((p) => [
 			p.id,
 			projectLabelOf(p, organizationLabels.get(p.id)),
@@ -428,7 +428,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		navigateAfterArchive,
 		onOpenRenameDialog,
 		dragInstructionsId,
-		projectNameById,
+		projectLabelById,
 	};
 
 	const chatSections = (

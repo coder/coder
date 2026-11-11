@@ -22,7 +22,7 @@ export type ChatTreeContextValue = {
 	 * Maps the ID of every project the user can see to its label: its name, and
 	 * its organization when a project in another organization has that name.
 	 */
-	readonly projectNameById: ReadonlyMap<string, string>;
+	readonly projectLabelById: ReadonlyMap<string, string>;
 };
 
 export const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);
