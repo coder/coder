@@ -157,7 +157,7 @@ describe("AgentsPageLayout New chat", () => {
 });
 
 describe("AgentsPageLayout chat watch reconnect", () => {
-	it("refetches the open chat and its diff contents when the chat watch socket opens", async () => {
+	it("refetches the open chat, its diff contents and project summaries when the chat watch socket opens", async () => {
 		let chatWatchServer: MockWebSocketServer | undefined;
 		vi.spyOn(apiModule, "watchChats").mockImplementation(
 			() =>
@@ -177,6 +177,9 @@ describe("AgentsPageLayout chat watch reconnect", () => {
 		const getChatDiffContents = vi
 			.spyOn(API.experimental, "getChatDiffContents")
 			.mockResolvedValue({ chat_id: MockChat.id });
+		const getSummaries = vi
+			.spyOn(API.experimental, "getChatProjectSummaries")
+			.mockResolvedValue([]);
 
 		const { queryClient } = renderLayout(`/agents/${MockChat.id}`);
 		// Stands in for an open diff panel, which this page does not
@@ -192,15 +195,20 @@ describe("AgentsPageLayout chat watch reconnect", () => {
 			// cannot be deduplicated into it.
 			await waitFor(() => expect(getChatDiffContents).toHaveBeenCalledTimes(1));
 			await waitFor(() => expect(chatWatchServer).toBeDefined());
+			// Opening the chat refreshes the summaries once, after a debounce.
+			await waitFor(() => expect(getSummaries).toHaveBeenCalledTimes(2), {
+				timeout: 3000,
+			});
 
 			// Events missed while disconnected are only recovered by a
-			// refetch, so every (re)connect must refetch the open chat
-			// and its diff contents.
+			// refetch, so every (re)connect must refetch the open chat,
+			// its diff contents and the project summaries.
 			act(() => chatWatchServer?.publishOpen(new Event("open")));
 			await waitFor(() => expect(getChat).toHaveBeenCalledTimes(2));
 			expect(getChat.mock.lastCall?.[0]).toBe(MockChat.id);
 			await waitFor(() => expect(getChatDiffContents).toHaveBeenCalledTimes(2));
 			expect(getChatDiffContents.mock.lastCall?.[0]).toBe(MockChat.id);
+			await waitFor(() => expect(getSummaries).toHaveBeenCalledTimes(3));
 		} finally {
 			unsubscribe();
 		}
