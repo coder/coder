@@ -110,7 +110,7 @@ export type ChatListInput = Readonly<{
 	chatStatus?: ChatListStatusFilter;
 	statuses?: readonly TypesGen.ChatStatus[];
 	sources?: readonly TypesGen.ChatListSource[];
-	/** Leaves out chats in projects the user has not pinned, as the sidebar does. */
+	/** Leaves out chats in projects the user has not pinned. */
 	pinnedProjectsOnly?: boolean;
 }>;
 
@@ -2123,16 +2123,13 @@ const setCachedChatProjectId = (
  * watch events wrote while the request ran.
  */
 export const moveChatToProject = (queryClient: QueryClient) => ({
-	/** Resolves to the target project ID, or null for a removal. */
-	mutationFn: async ({ chatId, projectId }: MoveChatToProjectVariables) => {
-		await API.experimental.updateChat(chatId, {
+	mutationFn: ({ chatId, projectId }: MoveChatToProjectVariables) =>
+		API.experimental.updateChat(chatId, {
 			project_id:
 				projectId ??
 				// The API uses the nil UUID to remove the chat from its project.
 				"00000000-0000-0000-0000-000000000000",
-		});
-		return projectId;
-	},
+		}),
 	onMutate: async ({ chatId, projectId }: MoveChatToProjectVariables) => {
 		await cancelChatListQueries(queryClient);
 		await cancelChatEntity(queryClient, chatId);
@@ -2143,7 +2140,7 @@ export const moveChatToProject = (queryClient: QueryClient) => ({
 		copyFolderChatToSidebarList(queryClient, chatId);
 		return {
 			previousProjectId: previousChat?.project_id,
-			wasPinned: (previousChat?.pin_order ?? 0) > 0,
+			wasChatPinned: (previousChat?.pin_order ?? 0) > 0,
 		};
 	},
 	onError: (

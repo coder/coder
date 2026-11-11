@@ -13,11 +13,9 @@ type ChatsGroupedByProject = {
 };
 
 /**
- * Splits chats into the folders of the user's pinned projects. While the
- * summaries load, chats with a project are held back so they do not jump from
- * the unfiled list into a folder. Once loaded, a chat whose project is not
- * pinned, for example because the request failed or the user can no longer
- * use the project, stays unfiled so it never disappears from the sidebar.
+ * Splits chats into the folders of the user's pinned projects. Chats with a
+ * project are held back while the summaries load; once loaded, a chat whose
+ * project is not pinned stays unfiled so it never leaves the sidebar.
  */
 export const groupChatsByProject = (
 	chats: readonly Chat[],

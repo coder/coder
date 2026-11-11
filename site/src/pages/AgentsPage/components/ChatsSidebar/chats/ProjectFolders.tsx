@@ -36,11 +36,14 @@ import { ProjectFolderChats } from "./ProjectFolderChats";
 import { PROJECT_PIN_DRAG_TYPE, type ProjectPinDragData } from "./projectDrag";
 import { getOrganizationLabels } from "./projectGrouping";
 
+/** Acts on one project, such as editing, deleting, or unpinning it. */
 export type ProjectAction = (project: ChatProject) => void;
 
 type ProjectFoldersProps = {
 	/** The user's pinned projects, in pin order. */
-	readonly summaries: readonly ChatProjectSummary[];
+	readonly pinnedProjects: readonly ChatProjectSummary[];
+	/** Describes how to reorder a pinned project with the keyboard. */
+	readonly dragInstructionsId?: string;
 	readonly organizations: readonly Organization[];
 	readonly chatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
 	/** The Pinned section lists these, so folders only count them. */
@@ -58,7 +61,8 @@ type ProjectFoldersProps = {
 };
 
 export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
-	summaries,
+	pinnedProjects,
+	dragInstructionsId,
 	organizations,
 	chatsByProjectId,
 	pinnedChatsByProjectId,
@@ -75,7 +79,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 }) => {
 	const location = useLocation();
 	const organizationLabels = getOrganizationLabels(
-		summaries.map((summary) => summary.project),
+		pinnedProjects.map((summary) => summary.project),
 		organizations,
 	);
 	return (
@@ -92,11 +96,12 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 				/>
 			)}
 			{isLoading && <Skeleton className="ml-2.5 h-3.5 w-20" />}
-			{summaries.map(({ project, own_unread_count }, index) => (
+			{pinnedProjects.map(({ project, own_unread_count }, index) => (
 				<SortableProjectFolder
 					key={project.id}
 					project={project}
 					index={index}
+					dragInstructionsId={dragInstructionsId}
 					unreadCount={own_unread_count}
 					organizationLabel={organizationLabels.get(project.id)}
 					chats={chatsByProjectId.get(project.id) ?? []}
@@ -119,6 +124,7 @@ type ProjectFolderProps = {
 	readonly project: ChatProject;
 	/** Makes the project link the drag handle that reorders the pins. */
 	readonly handleRef: (element: Element | null) => void;
+	readonly dragInstructionsId: string | undefined;
 	readonly unreadCount: number;
 	readonly organizationLabel: string | undefined;
 	readonly chats: readonly Chat[];
@@ -133,9 +139,14 @@ type ProjectFolderProps = {
 	readonly emptyMessage: string;
 };
 
-const SortableProjectFolder: React.FC<
-	Omit<ProjectFolderProps, "handleRef"> & { readonly index: number }
-> = ({ index, ...props }) => {
+type SortableProjectFolderProps = Omit<ProjectFolderProps, "handleRef"> & {
+	readonly index: number;
+};
+
+const SortableProjectFolder: React.FC<SortableProjectFolderProps> = ({
+	index,
+	...props
+}) => {
 	const { ref, handleRef, isDragging } = useSortable({
 		id: `project-pin:${props.project.id}`,
 		index,
@@ -155,6 +166,7 @@ const SortableProjectFolder: React.FC<
 const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	project,
 	handleRef,
+	dragInstructionsId,
 	unreadCount,
 	organizationLabel,
 	chats,
@@ -224,7 +236,12 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 						<NavLink
 							ref={handleRef}
 							to={projectPath}
-							aria-label={projectLabel}
+							aria-label={
+								!expanded && unreadCount > 0
+									? `${projectLabel}, ${unreadCount} unread ${unreadCount === 1 ? "chat" : "chats"}`
+									: projectLabel
+							}
+							aria-describedby={dragInstructionsId}
 							className="flex min-w-0 flex-1 items-center gap-2 py-1 text-[13px] no-underline"
 						>
 							{({ isActive }) => (
@@ -251,8 +268,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 							// or keyboard focus without moving anything.
 							<span className="pointer-events-none absolute inset-y-0 right-2 flex w-6 items-center justify-center group-hover:invisible group-has-focus-visible:invisible group-has-data-[state=open]:invisible">
 								<span
-									role="img"
-									aria-label={`${unreadCount} unread`}
+									aria-hidden="true"
 									className="flex h-4 min-w-4 items-center justify-center rounded-full bg-surface-quaternary px-1 text-2xs font-medium text-content-secondary tabular-nums"
 								>
 									{unreadCount}

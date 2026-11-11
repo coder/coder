@@ -49,7 +49,7 @@ const isProjectPinDragData = (
 	data: Record<string, unknown>,
 ): data is ProjectPinDragData => "project" in data;
 
-/** The project of a pinned project drag. */
+/** The project of a pinned project drag, or undefined for any other drag. */
 export const pinnedProjectOf = (
 	source: Draggable | null,
 ): ChatProject | undefined =>
@@ -132,13 +132,24 @@ const announcedTarget = (target: Droppable | null): string | undefined => {
  */
 export const chatDragAnnouncements = {
 	dragstart: ({ operation: { source } }: DragStartEvent) => {
+		const project = pinnedProjectOf(source);
+		if (project) {
+			return `Picked up project ${project.name}.`;
+		}
 		const chat = draggedChatOf(source);
 		return chat && `Picked up chat ${chat.title}.`;
 	},
 	dragover: (
 		{ operation: { source, target } }: DragOverEvent,
 		pinCount: number,
+		projectPinCount: number,
 	) => {
+		const project = pinnedProjectOf(source);
+		if (project) {
+			return isSortable(target)
+				? `Project ${project.name} is at position ${target.index + 1} of ${projectPinCount}.`
+				: undefined;
+		}
 		const chat = movedChatOf(source);
 		if (!chat) {
 			const pin = draggedChatOf(source);
@@ -153,6 +164,12 @@ export const chatDragAnnouncements = {
 			: `Chat ${chat.title} is not over a project or Chats.`;
 	},
 	dragend: ({ operation: { source, target }, canceled }: DragEndEvent) => {
+		const project = pinnedProjectOf(source);
+		if (project) {
+			return canceled
+				? `Moving project ${project.name} was canceled.`
+				: `Project ${project.name} was dropped.`;
+		}
 		const chat = draggedChatOf(source);
 		if (!chat) {
 			return undefined;

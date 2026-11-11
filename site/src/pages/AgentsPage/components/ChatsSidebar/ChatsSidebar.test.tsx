@@ -1429,7 +1429,12 @@ describe("ChatsSidebar project drops", () => {
 		);
 		layoutDropTargets("Fix invoice dates", rowTop);
 
-		screen.getByRole("link", { description: DRAG_INSTRUCTIONS }).focus();
+		screen
+			.getByRole("link", {
+				name: /Fix invoice dates/,
+				description: DRAG_INSTRUCTIONS,
+			})
+			.focus();
 		await user.keyboard("[Space]");
 		await user.keyboard(key);
 		await waitFor(() =>
@@ -1477,7 +1482,12 @@ describe("ChatsSidebar project drops", () => {
 			scrollTop = 150;
 		});
 
-		screen.getByRole("link", { description: DRAG_INSTRUCTIONS }).focus();
+		screen
+			.getByRole("link", {
+				name: /Fix invoice dates/,
+				description: DRAG_INSTRUCTIONS,
+			})
+			.focus();
 		await user.keyboard("[Space]");
 		await user.keyboard("[ArrowDown]");
 		await waitFor(() =>
@@ -1685,6 +1695,11 @@ describe("ChatsSidebar pinned reordering", () => {
 		launch.focus();
 		await user.keyboard("[Space]");
 		await user.keyboard("[ArrowDown]");
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				"Project Launch is at position 2 of 2.",
+			),
+		);
 		await waitFor(() => expect(launch).toHaveFocus());
 		await user.keyboard("[Space]");
 

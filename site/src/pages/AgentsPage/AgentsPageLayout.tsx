@@ -199,10 +199,7 @@ const AgentsPageLayout: React.FC = () => {
 	}, []);
 
 	const chatsQuery = useInfiniteQuery(
-		infiniteChats({
-			...getSidebarChatListInput(sidebarFilters),
-			pinnedProjectsOnly: true,
-		}),
+		infiniteChats(getSidebarChatListInput(sidebarFilters)),
 	);
 	const organizationModels = useOrganizationChatModels(
 		organizations.map((organization) => organization.id),

@@ -2,12 +2,9 @@ import { CheckIcon, FolderInputIcon, FolderMinusIcon } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorMessage } from "#/api/errors";
-import {
-	chatProjectSummariesKey,
-	chatProjects,
-} from "#/api/queries/chatProjects";
+import { chatProjectSummaries, chatProjects } from "#/api/queries/chatProjects";
 import { moveChatToProject } from "#/api/queries/chats";
-import type { Chat, ChatProjectSummary } from "#/api/typesGenerated";
+import type { Chat } from "#/api/typesGenerated";
 import type {
 	ContextMenuItem,
 	ContextMenuSeparator,
@@ -27,10 +24,8 @@ import { ChatProjectIcon } from "./ChatProjectIcon";
 import { useShowMoveToUnpinnedProjectDialog } from "./MoveToUnpinnedProjectDialog";
 
 /**
- * Moves a chat and reports a failure. A chat that is not pinned and moves
- * into a project the user has not pinned leaves the sidebar, so a dialog
- * explains that. The callbacks are mutation options, so the rollback, the
- * toast, and the dialog still happen after the menu unmounts.
+ * Moves a chat and reports a failure. The callbacks are mutation options, so
+ * the rollback, the toast, and the dialog still run after the menu unmounts.
  */
 export const useMoveChatToProject = () => {
 	const queryClient = useQueryClient();
@@ -38,11 +33,13 @@ export const useMoveChatToProject = () => {
 	const options = moveChatToProject(queryClient);
 	return useMutation({
 		...options,
-		onSuccess: (projectId, _variables, context) => {
+		// A chat that is not pinned leaves the sidebar when it moves into a
+		// project the user has not pinned.
+		onSuccess: (_data, { projectId }, context) => {
 			const summary = queryClient
-				.getQueryData<ChatProjectSummary[]>(chatProjectSummariesKey)
+				.getQueryData(chatProjectSummaries().queryKey)
 				?.find((s) => s.project.id === projectId);
-			if (summary && !summary.pinned && !context?.wasPinned) {
+			if (summary && !summary.pinned && !context?.wasChatPinned) {
 				showMoveToUnpinnedProjectDialog?.(summary.project);
 			}
 		},

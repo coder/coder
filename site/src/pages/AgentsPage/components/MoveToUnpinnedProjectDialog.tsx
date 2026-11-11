@@ -1,6 +1,6 @@
 import { createContext, useContext, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import { pinChatProject } from "#/api/queries/chatProjects";
 import type { ChatProject } from "#/api/typesGenerated";
@@ -69,6 +69,7 @@ const MoveToUnpinnedProjectDialog: React.FC<
 > = ({ project, open, onClose }) => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
+	const location = useLocation();
 	const pinMutation = useMutation({
 		...pinChatProject(queryClient),
 		onSuccess: onClose,
@@ -87,12 +88,15 @@ const MoveToUnpinnedProjectDialog: React.FC<
 						the chat on the project page.
 					</DialogDescription>
 				</DialogHeader>
-				<DialogFooter className="gap-2 sm:space-x-0">
+				<DialogFooter>
 					<Button
 						variant="outline"
 						onClick={() => {
 							onClose();
-							navigate(buildAgentProjectPath({ projectId: project.id }));
+							navigate({
+								pathname: buildAgentProjectPath({ projectId: project.id }),
+								search: location.search,
+							});
 						}}
 					>
 						Go to project

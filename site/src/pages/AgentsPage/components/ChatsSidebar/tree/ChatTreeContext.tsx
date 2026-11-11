@@ -18,7 +18,7 @@ export type ChatTreeContextValue = {
 	readonly navigateAfterArchive: (chatId: string) => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
 	readonly dragInstructionsId: string;
-	/** Names the project of a pinned chat. */
+	/** Maps the ID of every project the user can see to its name. */
 	readonly projectNameById: ReadonlyMap<string, string>;
 };
 

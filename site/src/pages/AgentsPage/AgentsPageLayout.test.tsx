@@ -240,6 +240,7 @@ describe("AgentsPageLayout manual read state", () => {
 			...infiniteChats({
 				chatStatus: "unread",
 				sources: ["created_by_me"],
+				pinnedProjectsOnly: true,
 			}),
 			enabled: false,
 		});
@@ -289,7 +290,10 @@ describe("AgentsPageLayout manual read state", () => {
 			expect(
 				queryClient
 					.getQueryData<InfiniteData<Chat[]>>(
-						infiniteChats({ sources: ["created_by_me"] }).queryKey,
+						infiniteChats({
+							sources: ["created_by_me"],
+							pinnedProjectsOnly: true,
+						}).queryKey,
 					)
 					?.pages.flat()
 					.find((chat) => chat.id === "read-beta")?.has_unread,
@@ -793,6 +797,7 @@ describe("AgentsPageLayout archive and delete", () => {
 									.getQueryData(
 										infiniteChats({
 											sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
+											pinnedProjectsOnly: true,
 										}).queryKey,
 									)
 									?.pages.flat(),
@@ -963,8 +968,10 @@ describe("AgentsPageLayout project moves", () => {
 			expect(
 				queryClient
 					.getQueryData<InfiniteData<Chat[]>>(
-						infiniteChats({ sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources })
-							.queryKey,
+						infiniteChats({
+							sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
+							pinnedProjectsOnly: true,
+						}).queryKey,
 					)
 					?.pages.flat(),
 			).toEqual([mockChatInProjectB]),

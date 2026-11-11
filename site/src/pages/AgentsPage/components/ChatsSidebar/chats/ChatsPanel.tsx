@@ -122,9 +122,9 @@ type ChatsPanelProps = {
 	/** The user's pinned projects, in pin order. */
 	readonly pinnedProjects: readonly ChatProjectSummary[];
 	readonly organizations: readonly Organization[];
-	readonly isProjectsLoading: boolean;
-	readonly projectsError: unknown;
-	readonly onRetryProjects: () => void;
+	readonly isPinnedProjectsLoading: boolean;
+	readonly pinnedProjectsError: unknown;
+	readonly onRetryPinnedProjects: () => void;
 	readonly onEditProject: ProjectAction;
 	readonly onDeleteProject: ProjectAction;
 	readonly chats: readonly Chat[];
@@ -160,9 +160,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	projects,
 	pinnedProjects,
 	organizations,
-	isProjectsLoading,
-	projectsError,
-	onRetryProjects,
+	isPinnedProjectsLoading,
+	pinnedProjectsError,
+	onRetryPinnedProjects,
 	onEditProject,
 	onDeleteProject,
 	chats,
@@ -232,7 +232,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	} = groupChatsByProject(
 		unpinnedOwnedChats,
 		pinnedProjects,
-		isProjectsLoading,
+		isPinnedProjectsLoading,
 	);
 	const { chatsByProjectId: pinnedChatsByProjectId } = groupChatsByProject(
 		pinnedChats,
@@ -279,7 +279,8 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 
 	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
 
-	// Pinned projects reorder like pinned chats, with their own local order.
+	// Pinned projects reorder like pinned chats. The local order holds until
+	// the summaries refetched after the pin mutation arrive.
 	const [localProjectPinOrder, setLocalProjectPinOrder] = useState<
 		string[] | null
 	>(null);
@@ -486,7 +487,8 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	// chats are all filed is empty. While projects load, chats with a project
 	// are held back, so the section is not known to be empty yet.
 	const isWithholdingProjectChats =
-		isProjectsLoading && unpinnedOwnedChats.some((chat) => chat.project_id);
+		isPinnedProjectsLoading &&
+		unpinnedOwnedChats.some((chat) => chat.project_id);
 	const isShowingEmptyState =
 		!isWithholdingProjectChats &&
 		pinnedChats.length === 0 &&
@@ -496,8 +498,8 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		pinnedChats.length > 0 ||
 		(chatProjectsEnabled &&
 			(pinnedProjects.length > 0 ||
-				isProjectsLoading ||
-				Boolean(projectsError)));
+				isPinnedProjectsLoading ||
+				Boolean(pinnedProjectsError)));
 	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
 	const chatsHeadingLabel = isViewingArchived ? "Archived chats" : "Chats";
 	const emptyStateMessage = hasAppliedResultFilters
@@ -505,8 +507,8 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		: isViewingArchived
 			? "No archived chats"
 			: "No chats yet";
-	// Without projects the header stays pinned above the scrolling list, as
-	// before; with projects it scrolls below the folders.
+	// Without projects the header stays pinned above the scrolling list; with
+	// projects it scrolls inside Chats, which mutes it during a drag.
 	const chatsHeader = (
 		<SidebarSectionHeader
 			title={chatsHeadingLabel}
@@ -738,7 +740,8 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 																)}
 															{chatProjectsEnabled && (
 																<ProjectFolders
-																	summaries={sortedPinnedProjects}
+																	pinnedProjects={sortedPinnedProjects}
+																	dragInstructionsId={dragInstructionsId}
 																	organizations={organizations}
 																	chatsByProjectId={chatsByProjectId}
 																	pinnedChatsByProjectId={
@@ -760,9 +763,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 																	onUnpin={(project) =>
 																		unpinProjectMutation.mutate(project)
 																	}
-																	isLoading={isProjectsLoading}
-																	error={projectsError}
-																	onRetry={onRetryProjects}
+																	isLoading={isPinnedProjectsLoading}
+																	error={pinnedProjectsError}
+																	onRetry={onRetryPinnedProjects}
 																	emptyMessage={emptyStateMessage}
 																/>
 															)}
@@ -869,6 +872,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						<ChatDragAnnouncer
 							instructionsId={dragInstructionsId}
 							pinCount={pinnedChatIds.length}
+							projectPinCount={pinnedProjectIds.length}
 						/>
 					</DragDropProvider>
 				</ScrollArea>

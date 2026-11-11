@@ -35,7 +35,7 @@ describe("groupChatsByProject", () => {
 			id: "unpinned",
 			project_id: "unpinned-project",
 		};
-		const unpinnedSummary = {
+		const mockUnpinnedSummary = {
 			...MockChatProjectSummary,
 			project: { ...MockChatProject, id: "unpinned-project" },
 			pinned: false,
@@ -49,7 +49,7 @@ describe("groupChatsByProject", () => {
 				mockUnloadedProjectChat,
 				mockUnpinnedProjectChat,
 			],
-			[MockChatProjectSummary, unpinnedSummary],
+			[MockChatProjectSummary, mockUnpinnedSummary],
 		);
 
 		expect(grouped.chatsByProjectId.get(MockChatProject.id)).toEqual([

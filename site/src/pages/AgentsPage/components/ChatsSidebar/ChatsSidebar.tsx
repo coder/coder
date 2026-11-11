@@ -243,9 +243,9 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 				projects={projectsQuery.data ?? []}
 				pinnedProjects={pinnedProjects}
 				organizations={organizations}
-				isProjectsLoading={summariesQuery.isLoading}
-				projectsError={summariesQuery.error}
-				onRetryProjects={() => void summariesQuery.refetch()}
+				isPinnedProjectsLoading={summariesQuery.isLoading}
+				pinnedProjectsError={summariesQuery.error}
+				onRetryPinnedProjects={() => void summariesQuery.refetch()}
 				onEditProject={openProjectDialog}
 				onDeleteProject={openDeleteProjectDialog}
 				chats={chats}

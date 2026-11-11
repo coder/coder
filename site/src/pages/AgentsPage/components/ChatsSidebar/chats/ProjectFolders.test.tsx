@@ -53,7 +53,7 @@ const renderProjectFolders = (
 	render(
 		<MemoryRouter initialEntries={[route]}>
 			<ProjectFolders
-				summaries={projects.map((project) => ({
+				pinnedProjects={projects.map((project) => ({
 					...MockChatProjectSummary,
 					project,
 				}))}
