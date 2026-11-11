@@ -303,7 +303,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 
 		// dnd-kit has already moved the dragged pin to source.index, so the drop
 		// target does not matter. The pins can change during a drag, so the old
-		// index comes from the chat ID. ProjectFolders reorders pinned projects.
+		// index comes from the chat ID.
 		if (
 			disablePinnedReordering ||
 			!isSortable(source) ||

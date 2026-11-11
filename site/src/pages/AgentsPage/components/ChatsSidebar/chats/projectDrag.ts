@@ -42,7 +42,11 @@ export type DropTargetData = { readonly dropTarget: DropTarget };
 /** The dnd-kit type of a pinned project drag, which only reorders the pins. */
 export const PROJECT_PIN_DRAG_TYPE = "project-pin";
 
-/** The dnd-kit data of a pinned project drag. */
+/**
+ * Carries the whole project, not its ID: the drop sends the pin request with
+ * its organization and the announcements read its name, even if the summaries
+ * change during the drag.
+ */
 export type ProjectPinDragData = { readonly project: ChatProject };
 
 const isProjectPinDragData = (
