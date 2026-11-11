@@ -30022,6 +30022,9 @@ const docTemplate = `{
                 "collect_db_metrics": {
                     "type": "boolean"
                 },
+                "collect_workspace_stats": {
+                    "type": "boolean"
+                },
                 "enable": {
                     "type": "boolean"
                 }

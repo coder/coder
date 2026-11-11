@@ -344,6 +344,14 @@ func enablePrometheus(
 	}
 	afterCtx(ctx, closeWorkspacesFunc)
 
+	if vals.Prometheus.CollectWorkspaceStats {
+		closeWorkspaceStatsFunc, err := prometheusmetrics.WorkspaceStats(ctx, options.Logger.Named("workspace_stats_metrics"), quartz.NewReal(), options.PrometheusRegistry, options.Database, 0)
+		if err != nil {
+			return nil, xerrors.Errorf("register workspace stats prometheus metric: %w", err)
+		}
+		afterCtx(ctx, closeWorkspaceStatsFunc)
+	}
+
 	insightsMetricsCollector, err := insights.NewMetricsCollector(options.Database, options.Logger, 0, 0)
 	if err != nil {
 		return nil, xerrors.Errorf("unable to initialize insights metrics collector: %w", err)
