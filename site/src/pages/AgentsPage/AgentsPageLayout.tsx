@@ -473,6 +473,9 @@ const AgentsPageLayout: React.FC = () => {
 				void invalidateChatListQueries(queryClient);
 				void invalidateChatsByWorkspace(queryClient);
 				void invalidateChatSearches(queryClient);
+				void queryClient.invalidateQueries({
+					queryKey: chatProjectSummariesKey,
+				});
 				// Events missed while disconnected, such as
 				// diff_status_change, only reach the open chat's cache
 				// through a refetch.

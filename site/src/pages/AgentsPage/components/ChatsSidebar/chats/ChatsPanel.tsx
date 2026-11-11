@@ -90,7 +90,7 @@ import {
 	refocusKeyboardPinDrag,
 	SyncDragTargetOnScroll,
 } from "./projectDrag";
-import { groupChatsByProject } from "./projectGrouping";
+import { getOrganizationLabels, groupChatsByProject } from "./projectGrouping";
 import { SectionSwitcher } from "./SectionSwitcher";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 import { UserSidebarFooter } from "./UserSidebarFooter";
@@ -277,7 +277,13 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		(chat) => chat.id,
 	);
 	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
-	const projectNameById = new Map(projects.map((p) => [p.id, p.name]));
+	const organizationLabels = getOrganizationLabels(projects, organizations);
+	const projectNameById = new Map(
+		projects.map((p) => {
+			const label = organizationLabels.get(p.id);
+			return [p.id, label ? `${p.name} (${label})` : p.name];
+		}),
+	);
 
 	const dragInstructionsId = useId();
 	const moveMutation = useMoveChatToProject();
