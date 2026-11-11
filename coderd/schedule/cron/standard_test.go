@@ -377,9 +377,9 @@ func TestStandard_Next_DST(t *testing.T) {
 // TestStandard_Next_AroundClockChanges compares Next with a minute-by-minute
 // reading of the RFC rules, over three days around every clock change of each
 // zone and around December 31, in years up to 2100. Past the last change in a
-// zone's data, Go computes offsets from a rule instead of a list, and the data
-// that Go embeds in a binary reaches that point after 2007 for most zones, so
-// both sources of zone data run.
+// zone's data, Go computes offsets from a rule instead of a list. The host's
+// data reaches that point after 2037 and the data that Go embeds in a binary
+// reaches it earlier, so both sources of zone data run.
 func TestStandard_Next_AroundClockChanges(t *testing.T) {
 	t.Parallel()
 
@@ -661,8 +661,8 @@ type zoneSource struct {
 }
 
 // zoneSources returns the zone data of the host and the data that Go embeds in
-// a binary that imports time/tzdata, as cmd/coder does. The embedded data holds
-// only the changes before 2008 for most zones, and a rule for later years.
+// a binary that imports time/tzdata, as cmd/coder does. The embedded data is
+// the smaller kind: it lists fewer changes and gives a rule for later years.
 func zoneSources() []zoneSource {
 	return []zoneSource{
 		{name: "host", load: func(t *testing.T, name string) *time.Location {
