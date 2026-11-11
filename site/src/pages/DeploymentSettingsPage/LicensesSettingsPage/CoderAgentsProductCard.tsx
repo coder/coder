@@ -151,14 +151,13 @@ export const CoderAgentsProductCard: React.FC<CoderAgentsProductCardProps> = ({
 
 	return (
 		<CardContainer
-			className={cn(
-				"border-solid",
+			className={
 				isOverage
 					? "border-border-destructive"
 					: isSoftLimitReached
 						? "border-border-warning"
-						: "",
-			)}
+						: ""
+			}
 			headerEnd={
 				isHardLimitExceeded ? (
 					<Badge variant="destructive" size="sm" role="status">

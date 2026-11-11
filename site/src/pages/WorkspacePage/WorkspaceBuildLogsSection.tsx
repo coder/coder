@@ -11,10 +11,10 @@ export const WorkspaceBuildLogsSection: React.FC<
 	WorkspaceBuildLogsSectionProps
 > = ({ logs }) => {
 	return (
-		<div className="rounded-lg border border-solid overflow-hidden bg-surface-primary">
+		<div className="rounded-lg border overflow-hidden bg-surface-primary">
 			<header
 				className={cn(
-					"bg-surface-secondary border-solid border-b",
+					"bg-surface-secondary border-b",
 					"px-2 py-2 pl-6 flex items-center",
 					"text-sm",
 				)}

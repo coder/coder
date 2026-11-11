@@ -22,12 +22,12 @@ export const TerminalOutput: React.FC<TerminalOutputProps> = ({
 }) => (
 	<div
 		className={cn(
-			"overflow-hidden rounded-md border border-solid bg-surface-primary",
+			"overflow-hidden rounded-md border bg-surface-primary",
 			className,
 		)}
 	>
 		{command?.trim() && (
-			<div className="flex items-start gap-1.5 border-b border-solid bg-surface-secondary px-3 py-1.5">
+			<div className="flex items-start gap-1.5 border-b bg-surface-secondary px-3 py-1.5">
 				<span
 					aria-hidden
 					className="select-none shrink-0 font-mono text-xs leading-5 text-content-secondary"

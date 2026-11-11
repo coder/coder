@@ -355,7 +355,7 @@ const SegmentedField: React.FC<
 				role="radiogroup"
 				aria-label={label}
 				className={cn(
-					"flex w-full items-center rounded-lg border border-solid p-2",
+					"flex w-full items-center rounded-lg border p-2",
 					fieldError && "border-content-destructive",
 				)}
 			>

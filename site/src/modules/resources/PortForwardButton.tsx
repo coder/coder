@@ -445,7 +445,7 @@ export const PortForwardPopoverView: React.FC<PortForwardPopoverViewProps> = ({
 					})}
 				</div>
 			</div>
-			<div className="p-5 border-t border-solid">
+			<div className="p-5 border-t">
 				<HelpPopoverTitle>Shared Ports</HelpPopoverTitle>
 				<HelpPopoverText>
 					{canSharePorts
