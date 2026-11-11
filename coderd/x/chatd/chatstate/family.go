@@ -488,63 +488,42 @@ func UnarchiveProjectChats(
 		return database.ChatProject{}, nil, xerrors.New("chatstate: UnarchiveProjectChats called with nil publisher")
 	}
 
-	var (
-		project    database.ChatProject
-		unarchived []database.Chat
-	)
-	buffer, err := retryOnDeadlock(publisher, input.OnDeadlockRetry, func(buffer *PublishBuffer) error {
-		var err error
-		project, unarchived, err = unarchiveProjectChatsTx(ctx, store, buffer, input.ProjectID)
-		return err
-	})
-	if err != nil {
-		return database.ChatProject{}, nil, err
-	}
-	if err := buffer.Flush(); err != nil {
-		return project, unarchived, errors.Join(ErrChatUpdatePublishFailed, err)
-	}
-	return project, unarchived, nil
-}
-
-// unarchiveProjectChatsTx runs one attempt of [UnarchiveProjectChats] and
-// buffers the chat:update messages in buffer.
-func unarchiveProjectChatsTx(
-	ctx context.Context,
-	store database.Store,
-	buffer *PublishBuffer,
-	projectID uuid.UUID,
-) (database.ChatProject, []database.Chat, error) {
 	//nolint:gocritic // The project's chats can belong to other users; ctx authorizes the project.
 	chatdCtx := dbauthz.AsChatd(ctx)
 	var (
 		project    database.ChatProject
 		unarchived []database.Chat
 	)
-	err := store.InTx(func(tx database.Store) error {
-		var err error
-		project, err = lockChatProject(ctx, tx, projectID)
-		if err != nil {
+	buffer, err := retryOnDeadlock(publisher, input.OnDeadlockRetry, func(buffer *PublishBuffer) error {
+		return store.InTx(func(tx database.Store) error {
+			var err error
+			project, err = lockChatProject(ctx, tx, input.ProjectID)
+			if err != nil {
+				return err
+			}
+			if !project.ArchivedAt.Valid {
+				return ErrChatProjectNotArchived
+			}
+			project, err = tx.UpdateChatProjectArchivedAt(ctx, database.UpdateChatProjectArchivedAtParams{
+				ID:         input.ProjectID,
+				ArchivedAt: sql.NullTime{},
+			})
+			if err != nil {
+				return xerrors.Errorf("unarchive project: %w", err)
+			}
+			ids, err := tx.UnarchiveChatsOfChatProject(chatdCtx, input.ProjectID)
+			if err != nil {
+				return xerrors.Errorf("unarchive project chats: %w", err)
+			}
+			unarchived, err = reloadAndPublishChats(chatdCtx, tx, buffer, ids)
 			return err
-		}
-		if !project.ArchivedAt.Valid {
-			return ErrChatProjectNotArchived
-		}
-		project, err = tx.UpdateChatProjectArchivedAt(ctx, database.UpdateChatProjectArchivedAtParams{
-			ID:         projectID,
-			ArchivedAt: sql.NullTime{},
-		})
-		if err != nil {
-			return xerrors.Errorf("unarchive project: %w", err)
-		}
-		ids, err := tx.UnarchiveChatsOfChatProject(chatdCtx, projectID)
-		if err != nil {
-			return xerrors.Errorf("unarchive project chats: %w", err)
-		}
-		unarchived, err = reloadAndPublishChats(chatdCtx, tx, buffer, ids)
-		return err
-	}, nil)
+		}, nil)
+	})
 	if err != nil {
 		return database.ChatProject{}, nil, err
+	}
+	if err := buffer.Flush(); err != nil {
+		return project, unarchived, errors.Join(ErrChatUpdatePublishFailed, err)
 	}
 	return project, unarchived, nil
 }
