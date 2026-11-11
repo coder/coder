@@ -299,9 +299,11 @@ describe("ChatTopBar archive state", () => {
 		const user = userEvent.setup();
 		mockArchiveAndDeleteApi(chat.created_at);
 		const retriedLookup = createDeferred<ChatProject[]>();
-		let lookup: Promise<ChatProject[]> | undefined;
-		vi.spyOn(API.experimental, "getChatProjects").mockImplementation(
-			() => lookup ?? Promise.reject(new Error("Request rejected")),
+		let isRetrying = false;
+		vi.spyOn(API.experimental, "getChatProjects").mockImplementation(() =>
+			isRetrying
+				? retriedLookup.promise
+				: Promise.reject(new Error("Request rejected")),
 		);
 		renderTopBar({ ...chat, archived: true, project_id: MockChatProject.id });
 		const menuButton = await screen.findByRole("button", {
@@ -315,7 +317,7 @@ describe("ChatTopBar archive state", () => {
 				"Couldn't check whether the project is archived. Reopen this menu to retry.",
 		});
 		await user.keyboard("{Escape}");
-		lookup = retriedLookup.promise;
+		isRetrying = true;
 		await user.click(menuButton);
 		await act(async () => {
 			retriedLookup.resolve([]);
