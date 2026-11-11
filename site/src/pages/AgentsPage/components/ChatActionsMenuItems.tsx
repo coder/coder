@@ -214,11 +214,6 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 		isProjectLookupNeeded,
 		archivedProjectQuery,
 	);
-	const retryFailedProjectLookup = (open: boolean) => {
-		if (open && unarchiveBlockedReason === "projectCheckFailed") {
-			void archivedProjectQuery.refetch();
-		}
-	};
 	const options = archiveAndDeleteChat(queryClient);
 	const mutation = useMutation({
 		...options,
@@ -283,6 +278,12 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 				chatId: chat.id,
 				workspaceId: action === "archive-only" ? undefined : workspaceId,
 			});
+		}
+	};
+
+	const retryFailedProjectLookup = (open: boolean) => {
+		if (open && unarchiveBlockedReason === "projectCheckFailed") {
+			void archivedProjectQuery.refetch();
 		}
 	};
 
