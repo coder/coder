@@ -77,6 +77,21 @@ type ProjectFoldersProps = {
 	readonly unpinFocusFallbackRef?: React.RefObject<HTMLElement | null>;
 };
 
+// Focuses the folder after the unpinned one, else the one before it, else
+// the fallback.
+const focusNextFolder = (
+	pinnedProjects: readonly ChatProjectSummary[],
+	projectId: string,
+	toggles: ReadonlyMap<string, HTMLButtonElement>,
+	fallbackRef: React.RefObject<HTMLElement | null> | undefined,
+) => {
+	const ids = pinnedProjects.map((summary) => summary.project.id);
+	const index = ids.indexOf(projectId);
+	const neighborId = ids[index + 1] ?? ids[index - 1];
+	const neighbor = neighborId ? toggles.get(neighborId) : undefined;
+	(neighbor ?? fallbackRef?.current)?.focus();
+};
+
 export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	currentUserId,
 	pinnedProjects,
@@ -104,15 +119,6 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 		},
 	});
 	const toggleRefs = useRef(new Map<string, HTMLButtonElement>());
-	const focusAfterUnpin = (projectId: string) => {
-		const ids = pinnedProjects.map((summary) => summary.project.id);
-		const index = ids.indexOf(projectId);
-		const neighborId = ids[index + 1] ?? ids[index - 1];
-		const neighbor = neighborId
-			? toggleRefs.current.get(neighborId)
-			: undefined;
-		(neighbor ?? unpinFocusFallbackRef?.current)?.focus();
-	};
 	const organizationLabels = getOrganizationLabels(
 		pinnedProjects.map((summary) => summary.project),
 		organizations,
@@ -202,7 +208,14 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 									onEdit={() => onOpenProjectDialog({ mode: "edit", project })}
 									onDelete={() => onDelete(project)}
 									onUnpin={() => unpinMutation.mutate(project)}
-									focusAfterUnpin={() => focusAfterUnpin(project.id)}
+									focusAfterUnpin={() =>
+										focusNextFolder(
+											pinnedProjects,
+											project.id,
+											toggleRefs.current,
+											unpinFocusFallbackRef,
+										)
+									}
 									registerToggle={(element) => {
 										if (element) {
 											toggleRefs.current.set(project.id, element);
