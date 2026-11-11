@@ -76,26 +76,20 @@ export const ArchiveProjectDialog: React.FC<ArchiveProjectDialogProps> = ({
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const archiveMutation = useMutation(archiveChatProject(queryClient));
-	// The workspace outcome replaces the "Project archived" toast, so one
-	// toast summarizes the whole archive.
-	const archivedToastIdRef = useRef<ExternalToast["id"]>(undefined);
+	// The workspace outcome replaces its archive's "Project archived" toast,
+	// so one toast summarizes the whole archive.
 	const workspaceMutation = useMutation({
 		...projectWorkspaceAction(queryClient),
-		onSuccess: (result, { action }) =>
-			notifyWorkspaceActionResult(
-				action,
-				result,
-				navigate,
-				archivedToastIdRef.current,
-			),
-		onError: (error) => {
+		onSuccess: (result, { action, toastId }) =>
+			notifyWorkspaceActionResult(action, result, navigate, toastId),
+		onError: (error, { toastId }) => {
 			toast.error(
 				getErrorMessage(
 					error,
 					"Failed to check whether your workspaces are still in use.",
 				),
 				{
-					id: archivedToastIdRef.current,
+					id: toastId,
 					description:
 						"The project was archived, and its workspaces were left as they were.",
 				},
@@ -124,9 +118,13 @@ export const ArchiveProjectDialog: React.FC<ArchiveProjectDialogProps> = ({
 				},
 				onSuccess: () => {
 					onClose();
-					archivedToastIdRef.current = toast.success("Project archived");
+					const toastId = toast.success("Project archived");
 					if (workspaceAction !== "leave") {
-						workspaceMutation.mutate({ action: workspaceAction, workspaces });
+						workspaceMutation.mutate({
+							action: workspaceAction,
+							workspaces,
+							toastId,
+						});
 					}
 				},
 				onError: async (error) => {
@@ -201,13 +199,15 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 	const activeChatCount = preview?.active_chat_count ?? 0;
 	const workspaces = workspacesQuery.data ?? [];
 	const isDeleting = workspaceAction === "delete" && workspaces.length > 0;
+	// Retention only describes what happens to archived chats.
+	const needsRetention = preview?.chat_count !== 0;
 	// A failed refetch leaves a preview that may miss newly active chats.
 	// Until the workspaces load, the user hasn't seen the stop and delete
 	// choices; if they fail to load, archiving leaves them alone.
 	const canArchive =
 		preview !== undefined &&
 		!previewQuery.error &&
-		retentionQuery.data !== undefined &&
+		(!needsRetention || retentionQuery.data !== undefined) &&
 		!workspacesQuery.isPending &&
 		!isArchiving &&
 		(!isDeleting || confirmation.confirmed);
@@ -253,7 +253,9 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 				<ArchiveSummary
 					preview={preview}
 					retentionDays={retentionQuery.data?.retention_days}
-					error={previewQuery.error ?? retentionQuery.error}
+					error={
+						previewQuery.error ?? (needsRetention ? retentionQuery.error : null)
+					}
 					onRetry={() => {
 						void previewQuery.refetch();
 						void retentionQuery.refetch();
@@ -322,7 +324,10 @@ const ArchiveSummary: React.FC<ArchiveSummaryProps> = ({
 	const errorAlert = Boolean(error) && (
 		<ErrorAlert error={error} actions={<RetryButton onRetry={onRetry} />} />
 	);
-	if (preview === undefined || retentionDays === undefined) {
+	if (
+		preview === undefined ||
+		(preview.chat_count > 0 && retentionDays === undefined)
+	) {
 		return (
 			errorAlert || (
 				<div role="status" className="flex flex-col gap-2">
@@ -336,7 +341,7 @@ const ArchiveSummary: React.FC<ArchiveSummaryProps> = ({
 	return (
 		<>
 			{errorAlert}
-			{preview.chat_count > 0 && (
+			{preview.chat_count > 0 && retentionDays !== undefined && (
 				<p className="m-0 text-sm text-content-secondary">
 					{plural(preview.chat_count, "chat", "chats")} will be archived.{" "}
 					{retentionDays > 0

@@ -23,6 +23,8 @@ The core state machine describes how a chat's execution state in the database ca
 
 ## What constitutes a chat's state?
 
+<!-- TODO(project archive): describe `chat_projects.archived_at` and the `chats.archived_with_project` marker, which records that a chat was archived by its project so a project unarchive restores only those chats. -->
+
 We say that the following data constitutes a chat's **execution state**:
 
 - chat status on the `chats` table, such as `waiting`, `running`, `interrupting`, `requires_action`, `error`, or `paused`;
@@ -137,6 +139,8 @@ Queued messages wait in two lanes. These rules apply to every transition that qu
 
 ### Transitions used by the HTTP endpoints
 
+<!-- TODO(project archive): describe the bulk `ArchiveProjectChats` and `UnarchiveProjectChats` transitions, which archive or unarchive every chat of a project, subagent chats included, in one transaction outside the per-chat machine, and how single-chat unarchive and chat creation are rejected while the project is archived. -->
+
 - `Create(initialMessages, initialStatus)` creates a new chat, initializes `snapshot_version` to 1, inserts its initial history, and lands in `initialStatus`. The initial status defaults to `running`; a caller can request `waiting` instead to create an idle chat, which starts running with its first `SendMessage`. The inserted initial history sets `history_version` to 1. Since the queue has not changed, `queue_version` remains 0. This transition is a special case: since the chat does not exist at the time it's run, the chat row cannot be locked before the transition is applied.
 - When `Create(initialMessages, initialStatus)` creates a child chat, it first locks the family's root chat row with `FOR SHARE` and fails if the root is archived, so a new child never joins an archived family.
 - `SetArchived(archived)` sets or clears the archived marker for one chat.
@@ -169,6 +173,8 @@ Queued messages wait in two lanes. These rules apply to every transition that qu
 Every transition that promotes a queued message into history stores the queue row's ID in `chat_messages.queued_message_id`, and fails if deleting that queue row doesn't remove exactly one row. Other messages leave it NULL.
 
 ### Execution state transition diagram
+
+<!-- TODO(project archive): add the project-archive edges: active states (`R*`, `I*`, `A*`, `P`) into `XW`, `XE1` and `XE1P` with stop_active_chats, idle and error states into `XW`, `XE0`, `XE1` and `XE1P`, and the project unarchive edges back to `W`, `E0`, `E1` and `E1P`. -->
 
 Now comes maybe the densest part of this document. It's a diagram that shows all the possible transitions between all the execution states. Again, I don't recommend reading the diagram thoroughly at first. Take a quick look to get a sense of what it's about and treat is as a reference you can return to later. I recommend reading the diagram as text and not looking at the rendered visual. The text is clearer.
 
@@ -392,6 +398,8 @@ Notice that the `Acquire` and `Abandon` transitions only affect ownership state,
 
 ### Miscellaneous transition rules
 
+<!-- TODO(project archive): document the lock order: project archive locks the project FOR UPDATE, then root chats and then their subagent chats in id order; chat creation, moves into a project and single-chat unarchive hold the project FOR SHARE; archive and unarchive retry when Postgres aborts them to break a deadlock. -->
+
 - Any transition that's not `CompleteRequiresAction` which supports `A0`, `A1`, or `A1P` as input states, and lands in output states different from `A0`, `A1`, or `A1P`, must insert synthetic, cancellation tool-call results for pending dynamic tool calls to avoid corrupting the message history.
 - Any transition that inserts a new user message into active history must answer outstanding tool calls in active history before inserting the user message. It may do this by inserting synthetic cancellation tool-call results.
 - Any transition leaving `E0`, `E1`, or `E1P` (except `SetArchived(true)`) should clear the `last_error` field.
@@ -560,6 +568,8 @@ EXECUTE FUNCTION sync_chat_retry_state();
 ```
 
 ## HTTP endpoints
+
+<!-- TODO(project archive): add `POST .../chats/projects/{project}/archive` (with `stop_active_chats`), `POST .../chats/projects/{project}/unarchive` and `GET .../chats/projects/{project}/archive-preview`, and their 409 responses. -->
 
 This section maps the public endpoints that mutate chat state to the transitions they use.
 

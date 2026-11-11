@@ -377,6 +377,8 @@ export const projectWorkspaceAction = (queryClient: QueryClient) =>
 		}: {
 			action: ProjectWorkspaceChange;
 			workspaces: readonly Workspace[];
+			/** The caller's toast for the outcome; the requests ignore it. */
+			toastId?: string | number;
 		}): Promise<ProjectWorkspaceActionResult> => {
 			const inUse = await findWorkspacesInUse(
 				queryClient,

@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type {
@@ -205,6 +206,29 @@ describe("ArchiveProjectDialog", () => {
 		]);
 	});
 
+	it("archives a project without chats when the retention period fails to load", async () => {
+		const user = userEvent.setup();
+		const { archive } = mockApi({
+			preview: { chat_count: 0, active_chat_count: 0 },
+		});
+		vi.mocked(API.experimental.getChatRetentionDays).mockRejectedValue(
+			mockApiError({ message: "Failed to load the retention period." }),
+		);
+		renderWithAuth(
+			<ArchiveProjectDialog project={MockChatProject} open onClose={vi.fn()} />,
+		);
+		await screen.findByText(/has no chats to archive/);
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: "Archive project" }),
+			).toBeEnabled(),
+		);
+
+		await user.click(screen.getByRole("button", { name: "Archive project" }));
+
+		await waitFor(() => expect(archive).toHaveBeenCalledTimes(1));
+	});
+
 	it("asks to stop a chat that started after the preview loaded", async () => {
 		const user = userEvent.setup();
 		const { archive } = mockApi({
@@ -309,6 +333,57 @@ describe("ArchiveProjectDialog", () => {
 		);
 		await user.click(screen.getByRole("button", { name: "Archive project" }));
 		await waitFor(() => expect(archive).toHaveBeenCalledTimes(1));
+	});
+
+	it("reports each archive's skipped workspaces in that archive's toast", async () => {
+		const user = userEvent.setup();
+		mockApi({
+			workspaces: [mockInUseWorkspace],
+			workspacesInUse: [mockInUseWorkspace.id],
+		});
+		const usageLookup = createDeferred<Record<string, string>>();
+		vi.mocked(API.experimental.getChatsByWorkspace).mockReturnValue(
+			usageLookup.promise,
+		);
+		const successToast = vi.spyOn(toast, "success");
+		const warningToast = vi.spyOn(toast, "warning");
+		const mockOtherProject = {
+			...MockChatProject,
+			id: "other-project",
+			name: "Other",
+		};
+		// Archiving the first project opens the dialog for the second.
+		const Harness: React.FC = () => {
+			const [project, setProject] = useState(MockChatProject);
+			return (
+				<ArchiveProjectDialog
+					project={project}
+					open
+					onClose={() => setProject(mockOtherProject)}
+				/>
+			);
+		};
+		const archiveWithStop = async () => {
+			await user.click(await screen.findByRole("radio", { name: "Stop them" }));
+			await waitFor(() =>
+				expect(
+					screen.getByRole("button", { name: "Archive project" }),
+				).toBeEnabled(),
+			);
+			await user.click(screen.getByRole("button", { name: "Archive project" }));
+		};
+		renderWithAuth(<Harness />);
+
+		await archiveWithStop();
+		await waitFor(() => expect(successToast).toHaveBeenCalledTimes(1));
+		await archiveWithStop();
+		await waitFor(() => expect(successToast).toHaveBeenCalledTimes(2));
+		usageLookup.resolve({ [mockInUseWorkspace.id]: "other-chat" });
+
+		await waitFor(() => expect(warningToast).toHaveBeenCalledTimes(2));
+		expect(warningToast.mock.calls.map(([, data]) => data?.id)).toEqual(
+			successToast.mock.results.map(({ value }) => value),
+		);
 	});
 
 	it("archives once and still stops workspaces when confirm is double-clicked", async () => {

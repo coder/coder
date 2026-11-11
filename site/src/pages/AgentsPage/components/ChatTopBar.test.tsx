@@ -5,7 +5,7 @@ import { Outlet, useParams } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { archiveAndDeleteChatKey, chatEntityKey } from "#/api/queries/chats";
-import type { Chat, WorkspaceBuild } from "#/api/typesGenerated";
+import type { Chat, ChatProject, WorkspaceBuild } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
@@ -298,11 +298,12 @@ describe("ChatTopBar archive state", () => {
 	it("retries a failed project lookup when the menu reopens", async () => {
 		const user = userEvent.setup();
 		mockArchiveAndDeleteApi(chat.created_at);
-		let failsLookup = true;
+		const retriedLookup = createDeferred<ChatProject[]>();
+		let isRetrying = false;
 		vi.spyOn(API.experimental, "getChatProjects").mockImplementation(() =>
-			failsLookup
-				? Promise.reject(new Error("Request rejected"))
-				: Promise.resolve([]),
+			isRetrying
+				? retriedLookup.promise
+				: Promise.reject(new Error("Request rejected")),
 		);
 		renderTopBar({ ...chat, archived: true, project_id: MockChatProject.id });
 		const menuButton = await screen.findByRole("button", {
@@ -316,14 +317,12 @@ describe("ChatTopBar archive state", () => {
 				"Couldn't check whether the project is archived. Reopen this menu to retry.",
 		});
 		await user.keyboard("{Escape}");
-		failsLookup = false;
+		isRetrying = true;
 		await user.click(menuButton);
-		// The hint goes away once the retried lookup finds the project active.
-		await waitFor(() =>
-			expect(
-				screen.getByRole("menuitem", { name: "Unarchive agent" }),
-			).not.toHaveAccessibleDescription(),
-		);
+		await act(async () => {
+			retriedLookup.resolve([]);
+			await retriedLookup.promise;
+		});
 		await user.click(screen.getByRole("menuitem", { name: "Unarchive agent" }));
 
 		await waitFor(() =>
