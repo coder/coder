@@ -24,7 +24,6 @@ import { reorderPinnedChat } from "#/api/queries/chats";
 import type {
 	Chat,
 	ChatModel,
-	ChatProject,
 	ChatProjectSummary,
 	Organization,
 } from "#/api/typesGenerated";
@@ -87,7 +86,7 @@ import {
 	refocusKeyboardPinDrag,
 	SyncDragTargetOnScroll,
 } from "./projectDrag";
-import { getOrganizationLabels, groupChatsByProject } from "./projectGrouping";
+import { groupChatsByProject } from "./projectGrouping";
 import { SectionSwitcher } from "./SectionSwitcher";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 import { UserSidebarFooter } from "./UserSidebarFooter";
@@ -114,8 +113,6 @@ const dragSensors = [
 
 type ChatsPanelProps = {
 	readonly chatProjectsEnabled: boolean;
-	/** Every project the user can see, which names the projects of chats. */
-	readonly projects: readonly ChatProject[];
 	/** The user's pinned projects, in pin order. */
 	readonly pinnedProjects: readonly ChatProjectSummary[];
 	readonly organizations: readonly Organization[];
@@ -154,7 +151,6 @@ type ChatsPanelProps = {
 
 export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	chatProjectsEnabled,
-	projects,
 	pinnedProjects,
 	organizations,
 	isPinnedProjectsLoading,
@@ -275,14 +271,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		: pinnedChats;
 
 	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
-	const organizationLabels = getOrganizationLabels(projects, organizations);
-	const projectNameById = new Map(
-		projects.map((p) => {
-			const label = organizationLabels.get(p.id);
-			return [p.id, label ? `${p.name} (${label})` : p.name];
-		}),
-	);
-
 	const projectsNavItemRef = useRef<HTMLElement | null>(null);
 	const dragInstructionsId = useId();
 	const moveMutation = useMoveChatToProject();
@@ -422,7 +410,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		navigateAfterArchive,
 		onOpenRenameDialog,
 		dragInstructionsId,
-		projectNameById,
 	};
 
 	const chatSections = (
