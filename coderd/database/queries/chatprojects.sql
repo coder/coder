@@ -162,6 +162,25 @@ WHERE project_id = @project_id::uuid AND parent_chat_id IS NULL AND NOT archived
 ORDER BY id
 FOR UPDATE;
 
+-- name: LockChatProjectUnarchivedChildChats :exec
+-- Locks the unarchived subagent chats of the project's unarchived root
+-- chats in id order. Run it after LockChatProjectUnarchivedRootChats in the
+-- same transaction, so it sees every child and keeps the root-then-child
+-- order other family writers use. Later statements then read each child's
+-- committed status and queue, and no child can change before the archive.
+SELECT id
+FROM chats
+WHERE root_chat_id IN (
+        SELECT roots.id
+        FROM chats roots
+        WHERE roots.project_id = @project_id::uuid
+            AND roots.parent_chat_id IS NULL
+            AND NOT roots.archived
+    )
+    AND NOT archived
+ORDER BY id
+FOR UPDATE;
+
 -- name: ArchiveChatsOfChatProject :many
 -- Archives every unarchived chat of the project, root chats and their
 -- subagent chats, and marks them archived_with_project. This is an
