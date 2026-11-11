@@ -51,8 +51,8 @@ func NewChatMachine(
 }
 
 // Tx is the per-transaction handle passed to [ChatMachine.Update]
-// callbacks. It carries the active context, the transactional store,
-// and the chat ID.
+// callbacks. A transition validates against its input's Snapshot when
+// set and reads the chat otherwise.
 type Tx struct {
 	ctx    context.Context
 	store  database.Store
@@ -61,11 +61,14 @@ type Tx struct {
 
 // ChatSnapshot is the chat row and queue state at one point in a
 // transaction. A transition given a snapshot in its input's Snapshot
-// field validates against it instead of reading the chat.
+// field validates against it instead of reading the chat. Chat carries
+// the bumped snapshot_version, but the snapshot is otherwise unrelated
+// to it.
 //
-// A snapshot is not kept up to date. It is only valid until the chat
-// is next written, so pass it to at most the first transition in a
-// callback. Writes made through the raw store are not reflected in it.
+// Nothing updates a snapshot. Any write to the chat row or its queued
+// messages, by a transition or through the store, makes it stale, so
+// pass it only to the first transition in a callback, and only when the
+// callback has not written before that transition.
 type ChatSnapshot struct {
 	Chat  database.Chat
 	Queue QueueState
@@ -95,9 +98,6 @@ func (tx *Tx) ChatID() uuid.UUID { return tx.chatID }
 // matrix.
 func (tx *Tx) Store() database.Store { return tx.store }
 
-// loadState returns the chat row and execution state for a transition
-// to validate against: the snapshot when one is given, otherwise a
-// fresh read.
 func (tx *Tx) loadState(snapshot *ChatSnapshot) (database.Chat, ExecutionState, error) {
 	if snapshot != nil {
 		return snapshot.Chat, snapshot.State(), nil
@@ -105,8 +105,6 @@ func (tx *Tx) loadState(snapshot *ChatSnapshot) (database.Chat, ExecutionState, 
 	return tx.readState()
 }
 
-// queueState returns the snapshot's queue state when one is given,
-// otherwise a fresh read.
 func (tx *Tx) queueState(snapshot *ChatSnapshot) (QueueState, error) {
 	if snapshot != nil {
 		return snapshot.Queue, nil
@@ -118,10 +116,8 @@ func (tx *Tx) queueState(snapshot *ChatSnapshot) (QueueState, error) {
 	return queue, nil
 }
 
-// readState reads the current chat row and queue state from the
-// active transaction and classifies the execution state. Returns
-// ErrChatNotFound if the chat row was deleted in this transaction (or
-// never existed).
+// readState returns ErrChatNotFound if the chat row was deleted in
+// this transaction (or never existed).
 func (tx *Tx) readState() (database.Chat, ExecutionState, error) {
 	chat, err := tx.store.GetChatByID(tx.ctx, tx.chatID)
 	if err != nil {
@@ -186,8 +182,10 @@ func (tx *Tx) requireFromAllowed(t Transition, snapshot *ChatSnapshot) (database
 //
 // Update returns the chat row it reads after fn for publication, so
 // callers do not read it again under the lock. The row is zero if fn or
-// that read failed. It is still set when the commit or publication fails
-// afterwards, so treat it as committed only when err is nil.
+// that read failed. If a later step fails, including the commit and the
+// publication after it, Update returns the row with the error whether
+// or not the transaction committed, so a caller can compare it with a
+// fresh read to tell whether it did.
 func (m *ChatMachine) Update(
 	ctx context.Context,
 	fn func(*Tx, database.Store, *ChatSnapshot) error,

@@ -327,9 +327,9 @@ func (s *taskStarter) StartInterrupt(ctx context.Context, input chatWorkerTaskSt
 
 	var promotedQueuedAt time.Time
 	committed, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot) error {
-		chat, err := loadLockedChatForTask(snapshot, input, database.ChatStatusInterrupting, taskFenceOptions{requireHistory: true})
+		chat, err := verifyLockedTaskFence(snapshot, input, database.ChatStatusInterrupting, taskFenceOptions{requireHistory: true})
 		if err != nil {
-			return xerrors.Errorf("load chat for task: %w", err)
+			return xerrors.Errorf("verify task fence: %w", err)
 		}
 		messages := partialMessages
 		// Reuse the captured interrupt instant so database delay does not
@@ -469,9 +469,9 @@ func (s *taskStarter) cancelRequiresAction(
 	reason string,
 ) error {
 	committed, err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot) error {
-		chat, err := loadLockedChatForTask(snapshot, input, database.ChatStatusRequiresAction, taskFenceOptions{requireHistory: true})
+		chat, err := verifyLockedTaskFence(snapshot, input, database.ChatStatusRequiresAction, taskFenceOptions{requireHistory: true})
 		if err != nil {
-			return xerrors.Errorf("load chat for task: %w", err)
+			return xerrors.Errorf("verify task fence: %w", err)
 		}
 		if !s.server.disableCallerSuppliedTools && chat.RequiresActionDeadlineAt.Valid {
 			now, err := store.GetDatabaseNow(ctx)
@@ -632,10 +632,10 @@ func loadChatForTask(
 	return chat, nil
 }
 
-// loadLockedChatForTask is loadChatForTask for [chatstate.ChatMachine.Update]
+// verifyLockedTaskFence is loadChatForTask for [chatstate.ChatMachine.Update]
 // callbacks: it fences against the snapshot of the locked row instead of
 // reading the chat again while the lock is held.
-func loadLockedChatForTask(
+func verifyLockedTaskFence(
 	snapshot *chatstate.ChatSnapshot,
 	input chatWorkerTaskStartInput,
 	status database.ChatStatus,

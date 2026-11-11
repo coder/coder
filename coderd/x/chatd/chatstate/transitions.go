@@ -909,9 +909,9 @@ func (tx *Tx) EditMessage(input EditMessageInput) (EditMessageResult, error) {
 	}, nil
 }
 
-// RequestCompactionInput is intentionally empty. The compaction turn
-// derives AI Gateway attribution from the owner's synthetic API key,
-// so the request carries no caller input.
+// RequestCompactionInput configures [Tx.RequestCompaction]. The
+// compaction turn derives AI Gateway attribution from the owner's
+// synthetic API key, so the request carries no caller input.
 type RequestCompactionInput struct {
 	Snapshot *ChatSnapshot
 }
@@ -1634,9 +1634,9 @@ func (tx *Tx) Acquire(input AcquireInput) (AcquireResult, error) {
 	return AcquireResult{}, nil
 }
 
-// AbandonInput is intentionally empty. Ownership-fence checks belong
-// outside the transition in caller code that reads the locked row before
-// invoking Abandon.
+// AbandonInput configures [Tx.Abandon]. Ownership-fence checks belong
+// outside the transition, in caller code that compares the snapshot's
+// worker_id and runner_id before invoking Abandon.
 type AbandonInput struct {
 	Snapshot *ChatSnapshot
 }
@@ -1647,8 +1647,8 @@ type AbandonResult struct{}
 // Abandon clears worker_id and runner_id from the locked chat row. It
 // rejects calls when the chat is not currently owned (worker_id IS NULL).
 // Callers that need to verify their own identity before abandoning should
-// read the locked row through the transactional store and compare values before
-// invoking Abandon.
+// compare the snapshot's worker_id and runner_id, then pass the snapshot
+// in [AbandonInput].
 func (tx *Tx) Abandon(input AbandonInput) (AbandonResult, error) {
 	chat, from, err := tx.loadState(input.Snapshot)
 	if err != nil {
@@ -1671,7 +1671,7 @@ func (tx *Tx) Abandon(input AbandonInput) (AbandonResult, error) {
 	return AbandonResult{}, nil
 }
 
-// RecordGenerationAttemptInput is intentionally empty.
+// RecordGenerationAttemptInput configures [Tx.RecordGenerationAttempt].
 type RecordGenerationAttemptInput struct {
 	Snapshot *ChatSnapshot
 }
@@ -1849,7 +1849,7 @@ func (tx *Tx) CommitStep(input CommitStepInput) (CommitStepResult, error) {
 // the requires-action state expired.
 const requiresActionTimeout = 5 * time.Minute
 
-// EnterRequiresActionInput is intentionally empty.
+// EnterRequiresActionInput configures [Tx.EnterRequiresAction].
 type EnterRequiresActionInput struct {
 	Snapshot *ChatSnapshot
 }

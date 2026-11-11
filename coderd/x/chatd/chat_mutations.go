@@ -21,29 +21,22 @@ import (
 	"github.com/coder/coder/v2/codersdk/x/agenthooks"
 )
 
-// updateChat runs transition in one chatstate transaction and returns the
-// chat Update reads after it, so the result and the sidebar watch event
-// carry the transition's snapshot bump, then publishes only that watch event
-// (chat:update consumers handle stream side effects). A transition that
-// already holds the post-transition row may set *updated to return it
-// instead.
+// updateChat runs transition in one chatstate transaction, then publishes
+// and returns the row Update reads after the transition, so the result and
+// the sidebar watch event carry the transition's snapshot bump. It
+// publishes only that watch event (chat:update consumers handle stream
+// side effects).
 func (p *Server) updateChat(
 	ctx context.Context,
 	chatID uuid.UUID,
-	transition func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot, updated *database.Chat) error,
+	transition func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot) error,
 ) (database.Chat, error) {
-	var updated database.Chat
-	published, err := p.newChatMachine(chatID).Update(ctx, func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot) error {
-		return transition(tx, store, snapshot, &updated)
-	})
+	published, err := p.newChatMachine(chatID).Update(ctx, transition)
 	if err != nil {
 		return database.Chat{}, err
 	}
-	if updated.ID == uuid.Nil {
-		updated = published
-	}
-	p.publishChatPubsubEvent(updated, codersdk.ChatWatchEventKindStatusChange, nil)
-	return updated, nil
+	p.publishChatPubsubEvent(published, codersdk.ChatWatchEventKindStatusChange, nil)
+	return published, nil
 }
 
 // SendMessage admits a user message through the chatstate.SendMessage
@@ -128,7 +121,7 @@ func (p *Server) SendMessage(
 		result           SendMessageResult
 		promotedQueuedAt time.Time
 	)
-	refreshed, err := p.updateChat(ctx, opts.ChatID, func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot, _ *database.Chat) error {
+	refreshed, err := p.updateChat(ctx, opts.ChatID, func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot) error {
 		lockedChat := snapshot.Chat
 		if lockedChat.Archived {
 			return ErrChatArchived
@@ -349,7 +342,7 @@ func (p *Server) EditMessage(
 		result    EditMessageResult
 		editedMsg database.ChatMessage
 	)
-	refreshed, err := p.updateChat(ctx, opts.ChatID, func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot, _ *database.Chat) error {
+	refreshed, err := p.updateChat(ctx, opts.ChatID, func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot) error {
 		lockedChat := snapshot.Chat
 		if lockedChat.Archived {
 			return ErrChatArchived
@@ -705,7 +698,7 @@ func (p *Server) PromoteQueued(
 	}
 
 	var promotedQueuedAt time.Time
-	refreshed, err := p.updateChat(ctx, opts.ChatID, func(tx *chatstate.Tx, _ database.Store, snapshot *chatstate.ChatSnapshot, _ *database.Chat) error {
+	refreshed, err := p.updateChat(ctx, opts.ChatID, func(tx *chatstate.Tx, _ database.Store, snapshot *chatstate.ChatSnapshot) error {
 		if snapshot.Chat.Archived {
 			return ErrChatArchived
 		}
@@ -754,7 +747,7 @@ func (p *Server) SubmitToolResults(
 		}
 	}
 
-	_, err := p.updateChat(ctx, opts.ChatID, func(tx *chatstate.Tx, _ database.Store, snapshot *chatstate.ChatSnapshot, _ *database.Chat) error {
+	_, err := p.updateChat(ctx, opts.ChatID, func(tx *chatstate.Tx, _ database.Store, snapshot *chatstate.ChatSnapshot) error {
 		locked := snapshot.Chat
 		if locked.Archived {
 			return ErrChatArchived
@@ -851,7 +844,7 @@ func (p *Server) InterruptChat(
 	}
 
 	var result chatstate.InterruptResult
-	refreshed, err := p.updateChat(ctx, chat.ID, func(tx *chatstate.Tx, _ database.Store, snapshot *chatstate.ChatSnapshot, _ *database.Chat) error {
+	refreshed, err := p.updateChat(ctx, chat.ID, func(tx *chatstate.Tx, _ database.Store, snapshot *chatstate.ChatSnapshot) error {
 		var err error
 		result, err = tx.Interrupt(chatstate.InterruptInput{
 			Snapshot: snapshot,
@@ -906,14 +899,13 @@ func (p *Server) CompactChat(
 		return chat, xerrors.New("chat_id is required")
 	}
 
-	refreshed, err := p.updateChat(ctx, chat.ID, func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot, updated *database.Chat) error {
+	refreshed, err := p.updateChat(ctx, chat.ID, func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot) error {
 		if snapshot.Chat.Archived {
 			return ErrChatArchived
 		}
 		// Run the transition before content and usage validation so busy
 		// chats surface the state conflict first.
-		result, err := tx.RequestCompaction(chatstate.RequestCompactionInput{Snapshot: snapshot})
-		if err != nil {
+		if _, err := tx.RequestCompaction(chatstate.RequestCompactionInput{Snapshot: snapshot}); err != nil {
 			return err
 		}
 		// Reject requests with nothing to compact inside the same
@@ -931,7 +923,6 @@ func (p *Server) CompactChat(
 		if _, ok := firstUncompressedAssistantAfter(messages, boundary); !ok {
 			return ErrNothingToCompact
 		}
-		*updated = result.Chat
 		return nil
 	})
 	if err != nil {
@@ -955,7 +946,7 @@ func (p *Server) ClearChat(
 		return chat, xerrors.New("chat_id is required")
 	}
 
-	refreshed, err := p.updateChat(ctx, chat.ID, func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot, updated *database.Chat) error {
+	refreshed, err := p.updateChat(ctx, chat.ID, func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot) error {
 		if snapshot.Chat.Archived {
 			return ErrChatArchived
 		}
@@ -976,8 +967,7 @@ func (p *Server) ClearChat(
 		if err != nil {
 			return xerrors.Errorf("build clear messages: %w", err)
 		}
-		result, err := tx.ClearContext(chatstate.ClearContextInput{Snapshot: snapshot, Messages: clearMessages})
-		if err != nil {
+		if _, err := tx.ClearContext(chatstate.ClearContextInput{Snapshot: snapshot, Messages: clearMessages}); err != nil {
 			return err
 		}
 		// Reject no-op clears inside the same transaction so an empty
@@ -986,7 +976,6 @@ func (p *Server) ClearChat(
 		if !hasClearableMessageAfter(messages, boundary) {
 			return ErrNothingToClear
 		}
-		*updated = result.Chat
 		return nil
 	})
 	if err != nil {
@@ -1014,7 +1003,7 @@ func (p *Server) ReconcileInvalidStateChat(
 		return chat, xerrors.New("chat_id is required")
 	}
 
-	refreshed, err := p.updateChat(ctx, chat.ID, func(tx *chatstate.Tx, _ database.Store, snapshot *chatstate.ChatSnapshot, _ *database.Chat) error {
+	refreshed, err := p.updateChat(ctx, chat.ID, func(tx *chatstate.Tx, _ database.Store, snapshot *chatstate.ChatSnapshot) error {
 		_, err := tx.ReconcileInvalidState(chatstate.ReconcileInvalidStateInput{Snapshot: snapshot})
 		return err
 	})

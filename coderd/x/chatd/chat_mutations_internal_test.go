@@ -28,7 +28,7 @@ func TestUpdateChat(t *testing.T) {
 		recorder := newRecordingPubsub(fixture.pubsub)
 		return fixture, chat, recorder, &Server{db: fixture.db, pubsub: recorder, logger: slogtest.Make(t, nil)}
 	}
-	requestCompaction := func(tx *chatstate.Tx, _ database.Store, snapshot *chatstate.ChatSnapshot, _ *database.Chat) error {
+	requestCompaction := func(tx *chatstate.Tx, _ database.Store, snapshot *chatstate.ChatSnapshot) error {
 		_, err := tx.RequestCompaction(chatstate.RequestCompactionInput{Snapshot: snapshot})
 		return err
 	}
@@ -66,30 +66,13 @@ func TestUpdateChat(t *testing.T) {
 		require.Greater(t, watchIndex, stateIndex)
 	})
 
-	t.Run("TransitionRowOverridesResult", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		_, chat, recorder, server := setup(t)
-		sentinel := database.Chat{ID: chat.ID, OwnerID: chat.OwnerID, Title: "from transition"}
-
-		updated, err := server.updateChat(ctx, chat.ID, func(tx *chatstate.Tx, store database.Store, snapshot *chatstate.ChatSnapshot, updated *database.Chat) error {
-			*updated = sentinel
-			return requestCompaction(tx, store, snapshot, nil)
-		})
-		require.NoError(t, err)
-		require.Equal(t, sentinel, updated)
-		events := recorder.watchEvents(t)
-		require.Len(t, events, 1)
-		require.Equal(t, sentinel.Title, events[0].Chat.Title)
-	})
-
 	t.Run("FailureRollsBackAndPublishesNothing", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		fixture, chat, recorder, server := setup(t)
 		wantErr := xerrors.New("transition failed")
 
-		_, err := server.updateChat(ctx, chat.ID, func(*chatstate.Tx, database.Store, *chatstate.ChatSnapshot, *database.Chat) error {
+		_, err := server.updateChat(ctx, chat.ID, func(*chatstate.Tx, database.Store, *chatstate.ChatSnapshot) error {
 			return wantErr
 		})
 		require.ErrorIs(t, err, wantErr)
