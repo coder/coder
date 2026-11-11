@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import type { ExternalToast } from "sonner";
@@ -397,11 +397,27 @@ const ProjectWorkspacesSection: React.FC<ProjectWorkspacesSectionProps> = ({
 	confirmation,
 }) => {
 	const radioGroupLabelId = useId();
-	const errorAlert = Boolean(error) && (
+	const retryButtonRef = useRef<HTMLButtonElement>(null);
+	const hasError = Boolean(error);
+	// A failed refetch replaces the workspace options with the error, which
+	// drops focus from a focused option to the body or the dialog.
+	useEffect(() => {
+		const active = document.activeElement;
+		if (
+			hasError &&
+			(!active ||
+				active === document.body ||
+				active.getAttribute("role") === "dialog")
+		) {
+			retryButtonRef.current?.focus();
+		}
+	}, [hasError]);
+	const errorAlert = hasError && (
 		<ErrorAlert
 			error={error}
 			actions={
 				<RetryButton
+					ref={retryButtonRef}
 					size="sm"
 					variant="outline"
 					isRetrying={isRetrying}

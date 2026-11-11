@@ -1,4 +1,5 @@
 import {
+	act,
 	fireEvent,
 	render,
 	screen,
@@ -26,6 +27,7 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import { projectChatWorkspacesKey } from "../../../utils/agentWorkspaceUtils";
 import { ArchiveProjectDialog } from "./ArchiveProjectDialog";
 
 const chatCreatedAt = "2026-10-01T00:00:00Z";
@@ -96,7 +98,7 @@ const mockApi = ({
 
 const renderDialog = async () => {
 	const onClose = vi.fn();
-	const { router } = renderWithAuth(
+	const { router, queryClient } = renderWithAuth(
 		<ArchiveProjectDialog project={MockChatProject} open onClose={onClose} />,
 	);
 	// The confirm button waits for the preview and the workspace list.
@@ -108,7 +110,7 @@ const renderDialog = async () => {
 			}),
 		).toBeEnabled(),
 	);
-	return { onClose, router };
+	return { onClose, router, queryClient };
 };
 
 afterEach(() => {
@@ -359,6 +361,27 @@ describe("ArchiveProjectDialog", () => {
 		await waitFor(() => expect(warningToast).toHaveBeenCalledTimes(2));
 		expect(warningToast.mock.calls.map(([, data]) => data?.id)).toEqual(
 			successToast.mock.results.map(({ value }) => value),
+		);
+	});
+
+	it("moves focus to Retry when a workspace refresh fails under a focused option", async () => {
+		const user = userEvent.setup();
+		mockApi({ workspaces: [mockRunningWorkspace] });
+		const { queryClient } = await renderDialog();
+		await user.click(await screen.findByRole("radio", { name: "Stop them" }));
+
+		vi.mocked(API.experimental.getChats).mockRejectedValue(
+			mockApiError({ message: "Failed to list chats." }),
+		);
+		// Reopening the dialog refetches the cached workspace list the same way.
+		act(() => {
+			void queryClient.invalidateQueries({
+				queryKey: projectChatWorkspacesKey(MockChatProject.id),
+			});
+		});
+
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Retry" })).toHaveFocus(),
 		);
 	});
 
