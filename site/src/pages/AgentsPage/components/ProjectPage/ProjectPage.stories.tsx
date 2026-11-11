@@ -131,7 +131,10 @@ export const NotSharedWithUser: Story = {
 	},
 	parameters: {
 		queries: [
-			...chatQueries([]),
+			{
+				key: projectChatsKey(MockChatProject.id),
+				data: { pages: [[]], pageParams: [0] },
+			},
 			{
 				key: chatProjectInstructionsKey(MockChatProject.id),
 				data: MockChatProjectInstructions,
