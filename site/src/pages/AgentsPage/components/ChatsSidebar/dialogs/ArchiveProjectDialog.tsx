@@ -225,11 +225,14 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 		<form className="flex min-w-0 flex-col gap-6" onSubmit={onSubmit}>
 			<DialogHeader>
 				<DialogTitle>Archive project</DialogTitle>
-				{/* The description waits for the chat count, which decides it. */}
+				{/* A div, because the default <p> can't hold the Skeleton's div. */}
 				<DialogDescription asChild>
 					<div>
 						{preview === undefined && !previewQuery.error ? (
-							<Skeleton variant="text" className="w-2/3" />
+							<>
+								<span className="sr-only">Loading the chat count</span>
+								<Skeleton variant="text" className="w-2/3" />
+							</>
 						) : preview?.chat_count === 0 ? (
 							<>&ldquo;{project.name}&rdquo; has no chats to archive.</>
 						) : (

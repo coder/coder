@@ -59,7 +59,7 @@ const meta: Meta<typeof ProjectPage> = {
 	],
 	args: {
 		project: MockChatProject,
-		isSharedWithUser: true,
+		isOwnedOrSharedWithUser: true,
 		children: (
 			<div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-border text-sm text-content-secondary">
 				Composer
@@ -127,7 +127,7 @@ export const Mobile: Story = {
 export const NotSharedWithUser: Story = {
 	args: {
 		project: { ...MockChatProject, owner_id: MockUserMember.id },
-		isSharedWithUser: false,
+		isOwnedOrSharedWithUser: false,
 	},
 	parameters: {
 		queries: [

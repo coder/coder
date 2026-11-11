@@ -8,10 +8,10 @@ import { ProjectHeaderSection } from "./ProjectHeaderSection";
 type ProjectPageProps = {
 	readonly project: ChatProject;
 	/**
-	 * False when the user can manage the project but neither owns it nor has
-	 * it shared with them. Only the owner and sharees can start chats in it.
+	 * False when the user can manage the project only as an admin. Only the
+	 * owner and sharees can start chats in it.
 	 */
-	readonly isSharedWithUser: boolean;
+	readonly isOwnedOrSharedWithUser: boolean;
 	/**
 	 * The new chat composer, replaced by a banner while the project is
 	 * archived or not shared with the user.
@@ -21,7 +21,7 @@ type ProjectPageProps = {
 
 export const ProjectPage: React.FC<ProjectPageProps> = ({
 	project,
-	isSharedWithUser,
+	isOwnedOrSharedWithUser,
 	children,
 }) => (
 	// flex-1 and min-h-0 bound the page to the layout's height at every
@@ -32,7 +32,7 @@ export const ProjectPage: React.FC<ProjectPageProps> = ({
 			<div className="flex flex-col gap-14">
 				{project.archived_at ? (
 					<ArchivedProjectBanner project={project} />
-				) : isSharedWithUser ? (
+				) : isOwnedOrSharedWithUser ? (
 					children
 				) : (
 					<NotSharedWithUserBanner />

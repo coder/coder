@@ -96,11 +96,7 @@ export const unlistedChatProject = (
 
 const archiveDialogKeySegment = "archive-dialog";
 
-/**
- * Prefixes the queries the archive dialog reads for one project. Project
- * changes mark them stale without refetching them, so a dialog that is
- * closing keeps showing what it showed.
- */
+/** Prefixes the queries the archive dialog reads for one project. */
 export const chatProjectArchiveDialogKey = (projectId: string) =>
 	[...chatProjectsKey, projectId, archiveDialogKeySegment] as const;
 
