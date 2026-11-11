@@ -263,6 +263,8 @@ type skillWriteErrors struct {
 
 func (e skillWriteErrors) write(ctx context.Context, rw http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, errChatProjectArchived):
+		httpapi.Write(ctx, rw, http.StatusConflict, chatProjectArchivedResponse)
 	case httpapi.IsUnauthorizedError(err) && e.forbidden.Message == "":
 		httpapi.Forbidden(rw)
 	case httpapi.IsUnauthorizedError(err):

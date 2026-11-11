@@ -1,4 +1,27 @@
-DROP VIEW IF EXISTS chats_expanded;
+-- Take the locks this migration needs before changing anything, retrying
+-- short waits so that concurrent chatd traffic cannot deadlock with it. See
+-- 000609_chat_automations.up.sql for the reasoning.
+DO $$
+DECLARE
+	previous_lock_timeout text := current_setting('lock_timeout');
+	deadline timestamptz := clock_timestamp() + interval '2 minutes';
+BEGIN
+	LOOP
+		BEGIN
+			PERFORM set_config('lock_timeout', '100ms', true);
+			DROP VIEW IF EXISTS chats_expanded;
+			LOCK TABLE chats, chat_projects IN ACCESS EXCLUSIVE MODE;
+			EXIT;
+		EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
+			IF clock_timestamp() > deadline THEN
+				RAISE EXCEPTION 'migration 000642 down could not lock the chat tables within 2 minutes';
+			END IF;
+		END;
+		PERFORM pg_sleep(0.1);
+	END LOOP;
+	PERFORM set_config('lock_timeout', previous_lock_timeout, true);
+END;
+$$;
 
 ALTER TABLE chats DROP COLUMN archived_with_project;
 

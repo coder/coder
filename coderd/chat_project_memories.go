@@ -75,7 +75,18 @@ func (api *API) postChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq, commit := audit.InitRequest[database.ChatProjectMemory](rw, &audit.RequestParams{Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionCreate, OrganizationID: project.OrganizationID})
 	defer commit()
-	memory, _, err := chattool.InsertProjectMemory(ctx, api.Database, database.InsertChatProjectMemoryParams{ID: uuid.NullUUID{}, ProjectID: project.ID, OrganizationID: project.OrganizationID, Name: normalized.Name, Description: normalized.Description, Body: normalized.Body, CreatedBy: apiKey.UserID})
+	var memory database.ChatProjectMemory
+	err = api.Database.InTx(func(tx database.Store) error {
+		if err := lockUnarchivedChatProject(ctx, tx.GetChatProjectByIDForShare, project.ID); err != nil {
+			return err
+		}
+		var err error
+		memory, _, err = chattool.InsertProjectMemory(ctx, tx, database.InsertChatProjectMemoryParams{ID: uuid.NullUUID{}, ProjectID: project.ID, OrganizationID: project.OrganizationID, Name: normalized.Name, Description: normalized.Description, Body: normalized.Body, CreatedBy: apiKey.UserID})
+		return err
+	}, nil)
+	if writeChatProjectArchivedError(ctx, rw, err) {
+		return
+	}
 	if errors.Is(err, chattool.ErrMemoryLimit) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{Message: "Chat project memory limit reached."})
 		return
@@ -146,7 +157,16 @@ func (api *API) deleteChatProjectMemory(rw http.ResponseWriter, r *http.Request)
 	aReq, commit := audit.InitRequest[database.ChatProjectMemory](rw, &audit.RequestParams{Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionDelete, OrganizationID: project.OrganizationID})
 	defer commit()
 	aReq.Old = memory.ChatProjectMemory
-	if err := api.Database.DeleteChatProjectMemoryByID(ctx, memory.ChatProjectMemory.ID); errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
+	err := api.Database.InTx(func(tx database.Store) error {
+		if err := lockUnarchivedChatProject(ctx, tx.GetChatProjectByIDForShare, project.ID); err != nil {
+			return err
+		}
+		return tx.DeleteChatProjectMemoryByID(ctx, memory.ChatProjectMemory.ID)
+	}, nil)
+	if writeChatProjectArchivedError(ctx, rw, err) {
+		return
+	}
+	if errors.Is(err, sql.ErrNoRows) || httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
 	} else if err != nil {
