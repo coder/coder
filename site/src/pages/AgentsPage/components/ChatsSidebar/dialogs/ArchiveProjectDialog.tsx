@@ -26,6 +26,7 @@ import {
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
+import { RetryButton } from "../../RetryButton";
 
 const plural = (count: number, singular: string, pluralForm: string) =>
 	`${count} ${count === 1 ? singular : pluralForm}`;
@@ -191,6 +192,7 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 					error={
 						previewQuery.error ?? (needsRetention ? retentionQuery.error : null)
 					}
+					isRetrying={previewQuery.isFetching || retentionQuery.isFetching}
 					onRetry={() => {
 						void previewQuery.refetch();
 						void retentionQuery.refetch();
@@ -220,20 +222,11 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 	);
 };
 
-type RetryButtonProps = {
-	readonly onRetry: () => void;
-};
-
-const RetryButton: React.FC<RetryButtonProps> = ({ onRetry }) => (
-	<Button type="button" size="sm" variant="outline" onClick={onRetry}>
-		Retry
-	</Button>
-);
-
 type ArchiveSummaryProps = {
 	readonly preview: ChatProjectArchivePreview | undefined;
 	readonly retentionDays: number | undefined;
 	readonly error: unknown;
+	readonly isRetrying: boolean;
 	readonly onRetry: () => void;
 };
 
@@ -241,10 +234,21 @@ const ArchiveSummary: React.FC<ArchiveSummaryProps> = ({
 	preview,
 	retentionDays,
 	error,
+	isRetrying,
 	onRetry,
 }) => {
 	const errorAlert = Boolean(error) && (
-		<ErrorAlert error={error} actions={<RetryButton onRetry={onRetry} />} />
+		<ErrorAlert
+			error={error}
+			actions={
+				<RetryButton
+					size="sm"
+					variant="outline"
+					isRetrying={isRetrying}
+					onRetry={onRetry}
+				/>
+			}
+		/>
 	);
 	if (
 		preview === undefined ||
