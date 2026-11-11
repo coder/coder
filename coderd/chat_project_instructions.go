@@ -129,6 +129,9 @@ func (api *API) putChatProjectInstructions(rw http.ResponseWriter, r *http.Reque
 	)
 	err := api.Database.InTx(func(tx database.Store) error {
 		previous = aReq.Old.ChatProjectInstruction
+		if err := lockUnarchivedChatProject(ctx, tx.GetChatProjectByIDForShare, project.ID); err != nil {
+			return err
+		}
 		// The per-project lock serializes reading the previous value for
 		// the audit diff with the write.
 		if err := tx.AcquireLock(ctx, chatProjectInstructionsLockID(project.ID)); err != nil {
@@ -161,6 +164,9 @@ func (api *API) putChatProjectInstructions(rw http.ResponseWriter, r *http.Reque
 		}
 		return nil
 	}, nil)
+	if writeChatProjectArchivedError(ctx, rw, err) {
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to update chat project instructions.",
@@ -222,6 +228,9 @@ func (api *API) deleteChatProjectInstructions(rw http.ResponseWriter, r *http.Re
 	)
 	err := api.Database.InTx(func(tx database.Store) error {
 		deleted = false
+		if err := lockUnarchivedChatProject(ctx, tx.GetChatProjectByIDForShare, project.ID); err != nil {
+			return err
+		}
 		// The per-project lock serializes reading the deleted value for the
 		// audit diff with the delete.
 		if err := tx.AcquireLock(ctx, chatProjectInstructionsLockID(project.ID)); err != nil {
@@ -245,6 +254,9 @@ func (api *API) deleteChatProjectInstructions(rw http.ResponseWriter, r *http.Re
 		deleted = true
 		return nil
 	}, nil)
+	if writeChatProjectArchivedError(ctx, rw, err) {
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to delete chat project instructions.",
