@@ -36,7 +36,7 @@ import { Link } from "#/components/Link/Link";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { toast } from "#/components/Toaster/toast";
+import { persistentToast, toast } from "#/components/Toaster/toast";
 import {
 	type ProjectChatWorkspace,
 	type ProjectWorkspaceAction,
@@ -202,10 +202,13 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 	const workspaces = workspacesQuery.data ?? [];
 	const isDeleting = workspaceAction === "delete" && workspaces.length > 0;
 	// A failed refetch leaves a preview that may miss newly active chats.
+	// Until the workspaces load, the user hasn't seen the stop and delete
+	// choices; if they fail to load, archiving leaves them alone.
 	const canArchive =
 		preview !== undefined &&
 		!previewQuery.error &&
 		retentionQuery.data !== undefined &&
+		!workspacesQuery.isPending &&
 		!isArchiving &&
 		(!isDeleting || confirmation.confirmed);
 
@@ -519,8 +522,9 @@ const notifyWorkspaceActionResult = (
 		);
 		return;
 	}
+	// Persistent like error toasts, so there is time to reach the links.
 	toast.warning(
 		`The project was archived. ${plural(skipped.length, "workspace", "workspaces")} still in use ${skipped.length === 1 ? "was" : "were"} skipped.`,
-		{ id: toastId, description },
+		{ ...persistentToast, id: toastId, description },
 	);
 };

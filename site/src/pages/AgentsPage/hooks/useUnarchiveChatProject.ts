@@ -13,9 +13,12 @@ const unarchiveChatProjectMutationKey = (projectId: string) =>
 /**
  * Unarchives one project and toasts the outcome. Every caller for the same
  * project shares the pending state, so a project page's menu and banner
- * can't send the request twice.
+ * can't send the request twice. onError runs after the error toast.
  */
-export const useUnarchiveChatProject = (project: ChatProject) => {
+export const useUnarchiveChatProject = (
+	project: ChatProject,
+	onError?: () => void,
+) => {
 	const queryClient = useQueryClient();
 	const mutationKey = unarchiveChatProjectMutationKey(project.id);
 	const options = unarchiveChatProject(queryClient);
@@ -28,6 +31,7 @@ export const useUnarchiveChatProject = (project: ChatProject) => {
 		},
 		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to unarchive project."));
+			onError?.();
 		},
 	});
 	const isPending = useIsMutating({ mutationKey }) > 0;

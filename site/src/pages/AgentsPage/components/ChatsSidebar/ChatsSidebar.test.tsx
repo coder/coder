@@ -655,9 +655,16 @@ describe("ChatsSidebar projects", () => {
 		const user = userEvent.setup();
 		const archiveRequests: unknown[] = [];
 		server.use(
-			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json([MockChatProject]),
-			),
+			http.get("/api/experimental/chats/projects", ({ request }) => {
+				const listsArchived =
+					new URL(request.url).searchParams.get("archived") === "true";
+				if (archiveRequests.length === 0) {
+					return HttpResponse.json(listsArchived ? [] : [MockChatProject]);
+				}
+				return HttpResponse.json(
+					listsArchived ? [MockArchivedChatProject] : [],
+				);
+			}),
 			http.get(
 				"/api/experimental/organizations/:organization/chats/projects/:project/archive-preview",
 				() => HttpResponse.json({ chat_count: 1, active_chat_count: 0 }),
@@ -693,6 +700,12 @@ describe("ChatsSidebar projects", () => {
 				[MockChatProject.id, { stop_active_chats: false }],
 			]),
 		);
+		// The folder and its actions button leave the list.
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: "Archived projects" }),
+			).toHaveFocus(),
+		);
 	});
 
 	it("returns focus to the folder's actions button when archiving is cancelled", async () => {
@@ -718,21 +731,137 @@ describe("ChatsSidebar projects", () => {
 		await waitFor(() => expect(actionsButton).toHaveFocus());
 	});
 
-	it("unarchives a project from the archived projects list", async () => {
+	const mockArchivedBillingProject: TypesGen.ChatProject = {
+		...MockArchivedChatProject,
+		id: "billing",
+		name: "Billing",
+	};
+
+	it("unarchives the chosen one of two same-named archived projects", async () => {
 		const user = userEvent.setup();
-		const unarchivedProjectIds: unknown[] = [];
+		const mockOtherLaunchProject = {
+			...MockArchivedChatProject,
+			id: "launch-2",
+			organization_id: MockOrganization2.id,
+		};
+		const unarchiveRequests: unknown[] = [];
 		server.use(
 			http.get("/api/experimental/chats/projects", ({ request }) =>
 				HttpResponse.json(
 					new URL(request.url).searchParams.get("archived") === "true"
-						? [MockArchivedChatProject]
+						? [MockArchivedChatProject, mockOtherLaunchProject]
 						: [],
 				),
 			),
 			http.post(
 				"/api/experimental/organizations/:organization/chats/projects/:project/unarchive",
 				({ params }) => {
-					unarchivedProjectIds.push(params.project);
+					unarchiveRequests.push([params.organization, params.project]);
+					return HttpResponse.json({
+						...mockOtherLaunchProject,
+						archived_at: undefined,
+					});
+				},
+			),
+		);
+		render(
+			<Wrapper organizations={[MockDefaultOrganization, MockOrganization2]}>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", { name: "Archived projects" }),
+		);
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Unarchive ${MockChatProject.name} (${MockOrganization2.display_name})`,
+			}),
+		);
+
+		await waitFor(() =>
+			expect(unarchiveRequests).toEqual([
+				[MockOrganization2.id, mockOtherLaunchProject.id],
+			]),
+		);
+	});
+
+	it("moves focus to the next archived project after unarchiving one, then to the empty list", async () => {
+		const user = userEvent.setup();
+		let archivedProjects = [
+			MockArchivedChatProject,
+			mockArchivedBillingProject,
+		];
+		server.use(
+			http.get("/api/experimental/chats/projects", ({ request }) =>
+				HttpResponse.json(
+					new URL(request.url).searchParams.get("archived") === "true"
+						? archivedProjects
+						: [],
+				),
+			),
+			http.post(
+				"/api/experimental/organizations/:organization/chats/projects/:project/unarchive",
+				({ params }) => {
+					const project = archivedProjects.find(
+						({ id }) => id === params.project,
+					);
+					archivedProjects = archivedProjects.filter(
+						({ id }) => id !== params.project,
+					);
+					return HttpResponse.json({ ...project, archived_at: undefined });
+				},
+			),
+		);
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", { name: "Archived projects" }),
+		);
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Unarchive ${MockChatProject.name}`,
+			}),
+		);
+		const unarchiveBilling = screen.getByRole("button", {
+			name: "Unarchive Billing",
+		});
+		await waitFor(() => expect(unarchiveBilling).toHaveFocus());
+
+		await user.click(unarchiveBilling);
+		await waitFor(() =>
+			expect(screen.getByText("No archived projects.")).toHaveFocus(),
+		);
+	});
+
+	it("retries a failed refresh of the archived projects list", async () => {
+		const user = userEvent.setup();
+		let failsArchivedList = false;
+		let archivedListRequests = 0;
+		server.use(
+			http.get("/api/experimental/chats/projects", ({ request }) => {
+				if (new URL(request.url).searchParams.get("archived") !== "true") {
+					return HttpResponse.json([]);
+				}
+				archivedListRequests++;
+				return failsArchivedList
+					? HttpResponse.json(
+							{ message: "Failed to list projects." },
+							{ status: 500 },
+						)
+					: HttpResponse.json([
+							MockArchivedChatProject,
+							mockArchivedBillingProject,
+						]);
+			}),
+			http.post(
+				"/api/experimental/organizations/:organization/chats/projects/:project/unarchive",
+				() => {
+					failsArchivedList = true;
 					return HttpResponse.json(MockChatProject);
 				},
 			),
@@ -751,9 +880,13 @@ describe("ChatsSidebar projects", () => {
 				name: `Unarchive ${MockChatProject.name}`,
 			}),
 		);
+		const retry = await screen.findByRole("button", { name: "Retry" });
+		const requestsBeforeRetry = archivedListRequests;
+		failsArchivedList = false;
+		await user.click(retry);
 
 		await waitFor(() =>
-			expect(unarchivedProjectIds).toEqual([MockChatProject.id]),
+			expect(archivedListRequests).toBe(requestsBeforeRetry + 1),
 		);
 	});
 
