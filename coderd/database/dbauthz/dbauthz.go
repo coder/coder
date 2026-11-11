@@ -6356,6 +6356,10 @@ func (q *querier) HasProvisionerDaemonMakingProgress(ctx context.Context, arg da
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerJobs); err != nil {
 		return false, err
 	}
+	// This query reads provisioner daemons, so require daemon read access.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceProvisionerDaemon); err != nil {
+		return false, err
+	}
 	return q.db.HasProvisionerDaemonMakingProgress(ctx, arg)
 }
 

@@ -36,16 +36,15 @@ func newTemplateJob(
 func newDaemonJob(
 	t *testing.T, db database.Store, daemon database.ProvisionerDaemon,
 	startedAt time.Time, completedAt sql.NullTime,
-) {
+) database.ProvisionerJob {
 	t.Helper()
 
-	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+	return dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 		OrganizationID: daemon.OrganizationID,
 		WorkerID:       uuid.NullUUID{UUID: daemon.ID, Valid: true},
 		StartedAt:      sql.NullTime{Time: startedAt, Valid: true},
 		CompletedAt:    completedAt,
 	})
-	require.Equal(t, daemon.ID, job.WorkerID.UUID)
 }
 
 // daemonProgress is how a test daemon is, or is not, making progress.
@@ -55,7 +54,8 @@ const (
 	// completedRecently: the daemon completed a job inside the window.
 	completedRecently daemonProgress = iota
 	// runningJob: the daemon completed nothing inside the window but is
-	// running a job that is not hung, like a long build.
+	// running a job that started before the window and is still being
+	// updated, like a long build.
 	runningJob
 	// noProgress: the daemon's last job completed before the window.
 	noProgress
@@ -75,7 +75,14 @@ func newDaemonWithProgress(
 		newDaemonJob(t, db, daemon, now.Add(-10*time.Minute),
 			sql.NullTime{Time: now.Add(-5 * time.Minute), Valid: true})
 	case runningJob:
-		newDaemonJob(t, db, daemon, now.Add(-time.Minute), sql.NullTime{})
+		windowStart := now.Add(-jobreaper.ProvisionerProgressWindow)
+		job := newDaemonJob(t, db, daemon, windowStart.Add(-10*time.Minute), sql.NullTime{})
+		// Acquisition sets updated_at to started_at, so refresh it as the
+		// provisioner does while the build runs.
+		err := db.UpdateProvisionerJobByID(t.Context(), database.UpdateProvisionerJobByIDParams{
+			ID: job.ID, UpdatedAt: now.Add(-time.Minute),
+		})
+		require.NoError(t, err)
 	case noProgress:
 		windowStart := now.Add(-jobreaper.ProvisionerProgressWindow)
 		newDaemonJob(t, db, daemon, windowStart.Add(-10*time.Minute),
@@ -109,8 +116,8 @@ func TestDetectorPendingProvisionerAvailability(t *testing.T) {
 		wantReaped           bool
 	}{
 		{name: "Online"},
-		// A moving queue protects jobs past the former 2 hour limit.
-		{name: "OnlinePastFormerMaximumAge", jobAge: 3 * time.Hour},
+		// A moving queue protects jobs for hours, well past PendingJobDuration.
+		{name: "OnlineLongQueue", jobAge: 3 * time.Hour},
 		{name: "OnlineRunningLongBuild", progress: runningJob},
 		{name: "OnlineNoProgress", progress: noProgress, wantReaped: true},
 		{name: "WrongOrganization", wrongOrg: true, wantReaped: true},
@@ -175,6 +182,10 @@ func TestDetectorPendingProvisionerAvailability(t *testing.T) {
 				requireTerminatedJob(ctx, t, env.DB, job.ID, now, reapType)
 			} else {
 				require.NotContains(t, stats.TerminatedJobIDs, job.ID)
+				// The candidate query excluded the job, so run the locked
+				// recheck directly to cover its progress query.
+				err := jobreaper.ReapPendingJob(ctx, testutil.Logger(t), env.DB, env.Pubsub, job.ID)
+				require.ErrorContains(t, err, "an eligible provisioner is online and making progress")
 				current, err := env.DB.GetProvisionerJobByID(ctx, job.ID)
 				require.NoError(t, err)
 				require.Equal(t, database.ProvisionerJobStatusPending, current.JobStatus)
@@ -243,45 +254,59 @@ func TestDetectorPendingMaximumAge(t *testing.T) {
 func TestDetectorExcludesProtectedPendingJobsFromCandidates(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
-	env := newDetectorTestEnv(ctx, t)
-	defer env.close()
+	// Each kind of progress must protect the backlog in the candidate query
+	// itself, not only in the locked recheck.
+	for _, tc := range []struct {
+		name     string
+		progress daemonProgress
+	}{
+		{name: "CompletedRecently", progress: completedRecently},
+		{name: "RunningLongBuild", progress: runningJob},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	// GIVEN: Pending jobs past the ordinary timeout, including a large protected
-	// backlog and MaxJobsPerRun jobs with no eligible online provisioner.
-	now := dbtime.Now()
-	org := dbgen.Organization(t, env.DB, database.Organization{})
-	user := dbgen.User(t, env.DB, database.User{})
-	file := dbgen.File(t, env.DB, database.File{})
-	tags := database.StringMap{"pool": "available"}
-	newDaemonWithProgress(t, env.DB, database.ProvisionerDaemon{
-		OrganizationID: org.ID, Tags: tags,
-		LastSeenAt: sql.NullTime{Time: now.Add(-2 * time.Minute), Valid: true},
-	}, completedRecently, now)
-	for range 3 * jobreaper.MaxJobsPerRun {
-		newTemplateJob(t, env.DB, database.ProvisionerJob{
-			OrganizationID: org.ID, InitiatorID: user.ID, FileID: file.ID,
-			Type:      database.ProvisionerJobTypeTemplateVersionImport,
-			CreatedAt: now.Add(-35 * time.Minute), UpdatedAt: now.Add(-35 * time.Minute),
-			Tags: tags,
+			ctx := testutil.Context(t, testutil.WaitLong)
+			env := newDetectorTestEnv(ctx, t)
+			defer env.close()
+
+			// GIVEN: Pending jobs past the ordinary timeout, including a large protected
+			// backlog and MaxJobsPerRun jobs with no eligible online provisioner.
+			now := dbtime.Now()
+			org := dbgen.Organization(t, env.DB, database.Organization{})
+			user := dbgen.User(t, env.DB, database.User{})
+			file := dbgen.File(t, env.DB, database.File{})
+			tags := database.StringMap{"pool": "available"}
+			newDaemonWithProgress(t, env.DB, database.ProvisionerDaemon{
+				OrganizationID: org.ID, Tags: tags,
+				LastSeenAt: sql.NullTime{Time: now.Add(-2 * time.Minute), Valid: true},
+			}, tc.progress, now)
+			for range 3 * jobreaper.MaxJobsPerRun {
+				newTemplateJob(t, env.DB, database.ProvisionerJob{
+					OrganizationID: org.ID, InitiatorID: user.ID, FileID: file.ID,
+					Type:      database.ProvisionerJobTypeTemplateVersionImport,
+					CreatedAt: now.Add(-35 * time.Minute), UpdatedAt: now.Add(-35 * time.Minute),
+					Tags: tags,
+				})
+			}
+			var expected []uuid.UUID
+			for range jobreaper.MaxJobsPerRun {
+				job := newTemplateJob(t, env.DB, database.ProvisionerJob{
+					OrganizationID: org.ID, InitiatorID: user.ID, FileID: file.ID,
+					Type:      database.ProvisionerJobTypeTemplateVersionImport,
+					CreatedAt: now.Add(-35 * time.Minute), UpdatedAt: now.Add(-35 * time.Minute),
+					Tags: database.StringMap{"pool": "missing"},
+				})
+				expected = append(expected, job.ID)
+			}
+
+			// WHEN: The detector runs.
+			stats := env.tick(ctx, now)
+
+			// THEN: All jobs eligible for reaping are terminated in this run,
+			// despite the larger backlog of protected pending jobs.
+			require.NoError(t, stats.Error)
+			require.ElementsMatch(t, expected, stats.TerminatedJobIDs)
 		})
 	}
-	var expected []uuid.UUID
-	for range jobreaper.MaxJobsPerRun {
-		job := newTemplateJob(t, env.DB, database.ProvisionerJob{
-			OrganizationID: org.ID, InitiatorID: user.ID, FileID: file.ID,
-			Type:      database.ProvisionerJobTypeTemplateVersionImport,
-			CreatedAt: now.Add(-35 * time.Minute), UpdatedAt: now.Add(-35 * time.Minute),
-			Tags: database.StringMap{"pool": "missing"},
-		})
-		expected = append(expected, job.ID)
-	}
-
-	// WHEN: The detector runs.
-	stats := env.tick(ctx, now)
-
-	// THEN: All jobs eligible for reaping are terminated in this run,
-	// despite the larger backlog of protected pending jobs.
-	require.NoError(t, stats.Error)
-	require.ElementsMatch(t, expected, stats.TerminatedJobIDs)
 }

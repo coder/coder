@@ -37,8 +37,9 @@ const (
 	MaxPendingJobDuration = 24 * time.Hour
 
 	// ProvisionerProgressWindow is how recently an eligible provisioner must
-	// have completed a job, if it is not running one, for the reaper to treat
-	// the queue as moving and protect pending jobs it can run.
+	// have completed a job, when it is not running a job that is still being
+	// updated, for the reaper to treat the queue as moving and protect pending
+	// jobs it can run.
 	ProvisionerProgressWindow = 30 * time.Minute
 
 	// ProvisionerStaleInterval is how recently a provisioner must have sent a
@@ -75,7 +76,7 @@ func JobLogMessages(reapType ReapType, threshold time.Duration) []string {
 func reapMessage(reapType ReapType, threshold time.Duration, termination string) string {
 	switch reapType {
 	case Pending:
-		return fmt.Sprintf("Coder: Build has not been updated for at least %.0f minutes, and no online provisioner that matches its requirements has made progress in that time. It %s. Contact your administrator.", threshold.Minutes(), termination)
+		return fmt.Sprintf("Coder: Build has not been updated for at least %.0f minutes, and no online provisioner that matches its requirements is making progress. It %s. Contact your administrator.", threshold.Minutes(), termination)
 	case PendingMaxAge:
 		return fmt.Sprintf("Coder: Build has been pending for more than %s, exceeding the maximum pending age. It %s. Contact your administrator.", formatDuration(threshold), termination)
 	default:

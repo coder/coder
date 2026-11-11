@@ -99,7 +99,7 @@ func requireTerminatedJob(ctx context.Context, t *testing.T, db database.Store, 
 	require.True(t, job.Error.Valid)
 	switch reapType {
 	case jobreaper.Pending:
-		require.Equal(t, "Coder: Build has not been updated for at least 30 minutes, and no online provisioner that matches its requirements has made progress in that time. It has been terminated by the reaper. Contact your administrator.", job.Error.String)
+		require.Equal(t, "Coder: Build has not been updated for at least 30 minutes, and no online provisioner that matches its requirements is making progress. It has been terminated by the reaper. Contact your administrator.", job.Error.String)
 	case jobreaper.PendingMaxAge:
 		require.Equal(t, "Coder: Build has been pending for more than 24 hours, exceeding the maximum pending age. It has been terminated by the reaper. Contact your administrator.", job.Error.String)
 	default:
@@ -564,7 +564,7 @@ func TestDetectorPendingOtherJobTypes(t *testing.T) {
 	for _, log := range logs {
 		logMessages = append(logMessages, log.Output)
 	}
-	require.Contains(t, logMessages, "Coder: Build has not been updated for at least 30 minutes, and no online provisioner that matches its requirements has made progress in that time. It will be terminated. Contact your administrator.")
+	require.Contains(t, logMessages, "Coder: Build has not been updated for at least 30 minutes, and no online provisioner that matches its requirements is making progress. It will be terminated. Contact your administrator.")
 }
 
 func TestDetectorHungCanceledJob(t *testing.T) {

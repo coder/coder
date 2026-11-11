@@ -5770,7 +5770,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("HasProvisionerDaemonMakingProgress", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.HasProvisionerDaemonMakingProgressParams{DaemonIds: []uuid.UUID{uuid.New()}}
 		dbm.EXPECT().HasProvisionerDaemonMakingProgress(gomock.Any(), arg).Return(true, nil).AnyTimes()
-		check.Args(arg).Asserts(rbac.ResourceProvisionerJobs, policy.ActionRead).Returns(true)
+		check.Args(arg).Asserts(rbac.ResourceProvisionerJobs, policy.ActionRead, rbac.ResourceProvisionerDaemon, policy.ActionRead).Returns(true)
 	}))
 	s.Run("InsertMissingGroups", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		arg := database.InsertMissingGroupsParams{}
