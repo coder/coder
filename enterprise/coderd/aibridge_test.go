@@ -628,6 +628,67 @@ func TestAIBridgeListSessions(t *testing.T) {
 		require.Empty(t, res.Sessions)
 	})
 
+	t.Run("Organizations", func(t *testing.T) {
+		t.Parallel()
+		client, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		now := dbtime.Now()
+		endedAt := now.Add(time.Minute)
+		orgA := dbgen.Organization(t, db, database.Organization{Name: "aaa-org"})
+		orgB := dbgen.Organization(t, db, database.Organization{Name: "bbb-org"})
+
+		orgSource := func(s database.AIBridgeInterceptionOrganizationSource) database.NullAIBridgeInterceptionOrganizationSource {
+			return database.NullAIBridgeInterceptionOrganizationSource{AIBridgeInterceptionOrganizationSource: s, Valid: true}
+		}
+		intercept := func(sessionID string, orgID uuid.NullUUID, source database.NullAIBridgeInterceptionOrganizationSource) {
+			dbgen.AIBridgeInterception(t, db, database.InsertAIBridgeInterceptionParams{
+				InitiatorID:        firstUser.UserID,
+				Provider:           "anthropic",
+				Model:              "claude-4",
+				StartedAt:          now,
+				ClientSessionID:    sql.NullString{String: sessionID, Valid: true},
+				OrganizationID:     orgID,
+				OrganizationSource: source,
+			}, &endedAt)
+		}
+
+		// One session across two orgs. aaa-org is reached through two sources.
+		intercept("multi-org", uuid.NullUUID{UUID: orgA.ID, Valid: true}, orgSource(database.AibridgeInterceptionOrganizationSourceWorkspace))
+		intercept("multi-org", uuid.NullUUID{UUID: orgA.ID, Valid: true}, orgSource(database.AibridgeInterceptionOrganizationSourceChatd))
+		intercept("multi-org", uuid.NullUUID{UUID: orgB.ID, Valid: true}, orgSource(database.AibridgeInterceptionOrganizationSourceEffectiveGroup))
+		// One session with no stored org.
+		intercept("no-org", uuid.NullUUID{}, database.NullAIBridgeInterceptionOrganizationSource{})
+
+		res, err := client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{})
+		require.NoError(t, err)
+		require.Len(t, res.Sessions, 2)
+
+		sessions := make(map[string]codersdk.AIBridgeSession, len(res.Sessions))
+		for _, s := range res.Sessions {
+			sessions[s.ID] = s
+		}
+
+		// Ordered by name, with distinct sources in enum order.
+		multi := sessions["multi-org"].Organizations
+		require.Len(t, multi, 2)
+		require.Equal(t, orgA.ID, multi[0].ID)
+		require.Equal(t, orgA.Name, multi[0].Name)
+		require.Equal(t, []codersdk.AIBridgeInterceptionOrganizationSource{
+			codersdk.AIBridgeInterceptionOrganizationSourceWorkspace,
+			codersdk.AIBridgeInterceptionOrganizationSourceChatd,
+		}, multi[0].Sources)
+		require.Equal(t, orgB.ID, multi[1].ID)
+		require.Equal(t, []codersdk.AIBridgeInterceptionOrganizationSource{
+			codersdk.AIBridgeInterceptionOrganizationSourceEffectiveGroup,
+		}, multi[1].Sources)
+
+		// No stored org returns an empty list, not null.
+		noOrg := sessions["no-org"].Organizations
+		require.NotNil(t, noOrg)
+		require.Empty(t, noOrg)
+	})
+
 	t.Run("Authorized", func(t *testing.T) {
 		t.Parallel()
 		adminClient, db, firstUser := coderdenttest.NewWithDatabase(t, aibridgeOpts(t))

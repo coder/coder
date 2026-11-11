@@ -326,6 +326,13 @@ title: Schemas
   },
   "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
   "model": "string",
+  "organization": {
+    "display_name": "string",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "source": "workspace"
+  },
   "priced_model": {
     "cache_read_price": 0,
     "cache_write_price": 0,
@@ -376,6 +383,7 @@ title: Schemas
 | `attribution`     | [codersdk.AIBridgeAttribution](#codersdkaibridgeattribution)                           | false    |              | Attribution contains attribution data from this interception. Unknown attribution is serialized as an empty object. |
 | `interception_id` | string                                                                                 | false    |              |                                                                                                                     |
 | `model`           | string                                                                                 | false    |              |                                                                                                                     |
+| `organization`    | [codersdk.AIBridgeInterceptionOrganization](#codersdkaibridgeinterceptionorganization) | false    |              | Organization is the organization of this interception. Nil when none was stored.                                    |
 | `priced_model`    | [codersdk.AIBridgePricedModel](#codersdkaibridgepricedmodel)                           | false    |              | Priced model is the model and prices used for this interception. Nil when it was not priced.                        |
 | `thinking`        | array of [codersdk.AIBridgeModelThought](#codersdkaibridgemodelthought)                | false    |              |                                                                                                                     |
 | `token_usage`     | [codersdk.AIBridgeSessionThreadsTokenUsage](#codersdkaibridgesessionthreadstokenusage) | false    |              |                                                                                                                     |
@@ -452,6 +460,42 @@ title: Schemas
 | `structured_logging`                | boolean | false    |              |                                                                                                                                                                                                                                                                        |
 | `structured_logging_source`         | string  | false    |              | Structured logging source selects which process emits the records that StructuredLogging enables. See AIStructuredLoggingSource.                                                                                                                                       |
 
+## codersdk.AIBridgeInterceptionOrganization
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "source": "workspace"
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                               | Required | Restrictions | Description |
+|----------------|----------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `display_name` | string                                                                                             | false    |              |             |
+| `icon`         | string                                                                                             | false    |              |             |
+| `id`           | string                                                                                             | true     |              |             |
+| `name`         | string                                                                                             | false    |              |             |
+| `source`       | [codersdk.AIBridgeInterceptionOrganizationSource](#codersdkaibridgeinterceptionorganizationsource) | false    |              |             |
+
+## codersdk.AIBridgeInterceptionOrganizationSource
+
+```json
+"workspace"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value(s)                                |
+|-----------------------------------------|
+| `chatd`, `effective_group`, `workspace` |
+
 ## codersdk.AIBridgeListSessionsResponse
 
 ```json
@@ -481,6 +525,17 @@ title: Schemas
         "blocked": 0,
         "total": 0
       },
+      "organizations": [
+        {
+          "display_name": "string",
+          "icon": "string",
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "name": "string",
+          "sources": [
+            "workspace"
+          ]
+        }
+      ],
       "providers": [
         "string"
       ],
@@ -626,6 +681,17 @@ title: Schemas
     "blocked": 0,
     "total": 0
   },
+  "organizations": [
+    {
+      "display_name": "string",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "sources": [
+        "workspace"
+      ]
+    }
+  ],
   "providers": [
     "string"
   ],
@@ -654,6 +720,7 @@ title: Schemas
 | » `[any property]`    | any                                                                                      | false    |              |                                                                                                                                                                                                                                          |
 | `models`              | array of string                                                                          | false    |              |                                                                                                                                                                                                                                          |
 | `network_calls`       | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network requests made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled". |
+| `organizations`       | array of [codersdk.AIBridgeSessionOrganization](#codersdkaibridgesessionorganization)    | false    |              | Organizations are the organizations this session's interceptions were attributed to.                                                                                                                                                     |
 | `providers`           | array of string                                                                          | false    |              |                                                                                                                                                                                                                                          |
 | `started_at`          | string                                                                                   | false    |              |                                                                                                                                                                                                                                          |
 | `threads`             | integer                                                                                  | false    |              |                                                                                                                                                                                                                                          |
@@ -690,6 +757,30 @@ title: Schemas
 |----------|---------|----------|--------------|-------------|
 | `count`  | integer | false    |              |             |
 | `domain` | string  | false    |              |             |
+
+## codersdk.AIBridgeSessionOrganization
+
+```json
+{
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "name": "string",
+  "sources": [
+    "workspace"
+  ]
+}
+```
+
+### Properties
+
+| Name           | Type                                                                                                        | Required | Restrictions | Description |
+|----------------|-------------------------------------------------------------------------------------------------------------|----------|--------------|-------------|
+| `display_name` | string                                                                                                      | false    |              |             |
+| `icon`         | string                                                                                                      | false    |              |             |
+| `id`           | string                                                                                                      | true     |              |             |
+| `name`         | string                                                                                                      | false    |              |             |
+| `sources`      | array of [codersdk.AIBridgeInterceptionOrganizationSource](#codersdkaibridgeinterceptionorganizationsource) | false    |              |             |
 
 ## codersdk.AIBridgeSessionThreadsResponse
 
@@ -736,6 +827,17 @@ title: Schemas
       "domain": "string"
     }
   ],
+  "organizations": [
+    {
+      "display_name": "string",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "name": "string",
+      "sources": [
+        "workspace"
+      ]
+    }
+  ],
   "page_ended_at": "2019-08-24T14:15:22Z",
   "page_started_at": "2019-08-24T14:15:22Z",
   "providers": [
@@ -754,6 +856,13 @@ title: Schemas
           },
           "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
           "model": "string",
+          "organization": {
+            "display_name": "string",
+            "icon": "string",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "name": "string",
+            "source": "workspace"
+          },
           "priced_model": {
             "cache_read_price": 0,
             "cache_write_price": 0,
@@ -807,6 +916,13 @@ title: Schemas
       "error_type": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "model": "string",
+      "organization": {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "source": "workspace"
+      },
       "priced_model": {
         "cache_read_price": 0,
         "cache_write_price": 0,
@@ -861,6 +977,7 @@ title: Schemas
 | `network_calls`        | [codersdk.AIBridgeSessionNetworkCallSummary](#codersdkaibridgesessionnetworkcallsummary) | false    |              | Network calls summarizes the Agent Firewall network calls made during the session. A nil value means the session did not pass through Agent Firewall, so network call monitoring was not active, which the UI surfaces as "Disabled".                                                                                                                 |
 | `network_domain_count` | integer                                                                                  | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `network_top_domains`  | array of [codersdk.AIBridgeSessionNetworkDomain](#codersdkaibridgesessionnetworkdomain)  | false    |              | Network top domains lists the most contacted destination hosts, ordered by call count descending. NetworkDomainCount is the total number of distinct domains, used to render a "+N more" overflow beyond the listed domains.                                                                                                                          |
+| `organizations`        | array of [codersdk.AIBridgeSessionOrganization](#codersdkaibridgesessionorganization)    | false    |              | Organizations are the organizations this session's interceptions were attributed to.                                                                                                                                                                                                                                                                  |
 | `page_ended_at`        | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `page_started_at`      | string                                                                                   | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
 | `providers`            | array of string                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                       |
@@ -932,6 +1049,13 @@ title: Schemas
       },
       "interception_id": "34d9b688-63ad-46f4-88b5-665c1e7f7824",
       "model": "string",
+      "organization": {
+        "display_name": "string",
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "name": "string",
+        "source": "workspace"
+      },
       "priced_model": {
         "cache_read_price": 0,
         "cache_write_price": 0,
@@ -985,6 +1109,13 @@ title: Schemas
   "error_type": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "model": "string",
+  "organization": {
+    "display_name": "string",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "source": "workspace"
+  },
   "priced_model": {
     "cache_read_price": 0,
     "cache_write_price": 0,
@@ -1025,6 +1156,7 @@ title: Schemas
 | `error_type`                     | string                                                                                 | false    |              | Error type is the categorized terminal upstream error from the root interception, or nil when the interception succeeded. See the aibridge_interception_error_type enum for possible values.                                              |
 | `id`                             | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `model`                          | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
+| `organization`                   | [codersdk.AIBridgeInterceptionOrganization](#codersdkaibridgeinterceptionorganization) | false    |              | Organization is the organization of the root interception. Nil when none was stored.                                                                                                                                                      |
 | `priced_model`                   | [codersdk.AIBridgePricedModel](#codersdkaibridgepricedmodel)                           | false    |              | Priced model is the model and prices used for the root interception (the prompt). Other requests in the thread may use different models and prices, see agentic_actions[].priced_model. Nil when the root interception was not priced.    |
 | `prompt`                         | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
 | `provider`                       | string                                                                                 | false    |              |                                                                                                                                                                                                                                           |
