@@ -105,7 +105,7 @@ type GitSignResponse struct {
 }
 
 // GitSign signs a message digest with the workspace owner's git SSH key on
-// the server, so the private key never reaches the workspace. It requires
+// the server, so signing needs no key file in the workspace. It requires
 // the git-commit-signing experiment.
 func (c *Client) GitSign(ctx context.Context, req GitSignRequest) (GitSignResponse, error) {
 	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/experimental/gitsign", req)
@@ -174,7 +174,8 @@ type Manifest struct {
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
 	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
 	// GitSigningPublicKey is the workspace owner's git SSH public key. It is
-	// set only when the owner opted in to commit signing with it.
+	// set only when the git-commit-signing experiment is enabled and the owner
+	// opted in to commit signing with it.
 	GitSigningPublicKey string `json:"git_signing_public_key"`
 }
 

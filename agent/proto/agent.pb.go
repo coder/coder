@@ -1428,8 +1428,9 @@ type Manifest struct {
 	WorkspaceBuildId         []byte                                `protobuf:"bytes,20,opt,name=workspace_build_id,json=workspaceBuildId,proto3" json:"workspace_build_id,omitempty"`
 	TemplateId               []byte                                `protobuf:"bytes,21,opt,name=template_id,json=templateId,proto3" json:"template_id,omitempty"`
 	TemplateName             string                                `protobuf:"bytes,22,opt,name=template_name,json=templateName,proto3" json:"template_name,omitempty"`
-	// Public half of the owner's git SSH key. Set only when the owner has
-	// opted in to signing commits with it; empty otherwise.
+	// Public half of the owner's git SSH key. Set only when the
+	// git-commit-signing experiment is enabled and the owner has opted in to
+	// signing commits with it; empty otherwise.
 	GitSigningPublicKey string `protobuf:"bytes,23,opt,name=git_signing_public_key,json=gitSigningPublicKey,proto3" json:"git_signing_public_key,omitempty"`
 }
 

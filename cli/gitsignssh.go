@@ -14,8 +14,8 @@ import (
 
 // gitsignssh is invoked by git as gpg.ssh.program. For `-Y sign` it hashes
 // the payload locally and has Coder sign the digest with the user's git SSH
-// key, so the private key never reaches the workspace. Every other
-// operation, such as verification, is passed to ssh-keygen unchanged.
+// key on the server, so signing writes no key file in the workspace. Every
+// other operation, such as verification, is passed to ssh-keygen unchanged.
 func gitsignssh() *serpent.Command {
 	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{

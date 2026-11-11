@@ -127,8 +127,9 @@ message Manifest {
 	bytes workspace_build_id = 20;
 	bytes template_id = 21;
 	string template_name = 22;
-	// Public half of the owner's git SSH key. Set only when the owner has
-	// opted in to signing commits with it; empty otherwise.
+	// Public half of the owner's git SSH key. Set only when the
+	// git-commit-signing experiment is enabled and the owner has opted in to
+	// signing commits with it; empty otherwise.
 	string git_signing_public_key = 23;
 }
 

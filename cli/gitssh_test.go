@@ -245,11 +245,6 @@ func TestGitSignSSH(t *testing.T) {
 	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{DeploymentValues: dv})
 	user := coderdtest.CreateFirstUser(t, client)
 	ctx := testutil.Context(t, testutil.WaitLong)
-	enable := true
-	_, err := client.UpdateUserPreferenceSettings(ctx, codersdk.Me, codersdk.UpdateUserPreferenceSettingsRequest{
-		SignCommitsWithSSHKey: &enable,
-	})
-	require.NoError(t, err)
 	keypair, err := client.GitSSHKey(ctx, codersdk.Me)
 	require.NoError(t, err)
 	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
