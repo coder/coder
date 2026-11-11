@@ -580,6 +580,22 @@ describe("AgentCreatePage project frame", () => {
 		expect(requestBody).toMatchObject({ name: "Beta!" });
 	});
 
+	it("returns focus to Project actions when archiving is cancelled", async () => {
+		serveProjects(MockChatProject);
+		const user = userEvent.setup();
+
+		renderAgentsRoutes();
+		await screen.findByRole("heading", { name: MockChatProject.name });
+		await openProjectAction(user, "Archive project");
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: "Project actions" }),
+			).toHaveFocus(),
+		);
+	});
+
 	it("edits the project from the actions menu and shows the saved name", async () => {
 		let project = MockChatProject;
 		let requestBody: unknown;

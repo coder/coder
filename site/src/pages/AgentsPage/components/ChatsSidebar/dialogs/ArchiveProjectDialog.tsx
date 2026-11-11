@@ -147,10 +147,12 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 	const activeChatCount = preview?.active_chat_count ?? 0;
 	// Retention only describes what happens to archived chats.
 	const needsRetention = preview?.chat_count !== 0;
-	// A failed refetch leaves a preview that may miss newly active chats.
+	// A failed refetch leaves a preview that may miss newly active chats, and
+	// the refetch after a 409 may reveal some.
 	const canArchive =
 		preview !== undefined &&
 		!previewQuery.error &&
+		!previewQuery.isFetching &&
 		(!needsRetention || retentionQuery.data !== undefined) &&
 		!isArchiving;
 
