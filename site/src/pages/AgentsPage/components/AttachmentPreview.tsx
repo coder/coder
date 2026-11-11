@@ -42,10 +42,7 @@ export const ImageThumbnail: React.FC<{
 		src={previewUrl}
 		alt={alt}
 		loading={loading}
-		className={cn(
-			"size-16 rounded-md border border-border object-cover",
-			className,
-		)}
+		className={cn("size-16 rounded-md border object-cover", className)}
 		onError={onError}
 	/>
 );
@@ -172,7 +169,7 @@ export const AttachmentPreview: React.FC<{
 									</span>
 								</button>
 							) : (
-								<div className="flex size-16 items-center justify-center rounded-md border border-border bg-surface-secondary text-xs text-content-secondary">
+								<div className="flex size-16 items-center justify-center rounded-md border bg-surface-secondary text-xs text-content-secondary">
 									{file.name.split(".").pop()?.toUpperCase() || "FILE"}
 								</div>
 							)}

@@ -65,7 +65,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 			/>
 			<ToolCall.Content>
 				<ToolCall.Scrollable
-					className="mt-1.5 rounded-md border border-solid border-border"
+					className="mt-1.5 rounded-md border border-solid"
 					viewportClassName="max-h-64"
 					ariaLabel="Advisor response"
 				>
@@ -73,7 +73,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 						<p className="m-0 whitespace-pre-wrap wrap-break-word text-[13px] italic leading-5 text-content-secondary">
 							{questionText}
 						</p>
-						<div className="border-0 border-t border-solid border-border pt-2">
+						<div className="border-0 border-t border-solid pt-2">
 							{showError ? (
 								<div role="alert" className="text-sm">
 									<p className="m-0 font-medium text-content-primary">

@@ -63,7 +63,7 @@ export const WorkspaceBuildLogs: React.FC<WorkspaceBuildLogsProps> = ({
 	return (
 		<div
 			ref={ref}
-			className={cn("font-mono border border-border rounded-lg", className)}
+			className={cn("font-mono border rounded-lg", className)}
 			{...attrs}
 		>
 			{Object.entries(groupedLogsByStage).map(([stage, logs]) => {
