@@ -93,17 +93,24 @@ export const WithSearch: Story = {
 	},
 };
 
-const longOption: SelectFilterOption = {
-	label: "Meridian Systems Platform Engineering",
+const mockLongOption: SelectFilterOption = {
+	label: "Meridian Systems Engineering",
 	value: "long-option",
 };
 
 export const LongLabels: Story = {
 	args: {
-		options: [longOption, ...options.slice(0, 3)],
-		selectedOption: longOption,
+		options: [mockLongOption, ...options.slice(0, 3)],
+		selectedOption: mockLongOption,
 		width: 150,
 	},
+	decorators: [
+		(Story) => (
+			<div className="flex w-40">
+				<Story />
+			</div>
+		),
+	],
 };
 
 export const LoadingOptions: Story = {
