@@ -76,9 +76,7 @@ const CardContainer: React.FC<{
 		)}
 	>
 		<div className="flex items-center justify-between gap-3">
-			<div className="text-sm font-medium text-content-primary">
-				Coder Agents
-			</div>
+			<div className="text-sm text-content-primary">Coder Agents</div>
 			{headerEnd}
 		</div>
 		{children}
@@ -119,7 +117,7 @@ export const CoderAgentsProductCard: React.FC<CoderAgentsProductCardProps> = ({
 							label="Max concurrent agents"
 							tooltip={concurrentChatsTooltip}
 						/>
-						<div className="mt-0.5 text-sm font-medium text-content-primary">
+						<div className="mt-0.5 text-sm text-content-primary">
 							{maxConcurrentChatsOverHardLimit}
 						</div>
 					</div>
@@ -128,7 +126,7 @@ export const CoderAgentsProductCard: React.FC<CoderAgentsProductCardProps> = ({
 							<div className="flex items-center gap-1 font-medium text-content-secondary">
 								<span>Agent hours used</span>
 							</div>
-							<div className="mt-0.5 text-sm font-medium text-content-primary">
+							<div className="mt-0.5 text-sm text-content-primary">
 								{formatHoursUsed(actual)}
 							</div>
 						</div>
@@ -181,7 +179,7 @@ export const CoderAgentsProductCard: React.FC<CoderAgentsProductCardProps> = ({
 						label="Total Agent hours"
 						tooltip={totalAgentHoursTooltip}
 					/>
-					<div className="mt-0.5 text-sm font-medium text-content-primary">
+					<div className="mt-0.5 text-sm text-content-primary">
 						{isUnlimited ? (
 							"Unlimited"
 						) : (

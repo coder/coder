@@ -131,7 +131,7 @@ export const OrganizationAutocomplete: React.FC<
 				align="start"
 				className="w-(--radix-popover-trigger-width) p-0"
 			>
-				<Command loop>
+				<Command loop label="Find organization">
 					<CommandInput placeholder="Find organization…" />
 					<CommandList>
 						<CommandEmpty>No organizations found.</CommandEmpty>

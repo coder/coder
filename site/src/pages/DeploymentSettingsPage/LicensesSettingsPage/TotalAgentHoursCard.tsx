@@ -214,10 +214,7 @@ export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 						)}
 						{isUnlimited ? (
 							<div
-								className={cn(
-									"relative z-10 h-full w-full",
-									unlimitedBarClassName,
-								)}
+								className={cn("relative z-10 size-full", unlimitedBarClassName)}
 							/>
 						) : (
 							<div
@@ -230,7 +227,7 @@ export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 						)}
 					</div>
 
-					<div className="flex items-start justify-between gap-3 text-sm font-medium">
+					<div className="flex items-start justify-between gap-3 text-sm">
 						<p className="m-0 whitespace-nowrap text-content-primary">
 							<span className="text-content-secondary">Used: </span>
 							<span

@@ -108,7 +108,7 @@ const Emoji: React.FC<EmojiPickerListEmojiProps> = ({ emoji, ...props }) => (
 			"flex size-8 items-center justify-center rounded-md bg-transparent p-0",
 			// The active emoji is the keyboard focus indicator: DOM focus stays
 			// in the search input or viewport while arrow keys move it.
-			"data-[active]:bg-surface-tertiary data-[active]:ring-2 data-[active]:ring-content-link data-[active]:ring-inset",
+			"data-active:bg-surface-tertiary data-active:ring-2 data-active:ring-content-link data-active:ring-inset",
 		)}
 		{...props}
 	>
@@ -188,7 +188,7 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({
 
 	return (
 		<Frimousse.Root
-			className="isolate flex h-[400px] w-fit flex-col"
+			className="isolate flex h-100 w-fit flex-col"
 			resolveEmojiData={() => emojiData}
 			onEmojiSelect={({ emoji }) => onEmojiSelect(emojiToValue(emoji))}
 		>

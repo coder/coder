@@ -148,8 +148,7 @@ export const SessionTokenLinkBlocked: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const user = userEvent.setup({ pointerEventsCheck: 0 });
-		await user.hover(await canvas.findByText("Test App"));
+		await userEvent.hover(await canvas.findByText("Test App"));
 		await screen.findByRole("tooltip");
 	},
 };
@@ -332,6 +331,9 @@ export const ExternalAppDefersSessionToken: Story = {
 			await user.click(trigger);
 			await waitFor(() => expect(API.getApiKey).toHaveBeenCalledTimes(1));
 		});
+		// The button keeps focus while minting, which would show the app's
+		// tooltip; blur so the snapshot shows only the spinner.
+		trigger.blur();
 	},
 };
 

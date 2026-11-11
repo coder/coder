@@ -223,7 +223,7 @@ const TableLoader: React.FC = () => {
 	return (
 		<div>
 			{skeletonRows.map((row) => (
-				<div className="flex min-h-[64px] items-center px-4 py-3" key={row}>
+				<div className="flex min-h-16 items-center px-4 py-3" key={row}>
 					<div className="flex items-center gap-3">
 						<Checkbox disabled />
 						<AvatarDataSkeleton />
@@ -272,7 +272,7 @@ const UserRow = <T extends SelectedUser>({
 		>
 			<div
 				className={cn(
-					"flex min-h-[64px] items-center px-4 py-3",
+					"flex min-h-16 items-center px-4 py-3",
 					isFirst && "rounded-tl-md rounded-tr-md",
 					isLast && "rounded-bl-md rounded-br-md",
 				)}

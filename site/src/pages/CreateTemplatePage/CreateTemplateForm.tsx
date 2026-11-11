@@ -387,7 +387,6 @@ export const CreateTemplateForm: React.FC<CreateTemplateFormProps> = (
 						{...getFieldHelpers("icon")}
 						disabled={isSubmitting}
 						onChange={onChangeTrimmed(form)}
-						fullWidth
 						onPickEmoji={(value) => form.setFieldValue("icon", value)}
 					/>
 				</FormFields>

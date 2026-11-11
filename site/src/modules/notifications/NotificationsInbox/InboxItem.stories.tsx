@@ -9,7 +9,7 @@ const meta: Meta<typeof InboxItem> = {
 	component: InboxItem,
 	render: (args) => {
 		return (
-			<div role="list" className="max-w-[460px] rounded">
+			<div role="list" className="max-w-115 rounded">
 				<InboxItem {...args} />
 			</div>
 		);

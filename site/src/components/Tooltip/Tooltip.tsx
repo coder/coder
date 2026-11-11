@@ -20,8 +20,7 @@ import {
 export const TooltipProvider = TooltipPrimitive.Provider;
 
 /**
- * Shared open delay (ms) for tooltips. Used by the app-wide provider and by
- * self-contained tooltips such as InfoTooltip so hover timing stays consistent.
+ * Shared open delay (ms) for the app-wide provider and interactive tooltips.
  */
 export const TOOLTIP_DELAY_DURATION = 100;
 
@@ -380,7 +379,7 @@ export const TooltipMessage: React.FC<React.ComponentProps<"p">> = ({
 	...props
 }) => (
 	<p
-		className={cn("m-0 text-content-secondary [&_a]:mt-2", className)}
+		className={cn("m-0 text-content-secondary [&_a]:mt-1", className)}
 		{...props}
 	/>
 );

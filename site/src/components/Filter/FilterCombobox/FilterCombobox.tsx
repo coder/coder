@@ -72,7 +72,7 @@ export const CATEGORY_HOVER_DELAY_MS = 300;
 const CLEAR_ALL_MIN_CHIPS = 3;
 
 const labelOnlyChipClassName =
-	"text-content-primary [&_[data-slot=combobox-chip-remove]]:text-content-secondary";
+	"text-content-primary **:data-[slot=combobox-chip-remove]:text-content-secondary";
 
 // While the menu is open on mobile the field leaves the page flow and pins
 // below the navbar, so the software keyboard cannot squeeze the dropdown.

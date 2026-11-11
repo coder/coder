@@ -90,7 +90,7 @@ const settings: readonly {
 		context: "computer_use",
 		title: "Computer use",
 		description:
-			"Used by the computer use subagent to operate the virtual desktop. Supports Anthropic and OpenAI models, and Claude models from AWS Bedrock.",
+			"Used by the computer use subagent to operate the virtual desktop. Supports Anthropic, OpenAI, and OpenAI-compatible models, and Claude models from AWS Bedrock.",
 		unsetPlaceholder: "Use default model",
 		// This row lists only models that support computer use, so a saved model
 		// can be unavailable here while it stays enabled.

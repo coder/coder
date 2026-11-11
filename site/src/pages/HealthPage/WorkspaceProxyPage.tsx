@@ -76,7 +76,7 @@ const WorkspaceProxyPage: React.FC = () => {
 									<div className="size-9 flex items-center justify-center">
 										<ExternalImage
 											src={region.icon_url}
-											className="object-fill w-full h-full"
+											className="object-fill size-full"
 											alt=""
 										/>
 									</div>

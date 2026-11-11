@@ -147,7 +147,7 @@ export const RightPanelAddTabControl: React.FC<{
 				<DropdownMenuContent
 					align="end"
 					side="bottom"
-					className="w-52 p-1 [&_[role^=menuitem]]:py-1 [&_[role^=menuitem]]:text-xs [&_img]:size-3.5! [&_svg]:size-3.5!"
+					className="w-52 p-1 **:[[role^=menuitem]]:py-1 **:[[role^=menuitem]]:text-xs [&_img]:size-3.5! [&_svg]:size-3.5!"
 				>
 					{singletonEntries.length > 0 && (
 						<>

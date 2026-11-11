@@ -170,9 +170,7 @@ const RoleCheckbox: React.FC<RoleCheckboxProps> = ({
 				className="mt-1 shrink-0"
 			/>
 			<div className="flex flex-col">
-				<span className="text-sm font-medium">
-					{role.display_name || role.name}
-				</span>
+				<span className="text-sm">{role.display_name || role.name}</span>
 				<span className="text-sm text-content-secondary">
 					{roleDescriptions[role.name] ?? ""}
 				</span>
@@ -199,7 +197,7 @@ const RoleSelectorLayout: React.FC<RoleSelectorLayoutProps> = ({
 }) => {
 	return (
 		<div className="flex flex-col gap-2">
-			{!hideLabel && <span className="text-sm font-medium">Roles</span>}
+			{!hideLabel && <span className="text-sm">Roles</span>}
 			{children}
 		</div>
 	);

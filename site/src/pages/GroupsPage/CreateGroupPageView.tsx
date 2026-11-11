@@ -99,7 +99,6 @@ export const CreateGroupPageView: React.FC<CreateGroupPageViewProps> = ({
 						<IconField
 							{...getFieldHelpers("avatar_url")}
 							onChange={onChangeTrimmed(form)}
-							fullWidth
 							label="Avatar URL"
 							onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
 						/>

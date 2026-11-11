@@ -16,7 +16,7 @@ const ReadFileContent: React.FC<{
 	content: string;
 }> = ({ path, content }) => {
 	const theme = useTheme();
-	const isDark = theme.palette.mode === "dark";
+	const isDark = theme.mode === "dark";
 
 	return (
 		<ToolCall.Scrollable
