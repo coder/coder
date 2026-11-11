@@ -116,7 +116,7 @@ func (s *server) Init(
 	// needs. Any other lock file, such as one committed from another OS, may
 	// not, and template import and dry runs never have a captured one, so they
 	// always run a real init and the lock file they capture is complete.
-	if restored && prepareWithoutInit(ctx, s.logger, sess.Files, s.cachePath) {
+	if restored && prepareWithoutInit(ctx, s.logger, sess.Files, s.cachePath, e.basicEnv()) {
 		sessState.initSkipped = true
 		sess.ProvisionLog(proto.LogLevel_INFO, "Skipping terraform init: using cached providers pinned by the dependency lock file")
 		endStage(nil)
@@ -278,10 +278,14 @@ func (s *server) Plan(
 	}
 
 	sessState := s.loadSessionState(sess)
-	// After a skipped init, hold back the first attempt's errors: if they only
-	// say that init is needed, the fallback below handles them and they would
-	// otherwise show up in the log of a build that succeeds.
-	planLogs := &errorCapturingSink{logSink: sess, holdErrors: sessState.initSkipped}
+	// After a skipped init, hold back the diagnostics that say init is needed:
+	// the fallback below handles them, and they would otherwise show up in
+	// the log of a build that succeeds.
+	initDiags := &initDiagnosticsSink{logSink: sess}
+	var planLogs logSink = sess
+	if sessState.initSkipped {
+		planLogs = initDiags
+	}
 	// `terraform graph` only reads the configuration and the state, and
 	// takes no state lock, so it runs beside the plan. Each of the two
 	// starts every provider, so Plan's memory peaks higher than it would
@@ -305,26 +309,27 @@ func (s *server) Plan(
 	}
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
 	resp, plan, err := planWithGraph(planLogs)
-	if err != nil && sessState.initSkipped && ctx.Err() == nil && planLogs.needsInit() {
+	if heldErrors := initDiags.heldErrors(); err != nil && len(heldErrors) > 0 && ctx.Err() == nil {
 		// Init only linked cached providers, and Terraform reports that the
-		// working directory needs more, for example a module the archive did
-		// not include. Run the real init and plan once more.
+		// working directory needs more, for example because a cached package
+		// no longer matches the lock file. Run the real init and plan once
+		// more.
 		s.logger.Warn(ctx, "plan failed after skipping terraform init, retrying with a full init",
-			slog.Error(err), slog.F("plan_errors", planLogs.capturedErrors()))
-		sess.ProvisionLog(proto.LogLevel_WARN, "Cached providers were not sufficient, running terraform init")
+			slog.Error(err), slog.F("plan_errors", heldErrors))
+		sess.ProvisionLog(proto.LogLevel_WARN, "Terraform reported that the working directory is not initialized, running terraform init")
 		sessState.initSkipped = false
 		// The init counts toward the plan stage: job stats measure each stage
 		// from its first start to its last end, so stages must not interleave.
 		initErr := s.initWorkingDirectory(ctx, killCtx, e, sess, &sessState)
 		if initErr != nil {
 			// The plan never ran again, so show why it failed the first time.
-			planLogs.flushHeldErrors()
+			initDiags.release()
 			endStage(initErr)
 			return provisionersdk.PlanErrorf("initialize terraform: %s", initErr.Error())
 		}
 		resp, plan, err = planWithGraph(sess)
 	} else {
-		planLogs.flushHeldErrors()
+		initDiags.release()
 	}
 	endStage(err)
 	if err != nil {

@@ -16,6 +16,7 @@ import (
 	"github.com/hashicorp/hcl/v2/gohcl"
 	"github.com/hashicorp/hcl/v2/hclparse"
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
+	tfjson "github.com/hashicorp/terraform-json"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
@@ -62,8 +63,9 @@ func parseLockFile(path string) ([]lockedProvider, error) {
 
 // validateLockedProvider rejects lock file entries that linking can't use
 // safely: a source or version that could escape the plugin cache or
-// .terraform/providers, where both become path components, or no h1 hash,
-// without which plan would load the linked package unverified.
+// .terraform/providers, where both become path components, or no h1 hash.
+// Plan loads a linked package unverified when its entry has no hashes, and
+// can't check a zh hash against an unpacked package.
 func validateLockedProvider(p lockedProvider) error {
 	switch {
 	case strings.Count(p.Source, "/") != 2, strings.Contains(p.Source, ".."):
@@ -163,6 +165,11 @@ func modulesReady(files tfpath.Layout) (bool, error) {
 	return len(module.ModuleCalls) == 0, nil
 }
 
+// initCustomizingEnv lists the Terraform environment variables that change
+// where `terraform init` installs providers or how it runs. Linking cached
+// providers into .terraform can't honor them.
+var initCustomizingEnv = []string{"TF_DATA_DIR", "TF_CLI_ARGS", "TF_CLI_ARGS_init"}
+
 // prepareWithoutInit tries to make the working directory ready for plan and
 // apply without running `terraform init`. That command costs a few hundred
 // milliseconds even when it has nothing to download, because it contacts the
@@ -177,19 +184,22 @@ func modulesReady(files tfpath.Layout) (bool, error) {
 // on this platform, so it holds hashes this platform can verify.
 //
 // It returns true when init was skipped. Any problem is reported as false so
-// the caller falls back to a real init.
-func prepareWithoutInit(ctx context.Context, logger slog.Logger, files tfpath.Layout, cachePath string) bool {
+// the caller falls back to a real init. env is the environment Terraform
+// runs with.
+func prepareWithoutInit(ctx context.Context, logger slog.Logger, files tfpath.Layout, cachePath string, env []string) bool {
 	// Terraform only fills the plugin cache when basicEnv hands it one.
 	if !pluginCacheEnabled(cachePath) {
 		return false
 	}
-	lockPath := files.TerraformLockFile()
-	if _, err := os.Stat(lockPath); err != nil {
-		return false
+	for _, name := range initCustomizingEnv {
+		if safeEnvironValue(env, name) != "" {
+			logger.Debug(ctx, "cannot skip terraform init: the environment customizes it", slog.F("variable", name))
+			return false
+		}
 	}
-	providers, err := parseLockFile(lockPath)
+	providers, err := parseLockFile(files.TerraformLockFile())
 	if err != nil {
-		logger.Debug(ctx, "cannot skip terraform init: unreadable lock file", slog.Error(err))
+		logger.Debug(ctx, "cannot skip terraform init: unusable lock file", slog.Error(err))
 		return false
 	}
 	ready, err := modulesReady(files)
@@ -209,7 +219,7 @@ func prepareWithoutInit(ctx context.Context, logger slog.Logger, files tfpath.La
 		return false
 	}
 	if !linked {
-		logger.Debug(ctx, "cannot skip terraform init: a pinned provider is not cached")
+		logger.Debug(ctx, "cannot skip terraform init: a pinned provider is not cached, or the working directory already holds one")
 		return false
 	}
 	names := make([]string, 0, len(providers))
@@ -220,71 +230,73 @@ func prepareWithoutInit(ctx context.Context, logger slog.Logger, files tfpath.La
 	return true
 }
 
-// errorCapturingSink forwards provision logs and keeps the error level ones
-// so the caller can inspect why a command failed. Terraform reports missing
-// providers or modules as diagnostics such as "Required plugins are not
-// installed", which is how Plan decides that skipping init was wrong.
-type errorCapturingSink struct {
-	logSink
-	// holdErrors keeps error lines back instead of forwarding them, until
-	// flushHeldErrors, so the caller can drop errors it recovers from.
-	holdErrors bool
-
-	mu     sync.Mutex
-	errors []string
-}
-
-func (s *errorCapturingSink) ProvisionLog(level proto.LogLevel, output string) {
-	if level == proto.LogLevel_ERROR {
-		s.mu.Lock()
-		s.errors = append(s.errors, output)
-		s.mu.Unlock()
-		if s.holdErrors {
-			return
-		}
-	}
-	s.logSink.ProvisionLog(level, output)
-}
-
-// flushHeldErrors forwards the error lines that holdErrors kept back. Call it
-// only after the command has finished writing logs.
-func (s *errorCapturingSink) flushHeldErrors() {
-	if !s.holdErrors {
-		return
-	}
-	s.holdErrors = false
-	for _, line := range s.capturedErrors() {
-		s.logSink.ProvisionLog(proto.LogLevel_ERROR, line)
-	}
-}
-
-func (s *errorCapturingSink) capturedErrors() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return slices.Clone(s.errors)
-}
-
-// initErrorSummaries start the summaries of the Terraform diagnostics that
+// needsInitSummaries start the summaries of the Terraform diagnostics that
 // mean the working directory is missing something `terraform init` installs.
-var initErrorSummaries = []string{
+//
+// "Missing required provider" is left out on purpose. Plan reports it for a
+// provider that only the workspace's state needs. The init that Init runs
+// never sees that state, so falling back for it would let a build pass or
+// fail depending on whether init was skipped.
+var needsInitSummaries = []string{
 	"Required plugins are not installed",
 	"Inconsistent dependency lock file",
-	"Missing required provider",
 	"Module not installed",
 	"Module source has changed",
 	"Module version requirements have changed",
 	"Backend initialization required",
 }
 
-// needsInit reports whether any captured error is a diagnostic that means the
-// working directory needs `terraform init`. Only the summary line counts,
-// because a diagnostic's detail can quote the template, such as a
-// precondition's error message.
-func (s *errorCapturingSink) needsInit() bool {
-	return slices.ContainsFunc(s.capturedErrors(), func(line string) bool {
-		summary, ok := strings.CutPrefix(strings.TrimLeft(line, "│ "), "Error: ")
-		return ok && slices.ContainsFunc(initErrorSummaries, func(prefix string) bool {
-			return strings.HasPrefix(summary, prefix)
-		})
+// initDiagnosticsSink forwards a plan's provision logs, except for the
+// diagnostics that mean the working directory needs `terraform init`. It
+// holds those back, so Plan can drop them when a real init fixes the plan
+// and release them when it doesn't. Only the diagnostic's summary decides:
+// its detail can quote the template, such as a precondition's error message.
+type initDiagnosticsSink struct {
+	logSink
+
+	mu   sync.Mutex
+	held []string
+}
+
+var _ diagnosticSink = (*initDiagnosticsSink)(nil)
+
+func (s *initDiagnosticsSink) diagnosticLog(diag *tfjson.Diagnostic) logSink {
+	needsInit := slices.ContainsFunc(needsInitSummaries, func(prefix string) bool {
+		return strings.HasPrefix(diag.Summary, prefix)
 	})
+	if !needsInit {
+		return s.logSink
+	}
+	return heldLogSink{s}
+}
+
+// heldLogSink holds back the lines logged to it.
+type heldLogSink struct {
+	sink *initDiagnosticsSink
+}
+
+func (h heldLogSink) ProvisionLog(_ proto.LogLevel, output string) {
+	h.sink.mu.Lock()
+	defer h.sink.mu.Unlock()
+	h.sink.held = append(h.sink.held, output)
+}
+
+// heldErrors returns the lines of the diagnostics held back so far. Any line
+// means the plan reported that the working directory needs init.
+func (s *initDiagnosticsSink) heldErrors() []string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return slices.Clone(s.held)
+}
+
+// release forwards the held lines. The diagnostics in needsInitSummaries are
+// all errors.
+func (s *initDiagnosticsSink) release() {
+	s.mu.Lock()
+	held := s.held
+	s.held = nil
+	s.mu.Unlock()
+	for _, line := range held {
+		s.ProvisionLog(proto.LogLevel_ERROR, line)
+	}
 }

@@ -4,7 +4,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
@@ -83,10 +82,6 @@ func (t *timingAggregator) ingestInitTiming(ts time.Time, s *timingSpan) {
 		return
 	}
 
-	// Init logs should be assigned to the init stage.
-	// Ideally the executor could use an `init` stage aggregator directly, but
-	// that would require a larger refactor.
-	s.stage = database.ProvisionerJobTimingStageInit
 	// The default action is an empty string. Set it to "load" for some human readability.
 	s.action = defaultInitAction
 	// Resource name is an empty string. Name it something more useful.

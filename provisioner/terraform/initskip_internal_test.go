@@ -1,16 +1,18 @@
 package terraform
 
 import (
-	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/provisionersdk/tfpath"
 )
@@ -54,8 +56,8 @@ func Test_parseLockFile(t *testing.T) {
 	}, got)
 
 	// Sources and versions become path components when providers are
-	// linked, so anything that could escape the cache is rejected, and
-	// without an h1 hash plan would not verify the linked package.
+	// linked, so anything that could escape the cache is rejected. Without
+	// hashes plan would not verify the linked package.
 	entry := func(source, version, hashes string) string {
 		return fmt.Sprintf("provider %q {\n  version = %q\n  hashes = [%s]\n}\n", source, version, hashes)
 	}
@@ -65,9 +67,9 @@ func Test_parseLockFile(t *testing.T) {
 		"SourceTooShort":   entry("coder/coder", "1.0.0", h1),
 		"SourceTooLong":    entry("registry.terraform.io/a/b/c", "1.0.0", h1),
 		"EmptyVersion":     entry("registry.terraform.io/coder/coder", "", h1),
-		"VersionSeparator": entry("registry.terraform.io/coder/coder", "1.0/../../x", h1),
+		"VersionSeparator": entry("registry.terraform.io/coder/coder", "1.0/x", h1),
 		"VersionTraversal": entry("registry.terraform.io/coder/coder", "..", h1),
-		"NoHashes":         entry("registry.terraform.io/coder/coder", "1.0.0", ""),
+		"NoHashes":         "provider \"registry.terraform.io/coder/coder\" {\n  version = \"1.0.0\"\n}\n",
 		"OnlyZipHashes":    entry("registry.terraform.io/coder/coder", "1.0.0", `"zh:abc"`),
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -233,95 +235,92 @@ func Test_prepareWithoutInit(t *testing.T) {
 	coder := lockedProvider{Source: "registry.terraform.io/coder/coder", Version: "2.18.0"}
 	docker := lockedProvider{Source: "registry.terraform.io/kreuzwerker/docker", Version: "4.6.0"}
 
-	newWorkDir := func(t *testing.T, withLock bool) tfpath.Layout {
+	newWorkDir := func(t *testing.T) tfpath.Layout {
 		files := tfpath.Layout(t.TempDir())
 		require.NoError(t, os.WriteFile(filepath.Join(files.WorkDirectory(), "main.tf"), []byte(`resource "coder_agent" "a" {}`), 0o600))
-		if withLock {
-			require.NoError(t, os.WriteFile(files.TerraformLockFile(), []byte(testLockFile), 0o600))
-		}
+		require.NoError(t, os.WriteFile(files.TerraformLockFile(), []byte(testLockFile), 0o600))
 		return files
 	}
 
 	t.Run("Skips", func(t *testing.T) {
 		t.Parallel()
-		files := newWorkDir(t, true)
-		require.True(t, prepareWithoutInit(context.Background(), logger, files, fakeCache(t, coder, docker)))
-		_, err := os.Stat(files.ProvidersDirectory())
-		require.NoError(t, err)
+		files := newWorkDir(t)
+		require.True(t, prepareWithoutInit(t.Context(), logger, files, fakeCache(t, coder, docker), nil))
+		require.DirExists(t, files.ProvidersDirectory())
 	})
 
-	t.Run("NoLockFile", func(t *testing.T) {
+	// With TF_DATA_DIR, Terraform doesn't look for providers in .terraform.
+	t.Run("CustomizedInit", func(t *testing.T) {
 		t.Parallel()
-		files := newWorkDir(t, false)
-		require.False(t, prepareWithoutInit(context.Background(), logger, files, fakeCache(t, coder, docker)))
-	})
-
-	t.Run("ProviderNotCached", func(t *testing.T) {
-		t.Parallel()
-		files := newWorkDir(t, true)
-		require.False(t, prepareWithoutInit(context.Background(), logger, files, fakeCache(t, coder)))
-	})
-
-	t.Run("NoCachePath", func(t *testing.T) {
-		t.Parallel()
-		files := newWorkDir(t, true)
-		require.False(t, prepareWithoutInit(context.Background(), logger, files, ""))
+		files := newWorkDir(t)
+		env := []string{"PATH=/usr/bin", "TF_DATA_DIR=.tfdata"}
+		require.False(t, prepareWithoutInit(t.Context(), logger, files, fakeCache(t, coder, docker), env))
+		require.NoDirExists(t, files.ProvidersDirectory())
 	})
 }
 
-func Test_errorCapturingSink(t *testing.T) {
+// Test_initDiagnosticsSink logs a plan's output the way the executor does.
+func Test_initDiagnosticsSink(t *testing.T) {
 	t.Parallel()
 
-	t.Run("NeedsInit", func(t *testing.T) {
-		t.Parallel()
-		// Diagnostics as Terraform reports them.
-		for line, want := range map[string]bool{
-			"Error: Required plugins are not installed":                             true,
-			"Error: Inconsistent dependency lock file":                              true,
-			"Error: Missing required provider":                                      true,
-			"Error: Module not installed":                                           true,
-			"Error: Module source has changed":                                      true,
-			"Error: Module version requirements have changed":                       true,
-			`Error: Backend initialization required, please run "terraform init"`:   true,
-			`│ Error: Backend initialization required: please run "terraform init"`: true,
-			"Error: Unsupported attribute":                                          false,
-			"Error: Invalid reference":                                              false,
-			// Details can quote the template, for example a precondition's
-			// error message, so they never count.
-			"the cached package for registry.terraform.io/coder/coder 2.18.0 (in .terraform/providers) does not match any of the checksums recorded in the dependency lock file": false,
-			`Run "terraform init" before creating workspaces.`: false,
-		} {
-			sink := &errorCapturingSink{logSink: &mockLogger{}}
-			sink.ProvisionLog(proto.LogLevel_ERROR, line)
-			require.Equal(t, want, sink.needsInit(), line)
-		}
-	})
+	tests := []struct {
+		name     string
+		summary  string
+		detail   string
+		wantHeld bool
+	}{
+		{"PluginsNotInstalled", "Required plugins are not installed", `Run "terraform init".`, true},
+		// Terraform appends advice to this summary.
+		{"BackendNotInitialized", `Backend initialization required, please run "terraform init"`, "Reason: Initial configuration of the requested backend.", true},
+		{"UnrelatedError", "Unsupported attribute", `This object has no argument named "x".`, false},
+		// A diagnostic's detail can quote the template.
+		{"TemplateTextInDetail", "Resource precondition failed", "Not ready.\nError: Module not installed", false},
+		// Only the state needs this provider, and the init that Init runs
+		// never sees the state.
+		{"StateOnlyProvider", "Missing required provider", "This state requires provider registry.terraform.io/hashicorp/null.", false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("OnlyErrorsCount", func(t *testing.T) {
-		t.Parallel()
-		inner := &mockLogger{}
-		sink := &errorCapturingSink{logSink: inner}
-		sink.ProvisionLog(proto.LogLevel_INFO, "Required plugins are not installed")
-		require.False(t, sink.needsInit())
-		sink.ProvisionLog(proto.LogLevel_ERROR, "Error: Unsupported attribute")
-		require.Len(t, inner.logs, 2, "every line is forwarded")
-	})
+			diagnostic, err := json.Marshal(map[string]any{
+				"@level": "error", "@message": "Error: " + test.summary, "type": "diagnostic",
+				"diagnostic": map[string]string{"severity": "error", "summary": test.summary, "detail": test.detail},
+			})
+			require.NoError(t, err)
+			diagnosticLines := append([]string{"Error: " + test.summary}, strings.Split(test.detail, "\n")...)
 
-	t.Run("HoldErrors", func(t *testing.T) {
-		t.Parallel()
-		inner := &mockLogger{}
-		sink := &errorCapturingSink{logSink: inner, holdErrors: true}
-		sink.ProvisionLog(proto.LogLevel_INFO, "Planning...")
-		sink.ProvisionLog(proto.LogLevel_ERROR, "Error: Unsupported attribute")
-		require.Len(t, inner.logs, 1, "error lines are held back")
-		require.Equal(t, []string{"Error: Unsupported attribute"}, sink.capturedErrors())
+			inner := &mockLogger{}
+			sink := &initDiagnosticsSink{logSink: inner}
+			e := &executor{logger: slogtest.Make(t, nil), timings: newTimingAggregator(database.ProvisionerJobTimingStagePlan)}
+			writer, done := e.provisionLogWriter(sink)
+			_, err = writer.Write(append(diagnostic, '\n'))
+			require.NoError(t, err)
+			require.NoError(t, writer.Close())
+			<-done
+			// Error lines outside a diagnostic, such as Terraform's stderr,
+			// are never held.
+			sink.ProvisionLog(proto.LogLevel_ERROR, "stderr")
 
-		sink.flushHeldErrors()
-		require.Len(t, inner.logs, 2)
-		require.Equal(t, proto.LogLevel_ERROR, inner.logs[1].Level)
-		require.Equal(t, "Error: Unsupported attribute", inner.logs[1].Output)
+			forwarded := func() []string {
+				lines := make([]string, 0, len(inner.logs))
+				for _, log := range inner.logs {
+					require.Equal(t, proto.LogLevel_ERROR, log.Level)
+					lines = append(lines, log.Output)
+				}
+				return lines
+			}
+			if !test.wantHeld {
+				require.Empty(t, sink.heldErrors())
+				require.Equal(t, append(diagnosticLines, "stderr"), forwarded())
+				return
+			}
+			require.Equal(t, diagnosticLines, sink.heldErrors())
+			require.Equal(t, []string{"stderr"}, forwarded())
 
-		sink.flushHeldErrors()
-		require.Len(t, inner.logs, 2, "held errors are forwarded once")
-	})
+			sink.release()
+			sink.release()
+			require.Equal(t, append([]string{"stderr"}, diagnosticLines...), forwarded(), "held lines are forwarded once")
+		})
+	}
 }

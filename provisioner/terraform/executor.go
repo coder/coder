@@ -631,6 +631,13 @@ type logSink interface {
 	ProvisionLog(l proto.LogLevel, o string)
 }
 
+// diagnosticSink is a logSink that chooses where the log lines of each
+// Terraform diagnostic go, for example to hold them back.
+type diagnosticSink interface {
+	logSink
+	diagnosticLog(diag *tfjson.Diagnostic) logSink
+}
+
 // logWriter creates a WriteCloser that will log each line of text at the given level.  The WriteCloser must be closed
 // by the caller to end logging, after which the returned channel will be closed to indicate that logging of the written
 // data has finished.  Failure to close the WriteCloser will leak a goroutine.
@@ -696,8 +703,12 @@ func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- an
 			continue
 		}
 
+		lineSink := sink
+		if ds, ok := sink.(diagnosticSink); ok && log.Diagnostic != nil {
+			lineSink = ds.diagnosticLog(log.Diagnostic)
+		}
 		logLevel := convertTerraformLogLevel(log.Level, sink)
-		sink.ProvisionLog(logLevel, log.Message)
+		lineSink.ProvisionLog(logLevel, log.Message)
 
 		ts, span, err := extractTimingSpan(log)
 		if err != nil {
@@ -718,7 +729,7 @@ func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- an
 		}
 		logLevel = convertTerraformLogLevel(string(log.Diagnostic.Severity), sink)
 		for _, diagLine := range strings.Split(FormatDiagnostic(log.Diagnostic), "\n") {
-			sink.ProvisionLog(logLevel, diagLine)
+			lineSink.ProvisionLog(logLevel, diagLine)
 		}
 	}
 }
