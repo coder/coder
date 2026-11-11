@@ -13,9 +13,7 @@ export const AuditLogDiff: React.FC<AuditLogDiffProps> = ({ diff }) => {
 			<div className="flex-1 self-stretch bg-surface-git-deleted pb-5 pr-4 pt-4 leading-[160%] text-content-primary wrap-anywhere">
 				{diffEntries.map(([attrName, valueDiff], index) => (
 					<div key={attrName} className="flex items-baseline">
-						<div className="w-12 shrink-0 text-right opacity-50">
-							{index + 1}
-						</div>
+						<div className="w-12 shrink-0 text-right">{index + 1}</div>
 						<div className="w-8 shrink-0 text-center text-base">-</div>
 						<div>
 							{attrName}:{" "}
@@ -31,9 +29,7 @@ export const AuditLogDiff: React.FC<AuditLogDiffProps> = ({ diff }) => {
 			<div className="flex-1 self-stretch bg-surface-git-added pb-5 pr-4 pt-4 leading-[160%] text-content-primary wrap-anywhere">
 				{diffEntries.map(([attrName, valueDiff], index) => (
 					<div key={attrName} className="flex items-baseline">
-						<div className="w-12 shrink-0 text-right opacity-50">
-							{index + 1}
-						</div>
+						<div className="w-12 shrink-0 text-right">{index + 1}</div>
 						<div className="w-8 shrink-0 text-center text-base">+</div>
 						<div>
 							{attrName}:{" "}
