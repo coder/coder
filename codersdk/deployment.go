@@ -1979,7 +1979,7 @@ communicating directly.`,
 	// AI Gateway options
 	aiGatewayEnabled := serpent.Option{
 		Name:        "AI Gateway Enabled",
-		Description: "Whether to enable AI Gateway. This controls the AI Gateway entitlement and the endpoint that standalone AI Gateway instances connect to. When enabled, an in-memory AI Gateway instance also starts unless --ai-gateway-embedded-enabled is false.",
+		Description: "Whether to enable AI Gateway. Use --ai-gateway-embedded-enabled to control whether coderd also starts an in-memory AI Gateway instance.",
 		Flag:        "ai-gateway-enabled",
 		Env:         "CODER_AI_GATEWAY_ENABLED",
 		Value:       &c.AI.BridgeConfig.Enabled,
@@ -1989,7 +1989,7 @@ communicating directly.`,
 	}
 	aiGatewayEmbeddedEnabled := serpent.Option{
 		Name:        "AI Gateway Embedded Enabled",
-		Description: "Whether to start an in-memory AI Gateway instance inside coderd. Has no effect unless --ai-gateway-enabled is true. Set to false when all AI Gateway traffic is served by standalone AI Gateway instances. Coder Agents requires the in-memory instance.",
+		Description: "Whether to start an in-memory AI Gateway instance inside coderd. Has no effect unless --ai-gateway-enabled is true. Set to false when all AI Gateway traffic is served by standalone AI Gateway instances. Coder Agents requires this option to be set to true.",
 		Flag:        "ai-gateway-embedded-enabled",
 		Env:         "CODER_AI_GATEWAY_EMBEDDED_ENABLED",
 		Value:       &c.AI.BridgeConfig.EmbeddedEnabled,

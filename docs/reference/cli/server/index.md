@@ -1886,7 +1886,7 @@ Maximum time to wait for the next streamed part from the chat model before the a
 | YAML        | <code>ai_gateway.enabled</code>        |
 | Default     | <code>true</code>                      |
 
-Whether to enable AI Gateway. This controls the AI Gateway entitlement and the endpoint that standalone AI Gateway instances connect to. When enabled, an in-memory AI Gateway instance also starts unless --ai-gateway-embedded-enabled is false.
+Whether to enable AI Gateway. Use --ai-gateway-embedded-enabled to control whether coderd also starts an in-memory AI Gateway instance.
 
 ### --ai-gateway-embedded-enabled
 
@@ -1897,7 +1897,7 @@ Whether to enable AI Gateway. This controls the AI Gateway entitlement and the e
 | YAML        | <code>ai_gateway.embedded_enabled</code>        |
 | Default     | <code>true</code>                               |
 
-Whether to start an in-memory AI Gateway instance inside coderd. Has no effect unless --ai-gateway-enabled is true. Set to false when all AI Gateway traffic is served by standalone AI Gateway instances. Coder Agents requires the in-memory instance.
+Whether to start an in-memory AI Gateway instance inside coderd. Has no effect unless --ai-gateway-enabled is true. Set to false when all AI Gateway traffic is served by standalone AI Gateway instances. Coder Agents requires this option to be set to true.
 
 ### --ai-gateway-retention
 

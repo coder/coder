@@ -409,7 +409,7 @@ Combine with --ai-gateway-structured-logging-source=gateway to keep exporting th
 Whether to start an in-memory AI Gateway instance inside coderd.
 Has no effect unless --ai-gateway-enabled is true.
 Set to false when all AI Gateway traffic is served by standalone AI Gateway instances.
-Coder Agents requires the in-memory instance.
+Coder Agents requires this option to be set to true.
 
 - Type: `bool`
 - Environment variable: `CODER_AI_GATEWAY_EMBEDDED_ENABLED`
@@ -420,8 +420,7 @@ Coder Agents requires the in-memory instance.
 ### Enabled
 
 Whether to enable AI Gateway.
-This controls the AI Gateway entitlement and the endpoint that standalone AI Gateway instances connect to.
-When enabled, an in-memory AI Gateway instance also starts unless --ai-gateway-embedded-enabled is false.
+Use --ai-gateway-embedded-enabled to control whether coderd also starts an in-memory AI Gateway instance.
 
 - Type: `bool`
 - Environment variable: `CODER_AI_GATEWAY_ENABLED`
