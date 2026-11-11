@@ -30,8 +30,62 @@ func newTemplateJob(
 	return job
 }
 
+// newDaemonJob creates a job acquired by the daemon. dbgen gives a started
+// job a tag unique to it, so acquisition cannot pick up a pending job under
+// test instead.
+func newDaemonJob(
+	t *testing.T, db database.Store, daemon database.ProvisionerDaemon,
+	startedAt time.Time, completedAt sql.NullTime,
+) {
+	t.Helper()
+
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		OrganizationID: daemon.OrganizationID,
+		WorkerID:       uuid.NullUUID{UUID: daemon.ID, Valid: true},
+		StartedAt:      sql.NullTime{Time: startedAt, Valid: true},
+		CompletedAt:    completedAt,
+	})
+	require.Equal(t, daemon.ID, job.WorkerID.UUID)
+}
+
+// daemonProgress is how a test daemon is, or is not, making progress.
+type daemonProgress int
+
+const (
+	// completedRecently: the daemon completed a job inside the window.
+	completedRecently daemonProgress = iota
+	// runningJob: the daemon completed nothing inside the window but is
+	// running a job that is not hung, like a long build.
+	runningJob
+	// noProgress: the daemon's last job completed before the window.
+	noProgress
+)
+
+// newDaemonWithProgress creates a provisioner daemon and the job history that
+// gives it the requested progress at now.
+func newDaemonWithProgress(
+	t *testing.T, db database.Store, seed database.ProvisionerDaemon,
+	progress daemonProgress, now time.Time,
+) {
+	t.Helper()
+
+	daemon := dbgen.ProvisionerDaemon(t, db, seed)
+	switch progress {
+	case completedRecently:
+		newDaemonJob(t, db, daemon, now.Add(-10*time.Minute),
+			sql.NullTime{Time: now.Add(-5 * time.Minute), Valid: true})
+	case runningJob:
+		newDaemonJob(t, db, daemon, now.Add(-time.Minute), sql.NullTime{})
+	case noProgress:
+		windowStart := now.Add(-jobreaper.ProvisionerProgressWindow)
+		newDaemonJob(t, db, daemon, windowStart.Add(-10*time.Minute),
+			sql.NullTime{Time: windowStart.Add(-5 * time.Minute), Valid: true})
+	}
+}
+
 // TestDetectorPendingProvisionerAvailability verifies that pending jobs past
-// the ordinary timeout are reaped only when no eligible provisioner is online.
+// the ordinary timeout are reaped only when no eligible provisioner is online
+// and making progress.
 //
 //nolint:tparallel,paralleltest // Subtests share detector tick/stats channels.
 func TestDetectorPendingProvisionerAvailability(t *testing.T) {
@@ -50,9 +104,15 @@ func TestDetectorPendingProvisionerAvailability(t *testing.T) {
 		stale                bool
 		canceled             bool
 		daemonTags           database.StringMap
+		progress             daemonProgress
+		jobAge               time.Duration
 		wantReaped           bool
 	}{
 		{name: "Online"},
+		// A moving queue protects jobs past the former 2 hour limit.
+		{name: "OnlinePastFormerMaximumAge", jobAge: 3 * time.Hour},
+		{name: "OnlineRunningLongBuild", progress: runningJob},
+		{name: "OnlineNoProgress", progress: noProgress, wantReaped: true},
 		{name: "WrongOrganization", wrongOrg: true, wantReaped: true},
 		{name: "WrongProvisionerType", wrongProvisionerType: true, wantReaped: true},
 		{name: "WrongTags", daemonTags: database.StringMap{"pool": "other"}, wantReaped: true},
@@ -67,17 +127,21 @@ func TestDetectorPendingProvisionerAvailability(t *testing.T) {
 			now := dbtime.Now()
 			org := dbgen.Organization(t, env.DB, database.Organization{})
 			tags := database.StringMap{"pool": "test"}
+			queuedAt := now.Add(-35 * time.Minute)
+			if tc.jobAge != 0 {
+				queuedAt = now.Add(-tc.jobAge)
+			}
 			var canceledAt sql.NullTime
 			if tc.canceled {
-				canceledAt = sql.NullTime{Time: now.Add(-35 * time.Minute), Valid: true}
+				canceledAt = sql.NullTime{Time: queuedAt, Valid: true}
 			}
 			job := newTemplateJob(t, env.DB, database.ProvisionerJob{
 				OrganizationID: org.ID,
 				InitiatorID:    user.ID,
 				FileID:         file.ID,
 				Type:           database.ProvisionerJobTypeTemplateVersionImport,
-				CreatedAt:      now.Add(-35 * time.Minute),
-				UpdatedAt:      now.Add(-35 * time.Minute),
+				CreatedAt:      queuedAt,
+				UpdatedAt:      queuedAt,
 				Tags:           tags,
 				CanceledAt:     canceledAt,
 			})
@@ -98,7 +162,7 @@ func TestDetectorPendingProvisionerAvailability(t *testing.T) {
 			if tc.stale {
 				daemonSeed.LastSeenAt.Time = now.Add(-jobreaper.ProvisionerStaleInterval - time.Minute)
 			}
-			dbgen.ProvisionerDaemon(t, env.DB, daemonSeed)
+			newDaemonWithProgress(t, env.DB, daemonSeed, tc.progress, now)
 
 			stats := env.tick(ctx, now)
 			require.NoError(t, stats.Error)
@@ -121,7 +185,8 @@ func TestDetectorPendingProvisionerAvailability(t *testing.T) {
 }
 
 // TestDetectorPendingMaximumAge verifies that a job pending past the absolute
-// age limit is reaped even when an eligible provisioner is online.
+// age limit is reaped even when an eligible provisioner is online and making
+// progress.
 func TestDetectorPendingMaximumAge(t *testing.T) {
 	t.Parallel()
 
@@ -130,17 +195,17 @@ func TestDetectorPendingMaximumAge(t *testing.T) {
 	defer env.close()
 
 	// GIVEN: A pending job past the absolute age limit and an eligible online
-	// provisioner.
+	// provisioner that is making progress.
 	now := dbtime.Now()
 	queuedAt := now.Add(-jobreaper.MaxPendingJobDuration - time.Hour)
 	org := dbgen.Organization(t, env.DB, database.Organization{})
 	user := dbgen.User(t, env.DB, database.User{})
 	file := dbgen.File(t, env.DB, database.File{})
 	tags := database.StringMap{"pool": "test"}
-	dbgen.ProvisionerDaemon(t, env.DB, database.ProvisionerDaemon{
+	newDaemonWithProgress(t, env.DB, database.ProvisionerDaemon{
 		OrganizationID: org.ID, Tags: tags,
 		LastSeenAt: sql.NullTime{Time: now, Valid: true},
-	})
+	}, completedRecently, now)
 	job := newTemplateJob(t, env.DB, database.ProvisionerJob{
 		OrganizationID: org.ID,
 		InitiatorID:    user.ID,
@@ -169,7 +234,7 @@ func TestDetectorPendingMaximumAge(t *testing.T) {
 	for _, log := range logs {
 		logMessages = append(logMessages, log.Output)
 	}
-	require.Contains(t, logMessages, "Coder: Build has been pending for more than 120 minutes, exceeding the maximum pending age. It will be terminated. Contact your administrator.")
+	require.Contains(t, logMessages, "Coder: Build has been pending for more than 24 hours, exceeding the maximum pending age. It will be terminated. Contact your administrator.")
 }
 
 // TestDetectorExcludesProtectedPendingJobsFromCandidates verifies that
@@ -189,10 +254,10 @@ func TestDetectorExcludesProtectedPendingJobsFromCandidates(t *testing.T) {
 	user := dbgen.User(t, env.DB, database.User{})
 	file := dbgen.File(t, env.DB, database.File{})
 	tags := database.StringMap{"pool": "available"}
-	dbgen.ProvisionerDaemon(t, env.DB, database.ProvisionerDaemon{
+	newDaemonWithProgress(t, env.DB, database.ProvisionerDaemon{
 		OrganizationID: org.ID, Tags: tags,
 		LastSeenAt: sql.NullTime{Time: now.Add(-2 * time.Minute), Valid: true},
-	})
+	}, completedRecently, now)
 	for range 3 * jobreaper.MaxJobsPerRun {
 		newTemplateJob(t, env.DB, database.ProvisionerJob{
 			OrganizationID: org.ID, InitiatorID: user.ID, FileID: file.ID,

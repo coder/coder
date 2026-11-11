@@ -8094,6 +8094,21 @@ func (mr *MockStoreMockRecorder) GetWorkspacesForWorkspaceMetrics(ctx any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesForWorkspaceMetrics", reflect.TypeOf((*MockStore)(nil).GetWorkspacesForWorkspaceMetrics), ctx)
 }
 
+// HasProvisionerDaemonMakingProgress mocks base method.
+func (m *MockStore) HasProvisionerDaemonMakingProgress(ctx context.Context, arg database.HasProvisionerDaemonMakingProgressParams) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "HasProvisionerDaemonMakingProgress", ctx, arg)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// HasProvisionerDaemonMakingProgress indicates an expected call of HasProvisionerDaemonMakingProgress.
+func (mr *MockStoreMockRecorder) HasProvisionerDaemonMakingProgress(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasProvisionerDaemonMakingProgress", reflect.TypeOf((*MockStore)(nil).HasProvisionerDaemonMakingProgress), ctx, arg)
+}
+
 // HasTemplateVersionsUsingCachedModuleFileInOrg mocks base method.
 func (m *MockStore) HasTemplateVersionsUsingCachedModuleFileInOrg(ctx context.Context, arg database.HasTemplateVersionsUsingCachedModuleFileInOrgParams) (bool, error) {
 	m.ctrl.T.Helper()

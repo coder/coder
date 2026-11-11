@@ -2,6 +2,7 @@ package jobreaper
 
 import (
 	"database/sql"
+	"slices"
 	"testing"
 	"time"
 
@@ -34,9 +35,9 @@ func TestReapPendingJobRecheck(t *testing.T) {
 			wantError: "job is no longer pending",
 		},
 		{
-			name:              "EligibleProvisionerOnline",
+			name:              "EligibleProvisionerMakingProgress",
 			provisionerOnline: true,
-			wantError:         "an eligible provisioner is online",
+			wantError:         "an eligible provisioner is online and making progress",
 		},
 		{
 			name:        "ProvisionerLookupFailed",
@@ -65,14 +66,22 @@ func TestReapPendingJobRecheck(t *testing.T) {
 			})
 			tx.EXPECT().GetProvisionerJobByIDForUpdate(gomock.Any(), job.ID).Return(job, nil)
 			if tc.provisionerOnline {
+				online := database.ProvisionerDaemon{
+					ID:         uuid.New(),
+					LastSeenAt: sql.NullTime{Time: now.Add(-2 * time.Minute), Valid: true},
+				}
+				stale := database.ProvisionerDaemon{
+					ID:         uuid.New(),
+					LastSeenAt: sql.NullTime{Time: now.Add(-ProvisionerStaleInterval - time.Minute), Valid: true},
+				}
 				tx.EXPECT().GetEligibleProvisionerDaemonsByProvisionerJobIDs(gomock.Any(), []uuid.UUID{job.ID}).Return([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{
-					{
-						JobID: job.ID,
-						ProvisionerDaemon: database.ProvisionerDaemon{
-							LastSeenAt: sql.NullTime{Time: now.Add(-2 * time.Minute), Valid: true},
-						},
-					},
+					{JobID: job.ID, ProvisionerDaemon: online},
+					{JobID: job.ID, ProvisionerDaemon: stale},
 				}, nil)
+				// Only online daemons are checked for progress.
+				tx.EXPECT().HasProvisionerDaemonMakingProgress(gomock.Any(), gomock.Cond(func(arg database.HasProvisionerDaemonMakingProgressParams) bool {
+					return slices.Equal(arg.DaemonIds, []uuid.UUID{online.ID})
+				})).Return(true, nil)
 			}
 			if tc.lookupError {
 				tx.EXPECT().GetEligibleProvisionerDaemonsByProvisionerJobIDs(gomock.Any(), []uuid.UUID{job.ID}).Return(nil, xerrors.New("lookup failed"))

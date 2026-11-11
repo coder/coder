@@ -26593,7 +26593,8 @@ WITH pending_requirements AS (
 		AND updated_at >= $2
 ),
 protected_requirements AS (
-	-- Requirement sets with an eligible daemon that was recently seen.
+	-- Requirement sets with an eligible, recently seen daemon that is making
+	-- progress.
 	SELECT pr.organization_id, pr.provisioner, pr.tags
 	FROM pending_requirements pr
 	WHERE EXISTS (
@@ -26603,6 +26604,28 @@ protected_requirements AS (
 			AND pr.provisioner = ANY(pd.provisioners)
 			AND provisioner_tagset_contains(pd.tags::tagset, pr.tags::tagset)
 			AND pd.last_seen_at >= $5::timestamptz
+			-- Progress is a recently completed job or a running job that is
+			-- not hung, so builds longer than the window still count. Keep the
+			-- legs as separate EXISTS so each is a range scan on
+			-- provisioner_jobs_worker_id_organization_id_completed_at_idx.
+			-- Keep in sync with HasProvisionerDaemonMakingProgress.
+			AND (
+				EXISTS (
+					SELECT 1
+					FROM provisioner_jobs wj
+					WHERE wj.worker_id = pd.id
+						AND wj.organization_id = pd.organization_id
+						AND wj.completed_at >= $6::timestamptz
+				)
+				OR EXISTS (
+					SELECT 1
+					FROM provisioner_jobs wj
+					WHERE wj.worker_id = pd.id
+						AND wj.organization_id = pd.organization_id
+						AND wj.completed_at IS NULL
+						AND wj.updated_at >= $3
+				)
+			)
 	)
 )
 SELECT
@@ -26616,7 +26639,7 @@ WHERE
 		AND pj.started_at IS NULL
 		AND pj.completed_at IS NULL
 		-- Unless it is pending within the absolute age limit and an eligible
-		-- provisioner is online.
+		-- provisioner is online and making progress.
 		AND NOT (
 			pj.job_status = 'pending'::provisioner_job_status
 			AND pj.updated_at >= $2
@@ -26641,11 +26664,12 @@ LIMIT $4
 `
 
 type GetProvisionerJobsToBeReapedParams struct {
-	PendingSince         time.Time `db:"pending_since" json:"pending_since"`
-	MaxPendingSince      time.Time `db:"max_pending_since" json:"max_pending_since"`
-	HungSince            time.Time `db:"hung_since" json:"hung_since"`
-	MaxJobs              int32     `db:"max_jobs" json:"max_jobs"`
-	ProvisionerSeenSince time.Time `db:"provisioner_seen_since" json:"provisioner_seen_since"`
+	PendingSince             time.Time `db:"pending_since" json:"pending_since"`
+	MaxPendingSince          time.Time `db:"max_pending_since" json:"max_pending_since"`
+	HungSince                time.Time `db:"hung_since" json:"hung_since"`
+	MaxJobs                  int32     `db:"max_jobs" json:"max_jobs"`
+	ProvisionerSeenSince     time.Time `db:"provisioner_seen_since" json:"provisioner_seen_since"`
+	ProvisionerProgressSince time.Time `db:"provisioner_progress_since" json:"provisioner_progress_since"`
 }
 
 // To avoid repeatedly attempting to reap the same jobs, we randomly order and limit to @max_jobs.
@@ -26656,6 +26680,7 @@ func (q *sqlQuerier) GetProvisionerJobsToBeReaped(ctx context.Context, arg GetPr
 		arg.HungSince,
 		arg.MaxJobs,
 		arg.ProvisionerSeenSince,
+		arg.ProvisionerProgressSince,
 	)
 	if err != nil {
 		return nil, err
@@ -26698,6 +26723,46 @@ func (q *sqlQuerier) GetProvisionerJobsToBeReaped(ctx context.Context, arg GetPr
 		return nil, err
 	}
 	return items, nil
+}
+
+const hasProvisionerDaemonMakingProgress = `-- name: HasProvisionerDaemonMakingProgress :one
+SELECT EXISTS (
+	SELECT 1
+	FROM provisioner_daemons pd
+	WHERE pd.id = ANY($1::uuid[])
+		AND (
+			EXISTS (
+				SELECT 1
+				FROM provisioner_jobs wj
+				WHERE wj.worker_id = pd.id
+					AND wj.organization_id = pd.organization_id
+					AND wj.completed_at >= $2::timestamptz
+			)
+			OR EXISTS (
+				SELECT 1
+				FROM provisioner_jobs wj
+				WHERE wj.worker_id = pd.id
+					AND wj.organization_id = pd.organization_id
+					AND wj.completed_at IS NULL
+					AND wj.updated_at >= $3::timestamptz
+			)
+		)
+)::bool AS making_progress
+`
+
+type HasProvisionerDaemonMakingProgressParams struct {
+	DaemonIds     []uuid.UUID `db:"daemon_ids" json:"daemon_ids"`
+	ProgressSince time.Time   `db:"progress_since" json:"progress_since"`
+	HungSince     time.Time   `db:"hung_since" json:"hung_since"`
+}
+
+// Applies the daemon progress rule from GetProvisionerJobsToBeReaped to the
+// given daemons. Keep the two in sync.
+func (q *sqlQuerier) HasProvisionerDaemonMakingProgress(ctx context.Context, arg HasProvisionerDaemonMakingProgressParams) (bool, error) {
+	row := q.db.QueryRowContext(ctx, hasProvisionerDaemonMakingProgress, pq.Array(arg.DaemonIds), arg.ProgressSince, arg.HungSince)
+	var making_progress bool
+	err := row.Scan(&making_progress)
+	return making_progress, err
 }
 
 const insertProvisionerJob = `-- name: InsertProvisionerJob :one
