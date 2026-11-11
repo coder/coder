@@ -255,26 +255,45 @@ describe("ChatTopBar archive state", () => {
 		expect(API.experimental.updateChat).not.toHaveBeenCalled();
 	});
 
-	it("does not unarchive a chat whose project is archived", async () => {
-		const user = userEvent.setup();
-		mockArchiveAndDeleteApi(chat.created_at);
-		vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue([
-			MockArchivedChatProject,
-		]);
-		renderTopBar({ ...chat, archived: true, project_id: MockChatProject.id });
+	it.each([
+		{
+			projectState: "is archived",
+			archivedProjects: () => Promise.resolve([MockArchivedChatProject]),
+			hint: "Unarchive the project to restore this chat.",
+		},
+		{
+			projectState: "is still loading",
+			archivedProjects: () => new Promise<never>(() => {}),
+			hint: "Checking whether the project is archived.",
+		},
+		{
+			projectState: "failed to load",
+			archivedProjects: () => Promise.reject(new Error("Request rejected")),
+			hint: "Couldn't check whether the project is archived.",
+		},
+	])(
+		"does not unarchive a chat whose project $projectState",
+		async ({ archivedProjects, hint }) => {
+			const user = userEvent.setup();
+			mockArchiveAndDeleteApi(chat.created_at);
+			vi.spyOn(API.experimental, "getChatProjects").mockImplementation(
+				archivedProjects,
+			);
+			renderTopBar({ ...chat, archived: true, project_id: MockChatProject.id });
 
-		await user.click(
-			await screen.findByRole("button", { name: "Open agent actions" }),
-		);
-		await user.click(
-			await screen.findByRole("menuitem", {
-				name: "Unarchive agent",
-				description: "Unarchive the project to restore this chat.",
-			}),
-		);
+			await user.click(
+				await screen.findByRole("button", { name: "Open agent actions" }),
+			);
+			await user.click(
+				await screen.findByRole("menuitem", {
+					name: "Unarchive agent",
+					description: hint,
+				}),
+			);
 
-		expect(API.experimental.updateChat).not.toHaveBeenCalled();
-	});
+			expect(API.experimental.updateChat).not.toHaveBeenCalled();
+		},
+	);
 
 	it("tracks pending archives across navigation without blocking other chats", async () => {
 		const user = userEvent.setup();

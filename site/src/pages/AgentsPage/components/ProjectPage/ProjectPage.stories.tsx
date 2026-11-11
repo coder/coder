@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
 import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import {
+	archivedChatProjectsKey,
 	chatProjectACLKey,
 	chatProjectInstructionsKey,
 } from "#/api/queries/chatProjects";
@@ -276,6 +277,7 @@ export const Archived: Story = {
 				key: projectChats(MockChatProject.id, true).queryKey,
 				data: { pages: [[mockArchivedChat]], pageParams: [0] },
 			},
+			{ key: archivedChatProjectsKey, data: [MockArchivedChatProject] },
 			{
 				key: chatCostTreeKey(mockArchivedChat.id),
 				data: mockChatCost(mockArchivedChat.id, 1_234_000),
@@ -302,6 +304,7 @@ export const ArchivedProjectActions: Story = {
 				key: projectChats(MockChatProject.id, true).queryKey,
 				data: { pages: [[mockArchivedChat]], pageParams: [0] },
 			},
+			{ key: archivedChatProjectsKey, data: [MockArchivedChatProject] },
 			{
 				key: chatCostTreeKey(mockArchivedChat.id),
 				data: mockChatCost(mockArchivedChat.id, 1_234_000),
@@ -345,6 +348,7 @@ export const ArchivedWithoutArchivePermission: Story = {
 				key: projectChats(MockChatProject.id, true).queryKey,
 				data: { pages: [[mockArchivedChat]], pageParams: [0] },
 			},
+			{ key: archivedChatProjectsKey, data: [MockArchivedChatProject] },
 			{
 				key: chatCostTreeKey(mockArchivedChat.id),
 				data: mockChatCost(mockArchivedChat.id, 1_234_000),
