@@ -10115,6 +10115,20 @@ func (mr *MockStoreMockRecorder) LockChatByID(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatByID", reflect.TypeOf((*MockStore)(nil).LockChatByID), ctx, id)
 }
 
+// LockChatProjectUnarchivedChildChats mocks base method.
+func (m *MockStore) LockChatProjectUnarchivedChildChats(ctx context.Context, projectID uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "LockChatProjectUnarchivedChildChats", ctx, projectID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// LockChatProjectUnarchivedChildChats indicates an expected call of LockChatProjectUnarchivedChildChats.
+func (mr *MockStoreMockRecorder) LockChatProjectUnarchivedChildChats(ctx, projectID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LockChatProjectUnarchivedChildChats", reflect.TypeOf((*MockStore)(nil).LockChatProjectUnarchivedChildChats), ctx, projectID)
+}
+
 // LockChatProjectUnarchivedRootChats mocks base method.
 func (m *MockStore) LockChatProjectUnarchivedRootChats(ctx context.Context, projectID uuid.UUID) error {
 	m.ctrl.T.Helper()

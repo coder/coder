@@ -564,7 +564,13 @@ func (p *Server) ArchiveChatProject(ctx context.Context, projectID uuid.UUID, st
 // through chatstate.UnarchiveProjectChats. ctx's actor must be allowed to
 // delete the project.
 func (p *Server) UnarchiveChatProject(ctx context.Context, projectID uuid.UUID) (database.ChatProject, error) {
-	project, chats, err := chatstate.UnarchiveProjectChats(ctx, p.db, p.pubsub, projectID)
+	project, chats, err := chatstate.UnarchiveProjectChats(ctx, p.db, p.pubsub, chatstate.UnarchiveProjectChatsInput{
+		ProjectID: projectID,
+		OnDeadlockRetry: func(attempt int, err error) {
+			p.logger.Warn(ctx, "retrying chat project unarchive after a deadlock",
+				slog.F("project_id", projectID), slog.F("attempt", attempt), slog.Error(err))
+		},
+	})
 	if errors.Is(err, chatstate.ErrChatUpdatePublishFailed) {
 		p.logger.Warn(ctx, "publish chat updates for unarchived project failed",
 			slog.F("project_id", projectID), slog.Error(err))
