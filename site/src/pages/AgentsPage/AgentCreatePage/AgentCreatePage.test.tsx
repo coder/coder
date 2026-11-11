@@ -151,7 +151,7 @@ const renderAgentsRoutes = (route = projectPath(MockChatProject.id)) =>
 
 const openProjectAction = async (
 	user: ReturnType<typeof userEvent.setup>,
-	action: "Edit project" | "Delete project",
+	action: "Edit project" | "Archive project" | "Delete project",
 ) => {
 	await user.click(
 		await screen.findByRole("button", { name: "Project actions" }),
@@ -569,6 +569,22 @@ describe("AgentCreatePage project frame", () => {
 		});
 		// The dialog opened with project B's name, not project A's.
 		expect(requestBody).toMatchObject({ name: "Beta!" });
+	});
+
+	it("returns focus to Project actions when archiving is cancelled", async () => {
+		serveProjects(MockChatProject);
+		const user = userEvent.setup();
+
+		renderAgentsRoutes();
+		await screen.findByRole("heading", { name: MockChatProject.name });
+		await openProjectAction(user, "Archive project");
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: "Project actions" }),
+			).toHaveFocus(),
+		);
 	});
 
 	it("edits the project from the actions menu and shows the saved name", async () => {
