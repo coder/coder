@@ -6,7 +6,6 @@ import { updateOrganization } from "#/api/queries/organizations";
 import { deleteOrganizationRole, organizationRoles } from "#/api/queries/roles";
 import type { Role } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
-import { NotFoundIllustration } from "#/components/EmptyState/components/NotFoundIllustration";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import {
 	SettingsHeader,
@@ -68,12 +67,7 @@ const CustomRolesPage: React.FC = () => {
 	}, [organizationRolesQuery.error]);
 
 	if (!organization) {
-		return (
-			<EmptyState
-				image={<NotFoundIllustration className="-mb-5 max-w-full" />}
-				message="Organization not found"
-			/>
-		);
+		return <EmptyState message="Organization not found" />;
 	}
 
 	return (

@@ -6,7 +6,6 @@ import type {
 } from "#/api/typesGenerated";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { NotFoundIllustration } from "#/components/EmptyState/components/NotFoundIllustration";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Link } from "#/components/Link/Link";
 import {
@@ -91,10 +90,7 @@ const OrganizationProvisionerJobsPageView: React.FC<
 			<>
 				<title>{pageTitle("Provisioner Jobs")}</title>
 
-				<EmptyState
-					image={<NotFoundIllustration className="-mb-5 max-w-full" />}
-					message="Organization not found"
-				/>
+				<EmptyState message="Organization not found" />
 			</>
 		);
 	}

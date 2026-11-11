@@ -34,7 +34,7 @@ export const WorkspacesEmpty: React.FC<WorkspacesEmptyProps> = ({
 	if (isUsingFilter) {
 		return (
 			<EmptyState
-				image={<SearchIllustration className="-mb-5 max-w-full" />}
+				image={<SearchIllustration className="-mb-5 h-auto max-w-full" />}
 				message="No results match your filters"
 				description="Broaden your search to explore more options."
 				cta={
@@ -49,7 +49,7 @@ export const WorkspacesEmpty: React.FC<WorkspacesEmptyProps> = ({
 	if (!canCreateWorkspace) {
 		return (
 			<EmptyState
-				image={<NoAccessIllustration className="-mb-5 max-w-full" />}
+				image={<NoAccessIllustration className="-mb-5 h-auto max-w-full" />}
 				message="No workspaces"
 				description="You don't have permission to create workspaces. Contact your administrator if you need workspace access."
 			/>
@@ -59,7 +59,7 @@ export const WorkspacesEmpty: React.FC<WorkspacesEmptyProps> = ({
 	if (templates && templates.length === 0 && canCreateTemplate) {
 		return (
 			<EmptyState
-				image={<AnnotationIllustration className="-mb-5 max-w-full" />}
+				image={<AnnotationIllustration className="-mb-5 h-auto max-w-full" />}
 				message={defaultTitle}
 				description={`${defaultMessage} To create a workspace, you first need to create a template.`}
 				cta={
@@ -74,7 +74,7 @@ export const WorkspacesEmpty: React.FC<WorkspacesEmptyProps> = ({
 	if (templates && templates.length === 0 && !canCreateTemplate) {
 		return (
 			<EmptyState
-				image={<AnnotationIllustration className="-mb-5 max-w-full" />}
+				image={<AnnotationIllustration className="-mb-5 h-auto max-w-full" />}
 				message={defaultTitle}
 				description={`${defaultMessage} There are no templates available, but you will see them here once your admin adds them.`}
 			/>
@@ -83,7 +83,6 @@ export const WorkspacesEmpty: React.FC<WorkspacesEmptyProps> = ({
 
 	return (
 		<EmptyState
-			image={<AnnotationIllustration className="-mb-5 max-w-full" />}
 			message={defaultTitle}
 			description={`${defaultMessage} Select one template below to start.`}
 			cta={

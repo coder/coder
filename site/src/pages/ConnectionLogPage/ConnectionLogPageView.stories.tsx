@@ -92,6 +92,16 @@ export const NoLogs: Story = {
 	},
 };
 
+export const NoMatchingLogs: Story = {
+	args: {
+		...NoLogs.args,
+		filterProps: {
+			...defaultFilterProps,
+			filter: { ...defaultFilterProps.filter, used: true },
+		},
+	},
+};
+
 export const NotVisible: Story = {
 	args: {
 		isConnectionLogVisible: false,

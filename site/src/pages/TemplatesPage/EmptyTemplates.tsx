@@ -2,7 +2,6 @@ import { Link as RouterLink } from "react-router";
 import type { TemplateExample } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import { CodeExample } from "#/components/CodeExample/CodeExample";
-import { AnnotationIllustration } from "#/components/EmptyState/components/AnnotationIllustration";
 import { SearchIllustration } from "#/components/EmptyState/components/SearchIllustration";
 import { Link } from "#/components/Link/Link";
 import { TableEmpty } from "#/components/TableEmpty/TableEmpty";
@@ -39,6 +38,7 @@ type EmptyTemplatesProps = {
 	templateBuilderEnabled: boolean;
 	examples: TemplateExample[];
 	isUsingFilter: boolean;
+	onClearFilter: () => void;
 };
 
 export const EmptyTemplates: React.FC<EmptyTemplatesProps> = ({
@@ -46,12 +46,19 @@ export const EmptyTemplates: React.FC<EmptyTemplatesProps> = ({
 	templateBuilderEnabled,
 	examples,
 	isUsingFilter,
+	onClearFilter,
 }) => {
 	if (isUsingFilter) {
 		return (
 			<TableEmpty
-				image={<SearchIllustration className="-mb-5 max-w-full" />}
-				message="No results matched your search"
+				image={<SearchIllustration className="-mb-5 h-auto max-w-full" />}
+				message="No results match your filters"
+				description="Broaden your search to explore more options."
+				cta={
+					<Button variant="outline" onClick={onClearFilter}>
+						Reset filters
+					</Button>
+				}
 			/>
 		);
 	}
@@ -61,7 +68,6 @@ export const EmptyTemplates: React.FC<EmptyTemplatesProps> = ({
 	if (canCreateTemplates) {
 		return (
 			<TableEmpty
-				image={<AnnotationIllustration className="-mb-5 max-w-full" />}
 				message="Create your first template"
 				description={
 					<>
@@ -109,7 +115,6 @@ export const EmptyTemplates: React.FC<EmptyTemplatesProps> = ({
 
 	return (
 		<TableEmpty
-			image={<AnnotationIllustration className="-mb-5 max-w-full" />}
 			message="Create a Template"
 			description="Contact your Coder administrator to create a template. You can share the code below."
 			cta={<CodeExample secret={false} code="coder templates init" />}

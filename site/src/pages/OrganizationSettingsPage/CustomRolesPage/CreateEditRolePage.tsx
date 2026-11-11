@@ -9,7 +9,6 @@ import {
 import type { CustomRoleRequest } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
-import { NotFoundIllustration } from "#/components/EmptyState/components/NotFoundIllustration";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { Loader } from "#/components/Loader/Loader";
 import { toast } from "#/components/Toaster/toast";
@@ -35,12 +34,7 @@ const CreateEditRolePage: React.FC = () => {
 	);
 
 	if (!organizationName) {
-		return (
-			<EmptyState
-				image={<NotFoundIllustration className="-mb-5 max-w-full" />}
-				message="Organization not found"
-			/>
-		);
+		return <EmptyState message="Organization not found" />;
 	}
 
 	const rolesHref = `/organizations/${organizationName}/roles`;
@@ -64,7 +58,6 @@ const CreateEditRolePage: React.FC = () => {
 	if (roleName && !role) {
 		return (
 			<EmptyState
-				image={<NotFoundIllustration className="-mb-5 max-w-full" />}
 				message="Role not found"
 				cta={
 					<Button variant="outline" asChild>

@@ -227,6 +227,23 @@ describe("WorkspacesPageView", () => {
 		},
 	);
 
+	it("navigates to the dashboard from an invalid workspace page", async () => {
+		const user = userEvent.setup();
+		const { router } = renderWithAuth(
+			<WorkspacesPageView {...defaultProps} page={99} />,
+			{
+				path: "/workspaces",
+				route: "/workspaces?page=99",
+				extraRoutes: [{ path: "/", element: <div /> }],
+			},
+		);
+
+		await user.click(
+			await screen.findByRole("link", { name: "Go to dashboard" }),
+		);
+		expect(router.state.location.pathname).toBe("/");
+	});
+
 	it("restarts a running workspace from the overflow menu", async () => {
 		const user = userEvent.setup();
 		const restartSpy = vi

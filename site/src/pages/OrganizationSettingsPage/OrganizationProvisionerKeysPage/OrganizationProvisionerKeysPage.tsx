@@ -1,7 +1,6 @@
 import { useQuery } from "react-query";
 import { useParams } from "react-router";
 import { provisionerDaemonGroups } from "#/api/queries/organizations";
-import { NotFoundIllustration } from "#/components/EmptyState/components/NotFoundIllustration";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import { useDashboard } from "#/modules/dashboard/useDashboard";
@@ -25,12 +24,7 @@ const OrganizationProvisionerKeysPage: React.FC = () => {
 	});
 
 	if (!organization) {
-		return (
-			<EmptyState
-				image={<NotFoundIllustration className="-mb-5 max-w-full" />}
-				message="Organization not found"
-			/>
-		);
+		return <EmptyState message="Organization not found" />;
 	}
 
 	const title = (
