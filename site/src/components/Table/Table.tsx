@@ -58,7 +58,7 @@ export const TableBody: React.FC<TableBodyProps> = ({
 	return (
 		<tbody
 			className={cn(
-				"[&>tr>th]:border-0 [&>tr>th]:border-t [&>tr>th]:border-solid [&>tr>th]:border-border",
+				"[&>tr>th]:border-t",
 				// Select the outline by child position: a body row can start with a
 				// scope="row" th, and td:first-of-type would skip it and treat the
 				// second cell as the first.
@@ -75,10 +75,7 @@ export const TableBody: React.FC<TableBodyProps> = ({
 };
 
 const tableRowVariants = cva(
-	[
-		"border-0 border-b border-solid border-border transition-colors",
-		"data-[state=selected]:bg-surface-secondary",
-	],
+	["border-b transition-colors", "data-[state=selected]:bg-surface-secondary"],
 	{
 		variants: {
 			hover: {
@@ -141,7 +138,7 @@ export const TableCell: React.FC<React.ComponentProps<"td">> = ({
 		<td
 			{...props}
 			className={cn(
-				"border-0 border-t border-border border-solid",
+				"border-t",
 				"p-3 align-middle has-[[role=checkbox]]:pr-0 *:[[role=checkbox]]:translate-y-0.5",
 				className,
 			)}

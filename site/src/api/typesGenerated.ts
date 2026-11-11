@@ -45,6 +45,11 @@ export type AIBridgeAttribution = Record<string, string>;
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
 	/**
+	 * EmbeddedEnabled controls whether coderd starts the in-memory AI
+	 * Gateway. It only takes effect when Enabled is true.
+	 */
+	readonly embedded_enabled: boolean;
+	/**
 	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
 	readonly inject_coder_mcp_tools: boolean;
@@ -2017,6 +2022,7 @@ export interface BuildInfoResponse {
 
 // From codersdk/workspacebuilds.go
 export type BuildReason =
+	| "autodelete"
 	| "autostart"
 	| "autostop"
 	| "cli"
@@ -2028,6 +2034,7 @@ export type BuildReason =
 	| "vscode_connection";
 
 export const BuildReasons: BuildReason[] = [
+	"autodelete",
 	"autostart",
 	"autostop",
 	"cli",
@@ -6657,10 +6664,14 @@ export interface IssueReconnectingPTYSignedTokenResponse {
 }
 
 // From codersdk/provisionerdaemons.go
-export type JobErrorCode = "INSUFFICIENT_QUOTA" | "REQUIRED_TEMPLATE_VARIABLES";
+export type JobErrorCode =
+	| "INSUFFICIENT_QUOTA"
+	| "MISSING_TEMPLATE_PARAMETER"
+	| "REQUIRED_TEMPLATE_VARIABLES";
 
 export const JobErrorCodes: JobErrorCode[] = [
 	"INSUFFICIENT_QUOTA",
+	"MISSING_TEMPLATE_PARAMETER",
 	"REQUIRED_TEMPLATE_VARIABLES",
 ];
 
@@ -6807,11 +6818,19 @@ export interface LoggingConfig {
 }
 
 // From codersdk/apikey.go
-export type LoginType = "github" | "none" | "oidc" | "password" | "token" | "";
+export type LoginType =
+	| "github"
+	| "none"
+	| "oauth2_provider_app"
+	| "oidc"
+	| "password"
+	| "token"
+	| "";
 
 export const LoginTypes: LoginType[] = [
 	"github",
 	"none",
+	"oauth2_provider_app",
 	"oidc",
 	"password",
 	"token",
@@ -12350,6 +12369,10 @@ export interface WorkspaceAgent {
 	readonly resource_id: string;
 	readonly instance_id?: string;
 	readonly architecture: string;
+	/**
+	 * EnvironmentVariables lists the variables set on the agent. Non-empty
+	 * values are redacted as "***REDACTED***" because they often hold credentials.
+	 */
 	readonly environment_variables: Record<string, string>;
 	readonly operating_system: string;
 	readonly logs_length: number;

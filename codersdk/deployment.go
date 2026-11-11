@@ -1979,13 +1979,23 @@ communicating directly.`,
 	// AI Gateway options
 	aiGatewayEnabled := serpent.Option{
 		Name:        "AI Gateway Enabled",
-		Description: "Whether to start an in-memory AI Gateway instance.",
+		Description: "Whether to enable AI Gateway. Use --ai-gateway-embedded-enabled to control whether coderd also starts an in-memory AI Gateway instance.",
 		Flag:        "ai-gateway-enabled",
 		Env:         "CODER_AI_GATEWAY_ENABLED",
 		Value:       &c.AI.BridgeConfig.Enabled,
 		Default:     "true",
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "enabled",
+	}
+	aiGatewayEmbeddedEnabled := serpent.Option{
+		Name:        "AI Gateway Embedded Enabled",
+		Description: "Whether to start an in-memory AI Gateway instance inside coderd. Has no effect unless --ai-gateway-enabled is true. Set to false when all AI Gateway traffic is served by standalone AI Gateway instances. Coder Agents requires this option to be set to true.",
+		Flag:        "ai-gateway-embedded-enabled",
+		Env:         "CODER_AI_GATEWAY_EMBEDDED_ENABLED",
+		Value:       &c.AI.BridgeConfig.EmbeddedEnabled,
+		Default:     "true",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "embedded_enabled",
 	}
 	aiGatewayInjectCoderMCPTools := serpent.Option{
 		Name:        "AI Gateway Inject Coder MCP tools",
@@ -4580,6 +4590,7 @@ Write out the current server config as YAML to stdout.`,
 			UseInstead:  serpent.OptionSet{aiGatewayEnabled},
 		},
 		aiGatewayEnabled,
+		aiGatewayEmbeddedEnabled,
 		{
 			Name:        "AI Bridge Inject Coder MCP tools",
 			Description: "Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release. This option is an alias for --ai-gateway-inject-coder-mcp-tools.",
@@ -5009,6 +5020,9 @@ Write out the current server config as YAML to stdout.`,
 
 type AIBridgeConfig struct {
 	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
+	// EmbeddedEnabled controls whether coderd starts the in-memory AI
+	// Gateway. It only takes effect when Enabled is true.
+	EmbeddedEnabled serpent.Bool `json:"embedded_enabled" typescript:",notnull"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	InjectCoderMCPTools serpent.Bool     `json:"inject_coder_mcp_tools" typescript:",notnull"`
 	Retention           serpent.Duration `json:"retention" typescript:",notnull"`

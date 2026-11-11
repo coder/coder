@@ -6,10 +6,7 @@ export const Sidebar: React.FC<React.ComponentProps<"nav">> = ({
 }) => {
 	return (
 		<nav
-			className={cn(
-				"w-64 shrink-0 border-solid border-0 border-r",
-				"h-full py-2 overflow-y-auto",
-			)}
+			className={cn("w-64 shrink-0 border-r", "h-full py-2 overflow-y-auto")}
 			{...attrs}
 		>
 			{children}
@@ -29,7 +26,7 @@ export const SidebarItem: React.FC<SidebarItemProps> = ({
 	return (
 		<button
 			className={cn(
-				"py-2.5 px-6 border-0 text-sm w-full text-left cursor-pointer",
+				"py-2.5 px-6 text-sm w-full text-left cursor-pointer",
 				"hover:bg-surface-tertiary hover:text-content-primary",
 				active
 					? "text-content-primary pointer-events-none bg-surface-secondary"
