@@ -59,7 +59,7 @@ const meta: Meta<typeof ProjectPage> = {
 	],
 	args: {
 		project: MockChatProject,
-		canStartChats: true,
+		isSharedWithUser: true,
 		children: (
 			<div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-border text-sm text-content-secondary">
 				Composer
@@ -127,7 +127,24 @@ export const Mobile: Story = {
 export const NotSharedWithUser: Story = {
 	args: {
 		project: { ...MockChatProject, owner_id: MockUserMember.id },
-		canStartChats: false,
+		isSharedWithUser: false,
+	},
+	parameters: {
+		queries: [
+			...chatQueries([]),
+			{
+				key: chatProjectInstructionsKey(MockChatProject.id),
+				data: MockChatProjectInstructions,
+			},
+			{
+				key: chatProjectSkillsKey(MockChatProject.id),
+				data: MockSkills,
+			},
+			{
+				key: chatProjectACLKey(MockChatProject.id),
+				data: { owner: MockUserMember, users: [], groups: [] },
+			},
+		],
 	},
 };
 

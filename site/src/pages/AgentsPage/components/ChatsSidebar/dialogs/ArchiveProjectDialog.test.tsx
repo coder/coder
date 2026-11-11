@@ -156,6 +156,8 @@ describe("ArchiveProjectDialog", () => {
 			),
 		);
 		expect(errorToast).not.toHaveBeenCalled();
+		// The new chat may use a workspace the first list didn't have.
+		expect(API.experimental.getChats).toHaveBeenCalledTimes(2);
 	});
 
 	it("stops running workspaces no other chat uses after archiving", async () => {

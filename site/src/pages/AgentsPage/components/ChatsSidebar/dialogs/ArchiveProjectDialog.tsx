@@ -5,6 +5,7 @@ import type { ExternalToast } from "sonner";
 import { getErrorMessage, getErrorStatus } from "#/api/errors";
 import {
 	archiveChatProject,
+	chatProjectArchiveDialogKey,
 	chatProjectArchivePreview,
 	chatProjectArchivePreviewKey,
 } from "#/api/queries/chatProjects";
@@ -130,12 +131,15 @@ export const ArchiveProjectDialog: React.FC<ArchiveProjectDialogProps> = ({
 				},
 				onError: async (error) => {
 					// A chat can start after the preview loaded. The refreshed
-					// preview shows the warning and the button that stops it.
+					// preview shows the warning and the button that stops it,
+					// and the workspace list picks up the chat's workspace.
 					if (getErrorStatus(error) === 409) {
 						const previewKey = chatProjectArchivePreviewKey(
 							projectToArchive.id,
 						);
-						await queryClient.refetchQueries({ queryKey: previewKey });
+						await queryClient.refetchQueries({
+							queryKey: chatProjectArchiveDialogKey(projectToArchive.id),
+						});
 						const preview =
 							queryClient.getQueryData<ChatProjectArchivePreview>(previewKey);
 						if (preview && preview.active_chat_count > 0) {
@@ -221,19 +225,25 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 		<form className="flex min-w-0 flex-col gap-6" onSubmit={onSubmit}>
 			<DialogHeader>
 				<DialogTitle>Archive project</DialogTitle>
-				<DialogDescription>
-					{preview?.chat_count === 0 ? (
-						<>&ldquo;{project.name}&rdquo; has no chats to archive.</>
-					) : (
-						<>
-							Every chat in &ldquo;{project.name}&rdquo; is archived, including
-							chats started by people it is shared with.
-						</>
-					)}
+				{/* The description waits for the chat count, which decides it. */}
+				<DialogDescription asChild>
+					<div>
+						{preview === undefined && !previewQuery.error ? (
+							<Skeleton variant="text" className="w-2/3" />
+						) : preview?.chat_count === 0 ? (
+							<>&ldquo;{project.name}&rdquo; has no chats to archive.</>
+						) : (
+							<>
+								Every chat in &ldquo;{project.name}&rdquo; is archived,
+								including chats started by people it is shared with.
+							</>
+						)}
+					</div>
 				</DialogDescription>
 			</DialogHeader>
 
-			<div className="flex flex-col gap-4">
+			{/* Empty for a project with no chats and no workspaces. */}
+			<div className="flex flex-col gap-4 empty:hidden">
 				<ArchiveSummary
 					preview={preview}
 					retentionDays={retentionQuery.data?.retention_days}
@@ -320,7 +330,6 @@ const ArchiveSummary: React.FC<ArchiveSummaryProps> = ({
 	return (
 		<>
 			{errorAlert}
-			{/* The description says when there are no chats to archive. */}
 			{preview.chat_count > 0 && (
 				<p className="m-0 text-sm text-content-secondary">
 					{plural(preview.chat_count, "chat", "chats")} will be archived.{" "}

@@ -559,7 +559,7 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			) : isPrefillLoading ? (
 				<Loader className="flex-1" label="Loading workspace build logs" />
 			) : project ? (
-				<ProjectPage project={project} canStartChats={!isProjectUnlisted}>
+				<ProjectPage project={project} isSharedWithUser={!isProjectUnlisted}>
 					{form}
 				</ProjectPage>
 			) : (
