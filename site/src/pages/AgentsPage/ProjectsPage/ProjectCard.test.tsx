@@ -55,13 +55,19 @@ describe("ProjectCard", () => {
 		).toHaveAccessibleDescription(description);
 	});
 
-	it("unpins from the pin button", async () => {
+	// Unpinning removes the pin button, which must not drop focus to the page.
+	it("unpins from the pin button and keeps focus in the card", async () => {
 		const user = userEvent.setup();
 		const { onUnpin } = renderCard();
 		await user.click(
 			screen.getByRole("button", { name: `Unpin ${MockChatProject.name}` }),
 		);
 		expect(onUnpin).toHaveBeenCalledOnce();
+		expect(
+			screen.getByRole("button", {
+				name: `Open project actions for ${MockChatProject.name}`,
+			}),
+		).toHaveFocus();
 	});
 
 	it("pins from the actions menu with the keyboard", async () => {

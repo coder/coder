@@ -64,6 +64,7 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 			{Boolean(error) && (
 				<ErrorAlert
 					error={error}
+					showDebugDetail={false}
 					className="mb-6"
 					actions={
 						<Button size="sm" variant="outline" onClick={onRetry}>
@@ -77,7 +78,7 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 					<ProjectGrid role="status">
 						<span className="sr-only">Loading projects</span>
 						{Array.from({ length: 6 }, (_, index) => (
-							<Skeleton key={index} className="h-36 rounded-lg" />
+							<Skeleton key={index} className="h-44 rounded-lg" />
 						))}
 					</ProjectGrid>
 				)

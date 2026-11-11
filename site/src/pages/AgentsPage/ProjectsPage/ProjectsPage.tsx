@@ -72,7 +72,7 @@ const ProjectsPage: React.FC = () => {
 	const { organizations } = useDashboard();
 	const location = useLocation();
 	const queryClient = useQueryClient();
-	const tabState = useSearchParamsKey({ key: tabSearchParam });
+	const tabState = useSearchParamsKey({ key: tabSearchParam, replace: false });
 	const summariesQuery = useQuery(chatProjectSummaries());
 	const createMutation = useMutation(createChatProject(queryClient));
 	const updateMutation = useMutation(updateChatProject(queryClient));

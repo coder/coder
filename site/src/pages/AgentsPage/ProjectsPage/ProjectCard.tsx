@@ -118,8 +118,9 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 				)}
 			</div>
 			{/* Follows the link in the DOM so the link comes first in the tab
-			    order, and sits above the link's overlay to take its own clicks. */}
-			<div className="absolute top-4 right-4 z-10 flex h-8 items-center gap-1">
+			    order, and sits above the link's overlay to take its own clicks.
+			    Unpinning removes the pin button, so focus moves to the actions button. */}
+			<div className="absolute top-4 right-4 z-10 flex h-8 items-center">
 				{pinned && (
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -128,7 +129,10 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 								size="icon"
 								aria-label={`Unpin ${project.name}`}
 								className="group/pin size-7"
-								onClick={onUnpin}
+								onClick={() => {
+									onUnpin();
+									actionsButtonRef.current?.focus();
+								}}
 							>
 								<PinIcon className="group-hover/pin:hidden group-focus-visible/pin:hidden" />
 								<PinOffIcon className="hidden group-hover/pin:block group-focus-visible/pin:block" />
@@ -145,8 +149,8 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 							size="icon"
 							aria-label={`Open project actions for ${project.name}`}
 							className={cn(
-								"size-7 opacity-0 [@media(hover:none)]:opacity-100",
-								"group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100",
+								"size-7 max-w-0 overflow-hidden px-0 [@media(hover:none)]:max-w-7",
+								"group-hover:max-w-7 group-focus-within:max-w-7 data-[state=open]:max-w-7",
 							)}
 						>
 							<EllipsisVerticalIcon />
@@ -179,7 +183,7 @@ const ActivityLabel: React.FC<ActivityLabelProps> = ({ summary }) => {
 	let label =
 		summary.own_chat_count > 0 ? `${summary.own_chat_count} read` : "No chats";
 	if (own_needs_attention) {
-		icon = <CircleAlertIcon />;
+		icon = <CircleAlertIcon className="text-content-warning" />;
 		label = "Needs attention";
 	} else if (own_running) {
 		icon = <runningStatus.icon className={runningStatus.className} />;
@@ -189,12 +193,7 @@ const ActivityLabel: React.FC<ActivityLabelProps> = ({ summary }) => {
 		label = `${own_unread_count} unread`;
 	}
 	return (
-		<span
-			className={cn(
-				"flex min-w-0 items-center gap-1",
-				own_needs_attention && "text-content-warning",
-			)}
-		>
+		<span className="flex min-w-0 items-center gap-1">
 			{icon && (
 				<span aria-hidden="true" className="flex shrink-0 [&>svg]:size-3.5">
 					{icon}
