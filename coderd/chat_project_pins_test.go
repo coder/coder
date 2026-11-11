@@ -199,6 +199,9 @@ func TestChatProjectSummaries(t *testing.T) {
 	require.NoError(t, client.UpdateChat(ctx, archived.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)}))
 	newChat(quiet, carol.ID, database.ChatStatusRunning, true, none)
 	require.NoError(t, client.DeleteOrganizationMember(ctx, orgID, carol.Username))
+	// A chat that is being stopped still counts as running.
+	stopping := share("Summary Stopping", nil, nil)
+	interrupting := newChat(stopping, me, database.ChatStatusInterrupting, false, none)
 	// The Everyone group's ID is the organization ID.
 	everyone := share("Summary Everyone", nil, []uuid.UUID{orgID})
 	// Suspended users cannot use any project.
@@ -226,7 +229,8 @@ func TestChatProjectSummaries(t *testing.T) {
 		// The owner plus alice, who is granted directly and through the group.
 		busy.ID: {3, 1, 2, true, true, latestUpdate(unread, running, paused)},
 		// Carol left the organization.
-		quiet.ID: {1, 0, 1, false, false, latestUpdate(read)},
+		quiet.ID:    {1, 0, 1, false, false, latestUpdate(read)},
+		stopping.ID: {1, 0, 1, true, false, latestUpdate(interrupting)},
 		// Organization members, without system users, carol or bob.
 		everyone.ID: {0, 0, 2, false, false, time.Time{}},
 	} {

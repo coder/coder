@@ -178,7 +178,7 @@ own_chats AS (
             WHERE cm.chat_id = c.id AND cm.role = 'assistant' AND cm.deleted = false
                 AND cm.id > COALESCE(c.last_read_message_id, 0)
         )) AS unread_count,
-        bool_or(c.status = 'running') AS running,
+        bool_or(c.status IN ('running', 'interrupting')) AS running,
         bool_or(c.status IN ('requires_action', 'error', 'paused')) AS needs_attention,
         MAX(c.updated_at)::timestamptz AS last_activity_at
     FROM chats c
