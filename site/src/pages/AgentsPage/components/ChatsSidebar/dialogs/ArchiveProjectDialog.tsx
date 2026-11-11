@@ -200,20 +200,23 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 
 	const preview = previewQuery.data;
 	const activeChatCount = preview?.active_chat_count ?? 0;
-	const workspaces = workspacesQuery.data ?? [];
+	// A failed refetch keeps stale rows; never stop or delete from them.
+	const workspaces = workspacesQuery.isError
+		? []
+		: (workspacesQuery.data ?? []);
 	const isDeleting = workspaceAction === "delete" && workspaces.length > 0;
 	// Retention only describes what happens to archived chats.
 	const needsRetention = preview?.chat_count !== 0;
 	// A failed refetch leaves a preview that may miss newly active chats, and
-	// the refetch after a 409 may reveal some. Until the workspaces load, the
-	// user hasn't seen the stop and delete choices; if they fail to load,
+	// the refetch after a 409 may reveal some. While the workspaces load or
+	// refetch, the stop and delete choices may be stale; if they fail to load,
 	// archiving leaves them alone.
 	const canArchive =
 		preview !== undefined &&
 		!previewQuery.error &&
 		!previewQuery.isFetching &&
 		(!needsRetention || retentionQuery.data !== undefined) &&
-		!workspacesQuery.isPending &&
+		!workspacesQuery.isFetching &&
 		!isArchiving &&
 		(!isDeleting || confirmation.confirmed);
 
