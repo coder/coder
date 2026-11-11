@@ -34,6 +34,7 @@ import {
 	MockAppearanceConfig,
 	MockBuildInfo,
 	MockChatProject,
+	MockChatProjectSummary,
 	MockDefaultOrganization,
 	MockEntitlements,
 	MockOrganization2,
@@ -158,6 +159,32 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	onSidebarFiltersChange: vi.fn(),
 	currentUserId: MockUserOwner.id,
 };
+
+// The sidebar lists pinned projects from their summaries. Unless a test
+// mocks the summaries, every project in the projects list is pinned.
+beforeEach(() => {
+	server.use(
+		http.get(
+			"/api/experimental/chats/projects/summaries",
+			async ({ request }) => {
+				const response = await fetch(
+					new URL("/api/experimental/chats/projects", request.url),
+				);
+				if (!response.ok) {
+					return response;
+				}
+				const projects: TypesGen.ChatProject[] = await response.json();
+				return HttpResponse.json(
+					projects.map((project, index) => ({
+						...MockChatProjectSummary,
+						project,
+						pin_order: index + 1,
+					})),
+				);
+			},
+		),
+	);
+});
 
 describe("ChatsSidebar projects", () => {
 	beforeEach(() => {
@@ -455,11 +482,34 @@ describe("ChatsSidebar projects", () => {
 		});
 	});
 
+	it("counts a collapsed folder's unread chats and hides the count while open", async () => {
+		const user = userEvent.setup();
+		server.use(
+			http.get("/api/experimental/chats/projects/summaries", () =>
+				HttpResponse.json([{ ...MockChatProjectSummary, own_unread_count: 3 }]),
+			),
+		);
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		const projectLink = await screen.findByRole("link", {
+			name: `${MockChatProject.name}, 3 unread chats`,
+		});
+
+		await user.click(
+			screen.getByRole("button", { name: `Expand ${MockChatProject.name}` }),
+		);
+		expect(projectLink).toHaveAccessibleName(MockChatProject.name);
+	});
+
 	it("retries a failed projects request", async () => {
 		const user = userEvent.setup();
 		let requestCount = 0;
 		server.use(
-			http.get("/api/experimental/chats/projects", () => {
+			http.get("/api/experimental/chats/projects/summaries", () => {
 				requestCount++;
 				return requestCount === 1
 					? HttpResponse.json(
@@ -742,6 +792,25 @@ describe("ChatsSidebar projects", () => {
 	});
 });
 
+describe("ChatsSidebar Projects link", () => {
+	it("opens the projects page", async () => {
+		const user = userEvent.setup();
+		render(
+			<Wrapper initialEntry={`/agents/projects/${MockChatProject.id}`}>
+				<ChatsSidebar {...defaultProps} />
+				<ProjectLocationProbe />
+			</Wrapper>,
+		);
+
+		await user.click(screen.getByRole("link", { name: "Projects" }));
+		await waitFor(() =>
+			expect(screen.getByTestId("location-pathname").textContent).toBe(
+				"/agents/projects",
+			),
+		);
+	});
+});
+
 describe("ChatsSidebar section switcher", () => {
 	const LocationProbe: React.FC = () => {
 		const location = useLocation();
@@ -954,6 +1023,9 @@ describe("ChatsSidebar move to project", () => {
 				projectRequests += 1;
 				return HttpResponse.json([MockChatProject, mockBillingProject]);
 			}),
+			http.get("/api/experimental/chats/projects/summaries", () =>
+				HttpResponse.json([MockChatProjectSummary]),
+			),
 		);
 	});
 
@@ -2671,6 +2743,9 @@ describe("ChatsSidebar read state actions", () => {
 			const user = userEvent.setup();
 			const update = vi.spyOn(API.experimental, "updateChat");
 			const errorToast = vi.spyOn(toast, "error");
+			const getSummaries = vi
+				.spyOn(API.experimental, "getChatProjectSummaries")
+				.mockResolvedValue([]);
 			if (fails) {
 				update.mockRejectedValue(new Error("Read state rejected"));
 			} else {
@@ -2690,6 +2765,7 @@ describe("ChatsSidebar read state actions", () => {
 					/>
 				</Wrapper>,
 			);
+			await waitFor(() => expect(getSummaries).toHaveBeenCalledTimes(1));
 			await user.click(
 				screen.getByRole("button", {
 					name: "Open actions for Read state chat",
@@ -2703,6 +2779,9 @@ describe("ChatsSidebar read state actions", () => {
 				await waitFor(() =>
 					expect(errorToast).toHaveBeenCalledWith("Read state rejected"),
 				);
+			} else {
+				// The chat's project counts its unread chats.
+				await waitFor(() => expect(getSummaries).toHaveBeenCalledTimes(2));
 			}
 		},
 	);

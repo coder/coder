@@ -8,10 +8,12 @@ import {
 	chatProject,
 	chatProjectACLKey,
 	chatProjectInstructionsKey,
+	chatProjectSummariesKey,
 	chatProjectsKey,
 	createChatProject,
 	deleteChatProject,
 	setChatProjectRole,
+	unpinChatProject,
 	updateChatProject,
 } from "./chatProjects";
 import {
@@ -75,6 +77,16 @@ describe("chat project mutations", () => {
 		// A chat's nested queries do not depend on its project.
 		expect(isInvalidated(queryClient, messagesKey)).toBe(false);
 	});
+
+	it("refreshes the summaries and chat lists, not searches, after an unpin", async () => {
+		const queryClient = seed();
+		queryClient.setQueryData(chatProjectSummariesKey, []);
+		await settle(unpinChatProject(queryClient));
+		expect(isInvalidated(queryClient, chatProjectSummariesKey)).toBe(true);
+		expect(isInvalidated(queryClient, chatKeys[0])).toBe(true);
+		expect(isInvalidated(queryClient, chatProjectsKey)).toBe(false);
+		expect(isInvalidated(queryClient, chatKeys[1])).toBe(false);
+	});
 });
 
 type Principal = { kind: "user" | "group"; id: string };
@@ -83,6 +95,8 @@ describe("setChatProjectRole", () => {
 	const refreshedKeys = [
 		chatProjectsKey,
 		chatProjectACLKey(MockChatProject.id),
+		// Summaries carry the viewer's permissions on the project.
+		chatProjectSummariesKey,
 	];
 	const otherKeys = [
 		chatProjectInstructionsKey(MockChatProject.id),

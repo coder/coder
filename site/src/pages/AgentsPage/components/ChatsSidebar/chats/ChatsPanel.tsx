@@ -10,6 +10,7 @@ import {
 import { isSortable } from "@dnd-kit/react/sortable";
 import { cn } from "cn";
 import {
+	FolderKanbanIcon,
 	PanelLeftCloseIcon,
 	SearchIcon,
 	SettingsIcon,
@@ -23,7 +24,7 @@ import { reorderPinnedChat } from "#/api/queries/chats";
 import type {
 	Chat,
 	ChatModel,
-	ChatProject,
+	ChatProjectSummary,
 	Organization,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -116,13 +117,14 @@ const dragSensors = [
 
 type ChatsPanelProps = {
 	readonly chatProjectsEnabled: boolean;
-	readonly projects: readonly ChatProject[];
+	/** The user's pinned projects, in pin order. */
+	readonly pinnedProjects: readonly ChatProjectSummary[];
 	readonly organizations: readonly Organization[];
-	readonly isProjectsLoading: boolean;
-	readonly projectsError: unknown;
-	/** True when the first projects load failed and no data is cached. */
-	readonly isProjectsLoadError: boolean;
-	readonly onRetryProjects: () => void;
+	readonly isPinnedProjectsLoading: boolean;
+	readonly pinnedProjectsError: unknown;
+	/** True when the first pinned projects load failed and no data is cached. */
+	readonly isPinnedProjectsLoadError: boolean;
+	readonly onRetryPinnedProjects: () => void;
 	readonly onOpenProjectDialog: OpenProjectDialog;
 	readonly onDeleteProject: DeleteProject;
 	readonly chats: readonly Chat[];
@@ -148,18 +150,19 @@ type ChatsPanelProps = {
 	readonly viewedProjectId: string | undefined;
 	readonly isSettingsPanel: boolean;
 	readonly isChatsActive: boolean;
+	readonly isProjectsActive: boolean;
 	readonly location: Location;
 	readonly currentUserId: string;
 };
 
 export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	chatProjectsEnabled,
-	projects,
+	pinnedProjects,
 	organizations,
-	isProjectsLoading,
-	projectsError,
-	isProjectsLoadError,
-	onRetryProjects,
+	isPinnedProjectsLoading,
+	pinnedProjectsError,
+	isPinnedProjectsLoadError,
+	onRetryPinnedProjects,
 	onOpenProjectDialog,
 	onDeleteProject,
 	chats,
@@ -185,6 +188,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	viewedProjectId,
 	isSettingsPanel,
 	isChatsActive,
+	isProjectsActive,
 	location,
 	currentUserId,
 }) => {
@@ -225,10 +229,14 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		chatsByProjectId,
 		unfiledChats: unfiledOwnedChats,
 		folderProjectIds,
-	} = groupChatsByProject(unpinnedOwnedChats, projects, isProjectsLoading);
+	} = groupChatsByProject(
+		unpinnedOwnedChats,
+		pinnedProjects,
+		isPinnedProjectsLoading,
+	);
 	const { chatsByProjectId: pinnedChatsByProjectId } = groupChatsByProject(
 		pinnedChats,
-		projects,
+		pinnedProjects,
 	);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
@@ -432,7 +440,8 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	// chats are all filed is empty. While projects load, chats with a project
 	// are held back, so the section is not known to be empty yet.
 	const isWithholdingProjectChats =
-		isProjectsLoading && unpinnedOwnedChats.some((chat) => chat.project_id);
+		isPinnedProjectsLoading &&
+		unpinnedOwnedChats.some((chat) => chat.project_id);
 	const isShowingEmptyState =
 		!isWithholdingProjectChats &&
 		pinnedChats.length === 0 &&
@@ -552,6 +561,14 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					onClick={onBeforeNewAgent}
 					disabled={isCreating}
 				/>
+				{chatProjectsEnabled && (
+					<SettingsNavItem
+						icon={FolderKanbanIcon}
+						label="Projects"
+						active={isProjectsActive}
+						to={{ pathname: "/agents/projects", search: locationSearch }}
+					/>
+				)}
 				{onOpenSearchDialog && (
 					<SettingsNavItem
 						icon={SearchIcon}
@@ -604,13 +621,13 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 							<ChatTreeContext value={chatTreeCtx}>
 								<ProjectFolders
 									currentUserId={currentUserId}
-									projects={projects}
+									pinnedProjects={pinnedProjects}
 									organizations={organizations}
 									chatsByProjectId={chatsByProjectId}
 									pinnedChatsByProjectId={pinnedChatsByProjectId}
 									chatListInput={getSidebarChatListInput(sidebarFilters)}
 									expandedProjectIds={Object.fromEntries(
-										projects.map((project) => [
+										pinnedProjects.map(({ project }) => [
 											project.id,
 											projectFolderOverrides[project.id] ??
 												project.id === activeProjectId,
@@ -619,10 +636,10 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 									onToggle={toggleProject}
 									onOpenProjectDialog={onOpenProjectDialog}
 									onDelete={onDeleteProject}
-									isLoading={isProjectsLoading}
-									error={projectsError}
-									isLoadError={isProjectsLoadError}
-									onRetry={onRetryProjects}
+									isLoading={isPinnedProjectsLoading}
+									error={pinnedProjectsError}
+									isLoadError={isPinnedProjectsLoadError}
+									onRetry={onRetryPinnedProjects}
 									emptyMessage={emptyStateMessage}
 								/>
 							</ChatTreeContext>

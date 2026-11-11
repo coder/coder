@@ -240,6 +240,7 @@ describe("AgentsPageLayout manual read state", () => {
 			...infiniteChats({
 				chatStatus: "unread",
 				sources: ["created_by_me"],
+				pinnedProjectsOnly: true,
 			}),
 			enabled: false,
 		});
@@ -289,7 +290,10 @@ describe("AgentsPageLayout manual read state", () => {
 			expect(
 				queryClient
 					.getQueryData<InfiniteData<Chat[]>>(
-						infiniteChats({ sources: ["created_by_me"] }).queryKey,
+						infiniteChats({
+							sources: ["created_by_me"],
+							pinnedProjectsOnly: true,
+						}).queryKey,
 					)
 					?.pages.flat()
 					.find((chat) => chat.id === "read-beta")?.has_unread,
@@ -793,6 +797,7 @@ describe("AgentsPageLayout archive and delete", () => {
 									.getQueryData(
 										infiniteChats({
 											sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
+											pinnedProjectsOnly: true,
 										}).queryKey,
 									)
 									?.pages.flat(),
@@ -963,11 +968,48 @@ describe("AgentsPageLayout project moves", () => {
 			expect(
 				queryClient
 					.getQueryData<InfiniteData<Chat[]>>(
-						infiniteChats({ sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources })
-							.queryKey,
+						infiniteChats({
+							sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
+							pinnedProjectsOnly: true,
+						}).queryKey,
 					)
 					?.pages.flat(),
 			).toEqual([mockChatInProjectB]),
 		);
+	});
+});
+
+describe("AgentsPageLayout pinned projects", () => {
+	it("leaves chats in unpinned projects out of the sidebar's chat list", async () => {
+		const getChats = vi
+			.spyOn(API.experimental, "getChats")
+			.mockResolvedValue([]);
+		renderLayout();
+
+		await waitFor(() => expect(getChats).toHaveBeenCalled());
+		expect(getChats.mock.calls[0][0]).toMatchObject({
+			pinned_projects_only: true,
+		});
+	});
+
+	it("refreshes project summaries when a chat in a project changes", async () => {
+		vi.spyOn(API.experimental, "getChats").mockResolvedValue([]);
+		const getSummaries = vi
+			.spyOn(API.experimental, "getChatProjectSummaries")
+			.mockResolvedValue([]);
+		const publishChatWatchEvent = mockChatWatchSocket();
+		renderLayout();
+		await waitFor(() => expect(getSummaries).toHaveBeenCalledTimes(1));
+		await waitFor(() => expect(apiModule.watchChats).toHaveBeenCalled());
+
+		publishChatWatchEvent({
+			kind: "status_change",
+			chat: { ...MockChat, project_id: "project-a" },
+		});
+
+		// The refresh is debounced, so it arrives after the event.
+		await waitFor(() => expect(getSummaries).toHaveBeenCalledTimes(2), {
+			timeout: 3000,
+		});
 	});
 });

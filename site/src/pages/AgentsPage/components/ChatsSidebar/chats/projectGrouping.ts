@@ -1,4 +1,9 @@
-import type { Chat, ChatProject, Organization } from "#/api/typesGenerated";
+import type {
+	Chat,
+	ChatProject,
+	ChatProjectSummary,
+	Organization,
+} from "#/api/typesGenerated";
 import { canManageChat } from "../../ChatActionsMenuItems";
 
 type ChatsGroupedByProject = {
@@ -8,22 +13,22 @@ type ChatsGroupedByProject = {
 };
 
 /**
- * Splits chats into their project folders. While projects are loading, chats
- * with a project are held back so they do not jump from the unfiled list into
- * a folder. Once loaded, a chat whose project is not in `projects`, for
- * example because the request failed, stays unfiled so it never disappears
- * from the sidebar.
+ * Splits chats into the folders of the user's pinned projects. Chats with a
+ * project are held back while the summaries load; once loaded, a chat whose
+ * project is not pinned stays unfiled so it never leaves the sidebar.
  */
 export const groupChatsByProject = (
 	chats: readonly Chat[],
-	projects: readonly ChatProject[],
+	pinnedProjects: readonly ChatProjectSummary[],
 	isLoadingProjects = false,
 ): ChatsGroupedByProject => {
-	const loadedProjectIds = new Set(projects.map((project) => project.id));
+	const folderProjectIds = new Set(
+		pinnedProjects.map((summary) => summary.project.id),
+	);
 	const chatsByProjectId = new Map<string, Chat[]>();
 	const unfiledChats: Chat[] = [];
 	for (const chat of chats) {
-		if (chat.project_id && loadedProjectIds.has(chat.project_id)) {
+		if (chat.project_id && folderProjectIds.has(chat.project_id)) {
 			const bucket = chatsByProjectId.get(chat.project_id);
 			if (bucket) {
 				bucket.push(chat);
@@ -34,11 +39,7 @@ export const groupChatsByProject = (
 			unfiledChats.push(chat);
 		}
 	}
-	return {
-		chatsByProjectId,
-		unfiledChats,
-		folderProjectIds: loadedProjectIds,
-	};
+	return { chatsByProjectId, unfiledChats, folderProjectIds };
 };
 
 type MergeProjectFolderChatsOptions = {

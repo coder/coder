@@ -3,6 +3,7 @@ import type { Chat } from "#/api/typesGenerated";
 import { MockChat } from "#/testHelpers/chatEntities";
 import {
 	MockChatProject,
+	MockChatProjectSummary,
 	MockDefaultOrganization,
 	MockOrganization2,
 	MockUserMember,
@@ -16,7 +17,7 @@ import {
 } from "./projectGrouping";
 
 describe("groupChatsByProject", () => {
-	it("files chats under a loaded project and leaves the rest unfiled", () => {
+	it("files chats under a pinned project and leaves the rest unfiled", () => {
 		const mockLooseChat = { ...MockChat, id: "loose" };
 		const mockFiledChat = {
 			...MockChat,
@@ -32,7 +33,7 @@ describe("groupChatsByProject", () => {
 
 		const grouped = groupChatsByProject(
 			[mockLooseChat, mockFiledChat, mockUnloadedProjectChat],
-			[MockChatProject],
+			[MockChatProjectSummary],
 		);
 
 		expect(grouped.chatsByProjectId.get(MockChatProject.id)).toEqual([

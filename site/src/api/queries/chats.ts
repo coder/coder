@@ -101,6 +101,7 @@ type ChatListParams = Readonly<{
 	status: ChatListStatusFilter | "all";
 	statuses: readonly TypesGen.ChatStatus[];
 	sources: readonly TypesGen.ChatListSource[];
+	pinnedProjectsOnly: boolean;
 }>;
 
 export type ChatListInput = Readonly<{
@@ -109,6 +110,8 @@ export type ChatListInput = Readonly<{
 	chatStatus?: ChatListStatusFilter;
 	statuses?: readonly TypesGen.ChatStatus[];
 	sources?: readonly TypesGen.ChatListSource[];
+	/** Leaves out chats in projects the user has not pinned. */
+	pinnedProjectsOnly?: boolean;
 }>;
 
 type ChatSearchParams = Readonly<{ q: string }>;
@@ -1435,6 +1438,7 @@ export const toChatListParams = (input?: ChatListInput): ChatListParams => ({
 	status: input?.chatStatus ?? "all",
 	statuses: canonicalizeChatListStatuses(input?.statuses ?? []),
 	sources: canonicalizeChatSources(input?.sources ?? []),
+	pinnedProjectsOnly: input?.pinnedProjectsOnly ?? false,
 });
 
 // Sidebar-emitted query shapes must match TestSearchChatsFrontendEmitted in
@@ -1492,6 +1496,7 @@ const sidebarChatListOptions = <TQueryKey extends QueryKey>(
 					offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
 					q,
 					project_id: projectId,
+					pinned_projects_only: params.pinnedProjectsOnly || undefined,
 				},
 				signal,
 			),

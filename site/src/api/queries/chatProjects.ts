@@ -3,6 +3,7 @@ import { API } from "#/api/api";
 import type * as TypesGen from "#/api/typesGenerated";
 import {
 	chatEntitiesFamilyKey,
+	chatListFamilyKey,
 	invalidateChatListQueries,
 	invalidateChatSearches,
 } from "./chats";
@@ -30,6 +31,47 @@ export const chatProject = (projectId: string | undefined) =>
 		...chatProjects(),
 		select: (projects) =>
 			projects.find((project) => project.id === projectId) ?? null,
+	});
+
+/** Nested under chatProjectsKey, so project list invalidations reach it. */
+export const chatProjectSummariesKey = [
+	...chatProjectsKey,
+	"summaries",
+] as const;
+
+/**
+ * The user's projects with their pins and counts over the user's own chats.
+ * Pins send no watch events, so other tabs catch up on focus.
+ */
+export const chatProjectSummaries = () =>
+	queryOptions({
+		queryKey: chatProjectSummariesKey,
+		queryFn: () => API.experimental.getChatProjectSummaries(),
+		refetchOnWindowFocus: true,
+	});
+
+/** The pinned summaries, in pin order. */
+export const getPinnedProjectSummaries = (
+	summaries: readonly TypesGen.ChatProjectSummary[],
+): TypesGen.ChatProjectSummary[] =>
+	summaries
+		.filter((summary) => summary.pinned)
+		.sort((a, b) => a.pin_order - b.pin_order);
+
+// The sidebar's chat list leaves out chats in unpinned projects, so a pin
+// change can add or remove chats from it. Project chat lists do not change.
+const invalidateProjectPins = (queryClient: QueryClient) =>
+	Promise.all([
+		queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey }),
+		queryClient.invalidateQueries({ queryKey: chatListFamilyKey }),
+	]);
+
+/** Unpins a project, which also takes its chats out of the sidebar. */
+export const unpinChatProject = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: (project: TypesGen.ChatProject) =>
+			API.experimental.unpinChatProject(project.organization_id, project.id),
+		onSettled: () => invalidateProjectPins(queryClient),
 	});
 
 export const createChatProject = (queryClient: QueryClient) =>
@@ -141,6 +183,8 @@ export const setChatProjectRole = (queryClient: QueryClient) =>
 					queryKey: chatProjectACLKey(project.id),
 					exact: true,
 				}),
+				// Summaries carry the project's permissions and member count.
+				queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey }),
 			]),
 	});
 
