@@ -47,6 +47,7 @@ import {
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 	getSidebarChatListInput,
 } from "../../../utils/agentSidebarFilters";
+import { focusFirstVisible } from "../../../utils/focus";
 import { getOwnPinnedChats } from "../../../utils/pinnedChats";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
 import { canManageChat } from "../../ChatActionsMenuItems";
@@ -282,6 +283,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 
 	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
 	const projectsNavItemRef = useRef<HTMLElement | null>(null);
+	const filterTriggerRef = useRef<HTMLButtonElement | null>(null);
 	const dragInstructionsId = useId();
 	const moveMutation = useMoveChatToProject();
 
@@ -479,6 +481,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					<FilterPopover
 						filters={sidebarFilters}
 						onFiltersChange={onSidebarFiltersChange}
+						triggerRef={(element) => {
+							filterTriggerRef.current = element;
+						}}
 					/>
 				</>
 			}
@@ -494,6 +499,11 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 			sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
 		});
 	};
+
+	// The Projects nav item hides on a small screen, where the chat filters
+	// take focus instead.
+	const focusSidebarFallback = () =>
+		focusFirstVisible([projectsNavItemRef.current, filterTriggerRef.current]);
 
 	return (
 		<div
@@ -648,7 +658,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 									isLoadError={isPinnedProjectsLoadError}
 									onRetry={onRetryPinnedProjects}
 									emptyMessage={emptyStateMessage}
-									unpinFocusFallbackRef={projectsNavItemRef}
+									focusUnpinFallback={focusSidebarFallback}
 								/>
 							</ChatTreeContext>
 						)}

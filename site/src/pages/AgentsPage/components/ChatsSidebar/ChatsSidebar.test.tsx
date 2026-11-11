@@ -881,6 +881,25 @@ describe("ChatsSidebar unpin focus", () => {
 			expect(screen.getByRole("link", { name: "Projects" })).toHaveFocus(),
 		);
 	});
+
+	it("moves focus to the chat filters after unpinning the last project on a small screen", async () => {
+		// jsdom has no layout, so this stands in for the CSS that hides the nav
+		// on a small screen.
+		Element.prototype.checkVisibility = function () {
+			return !this.closest("nav");
+		};
+		onTestFinished(() => {
+			Reflect.deleteProperty(Element.prototype, "checkVisibility");
+		});
+		renderPinnedProjects([MockChatProject]);
+		await unpinWithKeyboard(MockChatProject.name);
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: "Filter agents" }),
+			).toHaveFocus(),
+		);
+	});
 });
 
 describe("ChatsSidebar Projects link", () => {

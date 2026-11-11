@@ -73,8 +73,8 @@ type ProjectFoldersProps = {
 	readonly isLoadError: boolean;
 	readonly onRetry: () => void;
 	readonly emptyMessage: string;
-	/** Takes focus when the user unpins the last pinned project. */
-	readonly unpinFocusFallbackRef?: React.RefObject<HTMLElement | null>;
+	/** Moves focus out of the folders when the user unpins the last one. */
+	readonly focusUnpinFallback?: () => void;
 };
 
 // Focuses the folder after the unpinned one, else the one before it, else
@@ -83,13 +83,17 @@ const focusNextFolder = (
 	pinnedProjects: readonly ChatProjectSummary[],
 	projectId: string,
 	toggles: ReadonlyMap<string, HTMLButtonElement>,
-	fallbackRef: React.RefObject<HTMLElement | null> | undefined,
+	fallback: (() => void) | undefined,
 ) => {
 	const ids = pinnedProjects.map((summary) => summary.project.id);
 	const index = ids.indexOf(projectId);
 	const neighborId = ids[index + 1] ?? ids[index - 1];
 	const neighbor = neighborId ? toggles.get(neighborId) : undefined;
-	(neighbor ?? fallbackRef?.current)?.focus();
+	if (neighbor) {
+		neighbor.focus();
+	} else {
+		fallback?.();
+	}
 };
 
 export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
@@ -108,7 +112,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	isLoadError,
 	onRetry,
 	emptyMessage,
-	unpinFocusFallbackRef,
+	focusUnpinFallback,
 }) => {
 	const location = useLocation();
 	const queryClient = useQueryClient();
@@ -215,7 +219,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 											pinnedProjects,
 											project.id,
 											toggleRefs.current,
-											unpinFocusFallbackRef,
+											focusUnpinFallback,
 										)
 									}
 									registerToggle={(element) => {
