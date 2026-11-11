@@ -93,6 +93,19 @@ export const WithSearch: Story = {
 	},
 };
 
+const longOption: SelectFilterOption = {
+	label: "Meridian Systems Platform Engineering",
+	value: "long-option",
+};
+
+export const LongLabels: Story = {
+	args: {
+		options: [longOption, ...options.slice(0, 3)],
+		selectedOption: longOption,
+		width: 150,
+	},
+};
+
 export const LoadingOptions: Story = {
 	args: {
 		options: undefined,

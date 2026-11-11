@@ -88,7 +88,9 @@ export const SelectFilter: React.FC<SelectFilterProps> = ({
 								keywords={[option.label]}
 							>
 								{option.startIcon}
-								<span className="flex-1 truncate">{option.label}</span>
+								<span className="min-w-0 flex-1 wrap-break-word">
+									{option.label}
+								</span>
 							</ComboboxItem>
 						))
 					) : (

@@ -82,14 +82,14 @@ export const ComboboxButton = ({
 }: ComboboxButtonProps) => {
 	return (
 		<Button
-			className="flex items-center justify-between shrink-0 grow gap-2 pr-1.5"
+			className="flex items-center justify-between shrink-0 grow gap-2 pr-1.5 h-auto min-h-10 py-1 whitespace-normal"
 			style={{ flexBasis: width }}
 			variant="outline"
 			ref={ref}
 			{...props}
 		>
 			{selectedOption?.startIcon}
-			<span className="text-left block overflow-hidden text-ellipsis grow">
+			<span className="text-left min-w-0 wrap-break-word grow">
 				{selectedOption?.label ?? placeholder}
 			</span>
 			<ChevronDownIcon className="size-icon-sm" />
