@@ -656,13 +656,13 @@ describe("ChatsSidebar projects", () => {
 		const archiveRequests: unknown[] = [];
 		server.use(
 			http.get("/api/experimental/chats/projects", ({ request }) => {
-				const isArchived = archiveRequests.length > 0;
 				const listsArchived =
 					new URL(request.url).searchParams.get("archived") === "true";
+				if (archiveRequests.length === 0) {
+					return HttpResponse.json(listsArchived ? [] : [MockChatProject]);
+				}
 				return HttpResponse.json(
-					listsArchived === isArchived
-						? [isArchived ? MockArchivedChatProject : MockChatProject]
-						: [],
+					listsArchived ? [MockArchivedChatProject] : [],
 				);
 			}),
 			http.get(
@@ -731,9 +731,15 @@ describe("ChatsSidebar projects", () => {
 		await waitFor(() => expect(actionsButton).toHaveFocus());
 	});
 
+	const mockArchivedBillingProject: TypesGen.ChatProject = {
+		...MockArchivedChatProject,
+		id: "billing",
+		name: "Billing",
+	};
+
 	it("unarchives the chosen one of two same-named archived projects", async () => {
 		const user = userEvent.setup();
-		const otherLaunch = {
+		const mockOtherLaunchProject = {
 			...MockArchivedChatProject,
 			id: "launch-2",
 			organization_id: MockOrganization2.id,
@@ -743,7 +749,7 @@ describe("ChatsSidebar projects", () => {
 			http.get("/api/experimental/chats/projects", ({ request }) =>
 				HttpResponse.json(
 					new URL(request.url).searchParams.get("archived") === "true"
-						? [MockArchivedChatProject, otherLaunch]
+						? [MockArchivedChatProject, mockOtherLaunchProject]
 						: [],
 				),
 			),
@@ -751,7 +757,10 @@ describe("ChatsSidebar projects", () => {
 				"/api/experimental/organizations/:organization/chats/projects/:project/unarchive",
 				({ params }) => {
 					unarchiveRequests.push([params.organization, params.project]);
-					return HttpResponse.json({ ...otherLaunch, archived_at: undefined });
+					return HttpResponse.json({
+						...mockOtherLaunchProject,
+						archived_at: undefined,
+					});
 				},
 			),
 		);
@@ -772,16 +781,16 @@ describe("ChatsSidebar projects", () => {
 
 		await waitFor(() =>
 			expect(unarchiveRequests).toEqual([
-				[MockOrganization2.id, otherLaunch.id],
+				[MockOrganization2.id, mockOtherLaunchProject.id],
 			]),
 		);
 	});
 
 	it("moves focus to the next archived project after unarchiving one, then to the empty list", async () => {
 		const user = userEvent.setup();
-		let archivedProjects: TypesGen.ChatProject[] = [
+		let archivedProjects = [
 			MockArchivedChatProject,
-			{ ...MockArchivedChatProject, id: "billing", name: "Billing" },
+			mockArchivedBillingProject,
 		];
 		server.use(
 			http.get("/api/experimental/chats/projects", ({ request }) =>
@@ -846,13 +855,12 @@ describe("ChatsSidebar projects", () => {
 						)
 					: HttpResponse.json([
 							MockArchivedChatProject,
-							{ ...MockArchivedChatProject, id: "billing", name: "Billing" },
+							mockArchivedBillingProject,
 						]);
 			}),
 			http.post(
 				"/api/experimental/organizations/:organization/chats/projects/:project/unarchive",
 				() => {
-					// The refresh after this request fails.
 					failsArchivedList = true;
 					return HttpResponse.json(MockChatProject);
 				},

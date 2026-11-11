@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useQuery } from "react-query";
-import { fn, spyOn, within } from "storybook/test";
+import { fn, screen, spyOn } from "storybook/test";
 import { API } from "#/api/api";
 import {
 	archivedChatProjects,
@@ -117,6 +117,6 @@ export const RefetchError: Story = {
 		return <ArchivedProjectsDialog {...args} />;
 	},
 	play: async () => {
-		await within(document.body).findByRole("button", { name: "Retry" });
+		await screen.findByRole("button", { name: "Retry" });
 	},
 };

@@ -17,7 +17,10 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { useUnarchiveChatProject } from "../../../hooks/useUnarchiveChatProject";
 import { buildAgentProjectPath } from "../../../utils/navigation";
 import { ChatProjectIcon } from "../../ChatProjectIcon";
-import { getOrganizationLabels } from "../chats/projectGrouping";
+import {
+	getOrganizationLabels,
+	getProjectLabel,
+} from "../chats/projectGrouping";
 
 type ArchivedProjectsDialogProps = {
 	readonly open: boolean;
@@ -135,7 +138,7 @@ const ArchivedProjectsList: React.FC<ArchivedProjectsListProps> = ({
 				<p
 					ref={emptyStateRef}
 					tabIndex={-1}
-					className="m-0 rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-content-secondary outline-hidden"
+					className="m-0 rounded-lg border border-dashed border-border px-4 py-6 text-center text-sm text-content-secondary"
 				>
 					No archived projects.
 				</p>
@@ -150,6 +153,9 @@ const ArchivedProjectsList: React.FC<ArchivedProjectsListProps> = ({
 							onOpen={onOpenProject}
 							onUnarchive={() => {
 								unarchivedRowRef.current = { projectId: project.id, index };
+							}}
+							onUnarchiveError={() => {
+								unarchivedRowRef.current = null;
 							}}
 							actionRef={(element) => {
 								if (!element) {
@@ -174,6 +180,7 @@ type ArchivedProjectRowProps = {
 	readonly locationSearch: string;
 	readonly onOpen: () => void;
 	readonly onUnarchive: () => void;
+	readonly onUnarchiveError: () => void;
 	/** Receives the row's last action, which takes focus from a removed row. */
 	readonly actionRef: React.RefCallback<HTMLElement>;
 };
@@ -184,21 +191,28 @@ const ArchivedProjectRow: React.FC<ArchivedProjectRowProps> = ({
 	locationSearch,
 	onOpen,
 	onUnarchive,
+	onUnarchiveError,
 	actionRef,
 }) => {
-	const { unarchive, isPending } = useUnarchiveChatProject(project);
+	const { unarchive, isPending } = useUnarchiveChatProject(
+		project,
+		onUnarchiveError,
+	);
 	const canUnarchive = project.permissions.archive;
-	const projectLabel = organizationLabel
-		? `${project.name} (${organizationLabel})`
-		: project.name;
+	const projectLabel = getProjectLabel(project, organizationLabel);
 	return (
 		<li className="flex items-center gap-3 py-1">
 			<ChatProjectIcon
 				project={project}
 				className="size-4 text-content-secondary"
 			/>
-			<span className="min-w-0 flex-1 truncate text-sm text-content-primary">
-				{projectLabel}
+			<span className="flex min-w-0 flex-1 items-baseline gap-2 text-sm">
+				<span className="truncate text-content-primary">{project.name}</span>
+				{organizationLabel && (
+					<span className="shrink-0 text-content-secondary">
+						{organizationLabel}
+					</span>
+				)}
 			</span>
 			<Button asChild size="sm" variant="outline">
 				<RouterLink
