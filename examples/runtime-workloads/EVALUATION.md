@@ -150,7 +150,11 @@ These were attacked and held.
   since a workload never exceeds its sponsor, but "the agent did it" and
   "I did it" are the sponsor's word. For most organizations the sponsor is
   accountable either way. An agency will want the vouching daemon out of
-  the owner's reach.
+  the owner's reach. That takes more than removing the shell. The two
+  containers share a network namespace, so the human can also reach the
+  daemon's debug listeners and, with the default `NET_RAW` capability,
+  capture the pod's traffic, which carries the daemon's token in the clear
+  when coderd is not served over TLS, as in this test setup.
 - **An escape moves sideways.** A workload that escapes its container can
   use the daemon's token to act as its sibling workloads, including ones
   with wider scopes. It stays within the same sponsor and the same
@@ -162,6 +166,10 @@ These were attacked and held.
   remaining way to the node.
 - **Image policy is by name.** Patterns match image names, not digests, and
   signatures are not verified.
+- **Sharing a directory is checked, then mounted.** The two steps are not
+  atomic. A workload that can write below a shared directory could swap a
+  directory for a link in between, and a later workload of the same sponsor
+  would be given the link's target.
 - **Writable shares are a way back to the human.** A workload that can
   write to a shared checkout can plant a hook or a build script that the
   human later runs. Shares are read-only by default for that reason.
