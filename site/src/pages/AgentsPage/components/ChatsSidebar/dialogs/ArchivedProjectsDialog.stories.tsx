@@ -1,11 +1,12 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useQuery } from "react-query";
-import { fn, screen, spyOn, userEvent } from "storybook/test";
+import { fn, screen, spyOn, userEvent, waitFor } from "storybook/test";
 import { API } from "#/api/api";
 import {
 	archivedChatProjects,
 	archivedChatProjectsKey,
 } from "#/api/queries/chatProjects";
+import type { ChatProject } from "#/api/typesGenerated";
 import {
 	MockArchivedChatProject,
 	MockDefaultOrganization,
@@ -32,8 +33,34 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-const mockLongProjectName =
-	"Launch plan for the quarterly release with a name long enough to truncate";
+const mockSharedBillingProject: ChatProject = {
+	...MockArchivedChatProject,
+	id: "billing",
+	name: "Billing migration with a name long enough to truncate in the row",
+	permissions: { update: false, delete: false, share: false, archive: false },
+};
+
+const mockBillingProject: ChatProject = {
+	...MockArchivedChatProject,
+	id: "billing",
+	name: "Billing",
+};
+
+const mockOtherOrganizationLaunchProject: ChatProject = {
+	...MockArchivedChatProject,
+	id: "launch-2",
+	organization_id: MockOrganization2.id,
+};
+
+const mockLongNameProject: ChatProject = {
+	...MockArchivedChatProject,
+	name: "Launch plan for the quarterly release with a name long enough to truncate",
+};
+
+const mockOtherOrganizationLongNameProject: ChatProject = {
+	...mockOtherOrganizationLaunchProject,
+	name: mockLongNameProject.name,
+};
 
 /** A shared project the viewer can't unarchive offers only Open. */
 export const Default: Story = {
@@ -41,20 +68,7 @@ export const Default: Story = {
 		queries: [
 			{
 				key: archivedChatProjectsKey,
-				data: [
-					MockArchivedChatProject,
-					{
-						...MockArchivedChatProject,
-						id: "billing",
-						name: "Billing migration with a name long enough to truncate in the row",
-						permissions: {
-							update: false,
-							delete: false,
-							share: false,
-							archive: false,
-						},
-					},
-				],
+				data: [MockArchivedChatProject, mockSharedBillingProject],
 			},
 		],
 	},
@@ -88,14 +102,7 @@ export const SameNameInTwoOrganizations: Story = {
 		queries: [
 			{
 				key: archivedChatProjectsKey,
-				data: [
-					MockArchivedChatProject,
-					{
-						...MockArchivedChatProject,
-						id: "launch-2",
-						organization_id: MockOrganization2.id,
-					},
-				],
+				data: [MockArchivedChatProject, mockOtherOrganizationLaunchProject],
 			},
 		],
 	},
@@ -119,15 +126,7 @@ export const LongNamesInTwoOrganizations: Story = {
 		queries: [
 			{
 				key: archivedChatProjectsKey,
-				data: [
-					{ ...MockArchivedChatProject, name: mockLongProjectName },
-					{
-						...MockArchivedChatProject,
-						id: "launch-2",
-						name: mockLongProjectName,
-						organization_id: MockOrganization2.id,
-					},
-				],
+				data: [mockLongNameProject, mockOtherOrganizationLongNameProject],
 			},
 		],
 	},
@@ -199,5 +198,38 @@ export const UnarchiveError: Story = {
 				name: `Unarchive ${MockArchivedChatProject.name}`,
 			}),
 		);
+	},
+};
+
+/** Unarchiving with the keyboard hands focus to the remaining row's action. */
+export const UnarchiveWithKeyboard: Story = {
+	parameters: {
+		queries: [
+			{
+				key: archivedChatProjectsKey,
+				data: [MockArchivedChatProject, mockBillingProject],
+			},
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "unarchiveChatProject").mockResolvedValue({
+			...MockArchivedChatProject,
+			archived_at: undefined,
+		});
+		spyOn(API.experimental, "getChatProjects").mockImplementation(
+			async (params) => (params?.archived ? [mockBillingProject] : []),
+		);
+	},
+	play: async () => {
+		const unarchive = await screen.findByRole("button", {
+			name: `Unarchive ${MockArchivedChatProject.name}`,
+		});
+		unarchive.focus();
+		await userEvent.keyboard("{Enter}");
+		await waitFor(() => {
+			if (unarchive.isConnected) {
+				throw new Error("The unarchived row is still listed.");
+			}
+		});
 	},
 };
