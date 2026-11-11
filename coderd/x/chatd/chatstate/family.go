@@ -209,8 +209,8 @@ func SetFamilyProject(
 			}
 			var chat database.Chat
 			machine := NewChatMachine(tx, buffer, id)
-			_, err := machine.Update(ctx, func(state *Tx, _ database.Store, _ *ChatSnapshot) error {
-				result, err := state.SetProject(SetProjectInput{ProjectID: projectID})
+			_, err := machine.Update(ctx, func(state *Tx, _ database.Store, snapshot *ChatSnapshot) error {
+				result, err := state.SetProject(SetProjectInput{Snapshot: snapshot, ProjectID: projectID})
 				if err != nil {
 					return err
 				}

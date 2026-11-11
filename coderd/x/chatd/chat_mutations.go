@@ -179,8 +179,9 @@ func (p *Server) SendMessage(
 		// Queue capacity is enforced inside tx.SendMessage; this
 		// wrapper only propagates the typed error.
 		message := userMessage(content, modelConfigID, messageCreatedBy, opts.ReasoningEffort)
+		// The writes above may have made the snapshot stale, so the
+		// transition reads the chat itself.
 		sendResult, err := tx.SendMessage(chatstate.SendMessageInput{
-			Snapshot:     snapshot,
 			Message:      message,
 			BusyBehavior: busyBehaviorToChatState(busyBehavior),
 			MaxQueueSize: p.chatLimits.MaxQueuedMessagesPerChat,
@@ -396,8 +397,9 @@ func (p *Server) EditMessage(
 			reasoningEffortOverride = database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffort(*opts.ReasoningEffort), Valid: true}
 		}
 
+		// The writes above may have made the snapshot stale, so the
+		// transition reads the chat itself.
 		editResult, err := tx.EditMessage(chatstate.EditMessageInput{
-			Snapshot:                snapshot,
 			MessageID:               opts.EditedMessageID,
 			SuffixMessages:          suffixMessages,
 			CreatedBy:               opts.CreatedBy,
@@ -664,14 +666,12 @@ func (p *Server) EditQueuedMessage(
 
 	var edited chatstate.EditQueuedMessageResult
 	machine := p.newChatMachine(opts.ChatID)
-	_, err = machine.Update(ctx, func(tx *chatstate.Tx, store database.Store, _ *chatstate.ChatSnapshot) error {
-		lockedChat, err := store.GetChatByID(ctx, opts.ChatID)
-		if err != nil {
-			return xerrors.Errorf("load chat: %w", err)
-		}
-		if lockedChat.Archived {
+	_, err = machine.Update(ctx, func(tx *chatstate.Tx, _ database.Store, snapshot *chatstate.ChatSnapshot) error {
+		if snapshot.Chat.Archived {
 			return ErrChatArchived
 		}
+		input.Snapshot = snapshot
+		var err error
 		edited, err = tx.EditQueuedMessage(input)
 		return err
 	})
