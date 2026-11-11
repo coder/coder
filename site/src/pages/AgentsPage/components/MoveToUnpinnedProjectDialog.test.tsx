@@ -178,6 +178,53 @@ describe("MoveToUnpinnedProjectDialog", () => {
 		);
 	});
 
+	it("keeps a later dialog open and its pin free while an earlier pin settles", async () => {
+		const user = userEvent.setup();
+		let settleFirstPin = () => {};
+		vi.spyOn(API.experimental, "pinChatProject")
+			.mockReturnValueOnce(
+				new Promise((resolve) => {
+					settleFirstPin = () => resolve(undefined);
+				}),
+			)
+			.mockResolvedValue(undefined);
+		const otherProject = { ...MockChatProject, id: "other", name: "Other" };
+		const ShowButtons: React.FC = () => {
+			const dialog = useMoveToUnpinnedProjectDialog();
+			return [MockChatProject, otherProject].map((project) => (
+				<button
+					key={project.id}
+					type="button"
+					onClick={() => dialog?.show(project, `chat-${project.id}`)}
+				>
+					Show {project.name}
+				</button>
+			));
+		};
+		const queryClient = createTestQueryClient();
+		render(
+			<QueryClientProvider client={queryClient}>
+				<MemoryRouter>
+					<MoveToUnpinnedProjectDialogProvider>
+						<ShowButtons />
+					</MoveToUnpinnedProjectDialogProvider>
+				</MemoryRouter>
+			</QueryClientProvider>,
+		);
+
+		await user.click(screen.getByRole("button", { name: "Show Launch" }));
+		await user.click(screen.getByRole("button", { name: "Pin project" }));
+		await user.keyboard("{Escape}");
+		await user.click(screen.getByRole("button", { name: "Show Other" }));
+		expect(screen.getByRole("button", { name: /Pin project/ })).toBeEnabled();
+		settleFirstPin();
+		await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+
+		expect(
+			screen.getByRole("dialog", { name: "Chat moved to Other" }),
+		).toBeInTheDocument();
+	});
+
 	it("opens after a move before the summaries have loaded", async () => {
 		await moveChat({ summariesCached: false });
 		expect(

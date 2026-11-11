@@ -47,11 +47,14 @@ export const MoveToUnpinnedProjectDialogProvider: React.FC<
 	React.PropsWithChildren
 > = ({ children }) => {
 	// The project stays after closing so the exit animation keeps its text.
+	// Each show gets its own ID, so a pin started from an earlier dialog
+	// neither closes nor disables a later one.
 	const [dialog, setDialog] = useState<{
+		id: number;
 		project?: ChatProject;
 		chatId?: string;
 		open: boolean;
-	}>({ open: false });
+	}>({ id: 0, open: false });
 	const focusFallbackRef = useRef<(() => boolean) | undefined>(undefined);
 	// The menu that moved the chat often unmounts with its row, or is still
 	// closing when the move finishes, so Radix would return focus to the body.
@@ -71,7 +74,13 @@ export const MoveToUnpinnedProjectDialogProvider: React.FC<
 	return (
 		<MoveToUnpinnedProjectContext
 			value={{
-				show: (project, chatId) => setDialog({ project, chatId, open: true }),
+				show: (project, chatId) =>
+					setDialog((current) => ({
+						id: current.id + 1,
+						project,
+						chatId,
+						open: true,
+					})),
 				setFocusFallback: (focus) => {
 					focusFallbackRef.current = focus;
 				},
@@ -80,9 +89,14 @@ export const MoveToUnpinnedProjectDialogProvider: React.FC<
 			{children}
 			{dialog.project && (
 				<MoveToUnpinnedProjectDialog
+					key={dialog.id}
 					project={dialog.project}
 					open={dialog.open}
-					onClose={() => setDialog((current) => ({ ...current, open: false }))}
+					onClose={() =>
+						setDialog((current) =>
+							current.id === dialog.id ? { ...current, open: false } : current,
+						)
+					}
 					onCloseAutoFocus={restoreFocus}
 				/>
 			)}
