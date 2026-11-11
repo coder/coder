@@ -1,6 +1,6 @@
 import type { ChatProject } from "#/api/typesGenerated";
+import { Alert, AlertDescription, AlertTitle } from "#/components/Alert/Alert";
 import { ArchivedProjectBanner } from "./ArchivedProjectBanner";
-import { NotSharedWithUserBanner } from "./NotSharedWithUserBanner";
 import { ProjectChatsList } from "./ProjectChatsList";
 import { ProjectDetailsPanel } from "./ProjectDetailsPanel";
 import { ProjectHeaderSection } from "./ProjectHeaderSection";
@@ -35,7 +35,12 @@ export const ProjectPage: React.FC<ProjectPageProps> = ({
 				) : isOwnedOrSharedWithUser ? (
 					children
 				) : (
-					<NotSharedWithUserBanner />
+					<Alert severity="info" prominent>
+						<AlertTitle>This project isn't shared with you.</AlertTitle>
+						<AlertDescription>
+							Only its owner and the people it is shared with can start chats in it.
+						</AlertDescription>
+					</Alert>
 				)}
 				{/* Columns follow the page width rather than the viewport, which
 				    the agents sidebar narrows. */}
