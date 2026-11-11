@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { hsl } from "color-convert";
 import {
 	baseModeFor,
 	CONCRETE_THEMES,
@@ -141,6 +142,23 @@ function extractVariables(block: string): Map<string, string> {
 	return variables;
 }
 
+// Relative luminance and contrast ratio as defined by WCAG 2.x:
+// https://www.w3.org/WAI/GL/wiki/Relative_luminance#Definition_as_Stated_in_WCAG_2.x
+function relativeLuminance(hslValue: string): number {
+	const [h = 0, s = 0, l = 0] = hslValue.split(/[\s,%]+/).map(Number);
+	const [r = 0, g = 0, b = 0] = hsl.rgb([h, s, l]).map((channel) => {
+		const value = channel / 255;
+		return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+	});
+	return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrastRatio(a: string, b: string): number {
+	const la = relativeLuminance(a);
+	const lb = relativeLuminance(b);
+	return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
 function extractEffectiveBlock(css: string, selector: string): string | null {
 	const block = extractBlock(css, selector);
 	if (block === null) {
@@ -248,6 +266,27 @@ describe("theme CSS variables", () => {
 			}
 		},
 	);
+
+	// Warning text renders as small status labels, such as the navbar proxy
+	// latency, so it needs WCAG 1.4.3 contrast (4.5:1) on page surfaces.
+	describe("warning text contrast", () => {
+		it.each(
+			CONCRETE_THEMES.flatMap((themeName) =>
+				["--surface-primary", "--surface-secondary", "--surface-orange"].map(
+					(surface) => [themeName, surface] as const,
+				),
+			),
+		)("%s keeps --content-warning at 4.5:1 on %s", (themeName, surface) => {
+			const block = extractEffectiveBlock(css, `.${themeName}`) ?? "";
+			const warning = extractVariable(block, "--content-warning");
+			const background = extractVariable(block, surface);
+			expect(warning).not.toBeNull();
+			expect(background).not.toBeNull();
+			expect(
+				contrastRatio(warning ?? "", background ?? ""),
+			).toBeGreaterThanOrEqual(4.5);
+		});
+	});
 
 	it("gives body the surface that ThemeProvider copies into theme-color", () => {
 		expect(extractBlocks(css, "body").join("\n")).toContain(
