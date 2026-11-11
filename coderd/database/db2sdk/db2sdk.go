@@ -1181,12 +1181,13 @@ func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSess
 			Name:      row.UserName,
 			AvatarURL: row.UserAvatarUrl,
 		}),
-		Providers:    row.Providers,
-		Models:       row.Models,
-		Metadata:     jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: row.Metadata, Valid: len(row.Metadata) > 0}),
-		StartedAt:    row.StartedAt,
-		Threads:      row.Threads,
-		LastActiveAt: row.LastActiveAt,
+		Providers:     row.Providers,
+		Organizations: aiBridgeSessionOrganizations(row.Organizations),
+		Models:        row.Models,
+		Metadata:      jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: row.Metadata, Valid: len(row.Metadata) > 0}),
+		StartedAt:     row.StartedAt,
+		Threads:       row.Threads,
+		LastActiveAt:  row.LastActiveAt,
 		TokenUsageSummary: codersdk.AIBridgeSessionTokenUsageSummary{
 			InputTokens:           row.InputTokens,
 			OutputTokens:          row.OutputTokens,
@@ -1307,6 +1308,7 @@ func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSes
 			AvatarURL: session.UserAvatarUrl,
 		}),
 		Providers:     session.Providers,
+		Organizations: aiBridgeSessionOrganizations(session.Organizations),
 		Models:        session.Models,
 		Metadata:      jsonOrEmptyMap(pqtype.NullRawMessage{RawMessage: session.Metadata, Valid: len(session.Metadata) > 0}),
 		StartedAt:     session.StartedAt,
@@ -1728,6 +1730,22 @@ func sanitizeCredentialHint(hint string) string {
 		return "..."
 	}
 	return hint
+}
+
+// aiBridgeSessionOrganizations decodes the organizations JSON array built by
+// ListAIBridgeSessions. It never returns nil, so the API sends [] rather
+// than null.
+func aiBridgeSessionOrganizations(raw json.RawMessage) []codersdk.AIBridgeSessionOrganization {
+	var orgs []codersdk.AIBridgeSessionOrganization
+	if len(raw) > 0 {
+		if err := json.Unmarshal(raw, &orgs); err != nil {
+			return []codersdk.AIBridgeSessionOrganization{}
+		}
+	}
+	if orgs == nil {
+		orgs = []codersdk.AIBridgeSessionOrganization{}
+	}
+	return orgs
 }
 
 func jsonOrEmptyMap(rawMessage pqtype.NullRawMessage) map[string]any {

@@ -139,6 +139,30 @@ type GroupMemberAISpend struct {
 	GroupSpendMicros int64 `json:"group_spend_micros"`
 }
 
+// AIBridgeInterceptionOrganizationSource is how AI Gateway chose the
+// organization of an interception.
+type AIBridgeInterceptionOrganizationSource string
+
+const (
+	AIBridgeInterceptionOrganizationSourceWorkspace      AIBridgeInterceptionOrganizationSource = "workspace"
+	AIBridgeInterceptionOrganizationSourceChatd          AIBridgeInterceptionOrganizationSource = "chatd"
+	AIBridgeInterceptionOrganizationSourceEffectiveGroup AIBridgeInterceptionOrganizationSource = "effective_group"
+)
+
+// AIBridgeInterceptionOrganization is the organization a single
+// interception was attributed to and how it was chosen.
+type AIBridgeInterceptionOrganization struct {
+	MinimalOrganization
+	Source AIBridgeInterceptionOrganizationSource `json:"source"`
+}
+
+// AIBridgeSessionOrganization is an organization a session's interceptions
+// were attributed to, with every source used for it.
+type AIBridgeSessionOrganization struct {
+	MinimalOrganization
+	Sources []AIBridgeInterceptionOrganizationSource `json:"sources"`
+}
+
 type AIBridgeSession struct {
 	ID                string                           `json:"id"`
 	Initiator         MinimalUser                      `json:"initiator"`
@@ -150,6 +174,9 @@ type AIBridgeSession struct {
 	EndedAt           *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	Threads           int64                            `json:"threads"`
 	TokenUsageSummary AIBridgeSessionTokenUsageSummary `json:"token_usage_summary"`
+	// Organizations are the organizations this session's interceptions were
+	// attributed to.
+	Organizations []AIBridgeSessionOrganization `json:"organizations"`
 	// NetworkCalls summarizes the Agent Firewall network requests made during the
 	// session. A nil value means the session did not pass through Agent
 	// Firewall, so network call monitoring was not active, which the UI
@@ -201,6 +228,9 @@ type AIBridgeSessionThreadsResponse struct {
 	StartedAt         time.Time                        `json:"started_at" format:"date-time"`
 	EndedAt           *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsageSummary AIBridgeSessionThreadsTokenUsage `json:"token_usage_summary"`
+	// Organizations are the organizations this session's interceptions were
+	// attributed to.
+	Organizations []AIBridgeSessionOrganization `json:"organizations"`
 	// NetworkCalls summarizes the Agent Firewall network calls made during the
 	// session. A nil value means the session did not pass through Agent
 	// Firewall, so network call monitoring was not active, which the UI
@@ -274,6 +304,9 @@ type AIBridgeThread struct {
 	StartedAt      time.Time                        `json:"started_at" format:"date-time"`
 	EndedAt        *time.Time                       `json:"ended_at,omitempty" format:"date-time"`
 	TokenUsage     AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
+	// Organization is the organization of the root interception. Nil when
+	// none was stored.
+	Organization *AIBridgeInterceptionOrganization `json:"organization,omitempty"`
 	// PricedModel is the model and prices used for the root interception
 	// (the prompt). Other requests in the thread may use different models
 	// and prices, see agentic_actions[].priced_model. Nil when the root
@@ -311,6 +344,9 @@ type AIBridgeAgenticAction struct {
 	// Unknown attribution is serialized as an empty object.
 	Attribution AIBridgeAttribution              `json:"attribution"`
 	TokenUsage  AIBridgeSessionThreadsTokenUsage `json:"token_usage"`
+	// Organization is the organization of this interception. Nil when none
+	// was stored.
+	Organization *AIBridgeInterceptionOrganization `json:"organization,omitempty"`
 	// PricedModel is the model and prices used for this interception. Nil
 	// when it was not priced.
 	PricedModel *AIBridgePricedModel   `json:"priced_model,omitempty"`
