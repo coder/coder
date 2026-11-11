@@ -76,26 +76,20 @@ export const ArchiveProjectDialog: React.FC<ArchiveProjectDialogProps> = ({
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const archiveMutation = useMutation(archiveChatProject(queryClient));
-	// The workspace outcome replaces the "Project archived" toast, so one
-	// toast summarizes the whole archive.
-	const archivedToastIdRef = useRef<ExternalToast["id"]>(undefined);
+	// The workspace outcome replaces its archive's "Project archived" toast,
+	// so one toast summarizes the whole archive.
 	const workspaceMutation = useMutation({
 		...projectWorkspaceAction(queryClient),
-		onSuccess: (result, { action }) =>
-			notifyWorkspaceActionResult(
-				action,
-				result,
-				navigate,
-				archivedToastIdRef.current,
-			),
-		onError: (error) => {
+		onSuccess: (result, { action, toastId }) =>
+			notifyWorkspaceActionResult(action, result, navigate, toastId),
+		onError: (error, { toastId }) => {
 			toast.error(
 				getErrorMessage(
 					error,
 					"Failed to check whether your workspaces are still in use.",
 				),
 				{
-					id: archivedToastIdRef.current,
+					id: toastId,
 					description:
 						"The project was archived, and its workspaces were left as they were.",
 				},
@@ -124,9 +118,13 @@ export const ArchiveProjectDialog: React.FC<ArchiveProjectDialogProps> = ({
 				},
 				onSuccess: () => {
 					onClose();
-					archivedToastIdRef.current = toast.success("Project archived");
+					const toastId = toast.success("Project archived");
 					if (workspaceAction !== "leave") {
-						workspaceMutation.mutate({ action: workspaceAction, workspaces });
+						workspaceMutation.mutate({
+							action: workspaceAction,
+							workspaces,
+							toastId,
+						});
 					}
 				},
 				onError: async (error) => {
