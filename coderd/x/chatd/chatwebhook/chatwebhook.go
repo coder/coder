@@ -1,9 +1,9 @@
 // Package chatwebhook verifies that a webhook request for a chat automation
 // comes from the sender that holds the automation's secret.
 //
-// A verifier keeps no state, never logs, and builds every error from a
-// fixed string. An error never holds a secret, a received token, or a
-// signature.
+// A verifier keeps no state and never logs. Every error from Verify and
+// ValidateSecret is built from a fixed string, so it never holds a secret, a
+// received token, or a signature.
 package chatwebhook
 
 import (
