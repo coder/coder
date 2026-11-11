@@ -347,6 +347,50 @@ describe("ChatTopBar archive state", () => {
 		expect(API.experimental.updateChat).not.toHaveBeenCalled();
 	});
 
+	it("retries a failed refresh of an archived project and unarchives once it is active", async () => {
+		const user = userEvent.setup();
+		mockArchiveAndDeleteApi(chat.created_at);
+		const retriedLookup = createDeferred<ChatProject[]>();
+		vi.spyOn(API.experimental, "getChatProjects")
+			.mockResolvedValueOnce([MockArchivedChatProject])
+			.mockRejectedValueOnce(new Error("Request rejected"))
+			.mockReturnValueOnce(retriedLookup.promise);
+		const { queryClient } = renderTopBar({
+			...chat,
+			archived: true,
+			project_id: MockChatProject.id,
+		});
+		await waitFor(() =>
+			expect(queryClient.getQueryState(archivedChatProjectsKey)?.status).toBe(
+				"success",
+			),
+		);
+
+		// Unarchiving the project elsewhere invalidates the list the same way.
+		act(() => {
+			void queryClient.invalidateQueries({ queryKey: archivedChatProjectsKey });
+		});
+		await waitFor(() =>
+			expect(queryClient.getQueryState(archivedChatProjectsKey)?.status).toBe(
+				"error",
+			),
+		);
+		await user.click(
+			screen.getByRole("button", { name: "Open agent actions" }),
+		);
+		await act(async () => {
+			retriedLookup.resolve([]);
+			await retriedLookup.promise;
+		});
+		await user.click(screen.getByRole("menuitem", { name: "Unarchive agent" }));
+
+		await waitFor(() =>
+			expect(API.experimental.updateChat).toHaveBeenCalledWith(chat.id, {
+				archived: false,
+			}),
+		);
+	});
+
 	it("retries a failed project lookup when the menu reopens", async () => {
 		const user = userEvent.setup();
 		mockArchiveAndDeleteApi(chat.created_at);
