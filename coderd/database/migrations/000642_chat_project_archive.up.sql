@@ -1,3 +1,28 @@
+-- Take the locks this migration needs before changing anything, retrying
+-- short waits so that concurrent chatd traffic cannot deadlock with it. See
+-- 000609_chat_automations.up.sql for the reasoning.
+DO $$
+DECLARE
+	previous_lock_timeout text := current_setting('lock_timeout');
+	deadline timestamptz := clock_timestamp() + interval '2 minutes';
+BEGIN
+	LOOP
+		BEGIN
+			PERFORM set_config('lock_timeout', '100ms', true);
+			DROP VIEW IF EXISTS chats_expanded;
+			LOCK TABLE chats, chat_projects IN ACCESS EXCLUSIVE MODE;
+			EXIT;
+		EXCEPTION WHEN lock_not_available OR deadlock_detected THEN
+			IF clock_timestamp() > deadline THEN
+				RAISE EXCEPTION 'migration 000642 could not lock the chat tables within 2 minutes';
+			END IF;
+		END;
+		PERFORM pg_sleep(0.1);
+	END LOOP;
+	PERFORM set_config('lock_timeout', previous_lock_timeout, true);
+END;
+$$;
+
 ALTER TABLE chat_projects ADD COLUMN archived_at timestamptz NULL;
 
 COMMENT ON COLUMN chat_projects.archived_at IS 'When the project was archived. NULL for an active project. An archived project is read-only and every chat in it is archived.';
@@ -6,9 +31,9 @@ ALTER TABLE chats ADD COLUMN archived_with_project boolean NOT NULL DEFAULT fals
 
 COMMENT ON COLUMN chats.archived_with_project IS 'True when the chat was archived by archiving its project; unarchiving the project restores only these chats.';
 
--- Refresh chats_expanded to include the new chat column. The gentest
--- TestViewSubsetChat requires every chats column to appear in the view.
-DROP VIEW IF EXISTS chats_expanded;
+-- Recreate chats_expanded, dropped at the top of this migration, to include
+-- the new chat column. The gentest TestViewSubsetChat requires every chats
+-- column to appear in the view.
 CREATE VIEW chats_expanded AS
  SELECT c.id,
     c.owner_id,
