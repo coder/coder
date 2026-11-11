@@ -609,7 +609,6 @@ describe("ChatsSidebar projects", () => {
 							project_id: mockOtherProject.id,
 							pin_order: 1,
 						}),
-						// Another user's pin is not the viewer's, so no icon.
 						buildChat({
 							id: "shared-chat",
 							owner_id: "another-user",
