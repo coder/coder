@@ -15,13 +15,19 @@ func (bearerVerifier) Verify(header http.Header, _ []byte, secret string, _ time
 	if !ok {
 		return reject("authorization header missing or repeated")
 	}
-	// RFC 7235: the authentication scheme is case-insensitive. A token is
-	// required, so "Bearer " never matches an empty secret.
-	const prefixLen = len("Bearer ")
-	if len(value) <= prefixLen || strings.ToLower(value[:prefixLen]) != "bearer " {
+	// RFC 6750 section 2.1: credentials = "Bearer" 1*SP b64token. RFC 7235:
+	// the authentication scheme is case-insensitive. Only spaces separate
+	// the scheme from the token. Anything after the token is part of it.
+	const scheme = "Bearer"
+	if len(value) <= len(scheme) || strings.ToLower(value[:len(scheme)]) != "bearer" || value[len(scheme)] != ' ' {
 		return reject("authorization header is not a bearer token")
 	}
-	if !secretsEqual(value[prefixLen:], secret) {
+	// A token is required, so "Bearer " never matches an empty secret.
+	token := strings.TrimLeft(value[len(scheme):], " ")
+	if token == "" {
+		return reject("bearer token is empty")
+	}
+	if !secretsEqual(token, secret) {
 		return reject("token does not match")
 	}
 	return nil
