@@ -2,9 +2,12 @@ import { CheckIcon, FolderInputIcon, FolderMinusIcon } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorMessage } from "#/api/errors";
-import { chatProjects } from "#/api/queries/chatProjects";
+import {
+	chatProjectSummariesKey,
+	chatProjects,
+} from "#/api/queries/chatProjects";
 import { moveChatToProject } from "#/api/queries/chats";
-import type { Chat } from "#/api/typesGenerated";
+import type { Chat, ChatProjectSummary } from "#/api/typesGenerated";
 import type {
 	ContextMenuItem,
 	ContextMenuSeparator,
@@ -21,16 +24,28 @@ import type {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { toast } from "#/components/Toaster/toast";
 import { ChatProjectIcon } from "./ChatProjectIcon";
+import { useShowMoveToUnpinnedProjectDialog } from "./MoveToUnpinnedProjectDialog";
 
 /**
- * Moves a chat and reports a failure. The error handling is a mutation
- * option, so the rollback and the toast still run after the menu unmounts.
+ * Moves a chat and reports a failure. A chat that is not pinned and moves
+ * into a project the user has not pinned leaves the sidebar, so a dialog
+ * explains that. The callbacks are mutation options, so the rollback, the
+ * toast, and the dialog still happen after the menu unmounts.
  */
 export const useMoveChatToProject = () => {
 	const queryClient = useQueryClient();
+	const showMoveToUnpinnedProjectDialog = useShowMoveToUnpinnedProjectDialog();
 	const options = moveChatToProject(queryClient);
 	return useMutation({
 		...options,
+		onSuccess: (projectId, _variables, context) => {
+			const summary = queryClient
+				.getQueryData<ChatProjectSummary[]>(chatProjectSummariesKey)
+				?.find((s) => s.project.id === projectId);
+			if (summary && !summary.pinned && !context?.wasPinned) {
+				showMoveToUnpinnedProjectDialog?.(summary.project);
+			}
+		},
 		onError: (error, variables, context) => {
 			options.onError(error, variables, context);
 			toast.error(getErrorMessage(error, "Failed to move chat."));

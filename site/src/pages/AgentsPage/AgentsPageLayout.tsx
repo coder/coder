@@ -16,6 +16,7 @@ import {
 } from "react-router";
 import { watchChats } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
+import { chatProjectSummariesKey } from "#/api/queries/chatProjects";
 import {
 	addChildToParentInCache,
 	applyWatchedChatArchived,
@@ -44,6 +45,7 @@ import {
 } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
+import { useDebouncedFunction } from "#/hooks/debounce";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
 import {
 	getDefaultOrganizationId,
@@ -65,6 +67,7 @@ import {
 	sidebarViewFromPath,
 } from "./components/ChatsSidebar/ChatsSidebar";
 import { ResizableChatsSidebarFrame } from "./components/ChatsSidebar/ResizableChatsSidebarFrame";
+import { MoveToUnpinnedProjectDialogProvider } from "./components/MoveToUnpinnedProjectDialog";
 import { useAgentsPageKeybindings } from "./hooks/useAgentsPageKeybindings";
 import { useAgentsPWA } from "./hooks/useAgentsPWA";
 import { useOrganizationChatModels } from "./hooks/useOrganizationChatModels";
@@ -109,6 +112,24 @@ export const shouldInvalidateFilteredChatList = (
 ): boolean =>
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 
+// Project summaries count the user's chats, unread chats, and running chats.
+const PROJECT_SUMMARY_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
+	"chat_summary_change",
+	"created",
+	"deleted",
+	"project_change",
+	"status_change",
+]);
+
+const shouldInvalidateProjectSummaries = (
+	chat: TypesGen.Chat,
+	eventKind: TypesGen.ChatWatchEventKind,
+): boolean =>
+	!chat.parent_chat_id &&
+	PROJECT_SUMMARY_EVENT_KINDS.has(eventKind) &&
+	// A move out of a project leaves no project_id, but changes its counts.
+	(Boolean(chat.project_id) || eventKind === "project_change");
+
 // The status in other event kinds may be older than the cached status.
 export const shouldEvaluateChime = (
 	chat: TypesGen.Chat,
@@ -139,6 +160,11 @@ export const chatCostIdToInvalidate = (
 const AgentsPageLayout: React.FC = () => {
 	useAgentsPWA();
 	const queryClient = useQueryClient();
+	// Coalesces bursts of watch events into one summaries request.
+	const { debounced: invalidateProjectSummariesSoon } = useDebouncedFunction(
+		() => queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey }),
+		1000,
+	);
 	const navigate = useNavigate();
 	const location = useLocation();
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -173,7 +199,10 @@ const AgentsPageLayout: React.FC = () => {
 	}, []);
 
 	const chatsQuery = useInfiniteQuery(
-		infiniteChats(getSidebarChatListInput(sidebarFilters)),
+		infiniteChats({
+			...getSidebarChatListInput(sidebarFilters),
+			pinnedProjectsOnly: true,
+		}),
 	);
 	const organizationModels = useOrganizationChatModels(
 		organizations.map((organization) => organization.id),
@@ -308,7 +337,9 @@ const AgentsPageLayout: React.FC = () => {
 		});
 		void invalidateChatListQueries(queryClient);
 		void invalidateChatSearches(queryClient);
-	}, [agentId, queryClient]);
+		// Opening the chat marks it read, which changes its project's unread count.
+		invalidateProjectSummariesSoon();
+	}, [agentId, queryClient, invalidateProjectSummariesSoon]);
 	useEffect(() => {
 		return createReconnectingWebSocket({
 			connect() {
@@ -333,6 +364,9 @@ const AgentsPageLayout: React.FC = () => {
 							updatedChat.id,
 							activeChatIdForWatch(),
 						);
+					}
+					if (shouldInvalidateProjectSummaries(updatedChat, chatEvent.kind)) {
+						invalidateProjectSummariesSoon();
 					}
 
 					if (chatEvent.kind === "deleted") {
@@ -453,7 +487,7 @@ const AgentsPageLayout: React.FC = () => {
 				}
 			},
 		});
-	}, [queryClient]);
+	}, [queryClient, invalidateProjectSummariesSoon]);
 
 	useAgentsPageKeybindings({
 		onNewAgent: handleNewAgent,
@@ -560,4 +594,10 @@ const AgentsPageLayout: React.FC = () => {
 		</div>
 	);
 };
-export default AgentsPageLayout;
+const AgentsPageLayoutWithDialogs: React.FC = () => (
+	<MoveToUnpinnedProjectDialogProvider>
+		<AgentsPageLayout />
+	</MoveToUnpinnedProjectDialogProvider>
+);
+
+export default AgentsPageLayoutWithDialogs;

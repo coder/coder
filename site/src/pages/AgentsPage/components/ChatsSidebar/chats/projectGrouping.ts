@@ -1,4 +1,9 @@
-import type { Chat, ChatProject, Organization } from "#/api/typesGenerated";
+import type {
+	Chat,
+	ChatProject,
+	ChatProjectSummary,
+	Organization,
+} from "#/api/typesGenerated";
 import { canManageChat } from "../../ChatActionsMenuItems";
 
 type ChatsGroupedByProject = {
@@ -8,22 +13,24 @@ type ChatsGroupedByProject = {
 };
 
 /**
- * Splits chats into their project folders. While projects are loading, chats
- * with a project are held back so they do not jump from the unfiled list into
- * a folder. Once loaded, a chat whose project is not in `projects`, for
- * example because the request failed, stays unfiled so it never disappears
- * from the sidebar.
+ * Splits chats into the folders of the user's pinned projects. While the
+ * summaries load, chats with a project are held back so they do not jump from
+ * the unfiled list into a folder. Once loaded, a chat whose project is not
+ * pinned, for example because the request failed or the user can no longer
+ * use the project, stays unfiled so it never disappears from the sidebar.
  */
 export const groupChatsByProject = (
 	chats: readonly Chat[],
-	projects: readonly ChatProject[],
+	summaries: readonly ChatProjectSummary[],
 	isLoadingProjects = false,
 ): ChatsGroupedByProject => {
-	const loadedProjectIds = new Set(projects.map((project) => project.id));
+	const folderProjectIds = new Set(
+		summaries.filter((s) => s.pinned).map((s) => s.project.id),
+	);
 	const chatsByProjectId = new Map<string, Chat[]>();
 	const unfiledChats: Chat[] = [];
 	for (const chat of chats) {
-		if (chat.project_id && loadedProjectIds.has(chat.project_id)) {
+		if (chat.project_id && folderProjectIds.has(chat.project_id)) {
 			const bucket = chatsByProjectId.get(chat.project_id);
 			if (bucket) {
 				bucket.push(chat);
@@ -34,11 +41,7 @@ export const groupChatsByProject = (
 			unfiledChats.push(chat);
 		}
 	}
-	return {
-		chatsByProjectId,
-		unfiledChats,
-		folderProjectIds: loadedProjectIds,
-	};
+	return { chatsByProjectId, unfiledChats, folderProjectIds };
 };
 
 type MergeProjectFolderChatsOptions = {

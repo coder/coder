@@ -1,9 +1,15 @@
+import { useSortable } from "@dnd-kit/react/sortable";
 import { cn } from "cn";
-import { ChevronRightIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { ChevronRightIcon, EllipsisVerticalIcon } from "lucide-react";
+import { useRef } from "react";
 import { NavLink, type To, useLocation, useMatch } from "react-router";
 import type { ChatListInput } from "#/api/queries/chats";
-import type { Chat, ChatProject, Organization } from "#/api/typesGenerated";
+import type {
+	Chat,
+	ChatProject,
+	ChatProjectSummary,
+	Organization,
+} from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -23,28 +29,18 @@ import {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { buildAgentProjectPath } from "../../../utils/navigation";
-import {
-	getPersistedProjectsSectionExpanded,
-	savePersistedProjectsSectionExpanded,
-} from "../../../utils/projectsSectionStorage";
 import { ChatProjectIcon } from "../../ChatProjectIcon";
 import { ChatDropArea } from "./ChatDropArea";
 import { ProjectActionsMenuItems } from "./ProjectActionsMenuItems";
 import { ProjectFolderChats } from "./ProjectFolderChats";
-import { ProjectsSectionDropArea } from "./ProjectsSectionDropArea";
+import { PROJECT_PIN_DRAG_TYPE, type ProjectPinDragData } from "./projectDrag";
 import { getOrganizationLabels } from "./projectGrouping";
-import { SidebarSectionHeader } from "./SidebarSectionHeader";
 
-export type ProjectDialogState =
-	| { mode: "create" }
-	| { mode: "edit"; project: ChatProject };
-
-export type OpenProjectDialog = (dialog: ProjectDialogState) => void;
-export type DeleteProject = (project: ChatProject) => void;
+export type ProjectAction = (project: ChatProject) => void;
 
 type ProjectFoldersProps = {
-	readonly currentUserId: string;
-	readonly projects: readonly ChatProject[];
+	/** The user's pinned projects, in pin order. */
+	readonly summaries: readonly ChatProjectSummary[];
 	readonly organizations: readonly Organization[];
 	readonly chatsByProjectId: ReadonlyMap<string, readonly Chat[]>;
 	/** The Pinned section lists these, so folders only count them. */
@@ -52,134 +48,78 @@ type ProjectFoldersProps = {
 	readonly chatListInput: ChatListInput;
 	readonly expandedProjectIds: Readonly<Record<string, boolean>>;
 	readonly onToggle: (projectId: string) => void;
-	readonly onOpenProjectDialog: OpenProjectDialog;
-	readonly onDelete: DeleteProject;
+	readonly onEdit: ProjectAction;
+	readonly onDelete: ProjectAction;
+	readonly onUnpin: ProjectAction;
 	readonly isLoading: boolean;
 	readonly error: unknown;
-	/**
-	 * True when the first load failed. A failed refetch keeps cached
-	 * projects, including an empty list, so its empty state stays.
-	 */
-	readonly isLoadError: boolean;
 	readonly onRetry: () => void;
 	readonly emptyMessage: string;
 };
 
 export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
-	currentUserId,
-	projects,
+	summaries,
 	organizations,
 	chatsByProjectId,
 	pinnedChatsByProjectId,
 	chatListInput,
 	expandedProjectIds,
 	onToggle,
-	onOpenProjectDialog,
+	onEdit,
 	onDelete,
+	onUnpin,
 	isLoading,
 	error,
-	isLoadError,
 	onRetry,
 	emptyMessage,
 }) => {
 	const location = useLocation();
-	const organizationLabels = getOrganizationLabels(projects, organizations);
-	const [isExpanded, setIsExpanded] = useState(() =>
-		getPersistedProjectsSectionExpanded(currentUserId),
+	const organizationLabels = getOrganizationLabels(
+		summaries.map((summary) => summary.project),
+		organizations,
 	);
-	const setExpanded = (expanded: boolean) => {
-		setIsExpanded(expanded);
-		savePersistedProjectsSectionExpanded(currentUserId, expanded);
-	};
-	const openCreateDialog = () => onOpenProjectDialog({ mode: "create" });
-	const isShowingEmptyState =
-		isExpanded && !isLoading && !isLoadError && projects.length === 0;
-	// Also hidden while an expanded section loads: if the load comes back
-	// empty, the empty state's button would replace a focused header button
-	// and drop keyboard focus.
-	const isShowingHeaderNewProject =
-		!isShowingEmptyState && !(isExpanded && isLoading);
-
 	return (
-		<div>
-			<ProjectsSectionDropArea
-				isExpanded={isExpanded}
-				onExpand={() => setExpanded(true)}
-			>
-				<SidebarSectionHeader
-					title="Projects"
-					collapsible={{
-						expanded: isExpanded,
-						onToggle: () => setExpanded(!isExpanded),
-					}}
+		<div className="flex flex-col gap-0.5">
+			{Boolean(error) && (
+				<ErrorAlert
+					error={error}
+					className="mb-1"
 					actions={
-						isShowingHeaderNewProject && (
-							<Button
-								variant="subtle"
-								size="icon"
-								className="size-7"
-								aria-label="New project"
-								onClick={openCreateDialog}
-							>
-								<PlusIcon />
-							</Button>
-						)
+						<Button size="sm" variant="outline" onClick={onRetry}>
+							Retry
+						</Button>
 					}
 				/>
-			</ProjectsSectionDropArea>
-			{isExpanded && (
-				<div className="px-2">
-					{Boolean(error) && (
-						<ErrorAlert
-							error={error}
-							className="mb-1"
-							actions={
-								<Button size="sm" variant="outline" onClick={onRetry}>
-									Retry
-								</Button>
-							}
-						/>
-					)}
-					{isLoading && <Skeleton className="ml-2.5 h-3.5 w-20" />}
-					{isShowingEmptyState && (
-						<div className="flex flex-col items-center gap-3 rounded-lg border border-dashed border-border mx-1 px-8 py-5 text-center">
-							<p className="m-0 text-sm text-content-secondary">
-								Group related chats together, with shared members and history.
-							</p>
-							<Button variant="outline" size="sm" onClick={openCreateDialog}>
-								<PlusIcon />
-								New project
-							</Button>
-						</div>
-					)}
-					{projects.length > 0 && (
-						<div className="flex flex-col gap-0.5">
-							{projects.map((project) => (
-								<ProjectFolder
-									key={project.id}
-									project={project}
-									organizationLabel={organizationLabels.get(project.id)}
-									chats={chatsByProjectId.get(project.id) ?? []}
-									pinnedChats={pinnedChatsByProjectId.get(project.id) ?? []}
-									chatListInput={chatListInput}
-									expanded={Boolean(expandedProjectIds[project.id])}
-									locationSearch={location.search}
-									onToggle={() => onToggle(project.id)}
-									onEdit={() => onOpenProjectDialog({ mode: "edit", project })}
-									onDelete={() => onDelete(project)}
-									emptyMessage={emptyMessage}
-								/>
-							))}
-						</div>
-					)}
-				</div>
 			)}
+			{isLoading && <Skeleton className="ml-2.5 h-3.5 w-20" />}
+			{summaries.map(({ project, own_unread_count }, index) => (
+				<SortableProjectFolder
+					key={project.id}
+					project={project}
+					index={index}
+					unreadCount={own_unread_count}
+					organizationLabel={organizationLabels.get(project.id)}
+					chats={chatsByProjectId.get(project.id) ?? []}
+					pinnedChats={pinnedChatsByProjectId.get(project.id) ?? []}
+					chatListInput={chatListInput}
+					expanded={Boolean(expandedProjectIds[project.id])}
+					locationSearch={location.search}
+					onToggle={() => onToggle(project.id)}
+					onEdit={() => onEdit(project)}
+					onDelete={() => onDelete(project)}
+					onUnpin={() => onUnpin(project)}
+					emptyMessage={emptyMessage}
+				/>
+			))}
 		</div>
 	);
 };
 
 type ProjectFolderProps = {
 	readonly project: ChatProject;
+	/** Makes the project link the drag handle that reorders the pins. */
+	readonly handleRef: (element: Element | null) => void;
+	readonly unreadCount: number;
 	readonly organizationLabel: string | undefined;
 	readonly chats: readonly Chat[];
 	readonly pinnedChats: readonly Chat[];
@@ -189,11 +129,33 @@ type ProjectFolderProps = {
 	readonly onToggle: () => void;
 	readonly onEdit: () => void;
 	readonly onDelete: () => void;
+	readonly onUnpin: () => void;
 	readonly emptyMessage: string;
+};
+
+const SortableProjectFolder: React.FC<
+	Omit<ProjectFolderProps, "handleRef"> & { readonly index: number }
+> = ({ index, ...props }) => {
+	const { ref, handleRef, isDragging } = useSortable({
+		id: `project-pin:${props.project.id}`,
+		index,
+		// Its own group, so pinned projects never sort among pinned chats.
+		group: PROJECT_PIN_DRAG_TYPE,
+		type: PROJECT_PIN_DRAG_TYPE,
+		accept: PROJECT_PIN_DRAG_TYPE,
+		data: { project: props.project } satisfies ProjectPinDragData,
+	});
+	return (
+		<div ref={ref} className={cn(isDragging && "opacity-50")}>
+			<ProjectFolder {...props} handleRef={handleRef} />
+		</div>
+	);
 };
 
 const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	project,
+	handleRef,
+	unreadCount,
 	organizationLabel,
 	chats,
 	pinnedChats,
@@ -203,6 +165,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	onToggle,
 	onEdit,
 	onDelete,
+	onUnpin,
 	emptyMessage,
 }) => {
 	const projectPathname = buildAgentProjectPath({ projectId: project.id });
@@ -222,6 +185,15 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 			newChatPickedRef.current = false;
 			event.preventDefault();
 		}
+	};
+	const menuItemsProps = {
+		projectPath,
+		onNewChatInPlace: isOnProjectPage ? handleNewChat : undefined,
+		pinned: true,
+		onTogglePin: onUnpin,
+		permissions: project.permissions,
+		onEdit,
+		onDelete,
 	};
 	return (
 		<ChatDropArea
@@ -250,6 +222,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 							/>
 						</Button>
 						<NavLink
+							ref={handleRef}
 							to={projectPath}
 							aria-label={projectLabel}
 							className="flex min-w-0 flex-1 items-center gap-2 py-1 text-[13px] no-underline"
@@ -273,12 +246,25 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 								</>
 							)}
 						</NavLink>
+						{!expanded && unreadCount > 0 && (
+							// Covers the actions button, which takes its place on hover
+							// or keyboard focus without moving anything.
+							<span className="pointer-events-none absolute inset-y-0 right-2 flex w-6 items-center justify-center group-hover:invisible group-has-focus-visible:invisible group-has-data-[state=open]:invisible">
+								<span
+									role="img"
+									aria-label={`${unreadCount} unread`}
+									className="flex h-4 min-w-4 items-center justify-center rounded-full bg-surface-quaternary px-1 text-2xs font-medium text-content-secondary tabular-nums"
+								>
+									{unreadCount}
+								</span>
+							</span>
+						)}
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<Button
 									variant="subtle"
 									size="icon"
-									className="size-6 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+									className="size-6 opacity-0 group-hover:opacity-100 group-has-focus-visible:opacity-100 data-[state=open]:opacity-100"
 									aria-label={`Open project actions for ${projectLabel}`}
 									{...preventRowContextMenuProps}
 								>
@@ -298,11 +284,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 								<ProjectActionsMenuItems
 									Item={DropdownMenuItem}
 									Separator={DropdownMenuSeparator}
-									projectPath={projectPath}
-									onNewChatInPlace={isOnProjectPage ? handleNewChat : undefined}
-									permissions={project.permissions}
-									onEdit={onEdit}
-									onDelete={onDelete}
+									{...menuItemsProps}
 								/>
 							</DropdownMenuContent>
 						</DropdownMenu>
@@ -312,11 +294,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 					<ProjectActionsMenuItems
 						Item={ContextMenuItem}
 						Separator={ContextMenuSeparator}
-						projectPath={projectPath}
-						onNewChatInPlace={isOnProjectPage ? handleNewChat : undefined}
-						permissions={project.permissions}
-						onEdit={onEdit}
-						onDelete={onDelete}
+						{...menuItemsProps}
 					/>
 				</ContextMenuContent>
 			</ContextMenu>

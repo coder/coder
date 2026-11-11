@@ -101,6 +101,7 @@ type ChatListParams = Readonly<{
 	status: ChatListStatusFilter | "all";
 	statuses: readonly TypesGen.ChatStatus[];
 	sources: readonly TypesGen.ChatListSource[];
+	pinnedProjectsOnly: boolean;
 }>;
 
 export type ChatListInput = Readonly<{
@@ -109,6 +110,8 @@ export type ChatListInput = Readonly<{
 	chatStatus?: ChatListStatusFilter;
 	statuses?: readonly TypesGen.ChatStatus[];
 	sources?: readonly TypesGen.ChatListSource[];
+	/** Leaves out chats in projects the user has not pinned, as the sidebar does. */
+	pinnedProjectsOnly?: boolean;
 }>;
 
 type ChatSearchParams = Readonly<{ q: string }>;
@@ -1435,6 +1438,7 @@ export const toChatListParams = (input?: ChatListInput): ChatListParams => ({
 	status: input?.chatStatus ?? "all",
 	statuses: canonicalizeChatListStatuses(input?.statuses ?? []),
 	sources: canonicalizeChatSources(input?.sources ?? []),
+	pinnedProjectsOnly: input?.pinnedProjectsOnly ?? false,
 });
 
 // Sidebar-emitted query shapes must match TestSearchChatsFrontendEmitted in
@@ -1492,6 +1496,7 @@ const sidebarChatListOptions = <TQueryKey extends QueryKey>(
 					offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
 					q,
 					project_id: projectId,
+					pinned_projects_only: params.pinnedProjectsOnly || undefined,
 				},
 				signal,
 			),
@@ -2118,13 +2123,16 @@ const setCachedChatProjectId = (
  * watch events wrote while the request ran.
  */
 export const moveChatToProject = (queryClient: QueryClient) => ({
-	mutationFn: ({ chatId, projectId }: MoveChatToProjectVariables) =>
-		API.experimental.updateChat(chatId, {
+	/** Resolves to the target project ID, or null for a removal. */
+	mutationFn: async ({ chatId, projectId }: MoveChatToProjectVariables) => {
+		await API.experimental.updateChat(chatId, {
 			project_id:
 				projectId ??
 				// The API uses the nil UUID to remove the chat from its project.
 				"00000000-0000-0000-0000-000000000000",
-		}),
+		});
+		return projectId;
+	},
 	onMutate: async ({ chatId, projectId }: MoveChatToProjectVariables) => {
 		await cancelChatListQueries(queryClient);
 		await cancelChatEntity(queryClient, chatId);
@@ -2133,7 +2141,10 @@ export const moveChatToProject = (queryClient: QueryClient) => ({
 			queryClient.getQueryData<TypesGen.Chat>(chatEntityKey(chatId));
 		setCachedChatProjectId(queryClient, chatId, projectId ?? undefined);
 		copyFolderChatToSidebarList(queryClient, chatId);
-		return { previousProjectId: previousChat?.project_id };
+		return {
+			previousProjectId: previousChat?.project_id,
+			wasPinned: (previousChat?.pin_order ?? 0) > 0,
+		};
 	},
 	onError: (
 		_error: unknown,

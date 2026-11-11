@@ -8,10 +8,13 @@ import {
 	chatProject,
 	chatProjectACLKey,
 	chatProjectInstructionsKey,
+	chatProjectSummariesKey,
 	chatProjectsKey,
 	createChatProject,
 	deleteChatProject,
+	pinChatProject,
 	setChatProjectRole,
+	unpinChatProject,
 	updateChatProject,
 } from "./chatProjects";
 import {
@@ -74,6 +77,18 @@ describe("chat project mutations", () => {
 		}
 		// A chat's nested queries do not depend on its project.
 		expect(isInvalidated(queryClient, messagesKey)).toBe(false);
+	});
+
+	it("refreshes the summaries and chat lists, not searches, after a pin change", async () => {
+		for (const factory of [pinChatProject, unpinChatProject]) {
+			const queryClient = seed();
+			queryClient.setQueryData(chatProjectSummariesKey, []);
+			await settle(factory(queryClient));
+			expect(isInvalidated(queryClient, chatProjectSummariesKey)).toBe(true);
+			expect(isInvalidated(queryClient, chatKeys[0])).toBe(true);
+			expect(isInvalidated(queryClient, chatProjectsKey)).toBe(false);
+			expect(isInvalidated(queryClient, chatKeys[1])).toBe(false);
+		}
 	});
 });
 

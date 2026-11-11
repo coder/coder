@@ -1,3 +1,4 @@
+import { CollisionPriority } from "@dnd-kit/abstract";
 import { pointerIntersection } from "@dnd-kit/collision";
 import { useDragOperation, useDroppable } from "@dnd-kit/react";
 import { cn } from "cn";
@@ -32,6 +33,9 @@ export const ChatDropArea: React.FC<ChatDropAreaProps> = ({
 		// The default detector falls back to the dragged row's overlap, which
 		// would hand a drop on a muted folder to the target next to it.
 		collisionDetector: pointerIntersection,
+		// Pinned project folders sit inside Chats, and a drop on one goes to it.
+		collisionPriority:
+			target.kind === "unfiled" ? CollisionPriority.Low : undefined,
 	});
 	return (
 		<div

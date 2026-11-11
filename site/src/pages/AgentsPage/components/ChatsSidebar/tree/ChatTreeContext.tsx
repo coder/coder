@@ -18,6 +18,8 @@ export type ChatTreeContextValue = {
 	readonly navigateAfterArchive: (chatId: string) => void;
 	readonly onOpenRenameDialog?: (chat: Chat) => void;
 	readonly dragInstructionsId: string;
+	/** Names the project of a pinned chat. */
+	readonly projectNameById: ReadonlyMap<string, string>;
 };
 
 export const ChatTreeContext = createContext<ChatTreeContextValue | null>(null);

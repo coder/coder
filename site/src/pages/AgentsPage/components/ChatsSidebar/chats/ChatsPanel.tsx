@@ -10,6 +10,7 @@ import {
 import { isSortable } from "@dnd-kit/react/sortable";
 import { cn } from "cn";
 import {
+	FolderKanbanIcon,
 	PanelLeftCloseIcon,
 	SearchIcon,
 	SettingsIcon,
@@ -19,11 +20,13 @@ import { useEffect, useId, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { Link, type Location, NavLink } from "react-router";
 import { getErrorMessage } from "#/api/errors";
+import { pinChatProject, unpinChatProject } from "#/api/queries/chatProjects";
 import { reorderPinnedChat } from "#/api/queries/chats";
 import type {
 	Chat,
 	ChatModel,
 	ChatProject,
+	ChatProjectSummary,
 	Organization,
 } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -77,14 +80,12 @@ import {
 	PINNED_SECTION_KEY,
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
-import {
-	type DeleteProject,
-	type OpenProjectDialog,
-	ProjectFolders,
-} from "./ProjectFolders";
+import { PinnedProjectsSeparator } from "./PinnedProjectsSeparator";
+import { type ProjectAction, ProjectFolders } from "./ProjectFolders";
 import {
 	movedChatOf,
 	moveKeyboardChatDrag,
+	pinnedProjectOf,
 	projectIdForDrop,
 	refocusKeyboardPinDrag,
 	SyncDragTargetOnScroll,
@@ -116,15 +117,16 @@ const dragSensors = [
 
 type ChatsPanelProps = {
 	readonly chatProjectsEnabled: boolean;
+	/** Every project the user can see, which names the projects of chats. */
 	readonly projects: readonly ChatProject[];
+	/** The user's pinned projects, in pin order. */
+	readonly pinnedProjects: readonly ChatProjectSummary[];
 	readonly organizations: readonly Organization[];
 	readonly isProjectsLoading: boolean;
 	readonly projectsError: unknown;
-	/** True when the first projects load failed and no data is cached. */
-	readonly isProjectsLoadError: boolean;
 	readonly onRetryProjects: () => void;
-	readonly onOpenProjectDialog: OpenProjectDialog;
-	readonly onDeleteProject: DeleteProject;
+	readonly onEditProject: ProjectAction;
+	readonly onDeleteProject: ProjectAction;
 	readonly chats: readonly Chat[];
 	readonly chatErrorReasons: Record<string, string>;
 	readonly modelConfigs: readonly ChatModel[];
@@ -148,6 +150,7 @@ type ChatsPanelProps = {
 	readonly viewedProjectId: string | undefined;
 	readonly isSettingsPanel: boolean;
 	readonly isChatsActive: boolean;
+	readonly isProjectsActive: boolean;
 	readonly location: Location;
 	readonly currentUserId: string;
 };
@@ -155,12 +158,12 @@ type ChatsPanelProps = {
 export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	chatProjectsEnabled,
 	projects,
+	pinnedProjects,
 	organizations,
 	isProjectsLoading,
 	projectsError,
-	isProjectsLoadError,
 	onRetryProjects,
-	onOpenProjectDialog,
+	onEditProject,
 	onDeleteProject,
 	chats,
 	chatErrorReasons,
@@ -185,6 +188,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	viewedProjectId,
 	isSettingsPanel,
 	isChatsActive,
+	isProjectsActive,
 	location,
 	currentUserId,
 }) => {
@@ -225,10 +229,14 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		chatsByProjectId,
 		unfiledChats: unfiledOwnedChats,
 		folderProjectIds,
-	} = groupChatsByProject(unpinnedOwnedChats, projects, isProjectsLoading);
+	} = groupChatsByProject(
+		unpinnedOwnedChats,
+		pinnedProjects,
+		isProjectsLoading,
+	);
 	const { chatsByProjectId: pinnedChatsByProjectId } = groupChatsByProject(
 		pinnedChats,
-		projects,
+		pinnedProjects,
 	);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
@@ -270,6 +278,37 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		: pinnedChats;
 
 	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
+
+	// Pinned projects reorder like pinned chats, with their own local order.
+	const [localProjectPinOrder, setLocalProjectPinOrder] = useState<
+		string[] | null
+	>(null);
+	const [seenPinnedProjects, setSeenPinnedProjects] = useState(pinnedProjects);
+	if (pinnedProjects !== seenPinnedProjects) {
+		setSeenPinnedProjects(pinnedProjects);
+		setLocalProjectPinOrder(null);
+	}
+	const reorderProjectMutation = useMutation({
+		...pinChatProject(queryClient),
+		onError: (error) => {
+			setLocalProjectPinOrder(null);
+			toast.error(getErrorMessage(error, "Failed to reorder pinned projects."));
+		},
+	});
+	const unpinProjectMutation = useMutation({
+		...unpinChatProject(queryClient),
+		onError: (error) => {
+			toast.error(getErrorMessage(error, "Failed to unpin project."));
+		},
+	});
+	const sortedPinnedProjects = localProjectPinOrder
+		? localProjectPinOrder
+				.map((id) => pinnedProjects.find((s) => s.project.id === id))
+				.filter((s) => s !== undefined)
+		: pinnedProjects;
+	const pinnedProjectIds = sortedPinnedProjects.map((s) => s.project.id);
+	const projectNameById = new Map(projects.map((p) => [p.id, p.name]));
+
 	const dragInstructionsId = useId();
 	const moveMutation = useMoveChatToProject();
 
@@ -289,6 +328,20 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 				setProjectFolderOverrides((prev) => ({ ...prev, [projectId]: true }));
 			}
 			moveMutation.mutate({ chatId: chat.id, projectId });
+			return;
+		}
+
+		const project = pinnedProjectOf(source);
+		if (project) {
+			const from = pinnedProjectIds.indexOf(project.id);
+			const to = isSortable(source) ? source.index : from;
+			if (from === -1 || from === to) {
+				return;
+			}
+			setLocalProjectPinOrder(
+				pinnedProjectIds.toSpliced(from, 1).toSpliced(to, 0, project.id),
+			);
+			reorderProjectMutation.mutate({ project, pinOrder: to + 1 });
 			return;
 		}
 
@@ -408,6 +461,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		navigateAfterArchive,
 		onOpenRenameDialog,
 		dragInstructionsId,
+		projectNameById,
 	};
 
 	const chatSections = (
@@ -438,6 +492,12 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		pinnedChats.length === 0 &&
 		sharedWithYouChats.length === 0 &&
 		chatSections.length === 0;
+	const isShowingPinnedSection =
+		pinnedChats.length > 0 ||
+		(chatProjectsEnabled &&
+			(pinnedProjects.length > 0 ||
+				isProjectsLoading ||
+				Boolean(projectsError)));
 	const isViewingArchived = sidebarFilters.archiveStatus === "archived";
 	const chatsHeadingLabel = isViewingArchived ? "Archived chats" : "Chats";
 	const emptyStateMessage = hasAppliedResultFilters
@@ -552,6 +612,14 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					onClick={onBeforeNewAgent}
 					disabled={isCreating}
 				/>
+				{chatProjectsEnabled && (
+					<SettingsNavItem
+						icon={FolderKanbanIcon}
+						label="Projects"
+						active={isProjectsActive}
+						to={{ pathname: "/agents/projects", search: locationSearch }}
+					/>
+				)}
 				{onOpenSearchDialog && (
 					<SettingsNavItem
 						icon={SearchIcon}
@@ -598,35 +666,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						onDragMove={moveKeyboardChatDrag}
 						onDragEnd={handleDragEnd}
 					>
-						{/* Projects share the chat list's scroll area, so expanding a folder
-					    pushes the Chats section down instead of scrolling on its own. */}
-						{chatProjectsEnabled && (
-							<ChatTreeContext value={chatTreeCtx}>
-								<ProjectFolders
-									currentUserId={currentUserId}
-									projects={projects}
-									organizations={organizations}
-									chatsByProjectId={chatsByProjectId}
-									pinnedChatsByProjectId={pinnedChatsByProjectId}
-									chatListInput={getSidebarChatListInput(sidebarFilters)}
-									expandedProjectIds={Object.fromEntries(
-										projects.map((project) => [
-											project.id,
-											projectFolderOverrides[project.id] ??
-												project.id === activeProjectId,
-										]),
-									)}
-									onToggle={toggleProject}
-									onOpenProjectDialog={onOpenProjectDialog}
-									onDelete={onDeleteProject}
-									isLoading={isProjectsLoading}
-									error={projectsError}
-									isLoadError={isProjectsLoadError}
-									onRetry={onRetryProjects}
-									emptyMessage={emptyStateMessage}
-								/>
-							</ChatTreeContext>
-						)}
 						<ChatDropArea target={{ kind: "unfiled", folderProjectIds }}>
 							{chatProjectsEnabled && (
 								<div className="group-data-[drop=unavailable]/drop:opacity-50">
@@ -667,8 +706,72 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 								) : (
 									<ChatTreeContext value={chatTreeCtx}>
 										<div className="pb-2">
+											{isShowingPinnedSection && (
+												<div className="not-first:mt-3">
+													<ChatSectionHeader
+														label={PINNED_SECTION_KEY}
+														count={
+															pinnedChats.length + sortedPinnedProjects.length
+														}
+														expanded={!collapsedSections[PINNED_SECTION_KEY]}
+														onToggle={() => toggleSection(PINNED_SECTION_KEY)}
+														testId={getSectionToggleTestId(PINNED_SECTION_KEY)}
+													/>
+													{!collapsedSections[PINNED_SECTION_KEY] && (
+														<>
+															<div className="flex flex-col gap-0.5">
+																{sortedPinnedChats.map((chat, index) =>
+																	disablePinnedReordering ? (
+																		<ChatTreeNode key={chat.id} chat={chat} />
+																	) : (
+																		<SortableChatTreeNode
+																			key={chat.id}
+																			chat={chat}
+																			index={index}
+																		/>
+																	),
+																)}
+															</div>
+															{pinnedChats.length > 0 &&
+																sortedPinnedProjects.length > 0 && (
+																	<PinnedProjectsSeparator />
+																)}
+															{chatProjectsEnabled && (
+																<ProjectFolders
+																	summaries={sortedPinnedProjects}
+																	organizations={organizations}
+																	chatsByProjectId={chatsByProjectId}
+																	pinnedChatsByProjectId={
+																		pinnedChatsByProjectId
+																	}
+																	chatListInput={getSidebarChatListInput(
+																		sidebarFilters,
+																	)}
+																	expandedProjectIds={Object.fromEntries(
+																		pinnedProjectIds.map((id) => [
+																			id,
+																			projectFolderOverrides[id] ??
+																				id === activeProjectId,
+																		]),
+																	)}
+																	onToggle={toggleProject}
+																	onEdit={onEditProject}
+																	onDelete={onDeleteProject}
+																	onUnpin={(project) =>
+																		unpinProjectMutation.mutate(project)
+																	}
+																	isLoading={isProjectsLoading}
+																	error={projectsError}
+																	onRetry={onRetryProjects}
+																	emptyMessage={emptyStateMessage}
+																/>
+															)}
+														</>
+													)}
+												</div>
+											)}
 											{isShowingEmptyState ? (
-												<div className="rounded-lg border border-dashed border-border bg-surface-primary p-4 text-center text-xs text-content-secondary">
+												<div className="not-first:mt-3 rounded-lg border border-dashed border-border bg-surface-primary p-4 text-center text-xs text-content-secondary">
 													<p className="m-0">{emptyStateMessage}</p>
 													{hasAppliedResultFilters && (
 														<button
@@ -682,41 +785,6 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 												</div>
 											) : (
 												<>
-													{pinnedChats.length > 0 && (
-														<div className="not-first:mt-3">
-															<ChatSectionHeader
-																label={PINNED_SECTION_KEY}
-																count={pinnedChats.length}
-																expanded={
-																	!collapsedSections[PINNED_SECTION_KEY]
-																}
-																onToggle={() =>
-																	toggleSection(PINNED_SECTION_KEY)
-																}
-																testId={getSectionToggleTestId(
-																	PINNED_SECTION_KEY,
-																)}
-															/>
-															{!collapsedSections[PINNED_SECTION_KEY] &&
-																(disablePinnedReordering ? (
-																	<div className="flex flex-col gap-0.5">
-																		{sortedPinnedChats.map((chat) => (
-																			<ChatTreeNode key={chat.id} chat={chat} />
-																		))}
-																	</div>
-																) : (
-																	<div className="flex flex-col gap-0.5">
-																		{sortedPinnedChats.map((chat, index) => (
-																			<SortableChatTreeNode
-																				key={chat.id}
-																				chat={chat}
-																				index={index}
-																			/>
-																		))}
-																	</div>
-																))}
-														</div>
-													)}
 													{sharedWithYouChats.length > 0 && (
 														<div className="not-first:mt-3">
 															<ChatSectionHeader

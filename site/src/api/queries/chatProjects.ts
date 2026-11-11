@@ -32,6 +32,56 @@ export const chatProject = (projectId: string | undefined) =>
 			projects.find((project) => project.id === projectId) ?? null,
 	});
 
+/** Nested under chatProjectsKey, so project changes refresh the summaries. */
+export const chatProjectSummariesKey = [
+	...chatProjectsKey,
+	"summaries",
+] as const;
+
+/**
+ * The user's projects with their pins and counts over the user's own chats.
+ * Pins send no watch events, so other tabs catch up on focus.
+ */
+export const chatProjectSummaries = () =>
+	queryOptions({
+		queryKey: chatProjectSummariesKey,
+		queryFn: () => API.experimental.getChatProjectSummaries(),
+		refetchOnWindowFocus: true,
+	});
+
+// The sidebar's chat list leaves out chats in unpinned projects, so a pin
+// change can add or remove chats from it.
+const invalidateProjectPins = (queryClient: QueryClient) =>
+	Promise.all([
+		queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey }),
+		invalidateChatListQueries(queryClient),
+	]);
+
+/** Pins a project at the end, or moves a pinned project to pinOrder. */
+export const pinChatProject = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: ({
+			project,
+			pinOrder,
+		}: {
+			project: TypesGen.ChatProject;
+			pinOrder?: number;
+		}) =>
+			API.experimental.pinChatProject(
+				project.organization_id,
+				project.id,
+				pinOrder,
+			),
+		onSettled: () => invalidateProjectPins(queryClient),
+	});
+
+export const unpinChatProject = (queryClient: QueryClient) =>
+	mutationOptions({
+		mutationFn: (project: TypesGen.ChatProject) =>
+			API.experimental.unpinChatProject(project.organization_id, project.id),
+		onSettled: () => invalidateProjectPins(queryClient),
+	});
+
 export const createChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
 		mutationFn: ({

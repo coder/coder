@@ -4,7 +4,6 @@ import {
 	render,
 	screen,
 	waitFor,
-	within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HttpResponse, http } from "msw";
@@ -34,6 +33,7 @@ import {
 	MockAppearanceConfig,
 	MockBuildInfo,
 	MockChatProject,
+	MockChatProjectSummary,
 	MockDefaultOrganization,
 	MockEntitlements,
 	MockOrganization2,
@@ -48,7 +48,6 @@ import {
 	type AgentSidebarFilters,
 } from "../../utils/agentSidebarFilters";
 import { NIL_UUID } from "../../utils/modelOptions";
-import { projectsSectionCollapsedStorageKey } from "../../utils/projectsSectionStorage";
 import { draftStorageKeys } from "../AgentCreateForm";
 import { ChatsSidebar } from "./ChatsSidebar";
 
@@ -158,6 +157,32 @@ const defaultProps: React.ComponentProps<typeof ChatsSidebar> = {
 	onSidebarFiltersChange: vi.fn(),
 	currentUserId: MockUserOwner.id,
 };
+
+// The sidebar lists pinned projects from their summaries. Unless a test
+// mocks the summaries, every project in the projects list is pinned.
+beforeEach(() => {
+	server.use(
+		http.get(
+			"/api/experimental/chats/projects/summaries",
+			async ({ request }) => {
+				const response = await fetch(
+					new URL("/api/experimental/chats/projects", request.url),
+				);
+				if (!response.ok) {
+					return response;
+				}
+				const projects: TypesGen.ChatProject[] = await response.json();
+				return HttpResponse.json(
+					projects.map((project, index) => ({
+						...MockChatProjectSummary,
+						project,
+						pin_order: index + 1,
+					})),
+				);
+			},
+		),
+	);
+});
 
 describe("ChatsSidebar projects", () => {
 	beforeEach(() => {
@@ -334,132 +359,11 @@ describe("ChatsSidebar projects", () => {
 		expect(screen.queryByRole("link", { name: /Project chat/ })).toBeNull();
 	});
 
-	it.each([false, true])(
-		"creates a project when there are no chats (select another organization: %s)",
-		async (selectAnotherOrganization) => {
-			const user = userEvent.setup();
-			let requestBody: unknown;
-			let requestOrganizationID: string | undefined;
-			let isProjectCreated = false;
-			server.use(
-				http.get("/api/experimental/chats/projects", () =>
-					HttpResponse.json(isProjectCreated ? [MockChatProject] : []),
-				),
-				http.post(
-					"/api/experimental/organizations/:organizationId/chats/projects",
-					async ({ request, params }) => {
-						requestOrganizationID = String(params.organizationId);
-						requestBody = await request.json();
-						isProjectCreated = true;
-						return HttpResponse.json(MockChatProject);
-					},
-				),
-			);
-
-			render(
-				<Wrapper organizations={[MockOrganization2, MockDefaultOrganization]}>
-					<ChatsSidebar {...defaultProps} chats={[]} />
-					<ProjectLocationProbe />
-				</Wrapper>,
-			);
-
-			await user.click(
-				await screen.findByRole("button", { name: "New project" }),
-			);
-			const dialog = await screen.findByRole("dialog", {
-				name: "Create a project",
-			});
-			await user.type(
-				within(dialog).getByRole("textbox", { name: /Project name/ }),
-				"New project name",
-			);
-			await user.type(
-				within(dialog).getByRole("textbox", { name: "Description" }),
-				"Project description",
-			);
-			if (selectAnotherOrganization) {
-				await user.click(
-					within(dialog).getByRole("combobox", { name: /Organization/ }),
-				);
-				await user.click(
-					screen.getByRole("option", {
-						name: new RegExp(MockOrganization2.display_name),
-					}),
-				);
-			}
-			await user.click(screen.getByRole("button", { name: "Create project" }));
-
-			await waitFor(() => {
-				expect(requestOrganizationID).toBe(
-					selectAnotherOrganization
-						? MockOrganization2.id
-						: MockDefaultOrganization.id,
-				);
-				expect(requestBody).toEqual({
-					name: "New project name",
-					description: "Project description",
-					icon: "",
-				});
-			});
-			await waitFor(() =>
-				expect(screen.getByTestId("location-pathname")).toHaveTextContent(
-					`/agents/projects/${MockChatProject.id}`,
-				),
-			);
-			expect(
-				await screen.findByRole("link", { name: MockChatProject.name }),
-			).toHaveAttribute("aria-current", "page");
-		},
-	);
-
-	it("uses the first accessible organization when no default is available", async () => {
-		const user = userEvent.setup();
-		let requestBody: unknown;
-		let requestOrganizationID: string | undefined;
-		server.use(
-			http.get("/api/experimental/chats/projects", () => HttpResponse.json([])),
-			http.post(
-				"/api/experimental/organizations/:organizationId/chats/projects",
-				async ({ request, params }) => {
-					requestOrganizationID = String(params.organizationId);
-					requestBody = await request.json();
-					return HttpResponse.json({
-						...MockChatProject,
-						organization_id: MockOrganization2.id,
-					});
-				},
-			),
-		);
-
-		render(
-			<Wrapper organizations={[MockOrganization2]}>
-				<ChatsSidebar {...defaultProps} />
-			</Wrapper>,
-		);
-
-		await user.click(
-			await screen.findByRole("button", { name: "New project" }),
-		);
-		const dialog = await screen.findByRole("dialog", {
-			name: "Create a project",
-		});
-		await user.type(
-			within(dialog).getByRole("textbox", { name: /Project name/ }),
-			"Accessible project",
-		);
-		await user.click(screen.getByRole("button", { name: "Create project" }));
-
-		await waitFor(() => {
-			expect(requestOrganizationID).toBe(MockOrganization2.id);
-			expect(requestBody).toMatchObject({ name: "Accessible project" });
-		});
-	});
-
 	it("retries a failed projects request", async () => {
 		const user = userEvent.setup();
 		let requestCount = 0;
 		server.use(
-			http.get("/api/experimental/chats/projects", () => {
+			http.get("/api/experimental/chats/projects/summaries", () => {
 				requestCount++;
 				return requestCount === 1
 					? HttpResponse.json(
@@ -742,6 +646,28 @@ describe("ChatsSidebar projects", () => {
 	});
 });
 
+describe("ChatsSidebar Projects link", () => {
+	it("opens the projects page and stays current on a project's page", async () => {
+		const user = userEvent.setup();
+		render(
+			<Wrapper initialEntry={`/agents/projects/${MockChatProject.id}`}>
+				<ChatsSidebar {...defaultProps} />
+				<ProjectLocationProbe />
+			</Wrapper>,
+		);
+
+		const projectsLink = screen.getByRole("link", { name: "Projects" });
+		expect(projectsLink).toHaveAttribute("aria-current", "page");
+		await user.click(projectsLink);
+		await waitFor(() =>
+			expect(screen.getByTestId("location-pathname").textContent).toBe(
+				"/agents/projects",
+			),
+		);
+		expect(projectsLink).toHaveAttribute("aria-current", "page");
+	});
+});
+
 describe("ChatsSidebar section switcher", () => {
 	const LocationProbe: React.FC = () => {
 		const location = useLocation();
@@ -954,6 +880,9 @@ describe("ChatsSidebar move to project", () => {
 				projectRequests += 1;
 				return HttpResponse.json([MockChatProject, mockBillingProject]);
 			}),
+			http.get("/api/experimental/chats/projects/summaries", () =>
+				HttpResponse.json([MockChatProjectSummary]),
+			),
 		);
 	});
 
@@ -1563,101 +1492,6 @@ describe("ChatsSidebar project drops", () => {
 		);
 	});
 
-	// A drag over the collapsed Projects section opens it, so that its folders
-	// can take the drop.
-	describe("with Projects collapsed", () => {
-		const collapsedKey = projectsSectionCollapsedStorageKey(MockUserOwner.id);
-		beforeEach(() => {
-			localStorage.setItem(collapsedKey, "true");
-			return () => localStorage.removeItem(collapsedKey);
-		});
-
-		const renderCollapsedProjects = async () => {
-			const update = vi
-				.spyOn(API.experimental, "updateChat")
-				.mockResolvedValue(undefined);
-			renderSidebar(
-				[
-					buildChat({
-						id: "c1",
-						title: "Free chat",
-						organization_id: mockBillingProject.organization_id,
-					}),
-				],
-				[mockBillingProject],
-			);
-			const sectionToggle = await screen.findByRole("button", {
-				name: "Projects",
-			});
-			const chatsHeading = screen.getByRole("heading", { name: "Chats" });
-			const rowLink = screen.getByRole("link", { name: /Free chat/ });
-			// The Billing folder renders only once the section opens.
-			mockLayout((element) => {
-				const billing = screen.queryByRole("link", { name: "Billing" });
-				const held = [sectionToggle, billing, chatsHeading].filter(
-					(node) => node && element.contains(node),
-				);
-				if (held.length > 1) {
-					return box(0, 600);
-				}
-				if (element.contains(sectionToggle)) {
-					return box(0, 50);
-				}
-				if (billing && element.contains(billing)) {
-					return box(60, 40);
-				}
-				if (element.contains(chatsHeading)) {
-					return box(200, 300);
-				}
-				return element.contains(rowLink) ? box(240, 40) : box(0, 0);
-			});
-			return { update, sectionToggle };
-		};
-
-		it("opens on a mouse drag over its header, where a drop moves nothing", async () => {
-			const { update, sectionToggle } = await renderCollapsedProjects();
-
-			await mouseDragRow("Free chat", 25);
-			await waitFor(() =>
-				expect(screen.getByRole("status")).toHaveTextContent(
-					"Chat Free chat was dropped. It did not move.",
-				),
-			);
-
-			expect(sectionToggle).toHaveAttribute("aria-expanded", "true");
-			expect(localStorage.getItem(collapsedKey)).toBeNull();
-			expect(update).not.toHaveBeenCalled();
-		});
-
-		it("lets a keyboard drag reach a folder through its header", async () => {
-			const user = userEvent.setup();
-			const { update, sectionToggle } = await renderCollapsedProjects();
-
-			screen.getByRole("link", { description: DRAG_INSTRUCTIONS }).focus();
-			await user.keyboard("[Space]");
-			await user.keyboard("[ArrowUp]");
-			await waitFor(() =>
-				expect(screen.getByRole("status")).toHaveTextContent(
-					"Chat Free chat is over Projects.",
-				),
-			);
-			expect(sectionToggle).toHaveAttribute("aria-expanded", "true");
-			await user.keyboard("[ArrowDown]");
-			await waitFor(() =>
-				expect(screen.getByRole("status")).toHaveTextContent(
-					"Chat Free chat is over project Billing.",
-				),
-			);
-			await user.keyboard("[Space]");
-
-			await waitFor(() =>
-				expect(update).toHaveBeenCalledWith("c1", {
-					project_id: mockBillingProject.id,
-				}),
-			);
-		});
-	});
-
 	// The chat link is the drag handle, so the row wrapper adds no tab stop
 	// and Enter opens the chat instead of picking it up.
 	it("opens the next chat with Tab and Enter", async () => {
@@ -1737,10 +1571,9 @@ describe("ChatsSidebar pinned reordering", () => {
 
 	// dnd-kit's keyboard sensor picks the drop target from measured rects, so
 	// the rows stack in document order and ArrowDown reaches the next row.
-	const layoutSortableRows = () => {
-		const rows = screen.getAllByRole("link", {
-			description: DRAG_INSTRUCTIONS,
-		});
+	const layoutSortableRows = (
+		rows = screen.getAllByRole("link", { description: DRAG_INSTRUCTIONS }),
+	) => {
 		mockLayout((element) => {
 			const held = rows.filter((row) => element.contains(row));
 			if (held.length > 1) {
@@ -1821,6 +1654,44 @@ describe("ChatsSidebar pinned reordering", () => {
 			}
 		},
 	);
+
+	it("reorders pinned projects apart from pinned chats", async () => {
+		const user = userEvent.setup();
+		const mockOpsProject = { ...MockChatProject, id: "ops", name: "Ops" };
+		const pins: unknown[] = [];
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject, mockOpsProject]),
+			),
+			http.put(
+				"/api/experimental/organizations/:organization/chats/projects/:project/pin",
+				async ({ params, request }) => {
+					pins.push([params.project, await request.json()]);
+					return new HttpResponse(null, { status: 204 });
+				},
+			),
+		);
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[buildChat({ id: "pinned", title: "Pinned", pin_order: 1 })]}
+				/>
+			</Wrapper>,
+		);
+
+		const launch = await screen.findByRole("link", { name: "Launch" });
+		layoutSortableRows([launch, screen.getByRole("link", { name: "Ops" })]);
+		launch.focus();
+		await user.keyboard("[Space]");
+		await user.keyboard("[ArrowDown]");
+		await waitFor(() => expect(launch).toHaveFocus());
+		await user.keyboard("[Space]");
+
+		await waitFor(() =>
+			expect(pins).toEqual([[MockChatProject.id, { pin_order: 2 }]]),
+		);
+	});
 });
 
 type MenuUser = ReturnType<typeof userEvent.setup>;

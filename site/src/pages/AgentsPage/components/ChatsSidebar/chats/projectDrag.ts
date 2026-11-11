@@ -8,7 +8,7 @@ import type {
 	DragStartEvent,
 } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
-import type { Chat } from "#/api/typesGenerated";
+import type { Chat, ChatProject } from "#/api/typesGenerated";
 import {
 	canManageChat,
 	getArchiveBlockedReason,
@@ -39,12 +39,23 @@ export type ChatDragData = { readonly chat: Chat };
 /** The dnd-kit data of a chat drop target. */
 export type DropTargetData = { readonly dropTarget: DropTarget };
 
-/** The dnd-kit data of the Projects section header. */
-export type ProjectsSectionData = { readonly projectsSection: true };
+/** The dnd-kit type of a pinned project drag, which only reorders the pins. */
+export const PROJECT_PIN_DRAG_TYPE = "project-pin";
 
-/** A drop on the Projects section header moves nothing. */
-export const isProjectsSection = (target: Droppable | null): boolean =>
-	target !== null && "projectsSection" in target.data;
+/** The dnd-kit data of a pinned project drag. */
+export type ProjectPinDragData = { readonly project: ChatProject };
+
+const isProjectPinDragData = (
+	data: Record<string, unknown>,
+): data is ProjectPinDragData => "project" in data;
+
+/** The project of a pinned project drag. */
+export const pinnedProjectOf = (
+	source: Draggable | null,
+): ChatProject | undefined =>
+	source?.type === PROJECT_PIN_DRAG_TYPE && isProjectPinDragData(source.data)
+		? source.data.project
+		: undefined;
 
 const isChatDragData = (data: Record<string, unknown>): data is ChatDragData =>
 	"chat" in data;
@@ -105,9 +116,6 @@ export const projectIdForDrop = (
 ): string | null | undefined => projectIdForTarget(chat, dropTargetOf(target));
 
 const announcedTarget = (target: Droppable | null): string | undefined => {
-	if (isProjectsSection(target)) {
-		return "Projects";
-	}
 	const dropTarget = dropTargetOf(target);
 	if (!dropTarget) {
 		return undefined;
