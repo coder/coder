@@ -160,7 +160,11 @@ const renderAgentsRoutes = (route = projectPath(MockChatProject.id)) =>
 
 const openProjectAction = async (
 	user: ReturnType<typeof userEvent.setup>,
-	action: "Edit project" | "Archive project" | "Delete project",
+	action:
+		| "Edit project"
+		| "Archive project"
+		| "Unarchive project"
+		| "Delete project",
 ) => {
 	await user.click(
 		await screen.findByRole("button", { name: "Project actions" }),
@@ -380,6 +384,29 @@ describe("AgentCreatePage project assignment", () => {
 		expect(router.state.location.pathname).toBe("/agents");
 	});
 
+	it("treats a project ID that isn't a UUID as missing without looking it up", async () => {
+		serveProjects();
+		let lookups = 0;
+		server.use(
+			http.get(singleProjectRoute, () => {
+				lookups++;
+				return HttpResponse.json(
+					{ message: 'Invalid UUID "not-a-uuid".' },
+					{ status: 400 },
+				);
+			}),
+		);
+		const user = userEvent.setup();
+
+		const { router } = renderAgentsRoutes(projectPath("not-a-uuid"));
+
+		await user.click(
+			await screen.findByRole("link", { name: "Start a new chat" }),
+		);
+		expect(router.state.location.pathname).toBe("/agents");
+		expect(lookups).toBe(0);
+	});
+
 	it("waits for the refetch before treating a cached list as final", async () => {
 		serveProjects(MockChatProject);
 
@@ -580,6 +607,22 @@ describe("AgentCreatePage project frame", () => {
 		expect(requestBody).toMatchObject({ name: "Beta!" });
 	});
 
+	it("returns focus to Project actions when archiving is cancelled", async () => {
+		serveProjects(MockChatProject);
+		const user = userEvent.setup();
+
+		renderAgentsRoutes();
+		await screen.findByRole("heading", { name: MockChatProject.name });
+		await openProjectAction(user, "Archive project");
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: "Project actions" }),
+			).toHaveFocus(),
+		);
+	});
+
 	it("edits the project from the actions menu and shows the saved name", async () => {
 		let project = MockChatProject;
 		let requestBody: unknown;
@@ -767,10 +810,39 @@ describe("AgentCreatePage project frame", () => {
 		);
 	});
 
+	it("unarchives an archived project from the Project actions menu", async () => {
+		const unarchivedProjectIds: unknown[] = [];
+		server.use(
+			http.get("/api/experimental/chats/projects", ({ request }) =>
+				HttpResponse.json(
+					new URL(request.url).searchParams.get("archived") === "true"
+						? [MockArchivedChatProject]
+						: [],
+				),
+			),
+			http.post(
+				`/api/experimental/organizations/${MockChatProject.organization_id}/chats/projects/:projectId/unarchive`,
+				({ params }) => {
+					unarchivedProjectIds.push(params.projectId);
+					return HttpResponse.json(MockChatProject);
+				},
+			),
+		);
+		const user = userEvent.setup();
+
+		renderAgentsRoutes();
+		await openProjectAction(user, "Unarchive project");
+
+		await waitFor(() =>
+			expect(unarchivedProjectIds).toEqual([MockChatProject.id]),
+		);
+	});
+
 	it("opens a project in neither list by finding it in the user's organizations, without a composer", async () => {
 		// An organization admin can manage another user's unshared project.
 		const mockUnlistedProject = {
 			...MockChatProject,
+			id: "8c2f5b8e-6d3a-4b8f-9c1e-2a7d4e5f6a7b",
 			organization_id: MockOrganization2.id,
 		};
 		serveProjects();
@@ -789,7 +861,7 @@ describe("AgentCreatePage project frame", () => {
 			),
 		);
 
-		renderAgentsRoutes();
+		renderAgentsRoutes(projectPath(mockUnlistedProject.id));
 
 		await screen.findByRole("heading", { name: mockUnlistedProject.name });
 		// The server refuses chats in a project not shared with the user.

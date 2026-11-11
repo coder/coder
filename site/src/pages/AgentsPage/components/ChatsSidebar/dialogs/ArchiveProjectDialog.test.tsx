@@ -161,6 +161,31 @@ describe("ArchiveProjectDialog", () => {
 		await waitFor(() => expect(archive).toHaveBeenCalledTimes(1));
 	});
 
+	it("waits for the refreshed preview before archiving again after a 409", async () => {
+		const user = userEvent.setup();
+		const { archive } = mockApi();
+		const refreshedPreview = createDeferred<ChatProjectArchivePreview>();
+		vi.mocked(API.experimental.getChatProjectArchivePreview)
+			.mockResolvedValueOnce({ chat_count: 2, active_chat_count: 0 })
+			.mockReturnValueOnce(refreshedPreview.promise);
+		archive.mockRejectedValueOnce({
+			...mockApiError({ message: "Chat project has 1 active chat." }),
+			status: 409,
+		});
+		await renderDialog();
+
+		await user.click(screen.getByRole("button", { name: "Archive project" }));
+		await waitFor(() =>
+			expect(
+				API.experimental.getChatProjectArchivePreview,
+			).toHaveBeenCalledTimes(2),
+		);
+		await user.click(screen.getByRole("button", { name: "Archive project" }));
+
+		expect(archive).toHaveBeenCalledTimes(1);
+		refreshedPreview.resolve({ chat_count: 2, active_chat_count: 1 });
+	});
+
 	it("asks to stop a chat that started after the preview loaded", async () => {
 		const user = userEvent.setup();
 		const { archive } = mockApi({

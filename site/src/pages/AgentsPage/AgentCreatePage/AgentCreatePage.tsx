@@ -135,12 +135,15 @@ const useProjectLookup = (projectId: string | undefined) => {
 		archivedProjectQuery.data === null &&
 		archivedProjectQuery.isFetchedAfterMount &&
 		!archivedProjectQuery.error;
+	// The single-project endpoint answers 400 for an ID that isn't a UUID,
+	// which can't name a project anyway.
+	const canLookUpUnlistedProject = projectId !== undefined && isUUID(projectId);
 	const unlistedProjectQuery = useQuery({
 		...unlistedChatProject(
 			projectId,
 			organizations.map((organization) => organization.id),
 		),
-		enabled: isListedProjectMissing,
+		enabled: isListedProjectMissing && canLookUpUnlistedProject,
 	});
 	const project =
 		projectQuery.data ??
@@ -149,9 +152,10 @@ const useProjectLookup = (projectId: string | undefined) => {
 		undefined;
 	const isProjectMissing =
 		isListedProjectMissing &&
-		unlistedProjectQuery.data === null &&
-		unlistedProjectQuery.isFetchedAfterMount &&
-		!unlistedProjectQuery.error;
+		(!canLookUpUnlistedProject ||
+			(unlistedProjectQuery.data === null &&
+				unlistedProjectQuery.isFetchedAfterMount &&
+				!unlistedProjectQuery.error));
 	// A failed background refetch keeps the cached project usable.
 	const failedProjectQuery = [
 		projectQuery,
