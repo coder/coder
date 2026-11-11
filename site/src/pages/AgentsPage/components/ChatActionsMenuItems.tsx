@@ -385,7 +385,6 @@ type MenuItemHintProps = {
 	readonly children: React.ReactNode;
 };
 
-/** Explains why the menu item that names it in aria-describedby is disabled. */
 const MenuItemHint: React.FC<MenuItemHintProps> = ({ id, children }) => (
 	<div id={id} className="max-w-56 px-2 py-1.5 text-xs text-content-secondary">
 		{children}
