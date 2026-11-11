@@ -963,6 +963,24 @@ const editingMessages = [
 	buildMessage(5, "user", "That was terrible, try again"),
 ];
 
+/** An archived agent's sent messages offer no Edit action. */
+export const ArchivedMessageActions: Story = {
+	render: () => (
+		<StoryAgentChatPageView
+			chat={{ archived: true }}
+			isInputDisabled
+			store={buildStoreWithMessages(editingMessages)}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		// Focus reveals the first message's hover actions.
+		const [jumpToNext] = await within(canvasElement).findAllByRole("button", {
+			name: "Jump to next user message",
+		});
+		jumpToNext.focus();
+	},
+};
+
 /** Editing a message in the middle of the conversation — shows the warning
  *  border on the edited message, faded subsequent messages, and the editing
  *  banner + outline on the chat input. */

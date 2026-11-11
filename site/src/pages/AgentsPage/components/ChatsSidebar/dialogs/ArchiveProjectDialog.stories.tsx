@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, screen, spyOn, userEvent } from "storybook/test";
 import { API } from "#/api/api";
 import { chatProjectArchivePreviewKey } from "#/api/queries/chatProjects";
-import { chatRetentionDays } from "#/api/queries/chats";
+import { chatRetentionDaysKey } from "#/api/queries/chats";
 import {
 	MockChatProject,
 	MockStoppedWorkspace,
@@ -44,7 +44,7 @@ const meta = {
 				key: chatProjectArchivePreviewKey(MockChatProject.id),
 				data: { chat_count: 5, active_chat_count: 0 },
 			},
-			{ key: chatRetentionDays().queryKey, data: { retention_days: 30 } },
+			{ key: chatRetentionDaysKey, data: { retention_days: 30 } },
 			{ key: projectChatWorkspacesKey(MockChatProject.id), data: [] },
 		],
 	},
@@ -63,7 +63,7 @@ export const ActiveChats: Story = {
 				key: chatProjectArchivePreviewKey(MockChatProject.id),
 				data: { chat_count: 5, active_chat_count: 2 },
 			},
-			{ key: chatRetentionDays().queryKey, data: { retention_days: 0 } },
+			{ key: chatRetentionDaysKey, data: { retention_days: 0 } },
 			{ key: projectChatWorkspacesKey(MockChatProject.id), data: [] },
 		],
 	},
@@ -77,7 +77,7 @@ export const OneActiveChat: Story = {
 				key: chatProjectArchivePreviewKey(MockChatProject.id),
 				data: { chat_count: 5, active_chat_count: 1 },
 			},
-			{ key: chatRetentionDays().queryKey, data: { retention_days: 30 } },
+			{ key: chatRetentionDaysKey, data: { retention_days: 30 } },
 			{ key: projectChatWorkspacesKey(MockChatProject.id), data: [] },
 		],
 	},
@@ -91,7 +91,7 @@ export const NoChats: Story = {
 				key: chatProjectArchivePreviewKey(MockChatProject.id),
 				data: { chat_count: 0, active_chat_count: 0 },
 			},
-			{ key: chatRetentionDays().queryKey, data: { retention_days: 30 } },
+			{ key: chatRetentionDaysKey, data: { retention_days: 30 } },
 			{ key: projectChatWorkspacesKey(MockChatProject.id), data: [] },
 		],
 	},
@@ -104,7 +104,7 @@ export const Workspaces: Story = {
 				key: chatProjectArchivePreviewKey(MockChatProject.id),
 				data: { chat_count: 1, active_chat_count: 0 },
 			},
-			{ key: chatRetentionDays().queryKey, data: { retention_days: 1 } },
+			{ key: chatRetentionDaysKey, data: { retention_days: 1 } },
 			{
 				key: projectChatWorkspacesKey(MockChatProject.id),
 				data: mockWorkspaces,
@@ -121,7 +121,7 @@ export const DeleteWorkspaces: Story = {
 				key: chatProjectArchivePreviewKey(MockChatProject.id),
 				data: { chat_count: 1, active_chat_count: 0 },
 			},
-			{ key: chatRetentionDays().queryKey, data: { retention_days: 1 } },
+			{ key: chatRetentionDaysKey, data: { retention_days: 1 } },
 			{
 				key: projectChatWorkspacesKey(MockChatProject.id),
 				data: mockWorkspaces,
@@ -151,7 +151,7 @@ export const Loading: Story = {
 export const PreviewError: Story = {
 	parameters: {
 		queries: [
-			{ key: chatRetentionDays().queryKey, data: { retention_days: 30 } },
+			{ key: chatRetentionDaysKey, data: { retention_days: 30 } },
 			{ key: projectChatWorkspacesKey(MockChatProject.id), data: [] },
 		],
 	},
@@ -169,7 +169,7 @@ export const WorkspacesError: Story = {
 				key: chatProjectArchivePreviewKey(MockChatProject.id),
 				data: { chat_count: 5, active_chat_count: 0 },
 			},
-			{ key: chatRetentionDays().queryKey, data: { retention_days: 30 } },
+			{ key: chatRetentionDaysKey, data: { retention_days: 30 } },
 		],
 	},
 	beforeEach: () => {
