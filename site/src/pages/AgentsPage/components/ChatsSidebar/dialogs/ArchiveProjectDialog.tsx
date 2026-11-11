@@ -204,12 +204,14 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 	const isDeleting = workspaceAction === "delete" && workspaces.length > 0;
 	// Retention only describes what happens to archived chats.
 	const needsRetention = preview?.chat_count !== 0;
-	// A failed refetch leaves a preview that may miss newly active chats.
-	// Until the workspaces load, the user hasn't seen the stop and delete
-	// choices; if they fail to load, archiving leaves them alone.
+	// A failed refetch leaves a preview that may miss newly active chats, and
+	// the refetch after a 409 may reveal some. Until the workspaces load, the
+	// user hasn't seen the stop and delete choices; if they fail to load,
+	// archiving leaves them alone.
 	const canArchive =
 		preview !== undefined &&
 		!previewQuery.error &&
+		!previewQuery.isFetching &&
 		(!needsRetention || retentionQuery.data !== undefined) &&
 		!workspacesQuery.isPending &&
 		!isArchiving &&
@@ -501,6 +503,17 @@ const WorkspaceLink: React.FC<WorkspaceLinkProps> = ({ workspace, onOpen }) => {
 			href={path}
 			showExternalIcon={false}
 			onClick={(event) => {
+				// Toasts render outside the router, so plain clicks navigate here
+				// and modified clicks keep the browser's behavior.
+				if (
+					event.button !== 0 ||
+					event.metaKey ||
+					event.ctrlKey ||
+					event.shiftKey ||
+					event.altKey
+				) {
+					return;
+				}
 				event.preventDefault();
 				onOpen(path);
 			}}

@@ -1,4 +1,10 @@
-import { screen, waitFor } from "@testing-library/react";
+import {
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -90,7 +96,7 @@ const mockApi = ({
 
 const renderDialog = async () => {
 	const onClose = vi.fn();
-	renderWithAuth(
+	const { router } = renderWithAuth(
 		<ArchiveProjectDialog project={MockChatProject} open onClose={onClose} />,
 	);
 	// The confirm button waits for the preview and the workspace list.
@@ -102,7 +108,7 @@ const renderDialog = async () => {
 			}),
 		).toBeEnabled(),
 	);
-	return { onClose };
+	return { onClose, router };
 };
 
 afterEach(() => {
@@ -161,6 +167,31 @@ describe("ArchiveProjectDialog", () => {
 		await waitFor(() => expect(archive).toHaveBeenCalledTimes(1));
 	});
 
+	it("waits for the refreshed preview before archiving again after a 409", async () => {
+		const user = userEvent.setup();
+		const { archive } = mockApi();
+		const refreshedPreview = createDeferred<ChatProjectArchivePreview>();
+		vi.mocked(API.experimental.getChatProjectArchivePreview)
+			.mockResolvedValueOnce({ chat_count: 2, active_chat_count: 0 })
+			.mockReturnValueOnce(refreshedPreview.promise);
+		archive.mockRejectedValueOnce({
+			...mockApiError({ message: "Chat project has 1 active chat." }),
+			status: 409,
+		});
+		await renderDialog();
+
+		await user.click(screen.getByRole("button", { name: "Archive project" }));
+		await waitFor(() =>
+			expect(
+				API.experimental.getChatProjectArchivePreview,
+			).toHaveBeenCalledTimes(2),
+		);
+		await user.click(screen.getByRole("button", { name: "Archive project" }));
+
+		expect(archive).toHaveBeenCalledTimes(1);
+		refreshedPreview.resolve({ chat_count: 2, active_chat_count: 1 });
+	});
+
 	it("asks to stop a chat that started after the preview loaded", async () => {
 		const user = userEvent.setup();
 		const { archive } = mockApi({
@@ -205,7 +236,7 @@ describe("ArchiveProjectDialog", () => {
 		});
 		const successToast = vi.spyOn(toast, "success");
 		const warningToast = vi.spyOn(toast, "warning");
-		await renderDialog();
+		const { router } = await renderDialog();
 
 		await user.click(await screen.findByRole("radio", { name: "Stop them" }));
 		// Both workspaces change state while the dialog is open: the running
@@ -241,6 +272,19 @@ describe("ArchiveProjectDialog", () => {
 				id: successToast.mock.results[0]?.value,
 				duration: Number.POSITIVE_INFINITY,
 			}),
+		);
+		const description = warningToast.mock.calls[0]?.[1]?.description;
+		const toastContent = render(
+			typeof description === "function" ? description() : description,
+		);
+		const link = within(toastContent.container).getByRole("link", {
+			name: mockInUseWorkspace.name,
+		});
+		// A modified click opens the link natively instead of navigating here.
+		expect(fireEvent.click(link, { ctrlKey: true })).toBe(true);
+		expect(fireEvent.click(link)).toBe(false);
+		expect(router.state.location.pathname).toBe(
+			`/@${mockInUseWorkspace.owner_name}/${mockInUseWorkspace.name}`,
 		);
 	});
 
