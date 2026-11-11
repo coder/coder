@@ -7795,6 +7795,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceByWorkspaceAppID(ctx, workspaceAppI
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceByWorkspaceAppID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceByWorkspaceAppID), ctx, workspaceAppID)
 }
 
+// GetWorkspaceLastUsedForMetrics mocks base method.
+func (m *MockStore) GetWorkspaceLastUsedForMetrics(ctx context.Context) ([]database.GetWorkspaceLastUsedForMetricsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceLastUsedForMetrics", ctx)
+	ret0, _ := ret[0].([]database.GetWorkspaceLastUsedForMetricsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceLastUsedForMetrics indicates an expected call of GetWorkspaceLastUsedForMetrics.
+func (mr *MockStoreMockRecorder) GetWorkspaceLastUsedForMetrics(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceLastUsedForMetrics", reflect.TypeOf((*MockStore)(nil).GetWorkspaceLastUsedForMetrics), ctx)
+}
+
 // GetWorkspaceModulesByJobID mocks base method.
 func (m *MockStore) GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceModule, error) {
 	m.ctrl.T.Helper()
@@ -10293,21 +10308,6 @@ func (mr *MockStoreMockRecorder) RenewChatHeartbeats(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RenewChatHeartbeats", reflect.TypeOf((*MockStore)(nil).RenewChatHeartbeats), ctx, arg)
 }
 
-// ReorderChatQueuedMessageToHead mocks base method.
-func (m *MockStore) ReorderChatQueuedMessageToHead(ctx context.Context, arg database.ReorderChatQueuedMessageToHeadParams) (int64, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ReorderChatQueuedMessageToHead", ctx, arg)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ReorderChatQueuedMessageToHead indicates an expected call of ReorderChatQueuedMessageToHead.
-func (mr *MockStoreMockRecorder) ReorderChatQueuedMessageToHead(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ReorderChatQueuedMessageToHead", reflect.TypeOf((*MockStore)(nil).ReorderChatQueuedMessageToHead), ctx, arg)
-}
-
 // RevokeDBCryptKey mocks base method.
 func (m *MockStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
 	m.ctrl.T.Helper()
@@ -10405,6 +10405,21 @@ func (m *MockStore) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Context, 
 func (mr *MockStoreMockRecorder) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx, workspaceID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SoftDeleteWorkspaceAgentsByWorkspaceID", reflect.TypeOf((*MockStore)(nil).SoftDeleteWorkspaceAgentsByWorkspaceID), ctx, workspaceID)
+}
+
+// SteerChatQueuedMessage mocks base method.
+func (m *MockStore) SteerChatQueuedMessage(ctx context.Context, arg database.SteerChatQueuedMessageParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SteerChatQueuedMessage", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SteerChatQueuedMessage indicates an expected call of SteerChatQueuedMessage.
+func (mr *MockStoreMockRecorder) SteerChatQueuedMessage(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SteerChatQueuedMessage", reflect.TypeOf((*MockStore)(nil).SteerChatQueuedMessage), ctx, arg)
 }
 
 // SyncAgentChatsContextLiveResources mocks base method.

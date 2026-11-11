@@ -4136,6 +4136,14 @@ func (m queryMetricsStore) GetWorkspaceByWorkspaceAppID(ctx context.Context, wor
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceLastUsedForMetrics(ctx context.Context) ([]database.GetWorkspaceLastUsedForMetricsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceLastUsedForMetrics(ctx)
+	m.queryLatencies.WithLabelValues("GetWorkspaceLastUsedForMetrics").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceLastUsedForMetrics").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceModule, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceModulesByJobID(ctx, jobID)
@@ -5416,14 +5424,6 @@ func (m queryMetricsStore) RenewChatHeartbeats(ctx context.Context, arg database
 	return r0, r1
 }
 
-func (m queryMetricsStore) ReorderChatQueuedMessageToHead(ctx context.Context, arg database.ReorderChatQueuedMessageToHeadParams) (int64, error) {
-	start := time.Now()
-	r0, r1 := m.s.ReorderChatQueuedMessageToHead(ctx, arg)
-	m.queryLatencies.WithLabelValues("ReorderChatQueuedMessageToHead").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ReorderChatQueuedMessageToHead").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
 	start := time.Now()
 	r0 := m.s.RevokeDBCryptKey(ctx, activeKeyDigest)
@@ -5478,6 +5478,14 @@ func (m queryMetricsStore) SoftDeleteWorkspaceAgentsByWorkspaceID(ctx context.Co
 	m.queryLatencies.WithLabelValues("SoftDeleteWorkspaceAgentsByWorkspaceID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SoftDeleteWorkspaceAgentsByWorkspaceID").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) SteerChatQueuedMessage(ctx context.Context, arg database.SteerChatQueuedMessageParams) (int64, error) {
+	start := time.Now()
+	r0, r1 := m.s.SteerChatQueuedMessage(ctx, arg)
+	m.queryLatencies.WithLabelValues("SteerChatQueuedMessage").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "SteerChatQueuedMessage").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) SyncAgentChatsContextLiveResources(ctx context.Context, agentID uuid.UUID) ([]uuid.UUID, error) {
