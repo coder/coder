@@ -123,13 +123,9 @@ type Story = StoryObj<typeof ProjectsPageView>;
 
 export const YourProjects: Story = {};
 
-export const SharedWithYou: Story = {
-	args: { tab: "shared" },
-};
+export const SharedWithYou: Story = { args: { tab: "shared" } };
 
-export const Loading: Story = {
-	args: { projects: undefined },
-};
+export const Loading: Story = { args: { projects: undefined } };
 
 export const LoadError: Story = {
 	args: {

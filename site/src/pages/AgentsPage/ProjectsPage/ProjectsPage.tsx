@@ -85,8 +85,7 @@ const ProjectsPage: React.FC = () => {
 		open: false,
 	});
 	const newProjectButtonRef = useRef<HTMLButtonElement>(null);
-	// The dialogs have no trigger to return focus to, so they return it to
-	// the button that opened them.
+	// The dialogs have no trigger, so they return focus to their opener.
 	const returnFocusRef = useRef<HTMLElement | null>(null);
 	const deleteMutation = useMutation({
 		...deleteChatProject(queryClient),
@@ -121,6 +120,9 @@ const ProjectsPage: React.FC = () => {
 			toast.error(getErrorMessage(error, "Failed to unpin project."));
 		},
 	});
+	// A pin change shows once its request settles, so repeats are dropped.
+	const pinningId = pinMutation.isPending && pinMutation.variables.project.id;
+	const unpinningId = unpinMutation.isPending && unpinMutation.variables.id;
 	const restoreFocus = () => {
 		const target = returnFocusRef.current;
 		requestAnimationFrame(() => target?.focus());
@@ -187,8 +189,12 @@ const ProjectsPage: React.FC = () => {
 				onCreateProject={() =>
 					openProjectDialog(undefined, newProjectButtonRef.current)
 				}
-				onPin={(project) => pinMutation.mutate({ project })}
-				onUnpin={(project) => unpinMutation.mutate(project)}
+				onPin={(project) =>
+					pinningId !== project.id && pinMutation.mutate({ project })
+				}
+				onUnpin={(project) =>
+					unpinningId !== project.id && unpinMutation.mutate(project)
+				}
 				onEdit={openProjectDialog}
 				onDelete={(project, returnFocusTo) => {
 					returnFocusRef.current = returnFocusTo;

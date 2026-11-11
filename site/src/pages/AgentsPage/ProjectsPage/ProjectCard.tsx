@@ -1,4 +1,3 @@
-import { cn } from "cn";
 import {
 	CircleAlertIcon,
 	EllipsisVerticalIcon,
@@ -60,12 +59,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 	const footerId = useId();
 	const actionsButtonRef = useRef<HTMLButtonElement>(null);
 	return (
-		<div
-			className={cn(
-				"group relative flex min-w-0 flex-col gap-3 rounded-lg border border-solid border-border bg-surface-primary p-4",
-				"hover:bg-surface-secondary has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-content-link",
-			)}
-		>
+		<div className="group relative flex min-w-0 flex-col gap-3 rounded-lg border border-solid border-border bg-surface-primary p-4 hover:bg-surface-secondary has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-content-link">
 			<div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-solid border-border bg-surface-secondary">
 				<ChatProjectIcon project={project} className="size-4" />
 			</div>
@@ -117,10 +111,39 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 					</time>
 				)}
 			</div>
-			{/* Follows the link in the DOM so the link comes first in the tab
-			    order, and sits above the link's overlay to take its own clicks.
-			    Unpinning removes the pin button, so focus moves to the actions button. */}
+			{/* After the link in DOM and tab order, above its overlay to take its own
+			    clicks. Unpinning removes the pin button, so focus moves to actions. */}
 			<div className="absolute top-4 right-4 z-10 flex h-8 items-center">
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button
+							ref={actionsButtonRef}
+							variant="subtle"
+							size="icon"
+							aria-label={`Open project actions for ${project.name}`}
+							className="size-7 max-w-0 overflow-hidden px-0 [@media(hover:none)]:max-w-7 group-hover:max-w-7 group-focus-within:max-w-7 data-[state=open]:max-w-7"
+						>
+							<EllipsisVerticalIcon />
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent
+						align="end"
+						// Focus that an item moved into its dialog stays there.
+						onCloseAutoFocus={(event) =>
+							document.activeElement !== document.body && event.preventDefault()
+						}
+					>
+						<ProjectActionsMenuItems
+							Item={DropdownMenuItem}
+							Separator={DropdownMenuSeparator}
+							onPin={pinned ? undefined : onPin}
+							onUnpin={pinned ? onUnpin : undefined}
+							permissions={project.permissions}
+							onEdit={() => onEdit(actionsButtonRef.current)}
+							onDelete={() => onDelete(actionsButtonRef.current)}
+						/>
+					</DropdownMenuContent>
+				</DropdownMenu>
 				{pinned && (
 					<Tooltip>
 						<TooltipTrigger asChild>
@@ -141,33 +164,6 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 						<TooltipContent>Unpin project</TooltipContent>
 					</Tooltip>
 				)}
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button
-							ref={actionsButtonRef}
-							variant="subtle"
-							size="icon"
-							aria-label={`Open project actions for ${project.name}`}
-							className={cn(
-								"size-7 max-w-0 overflow-hidden px-0 [@media(hover:none)]:max-w-7",
-								"group-hover:max-w-7 group-focus-within:max-w-7 data-[state=open]:max-w-7",
-							)}
-						>
-							<EllipsisVerticalIcon />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
-						<ProjectActionsMenuItems
-							Item={DropdownMenuItem}
-							Separator={DropdownMenuSeparator}
-							onPin={pinned ? undefined : onPin}
-							onUnpin={pinned ? onUnpin : undefined}
-							permissions={project.permissions}
-							onEdit={() => onEdit(actionsButtonRef.current)}
-							onDelete={() => onDelete(actionsButtonRef.current)}
-						/>
-					</DropdownMenuContent>
-				</DropdownMenu>
 			</div>
 		</div>
 	);

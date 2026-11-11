@@ -142,6 +142,8 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 				</header>
 				<Tabs
 					value={tab}
+					// Each tab change adds a history entry, so focus alone must not.
+					activationMode="manual"
 					onValueChange={(value) =>
 						onTabChange(value === "shared" ? "shared" : "yours")
 					}
