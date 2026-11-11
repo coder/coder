@@ -2290,13 +2290,13 @@ func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 		{"Wildcard", wildcard, []uuid.UUID{wildcardShared.ID, everyoneShared.ID, everyoneNoRead.ID, everyoneWildcard.ID}, []uuid.UUID{wildcardShared.ID, everyoneShared.ID, everyoneWildcard.ID}},
 		{"Outsider", outsider, nil, nil},
 	} {
-		projects, err := db.GetChatProjectsOwnedOrSharedWithUserID(ctx, tc.user.ID)
+		projects, err := db.GetChatProjectsOwnedOrSharedWithUserID(ctx, database.GetChatProjectsOwnedOrSharedWithUserIDParams{UserID: tc.user.ID})
 		require.NoError(t, err, tc.name)
 		require.ElementsMatch(t, tc.raw, ids(projects), tc.name)
 
 		subject, _, err := httpmw.UserRBACSubject(ctx, db, tc.user.ID, rbac.ExpandableScope(rbac.ScopeAll))
 		require.NoError(t, err, tc.name)
-		projects, err = authzdb.GetChatProjectsOwnedOrSharedWithUserID(dbauthz.As(ctx, subject), tc.user.ID)
+		projects, err = authzdb.GetChatProjectsOwnedOrSharedWithUserID(dbauthz.As(ctx, subject), database.GetChatProjectsOwnedOrSharedWithUserIDParams{UserID: tc.user.ID})
 		require.NoError(t, err, tc.name)
 		require.ElementsMatch(t, tc.authorized, ids(projects), tc.name)
 
@@ -2310,7 +2310,7 @@ func TestGetChatProjectsOwnedOrSharedWithUserID(t *testing.T) {
 		}
 	}
 
-	projects, err := db.GetChatProjectsOwnedOrSharedWithUserID(ctx, owner.ID)
+	projects, err := db.GetChatProjectsOwnedOrSharedWithUserID(ctx, database.GetChatProjectsOwnedOrSharedWithUserIDParams{UserID: owner.ID})
 	require.NoError(t, err)
 	require.ElementsMatch(t, all, ids(projects))
 	for _, projectID := range all {

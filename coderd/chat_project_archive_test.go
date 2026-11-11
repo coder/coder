@@ -19,7 +19,8 @@ import (
 )
 
 // TestChatProjectArchive archives a project with chats of its owner and of
-// a sharee, and unarchives it. Archiving needs the delete permission, so project ACL grants do not
+// a sharee, checks that an archived project is read-only, and unarchives
+// it. Archiving needs the delete permission, so project ACL grants do not
 // allow it.
 func TestChatProjectArchive(t *testing.T) {
 	t.Parallel()
@@ -46,6 +47,14 @@ func TestChatProjectArchive(t *testing.T) {
 			sharedUseUser.ID.String():   codersdk.ChatProjectRoleUse,
 		},
 	}))
+	memory, err := owner.CreateChatProjectMemory(ctx, orgID, project.ID, codersdk.CreateChatProjectMemoryRequest{
+		Name: "notes", Description: "Notes", Body: "Keep this.",
+	})
+	require.NoError(t, err)
+	_, err = owner.CreateChatProjectSkill(ctx, orgID, project.ID, codersdk.CreateSkillRequest{
+		Content: userSkillMarkdown("deploy", "Deploy", "Run make deploy."),
+	})
+	require.NoError(t, err)
 
 	// The owner's chat is running, with an idle subagent chat. The sharee's
 	// chat is idle. An archived chat stays archived after the unarchive.
@@ -56,6 +65,7 @@ func TestChatProjectArchive(t *testing.T) {
 	archivedEarlier := createChatInProject(t, owner, orgID, &project.ID)
 	driveChatToWaiting(ctx, t, api, archivedEarlier.ID)
 	require.NoError(t, owner.UpdateChat(ctx, archivedEarlier.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(true)}))
+	outside := createIdleChat(ctx, t, owner, api, orgID)
 
 	for _, sharee := range []*codersdk.ExperimentalClient{sharedAdmin, sharedUse} {
 		got, err := sharee.GetChatProject(ctx, orgID, project.ID)
@@ -98,6 +108,52 @@ func TestChatProjectArchive(t *testing.T) {
 	requireChatArchived(ctx, t, sharedUse, shareeChat.ID, true)
 	_, err = owner.ArchiveChatProject(ctx, orgID, project.ID, codersdk.ArchiveChatProjectRequest{StopActiveChats: true})
 	requireSDKError(t, err, http.StatusConflict)
+
+	active, err := owner.ListChatProjects(ctx)
+	require.NoError(t, err)
+	require.Empty(t, active)
+	listedArchived, err := owner.ListChatProjects(ctx, codersdk.ListChatProjectsOptions{Archived: true})
+	require.NoError(t, err)
+	require.Len(t, listedArchived, 1)
+	require.Equal(t, project.ID, listedArchived[0].ID)
+
+	// An archived project is read-only, and its chats stay archived.
+	requireArchivedProjectConflict := func(err error) {
+		t.Helper()
+		sdkErr := requireSDKError(t, err, http.StatusConflict)
+		require.Equal(t, "Chat project is archived.", sdkErr.Message)
+	}
+	_, err = sharedUse.CreateChat(ctx, codersdk.CreateChatRequest{
+		OrganizationID: orgID,
+		ProjectID:      &project.ID,
+		Content:        []codersdk.ChatInputPart{{Type: codersdk.ChatInputPartTypeText, Text: "refused"}},
+	})
+	requireArchivedProjectConflict(err)
+	requireArchivedProjectConflict(owner.UpdateChat(ctx, outside.ID, codersdk.UpdateChatRequest{ProjectID: &project.ID}))
+	requireChatProjectID(ctx, t, owner, outside.ID, nil)
+	err = sharedUse.UpdateChat(ctx, shareeChat.ID, codersdk.UpdateChatRequest{Archived: ptr.Ref(false)})
+	requireSDKError(t, err, http.StatusConflict)
+	requireChatArchived(ctx, t, sharedUse, shareeChat.ID, true)
+	_, err = owner.UpdateChatProject(ctx, orgID, project.ID, codersdk.UpdateChatProjectRequest{Name: ptr.Ref("Renamed")})
+	requireArchivedProjectConflict(err)
+	requireArchivedProjectConflict(owner.UpdateChatProjectACL(ctx, orgID, project.ID, codersdk.UpdateChatProjectACL{
+		UserRoles: map[string]codersdk.ChatProjectRole{sharedUseUser.ID.String(): codersdk.ChatProjectRoleDeleted},
+	}))
+	_, err = owner.UpdateChatProjectInstructions(ctx, orgID, project.ID, codersdk.UpdateChatProjectInstructionsRequest{Instructions: "refused"})
+	requireArchivedProjectConflict(err)
+	requireArchivedProjectConflict(owner.DeleteChatProjectInstructions(ctx, orgID, project.ID))
+	_, err = owner.CreateChatProjectSkill(ctx, orgID, project.ID, codersdk.CreateSkillRequest{
+		Content: userSkillMarkdown("refused", "Refused", "Refused."),
+	})
+	requireArchivedProjectConflict(err)
+	_, err = owner.UpdateChatProjectSkill(ctx, orgID, project.ID, "deploy", codersdk.UpdateSkillRequest{Enabled: ptr.Ref(false)})
+	requireArchivedProjectConflict(err)
+	requireArchivedProjectConflict(owner.DeleteChatProjectSkill(ctx, orgID, project.ID, "deploy"))
+	_, err = owner.CreateChatProjectMemory(ctx, orgID, project.ID, codersdk.CreateChatProjectMemoryRequest{
+		Name: "refused", Description: "Refused", Body: "Refused.",
+	})
+	requireArchivedProjectConflict(err)
+	requireArchivedProjectConflict(owner.DeleteChatProjectMemory(ctx, orgID, project.ID, memory.ID))
 
 	// Unarchiving needs the delete permission too, so project ACL grants
 	// do not allow it. An org admin can unarchive; only chats archived

@@ -1378,8 +1378,9 @@ func (s *MethodTestSuite) TestChats() {
 		userID := uuid.New()
 		project := testutil.Fake(s.T(), faker, database.ChatProject{OwnerID: userID})
 		rows := []database.ChatProject{project}
-		dbm.EXPECT().GetChatProjectsOwnedOrSharedWithUserID(gomock.Any(), userID).Return(rows, nil).AnyTimes()
-		check.Args(userID).Asserts(project, policy.ActionRead).Returns(rows)
+		arg := database.GetChatProjectsOwnedOrSharedWithUserIDParams{UserID: userID}
+		dbm.EXPECT().GetChatProjectsOwnedOrSharedWithUserID(gomock.Any(), arg).Return(rows, nil).AnyTimes()
+		check.Args(arg).Asserts(project, policy.ActionRead).Returns(rows)
 	}))
 	s.Run("GetChatProjectByIDForShare", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		project := testutil.Fake(s.T(), faker, database.ChatProject{})

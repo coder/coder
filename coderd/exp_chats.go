@@ -1813,6 +1813,10 @@ func (api *API) createChatError(err error) error {
 	if database.IsForeignKeyViolation(err, database.ForeignKeyChatsProjectID) {
 		return httperror.WrapResponseError(http.StatusNotFound, codersdk.Response{Message: "Chat project not found."}, err)
 	}
+	// The project can be archived between the access check and the insert.
+	if errors.Is(err, chatstate.ErrChatProjectArchived) {
+		return httperror.WrapResponseError(http.StatusConflict, chatProjectArchivedResponse, err)
+	}
 	if dbauthz.IsNotAuthorizedError(err) {
 		return httperror.WrapResponseError(http.StatusForbidden, httpapi.ResourceForbiddenResponse, err)
 	}
@@ -2925,6 +2929,11 @@ func (api *API) updateChat(
 					Message: "Chat archive state can only be changed on the root chat.",
 				}, err)
 			}
+			if errors.Is(err, chatstate.ErrChatProjectArchived) {
+				return database.Chat{}, httperror.WrapResponseError(http.StatusConflict, codersdk.Response{
+					Message: "Chat project is archived. Unarchive the project to restore its chats.",
+				}, err)
+			}
 			if invalidStateErr := chatInvalidStateError(err); invalidStateErr != nil {
 				return database.Chat{}, invalidStateErr
 			}
@@ -3045,6 +3054,9 @@ func (api *API) updateChat(
 		if err != nil {
 			if invalidStateErr := chatInvalidStateError(err); invalidStateErr != nil {
 				return database.Chat{}, invalidStateErr
+			}
+			if errors.Is(err, chatstate.ErrChatProjectArchived) {
+				return database.Chat{}, httperror.WrapResponseError(http.StatusConflict, chatProjectArchivedResponse, err)
 			}
 			if errors.Is(err, chatstate.ErrTransitionNotAllowed) {
 				return database.Chat{}, httperror.WrapResponseError(http.StatusConflict, codersdk.Response{
@@ -5101,6 +5113,11 @@ func (api *API) validateChatProjectSelection(
 		return uuid.NullUUID{}, http.StatusBadRequest, &codersdk.Response{
 			Message: "Chat project does not belong to this chat's organization.",
 		}
+	}
+	// An early answer only: chatstate rechecks under the project lock.
+	if project.ArchivedAt.Valid {
+		archived := chatProjectArchivedResponse
+		return uuid.NullUUID{}, http.StatusConflict, &archived
 	}
 	return uuid.NullUUID{UUID: project.ID, Valid: true}, 0, nil
 }

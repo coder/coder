@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -33,6 +34,7 @@ import (
 // @Security CoderSessionToken
 // @Tags Chats
 // @Produce json
+// @Param archived query bool false "List archived projects instead of active ones"
 // @Success 200 {array} codersdk.ChatProject
 // @Router /api/experimental/chats/projects [get]
 // @x-apidocgen {"skip": true}
@@ -40,7 +42,23 @@ func (api *API) listChatProjects(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	apiKey := httpmw.APIKey(r)
 
-	projects, err := api.Database.GetChatProjectsOwnedOrSharedWithUserID(ctx, apiKey.UserID)
+	archived := false
+	if raw := r.URL.Query().Get("archived"); raw != "" {
+		parsed, err := strconv.ParseBool(raw)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message:     "Invalid archived query parameter.",
+				Validations: []codersdk.ValidationError{{Field: "archived", Detail: "Must be true or false."}},
+			})
+			return
+		}
+		archived = parsed
+	}
+
+	projects, err := api.Database.GetChatProjectsOwnedOrSharedWithUserID(ctx, database.GetChatProjectsOwnedOrSharedWithUserIDParams{
+		UserID:   apiKey.UserID,
+		Archived: sql.NullBool{Bool: archived, Valid: true},
+	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to list chat projects.",
@@ -181,6 +199,9 @@ func (api *API) patchChatProject(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	project := httpmw.ChatProjectParam(r)
 	if !api.authorizeChatProjectChange(rw, r, policy.ActionUpdate, project.RBACObject()) {
+		return
+	}
+	if rejectArchivedChatProject(ctx, rw, project) {
 		return
 	}
 
@@ -437,6 +458,18 @@ func (api *API) chatProjectArchivePreview(rw http.ResponseWriter, r *http.Reques
 		ActiveChatCount: preview.ActiveChatCount,
 	})
 }
+
+// rejectArchivedChatProject writes a 409 response and returns true when the
+// project is archived. Archived projects are read-only until unarchived.
+func rejectArchivedChatProject(ctx context.Context, rw http.ResponseWriter, project database.ChatProject) bool {
+	if !project.ArchivedAt.Valid {
+		return false
+	}
+	httpapi.Write(ctx, rw, http.StatusConflict, chatProjectArchivedResponse)
+	return true
+}
+
+var chatProjectArchivedResponse = codersdk.Response{Message: "Chat project is archived."}
 
 func (api *API) authorizeChatProjectChange(rw http.ResponseWriter, r *http.Request, action policy.Action, object rbac.Objecter) bool {
 	if !api.Authorize(r, policy.ActionRead, object) {

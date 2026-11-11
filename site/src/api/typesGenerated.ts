@@ -6781,6 +6781,17 @@ export interface LinkConfig {
 
 // From codersdk/chats.go
 /**
+ * ListChatProjectsOptions filters ListChatProjects.
+ */
+export interface ListChatProjectsOptions {
+	/**
+	 * Archived lists archived projects instead of active ones.
+	 */
+	readonly Archived: boolean;
+}
+
+// From codersdk/chats.go
+/**
  * ListChatsOptions are optional parameters for ListChats.
  */
 export interface ListChatsOptions extends Pagination {

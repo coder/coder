@@ -61,6 +61,9 @@ func (api *API) postChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 	if !api.authorizeChatProjectChange(rw, r, policy.ActionCreate, database.ChatProjectMemoryRBACObject(project)) {
 		return
 	}
+	if rejectArchivedChatProject(ctx, rw, project) {
+		return
+	}
 	var req codersdk.CreateChatProjectMemoryRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -135,6 +138,9 @@ func (api *API) deleteChatProjectMemory(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 	if !api.authorizeChatProjectChange(rw, r, policy.ActionDelete, memory.ChatProjectMemory.RBACObject(project)) {
+		return
+	}
+	if rejectArchivedChatProject(ctx, rw, project) {
 		return
 	}
 	aReq, commit := audit.InitRequest[database.ChatProjectMemory](rw, &audit.RequestParams{Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionDelete, OrganizationID: project.OrganizationID})

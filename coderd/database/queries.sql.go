@@ -8224,34 +8224,45 @@ func (q *sqlQuerier) GetChatProjectByIDForUpdate(ctx context.Context, id uuid.UU
 const getChatProjectsOwnedOrSharedWithUserID = `-- name: GetChatProjectsOwnedOrSharedWithUserID :many
 SELECT chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.archived_at
 FROM chat_projects
-WHERE chat_projects.owner_id = $1::uuid
+WHERE (
+    $1::boolean IS NULL
+    OR (chat_projects.archived_at IS NOT NULL) = $1::boolean
+)
+AND (
+    chat_projects.owner_id = $2::uuid
     OR (
         (
-            chat_projects.user_acl ? ($1::uuid)::text
+            chat_projects.user_acl ? ($2::uuid)::text
             OR chat_projects.group_acl ?| ARRAY(
                 SELECT group_members.group_id::text
                 FROM group_members
-                WHERE group_members.user_id = $1::uuid
+                WHERE group_members.user_id = $2::uuid
                 UNION ALL
                 SELECT organization_members.organization_id::text
                 FROM organization_members
-                WHERE organization_members.user_id = $1::uuid
+                WHERE organization_members.user_id = $2::uuid
             )
         )
         AND EXISTS (
             SELECT 1
             FROM organization_members
-            WHERE organization_members.user_id = $1::uuid
+            WHERE organization_members.user_id = $2::uuid
                 AND organization_members.organization_id = chat_projects.organization_id
         )
     )
+)
 ORDER BY lower(chat_projects.name), chat_projects.id
 `
 
+type GetChatProjectsOwnedOrSharedWithUserIDParams struct {
+	Archived sql.NullBool `db:"archived" json:"archived"`
+	UserID   uuid.UUID    `db:"user_id" json:"user_id"`
+}
+
 // Entries match regardless of the actions they grant, so callers must
-// authorize each row.
-func (q *sqlQuerier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID uuid.UUID) ([]ChatProject, error) {
-	rows, err := q.db.QueryContext(ctx, getChatProjectsOwnedOrSharedWithUserID, userID)
+// authorize each row. A NULL archived returns archived and active projects.
+func (q *sqlQuerier) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, arg GetChatProjectsOwnedOrSharedWithUserIDParams) ([]ChatProject, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProjectsOwnedOrSharedWithUserID, arg.Archived, arg.UserID)
 	if err != nil {
 		return nil, err
 	}
