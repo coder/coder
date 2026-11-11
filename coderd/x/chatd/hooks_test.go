@@ -575,6 +575,7 @@ func seedErroredChatWithQueuedMessage(t *testing.T, db database.Store, text stri
 		Content:       content.RawMessage,
 		ModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
 		CreatedBy:     user.ID,
+		BusyBehavior:  database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 	return chat, queued

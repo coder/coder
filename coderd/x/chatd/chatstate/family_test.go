@@ -139,6 +139,7 @@ func TestSetFamilyArchivedRejectsInvalidStateEvenWhenAlreadyDesired(t *testing.T
 		Content:       rawContent.RawMessage,
 		ModelConfigID: uuid.NullUUID{},
 		CreatedBy:     child.OwnerID,
+		BusyBehavior:  database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 

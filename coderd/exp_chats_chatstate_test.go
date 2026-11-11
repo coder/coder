@@ -607,6 +607,7 @@ func driveChatToInvalidWaitingWithQueue(
 		Content:       rawContent.RawMessage,
 		ModelConfigID: uuid.NullUUID{},
 		CreatedBy:     chat.OwnerID,
+		BusyBehavior:  database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 

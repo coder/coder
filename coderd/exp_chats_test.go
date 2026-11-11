@@ -184,6 +184,7 @@ func insertTestChatQueuedMessageWithReasoningEffort(
 			ModelConfigID:   uuid.NullUUID{UUID: modelConfigID, Valid: modelConfigID != uuid.Nil},
 			ReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffort(reasoningEffort), Valid: reasoningEffort != ""},
 			CreatedBy:       chat.OwnerID,
+			BusyBehavior:    database.ChatBusyBehaviorQueue,
 		},
 	)
 	require.NoError(t, err)
