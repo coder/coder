@@ -4,11 +4,15 @@ import { expect, fn, spyOn, userEvent, waitFor, within } from "storybook/test";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { getAuthorizationKey } from "#/api/queries/authCheck";
-import { chatProjectsKey } from "#/api/queries/chatProjects";
+import {
+	archivedChatProjectsKey,
+	chatProjectsKey,
+} from "#/api/queries/chatProjects";
 import { chatEntityKey } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import {
+	MockArchivedChatProject,
 	MockChatProject,
 	MockDefaultOrganization,
 	MockGroup,
@@ -770,6 +774,23 @@ export const ArchivedWithUnarchive: Story = {
 			...MockChat,
 			archived: true,
 		},
+	},
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Open agent actions" }),
+		);
+	},
+};
+
+/** A chat archived with its project comes back only with the project. */
+export const ArchivedWithProject: Story = {
+	args: {
+		chat: { ...mockLaunchChat, archived: true },
+	},
+	parameters: {
+		queries: [
+			{ key: archivedChatProjectsKey, data: [MockArchivedChatProject] },
+		],
 	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(

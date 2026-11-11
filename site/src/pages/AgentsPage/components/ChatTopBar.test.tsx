@@ -10,6 +10,8 @@ import { toast } from "#/components/Toaster/toast";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import {
+	MockArchivedChatProject,
+	MockChatProject,
 	MockWorkspace,
 	MockWorkspaceBuildDelete,
 } from "#/testHelpers/entities";
@@ -248,6 +250,27 @@ describe("ChatTopBar archive state", () => {
 		);
 		await user.click(
 			await screen.findByRole("menuitem", { name: "Archive agent" }),
+		);
+
+		expect(API.experimental.updateChat).not.toHaveBeenCalled();
+	});
+
+	it("does not unarchive a chat whose project is archived", async () => {
+		const user = userEvent.setup();
+		mockArchiveAndDeleteApi(chat.created_at);
+		vi.spyOn(API.experimental, "getChatProjects").mockResolvedValue([
+			MockArchivedChatProject,
+		]);
+		renderTopBar({ ...chat, archived: true, project_id: MockChatProject.id });
+
+		await user.click(
+			await screen.findByRole("button", { name: "Open agent actions" }),
+		);
+		await user.click(
+			await screen.findByRole("menuitem", {
+				name: "Unarchive agent",
+				description: "Unarchive the project to restore this chat.",
+			}),
 		);
 
 		expect(API.experimental.updateChat).not.toHaveBeenCalled();
