@@ -238,18 +238,20 @@ func TestChatAutomationLastRunChecks(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 
 	for _, tc := range []struct {
-		name string
-		set  string
-		want database.CheckConstraint
+		name  string
+		query string
+		want  database.CheckConstraint
 	}{
-		{name: "TimeWithoutOutcome", set: `last_run_at = now()`, want: database.CheckChatAutomationsLastRunShape},
-		{name: "OutcomeWithoutTime", set: `last_run_outcome = 'skipped'`, want: database.CheckChatAutomationsLastRunShape},
-		{name: "NegativeCount", set: `last_run_unaccepted_count = -1`, want: database.CheckChatAutomationsLastRunUnacceptedCountCheck},
+		{name: "TimeWithoutOutcome", query: `UPDATE chat_automations SET last_run_at = now() WHERE id = $1`, want: database.CheckChatAutomationsLastRunShape},
+		{name: "OutcomeWithoutTime", query: `UPDATE chat_automations SET last_run_outcome = 'skipped' WHERE id = $1`, want: database.CheckChatAutomationsLastRunShape},
+		{name: "NegativeCount", query: `UPDATE chat_automations SET last_run_unaccepted_count = -1 WHERE id = $1`, want: database.CheckChatAutomationsLastRunUnacceptedCountCheck},
 		// last_run_chat_id has no foreign key, so any chat ID is accepted.
-		{name: "SkippedRun", set: `last_run_at = now(), last_run_outcome = 'skipped', last_run_reason = 'chat_busy', last_run_chat_id = gen_random_uuid(), last_run_unaccepted_count = 3`},
-		{name: "AcceptedRun", set: `last_run_at = now(), last_run_outcome = 'accepted', last_run_reason = NULL, last_run_unaccepted_count = 0`},
+		{name: "SkippedRun", query: `UPDATE chat_automations SET last_run_at = now(), last_run_outcome = 'skipped', last_run_reason = 'chat_busy',
+			last_run_chat_id = gen_random_uuid(), last_run_unaccepted_count = 3 WHERE id = $1`},
+		{name: "AcceptedRun", query: `UPDATE chat_automations SET last_run_at = now(), last_run_outcome = 'accepted', last_run_reason = NULL,
+			last_run_unaccepted_count = 0 WHERE id = $1`},
 	} {
-		_, err := sqlDB.ExecContext(ctx, `UPDATE chat_automations SET `+tc.set+` WHERE id = $1`, automation.ID)
+		_, err := sqlDB.ExecContext(ctx, tc.query, automation.ID)
 		if tc.want != "" {
 			require.True(t, database.IsCheckViolation(err, tc.want), "%s: want %s, got %v", tc.name, tc.want, err)
 			continue
@@ -305,19 +307,19 @@ func TestChatAutomationOrganizationTrigger(t *testing.T) {
 	schedule, err := db.InsertChatAutomation(ctx, o.scheduleParams())
 	require.NoError(t, err)
 	for _, tc := range []struct {
-		name string
-		id   uuid.UUID
-		set  string
-		arg  uuid.UUID
-		want string
+		name  string
+		id    uuid.UUID
+		query string
+		arg   uuid.UUID
+		want  string
 	}{
-		{name: "TargetChat", id: webhook.ID, set: "target_chat_id", arg: other.chat.ID, want: chatConstraint},
-		{name: "CreatingChat", id: webhook.ID, set: "created_by_chat_id", arg: other.chat.ID, want: chatConstraint},
-		{name: "Project", id: schedule.ID, set: "project_id", arg: other.project.ID, want: projectConstraint},
+		{name: "TargetChat", id: webhook.ID, query: `UPDATE chat_automations SET target_chat_id = $2 WHERE id = $1`, arg: other.chat.ID, want: chatConstraint},
+		{name: "CreatingChat", id: webhook.ID, query: `UPDATE chat_automations SET created_by_chat_id = $2 WHERE id = $1`, arg: other.chat.ID, want: chatConstraint},
+		{name: "Project", id: schedule.ID, query: `UPDATE chat_automations SET project_id = $2 WHERE id = $1`, arg: other.project.ID, want: projectConstraint},
 		// A change of the organization alone checks every reference again.
-		{name: "OrganizationOfTargetChat", id: webhook.ID, set: "organization_id", arg: other.org.ID, want: chatConstraint},
+		{name: "OrganizationOfTargetChat", id: webhook.ID, query: `UPDATE chat_automations SET organization_id = $2 WHERE id = $1`, arg: other.org.ID, want: chatConstraint},
 	} {
-		_, err := sqlDB.ExecContext(ctx, `UPDATE chat_automations SET `+tc.set+` = $2 WHERE id = $1`, tc.id, tc.arg)
+		_, err := sqlDB.ExecContext(ctx, tc.query, tc.id, tc.arg)
 		requireCheckViolation(t, err, tc.want)
 	}
 

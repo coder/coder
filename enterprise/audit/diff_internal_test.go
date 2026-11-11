@@ -637,6 +637,7 @@ func Test_diff(t *testing.T) {
 func Test_chatAutomationSecretsMasked(t *testing.T) {
 	t.Parallel()
 
+	//nolint:gosec // test fixture, not real credentials
 	const (
 		oldSecret = "old-webhook-secret"
 		newSecret = "new-webhook-secret"
