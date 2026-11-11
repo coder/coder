@@ -53,10 +53,10 @@ A project that isn't shared with you doesn't appear in your sidebar or in **Arch
 Admins can't start chats in a project that isn't shared with them.
 
 To archive a project, open the project's menu on its page or in the sidebar and select **Archive project**.
-The dialog shows how many chats will be archived and what happens next:
+The dialog shows how many top-level chats will be archived, along with their subagent chats, and what happens next:
 
 - Every chat in the project is archived, including chats that other users started in it.
-- If chats are running, the dialog warns you and the button changes to **Stop chats and archive**, or **Stop chat and archive** when one chat is running.
+- If chats are active (running, interrupting, waiting on a tool result, or paused on a queued message being edited), the dialog warns you and the button changes to **Stop chats and archive**, or **Stop chat and archive** when one chat is active.
   Archiving stops them and discards any reply in progress.
   Queued messages are kept.
 - If your own chats in the project use workspaces, choose whether to leave, stop, or delete those workspaces.
