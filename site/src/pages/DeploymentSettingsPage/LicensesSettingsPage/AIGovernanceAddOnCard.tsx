@@ -25,7 +25,7 @@ export const AIGovernanceAddOnCard: React.FC<AIGovernanceAddOnCardProps> = ({
 	return (
 		<div
 			className={`min-w-[320px] flex-1 rounded-sm border border-solid py-3 ${
-				isExceeded ? "border-border-destructive" : "border-border"
+				isExceeded && "border-border-destructive"
 			}`}
 		>
 			<div className="flex items-center gap-1 px-6 py-1.5">

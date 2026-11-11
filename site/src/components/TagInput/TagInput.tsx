@@ -30,7 +30,7 @@ export const TagInput: React.FC<TagInputProps> = ({
 		<div>
 			<div
 				className={cn(
-					"flex flex-wrap min-h-10 px-1.5 py-1.5 gap-2 border border-border border-solid relative rounded-md",
+					"flex flex-wrap min-h-10 px-1.5 py-1.5 gap-2 border border-solid relative rounded-md",
 					"focus-within:border-content-link focus-within:border-2 focus-within:-top-px focus-within:-left-px",
 				)}
 			>
