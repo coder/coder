@@ -611,6 +611,37 @@ describe("ChatsSidebar projects", () => {
 		).toHaveAccessibleName(label);
 	});
 
+	it("names a pinned chat's project when the projects request fails", async () => {
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json({ message: "boom" }, { status: 500 }),
+			),
+			http.get("/api/experimental/chats/projects/summaries", () =>
+				HttpResponse.json([MockChatProjectSummary]),
+			),
+		);
+
+		render(
+			<Wrapper>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "pinned-chat",
+							title: "Pinned chat",
+							project_id: MockChatProject.id,
+							pin_order: 1,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		expect(
+			await screen.findByRole("img", { name: MockChatProject.name }),
+		).toBeInTheDocument();
+	});
+
 	it("opens the folder of the project being viewed until the user collapses it", async () => {
 		const user = userEvent.setup();
 		server.use(

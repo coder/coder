@@ -24,7 +24,6 @@ import { reorderPinnedChat } from "#/api/queries/chats";
 import type {
 	Chat,
 	ChatModel,
-	ChatProject,
 	ChatProjectSummary,
 	Organization,
 } from "#/api/typesGenerated";
@@ -118,8 +117,6 @@ const dragSensors = [
 
 type ChatsPanelProps = {
 	readonly chatProjectsEnabled: boolean;
-	/** Every project the user can see, which names the projects of chats. */
-	readonly projects: readonly ChatProject[];
 	/** The user's pinned projects, in pin order. */
 	readonly pinnedProjects: readonly ChatProjectSummary[];
 	/** Every project's summary, pinned or not. */
@@ -160,7 +157,6 @@ type ChatsPanelProps = {
 
 export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	chatProjectsEnabled,
-	projects,
 	pinnedProjects,
 	projectSummaries,
 	organizations,
@@ -281,6 +277,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		(chat) => chat.id,
 	);
 	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
+	const projects = projectSummaries.map((summary) => summary.project);
 	const organizationLabels = getOrganizationLabels(projects, organizations);
 	const projectNameById = new Map(
 		projects.map((p) => {
