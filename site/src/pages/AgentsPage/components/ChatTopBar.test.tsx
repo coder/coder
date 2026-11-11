@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Outlet, useParams } from "react-router";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
+import { archivedChatProjectsKey } from "#/api/queries/chatProjects";
 import { archiveAndDeleteChatKey, chatEntityKey } from "#/api/queries/chats";
 import type { Chat, ChatProject, WorkspaceBuild } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -294,6 +295,57 @@ describe("ChatTopBar archive state", () => {
 			expect(API.experimental.updateChat).not.toHaveBeenCalled();
 		},
 	);
+
+	it("keeps unarchive blocked while a refetch of a not-archived project is pending or failed", async () => {
+		const user = userEvent.setup();
+		mockArchiveAndDeleteApi(chat.created_at);
+		const refetch = createDeferred<ChatProject[]>();
+		const getChatProjects = vi
+			.spyOn(API.experimental, "getChatProjects")
+			.mockResolvedValueOnce([])
+			.mockReturnValueOnce(refetch.promise)
+			.mockRejectedValue(new Error("Request rejected"));
+		const { queryClient } = renderTopBar({
+			...chat,
+			archived: true,
+			project_id: MockChatProject.id,
+		});
+		const menuButton = await screen.findByRole("button", {
+			name: "Open agent actions",
+		});
+		const clickUnarchive = async () => {
+			await user.click(menuButton);
+			await user.click(
+				await screen.findByRole("menuitem", { name: "Unarchive agent" }),
+			);
+			await user.keyboard("{Escape}");
+		};
+		await waitFor(() =>
+			expect(queryClient.getQueryState(archivedChatProjectsKey)?.status).toBe(
+				"success",
+			),
+		);
+
+		// Archiving a project invalidates the list the same way.
+		act(() => {
+			void queryClient.invalidateQueries({ queryKey: archivedChatProjectsKey });
+		});
+		await waitFor(() => expect(getChatProjects).toHaveBeenCalledTimes(2));
+		await clickUnarchive();
+		expect(API.experimental.updateChat).not.toHaveBeenCalled();
+
+		await act(async () => {
+			refetch.reject(new Error("Request rejected"));
+			await refetch.promise.catch(() => {});
+		});
+		await waitFor(() =>
+			expect(queryClient.getQueryState(archivedChatProjectsKey)?.status).toBe(
+				"error",
+			),
+		);
+		await clickUnarchive();
+		expect(API.experimental.updateChat).not.toHaveBeenCalled();
+	});
 
 	it("retries a failed project lookup when the menu reopens", async () => {
 		const user = userEvent.setup();
