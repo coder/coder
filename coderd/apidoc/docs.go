@@ -1133,7 +1133,6 @@ const docTemplate = `{
                         "description": "Pin chat project request",
                         "name": "request",
                         "in": "body",
-                        "required": true,
                         "schema": {
                             "$ref": "#/definitions/codersdk.PinChatProjectRequest"
                         }
