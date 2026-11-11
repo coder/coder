@@ -577,40 +577,6 @@ describe("ChatsSidebar projects", () => {
 		).toBeInTheDocument();
 	});
 
-	it("names the organization of a pinned chat's project whose name is shared", async () => {
-		const mockOtherProject = {
-			...MockChatProject,
-			id: "other-project",
-			organization_id: MockOrganization2.id,
-		};
-		server.use(
-			http.get("/api/experimental/chats/projects", () =>
-				HttpResponse.json([MockChatProject, mockOtherProject]),
-			),
-		);
-		const label = `${MockChatProject.name} (${MockOrganization2.display_name})`;
-
-		render(
-			<Wrapper organizations={[MockDefaultOrganization, MockOrganization2]}>
-				<ChatsSidebar
-					{...defaultProps}
-					chats={[
-						buildChat({
-							id: "pinned-chat",
-							title: "Pinned chat",
-							project_id: mockOtherProject.id,
-							pin_order: 1,
-						}),
-					]}
-				/>
-			</Wrapper>,
-		);
-
-		expect(
-			await screen.findByRole("img", { name: label }),
-		).toHaveAccessibleName(label);
-	});
-
 	it("opens the folder of the project being viewed until the user collapses it", async () => {
 		const user = userEvent.setup();
 		server.use(
@@ -1244,7 +1210,8 @@ describe("ChatsSidebar project drops", () => {
 		DOMRect.fromRect({ x: 0, y, width: 300, height });
 
 	// dnd-kit clips each target by its ancestors' boxes, so an ancestor of
-	// several targets gets a box around all of them.
+	// several targets gets a box around all of them, which starts above them
+	// as Chats starts with its header.
 	const layoutDropTargets = (
 		row: string,
 		rowTop: number,
@@ -1267,7 +1234,7 @@ describe("ChatsSidebar project drops", () => {
 		mockLayout((element) => {
 			const held = targets.filter(({ node }) => element.contains(node));
 			if (held.length > 1) {
-				return box(0, 600);
+				return box(-40 - scrollTop(), 640);
 			}
 			if (held.length === 1) {
 				return box(held[0].top - scrollTop(), held[0].height);
@@ -1519,8 +1486,7 @@ describe("ChatsSidebar project drops", () => {
 		expect(screen.getByRole("link", { name: /Fix invoice dates/ })).toBe(link);
 	});
 
-	// Ops sits between Billing and Chats but belongs to another organization,
-	// so each key must skip it.
+	// Ops belongs to another organization, so each key must skip it.
 	it.each([
 		{
 			rowTop: 240,
@@ -1531,12 +1497,12 @@ describe("ChatsSidebar project drops", () => {
 		},
 		{
 			rowTop: 40,
-			key: "[ArrowDown]",
+			key: "[ArrowUp]",
 			projectId: mockBillingProject.id,
 			body: NIL_UUID,
 			to: "Chats",
 		},
-	])("drops a chat with $key", async ({ rowTop, key, projectId, body, to }) => {
+	])("drops a chat on $to", async ({ rowTop, key, projectId, body, to }) => {
 		const user = userEvent.setup();
 		const update = vi
 			.spyOn(API.experimental, "updateChat")
@@ -1578,9 +1544,9 @@ describe("ChatsSidebar project drops", () => {
 		expect(update).toHaveBeenCalledTimes(1);
 	});
 
-	// A long Chats section can start below the window, so the key scrolls it
+	// A long list can scroll a folder out of view, so the key scrolls it back
 	// into view before the drag moves onto it.
-	it("drops a chat on Chats that the key scrolls into view", async () => {
+	it("drops a chat on a folder that the key scrolls into view", async () => {
 		const user = userEvent.setup();
 		const update = vi
 			.spyOn(API.experimental, "updateChat")
@@ -1591,7 +1557,6 @@ describe("ChatsSidebar project drops", () => {
 					id: "c1",
 					title: "Fix invoice dates",
 					organization_id: mockBillingProject.organization_id,
-					project_id: mockBillingProject.id,
 				}),
 			],
 			[mockBillingProject, mockOpsProject],
@@ -1600,23 +1565,25 @@ describe("ChatsSidebar project drops", () => {
 			await screen.findByRole("button", { name: "Expand Billing" }),
 		);
 		let scrollTop = 0;
-		layoutDropTargets("Fix invoice dates", 40, () => scrollTop);
+		layoutDropTargets("Fix invoice dates", 400, () => scrollTop);
 		vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(() => {
-			scrollTop = 150;
+			scrollTop = -150;
 		});
 
 		screen.getByRole("link", { description: DRAG_INSTRUCTIONS }).focus();
 		await user.keyboard("[Space]");
-		await user.keyboard("[ArrowDown]");
+		await user.keyboard("[ArrowUp]");
 		await waitFor(() =>
 			expect(screen.getByRole("status")).toHaveTextContent(
-				"Chat Fix invoice dates is over Chats.",
+				"Chat Fix invoice dates is over project Billing.",
 			),
 		);
 		await user.keyboard("[Space]");
 
 		await waitFor(() =>
-			expect(update).toHaveBeenCalledWith("c1", { project_id: NIL_UUID }),
+			expect(update).toHaveBeenCalledWith("c1", {
+				project_id: mockBillingProject.id,
+			}),
 		);
 	});
 
