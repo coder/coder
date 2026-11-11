@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
+	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -483,8 +484,9 @@ func rejectArchivedChatProject(ctx context.Context, rw http.ResponseWriter, proj
 var chatProjectArchivedResponse = codersdk.Response{Message: "Chat project is archived."}
 
 // errChatProjectArchived reports that a project write found the project
-// archived under the project's row lock.
-var errChatProjectArchived = xerrors.New("chat project is archived")
+// archived under the project's row lock. It is the memory store's error, so
+// memory writes through chattool map to the same response.
+var errChatProjectArchived = chattool.ErrProjectArchived
 
 // lockUnarchivedChatProject locks the project row with lock, a
 // GetChatProjectByIDFor* query of the write's transaction, and returns
