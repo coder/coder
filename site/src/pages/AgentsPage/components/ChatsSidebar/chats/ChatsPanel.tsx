@@ -80,7 +80,7 @@ import {
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
 import { PinnedSection } from "./PinnedSection";
-import type { ProjectAction } from "./ProjectFolders";
+import { type ProjectAction, projectLabelOf } from "./ProjectFolders";
 import {
 	applyLocalPinOrder,
 	movedChatOf,
@@ -281,10 +281,10 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	const projects = projectSummaries.map((summary) => summary.project);
 	const organizationLabels = getOrganizationLabels(projects, organizations);
 	const projectNameById = new Map(
-		projects.map((p) => {
-			const label = organizationLabels.get(p.id);
-			return [p.id, label ? `${p.name} (${label})` : p.name];
-		}),
+		projects.map((p) => [
+			p.id,
+			projectLabelOf(p, organizationLabels.get(p.id)),
+		]),
 	);
 
 	const projectsNavItemRef = useRef<HTMLElement | null>(null);
