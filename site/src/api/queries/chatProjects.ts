@@ -58,12 +58,32 @@ export const getPinnedProjectSummaries = (
 		.filter((summary) => summary.pinned)
 		.sort((a, b) => a.pin_order - b.pin_order);
 
-// The sidebar's chat list leaves out chats in unpinned projects, so a pin
-// change can add or remove chats from it. Project chat lists do not change.
-const invalidateProjectPins = (queryClient: QueryClient) =>
+const projectPinsMutationKey = ["chat-project-pins"] as const;
+
+// Pin changes share a scope, so the server applies them in the order the
+// user made them.
+const projectPinsMutationOptions = {
+	mutationKey: projectPinsMutationKey,
+	scope: { id: "chat-project-pins" },
+} as const;
+
+// An earlier queued pin change would replace the later changes' optimistic
+// order with the server's, so only the last one restores or refreshes it.
+const isLastProjectPinChange = (queryClient: QueryClient) =>
+	queryClient.isMutating({ mutationKey: projectPinsMutationKey }) <= 1;
+
+// The sidebar's chat list leaves out chats in unpinned projects, so pinning
+// or unpinning can add or remove chats from it; moving a pin cannot. Project
+// chat lists do not change.
+const invalidateProjectPins = (
+	queryClient: QueryClient,
+	{ changesChatList }: { changesChatList: boolean },
+) =>
 	Promise.all([
-		queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey }),
-		queryClient.invalidateQueries({ queryKey: chatListFamilyKey }),
+		isLastProjectPinChange(queryClient) &&
+			queryClient.invalidateQueries({ queryKey: chatProjectSummariesKey }),
+		changesChatList &&
+			queryClient.invalidateQueries({ queryKey: chatListFamilyKey }),
 	]);
 
 type PinChatProjectVariables = {
@@ -74,6 +94,7 @@ type PinChatProjectVariables = {
 /** Pins a project at the end, or moves a pinned project to pinOrder. */
 export const pinChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
+		...projectPinsMutationOptions,
 		mutationFn: ({ project, pinOrder }: PinChatProjectVariables) =>
 			API.experimental.pinChatProject(
 				project.organization_id,
@@ -84,14 +105,16 @@ export const pinChatProject = (queryClient: QueryClient) =>
 		// put the project back while the request runs.
 		onMutate: async ({ project, pinOrder }: PinChatProjectVariables) => {
 			if (pinOrder === undefined) {
-				return { previousSummaries: undefined };
+				return { previousSummaries: undefined, isMove: false };
 			}
 			await queryClient.cancelQueries({ queryKey: chatProjectSummariesKey });
 			const previousSummaries = queryClient.getQueryData<
 				TypesGen.ChatProjectSummary[]
 			>(chatProjectSummariesKey);
-			const pinnedIds = getPinnedProjectSummaries(previousSummaries ?? [])
-				.map((s) => s.project.id)
+			const previousPinnedIds = getPinnedProjectSummaries(
+				previousSummaries ?? [],
+			).map((s) => s.project.id);
+			const pinnedIds = previousPinnedIds
 				.filter((id) => id !== project.id)
 				.toSpliced(pinOrder - 1, 0, project.id);
 			const pinOrderById = new Map(pinnedIds.map((id, i) => [id, i + 1]));
@@ -105,25 +128,33 @@ export const pinChatProject = (queryClient: QueryClient) =>
 							: { ...s, pinned: true, pin_order: order };
 					}),
 			);
-			return { previousSummaries };
+			return {
+				previousSummaries,
+				isMove: previousPinnedIds.includes(project.id),
+			};
 		},
 		onError: (_error, _variables, context) => {
-			if (context?.previousSummaries) {
+			if (context?.previousSummaries && isLastProjectPinChange(queryClient)) {
 				queryClient.setQueryData(
 					chatProjectSummariesKey,
 					context.previousSummaries,
 				);
 			}
 		},
-		onSettled: () => invalidateProjectPins(queryClient),
+		onSettled: (_data, _error, _variables, context) =>
+			invalidateProjectPins(queryClient, {
+				changesChatList: !context?.isMove,
+			}),
 	});
 
 /** Unpins a project, which also takes its chats out of the sidebar. */
 export const unpinChatProject = (queryClient: QueryClient) =>
 	mutationOptions({
+		...projectPinsMutationOptions,
 		mutationFn: (project: TypesGen.ChatProject) =>
 			API.experimental.unpinChatProject(project.organization_id, project.id),
-		onSettled: () => invalidateProjectPins(queryClient),
+		onSettled: () =>
+			invalidateProjectPins(queryClient, { changesChatList: true }),
 	});
 
 export const createChatProject = (queryClient: QueryClient) =>
