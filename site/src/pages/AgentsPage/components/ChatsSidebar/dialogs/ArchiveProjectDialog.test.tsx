@@ -279,7 +279,6 @@ describe("ArchiveProjectDialog", () => {
 		expect(stop.mock.calls).toEqual([[mockStoppedWorkspace.id]]);
 		// The skip replaces the archived toast instead of stacking under it.
 		expect(successToast).toHaveBeenCalledWith("Project archived");
-		// It also stays up, so there is time to reach its workspace links.
 		expect(warningToast).toHaveBeenCalledWith(
 			expect.anything(),
 			expect.objectContaining({

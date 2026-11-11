@@ -36,7 +36,7 @@ import { Link } from "#/components/Link/Link";
 import { RadioGroup, RadioGroupItem } from "#/components/RadioGroup/RadioGroup";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import { Spinner } from "#/components/Spinner/Spinner";
-import { toast } from "#/components/Toaster/toast";
+import { persistentToast, toast } from "#/components/Toaster/toast";
 import {
 	type ProjectChatWorkspace,
 	type ProjectWorkspaceAction,
@@ -525,6 +525,6 @@ const notifyWorkspaceActionResult = (
 	// Persistent like error toasts, so there is time to reach the links.
 	toast.warning(
 		`The project was archived. ${plural(skipped.length, "workspace", "workspaces")} still in use ${skipped.length === 1 ? "was" : "were"} skipped.`,
-		{ id: toastId, description, duration: Number.POSITIVE_INFINITY },
+		{ ...persistentToast, id: toastId, description },
 	);
 };

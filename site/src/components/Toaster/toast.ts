@@ -1,10 +1,12 @@
 import { isValidElement } from "react";
 import { type ExternalToast, toast as sonnerToast } from "sonner";
 
-// Error toasts stay until the user dismisses them so everyone has enough time
-// to read and act on them (WCAG 2.2.1 Timing Adjustable). Other toast types
-// keep Sonner's timer.
-const persistentToast = {
+/**
+ * Keeps a toast until the user dismisses it, so everyone has enough time to
+ * read and act on it (WCAG 2.2.1 Timing Adjustable). Error toasts always use
+ * it; other toast types keep Sonner's timer unless they spread it in.
+ */
+export const persistentToast = {
 	duration: Number.POSITIVE_INFINITY,
 } satisfies ExternalToast;
 
