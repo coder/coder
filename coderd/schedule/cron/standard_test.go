@@ -135,6 +135,28 @@ func TestStandard_Next(t *testing.T) {
 			want: []string{"2026-12-11T00:00:00Z", "2026-12-13T00:00:00Z", "2026-12-18T00:00:00Z"},
 		},
 		{
+			// 2100 is not a leap year, so the leap days are eight years apart,
+			// which is longer than the five years robfig/cron searches.
+			name: "LeapDayAcrossCentury",
+			spec: "0 0 29 2 *",
+			zone: "UTC",
+			from: "2096-03-01T00:00:00Z",
+			want: []string{"2104-02-29T00:00:00Z", "2108-02-29T00:00:00Z"},
+		},
+		{
+			// America/Metlakatla moved from UTC+15:13:42 to UTC-08:46:18 on
+			// 1867-10-19, so 15:00 on October 19 happened twice. The first
+			// instance is the one at the old offset, a day before the second.
+			name: "RepeatedTimeWithOffsetAboveFourteenHours",
+			spec: "0 15 * * *",
+			zone: "America/Metlakatla",
+			from: "1867-10-16T00:00:00Z",
+			want: []string{
+				"1867-10-16T23:46:18Z", "1867-10-17T23:46:18Z",
+				"1867-10-18T23:46:18Z", "1867-10-20T23:46:18Z",
+			},
+		},
+		{
 			name: "ZoneWithoutDST",
 			spec: "0 9 * * *",
 			zone: "Asia/Kolkata",
@@ -410,6 +432,10 @@ func TestSchedule_MinInterval(t *testing.T) {
 		{name: "Monthly", spec: "0 0 1 * *", zone: "UTC", want: 28 * 24 * time.Hour},
 		{name: "GapAcrossMidnight", spec: "55 23,0 * * *", zone: "UTC", want: time.Hour},
 		{name: "DayOfMonthOrDayOfWeek", spec: "0 0 13 * 5", zone: "UTC", want: 24 * time.Hour},
+		// With both day fields set, a run is on either, and the closest runs
+		// need a year where November 27 is a Wednesday (2002).
+		{name: "DayOfMonthAndDayOfWeekInOneMonth", spec: "0 0 27 11 4", zone: "UTC", want: 24 * time.Hour},
+		{name: "GapAcrossMidnightInOneMonth", spec: "55 23,0 27 11 4", zone: "UTC", want: time.Hour},
 		// Min looks at one week from 1970-01-01 and reports 30m for these.
 		{name: "CloseRunsOnTheFifteenth", spec: "0,30,32 12 15 * *", zone: "UTC", want: 2 * time.Minute},
 		{name: "CloseRunsInFebruary", spec: "0,30,32 12 * 2 *", zone: "UTC", want: 2 * time.Minute},
@@ -424,8 +450,8 @@ func TestSchedule_MinInterval(t *testing.T) {
 		})
 	}
 
-	// Schedules that run less than twice in the two years that MinInterval
-	// scans report at least a year, so no minimum interval rejects them.
+	// Schedules that run once a year or less report at least a year, so no
+	// minimum interval rejects them.
 	for _, spec := range []string{"0 0 29 2 *", "0 0 1 1 *"} {
 		t.Run("Rare/"+spec, func(t *testing.T) {
 			t.Parallel()

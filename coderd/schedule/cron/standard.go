@@ -80,10 +80,24 @@ func (s Schedule) naive() rbcron.SpecSchedule {
 func (s Schedule) nextWallClock(t time.Time) time.Time {
 	loc := s.sched.Location
 	naive := s.naive()
-	for wall := naive.Next(wallClock(t, loc)); !wall.IsZero(); wall = naive.Next(wall) {
+	for wall := nextReading(&naive, wallClock(t, loc)); !wall.IsZero(); wall = nextReading(&naive, wall) {
 		if instant := resolveWallClock(wall, loc); instant.After(t) {
 			return instant.In(t.Location())
 		}
+	}
+	return time.Time{}
+}
+
+// nextReading returns the first reading after w that naive matches, or the
+// zero time when there is none. robfig/cron gives up after five years, but two
+// leap days are eight years apart across 2100, so it searches again from the
+// years it did not cover. Three searches reach 18 years, past any gap.
+func nextReading(naive *rbcron.SpecSchedule, w time.Time) time.Time {
+	for range 3 {
+		if next := naive.Next(w); !next.IsZero() {
+			return next
+		}
+		w = time.Date(w.Year()+6, time.January, 1, 0, 0, 0, 0, time.UTC).Add(-time.Second)
 	}
 	return time.Time{}
 }
@@ -103,9 +117,11 @@ func wallClock(t time.Time, loc *time.Location) time.Time {
 // the start of the zone period after the gap. It never decreases as wall
 // increases.
 func resolveWallClock(wall time.Time, loc *time.Location) time.Time {
-	// A zone offset is within 14 hours of UTC, so no instant that shows wall
-	// is earlier than this. Walk the zone periods from here.
-	for instant := wall.Add(-14 * time.Hour); ; {
+	// A zone offset is within 26 hours of UTC (RFC 8536 allows up to 25:59:59,
+	// and old data such as America/Metlakatla in 1867 goes past 15 hours), so
+	// no instant that shows wall is earlier than this. Walk the zone periods
+	// from here.
+	for instant := wall.Add(-26 * time.Hour); ; {
 		local := instant.In(loc)
 		_, offset := local.Zone()
 		shift := time.Duration(offset) * time.Second
@@ -124,15 +140,15 @@ func resolveWallClock(wall time.Time, loc *time.Location) time.Time {
 	}
 }
 
-// intervalAnchor starts the scan of MinInterval. Its year is a leap year, so
-// the scan sees February 29.
+// intervalAnchor starts the scan of MinInterval. The 28 years from it hold
+// every calendar a year can have (leap or not, starting on each weekday), so
+// they hold the shortest gap of every year.
 var intervalAnchor = time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC)
 
 // MinInterval returns the shortest time between two consecutive runs of the
-// schedule, measured on its wall clock. It looks at two years of runs from
-// 2000-01-01 and returns the length of that period when fewer than two runs
-// fall inside it, so a schedule that runs this rarely never falls below a
-// minimum interval.
+// schedule, measured on its wall clock. It looks at 28 years of runs from
+// 2000-01-01, which is enough to see the shortest gap in any year. It returns
+// the length of that period when fewer than two runs fall inside it.
 //
 // Daylight saving changes do not count. Clocks going forward can make one gap
 // shorter by up to the size of the change: runs at 01:30 and 03:30 are two
@@ -154,22 +170,30 @@ func (s Schedule) MinInterval() time.Duration {
 		}
 	}
 
-	end := intervalAnchor.AddDate(2, 0, 0)
+	end := intervalAnchor.AddDate(28, 0, 0)
 	shortest := end.Sub(intervalAnchor)
 	for i := 1; i < len(times); i++ {
 		shortest = min(shortest, times[i]-times[i-1])
 	}
 
 	// Gaps from the last run of a matching day to the first run of the next.
+	// The shortest one is between two days in a row, so stop once it shows.
 	naive := s.naive()
 	lastOfDay := times[len(times)-1]
+	nextDay := 24*time.Hour + times[0] - lastOfDay
 	for day := naive.Next(intervalAnchor); !day.IsZero() && !day.After(end); {
-		last := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, time.UTC).Add(lastOfDay)
-		next := naive.Next(last)
+		midnight := time.Date(day.Year(), day.Month(), day.Day(), 0, 0, 0, 0, time.UTC)
+		last := midnight.Add(lastOfDay)
+		// The first run after midnight is the first run of the next matching day.
+		next := naive.Next(midnight.AddDate(0, 0, 1).Add(-time.Second))
 		if next.IsZero() || next.After(end) {
 			break
 		}
-		shortest = min(shortest, next.Sub(last))
+		gap := next.Sub(last)
+		shortest = min(shortest, gap)
+		if gap == nextDay {
+			break
+		}
 		day = next
 	}
 	return shortest
