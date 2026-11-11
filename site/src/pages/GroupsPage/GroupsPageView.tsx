@@ -14,9 +14,6 @@ import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
 import { Badge } from "#/components/Badge/Badge";
 import { Button } from "#/components/Button/Button";
-import { NoAccessIllustration } from "#/components/EmptyState/components/NoAccessIllustration";
-import { NoResultsIllustration } from "#/components/EmptyState/components/NoResultsIllustration";
-import { SearchIllustration } from "#/components/EmptyState/components/SearchIllustration";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import type { useFilter } from "#/components/Filter/Filter";
 import { GroupsFilter } from "#/components/Filter/GroupsFilter";
@@ -219,7 +216,6 @@ const GroupsTableBody: React.FC<GroupsTableBodyProps> = ({
 				<TableRow>
 					<TableCell colSpan={999}>
 						<EmptyState
-							image={<SearchIllustration className="-mb-5 max-w-full" />}
 							message="No groups match your search"
 							description="Try a different search term."
 						/>
@@ -229,13 +225,6 @@ const GroupsTableBody: React.FC<GroupsTableBodyProps> = ({
 		}
 		return (
 			<TableEmpty
-				image={
-					canCreateGroup ? (
-						<NoResultsIllustration className="-mb-5 max-w-full" />
-					) : (
-						<NoAccessIllustration className="-mb-5 max-w-full" />
-					)
-				}
 				message="No groups yet"
 				description={
 					canCreateGroup

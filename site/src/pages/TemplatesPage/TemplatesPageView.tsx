@@ -371,6 +371,7 @@ export const TemplatesPageView: React.FC<TemplatesPageViewProps> = ({
 							templateBuilderEnabled={templateBuilderEnabled}
 							examples={examples ?? []}
 							isUsingFilter={filterState.filter.used}
+							onClearFilter={() => filterState.filter.update("")}
 						/>
 					) : (
 						templates.map((template) => (

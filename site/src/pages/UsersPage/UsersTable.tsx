@@ -5,7 +5,6 @@ import type { GroupsByUserId } from "#/api/queries/groups";
 import type * as TypesGen from "#/api/typesGenerated";
 import { AvatarData } from "#/components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "#/components/Avatar/AvatarDataSkeleton";
-import { SearchIllustration } from "#/components/EmptyState/components/SearchIllustration";
 import { LastSeen } from "#/components/LastSeen/LastSeen";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
 import {
@@ -92,12 +91,7 @@ const UsersTableBody: React.FC<UsersTableProps> = ({
 	}
 
 	if (!users || users.length === 0) {
-		return (
-			<TableEmpty
-				image={<SearchIllustration className="-mb-5 max-w-full" />}
-				message="No users found"
-			/>
-		);
+		return <TableEmpty message="No users found" />;
 	}
 
 	return users.map((user) => (

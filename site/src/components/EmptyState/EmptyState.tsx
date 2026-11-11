@@ -24,28 +24,47 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 	className,
 	...attrs
 }) => {
+	const Heading = image ? "h2" : "h5";
+
 	return (
 		<div
 			className={cn(
-				"overflow-hidden flex flex-col items-center text-center min-h-96 py-12 px-10 relative gap-12",
+				"overflow-hidden flex flex-col items-center text-center min-h-96 px-10 relative",
+				image ? "py-12 gap-12" : "justify-center py-20",
 				isCompact && "min-h-44 py-2.5",
 				className,
 			)}
 			{...attrs}
 		>
 			{image}
-			<div className="flex flex-col gap-4 justify-center items-center max-w-105">
-				<div className="flex flex-col gap-2">
-					<h2 className="m-0 font-semibold text-content-primary text-lg">
+			<div
+				className={
+					image
+						? "flex flex-col gap-4 justify-center items-center max-w-105"
+						: "contents"
+				}
+			>
+				<div className={image ? "flex flex-col gap-2" : "contents"}>
+					<Heading
+						className={cn(
+							"m-0 text-content-primary text-lg",
+							image ? "font-semibold" : "font-medium",
+						)}
+					>
 						{message}
-					</h2>
+					</Heading>
 					{description && (
-						<p className="m-0 max-w-md text-content-secondary text-sm font-normal">
+						<p
+							className={cn(
+								"max-w-md text-content-secondary text-sm",
+								image ? "m-0 font-normal" : "mt-4",
+							)}
+						>
 							{description}
 						</p>
 					)}
 				</div>
-				{cta && <div>{cta}</div>}
+				{cta && <div className={image ? undefined : "mt-6"}>{cta}</div>}
 			</div>
 		</div>
 	);

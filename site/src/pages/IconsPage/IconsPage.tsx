@@ -137,8 +137,17 @@ const IconsPage: React.FC = () => {
 				<div className="flex gap-2 justify-center flex-wrap max-w-full mt-8">
 					{searchedIcons.length === 0 && (
 						<EmptyState
-							image={<SearchIllustration className="-mb-5 max-w-full" />}
-							message="No results matched your search"
+							image={<SearchIllustration className="-mb-5 h-auto max-w-full" />}
+							message="No results match your filters"
+							description="Broaden your search to explore more options."
+							cta={
+								<Button
+									variant="outline"
+									onClick={() => setSearchInputText("")}
+								>
+									Reset filters
+								</Button>
+							}
 						/>
 					)}
 					{searchedIcons.map((icon) => (

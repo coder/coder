@@ -17,7 +17,6 @@ import {
 	type User,
 } from "#/api/typesGenerated";
 import { ConfirmDialog } from "#/components/Dialog/ConfirmDialog/ConfirmDialog";
-import { NotFoundIllustration } from "#/components/EmptyState/components/NotFoundIllustration";
 import { EmptyState } from "#/components/EmptyState/EmptyState";
 import { useFilter } from "#/components/Filter/Filter";
 import { toast } from "#/components/Toaster/toast";
@@ -90,12 +89,7 @@ const OrganizationMembersPage: React.FC = () => {
 	}, [organization?.default_org_member_roles, organizationRolesQuery.data]);
 
 	if (!organization) {
-		return (
-			<EmptyState
-				image={<NotFoundIllustration className="-mb-5 max-w-full" />}
-				message="Organization not found"
-			/>
-		);
+		return <EmptyState message="Organization not found" />;
 	}
 
 	const title = (

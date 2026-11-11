@@ -80,6 +80,7 @@ export const AuditPageView: React.FC<AuditPageViewProps> = ({
 									isLoading={isLoading}
 									isEmpty={isEmpty}
 									isNonInitialPage={isNonInitialPage}
+									isUsingFilter={filterProps.filter.used}
 									showOrgDetails={showOrgDetails}
 								/>
 							</TableBody>
@@ -109,6 +110,7 @@ type AuditTableBodyProps = {
 	isLoading: boolean;
 	isEmpty: boolean;
 	isNonInitialPage: boolean;
+	isUsingFilter: boolean;
 	showOrgDetails: boolean;
 };
 
@@ -118,6 +120,7 @@ const AuditTableBody: React.FC<AuditTableBodyProps> = ({
 	isLoading,
 	isEmpty,
 	isNonInitialPage,
+	isUsingFilter,
 	showOrgDetails,
 }) => {
 	// An error renders as an empty table.
@@ -133,8 +136,13 @@ const AuditTableBody: React.FC<AuditTableBodyProps> = ({
 			: "No audit logs available";
 		return (
 			<TableEmpty
-				image={<NoResultsIllustration className="-mb-5 max-w-full" />}
+				image={<NoResultsIllustration className="-mb-5 h-auto max-w-full" />}
 				message={emptyMessage}
+				description={
+					!isNonInitialPage && !isUsingFilter
+						? "All we found were birds. Events will appear here as your team uses Coder."
+						: undefined
+				}
 			/>
 		);
 	}

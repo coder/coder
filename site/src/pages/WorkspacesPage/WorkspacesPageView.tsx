@@ -1,5 +1,6 @@
 import { PlayIcon, RotateCcwIcon, SquareIcon, TrashIcon } from "lucide-react";
 import type { UseQueryResult } from "react-query";
+import { Link } from "react-router";
 import { hasError, isApiValidationError } from "#/api/errors";
 import type { Template, Workspace } from "#/api/typesGenerated";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
@@ -196,16 +197,12 @@ export const WorkspacesPageView: React.FC<WorkspacesPageViewProps> = ({
 			{pageNumberIsInvalid ? (
 				<EmptyState
 					className="border border-solid border-border rounded-lg"
-					image={<NotFoundIllustration className="-mb-5 max-w-full" />}
+					image={<NotFoundIllustration className="-mb-5 h-auto max-w-full" />}
 					message="Page not found"
-					description="The page you are trying to access does not exist."
+					description="This page doesn't exist or may have been moved."
 					cta={
-						<Button
-							onClick={() => {
-								onPageChange(1);
-							}}
-						>
-							Back to the first page
+						<Button asChild>
+							<Link to="/">Go to dashboard</Link>
 						</Button>
 					}
 				/>
