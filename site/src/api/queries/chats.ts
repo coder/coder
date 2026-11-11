@@ -1540,12 +1540,18 @@ export const infiniteProjectFolderChats = (
 	);
 };
 
-/** Unarchived chats in one project, newest first. */
-export const projectChats = (projectId: string) => {
+/** Keyed with the archived filter like a folder list, so cache helpers match. */
+const archivedProjectChatsKey = (projectId: string) =>
+	[...projectChatsKey(projectId), { archived: true }] as const;
+
+/** Root chats in one project with the given archived state, newest first. */
+export const projectChats = (projectId: string, archived = false) => {
 	const limit = DEFAULT_CHAT_PAGE_LIMIT;
 
 	return infiniteQueryOptions({
-		queryKey: projectChatsKey(projectId),
+		queryKey: archived
+			? archivedProjectChatsKey(projectId)
+			: projectChatsKey(projectId),
 		getNextPageParam: (lastPage: TypesGen.Chat[], pages: TypesGen.Chat[][]) => {
 			if (lastPage.length < limit) {
 				return undefined;
@@ -1558,7 +1564,7 @@ export const projectChats = (projectId: string) => {
 				{
 					limit,
 					offset: pageParam <= 0 ? 0 : (pageParam - 1) * limit,
-					q: "archived:false",
+					q: `archived:${archived}`,
 					project_id: projectId,
 				},
 				signal,

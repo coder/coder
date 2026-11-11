@@ -1,15 +1,27 @@
 import type { ChatProject } from "#/api/typesGenerated";
+import { ArchivedProjectBanner } from "./ArchivedProjectBanner";
+import { NotSharedWithUserBanner } from "./NotSharedWithUserBanner";
 import { ProjectChatsList } from "./ProjectChatsList";
 import { ProjectDetailsPanel } from "./ProjectDetailsPanel";
 import { ProjectHeaderSection } from "./ProjectHeaderSection";
 
 type ProjectPageProps = {
 	readonly project: ChatProject;
+	/**
+	 * False when the user can manage the project only as an admin. Only the
+	 * owner and sharees can start chats in it.
+	 */
+	readonly isOwnedOrSharedWithUser: boolean;
+	/**
+	 * The new chat composer, replaced by a banner while the project is
+	 * archived or not shared with the user.
+	 */
 	readonly children: React.ReactNode;
 };
 
 export const ProjectPage: React.FC<ProjectPageProps> = ({
 	project,
+	isOwnedOrSharedWithUser,
 	children,
 }) => (
 	// flex-1 and min-h-0 bound the page to the layout's height at every
@@ -18,7 +30,13 @@ export const ProjectPage: React.FC<ProjectPageProps> = ({
 		<div className="mx-auto flex w-full max-w-6xl flex-col gap-6 pb-8 @container">
 			<ProjectHeaderSection key={project.id} project={project} />
 			<div className="flex flex-col gap-14">
-				{children}
+				{project.archived_at ? (
+					<ArchivedProjectBanner project={project} />
+				) : isOwnedOrSharedWithUser ? (
+					children
+				) : (
+					<NotSharedWithUserBanner />
+				)}
 				{/* Columns follow the page width rather than the viewport, which
 				    the agents sidebar narrows. */}
 				<div className="grid grid-cols-1 gap-8 @4xl:grid-cols-[minmax(0,554fr)_minmax(0,310fr)]">

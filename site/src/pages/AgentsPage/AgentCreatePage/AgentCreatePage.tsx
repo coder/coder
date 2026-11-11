@@ -9,7 +9,11 @@ import {
 } from "react-router";
 import { getErrorMessage, isApiError } from "#/api/errors";
 import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
-import { chatProject } from "#/api/queries/chatProjects";
+import {
+	archivedChatProject,
+	chatProject,
+	unlistedChatProject,
+} from "#/api/queries/chatProjects";
 import {
 	archiveChat,
 	createChat,
@@ -103,6 +107,74 @@ const AgentCreatePage: React.FC = () => {
 	return <AgentCreatePageContent key={projectId} projectId={projectId} />;
 };
 
+/**
+ * Finds the route's project in the active list, then the archived list, then
+ * by ID in each of the user's organizations.
+ */
+const useProjectLookup = (projectId: string | undefined) => {
+	const { organizations } = useDashboard();
+	const projectQuery = useQuery({
+		...chatProject(projectId),
+		enabled: projectId !== undefined,
+	});
+	// null also covers a project that exists but is not in this user's list.
+	// A cached list can predate the project, so wait for the refetch.
+	const isActiveProjectMissing =
+		projectId !== undefined &&
+		projectQuery.data === null &&
+		projectQuery.isFetchedAfterMount &&
+		!projectQuery.error;
+	// The default list leaves out archived projects, whose page stays
+	// available to unarchive them and read their chats.
+	const archivedProjectQuery = useQuery({
+		...archivedChatProject(projectId),
+		enabled: isActiveProjectMissing,
+	});
+	const isListedProjectMissing =
+		isActiveProjectMissing &&
+		archivedProjectQuery.data === null &&
+		archivedProjectQuery.isFetchedAfterMount &&
+		!archivedProjectQuery.error;
+	const unlistedProjectQuery = useQuery({
+		...unlistedChatProject(
+			projectId,
+			organizations.map((organization) => organization.id),
+		),
+		enabled: isListedProjectMissing,
+	});
+	const project =
+		projectQuery.data ??
+		archivedProjectQuery.data ??
+		unlistedProjectQuery.data ??
+		undefined;
+	const isProjectMissing =
+		isListedProjectMissing &&
+		unlistedProjectQuery.data === null &&
+		unlistedProjectQuery.isFetchedAfterMount &&
+		!unlistedProjectQuery.error;
+	// A failed background refetch keeps the cached project usable.
+	const failedProjectQuery = [
+		projectQuery,
+		archivedProjectQuery,
+		unlistedProjectQuery,
+	].find((query) => query.error);
+	const projectLookupError =
+		projectId !== undefined && !project ? failedProjectQuery?.error : undefined;
+	// The lists hold the projects the user owns or that are shared with them,
+	// the only ones the user can start chats in.
+	const isProjectUnlisted =
+		!projectQuery.data &&
+		!archivedProjectQuery.data &&
+		Boolean(unlistedProjectQuery.data);
+	return {
+		project,
+		isProjectMissing,
+		isProjectUnlisted,
+		failedProjectQuery,
+		projectLookupError,
+	};
+};
+
 type AgentCreatePageContentProps = {
 	readonly projectId: string | undefined;
 };
@@ -116,23 +188,13 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	const [searchParams] = useSearchParams();
 	const { permissions } = useAuthenticated();
 	const { experiments } = useDashboard();
-	const projectQuery = useQuery({
-		...chatProject(projectId),
-		enabled: projectId !== undefined,
-	});
-	const project = projectQuery.data ?? undefined;
-	// null also covers a project that exists but is not in this user's list.
-	// A cached list can predate the project, so wait for the refetch.
-	const isProjectMissing =
-		projectId !== undefined &&
-		projectQuery.data === null &&
-		projectQuery.isFetchedAfterMount &&
-		!projectQuery.error;
-	// A failed background refetch keeps the cached project usable.
-	const projectLookupError =
-		projectId !== undefined && !project && projectQuery.error
-			? projectQuery.error
-			: undefined;
+	const {
+		project,
+		isProjectMissing,
+		isProjectUnlisted,
+		failedProjectQuery,
+		projectLookupError,
+	} = useProjectLookup(projectId);
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
@@ -474,10 +536,10 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 						<Button
 							size="sm"
 							variant="outline"
-							disabled={projectQuery.isFetching}
-							onClick={() => void projectQuery.refetch()}
+							disabled={failedProjectQuery?.isFetching}
+							onClick={() => void failedProjectQuery?.refetch()}
 						>
-							<Spinner loading={projectQuery.isFetching} />
+							<Spinner loading={failedProjectQuery?.isFetching} />
 							Retry
 						</Button>
 					}
@@ -497,7 +559,12 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			) : isPrefillLoading ? (
 				<Loader className="flex-1" label="Loading workspace build logs" />
 			) : project ? (
-				<ProjectPage project={project}>{form}</ProjectPage>
+				<ProjectPage
+					project={project}
+					isOwnedOrSharedWithUser={!isProjectUnlisted}
+				>
+					{form}
+				</ProjectPage>
 			) : (
 				<AgentCreateFormFrame>{form}</AgentCreateFormFrame>
 			)}
