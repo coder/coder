@@ -1,7 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, screen, spyOn, userEvent } from "storybook/test";
 import { API } from "#/api/api";
-import { chatProjectArchivePreviewKey } from "#/api/queries/chatProjects";
+import {
+	chatProjectArchivePreviewKey,
+	projectChatWorkspacesKey,
+} from "#/api/queries/chatProjects";
 import { chatRetentionDaysKey } from "#/api/queries/chats";
 import {
 	MockChatProject,
@@ -11,10 +14,7 @@ import {
 	mockApiError,
 } from "#/testHelpers/entities";
 import { withAuthProvider } from "#/testHelpers/storybook";
-import {
-	type ProjectChatWorkspace,
-	projectChatWorkspacesKey,
-} from "../../../utils/agentWorkspaceUtils";
+import type { ProjectChatWorkspace } from "../../../utils/agentWorkspaceUtils";
 import { ArchiveProjectDialog } from "./ArchiveProjectDialog";
 
 const mockWorkspaces: ProjectChatWorkspace[] = [
