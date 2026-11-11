@@ -372,16 +372,16 @@ const getUnarchiveBlockedReason = (
 	if (!isProjectLookupNeeded) {
 		return undefined;
 	}
-	if (query.data) {
-		return "projectArchived";
-	}
-	// Cached "not archived" data is stale while a refetch runs or after one
-	// fails, since the project may have been archived in the meantime.
+	// Cached data is stale while a refetch runs or after one fails, since the
+	// project may have been archived or unarchived in the meantime.
 	if (query.isFetching) {
 		return "checkingProject";
 	}
 	if (query.isError) {
 		return "projectCheckFailed";
+	}
+	if (query.data) {
+		return "projectArchived";
 	}
 	return query.data === null ? undefined : "checkingProject";
 };
