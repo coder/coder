@@ -1801,6 +1801,13 @@ func scopedOrgRoleIdentifiers(names []string, orgID uuid.UUID) []rbac.RoleIdenti
 	return out
 }
 
+// authorizeOrganizationAISpend authorizes reading an organization's AI spend.
+// The spend covers every user in the organization, so the caller must be able
+// to read every group member in it, not only its own.
+func (q *querier) authorizeOrganizationAISpend(ctx context.Context, organizationID uuid.UUID) error {
+	return q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroupMember.InOrg(organizationID))
+}
+
 // authorizeChatProjectMemories authorizes an action on the memory set of a
 // project. Memory permissions derive from the project's owner and ACL.
 func (q *querier) authorizeChatProjectMemories(ctx context.Context, action policy.Action, projectID uuid.UUID) (database.ChatProject, error) {
@@ -2924,7 +2931,7 @@ func (q *querier) ExpirePrebuildsAPIKeys(ctx context.Context, now time.Time) err
 }
 
 func (q *querier) ExportOrganizationAISpend(ctx context.Context, arg database.ExportOrganizationAISpendParams) ([]database.ExportOrganizationAISpendRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroupMember.InOrg(arg.OrganizationID)); err != nil {
+	if err := q.authorizeOrganizationAISpend(ctx, arg.OrganizationID); err != nil {
 		return nil, err
 	}
 	return q.db.ExportOrganizationAISpend(ctx, arg)
@@ -4687,18 +4694,14 @@ func (q *querier) GetOrganizationAIProviderModelConfig(ctx context.Context, arg 
 }
 
 func (q *querier) GetOrganizationAISpendPerDay(ctx context.Context, arg database.GetOrganizationAISpendPerDayParams) ([]database.GetOrganizationAISpendPerDayRow, error) {
-	// The daily totals aggregate the spend of every user in the organization,
-	// so the caller must be able to read every group member in it.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroupMember.InOrg(arg.OrganizationID)); err != nil {
+	if err := q.authorizeOrganizationAISpend(ctx, arg.OrganizationID); err != nil {
 		return nil, err
 	}
 	return q.db.GetOrganizationAISpendPerDay(ctx, arg)
 }
 
 func (q *querier) GetOrganizationAISpendTotals(ctx context.Context, arg database.GetOrganizationAISpendTotalsParams) (database.GetOrganizationAISpendTotalsRow, error) {
-	// The totals aggregate the spend of every user in the organization, so
-	// the caller must be able to read every group member in it.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroupMember.InOrg(arg.OrganizationID)); err != nil {
+	if err := q.authorizeOrganizationAISpend(ctx, arg.OrganizationID); err != nil {
 		return database.GetOrganizationAISpendTotalsRow{}, err
 	}
 	return q.db.GetOrganizationAISpendTotals(ctx, arg)
@@ -7416,18 +7419,14 @@ func (q *querier) ListChatContextResourcesByChatID(ctx context.Context, chatID u
 }
 
 func (q *querier) ListOrganizationAISpendPerUser(ctx context.Context, arg database.ListOrganizationAISpendPerUserParams) ([]database.ListOrganizationAISpendPerUserRow, error) {
-	// Rows can belong to any user in the organization, so the caller must be
-	// able to read every group member in it, not only its own row.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroupMember.InOrg(arg.OrganizationID)); err != nil {
+	if err := q.authorizeOrganizationAISpend(ctx, arg.OrganizationID); err != nil {
 		return nil, err
 	}
 	return q.db.ListOrganizationAISpendPerUser(ctx, arg)
 }
 
 func (q *querier) ListOrganizationAISpendUsers(ctx context.Context, arg database.ListOrganizationAISpendUsersParams) ([]database.ListOrganizationAISpendUsersRow, error) {
-	// Every row carries organization-wide totals, so the caller must be able
-	// to read every group member in the organization, not only its own row.
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceGroupMember.InOrg(arg.OrganizationID)); err != nil {
+	if err := q.authorizeOrganizationAISpend(ctx, arg.OrganizationID); err != nil {
 		return nil, err
 	}
 	return q.db.ListOrganizationAISpendUsers(ctx, arg)
