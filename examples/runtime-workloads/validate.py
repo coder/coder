@@ -19,6 +19,9 @@ Settings come from the environment:
   PLAIN_WORKSPACE      optional: a running workspace from any ordinary
                        single-agent template, built before the operator was
                        installed. Enables checks A1 to A3.
+  OTHER_WORKSPACE      optional: owner/name of a running workspace from this
+                       template that another user owns and the token's user
+                       can see. Enables check F8.
   RUNS_DIR             where results go. Defaults to ./runs.
 
 The script writes a transcript and results.json to RUNS_DIR/<timestamp>/ and
@@ -45,6 +48,7 @@ API = os.environ["CODER_URL"].rstrip("/")
 POD_API = os.environ.get("POD_CODER_URL", API).rstrip("/")
 WORKSPACE = os.environ.get("WORKSPACE", "dev")
 PLAIN_WORKSPACE = os.environ.get("PLAIN_WORKSPACE", "")
+OTHER_WORKSPACE = os.environ.get("OTHER_WORKSPACE", "")
 RUNS_DIR = pathlib.Path(os.environ.get("RUNS_DIR", "runs"))
 OPERATOR_SA = f"system:serviceaccount:{NAMESPACE}:coder-workload-operator"
 WORKLOAD_SA = f"system:serviceaccount:{NAMESPACE}:coder-workload"
@@ -239,17 +243,29 @@ def can_i(subject, verb, resource, all_namespaces=False):
     return out.stdout.strip()
 
 
-def run_workload(name, command=None, timeout=420):
+def run_workload(name, command=None, timeout=420, scopes=()):
     args = ["run", WORKSPACE, "--name", name, "--timeout", "6m"]
+    for scope in scopes:
+        args += ["--scope", scope]
     if command:
         args += ["--", *command]
     return coder(*args, timeout=timeout)
 
 
+def workload_pod_names():
+    """Names of the pods of this workspace's workloads. Other workspaces may share the namespace."""
+    return [w["pod"]["name"] for w in workloads() if w.get("pod")]
+
+
+def pods_left(names):
+    return [name for name in names if pod(name) is not None]
+
+
 def remove_all_workloads():
+    names = workload_pod_names()
     for workload in workloads():
         coder("run", "--remove", workload["name"], WORKSPACE)
-    wait_until(lambda: not workload_pods(), timeout=240)
+    wait_until(lambda: not pods_left(names), timeout=240)
 
 
 def workload_pods():
@@ -380,10 +396,11 @@ def main():
         f"alpha={alpha.get('id')}\nbeta={beta.get('id')}\nhuman={human['id']}",
     )
     report.check(
-        "B4", "every workload identity is associated with the workspace owner and records who requested it",
-        all(i.get("owner_id") == human["owner_id"] and i.get("owner_username") == user
-            and i.get("requested_by_username") == user and i.get("shape") == "workload" for i in (alpha, beta)),
-        f"owner={alpha.get('owner_username')} requested_by={alpha.get('requested_by_username')} shape={alpha.get('shape')}",
+        "B4", "every workload has its own identity record, sponsored by the workspace owner who requested it",
+        all(i.get("owner_id") == human["owner_id"] and i.get("sponsor_id") == human["owner_id"]
+            and i.get("sponsor_username") == user and i.get("shape") == "workload" for i in (alpha, beta))
+        and alpha.get("identity_id") and alpha.get("identity_id") != beta.get("identity_id"),
+        f"sponsor={alpha.get('sponsor_username')} alpha={alpha.get('identity_id')} beta={beta.get('identity_id')}",
     )
     dev = workspace(WORKSPACE)
     report.check(
@@ -502,8 +519,8 @@ def main():
     status2, got2 = http("POST", f"/api/v2/workspaces/{dev['id']}/workloads", token=alpha_token, body={"name": "spawned"})
     status3, got3 = http("POST", f"/api/v2/workspaces/{dev['id']}/workloads", token=human_agent_token(main_pod), body={"name": "spawned"})
     report.check(
-        "C9", "neither a workload's pod token nor the human daemon's agent token can call `coder run` or act as a user",
-        (status, status2, status3) == (401, 401, 401),
+        "C9", "neither a workload's pod token nor the human daemon's agent token can call `coder run` or read the user",
+        status in (403, 404) and status2 in (403, 404) and status3 == 401,
         f"users/me with pod token -> {status}; create workload with pod token -> {status2}; with agent token -> {status3}",
     )
 
@@ -611,14 +628,15 @@ def main():
     )
 
     keeper_token = pod_token("workload-keeper")
+    names = workload_pod_names()
     out = coder("stop", WORKSPACE, "--yes", timeout=600)
-    pods_gone = wait_until(lambda: not workload_pods(), timeout=300)
+    pods_gone = wait_until(lambda: not pods_left(names), timeout=300)
     status, got = identity_with(keeper_token)
     listed = workloads()
     report.check(
         "D8", "stopping the workspace removes every runtime daemon: pods, identities and records",
         out.returncode == 0 and bool(pods_gone) and status == 401 and listed == [],
-        f"workload pods left={len(workload_pods())}; keeper's token -> {status}; workloads listed={len(listed)}",
+        f"workload pods left={len(pods_left(names))}; keeper's token -> {status}; workloads listed={len(listed)}",
     )
     out = coder("start", WORKSPACE, "--yes", timeout=600)
     restarted = wait_until(
@@ -627,7 +645,7 @@ def main():
     )
     report.check(
         "D9", "starting it again restores the declared state: the human's daemon, the shape, and no workloads",
-        out.returncode == 0 and restarted is not None and workloads() == [] and not workload_pods()
+        out.returncode == 0 and restarted is not None and workloads() == [] and not pods_left(names)
         and restarted["health"]["healthy"],
         f"agents={sorted(a['name'] for a in agents(restarted))}" if restarted else out.stderr[-300:],
     )
@@ -670,9 +688,112 @@ def main():
             if any(s.get("namespace") == NAMESPACE for s in (b.get("subjects") or []))]
     report.check("E2", "nothing in the POC namespace is bound to a cluster-wide role", mine == [], mine)
 
+    # ------------------------------------------------------------------
+    report.section("F. Permissions")
+    check_permissions(report, token, dev)
+
     ok = report.finish()
     kubectl("get", "pods", "-o", "wide")
     return 0 if ok else 1
+
+
+def summarize(status, body):
+    """Reduces an API response to what the checks compare."""
+    if status != 200:
+        return status
+    if isinstance(body, dict) and "workspaces" in body:
+        return sorted(w["id"] for w in body["workspaces"])
+    if isinstance(body, list):
+        return sorted(item["id"] for item in body)
+    return status
+
+
+def check_permissions(report, token, dev):
+    """A workload acts as its sponsor, narrowed to the scopes it was given."""
+    grants = {
+        "perm-none": [],
+        "perm-templates": ["template:read"],
+        "perm-reader": ["workspace:read", "template:read"],
+    }
+    tokens, identities = {}, {}
+    for name, scopes in grants.items():
+        out = run_workload(name, scopes=scopes)
+        if out.returncode != 0:
+            report.check("F0", f"workload {name} starts", False, out.stderr[-300:])
+            return
+        tokens[name] = pod_token(f"workload-{name}")
+        _, identities[name] = identity_with(tokens[name])
+    report.check(
+        "F1", "each workload reports the scopes it was given, and none by default",
+        all(identities[name].get("scopes", []) == scopes for name, scopes in grants.items())
+        and len({identities[name]["identity_id"] for name in grants}) == 3,
+        {name: identities[name].get("scopes", []) for name in grants},
+    )
+
+    def view(name, path):
+        return summarize(*http("GET", path, token=tokens[name]))
+
+    sponsor = {path: summarize(*http("GET", path, token=token)) for path in ("/api/v2/workspaces", "/api/v2/templates")}
+    report.info(f"the sponsor sees {len(sponsor['/api/v2/workspaces'])} workspaces and {len(sponsor['/api/v2/templates'])} templates")
+
+    none = {
+        "users/me": view("perm-none", "/api/v2/users/me"),
+        "workspaces": view("perm-none", "/api/v2/workspaces"),
+        "templates": view("perm-none", "/api/v2/templates"),
+        "its own workspace": view("perm-none", f"/api/v2/workspaces/{dev['id']}"),
+        "organizations": view("perm-none", "/api/v2/organizations"),
+        "sponsor's Git SSH key": view("perm-none", "/api/v2/workspaceagents/me/gitsshkey"),
+    }
+    report.check(
+        "F2", "a workload without scopes can see nothing in Coder and gets none of its sponsor's credentials",
+        none == {"users/me": 404, "workspaces": [], "templates": [], "its own workspace": 404,
+                 "organizations": [], "sponsor's Git SSH key": 403},
+        none,
+    )
+    templates_only = (view("perm-templates", "/api/v2/templates"), view("perm-templates", "/api/v2/workspaces"))
+    report.check(
+        "F3", "with template:read a workload lists its sponsor's templates, and still no workspaces",
+        templates_only == (sponsor["/api/v2/templates"], []) and sponsor["/api/v2/templates"],
+        f"templates={len(templates_only[0]) if isinstance(templates_only[0], list) else templates_only[0]} workspaces={templates_only[1]}",
+    )
+    reader = (view("perm-reader", "/api/v2/workspaces"), view("perm-reader", "/api/v2/templates"))
+    report.check(
+        "F4", "with workspace:read and template:read a workload lists exactly the workspaces its sponsor can see",
+        reader == (sponsor["/api/v2/workspaces"], sponsor["/api/v2/templates"]) and dev["id"] in reader[0],
+        f"workspaces={len(reader[0]) if isinstance(reader[0], list) else reader[0]} (sponsor sees {len(sponsor['/api/v2/workspaces'])})",
+    )
+    out = coder("run", WORKSPACE, "--name", "perm-cli", "--scope", "workspace:read", "--scope", "template:read",
+                "--timeout", "6m", "--", "coder", "list", timeout=420)
+    report.check(
+        "F5", "`coder list` inside such a workload works without a login, using the workload's own identity",
+        out.returncode == 0 and WORKSPACE in out.stdout, [line for line in out.stdout.splitlines() if WORKSPACE in line][:2],
+    )
+    writes = {
+        "change the workspace's autostart": http("PUT", f"/api/v2/workspaces/{dev['id']}/autostart", token=tokens["perm-reader"], body={"schedule": ""})[0],
+        "run another workload": http("POST", f"/api/v2/workspaces/{dev['id']}/workloads", token=tokens["perm-reader"], body={"name": "spawned"})[0],
+        "remove a workload": http("DELETE", f"/api/v2/workspaces/{dev['id']}/workloads/{identities['perm-none']['agent_id']}", token=tokens["perm-reader"])[0],
+        "read the sponsor's API keys": http("GET", "/api/v2/users/me/keys", token=tokens["perm-reader"])[0],
+    }
+    report.check(
+        "F6", "read scopes do not allow writes, and a workload cannot run or remove workloads",
+        all(status >= 400 for status in writes.values()) and not any(w["name"] == "spawned" for w in workloads()), writes,
+    )
+    out = coder("run", WORKSPACE, "--scope", "workspace:fly", "--", "true")
+    report.check("F7", "an unknown scope is refused", out.returncode != 0 and "not a scope" in out.stderr,
+                 out.stderr.strip().splitlines()[-2:-1])
+    if OTHER_WORKSPACE:
+        out = coder("run", OTHER_WORKSPACE, "--", "true")
+        report.check(
+            "F8", "nobody but the owner can run a workload in a workspace, not even an administrator",
+            out.returncode != 0 and "Only the owner" in out.stderr, out.stderr.strip().splitlines()[-1:],
+        )
+    else:
+        report.info("F8 skipped: set OTHER_WORKSPACE to a running workspace from this template that another user owns")
+    coder("run", "--remove", "perm-reader", WORKSPACE)
+    status, _ = http("GET", "/api/v2/workspaces", token=tokens["perm-reader"])
+    report.check("F9", "removing a workload revokes its access to the user API at once", status == 401, f"workspaces -> {status}")
+    for name in ("perm-none", "perm-templates", "perm-cli"):
+        coder("run", "--remove", name, WORKSPACE)
 
 
 def check_plain_workspace(report, operator):

@@ -13,14 +13,15 @@ Every check in [validate.py](validate.py) passed.
 | 1   | 47 of 49 | Both failures were bugs in the validation script, not the system. This run included the ten-minute token expiry and rotation check (D6), which passed. |
 | 2   | 48 of 48 | Fixed script. D6 was skipped, since it is opt-in (`--rotation`).                                                                                       |
 | 3   | 48 of 48 | The template, operator manifest and script exactly as committed in this directory. D6 skipped.                                                         |
+| 4   | 57 of 57 | After adding workload identities, sponsors and scopes. Adds the nine permission checks (F). D6 skipped.                                                |
 
-Token handling did not change after run 1, so D6 was not repeated.
+Pod token verification did not change after run 1, so D6 was not repeated.
 
 Go tests on the branch pass: `coderd/x/workloads` (token verification and the
 registry), `cli/workloadoperator` (pod cloning and the reconcile plan), and
 `coderd` `TestRuntimeWorkloads` and `TestRuntimeWorkloadsDisabled` (the whole
 flow against a test coderd, with a test standing in for the cluster and the
-operator).
+operator, including sponsors, scopes and the owner-only rule).
 
 ## What the checks show
 
@@ -60,6 +61,17 @@ starting it restores only what the template declares.
 read Deployments in its namespace. It cannot read Secrets, exec into pods, or
 see other namespaces. Nothing in the namespace is bound to a cluster role.
 
+**F. Permissions (9 checks).** Each workload has its own identity record
+with the scopes it was given, and none by default. Without scopes a workload
+sees no workspaces, templates or organizations, cannot read its own
+workspace, and is refused its sponsor's Git SSH key. With `template:read` it
+lists its sponsor's templates and still no workspaces. With `workspace:read`
+and `template:read` it lists exactly the workspaces its sponsor can see, and
+`coder list` works inside it without a login. Read scopes do not allow
+writes, and a workload cannot run or remove workloads. An administrator who
+does not own a workspace cannot run a workload in it. Removing a workload
+revokes its API access at once.
+
 ## Limits
 
 - **A copied pod token works from elsewhere** until it expires (at most ten
@@ -67,9 +79,19 @@ see other namespaces. Nothing in the namespace is bound to a cluster role.
   NAT address here, so it cannot bind a token to its source.
 - **Any process in a workload pod shares that pod's identity**, as with any
   workspace daemon.
-- **Permissions are unchanged.** A runtime daemon is authorized like any
-  agent of the workspace: with the owner's permissions. That includes the
-  owner's Git credentials, which was deferred.
+- **Scopes are coarse.** They are API token scopes, so they limit the kind
+  of action and not the object: `workspace:read` covers every workspace the
+  sponsor can read. Scopes cannot be changed after `coder run`.
+- **No Git credentials at all.** A workload no longer receives its sponsor's
+  Git SSH key or external auth tokens, and there is no scope that grants
+  them yet.
+- **A sponsor with broad permissions sponsors broad workloads.** A scope on
+  an administrator's workload covers everything the administrator can do
+  with it.
+- **Nothing is audited as the workload.** On the API a workload's requests
+  are recorded as its sponsor's.
+- **Identities of stopped workspaces are not revoked in the database.** They
+  stop working because their daemon's record is deleted with the build.
 - **The operator and the namespace's administrators are trusted.** The
   operator can vouch for any pod in its namespace. Anyone who can mint
   service account tokens or exec into pods there can act as a workload.
