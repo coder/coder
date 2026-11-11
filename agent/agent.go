@@ -1631,8 +1631,11 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 // config file is modified. Entries are appended after any GIT_CONFIG_COUNT
 // already set by the user or template. Requires git 2.31 or newer.
 func appendGitSigningConfig(envs map[string]string, signingProgram, publicKey string) {
-	// An unparsable count is replaced, since git rejects it anyway.
-	n, _ := strconv.Atoi(envs["GIT_CONFIG_COUNT"])
+	// An unparsable or negative count is replaced, since git rejects it anyway.
+	n := 0
+	if count, err := strconv.Atoi(envs["GIT_CONFIG_COUNT"]); err == nil && count > 0 {
+		n = count
+	}
 	for _, kv := range [][2]string{
 		{"commit.gpgsign", "true"},
 		{"tag.gpgsign", "true"},
