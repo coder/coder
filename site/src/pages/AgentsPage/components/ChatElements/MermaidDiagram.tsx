@@ -130,10 +130,10 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 
 	if (state.status === "error") {
 		return (
-			<div className="my-4 overflow-hidden rounded-md border border-solid border-border">
+			<div className="my-4 overflow-hidden rounded-md border border-solid">
 				<div
 					role="alert"
-					className="flex items-start gap-2 border-0 border-b border-solid border-border bg-surface-orange px-3 py-2 text-xs text-content-warning"
+					className="flex items-start gap-2 border-0 border-b border-solid bg-surface-orange px-3 py-2 text-xs text-content-warning"
 				>
 					<TriangleAlertIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
 					<div className="min-w-0">
@@ -152,7 +152,7 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 		return (
 			<div
 				role="status"
-				className="my-4 flex min-h-40 items-center justify-center gap-2 rounded-md border border-solid border-border bg-surface-primary text-xs text-content-secondary"
+				className="my-4 flex min-h-40 items-center justify-center gap-2 rounded-md border border-solid bg-surface-primary text-xs text-content-secondary"
 			>
 				<Spinner loading size="sm" />
 				Rendering diagram
@@ -178,14 +178,14 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 						>
 							<div
 								style={{ width: fittedWidth(state.svg) }}
-								className="max-h-[85vh] max-w-[90vw] overflow-auto rounded-md border border-solid border-border bg-surface-primary p-6 [&>svg]:block [&>svg]:h-auto [&>svg]:w-full [&>svg]:max-w-none!"
+								className="max-h-[85vh] max-w-[90vw] overflow-auto rounded-md border border-solid bg-surface-primary p-6 [&>svg]:block [&>svg]:h-auto [&>svg]:w-full [&>svg]:max-w-none!"
 								// oxlint-disable-next-line react/no-danger -- DOMPurify sanitizes the SVG.
 								dangerouslySetInnerHTML={{ __html: state.svg }}
 							/>
 						</Lightbox>
 					))
 				}
-				className="group relative my-4 block w-full cursor-zoom-in overflow-x-auto rounded-md border border-solid border-border bg-surface-primary p-4 text-left hover:border-border-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-content-link"
+				className="group relative my-4 block w-full cursor-zoom-in overflow-x-auto rounded-md border border-solid bg-surface-primary p-4 text-left hover:border-border-secondary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-content-link"
 			>
 				<span
 					className="block [&>svg]:mx-auto [&>svg]:block [&>svg]:h-auto [&>svg]:max-w-full"
@@ -196,7 +196,7 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 				/>
 				<span
 					aria-hidden
-					className="absolute right-2 top-2 rounded-md border border-solid border-border bg-surface-secondary p-1 text-content-secondary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+					className="absolute right-2 top-2 rounded-md border border-solid bg-surface-secondary p-1 text-content-secondary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
 				>
 					<Maximize2Icon className="size-3.5" />
 				</span>
