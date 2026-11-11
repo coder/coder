@@ -1,7 +1,9 @@
 package database_test
 
 import (
+	"context"
 	"database/sql"
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -325,6 +327,12 @@ func TestChatAutomationOrganizationTrigger(t *testing.T) {
 		schedule.ID, other.org.ID, other.model.ID)
 	requireCheckViolation(t, err, projectConstraint)
 
+	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_automations SET project_id = NULL, created_by_chat_id = $2 WHERE id = $1`, schedule.ID, o.chat.ID)
+	require.NoError(t, err)
+	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_automations SET organization_id = $2, new_chat_model_config_id = $3 WHERE id = $1`,
+		schedule.ID, other.org.ID, other.model.ID)
+	requireCheckViolation(t, err, chatConstraint)
+
 	// Moving the automation together with its references is accepted.
 	_, err = sqlDB.ExecContext(ctx, `UPDATE chat_automations SET organization_id = $2, target_chat_id = $3 WHERE id = $1`,
 		webhook.ID, other.org.ID, other.chat.ID)
@@ -400,8 +408,7 @@ func TestChatAutomationCascadesAndProvenance(t *testing.T) {
 	t.Parallel()
 
 	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-	ctx := testutil.Context(t, testutil.WaitLong)
-	requireGone := func(id uuid.UUID) {
+	requireGone := func(ctx context.Context, t *testing.T, id uuid.UUID) {
 		t.Helper()
 		_, err := db.GetChatAutomationByID(ctx, id)
 		require.ErrorIs(t, err, sql.ErrNoRows)
@@ -409,48 +416,67 @@ func TestChatAutomationCascadesAndProvenance(t *testing.T) {
 
 	t.Run("Owner", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		org := dbgen.Organization(t, db, database.Organization{})
 		owner := dbgen.User(t, db, database.User{})
 		automation := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: owner.ID})
-		// Coder soft-deletes users. A hard delete needs the status
-		// history gone first.
+		// A hard delete needs the status history gone first.
 		_, err := sqlDB.ExecContext(ctx, `DELETE FROM user_status_changes WHERE user_id = $1`, owner.ID)
 		require.NoError(t, err)
 		_, err = sqlDB.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, owner.ID)
 		require.NoError(t, err)
-		requireGone(automation.ID)
+		requireGone(ctx, t, automation.ID)
+	})
+
+	// Coder soft-deletes users, so the foreign key never cascades. The
+	// user cleanup trigger deletes the automations instead.
+	t.Run("SoftDeletedOwner", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		org := dbgen.Organization(t, db, database.Organization{})
+		owner := dbgen.User(t, db, database.User{})
+		other := dbgen.User(t, db, database.User{})
+		automation := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: owner.ID})
+		kept := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: other.ID})
+		require.NoError(t, db.UpdateUserDeletedByID(ctx, owner.ID))
+		requireGone(ctx, t, automation.ID)
+		_, err := db.GetChatAutomationByID(ctx, kept.ID)
+		require.NoError(t, err, "the automation of another user stays")
 	})
 
 	t.Run("Organization", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		org := dbgen.Organization(t, db, database.Organization{})
 		owner := dbgen.User(t, db, database.User{})
 		automation := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: owner.ID})
 		_, err := sqlDB.ExecContext(ctx, `DELETE FROM organizations WHERE id = $1`, org.ID)
 		require.NoError(t, err)
-		requireGone(automation.ID)
+		requireGone(ctx, t, automation.ID)
 	})
 
 	t.Run("Provenance", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
 		o := newChatAutomationOrg(t, db, dbgen.User(t, db, database.User{}))
 		automation := dbgen.ChatAutomation(t, db, database.ChatAutomation{
 			OrganizationID: o.org.ID, OwnerID: o.user.ID, TargetChatID: nullUUID(o.chat.ID),
 		})
 		inputID := uuid.New()
+		_, err := sqlDB.ExecContext(ctx, `UPDATE chats SET automation_id = $2 WHERE id = $1`, o.chat.ID, automation.ID)
+		require.NoError(t, err)
 		for _, q := range []string{
-			`UPDATE chats SET automation_id = $2 WHERE id = $1 AND $3::uuid IS NOT NULL`,
 			`INSERT INTO chat_messages (chat_id, role, content_version, automation_id, input_id, prompt_hooks_pending)
 				VALUES ($1, 'user', 1, $2, $3, true)`,
 			`INSERT INTO chat_queued_messages (chat_id, content, created_by, automation_id, input_id, prompt_hooks_pending)
 				SELECT id, '[]', owner_id, $2, $3, true FROM chats WHERE id = $1`,
 		} {
-			_, err := sqlDB.ExecContext(ctx, q, o.chat.ID, automation.ID, inputID)
+			_, err = sqlDB.ExecContext(ctx, q, o.chat.ID, automation.ID, inputID)
 			require.NoError(t, err, q)
 		}
 
 		require.NoError(t, db.DeleteChatAutomationByID(ctx, automation.ID))
-		requireGone(automation.ID)
+		requireGone(ctx, t, automation.ID)
 
 		for _, table := range []string{"chat_messages", "chat_queued_messages"} {
 			var gotAutomation, gotInput uuid.UUID
@@ -681,8 +707,27 @@ func TestChatAutomationColumnsOnChats(t *testing.T) {
 		ID: o.chat.ID, Title: "renamed", TitleSource: database.ChatTitleSourceUser,
 	})
 	requireColumns("UpdateChatTitleByID", chat, err)
+	chat, err = db.UpdateChatLabelsByID(ctx, database.UpdateChatLabelsByIDParams{ID: o.chat.ID, Labels: json.RawMessage(`{}`)})
+	requireColumns("UpdateChatLabelsByID", chat, err)
+	chat, err = db.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{ID: o.chat.ID, LastModelConfigID: o.model.ID})
+	requireColumns("UpdateChatLastModelConfigByID", chat, err)
+	chat, err = db.UpdateChatMCPServerIDs(ctx, database.UpdateChatMCPServerIDsParams{ID: o.chat.ID, MCPServerIDs: []uuid.UUID{}})
+	requireColumns("UpdateChatMCPServerIDs", chat, err)
+	chat, err = db.UpdateChatPlanModeByID(ctx, database.UpdateChatPlanModeByIDParams{ID: o.chat.ID})
+	requireColumns("UpdateChatPlanModeByID", chat, err)
+	chat, err = db.UpdateChatRetryState(ctx, database.UpdateChatRetryStateParams{ID: o.chat.ID, RetryState: json.RawMessage(`{}`)})
+	requireColumns("UpdateChatRetryState", chat, err)
+	chat, err = db.UpdateChatBuildAgentBinding(ctx, database.UpdateChatBuildAgentBindingParams{ID: o.chat.ID})
+	requireColumns("UpdateChatBuildAgentBinding", chat, err)
+	chat, err = db.UpdateChatWorkspaceBinding(ctx, database.UpdateChatWorkspaceBindingParams{ID: o.chat.ID})
+	requireColumns("UpdateChatWorkspaceBinding", chat, err)
+	chat, err = db.UpdateChatStatus(ctx, database.UpdateChatStatusParams{ID: o.chat.ID, Status: database.ChatStatusWaiting})
+	requireColumns("UpdateChatStatus", chat, err)
+	chat, err = db.UpdateChatExecutionState(ctx, database.UpdateChatExecutionStateParams{ID: o.chat.ID, Status: database.ChatStatusWaiting})
+	requireColumns("UpdateChatExecutionState", chat, err)
 
-	// GetAuthorizedChats scans its rows by hand.
+	// GetAuthorizedChats and GetAuthorizedChatsByChatFileID scan their rows
+	// by hand.
 	subject, _, err := httpmw.UserRBACSubject(ctx, db, user.ID, rbac.ExpandableScope(rbac.ScopeAll))
 	require.NoError(t, err)
 	prepared, err := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()).
@@ -692,4 +737,15 @@ func TestChatAutomationColumnsOnChats(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	requireColumns("GetAuthorizedChats", rows[0].Chat, nil)
+
+	file, err := db.InsertChatFile(ctx, database.InsertChatFileParams{
+		OwnerID: user.ID, OrganizationID: o.org.ID, Name: "notes.txt", Mimetype: "text/plain", Data: []byte("notes"),
+	})
+	require.NoError(t, err)
+	_, err = db.LinkChatFilesAfterLock(ctx, database.LinkChatFilesAfterLockParams{
+		ChatID: o.chat.ID, FileIds: []uuid.UUID{file.ID}, MaxFileLinks: 1,
+	})
+	require.NoError(t, err)
+	chat, err = first(db.GetAuthorizedChatsByChatFileID(ctx, file.ID, prepared))
+	requireColumns("GetAuthorizedChatsByChatFileID", chat, err)
 }

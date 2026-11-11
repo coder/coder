@@ -377,8 +377,11 @@ func TestChatAutomationAuthorization(t *testing.T) {
 		requireDenied(t, err)
 		requireDenied(t, db.DeleteChatAutomationByID(ctx, memberAutomation.ID))
 
+		// The insert above stops at the owner check, so ask RBAC directly.
 		subject, ok := dbauthz.ActorFromContext(ctx)
 		require.True(t, ok)
+		require.Error(t, authorizer.Authorize(ctx, subject, policy.ActionCreate, memberAutomation.RBACObject()),
+			"chatd creates no automation")
 		require.NoError(t, authorizer.Authorize(ctx, subject, policy.ActionUpdate, memberAutomation.RBACObject()),
 			"chatd updates the next run time and the last run")
 	})

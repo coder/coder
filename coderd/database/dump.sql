@@ -1077,6 +1077,12 @@ BEGIN
         -- does not remove the users row so the FK cascade never fires.
         DELETE FROM skills
         WHERE user_id = OLD.id;
+
+        -- Remove their chat automations and the webhook secrets in them.
+        -- chat_automations.owner_id has ON DELETE CASCADE, but soft-delete
+        -- does not remove the users row so the FK cascade never fires.
+        DELETE FROM chat_automations
+        WHERE owner_id = OLD.id;
     END IF;
     RETURN NEW;
 END;

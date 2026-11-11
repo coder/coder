@@ -53,7 +53,6 @@ func TestChatAutomationResource(t *testing.T) {
 		ID:             uuid.UUID{1},
 		OrganizationID: uuid.UUID{2},
 		Name:           "ci-failures",
-		Prompt:         "confidential prompt",
 	}
 	require.Equal(t, "ci-failures", audit.ResourceTarget(automation))
 	require.Equal(t, automation.ID, audit.ResourceID(automation))

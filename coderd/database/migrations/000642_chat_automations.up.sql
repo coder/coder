@@ -173,13 +173,67 @@ CREATE TRIGGER trigger_enforce_chat_automation_organization
     FOR EACH ROW EXECUTE FUNCTION enforce_chat_automation_organization();
 
 CREATE INDEX chat_automations_org_owner_idx ON chat_automations (organization_id, owner_id);
--- Serves the per-user count across organizations and the users cascade.
+-- Serves the per-user count across organizations and the cleanup when a
+-- user is deleted.
 CREATE INDEX chat_automations_owner_id_idx ON chat_automations (owner_id);
 CREATE INDEX chat_automations_due_idx ON chat_automations (schedule_next_run_at) WHERE kind = 'schedule' AND enabled;
 -- Chat and project deletion enforce ON DELETE SET NULL through these columns.
 CREATE INDEX chat_automations_target_chat_id_idx ON chat_automations (target_chat_id) WHERE target_chat_id IS NOT NULL;
 CREATE INDEX chat_automations_created_by_chat_id_idx ON chat_automations (created_by_chat_id) WHERE created_by_chat_id IS NOT NULL;
 CREATE INDEX chat_automations_project_id_idx ON chat_automations (project_id) WHERE project_id IS NOT NULL;
+
+-- Coder soft-deletes users, so the cascade on owner_id never fires. Delete a
+-- deleted user's automations here, like their other personal resources.
+CREATE OR REPLACE FUNCTION delete_deleted_user_resources() RETURNS trigger
+    LANGUAGE plpgsql
+AS $$
+DECLARE
+BEGIN
+    IF (NEW.deleted) THEN
+        -- Remove their api_keys.
+        DELETE FROM api_keys
+        WHERE user_id = OLD.id;
+
+        -- Remove their user_links.
+        -- Their login_type is preserved in the users table.
+        -- Matching this user back to the link can still be done by their
+        -- email if the account is undeleted. Although that is not a guarantee.
+        DELETE FROM user_links
+        WHERE user_id = OLD.id;
+
+        -- Remove their user_secrets.
+        -- user_secrets.user_id has ON DELETE CASCADE, but soft-delete
+        -- does not remove the users row so the FK cascade never fires.
+        DELETE FROM user_secrets
+        WHERE user_id = OLD.id;
+
+        -- Remove their user AI provider keys.
+        -- user_ai_provider_keys.user_id has ON DELETE CASCADE, but soft-delete
+        -- does not remove the users row so the FK cascade never fires.
+        DELETE FROM user_ai_provider_keys
+        WHERE user_id = OLD.id;
+
+        -- Remove their organization memberships.
+        -- This also triggers group membership cleanup via
+        -- trigger_delete_group_members_on_org_member_delete.
+        DELETE FROM organization_members
+        WHERE user_id = OLD.id;
+
+        -- Remove their personal skills.
+        -- skills.user_id has ON DELETE CASCADE, but soft-delete
+        -- does not remove the users row so the FK cascade never fires.
+        DELETE FROM skills
+        WHERE user_id = OLD.id;
+
+        -- Remove their chat automations and the webhook secrets in them.
+        -- chat_automations.owner_id has ON DELETE CASCADE, but soft-delete
+        -- does not remove the users row so the FK cascade never fires.
+        DELETE FROM chat_automations
+        WHERE owner_id = OLD.id;
+    END IF;
+    RETURN NEW;
+END;
+$$;
 
 -- Provenance columns have no foreign key to chat_automations: provenance
 -- stays after the automation is deleted.

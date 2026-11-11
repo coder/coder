@@ -233,8 +233,9 @@ func workspaceSecretUserActions() []policy.Action {
 }
 
 // chatAutomationAdminActions are the actions that administrators hold on
-// chat automations they do not own. Create is member-level only, so nobody
-// can create an automation that runs as another user.
+// chat automations they do not own. Administrators get no create, because
+// an automation runs as its owner. dbauthz also rejects an insert whose
+// owner is not the actor.
 func chatAutomationAdminActions() []policy.Action {
 	return slice.Omit(ResourceChatAutomation.AvailableActions(), policy.ActionCreate)
 }
