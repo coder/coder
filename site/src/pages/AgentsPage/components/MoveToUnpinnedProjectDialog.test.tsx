@@ -293,79 +293,101 @@ describe("MoveToUnpinnedProjectDialog", () => {
 		},
 	);
 
-	it("leaves a superseded move's project out of the dialog", async () => {
-		const first = createDeferred<undefined>();
-		vi.spyOn(API.experimental, "updateChat").mockImplementation((_id, req) =>
-			req.project_id === MockChatProject.id
-				? first.promise
-				: Promise.resolve(undefined),
-		);
-		const queryClient = createTestQueryClient();
-		queryClient.setDefaultOptions({
-			queries: { gcTime: Number.POSITIVE_INFINITY },
-		});
-		queryClient.setQueryData(chatEntityKey(MockChat.id), MockChat);
-		queryClient.setQueryData(chatProjectSummariesKey, [
-			{ ...MockChatProjectSummary, pinned: false, pin_order: 0 },
-			{
-				...MockChatProjectSummary,
-				project: { ...MockChatProject, id: "later-project", name: "Later" },
-				pinned: false,
-				pin_order: 0,
-			},
-		]);
-		// Two menu instances, as when the top bar menu is reopened mid-move.
-		const TwoMoves: React.FC = () => {
-			const toFirst = useMoveChatToProject();
-			const toLater = useMoveChatToProject();
-			return (
-				<>
-					<button
-						type="button"
-						onClick={() =>
-							toFirst.mutate({
-								chatId: MockChat.id,
-								projectId: MockChatProject.id,
-							})
-						}
-					>
-						Move first
-					</button>
-					<button
-						type="button"
-						onClick={() =>
-							toLater.mutate({
-								chatId: MockChat.id,
-								projectId: "later-project",
-							})
-						}
-					>
-						Move later
-					</button>
-				</>
+	it.each([{ summariesCached: true }, { summariesCached: false }])(
+		"leaves a superseded move's project out of the dialog (%o)",
+		async ({ summariesCached }) => {
+			const first = createDeferred<undefined>();
+			vi.spyOn(API.experimental, "updateChat").mockImplementation((_id, req) =>
+				req.project_id === MockChatProject.id
+					? first.promise
+					: Promise.resolve(undefined),
 			);
-		};
-		render(
-			<QueryClientProvider client={queryClient}>
-				<MemoryRouter>
-					<MoveToUnpinnedProjectDialogProvider>
-						<TwoMoves />
-					</MoveToUnpinnedProjectDialogProvider>
-				</MemoryRouter>
-			</QueryClientProvider>,
-		);
-		const user = userEvent.setup();
-		await user.click(screen.getByRole("button", { name: "Move first" }));
-		await user.click(screen.getByRole("button", { name: "Move later" }));
-		first.resolve(undefined);
-		await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+			const queryClient = createTestQueryClient();
+			queryClient.setDefaultOptions({
+				queries: { gcTime: Number.POSITIVE_INFINITY },
+			});
+			queryClient.setQueryData(chatEntityKey(MockChat.id), MockChat);
+			const summaries = [
+				{ ...MockChatProjectSummary, pinned: false, pin_order: 0 },
+				{
+					...MockChatProjectSummary,
+					project: { ...MockChatProject, id: "later-project", name: "Later" },
+					pinned: false,
+					pin_order: 0,
+				},
+			];
+			const summariesLoad = createDeferred<typeof summaries>();
+			if (summariesCached) {
+				queryClient.setQueryData(chatProjectSummariesKey, summaries);
+			} else {
+				vi.spyOn(API.experimental, "getChatProjectSummaries").mockReturnValue(
+					summariesLoad.promise,
+				);
+			}
+			// Two menu instances, as when the top bar menu is reopened mid-move.
+			const TwoMoves: React.FC = () => {
+				const toFirst = useMoveChatToProject();
+				const toLater = useMoveChatToProject();
+				return (
+					<>
+						<button
+							type="button"
+							onClick={() =>
+								toFirst.mutate({
+									chatId: MockChat.id,
+									projectId: MockChatProject.id,
+								})
+							}
+						>
+							Move first
+						</button>
+						<button
+							type="button"
+							onClick={() =>
+								toLater.mutate({
+									chatId: MockChat.id,
+									projectId: "later-project",
+								})
+							}
+						>
+							Move later
+						</button>
+					</>
+				);
+			};
+			render(
+				<QueryClientProvider client={queryClient}>
+					<MemoryRouter>
+						<MoveToUnpinnedProjectDialogProvider>
+							<TwoMoves />
+						</MoveToUnpinnedProjectDialogProvider>
+					</MemoryRouter>
+				</QueryClientProvider>,
+			);
+			const user = userEvent.setup();
+			await user.click(screen.getByRole("button", { name: "Move first" }));
+			if (summariesCached) {
+				await user.click(screen.getByRole("button", { name: "Move later" }));
+				first.resolve(undefined);
+			} else {
+				// The later move starts while the first move's summaries load.
+				first.resolve(undefined);
+				await waitFor(() =>
+					expect(API.experimental.getChatProjectSummaries).toHaveBeenCalled(),
+				);
+				await user.click(screen.getByRole("button", { name: "Move later" }));
+				summariesLoad.resolve(summaries);
+			}
+			await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+			await waitFor(() => expect(queryClient.isFetching()).toBe(0));
 
-		expect(
-			screen.queryByRole("dialog", {
-				name: `Chat moved to ${MockChatProject.name}`,
-			}),
-		).toBeNull();
-	});
+			expect(
+				screen.queryByRole("dialog", {
+					name: `Chat moved to ${MockChatProject.name}`,
+				}),
+			).toBeNull();
+		},
+	);
 
 	it.each([
 		{ chatPinned: true, projectPinned: false },

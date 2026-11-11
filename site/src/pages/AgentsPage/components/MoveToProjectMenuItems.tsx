@@ -43,15 +43,24 @@ export const useMoveChatToProject = () => {
 		// Summaries that are not cached yet are fetched first, so the dialog can
 		// still open; only a failed fetch skips it.
 		onSuccess: (_data, { chatId, projectId }, context) => {
-			// A later move of the same chat already owns the dialog decision.
-			const current =
-				findChatInListCaches(queryClient, chatId) ??
-				queryClient.getQueryData<Chat>(chatEntityKey(chatId));
-			if (current && (current.project_id ?? null) !== projectId) {
+			// A later move of the same chat owns the dialog decision, even one
+			// made while the summaries load.
+			const superseded = () => {
+				const current =
+					findChatInListCaches(queryClient, chatId) ??
+					queryClient.getQueryData<Chat>(chatEntityKey(chatId));
+				return (
+					current !== undefined && (current.project_id ?? null) !== projectId
+				);
+			};
+			if (superseded()) {
 				return;
 			}
 			void queryClient.ensureQueryData(chatProjectSummaries()).then(
 				(summaries) => {
+					if (superseded()) {
+						return;
+					}
 					const summary = summaries.find((s) => s.project.id === projectId);
 					const previous = context?.previousProjectId
 						? summaries.find((s) => s.project.id === context.previousProjectId)
