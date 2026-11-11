@@ -27,7 +27,7 @@ import {
 	chatListFamilyKey,
 	chatMessagesKey,
 	chatSearchFamilyKey,
-	chatsByWorkspaceKey,
+	chatsByWorkspace,
 } from "./chats";
 
 describe("chatProject", () => {
@@ -121,7 +121,7 @@ describe("chat project mutations", () => {
 		];
 		for (const { run, before, after } of cases) {
 			const queryClient = seed();
-			const byWorkspaceKey = chatsByWorkspaceKey(["workspace-1"]);
+			const byWorkspaceKey = chatsByWorkspace(["workspace-1"]).queryKey;
 			queryClient.setQueryData(byWorkspaceKey, {});
 			queryClient.setQueryData(chatProjectsKey, before.active);
 			queryClient.setQueryData(archivedChatProjectsKey, before.archived);

@@ -1,8 +1,9 @@
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import type {
+	Chat,
 	ChatProjectArchivePreview,
 	Workspace,
 } from "#/api/typesGenerated";
@@ -127,6 +128,74 @@ describe("ArchiveProjectDialog", () => {
 			expect(API.experimental.getChats).toHaveBeenCalledTimes(1);
 		},
 	);
+
+	it("lists the workspaces behind the user's chats and labels the ones that predate them", async () => {
+		const mockExistingWorkspace: Workspace = {
+			...mockWorkspace("existing"),
+			created_at: "2026-09-01T00:00:00Z",
+		};
+		const mockSharedWorkspace = mockWorkspace("shared");
+		const mockSubagentWorkspace = mockWorkspace("subagent");
+		mockApi({
+			workspaces: [
+				mockExistingWorkspace,
+				mockSharedWorkspace,
+				mockSubagentWorkspace,
+			],
+		});
+		const mockProjectChat = (
+			id: string,
+			createdAt: string,
+			workspaceId: string,
+			children: Chat[] = [],
+		): Chat => ({
+			...MockChat,
+			id,
+			created_at: createdAt,
+			project_id: MockChatProject.id,
+			workspace_id: workspaceId,
+			children,
+		});
+		// Newest first, like the API. The shared workspace appeared after
+		// the older chat that uses it, so a chat created it.
+		vi.mocked(API.experimental.getChats).mockResolvedValue([
+			mockProjectChat("newest", "2026-10-05T00:00:00Z", mockSharedWorkspace.id),
+			mockProjectChat("older", chatCreatedAt, mockSharedWorkspace.id, [
+				mockProjectChat("subagent", chatCreatedAt, mockSubagentWorkspace.id),
+			]),
+			mockProjectChat("existing", chatCreatedAt, mockExistingWorkspace.id),
+			mockProjectChat("deleted", chatCreatedAt, "deleted"),
+		]);
+		const workspaces = [
+			mockExistingWorkspace,
+			mockSharedWorkspace,
+			mockSubagentWorkspace,
+		];
+		vi.mocked(API.getWorkspace).mockImplementation(async (id) => {
+			const found = workspaces.find((ws) => ws.id === id);
+			if (!found) {
+				throw {
+					isAxiosError: true,
+					response: { status: 404, data: { message: "Workspace not found" } },
+				};
+			}
+			return found;
+		});
+		await renderDialog();
+
+		const items = await screen.findAllByRole("listitem");
+		expect(
+			items.map((item) => ({
+				name: item.textContent?.replace("Existing workspace", ""),
+				existedBeforeChat:
+					within(item).queryByText("Existing workspace") !== null,
+			})),
+		).toEqual([
+			{ name: "existing", existedBeforeChat: true },
+			{ name: "shared", existedBeforeChat: false },
+			{ name: "subagent", existedBeforeChat: false },
+		]);
+	});
 
 	it("asks to stop a chat that started after the preview loaded", async () => {
 		const user = userEvent.setup();

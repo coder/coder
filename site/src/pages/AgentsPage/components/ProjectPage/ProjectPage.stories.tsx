@@ -6,8 +6,8 @@ import {
 	chatProjectInstructionsKey,
 } from "#/api/queries/chatProjects";
 import {
-	archivedProjectChatsKey,
 	chatCostTreeKey,
+	projectChats,
 	projectChatsKey,
 } from "#/api/queries/chats";
 import type { Chat, ChatProjectACL } from "#/api/typesGenerated";
@@ -250,7 +250,7 @@ export const ChatMovedToAnotherProject: Story = {
 
 const archivedQueries = [
 	{
-		key: archivedProjectChatsKey(MockChatProject.id),
+		key: projectChats(MockChatProject.id, true).queryKey,
 		data: {
 			pages: [
 				[

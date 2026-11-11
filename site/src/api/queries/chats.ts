@@ -113,7 +113,7 @@ export type ChatListInput = Readonly<{
 
 type ChatSearchParams = Readonly<{ q: string }>;
 
-export const chatsByWorkspaceKey = (workspaceIds: readonly string[]) =>
+const chatsByWorkspaceKey = (workspaceIds: readonly string[]) =>
 	[...chatsByWorkspaceFamilyKey, workspaceIds] as const;
 
 export const CHAT_LIST_PR_STATUS_ORDER = [
@@ -1541,7 +1541,7 @@ export const infiniteProjectFolderChats = (
 };
 
 /** Keyed with the archived filter like a folder list, so cache helpers match. */
-export const archivedProjectChatsKey = (projectId: string) =>
+const archivedProjectChatsKey = (projectId: string) =>
 	[...projectChatsKey(projectId), { archived: true }] as const;
 
 /** Root chats in one project with the given archived state, newest first. */
@@ -2977,10 +2977,7 @@ export const updateChatWorkspaceTTL = (queryClient: QueryClient) => ({
 	},
 });
 
-export const chatRetentionDaysKey = [
-	...chatConfigKey,
-	"retention-days",
-] as const;
+const chatRetentionDaysKey = [...chatConfigKey, "retention-days"] as const;
 
 export const chatRetentionDays = () => ({
 	queryKey: chatRetentionDaysKey,
