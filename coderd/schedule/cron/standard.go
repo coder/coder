@@ -56,7 +56,7 @@ func Standard(spec, timeZone string) (*Schedule, error) {
 	}
 	sched.wallClock = true
 
-	// Min and MinInterval would not return for a schedule without a run.
+	// Min would never return for a schedule without a run.
 	if naive := sched.naive(); naive.Next(intervalAnchor).IsZero() {
 		return nil, xerrors.Errorf("schedule %q never runs", strings.Join(fields, " "))
 	}
@@ -134,9 +134,9 @@ var intervalAnchor = time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC)
 // fall inside it, so a schedule that runs this rarely never falls below a
 // minimum interval.
 //
-// Daylight saving changes do not count: one change can make a single gap
-// shorter by up to the size of the change, because the runs of a skipped hour
-// all happen at the end of it.
+// Daylight saving changes do not count. Clocks going forward can make one gap
+// shorter by up to the size of the change: runs at 01:30 and 03:30 are two
+// hours apart on the wall clock and one hour apart on that day.
 //
 // Unlike Min, which only looks at one week from 1970-01-01, MinInterval sees
 // close runs on days that week does not contain.
