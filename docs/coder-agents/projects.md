@@ -62,7 +62,7 @@ The dialog shows how many chats will be archived and what happens next:
 - If your own chats in the project use workspaces, choose whether to leave, stop, or delete those workspaces.
   The dialog marks workspaces that existed before the chat that uses them.
   Deleting workspaces requires you to type the project name.
-  A workspace that a chat outside the project still uses is skipped.
+  A workspace that an unarchived chat outside the project still uses is skipped.
 
 Archived chats follow the deployment's [conversation data retention](./platform-controls/chat-retention.md) period.
 After that period, Coder permanently deletes them, and unarchiving the project doesn't bring them back.
@@ -77,7 +77,7 @@ You can't unarchive a single chat while its project is archived.
 Unarchive the project instead.
 
 The API equivalents are `POST /api/experimental/organizations/{organization}/chats/projects/{project}/archive` and `POST /api/experimental/organizations/{organization}/chats/projects/{project}/unarchive`.
-When chats in the project are running, the archive request returns `409 Conflict` unless its body is `{"stop_active_chats": true}`.
+When any chat in the project, or one of its subagent chats, is active (`running`, `interrupting`, `requires_action`, or `paused`), the archive request returns `409 Conflict` unless its body is `{"stop_active_chats": true}`.
 List archived projects with `GET /api/experimental/chats/projects?archived=true`.
 
 ## Add chats to a project
