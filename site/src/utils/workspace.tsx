@@ -35,6 +35,7 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
 		case "autostart":
 		case "autostop":
 		case "dormancy":
+		case "autodelete":
 			return "Coder";
 	}
 	if (legacySystemBuildReasons.includes(build.reason)) {
@@ -46,7 +47,12 @@ export const getDisplayWorkspaceBuildInitiatedBy = (
 	return undefined;
 };
 
-export const systemBuildReasons = ["autostart", "autostop", "dormancy"];
+export const systemBuildReasons = [
+	"autostart",
+	"autostop",
+	"dormancy",
+	"autodelete",
+];
 
 const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
 	// User build reasons
@@ -61,6 +67,7 @@ const buildReasonLabels: Record<TypesGen.BuildReason, string> = {
 	autostart: "Autostart",
 	autostop: "Autostop",
 	dormancy: "Dormancy",
+	autodelete: "Autodelete",
 };
 
 // Build reasons removed from the API that can still appear on retained

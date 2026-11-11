@@ -1,14 +1,26 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, userEvent } from "storybook/test";
+import { RadioGroup } from "#/components/RadioGroup/RadioGroup";
 import { TemplateCard } from "./TemplateCard";
 
 const meta: Meta<typeof TemplateCard> = {
 	title: "pages/TemplateBuilder/TemplateCard",
 	component: TemplateCard,
 	args: {
+		value: "docker",
 		onSelect: fn(),
 		detailsUrl: "https://registry.coder.com/templates/docker",
 	},
+	decorators: [
+		(Story, { args }) => (
+			<RadioGroup
+				aria-label="Base infrastructure templates"
+				value={args.selected ? args.value : ""}
+			>
+				<Story />
+			</RadioGroup>
+		),
+	],
 };
 
 export default meta;

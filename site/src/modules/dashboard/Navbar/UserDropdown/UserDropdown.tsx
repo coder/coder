@@ -85,7 +85,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
 				<button
 					type="button"
 					aria-label={indicator ? `User menu. ${indicator.label}` : "User menu"}
-					className="relative bg-transparent border-0 cursor-pointer p-0"
+					className="relative bg-transparent cursor-pointer p-0"
 				>
 					<Avatar fallback={user.username} src={user.avatar_url} size="lg" />
 					{indicator && (

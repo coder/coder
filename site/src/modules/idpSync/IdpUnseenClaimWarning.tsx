@@ -12,7 +12,7 @@ export const IdpUnseenClaimWarning: React.FC = () => {
 				<button
 					type="button"
 					aria-label="Unknown claim value"
-					className="inline-flex items-center justify-center border-0 bg-transparent p-0 text-content-warning cursor-pointer"
+					className="inline-flex items-center justify-center bg-transparent p-0 text-content-warning cursor-pointer"
 				>
 					<TriangleAlertIcon className="size-icon-xs" />
 				</button>

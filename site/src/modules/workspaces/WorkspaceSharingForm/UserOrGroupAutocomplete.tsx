@@ -24,7 +24,6 @@ type UserOrGroupAutocompleteProps = {
 	exclude: ExcludableOption[];
 	className?: string;
 	id?: string;
-	clearable?: boolean;
 	triggerAriaLabelledBy?: string;
 	triggerRef?: React.Ref<HTMLButtonElement>;
 };
@@ -45,7 +44,6 @@ export const UserOrGroupAutocomplete: React.FC<
 	exclude,
 	className = "w-80",
 	id,
-	clearable,
 	triggerAriaLabelledBy,
 	triggerRef,
 }) => {
@@ -146,7 +144,6 @@ export const UserOrGroupAutocomplete: React.FC<
 			noOptionsText="No users or groups found"
 			className={className}
 			id={id ?? "workspace-user-or-group-autocomplete"}
-			clearable={clearable}
 			triggerAriaLabelledBy={triggerAriaLabelledBy}
 			triggerRef={triggerRef}
 		/>

@@ -55,8 +55,7 @@ describe("UserDropdownContent", () => {
 	});
 
 	it("keeps focus on the version item when the pointer leaves it", async () => {
-		// The modal menu sets pointer-events: none on the body.
-		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		const user = userEvent.setup();
 		renderUserDropdownContent({ onSignOut: vi.fn() });
 		await waitForLoaderToBeRemoved();
 

@@ -32,7 +32,7 @@ const BranchCopyButton: React.FC<{ branch: string }> = ({ branch }) => {
 					type="button"
 					onClick={() => copyToClipboard(branch)}
 					aria-label={`Copy branch name: ${branch}`}
-					className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-sm border-0 bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary"
+					className="inline-flex shrink-0 cursor-pointer items-center justify-center rounded-sm bg-transparent p-0.5 text-content-secondary transition-colors hover:bg-surface-secondary hover:text-content-primary"
 				>
 					{showCopiedSuccess ? (
 						<CheckIcon className="size-3" />
@@ -119,7 +119,7 @@ export const RemoteDiffPanel: React.FC<RemoteDiffPanelProps> = ({
 		<div className="flex h-full flex-col">
 			{/* Compact PR/branch sub-header */}
 			{(pullRequestUrl || baseBranch || headBranch) && (
-				<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid border-border px-3 py-1.5">
+				<div className="flex shrink-0 items-center gap-2 border-b px-3 py-1.5">
 					<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
 						{baseBranch || headBranch ? (
 							<>

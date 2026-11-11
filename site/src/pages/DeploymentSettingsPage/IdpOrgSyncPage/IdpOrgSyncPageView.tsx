@@ -238,7 +238,10 @@ export const IdpOrgSyncPageView: React.FC<IdpSyncPageViewProps> = ({
 												placeholder="Select IdP organization"
 											/>
 										</ComboboxTrigger>
-										<ComboboxContent className="w-72">
+										<ComboboxContent
+											className="w-72"
+											label="Search IdP organizations"
+										>
 											<ComboboxInput
 												value={inputValue}
 												onValueChange={setInputValue}

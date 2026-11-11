@@ -29,7 +29,7 @@ export const WriteFileTool: React.FC<{
 	codeDiffDisplayMode: TypesGen.AgentDisplayMode;
 }> = ({ path, diff, status, isError, errorMessage, codeDiffDisplayMode }) => {
 	const theme = useTheme();
-	const isDark = theme.palette.mode === "dark";
+	const isDark = theme.mode === "dark";
 	const hasDiff = diff !== null;
 	const isRunning = status === "running";
 	const displayState = resolveAgentDisplayState(
@@ -67,7 +67,7 @@ export const WriteFileTool: React.FC<{
 				{showDiff && (
 					<ToolCall.Scrollable
 						data-testid="write-file-diff"
-						className="mt-1.5 rounded-md border border-solid border-border text-2xs"
+						className="mt-1.5 rounded-md border text-2xs"
 						viewportClassName={
 							isAgentDisplayFullyExpanded(displayState)
 								? "max-h-[80vh]"
