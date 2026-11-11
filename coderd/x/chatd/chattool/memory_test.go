@@ -2,6 +2,7 @@ package chattool_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -360,4 +362,43 @@ func TestProjectMemoryStoreConsolidateIsAtomic(t *testing.T) {
 	require.NoError(t, store.Delete(ctx, "alpha"))
 	require.ErrorIs(t, store.Delete(ctx, "alpha"), chattool.ErrMemoryNotFound)
 	require.Equal(t, []string{"delete alpha"}, takeAudited())
+}
+
+// TestProjectMemoryStoreRejectsArchivedProject checks that the memory tools
+// cannot change an archived project's memories, as a tool call still running
+// when the project is archived would try to.
+func TestProjectMemoryStoreRejectsArchivedProject(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _ := dbtestutil.NewDB(t)
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID})
+	store := chattool.NewProjectMemoryStore(db, project.ID, org.ID, user.ID, func(context.Context, database.AuditAction, database.ChatProjectMemory, database.ChatProjectMemory) {
+		t.Error("a rejected write must not be audited")
+	})
+	keep := chattool.MemoryInput{Name: "keep", Description: "Keep", Body: "Keep this."}
+	_, _, err := chattool.InsertProjectMemory(ctx, db, database.InsertChatProjectMemoryParams{
+		ProjectID: project.ID, OrganizationID: org.ID, Name: keep.Name, Description: keep.Description, Body: keep.Body, CreatedBy: user.ID,
+	})
+	require.NoError(t, err)
+	_, err = db.UpdateChatProjectArchivedAt(ctx, database.UpdateChatProjectArchivedAtParams{
+		ID:         project.ID,
+		ArchivedAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
+	})
+	require.NoError(t, err)
+
+	other := chattool.MemoryInput{Name: "other", Description: "Other", Body: "Other."}
+	_, err = store.Insert(ctx, other)
+	require.ErrorIs(t, err, chattool.ErrProjectArchived)
+	require.ErrorIs(t, store.Delete(ctx, keep.Name), chattool.ErrProjectArchived)
+	_, err = store.Consolidate(ctx, []string{keep.Name}, []chattool.MemoryInput{other})
+	require.ErrorIs(t, err, chattool.ErrProjectArchived)
+	entries, err := store.List(ctx)
+	require.NoError(t, err)
+	require.Equal(t, []chattool.MemoryIndexEntry{{Name: keep.Name, Description: keep.Description}}, entries)
+
+	response, _ := runMemoryTool(t, chattool.SaveMemory(store, project.Name), `{"name":"other","description":"Other","body":"Other."}`)
+	require.True(t, response.IsError)
+	require.Contains(t, response.Content, "archived")
 }
