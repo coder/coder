@@ -1,4 +1,4 @@
-import { createContext, useContext, useState } from "react";
+import { createContext, useContext, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { useLocation, useNavigate } from "react-router";
 import { getErrorMessage } from "#/api/errors";
@@ -7,6 +7,7 @@ import type { ChatProject } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	Dialog,
+	DialogClose,
 	DialogContent,
 	DialogDescription,
 	DialogFooter,
@@ -17,17 +18,25 @@ import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
 import { buildAgentProjectPath } from "../utils/navigation";
 
-type ShowMoveToUnpinnedProjectDialog = (project: ChatProject) => void;
+type MoveToUnpinnedProjectDialogControls = {
+	/** Opens the dialog for a chat that moved into an unpinned project. */
+	readonly show: (project: ChatProject, chatId: string) => void;
+	/**
+	 * Registers the element that takes focus when the dialog closes and the
+	 * moved chat has no actions button on screen.
+	 */
+	readonly setFocusFallback: (element: HTMLElement | null) => void;
+};
 
 const MoveToUnpinnedProjectContext = createContext<
-	ShowMoveToUnpinnedProjectDialog | undefined
+	MoveToUnpinnedProjectDialogControls | undefined
 >(undefined);
 
 /**
- * Opens the dialog that explains a chat moved into an unpinned project left
+ * Controls the dialog that explains a chat moved into an unpinned project left
  * the sidebar. Undefined outside the provider, where no dialog opens.
  */
-export const useShowMoveToUnpinnedProjectDialog = () =>
+export const useMoveToUnpinnedProjectDialog = () =>
 	useContext(MoveToUnpinnedProjectContext);
 
 /**
@@ -40,11 +49,32 @@ export const MoveToUnpinnedProjectDialogProvider: React.FC<
 	// The project stays after closing so the exit animation keeps its text.
 	const [dialog, setDialog] = useState<{
 		project?: ChatProject;
+		chatId?: string;
 		open: boolean;
 	}>({ open: false });
+	const focusFallbackRef = useRef<HTMLElement | null>(null);
+	// The menu that moved the chat often unmounts with its row, or is still
+	// closing when the move finishes, so Radix would return focus to the body.
+	const restoreFocus = (event: Event) => {
+		let target = document.querySelector<HTMLElement>(
+			`[data-chat-actions-for="${dialog.chatId}"]:not(:disabled)`,
+		);
+		if (!target) {
+			target = focusFallbackRef.current;
+		}
+		if (target?.isConnected) {
+			event.preventDefault();
+			target.focus();
+		}
+	};
 	return (
 		<MoveToUnpinnedProjectContext
-			value={(project) => setDialog({ project, open: true })}
+			value={{
+				show: (project, chatId) => setDialog({ project, chatId, open: true }),
+				setFocusFallback: (element) => {
+					focusFallbackRef.current = element;
+				},
+			}}
 		>
 			{children}
 			{dialog.project && (
@@ -52,6 +82,7 @@ export const MoveToUnpinnedProjectDialogProvider: React.FC<
 					project={dialog.project}
 					open={dialog.open}
 					onClose={() => setDialog((current) => ({ ...current, open: false }))}
+					onCloseAutoFocus={restoreFocus}
 				/>
 			)}
 		</MoveToUnpinnedProjectContext>
@@ -62,25 +93,25 @@ type MoveToUnpinnedProjectDialogProps = {
 	readonly project: ChatProject;
 	readonly open: boolean;
 	readonly onClose: () => void;
+	readonly onCloseAutoFocus?: (event: Event) => void;
 };
 
 /** Explains that a moved chat left the sidebar, and offers to pin its project. */
 export const MoveToUnpinnedProjectDialog: React.FC<
 	MoveToUnpinnedProjectDialogProps
-> = ({ project, open, onClose }) => {
+> = ({ project, open, onClose, onCloseAutoFocus }) => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const location = useLocation();
 	const pinMutation = useMutation({
 		...pinChatProject(queryClient),
-		onSuccess: onClose,
 		onError: (error) => {
 			toast.error(getErrorMessage(error, "Failed to pin project."));
 		},
 	});
 	return (
 		<Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-			<DialogContent>
+			<DialogContent onCloseAutoFocus={onCloseAutoFocus}>
 				<DialogHeader>
 					<DialogTitle>Chat moved to {project.name}</DialogTitle>
 					<DialogDescription>
@@ -90,6 +121,9 @@ export const MoveToUnpinnedProjectDialog: React.FC<
 					</DialogDescription>
 				</DialogHeader>
 				<DialogFooter>
+					<DialogClose asChild>
+						<Button variant="subtle">Close</Button>
+					</DialogClose>
 					<Button
 						variant="outline"
 						onClick={() => {
@@ -104,7 +138,11 @@ export const MoveToUnpinnedProjectDialog: React.FC<
 					</Button>
 					<Button
 						disabled={pinMutation.isPending}
-						onClick={() => pinMutation.mutate({ project })}
+						// Closing once the sidebar has refetched lets focus return to the
+						// chat in its project's folder.
+						onClick={() =>
+							pinMutation.mutate({ project }, { onSuccess: onClose })
+						}
 					>
 						<Spinner loading={pinMutation.isPending} />
 						Pin project

@@ -21,7 +21,7 @@ import type {
 } from "#/components/DropdownMenu/DropdownMenu";
 import { toast } from "#/components/Toaster/toast";
 import { ChatProjectIcon } from "./ChatProjectIcon";
-import { useShowMoveToUnpinnedProjectDialog } from "./MoveToUnpinnedProjectDialog";
+import { useMoveToUnpinnedProjectDialog } from "./MoveToUnpinnedProjectDialog";
 
 /**
  * Moves a chat and reports a failure. The callbacks are mutation options, so
@@ -29,18 +29,18 @@ import { useShowMoveToUnpinnedProjectDialog } from "./MoveToUnpinnedProjectDialo
  */
 export const useMoveChatToProject = () => {
 	const queryClient = useQueryClient();
-	const showMoveToUnpinnedProjectDialog = useShowMoveToUnpinnedProjectDialog();
+	const moveToUnpinnedProjectDialog = useMoveToUnpinnedProjectDialog();
 	const options = moveChatToProject(queryClient);
 	return useMutation({
 		...options,
 		// A chat that is not pinned leaves the sidebar when it moves into a
 		// project the user has not pinned.
-		onSuccess: (_data, { projectId }, context) => {
+		onSuccess: (_data, { chatId, projectId }, context) => {
 			const summary = queryClient
 				.getQueryData(chatProjectSummaries().queryKey)
 				?.find((s) => s.project.id === projectId);
 			if (summary && !summary.pinned && !context?.wasChatPinned) {
-				showMoveToUnpinnedProjectDialog?.(summary.project);
+				moveToUnpinnedProjectDialog?.show(summary.project, chatId);
 			}
 		},
 		onError: (error, variables, context) => {

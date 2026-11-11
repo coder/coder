@@ -362,7 +362,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 							<FolderIcon
 								role="img"
 								aria-label={pinnedChatProjectName}
-								className="size-3 text-content-secondary/50"
+								className="size-3 text-content-secondary"
 							/>
 						</span>
 					)}
