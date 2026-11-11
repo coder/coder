@@ -61,6 +61,21 @@ func TestStartBuiltinPostgresRejectsUnknownVersion(t *testing.T) {
 	}
 }
 
+func TestStartBuiltinPostgresPreservesUnknownData(t *testing.T) {
+	t.Parallel()
+	cfg := config.Root(t.TempDir())
+	dataDir := filepath.Join(cfg.PostgresPath(), "data")
+	require.NoError(t, os.MkdirAll(dataDir, 0o700))
+	versionFile := filepath.Join(dataDir, "PG_VERSION")
+	require.NoError(t, os.WriteFile(versionFile, []byte("17\n"), 0o600))
+
+	_, _, err := startBuiltinPostgres(t.Context(), cfg, testutil.Logger(t), "")
+	require.ErrorContains(t, err, "unsupported built-in PostgreSQL version")
+	version, err := os.ReadFile(versionFile)
+	require.NoError(t, err)
+	require.Equal(t, "17\n", string(version))
+}
+
 func Test_configureServerTLS(t *testing.T) {
 	t.Parallel()
 	t.Run("DefaultNoInsecureCiphers", func(t *testing.T) {

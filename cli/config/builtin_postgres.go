@@ -6,34 +6,35 @@ import (
 	"path/filepath"
 	"strings"
 
+	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	"golang.org/x/xerrors"
 )
 
-// ValidateBuiltinPostgresVersion refuses to start over existing data that this
-// Coder release cannot read. Embedded-postgres otherwise removes that data.
-func ValidateBuiltinPostgresVersion(postgresPath string) error {
+const builtinPostgresVersion = embeddedpostgres.PostgresVersion("18.6.0")
+
+// BuiltinPostgresConfig selects the binaries matching the existing data directory.
+// A missing data directory is safe to initialize; an existing directory without a
+// supported PG_VERSION must not be passed to embedded-postgres, which would remove it.
+func BuiltinPostgresConfig(postgresPath string) (embeddedpostgres.PostgresVersion, string, bool, error) {
 	dataPath := filepath.Join(postgresPath, "data")
 	_, err := os.Stat(dataPath)
 	if errors.Is(err, os.ErrNotExist) {
-		return nil
+		return builtinPostgresVersion, filepath.Join(postgresPath, "bin-"+string(builtinPostgresVersion)), true, nil
 	}
 	if err != nil {
-		return xerrors.Errorf("inspect built-in PostgreSQL data directory: %w", err)
+		return "", "", false, xerrors.Errorf("inspect built-in PostgreSQL data directory: %w", err)
 	}
 
-	versionPath := filepath.Join(dataPath, "PG_VERSION")
-	contents, err := os.ReadFile(versionPath)
+	version, err := os.ReadFile(filepath.Join(dataPath, "PG_VERSION"))
 	if err != nil {
-		advice := "Check that Coder can read the file and data directory before retrying."
-		if errors.Is(err, os.ErrNotExist) {
-			advice = "Restore the data directory from a backup, or if this is an unused new deployment, move it aside and restart. Do not create PG_VERSION manually."
-		}
-		return xerrors.Errorf("read built-in PostgreSQL version in %s: %w; data was not changed. %s", dataPath, err, advice)
+		return "", "", false, xerrors.Errorf("read built-in PostgreSQL version in %s: %w; data was not changed", dataPath, err)
 	}
-
-	version := strings.TrimSuffix(string(contents), "\n")
-	if version != "13" {
-		return xerrors.Errorf("unsupported built-in PostgreSQL version %q in %s; data was not changed", version, versionPath)
+	switch strings.TrimSpace(string(version)) {
+	case "13":
+		return embeddedpostgres.V13, filepath.Join(postgresPath, "bin"), false, nil
+	case "18":
+		return builtinPostgresVersion, filepath.Join(postgresPath, "bin-"+string(builtinPostgresVersion)), false, nil
+	default:
+		return "", "", false, xerrors.Errorf("unsupported built-in PostgreSQL version %q in %s; data was not changed", strings.TrimSpace(string(version)), dataPath)
 	}
-	return nil
 }
