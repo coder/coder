@@ -115,8 +115,8 @@ export const ProjectDetailsPanelView: React.FC<
 			<h2 id={headingId} className="m-0 text-sm text-content-primary">
 				Details
 			</h2>
-			<div className="rounded-lg border border-border">
-				<dl className="m-0 flex flex-col gap-2 border-0 border-b border-solid border-border p-4 text-sm">
+			<div className="rounded-lg border">
+				<dl className="m-0 flex flex-col gap-2 border-0 border-b border-solid p-4 text-sm">
 					<DetailRow label="Project owner">
 						{ownerLabel !== undefined ? (
 							<AvatarValue
@@ -189,7 +189,7 @@ export const ProjectDetailsPanelView: React.FC<
 					</h3>
 					{instructions === undefined ? (
 						errorAlert || (
-							<div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+							<div className="flex flex-col gap-2 rounded-lg border p-3">
 								<Skeleton variant="text" className="w-full" />
 								<Skeleton variant="text" className="w-2/3" />
 								<span className="sr-only">Loading</span>
@@ -198,7 +198,7 @@ export const ProjectDetailsPanelView: React.FC<
 					) : (
 						<>
 							{instructions.instructions === "" ? (
-								<div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border px-4 py-5 text-center">
+								<div className="flex flex-col items-center gap-2 rounded-lg border border-dashed px-4 py-5 text-center">
 									{onEditInstructions ? (
 										<>
 											<p className="m-0 text-sm text-content-secondary">
@@ -221,7 +221,7 @@ export const ProjectDetailsPanelView: React.FC<
 									)}
 								</div>
 							) : (
-								<div className="flex items-start gap-2 rounded-lg border border-border p-3">
+								<div className="flex items-start gap-2 rounded-lg border p-3">
 									<p
 										className={cn(
 											"m-0 min-w-0 flex-1 whitespace-pre-wrap wrap-break-word text-sm text-content-primary",
@@ -287,7 +287,7 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 		<section
 			ref={observeRowWidth}
 			aria-labelledby={headingId}
-			className="flex flex-col gap-3 border-0 border-t border-solid border-border p-4"
+			className="flex flex-col gap-3 border-0 border-t border-solid p-4"
 		>
 			<div className="flex items-center justify-between gap-4">
 				<h3

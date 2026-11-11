@@ -196,7 +196,7 @@ const InnerMultiSelect = <T extends SelectedUser>({
 				}}
 				placeholder="Search users..."
 			/>
-			<div className="h-96 w-full rounded-lg border border-border border-solid">
+			<div className="h-96 w-full rounded-lg border border-solid">
 				<div className="h-full overflow-hidden p-px">
 					<div
 						className="h-full overflow-y-auto overflow-x-hidden overscroll-contain"

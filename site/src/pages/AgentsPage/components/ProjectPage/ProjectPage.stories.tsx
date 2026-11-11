@@ -61,7 +61,7 @@ const meta: Meta<typeof ProjectPage> = {
 		project: MockChatProject,
 		isOwnedOrSharedWithUser: true,
 		children: (
-			<div className="flex h-32 items-center justify-center rounded-lg border border-dashed border-border text-sm text-content-secondary">
+			<div className="flex h-32 items-center justify-center rounded-lg border border-dashed text-sm text-content-secondary">
 				Composer
 			</div>
 		),
