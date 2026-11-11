@@ -1376,7 +1376,7 @@ export const replaceChatMessagesHistory = (
 	);
 };
 
-const DEFAULT_CHAT_PAGE_LIMIT = 50;
+export const DEFAULT_CHAT_PAGE_LIMIT = 50;
 export const CHAT_SEARCH_LIMIT = 50;
 
 type UpdateChatWorkspaceVariables = {
