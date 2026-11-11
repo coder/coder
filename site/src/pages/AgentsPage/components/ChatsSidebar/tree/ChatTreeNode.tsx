@@ -76,7 +76,7 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 		onArchiveSuccess,
 		navigateAfterArchive,
 		onOpenRenameDialog,
-		projectNameById,
+		projectLabelById,
 	} = useChatTree();
 	const chatID = chat.id;
 	const isActiveChat = activeChatId === chatID;
@@ -137,9 +137,9 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	const displayedTurnSummary = isStaleTurnSummary ? undefined : lastTurnSummary;
 	const isSharedChat = chat.shared;
 	// Only pinned chats leave their project's folder, so only they show it.
-	const pinnedChatProjectName =
+	const pinnedChatProjectLabel =
 		chat.pin_order > 0 && chat.project_id
-			? projectNameById.get(chat.project_id)
+			? projectLabelById.get(chat.project_id)
 			: undefined;
 	const subtitle =
 		errorReason || streamingSubtitle || displayedTurnSummary || modelName;
@@ -357,11 +357,11 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 							</div>
 						)}
 					</NavLink>
-					{pinnedChatProjectName && (
+					{pinnedChatProjectLabel && (
 						<span className="my-1 flex h-6 shrink-0 items-center">
 							<FolderIcon
 								role="img"
-								aria-label={pinnedChatProjectName}
+								aria-label={pinnedChatProjectLabel}
 								className="size-3 text-content-secondary"
 							/>
 						</span>
