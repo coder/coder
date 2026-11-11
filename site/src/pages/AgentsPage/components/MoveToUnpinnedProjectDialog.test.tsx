@@ -78,6 +78,7 @@ const moveChat = async ({
 	fromUnpinnedProject = false,
 	withChatActions = false,
 	withHiddenChatActions = false,
+	summariesCached = true,
 }) => {
 	const user = userEvent.setup();
 	vi.spyOn(API.experimental, "updateChat").mockResolvedValue(undefined);
@@ -91,7 +92,7 @@ const moveChat = async ({
 		pin_order: chatPinned ? 1 : 0,
 		project_id: fromUnpinnedProject ? "previous-project" : undefined,
 	});
-	queryClient.setQueryData(chatProjectSummariesKey, [
+	const summaries = [
 		{
 			...MockChatProjectSummary,
 			pinned: projectPinned,
@@ -103,7 +104,14 @@ const moveChat = async ({
 			pinned: false,
 			pin_order: 0,
 		},
-	]);
+	];
+	if (summariesCached) {
+		queryClient.setQueryData(chatProjectSummariesKey, summaries);
+	} else {
+		vi.spyOn(API.experimental, "getChatProjectSummaries").mockResolvedValue(
+			summaries,
+		);
+	}
 	render(
 		<QueryClientProvider client={queryClient}>
 			<MemoryRouter initialEntries={["/agents"]}>
@@ -143,6 +151,15 @@ describe("MoveToUnpinnedProjectDialog", () => {
 				undefined,
 			),
 		);
+	});
+
+	it("opens after a move before the summaries have loaded", async () => {
+		await moveChat({ summariesCached: false });
+		expect(
+			await screen.findByRole("dialog", {
+				name: `Chat moved to ${MockChatProject.name}`,
+			}),
+		).toBeInTheDocument();
 	});
 
 	it("goes to the project's page", async () => {

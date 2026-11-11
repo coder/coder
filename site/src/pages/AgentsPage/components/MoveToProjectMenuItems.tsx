@@ -2,12 +2,9 @@ import { CheckIcon, FolderInputIcon, FolderMinusIcon } from "lucide-react";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorMessage } from "#/api/errors";
-import {
-	chatProjectSummariesKey,
-	chatProjects,
-} from "#/api/queries/chatProjects";
+import { chatProjectSummaries, chatProjects } from "#/api/queries/chatProjects";
 import { moveChatToProject } from "#/api/queries/chats";
-import type { Chat, ChatProjectSummary } from "#/api/typesGenerated";
+import type { Chat } from "#/api/typesGenerated";
 import type {
 	ContextMenuItem,
 	ContextMenuSeparator,
@@ -39,18 +36,26 @@ export const useMoveChatToProject = () => {
 		// A chat that is not pinned leaves the sidebar when it moves into a
 		// project the user has not pinned. A chat that was already in another
 		// unpinned project was not in the sidebar to begin with.
+		// The summaries may not have loaded yet; without them, no dialog opens.
 		onSuccess: (_data, { chatId, projectId }, context) => {
-			const summaries = queryClient.getQueryData<ChatProjectSummary[]>(
-				chatProjectSummariesKey,
+			void queryClient.ensureQueryData(chatProjectSummaries()).then(
+				(summaries) => {
+					const summary = summaries.find((s) => s.project.id === projectId);
+					const previous = context?.previousProjectId
+						? summaries.find((s) => s.project.id === context.previousProjectId)
+						: undefined;
+					const wasHidden = previous !== undefined && !previous.pinned;
+					if (
+						summary &&
+						!summary.pinned &&
+						!context?.wasChatPinned &&
+						!wasHidden
+					) {
+						moveToUnpinnedProjectDialog?.show(summary.project, chatId);
+					}
+				},
+				() => {},
 			);
-			const summary = summaries?.find((s) => s.project.id === projectId);
-			const previous = context?.previousProjectId
-				? summaries?.find((s) => s.project.id === context.previousProjectId)
-				: undefined;
-			const wasHidden = previous !== undefined && !previous.pinned;
-			if (summary && !summary.pinned && !context?.wasChatPinned && !wasHidden) {
-				moveToUnpinnedProjectDialog?.show(summary.project, chatId);
-			}
 		},
 		onError: (error, variables, context) => {
 			options.onError(error, variables, context);
