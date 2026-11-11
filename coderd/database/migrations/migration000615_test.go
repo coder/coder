@@ -17,7 +17,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// migrationsThrough returns the migration files up to and including version.
 func migrationsThrough(t *testing.T, version int) fs.FS {
 	t.Helper()
 
@@ -167,7 +166,6 @@ func TestMigration000615RemoveChatAutomations(t *testing.T) {
 			VALUES ($1, $2, $2, $3, $3, $4, $5, $6, $7)`, uuid.New(), now, []byte(grant.key), grant.key, userID, mixedAppID, grant.scope)
 	}
 
-	// Stop at 616: migration 642 adds chat automations again.
 	require.NoError(t, migrations.UpWithFS(sqlDB, migrationsThrough(t, 616)))
 
 	queryStrings := func(query string, args ...any) []string {
@@ -282,8 +280,6 @@ func TestMigration000615RemoveChatAutomations(t *testing.T) {
 	assertSchemaRemoved(t, true)
 	assertMigrated(t)
 
-	// The later migrations, which add chat automations again, keep the
-	// cleaned data as it is.
 	require.NoError(t, migrations.Up(sqlDB))
 	assertMigrated(t)
 }

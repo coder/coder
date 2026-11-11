@@ -20,9 +20,6 @@ const (
 	migration000642Down = "000642_chat_automations.down.sql"
 )
 
-// schemaFingerprint lists what a migration can change in the current schema:
-// enum labels in their sort order, columns in their order with type, default
-// and comment, constraints, indexes, views, triggers and functions.
 func schemaFingerprint(ctx context.Context, t *testing.T, db *sql.DB) []string {
 	t.Helper()
 	const query = `
@@ -87,10 +84,6 @@ func readMigration000642(t *testing.T) (up, down []byte) {
 	return up, down
 }
 
-// The down migration recreates the api_key_scope enum from a list in the
-// file and recreates chats_expanded. Up, down and up again must give the
-// schema of main and then the same new schema, including the order of the
-// enum labels and of the columns.
 func TestMigration000642ChatAutomationsRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -101,8 +94,6 @@ func TestMigration000642ChatAutomationsRoundTrip(t *testing.T) {
 
 	before := schemaFingerprint(ctx, t, sqlDB)
 
-	// A failure after the migration's last statement must leave nothing
-	// behind: the migrator runs every pending migration in one transaction.
 	tx, err := sqlDB.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	_, err = tx.ExecContext(ctx, string(up))
@@ -126,8 +117,6 @@ func TestMigration000642ChatAutomationsRoundTrip(t *testing.T) {
 	require.Equal(t, migrated, schemaFingerprint(ctx, t, sqlDB), "schema after up, down and up")
 }
 
-// The down migration removes five enum values that rows may use, and it
-// drops the flag that says a queued message still needs its prompt hooks.
 func TestMigration000642DownWithData(t *testing.T) {
 	t.Parallel()
 
@@ -155,18 +144,14 @@ func TestMigration000642DownWithData(t *testing.T) {
 		wantDeleted bool
 		wantScopes  string
 	}{
-		// One key per removed value.
 		{id: "only-all", scopes: "{chat_automation:*}", wantDeleted: true},
 		{id: "only-create", scopes: "{chat_automation:create}", wantDeleted: true},
 		{id: "only-read", scopes: "{chat_automation:read}", wantDeleted: true},
 		{id: "only-update", scopes: "{chat_automation:update}", wantDeleted: true},
 		{id: "only-delete", scopes: "{chat_automation:delete}", wantDeleted: true},
-		// The other scopes stay, in their order.
 		{id: "mixed", scopes: "{template:read,chat_automation:read,chat:*,chat_automation:*,workspace:read}", wantScopes: "{template:read,chat:*,workspace:read}"},
 		{id: "ordinary", scopes: "{coder:all}", wantScopes: "{coder:all}"},
-		// The allow list is not enum-typed, and the down leaves it alone.
 		{id: "ordinary-allow-list", scopes: "{template:read}", allowList: "{chat_automation:*}", wantScopes: "{template:read}"},
-		// Deleting a key deletes its OAuth2 token.
 		{id: "only-automation-token", scopes: "{chat_automation:update}", withToken: true, wantDeleted: true},
 		{id: "ordinary-token", scopes: "{template:read}", withToken: true, wantScopes: "{template:read}"},
 	}
@@ -241,11 +226,6 @@ func TestMigration000642DownWithData(t *testing.T) {
 	require.Equal(t, 1, chats)
 }
 
-// The down migration deletes API keys, and that delete cascades into
-// oauth2_provider_app_tokens. The application deletes in the other order:
-// a token delete fires a trigger that deletes the API key. The migration
-// must hold both tables before it deletes anything, or the two sides wait
-// for each other.
 func TestMigration000642DownConcurrentTokenDelete(t *testing.T) {
 	t.Parallel()
 
@@ -272,8 +252,6 @@ func TestMigration000642DownConcurrentTokenDelete(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Run the lock block, then let the application start its delete, then
-	// run the rest of the migration.
 	const lockBlockEnd = "\n$$;\n"
 	i := bytes.Index(down, []byte(lockBlockEnd))
 	require.Positive(t, i, "lock block not found")
@@ -306,9 +284,6 @@ func TestMigration000642DownConcurrentTokenDelete(t *testing.T) {
 	require.Zero(t, tokens, "the application's delete ran after the migration rolled back")
 }
 
-// A running server takes these locks on every request. The down migration
-// waits for them with short timeouts instead of queueing behind them, so
-// that new requests do not queue behind the migration.
 func TestMigration000642DownWaitsForOpenTransaction(t *testing.T) {
 	t.Parallel()
 
@@ -328,8 +303,6 @@ func TestMigration000642DownWaitsForOpenTransaction(t *testing.T) {
 	pid, migrated := startRolledBackMigration(ctx, t, sqlDB, down)
 	requireWaitsFor(ctx, t, sqlDB, pid, appPID)
 
-	// Between attempts the migration holds nothing, so a reader of the
-	// view it drops gets through.
 	reader, _ := dedicatedConn(ctx, t, sqlDB)
 	requireNoDeadlockVictim(ctx, t, "reader", async(func() error {
 		var id uuid.UUID

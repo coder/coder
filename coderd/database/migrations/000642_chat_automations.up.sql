@@ -1,9 +1,3 @@
--- Adds the schema for chat automations: saved prompts that a webhook or a
--- schedule sends to a chat as their owner.
---
--- Take every table lock this migration needs before changing anything,
--- retrying short waits so that concurrent chatd traffic cannot deadlock
--- with it. See 000609_chat_automations.up.sql for the reasoning.
 DO $$
 DECLARE
 	previous_lock_timeout text := current_setting('lock_timeout');
@@ -76,13 +70,9 @@ CREATE TABLE chat_automations (
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now(),
 
-    -- Keeps the new-chat model in the automation's organization, matching
-    -- the composite foreign keys on chat_*_model_overrides.
     CONSTRAINT chat_automations_new_chat_model_config_fkey
         FOREIGN KEY (organization_id, new_chat_model_config_id)
         REFERENCES chat_model_configs (organization_id, id),
-    -- Each kind sets only its own columns. A webhook without a secret
-    -- could not verify any request.
     CONSTRAINT chat_automations_kind_shape CHECK (
         (kind = 'webhook'
             AND webhook_auth IS NOT NULL AND webhook_secret IS NOT NULL
@@ -91,8 +81,6 @@ CREATE TABLE chat_automations (
             AND webhook_auth IS NULL AND webhook_secret IS NULL AND webhook_secret_key_id IS NULL
             AND schedule_cron IS NOT NULL AND schedule_time_zone IS NOT NULL)
     ),
-    -- Each target mode sets only its own columns. target_chat_id is not
-    -- required for existing_chat: deleting the target chat sets it to NULL.
     CONSTRAINT chat_automations_target_shape CHECK (
         (target_mode = 'existing_chat'
             AND when_busy IS NOT NULL AND new_chat_model_config_id IS NULL)
@@ -173,17 +161,12 @@ CREATE TRIGGER trigger_enforce_chat_automation_organization
     FOR EACH ROW EXECUTE FUNCTION enforce_chat_automation_organization();
 
 CREATE INDEX chat_automations_org_owner_idx ON chat_automations (organization_id, owner_id);
--- Serves the per-user count across organizations and the cleanup when a
--- user is deleted.
 CREATE INDEX chat_automations_owner_id_idx ON chat_automations (owner_id);
 CREATE INDEX chat_automations_due_idx ON chat_automations (schedule_next_run_at) WHERE kind = 'schedule' AND enabled;
--- Chat and project deletion enforce ON DELETE SET NULL through these columns.
 CREATE INDEX chat_automations_target_chat_id_idx ON chat_automations (target_chat_id) WHERE target_chat_id IS NOT NULL;
 CREATE INDEX chat_automations_created_by_chat_id_idx ON chat_automations (created_by_chat_id) WHERE created_by_chat_id IS NOT NULL;
 CREATE INDEX chat_automations_project_id_idx ON chat_automations (project_id) WHERE project_id IS NOT NULL;
 
--- Coder soft-deletes users, so the cascade on owner_id never fires. Delete a
--- deleted user's automations here, like their other personal resources.
 CREATE OR REPLACE FUNCTION delete_deleted_user_resources() RETURNS trigger
     LANGUAGE plpgsql
 AS $$
@@ -235,8 +218,6 @@ BEGIN
 END;
 $$;
 
--- Provenance columns have no foreign key to chat_automations: provenance
--- stays after the automation is deleted.
 ALTER TABLE chats
     ADD COLUMN automation_id uuid,
     ADD COLUMN manage_automations_enabled boolean NOT NULL DEFAULT false;
@@ -272,8 +253,6 @@ ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'chat_automation:read';
 ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'chat_automation:update';
 ALTER TYPE api_key_scope ADD VALUE IF NOT EXISTS 'chat_automation:delete';
 
--- Recreate chats_expanded, dropped at the top of this migration, with the
--- new chats columns at the end.
 CREATE VIEW chats_expanded AS
  SELECT c.id,
     c.owner_id,

@@ -33,8 +33,8 @@ var AuditActionMap = map[string][]codersdk.AuditAction{
 	"AIGatewayKey":                     {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"AuditableGroupAIBudget":           {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"AuditableUserAIBudgetOverride":    {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
-	"Chat":                             {codersdk.AuditActionCreate, codersdk.AuditActionWrite},                                                        // chats get 'archived' by users, not deleted.
-	"ChatAutomation":                   {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete, codersdk.AuditActionStart}, // start: one entry per run.
+	"Chat":                             {codersdk.AuditActionCreate, codersdk.AuditActionWrite}, // chats get 'archived' by users, not deleted.
+	"ChatAutomation":                   {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete, codersdk.AuditActionStart},
 	"ChatProject":                      {codersdk.AuditActionCreate, codersdk.AuditActionWrite, codersdk.AuditActionDelete},
 	"ChatProjectMemory":                {codersdk.AuditActionCreate, codersdk.AuditActionDelete},
 	"AuditableChatProjectInstructions": {codersdk.AuditActionWrite, codersdk.AuditActionDelete},
@@ -519,7 +519,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_by_chat_id":        ActionTrack,
 		"kind":                      ActionTrack,
 		"enabled":                   ActionTrack,
-		"prompt":                    ActionSecret, // User-authored content, like chat titles.
+		"prompt":                    ActionSecret,
 		"target_mode":               ActionTrack,
 		"target_chat_id":            ActionTrack,
 		"when_busy":                 ActionTrack,
@@ -528,13 +528,13 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"project_id":                ActionTrack,
 		"webhook_auth":              ActionTrack,
 		"webhook_secret":            ActionSecret,
-		"webhook_secret_key_id":     ActionIgnore, // Encryption detail, not a configuration change.
+		"webhook_secret_key_id":     ActionIgnore,
 		"webhook_secret_version":    ActionTrack,
 		"schedule_cron":             ActionTrack,
 		"schedule_time_zone":        ActionTrack,
-		"schedule_next_run_at":      ActionIgnore, // Internal schedule cursor.
-		"schedule_revision":         ActionIgnore, // Internal schedule bookkeeping.
-		"last_run_at":               ActionIgnore, // Run outcome, not a configuration change.
+		"schedule_next_run_at":      ActionIgnore,
+		"schedule_revision":         ActionIgnore,
+		"last_run_at":               ActionIgnore,
 		"last_run_outcome":          ActionIgnore,
 		"last_run_reason":           ActionIgnore,
 		"last_run_chat_id":          ActionIgnore,

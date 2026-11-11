@@ -1375,7 +1375,6 @@ func (s *MethodTestSuite) TestChats() {
 		creator := testutil.Fake(s.T(), faker, database.Chat{OrganizationID: orgID})
 		model := testutil.Fake(s.T(), faker, database.ChatModelConfig{OrganizationID: orgID})
 		project := testutil.Fake(s.T(), faker, database.ChatProject{OrganizationID: orgID})
-		// Only the owner creates an automation, so the actor is the owner.
 		arg := testutil.Fake(s.T(), faker, database.InsertChatAutomationParams{
 			OrganizationID:       orgID,
 			OwnerID:              testActorID,
@@ -1414,7 +1413,6 @@ func (s *MethodTestSuite) TestChats() {
 			testutil.Fake(s.T(), faker, database.GetChatAutomationsByOrganizationIDRow{OrganizationID: arg.OrganizationID}),
 		}
 		dbm.EXPECT().GetAuthorizedChatAutomationsByOrganizationID(gomock.Any(), arg, gomock.Any()).Return(rows, nil).AnyTimes()
-		// No asserts here because SQLFilter.
 		check.Args(arg).Asserts().Returns(rows)
 	}))
 	s.Run("GetAuthorizedChatAutomationsByOrganizationID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
@@ -1423,7 +1421,6 @@ func (s *MethodTestSuite) TestChats() {
 			testutil.Fake(s.T(), faker, database.GetChatAutomationsByOrganizationIDRow{OrganizationID: arg.OrganizationID}),
 		}
 		dbm.EXPECT().GetAuthorizedChatAutomationsByOrganizationID(gomock.Any(), arg, gomock.Any()).Return(rows, nil).AnyTimes()
-		// No asserts here because it re-routes through GetChatAutomationsByOrganizationID which uses SQLFilter.
 		check.Args(arg, emptyPreparedAuthorized{}).Asserts().Returns(rows)
 	}))
 	s.Run("CountChatAutomationsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {

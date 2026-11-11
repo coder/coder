@@ -1305,7 +1305,6 @@ func (q *sqlQuerier) GetAuthorizedChatAutomationsByOrganizationID(ctx context.Co
 		return nil, xerrors.Errorf("insert authorized filter: %w", err)
 	}
 
-	// The name comment is for metric tracking
 	query := fmt.Sprintf("-- name: GetAuthorizedChatAutomationsByOrganizationID :many\n%s", filtered)
 	rows, err := q.db.QueryContext(ctx, query, arg.OrganizationID, arg.OwnerID)
 	if err != nil {
