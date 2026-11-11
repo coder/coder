@@ -1523,6 +1523,10 @@ export const MockWorkload: TypesGen.Workload = {
 		uid: "7c4e2b1a-5a0e-4b6f-9d8c-3f2a1b0c9d8e",
 		service_account: "coder-workload",
 	},
+	identity_id: "test-workload-identity",
+	sponsor_id: "test-user",
+	sponsor_username: "testuser",
+	scopes: ["workspace:read", "template:read"],
 };
 
 export const MockPendingWorkload: TypesGen.Workload = {
@@ -1534,6 +1538,10 @@ export const MockPendingWorkload: TypesGen.Workload = {
 	created_at: "2024-03-26T15:04:00Z",
 	requested_by_id: MockWorkload.requested_by_id,
 	requested_by_username: MockWorkload.requested_by_username,
+	identity_id: "test-pending-workload-identity",
+	sponsor_id: MockWorkload.sponsor_id,
+	sponsor_username: MockWorkload.sponsor_username,
+	scopes: [],
 };
 
 export const MockWorkspaceResource: TypesGen.WorkspaceResource = {

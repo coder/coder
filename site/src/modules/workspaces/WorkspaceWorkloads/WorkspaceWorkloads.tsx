@@ -59,7 +59,7 @@ export const WorkspaceWorkloads: React.FC<WorkspaceWorkloadsProps> = ({
 				</h3>
 				<p className="m-0 text-sm text-content-secondary">
 					Daemons started in this workspace at runtime. Each one has its own
-					identity.
+					identity and can only use its sponsor's permissions within its scopes.
 				</p>
 			</header>
 
@@ -89,6 +89,8 @@ export const WorkspaceWorkloads: React.FC<WorkspaceWorkloadsProps> = ({
 							<TableHead>Status</TableHead>
 							<TableHead>Command</TableHead>
 							<TableHead>Identity</TableHead>
+							<TableHead>Sponsor</TableHead>
+							<TableHead>Scopes</TableHead>
 							<TableHead className="pr-8">Launched</TableHead>
 						</TableRow>
 					</TableHeader>
@@ -125,6 +127,18 @@ export const WorkspaceWorkloads: React.FC<WorkspaceWorkloadsProps> = ({
 											</CopyableValue>
 										) : (
 											"Not assigned yet"
+										)}
+									</TableCell>
+									<TableCell className="whitespace-nowrap">
+										{workload.sponsor_username}
+									</TableCell>
+									<TableCell>
+										{workload.scopes.length > 0 ? (
+											<code className="font-mono text-content-primary">
+												{workload.scopes.join(", ")}
+											</code>
+										) : (
+											"None"
 										)}
 									</TableCell>
 									<TableCell
