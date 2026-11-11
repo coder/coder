@@ -167,7 +167,7 @@ const FieldLabel: React.FC<{
 				<TooltipTrigger asChild>
 					<InfoIcon className="size-3 text-content-secondary" />
 				</TooltipTrigger>
-				<TooltipContent side="top" className="max-w-[240px]">
+				<TooltipContent side="top" className="max-w-60">
 					{description}
 				</TooltipContent>
 			</Tooltip>
@@ -345,7 +345,7 @@ const SegmentedField: React.FC<
 						<TooltipTrigger asChild>
 							<InfoIcon className="size-3 text-content-secondary" />
 						</TooltipTrigger>
-						<TooltipContent side="top" className="max-w-[240px]">
+						<TooltipContent side="top" className="max-w-60">
 							{description}
 						</TooltipContent>
 					</Tooltip>

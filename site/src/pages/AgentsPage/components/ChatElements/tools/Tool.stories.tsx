@@ -1746,6 +1746,32 @@ export const EditFilesSingleSuccess: Story = {
 	},
 };
 
+export const EditFilesLongPath: Story = {
+	decorators: [
+		(Story) => (
+			<div className="w-80 max-w-full">
+				<Story />
+			</div>
+		),
+	],
+	args: {
+		...EditFilesSingleSuccess.args,
+		args: {
+			files: [
+				{
+					path: "site/src/pages/AgentsPage/components/ChatElements/charts/ConversationChart.tsx",
+					edits: [
+						{
+							search: "const timeout = 30;",
+							replace: "const timeout = 60;",
+						},
+					],
+				},
+			],
+		},
+	},
+};
+
 export const EditFilesAlwaysCollapsed: Story = {
 	args: {
 		name: "edit_files",

@@ -244,7 +244,7 @@ export const TemplatePageHeader: React.FC<TemplatePageHeaderProps> = ({
 					</>
 				}
 			>
-				<div className="flex flex-row gap-4">
+				<div className="flex gap-4">
 					<Avatar
 						size="lg"
 						variant="icon"
@@ -252,7 +252,7 @@ export const TemplatePageHeader: React.FC<TemplatePageHeaderProps> = ({
 						fallback={template.name}
 					/>
 					<div>
-						<div className="flex flex-row items-center gap-2">
+						<div className="flex items-center gap-2">
 							<PageHeaderTitle>
 								{template.display_name.length > 0
 									? template.display_name

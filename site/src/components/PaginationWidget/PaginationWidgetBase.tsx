@@ -39,7 +39,7 @@ export const PaginationWidgetBase: React.FC<PaginationWidgetBaseProps> = ({
 	);
 
 	return (
-		<div className="@container flex flex-row items-center justify-center px-5 gap-x-1.5">
+		<div className="@container flex items-center justify-center px-5 gap-x-1.5">
 			<PaginationNavButton
 				disabled={isPrevDisabled}
 				aria-label="Previous page"

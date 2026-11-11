@@ -23,7 +23,7 @@ export const ProjectPageHeader: React.FC<ProjectPageHeaderProps> = ({
 			</div>
 		</div>
 		{project.description && (
-			<p className="m-0 text-sm text-content-secondary [overflow-wrap:anywhere]">
+			<p className="m-0 text-sm text-content-secondary wrap-anywhere">
 				{project.description}
 			</p>
 		)}

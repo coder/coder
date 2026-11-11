@@ -70,7 +70,7 @@ export const AdvisorTool: React.FC<AdvisorToolProps> = ({
 					ariaLabel="Advisor response"
 				>
 					<div className="space-y-2 px-3 py-2">
-						<p className="m-0 whitespace-pre-wrap wrap-break-word text-[13px] italic leading-5 text-content-secondary wrap-anywhere">
+						<p className="m-0 whitespace-pre-wrap wrap-break-word text-[13px] italic leading-5 text-content-secondary">
 							{questionText}
 						</p>
 						<div className="border-0 border-t border-solid pt-2">

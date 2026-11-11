@@ -69,6 +69,7 @@ export const ClientFilter: React.FC<ClientFilterProps> = ({ menu, width }) => {
 			onSelect={(option) => menu.selectOption(option)}
 			selectedOption={menu.selectedOption ?? undefined}
 			width={width}
+			searchLabel="Search client"
 			selectFilterSearch={
 				<ComboboxInput
 					placeholder="Search client..."

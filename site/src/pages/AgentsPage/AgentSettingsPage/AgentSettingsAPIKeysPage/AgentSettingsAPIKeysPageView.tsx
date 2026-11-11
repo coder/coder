@@ -232,9 +232,7 @@ const ProviderKeyPanel: React.FC<ProviderKeyPanelProps> = ({
 			</form>
 
 			<div className="mt-6 flex flex-col gap-2">
-				<p className="m-0 text-sm font-medium text-content-primary">
-					Enabled models
-				</p>
+				<p className="m-0 text-sm text-content-primary">Enabled models</p>
 				{areModelsUnavailable && enabledModels.length > 0 && (
 					<p className="m-0 text-sm text-content-secondary">
 						Some enabled models are temporarily unavailable.

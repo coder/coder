@@ -505,7 +505,7 @@ const AgentsPageLayout: React.FC = () => {
 				className={cn(
 					"sm:h-full sm:min-h-0 sm:border-b-0",
 					agentId
-						? "hidden sm:block shrink-0 h-[42dvh] min-h-[240px] border-b"
+						? "hidden sm:block shrink-0 h-[42dvh] min-h-60 border-b"
 						: isSettingsDetail
 							? "hidden sm:block shrink-0"
 							: "order-2 sm:order-0 flex-1 min-h-0 border-b sm:flex-none sm:border-t-0 sm:border-b-0",

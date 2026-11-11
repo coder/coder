@@ -45,7 +45,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({
 		>
 			<div className="border-b px-2 pb-2 pt-3 sm:py-2">
 				<div className="relative flex items-center">
-					<span className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm font-medium text-content-primary">
+					<span className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-content-primary">
 						Settings
 					</span>
 					<Button

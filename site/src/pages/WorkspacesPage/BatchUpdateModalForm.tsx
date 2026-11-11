@@ -103,10 +103,10 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({
 				className,
 			)}
 		>
-			<div className="flex flex-row flex-wrap grow items-center gap-3">
+			<div className="flex flex-wrap grow items-center gap-3">
 				<Avatar size="sm" variant="icon" src={workspaceIconUrl} />
 				<div className="flex flex-col gap-0.5">
-					<span className="flex flex-row items-center gap-2">
+					<span className="flex items-center gap-2">
 						<span className="leading-tight">{workspaceName}</span>
 						{running && (
 							<Badge size="sm" variant="warning">
@@ -178,7 +178,7 @@ const RunningWorkspacesWarning: React.FC<RunningWorkspacesWarningProps> = ({
 			ref={containerRef}
 			className="rounded-md border-border-warning border border-solid p-4"
 		>
-			<h4 className="m-0 font-semibold flex flex-row items-center gap-2 text-content-primary">
+			<h4 className="m-0 font-semibold flex items-center gap-2 text-content-primary">
 				<TriangleAlertIcon className="text-content-warning" size={16} />
 				Running workspaces detected
 			</h4>
@@ -567,7 +567,7 @@ const ReviewForm: React.FC<ReviewFormProps> = ({
 				</ContainerBody>
 
 				<ContainerFooter>
-					<div className="flex flex-row flex-wrap justify-end gap-4">
+					<div className="flex flex-wrap justify-end gap-4">
 						<Button variant="outline" onClick={onCancel}>
 							Cancel
 						</Button>
