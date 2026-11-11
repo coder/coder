@@ -30,6 +30,7 @@ import { COPY_FAILED_MESSAGE } from "#/hooks/useClipboard";
 import { DashboardContext } from "#/modules/dashboard/DashboardProvider";
 import { MockChat, MockChatDiffStatus } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockAppearanceConfig,
 	MockArchivedChatProject,
@@ -835,6 +836,81 @@ describe("ChatsSidebar projects", () => {
 		await user.click(unarchiveBilling);
 		await waitFor(() =>
 			expect(screen.getByText("No archived projects.")).toHaveFocus(),
+		);
+	});
+
+	it("keeps the focus handoff of an unarchive when an earlier one fails", async () => {
+		const user = userEvent.setup();
+		const mockArchivedDocsProject = {
+			...MockArchivedChatProject,
+			id: "docs",
+			name: "Docs",
+		};
+		let archivedProjects = [
+			MockArchivedChatProject,
+			mockArchivedBillingProject,
+			mockArchivedDocsProject,
+		];
+		const launchFailure = createDeferred<void>();
+		const billingSuccess = createDeferred<void>();
+		server.use(
+			http.get("/api/experimental/chats/projects", ({ request }) =>
+				HttpResponse.json(
+					new URL(request.url).searchParams.get("archived") === "true"
+						? archivedProjects
+						: [],
+				),
+			),
+			http.post(
+				"/api/experimental/organizations/:organization/chats/projects/:project/unarchive",
+				async ({ params }) => {
+					if (params.project === MockChatProject.id) {
+						await launchFailure.promise;
+						return HttpResponse.json(
+							{ message: "Failed to unarchive." },
+							{ status: 500 },
+						);
+					}
+					await billingSuccess.promise;
+					archivedProjects = archivedProjects.filter(
+						({ id }) => id !== params.project,
+					);
+					return HttpResponse.json({
+						...mockArchivedBillingProject,
+						archived_at: undefined,
+					});
+				},
+			),
+		);
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+
+		await user.click(
+			await screen.findByRole("button", { name: "Archived projects" }),
+		);
+		await user.click(
+			await screen.findByRole("button", {
+				name: `Unarchive ${MockChatProject.name}`,
+			}),
+		);
+		await user.click(screen.getByRole("button", { name: "Unarchive Billing" }));
+		launchFailure.resolve();
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", {
+					name: `Unarchive ${MockChatProject.name}`,
+				}),
+			).toBeEnabled(),
+		);
+		billingSuccess.resolve();
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: "Unarchive Docs" }),
+			).toHaveFocus(),
 		);
 	});
 
