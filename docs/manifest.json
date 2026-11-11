@@ -1861,6 +1861,11 @@
 							]
 						},
 						{
+							"title": "`identity`",
+							"description": "Show the workload identity of the workspace daemon this command runs under.",
+							"path": "reference/cli/identity.md"
+						},
+						{
 							"title": "`licenses`",
 							"description": "Add, delete, and list licenses.",
 							"path": "reference/cli/licenses/index.md",
@@ -2226,6 +2231,11 @@
 							"title": "`restart`",
 							"description": "Restart a workspace.",
 							"path": "reference/cli/restart.md"
+						},
+						{
+							"title": "`run`",
+							"description": "Run a workload in its own workspace daemon, provisioned at runtime.",
+							"path": "reference/cli/run.md"
 						},
 						{
 							"title": "`schedule`",

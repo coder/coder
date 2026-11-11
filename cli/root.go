@@ -101,8 +101,13 @@ const (
 	envAgentTokenFile = "CODER_AGENT_TOKEN_FILE"
 	envAgentURL       = "CODER_AGENT_URL"
 	envAgentAuth      = "CODER_AGENT_AUTH"
-	envAgentName      = "CODER_AGENT_NAME"
-	envURL            = "CODER_URL"
+	// envAgentPodTokenFile is set by a workload operator on the pods it
+	// creates. It takes precedence over a token, because the standard agent
+	// init script always exports the template's auth type.
+	//nolint:gosec
+	envAgentPodTokenFile = "CODER_AGENT_POD_TOKEN_FILE"
+	envAgentName         = "CODER_AGENT_NAME"
+	envURL               = "CODER_URL"
 )
 
 func (r *RootCmd) CoreSubcommands() []*serpent.Command {
@@ -134,12 +139,14 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.Create(CreateOptions{}),
 		r.deleteWorkspace(),
 		r.favorite(),
+		r.identity(),
 		r.list(),
 		r.logs(),
 		r.open(),
 		r.ping(),
 		r.rename(),
 		r.restart(),
+		r.run(),
 		r.schedules(),
 		r.show(),
 		r.speedtest(),
@@ -174,6 +181,7 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.syncCommand(),
 		r.updateUserEmail(),
 		r.experimentRulesCommand(),
+		r.workloadOperator(),
 	}
 }
 
@@ -1024,6 +1032,9 @@ type AgentAuth struct {
 	agentURL       url.URL
 	agentAuth      string
 	agentName      string
+	// agentPodTokenFile is the path of a Kubernetes projected service
+	// account token that identifies the pod the daemon runs in.
+	agentPodTokenFile string
 }
 
 func (a *AgentAuth) AttachOptions(cmd *serpent.Command, hidden bool) {
@@ -1063,6 +1074,13 @@ func (a *AgentAuth) AttachOptions(cmd *serpent.Command, hidden bool) {
 		Env:         envAgentName,
 		Value:       serpent.StringOf(&a.agentName),
 		Hidden:      hidden,
+	}, serpent.Option{
+		Name:        "Agent Pod Token File",
+		Description: "A Kubernetes projected service account token that identifies the pod the agent runs in. When set, the agent authenticates as its pod.",
+		Flag:        "agent-pod-token-file",
+		Env:         envAgentPodTokenFile,
+		Value:       serpent.StringOf(&a.agentPodTokenFile),
+		Hidden:      true,
 	})
 }
 
@@ -1079,7 +1097,13 @@ func (a *AgentAuth) CreateClient() (*agentsdk.Client, error) {
 		iiOpts = append(iiOpts, agentsdk.WithInstanceIdentityAgentName(a.agentName))
 	}
 
+	if a.agentPodTokenFile != "" && (a.agentAuth == "token" || a.agentAuth == "kubernetes") {
+		return agentsdk.New(&a.agentURL, agentsdk.WithKubernetesPodToken(a.agentPodTokenFile)), nil
+	}
+
 	switch a.agentAuth {
+	case "kubernetes":
+		return agentsdk.New(&a.agentURL, agentsdk.WithKubernetesPodToken("")), nil
 	case "token":
 		token := a.agentToken
 		if token == "" {

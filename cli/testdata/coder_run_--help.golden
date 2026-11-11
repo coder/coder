@@ -1,0 +1,50 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder run [flags] <workspace> [command...]
+
+  Run a workload in its own workspace daemon, provisioned at runtime
+
+  Provision a new workspace daemon from the shape the workspace's template
+  declares, without a workspace build. Each workload gets its own identity. The
+  command, if any, is run by the new daemon and its output is streamed.
+    - Start a workload and run a command in it:
+  
+       $ coder run my-workspace -- coder identity
+  
+    - List the workloads of a workspace:
+  
+       $ coder run --list my-workspace
+  
+    - Remove a workload:
+  
+       $ coder run --remove workload-1a2b3c4d my-workspace
+
+OPTIONS:
+  -c, --column [name|status|shape|requested by|identity|pod] (default: name,status,shape,requested by,identity)
+          Columns to display in table output.
+
+  -l, --list bool
+          List the workspace's workloads instead of starting one.
+
+      --name string
+          A name for the workload. It becomes the name of its workspace agent.
+
+      --no-wait bool
+          Return as soon as the workload is requested, and print its ID.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+      --remove string
+          Remove the named workload instead of starting one.
+
+      --shape string
+          The workload shape to clone, by agent name. Only needed when the
+          template declares several.
+
+      --timeout duration (default: 10m)
+          How long to wait for the workload to start and its command to finish.
+
+———
+Run `coder --help` for a list of global options.
