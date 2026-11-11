@@ -1,6 +1,6 @@
 import { cn } from "cn";
 import { ChevronRightIcon, EllipsisVerticalIcon, PlusIcon } from "lucide-react";
-import { type RefObject, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
 import { NavLink, type To, useLocation, useMatch } from "react-router";
 import { getErrorMessage } from "#/api/errors";
@@ -74,7 +74,7 @@ type ProjectFoldersProps = {
 	readonly onRetry: () => void;
 	readonly emptyMessage: string;
 	/** Takes focus when the user unpins the last pinned project. */
-	readonly unpinFocusFallbackRef?: RefObject<HTMLElement | null>;
+	readonly unpinFocusFallbackRef?: React.RefObject<HTMLElement | null>;
 };
 
 export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
