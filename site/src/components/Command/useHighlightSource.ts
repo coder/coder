@@ -27,7 +27,7 @@ if (typeof document !== "undefined") {
 /**
  * Tracks whether the keyboard or the pointer last moved the highlight inside a
  * cmdk root. Set `source` as the root's `data-highlight-source` and call the
- * marks from its focus and pointer move handlers. Items then show the ring
+ * setters from its focus and pointer move handlers. Items then show the ring
  * only for keyboard highlights via `keyboardHighlightRingClassName`.
  *
  * Key presses are tracked on the whole document because some menus are driven
@@ -43,8 +43,8 @@ export const useHighlightSource = () => {
 	}, []);
 	return {
 		source,
-		markFromPage: () => setSource(lastPageInput),
-		markPointer: () => setSource("pointer"),
+		setToLastPageInput: () => setSource(lastPageInput),
+		setToPointer: () => setSource("pointer"),
 	};
 };
 

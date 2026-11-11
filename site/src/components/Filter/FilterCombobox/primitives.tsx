@@ -162,7 +162,7 @@ export function FilterComboboxRoot({
 					className={cn("flex w-full flex-col", className)}
 					value={highlightedValue}
 					data-highlight-source={highlightSource.source}
-					onFocus={highlightSource.markFromPage}
+					onFocus={highlightSource.setToLastPageInput}
 					onKeyDown={(event) => {
 						// On Enter the cmdk root selects the highlighted row and cancels
 						// the focused button's click. A button takes Enter as a click
@@ -184,7 +184,7 @@ export function FilterComboboxRoot({
 					// Runs after the row's own handler, so the flag covers only the
 					// highlight that pointer move causes.
 					onPointerMove={() => {
-						highlightSource.markPointer();
+						highlightSource.setToPointer();
 						userNavigatingRef.current = false;
 					}}
 					onValueChange={(value) => {

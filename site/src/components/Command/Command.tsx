@@ -6,6 +6,21 @@ import {
 	useHighlightSource,
 } from "./useHighlightSource";
 
+/**
+ * Returns an event handler that runs the component's internal handler and then
+ * the consumer's handler from props, if any, so consumers can still observe
+ * the event without replacing the internal behavior.
+ */
+const composeEventHandlers =
+	<E,>(
+		internalHandler: (event: E) => void,
+		externalHandler: ((event: E) => void) | undefined,
+	) =>
+	(event: E) => {
+		internalHandler(event);
+		externalHandler?.(event);
+	};
+
 export const Command: React.FC<
 	React.ComponentProps<typeof CommandPrimitive>
 > = ({ className, onFocus, onPointerMove, ...props }) => {
@@ -17,14 +32,14 @@ export const Command: React.FC<
 				className,
 			)}
 			data-highlight-source={highlightSource.source}
-			onFocus={(event) => {
-				highlightSource.markFromPage();
-				onFocus?.(event);
-			}}
-			onPointerMove={(event) => {
-				highlightSource.markPointer();
-				onPointerMove?.(event);
-			}}
+			onFocus={composeEventHandlers(
+				highlightSource.setToLastPageInput,
+				onFocus,
+			)}
+			onPointerMove={composeEventHandlers(
+				highlightSource.setToPointer,
+				onPointerMove,
+			)}
 			{...props}
 		/>
 	);
