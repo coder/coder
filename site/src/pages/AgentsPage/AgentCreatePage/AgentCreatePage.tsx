@@ -107,10 +107,9 @@ const AgentCreatePage: React.FC = () => {
 	return <AgentCreatePageContent key={projectId} projectId={projectId} />;
 };
 
-/**
- * Finds the route's project in the active list, then the archived list, then
- * by ID in each of the user's organizations.
- */
+// Admins can manage projects that are neither theirs nor shared with them;
+// those are in neither list, so a by-ID lookup per organization is the last
+// resort.
 const useProjectLookup = (projectId: string | undefined) => {
 	const { organizations } = useDashboard();
 	const projectQuery = useQuery({
