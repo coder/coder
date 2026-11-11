@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { fn, spyOn } from "storybook/test";
 import { API } from "#/api/api";
 import { chatProjectArchivePreviewKey } from "#/api/queries/chatProjects";
-import { chatRetentionDays } from "#/api/queries/chats";
+import { chatRetentionDaysKey } from "#/api/queries/chats";
 import {
 	MockChatProject,
 	MockUserOwner,
@@ -27,7 +27,7 @@ const meta = {
 				key: chatProjectArchivePreviewKey(MockChatProject.id),
 				data: { chat_count: 5, active_chat_count: 0 },
 			},
-			{ key: chatRetentionDays().queryKey, data: { retention_days: 30 } },
+			{ key: chatRetentionDaysKey, data: { retention_days: 30 } },
 		],
 	},
 } satisfies Meta<typeof ArchiveProjectDialog>;
@@ -45,7 +45,7 @@ export const ActiveChats: Story = {
 				key: chatProjectArchivePreviewKey(MockChatProject.id),
 				data: { chat_count: 5, active_chat_count: 2 },
 			},
-			{ key: chatRetentionDays().queryKey, data: { retention_days: 0 } },
+			{ key: chatRetentionDaysKey, data: { retention_days: 0 } },
 		],
 	},
 };
@@ -58,7 +58,7 @@ export const OneActiveChat: Story = {
 				key: chatProjectArchivePreviewKey(MockChatProject.id),
 				data: { chat_count: 5, active_chat_count: 1 },
 			},
-			{ key: chatRetentionDays().queryKey, data: { retention_days: 30 } },
+			{ key: chatRetentionDaysKey, data: { retention_days: 30 } },
 		],
 	},
 };
@@ -71,7 +71,7 @@ export const NoChats: Story = {
 				key: chatProjectArchivePreviewKey(MockChatProject.id),
 				data: { chat_count: 0, active_chat_count: 0 },
 			},
-			{ key: chatRetentionDays().queryKey, data: { retention_days: 30 } },
+			{ key: chatRetentionDaysKey, data: { retention_days: 30 } },
 		],
 	},
 };
@@ -90,9 +90,7 @@ export const Loading: Story = {
 /** Without the preview, the dialog can't tell whether chats are running. */
 export const PreviewError: Story = {
 	parameters: {
-		queries: [
-			{ key: chatRetentionDays().queryKey, data: { retention_days: 30 } },
-		],
+		queries: [{ key: chatRetentionDaysKey, data: { retention_days: 30 } }],
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatProjectArchivePreview").mockRejectedValue(
