@@ -366,7 +366,7 @@ export type ProjectWorkspaceActionResult = {
 /**
  * Stops or deletes the workspaces behind the user's chats once their project
  * is archived. Workspaces another unarchived chat still uses are skipped, and
- * running workspaces are the only ones stopped. A failed in-use check rejects
+ * only workspaces running at that moment are stopped. A failed in-use check rejects
  * before any workspace changes.
  */
 export const projectWorkspaceAction = (queryClient: QueryClient) =>
@@ -393,8 +393,16 @@ export const projectWorkspaceAction = (queryClient: QueryClient) =>
 									workspace,
 									await API.deleteWorkspace(workspace.id),
 								);
-							} else if (isWorkspaceOn(workspace)) {
-								await API.stopWorkspace(workspace.id);
+							} else {
+								// The dialog's copy can be stale: the workspace may have
+								// started or stopped while the dialog was open.
+								const current = await queryClient.fetchQuery({
+									...workspaceById(workspace.id),
+									staleTime: 0,
+								});
+								if (isWorkspaceOn(current)) {
+									await API.stopWorkspace(workspace.id);
+								}
 							}
 						} catch (error) {
 							if (!isWorkspaceNotFound(error)) {
