@@ -259,49 +259,64 @@ export const ChatMovedToAnotherProject: Story = {
 	},
 };
 
-const archivedQueries = [
-	{
-		key: projectChats(MockChatProject.id, true).queryKey,
-		data: {
-			pages: [
-				[
-					{
-						...MockChat,
-						id: "chat-1",
-						title: "Plan the launch",
-						archived: true,
-						project_id: MockChatProject.id,
-					},
-				],
-			],
-			pageParams: [0],
-		},
-	},
-	{
-		key: chatCostTreeKey("chat-1"),
-		data: mockChatCost("chat-1", 1_234_000),
-	},
-	{
-		key: chatProjectInstructionsKey(MockChatProject.id),
-		data: MockChatProjectInstructions,
-	},
-	{
-		key: chatProjectSkillsKey(MockChatProject.id),
-		data: MockSkills,
-	},
-	{ key: chatProjectACLKey(MockChatProject.id), data: mockACL },
-];
+const mockArchivedChat: Chat = {
+	...MockChat,
+	id: "chat-1",
+	title: "Plan the launch",
+	archived: true,
+	project_id: MockChatProject.id,
+};
 
 /** The composer gives way to a banner, and the list shows archived chats. */
 export const Archived: Story = {
 	args: { project: MockArchivedChatProject },
-	parameters: { queries: archivedQueries },
+	parameters: {
+		queries: [
+			{
+				key: projectChats(MockChatProject.id, true).queryKey,
+				data: { pages: [[mockArchivedChat]], pageParams: [0] },
+			},
+			{
+				key: chatCostTreeKey(mockArchivedChat.id),
+				data: mockChatCost(mockArchivedChat.id, 1_234_000),
+			},
+			{
+				key: chatProjectInstructionsKey(MockChatProject.id),
+				data: MockChatProjectInstructions,
+			},
+			{
+				key: chatProjectSkillsKey(MockChatProject.id),
+				data: MockSkills,
+			},
+			{ key: chatProjectACLKey(MockChatProject.id), data: mockACL },
+		],
+	},
 };
 
 /** Only Unarchive project and Delete project remain in the menu. */
 export const ArchivedProjectActions: Story = {
 	args: { project: MockArchivedChatProject },
-	parameters: { queries: archivedQueries },
+	parameters: {
+		queries: [
+			{
+				key: projectChats(MockChatProject.id, true).queryKey,
+				data: { pages: [[mockArchivedChat]], pageParams: [0] },
+			},
+			{
+				key: chatCostTreeKey(mockArchivedChat.id),
+				data: mockChatCost(mockArchivedChat.id, 1_234_000),
+			},
+			{
+				key: chatProjectInstructionsKey(MockChatProject.id),
+				data: MockChatProjectInstructions,
+			},
+			{
+				key: chatProjectSkillsKey(MockChatProject.id),
+				data: MockSkills,
+			},
+			{ key: chatProjectACLKey(MockChatProject.id), data: mockACL },
+		],
+	},
 	play: async ({ canvasElement }) => {
 		await userEvent.click(
 			await within(canvasElement).findByRole("button", {
@@ -324,5 +339,25 @@ export const ArchivedWithoutArchivePermission: Story = {
 			},
 		},
 	},
-	parameters: { queries: archivedQueries },
+	parameters: {
+		queries: [
+			{
+				key: projectChats(MockChatProject.id, true).queryKey,
+				data: { pages: [[mockArchivedChat]], pageParams: [0] },
+			},
+			{
+				key: chatCostTreeKey(mockArchivedChat.id),
+				data: mockChatCost(mockArchivedChat.id, 1_234_000),
+			},
+			{
+				key: chatProjectInstructionsKey(MockChatProject.id),
+				data: MockChatProjectInstructions,
+			},
+			{
+				key: chatProjectSkillsKey(MockChatProject.id),
+				data: MockSkills,
+			},
+			{ key: chatProjectACLKey(MockChatProject.id), data: mockACL },
+		],
+	},
 };
