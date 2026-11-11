@@ -6,7 +6,7 @@ import {
 } from "#/components/Tooltip/Tooltip";
 export const LastConnectionHead: React.FC = () => {
 	return (
-		<span className="flex items-center gap-1 whitespace-nowrap text-xs font-medium text-content-secondary">
+		<span className="flex items-center gap-1 whitespace-nowrap text-xs text-content-secondary">
 			Last connection
 			<Tooltip>
 				<TooltipTrigger asChild>

@@ -313,7 +313,7 @@ export const ChatSharingPopoverContent: React.FC<
 	return (
 		<PopoverContent
 			align="end"
-			className="w-[calc(100vw-2rem)] p-3 sm:w-[580px] sm:p-4"
+			className="w-[calc(100vw-2rem)] p-3 sm:w-145 sm:p-4"
 		>
 			<div className="flex items-center justify-between gap-2 mb-4">
 				<h3 className="text-lg font-semibold m-0">Chat sharing</h3>
@@ -347,7 +347,7 @@ export const ChatSharingPopoverContent: React.FC<
 
 						{isEmpty ? (
 							<div className="flex min-h-44 flex-col items-center justify-center px-6 py-6 text-center">
-								<h4 className="m-0 text-sm font-medium text-content-secondary">
+								<h4 className="m-0 text-sm text-content-secondary">
 									No shared members or groups yet
 								</h4>
 								<p className="m-0 mt-2 text-sm text-content-secondary">

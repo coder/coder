@@ -124,7 +124,7 @@ Even though the browser displays a warning about an insecure connection without 
 
    ![Google Chrome insecure origin settings](../../images/user-guides/desktop/chrome-insecure-origin.png)
 
-1. Ensure that the dropdown to the right of the text field is set to **Enabled**.
+1. Make sure that the dropdown to the right of the text field is set to **Enabled**.
 
 1. You will be prompted to relaunch Google Chrome at the bottom of the page.
    Select **Relaunch** to restart Google Chrome.

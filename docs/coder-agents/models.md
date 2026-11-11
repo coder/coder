@@ -252,14 +252,14 @@ These fields appear dynamically in the admin UI when you select a provider.
 |------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Thinking Budget Tokens | Maximum tokens allocated for extended thinking.                                                                                                                                                                                  |
 | Effort                 | Thinking effort level (`low`, `medium`, `high`, `xhigh`, `max`).                                                                                                                                                                 |
-| 1M Context Window      | Sends the `anthropic-beta: context-1m-2025-08-07` header to unlock the 1M token context window on supported Claude models. Pair it with a raised Context Limit, which still controls compaction. Long-context pricing may apply. |
+| 1M Context Window      | Sends the `anthropic-beta: context-1m-2025-08-07` header to unlock the 1M token context window on supported Claude models. Pair it with a raised Context Limit, which still controls compaction. Long-context pricing can apply. |
 
 #### OpenAI
 
 | Option                | Description                                                                                                                                                                                                                                                                                                                                          |
 |-----------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Reasoning Effort      | How much effort the model spends reasoning (`minimal`, `low`, `medium`, `high`, `xhigh`).                                                                                                                                                                                                                                                            |
-| Max Completion Tokens | Cap on completion tokens for reasoning models.                                                                                                                                                                                                                                                                                                       |
+| Max Completion Tokens | Cap on completion tokens for Chat Completions requests.                                                                                                                                                                                                                                                                                              |
 | Parallel Tool Calls   | Whether the model can call multiple tools at once.                                                                                                                                                                                                                                                                                                   |
 | Reasoning Mode        | Set to `pro` to use OpenAI's Pro reasoning mode. Supported from the GPT-5.6 Sol generation; requests fail on models that do not support it. Pro increases model work, latency, and token usage. It requires the Responses API and a reasoning model, so it is rejected when the **Use Responses API** or **Reasoning Model** override is set to Off. |
 
@@ -356,7 +356,7 @@ Agents discover selectable models (and their reasoning effort ranges) with the `
 Computer use subagents reject explicit model selection and skip the chat's selected model: they run on the **Computer use** admin override, or on the organization default model when no override is set or the override model is unavailable.
 
 > [!NOTE]
-> Both override layers may change between releases.
+> Both override layers might change between releases.
 > Admin overrides are available through the API at `/api/v2/organizations/{organization}/chats/model-overrides` and personal overrides at `/api/v2/organizations/{organization}/members/{user}/chats/model-overrides`.
 
 ## User API keys (BYOK)

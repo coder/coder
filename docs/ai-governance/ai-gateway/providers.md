@@ -331,7 +331,7 @@ Each [standalone gateway](./standalone.md) replica reloads providers independent
 If a reload fails, that replica retains its previous provider snapshot and continues serving from it.
 
 A growing gap between the attempt and success timestamps means reloads are firing but failing to apply.
-Alert on that gap rather than on a single failure, which may resolve on the next change.
+Alert on that gap rather than on a single failure, which might resolve on the next change.
 Refer to [Monitoring](./monitoring.md#prometheus-metrics) for the full metric list and sample alert queries.
 
 ## Key failover

@@ -12,7 +12,7 @@ For secret values that developers manage themselves, see [User secrets](../../wo
 ## Before you begin
 
 Your first attempt to use secrets with Coder should be your local method.
-You can do everything you can locally and more with your Coder workspace, so whatever workflow and tools you already use to manage secrets may be brought over.
+You can do everything you can locally and more with your Coder workspace, so whatever workflow and tools you already use to manage secrets can be brought over.
 
 Often, this workflow is simply:
 

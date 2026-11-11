@@ -34,7 +34,7 @@ export const UserSidebarFooter: React.FC = () => {
 							</span>
 						</button>
 					</DropdownMenuTrigger>
-					<DropdownMenuContent align="start" className="w-[260px]">
+					<DropdownMenuContent align="start" className="w-65">
 						<UserDropdownContent
 							user={user}
 							buildInfo={buildInfo}

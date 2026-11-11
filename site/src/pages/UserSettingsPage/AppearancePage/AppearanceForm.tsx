@@ -169,7 +169,7 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 
 			<Section
 				title={
-					<div className="flex flex-row items-center gap-2">
+					<div className="flex items-center gap-2">
 						<span>Theme</span>
 						<Spinner
 							loading={isUpdating}
@@ -229,7 +229,7 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 
 			<Section
 				title={
-					<div className="flex flex-row items-center gap-2">
+					<div className="flex items-center gap-2">
 						<span>Terminal</span>
 						<Spinner
 							loading={isUpdating}
