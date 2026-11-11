@@ -56,7 +56,7 @@ To archive a project, open the project's menu on its page or in the sidebar and 
 The dialog shows how many top-level chats will be archived, along with their subagent chats, and what happens next:
 
 - Every chat in the project is archived, including chats that other users started in it.
-- If chats are active (running, interrupting, waiting on a tool result, or paused on a queued message being edited), the dialog warns you and the button changes to **Stop chats and archive**, or **Stop chat and archive** when one chat is active.
+- If chats are active (running, interrupting, waiting on a tool result, or paused on a queued message being edited), the dialog warns you and the button changes to **Stop chats and archive**, or **Stop chat and archive** when the active chats all belong to one top-level chat.
   Archiving stops them and discards any reply in progress.
   Queued messages are kept.
 - If your own chats in the project use workspaces, choose whether to leave, stop, or delete those workspaces.
