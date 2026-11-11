@@ -283,6 +283,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		}),
 	);
 
+	const projectsNavItemRef = useRef<HTMLElement | null>(null);
 	const dragInstructionsId = useId();
 	const moveMutation = useMoveChatToProject();
 
@@ -578,6 +579,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						icon={FolderKanbanIcon}
 						label="Projects"
 						active={isProjectsActive}
+						ref={(element) => {
+							projectsNavItemRef.current = element;
+						}}
 						to={{ pathname: "/agents/projects", search: locationSearch }}
 					/>
 				)}
@@ -696,6 +700,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 																	error: pinnedProjectsError,
 																	onRetry: onRetryPinnedProjects,
 																	emptyMessage: emptyStateMessage,
+																	unpinFocusFallbackRef: projectsNavItemRef,
 																}
 															: undefined
 													}
