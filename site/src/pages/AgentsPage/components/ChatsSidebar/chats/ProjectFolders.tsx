@@ -37,7 +37,7 @@ import { ChatDropArea } from "./ChatDropArea";
 import { ProjectActionsMenuItems } from "./ProjectActionsMenuItems";
 import { ProjectFolderChats } from "./ProjectFolderChats";
 import { ProjectsSectionDropArea } from "./ProjectsSectionDropArea";
-import { getOrganizationLabels } from "./projectGrouping";
+import { getOrganizationLabels, getProjectLabel } from "./projectGrouping";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 
 export type ProjectDialogState =
@@ -240,9 +240,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	const projectPathname = buildAgentProjectPath({ projectId: project.id });
 	const projectPath: To = { pathname: projectPathname, search: locationSearch };
 	const isOnProjectPage = useMatch(projectPathname) !== null;
-	const projectLabel = organizationLabel
-		? `${project.name} (${organizationLabel})`
-		: project.name;
+	const projectLabel = getProjectLabel(project, organizationLabel);
 	const toggleRef = useRef<HTMLButtonElement>(null);
 	const actionsButtonRef = useRef<HTMLButtonElement>(null);
 	const handleArchive = () => onArchive(actionsButtonRef.current);
