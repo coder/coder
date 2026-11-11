@@ -358,7 +358,7 @@ export function FilterCombobox({
 				<FilterComboboxInputGroup
 					className={cn(className, mobileOverlay && mobileOverlayClassName)}
 				>
-					<InputGroupAddon className="self-stretch items-start border-r border-solid p-0">
+					<InputGroupAddon className="self-stretch items-start border-r p-0">
 						<InputGroupButton
 							type="button"
 							variant="subtle"

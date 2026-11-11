@@ -48,7 +48,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 	LicenseSeatConsumptionChartProps
 > = ({ data, limit }) => {
 	return (
-		<section className="border border-solid rounded">
+		<section className="border rounded">
 			<div className="p-4">
 				<Collapsible>
 					<header className="flex flex-col gap-2 items-start">
@@ -131,7 +131,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 				</Collapsible>
 			</div>
 
-			<div className="p-6 border-t border-solid">
+			<div className="p-6 border-t">
 				<div className="h-64">
 					{data ? (
 						data.length > 0 ? (

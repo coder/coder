@@ -79,7 +79,7 @@ export const ChartToolbar = (props: React.HTMLProps<HTMLDivElement>) => {
 			{...props}
 			className={cn(
 				"flex items-stretch border-b text-xs",
-				"border-solid border-b",
+				"border-b",
 				props.className,
 			)}
 		/>
@@ -159,7 +159,7 @@ export const ChartLegends: React.FC<ChartLegendsProps> = ({ legends }) => {
 				>
 					<div
 						className={cn(
-							"size-icon-sm rounded border border-solid bg-surface-primary",
+							"size-icon-sm rounded border bg-surface-primary",
 							l.className,
 						)}
 					/>

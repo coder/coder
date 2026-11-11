@@ -39,7 +39,7 @@ export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 
 	if (!isUnlimited && limit < 0) {
 		return (
-			<section className="border border-solid rounded">
+			<section className="border rounded">
 				<div className="p-4">
 					<ErrorAlert error="Invalid license usage limits" />
 				</div>
@@ -146,7 +146,7 @@ export const TotalAgentHoursCard: React.FC<TotalAgentHoursCardProps> = ({
 	}
 
 	return (
-		<section className="border border-solid rounded">
+		<section className="border rounded">
 			<div className="p-4">
 				<div className="flex flex-col gap-2">
 					<div className="flex flex-col gap-0.5">

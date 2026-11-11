@@ -50,7 +50,7 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 	const titleId = useId();
 
 	return (
-		<section className="border border-solid rounded">
+		<section className="border rounded">
 			<div className="p-4">
 				<Collapsible>
 					<header className="flex flex-col gap-2 items-start">
@@ -91,7 +91,7 @@ export const UserEngagementChart: React.FC<UserEngagementChartProps> = ({
 				</Collapsible>
 			</div>
 
-			<div className="p-6 border-t border-solid">
+			<div className="p-6 border-t">
 				<div className="h-64">
 					{data ? (
 						data.length > 0 ? (
@@ -251,10 +251,7 @@ const UserEngagementTable: React.FC<UserEngagementTableProps> = ({ data }) => (
 				<TableBody>
 					{data.map((d) => (
 						<TableRow key={d.date}>
-							<TableHead
-								scope="row"
-								className="border-t border-solid font-medium"
-							>
+							<TableHead scope="row" className="border-t font-medium">
 								{formatDate(new Date(d.date), {
 									hour: undefined,
 									minute: undefined,
