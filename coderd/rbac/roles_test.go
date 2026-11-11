@@ -1592,6 +1592,8 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			// Only the owner of an automation creates it, through
+			// agents-access. Administrators have no create.
 			Name:     "ChatAutomationCreate",
 			Actions:  []policy.Action{policy.ActionCreate},
 			Resource: rbac.ResourceChatAutomation.WithID(uuid.New()).InOrg(orgID).WithOwner(currentUser.String()),
@@ -2051,6 +2053,9 @@ func TestDBPurgeBoundaryLogDelete(t *testing.T) {
 	require.Error(t, err, "DBPurge must not read boundary logs")
 }
 
+// A request must pass both the role grants and the scope of its API key. No
+// scope that a user can request covers chat automations, so a scoped key
+// cannot reach them, not even the owner's own.
 func TestExternalScopesCannotReachChatAutomations(t *testing.T) {
 	t.Parallel()
 

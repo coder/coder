@@ -1,3 +1,5 @@
+-- Take every table lock this migration needs before changing anything. See
+-- 000609_chat_automations.up.sql for the reasoning.
 DO $$
 DECLARE
 	previous_lock_timeout text := current_setting('lock_timeout');
@@ -33,6 +35,11 @@ BEGIN
 END;
 $$;
 
+-- A queued automation message has not run its prompt hooks, and the flag
+-- that records this is dropped below. Delete these messages so that they
+-- are not delivered without the hooks. A message in chat_messages with the
+-- flag set stays: it is already part of the chat's history, and deleting it
+-- would rewrite a conversation. Its turn starts without the hooks.
 DELETE FROM chat_queued_messages WHERE automation_id IS NOT NULL OR prompt_hooks_pending;
 
 -- Dropping a column drops its indexes.
@@ -50,6 +57,7 @@ ALTER TABLE chat_queued_messages
     DROP COLUMN input_id,
     DROP COLUMN automation_id;
 
+-- The function body names chat_automations, which is dropped below.
 CREATE OR REPLACE FUNCTION delete_deleted_user_resources() RETURNS trigger
     LANGUAGE plpgsql
 AS $$
@@ -162,6 +170,11 @@ CREATE VIEW chats_expanded AS
 -- Remove the chat_automation scopes from the api_key_scope enum. PostgreSQL
 -- cannot drop an enum value, so recreate the type as 000616 did. LIKE treats
 -- an unescaped underscore as a wildcard, so the patterns escape it.
+--
+-- The scopes column cannot hold a removed value. Keys left with no other
+-- scope are revoked. API key allow lists, custom role permissions and
+-- OAuth2 scopes are not enum-typed and stay as they are, so a binary without
+-- the chat_automation resource can fail to load a row that names it.
 DELETE FROM api_keys
 WHERE EXISTS (SELECT 1 FROM unnest(scopes) s WHERE s::text LIKE 'chat\_automation:%')
   AND NOT EXISTS (SELECT 1 FROM unnest(scopes) s WHERE s::text NOT LIKE 'chat\_automation:%');

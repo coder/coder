@@ -52,6 +52,9 @@ var genCtx = dbauthz.As(context.Background(), rbac.Subject{
 	Scope:  rbac.ExpandableScope(rbac.ScopeAll),
 })
 
+// chatAutomationGenCtx is the generator context for a chat automation of
+// ownerID. dbauthz lets only the owner create an automation, and the owner
+// role has no create permission, so genCtx cannot insert one.
 func chatAutomationGenCtx(ownerID uuid.UUID) context.Context {
 	return dbauthz.As(context.Background(), rbac.Subject{
 		ID: ownerID.String(),

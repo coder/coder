@@ -70,6 +70,8 @@ func TestIsExternalScope(t *testing.T) {
 	require.False(t, IsExternalScope("unknown:read"))
 }
 
+// Chat automation scopes are internal-only: a user cannot request them for
+// an API key or an OAuth2 grant.
 func TestChatAutomationScopesAreInternal(t *testing.T) {
 	t.Parallel()
 

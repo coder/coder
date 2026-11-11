@@ -21,6 +21,10 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+// TestChatAutomationAuthorization runs the chat automation queries through
+// dbauthz with the real authorizer, real roles and a real database. Each
+// subject is loaded from its user row and organization membership, the way
+// the API key middleware loads it.
 func TestChatAutomationAuthorization(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -33,6 +37,8 @@ func TestChatAutomationAuthorization(t *testing.T) {
 
 	org := dbgen.Organization(t, rawDB, database.Organization{})
 	otherOrg := dbgen.Organization(t, rawDB, database.Organization{})
+	// Every member gets the default roles of the organization, and
+	// agents-access is one of them. This organization took it out.
 	noAgentsOrg := dbgen.Organization(t, rawDB, database.Organization{
 		DefaultOrgMemberRoles: []string{rbac.RoleOrgWorkspaceAccess()},
 	})
@@ -147,11 +153,14 @@ func TestChatAutomationAuthorization(t *testing.T) {
 				p.ProjectID = nullID(memberProject.ID)
 				return p
 			}()},
+			// Administrators create their own automations as members.
 			{name: "OrgAdminOwn", actor: orgAdmin, allowed: true, params: webhook(orgAdmin)},
 			{name: "DeploymentOwnerOwn", actor: deploymentOwner, allowed: true, params: webhook(deploymentOwner)},
 			{name: "MemberForAnotherOwner", actor: member, params: webhook(otherMember)},
 			{name: "OrgAdminForAnotherOwner", actor: orgAdmin, params: webhook(member)},
 			{name: "DeploymentOwnerForAnotherOwner", actor: deploymentOwner, params: webhook(member)},
+			// The custom role grants create for the whole organization and
+			// update on every chat. The owner check still refuses.
 			{name: "CustomRoleForAnotherOwner", actor: customManager, params: func() database.InsertChatAutomationParams {
 				p := webhook(member)
 				p.TargetChatID = nullID(memberChat.ID)
@@ -196,6 +205,8 @@ func TestChatAutomationAuthorization(t *testing.T) {
 
 	memberAutomation := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: member.ID, Name: "member"})
 	otherMemberAutomation := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: otherMember.ID, Name: "other-member"})
+	// An automation whose owner has no agents-access. The owner can no
+	// longer reach it.
 	orphanedAutomation := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: noAgentsOrg.ID, OwnerID: memberWithoutAgentsAccess.ID})
 
 	t.Run("Get", func(t *testing.T) {
@@ -238,6 +249,7 @@ func TestChatAutomationAuthorization(t *testing.T) {
 			require.NoError(t, err)
 			var out []string
 			for _, row := range rows {
+				// The Insert cases add rows next to these.
 				if row.ID == memberAutomation.ID || row.ID == otherMemberAutomation.ID || row.ID == orphanedAutomation.ID {
 					out = append(out, row.Name)
 				}
@@ -273,6 +285,9 @@ func TestChatAutomationAuthorization(t *testing.T) {
 
 	t.Run("Count", func(t *testing.T) {
 		t.Parallel()
+		// The count spans organizations. A member's grants are scoped to
+		// an organization, so the member cannot run it. The service runs
+		// it as a system subject.
 		_, err := db.CountChatAutomationsByOwnerID(asUser(t, member), member.ID)
 		requireDenied(t, err)
 		_, err = db.CountChatAutomationsByOwnerID(asUser(t, orgAdmin), member.ID)
@@ -317,6 +332,8 @@ func TestChatAutomationAuthorization(t *testing.T) {
 		}
 	})
 
+	// A request must pass both the role grants and the scope of its API
+	// key. No scope that a user can request covers chat automations.
 	t.Run("ScopedAPIKey", func(t *testing.T) {
 		t.Parallel()
 		for _, name := range rbac.ExternalScopeNames() {
@@ -335,6 +352,8 @@ func TestChatAutomationAuthorization(t *testing.T) {
 		}
 	})
 
+	// chatd reads automations for the scheduler and the webhook lookup. It
+	// creates and deletes none.
 	t.Run("Chatd", func(t *testing.T) {
 		t.Parallel()
 		//nolint:gocritic // This test is about the chatd subject.
@@ -350,6 +369,7 @@ func TestChatAutomationAuthorization(t *testing.T) {
 		requireDenied(t, err)
 		requireDenied(t, db.DeleteChatAutomationByID(ctx, memberAutomation.ID))
 
+		// The insert above stops at the owner check, so ask RBAC directly.
 		subject, ok := dbauthz.ActorFromContext(ctx)
 		require.True(t, ok)
 		require.Error(t, authorizer.Authorize(ctx, subject, policy.ActionCreate, memberAutomation.RBACObject()),

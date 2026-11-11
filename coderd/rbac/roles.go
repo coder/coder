@@ -232,6 +232,10 @@ func workspaceSecretUserActions() []policy.Action {
 	return slice.Omit(ResourceWorkspaceSecret.AvailableActions(), policy.ActionReadSecret)
 }
 
+// chatAutomationAdminActions are the actions that administrators hold on
+// chat automations they do not own. Administrators get no create, because
+// an automation runs as its owner. dbauthz also rejects an insert whose
+// owner is not the actor.
 func chatAutomationAdminActions() []policy.Action {
 	return slice.Omit(ResourceChatAutomation.AvailableActions(), policy.ActionCreate)
 }
@@ -780,7 +784,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 							// Memory objects carry the owning project's owner, so this
 							// grant reaches only the member's own projects.
 							ResourceChatProjectMemory.Type: ResourceChatProjectMemory.AvailableActions(),
-							ResourceChatAutomation.Type:    ResourceChatAutomation.AvailableActions(),
+							// ChatAutomation.RBACObject sets WithOwner(OwnerID), so this
+							// grant reaches only the member's own automations.
+							ResourceChatAutomation.Type: ResourceChatAutomation.AvailableActions(),
 						}),
 					},
 				},

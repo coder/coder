@@ -93,6 +93,9 @@ func nullString(s string) sql.NullString {
 	return sql.NullString{String: s, Valid: true}
 }
 
+// requireCheckViolation asserts that err is a check violation that names
+// the constraint. The organization trigger raises its own constraint names,
+// which are not CHECK constraints of the table.
 func requireCheckViolation(t *testing.T, err error, constraint string) {
 	t.Helper()
 	var pqErr *pq.Error
@@ -123,6 +126,7 @@ func TestChatAutomationShapeChecks(t *testing.T) {
 		{name: "WebhookWithoutSecret", base: o.webhookParams, want: database.CheckChatAutomationsKindShape, mutate: func(p *database.InsertChatAutomationParams) {
 			p.WebhookSecret = sql.NullString{}
 		}},
+		// The empty string stays legal so that a secret can be blanked.
 		{name: "WebhookWithEmptySecret", base: o.webhookParams, mutate: func(p *database.InsertChatAutomationParams) {
 			p.WebhookSecret = nullString("")
 		}},
@@ -154,6 +158,8 @@ func TestChatAutomationShapeChecks(t *testing.T) {
 		{name: "ScheduleWithSecretKeyID", base: o.scheduleParams, want: database.CheckChatAutomationsKindShape, mutate: func(p *database.InsertChatAutomationParams) {
 			p.WebhookSecretKeyID = nullString("digest")
 		}},
+		// Deleting the target chat sets target_chat_id to NULL, so the
+		// row must be legal without it.
 		{name: "ExistingChatWithoutTarget", base: o.webhookParams, mutate: func(p *database.InsertChatAutomationParams) {
 			p.TargetChatID = uuid.NullUUID{}
 		}},
@@ -234,6 +240,7 @@ func TestChatAutomationLastRunChecks(t *testing.T) {
 		{name: "TimeWithoutOutcome", query: `UPDATE chat_automations SET last_run_at = now() WHERE id = $1`, want: database.CheckChatAutomationsLastRunShape},
 		{name: "OutcomeWithoutTime", query: `UPDATE chat_automations SET last_run_outcome = 'skipped' WHERE id = $1`, want: database.CheckChatAutomationsLastRunShape},
 		{name: "NegativeCount", query: `UPDATE chat_automations SET last_run_unaccepted_count = -1 WHERE id = $1`, want: database.CheckChatAutomationsLastRunUnacceptedCountCheck},
+		// last_run_chat_id has no foreign key, so any chat ID is accepted.
 		{name: "SkippedRun", query: `UPDATE chat_automations SET last_run_at = now(), last_run_outcome = 'skipped', last_run_reason = 'chat_busy',
 			last_run_chat_id = gen_random_uuid(), last_run_unaccepted_count = 3 WHERE id = $1`},
 		{name: "AcceptedRun", query: `UPDATE chat_automations SET last_run_at = now(), last_run_outcome = 'accepted', last_run_reason = NULL,
@@ -287,6 +294,7 @@ func TestChatAutomationOrganizationTrigger(t *testing.T) {
 		require.NoError(t, err, "references in the same organization")
 	})
 
+	// Sequential: each update below must leave the row unchanged.
 	webhook, err := db.InsertChatAutomation(ctx, o.webhookParams())
 	require.NoError(t, err)
 	schedule, err := db.InsertChatAutomation(ctx, o.scheduleParams())
@@ -301,6 +309,7 @@ func TestChatAutomationOrganizationTrigger(t *testing.T) {
 		{name: "TargetChat", id: webhook.ID, query: `UPDATE chat_automations SET target_chat_id = $2 WHERE id = $1`, arg: other.chat.ID, want: chatConstraint},
 		{name: "CreatingChat", id: webhook.ID, query: `UPDATE chat_automations SET created_by_chat_id = $2 WHERE id = $1`, arg: other.chat.ID, want: chatConstraint},
 		{name: "Project", id: schedule.ID, query: `UPDATE chat_automations SET project_id = $2 WHERE id = $1`, arg: other.project.ID, want: projectConstraint},
+		// A change of the organization alone checks every reference again.
 		{name: "OrganizationOfTargetChat", id: webhook.ID, query: `UPDATE chat_automations SET organization_id = $2 WHERE id = $1`, arg: other.org.ID, want: chatConstraint},
 	} {
 		_, err := sqlDB.ExecContext(ctx, tc.query, tc.id, tc.arg)
@@ -351,6 +360,8 @@ func TestChatAutomationReferenceDeletes(t *testing.T) {
 	separate, err := db.InsertChatAutomation(ctx, params)
 	require.NoError(t, err)
 
+	// An agent that creates a heartbeat for its own chat sets both
+	// references to one chat.
 	params = o.webhookParams()
 	params.TargetChatID = nullUUID(both.ID)
 	params.CreatedByChatID = nullUUID(both.ID)
@@ -399,6 +410,7 @@ func TestChatAutomationCascadesAndProvenance(t *testing.T) {
 		org := dbgen.Organization(t, db, database.Organization{})
 		owner := dbgen.User(t, db, database.User{})
 		automation := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: owner.ID})
+		// A hard delete needs the status history gone first.
 		_, err := sqlDB.ExecContext(ctx, `DELETE FROM user_status_changes WHERE user_id = $1`, owner.ID)
 		require.NoError(t, err)
 		_, err = sqlDB.ExecContext(ctx, `DELETE FROM users WHERE id = $1`, owner.ID)
@@ -406,6 +418,8 @@ func TestChatAutomationCascadesAndProvenance(t *testing.T) {
 		requireGone(ctx, t, automation.ID)
 	})
 
+	// Coder soft-deletes users, so the foreign key never cascades. The
+	// user cleanup trigger deletes the automations instead.
 	t.Run("SoftDeletedOwner", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -493,6 +507,8 @@ func TestChatAutomationForeignKeys(t *testing.T) {
 		automation, err := db.InsertChatAutomation(ctx, params)
 		require.NoError(t, err)
 
+		// Model configs are soft-deleted. The row stays, so the reference
+		// stays valid. A hard delete of a referenced model is refused.
 		_, err = db.DeleteChatModelConfigByID(ctx, model.ID)
 		require.NoError(t, err)
 		got, err := db.GetChatAutomationByID(ctx, automation.ID)
@@ -546,6 +562,8 @@ func TestChatAutomationQueries(t *testing.T) {
 	third := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: o.org.ID, OwnerID: otherOwner.ID})
 	inOtherOrg := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: other.org.ID, OwnerID: owner.ID})
 
+	// Give the rows known times. first and second share one, so their
+	// order comes from the ID.
 	base := time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC)
 	for id, createdAt := range map[uuid.UUID]time.Time{
 		first.ID: base, second.ID: base, third.ID: base.Add(time.Hour),
@@ -615,6 +633,8 @@ func TestChatAutomationQueries(t *testing.T) {
 		require.True(t, got.WebhookSecret.Valid)
 	})
 
+	// A list covers every automation of an organization, so it must not
+	// load a secret. The row type has no field that could carry one.
 	t.Run("ListRowHasNoSecret", func(t *testing.T) {
 		t.Parallel()
 		row := reflect.TypeOf(database.GetChatAutomationsByOrganizationIDRow{})
@@ -627,6 +647,8 @@ func TestChatAutomationQueries(t *testing.T) {
 	})
 }
 
+// The chats queries name their columns one by one. A chat's automation
+// columns must come back from them and from the hand-written scans.
 func TestChatAutomationColumnsOnChats(t *testing.T) {
 	t.Parallel()
 
@@ -692,6 +714,8 @@ func TestChatAutomationColumnsOnChats(t *testing.T) {
 	chat, err = db.UpdateChatExecutionState(ctx, database.UpdateChatExecutionStateParams{ID: o.chat.ID, Status: database.ChatStatusWaiting})
 	requireColumns("UpdateChatExecutionState", chat, err)
 
+	// GetAuthorizedChats and GetAuthorizedChatsByChatFileID scan their rows
+	// by hand.
 	subject, _, err := httpmw.UserRBACSubject(ctx, db, user.ID, rbac.ExpandableScope(rbac.ScopeAll))
 	require.NoError(t, err)
 	prepared, err := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()).
