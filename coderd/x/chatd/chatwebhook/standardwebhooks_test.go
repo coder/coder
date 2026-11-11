@@ -13,6 +13,18 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatwebhook"
 )
 
+// withSpareBitsSet returns an encoded 32-byte key whose last base64
+// character has its two spare bits set. The decoder reads the same key bytes
+// from it, so only a strict decode tells it apart from the canonical form.
+func withSpareBitsSet(t *testing.T, canonical string) string {
+	t.Helper()
+	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+	require.Equal(t, byte('='), canonical[len(canonical)-1], "a 32-byte key ends in one padding character")
+	last := strings.IndexByte(alphabet, canonical[len(canonical)-2])
+	require.Zero(t, last%4, "the spare bits of a canonical last character are zero")
+	return canonical[:len(canonical)-2] + string(alphabet[last+1]) + "="
+}
+
 func TestStandardWebhooks(t *testing.T) {
 	t.Parallel()
 
@@ -77,6 +89,9 @@ func TestStandardWebhooks(t *testing.T) {
 		{name: "timestamp zero", header: hdr(id, "0", sign(key, id, "0", body)), body: body, secret: secret},
 		{name: "timestamp at the int64 maximum", header: hdr(id, "9223372036854775807", sign(key, id, "9223372036854775807", body)), body: body, secret: secret},
 		{name: "timestamp past the int64 maximum", header: hdr(id, "9223372036854775808", sign(key, id, "9223372036854775808", body)), body: body, secret: secret},
+		// The signed content holds the timestamp text as received.
+		{name: "timestamp with leading zeros signed as received", header: hdr(id, "000"+ts, sign(key, id, "000"+ts, body)), body: body, secret: secret, accepted: true},
+		{name: "timestamp with leading zeros signed as a number", header: hdr(id, "000"+ts, sign(key, id, ts, body)), body: body, secret: secret},
 		{name: "timestamp with a sign", header: hdr(id, "+"+ts, sign(key, id, "+"+ts, body)), body: body, secret: secret},
 		{name: "timestamp negative", header: hdr(id, "-1", sign(key, id, "-1", body)), body: body, secret: secret},
 		{name: "timestamp with a fraction", header: hdr(id, ts+".5", sign(key, id, ts+".5", body)), body: body, secret: secret},
@@ -132,6 +147,7 @@ func TestStandardWebhooks(t *testing.T) {
 		{name: "wrong secret", header: hdr(id, ts, valid), body: body, secret: "whsec_" + base64.StdEncoding.EncodeToString([]byte("another key"))},
 		{name: "secret without the prefix", header: hdr(id, ts, valid), body: body, secret: strings.TrimPrefix(secret, "whsec_")},
 		{name: "secret with the prefix in upper case", header: hdr(id, ts, valid), body: body, secret: "WHSEC_" + strings.TrimPrefix(secret, "whsec_")},
+		{name: "secret with the spare bits of the last base64 character set", header: hdr(id, ts, valid), body: body, secret: "whsec_" + withSpareBitsSet(t, base64.StdEncoding.EncodeToString(key))},
 		{name: "secret not base64", header: hdr(id, ts, valid), body: body, secret: "whsec_not base64!"},
 		{name: "secret empty", header: hdr(id, ts, valid), body: body, secret: ""},
 		{name: "secret prefix only", header: hdr(id, ts, valid), body: body, secret: "whsec_"},
@@ -159,6 +175,13 @@ func TestStandardWebhooksValidateSecret(t *testing.T) {
 			require.NoError(t, v.ValidateSecret(secret))
 		})
 	}
+
+	t.Run("invalid base64 with the spare bits of the last character set", func(t *testing.T) {
+		t.Parallel()
+		encoded := base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef"))
+		require.NoError(t, v.ValidateSecret("whsec_"+encoded))
+		require.ErrorIs(t, v.ValidateSecret("whsec_"+withSpareBitsSet(t, encoded)), chatwebhook.ErrInvalidSecret)
+	})
 
 	for name, secret := range map[string]string{
 		"empty":                       "",
