@@ -149,7 +149,6 @@ describe("chat project mutations", () => {
 });
 
 describe("pinChatProject ordering", () => {
-	// Launch, Billing and Ops are pinned in that order.
 	const [launch, billing, ops] = ["launch", "billing", "ops"].map(
 		(id, index) => ({
 			...MockChatProjectSummary,
