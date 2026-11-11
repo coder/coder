@@ -244,29 +244,31 @@ describe("ArchiveProjectDialog", () => {
 		await renderDialog();
 
 		await user.click(await screen.findByRole("radio", { name: "Stop them" }));
-		// The stopped workspace starts while the dialog is open, so it is
-		// stopped too.
+		// Both workspaces change state while the dialog is open: the running
+		// one stops and the stopped one starts. Only the one running at
+		// archive time is stopped.
 		vi.mocked(API.getWorkspace).mockImplementation(async (id) => {
-			if (id === mockStoppedWorkspace.id) {
-				return {
-					...mockStoppedWorkspace,
-					latest_build: mockRunningWorkspace.latest_build,
-				};
+			switch (id) {
+				case mockRunningWorkspace.id:
+					return {
+						...mockRunningWorkspace,
+						latest_build: mockStoppedWorkspace.latest_build,
+					};
+				case mockStoppedWorkspace.id:
+					return {
+						...mockStoppedWorkspace,
+						latest_build: mockRunningWorkspace.latest_build,
+					};
+				case mockInUseWorkspace.id:
+					return mockInUseWorkspace;
+				default:
+					throw new Error(`unexpected workspace ${id}`);
 			}
-			const found = [mockRunningWorkspace, mockInUseWorkspace].find(
-				(ws) => ws.id === id,
-			);
-			if (!found) {
-				throw new Error(`unexpected workspace ${id}`);
-			}
-			return found;
 		});
 		await user.click(screen.getByRole("button", { name: "Archive project" }));
 
 		await waitFor(() => expect(warningToast).toHaveBeenCalled());
-		expect(stop.mock.calls.map(([id]) => id).sort()).toEqual(
-			[mockRunningWorkspace.id, mockStoppedWorkspace.id].sort(),
-		);
+		expect(stop.mock.calls).toEqual([[mockStoppedWorkspace.id]]);
 		// The skip replaces the archived toast instead of stacking under it.
 		expect(successToast).toHaveBeenCalledWith("Project archived");
 		expect(warningToast).toHaveBeenCalledWith(
