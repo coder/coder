@@ -68,6 +68,15 @@ type WorkloadIdentity struct {
 	RequestedByID       uuid.UUID    `json:"requested_by_id,omitempty" format:"uuid"`
 	RequestedByUsername string       `json:"requested_by_username,omitempty"`
 	Pod                 *WorkloadPod `json:"pod,omitempty"`
+	// IdentityID is the workload identity that permissions attach to. A
+	// declared daemon has none: it acts with its agent token.
+	IdentityID uuid.UUID `json:"identity_id,omitempty" format:"uuid"`
+	// SponsorID is the user account whose permissions bound what the
+	// workload may do.
+	SponsorID       uuid.UUID `json:"sponsor_id,omitempty" format:"uuid"`
+	SponsorUsername string    `json:"sponsor_username,omitempty"`
+	// Scopes narrow the sponsor's permissions. An empty list grants nothing.
+	Scopes []APIKeyScope `json:"scopes,omitempty"`
 }
 
 // WorkloadStatus is the lifecycle of a runtime workload.
@@ -101,6 +110,15 @@ type Workload struct {
 	// Identity is set once the pod exists.
 	Identity string       `json:"identity,omitempty"`
 	Pod      *WorkloadPod `json:"pod,omitempty"`
+	// IdentityID is the workload identity that permissions attach to. It
+	// exists from the moment the workload is requested.
+	IdentityID uuid.UUID `json:"identity_id" format:"uuid"`
+	// SponsorID is the user account whose permissions bound what the
+	// workload may do.
+	SponsorID       uuid.UUID `json:"sponsor_id" format:"uuid"`
+	SponsorUsername string    `json:"sponsor_username"`
+	// Scopes narrow the sponsor's permissions. An empty list grants nothing.
+	Scopes []APIKeyScope `json:"scopes"`
 }
 
 // CreateWorkloadRequest asks for a new runtime workload in a workspace.
@@ -112,6 +130,9 @@ type CreateWorkloadRequest struct {
 	Shape string `json:"shape,omitempty"`
 	// Command is run by the new daemon once it starts.
 	Command string `json:"command,omitempty"`
+	// Scopes are the API key scopes the workload may use on the sponsor's
+	// behalf. Without any, the workload can do nothing in Coder.
+	Scopes []APIKeyScope `json:"scopes,omitempty"`
 }
 
 // WorkloadOperatorShape is a shape an operator found in its namespace.

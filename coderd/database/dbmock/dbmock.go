@@ -292,6 +292,21 @@ func (mr *MockStoreMockRecorder) BatchUpsertConnectionLogs(ctx, arg any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchUpsertConnectionLogs", reflect.TypeOf((*MockStore)(nil).BatchUpsertConnectionLogs), ctx, arg)
 }
 
+// BindWorkloadIdentity mocks base method.
+func (m *MockStore) BindWorkloadIdentity(ctx context.Context, arg database.BindWorkloadIdentityParams) (database.WorkloadIdentity, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BindWorkloadIdentity", ctx, arg)
+	ret0, _ := ret[0].(database.WorkloadIdentity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// BindWorkloadIdentity indicates an expected call of BindWorkloadIdentity.
+func (mr *MockStoreMockRecorder) BindWorkloadIdentity(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BindWorkloadIdentity", reflect.TypeOf((*MockStore)(nil).BindWorkloadIdentity), ctx, arg)
+}
+
 // BulkMarkNotificationMessagesFailed mocks base method.
 func (m *MockStore) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -7163,6 +7178,36 @@ func (mr *MockStoreMockRecorder) GetWebpushVAPIDKeys(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWebpushVAPIDKeys", reflect.TypeOf((*MockStore)(nil).GetWebpushVAPIDKeys), ctx)
 }
 
+// GetWorkloadIdentitiesByWorkspaceID mocks base method.
+func (m *MockStore) GetWorkloadIdentitiesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkloadIdentity, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkloadIdentitiesByWorkspaceID", ctx, workspaceID)
+	ret0, _ := ret[0].([]database.WorkloadIdentity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkloadIdentitiesByWorkspaceID indicates an expected call of GetWorkloadIdentitiesByWorkspaceID.
+func (mr *MockStoreMockRecorder) GetWorkloadIdentitiesByWorkspaceID(ctx, workspaceID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkloadIdentitiesByWorkspaceID", reflect.TypeOf((*MockStore)(nil).GetWorkloadIdentitiesByWorkspaceID), ctx, workspaceID)
+}
+
+// GetWorkloadIdentityByWorkspaceAgentID mocks base method.
+func (m *MockStore) GetWorkloadIdentityByWorkspaceAgentID(ctx context.Context, workspaceAgentID uuid.NullUUID) (database.WorkloadIdentity, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkloadIdentityByWorkspaceAgentID", ctx, workspaceAgentID)
+	ret0, _ := ret[0].(database.WorkloadIdentity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkloadIdentityByWorkspaceAgentID indicates an expected call of GetWorkloadIdentityByWorkspaceAgentID.
+func (mr *MockStoreMockRecorder) GetWorkloadIdentityByWorkspaceAgentID(ctx, workspaceAgentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkloadIdentityByWorkspaceAgentID", reflect.TypeOf((*MockStore)(nil).GetWorkloadIdentityByWorkspaceAgentID), ctx, workspaceAgentID)
+}
+
 // GetWorkspaceACLByID mocks base method.
 func (m *MockStore) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceACLByIDRow, error) {
 	m.ctrl.T.Helper()
@@ -9250,6 +9295,21 @@ func (mr *MockStoreMockRecorder) InsertWebpushSubscription(ctx, arg any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWebpushSubscription", reflect.TypeOf((*MockStore)(nil).InsertWebpushSubscription), ctx, arg)
 }
 
+// InsertWorkloadIdentity mocks base method.
+func (m *MockStore) InsertWorkloadIdentity(ctx context.Context, arg database.InsertWorkloadIdentityParams) (database.WorkloadIdentity, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkloadIdentity", ctx, arg)
+	ret0, _ := ret[0].(database.WorkloadIdentity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWorkloadIdentity indicates an expected call of InsertWorkloadIdentity.
+func (mr *MockStoreMockRecorder) InsertWorkloadIdentity(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkloadIdentity", reflect.TypeOf((*MockStore)(nil).InsertWorkloadIdentity), ctx, arg)
+}
+
 // InsertWorkspace mocks base method.
 func (m *MockStore) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
 	m.ctrl.T.Helper()
@@ -10378,6 +10438,34 @@ func (m *MockStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string
 func (mr *MockStoreMockRecorder) RevokeDBCryptKey(ctx, activeKeyDigest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeDBCryptKey", reflect.TypeOf((*MockStore)(nil).RevokeDBCryptKey), ctx, activeKeyDigest)
+}
+
+// RevokeWorkloadIdentityByID mocks base method.
+func (m *MockStore) RevokeWorkloadIdentityByID(ctx context.Context, arg database.RevokeWorkloadIdentityByIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RevokeWorkloadIdentityByID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RevokeWorkloadIdentityByID indicates an expected call of RevokeWorkloadIdentityByID.
+func (mr *MockStoreMockRecorder) RevokeWorkloadIdentityByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeWorkloadIdentityByID", reflect.TypeOf((*MockStore)(nil).RevokeWorkloadIdentityByID), ctx, arg)
+}
+
+// RevokeWorkloadIdentityByWorkspaceAgentID mocks base method.
+func (m *MockStore) RevokeWorkloadIdentityByWorkspaceAgentID(ctx context.Context, arg database.RevokeWorkloadIdentityByWorkspaceAgentIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RevokeWorkloadIdentityByWorkspaceAgentID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RevokeWorkloadIdentityByWorkspaceAgentID indicates an expected call of RevokeWorkloadIdentityByWorkspaceAgentID.
+func (mr *MockStoreMockRecorder) RevokeWorkloadIdentityByWorkspaceAgentID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeWorkloadIdentityByWorkspaceAgentID", reflect.TypeOf((*MockStore)(nil).RevokeWorkloadIdentityByWorkspaceAgentID), ctx, arg)
 }
 
 // SelectUsageEventsForPublishing mocks base method.

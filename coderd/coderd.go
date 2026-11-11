@@ -1189,6 +1189,7 @@ func New(options *Options) *API {
 			OAuth2Configs:               oauthConfigs,
 			DisableSessionExpiryRefresh: options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
 			Logger:                      options.Logger,
+			ResolveWorkloadIdentity:     api.resolveWorkloadAPIKey,
 		}),
 		httpmw.HTTPRoute, // NB: prometheusMW depends on this middleware.
 		prometheusMW,

@@ -4976,6 +4976,11 @@ export interface CreateWorkloadRequest {
 	 * Command is run by the new daemon once it starts.
 	 */
 	readonly command?: string;
+	/**
+	 * Scopes are the API key scopes the workload may use on the sponsor's
+	 * behalf. Without any, the workload can do nothing in Coder.
+	 */
+	readonly scopes?: readonly APIKeyScope[];
 }
 
 // From codersdk/workspaces.go
@@ -12315,6 +12320,21 @@ export interface Workload {
 	 */
 	readonly identity?: string;
 	readonly pod?: WorkloadPod;
+	/**
+	 * IdentityID is the workload identity that permissions attach to. It
+	 * exists from the moment the workload is requested.
+	 */
+	readonly identity_id: string;
+	/**
+	 * SponsorID is the user account whose permissions bound what the
+	 * workload may do.
+	 */
+	readonly sponsor_id: string;
+	readonly sponsor_username: string;
+	/**
+	 * Scopes narrow the sponsor's permissions. An empty list grants nothing.
+	 */
+	readonly scopes: readonly APIKeyScope[];
 }
 
 // From codersdk/workloads.go
@@ -12357,6 +12377,21 @@ export interface WorkloadIdentity {
 	readonly requested_by_id?: string;
 	readonly requested_by_username?: string;
 	readonly pod?: WorkloadPod;
+	/**
+	 * IdentityID is the workload identity that permissions attach to. A
+	 * declared daemon has none: it acts with its agent token.
+	 */
+	readonly identity_id?: string;
+	/**
+	 * SponsorID is the user account whose permissions bound what the
+	 * workload may do.
+	 */
+	readonly sponsor_id?: string;
+	readonly sponsor_username?: string;
+	/**
+	 * Scopes narrow the sponsor's permissions. An empty list grants nothing.
+	 */
+	readonly scopes?: readonly APIKeyScope[];
 }
 
 // From codersdk/workloads.go

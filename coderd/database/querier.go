@@ -82,6 +82,9 @@ type sqlcQuerier interface {
 	BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg BatchUpdateWorkspaceLastUsedAtParams) error
 	BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg BatchUpdateWorkspaceNextStartAtParams) error
 	BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error
+	// BindWorkloadIdentity records the daemon that runs the workload and what the
+	// workload proves to act as the identity. An identity is bound at most once.
+	BindWorkloadIdentity(ctx context.Context, arg BindWorkloadIdentityParams) (WorkloadIdentity, error)
 	BulkMarkNotificationMessagesFailed(ctx context.Context, arg BulkMarkNotificationMessagesFailedParams) (int64, error)
 	BulkMarkNotificationMessagesSent(ctx context.Context, arg BulkMarkNotificationMessagesSentParams) (int64, error)
 	// Calculates the telemetry summary for a given provider, model, and client
@@ -1100,6 +1103,8 @@ type sqlcQuerier interface {
 	GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
 	GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]WebpushSubscription, error)
 	GetWebpushVAPIDKeys(ctx context.Context) (GetWebpushVAPIDKeysRow, error)
+	GetWorkloadIdentitiesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]WorkloadIdentity, error)
+	GetWorkloadIdentityByWorkspaceAgentID(ctx context.Context, workspaceAgentID uuid.NullUUID) (WorkloadIdentity, error)
 	GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (GetWorkspaceACLByIDRow, error)
 	GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentAndWorkspaceByIDRow, error)
 	GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error)
@@ -1334,6 +1339,7 @@ type sqlcQuerier interface {
 	// inserting a duplicate row. This is the recovery path after a PWA reinstall
 	// on iOS, where the browser may keep the same endpoint with rotated keys.
 	InsertWebpushSubscription(ctx context.Context, arg InsertWebpushSubscriptionParams) (WebpushSubscription, error)
+	InsertWorkloadIdentity(ctx context.Context, arg InsertWorkloadIdentityParams) (WorkloadIdentity, error)
 	InsertWorkspace(ctx context.Context, arg InsertWorkspaceParams) (WorkspaceTable, error)
 	InsertWorkspaceAgent(ctx context.Context, arg InsertWorkspaceAgentParams) (WorkspaceAgent, error)
 	InsertWorkspaceAgentDevcontainers(ctx context.Context, arg InsertWorkspaceAgentDevcontainersParams) ([]WorkspaceAgentDevcontainer, error)
@@ -1513,6 +1519,8 @@ type sqlcQuerier interface {
 	// consumers can keep tracking queued messages by id.
 	ReorderChatQueuedMessageToFront(ctx context.Context, arg ReorderChatQueuedMessageToFrontParams) (int64, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
+	RevokeWorkloadIdentityByID(ctx context.Context, arg RevokeWorkloadIdentityByIDParams) error
+	RevokeWorkloadIdentityByWorkspaceAgentID(ctx context.Context, arg RevokeWorkloadIdentityByWorkspaceAgentIDParams) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
 	// for the table.

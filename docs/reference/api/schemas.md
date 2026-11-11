@@ -7698,17 +7698,21 @@ This is required on creation to enable a user-flow of validating a template work
 {
   "command": "string",
   "name": "string",
+  "scopes": [
+    "all"
+  ],
   "shape": "string"
 }
 ```
 
 ### Properties
 
-| Name      | Type   | Required | Restrictions | Description                                                                                                        |
-|-----------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------|
-| `command` | string | false    |              | Command is run by the new daemon once it starts.                                                                   |
-| `name`    | string | false    |              | Name is optional. It must be a valid agent name.                                                                   |
-| `shape`   | string | false    |              | Shape selects the template-declared shape by agent name. It may be empty when the workspace has exactly one shape. |
+| Name      | Type                                                  | Required | Restrictions | Description                                                                                                                    |
+|-----------|-------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------|
+| `command` | string                                                | false    |              | Command is run by the new daemon once it starts.                                                                               |
+| `name`    | string                                                | false    |              | Name is optional. It must be a valid agent name.                                                                               |
+| `scopes`  | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              | Scopes are the API key scopes the workload may use on the sponsor's behalf. Without any, the workload can do nothing in Coder. |
+| `shape`   | string                                                | false    |              | Shape selects the template-declared shape by agent name. It may be empty when the workspace has exactly one shape.             |
 
 ## codersdk.CreateWorkspaceBuildOnSuccessRequest
 
@@ -18850,6 +18854,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "created_at": "2019-08-24T14:15:22Z",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "identity": "string",
+  "identity_id": "011a42b9-62d7-49eb-8328-c2e454af88a1",
   "name": "string",
   "pod": {
     "name": "string",
@@ -18859,7 +18864,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   },
   "requested_by_id": "e5a2565f-0ccc-4e3e-ace9-5e0c44253010",
   "requested_by_username": "string",
+  "scopes": [
+    "all"
+  ],
   "shape": "string",
+  "sponsor_id": "32cfe838-2a19-497d-9bb7-2d262b6713b5",
+  "sponsor_username": "string",
   "status": "pending",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
@@ -18867,19 +18877,23 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                    | Type                                               | Required | Restrictions | Description                                                         |
-|-------------------------|----------------------------------------------------|----------|--------------|---------------------------------------------------------------------|
-| `command`               | string                                             | false    |              |                                                                     |
-| `created_at`            | string                                             | false    |              |                                                                     |
-| `id`                    | string                                             | false    |              | ID is also the ID of the workload's workspace agent once it exists. |
-| `identity`              | string                                             | false    |              | Identity is set once the pod exists.                                |
-| `name`                  | string                                             | false    |              |                                                                     |
-| `pod`                   | [codersdk.WorkloadPod](#codersdkworkloadpod)       | false    |              |                                                                     |
-| `requested_by_id`       | string                                             | false    |              |                                                                     |
-| `requested_by_username` | string                                             | false    |              |                                                                     |
-| `shape`                 | string                                             | false    |              |                                                                     |
-| `status`                | [codersdk.WorkloadStatus](#codersdkworkloadstatus) | false    |              |                                                                     |
-| `workspace_id`          | string                                             | false    |              |                                                                     |
+| Name                    | Type                                                  | Required | Restrictions | Description                                                                                                           |
+|-------------------------|-------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
+| `command`               | string                                                | false    |              |                                                                                                                       |
+| `created_at`            | string                                                | false    |              |                                                                                                                       |
+| `id`                    | string                                                | false    |              | ID is also the ID of the workload's workspace agent once it exists.                                                   |
+| `identity`              | string                                                | false    |              | Identity is set once the pod exists.                                                                                  |
+| `identity_id`           | string                                                | false    |              | Identity ID is the workload identity that permissions attach to. It exists from the moment the workload is requested. |
+| `name`                  | string                                                | false    |              |                                                                                                                       |
+| `pod`                   | [codersdk.WorkloadPod](#codersdkworkloadpod)          | false    |              |                                                                                                                       |
+| `requested_by_id`       | string                                                | false    |              |                                                                                                                       |
+| `requested_by_username` | string                                                | false    |              |                                                                                                                       |
+| `scopes`                | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              | Scopes narrow the sponsor's permissions. An empty list grants nothing.                                                |
+| `shape`                 | string                                                | false    |              |                                                                                                                       |
+| `sponsor_id`            | string                                                | false    |              | Sponsor ID is the user account whose permissions bound what the workload may do.                                      |
+| `sponsor_username`      | string                                                | false    |              |                                                                                                                       |
+| `status`                | [codersdk.WorkloadStatus](#codersdkworkloadstatus)    | false    |              |                                                                                                                       |
+| `workspace_id`          | string                                                | false    |              |                                                                                                                       |
 
 ## codersdk.WorkloadAttestation
 
@@ -18903,6 +18917,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "agent_name": "string",
   "attestation": "agent-token",
   "id": "string",
+  "identity_id": "011a42b9-62d7-49eb-8328-c2e454af88a1",
   "kind": "declared",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_username": "string",
@@ -18914,7 +18929,12 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   },
   "requested_by_id": "e5a2565f-0ccc-4e3e-ace9-5e0c44253010",
   "requested_by_username": "string",
+  "scopes": [
+    "all"
+  ],
   "shape": "string",
+  "sponsor_id": "32cfe838-2a19-497d-9bb7-2d262b6713b5",
+  "sponsor_username": "string",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
   "workspace_name": "string"
 }
@@ -18928,13 +18948,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `agent_name`            | string                                                         | false    |              |                                                                                                                                             |
 | `attestation`           | [codersdk.WorkloadAttestation](#codersdkworkloadattestation)   | false    |              |                                                                                                                                             |
 | `id`                    | string                                                         | false    |              | ID is unique per daemon. For a runtime daemon it is the workspace ID and the pod UID; for a declared daemon, the workspace ID and agent ID. |
+| `identity_id`           | string                                                         | false    |              | Identity ID is the workload identity that permissions attach to. A declared daemon has none: it acts with its agent token.                  |
 | `kind`                  | [codersdk.WorkloadIdentityKind](#codersdkworkloadidentitykind) | false    |              |                                                                                                                                             |
 | `owner_id`              | string                                                         | false    |              | Owner ID is the user the daemon is associated with: the workspace owner.                                                                    |
 | `owner_username`        | string                                                         | false    |              |                                                                                                                                             |
 | `pod`                   | [codersdk.WorkloadPod](#codersdkworkloadpod)                   | false    |              |                                                                                                                                             |
 | `requested_by_id`       | string                                                         | false    |              | Requested by ID is the user who asked for a runtime daemon.                                                                                 |
 | `requested_by_username` | string                                                         | false    |              |                                                                                                                                             |
+| `scopes`                | array of [codersdk.APIKeyScope](#codersdkapikeyscope)          | false    |              | Scopes narrow the sponsor's permissions. An empty list grants nothing.                                                                      |
 | `shape`                 | string                                                         | false    |              | Shape is the name of the template-declared agent a runtime daemon was cloned from.                                                          |
+| `sponsor_id`            | string                                                         | false    |              | Sponsor ID is the user account whose permissions bound what the workload may do.                                                            |
+| `sponsor_username`      | string                                                         | false    |              |                                                                                                                                             |
 | `workspace_id`          | string                                                         | false    |              |                                                                                                                                             |
 | `workspace_name`        | string                                                         | false    |              |                                                                                                                                             |
 

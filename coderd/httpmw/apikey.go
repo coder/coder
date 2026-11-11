@@ -65,6 +65,10 @@ type ValidateAPIKeyConfig struct {
 	// from the request. Nil uses the default (cookie/header).
 	SessionTokenFunc func(*http.Request) string
 	Logger           slog.Logger
+	// ResolveWorkloadIdentity maps a credential that is not an API key,
+	// such as a Kubernetes pod token, to the user it acts for and the
+	// permissions it has. It is only consulted for JWT-shaped credentials.
+	ResolveWorkloadIdentity func(ctx context.Context, token string) (*ValidateAPIKeyResult, bool)
 }
 
 // ValidateAPIKeyResult is the outcome of successful validation.
@@ -285,6 +289,19 @@ func PrecheckAPIKey(cfg ValidateAPIKeyConfig) func(http.Handler) http.Handler {
 //
 // Returns (result, nil) on success or (nil, error) on failure.
 func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Request) (*ValidateAPIKeyResult, *ValidateAPIKeyError) {
+	if cfg.ResolveWorkloadIdentity != nil {
+		tokenFunc := APITokenFromRequest
+		if cfg.SessionTokenFunc != nil {
+			tokenFunc = cfg.SessionTokenFunc
+		}
+		// An API key is "<id>-<secret>" and never contains a dot.
+		if token := tokenFunc(r); strings.Count(token, ".") == 2 {
+			if result, ok := cfg.ResolveWorkloadIdentity(ctx, token); ok {
+				return result, nil
+			}
+		}
+	}
+
 	key, valErr := apiKeyFromRequestValidate(ctx, cfg.DB, cfg.Logger, cfg.SessionTokenFunc, r)
 	if valErr != nil {
 		return nil, valErr

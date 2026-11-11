@@ -240,6 +240,14 @@ func (m queryMetricsStore) BatchUpsertConnectionLogs(ctx context.Context, arg da
 	return r0
 }
 
+func (m queryMetricsStore) BindWorkloadIdentity(ctx context.Context, arg database.BindWorkloadIdentityParams) (database.WorkloadIdentity, error) {
+	start := time.Now()
+	r0, r1 := m.s.BindWorkloadIdentity(ctx, arg)
+	m.queryLatencies.WithLabelValues("BindWorkloadIdentity").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "BindWorkloadIdentity").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.BulkMarkNotificationMessagesFailed(ctx, arg)
@@ -3800,6 +3808,22 @@ func (m queryMetricsStore) GetWebpushVAPIDKeys(ctx context.Context) (database.Ge
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkloadIdentitiesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkloadIdentity, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkloadIdentitiesByWorkspaceID(ctx, workspaceID)
+	m.queryLatencies.WithLabelValues("GetWorkloadIdentitiesByWorkspaceID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkloadIdentitiesByWorkspaceID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkloadIdentityByWorkspaceAgentID(ctx context.Context, workspaceAgentID uuid.NullUUID) (database.WorkloadIdentity, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkloadIdentityByWorkspaceAgentID(ctx, workspaceAgentID)
+	m.queryLatencies.WithLabelValues("GetWorkloadIdentityByWorkspaceAgentID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkloadIdentityByWorkspaceAgentID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceACLByIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceACLByID(ctx, id)
@@ -4912,6 +4936,14 @@ func (m queryMetricsStore) InsertWebpushSubscription(ctx context.Context, arg da
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertWorkloadIdentity(ctx context.Context, arg database.InsertWorkloadIdentityParams) (database.WorkloadIdentity, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWorkloadIdentity(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkloadIdentity").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertWorkloadIdentity").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertWorkspace(ctx, arg)
@@ -5461,6 +5493,22 @@ func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest
 	r0 := m.s.RevokeDBCryptKey(ctx, activeKeyDigest)
 	m.queryLatencies.WithLabelValues("RevokeDBCryptKey").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RevokeDBCryptKey").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) RevokeWorkloadIdentityByID(ctx context.Context, arg database.RevokeWorkloadIdentityByIDParams) error {
+	start := time.Now()
+	r0 := m.s.RevokeWorkloadIdentityByID(ctx, arg)
+	m.queryLatencies.WithLabelValues("RevokeWorkloadIdentityByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RevokeWorkloadIdentityByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) RevokeWorkloadIdentityByWorkspaceAgentID(ctx context.Context, arg database.RevokeWorkloadIdentityByWorkspaceAgentIDParams) error {
+	start := time.Now()
+	r0 := m.s.RevokeWorkloadIdentityByWorkspaceAgentID(ctx, arg)
+	m.queryLatencies.WithLabelValues("RevokeWorkloadIdentityByWorkspaceAgentID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RevokeWorkloadIdentityByWorkspaceAgentID").Inc()
 	return r0
 }
 

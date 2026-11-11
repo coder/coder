@@ -55,6 +55,11 @@ func TestRuntimeWorkloads(t *testing.T) {
 		})
 	}).Do()
 	workspaceID := build.Workspace.ID
+	// A second workspace that only an administrator can see.
+	dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: admin.OrganizationID,
+		OwnerID:        admin.UserID,
+	}).Do()
 	var shapeAgent database.WorkspaceAgent
 	for _, agent := range build.Agents {
 		if agent.Name == "workload" {
@@ -114,9 +119,18 @@ func TestRuntimeWorkloads(t *testing.T) {
 	require.Empty(t, resp.Workloads)
 
 	// A user who cannot update the workspace cannot run workloads in it.
+	// Neither can an administrator: a workload acts with its sponsor's
+	// permissions, so only the owner may sponsor one in their workspace.
 	_, err = otherClient.CreateWorkspaceWorkload(ctx, workspaceID, codersdk.CreateWorkloadRequest{})
 	requireStatus(err, http.StatusNotFound)
+	_, err = adminClient.CreateWorkspaceWorkload(ctx, workspaceID, codersdk.CreateWorkloadRequest{})
+	requireStatus(err, http.StatusForbidden)
+	_, err = ownerClient.CreateWorkspaceWorkload(ctx, workspaceID, codersdk.CreateWorkloadRequest{
+		Scopes: []codersdk.APIKeyScope{"workspace:fly"},
+	})
+	requireStatus(err, http.StatusBadRequest)
 
+	// alpha is given no scopes.
 	alpha, err := ownerClient.CreateWorkspaceWorkload(ctx, workspaceID, codersdk.CreateWorkloadRequest{
 		Name:    "alpha",
 		Command: "echo alpha",
@@ -125,6 +139,9 @@ func TestRuntimeWorkloads(t *testing.T) {
 	require.Equal(t, codersdk.WorkloadStatusPending, alpha.Status)
 	require.Equal(t, "workload", alpha.Shape)
 	require.Equal(t, owner.ID, alpha.RequestedByID)
+	require.NotEqual(t, uuid.Nil, alpha.IdentityID, "the identity exists before anything runs")
+	require.Equal(t, owner.ID, alpha.SponsorID)
+	require.Empty(t, alpha.Scopes)
 	_, err = ownerClient.CreateWorkspaceWorkload(ctx, workspaceID, codersdk.CreateWorkloadRequest{Name: "alpha"})
 	requireStatus(err, http.StatusConflict)
 
@@ -168,6 +185,9 @@ func TestRuntimeWorkloads(t *testing.T) {
 	require.Equal(t, owner.ID, identity.RequestedByID)
 	require.Equal(t, "workload", identity.Shape)
 	require.Equal(t, alphaUID, identity.Pod.UID)
+	require.Equal(t, alpha.IdentityID, identity.IdentityID)
+	require.Equal(t, owner.ID, identity.SponsorID)
+	require.Empty(t, identity.Scopes)
 
 	// The human's daemon is untouched: its agent token still works and its
 	// identity is the declared one.
@@ -219,28 +239,80 @@ func TestRuntimeWorkloads(t *testing.T) {
 		requireStatus(err, http.StatusUnauthorized)
 	}
 
-	// A pod token is not a user credential.
-	_, err = codersdk.New(adminClient.URL, codersdk.WithSessionToken(alphaToken)).User(ctx, codersdk.Me)
-	requireStatus(err, http.StatusUnauthorized)
-
 	// A second workload gets its own identity, and neither token yields
-	// the other.
-	beta, err := ownerClient.CreateWorkspaceWorkload(ctx, workspaceID, codersdk.CreateWorkloadRequest{Name: "beta"})
+	// the other. beta may read its sponsor's workspaces and templates.
+	betaScopes := []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead, codersdk.APIKeyScopeTemplateRead}
+	beta, err := ownerClient.CreateWorkspaceWorkload(ctx, workspaceID, codersdk.CreateWorkloadRequest{
+		Name:   "beta",
+		Scopes: betaScopes,
+	})
 	require.NoError(t, err)
 	betaPod := codersdk.WorkloadOperatorPod{WorkloadID: beta.ID, Name: "workload-beta", UID: "pod-uid-beta", Created: true}
 	sync(alphaPod, betaPod)
-	betaIdentity, err := identityOf(podToken("workload-beta", "pod-uid-beta"))
+	betaToken := podToken("workload-beta", "pod-uid-beta")
+	betaIdentity, err := identityOf(betaToken)
 	require.NoError(t, err)
 	require.Equal(t, beta.ID, betaIdentity.AgentID)
+	require.NotEqual(t, alpha.IdentityID, betaIdentity.IdentityID)
+	require.Equal(t, betaScopes, betaIdentity.Scopes)
 	identity, err = identityOf(alphaToken)
 	require.NoError(t, err)
 	require.Equal(t, alpha.ID, identity.AgentID)
+
+	// On the user API a workload acts as its sponsor, within its scopes.
+	// The sponsor can see one workspace and one template; an administrator
+	// can see the second workspace too.
+	asAlpha := codersdk.New(adminClient.URL, codersdk.WithSessionToken(alphaToken))
+	asBeta := codersdk.New(adminClient.URL, codersdk.WithSessionToken(betaToken))
+	sponsorView, err := ownerClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.Equal(t, 1, sponsorView.Count)
+	adminView, err := adminClient.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.Equal(t, 2, adminView.Count)
+	sponsorTemplates, err := ownerClient.Templates(ctx, codersdk.TemplateFilter{})
+	require.NoError(t, err)
+	require.NotEmpty(t, sponsorTemplates)
+
+	// Without scopes, alpha can do nothing.
+	_, err = asAlpha.User(ctx, codersdk.Me)
+	require.Error(t, err)
+	alphaView, err := asAlpha.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.Zero(t, alphaView.Count)
+	_, err = asAlpha.Workspace(ctx, workspaceID)
+	requireStatus(err, http.StatusNotFound)
+	alphaTemplates, err := asAlpha.Templates(ctx, codersdk.TemplateFilter{})
+	require.NoError(t, err)
+	require.Empty(t, alphaTemplates)
+	_, err = agentsdk.New(adminClient.URL, agentsdk.WithFixedToken(alphaToken)).GitSSHKey(ctx)
+	require.Error(t, err, "a workload does not get its sponsor's Git SSH key")
+
+	// With its scopes, beta sees exactly what its sponsor sees: not the
+	// administrator's workspace. It can do nothing the scopes do not cover.
+	betaView, err := asBeta.Workspaces(ctx, codersdk.WorkspaceFilter{})
+	require.NoError(t, err)
+	require.Len(t, betaView.Workspaces, 1)
+	require.Equal(t, workspaceID, betaView.Workspaces[0].ID)
+	betaTemplates, err := asBeta.Templates(ctx, codersdk.TemplateFilter{})
+	require.NoError(t, err)
+	require.Len(t, betaTemplates, len(sponsorTemplates))
+	_, err = asBeta.User(ctx, codersdk.Me)
+	require.Error(t, err)
+	err = asBeta.DeleteWorkspaceWorkload(ctx, workspaceID, alpha.ID)
+	require.Error(t, err)
+
+	// A workload cannot sponsor another workload, whatever its scopes.
+	_, err = asBeta.CreateWorkspaceWorkload(ctx, workspaceID, codersdk.CreateWorkloadRequest{})
+	require.Error(t, err)
 
 	// When a pod disappears its identity goes with it, at once.
 	resp = sync(alphaPod)
 	require.Len(t, resp.Workloads, 1)
 	require.Equal(t, alpha.ID, resp.Workloads[0].ID)
-	_, err = identityOf(podToken("workload-beta", "pod-uid-beta"))
+	_, err = identityOf(betaToken)
+	requireStatus(err, http.StatusUnauthorized)
+	_, err = asBeta.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	requireStatus(err, http.StatusUnauthorized)
 
 	// Removing a workload revokes it before the operator deletes the pod.

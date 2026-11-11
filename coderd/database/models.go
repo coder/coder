@@ -6825,6 +6825,25 @@ type WebpushSubscription struct {
 	EndpointAuthKey   string    `db:"endpoint_auth_key" json:"endpoint_auth_key"`
 }
 
+// A workload identity is a principal for a workload that runs in a workspace. It acts with the permissions of its sponsor, narrowed to its scopes.
+type WorkloadIdentity struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	// The user account whose permissions bound what the workload may do.
+	SponsorID   uuid.UUID `db:"sponsor_id" json:"sponsor_id"`
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	Name        string    `db:"name" json:"name"`
+	// API key scope names. An empty list grants nothing.
+	Scopes []string `db:"scopes" json:"scopes"`
+	// The workspace daemon that runs the workload. NULL until the runtime reports where the workload runs.
+	WorkspaceAgentID uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	// What the workload proves to act as this identity, for example a Kubernetes pod UID.
+	AttestationSubject sql.NullString `db:"attestation_subject" json:"attestation_subject"`
+	BoundAt            sql.NullTime   `db:"bound_at" json:"bound_at"`
+	RevokedAt          sql.NullTime   `db:"revoked_at" json:"revoked_at"`
+}
+
 // Joins in the display name information such as username, avatar, and organization name.
 type Workspace struct {
 	ID                      uuid.UUID               `db:"id" json:"id"`

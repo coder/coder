@@ -3877,6 +3877,30 @@ CREATE TABLE webpush_subscriptions (
     endpoint_auth_key text NOT NULL
 );
 
+CREATE TABLE workload_identities (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    organization_id uuid NOT NULL,
+    sponsor_id uuid NOT NULL,
+    workspace_id uuid NOT NULL,
+    name text NOT NULL,
+    scopes text[] DEFAULT '{}'::text[] NOT NULL,
+    workspace_agent_id uuid,
+    attestation_subject text,
+    bound_at timestamp with time zone,
+    revoked_at timestamp with time zone
+);
+
+COMMENT ON TABLE workload_identities IS 'A workload identity is a principal for a workload that runs in a workspace. It acts with the permissions of its sponsor, narrowed to its scopes.';
+
+COMMENT ON COLUMN workload_identities.sponsor_id IS 'The user account whose permissions bound what the workload may do.';
+
+COMMENT ON COLUMN workload_identities.scopes IS 'API key scope names. An empty list grants nothing.';
+
+COMMENT ON COLUMN workload_identities.workspace_agent_id IS 'The workspace daemon that runs the workload. NULL until the runtime reports where the workload runs.';
+
+COMMENT ON COLUMN workload_identities.attestation_subject IS 'What the workload proves to act as this identity, for example a Kubernetes pod UID.';
+
 CREATE TABLE workspace_agent_context_resources (
     workspace_agent_id uuid NOT NULL,
     source text NOT NULL,
@@ -4966,6 +4990,9 @@ ALTER TABLE ONLY users
 ALTER TABLE ONLY webpush_subscriptions
     ADD CONSTRAINT webpush_subscriptions_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY workload_identities
+    ADD CONSTRAINT workload_identities_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY workspace_agent_context_resources
     ADD CONSTRAINT workspace_agent_context_resources_pkey PRIMARY KEY (workspace_agent_id, source);
 
@@ -5373,6 +5400,10 @@ CREATE UNIQUE INDEX users_email_lower_idx ON users USING btree (lower(email)) WH
 CREATE UNIQUE INDEX users_username_lower_idx ON users USING btree (lower(username)) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX webpush_subscriptions_user_id_endpoint_idx ON webpush_subscriptions USING btree (user_id, endpoint);
+
+CREATE UNIQUE INDEX workload_identities_workspace_agent_id_idx ON workload_identities USING btree (workspace_agent_id) WHERE (workspace_agent_id IS NOT NULL);
+
+CREATE INDEX workload_identities_workspace_id_idx ON workload_identities USING btree (workspace_id);
 
 CREATE INDEX workspace_agent_devcontainers_workspace_agent_id ON workspace_agent_devcontainers USING btree (workspace_agent_id);
 
@@ -5962,6 +5993,18 @@ ALTER TABLE ONLY user_status_changes
 
 ALTER TABLE ONLY webpush_subscriptions
     ADD CONSTRAINT webpush_subscriptions_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workload_identities
+    ADD CONSTRAINT workload_identities_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workload_identities
+    ADD CONSTRAINT workload_identities_sponsor_id_fkey FOREIGN KEY (sponsor_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workload_identities
+    ADD CONSTRAINT workload_identities_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workload_identities
+    ADD CONSTRAINT workload_identities_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_context_resources
     ADD CONSTRAINT workspace_agent_context_resources_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

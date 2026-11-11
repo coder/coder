@@ -1969,6 +1969,13 @@ func (q *querier) BatchUpsertConnectionLogs(ctx context.Context, arg database.Ba
 	return q.db.BatchUpsertConnectionLogs(ctx, arg)
 }
 
+func (q *querier) BindWorkloadIdentity(ctx context.Context, arg database.BindWorkloadIdentityParams) (database.WorkloadIdentity, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.WorkloadIdentity{}, err
+	}
+	return q.db.BindWorkloadIdentity(ctx, arg)
+}
+
 func (q *querier) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationMessage); err != nil {
 		return 0, err
@@ -5802,6 +5809,20 @@ func (q *querier) GetWebpushVAPIDKeys(ctx context.Context) (database.GetWebpushV
 	return q.db.GetWebpushVAPIDKeys(ctx)
 }
 
+func (q *querier) GetWorkloadIdentitiesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkloadIdentity, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkloadIdentitiesByWorkspaceID(ctx, workspaceID)
+}
+
+func (q *querier) GetWorkloadIdentityByWorkspaceAgentID(ctx context.Context, workspaceAgentID uuid.NullUUID) (database.WorkloadIdentity, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.WorkloadIdentity{}, err
+	}
+	return q.db.GetWorkloadIdentityByWorkspaceAgentID(ctx, workspaceAgentID)
+}
+
 func (q *querier) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceACLByIDRow, error) {
 	workspace, err := q.db.GetWorkspaceByID(ctx, id)
 	if err != nil {
@@ -6986,6 +7007,13 @@ func (q *querier) InsertWebpushSubscription(ctx context.Context, arg database.In
 	return q.db.InsertWebpushSubscription(ctx, arg)
 }
 
+func (q *querier) InsertWorkloadIdentity(ctx context.Context, arg database.InsertWorkloadIdentityParams) (database.WorkloadIdentity, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.WorkloadIdentity{}, err
+	}
+	return q.db.InsertWorkloadIdentity(ctx, arg)
+}
+
 func (q *querier) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
 	obj := rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)
 	tpl, err := q.GetTemplateByID(ctx, arg.TemplateID)
@@ -7674,6 +7702,20 @@ func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) 
 		return err
 	}
 	return q.db.RevokeDBCryptKey(ctx, activeKeyDigest)
+}
+
+func (q *querier) RevokeWorkloadIdentityByID(ctx context.Context, arg database.RevokeWorkloadIdentityByIDParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.RevokeWorkloadIdentityByID(ctx, arg)
+}
+
+func (q *querier) RevokeWorkloadIdentityByWorkspaceAgentID(ctx context.Context, arg database.RevokeWorkloadIdentityByWorkspaceAgentIDParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.RevokeWorkloadIdentityByWorkspaceAgentID(ctx, arg)
 }
 
 func (q *querier) SelectUsageEventsForPublishing(ctx context.Context, arg time.Time) ([]database.UsageEvent, error) {

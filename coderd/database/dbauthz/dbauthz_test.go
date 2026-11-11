@@ -7255,6 +7255,42 @@ func (s *MethodTestSuite) TestProjectSkills() {
 	}))
 }
 
+func (s *MethodTestSuite) TestWorkloadIdentities() {
+	s.Run("InsertWorkloadIdentity", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
+		arg := database.InsertWorkloadIdentityParams{ID: identity.ID, SponsorID: identity.SponsorID, WorkspaceID: identity.WorkspaceID}
+		dbm.EXPECT().InsertWorkloadIdentity(gomock.Any(), arg).Return(identity, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionCreate).Returns(identity)
+	}))
+	s.Run("GetWorkloadIdentityByWorkspaceAgentID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
+		arg := uuid.NullUUID{UUID: uuid.New(), Valid: true}
+		dbm.EXPECT().GetWorkloadIdentityByWorkspaceAgentID(gomock.Any(), arg).Return(identity, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(identity)
+	}))
+	s.Run("GetWorkloadIdentitiesByWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
+		dbm.EXPECT().GetWorkloadIdentitiesByWorkspaceID(gomock.Any(), identity.WorkspaceID).Return([]database.WorkloadIdentity{identity}, nil).AnyTimes()
+		check.Args(identity.WorkspaceID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.WorkloadIdentity{identity})
+	}))
+	s.Run("BindWorkloadIdentity", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
+		arg := database.BindWorkloadIdentityParams{ID: identity.ID, WorkspaceAgentID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+		dbm.EXPECT().BindWorkloadIdentity(gomock.Any(), arg).Return(identity, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(identity)
+	}))
+	s.Run("RevokeWorkloadIdentityByID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.RevokeWorkloadIdentityByIDParams{ID: uuid.New()}
+		dbm.EXPECT().RevokeWorkloadIdentityByID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+	s.Run("RevokeWorkloadIdentityByWorkspaceAgentID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		arg := database.RevokeWorkloadIdentityByWorkspaceAgentIDParams{WorkspaceAgentID: uuid.NullUUID{UUID: uuid.New(), Valid: true}}
+		dbm.EXPECT().RevokeWorkloadIdentityByWorkspaceAgentID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+}
+
 func (s *MethodTestSuite) TestUsageEvents() {
 	s.Run("InsertUsageEvent", s.Mocked(func(db *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		params := database.InsertUsageEventParams{

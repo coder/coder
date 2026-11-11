@@ -58,7 +58,14 @@ type Request struct {
 	RequestedByID       uuid.UUID
 	RequestedByUsername string
 	CreatedAt           time.Time
+	// IdentityID is the workload identity created for this request.
+	IdentityID uuid.UUID
+	Scopes     []string
 }
+
+// APIKeyIDPrefix starts the ID of the API key a workload identity is
+// presented as on user API routes. Real API key IDs never contain a colon.
+const APIKeyIDPrefix = "workload:"
 
 // PodMetadata is stored on a runtime agent row. It records the facts about
 // its pod and its request that the agent row has no columns for.

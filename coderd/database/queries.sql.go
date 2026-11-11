@@ -35701,6 +35701,228 @@ func (q *sqlQuerier) ValidateUserIDs(ctx context.Context, userIds []uuid.UUID) (
 	return i, err
 }
 
+const bindWorkloadIdentity = `-- name: BindWorkloadIdentity :one
+UPDATE
+	workload_identities
+SET
+	workspace_agent_id = $1,
+	attestation_subject = $2,
+	bound_at = $3
+WHERE
+	id = $4
+	AND workspace_agent_id IS NULL
+	AND revoked_at IS NULL
+RETURNING id, created_at, organization_id, sponsor_id, workspace_id, name, scopes, workspace_agent_id, attestation_subject, bound_at, revoked_at
+`
+
+type BindWorkloadIdentityParams struct {
+	WorkspaceAgentID   uuid.NullUUID  `db:"workspace_agent_id" json:"workspace_agent_id"`
+	AttestationSubject sql.NullString `db:"attestation_subject" json:"attestation_subject"`
+	BoundAt            sql.NullTime   `db:"bound_at" json:"bound_at"`
+	ID                 uuid.UUID      `db:"id" json:"id"`
+}
+
+// BindWorkloadIdentity records the daemon that runs the workload and what the
+// workload proves to act as the identity. An identity is bound at most once.
+func (q *sqlQuerier) BindWorkloadIdentity(ctx context.Context, arg BindWorkloadIdentityParams) (WorkloadIdentity, error) {
+	row := q.db.QueryRowContext(ctx, bindWorkloadIdentity,
+		arg.WorkspaceAgentID,
+		arg.AttestationSubject,
+		arg.BoundAt,
+		arg.ID,
+	)
+	var i WorkloadIdentity
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.SponsorID,
+		&i.WorkspaceID,
+		&i.Name,
+		pq.Array(&i.Scopes),
+		&i.WorkspaceAgentID,
+		&i.AttestationSubject,
+		&i.BoundAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const getWorkloadIdentitiesByWorkspaceID = `-- name: GetWorkloadIdentitiesByWorkspaceID :many
+SELECT
+	id, created_at, organization_id, sponsor_id, workspace_id, name, scopes, workspace_agent_id, attestation_subject, bound_at, revoked_at
+FROM
+	workload_identities
+WHERE
+	workspace_id = $1
+	AND revoked_at IS NULL
+ORDER BY
+	created_at ASC
+`
+
+func (q *sqlQuerier) GetWorkloadIdentitiesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]WorkloadIdentity, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkloadIdentitiesByWorkspaceID, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkloadIdentity
+	for rows.Next() {
+		var i WorkloadIdentity
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.OrganizationID,
+			&i.SponsorID,
+			&i.WorkspaceID,
+			&i.Name,
+			pq.Array(&i.Scopes),
+			&i.WorkspaceAgentID,
+			&i.AttestationSubject,
+			&i.BoundAt,
+			&i.RevokedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkloadIdentityByWorkspaceAgentID = `-- name: GetWorkloadIdentityByWorkspaceAgentID :one
+SELECT
+	id, created_at, organization_id, sponsor_id, workspace_id, name, scopes, workspace_agent_id, attestation_subject, bound_at, revoked_at
+FROM
+	workload_identities
+WHERE
+	workspace_agent_id = $1
+	AND revoked_at IS NULL
+`
+
+func (q *sqlQuerier) GetWorkloadIdentityByWorkspaceAgentID(ctx context.Context, workspaceAgentID uuid.NullUUID) (WorkloadIdentity, error) {
+	row := q.db.QueryRowContext(ctx, getWorkloadIdentityByWorkspaceAgentID, workspaceAgentID)
+	var i WorkloadIdentity
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.SponsorID,
+		&i.WorkspaceID,
+		&i.Name,
+		pq.Array(&i.Scopes),
+		&i.WorkspaceAgentID,
+		&i.AttestationSubject,
+		&i.BoundAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const insertWorkloadIdentity = `-- name: InsertWorkloadIdentity :one
+INSERT INTO workload_identities (
+	id,
+	created_at,
+	organization_id,
+	sponsor_id,
+	workspace_id,
+	name,
+	scopes
+)
+VALUES (
+	$1,
+	$2,
+	$3,
+	$4,
+	$5,
+	$6,
+	$7
+)
+RETURNING id, created_at, organization_id, sponsor_id, workspace_id, name, scopes, workspace_agent_id, attestation_subject, bound_at, revoked_at
+`
+
+type InsertWorkloadIdentityParams struct {
+	ID             uuid.UUID `db:"id" json:"id"`
+	CreatedAt      time.Time `db:"created_at" json:"created_at"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	SponsorID      uuid.UUID `db:"sponsor_id" json:"sponsor_id"`
+	WorkspaceID    uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	Name           string    `db:"name" json:"name"`
+	Scopes         []string  `db:"scopes" json:"scopes"`
+}
+
+func (q *sqlQuerier) InsertWorkloadIdentity(ctx context.Context, arg InsertWorkloadIdentityParams) (WorkloadIdentity, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkloadIdentity,
+		arg.ID,
+		arg.CreatedAt,
+		arg.OrganizationID,
+		arg.SponsorID,
+		arg.WorkspaceID,
+		arg.Name,
+		pq.Array(arg.Scopes),
+	)
+	var i WorkloadIdentity
+	err := row.Scan(
+		&i.ID,
+		&i.CreatedAt,
+		&i.OrganizationID,
+		&i.SponsorID,
+		&i.WorkspaceID,
+		&i.Name,
+		pq.Array(&i.Scopes),
+		&i.WorkspaceAgentID,
+		&i.AttestationSubject,
+		&i.BoundAt,
+		&i.RevokedAt,
+	)
+	return i, err
+}
+
+const revokeWorkloadIdentityByID = `-- name: RevokeWorkloadIdentityByID :exec
+UPDATE
+	workload_identities
+SET
+	revoked_at = $1
+WHERE
+	id = $2
+	AND revoked_at IS NULL
+`
+
+type RevokeWorkloadIdentityByIDParams struct {
+	RevokedAt sql.NullTime `db:"revoked_at" json:"revoked_at"`
+	ID        uuid.UUID    `db:"id" json:"id"`
+}
+
+func (q *sqlQuerier) RevokeWorkloadIdentityByID(ctx context.Context, arg RevokeWorkloadIdentityByIDParams) error {
+	_, err := q.db.ExecContext(ctx, revokeWorkloadIdentityByID, arg.RevokedAt, arg.ID)
+	return err
+}
+
+const revokeWorkloadIdentityByWorkspaceAgentID = `-- name: RevokeWorkloadIdentityByWorkspaceAgentID :exec
+UPDATE
+	workload_identities
+SET
+	revoked_at = $1
+WHERE
+	workspace_agent_id = $2
+	AND revoked_at IS NULL
+`
+
+type RevokeWorkloadIdentityByWorkspaceAgentIDParams struct {
+	RevokedAt        sql.NullTime  `db:"revoked_at" json:"revoked_at"`
+	WorkspaceAgentID uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+}
+
+func (q *sqlQuerier) RevokeWorkloadIdentityByWorkspaceAgentID(ctx context.Context, arg RevokeWorkloadIdentityByWorkspaceAgentIDParams) error {
+	_, err := q.db.ExecContext(ctx, revokeWorkloadIdentityByWorkspaceAgentID, arg.RevokedAt, arg.WorkspaceAgentID)
+	return err
+}
+
 const clearWorkspaceSecretsBeforeBuild = `-- name: ClearWorkspaceSecretsBeforeBuild :exec
 UPDATE workspace_secrets
 SET
