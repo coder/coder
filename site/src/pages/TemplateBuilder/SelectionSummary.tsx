@@ -131,7 +131,7 @@ const stepCircleVariants = cva(
 			variant: {
 				complete: "border-border-success bg-surface-green",
 				current: "border-border-success",
-				upcoming: "border-border text-content-secondary",
+				upcoming: "text-content-secondary",
 			},
 		},
 	},

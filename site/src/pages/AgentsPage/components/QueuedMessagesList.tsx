@@ -479,7 +479,7 @@ const QueuedMessageRow: React.FC<QueuedMessageRowProps> = ({
 		onMouseEnter={onMouseEnter}
 		onMouseLeave={onMouseLeave}
 	>
-		<div className="flex items-center gap-2 rounded-lg border border-solid border-border bg-surface-secondary px-3 py-2 font-sans text-sm leading-relaxed text-content-primary shadow-xs">
+		<div className="flex items-center gap-2 rounded-lg border border-solid bg-surface-secondary px-3 py-2 font-sans text-sm leading-relaxed text-content-primary shadow-xs">
 			<span className="min-w-0 flex-1 truncate">
 				<QueuedMessagePreview parts={item.previewParts} />
 			</span>
