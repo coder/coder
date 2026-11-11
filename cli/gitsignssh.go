@@ -6,16 +6,17 @@ import (
 	"os"
 	"os/exec"
 
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/agent/agentgitsign"
 	"github.com/coder/serpent"
 )
 
-// gitsignssh is invoked by git as gpg.ssh.program. For `-Y sign` it hashes
-// the payload locally and has Coder sign the digest with the user's git SSH
-// key on the server, so signing writes no key file in the workspace. Every
-// other operation, such as verification, is passed to ssh-keygen unchanged.
+// gitsignssh is invoked by git as gpg.ssh.program. For `-Y sign` it fetches
+// the user's git SSH key from the agent API, as gitssh does, and signs the
+// payload in memory, so the private key is never written to disk. Every other
+// operation, such as verification, is passed to ssh-keygen unchanged.
 func gitsignssh() *serpent.Command {
 	agentAuth := &AgentAuth{}
 	cmd := &serpent.Command{
@@ -50,23 +51,27 @@ func gitsignssh() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("read payload: %w", err)
 			}
-			digest := sha512.Sum512(payload)
 
 			client, err := agentAuth.CreateClient()
 			if err != nil {
 				return xerrors.Errorf("create agent client: %w", err)
 			}
-			resp, err := client.GitSign(ctx, agentsdk.GitSignRequest{
-				Namespace:     namespace,
-				HashAlgorithm: "sha512",
-				Hash:          digest[:],
-			})
+			key, err := client.GitSSHKey(ctx)
 			if err != nil {
-				return xerrors.Errorf("sign with coder: %w", err)
+				return xerrors.Errorf("get agent git ssh key: %w", err)
+			}
+			signer, err := ssh.ParsePrivateKey([]byte(key.PrivateKey))
+			if err != nil {
+				return xerrors.Errorf("parse git ssh key: %w", err)
+			}
+			digest := sha512.Sum512(payload)
+			signature, err := agentgitsign.SignSSHSig(signer, namespace, "sha512", digest[:])
+			if err != nil {
+				return xerrors.Errorf("sign: %w", err)
 			}
 			// Git reads the signature from <payload>.sig, as ssh-keygen writes it.
 			//nolint:gosec // A signature is not secret.
-			if err := os.WriteFile(payloadPath+".sig", []byte(resp.Signature), 0o644); err != nil {
+			if err := os.WriteFile(payloadPath+".sig", []byte(signature), 0o644); err != nil {
 				return xerrors.Errorf("write signature: %w", err)
 			}
 			return nil

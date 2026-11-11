@@ -31,7 +31,6 @@ import (
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
-	"github.com/coder/coder/v2/agent/agentgitsign"
 	"github.com/coder/coder/v2/agent/agentrsa"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/usershell"
@@ -760,9 +759,6 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, env []str
 		}
 		defer l.Close()
 		go ssh.ForwardAgentConnections(l, session)
-		// A forwarded agent means the user brought their own keys, so
-		// their own git signing config applies instead of Coder's.
-		cmd.Env = agentgitsign.Strip(cmd.Env)
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", "SSH_AUTH_SOCK", l.Addr().String()))
 	}
 

@@ -240,9 +240,7 @@ func TestGitSSH(t *testing.T) {
 func TestGitSignSSH(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentGitCommitSigning)}
-	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{DeploymentValues: dv})
+	client, db := coderdtest.NewWithDatabase(t, nil)
 	user := coderdtest.CreateFirstUser(t, client)
 	ctx := testutil.Context(t, testutil.WaitLong)
 	keypair, err := client.GitSSHKey(ctx, codersdk.Me)

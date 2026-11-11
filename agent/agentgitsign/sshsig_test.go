@@ -1,4 +1,4 @@
-package gitsshkey_test
+package agentgitsign_test
 
 import (
 	"crypto/sha512"
@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/coder/coder/v2/agent/agentgitsign"
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 )
 
@@ -30,7 +31,7 @@ func TestSignSSHSig(t *testing.T) {
 
 			message := "tree 4b825dc642cb6eb9a060e54bf8d69288fbee4904\n\nsigned commit\n"
 			digest := sha512.Sum512([]byte(message))
-			signature, err := gitsshkey.SignSSHSig(signer, "git", "sha512", digest[:])
+			signature, err := agentgitsign.SignSSHSig(signer, "git", "sha512", digest[:])
 			require.NoError(t, err)
 
 			// ssh-keygen is the reference verifier, the same one git and
@@ -60,8 +61,8 @@ func TestSignSSHSig_InvalidInput(t *testing.T) {
 	signer, err := ssh.ParsePrivateKey([]byte(privateKey))
 	require.NoError(t, err)
 
-	_, err = gitsshkey.SignSSHSig(signer, "", "sha512", make([]byte, sha512.Size))
+	_, err = agentgitsign.SignSSHSig(signer, "", "sha512", make([]byte, sha512.Size))
 	require.Error(t, err)
-	_, err = gitsshkey.SignSSHSig(signer, "git", "md5", make([]byte, 16))
+	_, err = agentgitsign.SignSSHSig(signer, "git", "md5", make([]byte, 16))
 	require.Error(t, err)
 }

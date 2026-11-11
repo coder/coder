@@ -1,4 +1,4 @@
-package gitsshkey
+package agentgitsign
 
 import (
 	"crypto/rand"
@@ -14,8 +14,8 @@ import (
 const sshsigMagic = "SSHSIG"
 
 // SignSSHSig produces an armored SSHSIG signature, the format written by
-// `ssh-keygen -Y sign`, over a message digest computed by the caller. Only
-// the digest is needed, so the message itself never has to reach the signer.
+// `ssh-keygen -Y sign`, over a message digest computed by the caller. Signing
+// happens in memory, so the private key is never written to disk.
 func SignSSHSig(signer ssh.Signer, namespace, hashAlgorithm string, digest []byte) (string, error) {
 	if namespace == "" {
 		return "", xerrors.New("namespace is required")
