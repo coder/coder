@@ -37,11 +37,6 @@ For Claude Agent, you can instead set the environment variables on the workspace
 
 The session appears in the AI Gateway [sessions list](../audit.md#sessions-list).
 
-> [!NOTE]
-> Keep the session on the **Agent login** authorization source, which Claude Agent lists as **Claude subscription** with an **OAuth token**.
-> This label is expected, because `ANTHROPIC_AUTH_TOKEN` holds your Coder token.
-> If you select **JetBrains AI** or a configured provider instead, requests go to that provider and bypass AI Gateway.
-
 **References:**
 [Agents in IntelliJ IDEA](https://www.jetbrains.com/help/idea/agents-in-ide.html),
 [Configure agent authorization](https://www.jetbrains.com/help/air-ides/air-configure-authorization.html)
