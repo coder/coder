@@ -50,6 +50,34 @@ var (
 	// no new chat may join one.
 	ErrChatFamilyArchived = xerrors.New("chat family is archived")
 
+	// ErrChatProjectArchived is returned when a chat would join an
+	// archived project, by [CreateChat], [CreateChatWithID] and
+	// [SetFamilyProject], or be unarchived while its project is
+	// archived, by [SetFamilyArchived].
+	ErrChatProjectArchived = xerrors.New("chat project is archived")
+
+	// ErrChatProjectAlreadyArchived is returned by [ArchiveProjectChats]
+	// for a project that is already archived.
+	ErrChatProjectAlreadyArchived = xerrors.New("chat project is already archived")
+
+	// ErrChatProjectNotArchived is returned by [UnarchiveProjectChats]
+	// for a project that is not archived.
+	ErrChatProjectNotArchived = xerrors.New("chat project is not archived")
+
+	// ErrChatProjectNotFound is returned by [ArchiveProjectChats] and
+	// [UnarchiveProjectChats] for a missing project.
+	ErrChatProjectNotFound = xerrors.New("chat project not found")
+
+	// ErrChatProjectHasActiveChats is returned by [ArchiveProjectChats]
+	// when the project has active chats and the caller did not ask to
+	// stop them. The concrete error is a *ChatProjectActiveChatsError.
+	ErrChatProjectHasActiveChats = xerrors.New("chat project has active chats")
+
+	// ErrChatUpdatePublishFailed is returned by [ArchiveProjectChats] and
+	// [UnarchiveProjectChats] with the committed result when publishing
+	// chat:update fails.
+	ErrChatUpdatePublishFailed = xerrors.New("publish chat updates failed")
+
 	// ErrEditedMessageNotUser is returned by [Tx.EditMessage] when the
 	// targeted chat_messages row exists but its role is not user.
 	ErrEditedMessageNotUser = xerrors.New("only user messages can be edited")
@@ -106,6 +134,21 @@ func (e *MessageQueueFullError) Error() string {
 // Unwrap returns [ErrMessageQueueFull] so callers can match the
 // generic sentinel.
 func (*MessageQueueFullError) Unwrap() error { return ErrMessageQueueFull }
+
+// ChatProjectActiveChatsError carries the number of root chats whose
+// family has an active member. It wraps [ErrChatProjectHasActiveChats].
+type ChatProjectActiveChatsError struct {
+	ActiveChatCount int64
+}
+
+// Error implements the error interface.
+func (e *ChatProjectActiveChatsError) Error() string {
+	return fmt.Sprintf("chat project has %d active chats", e.ActiveChatCount)
+}
+
+// Unwrap returns [ErrChatProjectHasActiveChats] so callers can match the
+// generic sentinel.
+func (*ChatProjectActiveChatsError) Unwrap() error { return ErrChatProjectHasActiveChats }
 
 // ToolResultValidationError carries a structured tool-result
 // validation failure. It always wraps a specific sentinel
