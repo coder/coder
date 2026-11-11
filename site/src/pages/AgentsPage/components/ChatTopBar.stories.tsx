@@ -790,10 +790,15 @@ export const ArchivedWithUnarchive: Story = {
 	},
 };
 
+const mockArchivedLaunchChat: TypesGen.Chat = {
+	...mockLaunchChat,
+	archived: true,
+};
+
 /** A chat archived with its project comes back only with the project. */
 export const ArchivedWithProject: Story = {
 	args: {
-		chat: { ...mockLaunchChat, archived: true },
+		chat: mockArchivedLaunchChat,
 	},
 	parameters: {
 		queries: [
@@ -810,7 +815,7 @@ export const ArchivedWithProject: Story = {
 /** The project's archive state is still loading, so unarchiving waits. */
 export const ArchivedWithProjectChecking: Story = {
 	args: {
-		chat: { ...mockLaunchChat, archived: true },
+		chat: mockArchivedLaunchChat,
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatProjects").mockReturnValue(
@@ -827,7 +832,7 @@ export const ArchivedWithProjectChecking: Story = {
 /** The project's archive state failed to load, so unarchiving waits. */
 export const ArchivedWithProjectCheckFailed: Story = {
 	args: {
-		chat: { ...mockLaunchChat, archived: true },
+		chat: mockArchivedLaunchChat,
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatProjects").mockRejectedValue(

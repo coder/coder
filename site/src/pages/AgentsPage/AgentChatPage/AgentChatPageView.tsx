@@ -168,7 +168,6 @@ type AgentChatPageViewProps = {
 
 	// Desktop chat ID (optional).
 	desktopChatId?: string;
-	/** Set when the archived chat's project is archived too. */
 	isProjectArchived: boolean;
 };
 
