@@ -4292,6 +4292,13 @@ func testMigration000583ChatModelOverrideOrgScope(t *testing.T, db *sql.DB) {
 	downSQL, err := os.ReadFile("000583_chat_model_override_org_scope.down.sql")
 	require.NoError(t, err)
 
+	// This test replays 583 on the fully migrated schema. Migration 642 adds
+	// a foreign key on (organization_id, id) that depends on the unique
+	// constraint 583 creates, so drop it first and restore it at the end.
+	const automationModelFKey = "chat_automations_new_chat_model_config_fkey"
+	_, err = db.ExecContext(ctx, "ALTER TABLE chat_automations DROP CONSTRAINT "+automationModelFKey)
+	require.NoError(t, err)
+
 	_, err = db.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
 
@@ -4392,6 +4399,10 @@ func testMigration000583ChatModelOverrideOrgScope(t *testing.T, db *sql.DB) {
 	_, err = db.ExecContext(ctx, string(downSQL))
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, string(upSQL))
+	require.NoError(t, err)
+
+	_, err = db.ExecContext(ctx, "ALTER TABLE chat_automations ADD CONSTRAINT "+automationModelFKey+
+		" FOREIGN KEY (organization_id, new_chat_model_config_id) REFERENCES chat_model_configs (organization_id, id)")
 	require.NoError(t, err)
 }
 
