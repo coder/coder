@@ -358,7 +358,7 @@ export const ChartTooltipContent: React.FC<ChartTooltipContentProps> = ({
 	return (
 		<div
 			className={cn(
-				"grid min-w-32 items-start gap-1 rounded-lg border border-solid border-border bg-surface-primary px-3 py-2 text-xs shadow-xl",
+				"grid min-w-32 items-start gap-1 rounded-lg border border-solid bg-surface-primary px-3 py-2 text-xs shadow-xl",
 				className,
 			)}
 		>
