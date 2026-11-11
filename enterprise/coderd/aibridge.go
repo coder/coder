@@ -1200,16 +1200,17 @@ func escapeCSVCell(value string) string {
 // retention window applies, its start.
 type aiSpendPeriod struct {
 	start, end time.Time
-	// retentionStart is zero when retention is disabled or not applied.
+	// retentionStart is zero when retention is disabled or the period is not
+	// subject to data retention.
 	retentionStart time.Time
 }
 
-// aiSpendPeriod resolves the report window from the request. When neither
-// start nor end is supplied it defaults to the current budget period. Both
-// bounds must be supplied together and are interpreted as UTC, and an
-// explicit window must be non-empty and span at most 31 days.
-// Parameters not consumed by the given parser or here are rejected. On
-// invalid input it writes the error response and returns ok=false.
+// aiSpendPeriod resolves the report window from the request, ignoring AI
+// Gateway data retention. Use aiSpendRetainedPeriod for raw AI Gateway data,
+// which is subject to data retention. It defaults to the current budget
+// period. Explicit bounds must be supplied together, are interpreted as UTC
+// and span at most 31 days. Unknown parameters are rejected. On invalid input
+// it writes the error response and returns ok=false.
 func (api *API) aiSpendPeriod(ctx context.Context, rw http.ResponseWriter, r *http.Request, parser *httpapi.QueryParamParser) (period aiSpendPeriod, ok bool) {
 	query := r.URL.Query()
 	hasStart := query.Has("period_start")
@@ -1260,9 +1261,9 @@ func (api *API) aiSpendPeriod(ctx context.Context, rw http.ResponseWriter, r *ht
 }
 
 // aiSpendRetainedPeriod is aiSpendPeriod limited to the AI Gateway data
-// retention window. Use it for reports on raw AI Gateway data, since that data
-// is purged. It narrows a default period to the window and rejects an explicit
-// period that starts before it.
+// retention window. Use it for raw AI Gateway data, which is subject to data
+// retention. It narrows a default period to the window, rejects an explicit
+// period that starts before it, and sets retentionStart.
 func (api *API) aiSpendRetainedPeriod(ctx context.Context, rw http.ResponseWriter, r *http.Request, parser *httpapi.QueryParamParser) (period aiSpendPeriod, ok bool) {
 	period, ok = api.aiSpendPeriod(ctx, rw, r, parser)
 	if !ok {
