@@ -160,7 +160,19 @@ const useProjectLookup = (projectId: string | undefined) => {
 	].find((query) => query.error);
 	const projectLookupError =
 		projectId !== undefined && !project ? failedProjectQuery?.error : undefined;
-	return { project, isProjectMissing, failedProjectQuery, projectLookupError };
+	// The lists hold the projects the user owns or that are shared with them,
+	// the only ones the user can start chats in.
+	const isProjectUnlisted =
+		!projectQuery.data &&
+		!archivedProjectQuery.data &&
+		Boolean(unlistedProjectQuery.data);
+	return {
+		project,
+		isProjectMissing,
+		isProjectUnlisted,
+		failedProjectQuery,
+		projectLookupError,
+	};
 };
 
 type AgentCreatePageContentProps = {
@@ -176,8 +188,13 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 	const [searchParams] = useSearchParams();
 	const { permissions } = useAuthenticated();
 	const { experiments } = useDashboard();
-	const { project, isProjectMissing, failedProjectQuery, projectLookupError } =
-		useProjectLookup(projectId);
+	const {
+		project,
+		isProjectMissing,
+		isProjectUnlisted,
+		failedProjectQuery,
+		projectLookupError,
+	} = useProjectLookup(projectId);
 	const aiGatewayDisabled = !useAIGatewayEnabled();
 	const workspacesQuery = useQuery(workspaces({ q: "owner:me", limit: 0 }));
 	const createMutation = useMutation(createChat(queryClient));
@@ -542,7 +559,19 @@ const AgentCreatePageContent: React.FC<AgentCreatePageContentProps> = ({
 			) : isPrefillLoading ? (
 				<Loader className="flex-1" label="Loading workspace build logs" />
 			) : project ? (
-				<ProjectPage project={project}>{form}</ProjectPage>
+				<ProjectPage project={project}>
+					{isProjectUnlisted ? (
+						<Alert severity="info" prominent>
+							<AlertTitle>This project isn't shared with you.</AlertTitle>
+							<AlertDescription>
+								Only its owner and the people it is shared with can start chats
+								in it.
+							</AlertDescription>
+						</Alert>
+					) : (
+						form
+					)}
+				</ProjectPage>
 			) : (
 				<AgentCreateFormFrame>{form}</AgentCreateFormFrame>
 			)}

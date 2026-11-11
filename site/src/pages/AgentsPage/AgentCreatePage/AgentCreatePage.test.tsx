@@ -767,7 +767,7 @@ describe("AgentCreatePage project frame", () => {
 		);
 	});
 
-	it("opens a project in neither list by finding it in the user's organizations", async () => {
+	it("opens a project in neither list by finding it in the user's organizations, without a composer", async () => {
 		// An organization admin can manage another user's unshared project.
 		const mockUnlistedProject = {
 			...MockChatProject,
@@ -792,10 +792,11 @@ describe("AgentCreatePage project frame", () => {
 		renderAgentsRoutes();
 
 		await screen.findByRole("heading", { name: mockUnlistedProject.name });
-		expect(renderedProjects.at(-1)).toMatchObject({
-			id: mockUnlistedProject.id,
-			organization_id: MockOrganization2.id,
-		});
+		// The server refuses chats in a project not shared with the user.
+		expect(
+			screen.getByText("This project isn't shared with you."),
+		).toBeInTheDocument();
+		expect(renderedProjects).toEqual([]);
 	});
 
 	it("shows the owner of a project owned by someone else from its ACL", async () => {

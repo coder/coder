@@ -74,10 +74,18 @@ export const ArchiveProjectDialog: React.FC<ArchiveProjectDialogProps> = ({
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const archiveMutation = useMutation(archiveChatProject(queryClient));
+	// The workspace outcome replaces the "Project archived" toast, so one
+	// toast summarizes the whole archive.
+	const archivedToastIdRef = useRef<string | number>(undefined);
 	const workspaceMutation = useMutation({
 		...projectWorkspaceAction(queryClient),
 		onSuccess: (result, { action }) =>
-			notifyWorkspaceActionResult(action, result, navigate),
+			notifyWorkspaceActionResult(
+				action,
+				result,
+				navigate,
+				archivedToastIdRef.current,
+			),
 		onError: (error) => {
 			toast.error(
 				getErrorMessage(
@@ -85,6 +93,7 @@ export const ArchiveProjectDialog: React.FC<ArchiveProjectDialogProps> = ({
 					"Failed to check whether your workspaces are still in use.",
 				),
 				{
+					id: archivedToastIdRef.current,
 					description:
 						"The project was archived, and its workspaces were left as they were.",
 				},
@@ -113,7 +122,7 @@ export const ArchiveProjectDialog: React.FC<ArchiveProjectDialogProps> = ({
 				},
 				onSuccess: () => {
 					onClose();
-					toast.success("Project archived");
+					archivedToastIdRef.current = toast.success("Project archived");
 					if (workspaceAction !== "leave") {
 						workspaceMutation.mutate({ action: workspaceAction, workspaces });
 					}
@@ -212,8 +221,14 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 			<DialogHeader>
 				<DialogTitle>Archive project</DialogTitle>
 				<DialogDescription>
-					Every chat in &ldquo;{project.name}&rdquo; is archived, including
-					chats started by people it is shared with.
+					{preview?.chat_count === 0 ? (
+						<>&ldquo;{project.name}&rdquo; has no chats to archive.</>
+					) : (
+						<>
+							Every chat in &ldquo;{project.name}&rdquo; is archived, including
+							chats started by people it is shared with.
+						</>
+					)}
 				</DialogDescription>
 			</DialogHeader>
 
@@ -253,7 +268,11 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 					disabled={!canArchive}
 				>
 					<Spinner loading={isArchiving} />
-					{activeChatCount > 0 ? "Stop chats and archive" : "Archive project"}
+					{activeChatCount === 0
+						? "Archive project"
+						: activeChatCount === 1
+							? "Stop chat and archive"
+							: "Stop chats and archive"}
 				</Button>
 			</DialogFooter>
 		</form>
@@ -300,18 +319,15 @@ const ArchiveSummary: React.FC<ArchiveSummaryProps> = ({
 	return (
 		<>
 			{errorAlert}
-			<p className="m-0 text-sm text-content-secondary">
-				{preview.chat_count === 0 ? (
-					"This project has no chats to archive."
-				) : (
-					<>
-						{plural(preview.chat_count, "chat", "chats")} will be archived.{" "}
-						{retentionDays > 0
-							? `Archived chats are permanently deleted after ${plural(retentionDays, "day", "days")}. Unarchiving the project after that won't bring them back.`
-							: "Archived chats are kept until you unarchive the project."}
-					</>
-				)}
-			</p>
+			{/* The description says when there are no chats to archive. */}
+			{preview.chat_count > 0 && (
+				<p className="m-0 text-sm text-content-secondary">
+					{plural(preview.chat_count, "chat", "chats")} will be archived.{" "}
+					{retentionDays > 0
+						? `Archived chats are permanently deleted after ${plural(retentionDays, "day", "days")}. Unarchiving the project after that won't bring them back.`
+						: "Archived chats are kept until you unarchive the project."}
+				</p>
+			)}
 			{preview.active_chat_count > 0 && (
 				<Alert severity="warning" prominent>
 					{plural(preview.active_chat_count, "chat is", "chats are")} running.
@@ -454,11 +470,15 @@ const WorkspaceLink: React.FC<WorkspaceLinkProps> = ({ workspace, onOpen }) => {
 	);
 };
 
-/** One toast that links every workspace that was skipped or failed. */
+/**
+ * Replaces the archived toast with one that links every workspace that was
+ * skipped or failed.
+ */
 const notifyWorkspaceActionResult = (
 	action: Exclude<ProjectWorkspaceAction, "leave">,
 	{ failed, skipped }: ProjectWorkspaceActionResult,
 	onOpenWorkspace: (path: string) => void,
+	toastId: string | number | undefined,
 ) => {
 	if (failed.length === 0 && skipped.length === 0) {
 		return;
@@ -482,12 +502,12 @@ const notifyWorkspaceActionResult = (
 	if (failed.length > 0) {
 		toast.error(
 			`The project was archived, but ${plural(failed.length, "workspace", "workspaces")} could not be ${action === "stop" ? "stopped" : "deleted"}.`,
-			{ description },
+			{ id: toastId, description },
 		);
 		return;
 	}
 	toast.warning(
 		`The project was archived. ${plural(skipped.length, "workspace", "workspaces")} still in use ${skipped.length === 1 ? "was" : "were"} skipped.`,
-		{ description },
+		{ id: toastId, description },
 	);
 };

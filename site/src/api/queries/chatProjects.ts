@@ -94,8 +94,10 @@ export const unlistedChatProject = (
 		},
 	});
 
+const archivePreviewKeySuffix = "archive-preview";
+
 export const chatProjectArchivePreviewKey = (projectId: string) =>
-	[...chatProjectsKey, projectId, "archive-preview"] as const;
+	[...chatProjectsKey, projectId, archivePreviewKeySuffix] as const;
 
 /** Counts the chats that archiving a project archives and stops. */
 export const chatProjectArchivePreview = (project: TypesGen.ChatProject) =>
@@ -139,10 +141,24 @@ export const updateChatProject = (queryClient: QueryClient) =>
 			queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
 	});
 
+const isArchivePreviewKey = (queryKey: readonly unknown[]) =>
+	queryKey.length === 3 && queryKey[2] === archivePreviewKeySuffix;
+
 /** Refreshes the projects and every cached chat a project change can touch. */
 const invalidateProjectsAndChats = (queryClient: QueryClient) =>
 	Promise.all([
-		queryClient.invalidateQueries({ queryKey: chatProjectsKey }),
+		queryClient.invalidateQueries({
+			queryKey: chatProjectsKey,
+			predicate: ({ queryKey }) => !isArchivePreviewKey(queryKey),
+		}),
+		// The archive dialog stays mounted while it closes after archiving, so
+		// a refetched preview would flash the emptied project's counts. The
+		// next dialog fetches a fresh preview when it mounts.
+		queryClient.invalidateQueries({
+			queryKey: chatProjectsKey,
+			predicate: ({ queryKey }) => isArchivePreviewKey(queryKey),
+			refetchType: "none",
+		}),
 		invalidateChatListQueries(queryClient),
 		invalidateChatSearches(queryClient),
 		// Only the chats themselves carry project_id and archived. Their

@@ -102,6 +102,7 @@ afterEach(() => {
 describe("ArchiveProjectDialog", () => {
 	it.each([
 		{ activeChats: 0, button: "Archive project", stopActiveChats: false },
+		{ activeChats: 1, button: "Stop chat and archive", stopActiveChats: true },
 		{ activeChats: 2, button: "Stop chats and archive", stopActiveChats: true },
 	])(
 		"confirms with $button, sending stop_active_chats: $stopActiveChats",
@@ -120,6 +121,10 @@ describe("ArchiveProjectDialog", () => {
 				MockChatProject.id,
 				{ stop_active_chats: stopActiveChats },
 			);
+			// A refetch would show the emptied project while the dialog closes.
+			expect(
+				API.experimental.getChatProjectArchivePreview,
+			).toHaveBeenCalledTimes(1);
 		},
 	);
 
@@ -140,7 +145,7 @@ describe("ArchiveProjectDialog", () => {
 
 		await user.click(screen.getByRole("button", { name: "Archive project" }));
 		await user.click(
-			await screen.findByRole("button", { name: "Stop chats and archive" }),
+			await screen.findByRole("button", { name: "Stop chat and archive" }),
 		);
 
 		await waitFor(() =>
@@ -163,6 +168,7 @@ describe("ArchiveProjectDialog", () => {
 			],
 			workspacesInUse: [mockInUseWorkspace.id],
 		});
+		const successToast = vi.spyOn(toast, "success");
 		const warningToast = vi.spyOn(toast, "warning");
 		await renderDialog();
 
@@ -171,6 +177,12 @@ describe("ArchiveProjectDialog", () => {
 
 		await waitFor(() => expect(warningToast).toHaveBeenCalled());
 		expect(stop.mock.calls).toEqual([[mockRunningWorkspace.id]]);
+		// The skip replaces the archived toast instead of stacking under it.
+		expect(successToast).toHaveBeenCalledWith("Project archived");
+		expect(warningToast).toHaveBeenCalledWith(
+			expect.anything(),
+			expect.objectContaining({ id: successToast.mock.results[0]?.value }),
+		);
 	});
 
 	it("archives once and still stops workspaces when confirm is double-clicked", async () => {

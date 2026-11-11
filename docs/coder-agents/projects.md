@@ -49,12 +49,13 @@ To set a project aside without deleting it, [archive it](#archive-a-project).
 Archive a project when its work is done.
 The project owner, organization admins, and site Owners can archive and unarchive a project.
 A project that isn't shared with you doesn't appear in your sidebar or in **Archived projects**, so admins open it from its link and use the menu or banner on its page.
+Admins can't start chats in a project that isn't shared with them.
 
 To archive a project, open the project's menu on its page or in the sidebar and select **Archive project**.
 The dialog shows how many chats will be archived and what happens next:
 
 - Every chat in the project is archived, including chats that other users started in it.
-- If chats are running, the dialog warns you and the button changes to **Stop chats and archive**.
+- If chats are running, the dialog warns you and the button changes to **Stop chats and archive**, or **Stop chat and archive** when one chat is running.
   Archiving stops them and discards any reply in progress.
   Queued messages are kept.
 - If your own chats in the project use workspaces, choose whether to leave, stop, or delete those workspaces.
