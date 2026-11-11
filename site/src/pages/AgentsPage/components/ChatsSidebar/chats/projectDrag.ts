@@ -139,9 +139,9 @@ const announcedTarget = (target: Droppable | null): string | undefined => {
  */
 export const chatDragAnnouncements = {
 	dragstart: ({ operation: { source } }: DragStartEvent) => {
-		const project = pinnedProjectOf(source)?.label;
-		if (project) {
-			return `Picked up project ${project}.`;
+		const projectLabel = pinnedProjectOf(source)?.label;
+		if (projectLabel) {
+			return `Picked up project ${projectLabel}.`;
 		}
 		const chat = draggedChatOf(source);
 		return chat && `Picked up chat ${chat.title}.`;
@@ -151,10 +151,10 @@ export const chatDragAnnouncements = {
 		chatPinCount: number,
 		projectPinCount: number,
 	) => {
-		const project = pinnedProjectOf(source)?.label;
-		if (project) {
+		const projectLabel = pinnedProjectOf(source)?.label;
+		if (projectLabel) {
 			return isSortable(target)
-				? `Project ${project} is at position ${target.index + 1} of ${projectPinCount}.`
+				? `Project ${projectLabel} is at position ${target.index + 1} of ${projectPinCount}.`
 				: undefined;
 		}
 		const chat = movedChatOf(source);
@@ -174,11 +174,11 @@ export const chatDragAnnouncements = {
 			: `Chat ${chat.title} is not over a project or Chats.`;
 	},
 	dragend: ({ operation: { source, target }, canceled }: DragEndEvent) => {
-		const project = pinnedProjectOf(source)?.label;
-		if (project) {
+		const projectLabel = pinnedProjectOf(source)?.label;
+		if (projectLabel) {
 			return canceled
-				? `Moving project ${project} was canceled.`
-				: `Project ${project} was dropped.`;
+				? `Moving project ${projectLabel} was canceled.`
+				: `Project ${projectLabel} was dropped.`;
 		}
 		const chat = draggedChatOf(source);
 		if (!chat) {
