@@ -233,7 +233,7 @@ const AttachmentFallbackTile: React.FC<{
 			role="img"
 			aria-label={label}
 			className={cn(
-				"flex flex-col items-center justify-center gap-1 rounded-md border border-border bg-surface-tertiary px-1 text-center text-2xs text-content-secondary",
+				"flex flex-col items-center justify-center gap-1 rounded-md border bg-surface-tertiary px-1 text-center text-2xs text-content-secondary",
 				className,
 			)}
 		>
@@ -606,7 +606,7 @@ export const FileCard: React.FC<{
 			{...getAttachmentDownload(block, href)}
 			ref={ref}
 			className={cn(
-				"inline-flex h-16 items-center gap-3 rounded-md border border-solid border-border bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+				"inline-flex h-16 items-center gap-3 rounded-md border border-solid bg-surface-tertiary px-3 py-2 no-underline transition-colors hover:bg-surface-quaternary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
 				fullWidth ? "w-full" : "max-w-sm",
 			)}
 		>

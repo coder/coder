@@ -97,7 +97,7 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 		<div
 			className={cn(
 				"sticky bottom-0 z-1 flex h-9 w-full items-center gap-8",
-				"overflow-x-auto overflow-y-hidden whitespace-nowrap border-0 border-t border-solid border-border",
+				"overflow-x-auto overflow-y-hidden whitespace-nowrap border-0 border-t border-solid",
 				"bg-surface-primary pr-4 font-mono text-xs leading-none",
 			)}
 		>
@@ -130,7 +130,7 @@ export const DeploymentBannerView: React.FC<DeploymentBannerViewProps> = ({
 				<TooltipContent
 					className={cn(
 						"ml-3 mb-1 p-4 text-sm text-content-primary",
-						"border border-solid border-border pointer-events-none",
+						"border border-solid pointer-events-none",
 					)}
 				>
 					{healthErrors.length > 0 ? (
