@@ -3,11 +3,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorMessage } from "#/api/errors";
 import { chatProjectSummaries, chatProjects } from "#/api/queries/chatProjects";
-import {
-	chatEntityKey,
-	findChatInListCaches,
-	moveChatToProject,
-} from "#/api/queries/chats";
+import { moveChatToProject } from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import type {
 	ContextMenuItem,
@@ -27,6 +23,10 @@ import { toast } from "#/components/Toaster/toast";
 import { ChatProjectIcon } from "./ChatProjectIcon";
 import { useMoveToUnpinnedProjectDialog } from "./MoveToUnpinnedProjectDialog";
 
+// The latest move started for each chat. Cache refetches can briefly show an
+// earlier destination, so the dialog decision tracks moves, not the cache.
+const latestMoveByChat = new Map<string, symbol>();
+
 /**
  * Moves a chat and reports a failure. The callbacks are mutation options, so
  * the rollback, the toast, and the dialog still run after the menu unmounts.
@@ -37,6 +37,11 @@ export const useMoveChatToProject = () => {
 	const options = moveChatToProject(queryClient);
 	return useMutation({
 		...options,
+		onMutate: async (variables: Parameters<typeof options.onMutate>[0]) => {
+			const move = Symbol();
+			latestMoveByChat.set(variables.chatId, move);
+			return { ...(await options.onMutate(variables)), move };
+		},
 		// A chat that is not pinned leaves the sidebar when it moves into a
 		// project the user has not pinned. A chat that was already in another
 		// unpinned project was not in the sidebar to begin with.
@@ -45,14 +50,7 @@ export const useMoveChatToProject = () => {
 		onSuccess: (_data, { chatId, projectId }, context) => {
 			// A later move of the same chat owns the dialog decision, even one
 			// made while the summaries load.
-			const superseded = () => {
-				const current =
-					findChatInListCaches(queryClient, chatId) ??
-					queryClient.getQueryData<Chat>(chatEntityKey(chatId));
-				return (
-					current !== undefined && (current.project_id ?? null) !== projectId
-				);
-			};
+			const superseded = () => latestMoveByChat.get(chatId) !== context?.move;
 			if (superseded()) {
 				return;
 			}

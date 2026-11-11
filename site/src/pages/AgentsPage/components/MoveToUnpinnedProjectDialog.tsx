@@ -139,7 +139,7 @@ export const MoveToUnpinnedProjectDialog: React.FC<
 						project page.
 					</DialogDescription>
 				</DialogHeader>
-				<DialogFooter>
+				<DialogFooter className="gap-2 sm:space-x-0">
 					<DialogClose asChild>
 						<Button variant="subtle">Close</Button>
 					</DialogClose>
