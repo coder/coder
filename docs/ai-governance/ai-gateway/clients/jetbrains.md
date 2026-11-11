@@ -11,9 +11,9 @@ If the workspace is configured for AI Gateway, Claude Agent and Codex sessions r
 
 ## Prerequisites
 
-- **JetBrains IDE**: 2026.3 or later, connected to a Coder workspace with [JetBrains Toolbox](../../../workspaces/workspace-access/jetbrains/toolbox.md) or [JetBrains Gateway](../../../workspaces/workspace-access/jetbrains/gateway.md).
+- **JetBrains IDE**: 2026.3 or later, connected to a Coder workspace with [JetBrains Toolbox](../../../workspaces/workspace-access/jetbrains/toolbox.md) or [JetBrains Gateway](../../../workspaces/workspace-access/jetbrains/gateway.md), or running locally.
 - **Air plugin**: Bundled and enabled by default.
-- **AI Gateway in the workspace**: Configured as described in [Configure the template](#configure-the-template).
+- **AI Gateway configuration**: Set up as described in [Configure the template](#configure-the-template) or [Use a local IDE](#use-a-local-ide).
 
 You don't need a JetBrains AI subscription.
 
@@ -28,6 +28,11 @@ You don't need a JetBrains AI subscription.
 
 To configure both agents for every workspace, set `enable_ai_gateway = true` on the [Claude Code module](./claude-code.md#pre-configuring-in-templates) and the [Codex module](./codex.md#pre-configuring-in-templates).
 For Claude Agent, you can instead set the environment variables on the workspace agent, as shown in [Configure in-workspace tools](./index.md#configure-in-workspace-tools).
+
+## Use a local IDE
+
+If you run the IDE locally instead of in a Coder workspace, Air uses the local configuration of each agent.
+Configure [Claude Code](./claude-code.md#centralized-api-key) and [Codex](./codex.md#centralized-api-key) for AI Gateway with a [long-lived Coder API token](../../../admin/users/sessions-tokens.md#generate-a-long-lived-api-token-on-behalf-of-yourself).
 
 ## Start a session
 
