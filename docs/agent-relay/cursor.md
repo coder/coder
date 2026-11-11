@@ -197,7 +197,7 @@ Worker startup after the build doesn't.
 - The default is `10m` and the maximum is `15m`.
   Set `0` to turn off the deadline.
 - When the deadline passes, Agent Relay deletes the workspace and the developer's chat shows `agent-relay: workspace build exceeded the spawn budget`.
-- Regardless of the deadline, Agent Relay deletes a workspace that's still building 15&nbsp;minutes after its latest build started.
+- Regardless of the deadline, Agent Relay deletes a workspace that's still building after the [startup grace](./configuration.md#--reap-startup-grace), 15&nbsp;minutes from its latest build by default.
 
 Slow templates are the most common reason sessions don't start.
 Pre-pull images, avoid persistent volumes, and bake the Cursor CLI into the image with `install_cli = false`.
@@ -212,6 +212,8 @@ Prebuilds require a Premium license.
 The `coder/agent-relay-cursor` module supports prebuilds without changes.
 An unclaimed prebuild reports `idle`, which Agent Relay ignores.
 When a session claims the prebuild, Coder applies the session's parameters and the module starts the worker.
+When the template orders the module after setup scripts, setup runs again on the claim, and the status item keeps reporting `idle` until the worker starts.
+If that setup fails, the status stays `idle` and Agent Relay neither fails the session nor deletes the workspace.
 
 Add a preset with a `prebuilds` block to the template:
 
@@ -329,15 +331,15 @@ Use separate pools when repositories need different templates or credentials.
 
 The module reports the worker's state through `agent_relay_status`, and Agent Relay's reaper acts on it:
 
-| Value             | Meaning                                                                            | Reaper action                         |
-|-------------------|------------------------------------------------------------------------------------|---------------------------------------|
-| `pending`         | No state recorded yet.                                                             | Keep. Fail after 15&nbsp;minutes.     |
-| `idle`            | No credential: created manually, an unclaimed prebuild, or restarted after a stop. | Keep.                                 |
-| `working`         | The worker is alive, with or without a session.                                    | Keep.                                 |
-| `serving`         | The worker is alive and a session is attached.                                     | Keep.                                 |
-| `orphaned`        | The worker process is gone without recording an exit.                              | Fail.                                 |
-| `done <exitcode>` | The worker exited with that status. `0` is a normal release.                       | Delete on `0`, fail on anything else. |
-| `failed <reason>` | The worker couldn't start, such as `runner-agent-missing` when the CLI is absent.  | Fail.                                 |
+| Value             | Meaning                                                                            | Reaper action                                                   |
+|-------------------|------------------------------------------------------------------------------------|-----------------------------------------------------------------|
+| `pending`         | No state recorded yet.                                                             | Keep. Fail after the startup grace, 15&nbsp;minutes by default. |
+| `idle`            | No credential: created manually, an unclaimed prebuild, or restarted after a stop. | Keep.                                                           |
+| `working`         | The worker is alive, with or without a session.                                    | Keep.                                                           |
+| `serving`         | The worker is alive and a session is attached.                                     | Keep.                                                           |
+| `orphaned`        | The worker process is gone without recording an exit.                              | Fail.                                                           |
+| `done <exitcode>` | The worker exited with that status. `0` is a normal release.                       | Delete on `0`, fail on anything else.                           |
+| `failed <reason>` | The worker couldn't start, such as `runner-agent-missing` when the CLI is absent.  | Fail.                                                           |
 
 Both delete and fail remove the workspace.
 A failure is also recorded in logs and metrics, and ends the developer's turn in Cursor with an error if the turn is still waiting.

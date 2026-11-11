@@ -211,6 +211,13 @@ const AgentChatSendMenu: React.FC<AgentChatSendMenuProps> = ({
 					}}
 					onPointerUp={cancelPress}
 					onPointerCancel={cancelPress}
+					// The mouse events that end a long press would focus Send and
+					// dismiss the menu the press just opened.
+					onMouseDown={(event) => {
+						if (suppressClickRef.current) {
+							event.preventDefault();
+						}
+					}}
 					onClickCapture={(event) => {
 						if (suppressClickRef.current) {
 							suppressClickRef.current = false;

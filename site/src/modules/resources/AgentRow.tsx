@@ -108,7 +108,7 @@ const statusBorderClassByLifecycle: Partial<
 	shutdown_timeout: "border-border-warning",
 	start_error: "border-border-success",
 	shutdown_error: "border-border-warning",
-	off: "border-border",
+	off: "",
 };
 
 const getAgentBorderClass = (
@@ -116,14 +116,14 @@ const getAgentBorderClass = (
 	hasErrorState: boolean,
 ): string => {
 	if (hasErrorState) {
-		return "border-border";
+		return "";
 	}
 
 	// Lifecycle state is more specific than connection status, so it wins.
 	return (
 		statusBorderClassByLifecycle[agent.lifecycle_state] ??
 		statusBorderClassByStatus[agent.status] ??
-		"border-border"
+		""
 	);
 };
 
@@ -531,7 +531,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />
 			</div>
 
-			<section className="border-0 border-t border-solid border-border">
+			<section className="border-t border-solid">
 				<Collapsible open={shouldExpandLogs} onOpenChange={setShowLogs}>
 					<div className="px-4 py-2 relative">
 						<CollapsibleTrigger asChild>
@@ -696,7 +696,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 											<div
 												className={cn(
 													"shrink-0 flex items-center gap-2 pl-2 pr-3",
-													"border-solid border-0 border-b border-l",
+													"border-solid border-b border-l",
 												)}
 											>
 												<Tooltip>

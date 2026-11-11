@@ -307,7 +307,7 @@ const BadgeDismissButton: React.FC<{
 		type="button"
 		onClick={onClick}
 		disabled={isDisabled}
-		className="group -mx-1 -my-1 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-transparent p-0 text-content-secondary focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
+		className="group -mx-1 -my-1 inline-flex size-5 shrink-0 cursor-pointer items-center justify-center rounded-full bg-transparent p-0 text-content-secondary focus-visible:outline-hidden disabled:cursor-not-allowed disabled:opacity-50"
 		aria-label={ariaLabel}
 	>
 		<span className="inline-flex size-3.5 items-center justify-center rounded-full transition-colors group-hover:bg-surface-tertiary group-hover:text-content-primary group-focus-visible:bg-surface-tertiary group-focus-visible:text-content-primary">
@@ -343,7 +343,7 @@ const MCPGroupBadge: React.FC<MCPGroupBadgeProps> = ({
 					aria-label={label}
 					className={cn(
 						className,
-						"cursor-pointer border-0 transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+						"cursor-pointer transition-colors hover:bg-surface-tertiary hover:text-content-primary",
 						pillFocusRingClasses,
 					)}
 				>
@@ -1444,7 +1444,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					isDragging && "ring-2 ring-content-link/40",
 					(isEditingMessage || warning) &&
 						"shadow-[0_0_0_2px_hsla(var(--border-warning),0.6)]",
-					isReadOnlyView && "border border-solid border-border",
+					isReadOnlyView && "border border-solid",
 				)}
 				onKeyDown={handleComposerKeyDown}
 				onDragOver={onAttach ? handleDragOver : undefined}
@@ -1863,7 +1863,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 									<button
 										type="button"
 										className={cn(
-											"inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
+											"inline-flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium text-content-secondary transition-colors hover:bg-surface-tertiary hover:text-content-primary",
 											pillFocusRingClasses,
 											overflowCount === 0 && "invisible",
 										)}

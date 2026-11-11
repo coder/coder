@@ -530,7 +530,7 @@ const TemplateParametersUsagePanel: React.FC<
 					return (
 						<div
 							key={parameter.name}
-							className="flex items-start gap-6 border-0 border-t border-solid border-surface-quaternary p-6 -mx-6 first:border-t-0"
+							className="flex items-start gap-6 border-t border-solid border-surface-quaternary p-6 -mx-6 first:border-t-0"
 						>
 							<div className="flex-1">
 								<div className="font-medium">{label}</div>
