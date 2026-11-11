@@ -38,7 +38,8 @@ export const ProjectPage: React.FC<ProjectPageProps> = ({
 					<Alert severity="info" prominent>
 						<AlertTitle>This project isn't shared with you.</AlertTitle>
 						<AlertDescription>
-							Only its owner and the people it is shared with can start chats in it.
+							Only its owner and the people it is shared with can start chats in
+							it.
 						</AlertDescription>
 					</Alert>
 				)}
