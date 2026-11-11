@@ -10,7 +10,7 @@ Projects group related Coder Agents chats.
 Every chat in a project gets the project's instructions, skills, and memory, so you don't repeat the same context in each chat.
 Select **Projects** below **New chat** in the **Agents** page sidebar to see your projects as cards, in a **Your projects** tab for projects you own and a **Shared with you** tab for projects that other users own and you can use.
 Each card shows whether one of your chats in the project needs attention or is running, or else how many of your chats are unread or read.
-It also shows how many users can use the project and when your chats in it last changed.
+It also shows how many users can use the project, counting its owner, and when your chats in it last changed.
 [Pinned projects](#pin-a-project) also appear in the sidebar.
 
 ## What a project provides
@@ -78,7 +78,7 @@ Set `project_id` to the nil universally unique identifier (UUID) (`00000000-0000
 - To reorder pinned projects, drag them in the **Pinned** area of the sidebar.
 
 Pins are personal and change only your own sidebar.
-Projects you create start pinned, and projects that other users share with you start unpinned.
+Projects you create start pinned at the end of the **Pinned** area, and projects that other users share with you start unpinned.
 When you upgrade to a release with pinning, Coder pins every project you already own, so your sidebar doesn't lose any projects.
 
 The sidebar lists a chat in an unpinned project only if you pin the chat itself.
