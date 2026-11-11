@@ -136,9 +136,9 @@ export const ChatTreeNode: React.FC<ChatTreeNodeProps> = ({
 	}, [isStaleTurnSummary]);
 	const displayedTurnSummary = isStaleTurnSummary ? undefined : lastTurnSummary;
 	const isSharedChat = chat.shared;
-	// Only pinned chats leave their project's folder, so only they show it.
+	// Only the viewer's own pinned chats leave their folder, so only they show it.
 	const pinnedChatProjectLabel =
-		chat.pin_order > 0 && chat.project_id
+		chat.pin_order > 0 && chat.project_id && canManageChat(chat, currentUserId)
 			? projectLabelById.get(chat.project_id)
 			: undefined;
 	const subtitle =
