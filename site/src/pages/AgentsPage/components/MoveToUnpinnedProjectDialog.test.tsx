@@ -8,6 +8,7 @@ import { API } from "#/api/api";
 import { chatProjectSummariesKey } from "#/api/queries/chatProjects";
 import { chatEntityKey } from "#/api/queries/chats";
 import { MockChat } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockChatProject,
 	MockChatProjectSummary,
@@ -291,6 +292,80 @@ describe("MoveToUnpinnedProjectDialog", () => {
 			expect(pin).not.toHaveBeenCalled();
 		},
 	);
+
+	it("leaves a superseded move's project out of the dialog", async () => {
+		const first = createDeferred<undefined>();
+		vi.spyOn(API.experimental, "updateChat").mockImplementation((_id, req) =>
+			req.project_id === MockChatProject.id
+				? first.promise
+				: Promise.resolve(undefined),
+		);
+		const queryClient = createTestQueryClient();
+		queryClient.setDefaultOptions({
+			queries: { gcTime: Number.POSITIVE_INFINITY },
+		});
+		queryClient.setQueryData(chatEntityKey(MockChat.id), MockChat);
+		queryClient.setQueryData(chatProjectSummariesKey, [
+			{ ...MockChatProjectSummary, pinned: false, pin_order: 0 },
+			{
+				...MockChatProjectSummary,
+				project: { ...MockChatProject, id: "later-project", name: "Later" },
+				pinned: false,
+				pin_order: 0,
+			},
+		]);
+		// Two menu instances, as when the top bar menu is reopened mid-move.
+		const TwoMoves: React.FC = () => {
+			const toFirst = useMoveChatToProject();
+			const toLater = useMoveChatToProject();
+			return (
+				<>
+					<button
+						type="button"
+						onClick={() =>
+							toFirst.mutate({
+								chatId: MockChat.id,
+								projectId: MockChatProject.id,
+							})
+						}
+					>
+						Move first
+					</button>
+					<button
+						type="button"
+						onClick={() =>
+							toLater.mutate({
+								chatId: MockChat.id,
+								projectId: "later-project",
+							})
+						}
+					>
+						Move later
+					</button>
+				</>
+			);
+		};
+		render(
+			<QueryClientProvider client={queryClient}>
+				<MemoryRouter>
+					<MoveToUnpinnedProjectDialogProvider>
+						<TwoMoves />
+					</MoveToUnpinnedProjectDialogProvider>
+				</MemoryRouter>
+			</QueryClientProvider>,
+		);
+		const user = userEvent.setup();
+		await user.click(screen.getByRole("button", { name: "Move first" }));
+		await user.click(screen.getByRole("button", { name: "Move later" }));
+		first.resolve(undefined);
+		await waitFor(() => expect(queryClient.isMutating()).toBe(0));
+
+		expect(
+			screen.queryByRole("dialog", {
+				name: `Chat moved to ${MockChatProject.name}`,
+			}),
+		).toBeNull();
+	});
 
 	it.each([
 		{ chatPinned: true, projectPinned: false },

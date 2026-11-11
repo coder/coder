@@ -3,7 +3,11 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorMessage } from "#/api/errors";
 import { chatProjectSummaries, chatProjects } from "#/api/queries/chatProjects";
-import { moveChatToProject } from "#/api/queries/chats";
+import {
+	chatEntityKey,
+	findChatInListCaches,
+	moveChatToProject,
+} from "#/api/queries/chats";
 import type { Chat } from "#/api/typesGenerated";
 import type {
 	ContextMenuItem,
@@ -39,6 +43,13 @@ export const useMoveChatToProject = () => {
 		// Summaries that are not cached yet are fetched first, so the dialog can
 		// still open; only a failed fetch skips it.
 		onSuccess: (_data, { chatId, projectId }, context) => {
+			// A later move of the same chat already owns the dialog decision.
+			const current =
+				findChatInListCaches(queryClient, chatId) ??
+				queryClient.getQueryData<Chat>(chatEntityKey(chatId));
+			if (current && (current.project_id ?? null) !== projectId) {
+				return;
+			}
 			void queryClient.ensureQueryData(chatProjectSummaries()).then(
 				(summaries) => {
 					const summary = summaries.find((s) => s.project.id === projectId);
