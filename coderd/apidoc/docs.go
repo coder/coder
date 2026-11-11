@@ -11421,63 +11421,6 @@ const docTemplate = `{
                 ]
             }
         },
-        "/api/v2/organizations/{organization}/workload-operators/{operator}/sync": {
-            "post": {
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Organizations"
-                ],
-                "summary": "Sync a workload operator (experimental)",
-                "operationId": "sync-workload-operator",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Operator name",
-                        "name": "operator",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "description": "Operator state",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.WorkloadOperatorSyncRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.WorkloadOperatorSyncResponse"
-                        }
-                    }
-                },
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "x-apidocgen": {
-                    "skip": true
-                }
-            }
-        },
         "/api/v2/prebuilds/settings": {
             "get": {
                 "produces": [
@@ -16281,7 +16224,7 @@ const docTemplate = `{
                 "tags": [
                     "Agents"
                 ],
-                "summary": "Get the workload identity of the calling agent (experimental)",
+                "summary": "Get the identity of the caller in a workspace (experimental)",
                 "operationId": "get-workspace-agent-identity",
                 "responses": {
                     "200": {
@@ -18773,7 +18716,7 @@ const docTemplate = `{
                 "tags": [
                     "Workspaces"
                 ],
-                "summary": "List runtime workloads (experimental)",
+                "summary": "List workloads (experimental)",
                 "operationId": "list-workspace-workloads",
                 "parameters": [
                     {
@@ -18815,7 +18758,7 @@ const docTemplate = `{
                 "tags": [
                     "Workspaces"
                 ],
-                "summary": "Create a runtime workload (experimental)",
+                "summary": "Run a workload (experimental)",
                 "operationId": "create-workspace-workload",
                 "parameters": [
                     {
@@ -18859,7 +18802,7 @@ const docTemplate = `{
                 "tags": [
                     "Workspaces"
                 ],
-                "summary": "Delete a runtime workload (experimental)",
+                "summary": "Remove a workload (experimental)",
                 "operationId": "delete-workspace-workload",
                 "parameters": [
                     {
@@ -18882,6 +18825,52 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/workspaces/{workspace}/workloads/{workload}/logs": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "Follow a workload's output (experimental)",
+                "operationId": "workspace-workload-logs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace ID",
+                        "name": "workspace",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workload ID",
+                        "name": "workload",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkloadLogEvent"
+                        }
                     }
                 },
                 "security": [
@@ -25604,8 +25593,16 @@ const docTemplate = `{
         "codersdk.CreateWorkloadRequest": {
             "type": "object",
             "properties": {
+                "agent": {
+                    "description": "Agent selects the workspace daemon by name. It may be empty when the\nworkspace has exactly one.",
+                    "type": "string"
+                },
                 "command": {
-                    "description": "Command is run by the new daemon once it starts.",
+                    "description": "Command is run by a shell inside the sandbox.",
+                    "type": "string"
+                },
+                "image": {
+                    "description": "Image overrides the image the daemon uses for sandboxes.",
                     "type": "string"
                 },
                 "name": {
@@ -25618,10 +25615,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.APIKeyScope"
                     }
-                },
-                "shape": {
-                    "description": "Shape selects the template-declared shape by agent name. It may be\nempty when the workspace has exactly one shape.",
-                    "type": "string"
                 }
             }
         },
@@ -34577,6 +34570,13 @@ const docTemplate = `{
         "codersdk.Workload": {
             "type": "object",
             "properties": {
+                "agent_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "agent_name": {
+                    "type": "string"
+                },
                 "command": {
                     "type": "string"
                 },
@@ -34584,32 +34584,23 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "exit_code": {
+                    "type": "integer"
+                },
                 "id": {
-                    "description": "ID is also the ID of the workload's workspace agent once it exists.",
+                    "description": "ID is the workload's identity ID.",
                     "type": "string",
                     "format": "uuid"
                 },
                 "identity": {
-                    "description": "Identity is set once the pod exists.",
+                    "description": "Identity is the workload's identity as it is displayed.",
                     "type": "string"
-                },
-                "identity_id": {
-                    "description": "IdentityID is the workload identity that permissions attach to. It\nexists from the moment the workload is requested.",
-                    "type": "string",
-                    "format": "uuid"
                 },
                 "name": {
                     "type": "string"
                 },
-                "pod": {
-                    "$ref": "#/definitions/codersdk.WorkloadPod"
-                },
-                "requested_by_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "requested_by_username": {
-                    "type": "string"
+                "sandbox": {
+                    "$ref": "#/definitions/codersdk.WorkloadSandbox"
                 },
                 "scopes": {
                     "description": "Scopes narrow the sponsor's permissions. An empty list grants nothing.",
@@ -34617,9 +34608,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.APIKeyScope"
                     }
-                },
-                "shape": {
-                    "type": "string"
                 },
                 "sponsor_id": {
                     "description": "SponsorID is the user account whose permissions bound what the\nworkload may do.",
@@ -34642,17 +34630,18 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "agent-token",
-                "kubernetes-pod"
+                "workspace-daemon"
             ],
             "x-enum-varnames": [
                 "WorkloadAttestationAgentToken",
-                "WorkloadAttestationKubernetesPod"
+                "WorkloadAttestationWorkspaceDaemon"
             ]
         },
         "codersdk.WorkloadIdentity": {
             "type": "object",
             "properties": {
                 "agent_id": {
+                    "description": "AgentID is the workspace daemon: the process itself, or the daemon\nthat runs and vouches for the workload.",
                     "type": "string",
                     "format": "uuid"
                 },
@@ -34663,35 +34652,30 @@ const docTemplate = `{
                     "$ref": "#/definitions/codersdk.WorkloadAttestation"
                 },
                 "id": {
-                    "description": "ID is unique per daemon. For a runtime daemon it is the workspace ID\nand the pod UID; for a declared daemon, the workspace ID and agent ID.",
+                    "description": "ID is unique per principal: the workspace ID and the workload\nidentity ID, or for a daemon the workspace ID and the agent ID.",
                     "type": "string"
                 },
                 "identity_id": {
-                    "description": "IdentityID is the workload identity that permissions attach to. A\ndeclared daemon has none: it acts with its agent token.",
+                    "description": "IdentityID is the workload identity that permissions attach to. A\ndaemon has none: it acts with its agent token.",
                     "type": "string",
                     "format": "uuid"
                 },
                 "kind": {
                     "$ref": "#/definitions/codersdk.WorkloadIdentityKind"
                 },
+                "name": {
+                    "description": "Name is the workload's name.",
+                    "type": "string"
+                },
                 "owner_id": {
-                    "description": "OwnerID is the user the daemon is associated with: the workspace owner.",
                     "type": "string",
                     "format": "uuid"
                 },
                 "owner_username": {
                     "type": "string"
                 },
-                "pod": {
-                    "$ref": "#/definitions/codersdk.WorkloadPod"
-                },
-                "requested_by_id": {
-                    "description": "RequestedByID is the user who asked for a runtime daemon.",
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "requested_by_username": {
-                    "type": "string"
+                "sandbox": {
+                    "$ref": "#/definitions/codersdk.WorkloadSandbox"
                 },
                 "scopes": {
                     "description": "Scopes narrow the sponsor's permissions. An empty list grants nothing.",
@@ -34699,10 +34683,6 @@ const docTemplate = `{
                     "items": {
                         "$ref": "#/definitions/codersdk.APIKeyScope"
                     }
-                },
-                "shape": {
-                    "description": "Shape is the name of the template-declared agent a runtime daemon was\ncloned from.",
-                    "type": "string"
                 },
                 "sponsor_id": {
                     "description": "SponsorID is the user account whose permissions bound what the\nworkload may do.",
@@ -34724,157 +34704,34 @@ const docTemplate = `{
         "codersdk.WorkloadIdentityKind": {
             "type": "string",
             "enum": [
-                "declared",
-                "runtime"
+                "daemon",
+                "workload"
             ],
             "x-enum-varnames": [
-                "WorkloadIdentityKindDeclared",
-                "WorkloadIdentityKindRuntime"
+                "WorkloadIdentityKindDaemon",
+                "WorkloadIdentityKindWorkload"
             ]
         },
-        "codersdk.WorkloadOperatorPod": {
+        "codersdk.WorkloadLogEvent": {
             "type": "object",
             "properties": {
-                "created": {
-                    "description": "Created is true when this operator process created the pod itself.\nLabels can be set by anyone who can create pods, so coderd only binds\na workload's identity to a pod the operator vouches for this way.",
-                    "type": "boolean"
+                "exit_code": {
+                    "type": "integer"
                 },
-                "name": {
-                    "type": "string"
-                },
-                "phase": {
-                    "type": "string"
-                },
-                "service_account": {
-                    "type": "string"
-                },
-                "uid": {
-                    "type": "string"
-                },
-                "workload_id": {
-                    "type": "string",
-                    "format": "uuid"
-                }
-            }
-        },
-        "codersdk.WorkloadOperatorShape": {
-            "type": "object",
-            "properties": {
-                "agent_token": {
-                    "description": "AgentToken is the shape agent's token from the pod template. It proves\nthat the Deployment belongs to that agent's workspace build.",
-                    "type": "string"
-                },
-                "deployment": {
-                    "description": "Deployment is the name of the Deployment that holds the pod template.",
+                "output": {
                     "type": "string"
                 }
             }
         },
-        "codersdk.WorkloadOperatorShapeStatus": {
+        "codersdk.WorkloadSandbox": {
             "type": "object",
             "properties": {
-                "agent_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "agent_name": {
-                    "type": "string"
-                },
-                "deployment": {
-                    "type": "string"
-                },
-                "error": {
-                    "type": "string"
-                },
-                "workspace_id": {
-                    "type": "string",
-                    "format": "uuid"
-                }
-            }
-        },
-        "codersdk.WorkloadOperatorSyncRequest": {
-            "type": "object",
-            "properties": {
-                "audience": {
-                    "type": "string"
-                },
-                "issuer": {
-                    "description": "Issuer, Audience and JWKS let coderd verify pod tokens from the\noperator's cluster without access to that cluster.",
-                    "type": "string"
-                },
-                "jwks": {
-                    "type": "object"
-                },
-                "namespace": {
-                    "type": "string"
-                },
-                "pods": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.WorkloadOperatorPod"
-                    }
-                },
-                "shapes": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.WorkloadOperatorShape"
-                    }
-                }
-            }
-        },
-        "codersdk.WorkloadOperatorSyncResponse": {
-            "type": "object",
-            "properties": {
-                "shapes": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.WorkloadOperatorShapeStatus"
-                    }
-                },
-                "workloads": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.WorkloadOperatorWorkload"
-                    }
-                }
-            }
-        },
-        "codersdk.WorkloadOperatorWorkload": {
-            "type": "object",
-            "properties": {
-                "deployment": {
-                    "type": "string"
-                },
                 "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "name": {
+                    "description": "ID identifies the sandbox to that runtime.",
                     "type": "string"
                 },
-                "pod_uid": {
-                    "description": "PodUID is the pod the workload's identity is bound to. It is empty\nuntil coderd has accepted a pod the operator created.",
-                    "type": "string"
-                },
-                "workspace_id": {
-                    "type": "string",
-                    "format": "uuid"
-                }
-            }
-        },
-        "codersdk.WorkloadPod": {
-            "type": "object",
-            "properties": {
-                "name": {
-                    "type": "string"
-                },
-                "namespace": {
-                    "type": "string"
-                },
-                "service_account": {
-                    "type": "string"
-                },
-                "uid": {
+                "runtime": {
+                    "description": "Runtime is the isolation backend, for example \"docker\".",
                     "type": "string"
                 }
             }
@@ -34882,16 +34739,16 @@ const docTemplate = `{
         "codersdk.WorkloadStatus": {
             "type": "string",
             "enum": [
-                "pending",
                 "starting",
                 "running",
-                "disconnected"
+                "exited",
+                "unknown"
             ],
             "x-enum-varnames": [
-                "WorkloadStatusPending",
                 "WorkloadStatusStarting",
                 "WorkloadStatusRunning",
-                "WorkloadStatusDisconnected"
+                "WorkloadStatusExited",
+                "WorkloadStatusUnknown"
             ]
         },
         "codersdk.Workspace": {

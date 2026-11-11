@@ -54,14 +54,14 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>create</code>](./create.md)                                 | Create a workspace                                                                                                           |
 | [<code>delete</code>](./delete.md)                                 | Delete a workspace                                                                                                           |
 | [<code>favorite</code>](./favorite.md)                             | Add a workspace to your favorites                                                                                            |
-| [<code>identity</code>](./identity.md)                             | Show the workload identity of the workspace daemon this command runs under                                                   |
+| [<code>identity</code>](./identity.md)                             | Show who this process is to Coder inside a workspace                                                                         |
 | [<code>list</code>](./list.md)                                     | List workspaces                                                                                                              |
 | [<code>logs</code>](./logs.md)                                     | View logs for a workspace                                                                                                    |
 | [<code>open</code>](./open/index.md)                               | Open a workspace                                                                                                             |
 | [<code>ping</code>](./ping.md)                                     | Ping a workspace                                                                                                             |
 | [<code>rename</code>](./rename.md)                                 | Rename a workspace                                                                                                           |
 | [<code>restart</code>](./restart.md)                               | Restart a workspace                                                                                                          |
-| [<code>run</code>](./run.md)                                       | Run a workload in its own workspace daemon, provisioned at runtime                                                           |
+| [<code>run</code>](./run.md)                                       | Run a command in a sandbox inside a workspace, with an identity of its own                                                   |
 | [<code>schedule</code>](./schedule/index.md)                       | Schedule automated start and stop times for workspaces                                                                       |
 | [<code>show</code>](./show.md)                                     | Display details of a workspace's resources and agents                                                                        |
 | [<code>speedtest</code>](./speedtest.md)                           | Run upload and download tests from your machine to a workspace                                                               |

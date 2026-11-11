@@ -6825,7 +6825,7 @@ type WebpushSubscription struct {
 	EndpointAuthKey   string    `db:"endpoint_auth_key" json:"endpoint_auth_key"`
 }
 
-// A workload identity is a principal for a workload that runs in a workspace. It acts with the permissions of its sponsor, narrowed to its scopes.
+// A workload identity is a principal for a workload that runs in a sandbox inside a workspace daemon. It acts with the permissions of its sponsor, narrowed to its scopes.
 type WorkloadIdentity struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
@@ -6833,15 +6833,18 @@ type WorkloadIdentity struct {
 	// The user account whose permissions bound what the workload may do.
 	SponsorID   uuid.UUID `db:"sponsor_id" json:"sponsor_id"`
 	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
-	Name        string    `db:"name" json:"name"`
+	// The workspace daemon that runs the workload. Only this daemon can vouch for the identity.
+	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	Name             string    `db:"name" json:"name"`
+	Command          string    `db:"command" json:"command"`
 	// API key scope names. An empty list grants nothing.
-	Scopes []string `db:"scopes" json:"scopes"`
-	// The workspace daemon that runs the workload. NULL until the runtime reports where the workload runs.
-	WorkspaceAgentID uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	// What the workload proves to act as this identity, for example a Kubernetes pod UID.
-	AttestationSubject sql.NullString `db:"attestation_subject" json:"attestation_subject"`
-	BoundAt            sql.NullTime   `db:"bound_at" json:"bound_at"`
-	RevokedAt          sql.NullTime   `db:"revoked_at" json:"revoked_at"`
+	Scopes  []string `db:"scopes" json:"scopes"`
+	Runtime string   `db:"runtime" json:"runtime"`
+	// The sandbox the daemon reported for the workload, as its runtime names it.
+	SandboxID string `db:"sandbox_id" json:"sandbox_id"`
+	// When the daemon reported the sandbox. NULL while the workload is starting.
+	StartedAt sql.NullTime `db:"started_at" json:"started_at"`
+	RevokedAt sql.NullTime `db:"revoked_at" json:"revoked_at"`
 }
 
 // Joins in the display name information such as username, avatar, and organization name.

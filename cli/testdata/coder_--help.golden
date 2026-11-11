@@ -25,8 +25,7 @@ SUBCOMMANDS:
                        dotfiles repository
     external-auth      Manage external authentication
     favorite           Add a workspace to your favorites
-    identity           Show the workload identity of the workspace daemon this
-                       command runs under
+    identity           Show who this process is to Coder inside a workspace
     list               List workspaces
     login              Authenticate with Coder deployment
     logout             Unauthenticate your local session
@@ -45,8 +44,8 @@ SUBCOMMANDS:
     reset-password     Directly connect to the database to reset a user's
                        password
     restart            Restart a workspace
-    run                Run a workload in its own workspace daemon, provisioned
-                       at runtime
+    run                Run a command in a sandbox inside a workspace, with an
+                       identity of its own
     schedule           Schedule automated start and stop times for workspaces
     secret             Manage secrets
     server             Start a Coder server

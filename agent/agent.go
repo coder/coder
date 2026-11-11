@@ -49,6 +49,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentsocket"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttoolcall"
+	"github.com/coder/coder/v2/agent/agentworkload"
 	"github.com/coder/coder/v2/agent/boundarylogproxy"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/agent/proto/resourcesmonitor"
@@ -102,19 +103,22 @@ type Options struct {
 	IgnorePorts map[int]string
 	// ListeningPortsGetter is used to get the list of listening ports. Only
 	// tests should set this. If unset, a default that queries the OS will be used.
-	ListeningPortsGetter            ListeningPortsGetter
-	SSHMaxTimeout                   time.Duration
-	TailnetListenPort               uint16
-	Subsystems                      []codersdk.AgentSubsystem
-	PrometheusRegistry              *prometheus.Registry
-	ReportMetadataInterval          time.Duration
-	ServiceBannerRefreshInterval    time.Duration
-	BlockFileTransfer               bool
-	BlockReversePortForwarding      bool
-	BlockLocalPortForwarding        bool
-	Execer                          agentexec.Execer
-	Devcontainers                   bool
-	DevcontainerAPIOptions          []agentcontainers.Option // Enable Devcontainers for these to be effective.
+	ListeningPortsGetter         ListeningPortsGetter
+	SSHMaxTimeout                time.Duration
+	TailnetListenPort            uint16
+	Subsystems                   []codersdk.AgentSubsystem
+	PrometheusRegistry           *prometheus.Registry
+	ReportMetadataInterval       time.Duration
+	ServiceBannerRefreshInterval time.Duration
+	BlockFileTransfer            bool
+	BlockReversePortForwarding   bool
+	BlockLocalPortForwarding     bool
+	Execer                       agentexec.Execer
+	Devcontainers                bool
+	DevcontainerAPIOptions       []agentcontainers.Option // Enable Devcontainers for these to be effective.
+	// Workloads runs workloads in sandboxes inside this daemon. Nil
+	// disables them.
+	Workloads                       *agentworkload.Supervisor
 	GitAPIOptions                   []agentgit.Option
 	Clock                           quartz.Clock
 	SocketServerEnabled             bool
@@ -244,6 +248,7 @@ func New(options Options) Agent {
 
 		devcontainers:                   options.Devcontainers,
 		containerAPIOptions:             options.DevcontainerAPIOptions,
+		workloads:                       options.Workloads,
 		gitAPIOptions:                   options.GitAPIOptions,
 		socketPath:                      options.SocketPath,
 		socketServerEnabled:             options.SocketServerEnabled,
@@ -339,6 +344,7 @@ type agent struct {
 	devcontainers       bool
 	containerAPIOptions []agentcontainers.Option
 	containerAPI        *agentcontainers.API
+	workloads           *agentworkload.Supervisor
 	gitAPIOptions       []agentgit.Option
 
 	filesAPI         *agentfiles.API
@@ -2296,6 +2302,10 @@ func (a *agent) Close() error {
 
 	if err := a.containerAPI.Close(); err != nil {
 		a.logger.Error(a.hardCtx, "container API close", slog.Error(err))
+	}
+	if a.workloads != nil {
+		// Workloads cannot outlive the daemon: it is their way to Coder.
+		_ = a.workloads.Close()
 	}
 
 	if err := a.processAPI.Close(); err != nil {

@@ -1969,13 +1969,6 @@ func (q *querier) BatchUpsertConnectionLogs(ctx context.Context, arg database.Ba
 	return q.db.BatchUpsertConnectionLogs(ctx, arg)
 }
 
-func (q *querier) BindWorkloadIdentity(ctx context.Context, arg database.BindWorkloadIdentityParams) (database.WorkloadIdentity, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return database.WorkloadIdentity{}, err
-	}
-	return q.db.BindWorkloadIdentity(ctx, arg)
-}
-
 func (q *querier) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationMessage); err != nil {
 		return 0, err
@@ -5816,11 +5809,11 @@ func (q *querier) GetWorkloadIdentitiesByWorkspaceID(ctx context.Context, worksp
 	return q.db.GetWorkloadIdentitiesByWorkspaceID(ctx, workspaceID)
 }
 
-func (q *querier) GetWorkloadIdentityByWorkspaceAgentID(ctx context.Context, workspaceAgentID uuid.NullUUID) (database.WorkloadIdentity, error) {
+func (q *querier) GetWorkloadIdentityByID(ctx context.Context, id uuid.UUID) (database.WorkloadIdentity, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return database.WorkloadIdentity{}, err
 	}
-	return q.db.GetWorkloadIdentityByWorkspaceAgentID(ctx, workspaceAgentID)
+	return q.db.GetWorkloadIdentityByID(ctx, id)
 }
 
 func (q *querier) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceACLByIDRow, error) {
@@ -7711,13 +7704,6 @@ func (q *querier) RevokeWorkloadIdentityByID(ctx context.Context, arg database.R
 	return q.db.RevokeWorkloadIdentityByID(ctx, arg)
 }
 
-func (q *querier) RevokeWorkloadIdentityByWorkspaceAgentID(ctx context.Context, arg database.RevokeWorkloadIdentityByWorkspaceAgentIDParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return err
-	}
-	return q.db.RevokeWorkloadIdentityByWorkspaceAgentID(ctx, arg)
-}
-
 func (q *querier) SelectUsageEventsForPublishing(ctx context.Context, arg time.Time) ([]database.UsageEvent, error) {
 	// ActionUpdate because we're updating the publish_started_at column.
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceUsageEvent); err != nil {
@@ -9196,6 +9182,13 @@ func (q *querier) UpdateVolumeResourceMonitor(ctx context.Context, arg database.
 	}
 
 	return q.db.UpdateVolumeResourceMonitor(ctx, arg)
+}
+
+func (q *querier) UpdateWorkloadIdentitySandbox(ctx context.Context, arg database.UpdateWorkloadIdentitySandboxParams) (database.WorkloadIdentity, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.WorkloadIdentity{}, err
+	}
+	return q.db.UpdateWorkloadIdentitySandbox(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspace(ctx context.Context, arg database.UpdateWorkspaceParams) (database.WorkspaceTable, error) {

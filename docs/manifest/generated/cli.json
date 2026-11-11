@@ -147,7 +147,7 @@
 	},
 	{
 		"title": "`identity`",
-		"description": "Show the workload identity of the workspace daemon this command runs under.",
+		"description": "Show who this process is to Coder inside a workspace.",
 		"path": "reference/cli/identity.md"
 	},
 	{
@@ -519,7 +519,7 @@
 	},
 	{
 		"title": "`run`",
-		"description": "Run a workload in its own workspace daemon, provisioned at runtime.",
+		"description": "Run a command in a sandbox inside a workspace, with an identity of its own.",
 		"path": "reference/cli/run.md"
 	},
 	{

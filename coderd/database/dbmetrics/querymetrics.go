@@ -240,14 +240,6 @@ func (m queryMetricsStore) BatchUpsertConnectionLogs(ctx context.Context, arg da
 	return r0
 }
 
-func (m queryMetricsStore) BindWorkloadIdentity(ctx context.Context, arg database.BindWorkloadIdentityParams) (database.WorkloadIdentity, error) {
-	start := time.Now()
-	r0, r1 := m.s.BindWorkloadIdentity(ctx, arg)
-	m.queryLatencies.WithLabelValues("BindWorkloadIdentity").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "BindWorkloadIdentity").Inc()
-	return r0, r1
-}
-
 func (m queryMetricsStore) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.BulkMarkNotificationMessagesFailed(ctx, arg)
@@ -3816,11 +3808,11 @@ func (m queryMetricsStore) GetWorkloadIdentitiesByWorkspaceID(ctx context.Contex
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkloadIdentityByWorkspaceAgentID(ctx context.Context, workspaceAgentID uuid.NullUUID) (database.WorkloadIdentity, error) {
+func (m queryMetricsStore) GetWorkloadIdentityByID(ctx context.Context, id uuid.UUID) (database.WorkloadIdentity, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetWorkloadIdentityByWorkspaceAgentID(ctx, workspaceAgentID)
-	m.queryLatencies.WithLabelValues("GetWorkloadIdentityByWorkspaceAgentID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkloadIdentityByWorkspaceAgentID").Inc()
+	r0, r1 := m.s.GetWorkloadIdentityByID(ctx, id)
+	m.queryLatencies.WithLabelValues("GetWorkloadIdentityByID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkloadIdentityByID").Inc()
 	return r0, r1
 }
 
@@ -5504,14 +5496,6 @@ func (m queryMetricsStore) RevokeWorkloadIdentityByID(ctx context.Context, arg d
 	return r0
 }
 
-func (m queryMetricsStore) RevokeWorkloadIdentityByWorkspaceAgentID(ctx context.Context, arg database.RevokeWorkloadIdentityByWorkspaceAgentIDParams) error {
-	start := time.Now()
-	r0 := m.s.RevokeWorkloadIdentityByWorkspaceAgentID(ctx, arg)
-	m.queryLatencies.WithLabelValues("RevokeWorkloadIdentityByWorkspaceAgentID").Observe(time.Since(start).Seconds())
-	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "RevokeWorkloadIdentityByWorkspaceAgentID").Inc()
-	return r0
-}
-
 func (m queryMetricsStore) SelectUsageEventsForPublishing(ctx context.Context, now time.Time) ([]database.UsageEvent, error) {
 	start := time.Now()
 	r0, r1 := m.s.SelectUsageEventsForPublishing(ctx, now)
@@ -6543,6 +6527,14 @@ func (m queryMetricsStore) UpdateVolumeResourceMonitor(ctx context.Context, arg 
 	m.queryLatencies.WithLabelValues("UpdateVolumeResourceMonitor").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateVolumeResourceMonitor").Inc()
 	return r0
+}
+
+func (m queryMetricsStore) UpdateWorkloadIdentitySandbox(ctx context.Context, arg database.UpdateWorkloadIdentitySandboxParams) (database.WorkloadIdentity, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateWorkloadIdentitySandbox(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkloadIdentitySandbox").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkloadIdentitySandbox").Inc()
+	return r0, r1
 }
 
 func (m queryMetricsStore) UpdateWorkspace(ctx context.Context, arg database.UpdateWorkspaceParams) (database.WorkspaceTable, error) {

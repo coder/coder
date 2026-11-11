@@ -7696,12 +7696,13 @@ This is required on creation to enable a user-flow of validating a template work
 
 ```json
 {
+  "agent": "string",
   "command": "string",
+  "image": "string",
   "name": "string",
   "scopes": [
     "all"
-  ],
-  "shape": "string"
+  ]
 }
 ```
 
@@ -7709,10 +7710,11 @@ This is required on creation to enable a user-flow of validating a template work
 
 | Name      | Type                                                  | Required | Restrictions | Description                                                                                                                    |
 |-----------|-------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------|
-| `command` | string                                                | false    |              | Command is run by the new daemon once it starts.                                                                               |
+| `agent`   | string                                                | false    |              | Agent selects the workspace daemon by name. It may be empty when the workspace has exactly one.                                |
+| `command` | string                                                | false    |              | Command is run by a shell inside the sandbox.                                                                                  |
+| `image`   | string                                                | false    |              | Image overrides the image the daemon uses for sandboxes.                                                                       |
 | `name`    | string                                                | false    |              | Name is optional. It must be a valid agent name.                                                                               |
 | `scopes`  | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              | Scopes are the API key scopes the workload may use on the sponsor's behalf. Without any, the workload can do nothing in Coder. |
-| `shape`   | string                                                | false    |              | Shape selects the template-declared shape by agent name. It may be empty when the workspace has exactly one shape.             |
 
 ## codersdk.CreateWorkspaceBuildOnSuccessRequest
 
@@ -18850,50 +18852,46 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
+  "agent_name": "string",
   "command": "string",
   "created_at": "2019-08-24T14:15:22Z",
+  "exit_code": 0,
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "identity": "string",
-  "identity_id": "011a42b9-62d7-49eb-8328-c2e454af88a1",
   "name": "string",
-  "pod": {
-    "name": "string",
-    "namespace": "string",
-    "service_account": "string",
-    "uid": "string"
+  "sandbox": {
+    "id": "string",
+    "runtime": "string"
   },
-  "requested_by_id": "e5a2565f-0ccc-4e3e-ace9-5e0c44253010",
-  "requested_by_username": "string",
   "scopes": [
     "all"
   ],
-  "shape": "string",
   "sponsor_id": "32cfe838-2a19-497d-9bb7-2d262b6713b5",
   "sponsor_username": "string",
-  "status": "pending",
+  "status": "starting",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
 }
 ```
 
 ### Properties
 
-| Name                    | Type                                                  | Required | Restrictions | Description                                                                                                           |
-|-------------------------|-------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------|
-| `command`               | string                                                | false    |              |                                                                                                                       |
-| `created_at`            | string                                                | false    |              |                                                                                                                       |
-| `id`                    | string                                                | false    |              | ID is also the ID of the workload's workspace agent once it exists.                                                   |
-| `identity`              | string                                                | false    |              | Identity is set once the pod exists.                                                                                  |
-| `identity_id`           | string                                                | false    |              | Identity ID is the workload identity that permissions attach to. It exists from the moment the workload is requested. |
-| `name`                  | string                                                | false    |              |                                                                                                                       |
-| `pod`                   | [codersdk.WorkloadPod](#codersdkworkloadpod)          | false    |              |                                                                                                                       |
-| `requested_by_id`       | string                                                | false    |              |                                                                                                                       |
-| `requested_by_username` | string                                                | false    |              |                                                                                                                       |
-| `scopes`                | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              | Scopes narrow the sponsor's permissions. An empty list grants nothing.                                                |
-| `shape`                 | string                                                | false    |              |                                                                                                                       |
-| `sponsor_id`            | string                                                | false    |              | Sponsor ID is the user account whose permissions bound what the workload may do.                                      |
-| `sponsor_username`      | string                                                | false    |              |                                                                                                                       |
-| `status`                | [codersdk.WorkloadStatus](#codersdkworkloadstatus)    | false    |              |                                                                                                                       |
-| `workspace_id`          | string                                                | false    |              |                                                                                                                       |
+| Name               | Type                                                  | Required | Restrictions | Description                                                                      |
+|--------------------|-------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------|
+| `agent_id`         | string                                                | false    |              |                                                                                  |
+| `agent_name`       | string                                                | false    |              |                                                                                  |
+| `command`          | string                                                | false    |              |                                                                                  |
+| `created_at`       | string                                                | false    |              |                                                                                  |
+| `exit_code`        | integer                                               | false    |              |                                                                                  |
+| `id`               | string                                                | false    |              | ID is the workload's identity ID.                                                |
+| `identity`         | string                                                | false    |              | Identity is the workload's identity as it is displayed.                          |
+| `name`             | string                                                | false    |              |                                                                                  |
+| `sandbox`          | [codersdk.WorkloadSandbox](#codersdkworkloadsandbox)  | false    |              |                                                                                  |
+| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope) | false    |              | Scopes narrow the sponsor's permissions. An empty list grants nothing.           |
+| `sponsor_id`       | string                                                | false    |              | Sponsor ID is the user account whose permissions bound what the workload may do. |
+| `sponsor_username` | string                                                | false    |              |                                                                                  |
+| `status`           | [codersdk.WorkloadStatus](#codersdkworkloadstatus)    | false    |              |                                                                                  |
+| `workspace_id`     | string                                                | false    |              |                                                                                  |
 
 ## codersdk.WorkloadAttestation
 
@@ -18905,9 +18903,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 #### Enumerated Values
 
-| Value(s)                        |
-|---------------------------------|
-| `agent-token`, `kubernetes-pod` |
+| Value(s)                          |
+|-----------------------------------|
+| `agent-token`, `workspace-daemon` |
 
 ## codersdk.WorkloadIdentity
 
@@ -18918,21 +18916,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "attestation": "agent-token",
   "id": "string",
   "identity_id": "011a42b9-62d7-49eb-8328-c2e454af88a1",
-  "kind": "declared",
+  "kind": "daemon",
+  "name": "string",
   "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
   "owner_username": "string",
-  "pod": {
-    "name": "string",
-    "namespace": "string",
-    "service_account": "string",
-    "uid": "string"
+  "sandbox": {
+    "id": "string",
+    "runtime": "string"
   },
-  "requested_by_id": "e5a2565f-0ccc-4e3e-ace9-5e0c44253010",
-  "requested_by_username": "string",
   "scopes": [
     "all"
   ],
-  "shape": "string",
   "sponsor_id": "32cfe838-2a19-497d-9bb7-2d262b6713b5",
   "sponsor_username": "string",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
@@ -18942,227 +18936,83 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                    | Type                                                           | Required | Restrictions | Description                                                                                                                                 |
-|-------------------------|----------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_id`              | string                                                         | false    |              |                                                                                                                                             |
-| `agent_name`            | string                                                         | false    |              |                                                                                                                                             |
-| `attestation`           | [codersdk.WorkloadAttestation](#codersdkworkloadattestation)   | false    |              |                                                                                                                                             |
-| `id`                    | string                                                         | false    |              | ID is unique per daemon. For a runtime daemon it is the workspace ID and the pod UID; for a declared daemon, the workspace ID and agent ID. |
-| `identity_id`           | string                                                         | false    |              | Identity ID is the workload identity that permissions attach to. A declared daemon has none: it acts with its agent token.                  |
-| `kind`                  | [codersdk.WorkloadIdentityKind](#codersdkworkloadidentitykind) | false    |              |                                                                                                                                             |
-| `owner_id`              | string                                                         | false    |              | Owner ID is the user the daemon is associated with: the workspace owner.                                                                    |
-| `owner_username`        | string                                                         | false    |              |                                                                                                                                             |
-| `pod`                   | [codersdk.WorkloadPod](#codersdkworkloadpod)                   | false    |              |                                                                                                                                             |
-| `requested_by_id`       | string                                                         | false    |              | Requested by ID is the user who asked for a runtime daemon.                                                                                 |
-| `requested_by_username` | string                                                         | false    |              |                                                                                                                                             |
-| `scopes`                | array of [codersdk.APIKeyScope](#codersdkapikeyscope)          | false    |              | Scopes narrow the sponsor's permissions. An empty list grants nothing.                                                                      |
-| `shape`                 | string                                                         | false    |              | Shape is the name of the template-declared agent a runtime daemon was cloned from.                                                          |
-| `sponsor_id`            | string                                                         | false    |              | Sponsor ID is the user account whose permissions bound what the workload may do.                                                            |
-| `sponsor_username`      | string                                                         | false    |              |                                                                                                                                             |
-| `workspace_id`          | string                                                         | false    |              |                                                                                                                                             |
-| `workspace_name`        | string                                                         | false    |              |                                                                                                                                             |
+| Name               | Type                                                           | Required | Restrictions | Description                                                                                                                   |
+|--------------------|----------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------|
+| `agent_id`         | string                                                         | false    |              | Agent ID is the workspace daemon: the process itself, or the daemon that runs and vouches for the workload.                   |
+| `agent_name`       | string                                                         | false    |              |                                                                                                                               |
+| `attestation`      | [codersdk.WorkloadAttestation](#codersdkworkloadattestation)   | false    |              |                                                                                                                               |
+| `id`               | string                                                         | false    |              | ID is unique per principal: the workspace ID and the workload identity ID, or for a daemon the workspace ID and the agent ID. |
+| `identity_id`      | string                                                         | false    |              | Identity ID is the workload identity that permissions attach to. A daemon has none: it acts with its agent token.             |
+| `kind`             | [codersdk.WorkloadIdentityKind](#codersdkworkloadidentitykind) | false    |              |                                                                                                                               |
+| `name`             | string                                                         | false    |              | Name is the workload's name.                                                                                                  |
+| `owner_id`         | string                                                         | false    |              |                                                                                                                               |
+| `owner_username`   | string                                                         | false    |              |                                                                                                                               |
+| `sandbox`          | [codersdk.WorkloadSandbox](#codersdkworkloadsandbox)           | false    |              |                                                                                                                               |
+| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope)          | false    |              | Scopes narrow the sponsor's permissions. An empty list grants nothing.                                                        |
+| `sponsor_id`       | string                                                         | false    |              | Sponsor ID is the user account whose permissions bound what the workload may do.                                              |
+| `sponsor_username` | string                                                         | false    |              |                                                                                                                               |
+| `workspace_id`     | string                                                         | false    |              |                                                                                                                               |
+| `workspace_name`   | string                                                         | false    |              |                                                                                                                               |
 
 ## codersdk.WorkloadIdentityKind
 
 ```json
-"declared"
+"daemon"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value(s)              |
-|-----------------------|
-| `declared`, `runtime` |
+| Value(s)             |
+|----------------------|
+| `daemon`, `workload` |
 
-## codersdk.WorkloadOperatorPod
+## codersdk.WorkloadLogEvent
 
 ```json
 {
-  "created": true,
-  "name": "string",
-  "phase": "string",
-  "service_account": "string",
-  "uid": "string",
-  "workload_id": "486c1d53-d947-407d-a1c7-11d93c1bf9bf"
+  "exit_code": 0,
+  "output": "string"
 }
 ```
 
 ### Properties
 
-| Name              | Type    | Required | Restrictions | Description                                                                                                                                                                                                |
-|-------------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `created`         | boolean | false    |              | Created is true when this operator process created the pod itself. Labels can be set by anyone who can create pods, so coderd only binds a workload's identity to a pod the operator vouches for this way. |
-| `name`            | string  | false    |              |                                                                                                                                                                                                            |
-| `phase`           | string  | false    |              |                                                                                                                                                                                                            |
-| `service_account` | string  | false    |              |                                                                                                                                                                                                            |
-| `uid`             | string  | false    |              |                                                                                                                                                                                                            |
-| `workload_id`     | string  | false    |              |                                                                                                                                                                                                            |
+| Name        | Type    | Required | Restrictions | Description |
+|-------------|---------|----------|--------------|-------------|
+| `exit_code` | integer | false    |              |             |
+| `output`    | string  | false    |              |             |
 
-## codersdk.WorkloadOperatorShape
+## codersdk.WorkloadSandbox
 
 ```json
 {
-  "agent_token": "string",
-  "deployment": "string"
+  "id": "string",
+  "runtime": "string"
 }
 ```
 
 ### Properties
 
-| Name          | Type   | Required | Restrictions | Description                                                                                                                          |
-|---------------|--------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_token` | string | false    |              | Agent token is the shape agent's token from the pod template. It proves that the Deployment belongs to that agent's workspace build. |
-| `deployment`  | string | false    |              | Deployment is the name of the Deployment that holds the pod template.                                                                |
-
-## codersdk.WorkloadOperatorShapeStatus
-
-```json
-{
-  "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-  "agent_name": "string",
-  "deployment": "string",
-  "error": "string",
-  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
-}
-```
-
-### Properties
-
-| Name           | Type   | Required | Restrictions | Description |
-|----------------|--------|----------|--------------|-------------|
-| `agent_id`     | string | false    |              |             |
-| `agent_name`   | string | false    |              |             |
-| `deployment`   | string | false    |              |             |
-| `error`        | string | false    |              |             |
-| `workspace_id` | string | false    |              |             |
-
-## codersdk.WorkloadOperatorSyncRequest
-
-```json
-{
-  "audience": "string",
-  "issuer": "string",
-  "jwks": {},
-  "namespace": "string",
-  "pods": [
-    {
-      "created": true,
-      "name": "string",
-      "phase": "string",
-      "service_account": "string",
-      "uid": "string",
-      "workload_id": "486c1d53-d947-407d-a1c7-11d93c1bf9bf"
-    }
-  ],
-  "shapes": [
-    {
-      "agent_token": "string",
-      "deployment": "string"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name        | Type                                                                      | Required | Restrictions | Description                                                                                                        |
-|-------------|---------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------|
-| `audience`  | string                                                                    | false    |              |                                                                                                                    |
-| `issuer`    | string                                                                    | false    |              | Issuer, Audience and JWKS let coderd verify pod tokens from the operator's cluster without access to that cluster. |
-| `jwks`      | object                                                                    | false    |              |                                                                                                                    |
-| `namespace` | string                                                                    | false    |              |                                                                                                                    |
-| `pods`      | array of [codersdk.WorkloadOperatorPod](#codersdkworkloadoperatorpod)     | false    |              |                                                                                                                    |
-| `shapes`    | array of [codersdk.WorkloadOperatorShape](#codersdkworkloadoperatorshape) | false    |              |                                                                                                                    |
-
-## codersdk.WorkloadOperatorSyncResponse
-
-```json
-{
-  "shapes": [
-    {
-      "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
-      "agent_name": "string",
-      "deployment": "string",
-      "error": "string",
-      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
-    }
-  ],
-  "workloads": [
-    {
-      "deployment": "string",
-      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "name": "string",
-      "pod_uid": "string",
-      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
-    }
-  ]
-}
-```
-
-### Properties
-
-| Name        | Type                                                                                  | Required | Restrictions | Description |
-|-------------|---------------------------------------------------------------------------------------|----------|--------------|-------------|
-| `shapes`    | array of [codersdk.WorkloadOperatorShapeStatus](#codersdkworkloadoperatorshapestatus) | false    |              |             |
-| `workloads` | array of [codersdk.WorkloadOperatorWorkload](#codersdkworkloadoperatorworkload)       | false    |              |             |
-
-## codersdk.WorkloadOperatorWorkload
-
-```json
-{
-  "deployment": "string",
-  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "name": "string",
-  "pod_uid": "string",
-  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
-}
-```
-
-### Properties
-
-| Name           | Type   | Required | Restrictions | Description                                                                                                               |
-|----------------|--------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------|
-| `deployment`   | string | false    |              |                                                                                                                           |
-| `id`           | string | false    |              |                                                                                                                           |
-| `name`         | string | false    |              |                                                                                                                           |
-| `pod_uid`      | string | false    |              | Pod uid is the pod the workload's identity is bound to. It is empty until coderd has accepted a pod the operator created. |
-| `workspace_id` | string | false    |              |                                                                                                                           |
-
-## codersdk.WorkloadPod
-
-```json
-{
-  "name": "string",
-  "namespace": "string",
-  "service_account": "string",
-  "uid": "string"
-}
-```
-
-### Properties
-
-| Name              | Type   | Required | Restrictions | Description |
-|-------------------|--------|----------|--------------|-------------|
-| `name`            | string | false    |              |             |
-| `namespace`       | string | false    |              |             |
-| `service_account` | string | false    |              |             |
-| `uid`             | string | false    |              |             |
+| Name      | Type   | Required | Restrictions | Description                                             |
+|-----------|--------|----------|--------------|---------------------------------------------------------|
+| `id`      | string | false    |              | ID identifies the sandbox to that runtime.              |
+| `runtime` | string | false    |              | Runtime is the isolation backend, for example "docker". |
 
 ## codersdk.WorkloadStatus
 
 ```json
-"pending"
+"starting"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value(s)                                         |
-|--------------------------------------------------|
-| `disconnected`, `pending`, `running`, `starting` |
+| Value(s)                                   |
+|--------------------------------------------|
+| `exited`, `running`, `starting`, `unknown` |
 
 ## codersdk.Workspace
 

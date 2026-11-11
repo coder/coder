@@ -82,9 +82,6 @@ type sqlcQuerier interface {
 	BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg BatchUpdateWorkspaceLastUsedAtParams) error
 	BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg BatchUpdateWorkspaceNextStartAtParams) error
 	BatchUpsertConnectionLogs(ctx context.Context, arg BatchUpsertConnectionLogsParams) error
-	// BindWorkloadIdentity records the daemon that runs the workload and what the
-	// workload proves to act as the identity. An identity is bound at most once.
-	BindWorkloadIdentity(ctx context.Context, arg BindWorkloadIdentityParams) (WorkloadIdentity, error)
 	BulkMarkNotificationMessagesFailed(ctx context.Context, arg BulkMarkNotificationMessagesFailedParams) (int64, error)
 	BulkMarkNotificationMessagesSent(ctx context.Context, arg BulkMarkNotificationMessagesSentParams) (int64, error)
 	// Calculates the telemetry summary for a given provider, model, and client
@@ -1103,8 +1100,11 @@ type sqlcQuerier interface {
 	GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
 	GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]WebpushSubscription, error)
 	GetWebpushVAPIDKeys(ctx context.Context) (GetWebpushVAPIDKeysRow, error)
+	// GetWorkloadIdentitiesByWorkspaceID does not return revoked identities.
 	GetWorkloadIdentitiesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]WorkloadIdentity, error)
-	GetWorkloadIdentityByWorkspaceAgentID(ctx context.Context, workspaceAgentID uuid.NullUUID) (WorkloadIdentity, error)
+	// GetWorkloadIdentityByID also returns revoked identities. Callers that
+	// authorize with the identity must check revoked_at.
+	GetWorkloadIdentityByID(ctx context.Context, id uuid.UUID) (WorkloadIdentity, error)
 	GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (GetWorkspaceACLByIDRow, error)
 	GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentAndWorkspaceByIDRow, error)
 	GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error)
@@ -1520,7 +1520,6 @@ type sqlcQuerier interface {
 	ReorderChatQueuedMessageToFront(ctx context.Context, arg ReorderChatQueuedMessageToFrontParams) (int64, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	RevokeWorkloadIdentityByID(ctx context.Context, arg RevokeWorkloadIdentityByIDParams) error
-	RevokeWorkloadIdentityByWorkspaceAgentID(ctx context.Context, arg RevokeWorkloadIdentityByWorkspaceAgentIDParams) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
 	// for the table.
@@ -1770,6 +1769,9 @@ type sqlcQuerier interface {
 	UpdateUserThemePreference(ctx context.Context, arg UpdateUserThemePreferenceParams) (UserConfig, error)
 	UpdateUserThinkingDisplayMode(ctx context.Context, arg UpdateUserThinkingDisplayModeParams) (string, error)
 	UpdateVolumeResourceMonitor(ctx context.Context, arg UpdateVolumeResourceMonitorParams) error
+	// UpdateWorkloadIdentitySandbox records the sandbox the daemon started for
+	// the workload.
+	UpdateWorkloadIdentitySandbox(ctx context.Context, arg UpdateWorkloadIdentitySandboxParams) (WorkloadIdentity, error)
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (WorkspaceTable, error)
 	UpdateWorkspaceACLByID(ctx context.Context, arg UpdateWorkspaceACLByIDParams) error
 	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error

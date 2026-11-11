@@ -1,16 +1,23 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder run [flags] <workspace> [command...]
+  coder run [flags] <workspace> [-- command...]
 
-  Run a workload in its own workspace daemon, provisioned at runtime
+  Run a command in a sandbox inside a workspace, with an identity of its own
 
-  Provision a new workspace daemon from the shape the workspace's template
-  declares, without a workspace build. Each workload gets its own identity. The
-  command, if any, is run by the new daemon and its output is streamed.
-    - Start a workload and run a command in it:
+  Run a command as a workload: in a sandbox that the workspace's daemon creates,
+  without a workspace build. The workload gets its own identity, sponsored by
+  you. It can do nothing in Coder unless you give it scopes, and it never
+  receives your credentials. The command's output is streamed and its exit code
+  returned.
+    - Run a command and see who it is:
   
        $ coder run my-workspace -- coder identity
+  
+    - Let a workload list your workspaces:
+  
+       $ coder run my-workspace --scope workspace:read --scope template:read --
+  coder list
   
     - List the workloads of a workspace:
   
@@ -21,35 +28,36 @@ USAGE:
        $ coder run --remove workload-1a2b3c4d my-workspace
 
 OPTIONS:
-  -c, --column [name|status|shape|sponsor|scopes|identity|pod] (default: name,status,shape,sponsor,scopes,identity)
+      --agent string
+          The workspace daemon to run the workload in, by name. Only needed when
+          the workspace has several.
+
+  -c, --column [name|status|sponsor|scopes|command|identity|sandbox] (default: name,status,sponsor,scopes,command,identity)
           Columns to display in table output.
 
+  -d, --detach bool
+          Start the workload and print its name instead of following its output.
+
+      --image string
+          The image for the workload's sandbox. Defaults to the one the
+          workspace's daemon is configured with.
+
   -l, --list bool
-          List the workspace's workloads instead of starting one.
+          List the workspace's workloads instead of running one.
 
       --name string
-          A name for the workload. It becomes the name of its workspace agent.
-
-      --no-wait bool
-          Return as soon as the workload is requested, and print its ID.
+          A name for the workload.
 
   -o, --output table|json (default: table)
           Output format.
 
       --remove string
-          Remove the named workload instead of starting one.
+          Remove the named workload instead of running one.
 
       --scope string-array
           A permission the workload may use on your behalf, as an API token
           scope such as workspace:read. Repeat it for several. Without any, the
           workload can do nothing in Coder.
-
-      --shape string
-          The workload shape to clone, by agent name. Only needed when the
-          template declares several.
-
-      --timeout duration (default: 10m)
-          How long to wait for the workload to start and its command to finish.
 
 ———
 Run `coder --help` for a list of global options.

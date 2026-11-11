@@ -3,11 +3,11 @@ coder v0.0.0-devel
 USAGE:
   coder identity [flags]
 
-  Show the workload identity of the workspace daemon this command runs under
+  Show who this process is to Coder inside a workspace
 
-  The workload identity is who Coder considers this workspace daemon to be. It
-  is separate from the user a human logs in as, and is always associated with
-  the workspace owner.
+  Inside a workload's sandbox this is the workload's own identity, with its
+  sponsor and scopes. Elsewhere in a workspace it is the workspace daemon's. It
+  is separate from the user a human logs in as.
 
 OPTIONS:
   -o, --output text|json (default: text)

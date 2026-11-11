@@ -65,10 +65,12 @@ type ValidateAPIKeyConfig struct {
 	// from the request. Nil uses the default (cookie/header).
 	SessionTokenFunc func(*http.Request) string
 	Logger           slog.Logger
-	// ResolveWorkloadIdentity maps a credential that is not an API key,
-	// such as a Kubernetes pod token, to the user it acts for and the
-	// permissions it has. It is only consulted for JWT-shaped credentials.
-	ResolveWorkloadIdentity func(ctx context.Context, token string) (*ValidateAPIKeyResult, bool)
+	// ResolveWorkloadIdentity handles a request that a workspace daemon
+	// forwards for one of its workloads. It maps the daemon's token and the
+	// workload identity it vouches for to the user the workload acts for
+	// and the permissions it has. It is only consulted for requests that
+	// carry the workload identity header.
+	ResolveWorkloadIdentity func(ctx context.Context, token, identity string) (*ValidateAPIKeyResult, bool)
 }
 
 // ValidateAPIKeyResult is the outcome of successful validation.
@@ -294,9 +296,11 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 		if cfg.SessionTokenFunc != nil {
 			tokenFunc = cfg.SessionTokenFunc
 		}
-		// An API key is "<id>-<secret>" and never contains a dot.
-		if token := tokenFunc(r); strings.Count(token, ".") == 2 {
-			if result, ok := cfg.ResolveWorkloadIdentity(ctx, token); ok {
+		// When the daemon's token does not check out, the request falls
+		// through and is judged as an ordinary API key request, where an
+		// agent token is no credential at all.
+		if identity := r.Header.Get(codersdk.WorkloadIdentityHeader); identity != "" {
+			if result, ok := cfg.ResolveWorkloadIdentity(ctx, tokenFunc(r), identity); ok {
 				return result, nil
 			}
 		}

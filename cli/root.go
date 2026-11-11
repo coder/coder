@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -101,13 +102,8 @@ const (
 	envAgentTokenFile = "CODER_AGENT_TOKEN_FILE"
 	envAgentURL       = "CODER_AGENT_URL"
 	envAgentAuth      = "CODER_AGENT_AUTH"
-	// envAgentPodTokenFile is set by a workload operator on the pods it
-	// creates. It takes precedence over a token, because the standard agent
-	// init script always exports the template's auth type.
-	//nolint:gosec
-	envAgentPodTokenFile = "CODER_AGENT_POD_TOKEN_FILE"
-	envAgentName         = "CODER_AGENT_NAME"
-	envURL               = "CODER_URL"
+	envAgentName      = "CODER_AGENT_NAME"
+	envURL            = "CODER_URL"
 )
 
 func (r *RootCmd) CoreSubcommands() []*serpent.Command {
@@ -181,7 +177,6 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.syncCommand(),
 		r.updateUserEmail(),
 		r.experimentRulesCommand(),
-		r.workloadOperator(),
 	}
 }
 
@@ -599,13 +594,14 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 type RootCmd struct {
 	clientURL *url.URL
 	token     string
-	// workloadCredentials is true when the URL and token come from the
-	// runtime workload the command runs in, not from a login.
-	workloadCredentials bool
-	tokenBackend        sessionstore.Backend
-	globalConfig        string
-	header              []string
-	headerCommand       string
+	// workloadSocket is set when the command runs inside a workload's
+	// sandbox without a login. Requests then go through the sandbox's
+	// channel to its workspace daemon, which makes them the workload's.
+	workloadSocket string
+	tokenBackend   sessionstore.Backend
+	globalConfig   string
+	header         []string
+	headerCommand  string
 
 	forceTTY           bool
 	noOpen             bool
@@ -743,7 +739,7 @@ func (r *RootCmd) ensureTLSConfig() error {
 // InitClient creates and configures a new client with authentication, telemetry,
 // and version checks.
 func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) {
-	r.useWorkloadCredentials()
+	r.useWorkloadChannel()
 	if err := r.ensureClientURL(); err != nil {
 		return nil, err
 	}
@@ -796,32 +792,47 @@ func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) 
 	return codersdk.New(r.clientURL, clientOpts...), nil
 }
 
-// useWorkloadCredentials makes commands that call the user API work inside
-// a runtime workload. Nobody is logged in there: the workload's pod token is
-// its credential, and what it may do is decided by its identity's scopes.
-// An explicit URL, token or login takes precedence.
-func (r *RootCmd) useWorkloadCredentials() {
+// workloadURL is the server URL used inside a workload's sandbox. Its host
+// is never resolved: every connection goes to the sandbox's channel.
+const workloadURL = "http://coder.workload"
+
+// useWorkloadChannel makes commands that call Coder's API work inside a
+// workload's sandbox. Nobody is logged in there and there is no credential:
+// the sandbox's channel to its workspace daemon is the workload's identity,
+// and what it may do is decided by that identity's scopes. An explicit URL,
+// token or login takes precedence.
+func (r *RootCmd) useWorkloadChannel() {
 	if r.token != "" || (r.clientURL != nil && r.clientURL.String() != "") {
 		return
 	}
-	tokenFile, rawURL := os.Getenv(envAgentPodTokenFile), os.Getenv(envAgentURL)
-	if tokenFile == "" || rawURL == "" {
+	socket := os.Getenv(codersdk.WorkloadSocketEnv)
+	if socket == "" {
 		return
 	}
 	if _, err := r.createConfig().URL().Read(); err == nil {
 		return
 	}
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return
-	}
-	token, err := os.ReadFile(tokenFile)
+	u, err := url.Parse(workloadURL)
 	if err != nil {
 		return
 	}
 	r.clientURL = u
-	r.token = strings.TrimSpace(string(token))
-	r.workloadCredentials = true
+	r.workloadSocket = socket
+}
+
+// dialWorkloadChannel makes a transport connect to the sandbox's channel
+// instead of the network.
+func (r *RootCmd) dialWorkloadChannel(rt http.RoundTripper) http.RoundTripper {
+	transport, ok := rt.(*http.Transport)
+	if !ok || r.workloadSocket == "" {
+		return rt
+	}
+	transport = transport.Clone()
+	socket := r.workloadSocket
+	transport.DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", socket)
+	}
+	return transport
 }
 
 // TryInitClient is similar to InitClient but doesn't error when credentials are missing.
@@ -910,7 +921,7 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 	if err != nil {
 		return nil, err
 	}
-	transport := baseTransport
+	transport := r.dialWorkloadChannel(baseTransport)
 
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
 	transport = wrapTransportWithUserAgentHeader(transport, inv)
@@ -925,7 +936,7 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 		transport = wrapTransportWithVersionCheck(transport, inv, buildinfo.Version(), func(ctx context.Context) (codersdk.BuildInfoResponse, error) {
 			// Create a new client without any wrapped transport
 			// otherwise it creates an infinite loop!
-			basicClient := codersdk.New(serverURL, codersdk.WithHTTPClient(&http.Client{Transport: buildInfoTransport}))
+			basicClient := codersdk.New(serverURL, codersdk.WithHTTPClient(&http.Client{Transport: r.dialWorkloadChannel(buildInfoTransport)}))
 			return basicClient.BuildInfo(ctx)
 		})
 	}
@@ -1064,9 +1075,6 @@ type AgentAuth struct {
 	agentURL       url.URL
 	agentAuth      string
 	agentName      string
-	// agentPodTokenFile is the path of a Kubernetes projected service
-	// account token that identifies the pod the daemon runs in.
-	agentPodTokenFile string
 }
 
 func (a *AgentAuth) AttachOptions(cmd *serpent.Command, hidden bool) {
@@ -1106,13 +1114,6 @@ func (a *AgentAuth) AttachOptions(cmd *serpent.Command, hidden bool) {
 		Env:         envAgentName,
 		Value:       serpent.StringOf(&a.agentName),
 		Hidden:      hidden,
-	}, serpent.Option{
-		Name:        "Agent Pod Token File",
-		Description: "A Kubernetes projected service account token that identifies the pod the agent runs in. When set, the agent authenticates as its pod.",
-		Flag:        "agent-pod-token-file",
-		Env:         envAgentPodTokenFile,
-		Value:       serpent.StringOf(&a.agentPodTokenFile),
-		Hidden:      true,
 	})
 }
 
@@ -1129,13 +1130,7 @@ func (a *AgentAuth) CreateClient() (*agentsdk.Client, error) {
 		iiOpts = append(iiOpts, agentsdk.WithInstanceIdentityAgentName(a.agentName))
 	}
 
-	if a.agentPodTokenFile != "" && (a.agentAuth == "token" || a.agentAuth == "kubernetes") {
-		return agentsdk.New(&a.agentURL, agentsdk.WithKubernetesPodToken(a.agentPodTokenFile)), nil
-	}
-
 	switch a.agentAuth {
-	case "kubernetes":
-		return agentsdk.New(&a.agentURL, agentsdk.WithKubernetesPodToken("")), nil
 	case "token":
 		token := a.agentToken
 		if token == "" {

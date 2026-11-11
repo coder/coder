@@ -54,10 +54,11 @@ type ExtractWorkspaceAgentAndLatestBuildConfig struct {
 	// requests without the a token or with an invalid token will be allowed to
 	// continue and no workspace agent will be set on the request context.
 	Optional bool
-	// ResolveIdentityToken maps a credential that is not an agent token,
-	// such as a Kubernetes pod token, to the auth token of the agent it
-	// identifies. It is only consulted for credentials that are not UUIDs.
-	ResolveIdentityToken func(ctx context.Context, token string) (uuid.UUID, error)
+	// AllowVouchedWorkload reports whether a request that a daemon forwards
+	// for one of its workloads may use this route. Such a request carries
+	// the daemon's own token, so letting it through lends the workload the
+	// daemon's authority. Nil refuses all of them.
+	AllowVouchedWorkload func(r *http.Request) bool
 }
 
 // ExtractWorkspaceAgentAndLatestBuild requires authentication using a valid agent token.
@@ -65,6 +66,14 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
+
+			if r.Header.Get(codersdk.WorkloadIdentityHeader) != "" &&
+				(opts.AllowVouchedWorkload == nil || !opts.AllowVouchedWorkload(r)) {
+				httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+					Message: "A workload cannot use its workspace daemon's API.",
+				})
+				return
+			}
 
 			// optionalWrite wraps httpapi.Write but runs the next handler if the
 			// token is optional.
@@ -87,17 +96,6 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 				return
 			}
 			token, err := uuid.Parse(tokenValue)
-			if err != nil && opts.ResolveIdentityToken != nil {
-				token, err = opts.ResolveIdentityToken(ctx, tokenValue)
-				if err != nil {
-					// The reason can name pods and namespaces, so it is
-					// not returned to an unauthenticated caller.
-					optionalWrite(http.StatusUnauthorized, codersdk.Response{
-						Message: "Workspace agent identity token not accepted.",
-					})
-					return
-				}
-			}
 			if err != nil {
 				optionalWrite(http.StatusUnauthorized, codersdk.Response{
 					Message: "Workspace agent token invalid.",

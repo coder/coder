@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/agent/agentworkload"
 	"github.com/coder/coder/v2/agent/boundarylogproxy"
 	"github.com/coder/coder/v2/agent/reaper"
 	"github.com/coder/coder/v2/buildinfo"
@@ -65,6 +66,8 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		agentHeaderCommand              string
 		agentHeader                     []string
 		devcontainers                   bool
+		workloadRuntime                 string
+		workloadImage                   string
 		devcontainerProjectDiscovery    bool
 		devcontainerDiscoveryAutostart  bool
 		socketServerEnabled             bool
@@ -329,7 +332,33 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					}
 				}
 
+				var workloads *agentworkload.Supervisor
+				switch workloadRuntime {
+				case "":
+				case "docker":
+					cliPath, _ := os.Executable()
+					workloads, err = agentworkload.New(ctx, agentworkload.Options{
+						Logger: logger.Named("workloads"),
+						Runtime: &agentworkload.DockerRuntime{
+							StateDir: filepath.Join(os.TempDir(), "coder-workloads"),
+							CLIPath:  cliPath,
+						},
+						CoderURL:     &agentAuth.agentURL,
+						SessionToken: client.GetSessionToken,
+						DefaultImage: workloadImage,
+					})
+					if err != nil {
+						// Workloads are optional. The daemon itself must
+						// still come up when its runtime is not ready.
+						logger.Error(ctx, "workloads are disabled: the runtime is not usable", slog.Error(err))
+						workloads = nil
+					}
+				default:
+					return xerrors.Errorf("unknown workload runtime %q", workloadRuntime)
+				}
+
 				agnt := agent.New(agent.Options{
+					Workloads:     workloads,
 					Client:        client,
 					Logger:        logger,
 					LogDir:        logDir,
@@ -539,6 +568,20 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_BLOCK_LOCAL_PORT_FORWARDING",
 			Description: "Block local port forwarding through the SSH server (ssh -L).",
 			Value:       serpent.BoolOf(&blockLocalPortForwarding),
+		},
+		{
+			Flag:        "workload-runtime",
+			Env:         "CODER_AGENT_WORKLOAD_RUNTIME",
+			Description: "Run workloads started with \"coder run\" in sandboxes inside this agent. The only runtime is \"docker\", which needs a Docker daemon that shares the agent's filesystem. Empty disables workloads.",
+			Value:       serpent.StringOf(&workloadRuntime),
+			Hidden:      true,
+		},
+		{
+			Flag:        "workload-image",
+			Env:         "CODER_AGENT_WORKLOAD_IMAGE",
+			Description: "The image for workload sandboxes that do not name one.",
+			Value:       serpent.StringOf(&workloadImage),
+			Hidden:      true,
 		},
 		{
 			Flag:        "devcontainers-enable",

@@ -5,7 +5,9 @@ INSERT INTO workload_identities (
 	organization_id,
 	sponsor_id,
 	workspace_id,
+	workspace_agent_id,
 	name,
+	command,
 	scopes
 )
 VALUES (
@@ -14,20 +16,24 @@ VALUES (
 	@organization_id,
 	@sponsor_id,
 	@workspace_id,
+	@workspace_agent_id,
 	@name,
+	@command,
 	@scopes
 )
 RETURNING *;
 
--- name: GetWorkloadIdentityByWorkspaceAgentID :one
+-- GetWorkloadIdentityByID also returns revoked identities. Callers that
+-- authorize with the identity must check revoked_at.
+-- name: GetWorkloadIdentityByID :one
 SELECT
 	*
 FROM
 	workload_identities
 WHERE
-	workspace_agent_id = @workspace_agent_id
-	AND revoked_at IS NULL;
+	id = @id;
 
+-- GetWorkloadIdentitiesByWorkspaceID does not return revoked identities.
 -- name: GetWorkloadIdentitiesByWorkspaceID :many
 SELECT
 	*
@@ -39,18 +45,17 @@ WHERE
 ORDER BY
 	created_at ASC;
 
--- BindWorkloadIdentity records the daemon that runs the workload and what the
--- workload proves to act as the identity. An identity is bound at most once.
--- name: BindWorkloadIdentity :one
+-- UpdateWorkloadIdentitySandbox records the sandbox the daemon started for
+-- the workload.
+-- name: UpdateWorkloadIdentitySandbox :one
 UPDATE
 	workload_identities
 SET
-	workspace_agent_id = @workspace_agent_id,
-	attestation_subject = @attestation_subject,
-	bound_at = @bound_at
+	runtime = @runtime,
+	sandbox_id = @sandbox_id,
+	started_at = @started_at
 WHERE
 	id = @id
-	AND workspace_agent_id IS NULL
 	AND revoked_at IS NULL
 RETURNING *;
 
@@ -61,13 +66,4 @@ SET
 	revoked_at = @revoked_at
 WHERE
 	id = @id
-	AND revoked_at IS NULL;
-
--- name: RevokeWorkloadIdentityByWorkspaceAgentID :exec
-UPDATE
-	workload_identities
-SET
-	revoked_at = @revoked_at
-WHERE
-	workspace_agent_id = @workspace_agent_id
 	AND revoked_at IS NULL;

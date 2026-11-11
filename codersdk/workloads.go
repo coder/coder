@@ -1,204 +1,176 @@
 package codersdk
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/xerrors"
 )
 
-// WorkloadShapeEnv marks a template-declared agent as a shape: a daemon
-// definition that is never started itself and is cloned for each runtime
-// workload. The template sets it in the agent's env.
-const WorkloadShapeEnv = "CODER_WORKLOAD_SHAPE"
+const (
+	// WorkloadIdentityHeader is set by a workspace daemon on a request it
+	// forwards for one of its workloads. It names the workload identity the
+	// request belongs to. coderd honors it only together with that daemon's
+	// own credential, and only for an identity assigned to that daemon.
+	WorkloadIdentityHeader = "Coder-Workload-Identity"
+	// WorkloadSocketEnv is set inside a workload's sandbox. It is the path
+	// of a unix socket that leads to Coder's API as that workload. The
+	// socket is the workload's identity: the sandbox holds no credential.
+	WorkloadSocketEnv = "CODER_WORKLOAD_SOCKET"
+)
 
-// WorkloadIdentityKind says how a workspace daemon came to exist.
+// WorkloadIdentityKind says what kind of principal a process acts as.
 type WorkloadIdentityKind string
 
 const (
-	// WorkloadIdentityKindDeclared is a daemon declared by the template and
-	// created by a workspace build.
-	WorkloadIdentityKindDeclared WorkloadIdentityKind = "declared"
-	// WorkloadIdentityKindRuntime is a daemon provisioned at runtime from a
-	// shape.
-	WorkloadIdentityKindRuntime WorkloadIdentityKind = "runtime"
+	// WorkloadIdentityKindDaemon is a workspace daemon declared by the
+	// template.
+	WorkloadIdentityKindDaemon WorkloadIdentityKind = "daemon"
+	// WorkloadIdentityKindWorkload is a workload started at runtime inside
+	// a workspace daemon's sandbox.
+	WorkloadIdentityKindWorkload WorkloadIdentityKind = "workload"
 )
 
-// WorkloadAttestation says what a daemon's identity rests on.
+// WorkloadAttestation says what an identity rests on.
 type WorkloadAttestation string
 
 const (
-	// WorkloadAttestationAgentToken means the daemon holds a Coder-issued
+	// WorkloadAttestationAgentToken means the process holds a Coder-issued
 	// agent token. Anything that holds the token is the daemon.
 	WorkloadAttestationAgentToken WorkloadAttestation = "agent-token"
-	// WorkloadAttestationKubernetesPod means the daemon proves it runs in a
-	// specific pod with a token issued by that pod's cluster.
-	WorkloadAttestationKubernetesPod WorkloadAttestation = "kubernetes-pod"
+	// WorkloadAttestationWorkspaceDaemon means the workspace daemon vouches
+	// for the workload: it created the sandbox and it alone connects the
+	// sandbox to Coder. The workload holds no credential.
+	WorkloadAttestationWorkspaceDaemon WorkloadAttestation = "workspace-daemon"
 )
 
-// WorkloadPod identifies the pod a runtime daemon runs in.
-type WorkloadPod struct {
-	Namespace      string `json:"namespace"`
-	Name           string `json:"name"`
-	UID            string `json:"uid"`
-	ServiceAccount string `json:"service_account,omitempty"`
+// WorkloadSandbox is where a workload runs inside its workspace daemon.
+type WorkloadSandbox struct {
+	// Runtime is the isolation backend, for example "docker".
+	Runtime string `json:"runtime"`
+	// ID identifies the sandbox to that runtime.
+	ID string `json:"id"`
 }
 
-// WorkloadIdentity describes who a workspace daemon is.
+// WorkloadIdentity describes who a process in a workspace is to Coder.
 type WorkloadIdentity struct {
-	// ID is unique per daemon. For a runtime daemon it is the workspace ID
-	// and the pod UID; for a declared daemon, the workspace ID and agent ID.
-	ID            string               `json:"id"`
-	Kind          WorkloadIdentityKind `json:"kind"`
-	Attestation   WorkloadAttestation  `json:"attestation"`
-	AgentID       uuid.UUID            `json:"agent_id" format:"uuid"`
-	AgentName     string               `json:"agent_name"`
-	WorkspaceID   uuid.UUID            `json:"workspace_id" format:"uuid"`
-	WorkspaceName string               `json:"workspace_name"`
-	// OwnerID is the user the daemon is associated with: the workspace owner.
+	// ID is unique per principal: the workspace ID and the workload
+	// identity ID, or for a daemon the workspace ID and the agent ID.
+	ID          string               `json:"id"`
+	Kind        WorkloadIdentityKind `json:"kind"`
+	Attestation WorkloadAttestation  `json:"attestation"`
+	// AgentID is the workspace daemon: the process itself, or the daemon
+	// that runs and vouches for the workload.
+	AgentID       uuid.UUID `json:"agent_id" format:"uuid"`
+	AgentName     string    `json:"agent_name"`
+	WorkspaceID   uuid.UUID `json:"workspace_id" format:"uuid"`
+	WorkspaceName string    `json:"workspace_name"`
 	OwnerID       uuid.UUID `json:"owner_id" format:"uuid"`
 	OwnerUsername string    `json:"owner_username"`
-	// Shape is the name of the template-declared agent a runtime daemon was
-	// cloned from.
-	Shape string `json:"shape,omitempty"`
-	// RequestedByID is the user who asked for a runtime daemon.
-	RequestedByID       uuid.UUID    `json:"requested_by_id,omitempty" format:"uuid"`
-	RequestedByUsername string       `json:"requested_by_username,omitempty"`
-	Pod                 *WorkloadPod `json:"pod,omitempty"`
 	// IdentityID is the workload identity that permissions attach to. A
-	// declared daemon has none: it acts with its agent token.
+	// daemon has none: it acts with its agent token.
 	IdentityID uuid.UUID `json:"identity_id,omitempty" format:"uuid"`
+	// Name is the workload's name.
+	Name string `json:"name,omitempty"`
 	// SponsorID is the user account whose permissions bound what the
 	// workload may do.
 	SponsorID       uuid.UUID `json:"sponsor_id,omitempty" format:"uuid"`
 	SponsorUsername string    `json:"sponsor_username,omitempty"`
 	// Scopes narrow the sponsor's permissions. An empty list grants nothing.
-	Scopes []APIKeyScope `json:"scopes,omitempty"`
+	Scopes  []APIKeyScope    `json:"scopes,omitempty"`
+	Sandbox *WorkloadSandbox `json:"sandbox,omitempty"`
 }
 
-// WorkloadStatus is the lifecycle of a runtime workload.
+// WorkloadStatus is the lifecycle of a workload.
 type WorkloadStatus string
 
 const (
-	// WorkloadStatusPending means no pod has been reported yet.
-	WorkloadStatusPending WorkloadStatus = "pending"
-	// WorkloadStatusStarting means the pod exists and its daemon has not
-	// connected.
+	// WorkloadStatusStarting means the daemon has not reported a sandbox
+	// yet.
 	WorkloadStatusStarting WorkloadStatus = "starting"
-	// WorkloadStatusRunning means the daemon is connected.
+	// WorkloadStatusRunning means the workload's command is running.
 	WorkloadStatusRunning WorkloadStatus = "running"
-	// WorkloadStatusDisconnected means the daemon connected and then lost
-	// its connection.
-	WorkloadStatusDisconnected WorkloadStatus = "disconnected"
+	// WorkloadStatusExited means the command has finished. The identity
+	// can no longer be used.
+	WorkloadStatusExited WorkloadStatus = "exited"
+	// WorkloadStatusUnknown means the workspace daemon cannot be reached.
+	WorkloadStatusUnknown WorkloadStatus = "unknown"
 )
 
-// Workload is a workspace daemon provisioned at runtime.
+// Workload is a command that runs in a sandbox inside a workspace daemon,
+// with an identity of its own.
 type Workload struct {
-	// ID is also the ID of the workload's workspace agent once it exists.
-	ID                  uuid.UUID      `json:"id" format:"uuid"`
-	Name                string         `json:"name"`
-	WorkspaceID         uuid.UUID      `json:"workspace_id" format:"uuid"`
-	Shape               string         `json:"shape"`
-	Status              WorkloadStatus `json:"status"`
-	Command             string         `json:"command,omitempty"`
-	CreatedAt           time.Time      `json:"created_at" format:"date-time"`
-	RequestedByID       uuid.UUID      `json:"requested_by_id" format:"uuid"`
-	RequestedByUsername string         `json:"requested_by_username"`
-	// Identity is set once the pod exists.
-	Identity string       `json:"identity,omitempty"`
-	Pod      *WorkloadPod `json:"pod,omitempty"`
-	// IdentityID is the workload identity that permissions attach to. It
-	// exists from the moment the workload is requested.
-	IdentityID uuid.UUID `json:"identity_id" format:"uuid"`
+	// ID is the workload's identity ID.
+	ID          uuid.UUID      `json:"id" format:"uuid"`
+	Name        string         `json:"name"`
+	WorkspaceID uuid.UUID      `json:"workspace_id" format:"uuid"`
+	AgentID     uuid.UUID      `json:"agent_id" format:"uuid"`
+	AgentName   string         `json:"agent_name"`
+	Status      WorkloadStatus `json:"status"`
+	ExitCode    *int           `json:"exit_code,omitempty"`
+	Command     string         `json:"command"`
+	CreatedAt   time.Time      `json:"created_at" format:"date-time"`
+	// Identity is the workload's identity as it is displayed.
+	Identity string `json:"identity"`
 	// SponsorID is the user account whose permissions bound what the
 	// workload may do.
 	SponsorID       uuid.UUID `json:"sponsor_id" format:"uuid"`
 	SponsorUsername string    `json:"sponsor_username"`
 	// Scopes narrow the sponsor's permissions. An empty list grants nothing.
-	Scopes []APIKeyScope `json:"scopes"`
+	Scopes  []APIKeyScope    `json:"scopes"`
+	Sandbox *WorkloadSandbox `json:"sandbox,omitempty"`
 }
 
-// CreateWorkloadRequest asks for a new runtime workload in a workspace.
+// CreateWorkloadRequest asks for a workload in a workspace.
 type CreateWorkloadRequest struct {
 	// Name is optional. It must be a valid agent name.
 	Name string `json:"name,omitempty"`
-	// Shape selects the template-declared shape by agent name. It may be
-	// empty when the workspace has exactly one shape.
-	Shape string `json:"shape,omitempty"`
-	// Command is run by the new daemon once it starts.
-	Command string `json:"command,omitempty"`
+	// Agent selects the workspace daemon by name. It may be empty when the
+	// workspace has exactly one.
+	Agent string `json:"agent,omitempty"`
+	// Command is run by a shell inside the sandbox.
+	Command string `json:"command"`
+	// Image overrides the image the daemon uses for sandboxes.
+	Image string `json:"image,omitempty"`
 	// Scopes are the API key scopes the workload may use on the sponsor's
 	// behalf. Without any, the workload can do nothing in Coder.
 	Scopes []APIKeyScope `json:"scopes,omitempty"`
 }
 
-// WorkloadOperatorShape is a shape an operator found in its namespace.
-type WorkloadOperatorShape struct {
-	// Deployment is the name of the Deployment that holds the pod template.
-	Deployment string `json:"deployment"`
-	// AgentToken is the shape agent's token from the pod template. It proves
-	// that the Deployment belongs to that agent's workspace build.
-	AgentToken string `json:"agent_token"`
+// WorkloadLogEvent is one item of a workload's output stream. The last
+// event carries the exit code and no output.
+type WorkloadLogEvent struct {
+	Output   string `json:"output,omitempty"`
+	ExitCode *int   `json:"exit_code,omitempty"`
 }
 
-// WorkloadOperatorPod is a pod in the operator's namespace that carries the
-// operator's workload labels.
-type WorkloadOperatorPod struct {
-	WorkloadID     uuid.UUID `json:"workload_id" format:"uuid"`
-	Name           string    `json:"name"`
-	UID            string    `json:"uid"`
-	ServiceAccount string    `json:"service_account"`
-	Phase          string    `json:"phase"`
-	// Created is true when this operator process created the pod itself.
-	// Labels can be set by anyone who can create pods, so coderd only binds
-	// a workload's identity to a pod the operator vouches for this way.
-	Created bool `json:"created"`
+// AgentWorkloadSpec is what coderd asks a workspace daemon to run.
+type AgentWorkloadSpec struct {
+	// ID is the workload identity the daemon vouches for when it forwards
+	// the sandbox's requests.
+	ID      uuid.UUID `json:"id" format:"uuid"`
+	Name    string    `json:"name"`
+	Command string    `json:"command"`
+	Image   string    `json:"image,omitempty"`
 }
 
-// WorkloadOperatorSyncRequest is the operator's full view of its namespace.
-// The operator sends it periodically.
-type WorkloadOperatorSyncRequest struct {
-	Namespace string `json:"namespace"`
-	// Issuer, Audience and JWKS let coderd verify pod tokens from the
-	// operator's cluster without access to that cluster.
-	Issuer   string                  `json:"issuer"`
-	Audience string                  `json:"audience"`
-	JWKS     json.RawMessage         `json:"jwks"`
-	Shapes   []WorkloadOperatorShape `json:"shapes"`
-	Pods     []WorkloadOperatorPod   `json:"pods"`
+// AgentWorkloadState is a workload as its workspace daemon sees it.
+type AgentWorkloadState struct {
+	ID        uuid.UUID       `json:"id" format:"uuid"`
+	Name      string          `json:"name"`
+	Sandbox   WorkloadSandbox `json:"sandbox"`
+	Running   bool            `json:"running"`
+	ExitCode  *int            `json:"exit_code,omitempty"`
+	StartedAt time.Time       `json:"started_at" format:"date-time"`
 }
 
-// WorkloadOperatorShapeStatus reports whether coderd accepted a shape.
-type WorkloadOperatorShapeStatus struct {
-	Deployment  string    `json:"deployment"`
-	AgentID     uuid.UUID `json:"agent_id,omitempty" format:"uuid"`
-	AgentName   string    `json:"agent_name,omitempty"`
-	WorkspaceID uuid.UUID `json:"workspace_id,omitempty" format:"uuid"`
-	Error       string    `json:"error,omitempty"`
-}
-
-// WorkloadOperatorWorkload is a workload that should have a pod.
-type WorkloadOperatorWorkload struct {
-	ID          uuid.UUID `json:"id" format:"uuid"`
-	Name        string    `json:"name"`
-	Deployment  string    `json:"deployment"`
-	WorkspaceID uuid.UUID `json:"workspace_id" format:"uuid"`
-	// PodUID is the pod the workload's identity is bound to. It is empty
-	// until coderd has accepted a pod the operator created.
-	PodUID string `json:"pod_uid,omitempty"`
-}
-
-// WorkloadOperatorSyncResponse is the set of workloads the operator must
-// keep running. The operator deletes its pods that are not listed.
-type WorkloadOperatorSyncResponse struct {
-	Shapes    []WorkloadOperatorShapeStatus `json:"shapes"`
-	Workloads []WorkloadOperatorWorkload    `json:"workloads"`
-}
-
-// CreateWorkspaceWorkload provisions a runtime workload in a workspace.
+// CreateWorkspaceWorkload runs a command in a new sandbox of a workspace.
 func (c *Client) CreateWorkspaceWorkload(ctx context.Context, workspaceID uuid.UUID, req CreateWorkloadRequest) (Workload, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/workloads", workspaceID), req)
 	if err != nil {
@@ -212,7 +184,7 @@ func (c *Client) CreateWorkspaceWorkload(ctx context.Context, workspaceID uuid.U
 	return workload, ReadBodyAsJSON(res, &workload)
 }
 
-// WorkspaceWorkloads lists the runtime workloads of a workspace.
+// WorkspaceWorkloads lists the workloads of a workspace.
 func (c *Client) WorkspaceWorkloads(ctx context.Context, workspaceID uuid.UUID) ([]Workload, error) {
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/workloads", workspaceID), nil)
 	if err != nil {
@@ -226,7 +198,7 @@ func (c *Client) WorkspaceWorkloads(ctx context.Context, workspaceID uuid.UUID) 
 	return workloads, ReadBodyAsJSON(res, &workloads)
 }
 
-// DeleteWorkspaceWorkload removes a runtime workload and its daemon.
+// DeleteWorkspaceWorkload revokes a workload's identity and stops it.
 func (c *Client) DeleteWorkspaceWorkload(ctx context.Context, workspaceID, workloadID uuid.UUID) error {
 	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/workspaces/%s/workloads/%s", workspaceID, workloadID), nil)
 	if err != nil {
@@ -239,17 +211,50 @@ func (c *Client) DeleteWorkspaceWorkload(ctx context.Context, workspaceID, workl
 	return nil
 }
 
-// SyncWorkloadOperator reports an operator's namespace to coderd and returns
-// the workloads it must keep running.
-func (c *Client) SyncWorkloadOperator(ctx context.Context, organizationID uuid.UUID, name string, req WorkloadOperatorSyncRequest) (WorkloadOperatorSyncResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/organizations/%s/workload-operators/%s/sync", organizationID, name), req)
+// WorkspaceWorkloadLogs follows a workload's output until its command
+// exits, calling handle for every event. The last event has the exit code.
+func (c *Client) WorkspaceWorkloadLogs(ctx context.Context, workspaceID, workloadID uuid.UUID, handle func(WorkloadLogEvent) error) error {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaces/%s/workloads/%s/logs", workspaceID, workloadID), nil)
 	if err != nil {
-		return WorkloadOperatorSyncResponse{}, err
+		return err
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return WorkloadOperatorSyncResponse{}, ReadBodyAsError(res)
+		return ReadBodyAsError(res)
 	}
-	var resp WorkloadOperatorSyncResponse
-	return resp, ReadBodyAsJSON(res, &resp)
+	return DecodeWorkloadLogEvents(res.Body, handle)
+}
+
+// DecodeWorkloadLogEvents reads newline-delimited log events.
+func DecodeWorkloadLogEvents(r io.Reader, handle func(WorkloadLogEvent) error) error {
+	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 0, 64<<10), 4<<20)
+	for scanner.Scan() {
+		if len(scanner.Bytes()) == 0 {
+			continue
+		}
+		var event WorkloadLogEvent
+		if err := json.Unmarshal(scanner.Bytes(), &event); err != nil {
+			return xerrors.Errorf("decode log event: %w", err)
+		}
+		if err := handle(event); err != nil {
+			return err
+		}
+	}
+	return scanner.Err()
+}
+
+// WorkloadIdentity returns the identity coderd sees for the caller. It
+// works for a workspace daemon and for a workload inside one.
+func (c *Client) WorkloadIdentity(ctx context.Context) (WorkloadIdentity, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/identity", nil)
+	if err != nil {
+		return WorkloadIdentity{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return WorkloadIdentity{}, ReadBodyAsError(res)
+	}
+	var identity WorkloadIdentity
+	return identity, ReadBodyAsJSON(res, &identity)
 }

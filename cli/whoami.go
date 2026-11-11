@@ -54,10 +54,8 @@ func (r *RootCmd) whoami() *serpent.Command {
 			// Under a workspace daemon, the process also has a workload
 			// identity. It exists whether or not a user is logged in.
 			var identity *codersdk.WorkloadIdentity
-			if agentAuth.agentAuthConfigured() {
-				if got, err := agentAuth.workloadIdentity(ctx); err == nil {
-					identity = &got
-				}
+			if got, inWorkspace, err := r.workspaceIdentity(inv, agentAuth); inWorkspace && err == nil {
+				identity = &got
 			}
 			noUser := func(err error) error {
 				if identity == nil {
@@ -72,9 +70,9 @@ func (r *RootCmd) whoami() *serpent.Command {
 			if err != nil {
 				return noUser(err)
 			}
-			// A workload's pod token can reach the user API within its
-			// scopes, but it is not a user login.
-			if r.workloadCredentials && identity != nil {
+			// A workload can reach the user API within its scopes, but
+			// nobody is logged in.
+			if r.workloadSocket != "" && identity != nil {
 				return noUser(nil)
 			}
 
