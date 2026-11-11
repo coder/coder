@@ -240,6 +240,40 @@ describe("pinChatProject ordering", () => {
 	});
 });
 
+describe("unpinChatProject", () => {
+	it("unpins the project in the cached summaries at once and restores it when the unpin fails", async () => {
+		const queryClient = createTestQueryClient();
+		// Keeps the summaries cached without an observer.
+		queryClient.setQueryDefaults(chatProjectSummariesKey, {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(chatProjectSummariesKey, [MockChatProjectSummary]);
+		const isPinned = () =>
+			queryClient.getQueryData<ChatProjectSummary[]>(
+				chatProjectSummariesKey,
+			)?.[0].pinned;
+		let rejectUnpin: (error: unknown) => void = () => {};
+		vi.spyOn(API.experimental, "unpinChatProject").mockReturnValue(
+			new Promise((_resolve, reject) => {
+				rejectUnpin = reject;
+			}),
+		);
+		onTestFinished(() => {
+			vi.restoreAllMocks();
+		});
+
+		const unpin = new MutationObserver(
+			queryClient,
+			unpinChatProject(queryClient),
+		).mutate(MockChatProject);
+		await vi.waitFor(() => expect(isPinned()).toBe(false));
+
+		rejectUnpin(mockApiError({}));
+		await expect(unpin).rejects.toBeDefined();
+		expect(isPinned()).toBe(true);
+	});
+});
+
 type Principal = { kind: "user" | "group"; id: string };
 
 describe("setChatProjectRole", () => {

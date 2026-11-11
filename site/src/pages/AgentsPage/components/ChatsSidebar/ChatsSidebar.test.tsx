@@ -750,6 +750,23 @@ describe("ChatsSidebar unpin focus", () => {
 		);
 	};
 
+	it("removes the folder before the unpin request settles", async () => {
+		renderPinnedProjects([MockChatProject]);
+		server.use(
+			http.delete(
+				"/api/experimental/organizations/:organization/chats/projects/:project/pin",
+				() => new Promise<never>(() => {}),
+			),
+		);
+		await unpinWithKeyboard(MockChatProject.name);
+
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("link", { name: MockChatProject.name }),
+			).toBeNull(),
+		);
+	});
+
 	it.each([
 		{ unpinned: MockChatProject.name, next: mockOpsProject.name },
 		{ unpinned: mockOpsProject.name, next: MockChatProject.name },
@@ -773,6 +790,25 @@ describe("ChatsSidebar unpin focus", () => {
 
 		await waitFor(() =>
 			expect(screen.getByRole("link", { name: "Projects" })).toHaveFocus(),
+		);
+	});
+
+	it("moves focus to the chat filters after unpinning the last project on a small screen", async () => {
+		// jsdom has no layout, so this stands in for the CSS that hides the nav
+		// on a small screen.
+		Element.prototype.checkVisibility = function () {
+			return !this.closest("nav");
+		};
+		onTestFinished(() => {
+			Reflect.deleteProperty(Element.prototype, "checkVisibility");
+		});
+		renderPinnedProjects([MockChatProject]);
+		await unpinWithKeyboard(MockChatProject.name);
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: "Filter agents" }),
+			).toHaveFocus(),
 		);
 	});
 });
