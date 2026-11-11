@@ -1458,7 +1458,17 @@ func (api *API) userPreferenceSettings(rw http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	signCommitsWithSSHKey, err := api.Database.GetUserSignCommitsWithSSHKey(ctx, user.ID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Error reading user preference settings.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.UserPreferenceSettings{
+		SignCommitsWithSSHKey:  signCommitsWithSSHKey,
 		ThinkingDisplayMode:    sanitizeThinkingDisplayMode(thinkingMode),
 		ShellToolDisplayMode:   sanitizeShellToolDisplayMode(shellToolMode),
 		CodeDiffDisplayMode:    sanitizeAgentDisplayMode(codeDiffMode),
@@ -1596,6 +1606,23 @@ func (api *API) putUserPreferenceSettings(rw http.ResponseWriter, r *http.Reques
 				return newUserPreferenceSettingsAPIError("Error reading collapse assistant steps.", err)
 			}
 			settings.CollapseAssistantSteps = stored
+		}
+
+		if params.SignCommitsWithSSHKey != nil {
+			updated, err := tx.UpdateUserSignCommitsWithSSHKey(ctx, database.UpdateUserSignCommitsWithSSHKeyParams{
+				UserID:                user.ID,
+				SignCommitsWithSshKey: *params.SignCommitsWithSSHKey,
+			})
+			if err != nil {
+				return newUserPreferenceSettingsAPIError("Internal error updating sign commits with SSH key.", err)
+			}
+			settings.SignCommitsWithSSHKey = updated
+		} else {
+			stored, err := tx.GetUserSignCommitsWithSSHKey(ctx, user.ID)
+			if err != nil && !errors.Is(err, sql.ErrNoRows) {
+				return newUserPreferenceSettingsAPIError("Error reading sign commits with SSH key.", err)
+			}
+			settings.SignCommitsWithSSHKey = stored
 		}
 
 		if params.AgentChatSendShortcut != "" {

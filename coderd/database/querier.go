@@ -1087,6 +1087,7 @@ type sqlcQuerier interface {
 	// values rather than interpolating between rows.
 	GetUserSecretsTelemetrySummary(ctx context.Context) (GetUserSecretsTelemetrySummaryRow, error)
 	GetUserShellToolDisplayMode(ctx context.Context, userID uuid.UUID) (string, error)
+	GetUserSignCommitsWithSSHKey(ctx context.Context, userID uuid.UUID) (bool, error)
 	GetUserSkillByUserIDAndName(ctx context.Context, arg GetUserSkillByUserIDAndNameParams) (Skill, error)
 	// GetUserStatusCounts returns the count of users in each status over time.
 	// The time range is inclusively defined by the start_time and end_time parameters.
@@ -1754,6 +1755,7 @@ type sqlcQuerier interface {
 	UpdateUserRoles(ctx context.Context, arg UpdateUserRolesParams) (User, error)
 	UpdateUserSecretByUserIDAndName(ctx context.Context, arg UpdateUserSecretByUserIDAndNameParams) (UserSecret, error)
 	UpdateUserShellToolDisplayMode(ctx context.Context, arg UpdateUserShellToolDisplayModeParams) (string, error)
+	UpdateUserSignCommitsWithSSHKey(ctx context.Context, arg UpdateUserSignCommitsWithSSHKeyParams) (bool, error)
 	UpdateUserSkillByUserIDAndName(ctx context.Context, arg UpdateUserSkillByUserIDAndNameParams) (Skill, error)
 	UpdateUserStatus(ctx context.Context, arg UpdateUserStatusParams) (User, error)
 	UpdateUserTerminalFont(ctx context.Context, arg UpdateUserTerminalFontParams) (UserConfig, error)

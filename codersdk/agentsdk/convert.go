@@ -78,6 +78,7 @@ func ManifestFromProto(manifest *proto.Manifest) (Manifest, error) {
 		DisableDirectConnections: manifest.DisableDirectConnections,
 		Metadata:                 MetadataDescriptionsFromProto(manifest.Metadata),
 		Devcontainers:            devcontainers,
+		GitSigningPublicKey:      manifest.GitSigningPublicKey,
 	}, nil
 }
 
@@ -116,6 +117,7 @@ func ProtoFromManifest(manifest Manifest) (*proto.Manifest, error) {
 		Apps:                     apps,
 		Metadata:                 ProtoFromMetadataDescriptions(manifest.Metadata),
 		Devcontainers:            ProtoFromDevcontainers(manifest.Devcontainers),
+		GitSigningPublicKey:      manifest.GitSigningPublicKey,
 	}, nil
 }
 

@@ -1275,6 +1275,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/preferences \
   "code_diff_display_mode": "auto",
   "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
+  "sign_commits_with_ssh_key": true,
   "thinking_display_mode": "auto"
 }
 ```
@@ -1309,6 +1310,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/preferences \
   "code_diff_display_mode": "auto",
   "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
+  "sign_commits_with_ssh_key": true,
   "thinking_display_mode": "auto"
 }
 ```
@@ -1330,6 +1332,7 @@ curl -X PUT http://coder-server:8080/api/v2/users/{user}/preferences \
   "code_diff_display_mode": "auto",
   "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
+  "sign_commits_with_ssh_key": true,
   "thinking_display_mode": "auto"
 }
 ```

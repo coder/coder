@@ -522,6 +522,7 @@ export const MockUserPreferenceSettings: TypesGen.UserPreferenceSettings = {
 	shell_tool_display_mode: "auto",
 	code_diff_display_mode: "auto",
 	collapse_assistant_steps: false,
+	sign_commits_with_ssh_key: false,
 	agent_chat_send_shortcut: "enter",
 };
 

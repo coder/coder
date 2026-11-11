@@ -1859,6 +1859,8 @@ func New(options *Options) *API {
 				r.Get("/reinit", api.workspaceAgentReinit)
 				r.Route("/experimental", func(r chi.Router) {
 					r.Post("/chat-context/refresh", api.workspaceAgentRefreshChatContext)
+					r.With(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentGitCommitSigning)).
+						Post("/gitsign", api.agentGitSign)
 				})
 			})
 			r.Route("/{workspaceagent}", func(r chi.Router) {

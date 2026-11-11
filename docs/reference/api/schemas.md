@@ -8610,7 +8610,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "collect_agent_stats": true,
       "collect_db_metrics": true,
-      "collect_workspace_stats": true,
       "enable": true
     },
     "provisioner": {
@@ -9250,7 +9249,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     ],
     "collect_agent_stats": true,
     "collect_db_metrics": true,
-    "collect_workspace_stats": true,
     "enable": true
   },
   "provisioner": {
@@ -9983,9 +9981,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                                               |
-|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-automations`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                                 |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `git-commit-signing`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 
@@ -13929,7 +13927,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   ],
   "collect_agent_stats": true,
   "collect_db_metrics": true,
-  "collect_workspace_stats": true,
   "enable": true
 }
 ```
@@ -13942,7 +13939,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `aggregate_agent_stats_by` | array of string                      | false    |              |             |
 | `collect_agent_stats`      | boolean                              | false    |              |             |
 | `collect_db_metrics`       | boolean                              | false    |              |             |
-| `collect_workspace_stats`  | boolean                              | false    |              |             |
 | `enable`                   | boolean                              | false    |              |             |
 
 ## codersdk.ProposeChatTitleResponse
@@ -17792,19 +17788,21 @@ The cursor is owner-scoped, so only the chat owner may set this. Opening a chat'
   "code_diff_display_mode": "auto",
   "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
+  "sign_commits_with_ssh_key": true,
   "thinking_display_mode": "auto"
 }
 ```
 
 ### Properties
 
-| Name                       | Type                                                             | Required | Restrictions | Description |
-|----------------------------|------------------------------------------------------------------|----------|--------------|-------------|
-| `agent_chat_send_shortcut` | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
-| `code_diff_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
-| `collapse_assistant_steps` | boolean                                                          | false    |              |             |
-| `shell_tool_display_mode`  | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
-| `thinking_display_mode`    | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
+| Name                        | Type                                                             | Required | Restrictions | Description |
+|-----------------------------|------------------------------------------------------------------|----------|--------------|-------------|
+| `agent_chat_send_shortcut`  | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
+| `code_diff_display_mode`    | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `collapse_assistant_steps`  | boolean                                                          | false    |              |             |
+| `shell_tool_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
+| `sign_commits_with_ssh_key` | boolean                                                          | false    |              |             |
+| `thinking_display_mode`     | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
 
 ## codersdk.UpdateUserProfileRequest
 
@@ -18613,19 +18611,21 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "code_diff_display_mode": "auto",
   "collapse_assistant_steps": true,
   "shell_tool_display_mode": "auto",
+  "sign_commits_with_ssh_key": true,
   "thinking_display_mode": "auto"
 }
 ```
 
 ### Properties
 
-| Name                       | Type                                                             | Required | Restrictions | Description |
-|----------------------------|------------------------------------------------------------------|----------|--------------|-------------|
-| `agent_chat_send_shortcut` | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |             |
-| `code_diff_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
-| `collapse_assistant_steps` | boolean                                                          | false    |              |             |
-| `shell_tool_display_mode`  | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |             |
-| `thinking_display_mode`    | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |             |
+| Name                        | Type                                                             | Required | Restrictions | Description                                                                                                 |
+|-----------------------------|------------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------|
+| `agent_chat_send_shortcut`  | [codersdk.AgentChatSendShortcut](#codersdkagentchatsendshortcut) | false    |              |                                                                                                             |
+| `code_diff_display_mode`    | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |                                                                                                             |
+| `collapse_assistant_steps`  | boolean                                                          | false    |              |                                                                                                             |
+| `shell_tool_display_mode`   | [codersdk.AgentDisplayMode](#codersdkagentdisplaymode)           | false    |              |                                                                                                             |
+| `sign_commits_with_ssh_key` | boolean                                                          | false    |              | Sign commits with ssh key signs git commits and tags in the user's workspaces with their Coder git SSH key. |
+| `thinking_display_mode`     | [codersdk.ThinkingDisplayMode](#codersdkthinkingdisplaymode)     | false    |              |                                                                                                             |
 
 ## codersdk.UserQuietHoursScheduleConfig
 

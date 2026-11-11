@@ -1798,6 +1798,28 @@ func TestAgent_EnvironmentVariables(t *testing.T) {
 	require.Equal(t, value, strings.TrimSpace(string(output)))
 }
 
+func TestAgent_GitSigningConfig(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a POSIX shell")
+	}
+	session := setupSSHSession(t, agentsdk.Manifest{
+		GitSigningPublicKey: "ssh-ed25519 AAAAtest\n",
+		EnvironmentVariables: map[string]string{
+			// A count set by the template must be preserved.
+			"GIT_CONFIG_COUNT":   "1",
+			"GIT_CONFIG_KEY_0":   "core.editor",
+			"GIT_CONFIG_VALUE_0": "vim",
+		},
+	}, codersdk.ServiceBannerConfig{}, nil)
+	output, err := session.Output(`sh -c 'echo $GIT_CONFIG_COUNT $GIT_CONFIG_KEY_0=$GIT_CONFIG_VALUE_0 $GIT_CONFIG_KEY_1=$GIT_CONFIG_VALUE_1 $GIT_CONFIG_KEY_5=$GIT_CONFIG_VALUE_5'`)
+	require.NoError(t, err)
+	require.Equal(t,
+		"6 core.editor=vim commit.gpgsign=true user.signingkey=key::ssh-ed25519 AAAAtest",
+		strings.TrimSpace(string(output)),
+	)
+}
+
 func TestAgent_EnvironmentVariableExpansion(t *testing.T) {
 	t.Parallel()
 	key := "EXAMPLE"

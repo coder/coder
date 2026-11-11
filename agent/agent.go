@@ -1607,6 +1607,12 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 		envs[k] = v
 	}
 
+	if manifest.GitSigningPublicKey != "" {
+		// Git runs gpg.ssh.program as a single executable, passing
+		// ssh-keygen style arguments. The coder binary recognizes them.
+		appendGitSigningConfig(envs, unixExecutablePath, manifest.GitSigningPublicKey)
+	}
+
 	// Prepend the agent script bin directory to the PATH
 	// (this is where Coder modules place their binaries).
 	if _, ok := envs["PATH"]; !ok {
@@ -1618,6 +1624,27 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 		updated = append(updated, fmt.Sprintf("%s=%s", k, v))
 	}
 	return updated, nil
+}
+
+// appendGitSigningConfig configures git commit and tag signing with the
+// user's Coder SSH key through GIT_CONFIG_* environment variables, so no git
+// config file is modified. Entries are appended after any GIT_CONFIG_COUNT
+// already set by the user or template. Requires git 2.31 or newer.
+func appendGitSigningConfig(envs map[string]string, signingProgram, publicKey string) {
+	// An unparsable count is replaced, since git rejects it anyway.
+	n, _ := strconv.Atoi(envs["GIT_CONFIG_COUNT"])
+	for _, kv := range [][2]string{
+		{"commit.gpgsign", "true"},
+		{"tag.gpgsign", "true"},
+		{"gpg.format", "ssh"},
+		{"gpg.ssh.program", signingProgram},
+		{"user.signingkey", "key::" + strings.TrimSpace(publicKey)},
+	} {
+		envs[fmt.Sprintf("GIT_CONFIG_KEY_%d", n)] = kv[0]
+		envs[fmt.Sprintf("GIT_CONFIG_VALUE_%d", n)] = kv[1]
+		n++
+	}
+	envs["GIT_CONFIG_COUNT"] = strconv.Itoa(n)
 }
 
 // writeSecretFiles writes user secrets with file_path set to disk.

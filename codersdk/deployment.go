@@ -5542,6 +5542,7 @@ const (
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
 	ExperimentChatACPSubagents          Experiment = "chat-acp-subagents"          // Enables workspace-local ACP subagent tools in root chats.
 	ExperimentChatAutomations           Experiment = "chat-automations"            // Enables webhook and scheduled automations that deliver prompts to agent chats.
+	ExperimentGitCommitSigning          Experiment = "git-commit-signing"          // Enables signing git commits in workspaces with the user's Coder SSH key.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5578,6 +5579,8 @@ func (e Experiment) DisplayName() string {
 		return "Chat ACP Subagents"
 	case ExperimentChatAutomations:
 		return "Chat Automations"
+	case ExperimentGitCommitSigning:
+		return "Git Commit Signing"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5605,6 +5608,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentChatStageMetrics,
 	ExperimentChatACPSubagents,
 	ExperimentChatAutomations,
+	ExperimentGitCommitSigning,
 }
 
 // ExperimentsSafe should include all experiments that are safe for

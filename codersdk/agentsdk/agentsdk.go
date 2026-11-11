@@ -88,6 +88,40 @@ func (c *Client) GitSSHKey(ctx context.Context) (GitSSHKey, error) {
 	return gitSSHKey, codersdk.ReadBodyAsJSON(res, &gitSSHKey)
 }
 
+// GitSignRequest asks Coder to sign a message digest with the workspace
+// owner's git SSH key. Only the digest leaves the workspace.
+type GitSignRequest struct {
+	// Namespace is the SSHSIG namespace. Git uses "git".
+	Namespace string `json:"namespace"`
+	// HashAlgorithm is "sha256" or "sha512".
+	HashAlgorithm string `json:"hash_algorithm"`
+	// Hash is the digest of the message to sign.
+	Hash []byte `json:"hash"`
+}
+
+// GitSignResponse holds an armored SSHSIG signature.
+type GitSignResponse struct {
+	Signature string `json:"signature"`
+}
+
+// GitSign signs a message digest with the workspace owner's git SSH key on
+// the server, so the private key never reaches the workspace. It requires
+// the git-commit-signing experiment.
+func (c *Client) GitSign(ctx context.Context, req GitSignRequest) (GitSignResponse, error) {
+	res, err := c.SDK.Request(ctx, http.MethodPost, "/api/v2/workspaceagents/me/experimental/gitsign", req)
+	if err != nil {
+		return GitSignResponse{}, xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return GitSignResponse{}, codersdk.ReadBodyAsError(res)
+	}
+
+	var resp GitSignResponse
+	return resp, codersdk.ReadBodyAsJSON(res, &resp)
+}
+
 type Metadata struct {
 	Key string `json:"key"`
 	codersdk.WorkspaceAgentMetadataResult
@@ -139,6 +173,9 @@ type Manifest struct {
 	Metadata                 []codersdk.WorkspaceAgentMetadataDescription `json:"metadata"`
 	Scripts                  []codersdk.WorkspaceAgentScript              `json:"scripts"`
 	Devcontainers            []codersdk.WorkspaceAgentDevcontainer        `json:"devcontainers"`
+	// GitSigningPublicKey is the workspace owner's git SSH public key. It is
+	// set only when the owner opted in to commit signing with it.
+	GitSigningPublicKey string `json:"git_signing_public_key"`
 }
 
 // WorkspaceSecret is a user secret for injection into a workspace.

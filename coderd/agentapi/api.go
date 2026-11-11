@@ -160,6 +160,7 @@ func New(opts Options, workspace database.Workspace, agent database.WorkspaceAge
 		DerpMapFn:                 opts.DerpMapFn,
 		WorkspaceID:               opts.WorkspaceID,
 		WorkspaceBuildID:          opts.WorkspaceBuildID,
+		Experiments:               opts.Experiments,
 	}
 
 	// Don't cache details for prebuilds, though the cached fields will eventually be updated
