@@ -91,7 +91,7 @@ import {
 	refocusKeyboardPinDrag,
 	SyncDragTargetOnScroll,
 } from "./projectDrag";
-import { groupChatsByProject } from "./projectGrouping";
+import { getOrganizationLabels, groupChatsByProject } from "./projectGrouping";
 import { SectionSwitcher } from "./SectionSwitcher";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 import { UserSidebarFooter } from "./UserSidebarFooter";
@@ -278,7 +278,13 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		(chat) => chat.id,
 	);
 	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
-	const projectNameById = new Map(projects.map((p) => [p.id, p.name]));
+	const organizationLabels = getOrganizationLabels(projects, organizations);
+	const projectNameById = new Map(
+		projects.map((p) => {
+			const label = organizationLabels.get(p.id);
+			return [p.id, label ? `${p.name} (${label})` : p.name];
+		}),
+	);
 
 	const dragInstructionsId = useId();
 	const moveMutation = useMoveChatToProject();
@@ -305,7 +311,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 
 		// dnd-kit has already moved the dragged pin to source.index, so the drop
 		// target does not matter. The pins can change during a drag, so the old
-		// index comes from the chat ID. ProjectFolders reorders pinned projects.
+		// index comes from the chat ID.
 		if (
 			disablePinnedReordering ||
 			!isSortable(source) ||
