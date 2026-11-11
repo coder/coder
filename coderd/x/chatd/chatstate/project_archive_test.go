@@ -128,7 +128,7 @@ func TestArchiveProjectChats(t *testing.T) {
 			require.Equal(t, tc.state, f.classify(ctx, t, outside), "a chat in another project is not archived")
 			require.False(t, f.readChat(ctx, t, archivedEarlier).ArchivedWithProject)
 
-			_, _, err = chatstate.UnarchiveProjectChats(ctx, f.DB, pub, project.ID)
+			_, _, err = chatstate.UnarchiveProjectChats(ctx, f.DB, pub, chatstate.UnarchiveProjectChatsInput{ProjectID: project.ID})
 			require.NoError(t, err)
 			for _, id := range inStateChats {
 				require.Equal(t, unarchivedState[tc.archived], f.classify(ctx, t, id))
@@ -257,6 +257,167 @@ func TestArchiveProjectChatsRetriesAfterDeadlock(t *testing.T) {
 		require.True(t, chat.Archived)
 		require.True(t, chat.ArchivedWithProject)
 	}
+}
+
+// TestArchiveProjectChatsLocksSubagentChats models a writer that holds a
+// subagent chat's row lock while the archive starts, as a queued message
+// insert or a turn start does. The archive must wait for the writer and act
+// on the chat as the writer committed it.
+func TestArchiveProjectChatsLocksSubagentChats(t *testing.T) {
+	t.Parallel()
+
+	// setup seeds an idle root and subagent chat in a project and opens a
+	// writer that holds the subagent chat's row lock.
+	setup := func(t *testing.T) (*testFixture, database.ChatProject, uuid.UUID, *sql.Tx, func()) {
+		t.Helper()
+		db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		user, org, model := seedFamilyDeps(t, db)
+		f := &testFixture{DB: db, Pub: newRecordingPubsub(), User: user, Org: org, Model: model}
+		project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID})
+		root := seedChatInState(ctx, t, f, uuid.NullUUID{UUID: project.ID, Valid: true}, uuid.Nil, chatstate.StateW)
+		child := seedChatInState(ctx, t, f, uuid.NullUUID{}, root, chatstate.StateW)
+
+		writer, err := sqlDB.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			if err := writer.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+				t.Errorf("roll back the writer: %v", err)
+			}
+		})
+		var writerPID int
+		require.NoError(t, writer.QueryRowContext(ctx, `SELECT pg_backend_pid()`).Scan(&writerPID))
+		_, err = writer.ExecContext(ctx, `SELECT id FROM chats WHERE id = $1 FOR UPDATE`, child)
+		require.NoError(t, err)
+		// waitForArchive waits until the archive blocks on the writer.
+		waitForArchive := func() {
+			testutil.Eventually(ctx, t, func(ctx context.Context) bool {
+				var waiting int
+				err := sqlDB.QueryRowContext(ctx,
+					`SELECT COUNT(*) FROM pg_stat_activity WHERE $1::int = ANY(pg_blocking_pids(pid))`,
+					writerPID).Scan(&waiting)
+				return err == nil && waiting == 1
+			}, testutil.IntervalFast, "wait for the archive to block on the writer")
+		}
+		return f, project, child, writer, waitForArchive
+	}
+	archive := func(ctx context.Context, f *testFixture, projectID uuid.UUID, stopActive bool) <-chan error {
+		archiveErr := make(chan error, 1)
+		go func() {
+			_, _, err := chatstate.ArchiveProjectChats(ctx, f.DB, f.Pub, chatstate.ArchiveProjectChatsInput{
+				ProjectID:       projectID,
+				StopActiveChats: stopActive,
+			})
+			archiveErr <- err
+		}()
+		return archiveErr
+	}
+
+	// A message queued while the archive waits must move the chat to
+	// error, since an archived waiting chat cannot have a queue.
+	t.Run("QueuedMessage", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		f, project, child, writer, waitForArchive := setup(t)
+		_, err := writer.ExecContext(ctx,
+			`INSERT INTO chat_queued_messages (chat_id, content, created_by) VALUES ($1, '[]', $2)`,
+			child, f.User.ID)
+		require.NoError(t, err)
+
+		archiveErr := archive(ctx, f, project.ID, false)
+		waitForArchive()
+		require.NoError(t, writer.Commit())
+		require.NoError(t, testutil.RequireReceive(ctx, t, archiveErr))
+
+		require.Equal(t, chatstate.StateXE1, f.classify(ctx, t, child))
+		require.Equal(t, int64(1), countQueued(ctx, t, f, child))
+		require.Equal(t, "Stopped when the project was archived.", lastErrorMessage(t, f.readChat(ctx, t, child)))
+	})
+
+	// A chat that starts running while the archive waits must make an
+	// archive without StopActiveChats fail instead of stopping it.
+	t.Run("StartsRunning", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		f, project, child, writer, waitForArchive := setup(t)
+		_, err := writer.ExecContext(ctx, `UPDATE chats SET status = 'running' WHERE id = $1`, child)
+		require.NoError(t, err)
+
+		archiveErr := archive(ctx, f, project.ID, false)
+		waitForArchive()
+		require.NoError(t, writer.Commit())
+		var activeErr *chatstate.ChatProjectActiveChatsError
+		require.ErrorAs(t, testutil.RequireReceive(ctx, t, archiveErr), &activeErr)
+		require.Equal(t, int64(1), activeErr.ActiveChatCount)
+
+		chat := f.readChat(ctx, t, child)
+		require.False(t, chat.Archived)
+		require.Equal(t, database.ChatStatusRunning, chat.Status)
+	})
+}
+
+// TestUnarchiveProjectChatsRetriesAfterDeadlock models a single chat
+// unarchive, which locks its root chat and then the project FOR SHARE,
+// racing a project unarchive, which locks the project and then the chats.
+// Postgres aborts the project unarchive to break the deadlock, and it runs
+// again once the writer commits.
+func TestUnarchiveProjectChatsRetriesAfterDeadlock(t *testing.T) {
+	t.Parallel()
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedFamilyDeps(t, db)
+
+	project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: user.ID})
+	root := dbgen.Chat(t, db, database.Chat{
+		OrganizationID:    org.ID,
+		OwnerID:           user.ID,
+		ProjectID:         uuid.NullUUID{UUID: project.ID, Valid: true},
+		LastModelConfigID: model.ID,
+		Status:            database.ChatStatusWaiting,
+	})
+	_, _, err := chatstate.ArchiveProjectChats(ctx, db, newRecordingPubsub(), chatstate.ArchiveProjectChatsInput{ProjectID: project.ID})
+	require.NoError(t, err)
+
+	writer, err := sqlDB.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if err := writer.Rollback(); err != nil && !errors.Is(err, sql.ErrTxDone) {
+			t.Errorf("roll back the writer: %v", err)
+		}
+	})
+	// The unarchive starts waiting first, so with the default 1s timeout
+	// its deadlock check runs first and Postgres aborts the unarchive.
+	_, err = writer.ExecContext(ctx, `SET LOCAL deadlock_timeout = '10s'`)
+	require.NoError(t, err)
+	_, err = writer.ExecContext(ctx, `SELECT id FROM chats WHERE id = $1 FOR UPDATE`, root.ID)
+	require.NoError(t, err)
+
+	unarchiveErr := make(chan error, 1)
+	retries := make(chan int, 3)
+	go func() {
+		_, _, err := chatstate.UnarchiveProjectChats(ctx, db, newRecordingPubsub(), chatstate.UnarchiveProjectChatsInput{
+			ProjectID: project.ID,
+			OnDeadlockRetry: func(attempt int, err error) {
+				assert.True(t, database.IsDeadlockError(err))
+				retries <- attempt
+			},
+		})
+		unarchiveErr <- err
+	}()
+	waitForLockWaiter(ctx, t, sqlDB, "UnarchiveChatsOfChatProject")
+
+	_, err = writer.ExecContext(ctx, `SELECT id FROM chat_projects WHERE id = $1 FOR SHARE`, project.ID)
+	require.NoError(t, err, "the deadlock must abort the unarchive, not the writer")
+	require.NoError(t, writer.Commit())
+
+	require.NoError(t, testutil.RequireReceive(ctx, t, unarchiveErr))
+	require.Equal(t, 1, testutil.RequireReceive(ctx, t, retries), "the retry must be reported")
+	unarchivedProject, err := db.GetChatProjectByID(ctx, project.ID)
+	require.NoError(t, err)
+	require.False(t, unarchivedProject.ArchivedAt.Valid)
+	chat, err := db.GetChatByID(ctx, root.ID)
+	require.NoError(t, err)
+	require.False(t, chat.Archived)
 }
 
 // seedChatInState inserts a chat with the status and queue that classify as

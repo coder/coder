@@ -303,9 +303,32 @@ type ArchiveProjectChatsInput struct {
 	OnDeadlockRetry func(attempt int, err error)
 }
 
-// archiveProjectAttempts bounds how often [ArchiveProjectChats] runs its
-// transaction when Postgres aborts it to break a deadlock.
-const archiveProjectAttempts = 3
+// projectArchiveAttempts bounds how often [ArchiveProjectChats] and
+// [UnarchiveProjectChats] run their transaction when Postgres aborts it to
+// break a deadlock.
+const projectArchiveAttempts = 3
+
+// retryOnDeadlock runs attempt until it succeeds, fails with an error
+// other than a deadlock, or runs projectArchiveAttempts times. Each attempt
+// buffers its own publications, so a rolled back attempt publishes nothing.
+// It returns the successful attempt's buffer, which the caller flushes.
+// onRetry, when set, is called before each retry.
+func retryOnDeadlock(publisher Publisher, onRetry func(attempt int, err error), attempt func(buffer *PublishBuffer) error) (*PublishBuffer, error) {
+	for n := 1; ; n++ {
+		buffer := NewPublishBuffer(publisher)
+		err := attempt(buffer)
+		if err == nil {
+			return buffer, nil
+		}
+		buffer.Discard()
+		if n == projectArchiveAttempts || !database.IsDeadlockError(err) {
+			return nil, err
+		}
+		if onRetry != nil {
+			onRetry(n, err)
+		}
+	}
+}
 
 // ArchiveProjectChats archives a project and every unarchived chat in it,
 // of every owner, subagent chats included, in one transaction. It returns
@@ -325,11 +348,13 @@ const archiveProjectAttempts = 3
 // archived.
 //
 // Locks: the project FOR UPDATE, then the unarchived root chats in id
-// order. Chat creation in the project, moves into it, and chat unarchives
+// order, then their subagent chats in id order, before it counts active
+// chats, so no chat can change between the count and the archive. Chat
+// creation in the project, moves into it, and chat unarchives
 // hold the project FOR SHARE, so they either finish first or see the
 // project archived. Other writers can lock several of the project's chats
 // in another order in one statement, such as a worker's heartbeat over
-// its running chats, so the root locks can deadlock with them. Postgres
+// its running chats, so the chat locks can deadlock with them. Postgres
 // then rolls back one transaction; when it rolls back the archive, the
 // archive runs again.
 func ArchiveProjectChats(
@@ -352,23 +377,14 @@ func ArchiveProjectChats(
 	var (
 		project  database.ChatProject
 		archived []database.Chat
-		buffer   *PublishBuffer
 	)
-	for attempt := 1; ; attempt++ {
-		// Each attempt buffers its own publications, so a rolled back
-		// attempt publishes nothing.
-		buffer = NewPublishBuffer(publisher)
+	buffer, err := retryOnDeadlock(publisher, input.OnDeadlockRetry, func(buffer *PublishBuffer) error {
+		var err error
 		project, archived, err = archiveProjectChatsTx(ctx, store, buffer, input, stoppedError)
-		if err == nil {
-			break
-		}
-		buffer.Discard()
-		if attempt == archiveProjectAttempts || !database.IsDeadlockError(err) {
-			return database.ChatProject{}, nil, err
-		}
-		if input.OnDeadlockRetry != nil {
-			input.OnDeadlockRetry(attempt, err)
-		}
+		return err
+	})
+	if err != nil {
+		return database.ChatProject{}, nil, err
 	}
 	if err := buffer.Flush(); err != nil {
 		return project, archived, errors.Join(ErrChatUpdatePublishFailed, err)
@@ -403,8 +419,12 @@ func archiveProjectChatsTx(
 		if err := tx.LockChatProjectUnarchivedRootChats(chatdCtx, input.ProjectID); err != nil {
 			return xerrors.Errorf("lock project root chats: %w", err)
 		}
-		// Counted under the root locks, so a root cannot become active
-		// between the check and the archive.
+		if err := tx.LockChatProjectUnarchivedChildChats(chatdCtx, input.ProjectID); err != nil {
+			return xerrors.Errorf("lock project subagent chats: %w", err)
+		}
+		// Counted under the chat locks, so no chat can become active
+		// between the check and the archive, and the archive reads each
+		// chat's committed queue.
 		preview, err := tx.CountChatProjectArchivePreview(chatdCtx, input.ProjectID)
 		if err != nil {
 			return xerrors.Errorf("count active project chats: %w", err)
@@ -435,6 +455,14 @@ func archiveProjectChatsTx(
 	return project, archived, nil
 }
 
+// UnarchiveProjectChatsInput configures [UnarchiveProjectChats].
+type UnarchiveProjectChatsInput struct {
+	ProjectID uuid.UUID
+	// OnDeadlockRetry, when set, is called before each retry of a
+	// transaction that Postgres aborted to break a deadlock.
+	OnDeadlockRetry func(attempt int, err error)
+}
+
 // UnarchiveProjectChats unarchives a project and the chats that
 // [ArchiveProjectChats] archived with it, in one transaction. It returns
 // the project and the chats it unarchived. Chats keep their execution
@@ -442,11 +470,16 @@ func archiveProjectChatsTx(
 // to delete the project; the chat writes run as chatd. If publishing
 // chat:update fails, the committed result is returned with
 // [ErrChatUpdatePublishFailed].
+//
+// Locks: the project FOR UPDATE, then the chats it unarchives. A single
+// chat unarchive locks its root and then the project FOR SHARE, so the two
+// can deadlock. Postgres then rolls back one transaction; when it rolls
+// back this one, it runs again.
 func UnarchiveProjectChats(
 	ctx context.Context,
 	store database.Store,
 	publisher Publisher,
-	projectID uuid.UUID,
+	input UnarchiveProjectChatsInput,
 ) (database.ChatProject, []database.Chat, error) {
 	if store == nil {
 		return database.ChatProject{}, nil, xerrors.New("chatstate: UnarchiveProjectChats called with nil store")
@@ -455,9 +488,32 @@ func UnarchiveProjectChats(
 		return database.ChatProject{}, nil, xerrors.New("chatstate: UnarchiveProjectChats called with nil publisher")
 	}
 
-	buffer := NewPublishBuffer(publisher)
-	defer buffer.Discard()
+	var (
+		project    database.ChatProject
+		unarchived []database.Chat
+	)
+	buffer, err := retryOnDeadlock(publisher, input.OnDeadlockRetry, func(buffer *PublishBuffer) error {
+		var err error
+		project, unarchived, err = unarchiveProjectChatsTx(ctx, store, buffer, input.ProjectID)
+		return err
+	})
+	if err != nil {
+		return database.ChatProject{}, nil, err
+	}
+	if err := buffer.Flush(); err != nil {
+		return project, unarchived, errors.Join(ErrChatUpdatePublishFailed, err)
+	}
+	return project, unarchived, nil
+}
 
+// unarchiveProjectChatsTx runs one attempt of [UnarchiveProjectChats] and
+// buffers the chat:update messages in buffer.
+func unarchiveProjectChatsTx(
+	ctx context.Context,
+	store database.Store,
+	buffer *PublishBuffer,
+	projectID uuid.UUID,
+) (database.ChatProject, []database.Chat, error) {
 	//nolint:gocritic // The project's chats can belong to other users; ctx authorizes the project.
 	chatdCtx := dbauthz.AsChatd(ctx)
 	var (
@@ -489,9 +545,6 @@ func UnarchiveProjectChats(
 	}, nil)
 	if err != nil {
 		return database.ChatProject{}, nil, err
-	}
-	if err := buffer.Flush(); err != nil {
-		return project, unarchived, errors.Join(ErrChatUpdatePublishFailed, err)
 	}
 	return project, unarchived, nil
 }
