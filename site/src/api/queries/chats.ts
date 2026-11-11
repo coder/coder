@@ -213,11 +213,13 @@ export const updateInfiniteChatsCache = (
  * page. This avoids the per-page duplication that would occur if
  * a prepend updater were passed to updateInfiniteChatsCache, which
  * runs independently on each page. Lists whose archive or status
- * filters exclude the chat are skipped.
+ * filters exclude the chat are skipped, and so are pinned-projects-only lists
+ * when the caller knows the chat's project is not pinned.
  */
 export const prependToInfiniteChatsCache = (
 	queryClient: QueryClient,
 	chat: TypesGen.Chat,
+	{ inUnpinnedProject = false }: { inUnpinnedProject?: boolean } = {},
 ) => {
 	const queries = queryClient.getQueriesData<InfiniteChatsCacheData>({
 		queryKey: chatListFamilyKey,
@@ -242,6 +244,15 @@ export const prependToInfiniteChatsCache = (
 			!statuses.includes(
 				chat.status === "interrupting" ? "running" : chat.status,
 			)
+		) {
+			continue;
+		}
+		if (
+			inUnpinnedProject &&
+			params !== null &&
+			typeof params === "object" &&
+			"pinnedProjectsOnly" in params &&
+			params.pinnedProjectsOnly === true
 		) {
 			continue;
 		}

@@ -286,6 +286,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		}),
 	);
 
+	const projectsNavItemRef = useRef<HTMLElement | null>(null);
 	const dragInstructionsId = useId();
 	const moveMutation = useMoveChatToProject();
 	const moveToUnpinnedProjectDialog = useMoveToUnpinnedProjectDialog();
@@ -584,9 +585,12 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						icon={FolderKanbanIcon}
 						label="Projects"
 						active={isProjectsActive}
-						// Moved chats can be found here, so the move dialog returns
-						// focus here when the chat leaves the sidebar.
-						ref={moveToUnpinnedProjectDialog?.setFocusFallback}
+						// Moved chats and the last unpinned project's chats can be found
+						// here, so focus returns here when they leave the sidebar.
+						ref={(element) => {
+							projectsNavItemRef.current = element;
+							moveToUnpinnedProjectDialog?.setFocusFallback(element);
+						}}
 						to={{ pathname: "/agents/projects", search: locationSearch }}
 					/>
 				)}
@@ -706,6 +710,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 																	error: pinnedProjectsError,
 																	onRetry: onRetryPinnedProjects,
 																	emptyMessage: emptyStateMessage,
+																	unpinFocusFallbackRef: projectsNavItemRef,
 																}
 															: undefined
 													}

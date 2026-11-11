@@ -1,6 +1,7 @@
 import { cn } from "cn";
 import { useEffect, useEffectEvent, useState } from "react";
 import {
+	type QueryClient,
 	useInfiniteQuery,
 	useMutation,
 	useQuery,
@@ -113,7 +114,9 @@ export const shouldInvalidateFilteredChatList = (
 	!chat.parent_chat_id && FILTER_MEMBERSHIP_EVENT_KINDS.has(eventKind);
 
 // Project summaries count the user's chats, unread chats, and running chats.
+// A chat that pauses for input publishes only action_required.
 const PROJECT_SUMMARY_EVENT_KINDS = new Set<TypesGen.ChatWatchEventKind>([
+	"action_required",
 	"chat_summary_change",
 	"created",
 	"deleted",
@@ -129,6 +132,20 @@ const shouldInvalidateProjectSummaries = (
 	PROJECT_SUMMARY_EVENT_KINDS.has(eventKind) &&
 	// A move out of a project leaves no project_id, but changes its counts.
 	(Boolean(chat.project_id) || eventKind === "project_change");
+
+// Sidebar lists leave out chats in projects the user has not pinned, unless
+// the chat itself is pinned. Without cached summaries, the list refetch
+// decides.
+const isInUnpinnedProject = (
+	queryClient: QueryClient,
+	chat: TypesGen.Chat,
+): boolean =>
+	Boolean(chat.project_id) &&
+	chat.pin_order === 0 &&
+	queryClient
+		.getQueryData<TypesGen.ChatProjectSummary[]>(chatProjectSummariesKey)
+		?.find((summary) => summary.project.id === chat.project_id)?.pinned ===
+		false;
 
 // The status in other event kinds may be older than the cached status.
 export const shouldEvaluateChime = (
@@ -421,7 +438,12 @@ const AgentsPageLayout: React.FC = () => {
 						} else {
 							// `created` also fires for unarchive transitions.
 							applyWatchedChatCreatedOrUnarchived(queryClient, updatedChat);
-							prependToInfiniteChatsCache(queryClient, updatedChat);
+							prependToInfiniteChatsCache(queryClient, updatedChat, {
+								inUnpinnedProject: isInUnpinnedProject(
+									queryClient,
+									updatedChat,
+								),
+							});
 						}
 					} else {
 						mergeWatchedChatIntoCaches(queryClient, updatedChat, {

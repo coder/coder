@@ -68,6 +68,23 @@ export type ProjectFoldersProps = {
 	readonly error: unknown;
 	readonly onRetry: () => void;
 	readonly emptyMessage: string;
+	/** Takes focus when the user unpins the last pinned project. */
+	readonly unpinFocusFallbackRef?: React.RefObject<HTMLElement | null>;
+};
+
+// Focuses the folder after the unpinned one, else the one before it, else
+// the fallback.
+const focusNextFolder = (
+	pinnedProjects: readonly ChatProjectSummary[],
+	projectId: string,
+	toggles: ReadonlyMap<string, HTMLButtonElement>,
+	fallbackRef: React.RefObject<HTMLElement | null> | undefined,
+) => {
+	const ids = pinnedProjects.map((summary) => summary.project.id);
+	const index = ids.indexOf(projectId);
+	const neighborId = ids[index + 1] ?? ids[index - 1];
+	const neighbor = neighborId ? toggles.get(neighborId) : undefined;
+	(neighbor ?? fallbackRef?.current)?.focus();
 };
 
 /** Lists the pinned project folders, which drag to reorder the pins. */
@@ -86,6 +103,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 	error,
 	onRetry,
 	emptyMessage,
+	unpinFocusFallbackRef,
 }) => {
 	const location = useLocation();
 	const queryClient = useQueryClient();
@@ -133,6 +151,7 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 			}
 		},
 	});
+	const toggleRefs = useRef(new Map<string, HTMLButtonElement>());
 	const organizationLabels = getOrganizationLabels(
 		pinnedProjects.map((summary) => summary.project),
 		organizations,
@@ -168,6 +187,21 @@ export const ProjectFolders: React.FC<ProjectFoldersProps> = ({
 					onEdit={() => onEdit(project)}
 					onDelete={() => onDelete(project)}
 					onUnpin={() => unpinMutation.mutate(project)}
+					focusAfterUnpin={() =>
+						focusNextFolder(
+							sortedPinnedProjects,
+							project.id,
+							toggleRefs.current,
+							unpinFocusFallbackRef,
+						)
+					}
+					registerToggle={(element) => {
+						if (element) {
+							toggleRefs.current.set(project.id, element);
+						} else {
+							toggleRefs.current.delete(project.id);
+						}
+					}}
 					emptyMessage={emptyMessage}
 				/>
 			))}
@@ -192,6 +226,9 @@ type ProjectFolderProps = {
 	readonly onDelete: () => void;
 	readonly onUnpin: () => void;
 	readonly emptyMessage: string;
+	/** Moves focus out of the folder, which unpinning removes. */
+	readonly focusAfterUnpin: () => void;
+	readonly registerToggle: (element: HTMLButtonElement | null) => void;
 };
 
 type SortableProjectFolderProps = Omit<ProjectFolderProps, "handleRef"> & {
@@ -234,6 +271,8 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	onDelete,
 	onUnpin,
 	emptyMessage,
+	focusAfterUnpin,
+	registerToggle,
 }) => {
 	const projectPathname = buildAgentProjectPath({ projectId: project.id });
 	const projectPath: To = { pathname: projectPathname, search: locationSearch };
@@ -247,16 +286,28 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 	const handleNewChat = () => {
 		newChatPickedRef.current = true;
 	};
+	// Unpinning removes this folder, so the closing menu cannot return focus
+	// to its button.
+	const unpinPickedRef = useRef(false);
+	const handleUnpin = () => {
+		unpinPickedRef.current = true;
+		onUnpin();
+	};
 	const handleMenuCloseAutoFocus = (event: Event) => {
 		if (newChatPickedRef.current) {
 			newChatPickedRef.current = false;
 			event.preventDefault();
 		}
+		if (unpinPickedRef.current) {
+			unpinPickedRef.current = false;
+			event.preventDefault();
+			focusAfterUnpin();
+		}
 	};
 	const menuItemsProps = {
 		projectPath,
 		onNewChatInPlace: isOnProjectPage ? handleNewChat : undefined,
-		onUnpin,
+		onUnpin: handleUnpin,
 		permissions: project.permissions,
 		onEdit,
 		onDelete,
@@ -274,7 +325,10 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 				<ContextMenuTrigger asChild>
 					<div className="group relative flex items-center gap-1 rounded-md pl-1 pr-2 text-content-secondary group-data-[drop=unavailable]/project-drop:opacity-50 hover:bg-surface-tertiary/50 hover:text-content-primary has-aria-[current=page]:bg-surface-quaternary/50 has-aria-[current=page]:text-content-primary">
 						<Button
-							ref={toggleRef}
+							ref={(element) => {
+								toggleRef.current = element;
+								registerToggle(element);
+							}}
 							variant="subtle"
 							size="icon"
 							className="size-6 min-w-0 p-0 text-current [&>svg]:size-3.5"
