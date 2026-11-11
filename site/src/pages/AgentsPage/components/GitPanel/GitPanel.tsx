@@ -491,7 +491,7 @@ export const GitPanel: React.FC<GitPanelProps> = ({
 							disabled={!hasGitContext}
 							title={!hasGitContext ? GIT_NOT_SETUP_TITLE : undefined}
 							className={cn(
-								"flex cursor-pointer items-center border-0 border-l border-solid px-1.5 transition-colors disabled:cursor-default disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
+								"flex cursor-pointer items-center border-l border-solid px-1.5 transition-colors disabled:cursor-default disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-content-link",
 								diffStyle === "split"
 									? "bg-surface-quaternary/25 text-content-primary"
 									: "bg-surface-primary text-content-secondary hover:bg-surface-tertiary/50 hover:text-content-primary",
@@ -629,7 +629,7 @@ const GitViewSwitcher: React.FC<GitViewSwitcherProps> = ({
 		<>
 			<span
 				className={cn(
-					"inline-flex h-full items-center gap-1 rounded-l-md border-0 border-r border-solid px-1.5 font-medium leading-none",
+					"inline-flex h-full items-center gap-1 rounded-l-md border-r border-solid px-1.5 font-medium leading-none",
 					activeItem.stateClasses,
 				)}
 			>
@@ -826,7 +826,7 @@ const RepoHeader: React.FC<{
 	onCommit: () => void;
 }> = ({ repoRoot, repo, diffStats, onCommit }) => {
 	return (
-		<div className="flex shrink-0 items-center gap-2 border-0 border-b border-solid px-3 py-1.5">
+		<div className="flex shrink-0 items-center gap-2 border-b border-solid px-3 py-1.5">
 			<div className="flex min-w-0 items-center gap-1.5 text-[13px] text-content-secondary">
 				<GitBranchIcon className="size-3.5 shrink-0" />
 				<span className="truncate">

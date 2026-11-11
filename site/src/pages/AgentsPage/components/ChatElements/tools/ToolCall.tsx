@@ -232,7 +232,7 @@ const HeaderButton: React.FC<ToolCallHeaderButtonProps> = ({
 		<TranscriptRow
 			asChild
 			className={cn(
-				"m-0 min-w-0 max-w-full gap-2 border-0 bg-transparent p-0 text-left font-[inherit] text-content-secondary transition-colors",
+				"m-0 min-w-0 max-w-full gap-2 bg-transparent p-0 text-left font-[inherit] text-content-secondary transition-colors",
 				collapsible && "cursor-pointer hover:text-content-primary",
 				className,
 			)}
@@ -451,7 +451,7 @@ type ToolCallErrorDetailProps = {
 
 /** Shows a failed call's error message in the expanded row body. */
 const ErrorDetail: React.FC<ToolCallErrorDetailProps> = ({ children }) => (
-	<pre className="m-0 mt-1.5 whitespace-pre-wrap wrap-break-word border-0 bg-transparent p-0 font-mono text-xs leading-5 text-content-destructive">
+	<pre className="m-0 mt-1.5 whitespace-pre-wrap wrap-break-word bg-transparent p-0 font-mono text-xs leading-5 text-content-destructive">
 		{children}
 	</pre>
 );

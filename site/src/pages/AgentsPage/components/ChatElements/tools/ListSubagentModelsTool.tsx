@@ -79,7 +79,7 @@ const ListSubagentModelsContent: React.FC<{ models: unknown[] }> = ({
 				{Array.from(grouped.entries(), ([provider, providerModels], index) => (
 					<div
 						key={provider}
-						className={index > 0 ? "border-0 border-t border-solid" : undefined}
+						className={index > 0 ? "border-t border-solid" : undefined}
 					>
 						<div className="flex items-center gap-1.5 px-2 py-1">
 							<ProviderIcon provider={provider} className="size-3.5" />

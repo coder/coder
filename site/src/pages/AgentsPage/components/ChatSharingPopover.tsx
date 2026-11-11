@@ -193,7 +193,7 @@ const MobileMemberRow: React.FC<MobileMemberRowProps> = ({
 	disabled,
 	onRemove,
 }) => (
-	<div className="flex items-center justify-between gap-3 border-0 border-b border-solid last:border-b-0 px-1 py-3">
+	<div className="flex items-center justify-between gap-3 border-b border-solid last:border-b-0 px-1 py-3">
 		<div className="min-w-0 flex-1">{children}</div>
 		<div className="flex shrink-0 items-center gap-2">
 			<ReadRoleBadge />

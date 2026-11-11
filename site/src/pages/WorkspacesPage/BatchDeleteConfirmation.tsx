@@ -144,7 +144,7 @@ const Workspaces: React.FC<StageProps> = ({ workspaces }) => {
 				{workspaces.map((workspace) => (
 					<li
 						key={workspace.id}
-						className="py-2 px-4 border-solid border-0 border-b last:border-b-0"
+						className="py-2 px-4 border-solid border-b last:border-b-0"
 					>
 						<div className="flex items-center justify-between gap-6">
 							<span className="font-medium text-content-primary max-w-100 truncate">

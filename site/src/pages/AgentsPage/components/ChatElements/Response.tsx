@@ -261,7 +261,7 @@ const createComponents = (
 		),
 		// Horizontal rule: render a clean 1px solid line using theme
 		// tokens instead of the default border.
-		hr: () => <hr className="my-6 border-0 border-t border-solid" />,
+		hr: () => <hr className="my-6 border-t border-solid" />,
 		// Table cells: streamdown defaults to text-sm (14px).
 		// Drop the explicit size so cells inherit the 13px base.
 		// The style carries the column alignment from the separator row.

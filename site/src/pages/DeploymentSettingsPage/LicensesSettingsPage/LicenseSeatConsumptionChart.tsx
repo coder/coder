@@ -59,7 +59,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 						<CollapsibleTrigger asChild>
 							<Button
 								className={cn(
-									"h-auto p-0 border-0 bg-transparent font-medium text-content-secondary",
+									"h-auto p-0 bg-transparent font-medium text-content-secondary",
 									"hover:bg-transparent hover:text-content-primary",
 									"[&[data-state=open]_svg]:rotate-90",
 								)}
@@ -131,7 +131,7 @@ export const LicenseSeatConsumptionChart: React.FC<
 				</Collapsible>
 			</div>
 
-			<div className="p-6 border-0 border-t border-solid">
+			<div className="p-6 border-t border-solid">
 				<div className="h-64">
 					{data ? (
 						data.length > 0 ? (

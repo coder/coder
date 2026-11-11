@@ -133,7 +133,7 @@ export const MermaidDiagram = ({ source, fallback }: MermaidDiagramProps) => {
 			<div className="my-4 overflow-hidden rounded-md border border-solid">
 				<div
 					role="alert"
-					className="flex items-start gap-2 border-0 border-b border-solid bg-surface-orange px-3 py-2 text-xs text-content-warning"
+					className="flex items-start gap-2 border-b border-solid bg-surface-orange px-3 py-2 text-xs text-content-warning"
 				>
 					<TriangleAlertIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
 					<div className="min-w-0">
