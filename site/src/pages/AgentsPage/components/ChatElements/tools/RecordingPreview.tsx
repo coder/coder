@@ -17,7 +17,7 @@ import {
 } from "./previewConstants";
 
 const frameClassName =
-	"relative overflow-hidden rounded-lg border border-solid border-border";
+	"relative overflow-hidden rounded-lg border border-solid";
 const frameStyle = { aspectRatio: DEFAULT_ASPECT, height: PREVIEW_HEIGHT };
 
 const PreviewNotice: React.FC<{ icon: LucideIcon; children: string }> = ({
