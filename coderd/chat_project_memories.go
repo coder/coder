@@ -75,15 +75,8 @@ func (api *API) postChatProjectMemory(rw http.ResponseWriter, r *http.Request) {
 	}
 	aReq, commit := audit.InitRequest[database.ChatProjectMemory](rw, &audit.RequestParams{Audit: *api.Auditor.Load(), Log: api.Logger, Request: r, Action: database.AuditActionCreate, OrganizationID: project.OrganizationID})
 	defer commit()
-	var memory database.ChatProjectMemory
-	err = api.Database.InTx(func(tx database.Store) error {
-		if err := lockUnarchivedChatProject(ctx, tx.GetChatProjectByIDForShare, project.ID); err != nil {
-			return err
-		}
-		var err error
-		memory, _, err = chattool.InsertProjectMemory(ctx, tx, database.InsertChatProjectMemoryParams{ID: uuid.NullUUID{}, ProjectID: project.ID, OrganizationID: project.OrganizationID, Name: normalized.Name, Description: normalized.Description, Body: normalized.Body, CreatedBy: apiKey.UserID})
-		return err
-	}, nil)
+	// InsertProjectMemory locks the project and rejects an archived one.
+	memory, _, err := chattool.InsertProjectMemory(ctx, api.Database, database.InsertChatProjectMemoryParams{ID: uuid.NullUUID{}, ProjectID: project.ID, OrganizationID: project.OrganizationID, Name: normalized.Name, Description: normalized.Description, Body: normalized.Body, CreatedBy: apiKey.UserID})
 	if writeChatProjectArchivedError(ctx, rw, err) {
 		return
 	}
