@@ -298,6 +298,7 @@ export const AppearanceForm: React.FC<AppearanceFormProps> = ({
 							</Select>
 						</div>
 					</div>
+
 					<TerminalPreview
 						fontFamily={terminalFonts[terminalFont]}
 						fontSize={terminalFontSize}
