@@ -47,6 +47,7 @@ import {
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 	getSidebarChatListInput,
 } from "../../../utils/agentSidebarFilters";
+import { focusFirstVisible } from "../../../utils/focus";
 import { getOwnPinnedChats } from "../../../utils/pinnedChats";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
 import { canManageChat } from "../../ChatActionsMenuItems";
@@ -115,6 +116,8 @@ type ChatsPanelProps = {
 	readonly chatProjectsEnabled: boolean;
 	/** The user's pinned projects, in pin order. */
 	readonly pinnedProjects: readonly ChatProjectSummary[];
+	/** Every project's summary, pinned or not. */
+	readonly projectSummaries: readonly ChatProjectSummary[];
 	readonly organizations: readonly Organization[];
 	readonly isPinnedProjectsLoading: boolean;
 	readonly pinnedProjectsError: unknown;
@@ -152,6 +155,7 @@ type ChatsPanelProps = {
 export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	chatProjectsEnabled,
 	pinnedProjects,
+	projectSummaries,
 	organizations,
 	isPinnedProjectsLoading,
 	pinnedProjectsError,
@@ -224,12 +228,12 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		folderProjectIds,
 	} = groupChatsByProject(
 		unpinnedOwnedChats,
-		pinnedProjects,
+		projectSummaries,
 		isPinnedProjectsLoading,
 	);
 	const { chatsByProjectId: pinnedChatsByProjectId } = groupChatsByProject(
 		pinnedChats,
-		pinnedProjects,
+		projectSummaries,
 	);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
@@ -272,6 +276,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 
 	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
 	const projectsNavItemRef = useRef<HTMLElement | null>(null);
+	const filterTriggerRef = useRef<HTMLButtonElement | null>(null);
 	const dragInstructionsId = useId();
 	const moveMutation = useMoveChatToProject();
 
@@ -475,6 +480,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					<FilterPopover
 						filters={sidebarFilters}
 						onFiltersChange={onSidebarFiltersChange}
+						triggerRef={(element) => {
+							filterTriggerRef.current = element;
+						}}
 					/>
 				</>
 			}
@@ -490,6 +498,11 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 			sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
 		});
 	};
+
+	// The Projects nav item hides on a small screen, where the chat filters
+	// take focus instead.
+	const focusSidebarFallback = () =>
+		focusFirstVisible([projectsNavItemRef.current, filterTriggerRef.current]);
 
 	return (
 		<div
@@ -687,7 +700,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 																	error: pinnedProjectsError,
 																	onRetry: onRetryPinnedProjects,
 																	emptyMessage: emptyStateMessage,
-																	unpinFocusFallbackRef: projectsNavItemRef,
+																	focusUnpinFallback: focusSidebarFallback,
 																}
 															: undefined
 													}

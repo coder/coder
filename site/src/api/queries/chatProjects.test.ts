@@ -1,8 +1,12 @@
 import { MutationObserver } from "react-query";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { API } from "#/api/api";
-import type { ChatProjectRole } from "#/api/typesGenerated";
-import { MockChatProject, mockApiError } from "#/testHelpers/entities";
+import type { ChatProjectRole, ChatProjectSummary } from "#/api/typesGenerated";
+import {
+	MockChatProject,
+	MockChatProjectSummary,
+	mockApiError,
+} from "#/testHelpers/entities";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import {
 	chatProject,
@@ -86,6 +90,40 @@ describe("chat project mutations", () => {
 		expect(isInvalidated(queryClient, chatKeys[0])).toBe(true);
 		expect(isInvalidated(queryClient, chatProjectsKey)).toBe(false);
 		expect(isInvalidated(queryClient, chatKeys[1])).toBe(false);
+	});
+});
+
+describe("unpinChatProject", () => {
+	it("unpins the project in the cached summaries at once and restores it when the unpin fails", async () => {
+		const queryClient = createTestQueryClient();
+		// Keeps the summaries cached without an observer.
+		queryClient.setQueryDefaults(chatProjectSummariesKey, {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(chatProjectSummariesKey, [MockChatProjectSummary]);
+		const isPinned = () =>
+			queryClient.getQueryData<ChatProjectSummary[]>(
+				chatProjectSummariesKey,
+			)?.[0].pinned;
+		let rejectUnpin: (error: unknown) => void = () => {};
+		vi.spyOn(API.experimental, "unpinChatProject").mockReturnValue(
+			new Promise((_resolve, reject) => {
+				rejectUnpin = reject;
+			}),
+		);
+		onTestFinished(() => {
+			vi.restoreAllMocks();
+		});
+
+		const unpin = new MutationObserver(
+			queryClient,
+			unpinChatProject(queryClient),
+		).mutate(MockChatProject);
+		await vi.waitFor(() => expect(isPinned()).toBe(false));
+
+		rejectUnpin(mockApiError({}));
+		await expect(unpin).rejects.toBeDefined();
+		expect(isPinned()).toBe(true);
 	});
 });
 

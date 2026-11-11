@@ -45,6 +45,25 @@ describe("groupChatsByProject", () => {
 		]);
 	});
 
+	// The summaries can drop a pin before the chat list refetches without the
+	// project's chats.
+	it("holds back the chats of a known unpinned project", () => {
+		const mockUnpinnedChat = {
+			...MockChat,
+			id: "unpinned",
+			project_id: MockChatProject.id,
+			pin_order: 0,
+		};
+
+		const grouped = groupChatsByProject(
+			[mockUnpinnedChat],
+			[{ ...MockChatProjectSummary, pinned: false, pin_order: 0 }],
+		);
+
+		expect(grouped.chatsByProjectId.size).toBe(0);
+		expect(grouped.unfiledChats).toEqual([]);
+	});
+
 	it("leaves every chat unfiled when no projects are loaded", () => {
 		const mockFiledChat = {
 			...MockChat,

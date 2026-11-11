@@ -240,6 +240,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 			<ChatsPanel
 				chatProjectsEnabled={chatProjectsEnabled}
 				pinnedProjects={pinnedProjects}
+				projectSummaries={summariesQuery.data ?? []}
 				organizations={organizations}
 				isPinnedProjectsLoading={summariesQuery.isLoading}
 				pinnedProjectsError={summariesQuery.error}
