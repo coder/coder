@@ -1886,7 +1886,18 @@ Maximum time to wait for the next streamed part from the chat model before the a
 | YAML        | <code>ai_gateway.enabled</code>        |
 | Default     | <code>true</code>                      |
 
-Whether to start an in-memory AI Gateway instance.
+Whether to enable AI Gateway. Use --ai-gateway-embedded-enabled to control whether coderd also starts an in-memory AI Gateway instance.
+
+### --ai-gateway-embedded-enabled
+
+| Property    | Value                                           |
+|-------------|-------------------------------------------------|
+| Type        | <code>bool</code>                               |
+| Environment | <code>$CODER_AI_GATEWAY_EMBEDDED_ENABLED</code> |
+| YAML        | <code>ai_gateway.embedded_enabled</code>        |
+| Default     | <code>true</code>                               |
+
+Whether to start an in-memory AI Gateway instance inside coderd. Has no effect unless --ai-gateway-enabled is true. Set to false when all AI Gateway traffic is served by standalone AI Gateway instances. Coder Agents requires this option to be set to true.
 
 ### --ai-gateway-retention
 

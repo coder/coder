@@ -1185,15 +1185,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// dispatch LLM requests via the in-process transport without
 			// crossing the gated /api/v2/ai-gateway HTTP route. The HTTP route
 			// itself is registered (and license-gated) only by enterprise/coderd;
-			// in AGPL builds it does not exist at all. The daemon starts here
-			// unconditionally when the bridge feature is enabled by config so
-			// chatd can use it regardless of license entitlement.
+			// in AGPL builds it does not exist at all. The outer block sets up
+			// metrics that coderd records for both embedded and standalone gateways.
+			// The inner block starts the embedded daemon, which standalone-only
+			// deployments disable with CODER_AI_GATEWAY_EMBEDDED_ENABLED=false.
 			if vals.AI.BridgeConfig.Enabled.Value() {
-				// TODO(deprecation): Remove "coder_aibridged_" in v2.37.
-				// See AIGOV-447:
-				// https://linear.app/codercom/issue/AIGOV-447/remove-legacy-ai-gateway-metric-aliases
-				aibridgeReg := prometheusmetrics.NewMetricAliasRegisterer(coderAPI.PrometheusRegistry, aibridgemetrics.PrometheusMetricPrefix, "coder_aibridged_")
-				aibridgeMetrics := aibridge.NewMetrics(aibridgeReg)
 				costControlReg := prometheus.WrapRegistererWithPrefix("coder_ai_gateway_", coderAPI.PrometheusRegistry)
 				coderAPI.AIGatewayServerMetrics = aibridgedserver.NewMetrics(costControlReg)
 				if vals.Prometheus.Enable {
@@ -1204,22 +1200,29 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 					)
 					defer closeBlockedUsersFunc()
 				}
-				var unsubscribeProviderReload func()
-				aibridgeDaemon, unsubscribeProviderReload, err = NewAIBridgeDaemon(ctx, AIBridgeDaemonOptions{
-					API:           coderAPI,
-					Config:        vals.AI.BridgeConfig,
-					Registerer:    aibridgeReg,
-					BridgeMetrics: aibridgeMetrics,
-				})
-				if err != nil {
-					return xerrors.Errorf("create aibridged: %w", err)
+				if vals.AI.BridgeConfig.EmbeddedEnabled.Value() {
+					// TODO(deprecation): Remove "coder_aibridged_" in v2.37.
+					// See AIGOV-447:
+					// https://linear.app/codercom/issue/AIGOV-447/remove-legacy-ai-gateway-metric-aliases
+					aibridgeReg := prometheusmetrics.NewMetricAliasRegisterer(coderAPI.PrometheusRegistry, aibridgemetrics.PrometheusMetricPrefix, "coder_aibridged_")
+					aibridgeMetrics := aibridge.NewMetrics(aibridgeReg)
+					var unsubscribeProviderReload func()
+					aibridgeDaemon, unsubscribeProviderReload, err = NewAIBridgeDaemon(ctx, AIBridgeDaemonOptions{
+						API:           coderAPI,
+						Config:        vals.AI.BridgeConfig,
+						Registerer:    aibridgeReg,
+						BridgeMetrics: aibridgeMetrics,
+					})
+					if err != nil {
+						return xerrors.Errorf("create aibridged: %w", err)
+					}
+					coderAPI.RegisterInMemoryAIBridgedHTTPHandler(aibridgeDaemon)
+					// The handler is bound to coderAPI's lifecycle; Close() on the
+					// daemon does not affect in-flight requests but is needed to
+					// release pool/recorder resources at shutdown.
+					defer aibridgeDaemon.Close()
+					defer unsubscribeProviderReload()
 				}
-				coderAPI.RegisterInMemoryAIBridgedHTTPHandler(aibridgeDaemon)
-				// The handler is bound to coderAPI's lifecycle; Close() on the
-				// daemon does not affect in-flight requests but is needed to
-				// release pool/recorder resources at shutdown.
-				defer aibridgeDaemon.Close()
-				defer unsubscribeProviderReload()
 			}
 
 			if vals.Prometheus.Enable {
