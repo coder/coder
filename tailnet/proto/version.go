@@ -114,9 +114,14 @@ import (
 //   - Added template_id and template_name to Manifest on the Agent API.
 //   - A v2.16 agent exports them as CODER_WORKSPACE_TEMPLATE_ID and
 //     CODER_WORKSPACE_TEMPLATE_NAME.
+//
+// API v2.17:
+//   - Added git_signing_public_key to Manifest on the Agent API.
+//   - A v2.17 agent configures git commit signing through GIT_CONFIG_*
+//     environment variables when the field is set.
 const (
 	CurrentMajor = 2
-	CurrentMinor = 16
+	CurrentMinor = 17
 )
 
 var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)

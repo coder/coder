@@ -39,6 +39,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 	"golang.org/x/crypto/ssh"
+	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/xerrors"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
@@ -133,8 +134,8 @@ type eofClient struct {
 	*agenttest.Client
 }
 
-func (*eofClient) ConnectRPC216WithRole(context.Context, string) (
-	proto.DRPCAgentClient216, tailnetproto.DRPCTailnetClient28, error,
+func (*eofClient) ConnectRPC217WithRole(context.Context, string) (
+	proto.DRPCAgentClient217, tailnetproto.DRPCTailnetClient28, error,
 ) {
 	return nil, nil, io.EOF
 }
@@ -1818,6 +1819,27 @@ func TestAgent_GitSigningConfig(t *testing.T) {
 		"6 core.editor=vim commit.gpgsign=true user.signingkey=key::ssh-ed25519 AAAAtest",
 		strings.TrimSpace(string(output)),
 	)
+}
+
+func TestAgent_GitSigningConfigAgentForwarding(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("uses a POSIX shell")
+	}
+	session := setupSSHSession(t, agentsdk.Manifest{
+		GitSigningPublicKey: "ssh-ed25519 AAAAtest",
+		EnvironmentVariables: map[string]string{
+			"GIT_CONFIG_COUNT":   "1",
+			"GIT_CONFIG_KEY_0":   "core.editor",
+			"GIT_CONFIG_VALUE_0": "vim",
+		},
+	}, codersdk.ServiceBannerConfig{}, nil)
+	// This is the request `ssh -A` and `coder ssh -A` send. The user's own
+	// keys and git config apply, so Coder's signing config is left out.
+	require.NoError(t, gosshagent.RequestAgentForwarding(session))
+	output, err := session.Output(`sh -c 'echo $GIT_CONFIG_COUNT $GIT_CONFIG_KEY_0 "[$GIT_CONFIG_KEY_1]" "[${SSH_AUTH_SOCK:+set}]"'`)
+	require.NoError(t, err)
+	require.Equal(t, "1 core.editor [] [set]", strings.TrimSpace(string(output)))
 }
 
 func TestAgent_EnvironmentVariableExpansion(t *testing.T) {

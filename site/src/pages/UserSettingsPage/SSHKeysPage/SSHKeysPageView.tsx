@@ -92,7 +92,12 @@ export const SSHKeysPageView: React.FC<SSHKeysPageViewProps> = ({
 										</Link>
 										. Takes effect the next time your workspace agent connects,
 										such as after a restart. This overrides any signing settings
-										in your own git config.
+										in your own git config, except in SSH sessions that forward
+										your own agent with{" "}
+										<code className="rounded-sm border bg-surface-secondary px-1 py-0.5 text-xs text-content-primary">
+											ssh -A
+										</code>
+										.
 									</p>
 								</div>
 							</div>

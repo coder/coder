@@ -468,6 +468,19 @@ func (c *Client) ConnectRPC216WithRole(ctx context.Context, role string) (
 	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
 }
 
+// ConnectRPC217WithRole returns a dRPC client to the Agent API v2.17, which
+// adds the git signing public key to the manifest. Pass role "agent" for
+// workspace agents to enable connection monitoring.
+func (c *Client) ConnectRPC217WithRole(ctx context.Context, role string) (
+	proto.DRPCAgentClient217, tailnetproto.DRPCTailnetClient28, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 17), role)
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
 // ConnectRPC connects to the workspace agent API and tailnet API.
 // It does not send a role query parameter, so the server will apply
 // its default behavior (currently: enable connection monitoring for

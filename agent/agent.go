@@ -44,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentfiles"
 	"github.com/coder/coder/v2/agent/agentgit"
+	"github.com/coder/coder/v2/agent/agentgitsign"
 	"github.com/coder/coder/v2/agent/agentproc"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentsocket"
@@ -129,10 +130,10 @@ type Options struct {
 }
 
 type Client interface {
-	// ConnectRPC216WithRole connects to the Agent API v2.16. The workspace
+	// ConnectRPC217WithRole connects to the Agent API v2.17. The workspace
 	// agent should use role "agent" to enable connection monitoring.
-	ConnectRPC216WithRole(ctx context.Context, role string) (
-		proto.DRPCAgentClient216, tailnetproto.DRPCTailnetClient28, error,
+	ConnectRPC217WithRole(ctx context.Context, role string) (
+		proto.DRPCAgentClient217, tailnetproto.DRPCTailnetClient28, error,
 	)
 	tailnet.DERPMapRewriter
 	agentsdk.RefreshableSessionTokenProvider
@@ -1017,7 +1018,7 @@ func (a *agent) run() (retErr error) {
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs.
 	// We pass role "agent" to enable connection monitoring on the server, which tracks
 	// the agent's connectivity state (first_connected_at, last_connected_at, disconnected_at).
-	aAPI, tAPI, err := a.client.ConnectRPC216WithRole(a.hardCtx, "agent")
+	aAPI, tAPI, err := a.client.ConnectRPC217WithRole(a.hardCtx, "agent")
 	if err != nil {
 		return err
 	}
@@ -1610,7 +1611,7 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 	if manifest.GitSigningPublicKey != "" {
 		// Git runs gpg.ssh.program as a single executable, passing
 		// ssh-keygen style arguments. The coder binary recognizes them.
-		appendGitSigningConfig(envs, unixExecutablePath, manifest.GitSigningPublicKey)
+		agentgitsign.Append(envs, unixExecutablePath, manifest.GitSigningPublicKey)
 	}
 
 	// Prepend the agent script bin directory to the PATH
@@ -1624,30 +1625,6 @@ func (a *agent) updateCommandEnv(current []string) (updated []string, err error)
 		updated = append(updated, fmt.Sprintf("%s=%s", k, v))
 	}
 	return updated, nil
-}
-
-// appendGitSigningConfig configures git commit and tag signing with the
-// user's Coder SSH key through GIT_CONFIG_* environment variables, so no git
-// config file is modified. Entries are appended after any GIT_CONFIG_COUNT
-// already set by the user or template. Requires git 2.31 or newer.
-func appendGitSigningConfig(envs map[string]string, signingProgram, publicKey string) {
-	// An unparsable or negative count is replaced, since git rejects it anyway.
-	n := 0
-	if count, err := strconv.Atoi(envs["GIT_CONFIG_COUNT"]); err == nil && count > 0 {
-		n = count
-	}
-	for _, kv := range [][2]string{
-		{"commit.gpgsign", "true"},
-		{"tag.gpgsign", "true"},
-		{"gpg.format", "ssh"},
-		{"gpg.ssh.program", signingProgram},
-		{"user.signingkey", "key::" + strings.TrimSpace(publicKey)},
-	} {
-		envs[fmt.Sprintf("GIT_CONFIG_KEY_%d", n)] = kv[0]
-		envs[fmt.Sprintf("GIT_CONFIG_VALUE_%d", n)] = kv[1]
-		n++
-	}
-	envs["GIT_CONFIG_COUNT"] = strconv.Itoa(n)
 }
 
 // writeSecretFiles writes user secrets with file_path set to disk.
