@@ -436,9 +436,6 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 	const iconField = (
 		<div className="flex flex-col gap-2">
 			<Label htmlFor="icon">Icon</Label>
-			<div className="text-xs text-content-secondary">
-				Optional. URL or emoji shown for this provider.
-			</div>
 			<IconField
 				id="icon"
 				value={form.values.icon}
@@ -446,6 +443,9 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 				onChange={(event) => handleIconChange(event.target.value)}
 				onPickEmoji={handleIconChange}
 			/>
+			<div className="text-xs text-content-secondary">
+				Optional. URL or emoji shown for this provider.
+			</div>
 		</div>
 	);
 
@@ -585,6 +585,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 								field={getFieldHelpers("name")}
 								label="Name"
 								description="Unique identifier (used in urls, can't be changed)"
+								descriptionPosition="below"
 								className="w-full"
 								placeholder={namePlaceholder(form.values.type)}
 								disabled={editing}
@@ -593,6 +594,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 								field={getFieldHelpers("displayName")}
 								label="Display name"
 								description="Friendly name. Defaults to name if blank."
+								descriptionPosition="below"
 								className="w-full"
 							/>
 						</div>
@@ -632,6 +634,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 								field={getFieldHelpers("name")}
 								label="Name"
 								description="Unique identifier (used in urls, can't be changed)"
+								descriptionPosition="below"
 								className="w-full"
 								placeholder={namePlaceholder(form.values.type)}
 								disabled={editing}
@@ -640,6 +643,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 								field={getFieldHelpers("displayName")}
 								label="Display name"
 								description="Friendly name. Defaults to name if blank."
+								descriptionPosition="below"
 								className="w-full"
 							/>
 						</div>
@@ -674,6 +678,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 								backendFieldName: "base_url",
 							})}
 							label="Endpoint"
+							descriptionPosition="below"
 							description={
 								<>
 									In the format of{" "}
