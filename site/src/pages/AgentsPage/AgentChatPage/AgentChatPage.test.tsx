@@ -302,17 +302,26 @@ describe("AgentChatPage", () => {
 	});
 
 	describe("answers", () => {
-		const saveAnswerEdit = async (
-			seed: Parameters<typeof renderQueuedChat>[0],
-			editAction: "Edit" | "Edit message",
-		) => {
+		const questionId = "11111111-1111-4111-8111-111111111111";
+
+		const editAndSave = async ({
+			seed,
+			editAction,
+			loadedText,
+			typedText,
+		}: {
+			seed: Parameters<typeof renderQueuedChat>[0];
+			editAction: "Edit" | "Edit message";
+			loadedText: string;
+			typedText: string;
+		}) => {
 			const page = renderQueuedChat(seed);
 
 			await page.rowAction(editAction);
 			await waitFor(() =>
-				expect(page.composer().textContent).toContain("Redis"),
+				expect(page.composer().textContent).toContain(loadedText),
 			);
-			await page.type(" edit");
+			await page.type(typedText);
 			await page.user.click(
 				page.view.getByRole("button", { name: "Save Edit" }),
 			);
@@ -325,18 +334,17 @@ describe("AgentChatPage", () => {
 				...MockChatQueuedMessage,
 				id: 7,
 				content: [
-					{
-						type: "question-answer",
-						question_id: "11111111-1111-4111-8111-111111111111",
-					},
+					{ type: "question-answer", question_id: questionId },
 					{ type: "text", text: "Redis" },
 				],
 			};
 
-			const page = await saveAnswerEdit(
-				{ queuedMessages: [mockAnswer] },
-				"Edit",
-			);
+			const page = await editAndSave({
+				seed: { queuedMessages: [mockAnswer] },
+				editAction: "Edit",
+				loadedText: "Redis",
+				typedText: " edit",
+			});
 
 			await waitFor(() =>
 				expect(page.editChatQueuedMessage).toHaveBeenCalledWith(
@@ -344,10 +352,7 @@ describe("AgentChatPage", () => {
 					mockAnswer.id,
 					expect.objectContaining({
 						content: [
-							{
-								type: "question-answer",
-								question_id: "11111111-1111-4111-8111-111111111111",
-							},
+							{ type: "question-answer", question_id: questionId },
 							{ type: "text", text: "Redis edit" },
 						],
 					}),
@@ -360,18 +365,12 @@ describe("AgentChatPage", () => {
 				...MockChatMessage,
 				id: 7,
 				content: [
-					{
-						type: "question-answer",
-						question_id: "11111111-1111-4111-8111-111111111111",
-					},
+					{ type: "question-answer", question_id: questionId },
 					{ type: "text", text: "Redis" },
 				],
 			};
 			const expectedContent: TypesGen.ChatMessagePart[] = [
-				{
-					type: "question-answer",
-					question_id: "11111111-1111-4111-8111-111111111111",
-				},
+				{ type: "question-answer", question_id: questionId },
 				{ type: "text", text: "Redis edit" },
 			];
 			const editChatMessage = vi
@@ -380,10 +379,12 @@ describe("AgentChatPage", () => {
 					message: { ...mockAnswer, id: 8, content: expectedContent },
 				});
 
-			await saveAnswerEdit(
-				{ queuedMessages: [], messages: [mockAnswer] },
-				"Edit message",
-			);
+			await editAndSave({
+				seed: { queuedMessages: [], messages: [mockAnswer] },
+				editAction: "Edit message",
+				loadedText: "Redis",
+				typedText: " edit",
+			});
 
 			await waitFor(() =>
 				expect(editChatMessage).toHaveBeenCalledWith(
@@ -399,10 +400,7 @@ describe("AgentChatPage", () => {
 				...MockChatMessage,
 				id: 7,
 				content: [
-					{
-						type: "question-answer",
-						question_id: "11111111-1111-4111-8111-111111111111",
-					},
+					{ type: "question-answer", question_id: questionId },
 					{
 						type: "skill-invocation",
 						skill_source: "project",
@@ -412,10 +410,7 @@ describe("AgentChatPage", () => {
 				],
 			};
 			const expectedContent: TypesGen.ChatMessagePart[] = [
-				{
-					type: "question-answer",
-					question_id: "11111111-1111-4111-8111-111111111111",
-				},
+				{ type: "question-answer", question_id: questionId },
 				{
 					type: "skill-invocation",
 					skill_source: "project",
@@ -429,10 +424,12 @@ describe("AgentChatPage", () => {
 					message: { ...mockAnswer, id: 8, content: expectedContent },
 				});
 
-			await saveAnswerEdit(
-				{ queuedMessages: [], messages: [mockAnswer] },
-				"Edit message",
-			);
+			await editAndSave({
+				seed: { queuedMessages: [], messages: [mockAnswer] },
+				editAction: "Edit message",
+				loadedText: "Redis",
+				typedText: " edit",
+			});
 
 			await waitFor(() =>
 				expect(editChatMessage).toHaveBeenCalledWith(
