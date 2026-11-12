@@ -67,6 +67,7 @@ ALTER TABLE chat_messages
     DROP COLUMN automation_id;
 
 ALTER TABLE chat_queued_messages
+    DROP CONSTRAINT chat_queued_messages_automation_input_check,
     DROP COLUMN prompt_hooks_pending,
     DROP COLUMN input_id,
     DROP COLUMN automation_id;

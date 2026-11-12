@@ -2555,7 +2555,8 @@ CREATE TABLE chat_queued_messages (
     busy_behavior chat_busy_behavior DEFAULT 'queue'::chat_busy_behavior NOT NULL,
     automation_id uuid,
     input_id uuid,
-    prompt_hooks_pending boolean DEFAULT false NOT NULL
+    prompt_hooks_pending boolean DEFAULT false NOT NULL,
+    CONSTRAINT chat_queued_messages_automation_input_check CHECK ((((automation_id IS NULL) AND (input_id IS NULL)) OR ((automation_id IS NOT NULL) AND (input_id IS NOT NULL))))
 );
 
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';

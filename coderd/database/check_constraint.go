@@ -50,6 +50,7 @@ const (
 	CheckChatProjectsNameLength                              CheckConstraint = "chat_projects_name_length"                                 // chat_projects
 	CheckChatProjectsNameNotBlank                            CheckConstraint = "chat_projects_name_not_blank"                              // chat_projects
 	CheckChatProjectsUserAclIsObject                         CheckConstraint = "chat_projects_user_acl_is_object"                          // chat_projects
+	CheckChatQueuedMessagesAutomationInputCheck              CheckConstraint = "chat_queued_messages_automation_input_check"               // chat_queued_messages
 	CheckChatUsageLimitConfigDefaultLimitMicrosCheck         CheckConstraint = "chat_usage_limit_config_default_limit_micros_check"        // chat_usage_limit_config
 	CheckChatUsageLimitConfigPeriodCheck                     CheckConstraint = "chat_usage_limit_config_period_check"                      // chat_usage_limit_config
 	CheckChatUsageLimitConfigSingletonCheck                  CheckConstraint = "chat_usage_limit_config_singleton_check"                   // chat_usage_limit_config
