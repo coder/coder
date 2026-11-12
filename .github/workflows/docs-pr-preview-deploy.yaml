@@ -1,10 +1,10 @@
 # Builds a pull request's docs/ tree with docs-engine's offline export and
-# publishes it as its own site on the Coder-owned domain in the repository
-# variable DOCS_PREVIEW_DOMAIN (coderite.app, so PR 123's head is
-# https://coder-docs-pr-123.coderite.app):
+# publishes it as its own site on the preview-only domain in the repository
+# variable DOCS_PREVIEW_DOMAIN (docs.cdr-preview.dev, so PR 123's head is
+# https://pr-123.docs.cdr-preview.dev):
 #
-#   coder-docs-pr-<number>.<domain>             the PR head, re-aliased per build
-#   coder-docs-pr-<number>-<sha:0:9>.<domain>   one per built commit
+#   pr-<number>.<domain>             the PR head, re-aliased per build
+#   pr-<number>-<sha:0:9>.<domain>   one per built commit
 #
 # After a deploy succeeds, the comment job runs docs-preview.yaml, which links
 # each changed page to the first; the deploy job's own comment lists the
@@ -295,8 +295,8 @@ jobs:
         run: |
           set -euo pipefail
           short_sha="${SHA:0:9}"
-          head_alias="coder-docs-pr-${PR_NUMBER}.${DOMAIN}"
-          commit_alias="coder-docs-pr-${PR_NUMBER}-${short_sha}.${DOMAIN}"
+          head_alias="pr-${PR_NUMBER}.${DOMAIN}"
+          commit_alias="pr-${PR_NUMBER}-${short_sha}.${DOMAIN}"
 
           vc() { npx --yes "vercel@${VERCEL_CLI_VERSION}" "$@" --token="$VERCEL_TOKEN"; }
           vercel_api() {
@@ -350,7 +350,7 @@ jobs:
           earlier=""
           if [ -n "$existing_id" ]; then
             earlier=$(gh api "repos/${REPO}/issues/comments/${existing_id}" --jq '.body' \
-              | grep -E "^- \`[0-9a-f]{9}\` https://coder-docs-pr-${PR_NUMBER}-[0-9a-f]{9}\.${DOMAIN//./\\.}$" \
+              | grep -E "^- \`[0-9a-f]{9}\` https://pr-${PR_NUMBER}-[0-9a-f]{9}\.${DOMAIN//./\\.}$" \
               | grep -vF "\`${SHORT_SHA}\`" || true)
           fi
           # shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters.
