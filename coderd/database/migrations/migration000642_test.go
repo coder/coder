@@ -148,12 +148,13 @@ func TestMigration000642DownWithData(t *testing.T) {
 		VALUES ($1, $2, $2, 'app-642', '', 'http://localhost/callback')`, appID, now)
 
 	keys := []struct {
-		id          string
-		scopes      string
-		allowList   string
-		withToken   bool
-		wantDeleted bool
-		wantScopes  string
+		id            string
+		scopes        string
+		allowList     string
+		withToken     bool
+		wantDeleted   bool
+		wantScopes    string
+		wantAllowList string
 	}{
 		{id: "only-all", scopes: "{chat_automation:*}", wantDeleted: true},
 		{id: "only-create", scopes: "{chat_automation:create}", wantDeleted: true},
@@ -162,8 +163,13 @@ func TestMigration000642DownWithData(t *testing.T) {
 		{id: "only-delete", scopes: "{chat_automation:delete}", wantDeleted: true},
 		{id: "mixed", scopes: "{template:read,chat_automation:read,chat:*,chat_automation:*,workspace:read}", wantScopes: "{template:read,chat:*,workspace:read}"},
 		{id: "ordinary", scopes: "{coder:all}", wantScopes: "{coder:all}"},
-		// The allow list is not enum-typed, and the down leaves it alone.
-		{id: "ordinary-allow-list", scopes: "{template:read}", allowList: "{chat_automation:*}", wantScopes: "{template:read}"},
+		// The previous release cannot parse an allow list entry for a
+		// resource type it does not know, and an allow list cannot be empty.
+		{id: "only-automation-allow-list", scopes: "{template:read}", allowList: "{chat_automation:*}", wantDeleted: true},
+		{
+			id: "mixed-allow-list", scopes: "{template:read}", allowList: "{chat_automation:*,workspace:*,chat_automation:" + uuid.NewString() + "}",
+			wantScopes: "{template:read}", wantAllowList: "{workspace:*}",
+		},
 		{id: "only-automation-token", scopes: "{chat_automation:update}", withToken: true, wantDeleted: true},
 		{id: "ordinary-token", scopes: "{template:read}", withToken: true, wantScopes: "{template:read}"},
 	}
@@ -180,6 +186,16 @@ func TestMigration000642DownWithData(t *testing.T) {
 		}
 	}
 
+	const (
+		automationPermission = `{"negate": false, "resource_type": "chat_automation", "action": "read"}`
+		userPermission       = `{"negate": false, "resource_type": "user", "action": "read"}`
+	)
+	mixedRoleID := uuid.New()
+	exec(`INSERT INTO custom_roles (id, name, display_name, organization_id, site_permissions, org_permissions, user_permissions, member_permissions)
+		SELECT $1, 'mixed-role', 'Mixed Role', organization_id, $3, $4, $5, $6 FROM chats WHERE id = $2`,
+		mixedRoleID, chatID, "["+automationPermission+", "+userPermission+"]", "["+automationPermission+"]",
+		"["+automationPermission+", "+userPermission+"]", "["+userPermission+", "+automationPermission+"]")
+
 	automationID := uuid.New()
 	exec(`INSERT INTO chat_automations (id, organization_id, owner_id, name, kind, prompt, target_mode, target_chat_id, when_busy, webhook_auth, webhook_secret)
 		SELECT $1, organization_id, owner_id, 'webhook', 'webhook', 'hello', 'existing_chat', id, 'queue', 'bearer', 'secret'
@@ -194,12 +210,21 @@ func TestMigration000642DownWithData(t *testing.T) {
 		VALUES ($1, 'user', 1, $2, $3, true)`, chatID, automationID, uuid.New())
 	exec(`UPDATE chats SET automation_id = $2, manage_automations_enabled = true WHERE id = $1`, chatID, automationID)
 
+	// The history message above still waits for its prompt hooks. The down
+	// must not drop that flag, and a refused down changes nothing.
 	_, err := sqlDB.ExecContext(ctx, string(down))
+	require.ErrorContains(t, err, "1 chat messages still wait for their prompt hooks")
+	var automations int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT count(*) FROM chat_automations`).Scan(&automations))
+	require.Equal(t, 1, automations, "a refused down keeps the table and its rows")
+
+	exec(`UPDATE chat_messages SET prompt_hooks_pending = false WHERE chat_id = $1`, chatID)
+	_, err = sqlDB.ExecContext(ctx, string(down))
 	require.NoError(t, err)
 
 	for _, key := range keys {
-		var scopes string
-		err := sqlDB.QueryRowContext(ctx, `SELECT scopes::text FROM api_keys WHERE id = $1`, key.id).Scan(&scopes)
+		var scopes, allowList string
+		err := sqlDB.QueryRowContext(ctx, `SELECT scopes::text, allow_list::text FROM api_keys WHERE id = $1`, key.id).Scan(&scopes, &allowList)
 		var tokens int
 		require.NoError(t, sqlDB.QueryRowContext(ctx,
 			`SELECT count(*) FROM oauth2_provider_app_tokens WHERE api_key_id = $1`, key.id).Scan(&tokens))
@@ -210,14 +235,26 @@ func TestMigration000642DownWithData(t *testing.T) {
 		}
 		require.NoError(t, err, key.id)
 		require.Equal(t, key.wantScopes, scopes, key.id)
+		wantAllowList := key.wantAllowList
+		if wantAllowList == "" {
+			wantAllowList = "{*:*}"
+		}
+		require.Equal(t, wantAllowList, allowList, key.id)
 		if key.withToken {
 			require.Equal(t, 1, tokens, key.id)
 		}
 	}
-	var allowList string
-	require.NoError(t, sqlDB.QueryRowContext(ctx,
-		`SELECT allow_list::text FROM api_keys WHERE id = 'ordinary-allow-list'`).Scan(&allowList))
-	require.Equal(t, "{chat_automation:*}", allowList)
+
+	for column, want := range map[string]string{
+		"site_permissions":   "[" + userPermission + "]",
+		"org_permissions":    "[]",
+		"user_permissions":   "[" + userPermission + "]",
+		"member_permissions": "[" + userPermission + "]",
+	} {
+		var got string
+		require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT `+column+`::text FROM custom_roles WHERE id = $1`, mixedRoleID).Scan(&got))
+		require.JSONEq(t, want, got, column)
+	}
 
 	var removedLabels int
 	require.NoError(t, sqlDB.QueryRowContext(ctx, `

@@ -19,7 +19,7 @@ BEGIN
 			-- oauth2_provider_app_tokens. The application deletes in the
 			-- opposite order: a token delete fires a trigger that deletes
 			-- its API key.
-			LOCK TABLE chats, chat_messages, chat_queued_messages, chat_automations, api_keys, oauth2_provider_app_tokens IN ACCESS EXCLUSIVE MODE;
+			LOCK TABLE chats, chat_messages, chat_queued_messages, chat_automations, api_keys, oauth2_provider_app_tokens, custom_roles IN ACCESS EXCLUSIVE MODE;
 			-- Dropping chat_automations drops its foreign keys, and PostgreSQL
 			-- takes ACCESS EXCLUSIVE on every referenced table to do that.
 			LOCK TABLE organizations, users, chat_projects, chat_model_configs, dbcrypt_keys IN ACCESS EXCLUSIVE MODE;
@@ -35,11 +35,25 @@ BEGIN
 END;
 $$;
 
--- A queued automation message has not run its prompt hooks, and the flag
--- that records this is dropped below. Delete these messages so that they
--- are not delivered without the hooks. A message in chat_messages with the
--- flag set stays: it is already part of the chat's history, and deleting it
--- would rewrite a conversation. Its turn starts without the hooks.
+-- A message with prompt_hooks_pending has not run its user_prompt_submit
+-- hooks, which can deny or rewrite it, and the flag is dropped below. The
+-- previous release would deliver such a message without the hooks.
+--
+-- A message in chat_messages is part of a chat's history, and deleting it
+-- would rewrite a conversation. Stop instead, so that nothing is erased.
+DO $$
+DECLARE
+	pending bigint;
+BEGIN
+	SELECT count(*) INTO pending FROM chat_messages WHERE prompt_hooks_pending;
+	IF pending > 0 THEN
+		RAISE EXCEPTION 'migration 000642 down: % chat messages still wait for their prompt hooks', pending
+			USING HINT = 'Let chatd start their turns, or delete these messages, then run the down migration again.';
+	END IF;
+END;
+$$;
+
+-- A queued message has not entered the history yet, so delete it.
 DELETE FROM chat_queued_messages WHERE automation_id IS NOT NULL OR prompt_hooks_pending;
 
 -- Dropping a column drops its indexes.
@@ -171,10 +185,52 @@ CREATE VIEW chats_expanded AS
 -- cannot drop an enum value, so recreate the type as 000616 did. LIKE treats
 -- an unescaped underscore as a wildcard, so the patterns escape it.
 --
--- The scopes column cannot hold a removed value. Keys left with no other
--- scope are revoked. API key allow lists, custom role permissions and
--- OAuth2 scopes are not enum-typed and stay as they are, so a binary without
--- the chat_automation resource can fail to load a row that names it.
+-- A binary without the chat_automation resource cannot load a custom role
+-- permission or an API key allow list entry that names it, and the scopes
+-- column cannot hold a removed value. Remove all three, as 000616 did. A key
+-- left with no scope or with an empty allow list is revoked. OAuth2 grants
+-- need no cleanup: they hold external scopes only, and these five are
+-- internal.
+UPDATE custom_roles
+SET site_permissions = COALESCE((
+    SELECT jsonb_agg(elem)
+    FROM jsonb_array_elements(site_permissions) elem
+    WHERE elem->>'resource_type' != 'chat_automation'
+), '[]'::jsonb)
+WHERE site_permissions @> '[{"resource_type": "chat_automation"}]';
+
+UPDATE custom_roles
+SET org_permissions = COALESCE((
+    SELECT jsonb_agg(elem)
+    FROM jsonb_array_elements(org_permissions) elem
+    WHERE elem->>'resource_type' != 'chat_automation'
+), '[]'::jsonb)
+WHERE org_permissions @> '[{"resource_type": "chat_automation"}]';
+
+UPDATE custom_roles
+SET user_permissions = COALESCE((
+    SELECT jsonb_agg(elem)
+    FROM jsonb_array_elements(user_permissions) elem
+    WHERE elem->>'resource_type' != 'chat_automation'
+), '[]'::jsonb)
+WHERE user_permissions @> '[{"resource_type": "chat_automation"}]';
+
+UPDATE custom_roles
+SET member_permissions = COALESCE((
+    SELECT jsonb_agg(elem)
+    FROM jsonb_array_elements(member_permissions) elem
+    WHERE elem->>'resource_type' != 'chat_automation'
+), '[]'::jsonb)
+WHERE member_permissions @> '[{"resource_type": "chat_automation"}]';
+
+DELETE FROM api_keys
+WHERE EXISTS (SELECT 1 FROM unnest(allow_list) e WHERE e LIKE 'chat\_automation:%')
+  AND NOT EXISTS (SELECT 1 FROM unnest(allow_list) e WHERE e NOT LIKE 'chat\_automation:%');
+
+UPDATE api_keys
+SET allow_list = ARRAY(SELECT e FROM unnest(allow_list) e WHERE e NOT LIKE 'chat\_automation:%')
+WHERE EXISTS (SELECT 1 FROM unnest(allow_list) e WHERE e LIKE 'chat\_automation:%');
+
 DELETE FROM api_keys
 WHERE EXISTS (SELECT 1 FROM unnest(scopes) s WHERE s::text LIKE 'chat\_automation:%')
   AND NOT EXISTS (SELECT 1 FROM unnest(scopes) s WHERE s::text NOT LIKE 'chat\_automation:%');
