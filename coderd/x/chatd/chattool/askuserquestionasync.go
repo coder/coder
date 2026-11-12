@@ -21,7 +21,7 @@ const (
 	askUserQuestionAsyncStatusFormat = "The questions are shown to the user. " +
 		"Continue with work that does not depend on the answer, and state the assumptions you make. " +
 		"If you cannot continue without the answer, finish what you can and end your turn with a note of what is blocked. " +
-		"The answer arrives as a user message that starts with \"Answer to ask_user_question_async %s:\"."
+		"The answer arrives as a user message that starts with %q."
 )
 
 var (
@@ -79,9 +79,10 @@ func (*askUserQuestionAsyncTool) Run(_ context.Context, call fantasy.ToolCall) (
 // new question_id.
 func asyncQuestionResponse() fantasy.ToolResponse {
 	questionID := uuid.NewString()
+	answerLine := AskUserQuestionAsyncAnswerLine(questionID)
 	result := askUserQuestionAsyncResult{
 		QuestionID: questionID,
-		Status:     fmt.Sprintf(askUserQuestionAsyncStatusFormat, questionID),
+		Status:     fmt.Sprintf(askUserQuestionAsyncStatusFormat, answerLine),
 	}
 	data, err := json.Marshal(result)
 	if err != nil {
@@ -97,6 +98,12 @@ func (t *askUserQuestionAsyncTool) ProviderOptions() fantasy.ProviderOptions {
 
 func (t *askUserQuestionAsyncTool) SetProviderOptions(opts fantasy.ProviderOptions) {
 	t.providerOptions = opts
+}
+
+// AskUserQuestionAsyncAnswerLine returns the line that starts the model's
+// view of a user message that answers the question with questionID.
+func AskUserQuestionAsyncAnswerLine(questionID string) string {
+	return fmt.Sprintf("Answer to %s %s:", AskUserQuestionAsyncName, questionID)
 }
 
 // FirstAskedQuestion returns the text of the first question in the
