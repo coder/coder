@@ -400,8 +400,10 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 		Math.max(filteredQuestions.length - 1, 0),
 	);
 	const currentAnswer = answers[activeQuestionIndex];
-	const isInteractive = onSubmitAnswer !== undefined;
 	const isSubmitting = submitAnswerMutation.isPending;
+	// The page withholds onSubmitAnswer while any send is pending, which
+	// includes the send this form started.
+	const isInteractive = onSubmitAnswer !== undefined || isSubmitting;
 	const submitError = getSubmissionErrorMessage(submitAnswerMutation.error);
 	const canAdvanceToNextQuestion = isAnswerValid(currentAnswer);
 	const canSubmitAllAnswers = filteredQuestions.every((_, questionIndex) =>
