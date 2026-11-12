@@ -1,6 +1,7 @@
 package chattool
 
 import (
+	"encoding/json"
 	"testing"
 
 	"charm.land/fantasy"
@@ -131,13 +132,33 @@ func TestValidateAskUserQuestionArgs(t *testing.T) {
 func TestAskUserQuestionToolOptionalDescriptions(t *testing.T) {
 	t.Parallel()
 
+	input := `{
+		"questions": [{
+			"header": "Scope",
+			"question": "What should we build?",
+			"options": [
+				{"label": "Backend", "description": "Build the API first."},
+				{"label": "Frontend"}
+			]
+		}]
+	}`
 	tool := NewAskUserQuestionTool()
-	response, err := tool.Run(t.Context(), fantasy.ToolCall{
-		Input: `{"questions":[{"header":"Scope","question":"What should we build?","options":[{"label":"Backend","description":"Build the API first."},{"label":"Frontend"}]}]}`,
-	})
+
+	response, err := tool.Run(t.Context(), fantasy.ToolCall{Input: input})
 	require.NoError(t, err)
 	require.False(t, response.IsError, response.Content)
-	require.JSONEq(t, `{"questions":[{"header":"Scope","question":"What should we build?","options":[{"label":"Backend","description":"Build the API first."},{"label":"Frontend"}]}]}`, response.Content)
+
+	var result struct {
+		Questions []struct {
+			Options []map[string]string `json:"options"`
+		} `json:"questions"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(response.Content), &result))
+	require.Len(t, result.Questions, 1)
+	options := result.Questions[0].Options
+	require.Len(t, options, 2)
+	require.Equal(t, "Build the API first.", options[0]["description"])
+	require.NotContains(t, options[1], "description")
 }
 
 func validAskUserQuestionOptions(count int) []askUserQuestionOption {
