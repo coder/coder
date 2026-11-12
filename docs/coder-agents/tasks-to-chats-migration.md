@@ -184,7 +184,7 @@ Each event has a `type` field:
 | `message_part`    | A chunk of the agent's response (text, tool call, etc.)                                                                 |
 | `preview_reset`   | Remove the `message_part` content that you received before this event                                                   |
 | `message`         | A message was created, so add the message or replace your message that has the same ID                                  |
-| `history_reset`   | An edit removed messages, so remove your messages that have an ID of `history_reset.from_message_id` or higher          |
+| `history_reset`   | An edit deleted messages, so delete your messages that have an ID of `history_reset.from_message_id` or higher          |
 | `status`          | The chat status changed (e.g., `running` → `waiting`)                                                                   |
 | `error`           | An error occurred during processing                                                                                     |
 | `retry`           | The control plane is retrying a failed LLM call                                                                         |
@@ -214,7 +214,7 @@ If a retry is pending, the server also sends the `retry` event again.
 
 Do not reconnect with `after_id`.
 Suppose your client misses an edit, then sends a message and reconnects with that message's ID as `after_id`.
-The stream doesn't remove the messages that the edit removed.
+The stream doesn't send a `history_reset` event for that edit, so your client keeps the messages that the edit deleted.
 It also doesn't send the messages written between the edit and your message.
 
 The stream can send a change that your client already has.
