@@ -34,6 +34,10 @@ import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
 // - Pages that are secondary, not in the main navigation or not usually accessed
 // - Pages that use heavy dependencies like charts or time libraries
 const NotFoundPage = lazy(() => import("./pages/NotFoundPage/NotFoundPage"));
+const RunnersLayout = lazy(() => import("./pages/RunnersPage/RunnersLayout"));
+const RunnersPage = lazy(() => import("./pages/RunnersPage/RunnersPage"));
+const RunnerFormPage = lazy(() => import("./pages/RunnersPage/RunnerFormPage"));
+const RunnerPage = lazy(() => import("./pages/RunnersPage/RunnerPage"));
 const DeploymentSettingsLayout = lazy(
 	() => import("./modules/management/DeploymentSettingsLayout"),
 );
@@ -595,6 +599,13 @@ export const router = createBrowserRouter(
 					/>
 
 					<Route path="/workspaces" element={<WorkspacesPage />} />
+
+					<Route path="/runners" element={<RunnersLayout />}>
+						<Route index element={<RunnersPage />} />
+						<Route path="new" element={<RunnerFormPage />} />
+						<Route path=":id" element={<RunnerPage />} />
+						<Route path=":id/edit" element={<RunnerFormPage />} />
+					</Route>
 
 					<Route path="/starter-templates">
 						<Route index element={<CreateTemplateGalleryPage />} />

@@ -34,6 +34,11 @@ export const AdminSettingsItems: React.FC<AdminSettingsItemsProps> = ({
 		<>
 			{permissions.canViewDeployment && (
 				<DropdownMenuItem asChild className={itemClassName}>
+					<Link to="/runners">Runners</Link>
+				</DropdownMenuItem>
+			)}
+			{permissions.canViewDeployment && (
+				<DropdownMenuItem asChild className={itemClassName}>
 					<Link to="/deployment">Deployment</Link>
 				</DropdownMenuItem>
 			)}
