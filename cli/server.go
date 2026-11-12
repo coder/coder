@@ -103,7 +103,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
-	"github.com/coder/coder/v2/coderd/x/agentsandbox"
+	"github.com/coder/coder/v2/coderd/x/podidentity"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -674,7 +674,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			// The cluster that vouches for workspace daemons that
 			// authenticate as the pod they run in.
-			sandboxCluster, err := agentsandbox.ClusterFromEnv(inv.Environ.Get, vals.AccessURL.String())
+			podIdentityCluster, err := podidentity.ClusterFromEnv(inv.Environ.Get, vals.AccessURL.String())
 			if err != nil {
 				return err
 			}
@@ -770,7 +770,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Pubsub:                      nil,
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
-				SandboxCluster:              sandboxCluster,
+				PodIdentity:                 podIdentityCluster,
 				ExternalAuthConfigs:         nil,
 				RealIPConfig:                realIPConfig,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,

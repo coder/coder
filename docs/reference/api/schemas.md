@@ -125,11 +125,11 @@ title: Schemas
 
 ### Properties
 
-| Name           | Type    | Required | Restrictions | Description                                                                                                                                                                      |
-|----------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent_name`   | string  | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified.                                 |
-| `token`        | string  | true     |              | Token is the pod's projected service account token.                                                                                                                              |
-| `wait_seconds` | integer | false    |              | Wait seconds asks coderd to hold the request for up to this long when no workspace has claimed the pod yet. A pod from a warm pool runs its daemon before it belongs to anybody. |
+| Name           | Type    | Required | Restrictions | Description                                                                                                                                                                             |
+|----------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name`   | string  | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified.                                        |
+| `token`        | string  | true     |              | Token is the pod's projected service account token.                                                                                                                                     |
+| `wait_seconds` | integer | false    |              | Wait seconds asks coderd to hold the request for up to this long when no workspace build has registered the pod yet. A pod's daemon starts before the build that makes the pod is over. |
 
 ## agentsdk.Log
 

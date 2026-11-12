@@ -32,7 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
-	"github.com/coder/coder/v2/coderd/x/agentsandbox"
+	"github.com/coder/coder/v2/coderd/x/podidentity"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/websocket"
@@ -1489,7 +1489,7 @@ func (api *API) issueWorkloadToken(ctx context.Context, identity database.Worklo
 // on: the cluster's word for which pod the daemon runs in, or an agent
 // token.
 func workloadAttestation(agent database.WorkspaceAgent) (codersdk.WorkloadAttestation, string) {
-	if strings.HasPrefix(agent.AuthInstanceID.String, agentsandbox.InstanceIDPrefix) {
+	if strings.HasPrefix(agent.AuthInstanceID.String, podidentity.InstanceIDPrefix) {
 		return codersdk.WorkloadAttestationKubernetesPod, agent.AuthInstanceID.String
 	}
 	return codersdk.WorkloadAttestationAgentToken, ""

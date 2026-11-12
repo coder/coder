@@ -18,7 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/x/agentsandbox/agentsandboxtest"
+	"github.com/coder/coder/v2/coderd/x/podidentity/podidentitytest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -556,8 +556,8 @@ func TestPostWorkspaceAuthKubernetesPodIdentity(t *testing.T) {
 
 	t.Run("Refused", func(t *testing.T) {
 		t.Parallel()
-		cluster := agentsandboxtest.NewCluster(t)
-		client := coderdtest.New(t, &coderdtest.Options{SandboxCluster: cluster.AsCluster()})
+		cluster := podidentitytest.NewCluster(t)
+		client := coderdtest.New(t, &coderdtest.Options{PodIdentity: cluster.AsCluster()})
 		// Whatever the cluster does not confirm as a pod's token is refused,
 		// and refused at once: there is no pod to wait for.
 		for name, token := range map[string]string{
@@ -573,16 +573,32 @@ func TestPostWorkspaceAuthKubernetesPodIdentity(t *testing.T) {
 		}
 	})
 
-	t.Run("WaitsToBeClaimed", func(t *testing.T) {
+	t.Run("OtherNamespace", func(t *testing.T) {
 		t.Parallel()
-		cluster := agentsandboxtest.NewCluster(t)
-		// The pod runs its daemon before any workspace has claimed it, as
-		// a pod of a warm pool does.
-		pod := cluster.NewPod("warm-1")
-		stranger := cluster.NewPod("warm-2")
+		cluster := podidentitytest.NewCluster(t)
+		// The token is a pod's, and genuine. The pod is not in the
+		// namespace this deployment accepts pods from.
+		accepted := cluster.AsCluster()
+		accepted.Namespace = "elsewhere"
+		client := coderdtest.New(t, &coderdtest.Options{PodIdentity: accepted})
+		ctx := testutil.Context(t, testutil.WaitShort)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithKubernetesPodIdentity(tokenFile(t, cluster.NewPod("pod-1").Token)))
+		err := agentClient.RefreshToken(ctx)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+	})
+
+	t.Run("WaitsToBeRegistered", func(t *testing.T) {
+		t.Parallel()
+		cluster := podidentitytest.NewCluster(t)
+		// The pod runs its daemon before a workspace build has registered
+		// it: the build that makes the pod is not over yet.
+		pod := cluster.NewPod("pod-1")
+		stranger := cluster.NewPod("pod-2")
 
 		client, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			SandboxCluster:           cluster.AsCluster(),
+			PodIdentity:              cluster.AsCluster(),
 			IncludeProvisionerDaemon: true,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -591,15 +607,15 @@ func TestPostWorkspaceAuthKubernetesPodIdentity(t *testing.T) {
 		agentClient := agentsdk.New(client.URL, agentsdk.WithKubernetesPodIdentity(tokenFile(t, pod.Token)))
 		authenticated := make(chan error, 1)
 		go func() { authenticated <- agentClient.RefreshToken(ctx) }()
-		// Nobody has claimed the pod: its daemon is nobody, and waits.
+		// Nobody has registered the pod: its daemon is nobody, and waits.
 		select {
 		case err := <-authenticated:
-			t.Fatalf("a pod that no workspace has claimed was answered: %v", err)
+			t.Fatalf("a pod that no workspace build has registered was answered: %v", err)
 		case <-time.After(testutil.IntervalSlow):
 		}
 
-		// A workspace build registers the pod, as the sandbox provisioner
-		// does once it has claimed it.
+		// A workspace build registers the pod, as a template does with
+		// coder_agent_instance.
 		instanceID := "k8s-pod:" + pod.UID
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
 			Parse: echo.ParseComplete,
@@ -608,7 +624,7 @@ func TestPostWorkspaceAuthKubernetesPodIdentity(t *testing.T) {
 					Graph: &proto.GraphComplete{
 						Resources: []*proto.Resource{{
 							Name:   "pod",
-							Type:   "agent_sandbox",
+							Type:   "kubernetes_pod_v1",
 							Agents: workspaceAgentsForInstanceID(instanceID, "main"),
 						}},
 					},

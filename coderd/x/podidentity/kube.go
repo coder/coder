@@ -1,12 +1,4 @@
-// Package agentsandbox lets Coder run workloads in pods that the Kubernetes
-// Agent Sandbox project (agents.x-k8s.io) keeps warm.
-//
-// Coder claims a sandbox from a warm pool, which hands over a pod that is
-// already running a workspace daemon. That daemon proves which pod it is
-// with the token the kubelet gave the pod, and Coder asks the cluster whether
-// the token is genuine. The cluster, and nothing inside the pod, decides who
-// the pod is.
-package agentsandbox
+package podidentity
 
 import (
 	"bytes"

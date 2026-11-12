@@ -1,4 +1,4 @@
-package agentsandbox
+package podidentity
 
 import (
 	"golang.org/x/xerrors"
@@ -10,15 +10,15 @@ import (
 const (
 	// EnvNamespace is the namespace such pods must run in. Setting it
 	// turns authentication by pod identity on.
-	EnvNamespace = "CODER_SANDBOX_KUBE_NAMESPACE"
+	EnvNamespace = "CODER_POD_IDENTITY_NAMESPACE"
 	// EnvKubeURL, EnvKubeTokenFile and EnvKubeCAFile say how to reach the
 	// cluster. Without them coderd uses the cluster it runs in.
-	EnvKubeURL       = "CODER_SANDBOX_KUBE_URL"
-	EnvKubeTokenFile = "CODER_SANDBOX_KUBE_TOKEN_FILE" //nolint:gosec // The name of a variable.
-	EnvKubeCAFile    = "CODER_SANDBOX_KUBE_CA_FILE"
+	EnvKubeURL       = "CODER_POD_IDENTITY_KUBE_URL"
+	EnvKubeTokenFile = "CODER_POD_IDENTITY_KUBE_TOKEN_FILE" //nolint:gosec // The name of a variable.
+	EnvKubeCAFile    = "CODER_POD_IDENTITY_KUBE_CA_FILE"
 	// EnvAudience is the audience pod tokens must be issued for. It
 	// defaults to the access URL.
-	EnvAudience = "CODER_SANDBOX_AUDIENCE"
+	EnvAudience = "CODER_POD_IDENTITY_AUDIENCE"
 )
 
 // Cluster is the cluster that vouches for pods.

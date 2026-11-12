@@ -94,7 +94,7 @@ import (
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
-	"github.com/coder/coder/v2/coderd/x/agentsandbox"
+	"github.com/coder/coder/v2/coderd/x/podidentity"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -127,8 +127,8 @@ type Options struct {
 	RealIPConfig         *httpmw.RealIPConfig
 	OIDCConfig           *coderd.OIDCConfig
 	GoogleTokenValidator *idtoken.Validator
-	// SandboxCluster turns on Kubernetes pod identity for workspace daemons.
-	SandboxCluster      *agentsandbox.Cluster
+	// PodIdentity turns on Kubernetes pod identity for workspace daemons.
+	PodIdentity         *podidentity.Cluster
 	SSHKeygenAlgorithm  gitsshkey.Algorithm
 	AutobuildTicker     <-chan time.Time
 	AutobuildStats      chan<- autobuild.Stats
@@ -652,7 +652,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			RealIPConfig:                       options.RealIPConfig,
 			OIDCConfig:                         options.OIDCConfig,
 			GoogleTokenValidator:               options.GoogleTokenValidator,
-			SandboxCluster:                     options.SandboxCluster,
+			PodIdentity:                        options.PodIdentity,
 			SSHKeygenAlgorithm:                 options.SSHKeygenAlgorithm,
 			DERPServer:                         derpServer,
 			APIRateLimit:                       options.APIRateLimit,

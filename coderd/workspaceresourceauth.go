@@ -16,7 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/azureidentity"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/x/agentsandbox"
+	"github.com/coder/coder/v2/coderd/x/podidentity"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
@@ -142,9 +142,10 @@ const maxKubernetesPodIdentityWait = 30 * time.Second
 // the token is genuine, for whom it was issued, and to which pod it is
 // bound. Nothing the pod says about itself is believed.
 //
-// A pod from a warm pool runs its daemon before any workspace has claimed
-// it. Such a pod is told to wait: the request is held until a workspace
-// build registers the pod, or the wait runs out.
+// A pod's daemon starts before the build that makes the pod is over, and
+// so before the pod is registered as the workspace's. Such a pod is told
+// to wait: the request is held until a workspace build registers the pod,
+// or the wait runs out.
 //
 // @Summary Authenticate agent in a Kubernetes pod
 // @ID authenticate-agent-in-a-kubernetes-pod
@@ -157,8 +158,8 @@ const maxKubernetesPodIdentityWait = 30 * time.Second
 // @Router /api/v2/workspaceagents/kubernetes-pod-identity [post]
 func (api *API) postWorkspaceAuthKubernetesPodIdentity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	if api.SandboxCluster == nil {
-		// Not found would tell a pod to wait to be claimed.
+	if api.PodIdentity == nil {
+		// Not found would tell a pod to wait to be registered.
 		httpapi.Write(ctx, rw, http.StatusNotImplemented, codersdk.Response{
 			Message: "Kubernetes pod identity is not configured on this deployment.",
 		})
@@ -168,13 +169,20 @@ func (api *API) postWorkspaceAuthKubernetesPodIdentity(rw http.ResponseWriter, r
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	pod, err := api.SandboxCluster.Attestor.Attest(ctx, req.Token)
+	pod, err := api.PodIdentity.Attestor.Attest(ctx, req.Token)
 	if err != nil {
-		if !errors.Is(err, agentsandbox.ErrNotAttested) {
+		if !errors.Is(err, podidentity.ErrNotAttested) {
 			api.Logger.Warn(ctx, "ask the cluster about a pod token", slog.Error(err))
 		}
 		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 			Message: "The cluster did not confirm the token as a pod's.",
+		})
+		return
+	}
+	// Only pods of the namespace that was set up for workspaces count.
+	if pod.Namespace != api.PodIdentity.Namespace {
+		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+			Message: "The pod is not in the namespace this deployment accepts pods from.",
 		})
 		return
 	}
@@ -185,7 +193,7 @@ func (api *API) postWorkspaceAuthKubernetesPodIdentity(rw http.ResponseWriter, r
 		claimed := make(chan struct{}, 1)
 		// Listening comes before looking, so that a claim in between is
 		// not missed.
-		unsubscribe, err := api.Pubsub.Subscribe(agentsandbox.ClaimedChannel(instanceID), func(context.Context, []byte) {
+		unsubscribe, err := api.Pubsub.Subscribe(podidentity.RegisteredChannel(instanceID), func(context.Context, []byte) {
 			select {
 			case claimed <- struct{}{}:
 			default:

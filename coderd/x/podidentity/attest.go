@@ -1,4 +1,9 @@
-package agentsandbox
+// Package podidentity lets a workspace daemon prove which Kubernetes pod it
+// runs in. The daemon presents the token the kubelet obtained for its pod,
+// and the cluster says whose it is. A template registers the pod's UID as
+// the instance ID of the workspace's agent, with coder_agent_instance, so
+// no credential of Coder's is in the pod's spec.
+package podidentity
 
 import (
 	"context"
@@ -15,15 +20,15 @@ import (
 // identity is a Kubernetes pod. The pod's UID follows.
 const InstanceIDPrefix = "k8s-pod:"
 
-// ClaimedChannel is where it is announced that a workspace build registered
-// a pod as a resource, so that the pod's daemon need not ask again and
-// again whether anybody has claimed it.
-func ClaimedChannel(instanceID string) string {
-	return "k8s_pod_claimed:" + strings.TrimPrefix(instanceID, InstanceIDPrefix)
+// RegisteredChannel is where it is announced that a workspace build
+// registered a pod as a resource. A pod's daemon starts before the build
+// that makes the pod is over, and waits for this.
+func RegisteredChannel(instanceID string) string {
+	return "k8s_pod_registered:" + strings.TrimPrefix(instanceID, InstanceIDPrefix)
 }
 
-// PodIdentity is what a cluster says about the bearer of a pod's token.
-type PodIdentity struct {
+// Pod is what a cluster says about the bearer of a pod's token.
+type Pod struct {
 	Namespace      string
 	ServiceAccount string
 	PodName        string
@@ -32,13 +37,13 @@ type PodIdentity struct {
 }
 
 // InstanceID is the instance ID of the workspace daemon in the pod.
-func (p PodIdentity) InstanceID() string {
+func (p Pod) InstanceID() string {
 	return InstanceIDPrefix + p.PodUID
 }
 
 // reviewCacheTTL bounds how long the cluster's answer about a token is
-// reused. A daemon that waits to be claimed asks again and again with the
-// same token.
+// reused. A daemon that waits for its pod to be registered asks again and
+// again with the same token.
 const reviewCacheTTL = 30 * time.Second
 
 // Attestor asks a cluster whose token something is.
@@ -53,7 +58,7 @@ type Attestor struct {
 }
 
 type cachedReview struct {
-	identity PodIdentity
+	identity Pod
 	expires  time.Time
 }
 
@@ -90,7 +95,7 @@ var ErrNotAttested = xerrors.New("the cluster did not confirm the token as a pod
 
 // Attest returns the pod a token was issued to. The cluster checks the
 // signature, the expiry and the audience, and that the pod still exists.
-func (a *Attestor) Attest(ctx context.Context, token string) (PodIdentity, error) {
+func (a *Attestor) Attest(ctx context.Context, token string) (Pod, error) {
 	key := sha256.Sum256([]byte(token))
 	now := time.Now()
 	a.mu.Lock()
@@ -109,10 +114,10 @@ func (a *Attestor) Attest(ctx context.Context, token string) (PodIdentity, error
 	review.APIVersion, review.Kind = "authentication.k8s.io/v1", "TokenReview"
 	review.Spec.Token, review.Spec.Audiences = token, []string{a.audience}
 	if err := a.kube.Do(ctx, http.MethodPost, "/apis/authentication.k8s.io/v1/tokenreviews", review, &review); err != nil {
-		return PodIdentity{}, xerrors.Errorf("review token: %w", err)
+		return Pod{}, xerrors.Errorf("review token: %w", err)
 	}
 	if !review.Status.Authenticated {
-		return PodIdentity{}, xerrors.Errorf("%w: %s", ErrNotAttested, review.Status.Error)
+		return Pod{}, xerrors.Errorf("%w: %s", ErrNotAttested, review.Status.Error)
 	}
 	// A token that is not bound to a pod is some other credential of the
 	// service account, for example one made with `kubectl create token`.
@@ -122,14 +127,14 @@ func (a *Attestor) Attest(ctx context.Context, token string) (PodIdentity, error
 		}
 		return ""
 	}
-	identity := PodIdentity{PodName: extra("pod-name"), PodUID: extra("pod-uid"), NodeName: extra("node-name")}
+	identity := Pod{PodName: extra("pod-name"), PodUID: extra("pod-uid"), NodeName: extra("node-name")}
 	if identity.PodUID == "" || identity.PodName == "" {
-		return PodIdentity{}, xerrors.Errorf("%w: the token is not bound to a pod", ErrNotAttested)
+		return Pod{}, xerrors.Errorf("%w: the token is not bound to a pod", ErrNotAttested)
 	}
 	// system:serviceaccount:<namespace>:<name>
 	identity.Namespace, identity.ServiceAccount, ok = parseServiceAccountUsername(review.Status.User.Username)
 	if !ok {
-		return PodIdentity{}, xerrors.Errorf("%w: %q is not a service account", ErrNotAttested, review.Status.User.Username)
+		return Pod{}, xerrors.Errorf("%w: %q is not a service account", ErrNotAttested, review.Status.User.Username)
 	}
 
 	a.mu.Lock()

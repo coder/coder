@@ -56,10 +56,10 @@ kubectl apply -f cluster/namespace.yaml -f cluster/coder.yaml -f cluster/users.y
 kubectl -n coder-sandbox-workloads create token coder-server --duration 720h > kube-token
 
 CODER_EXPERIMENTS=runtime-workloads \
-CODER_SANDBOX_KUBE_NAMESPACE=coder-sandbox-workloads \
-CODER_SANDBOX_KUBE_URL=https://<api-server> \
-CODER_SANDBOX_KUBE_CA_FILE=ca.crt \
-CODER_SANDBOX_KUBE_TOKEN_FILE=kube-token \
+CODER_POD_IDENTITY_NAMESPACE=coder-sandbox-workloads \
+CODER_POD_IDENTITY_KUBE_URL=https://<api-server> \
+CODER_POD_IDENTITY_KUBE_CA_FILE=ca.crt \
+CODER_POD_IDENTITY_KUBE_TOKEN_FILE=kube-token \
 coder server
 
 coder templates push prebuilt -d template \
@@ -100,8 +100,9 @@ claimed workspace is replaced. The default is one minute.
 - **The sponsor's access to the template counts.** coderd makes and deletes
   the workspace as the identity, and lets it use the template because its
   sponsor may. The template need not be open to everybody.
-- **Pod identity.** The daemon proves which pod it is. The template holds no
-  token. A prebuilt workspace's daemon gets a new credential when the
+- **Pod identity.** The daemon proves which pod it is with the kubelet's
+  token, and coderd asks the cluster whose token it is. Pods outside the
+  namespace coderd was given are refused. The template holds no token. A prebuilt workspace's daemon gets a new credential when the
   workspace is claimed, because the pod is found by its UID and not by a
   token.
 - **No session token for an identity.** A build normally hands Terraform a
@@ -120,6 +121,11 @@ claimed workspace is replaced. The default is one minute.
   whatever its scopes.
 - **The template must not need the owner's external authentication.** An
   identity has none, by design.
+- **coderd believes the template about which pod is which agent's.** A
+  template registers a pod's UID as its agent's instance. Whoever may
+  write templates could register somebody else's pod.
+- **The template names another kind of instance identity.** The Terraform
+  provider has no `kubernetes` authentication type yet.
 - **The workload and its pod's daemon are one principal.** The workload can
   read the pod's token, and with it be the daemon.
 - **A sponsor who enters the workspace is inside the workload's pod** and

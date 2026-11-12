@@ -17807,7 +17807,7 @@
 					"type": "string"
 				},
 				"wait_seconds": {
-					"description": "WaitSeconds asks coderd to hold the request for up to this long when\nno workspace has claimed the pod yet. A pod from a warm pool runs\nits daemon before it belongs to anybody.",
+					"description": "WaitSeconds asks coderd to hold the request for up to this long when\nno workspace build has registered the pod yet. A pod's daemon\nstarts before the build that makes the pod is over.",
 					"type": "integer"
 				}
 			}

@@ -19,7 +19,7 @@ import (
 const DefaultKubernetesPodTokenPath = "/var/run/secrets/coder.com/identity/token" //nolint:gosec // A path, not a credential.
 
 // kubernetesPodIdentityWait is how long coderd is asked to hold a request
-// from a pod that no workspace has claimed yet.
+// from a pod that no workspace build has registered yet.
 const kubernetesPodIdentityWait = 25 * time.Second
 
 // KubernetesPodIdentityToken is what a workspace daemon in a Kubernetes pod
@@ -28,8 +28,8 @@ type KubernetesPodIdentityToken struct {
 	// Token is the pod's projected service account token.
 	Token string `json:"token" validate:"required"`
 	// WaitSeconds asks coderd to hold the request for up to this long when
-	// no workspace has claimed the pod yet. A pod from a warm pool runs
-	// its daemon before it belongs to anybody.
+	// no workspace build has registered the pod yet. A pod's daemon
+	// starts before the build that makes the pod is over.
 	WaitSeconds int `json:"wait_seconds,omitempty"`
 	// AgentName optionally selects a specific agent when multiple
 	// agents share the same instance identity. An empty string is
@@ -60,7 +60,8 @@ func WithKubernetesPodIdentity(tokenFile string, opts ...InstanceIdentityOption)
 	}
 }
 
-// exchange presents the pod's token until a workspace has claimed the pod.
+// exchange presents the pod's token until a workspace build has registered
+// the pod.
 // The pod must be registered as a resource in the latest build of a
 // workspace.
 func (k *KubernetesSessionTokenExchanger) exchange(ctx context.Context) (AuthenticateResponse, error) {
@@ -77,16 +78,16 @@ func (k *KubernetesSessionTokenExchanger) exchange(ctx context.Context) (Authent
 		}
 		// A refusal is final. Anything else, such as coderd restarting,
 		// is waited out here: the daemon's own retry backs off to many
-		// seconds, which a pod that waits to be claimed cannot afford.
+		// seconds, which a pod that waits to be registered cannot afford.
 		var refused *codersdk.Error
 		if err != nil && (ctx.Err() != nil || (xerrors.As(err, &refused) &&
 			(refused.StatusCode() < http.StatusInternalServerError || refused.StatusCode() == http.StatusNotImplemented))) {
 			return AuthenticateResponse{}, err
 		}
-		// Not claimed yet. coderd normally holds the request, so asking
+		// Not registered yet. coderd normally holds the request, so asking
 		// again at once is the wait. Do not spin if it answered early.
 		if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) < 3*time.Second {
-			return AuthenticateResponse{}, xerrors.New("no workspace has claimed this pod yet")
+			return AuthenticateResponse{}, xerrors.New("no workspace build has registered this pod yet")
 		}
 		if rest := time.Second - time.Since(started); rest > 0 {
 			select {

@@ -1,6 +1,6 @@
-// Package agentsandboxtest provides a stand-in for a cluster that vouches
+// Package podidentitytest provides a stand-in for a cluster that vouches
 // for pods.
-package agentsandboxtest
+package podidentitytest
 
 import (
 	"encoding/json"
@@ -15,7 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd/x/agentsandbox"
+	"github.com/coder/coder/v2/coderd/x/podidentity"
 )
 
 // Pod is a pod of the fake cluster.
@@ -31,7 +31,7 @@ type Cluster struct {
 	t      testing.TB
 	server *httptest.Server
 	// Kube is a client for the fake.
-	Kube *agentsandbox.KubeClient
+	Kube *podidentity.KubeClient
 	// Audience is what the fake's pod tokens are issued for.
 	Audience string
 	// Namespace is the only namespace of the fake.
@@ -59,15 +59,15 @@ func NewCluster(t testing.TB) *Cluster {
 	}), 0o600))
 	token := filepath.Join(dir, "token")
 	require.NoError(t, os.WriteFile(token, []byte("coder-server-token\n"), 0o600))
-	kube, err := agentsandbox.NewKubeClient(agentsandbox.KubeConfig{URL: c.server.URL, TokenFile: token, CAFile: ca})
+	kube, err := podidentity.NewKubeClient(podidentity.KubeConfig{URL: c.server.URL, TokenFile: token, CAFile: ca})
 	require.NoError(t, err)
 	c.Kube = kube
 	return c
 }
 
 // AsCluster returns the fake as coderd is configured with it.
-func (c *Cluster) AsCluster() *agentsandbox.Cluster {
-	return &agentsandbox.Cluster{Kube: c.Kube, Namespace: c.Namespace, Attestor: agentsandbox.NewAttestor(c.Kube, c.Audience)}
+func (c *Cluster) AsCluster() *podidentity.Cluster {
+	return &podidentity.Cluster{Kube: c.Kube, Namespace: c.Namespace, Attestor: podidentity.NewAttestor(c.Kube, c.Audience)}
 }
 
 // NewPod adds a pod, with a token of its own.
