@@ -79,9 +79,9 @@ func Test_readStateFile_Rejects(t *testing.T) {
 	})
 }
 
-// stateFileTestFiles is a template that leaves every kind of entry Coder
-// reads from state in the state file, with keys and modules that exercise
-// how `terraform show -json` orders and addresses them.
+// stateFileTestFiles is a template whose state exercises how `terraform show
+// -json` orders and addresses entries: data sources, counted and keyed
+// resources and modules, nested modules, and unusual keys.
 var stateFileTestFiles = map[string]string{
 	"main.tf": `
 terraform {

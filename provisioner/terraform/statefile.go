@@ -23,13 +23,19 @@ import (
 // once minTerraformVersion reaches it.
 var minStateFileTerraformVersion = version.Must(version.NewVersion("1.4.0"))
 
-// errStateFileTerraformVersion reports a state file from a Terraform version
-// whose `terraform show -json` output readStateFile is not known to
-// reproduce.
-var errStateFileTerraformVersion = xerrors.New("unsupported terraform version")
+// errUnsupportedStateFile reports a state file that readStateFile leaves to
+// `terraform show`: another format, or a Terraform version whose `show -json`
+// output it is not known to reproduce.
+var errUnsupportedStateFile = xerrors.New("unsupported state file")
 
-// stateFile is the part of a Terraform state file that Coder reads. The
-// format is version 4, which Terraform has written since 0.12.
+// stateFileFormatVersion is the format Terraform has written since 0.12.
+const stateFileFormatVersion = 4
+
+// showFormatVersion is the format of the `terraform show -json` output that
+// readStateFile reproduces.
+const showFormatVersion = "1.0"
+
+// stateFile is the part of a Terraform state file that Coder reads.
 type stateFile struct {
 	Version          int                 `json:"version"`
 	TerraformVersion string              `json:"terraform_version"`
@@ -75,8 +81,9 @@ type stateFileInstance struct {
 func readStateFile(path string) (*tfjson.State, error) {
 	content, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		// No state file means an empty state.
-		return &tfjson.State{FormatVersion: "1.0"}, nil
+		// `terraform show -json` also reports a missing state file as an
+		// empty state.
+		return &tfjson.State{FormatVersion: showFormatVersion}, nil
 	}
 	if err != nil {
 		return nil, xerrors.Errorf("read state file: %w", err)
@@ -90,21 +97,21 @@ func parseStateFile(content []byte) (*tfjson.State, error) {
 	if err := json.Unmarshal(content, &file); err != nil {
 		return nil, xerrors.Errorf("decode state file: %w", err)
 	}
-	if file.Version != 4 {
-		return nil, xerrors.Errorf("unsupported state file version %d", file.Version)
+	if file.Version != stateFileFormatVersion {
+		return nil, xerrors.Errorf("%w version %d", errUnsupportedStateFile, file.Version)
 	}
 	tfVersion, err := version.NewVersion(file.TerraformVersion)
 	if err != nil {
 		return nil, xerrors.Errorf("parse terraform version %q: %w", file.TerraformVersion, err)
 	}
 	if !stateFileTerraformVersionSupported(tfVersion) {
-		return nil, xerrors.Errorf("%w %s", errStateFileTerraformVersion, tfVersion)
+		return nil, xerrors.Errorf("%w: written by terraform %s", errUnsupportedStateFile, tfVersion)
 	}
 	if len(file.Resources) == 0 {
 		// `terraform show -json` prints no version or values for an empty
 		// state. For a state that only has outputs it prints an empty root
 		// module, which Graph treats the same.
-		return &tfjson.State{FormatVersion: "1.0"}, nil
+		return &tfjson.State{FormatVersion: showFormatVersion}, nil
 	}
 
 	root := &tfjson.StateModule{}
@@ -112,14 +119,15 @@ func parseStateFile(content []byte) (*tfjson.State, error) {
 	// Within a module, the file lists resources in the order `terraform show
 	// -json` does.
 	for _, resource := range file.Resources {
-		module, err := stateModule(modules, resource.Module)
+		path, err := tfaddr.ParseModulePath(resource.Module)
 		if err != nil {
-			return nil, err
+			return nil, xerrors.Errorf("parse module address %q: %w", resource.Module, err)
 		}
 		resources, err := resource.stateResources()
 		if err != nil {
 			return nil, err
 		}
+		module := stateModule(modules, path)
 		module.Resources = append(module.Resources, resources...)
 	}
 	// Child modules are not in that order. `terraform show -json` sorts them
@@ -131,7 +139,7 @@ func parseStateFile(content []byte) (*tfjson.State, error) {
 	}
 
 	return &tfjson.State{
-		FormatVersion:    "1.0",
+		FormatVersion:    showFormatVersion,
 		TerraformVersion: file.TerraformVersion,
 		Values:           &tfjson.StateValues{RootModule: root},
 	}, nil
@@ -145,25 +153,19 @@ func stateFileTerraformVersionSupported(v *version.Version) bool {
 	return v.GreaterThanOrEqual(minStateFileTerraformVersion) && v.LessThan(maxTerraformVersion)
 }
 
-// stateModule returns the module at address, adding it to modules if it is
+// stateModule returns the module at path, adding it to modules if it is
 // missing. Like `terraform show -json`, it also adds every module on the way
 // there from the root, whether or not that module holds resources itself.
-func stateModule(modules map[string]*tfjson.StateModule, address string) (*tfjson.StateModule, error) {
+func stateModule(modules map[string]*tfjson.StateModule, path tfaddr.ModulePath) *tfjson.StateModule {
+	address := path.String()
 	if module, ok := modules[address]; ok {
-		return module, nil
-	}
-	path, err := tfaddr.ParseModulePath(address)
-	if err != nil {
-		return nil, xerrors.Errorf("parse module address %q: %w", address, err)
-	}
-	parent, err := stateModule(modules, path.Parent().String())
-	if err != nil {
-		return nil, err
+		return module
 	}
 	module := &tfjson.StateModule{Address: address}
 	modules[address] = module
+	parent := stateModule(modules, path.Parent())
 	parent.ChildModules = append(parent.ChildModules, module)
-	return module, nil
+	return module
 }
 
 // address returns the resource's absolute address, without an instance key.
@@ -194,12 +196,12 @@ func (r stateFileResource) stateResources() ([]*tfjson.StateResource, error) {
 		if instance.AttributesFlat != nil {
 			return nil, xerrors.Errorf("resource %s uses legacy flatmap attributes", address)
 		}
-		key, err := instanceKey(instance.IndexKey)
+		suffix, err := instanceKeySuffix(instance.IndexKey)
 		if err != nil {
 			return nil, xerrors.Errorf("resource %s: %w", address, err)
 		}
 		resources = append(resources, &tfjson.StateResource{
-			Address:         address + key,
+			Address:         address + suffix,
 			Mode:            r.Mode,
 			Type:            r.Type,
 			Name:            r.Name,
@@ -213,9 +215,9 @@ func (r stateFileResource) stateResources() ([]*tfjson.StateResource, error) {
 	return resources, nil
 }
 
-// instanceKey returns the suffix that an instance's index key adds to its
+// instanceKeySuffix returns what an instance's index key adds to its
 // resource address.
-func instanceKey(key any) (string, error) {
+func instanceKeySuffix(key any) (string, error) {
 	switch key := key.(type) {
 	case nil:
 		return "", nil

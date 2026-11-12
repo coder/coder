@@ -331,12 +331,11 @@ func (s *server) Graph(
 		// Terraform keeps the state.
 		tfState, err := readStateFile(e.files.StateFilePath())
 		if err != nil {
-			// Let Terraform interpret state that readStateFile doesn't
-			// support rather than failing the build. Only warn when that is
-			// unexpected: an unsupported Terraform version repeats on every
-			// build.
+			// Let Terraform read what readStateFile can't rather than fail
+			// the build. An unsupported file repeats on every build, so
+			// only warn about the unexpected.
 			logFallback := s.logger.Warn
-			if errors.Is(err, errStateFileTerraformVersion) {
+			if errors.Is(err, errUnsupportedStateFile) {
 				logFallback = s.logger.Debug
 			}
 			logFallback(ctx, "not reading terraform state file, falling back to terraform show", slog.Error(err))
