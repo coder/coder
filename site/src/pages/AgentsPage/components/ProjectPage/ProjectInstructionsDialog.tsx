@@ -184,18 +184,20 @@ const ProjectInstructionsForm: React.FC<ProjectInstructionsFormProps> = ({
 				</Alert>
 			)}
 			<DialogFooter>
-				<Button
-					type="button"
-					variant="subtle"
-					className="sm:mr-auto"
-					disabled={isBusy || draft === ""}
-					onClick={() => {
-						changeDraft("");
-						textareaRef.current?.focus();
-					}}
-				>
-					Clear
-				</Button>
+				{draft !== "" && (
+					<Button
+						type="button"
+						variant="subtle"
+						className="sm:mr-auto"
+						disabled={isBusy}
+						onClick={() => {
+							changeDraft("");
+							textareaRef.current?.focus();
+						}}
+					>
+						Clear
+					</Button>
+				)}
 				<Button
 					type="button"
 					variant="outline"

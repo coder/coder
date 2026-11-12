@@ -87,6 +87,9 @@ describe("ProjectInstructionsDialog", () => {
 		await user.click(screen.getByRole("button", { name: "Clear" }));
 		expect(textbox).toHaveValue("");
 		expect(textbox).toHaveFocus();
+		expect(
+			screen.queryByRole("button", { name: "Clear" }),
+		).not.toBeInTheDocument();
 		expect(props.onDelete).not.toHaveBeenCalled();
 
 		await user.click(screen.getByRole("button", { name: "Save" }));
