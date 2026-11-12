@@ -3,6 +3,7 @@ package chattool
 import (
 	"testing"
 
+	"charm.land/fantasy"
 	"github.com/stretchr/testify/require"
 )
 
@@ -68,16 +69,15 @@ func TestValidateAskUserQuestionArgs(t *testing.T) {
 			wantErr: "questions[0].options[0].label is required",
 		},
 		{
-			name: "OptionDescriptionRequired",
+			name: "OptionDescriptionOptional",
 			args: askUserQuestionArgs{Questions: []askUserQuestion{{
 				Header:   "Scope",
 				Question: "What should we build?",
 				Options: []askUserQuestionOption{
-					{Label: "Backend", Description: "\t"},
+					{Label: "Backend"},
 					{Label: "Frontend", Description: "Build the UI first."},
 				},
 			}}},
-			wantErr: "questions[0].options[0].description is required",
 		},
 		{
 			name: "ValidTwoOptions",
@@ -126,6 +126,18 @@ func TestValidateAskUserQuestionArgs(t *testing.T) {
 			require.EqualError(t, err, testCase.wantErr)
 		})
 	}
+}
+
+func TestAskUserQuestionToolOptionalDescriptions(t *testing.T) {
+	t.Parallel()
+
+	tool := NewAskUserQuestionTool()
+	response, err := tool.Run(t.Context(), fantasy.ToolCall{
+		Input: `{"questions":[{"header":"Scope","question":"What should we build?","options":[{"label":"Backend","description":"Build the API first."},{"label":"Frontend"}]}]}`,
+	})
+	require.NoError(t, err)
+	require.False(t, response.IsError, response.Content)
+	require.JSONEq(t, `{"questions":[{"header":"Scope","question":"What should we build?","options":[{"label":"Backend","description":"Build the API first."},{"label":"Frontend"}]}]}`, response.Content)
 }
 
 func validAskUserQuestionOptions(count int) []askUserQuestionOption {
