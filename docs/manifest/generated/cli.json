@@ -519,7 +519,7 @@
 	},
 	{
 		"title": "`run`",
-		"description": "Run a command in a sandbox, with an identity of its own.",
+		"description": "Run a command in a workspace of its own, with an identity of its own.",
 		"path": "reference/cli/run.md"
 	},
 	{

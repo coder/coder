@@ -38,7 +38,6 @@ PRESET = os.environ.get("PRESET", "agent")
 NAMESPACE = os.environ.get("NAMESPACE", "coder-sandbox-workloads")
 KUBE_CONTEXT = os.environ.get("KUBE_CONTEXT", "")
 RUNS_DIR = pathlib.Path(os.environ.get("RUNS_DIR", "runs"))
-IDENTITY_HEADER = "Coder-Workload-Identity"
 TOKEN_PATH = "/var/run/secrets/coder.com/identity/token"
 RUN_ID = datetime.datetime.now(datetime.timezone.utc).strftime("%H%M%S")
 
@@ -213,6 +212,12 @@ def exchange(token):
     return http("POST", "/api/v2/workspaceagents/kubernetes-pod-identity", body={"token": token, "wait_seconds": 0})
 
 
+def workload_token(pod_name):
+    """The token a running workload was given, read from its command's environment."""
+    script = "for p in /proc/[0-9]*; do tr '\\0' '\\n' < $p/environ 2>/dev/null | sed -n 's/^CODER_SESSION_TOKEN=//p'; done | head -1"
+    return kubectl("exec", pod_name, "--", "sh", "-c", script).stdout.strip()
+
+
 def daemon_session(pod_name):
     status, body = exchange(pod_token(pod_name))
     return body.get("session_token", "") if status == 200 and isinstance(body, dict) else ""
@@ -261,8 +266,7 @@ def main():
     waiting = {pod_of(ws["id"]): daemon_session(pod_of(ws["id"])) for ws in pool()}
     asked = datetime.datetime.now(datetime.timezone.utc)
     name_b = f"own-{RUN_ID}"
-    result, _ = launch(["sh", "-c", "coder identity --output json 2>/dev/null; sleep 600"], name=name_b, detach=True, keep=True,
-                       scopes=["workspace:read", "template:read"])
+    result, _ = launch(["sleep", "600"], name=name_b, detach=True, keep=True, scopes=["workspace:read", "template:read"])
     live = wait_until(lambda: workload_named(name_b), timeout=60)
     ws = workspace(live["workspace_id"]) if live else None
     _, owner = http("GET", f"/api/v2/users/{ws['owner_id']}", ADMIN_TOKEN) if ws else (0, {})
@@ -281,15 +285,25 @@ def main():
         f"pod created {created}, workload asked for {asked.isoformat(timespec='seconds')}, build number {ws['latest_build']['build_number']}" if ws else "",
     )
     session = daemon_session(pod_of(ws["id"])) if ws else ""
-    _, who = http("GET", "/api/v2/workspaceagents/me/identity", session, headers={IDENTITY_HEADER: live["id"]}) if ws else (0, {})
+    settle(size)
+    name_who = f"who-{RUN_ID}"
+    said = inside("coder identity --output json 2>/dev/null", name=name_who, keep=True, scopes=["template:read"])
+    try:
+        who = json.loads(said.stdout)
+    except ValueError:
+        who = {}
+    asked_who = workload_named(name_who) or {}
+    who_ws = workspace(asked_who.get("workspace_id", "")) or {}
+    who_pod = json.loads(kubectl("get", "pod", pod_of(who_ws.get("id", "")), "-o", "json").stdout or "{}")
     report.check(
-        "B3", "the workload is itself: sponsored by the member, vouched for by the cluster as that pod",
-        isinstance(who, dict) and who.get("kind") == "workload" and who.get("sponsor_username") == sponsor_name
-        and who.get("attestation_subject") == "k8s-pod:" + pod.get("metadata", {}).get("uid", "?")
-        and who.get("owner_username") == ws["owner_name"],
+        "B3", "the workload knows who it is: sponsored by the member, vouched for by the cluster as that pod",
+        who.get("kind") == "workload" and who.get("sponsor_username") == sponsor_name
+        and who.get("attestation_subject") == "k8s-pod:" + who_pod.get("metadata", {}).get("uid", "?")
+        and who.get("owner_username") == who_ws.get("owner_name") and who.get("scopes") == ["template:read"],
         f"kind {who.get('kind')}, sponsor {who.get('sponsor_username')}, owner {who.get('owner_username')}, "
-        f"attested {who.get('attestation_subject')}, scopes {who.get('scopes')}" if isinstance(who, dict) else who,
+        f"attested {who.get('attestation_subject')}, scopes {who.get('scopes')}",
     )
+    run([SPONSOR, "run", "--remove", name_who])
 
     report.section("C. Nothing of the sponsor's")
     settle(size)
@@ -314,7 +328,13 @@ def main():
         f"sponsor's key {str(sponsor_key.get('public_key'))[:40]}...",
     )
     status, tokens = http("GET", f"/api/v2/users/{ws['owner_id']}/keys/tokens", ADMIN_TOKEN) if ws else (0, None)
-    report.check("C4", "the identity has no API token", status == 200 and not tokens, f"GET /users/<identity>/keys/tokens -> {status} {tokens or []}")
+    tokens = tokens if isinstance(tokens, list) else []
+    report.check(
+        "C4", "the identity has one token, the workload's, and it names the workload and its scopes",
+        status == 200 and len(tokens) == 1 and tokens[0]["token_name"] == "workload-" + live["id"]
+        and sorted(tokens[0]["scopes"]) == ["template:read", "workspace:read"],
+        [(t["token_name"], t["scopes"]) for t in tokens],
+    )
     human = f"human-{RUN_ID}"
     run([ADMIN, "create", human, "--template", TEMPLATE, "--preset", PRESET, "--yes"])
     settle(size)
@@ -335,12 +355,14 @@ def main():
     spare = pool()[0] if pool() else None
     spare_session = daemon_session(pod_of(spare["id"])) if spare else ""
     _, spare_who = http("GET", "/api/v2/workspaceagents/me/identity", spare_session)
-    status_as, _ = http("GET", "/api/v2/workspaceagents/me/identity", spare_session, headers={IDENTITY_HEADER: live["id"] if live else ""})
+    status_as, _ = http("GET", "/api/v2/workloads/identity", spare_session)
+    status_ws, _ = http("GET", "/api/v2/workspaces", spare_session)
     report.check(
-        "D2", "a pod that waits in the pool is the pool's: it is no workload and cannot say it is one",
-        isinstance(spare_who, dict) and spare_who.get("owner_username") == "prebuilds" and spare_who.get("kind") == "daemon" and status_as == 401,
-        f"waiting pod: kind {spare_who.get('kind')}, owner {spare_who.get('owner_username')}; naming a live workload -> {status_as}"
-        if isinstance(spare_who, dict) else spare_who,
+        "D2", "a pod that waits in the pool is the pool's: it is no workload, and what it holds is no user's credential",
+        isinstance(spare_who, dict) and spare_who.get("owner_username") == "prebuilds" and spare_who.get("kind") == "daemon"
+        and status_as == 401 and status_ws == 401,
+        f"waiting pod: kind {spare_who.get('kind')}, owner {spare_who.get('owner_username')}; "
+        f"asking as a workload -> {status_as}; listing workspaces -> {status_ws}" if isinstance(spare_who, dict) else spare_who,
     )
     before = waiting.get(pod_of(ws["id"]), "") if ws else ""
     status_before, _ = http("GET", "/api/v2/workspaceagents/me/identity", before)
@@ -348,15 +370,15 @@ def main():
                  before != "" and status_before == 401, f"the session the pod had in the pool -> {status_before}")
     settle(size)
     name_d = f"other-{RUN_ID}"
-    launch(["sleep", "600"], name=name_d, detach=True, keep=True)
+    launch(["sleep", "600"], name=name_d, detach=True, keep=True, scopes=["workspace:read", "template:read"])
     other = wait_until(lambda: workload_named(name_d), timeout=60)
-    other_session = daemon_session(pod_of(other["workspace_id"])) if other else ""
-    status_me, _ = http("GET", "/api/v2/workspaceagents/me/identity", other_session, headers={IDENTITY_HEADER: other["id"] if other else ""})
-    status_x, _ = http("GET", "/api/v2/workspaceagents/me/identity", other_session, headers={IDENTITY_HEADER: live["id"] if live else ""})
-    status_y, _ = http("GET", f"/api/v2/workspaces/{ws['id'] if ws else ''}", other_session, headers={IDENTITY_HEADER: live["id"] if live else ""})
-    report.check("D4", "one workload cannot act as another",
-                 status_me == 200 and status_x == 401 and status_y == 401,
-                 f"as itself -> {status_me}; naming the other workload -> {status_x}; reading the other's workspace as it -> {status_y}")
+    held = workload_token(pod_of(other["workspace_id"])) if other else ""
+    status_me, me_as = http("GET", "/api/v2/workloads/identity", held)
+    status_own, _ = http("GET", f"/api/v2/workspaces/{other['workspace_id'] if other else ''}", held)
+    status_x, _ = http("GET", f"/api/v2/workspaces/{ws['id'] if ws else ''}", held)
+    report.check("D4", "one workload cannot act as another: its token is its own account's",
+                 held != "" and status_me == 200 and me_as.get("identity_id") == (other or {}).get("id") and status_own == 200 and status_x == 404,
+                 f"who am I -> {status_me}; my own workspace -> {status_own}; another workload's workspace -> {status_x}")
     settle(size)
     nested = inside(f"coder run --template {TEMPLATE} -- true; echo rc=$?", scopes=["workspace:read", "template:read"])
     report.check("D5", "a workload cannot sponsor a workload", "rc=0" not in nested.stdout and "rc=" in nested.stdout,
@@ -371,14 +393,16 @@ def main():
     entered = run([SPONSOR, "ssh", f"{ws['owner_name']}/{ws['name']}", "--", "echo", "entered"], timeout=120) if ws else None
     report.check("E2", "the sponsor can enter it", entered is not None and "entered" in entered.stdout,
                  " ".join(entered.stdout.split()) if entered else "")
-    status_h, _ = http("GET", f"/api/v2/users/{sponsor_name}/workspace/{human}", SPONSOR_TOKEN)
-    foreign = run([SPONSOR, "run", "--remove", name_b, human])
-    report.check("E3", "the sponsor has no way into workspaces that are not shared with them", status_h == 404 and foreign.returncode != 0,
+    _, human_ws = http("GET", f"/api/v2/users/me/workspace/{human}", ADMIN_TOKEN)
+    status_h, _ = http("GET", f"/api/v2/workspaces/{human_ws.get('id', '') if isinstance(human_ws, dict) else ''}", SPONSOR_TOKEN)
+    report.check("E3", "the sponsor has no way into workspaces that are not shared with them", status_h == 404,
                  f"an administrator's workspace -> {status_h}")
     removed = run([SPONSOR, "run", "--remove", name_d])
     gone = wait_until(lambda: (workspace(other["workspace_id"]) or {}).get("latest_build", {}).get("transition") == "delete", timeout=120) if other else None
-    report.check("E4", "the sponsor can end the workload, and its workspace goes with it",
-                 removed.returncode == 0 and bool(gone), (removed.stderr or removed.stdout).strip()[-120:])
+    status_dead, _ = http("GET", "/api/v2/workloads/identity", held)
+    report.check("E4", "the sponsor can remove a workload: its workspace goes with it, and its token is worth nothing",
+                 removed.returncode == 0 and bool(gone) and status_dead == 401,
+                 f"removed: {removed.returncode == 0}; workspace deleted: {bool(gone)}; the workload's token -> {status_dead}")
 
     report.section("F. Afterwards")
     settle(size)
@@ -406,7 +430,6 @@ def main():
                  f"workspace builds {built}")
 
     report.section("G. What was there before still works")
-    _, human_ws = http("GET", f"/api/v2/users/me/workspace/{human}", ADMIN_TOKEN)
     report.check("G1", "a person still claims a prebuilt workspace and owns it",
                  isinstance(human_ws, dict) and human_ws.get("owner_name") != "" and not human_ws.get("owner_name", "").startswith("workload-")
                  and human_ws["latest_build"]["build_number"] == 2,

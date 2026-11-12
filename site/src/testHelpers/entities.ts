@@ -1499,7 +1499,7 @@ export const MockWorkload: TypesGen.Workload = {
 	sponsor_id: "test-user",
 	sponsor_username: "testuser",
 	scopes: ["workspace:read", "template:read"],
-	sandbox: { runtime: "docker", id: "3f1c0a527c9e4d0b8a570d6f1c2b3a4e" },
+	sandbox: { runtime: "pod", id: "coder-3f1c0a52-7c9e-4d0b-8a57-0d6f1c2b3a4e" },
 };
 
 export const MockFinishedWorkload: TypesGen.Workload = {
@@ -1513,8 +1513,6 @@ export const MockFinishedWorkload: TypesGen.Workload = {
 	exit_code: 1,
 	identity: "test-workspace/workload/5d4c3b2a-1f0e-4d9c-8b7a-6f5e4d3c2b1a",
 	scopes: [],
-	image: "alpine:3.22",
-	network: "none",
 };
 
 export const MockStartingWorkload: TypesGen.Workload = {

@@ -6,13 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
-	"net/http"
-	"net/http/httputil"
-	"net/url"
 	"os"
-	"os/exec"
-	"os/signal"
 	"slices"
 	"strings"
 	"time"
@@ -83,13 +77,17 @@ func (a *AgentAuth) agentAuthConfigured() bool {
 	return a.agentToken != "" || a.agentTokenFile != "" || a.agentAuth != "token"
 }
 
+// workloadNameEnv is set for a workload's command. Its token is in the
+// environment too.
+const workloadNameEnv = "CODER_WORKLOAD_NAME"
+
 // workspaceIdentity returns who this process is to Coder inside a
-// workspace: a workload in a sandbox, or the workspace daemon. The second
-// result is false outside a workspace.
+// workspace: a workload, or the workspace daemon. The second result is
+// false outside a workspace.
 func (r *RootCmd) workspaceIdentity(inv *serpent.Invocation, agentAuth *AgentAuth) (codersdk.WorkloadIdentity, bool, error) {
 	ctx := inv.Context()
-	// A sandbox has no daemon credential. Its channel is its identity.
-	if os.Getenv(codersdk.WorkloadSocketEnv) != "" && !agentAuth.agentAuthConfigured() {
+	// A workload has no daemon credential. It has a token of its own.
+	if os.Getenv(workloadNameEnv) != "" && !agentAuth.agentAuthConfigured() {
 		client, err := r.InitClient(inv)
 		if err != nil {
 			return codersdk.WorkloadIdentity{}, true, err
@@ -120,7 +118,7 @@ func (r *RootCmd) identity() *serpent.Command {
 		Annotations: workspaceCommand,
 		Use:         "identity",
 		Short:       "Show who this process is to Coder inside a workspace",
-		Long: "Inside a workload's sandbox this is the workload's own identity, with its sponsor and scopes. " +
+		Long: "For a workload this is the workload's own identity, with its sponsor and scopes. " +
 			"Elsewhere in a workspace it is the workspace daemon's. It is separate from the user a human logs in as.",
 		Middleware: serpent.RequireNArgs(0),
 		Handler: func(inv *serpent.Invocation) error {
@@ -154,8 +152,6 @@ type workloadRow struct {
 	Command           string `json:"-" table:"command"`
 	Identity          string `json:"-" table:"identity"`
 	Sandbox           string `json:"-" table:"sandbox"`
-	Network           string `json:"-" table:"network"`
-	Image             string `json:"-" table:"image"`
 	Started           string `json:"-" table:"started"`
 	Finished          string `json:"-" table:"finished"`
 }
@@ -172,8 +168,6 @@ func workloadRows(workloads []codersdk.Workload) []workloadRow {
 			Scopes:    joinWorkloadScopes(workload.Scopes, ","),
 			Command:   workload.Command,
 			Identity:  workload.ID.String(),
-			Network:   string(workload.Network),
-			Image:     workload.Image,
 			Started:   workload.CreatedAt.Local().Format(time.DateTime),
 		}
 		if workload.ExitCode != nil {
@@ -199,11 +193,7 @@ func (r *RootCmd) run() *serpent.Command {
 		template string
 		preset   string
 		keep     bool
-		agent    string
-		image    string
 		scopes   []string
-		network  string
-		mounts   []string
 		stdin    bool
 		tty      bool
 		detach   bool
@@ -214,56 +204,47 @@ func (r *RootCmd) run() *serpent.Command {
 		timing   bool
 	)
 	formatter := cliui.NewOutputFormatter(
-		cliui.TableFormat([]workloadRow{}, []string{"name", "status", "sponsor", "scopes", "command", "started", "identity"}),
+		cliui.TableFormat([]workloadRow{}, []string{"name", "workspace", "status", "sponsor", "scopes", "command", "started"}),
 		cliui.JSONFormat(),
 	)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
-		Use:         "run [--template <template> | <workspace>] [-- command...]",
-		Short:       "Run a command in a sandbox, with an identity of its own",
+		Use:         "run --template <template> [-- command...]",
+		Short:       "Run a command in a workspace of its own, with an identity of its own",
 		Long: "Run a command as a workload. The workload gets its own identity, sponsored by you. It can do nothing in " +
 			"Coder unless you give it scopes, and it never receives your credentials. The command's output is streamed " +
 			"and its exit code returned.\n\n" +
-			"With --template, the workload gets a workspace of its own, which its identity owns and shares with you. " +
-			"The workspace is made from the template for this one command, claiming one that was built ahead of time " +
-			"when the template keeps such workspaces, and deleted when the command is over. " +
-			"Without --template, the workload runs in a sandbox that the daemon of an existing workspace creates.\n" +
+			"The workload gets a workspace of its own, which its identity owns and shares with you. The workspace is " +
+			"made from the template for this one command, claiming one that was built ahead of time when the template " +
+			"keeps such workspaces, and deleted when the command is over.\n" +
 			FormatExamples(
 				Example{
-					Description: "Run a command in a workspace of its own and see who it is",
-					Command:     "coder run --template sandbox -- coder identity",
+					Description: "Run a command and see who it is",
+					Command:     "coder run --template agents -- coder identity",
+				},
+				Example{
+					Description: "Let a workload read templates, and nothing else",
+					Command:     "coder run --template agents --scope template:read -- coder templates list",
 				},
 				Example{
 					Description: "Keep the workspace afterwards, to look around in it",
-					Command:     "coder run --template sandbox --keep --name fix-1 -- make test",
+					Command:     "coder run --template agents --keep --name fix-1 -- make test",
 				},
 				Example{
-					Description: "List your workloads in every workspace, with what became of each",
-					Command:     "coder run --all",
+					Description: "Work in a workload's workspace with a terminal",
+					Command:     "coder run --template agents -it -- sh",
 				},
 				Example{
-					Description: "Run a command in a sandbox inside one of your workspaces",
-					Command:     "coder run my-workspace -- coder identity",
-				},
-				Example{
-					Description: "Let a workload list your workspaces",
-					Command:     "coder run my-workspace --scope workspace:read --scope template:read -- coder list",
-				},
-				Example{
-					Description: "Work in a sandbox with a terminal",
-					Command:     "coder run -it my-workspace -- sh",
-				},
-				Example{
-					Description: "List the running workloads of a workspace",
-					Command:     "coder run --list my-workspace",
+					Description: "List your running workloads",
+					Command:     "coder run --list",
 				},
 				Example{
 					Description: "List all of them, with what became of each",
-					Command:     "coder run --all my-workspace",
+					Command:     "coder run --all",
 				},
 				Example{
-					Description: "Remove a workload",
-					Command:     "coder run --remove workload-1a2b3c4d my-workspace",
+					Description: "Remove a workload, and its workspace with it",
+					Command:     "coder run --remove fix-1",
 				},
 			),
 		Handler: func(inv *serpent.Invocation) error {
@@ -284,63 +265,9 @@ func (r *RootCmd) run() *serpent.Command {
 				return err
 			}
 			phase("signed in")
-			// Without a workspace, listing and the like cover the
-			// caller's workloads in every workspace.
-			if template == "" && len(inv.Args) == 0 {
-				switch {
-				case list || all:
-					workloads, err := client.Workloads(ctx, codersdk.WorkspaceWorkloadsOptions{Finished: all})
-					if err != nil {
-						return err
-					}
-					out, err := formatter.Format(ctx, workloadRows(workloads))
-					if err != nil {
-						return err
-					}
-					_, err = fmt.Fprintln(inv.Stdout, out)
-					return err
-				case remove != "" || logs != "":
-					// Live workloads are listed first, so a running
-					// workload wins over an earlier one of the same name.
-					workloads, err := client.Workloads(ctx, codersdk.WorkspaceWorkloadsOptions{Finished: true})
-					if err != nil {
-						return err
-					}
-					wanted := remove + logs
-					idx := slices.IndexFunc(workloads, func(workload codersdk.Workload) bool {
-						return workload.Name == wanted || workload.ID.String() == wanted
-					})
-					if idx < 0 {
-						return xerrors.Errorf("you have no workload %q", wanted)
-					}
-					if logs != "" {
-						return followWorkload(ctx, inv, client, workloads[idx])
-					}
-					if err := client.DeleteWorkspaceWorkload(ctx, workloads[idx].WorkspaceID, workloads[idx].ID); err != nil {
-						return err
-					}
-					_, _ = fmt.Fprintf(inv.Stderr, "Removed workload %s.\n", workloads[idx].Name)
-					return nil
-				default:
-					return xerrors.New("name a workspace, or a template with --template: coder run --template <template> -- <command>")
-				}
-			}
-
-			command := inv.Args
-			var workspace codersdk.Workspace
-			if template == "" {
-				workspace, err = client.ResolveWorkspace(ctx, inv.Args[0])
-				if err != nil {
-					return err
-				}
-				command = inv.Args[1:]
-			}
-
-			if list || all {
-				if template != "" {
-					return xerrors.New("--template makes a workspace for a new workload; it does not go with listing")
-				}
-				workloads, err := client.WorkspaceWorkloads(ctx, workspace.ID, codersdk.WorkspaceWorkloadsOptions{Finished: all})
+			switch {
+			case list || all:
+				workloads, err := client.Workloads(ctx, codersdk.WorkspaceWorkloadsOptions{Finished: all})
 				if err != nil {
 					return err
 				}
@@ -350,43 +277,36 @@ func (r *RootCmd) run() *serpent.Command {
 				}
 				_, err = fmt.Fprintln(inv.Stdout, out)
 				return err
-			}
-			if remove != "" {
-				workloads, err := client.WorkspaceWorkloads(ctx, workspace.ID, codersdk.WorkspaceWorkloadsOptions{})
+			case remove != "" || logs != "":
+				// Live workloads are listed first, so a running workload
+				// wins over an earlier one of the same name.
+				workloads, err := client.Workloads(ctx, codersdk.WorkspaceWorkloadsOptions{Finished: true})
 				if err != nil {
 					return err
 				}
+				wanted := remove + logs
 				idx := slices.IndexFunc(workloads, func(workload codersdk.Workload) bool {
-					return workload.Name == remove || workload.ID.String() == remove
+					return workload.Name == wanted || workload.ID.String() == wanted
 				})
 				if idx < 0 {
-					return xerrors.Errorf("workspace %q has no workload %q", workspace.Name, remove)
+					return xerrors.Errorf("you have no workload %q", wanted)
 				}
-				if err := client.DeleteWorkspaceWorkload(ctx, workspace.ID, workloads[idx].ID); err != nil {
+				if logs != "" {
+					return followWorkload(ctx, inv, client, workloads[idx])
+				}
+				if err := client.DeleteWorkspaceWorkload(ctx, workloads[idx].WorkspaceID, workloads[idx].ID); err != nil {
 					return err
 				}
 				_, _ = fmt.Fprintf(inv.Stderr, "Removed workload %s.\n", workloads[idx].Name)
 				return nil
 			}
 
-			if logs != "" {
-				// Live workloads are listed first, so a running workload
-				// wins over an earlier one of the same name.
-				workloads, err := client.WorkspaceWorkloads(ctx, workspace.ID, codersdk.WorkspaceWorkloadsOptions{Finished: true})
-				if err != nil {
-					return err
-				}
-				idx := slices.IndexFunc(workloads, func(workload codersdk.Workload) bool {
-					return workload.Name == logs || workload.ID.String() == logs
-				})
-				if idx < 0 {
-					return xerrors.Errorf("workspace %q has no workload %q", workspace.Name, logs)
-				}
-				return followWorkload(ctx, inv, client, workloads[idx])
+			command := inv.Args
+			if template == "" {
+				return xerrors.New("name the template of the workload's workspace: coder run --template <template> -- <command>")
 			}
-
 			if len(command) == 0 {
-				return xerrors.New("a command is required: coder run <workspace> -- <command>")
+				return xerrors.New("a command is required: coder run --template <template> -- <command>")
 			}
 			if stdin != tty {
 				return xerrors.New("a terminal needs both --interactive and --tty: use -it")
@@ -394,53 +314,28 @@ func (r *RootCmd) run() *serpent.Command {
 			if detach && tty {
 				return xerrors.New("--detach cannot be combined with -it")
 			}
-			workloadMounts := make([]codersdk.WorkloadMount, 0, len(mounts))
-			for _, mount := range mounts {
-				workloadMounts = append(workloadMounts, codersdk.ParseWorkloadMount(mount))
+			// The workload gets a workspace of its own, named like it.
+			// coderd makes both: the workspace belongs to the workload's
+			// identity, not to whoever runs this command.
+			if name == "" {
+				name = "run-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
 			}
-			request := codersdk.CreateWorkloadRequest{
-				Name:    name,
-				Agent:   agent,
-				Command: shellquote.Join(command...),
-				Image:   image,
-				Network: codersdk.WorkloadNetwork(network),
-				Mounts:  workloadMounts,
-				Scopes:  slice.StringEnums[codersdk.APIKeyScope](scopes),
-
-				Interactive: stdin && tty,
+			templateID, presetID, err := resolveWorkloadTemplate(ctx, client, template, preset)
+			if err != nil {
+				return err
 			}
-			var workload codersdk.Workload
-			switch {
-			case template != "":
-				// The workload gets a workspace of its own, named like it.
-				// coderd makes both: the workspace belongs to the
-				// workload's identity, not to whoever runs this command.
-				if request.Name == "" {
-					request.Name = "run-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
-				}
-				templateID, presetID, err := resolveWorkloadTemplate(ctx, client, template, preset)
-				if err != nil {
-					return err
-				}
-				phase("template found")
-				workload, err = client.LaunchWorkload(ctx, codersdk.LaunchWorkloadRequest{
-					CreateWorkloadRequest:   request,
-					TemplateID:              templateID,
-					TemplateVersionPresetID: presetID,
-					Keep:                    keep,
-				})
-				if err != nil {
-					return err
-				}
-			case keep:
-				return xerrors.New("--keep is for a workspace made with --template")
-			case preset != "":
-				return xerrors.New("--preset is for a workspace made with --template")
-			default:
-				workload, err = client.CreateWorkspaceWorkload(ctx, workspace.ID, request)
-				if err != nil {
-					return err
-				}
+			phase("template found")
+			workload, err := client.LaunchWorkload(ctx, codersdk.LaunchWorkloadRequest{
+				Name:                    name,
+				Command:                 shellquote.Join(command...),
+				Scopes:                  slice.StringEnums[codersdk.APIKeyScope](scopes),
+				Interactive:             stdin && tty,
+				TemplateID:              templateID,
+				TemplateVersionPresetID: presetID,
+				Keep:                    keep,
+			})
+			if err != nil {
+				return err
 			}
 			phase("workload started")
 			if detach {
@@ -484,8 +379,18 @@ func (r *RootCmd) run() *serpent.Command {
 	}
 	cmd.Options = serpent.OptionSet{
 		{
+			Flag:        "template",
+			Description: "The template the workload's workspace is made from. The workload's identity owns the workspace and shares it with you.",
+			Value:       serpent.StringOf(&template),
+		},
+		{
+			Flag:        "preset",
+			Description: "The preset of the template to use. A workspace that was built ahead of time for the preset is claimed when there is one.",
+			Value:       serpent.StringOf(&preset),
+		},
+		{
 			Flag:        "name",
-			Description: "A name for the workload.",
+			Description: "A name for the workload. Its workspace is named like it.",
 			Value:       serpent.StringOf(&name),
 		},
 		{
@@ -494,45 +399,15 @@ func (r *RootCmd) run() *serpent.Command {
 			Value:       serpent.StringArrayOf(&scopes),
 		},
 		{
-			Flag:        "image",
-			Description: "The image for the workload's sandbox. The workspace's template sets the default and decides which others are allowed.",
-			Value:       serpent.StringOf(&image),
-		},
-		{
-			Flag:        "network",
-			Description: "What the sandbox can reach: \"none\" or \"outbound\". The workspace's template sets the default. With \"none\" the workload can still reach Coder, and nothing else.",
-			Value:       serpent.StringOf(&network),
-		},
-		{
-			Flag:        "mount",
-			Description: "A directory of the workspace to show in the sandbox, at the same path. It is read-only unless followed by \":rw\". Repeat it for several. The workspace's template decides which directories may be shared; without this flag the workload sees nothing of the workspace.",
-			Value:       serpent.StringArrayOf(&mounts),
+			Flag:        "keep",
+			Description: "Keep the workspace when the command is over. It stays as it is, and you can enter it. Removing the workload removes it.",
+			Value:       serpent.BoolOf(&keep),
 		},
 		{
 			Flag:        "timing",
 			Description: "Report how long each step of the run took.",
 			Value:       serpent.BoolOf(&timing),
 			Hidden:      true,
-		},
-		{
-			Flag:        "template",
-			Description: "Give the workload a workspace of its own, made from this template and deleted when the command is over. The workload's identity owns the workspace and shares it with you.",
-			Value:       serpent.StringOf(&template),
-		},
-		{
-			Flag:        "preset",
-			Description: "With --template, the preset of the template to use. A workspace that was built ahead of time for the preset is claimed when there is one.",
-			Value:       serpent.StringOf(&preset),
-		},
-		{
-			Flag:        "keep",
-			Description: "With --template, keep the workspace when the command is over. It stays as it is, and can be looked at and removed like any workspace.",
-			Value:       serpent.BoolOf(&keep),
-		},
-		{
-			Flag:        "agent",
-			Description: "The workspace daemon to run the workload in, by name. Only needed when the workspace has several.",
-			Value:       serpent.StringOf(&agent),
 		},
 		{
 			Flag:          "interactive",
@@ -555,13 +430,13 @@ func (r *RootCmd) run() *serpent.Command {
 		{
 			Flag:          "list",
 			FlagShorthand: "l",
-			Description:   "List the workspace's running workloads instead of running one.",
+			Description:   "List your running workloads instead of running one.",
 			Value:         serpent.BoolOf(&list),
 		},
 		{
 			Flag:          "all",
 			FlagShorthand: "a",
-			Description:   "List the workspace's workloads, including the most recent ones that are over.",
+			Description:   "List your workloads, including the most recent ones that are over.",
 			Value:         serpent.BoolOf(&all),
 		},
 		{
@@ -571,7 +446,7 @@ func (r *RootCmd) run() *serpent.Command {
 		},
 		{
 			Flag:        "remove",
-			Description: "Remove the named workload instead of running one.",
+			Description: "Remove the named workload, and its workspace, instead of running one.",
 			Value:       serpent.StringOf(&remove),
 		},
 	}
@@ -696,73 +571,4 @@ func attachWorkloadTerminal(ctx context.Context, inv *serpent.Invocation, client
 	}
 	_, _ = io.Copy(inv.Stdout, conn)
 	return nil
-}
-
-// workloadInit starts a workload's command inside its sandbox. The sandbox's
-// channel to Coder is a unix socket, which many programs cannot use, so this
-// first offers the channel on a loopback address and points CODER_URL at it.
-// Everything here runs inside the sandbox and holds no secret: whatever can
-// reach the loopback address could reach the socket as well.
-func (*RootCmd) workloadInit() *serpent.Command {
-	return &serpent.Command{
-		Use:        "workload-init -- <command> [args...]",
-		Short:      "Run a workload's command inside its sandbox",
-		Hidden:     true,
-		Middleware: serpent.RequireRangeArgs(1, -1),
-		Handler: func(inv *serpent.Invocation) error {
-			ctx := inv.Context()
-			env := os.Environ()
-			if socket := os.Getenv(codersdk.WorkloadSocketEnv); socket != "" {
-				// A sandbox without a network still has loopback.
-				listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:0")
-				if err == nil {
-					defer listener.Close()
-					proxy := &httputil.ReverseProxy{
-						Rewrite: func(pr *httputil.ProxyRequest) {
-							pr.SetURL(&url.URL{Scheme: "http", Host: "coder.workload"})
-						},
-						Transport: &http.Transport{
-							DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-								return (&net.Dialer{}).DialContext(ctx, "unix", socket)
-							},
-						},
-						FlushInterval: -1,
-					}
-					server := &http.Server{Handler: proxy, ReadHeaderTimeout: 30 * time.Second}
-					go func() { _ = server.Serve(listener) }()
-					defer server.Close()
-					env = append(env, "CODER_URL=http://"+listener.Addr().String())
-				}
-			}
-
-			if term := os.Getenv(codersdk.WorkloadTermEnv); term != "" {
-				env = slices.DeleteFunc(env, func(kv string) bool {
-					return strings.HasPrefix(kv, "TERM=") || strings.HasPrefix(kv, codersdk.WorkloadTermEnv+"=")
-				})
-				env = append(env, "TERM="+term)
-			}
-
-			//nolint:gosec // Running the given command is this command's purpose.
-			cmd := exec.Command(inv.Args[0], inv.Args[1:]...)
-			cmd.Env = env
-			cmd.Stdin, cmd.Stdout, cmd.Stderr = inv.Stdin, inv.Stdout, inv.Stderr
-			if err := cmd.Start(); err != nil {
-				return xerrors.Errorf("start workload command: %w", err)
-			}
-			signals := make(chan os.Signal, 4)
-			signal.Notify(signals, StopSignals...)
-			defer signal.Stop(signals)
-			go func() {
-				for sig := range signals {
-					_ = cmd.Process.Signal(sig)
-				}
-			}()
-			err := cmd.Wait()
-			var exitErr *exec.ExitError
-			if xerrors.As(err, &exitErr) {
-				return ExitError(exitErr.ExitCode(), nil)
-			}
-			return err
-		},
-	}
 }

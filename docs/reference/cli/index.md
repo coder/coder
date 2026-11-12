@@ -61,7 +61,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>ping</code>](./ping.md)                                     | Ping a workspace                                                                                                             |
 | [<code>rename</code>](./rename.md)                                 | Rename a workspace                                                                                                           |
 | [<code>restart</code>](./restart.md)                               | Restart a workspace                                                                                                          |
-| [<code>run</code>](./run.md)                                       | Run a command in a sandbox, with an identity of its own                                                                      |
+| [<code>run</code>](./run.md)                                       | Run a command in a workspace of its own, with an identity of its own                                                         |
 | [<code>schedule</code>](./schedule/index.md)                       | Schedule automated start and stop times for workspaces                                                                       |
 | [<code>show</code>](./show.md)                                     | Display details of a workspace's resources and agents                                                                        |
 | [<code>speedtest</code>](./speedtest.md)                           | Run upload and download tests from your machine to a workspace                                                               |

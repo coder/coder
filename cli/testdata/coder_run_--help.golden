@@ -1,114 +1,85 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder run [flags] [--template <template> | <workspace>] [-- command...]
+  coder run [flags] --template <template> [-- command...]
 
-  Run a command in a sandbox, with an identity of its own
+  Run a command in a workspace of its own, with an identity of its own
 
   Run a command as a workload. The workload gets its own identity, sponsored by
   you. It can do nothing in Coder unless you give it scopes, and it never
   receives your credentials. The command's output is streamed and its exit code
   returned.
   
-  With --template, the workload gets a workspace of its own, which its identity
-  owns and shares with you. The workspace is made from the template for this one
-  command, claiming one that was built ahead of time when the template keeps
-  such workspaces, and deleted when the command is over. Without --template, the
-  workload runs in a sandbox that the daemon of an existing workspace creates.
-    - Run a command in a workspace of its own and see who it is:
+  The workload gets a workspace of its own, which its identity owns and shares
+  with you. The workspace is made from the template for this one command,
+  claiming one that was built ahead of time when the template keeps such
+  workspaces, and deleted when the command is over.
+    - Run a command and see who it is:
   
-       $ coder run --template sandbox -- coder identity
+       $ coder run --template agents -- coder identity
+  
+    - Let a workload read templates, and nothing else:
+  
+       $ coder run --template agents --scope template:read -- coder templates
+  list
   
     - Keep the workspace afterwards, to look around in it:
   
-       $ coder run --template sandbox --keep --name fix-1 -- make test
+       $ coder run --template agents --keep --name fix-1 -- make test
   
-    - List your workloads in every workspace, with what became of each:
+    - Work in a workload's workspace with a terminal:
   
-       $ coder run --all
+       $ coder run --template agents -it -- sh
   
-    - Run a command in a sandbox inside one of your workspaces:
+    - List your running workloads:
   
-       $ coder run my-workspace -- coder identity
-  
-    - Let a workload list your workspaces:
-  
-       $ coder run my-workspace --scope workspace:read --scope template:read --
-  coder list
-  
-    - Work in a sandbox with a terminal:
-  
-       $ coder run -it my-workspace -- sh
-  
-    - List the running workloads of a workspace:
-  
-       $ coder run --list my-workspace
+       $ coder run --list
   
     - List all of them, with what became of each:
   
-       $ coder run --all my-workspace
+       $ coder run --all
   
-    - Remove a workload:
+    - Remove a workload, and its workspace with it:
   
-       $ coder run --remove workload-1a2b3c4d my-workspace
+       $ coder run --remove fix-1
 
 OPTIONS:
-      --agent string
-          The workspace daemon to run the workload in, by name. Only needed when
-          the workspace has several.
-
   -a, --all bool
-          List the workspace's workloads, including the most recent ones that
-          are over.
+          List your workloads, including the most recent ones that are over.
 
-  -c, --column [name|workspace|status|sponsor|scopes|command|identity|sandbox|network|image|started|finished] (default: name,status,sponsor,scopes,command,started,identity)
+  -c, --column [name|workspace|status|sponsor|scopes|command|identity|sandbox|started|finished] (default: name,workspace,status,sponsor,scopes,command,started)
           Columns to display in table output.
 
   -d, --detach bool
           Start the workload and print its name instead of following its output.
 
-      --image string
-          The image for the workload's sandbox. The workspace's template sets
-          the default and decides which others are allowed.
-
   -i, --interactive bool
           Keep the command's input open. Use it with --tty, as -it.
 
       --keep bool
-          With --template, keep the workspace when the command is over. It stays
-          as it is, and can be looked at and removed like any workspace.
+          Keep the workspace when the command is over. It stays as it is, and
+          you can enter it. Removing the workload removes it.
 
   -l, --list bool
-          List the workspace's running workloads instead of running one.
+          List your running workloads instead of running one.
 
       --logs string
           Print the output of a workload, by name or identity, instead of
           running one. A running workload is followed until it ends. For one
           that is over, the end of its output was kept.
 
-      --mount string-array
-          A directory of the workspace to show in the sandbox, at the same path.
-          It is read-only unless followed by ":rw". Repeat it for several. The
-          workspace's template decides which directories may be shared; without
-          this flag the workload sees nothing of the workspace.
-
       --name string
-          A name for the workload.
-
-      --network string
-          What the sandbox can reach: "none" or "outbound". The workspace's
-          template sets the default. With "none" the workload can still reach
-          Coder, and nothing else.
+          A name for the workload. Its workspace is named like it.
 
   -o, --output table|json (default: table)
           Output format.
 
       --preset string
-          With --template, the preset of the template to use. A workspace that
-          was built ahead of time for the preset is claimed when there is one.
+          The preset of the template to use. A workspace that was built ahead of
+          time for the preset is claimed when there is one.
 
       --remove string
-          Remove the named workload instead of running one.
+          Remove the named workload, and its workspace, instead of running one.
 
       --scope string-array
           A permission the workload may use, as an API token scope such as
@@ -116,9 +87,8 @@ OPTIONS:
           do nothing in Coder.
 
       --template string
-          Give the workload a workspace of its own, made from this template and
-          deleted when the command is over. The workload's identity owns the
-          workspace and shares it with you.
+          The template the workload's workspace is made from. The workload's
+          identity owns the workspace and shares it with you.
 
   -t, --tty bool
           Give the command a terminal and attach to it. Use it with

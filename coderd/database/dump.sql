@@ -612,8 +612,7 @@ CREATE TYPE provisioner_storage_method AS ENUM (
 
 CREATE TYPE provisioner_type AS ENUM (
     'echo',
-    'terraform',
-    'sandbox'
+    'terraform'
 );
 
 CREATE TYPE resource_type AS ENUM (
@@ -3890,9 +3889,6 @@ CREATE TABLE workload_identities (
     name text NOT NULL,
     command text DEFAULT ''::text NOT NULL,
     scopes text[] DEFAULT '{}'::text[] NOT NULL,
-    image text DEFAULT ''::text NOT NULL,
-    network text DEFAULT ''::text NOT NULL,
-    mounts text[] DEFAULT '{}'::text[] NOT NULL,
     runtime text DEFAULT ''::text NOT NULL,
     sandbox_id text DEFAULT ''::text NOT NULL,
     started_at timestamp with time zone,
@@ -3910,17 +3906,13 @@ COMMENT ON COLUMN workload_identities.sponsor_id IS 'The user account that asked
 
 COMMENT ON COLUMN workload_identities.workspace_agent_id IS 'The workspace daemon that runs the workload. Only this daemon can vouch for the identity. NULL while the workspace that was made for the workload is being built.';
 
-COMMENT ON COLUMN workload_identities.user_id IS 'The service account that is this identity, when the workload has a workspace to itself. It owns that workspace, and the workload acts as it, narrowed to its scopes. NULL for a workload in a sandbox inside its sponsor''s workspace, which acts as its sponsor, narrowed to its scopes.';
+COMMENT ON COLUMN workload_identities.user_id IS 'The service account that is this identity. It owns the workspace that was made for the workload, and the workload acts as it, narrowed to its scopes. NULL once the account is gone.';
 
 COMMENT ON COLUMN workload_identities.scopes IS 'API key scope names. An empty list grants nothing.';
 
-COMMENT ON COLUMN workload_identities.image IS 'The image asked for, and once the workload has started, the one the daemon''s policy settled on. The same holds for network and mounts.';
+COMMENT ON COLUMN workload_identities.sandbox_id IS 'Where the daemon reported that the workload runs, as its runtime names it.';
 
-COMMENT ON COLUMN workload_identities.mounts IS 'Directories of the workspace that the sandbox can see, each followed by :rw when it can write to it.';
-
-COMMENT ON COLUMN workload_identities.sandbox_id IS 'The sandbox the daemon reported for the workload, as its runtime names it.';
-
-COMMENT ON COLUMN workload_identities.started_at IS 'When the daemon reported the sandbox. NULL while the workload waits for its daemon to start it.';
+COMMENT ON COLUMN workload_identities.started_at IS 'When the daemon reported that the workload runs. NULL while the workload waits for its daemon to start it.';
 
 COMMENT ON COLUMN workload_identities.finished_at IS 'When the workload was over. From then on the identity authorizes nothing. NULL while the workload is live.';
 

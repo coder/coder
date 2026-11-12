@@ -22,6 +22,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -34,14 +35,10 @@ import (
 	"github.com/coder/coder/v2/coderd/x/agentsandbox"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
-	"github.com/coder/coder/v2/provisioner"
 	"github.com/coder/websocket"
 )
 
 const (
-	// maxWorkloadsPerWorkspace bounds how many workloads one workspace runs
-	// at a time.
-	maxWorkloadsPerWorkspace = 16
 	// maxWorkloadCommandBytes bounds a workload's command.
 	maxWorkloadCommandBytes = 64 << 10
 	// workloadStartTimeout bounds how long a daemon may take to start a
@@ -61,7 +58,6 @@ const (
 func (api *API) registerWorkspaceWorkloadRoutes(r chi.Router) {
 	r.Route("/workloads", func(r chi.Router) {
 		r.Use(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentRuntimeWorkloads))
-		r.Post("/", api.postWorkspaceWorkload)
 		r.Get("/", api.workspaceWorkloads)
 		r.Get("/{workload}/logs", api.workspaceWorkloadLogs)
 		r.Get("/{workload}/attach", api.workspaceWorkloadAttach)
@@ -76,6 +72,7 @@ func (api *API) registerWorkloadRoutes(r chi.Router) {
 		r.Use(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentRuntimeWorkloads))
 		r.Get("/", api.sponsoredWorkloads)
 		r.Post("/", api.postWorkload)
+		r.Get("/identity", api.workloadIdentitySelf)
 	})
 }
 
@@ -241,15 +238,10 @@ func workloadFromIdentity(identity database.WorkloadIdentity, agentName, sponsor
 		SponsorID:       identity.SponsorID,
 		SponsorUsername: sponsorUsername,
 		Scopes:          workloadScopes(identity.Scopes),
-		Image:           identity.Image,
-		Network:         codersdk.WorkloadNetwork(identity.Network),
-		OwnWorkspace:    identity.RemoveWorkspace || identity.UserID.Valid,
+		OwnWorkspace:    true,
 	}
 	if identity.UserID.Valid {
 		workload.UserID = &identity.UserID.UUID
-	}
-	for _, mount := range identity.Mounts {
-		workload.Mounts = append(workload.Mounts, codersdk.ParseWorkloadMount(mount))
 	}
 	if identity.SandboxID != "" {
 		workload.Sandbox = &codersdk.WorkloadSandbox{Runtime: identity.Runtime, ID: identity.SandboxID}
@@ -420,6 +412,13 @@ func (api *API) finishWorkload(ctx context.Context, identity database.WorkloadId
 		return identity, false, xerrors.Errorf("finish workload: %w", err)
 	}
 	api.Logger.Info(ctx, "workload is over", slog.F("workload_id", identity.ID), slog.F("reason", end.Reason))
+	// The workload's token is refused from now on, because the identity
+	// is over. It is deleted as well.
+	if identity.UserID.Valid {
+		if err := api.Database.DeleteAPIKeysByUserID(sysCtx, identity.UserID.UUID); err != nil {
+			api.Logger.Warn(ctx, "delete the token of a finished workload", slog.F("workload_id", identity.ID), slog.Error(err))
+		}
+	}
 
 	actor := end.ActorID
 	if actor == uuid.Nil {
@@ -456,9 +455,8 @@ func (api *API) finishWorkload(ctx context.Context, identity database.WorkloadId
 const workloadWorkspaceGrace = 3 * time.Second
 
 // removeWorkloadWorkspace deletes the workspace that was made for a
-// workload, as the workspace's owner: the workload's own identity when it
-// has one, its sponsor otherwise. An identity that owned the workspace is
-// retired when the workspace is gone.
+// workload, as the workspace's owner, the workload's identity. The identity
+// is retired when the workspace is gone.
 func (api *API) removeWorkloadWorkspace(identity database.WorkloadIdentity) {
 	ctx, cancel := context.WithTimeout(api.ctx, time.Minute)
 	defer cancel()
@@ -468,13 +466,11 @@ func (api *API) removeWorkloadWorkspace(identity database.WorkloadIdentity) {
 		return
 	case <-time.After(workloadWorkspaceGrace):
 	}
-	ownerID := identity.SponsorID
-	if identity.UserID.Valid {
-		ownerID = identity.UserID.UUID
+	if !identity.UserID.Valid {
+		// The identity's account is gone, and its workspace with it.
+		return
 	}
-	//nolint:gocritic // The owner's permissions are looked up to act as the owner.
-	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	owner, _, err := httpmw.UserRBACSubject(sysCtx, api.Database, ownerID, rbac.ScopeAll)
+	owner, err := api.workloadOwnerSubject(ctx, identity.UserID.UUID, identity.OrganizationID)
 	if err != nil {
 		logger.Warn(ctx, "delete the workspace of a finished workload: get owner", slog.Error(err))
 		return
@@ -626,122 +622,9 @@ func (api *API) listFinishedWorkspaceWorkloads(ctx context.Context, workspaceID 
 	return result, nil
 }
 
-// @Summary Run a workload (experimental)
-// @ID create-workspace-workload
-// @Security CoderSessionToken
-// @Accept json
-// @Produce json
-// @Tags Workspaces
-// @Param workspace path string true "Workspace ID" format(uuid)
-// @Param request body codersdk.CreateWorkloadRequest true "Create workload request"
-// @Success 201 {object} codersdk.Workload
-// @Router /api/v2/workspaces/{workspace}/workloads [post]
-// @x-apidocgen {"skip": true}
-func (api *API) postWorkspaceWorkload(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, policy.ActionUpdate, workspace) {
-		httpapi.ResourceNotFound(rw)
-		return
-	}
-	// A workload acts with its sponsor's permissions, so only the workspace
-	// owner may sponsor one in their workspace. Any user account can be a
-	// sponsor, including a service account. A workload cannot sponsor
-	// another: that would let it hand out permissions it was not given.
-	apiKey := httpmw.APIKey(r)
-	if apiKey.UserID != workspace.OwnerID || isWorkloadCaller(r) {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only the owner of a workspace can run workloads in it.",
-		})
-		return
-	}
-
-	var req codersdk.CreateWorkloadRequest
-	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-	scopes, refusal := workloadRequestScopes(req)
-	if refusal != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, *refusal)
-		return
-	}
-	daemon, status, refusal := api.workloadDaemon(ctx, workspace.ID, req.Agent)
-	if refusal != nil {
-		httpapi.Write(ctx, rw, status, *refusal)
-		return
-	}
-
-	//nolint:gocritic // The caller is the workspace owner, checked above.
-	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	// Only what coderd knows is looked at here. Asking the daemon would
-	// wait for a connection to it.
-	existing, err := api.Database.GetWorkloadIdentitiesByWorkspaceID(sysCtx, workspace.ID)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-	if len(existing) >= maxWorkloadsPerWorkspace {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: fmt.Sprintf("This workspace already runs %d workloads.", maxWorkloadsPerWorkspace),
-		})
-		return
-	}
-	id := uuid.New()
-	name := req.Name
-	if name == "" {
-		name = "workload-" + id.String()[:8]
-	}
-	if !provisioner.AgentNameRegex.MatchString(name) || len(name) > 40 || name != strings.ToLower(name) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "The workload name must be lowercase letters, digits and single hyphens, and at most 40 characters.",
-		})
-		return
-	}
-	if slices.ContainsFunc(existing, func(identity database.WorkloadIdentity) bool { return identity.Name == name }) {
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: fmt.Sprintf("A workload named %q already runs in this workspace.", name),
-		})
-		return
-	}
-
-	sponsor, err := api.Database.GetUserByID(sysCtx, apiKey.UserID)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-	mounts := make([]string, 0, len(req.Mounts))
-	for _, mount := range req.Mounts {
-		mounts = append(mounts, mount.String())
-	}
-	// The identity exists before anything runs. It is assigned to the one
-	// daemon that may vouch for it, and says what was asked for.
-	identity, err := api.Database.InsertWorkloadIdentity(sysCtx, database.InsertWorkloadIdentityParams{
-		ID:               id,
-		CreatedAt:        dbtime.Now(),
-		OrganizationID:   workspace.OrganizationID,
-		SponsorID:        sponsor.ID,
-		WorkspaceID:      workspace.ID,
-		WorkspaceAgentID: uuid.NullUUID{UUID: daemon.ID, Valid: true},
-		UserID:           uuid.NullUUID{},
-		Name:             name,
-		Command:          req.Command,
-		Scopes:           scopes,
-		Image:            req.Image,
-		Network:          string(req.Network),
-		Mounts:           mounts,
-		Interactive:      req.Interactive,
-		RemoveWorkspace:  req.RemoveWorkspace,
-	})
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-	api.awaitWorkloadStart(rw, r, identity, daemon, sponsor)
-}
-
 // workloadRequestScopes checks what a workload is asked to run and returns
 // the scopes it asks for, by their canonical names.
-func workloadRequestScopes(req codersdk.CreateWorkloadRequest) ([]string, *codersdk.Response) {
+func workloadRequestScopes(req codersdk.LaunchWorkloadRequest) ([]string, *codersdk.Response) {
 	if req.Command == "" || len(req.Command) > maxWorkloadCommandBytes || strings.ContainsRune(req.Command, 0) {
 		return nil, &codersdk.Response{
 			Message: "A workload needs a command of at most 64 KiB without NUL bytes.",
@@ -799,7 +682,7 @@ func (api *API) workloadDaemon(ctx context.Context, workspaceID uuid.UUID, agent
 		if len(daemons) == 0 {
 			return none, http.StatusConflict, &codersdk.Response{
 				Message: "No daemon of this workspace can run workloads.",
-				Detail:  "The template must start an agent with CODER_AGENT_WORKLOAD_RUNTIME set and give it a sandbox runtime such as Docker.",
+				Detail:  "The template must start an agent with CODER_AGENT_WORKLOAD_RUNTIME=pod.",
 			}
 		}
 	}
@@ -917,7 +800,7 @@ func (api *API) awaitWorkloadStart(rw http.ResponseWriter, r *http.Request, iden
 			}
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: fmt.Sprintf("The workspace daemon %q cannot run workloads.", daemon.Name),
-				Detail:  "The template must start the agent with CODER_AGENT_WORKLOAD_RUNTIME set and give it a sandbox runtime such as Docker.",
+				Detail:  "The template must start the agent with CODER_AGENT_WORKLOAD_RUNTIME=pod.",
 			})
 			return
 		case reason := <-outcome:
@@ -1395,18 +1278,20 @@ waiting:
 	}
 	specs := make([]codersdk.AgentWorkloadSpec, 0, len(identities))
 	for _, identity := range identities {
-		spec := codersdk.AgentWorkloadSpec{
-			ID:          identity.ID,
-			Name:        identity.Name,
-			Command:     identity.Command,
-			Image:       identity.Image,
-			Network:     codersdk.WorkloadNetwork(identity.Network),
-			Interactive: identity.Interactive,
+		// The workload's credential goes to the daemon that coderd gave
+		// the workload to, which has proved who it is, and to nobody else.
+		token, err := api.issueWorkloadToken(ctx, identity)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
 		}
-		for _, mount := range identity.Mounts {
-			spec.Mounts = append(spec.Mounts, codersdk.ParseWorkloadMount(mount))
-		}
-		specs = append(specs, spec)
+		specs = append(specs, codersdk.AgentWorkloadSpec{
+			ID:           identity.ID,
+			Name:         identity.Name,
+			Command:      identity.Command,
+			Interactive:  identity.Interactive,
+			SessionToken: token,
+		})
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, specs)
 }
@@ -1445,18 +1330,11 @@ func (api *API) postWorkspaceAgentWorkloadStarted(rw http.ResponseWriter, r *htt
 	switch {
 	case req.State != nil:
 		reason = ""
-		mounts := make([]string, 0, len(req.State.Mounts))
-		for _, mount := range req.State.Mounts {
-			mounts = append(mounts, mount.String())
-		}
 		// No row means the workload is over already, which is fine.
 		_, err = api.Database.UpdateWorkloadIdentitySandbox(sysCtx, database.UpdateWorkloadIdentitySandboxParams{
 			ID:        identity.ID,
 			Runtime:   req.State.Sandbox.Runtime,
 			SandboxID: req.State.Sandbox.ID,
-			Image:     req.State.Image,
-			Network:   string(req.State.Network),
-			Mounts:    mounts,
 			StartedAt: sql.NullTime{Valid: true, Time: dbtime.Now()},
 		})
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -1545,83 +1423,143 @@ func (s workloadScope) Expand() (rbac.Scope, error) {
 	return scopes.WithAllowList(database.AllowList{{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol}}).Expand()
 }
 
-// vouchedWorkloadIdentity returns the workload identity a daemon vouches
-// for. The daemon proves itself with its agent token. It can only vouch for
-// an identity that coderd assigned to it and whose workload is not over.
-// Nothing else selects the identity: not the workload, and not a user.
-func (api *API) vouchedWorkloadIdentity(ctx context.Context, agentToken, identityID string) (database.WorkloadIdentity, database.WorkspaceAgent, error) {
-	var noIdentity database.WorkloadIdentity
-	var noAgent database.WorkspaceAgent
+// workloadIdentityScope says what the token of a workload identity may do:
+// what the identity's record names, and nothing when the workload is over
+// or the token is not the identity's own account's.
+func (api *API) workloadIdentityScope(ctx context.Context, identityID, userID uuid.UUID) (rbac.ExpandableScope, bool) {
 	if !api.Experiments.Enabled(codersdk.ExperimentRuntimeWorkloads) {
-		return noIdentity, noAgent, xerrors.New("workloads are not enabled")
-	}
-	token, err := uuid.Parse(agentToken)
-	if err != nil {
-		return noIdentity, noAgent, xerrors.New("the credential is not an agent token")
-	}
-	id, err := uuid.Parse(identityID)
-	if err != nil {
-		return noIdentity, noAgent, xerrors.New("the workload identity is not a UUID")
+		return nil, false
 	}
 	//nolint:gocritic // Authentication happens before there is an actor.
+	identity, err := api.Database.GetWorkloadIdentityByID(dbauthz.AsSystemRestricted(ctx), identityID)
+	if err != nil || identity.FinishedAt.Valid || !identity.UserID.Valid || identity.UserID.UUID != userID {
+		return nil, false
+	}
+	return workloadScope{identityID: identity.ID, scopes: identity.Scopes}, true
+}
+
+// issueWorkloadToken makes the credential of a workload: an API token of
+// the identity's own account. What it may do is decided by the identity's
+// record whenever it is used, not by the token. It is made once. Asking
+// again returns nothing: the token cannot be read back.
+func (api *API) issueWorkloadToken(ctx context.Context, identity database.WorkloadIdentity) (string, error) {
+	if !identity.UserID.Valid {
+		return "", nil
+	}
+	//nolint:gocritic // The daemon the workload was given to asks; identities have no permission of their own yet.
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	// This only returns agents of the latest build of their workspace.
-	row, err := api.Database.GetAuthenticatedWorkspaceAgentAndBuildByAuthToken(sysCtx, token)
-	if err != nil {
-		return noIdentity, noAgent, xerrors.Errorf("authenticate workspace daemon: %w", err)
-	}
-	identity, err := api.Database.GetWorkloadIdentityByID(sysCtx, id)
-	if err != nil {
-		return noIdentity, noAgent, xerrors.Errorf("get workload identity: %w", err)
-	}
-	if identity.FinishedAt.Valid {
-		return noIdentity, noAgent, xerrors.New("the workload is over")
-	}
-	if identity.WorkspaceAgentID.UUID != row.WorkspaceAgent.ID {
-		return noIdentity, noAgent, xerrors.New("the workload identity is not assigned to this daemon")
-	}
-	return identity, row.WorkspaceAgent, nil
-}
-
-// resolveWorkloadAPIKey lets a workload call the user API through its
-// workspace daemon. A workload with a workspace to itself acts as its own
-// service account, narrowed to the identity's scopes: it has nothing of its
-// sponsor's. A workload in a sandbox inside its sponsor's workspace acts as
-// its sponsor, narrowed to the identity's scopes. No API key exists in the
-// database: the returned key only carries the account and the identity to
-// the handlers.
-func (api *API) resolveWorkloadAPIKey(ctx context.Context, agentToken, identityID string) (*httpmw.ValidateAPIKeyResult, bool) {
-	identity, _, err := api.vouchedWorkloadIdentity(ctx, agentToken, identityID)
-	if err != nil {
-		return nil, false
-	}
-	userID := identity.SponsorID
-	if identity.UserID.Valid {
-		userID = identity.UserID.UUID
-	}
-	subject, status, err := httpmw.UserRBACSubject(ctx, api.Database, userID, workloadScope{
-		identityID: identity.ID, scopes: identity.Scopes,
+	existing, err := api.Database.GetAPIKeysByUserID(sysCtx, database.GetAPIKeysByUserIDParams{
+		LoginType:      database.LoginTypeToken,
+		UserID:         identity.UserID.UUID,
+		IncludeExpired: true,
 	})
-	if err != nil || status != database.UserStatusActive {
-		return nil, false
+	if err != nil {
+		return "", xerrors.Errorf("get the workload's tokens: %w", err)
 	}
-	now := dbtime.Now()
-	return &httpmw.ValidateAPIKeyResult{
-		Key: database.APIKey{
-			ID:        httpmw.WorkloadAPIKeyIDPrefix + identity.ID.String(),
-			UserID:    userID,
-			LoginType: database.LoginTypeToken,
-			CreatedAt: identity.CreatedAt,
-			UpdatedAt: now,
-			LastUsed:  now,
-			ExpiresAt: now.Add(time.Minute),
-		},
-		Subject:    subject,
-		UserStatus: status,
-	}, true
+	if len(existing) > 0 {
+		return "", nil
+	}
+	// The token carries the identity's scopes as well, and the least
+	// there is when it has none, should it ever be judged by itself.
+	scopes := database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect}
+	if len(identity.Scopes) > 0 {
+		scopes = make(database.APIKeyScopes, 0, len(identity.Scopes))
+		for _, scope := range identity.Scopes {
+			scopes = append(scopes, database.APIKeyScope(scope))
+		}
+	}
+	params, token, err := apikey.Generate(apikey.CreateParams{
+		UserID:          identity.UserID.UUID,
+		LoginType:       database.LoginTypeToken,
+		DefaultLifetime: api.DeploymentValues.Sessions.DefaultTokenDuration.Value(),
+		LifetimeSeconds: int64(api.DeploymentValues.Sessions.MaximumTokenDuration.Value().Seconds()),
+		Scopes:          scopes,
+		TokenName:       codersdk.WorkloadTokenNamePrefix + identity.ID.String(),
+	})
+	if err != nil {
+		return "", xerrors.Errorf("generate the workload's token: %w", err)
+	}
+	if _, err := api.Database.InsertAPIKey(sysCtx, params); err != nil {
+		return "", xerrors.Errorf("insert the workload's token: %w", err)
+	}
+	return token, nil
 }
 
-// @Summary Get the identity of the caller in a workspace (experimental)
+// workloadAttestation says what a workload's or a daemon's identity rests
+// on: the cluster's word for which pod the daemon runs in, or an agent
+// token.
+func workloadAttestation(agent database.WorkspaceAgent) (codersdk.WorkloadAttestation, string) {
+	if strings.HasPrefix(agent.AuthInstanceID.String, agentsandbox.InstanceIDPrefix) {
+		return codersdk.WorkloadAttestationKubernetesPod, agent.AuthInstanceID.String
+	}
+	return codersdk.WorkloadAttestationAgentToken, ""
+}
+
+// @Summary Get the identity of the calling workload (experimental)
+// @ID get-workload-identity
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Success 200 {object} codersdk.WorkloadIdentity
+// @Router /api/v2/workloads/identity [get]
+// @x-apidocgen {"skip": true}
+func (api *API) workloadIdentitySelf(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	id, ok := httpmw.WorkloadIdentityID(httpmw.APIKey(r))
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "The caller is not a workload.",
+		})
+		return
+	}
+	// A workload knows who it is, whatever its scopes.
+	//nolint:gocritic // The workload reads its own identity.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	record, err := api.Database.GetWorkloadIdentityByID(sysCtx, id)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	workspace, err := api.Database.GetWorkspaceByID(sysCtx, record.WorkspaceID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	sponsor, err := api.Database.GetUserByID(sysCtx, record.SponsorID)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	identity := codersdk.WorkloadIdentity{
+		ID:              workloadIdentityName(workspace.ID, record.ID),
+		Kind:            codersdk.WorkloadIdentityKindWorkload,
+		Attestation:     codersdk.WorkloadAttestationWorkspaceDaemon,
+		WorkspaceID:     workspace.ID,
+		WorkspaceName:   workspace.Name,
+		OwnerID:         workspace.OwnerID,
+		OwnerUsername:   workspace.OwnerUsername,
+		IdentityID:      record.ID,
+		Name:            record.Name,
+		SponsorID:       record.SponsorID,
+		SponsorUsername: sponsor.Username,
+		Scopes:          workloadScopes(record.Scopes),
+	}
+	// The workload's token went to its daemon. Where the cluster vouches
+	// for the daemon's pod, the workload's identity rests on the
+	// cluster's word.
+	if agent, err := api.Database.GetWorkspaceAgentByID(sysCtx, record.WorkspaceAgentID.UUID); err == nil {
+		identity.AgentID, identity.AgentName = agent.ID, agent.Name
+		if attestation, subject := workloadAttestation(agent); attestation == codersdk.WorkloadAttestationKubernetesPod {
+			identity.Attestation, identity.AttestationSubject = attestation, subject
+		}
+	}
+	if record.SandboxID != "" {
+		identity.Sandbox = &codersdk.WorkloadSandbox{Runtime: record.Runtime, ID: record.SandboxID}
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, identity)
+}
+
+// @Summary Get the identity of a workspace daemon (experimental)
 // @ID get-workspace-agent-identity
 // @Security CoderSessionToken
 // @Produce json
@@ -1641,7 +1579,6 @@ func (api *API) workspaceAgentIdentity(rw http.ResponseWriter, r *http.Request) 
 	identity := codersdk.WorkloadIdentity{
 		ID:            daemonIdentityName(workspace.ID, agent.ID),
 		Kind:          codersdk.WorkloadIdentityKindDaemon,
-		Attestation:   codersdk.WorkloadAttestationAgentToken,
 		AgentID:       agent.ID,
 		AgentName:     agent.Name,
 		WorkspaceID:   workspace.ID,
@@ -1649,45 +1586,8 @@ func (api *API) workspaceAgentIdentity(rw http.ResponseWriter, r *http.Request) 
 		OwnerID:       workspace.OwnerID,
 		OwnerUsername: workspace.OwnerUsername,
 	}
-	// A daemon in a pod from a pool was never given a token. It is the
-	// daemon of this workspace because the cluster said which pod it is.
-	attestedPod := strings.HasPrefix(agent.AuthInstanceID.String, agentsandbox.InstanceIDPrefix)
-	if attestedPod {
-		identity.Attestation = codersdk.WorkloadAttestationKubernetesPod
-		identity.AttestationSubject = agent.AuthInstanceID.String
-	}
-	// A daemon that forwards a workload's request names the workload. The
-	// answer must then describe the workload and never the daemon.
-	if vouched := r.Header.Get(codersdk.WorkloadIdentityHeader); vouched != "" {
-		record, _, err := api.vouchedWorkloadIdentity(ctx, httpmw.APITokenFromRequest(r), vouched)
-		if err != nil || record.WorkspaceAgentID.UUID != agent.ID {
-			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-				Message: "Workload identity not accepted.",
-			})
-			return
-		}
-		//nolint:gocritic // The workload reads its own identity.
-		sponsor, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), record.SponsorID)
-		if err != nil {
-			httpapi.InternalServerError(rw, err)
-			return
-		}
-		identity.ID = workloadIdentityName(workspace.ID, record.ID)
-		identity.Kind = codersdk.WorkloadIdentityKindWorkload
-		// The daemon vouches for the workload. Where the cluster vouches
-		// for the daemon's pod, and the workload has that pod to itself,
-		// the workload's identity rests on the cluster's word too.
-		if !attestedPod {
-			identity.Attestation = codersdk.WorkloadAttestationWorkspaceDaemon
-		}
-		identity.IdentityID = record.ID
-		identity.Name = record.Name
-		identity.SponsorID = record.SponsorID
-		identity.SponsorUsername = sponsor.Username
-		identity.Scopes = workloadScopes(record.Scopes)
-		if record.SandboxID != "" {
-			identity.Sandbox = &codersdk.WorkloadSandbox{Runtime: record.Runtime, ID: record.SandboxID}
-		}
-	}
+	// A daemon in a pod was never given a token. It is the daemon of this
+	// workspace because the cluster said which pod it is.
+	identity.Attestation, identity.AttestationSubject = workloadAttestation(agent)
 	httpapi.Write(ctx, rw, http.StatusOK, identity)
 }

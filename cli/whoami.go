@@ -71,9 +71,9 @@ func (r *RootCmd) whoami() *serpent.Command {
 			if err != nil {
 				return noUser(err)
 			}
-			// A workload can reach the user API within its scopes, but
-			// nobody is logged in.
-			if os.Getenv(codersdk.WorkloadSocketEnv) != "" && identity != nil {
+			// A workload reaches the user API with its own token, within
+			// its scopes, but nobody is logged in.
+			if os.Getenv(workloadNameEnv) != "" && identity != nil {
 				return noUser(nil)
 			}
 

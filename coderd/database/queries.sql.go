@@ -35712,7 +35712,7 @@ SET
 WHERE
 	id = $5
 	AND finished_at IS NULL
-RETURNING id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, image, network, mounts, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
+RETURNING id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
 `
 
 type FinishWorkloadIdentityParams struct {
@@ -35746,9 +35746,6 @@ func (q *sqlQuerier) FinishWorkloadIdentity(ctx context.Context, arg FinishWorkl
 		&i.Name,
 		&i.Command,
 		pq.Array(&i.Scopes),
-		&i.Image,
-		&i.Network,
-		pq.Array(&i.Mounts),
 		&i.Runtime,
 		&i.SandboxID,
 		&i.StartedAt,
@@ -35764,7 +35761,7 @@ func (q *sqlQuerier) FinishWorkloadIdentity(ctx context.Context, arg FinishWorkl
 
 const getFinishedWorkloadIdentitiesBySponsorID = `-- name: GetFinishedWorkloadIdentitiesBySponsorID :many
 SELECT
-	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, image, network, mounts, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
+	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
 FROM
 	workload_identities
 WHERE
@@ -35804,9 +35801,6 @@ func (q *sqlQuerier) GetFinishedWorkloadIdentitiesBySponsorID(ctx context.Contex
 			&i.Name,
 			&i.Command,
 			pq.Array(&i.Scopes),
-			&i.Image,
-			&i.Network,
-			pq.Array(&i.Mounts),
 			&i.Runtime,
 			&i.SandboxID,
 			&i.StartedAt,
@@ -35832,7 +35826,7 @@ func (q *sqlQuerier) GetFinishedWorkloadIdentitiesBySponsorID(ctx context.Contex
 
 const getFinishedWorkloadIdentitiesByWorkspaceID = `-- name: GetFinishedWorkloadIdentitiesByWorkspaceID :many
 SELECT
-	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, image, network, mounts, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
+	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
 FROM
 	workload_identities
 WHERE
@@ -35871,9 +35865,6 @@ func (q *sqlQuerier) GetFinishedWorkloadIdentitiesByWorkspaceID(ctx context.Cont
 			&i.Name,
 			&i.Command,
 			pq.Array(&i.Scopes),
-			&i.Image,
-			&i.Network,
-			pq.Array(&i.Mounts),
 			&i.Runtime,
 			&i.SandboxID,
 			&i.StartedAt,
@@ -35899,7 +35890,7 @@ func (q *sqlQuerier) GetFinishedWorkloadIdentitiesByWorkspaceID(ctx context.Cont
 
 const getPendingWorkloadIdentitiesByWorkspaceAgentID = `-- name: GetPendingWorkloadIdentitiesByWorkspaceAgentID :many
 SELECT
-	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, image, network, mounts, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
+	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
 FROM
 	workload_identities
 WHERE
@@ -35939,9 +35930,6 @@ func (q *sqlQuerier) GetPendingWorkloadIdentitiesByWorkspaceAgentID(ctx context.
 			&i.Name,
 			&i.Command,
 			pq.Array(&i.Scopes),
-			&i.Image,
-			&i.Network,
-			pq.Array(&i.Mounts),
 			&i.Runtime,
 			&i.SandboxID,
 			&i.StartedAt,
@@ -35967,7 +35955,7 @@ func (q *sqlQuerier) GetPendingWorkloadIdentitiesByWorkspaceAgentID(ctx context.
 
 const getWorkloadIdentitiesBySponsorID = `-- name: GetWorkloadIdentitiesBySponsorID :many
 SELECT
-	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, image, network, mounts, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
+	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
 FROM
 	workload_identities
 WHERE
@@ -35999,9 +35987,6 @@ func (q *sqlQuerier) GetWorkloadIdentitiesBySponsorID(ctx context.Context, spons
 			&i.Name,
 			&i.Command,
 			pq.Array(&i.Scopes),
-			&i.Image,
-			&i.Network,
-			pq.Array(&i.Mounts),
 			&i.Runtime,
 			&i.SandboxID,
 			&i.StartedAt,
@@ -36027,7 +36012,7 @@ func (q *sqlQuerier) GetWorkloadIdentitiesBySponsorID(ctx context.Context, spons
 
 const getWorkloadIdentitiesByWorkspaceID = `-- name: GetWorkloadIdentitiesByWorkspaceID :many
 SELECT
-	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, image, network, mounts, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
+	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
 FROM
 	workload_identities
 WHERE
@@ -36059,9 +36044,6 @@ func (q *sqlQuerier) GetWorkloadIdentitiesByWorkspaceID(ctx context.Context, wor
 			&i.Name,
 			&i.Command,
 			pq.Array(&i.Scopes),
-			&i.Image,
-			&i.Network,
-			pq.Array(&i.Mounts),
 			&i.Runtime,
 			&i.SandboxID,
 			&i.StartedAt,
@@ -36087,7 +36069,7 @@ func (q *sqlQuerier) GetWorkloadIdentitiesByWorkspaceID(ctx context.Context, wor
 
 const getWorkloadIdentityByID = `-- name: GetWorkloadIdentityByID :one
 SELECT
-	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, image, network, mounts, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
+	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
 FROM
 	workload_identities
 WHERE
@@ -36110,9 +36092,6 @@ func (q *sqlQuerier) GetWorkloadIdentityByID(ctx context.Context, id uuid.UUID) 
 		&i.Name,
 		&i.Command,
 		pq.Array(&i.Scopes),
-		&i.Image,
-		&i.Network,
-		pq.Array(&i.Mounts),
 		&i.Runtime,
 		&i.SandboxID,
 		&i.StartedAt,
@@ -36128,7 +36107,7 @@ func (q *sqlQuerier) GetWorkloadIdentityByID(ctx context.Context, id uuid.UUID) 
 
 const getWorkloadIdentityByUserID = `-- name: GetWorkloadIdentityByUserID :one
 SELECT
-	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, image, network, mounts, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
+	id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
 FROM
 	workload_identities
 WHERE
@@ -36151,9 +36130,6 @@ func (q *sqlQuerier) GetWorkloadIdentityByUserID(ctx context.Context, userID uui
 		&i.Name,
 		&i.Command,
 		pq.Array(&i.Scopes),
-		&i.Image,
-		&i.Network,
-		pq.Array(&i.Mounts),
 		&i.Runtime,
 		&i.SandboxID,
 		&i.StartedAt,
@@ -36179,9 +36155,6 @@ INSERT INTO workload_identities (
 	name,
 	command,
 	scopes,
-	image,
-	network,
-	mounts,
 	interactive,
 	remove_workspace
 )
@@ -36197,12 +36170,9 @@ VALUES (
 	$9,
 	$10,
 	$11,
-	$12,
-	$13,
-	$14,
-	$15
+	$12
 )
-RETURNING id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, image, network, mounts, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
+RETURNING id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
 `
 
 type InsertWorkloadIdentityParams struct {
@@ -36216,9 +36186,6 @@ type InsertWorkloadIdentityParams struct {
 	Name             string        `db:"name" json:"name"`
 	Command          string        `db:"command" json:"command"`
 	Scopes           []string      `db:"scopes" json:"scopes"`
-	Image            string        `db:"image" json:"image"`
-	Network          string        `db:"network" json:"network"`
-	Mounts           []string      `db:"mounts" json:"mounts"`
 	Interactive      bool          `db:"interactive" json:"interactive"`
 	RemoveWorkspace  bool          `db:"remove_workspace" json:"remove_workspace"`
 }
@@ -36235,9 +36202,6 @@ func (q *sqlQuerier) InsertWorkloadIdentity(ctx context.Context, arg InsertWorkl
 		arg.Name,
 		arg.Command,
 		pq.Array(arg.Scopes),
-		arg.Image,
-		arg.Network,
-		pq.Array(arg.Mounts),
 		arg.Interactive,
 		arg.RemoveWorkspace,
 	)
@@ -36253,9 +36217,6 @@ func (q *sqlQuerier) InsertWorkloadIdentity(ctx context.Context, arg InsertWorkl
 		&i.Name,
 		&i.Command,
 		pq.Array(&i.Scopes),
-		&i.Image,
-		&i.Network,
-		pq.Array(&i.Mounts),
 		&i.Runtime,
 		&i.SandboxID,
 		&i.StartedAt,
@@ -36300,35 +36261,26 @@ UPDATE
 SET
 	runtime = $1,
 	sandbox_id = $2,
-	image = $3,
-	network = $4,
-	mounts = $5,
-	started_at = $6
+	started_at = $3
 WHERE
-	id = $7
+	id = $4
 	AND finished_at IS NULL
-RETURNING id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, image, network, mounts, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
+RETURNING id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
 `
 
 type UpdateWorkloadIdentitySandboxParams struct {
 	Runtime   string       `db:"runtime" json:"runtime"`
 	SandboxID string       `db:"sandbox_id" json:"sandbox_id"`
-	Image     string       `db:"image" json:"image"`
-	Network   string       `db:"network" json:"network"`
-	Mounts    []string     `db:"mounts" json:"mounts"`
 	StartedAt sql.NullTime `db:"started_at" json:"started_at"`
 	ID        uuid.UUID    `db:"id" json:"id"`
 }
 
-// UpdateWorkloadIdentitySandbox records the sandbox the daemon started for
-// the workload and what its policy settled on.
+// UpdateWorkloadIdentitySandbox records where the daemon started the
+// workload.
 func (q *sqlQuerier) UpdateWorkloadIdentitySandbox(ctx context.Context, arg UpdateWorkloadIdentitySandboxParams) (WorkloadIdentity, error) {
 	row := q.db.QueryRowContext(ctx, updateWorkloadIdentitySandbox,
 		arg.Runtime,
 		arg.SandboxID,
-		arg.Image,
-		arg.Network,
-		pq.Array(arg.Mounts),
 		arg.StartedAt,
 		arg.ID,
 	)
@@ -36344,9 +36296,6 @@ func (q *sqlQuerier) UpdateWorkloadIdentitySandbox(ctx context.Context, arg Upda
 		&i.Name,
 		&i.Command,
 		pq.Array(&i.Scopes),
-		&i.Image,
-		&i.Network,
-		pq.Array(&i.Mounts),
 		&i.Runtime,
 		&i.SandboxID,
 		&i.StartedAt,
@@ -36368,7 +36317,7 @@ SET
 WHERE
 	id = $2
 	AND finished_at IS NULL
-RETURNING id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, image, network, mounts, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
+RETURNING id, created_at, organization_id, sponsor_id, workspace_id, workspace_agent_id, user_id, name, command, scopes, runtime, sandbox_id, started_at, finished_at, end_reason, exit_code, output_tail, interactive, remove_workspace
 `
 
 type UpdateWorkloadIdentityWorkspaceAgentParams struct {
@@ -36392,9 +36341,6 @@ func (q *sqlQuerier) UpdateWorkloadIdentityWorkspaceAgent(ctx context.Context, a
 		&i.Name,
 		&i.Command,
 		pq.Array(&i.Scopes),
-		&i.Image,
-		&i.Network,
-		pq.Array(&i.Mounts),
 		&i.Runtime,
 		&i.SandboxID,
 		&i.StartedAt,

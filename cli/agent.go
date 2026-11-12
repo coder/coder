@@ -36,7 +36,6 @@ import (
 	"github.com/coder/coder/v2/agent/reaper"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
-	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/serpent"
@@ -68,11 +67,6 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		agentHeader                     []string
 		devcontainers                   bool
 		workloadRuntime                 string
-		workloadImage                   string
-		workloadAllowedImages           []string
-		workloadNetwork                 string
-		workloadAllowedNetworks         []string
-		workloadAllowedMounts           []string
 		devcontainerProjectDiscovery    bool
 		devcontainerDiscoveryAutostart  bool
 		socketServerEnabled             bool
@@ -344,34 +338,6 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				var workloads *agentworkload.Supervisor
 				switch workloadRuntime {
 				case "":
-				case "docker":
-					cliPath, _ := os.Executable()
-					workloads, err = agentworkload.New(ctx, agentworkload.Options{
-						Logger: logger.Named("workloads"),
-						Runtime: &agentworkload.DockerRuntime{
-							StateDir: filepath.Join(os.TempDir(), "coder-workloads"),
-							CLIPath:  cliPath,
-							Logger:   logger.Named("workloads"),
-						},
-						Policy: agentworkload.Policy{
-							DefaultImage:    workloadImage,
-							AllowedImages:   workloadAllowedImages,
-							DefaultNetwork:  codersdk.WorkloadNetwork(workloadNetwork),
-							AllowedNetworks: slice.StringEnums[codersdk.WorkloadNetwork](workloadAllowedNetworks),
-							AllowedMounts:   workloadAllowedMounts,
-						},
-						CoderURL:     &agentAuth.agentURL,
-						SessionToken: client.GetSessionToken,
-						Pending:      client.PendingWorkloads,
-						ReportStart:  client.ReportWorkloadStart,
-						ReportExit:   client.ReportWorkloadExit,
-					})
-					if err != nil {
-						// Workloads are optional. The daemon itself must
-						// still come up when its runtime is not ready.
-						logger.Error(ctx, "workloads are disabled: the runtime is not usable", slog.Error(err))
-						workloads = nil
-					}
 				case "pod":
 					// The daemon has a sandbox to itself, such as a pod made
 					// for one workload. The workload runs next to it.
@@ -380,22 +346,16 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 					workloads, err = agentworkload.New(ctx, agentworkload.Options{
 						Logger: logger.Named("workloads"),
 						Runtime: &agentworkload.PodRuntime{
+							CoderURL:  agentAuth.agentURL.String(),
 							SandboxID: sandboxID,
 							StateDir:  filepath.Join(os.TempDir(), "coder-workloads"),
 							CLIPath:   cliPath,
 							Execer:    execer,
 							Logger:    logger.Named("workloads"),
 						},
-						Policy: agentworkload.Policy{
-							DefaultImage:   workloadImage,
-							DefaultNetwork: codersdk.WorkloadNetwork(workloadNetwork),
-							Fixed:          true,
-						},
-						CoderURL:     &agentAuth.agentURL,
-						SessionToken: client.GetSessionToken,
-						Pending:      client.PendingWorkloads,
-						ReportStart:  client.ReportWorkloadStart,
-						ReportExit:   client.ReportWorkloadExit,
+						Pending:     client.PendingWorkloads,
+						ReportStart: client.ReportWorkloadStart,
+						ReportExit:  client.ReportWorkloadExit,
 					})
 					if err != nil {
 						logger.Error(ctx, "workloads are disabled: the runtime is not usable", slog.Error(err))
@@ -620,44 +580,8 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		{
 			Flag:        "workload-runtime",
 			Env:         "CODER_AGENT_WORKLOAD_RUNTIME",
-			Description: "Run workloads started with \"coder run\". With \"docker\" each runs in a container of a Docker daemon that shares the agent's filesystem. With \"pod\" the agent's own pod is the sandbox of one workload, which runs next to the agent. Empty disables workloads.",
+			Description: "Run the workload that \"coder run\" starts in this workspace. With \"pod\" the agent's own pod is the sandbox of one workload, which runs next to the agent. Empty disables workloads.",
 			Value:       serpent.StringOf(&workloadRuntime),
-			Hidden:      true,
-		},
-		{
-			Flag:        "workload-image",
-			Env:         "CODER_AGENT_WORKLOAD_IMAGE",
-			Description: "The image for workload sandboxes that do not name one.",
-			Value:       serpent.StringOf(&workloadImage),
-			Hidden:      true,
-		},
-		{
-			Flag:        "workload-allowed-images",
-			Env:         "CODER_AGENT_WORKLOAD_ALLOWED_IMAGES",
-			Description: "Patterns of other images a workload may ask for. Without any, only the default image is allowed.",
-			Value:       serpent.StringArrayOf(&workloadAllowedImages),
-			Hidden:      true,
-		},
-		{
-			Flag:        "workload-network",
-			Env:         "CODER_AGENT_WORKLOAD_NETWORK",
-			Description: "The network of workload sandboxes that do not name one: \"outbound\" or \"none\". A workload reaches Coder in both.",
-			Default:     string(codersdk.WorkloadNetworkOutbound),
-			Value:       serpent.StringOf(&workloadNetwork),
-			Hidden:      true,
-		},
-		{
-			Flag:        "workload-allowed-mounts",
-			Env:         "CODER_AGENT_WORKLOAD_ALLOWED_MOUNTS",
-			Description: "Directories that may be shared with a workload, together with everything below them. Without any, a workload sees nothing of the workspace.",
-			Value:       serpent.StringArrayOf(&workloadAllowedMounts),
-			Hidden:      true,
-		},
-		{
-			Flag:        "workload-allowed-networks",
-			Env:         "CODER_AGENT_WORKLOAD_ALLOWED_NETWORKS",
-			Description: "Other networks a workload may ask for. \"none\" is always allowed.",
-			Value:       serpent.StringArrayOf(&workloadAllowedNetworks),
 			Hidden:      true,
 		},
 		{

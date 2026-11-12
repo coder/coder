@@ -65,23 +65,17 @@ type ValidateAPIKeyConfig struct {
 	// from the request. Nil uses the default (cookie/header).
 	SessionTokenFunc func(*http.Request) string
 	Logger           slog.Logger
-	// ResolveWorkloadIdentity handles a request that a workspace daemon
-	// forwards for one of its workloads. It maps the daemon's token and the
-	// workload identity it vouches for to the user the workload acts for
-	// and the permissions it has. It is only consulted for requests that
-	// carry the workload identity header.
-	ResolveWorkloadIdentity func(ctx context.Context, token, identity string) (*ValidateAPIKeyResult, bool)
+	// WorkloadIdentityScope returns what the token of a workload identity
+	// may do. The token is worth what the identity's record says, and
+	// nothing once the workload is over or when the token is not the
+	// identity's own account's. Without it such tokens are refused.
+	WorkloadIdentityScope func(ctx context.Context, identityID, userID uuid.UUID) (rbac.ExpandableScope, bool)
 }
 
-// WorkloadAPIKeyIDPrefix starts the ID of the API key a workload identity
-// is presented as on user API routes. No such key exists in the database,
-// and real API key IDs never contain a colon.
-const WorkloadAPIKeyIDPrefix = "workload:"
-
 // WorkloadIdentityID returns the workload identity a request was made as,
-// when it was made by a workload through its workspace daemon.
+// when it was made with a workload's token. The token says so by its name.
 func WorkloadIdentityID(key database.APIKey) (uuid.UUID, bool) {
-	raw, ok := strings.CutPrefix(key.ID, WorkloadAPIKeyIDPrefix)
+	raw, ok := strings.CutPrefix(key.TokenName, codersdk.WorkloadTokenNamePrefix)
 	if !ok {
 		return uuid.Nil, false
 	}
@@ -307,26 +301,6 @@ func PrecheckAPIKey(cfg ValidateAPIKeyConfig) func(http.Handler) http.Handler {
 //
 // Returns (result, nil) on success or (nil, error) on failure.
 func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Request) (*ValidateAPIKeyResult, *ValidateAPIKeyError) {
-	if cfg.ResolveWorkloadIdentity != nil {
-		tokenFunc := APITokenFromRequest
-		if cfg.SessionTokenFunc != nil {
-			tokenFunc = cfg.SessionTokenFunc
-		}
-		// When the daemon's token does not check out, the request falls
-		// through and is judged as an ordinary API key request, where an
-		// agent token is no credential at all.
-		if identity := r.Header.Get(codersdk.WorkloadIdentityHeader); identity != "" {
-			if result, ok := cfg.ResolveWorkloadIdentity(ctx, tokenFunc(r), identity); ok {
-				// The request log names the workload on every request it
-				// makes, reads included.
-				if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
-					rl.WithFields(slog.F("api_key_id", result.Key.ID), slog.F("workload_identity_id", identity))
-				}
-				return result, nil
-			}
-		}
-	}
-
 	key, valErr := apiKeyFromRequestValidate(ctx, cfg.DB, cfg.Logger, cfg.SessionTokenFunc, r)
 	if valErr != nil {
 		return nil, valErr
@@ -558,8 +532,30 @@ func ValidateAPIKey(ctx context.Context, cfg ValidateAPIKeyConfig, r *http.Reque
 		}
 	}
 
+	var scope rbac.ExpandableScope = key.ScopeSet()
+	if identityID, ok := WorkloadIdentityID(*key); ok {
+		allowed := false
+		if cfg.WorkloadIdentityScope != nil {
+			scope, allowed = cfg.WorkloadIdentityScope(ctx, identityID, key.UserID)
+		}
+		if !allowed {
+			return nil, &ValidateAPIKeyError{
+				Code: http.StatusUnauthorized,
+				Response: codersdk.Response{
+					Message: SignedOutErrorMessage,
+					Detail:  "The workload this token belongs to is over.",
+				},
+			}
+		}
+		// The request log names the workload on every request it makes,
+		// reads included.
+		if rl := loggermw.RequestLoggerFromContext(ctx); rl != nil {
+			rl.WithFields(slog.F("workload_identity_id", identityID))
+		}
+	}
+
 	// Fetch user roles.
-	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, key.ScopeSet())
+	actor, userStatus, err := UserRBACSubject(ctx, cfg.DB, key.UserID, scope)
 	if err != nil {
 		return nil, &ValidateAPIKeyError{
 			Code: http.StatusInternalServerError,

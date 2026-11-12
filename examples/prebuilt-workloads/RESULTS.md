@@ -12,16 +12,16 @@ ordinary member, not an administrator.
 
 | What                                                          | Time                         |
 |---------------------------------------------------------------|------------------------------|
-| `coder run --template prebuilt -- true`, five runs, pool full | median 2.0 s, 1.9 s to 2.4 s |
-| The same in the two runs before                               | median 2.3 s both times      |
-| Five at once on a pool of three: the three that claimed       | 2.3 s to 2.9 s               |
-| The two that got a workspace built for them                   | 13.1 s and 17.5 s            |
+| `coder run --template prebuilt -- true`, five runs, pool full | median 2.1 s, 2.0 s to 2.2 s |
+| The same in the four runs before                              | medians of 2.0 s to 2.3 s    |
+| Five at once on a pool of three: the three that claimed       | 2.4 s to 4.9 s               |
+| The two that got a workspace built for them                   | 9.1 s and 10.4 s             |
 | From a claim until the pool was full again, one try           | 9 s                          |
 | The sponsor entering the workspace with `coder ssh`           | 0.8 s                        |
 
-Of the two seconds, 1.85 s pass until the workload has started, which is
-the claim's Terraform run and the daemon starting over for its new owner.
-The output and the exit code take 0.3 s more.
+Nearly all of the two seconds pass before the workload has started: the
+claim's Terraform run, which changes nothing, and the daemon starting over
+for its new owner. The output and the exit code take 10 ms more.
 
 ## What was shown
 
@@ -30,16 +30,19 @@ The output and the exit code take 0.3 s more.
   was asked for: the workspace was claimed, not built.
 - **The cluster vouches for it.** The workload's identity names the pod's
   UID, and the sponsor.
+- **The workload has a token of its own.** It is the identity account's
+  only token, it names the workload, and it carries the workload's scopes.
+  With it the workload can ask who it is and read its own workspace, and
+  not another workload's. It is refused once the workload is removed.
 - **Nothing is inherited.**
   - Without scopes the workload sees no template, no workspace and no user.
   - With `template:read` it sees templates and nothing else.
   - Allowed to read workspaces, it sees its own and nobody else's.
   - The Git key its daemon is given is the identity's own.
-  - The identity has no API token.
 - **Nobody is somebody else.**
   - A forged token is refused.
-  - A pod that waits in the pool is the `prebuilds` account's and cannot
-    name a workload.
+  - A pod that waits in the pool is the `prebuilds` account's. What it
+    holds is no user's credential and no workload's.
   - The session a pod had while it waited is refused once it is claimed.
   - One workload cannot act as another.
   - A workload cannot sponsor a workload.
@@ -55,16 +58,16 @@ The output and the exit code take 0.3 s more.
 
 [coderd/workloadlaunch_test.go](../../coderd/workloadlaunch_test.go) covers
 the same ground without a cluster, for a workspace that is built and not
-claimed.
+claimed. It also covers a template that is open to the sponsor and to
+nobody else: the workload's workspace is made and deleted all the same.
 
 ## Not shown
 
-- **A template that is restricted to groups.** See the limits in
-  [README.md](README.md).
+- **A template that is restricted to groups, on the cluster.** Only the
+  test covers it.
 - **The sponsor's terminal session in the audit log.** It was not looked
   for.
 - **A burst much larger than the pool,** or many sponsors at once.
-- **The example in [../sandbox-workloads](../sandbox-workloads)** was not
-  checked again on this branch. One run of its template through the new
-  request took 0.8 s and worked.
+- **A terminal with `-it`** is not in the script. One try by hand worked:
+  the command had a terminal and its exit code came back.
 - **One cluster, one coderd replica, one day.**

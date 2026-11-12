@@ -7285,7 +7285,7 @@ func (s *MethodTestSuite) TestWorkloadIdentities() {
 	}))
 	s.Run("UpdateWorkloadIdentitySandbox", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
-		arg := database.UpdateWorkloadIdentitySandboxParams{ID: identity.ID, Runtime: "docker", SandboxID: "abc", Image: "alpine"}
+		arg := database.UpdateWorkloadIdentitySandboxParams{ID: identity.ID, Runtime: "pod", SandboxID: "abc"}
 		dbm.EXPECT().UpdateWorkloadIdentitySandbox(gomock.Any(), arg).Return(identity, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(identity)
 	}))

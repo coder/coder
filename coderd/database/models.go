@@ -3812,7 +3812,6 @@ type ProvisionerType string
 const (
 	ProvisionerTypeEcho      ProvisionerType = "echo"
 	ProvisionerTypeTerraform ProvisionerType = "terraform"
-	ProvisionerTypeSandbox   ProvisionerType = "sandbox"
 )
 
 func (e *ProvisionerType) Scan(src interface{}) error {
@@ -3853,8 +3852,7 @@ func (ns NullProvisionerType) Value() (driver.Value, error) {
 func (e ProvisionerType) Valid() bool {
 	switch e {
 	case ProvisionerTypeEcho,
-		ProvisionerTypeTerraform,
-		ProvisionerTypeSandbox:
+		ProvisionerTypeTerraform:
 		return true
 	}
 	return false
@@ -3864,7 +3862,6 @@ func AllProvisionerTypeValues() []ProvisionerType {
 	return []ProvisionerType{
 		ProvisionerTypeEcho,
 		ProvisionerTypeTerraform,
-		ProvisionerTypeSandbox,
 	}
 }
 
@@ -6841,21 +6838,16 @@ type WorkloadIdentity struct {
 	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
 	// The workspace daemon that runs the workload. Only this daemon can vouch for the identity. NULL while the workspace that was made for the workload is being built.
 	WorkspaceAgentID uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	// The service account that is this identity, when the workload has a workspace to itself. It owns that workspace, and the workload acts as it, narrowed to its scopes. NULL for a workload in a sandbox inside its sponsor's workspace, which acts as its sponsor, narrowed to its scopes.
+	// The service account that is this identity. It owns the workspace that was made for the workload, and the workload acts as it, narrowed to its scopes. NULL once the account is gone.
 	UserID  uuid.NullUUID `db:"user_id" json:"user_id"`
 	Name    string        `db:"name" json:"name"`
 	Command string        `db:"command" json:"command"`
 	// API key scope names. An empty list grants nothing.
-	Scopes []string `db:"scopes" json:"scopes"`
-	// The image asked for, and once the workload has started, the one the daemon's policy settled on. The same holds for network and mounts.
-	Image   string `db:"image" json:"image"`
-	Network string `db:"network" json:"network"`
-	// Directories of the workspace that the sandbox can see, each followed by :rw when it can write to it.
-	Mounts  []string `db:"mounts" json:"mounts"`
+	Scopes  []string `db:"scopes" json:"scopes"`
 	Runtime string   `db:"runtime" json:"runtime"`
-	// The sandbox the daemon reported for the workload, as its runtime names it.
+	// Where the daemon reported that the workload runs, as its runtime names it.
 	SandboxID string `db:"sandbox_id" json:"sandbox_id"`
-	// When the daemon reported the sandbox. NULL while the workload waits for its daemon to start it.
+	// When the daemon reported that the workload runs. NULL while the workload waits for its daemon to start it.
 	StartedAt sql.NullTime `db:"started_at" json:"started_at"`
 	// When the workload was over. From then on the identity authorizes nothing. NULL while the workload is live.
 	FinishedAt sql.NullTime `db:"finished_at" json:"finished_at"`

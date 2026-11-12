@@ -32,6 +32,45 @@ func workloadIdentityUsername(identityID uuid.UUID) string {
 	return "workload-" + strings.ReplaceAll(identityID.String(), "-", "")[:12]
 }
 
+// workloadOwnerSubject is who acts when coderd makes or deletes a workload's
+// workspace: the identity's own account, which may also use the templates
+// of its organization. The caller has checked that the workload's sponsor
+// may use the template in question. The workload itself never acts as this
+// subject: its token is the account's, narrowed to the identity's scopes.
+func (api *API) workloadOwnerSubject(ctx context.Context, userID, organizationID uuid.UUID) (rbac.Subject, error) {
+	//nolint:gocritic // The account's roles are looked up to act as the account.
+	subject, _, err := httpmw.UserRBACSubject(dbauthz.AsSystemRestricted(ctx), api.Database, userID, rbac.ScopeAll)
+	if err != nil {
+		return rbac.Subject{}, err
+	}
+	roles, err := subject.Roles.Expand()
+	if err != nil {
+		return rbac.Subject{}, xerrors.Errorf("expand roles: %w", err)
+	}
+	roles = append(roles, rbac.Role{
+		Identifier:  rbac.RoleIdentifier{Name: "workload-workspace-template", OrganizationID: organizationID},
+		DisplayName: "Template of a workload's workspace",
+		ByOrgID: map[string]rbac.OrgPermissions{
+			organizationID.String(): {
+				Org: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceTemplate.Type: {policy.ActionRead, policy.ActionUse},
+				}),
+			},
+		},
+	})
+	// A new subject: the one that was looked up carries its roles in a
+	// form that is computed once and kept.
+	return rbac.Subject{
+		FriendlyName: subject.FriendlyName,
+		Email:        subject.Email,
+		Type:         subject.Type,
+		ID:           subject.ID,
+		Roles:        rbac.Roles(roles),
+		Groups:       subject.Groups,
+		Scope:        subject.Scope,
+	}.WithCachedASTValue(), nil
+}
+
 // awaitProvisionerJob waits for a provisioner job to end and returns an
 // error unless it succeeded. It looks whenever changed says so, and now
 // and then regardless.
@@ -86,7 +125,7 @@ func (api *API) postWorkload(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	scopes, refusal := workloadRequestScopes(req.CreateWorkloadRequest)
+	scopes, refusal := workloadRequestScopes(req)
 	if refusal != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, *refusal)
 		return
@@ -164,13 +203,15 @@ func (api *API) postWorkload(rw http.ResponseWriter, r *http.Request) {
 			api.Logger.Warn(ctx, "retire a workload identity that got no workspace", slog.F("user_id", user.ID), slog.Error(err))
 		}
 	}
-	subject, _, err := httpmw.UserRBACSubject(sysCtx, api.Database, user.ID, rbac.ScopeAll)
+	// From here on the identity acts, not its sponsor. The sponsor's
+	// access to the template, checked above, is what lets the identity use
+	// it: the identity is in none of the groups the template is open to.
+	subject, err := api.workloadOwnerSubject(ctx, user.ID, template.OrganizationID)
 	if err != nil {
 		retireIdentity()
 		httpapi.InternalServerError(rw, xerrors.Errorf("get the workload identity's permissions: %w", err))
 		return
 	}
-	// From here on the identity acts, not its sponsor.
 	identityCtx := dbauthz.As(ctx, subject)
 
 	// Hear about the workspace's build before it can be missed.
@@ -244,9 +285,6 @@ func (api *API) postWorkload(rw http.ResponseWriter, r *http.Request) {
 					Name:             name,
 					Command:          req.Command,
 					Scopes:           scopes,
-					Image:            req.Image,
-					Network:          string(req.Network),
-					Mounts:           []string{},
 					Interactive:      req.Interactive,
 					RemoveWorkspace:  !req.Keep,
 				})

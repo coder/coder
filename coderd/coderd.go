@@ -1144,10 +1144,6 @@ func New(options *Options) *API {
 	workspaceAgentInfo := httpmw.ExtractWorkspaceAgentAndLatestBuild(httpmw.ExtractWorkspaceAgentAndLatestBuildConfig{
 		DB:       options.Database,
 		Optional: false,
-		AllowVouchedWorkload: func(r *http.Request) bool {
-			return api.Experiments.Enabled(codersdk.ExperimentRuntimeWorkloads) &&
-				r.URL.Path == "/api/v2/workspaceagents/me/identity"
-		},
 	})
 
 	// API rate limit middleware. The counter is local and not shared between
@@ -1192,7 +1188,7 @@ func New(options *Options) *API {
 			OAuth2Configs:               oauthConfigs,
 			DisableSessionExpiryRefresh: options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
 			Logger:                      options.Logger,
-			ResolveWorkloadIdentity:     api.resolveWorkloadAPIKey,
+			WorkloadIdentityScope:       api.workloadIdentityScope,
 		}),
 		httpmw.HTTPRoute, // NB: prometheusMW depends on this middleware.
 		prometheusMW,

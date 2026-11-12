@@ -14225,6 +14225,30 @@
 				}
 			}
 		},
+		"/api/v2/workloads/identity": {
+			"get": {
+				"produces": ["application/json"],
+				"tags": ["Workspaces"],
+				"summary": "Get the identity of the calling workload (experimental)",
+				"operationId": "get-workload-identity",
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.WorkloadIdentity"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
+			}
+		},
 		"/api/v2/workspace-quota/{user}": {
 			"get": {
 				"produces": ["application/json"],
@@ -14557,7 +14581,7 @@
 			"get": {
 				"produces": ["application/json"],
 				"tags": ["Agents"],
-				"summary": "Get the identity of the caller in a workspace (experimental)",
+				"summary": "Get the identity of a workspace daemon (experimental)",
 				"operationId": "get-workspace-agent-identity",
 				"responses": {
 					"200": {
@@ -16921,48 +16945,6 @@
 							"items": {
 								"$ref": "#/definitions/codersdk.Workload"
 							}
-						}
-					}
-				},
-				"security": [
-					{
-						"CoderSessionToken": []
-					}
-				],
-				"x-apidocgen": {
-					"skip": true
-				}
-			},
-			"post": {
-				"consumes": ["application/json"],
-				"produces": ["application/json"],
-				"tags": ["Workspaces"],
-				"summary": "Run a workload (experimental)",
-				"operationId": "create-workspace-workload",
-				"parameters": [
-					{
-						"type": "string",
-						"format": "uuid",
-						"description": "Workspace ID",
-						"name": "workspace",
-						"in": "path",
-						"required": true
-					},
-					{
-						"description": "Create workload request",
-						"name": "request",
-						"in": "body",
-						"required": true,
-						"schema": {
-							"$ref": "#/definitions/codersdk.CreateWorkloadRequest"
-						}
-					}
-				],
-				"responses": {
-					"201": {
-						"description": "Created",
-						"schema": {
-							"$ref": "#/definitions/codersdk.Workload"
 						}
 					}
 				},
@@ -19592,29 +19574,20 @@
 					"type": "string"
 				},
 				"id": {
-					"description": "ID is the workload identity the daemon vouches for when it forwards\nthe sandbox's requests.",
+					"description": "ID is the workload identity.",
 					"type": "string",
 					"format": "uuid"
-				},
-				"image": {
-					"description": "Image, Network and Mounts are requests. The daemon's policy, which\nthe template sets, decides whether to honor them.",
-					"type": "string"
 				},
 				"interactive": {
 					"description": "Interactive gives the command a terminal.",
 					"type": "boolean"
 				},
-				"mounts": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/codersdk.WorkloadMount"
-					}
-				},
 				"name": {
 					"type": "string"
 				},
-				"network": {
-					"$ref": "#/definitions/codersdk.WorkloadNetwork"
+				"session_token": {
+					"description": "SessionToken is the workload's own credential for Coder. It is\nhanded out once: it is empty when the daemon asks again.",
+					"type": "string"
 				}
 			}
 		},
@@ -19645,21 +19618,8 @@
 					"type": "string",
 					"format": "uuid"
 				},
-				"image": {
-					"description": "Image, Network and Mounts are what the daemon's policy settled on.",
-					"type": "string"
-				},
-				"mounts": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/codersdk.WorkloadMount"
-					}
-				},
 				"name": {
 					"type": "string"
-				},
-				"network": {
-					"$ref": "#/definitions/codersdk.WorkloadNetwork"
 				},
 				"running": {
 					"type": "boolean"
@@ -23430,7 +23390,7 @@
 				},
 				"provisioner": {
 					"type": "string",
-					"enum": ["terraform", "echo", "sandbox"]
+					"enum": ["terraform", "echo"]
 				},
 				"storage_method": {
 					"enum": ["file"],
@@ -23676,57 +23636,6 @@
 				},
 				"value": {
 					"type": "string"
-				}
-			}
-		},
-		"codersdk.CreateWorkloadRequest": {
-			"type": "object",
-			"properties": {
-				"agent": {
-					"description": "Agent selects the workspace daemon by name. It may be empty when the\nworkspace has exactly one.",
-					"type": "string"
-				},
-				"command": {
-					"description": "Command is run by a shell inside the sandbox.",
-					"type": "string"
-				},
-				"image": {
-					"description": "Image asks for another image than the daemon's default. The\ntemplate decides which images are allowed.",
-					"type": "string"
-				},
-				"interactive": {
-					"description": "Interactive gives the command a terminal that the sponsor can attach\nto.",
-					"type": "boolean"
-				},
-				"mounts": {
-					"description": "Mounts asks for directories of the workspace to be visible in the\nsandbox. The template decides which directories may be shared.",
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/codersdk.WorkloadMount"
-					}
-				},
-				"name": {
-					"description": "Name is optional. It must be a valid agent name.",
-					"type": "string"
-				},
-				"network": {
-					"description": "Network asks for another network than the daemon's default. Asking\nfor none is always allowed.",
-					"allOf": [
-						{
-							"$ref": "#/definitions/codersdk.WorkloadNetwork"
-						}
-					]
-				},
-				"remove_workspace": {
-					"description": "RemoveWorkspace deletes the workspace when the workload is over. It\nis for a workspace that was made for this one workload.",
-					"type": "boolean"
-				},
-				"scopes": {
-					"description": "Scopes are the API key scopes the workload may use on the sponsor's\nbehalf. Without any, the workload can do nothing in Coder.",
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/codersdk.APIKeyScope"
-					}
 				}
 			}
 		},
@@ -25665,16 +25574,8 @@
 		"codersdk.LaunchWorkloadRequest": {
 			"type": "object",
 			"properties": {
-				"agent": {
-					"description": "Agent selects the workspace daemon by name. It may be empty when the\nworkspace has exactly one.",
-					"type": "string"
-				},
 				"command": {
-					"description": "Command is run by a shell inside the sandbox.",
-					"type": "string"
-				},
-				"image": {
-					"description": "Image asks for another image than the daemon's default. The\ntemplate decides which images are allowed.",
+					"description": "Command is run by a shell.",
 					"type": "string"
 				},
 				"interactive": {
@@ -25685,31 +25586,12 @@
 					"description": "Keep leaves the workspace in place when the workload is over.",
 					"type": "boolean"
 				},
-				"mounts": {
-					"description": "Mounts asks for directories of the workspace to be visible in the\nsandbox. The template decides which directories may be shared.",
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/codersdk.WorkloadMount"
-					}
-				},
 				"name": {
 					"description": "Name is optional. It must be a valid agent name.",
 					"type": "string"
 				},
-				"network": {
-					"description": "Network asks for another network than the daemon's default. Asking\nfor none is always allowed.",
-					"allOf": [
-						{
-							"$ref": "#/definitions/codersdk.WorkloadNetwork"
-						}
-					]
-				},
-				"remove_workspace": {
-					"description": "RemoveWorkspace deletes the workspace when the workload is over. It\nis for a workspace that was made for this one workload.",
-					"type": "boolean"
-				},
 				"scopes": {
-					"description": "Scopes are the API key scopes the workload may use on the sponsor's\nbehalf. Without any, the workload can do nothing in Coder.",
+					"description": "Scopes are the API key scopes the workload may use. Without any,\nthe workload can do nothing in Coder.",
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/codersdk.APIKeyScope"
@@ -32491,21 +32373,8 @@
 					"description": "Identity is the workload's identity as it is displayed.",
 					"type": "string"
 				},
-				"image": {
-					"description": "Image, Network and Mounts are what the daemon's policy settled on.",
-					"type": "string"
-				},
-				"mounts": {
-					"type": "array",
-					"items": {
-						"$ref": "#/definitions/codersdk.WorkloadMount"
-					}
-				},
 				"name": {
 					"type": "string"
-				},
-				"network": {
-					"$ref": "#/definitions/codersdk.WorkloadNetwork"
 				},
 				"own_workspace": {
 					"description": "OwnWorkspace means the workspace was made for this workload and is\ndeleted when the workload is over.",
@@ -32515,14 +32384,14 @@
 					"$ref": "#/definitions/codersdk.WorkloadSandbox"
 				},
 				"scopes": {
-					"description": "Scopes narrow the sponsor's permissions. An empty list grants nothing.",
+					"description": "Scopes are what the identity may do. An empty list grants nothing.",
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/codersdk.APIKeyScope"
 					}
 				},
 				"sponsor_id": {
-					"description": "SponsorID is the user account whose permissions bound what the\nworkload may do.",
+					"description": "SponsorID is the user account that asked for the workload and\nanswers for it.",
 					"type": "string",
 					"format": "uuid"
 				},
@@ -32533,7 +32402,7 @@
 					"$ref": "#/definitions/codersdk.WorkloadStatus"
 				},
 				"user_id": {
-					"description": "UserID is the service account that is this identity, for a workload\nwith a workspace to itself. The workload acts as it and owns the\nworkspace.",
+					"description": "UserID is the service account that is this identity. The workload\nacts as it, and it owns the workspace.",
 					"type": "string",
 					"format": "uuid"
 				},
@@ -32654,23 +32523,6 @@
 				}
 			}
 		},
-		"codersdk.WorkloadMount": {
-			"type": "object",
-			"properties": {
-				"path": {
-					"type": "string"
-				},
-				"writable": {
-					"description": "Writable lets the workload change the directory. Without it the\nworkload can only read.",
-					"type": "boolean"
-				}
-			}
-		},
-		"codersdk.WorkloadNetwork": {
-			"type": "string",
-			"enum": ["none", "outbound"],
-			"x-enum-varnames": ["WorkloadNetworkNone", "WorkloadNetworkOutbound"]
-		},
 		"codersdk.WorkloadSandbox": {
 			"type": "object",
 			"properties": {
@@ -32679,7 +32531,7 @@
 					"type": "string"
 				},
 				"runtime": {
-					"description": "Runtime is the isolation backend, for example \"docker\".",
+					"description": "Runtime is what runs it, for example \"pod\".",
 					"type": "string"
 				}
 			}

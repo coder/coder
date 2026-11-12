@@ -6,13 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/http/httputil"
-	"net/url"
-	"path"
-	"path/filepath"
-	"slices"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -35,125 +29,15 @@ const (
 	outputTailBytes = 16 << 10
 )
 
-// Policy is what the daemon allows a workload to ask for. The template sets
-// it, so a sponsor chooses within what the template's author permits.
-type Policy struct {
-	// DefaultImage is used when a workload does not name an image. It is
-	// always allowed.
-	DefaultImage string
-	// AllowedImages are patterns, as in path.Match, of other images a
-	// workload may name.
-	AllowedImages []string
-	// DefaultNetwork is used when a workload does not name a network. Empty
-	// means outbound.
-	DefaultNetwork codersdk.WorkloadNetwork
-	// AllowedNetworks are other networks a workload may name.
-	AllowedNetworks []codersdk.WorkloadNetwork
-	// AllowedMounts are directories of the workspace that may be shared
-	// with a workload, together with everything below them. Without any,
-	// a workload sees nothing of the workspace.
-	AllowedMounts []string
-	// Fixed means the sandbox exists before the workload does, as a pod
-	// from a pool does. Its image and network are what they are: the
-	// defaults describe them, and a workload cannot ask for others.
-	Fixed bool
-}
-
-// mounts checks the directories a workload asks to see. Symbolic links are
-// resolved first, so that a link cannot lead out of an allowed directory.
-func (p Policy) mounts(requested []codersdk.WorkloadMount) ([]codersdk.WorkloadMount, error) {
-	mounts := make([]codersdk.WorkloadMount, 0, len(requested))
-	for _, mount := range requested {
-		if !filepath.IsAbs(mount.Path) {
-			return nil, xerrors.Errorf("the directory %q to share with the workload must be an absolute path", mount.Path)
-		}
-		resolved, err := filepath.EvalSymlinks(filepath.Clean(mount.Path))
-		if err != nil {
-			return nil, xerrors.Errorf("the directory %q to share with the workload does not exist here", mount.Path)
-		}
-		allowed := false
-		for _, root := range p.AllowedMounts {
-			if root == "" {
-				continue
-			}
-			root, err := filepath.EvalSymlinks(filepath.Clean(root))
-			if err != nil {
-				continue
-			}
-			if resolved == root || strings.HasPrefix(resolved, strings.TrimSuffix(root, "/")+"/") {
-				allowed = true
-				break
-			}
-		}
-		if !allowed {
-			return nil, xerrors.Errorf("this workspace's template does not allow sharing %q with workloads", mount.Path)
-		}
-		mounts = append(mounts, codersdk.WorkloadMount{Path: resolved, Writable: mount.Writable})
-	}
-	return mounts, nil
-}
-
-func (p Policy) image(requested string) (string, error) {
-	if p.Fixed {
-		if requested != "" && requested != p.DefaultImage {
-			return "", xerrors.Errorf("the sandbox of this workload exists already and its image is %q; choose another template for another image", p.DefaultImage)
-		}
-		return p.DefaultImage, nil
-	}
-	if requested == "" || requested == p.DefaultImage {
-		if p.DefaultImage == "" {
-			return "", xerrors.New("this workspace's template sets no image for workloads")
-		}
-		return p.DefaultImage, nil
-	}
-	for _, pattern := range p.AllowedImages {
-		if pattern == "" {
-			continue
-		}
-		if ok, _ := path.Match(pattern, requested); ok {
-			return requested, nil
-		}
-	}
-	return "", xerrors.Errorf("this workspace's template does not allow the image %q for workloads", requested)
-}
-
-func (p Policy) network(requested codersdk.WorkloadNetwork) (codersdk.WorkloadNetwork, error) {
-	def := p.DefaultNetwork
-	if def == "" {
-		def = codersdk.WorkloadNetworkOutbound
-	}
-	if requested == "" || requested == def {
-		return def, nil
-	}
-	if p.Fixed {
-		return "", xerrors.Errorf("the sandbox of this workload exists already and its network is %q; choose another template for another network", def)
-	}
-	if requested != codersdk.WorkloadNetworkNone && requested != codersdk.WorkloadNetworkOutbound {
-		return "", xerrors.Errorf("unknown workload network %q", requested)
-	}
-	// Asking for less than the default is always fine.
-	if requested == codersdk.WorkloadNetworkNone || slices.Contains(p.AllowedNetworks, requested) {
-		return requested, nil
-	}
-	return "", xerrors.Errorf("this workspace's template does not allow the network %q for workloads", requested)
-}
-
 // Options configures a Supervisor.
 type Options struct {
 	Logger  slog.Logger
 	Runtime Runtime
-	Policy  Policy
-	// CoderURL is where the daemon reaches coderd.
-	CoderURL *url.URL
-	// SessionToken returns the daemon's own credential. It is added to
-	// forwarded requests and never reaches a sandbox.
-	SessionToken func() string
 	// Pending returns the workloads coderd has given this daemon and that
 	// the daemon has not started, and waits for one when there is none.
 	// The daemon asks coderd, and not the other way around, so that a
 	// workload can start before coderd has a connection to the daemon,
-	// which takes a daemon that has just started a moment to set up. Nil
-	// leaves starting workloads to the daemon's own API.
+	// which takes a daemon that has just started a moment to set up.
 	Pending func(ctx context.Context) ([]codersdk.AgentWorkloadSpec, error)
 	// ReportStart tells coderd whether a workload from Pending runs.
 	ReportStart func(ctx context.Context, id uuid.UUID, start codersdk.AgentWorkloadStart) error
@@ -191,11 +75,11 @@ type workload struct {
 	announced chan struct{}
 }
 
-// New returns a supervisor. It removes sandboxes an earlier daemon process
-// left behind: their channels died with that process.
+// New returns a supervisor. It removes what an earlier daemon process left
+// behind.
 func New(ctx context.Context, opts Options) (*Supervisor, error) {
-	if opts.Runtime == nil || opts.CoderURL == nil || opts.SessionToken == nil {
-		return nil, xerrors.New("a runtime, a Coder URL and a session token are required")
+	if opts.Runtime == nil {
+		return nil, xerrors.New("a runtime is required")
 	}
 	if err := opts.Runtime.Sweep(ctx); err != nil {
 		return nil, xerrors.Errorf("sweep %s sandboxes: %w", opts.Runtime.Name(), err)
@@ -299,7 +183,7 @@ func (s *Supervisor) startGiven(ctx context.Context, spec codersdk.AgentWorkload
 	start := codersdk.AgentWorkloadStart{}
 	state, err := s.startWorkload(ctx, Spec{
 		ID: spec.ID, Name: spec.Name, Command: spec.Command,
-		Image: spec.Image, Network: spec.Network, Mounts: spec.Mounts, Interactive: spec.Interactive,
+		Interactive: spec.Interactive, SessionToken: spec.SessionToken,
 	}, announced)
 	if err != nil {
 		start.Error = err.Error()
@@ -336,51 +220,9 @@ func (s *Supervisor) startGiven(ctx context.Context, spec codersdk.AgentWorkload
 	}
 }
 
-// channel returns the handler that is the workload's only way to Coder. It
-// forwards requests to coderd as that workload: the daemon's credential
-// authenticates the daemon, and the header names the identity it vouches
-// for. Nothing the workload sends can change either.
-func (s *Supervisor) channel(id uuid.UUID) http.Handler {
-	return &httputil.ReverseProxy{
-		Rewrite: func(pr *httputil.ProxyRequest) {
-			pr.SetURL(s.opts.CoderURL)
-			pr.Out.Host = s.opts.CoderURL.Host
-			// coderd reads credentials from all of these. A cookie or
-			// query parameter would take precedence over the header set
-			// below, so the workload's own are removed.
-			pr.Out.Header.Del("Cookie")
-			pr.Out.Header.Del("Authorization")
-			query := pr.Out.URL.Query()
-			query.Del(codersdk.SessionTokenCookie)
-			query.Del("access_token")
-			pr.Out.URL.RawQuery = query.Encode()
-			pr.Out.Header.Set(codersdk.SessionTokenHeader, s.opts.SessionToken())
-			pr.Out.Header.Set(codersdk.WorkloadIdentityHeader, id.String())
-		},
-		FlushInterval: -1,
-	}
-}
-
-// Start runs a workload in a new sandbox.
-func (s *Supervisor) Start(ctx context.Context, spec Spec) (codersdk.AgentWorkloadState, error) {
-	announced := make(chan struct{})
-	close(announced)
-	return s.startWorkload(ctx, spec, announced)
-}
-
 func (s *Supervisor) startWorkload(ctx context.Context, spec Spec, announced chan struct{}) (codersdk.AgentWorkloadState, error) {
 	if spec.ID == uuid.Nil || spec.Command == "" {
 		return codersdk.AgentWorkloadState{}, xerrors.New("a workload needs an identity and a command")
-	}
-	var err error
-	if spec.Image, err = s.opts.Policy.image(spec.Image); err != nil {
-		return codersdk.AgentWorkloadState{}, err
-	}
-	if spec.Network, err = s.opts.Policy.network(spec.Network); err != nil {
-		return codersdk.AgentWorkloadState{}, err
-	}
-	if spec.Mounts, err = s.opts.Policy.mounts(spec.Mounts); err != nil {
-		return codersdk.AgentWorkloadState{}, err
 	}
 	s.mu.Lock()
 	if _, exists := s.workloads[spec.ID]; exists {
@@ -393,7 +235,7 @@ func (s *Supervisor) startWorkload(ctx context.Context, spec Spec, announced cha
 	s.workloads[spec.ID] = w
 	s.mu.Unlock()
 
-	sandbox, err := s.opts.Runtime.Start(ctx, spec, s.channel(spec.ID))
+	sandbox, err := s.opts.Runtime.Start(ctx, spec)
 	if err != nil {
 		s.mu.Lock()
 		delete(s.workloads, spec.ID)
@@ -404,8 +246,7 @@ func (s *Supervisor) startWorkload(ctx context.Context, spec Spec, announced cha
 	w.sandbox = sandbox
 	s.mu.Unlock()
 	s.opts.Logger.Info(ctx, "started workload",
-		slog.F("workload_id", spec.ID), slog.F("name", spec.Name), slog.F("sandbox", sandbox.ID()),
-		slog.F("image", spec.Image), slog.F("network", spec.Network))
+		slog.F("workload_id", spec.ID), slog.F("name", spec.Name), slog.F("sandbox", sandbox.ID()))
 
 	s.watchers.Add(1)
 	go s.watch(w)
@@ -547,9 +388,6 @@ func (s *Supervisor) state(w *workload) codersdk.AgentWorkloadState {
 		ID:        w.spec.ID,
 		Name:      w.spec.Name,
 		Sandbox:   codersdk.WorkloadSandbox{Runtime: s.opts.Runtime.Name()},
-		Image:     w.spec.Image,
-		Network:   w.spec.Network,
-		Mounts:    w.spec.Mounts,
 		Running:   true,
 		StartedAt: w.startedAt,
 	}
@@ -576,32 +414,11 @@ func (s *Supervisor) get(id uuid.UUID) (*workload, bool) {
 // API, which only coderd and users who may connect to the workspace reach.
 func (s *Supervisor) Routes() http.Handler {
 	r := chi.NewRouter()
-	r.Post("/", s.handleStart)
 	r.Get("/", s.handleList)
 	r.Get("/{workload}/logs", s.handleLogs)
 	r.Get("/{workload}/attach", s.handleAttach)
 	r.Delete("/{workload}", s.handleRemove)
 	return r
-}
-
-func (s *Supervisor) handleStart(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	var req codersdk.AgentWorkloadSpec
-	if !httpapi.Read(ctx, rw, r, &req) {
-		return
-	}
-	state, err := s.Start(ctx, Spec{
-		ID: req.ID, Name: req.Name, Command: req.Command,
-		Image: req.Image, Network: req.Network, Mounts: req.Mounts, Interactive: req.Interactive,
-	})
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "The workload could not be started.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-	httpapi.Write(ctx, rw, http.StatusCreated, state)
 }
 
 func (s *Supervisor) handleList(rw http.ResponseWriter, r *http.Request) {

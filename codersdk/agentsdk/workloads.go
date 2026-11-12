@@ -13,7 +13,16 @@ import (
 
 // Identity returns the identity coderd sees for this daemon.
 func (c *Client) Identity(ctx context.Context) (codersdk.WorkloadIdentity, error) {
-	return c.SDK.WorkloadIdentity(ctx)
+	res, err := c.SDK.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/identity", nil)
+	if err != nil {
+		return codersdk.WorkloadIdentity{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return codersdk.WorkloadIdentity{}, codersdk.ReadBodyAsError(res)
+	}
+	var identity codersdk.WorkloadIdentity
+	return identity, codersdk.ReadBodyAsJSON(res, &identity)
 }
 
 // pendingWorkloadsWait is how long coderd is asked to hold a request for

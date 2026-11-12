@@ -1,0 +1,44 @@
+# What Coder needs in the cluster to believe a pod's token.
+#
+# coderd asks the cluster whose token a pod presents. It runs as, or is
+# given a token of, the service account `coder-server`. The pods themselves
+# are made by Terraform, with whatever access the provisioner has.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: coder-server
+  namespace: coder-sandbox-workloads
+---
+# Asking the cluster whose token something is. This is the only thing
+# coderd may do in the cluster, and it reads nothing.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: coder-sandbox-workloads-token-reviewer
+rules:
+  - apiGroups: ["authentication.k8s.io"]
+    resources: ["tokenreviews"]
+    verbs: ["create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: coder-sandbox-workloads-token-reviewer
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: coder-sandbox-workloads-token-reviewer
+subjects:
+  - kind: ServiceAccount
+    name: coder-server
+    namespace: coder-sandbox-workloads
+---
+# The service account of workload pods. It may do nothing in the cluster.
+# It exists so that the kubelet can obtain a token that says which pod a
+# daemon runs in.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: coder-workload
+  namespace: coder-sandbox-workloads
+automountServiceAccountToken: false

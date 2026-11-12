@@ -17,7 +17,7 @@ coder identity [flags]
 ## Description
 
 ```console
-Inside a workload's sandbox this is the workload's own identity, with its sponsor and scopes. Elsewhere in a workspace it is the workspace daemon's. It is separate from the user a human logs in as.
+For a workload this is the workload's own identity, with its sponsor and scopes. Elsewhere in a workspace it is the workspace daemon's. It is separate from the user a human logs in as.
 ```
 
 ## Options

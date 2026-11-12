@@ -4,11 +4,12 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// Environment variables that tell coderd where sandboxes run. They are not
-// deployment options yet.
+// Environment variables that tell coderd which cluster vouches for
+// workspace daemons that authenticate as their pod. They are not deployment
+// options yet.
 const (
-	// EnvNamespace is the namespace sandboxes are claimed in. Setting it
-	// turns sandbox workspaces on.
+	// EnvNamespace is the namespace such pods must run in. Setting it
+	// turns authentication by pod identity on.
 	EnvNamespace = "CODER_SANDBOX_KUBE_NAMESPACE"
 	// EnvKubeURL, EnvKubeTokenFile and EnvKubeCAFile say how to reach the
 	// cluster. Without them coderd uses the cluster it runs in.
@@ -20,11 +21,10 @@ const (
 	EnvAudience = "CODER_SANDBOX_AUDIENCE"
 )
 
-// Cluster is the cluster Coder claims sandboxes in.
+// Cluster is the cluster that vouches for pods.
 type Cluster struct {
 	Kube *KubeClient
-	// Namespace is where sandboxes are claimed. Templates cannot choose
-	// another.
+	// Namespace is where the pods run.
 	Namespace string
 	// Attestor tells which pod a token belongs to.
 	Attestor *Attestor

@@ -23,37 +23,52 @@ scoped permissions. The parts that are new are listed under
 1. The identity shares the workspace with the sponsor, to use and not to
    own.
 1. The daemon in the pod is told it has a new owner. It proves which pod it
-   is with the kubelet's token, and coderd hands it the workload.
-1. The command runs next to the daemon. Its requests to Coder are made as
-   the identity, narrowed to the scopes the sponsor asked for. Without
-   `--scope` it can do nothing.
-1. When the command is over, coderd deletes the workspace and retires the
-   identity. The record of what ran stays.
+   is with the kubelet's token, and coderd hands it the workload, with a
+   token for the workload.
+1. The command runs next to the daemon, with that token in its
+   environment. The token is the identity's own. What it may do is what
+   the sponsor asked for with `--scope`, and without that nothing.
+1. When the command is over, the token is worth nothing, and coderd deletes
+   the workspace and retires the identity. The record of what ran stays.
 
 ## Files
 
-| File                                     | Purpose                                                   |
-|------------------------------------------|-----------------------------------------------------------|
-| [template/main.tf](template/main.tf)     | The template: a pod, pod identity, and how many are ready |
-| [cluster/users.yaml](cluster/users.yaml) | A name and a shell for the user the pods run as           |
-| [validate.py](validate.py)               | Checks a running setup, from inside and outside           |
-| [RESULTS.md](RESULTS.md)                 | What the checks showed, and the limits                    |
+| File                                             | Purpose                                                   |
+|--------------------------------------------------|-----------------------------------------------------------|
+| [template/main.tf](template/main.tf)             | The template: a pod, pod identity, and how many are ready |
+| [cluster/namespace.yaml](cluster/namespace.yaml) | The namespace of the pods                                 |
+| [cluster/coder.yaml](cluster/coder.yaml)         | What lets coderd ask the cluster whose token a pod has    |
+| [cluster/users.yaml](cluster/users.yaml)         | A name and a shell for the user the pods run as           |
+| [validate.py](validate.py)                       | Checks a running setup, from inside and outside           |
+| [RESULTS.md](RESULTS.md)                         | What the checks showed, and the limits                    |
 
-The cluster side is the namespace and the pods' service account from
-[../sandbox-workloads/cluster](../sandbox-workloads/cluster), and coderd's
-access to the cluster's TokenReview as described in
-[../sandbox-workloads/README.md](../sandbox-workloads/README.md). The Agent
-Sandbox controller and its warm pool are not needed.
+## Set up
+
+coderd needs a Premium license, for prebuilt workspaces and service
+accounts, and the `runtime-workloads` experiment. It also needs to ask the
+cluster whose token a pod presents. Inside the cluster, run coderd as the
+service account `coder-server` and set only the namespace. Outside, give it
+the API server's URL, its certificate authority and a token of that
+service account.
+
+```sh
+kubectl apply -f cluster/namespace.yaml -f cluster/coder.yaml -f cluster/users.yaml
+kubectl -n coder-sandbox-workloads create token coder-server --duration 720h > kube-token
+
+CODER_EXPERIMENTS=runtime-workloads \
+CODER_SANDBOX_KUBE_NAMESPACE=coder-sandbox-workloads \
+CODER_SANDBOX_KUBE_URL=https://<api-server> \
+CODER_SANDBOX_KUBE_CA_FILE=ca.crt \
+CODER_SANDBOX_KUBE_TOKEN_FILE=kube-token \
+coder server
+
+coder templates push prebuilt -d template \
+  --variable coder_url=https://coder.example.com --yes
+```
 
 ## Try it
 
-coderd needs a Premium license, for prebuilt workspaces and service
-accounts, and the `runtime-workloads` experiment.
-
 ```sh
-kubectl apply -f cluster/users.yaml
-coder templates push prebuilt -d template \
-  --variable coder_url=https://coder.example.com --yes
 
 # Who am I in there?
 coder run --template prebuilt --preset agent -- coder identity
@@ -78,6 +93,13 @@ claimed workspace is replaced. The default is one minute.
   anything of the workload's.
 - **An identity can own a workspace.** It is a service account, recorded
   with its sponsor and scopes.
+- **The workload has a token of its own.** It is an API token of the
+  identity's account, handed to the daemon that proved which pod it is, and
+  to nobody else. What it may do is read from the identity's record
+  whenever it is used. It is refused once the workload is over.
+- **The sponsor's access to the template counts.** coderd makes and deletes
+  the workspace as the identity, and lets it use the template because its
+  sponsor may. The template need not be open to everybody.
 - **Pod identity.** The daemon proves which pod it is. The template holds no
   token. A prebuilt workspace's daemon gets a new credential when the
   workspace is claimed, because the pod is found by its UID and not by a
@@ -92,13 +114,14 @@ claimed workspace is replaced. The default is one minute.
 
 ## Limits
 
-- **The template must be usable by every member of the organization.** The
-  identity makes the workspace as itself. A template that is restricted to
-  groups needs a rule that lets the sponsor's access count.
+- **A workload cannot read a template that is not open to its identity.**
+  Reading a workspace takes reading its template, so in a template that is
+  restricted to groups a workload cannot read its own workspace either,
+  whatever its scopes.
 - **The template must not need the owner's external authentication.** An
   identity has none, by design.
 - **The workload and its pod's daemon are one principal.** The workload can
-  read the pod's token.
+  read the pod's token, and with it be the daemon.
 - **A sponsor who enters the workspace is inside the workload's pod** and
   can act as the workload.
 - **A workload cannot start workloads.** What a child may inherit is not

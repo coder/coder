@@ -149,13 +149,6 @@ func (r *RootCmd) templatePush() *serpent.Command {
 				cliui.Info(inv.Stderr, "Provisioner tags: "+cliui.Code(tagStr))
 			}
 
-			// A directory with a sandbox template says by itself which
-			// provisioner builds it.
-			if provisioner == string(codersdk.ProvisionerTypeTerraform) && !uploadFlags.stdin(inv) &&
-				provisionersdk.DirIsSandboxTemplate(uploadFlags.directory) {
-				provisioner = string(codersdk.ProvisionerTypeSandbox)
-			}
-
 			err = uploadFlags.checkForLockfile(inv)
 			if err != nil {
 				return xerrors.Errorf("check for lockfile: %w", err)
@@ -434,11 +427,6 @@ func (pf *templateUploadFlags) checkForLockfile(inv *serpent.Invocation) error {
 		// Just assume there's a lockfile if reading from stdin.
 		return nil
 	}
-	if provisionersdk.DirIsSandboxTemplate(pf.directory) {
-		// No Terraform runs for such a template.
-		return nil
-	}
-
 	hasLockfile, err := provisionersdk.DirHasLockfile(pf.directory)
 	if err != nil {
 		return xerrors.Errorf("dir has lockfile: %w", err)

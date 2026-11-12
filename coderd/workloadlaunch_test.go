@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"net/url"
 	"testing"
 
 	"github.com/google/uuid"
@@ -25,9 +24,9 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// TestLaunchWorkload covers a workload that gets a workspace to itself. Its
-// identity is an account of its own that owns the workspace, shares it with
-// the sponsor and has nothing of the sponsor's.
+// TestLaunchWorkload covers a workload. Its identity is an account of its
+// own that owns the workload's workspace, shares it with the sponsor and
+// has nothing of the sponsor's. The workload acts with a token of its own.
 func TestLaunchWorkload(t *testing.T) {
 	t.Parallel()
 
@@ -53,13 +52,25 @@ func TestLaunchWorkload(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJobCompleted(t, adminClient, version.ID)
 	template := coderdtest.CreateTemplate(t, adminClient, admin.OrganizationID, version.ID)
 
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
+	//nolint:gocritic // The test sets up and looks at what no user may.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	// The template is open to the sponsor and to nobody else: not to all
+	// members, and so not to the workload's identity either.
+	adminUser, err := adminClient.User(ctx, codersdk.Me)
+	require.NoError(t, err)
+	require.NoError(t, db.UpdateTemplateACLByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(adminUser)), database.UpdateTemplateACLByIDParams{
+		ID:       template.ID,
+		GroupACL: database.TemplateACL{},
+		UserACL:  database.TemplateACL{sponsor.ID.String(): {policy.ActionRead, policy.ActionUse}},
+	}))
+
 	// A workspace of the sponsor's own, which the workload must not reach.
 	sponsorBuild := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: admin.OrganizationID,
 		OwnerID:        sponsor.ID,
 	}).WithAgent().Do()
 
-	ctx := testutil.Context(t, testutil.WaitSuperLong)
 	requireStatus := func(err error, status int) {
 		t.Helper()
 		var sdkErr *codersdk.Error
@@ -68,17 +79,17 @@ func TestLaunchWorkload(t *testing.T) {
 	}
 
 	// What is asked for is checked before anything is made.
-	_, err := sponsorClient.LaunchWorkload(ctx, codersdk.LaunchWorkloadRequest{TemplateID: template.ID})
+	_, err = sponsorClient.LaunchWorkload(ctx, codersdk.LaunchWorkloadRequest{TemplateID: template.ID})
 	requireStatus(err, http.StatusBadRequest)
 	_, err = sponsorClient.LaunchWorkload(ctx, codersdk.LaunchWorkloadRequest{
-		TemplateID:            template.ID,
-		CreateWorkloadRequest: codersdk.CreateWorkloadRequest{Command: "true", Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeAll}},
+		TemplateID: template.ID, Command: "true", Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeAll},
 	})
 	requireStatus(err, http.StatusBadRequest)
-	_, err = sponsorClient.LaunchWorkload(ctx, codersdk.LaunchWorkloadRequest{
-		TemplateID:            uuid.New(),
-		CreateWorkloadRequest: codersdk.CreateWorkloadRequest{Command: "true"},
-	})
+	_, err = sponsorClient.LaunchWorkload(ctx, codersdk.LaunchWorkloadRequest{TemplateID: uuid.New(), Command: "true"})
+	requireStatus(err, http.StatusNotFound)
+	// Somebody who may not use the template cannot sponsor a workload in
+	// a workspace of it.
+	_, err = otherClient.LaunchWorkload(ctx, codersdk.LaunchWorkloadRequest{TemplateID: template.ID, Command: "true"})
 	requireStatus(err, http.StatusNotFound)
 	users, err := adminClient.Users(ctx, codersdk.UsersRequest{})
 	require.NoError(t, err)
@@ -94,11 +105,9 @@ func TestLaunchWorkload(t *testing.T) {
 	go func() {
 		workload, err := sponsorClient.LaunchWorkload(ctx, codersdk.LaunchWorkloadRequest{
 			TemplateID: template.ID,
-			CreateWorkloadRequest: codersdk.CreateWorkloadRequest{
-				Name:    "solo",
-				Command: "echo solo",
-				Scopes:  []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead, codersdk.APIKeyScopeTemplateRead},
-			},
+			Name:       "solo",
+			Command:    "echo solo",
+			Scopes:     []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead, codersdk.APIKeyScopeTemplateRead},
 		})
 		result <- launched{workload: workload, err: err}
 	}()
@@ -115,14 +124,11 @@ func TestLaunchWorkload(t *testing.T) {
 	runtime := &fakeRuntime{t: t, sandboxes: make(map[uuid.UUID]*fakeSandbox)}
 	daemonClient := agentsdk.New(adminClient.URL, agentsdk.WithFixedToken(agentToken))
 	supervisor, err := agentworkload.New(context.Background(), agentworkload.Options{
-		Logger:       testutil.Logger(t).Named("workloads"),
-		Runtime:      runtime,
-		Policy:       agentworkload.Policy{DefaultImage: "registry.example.com/agent:1", DefaultNetwork: codersdk.WorkloadNetworkNone},
-		CoderURL:     adminClient.URL,
-		SessionToken: func() string { return agentToken },
-		Pending:      daemonClient.PendingWorkloads,
-		ReportStart:  daemonClient.ReportWorkloadStart,
-		ReportExit:   daemonClient.ReportWorkloadExit,
+		Logger:      testutil.Logger(t).Named("workloads"),
+		Runtime:     runtime,
+		Pending:     daemonClient.PendingWorkloads,
+		ReportStart: daemonClient.ReportWorkloadStart,
+		ReportExit:  daemonClient.ReportWorkloadExit,
 	})
 	require.NoError(t, err)
 	_ = agenttest.New(t, adminClient.URL, agentToken, func(o *agent.Options) {
@@ -139,7 +145,8 @@ func TestLaunchWorkload(t *testing.T) {
 	require.NotNil(t, solo.UserID)
 
 	// The identity is an account of its own, which owns the workspace. It
-	// cannot sign in and has no API key: the build gave it none.
+	// cannot sign in. Its one API key is the workload's token, which names
+	// the identity: the build gave the account no session token.
 	require.Equal(t, *solo.UserID, workspace.OwnerID)
 	require.NotEqual(t, sponsor.ID, workspace.OwnerID)
 	identityUser, err := adminClient.User(ctx, solo.UserID.String())
@@ -147,15 +154,21 @@ func TestLaunchWorkload(t *testing.T) {
 	require.True(t, identityUser.IsServiceAccount)
 	require.Equal(t, codersdk.LoginTypeNone, identityUser.LoginType)
 	require.Equal(t, workspace.OwnerName, identityUser.Username)
-	//nolint:gocritic // The test looks at what no user may read.
-	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	for _, loginType := range []database.LoginType{database.LoginTypeNone, database.LoginTypeToken, database.LoginTypePassword} {
-		keys, err := db.GetAPIKeysByUserID(sysCtx, database.GetAPIKeysByUserIDParams{
-			LoginType: loginType, UserID: *solo.UserID, IncludeExpired: true,
-		})
-		require.NoError(t, err)
-		require.Empty(t, keys, "the identity has no API key of login type %s", loginType)
+	identityKeys := func() []database.APIKey {
+		var all []database.APIKey
+		for _, loginType := range []database.LoginType{database.LoginTypeNone, database.LoginTypeToken, database.LoginTypePassword} {
+			keys, err := db.GetAPIKeysByUserID(sysCtx, database.GetAPIKeysByUserIDParams{
+				LoginType: loginType, UserID: *solo.UserID, IncludeExpired: true,
+			})
+			require.NoError(t, err)
+			all = append(all, keys...)
+		}
+		return all
 	}
+	keys := identityKeys()
+	require.Len(t, keys, 1)
+	require.Equal(t, codersdk.WorkloadTokenNamePrefix+solo.ID.String(), keys[0].TokenName)
+	require.ElementsMatch(t, database.APIKeyScopes{database.ApiKeyScopeWorkspaceRead, database.ApiKeyScopeTemplateRead}, keys[0].Scopes)
 
 	// The identity shares the workspace with its sponsor, and with nobody
 	// else.
@@ -172,14 +185,13 @@ func TestLaunchWorkload(t *testing.T) {
 		acl.Users[sponsor.ID.String()].Permissions)
 	require.Empty(t, acl.Groups)
 
-	// The workload is its own account, narrowed to its scopes. It can read
-	// its own workspace. It cannot read its sponsor's, which the sponsor
-	// could, nor anything its scopes do not name.
+	// The workload holds a token of its own account, narrowed to its
+	// scopes. It can read its own workspace. It cannot read its sponsor's,
+	// which the sponsor could, nor anything its scopes do not name.
 	sandbox := runtime.sandbox(solo.ID)
 	require.NotNil(t, sandbox)
-	channel, err := url.Parse(sandbox.server.URL)
-	require.NoError(t, err)
-	asSolo := codersdk.New(channel)
+	require.NotEmpty(t, sandbox.token)
+	asSolo := codersdk.New(adminClient.URL, codersdk.WithSessionToken(sandbox.token))
 	identity, err := asSolo.WorkloadIdentity(ctx)
 	require.NoError(t, err)
 	require.Equal(t, codersdk.WorkloadIdentityKindWorkload, identity.Kind)
@@ -187,6 +199,15 @@ func TestLaunchWorkload(t *testing.T) {
 	require.Equal(t, sponsor.ID, identity.SponsorID)
 	require.Equal(t, workspace.OwnerID, identity.OwnerID)
 	require.Equal(t, identityUser.Username, identity.OwnerUsername)
+	// Reading a workspace takes reading its template, and the identity is
+	// not among those the template is open to.
+	_, err = asSolo.Workspace(ctx, workspace.ID)
+	requireStatus(err, http.StatusForbidden)
+	require.NoError(t, db.UpdateTemplateACLByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(adminUser)), database.UpdateTemplateACLByIDParams{
+		ID:       template.ID,
+		GroupACL: database.TemplateACL{admin.OrganizationID.String(): {policy.ActionRead, policy.ActionUse}},
+		UserACL:  database.TemplateACL{},
+	}))
 	own, err := asSolo.Workspace(ctx, workspace.ID)
 	require.NoError(t, err)
 	require.Equal(t, workspace.ID, own.ID)
@@ -195,15 +216,18 @@ func TestLaunchWorkload(t *testing.T) {
 	_, err = asSolo.User(ctx, sponsor.ID.String())
 	require.Error(t, err)
 	// A workload does not sponsor workloads.
-	_, err = asSolo.LaunchWorkload(ctx, codersdk.LaunchWorkloadRequest{
-		TemplateID:            template.ID,
-		CreateWorkloadRequest: codersdk.CreateWorkloadRequest{Command: "true"},
-	})
+	_, err = asSolo.LaunchWorkload(ctx, codersdk.LaunchWorkloadRequest{TemplateID: template.ID, Command: "true"})
 	requireStatus(err, http.StatusForbidden)
-
-	// Only one workload runs in a workspace that was made for one.
-	_, err = sponsorClient.CreateWorkspaceWorkload(ctx, workspace.ID, codersdk.CreateWorkloadRequest{Command: "true"})
-	requireStatus(err, http.StatusNotFound)
+	// The daemon's own credential is no user credential, and neither is
+	// somebody's token that merely names the identity.
+	_, err = codersdk.New(adminClient.URL, codersdk.WithSessionToken(agentToken)).WorkloadIdentity(ctx)
+	requireStatus(err, http.StatusUnauthorized)
+	impostor, err := otherClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+		TokenName: codersdk.WorkloadTokenNamePrefix + solo.ID.String(),
+	})
+	require.NoError(t, err)
+	_, err = codersdk.New(adminClient.URL, codersdk.WithSessionToken(impostor.Key)).WorkloadIdentity(ctx)
+	requireStatus(err, http.StatusUnauthorized)
 
 	// The sponsor lists it and may end it. Nobody else may.
 	sponsored, err := sponsorClient.Workloads(ctx, codersdk.WorkspaceWorkloadsOptions{})
@@ -226,6 +250,10 @@ func TestLaunchWorkload(t *testing.T) {
 		retired, err := db.GetUserByID(dbauthz.AsSystemRestricted(ctx), *solo.UserID)
 		return err == nil && retired.Deleted
 	}, testutil.IntervalMedium)
+	// The workload's token went with it.
+	_, err = asSolo.WorkloadIdentity(ctx)
+	requireStatus(err, http.StatusUnauthorized)
+	require.Empty(t, identityKeys())
 	finished, err := sponsorClient.Workloads(ctx, codersdk.WorkspaceWorkloadsOptions{Finished: true})
 	require.NoError(t, err)
 	require.Len(t, finished, 1)

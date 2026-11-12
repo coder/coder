@@ -90,10 +90,10 @@ export const WorkspaceWorkloads: React.FC<WorkspaceWorkloadsProps> = ({
 					</h3>
 					<p className="m-0 text-sm text-content-secondary">
 						{workspaceName
-							? "Commands that run in sandboxes inside this workspace."
-							: "Commands you run with coder run, in a sandbox inside a workspace or in a workspace of their own."}{" "}
-						Each one has its own identity and can only use its sponsor's
-						permissions within its scopes.
+							? "The command that this workspace was made for."
+							: "Commands you run with coder run, each in a workspace of its own."}{" "}
+						Each one has its own identity, which owns its workspace and can do
+						nothing beyond its scopes.
 					</p>
 				</div>
 				<div className="flex items-center gap-2 pt-1">

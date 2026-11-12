@@ -10,7 +10,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -179,7 +178,6 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.syncCommand(),
 		r.updateUserEmail(),
 		r.experimentRulesCommand(),
-		r.workloadInit(),
 	}
 }
 
@@ -595,16 +593,12 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 
 // RootCmd contains parameters and helpers useful to all commands.
 type RootCmd struct {
-	clientURL *url.URL
-	token     string
-	// workloadSocket is set when the command runs inside a workload's
-	// sandbox without a login. Requests then go through the sandbox's
-	// channel to its workspace daemon, which makes them the workload's.
-	workloadSocket string
-	tokenBackend   sessionstore.Backend
-	globalConfig   string
-	header         []string
-	headerCommand  string
+	clientURL     *url.URL
+	token         string
+	tokenBackend  sessionstore.Backend
+	globalConfig  string
+	header        []string
+	headerCommand string
 
 	forceTTY           bool
 	noOpen             bool
@@ -742,7 +736,6 @@ func (r *RootCmd) ensureTLSConfig() error {
 // InitClient creates and configures a new client with authentication, telemetry,
 // and version checks.
 func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) {
-	r.useWorkloadChannel()
 	if err := r.ensureClientURL(); err != nil {
 		return nil, err
 	}
@@ -793,49 +786,6 @@ func (r *RootCmd) InitClient(inv *serpent.Invocation) (*codersdk.Client, error) 
 	}
 
 	return codersdk.New(r.clientURL, clientOpts...), nil
-}
-
-// workloadURL is the server URL used inside a workload's sandbox. Its host
-// is never resolved: every connection goes to the sandbox's channel.
-const workloadURL = "http://coder.workload"
-
-// useWorkloadChannel makes commands that call Coder's API work inside a
-// workload's sandbox. Nobody is logged in there and there is no credential:
-// the sandbox's channel to its workspace daemon is the workload's identity,
-// and what it may do is decided by that identity's scopes. An explicit URL,
-// token or login takes precedence.
-func (r *RootCmd) useWorkloadChannel() {
-	if r.token != "" || (r.clientURL != nil && r.clientURL.String() != "") {
-		return
-	}
-	socket := os.Getenv(codersdk.WorkloadSocketEnv)
-	if socket == "" {
-		return
-	}
-	if _, err := r.createConfig().URL().Read(); err == nil {
-		return
-	}
-	u, err := url.Parse(workloadURL)
-	if err != nil {
-		return
-	}
-	r.clientURL = u
-	r.workloadSocket = socket
-}
-
-// dialWorkloadChannel makes a transport connect to the sandbox's channel
-// instead of the network.
-func (r *RootCmd) dialWorkloadChannel(rt http.RoundTripper) http.RoundTripper {
-	transport, ok := rt.(*http.Transport)
-	if !ok || r.workloadSocket == "" {
-		return rt
-	}
-	transport = transport.Clone()
-	socket := r.workloadSocket
-	transport.DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
-		return (&net.Dialer{}).DialContext(ctx, "unix", socket)
-	}
-	return transport
 }
 
 // TryInitClient is similar to InitClient but doesn't error when credentials are missing.
@@ -924,7 +874,7 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 	if err != nil {
 		return nil, err
 	}
-	transport := r.dialWorkloadChannel(baseTransport)
+	transport := baseTransport
 
 	transport = wrapTransportWithTelemetryHeader(transport, inv)
 	transport = wrapTransportWithUserAgentHeader(transport, inv)
@@ -939,7 +889,7 @@ func (r *RootCmd) createHTTPClient(ctx context.Context, serverURL *url.URL, inv 
 		transport = wrapTransportWithVersionCheck(transport, inv, buildinfo.Version(), func(ctx context.Context) (codersdk.BuildInfoResponse, error) {
 			// Create a new client without any wrapped transport
 			// otherwise it creates an infinite loop!
-			basicClient := codersdk.New(serverURL, codersdk.WithHTTPClient(&http.Client{Transport: r.dialWorkloadChannel(buildInfoTransport)}))
+			basicClient := codersdk.New(serverURL, codersdk.WithHTTPClient(&http.Client{Transport: buildInfoTransport}))
 			return basicClient.BuildInfo(ctx)
 		})
 	}

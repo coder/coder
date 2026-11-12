@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io"
 	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -19,7 +18,6 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentexec"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/pty"
 )
@@ -35,15 +33,13 @@ const attachGrace = 2 * time.Minute
 //
 // The workload and the daemon are the same principal here. The workload can
 // read whatever the daemon can, including the token that identifies the
-// pod, so the channel is a convenience and not a boundary: it lets programs
-// reach Coder as the workload without handling a credential. For the same
-// reason the daemon can offer the channel on a loopback address itself, for
-// programs that cannot use a unix socket.
+// pod.
 type PodRuntime struct {
+	// CoderURL is where the workload reaches Coder.
+	CoderURL string
 	// SandboxID names the sandbox, for example the pod's name.
 	SandboxID string
-	// StateDir holds one directory per workload with its channel socket
-	// and its output.
+	// StateDir holds one directory per workload with its output.
 	StateDir string
 	// CLIPath is the coder binary, so that `coder` is on the workload's
 	// path.
@@ -59,8 +55,9 @@ var _ Runtime = (*PodRuntime)(nil)
 func (*PodRuntime) Name() string { return "pod" }
 
 // environ is what a workload's process sees: the pod's ordinary
-// environment, without anything that configures the daemon.
-func (p *PodRuntime) environ(spec Spec, socket, loopback string) []string {
+// environment, without anything that configures the daemon, and the
+// workload's own credential for Coder.
+func (p *PodRuntime) environ(spec Spec) []string {
 	env := slices.DeleteFunc(os.Environ(), func(kv string) bool {
 		return strings.HasPrefix(kv, "CODER_")
 	})
@@ -72,48 +69,29 @@ func (p *PodRuntime) environ(spec Spec, socket, loopback string) []string {
 			}
 		}
 	}
-	return append(env,
-		codersdk.WorkloadSocketEnv+"="+socket,
-		"CODER_URL=http://"+loopback,
+	env = append(env,
+		"CODER_URL="+p.CoderURL,
 		"CODER_WORKLOAD_NAME="+spec.Name,
 	)
+	if spec.SessionToken != "" {
+		env = append(env, "CODER_SESSION_TOKEN="+spec.SessionToken)
+	}
+	return env
 }
 
 // Start implements Runtime.
-func (p *PodRuntime) Start(ctx context.Context, spec Spec, channel http.Handler) (Sandbox, error) {
-	if len(spec.Mounts) > 0 {
-		return nil, xerrors.New("a workload that has a pod to itself sees the pod's files; directories cannot be shared with it")
-	}
+func (p *PodRuntime) Start(ctx context.Context, spec Spec) (Sandbox, error) {
 	dir := filepath.Join(p.StateDir, spec.ID.String())
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, xerrors.Errorf("create workload directory: %w", err)
 	}
-	socket := filepath.Join(dir, "workload.sock")
-	_ = os.Remove(socket)
-	listener, err := (&net.ListenConfig{}).Listen(ctx, "unix", socket)
-	if err != nil {
-		return nil, xerrors.Errorf("listen on channel: %w", err)
-	}
-	// The same channel on a loopback address. Whatever can reach it runs
-	// in the pod, and so is the workload.
-	loopback, err := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:0")
-	if err != nil {
-		_ = listener.Close()
-		return nil, xerrors.Errorf("listen on loopback: %w", err)
-	}
 	output, err := os.OpenFile(filepath.Join(dir, "output"), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600)
 	if err != nil {
-		_ = listener.Close()
-		_ = loopback.Close()
 		return nil, xerrors.Errorf("create output file: %w", err)
 	}
-	server := &http.Server{Handler: channel, ReadHeaderTimeout: 30 * time.Second}
-	go func() { _ = server.Serve(listener) }()
-	go func() { _ = server.Serve(loopback) }()
 
 	sandbox := &podSandbox{
-		runtime: p, spec: spec, dir: dir, socket: socket, loopback: loopback.Addr().String(),
-		server: server, output: output,
+		runtime: p, spec: spec, dir: dir, output: output,
 		done: make(chan struct{}),
 	}
 	sandbox.ctx, sandbox.cancel = context.WithCancel(context.Background())
@@ -130,7 +108,7 @@ func (p *PodRuntime) Start(ctx context.Context, spec Spec, channel http.Handler)
 		execer = agentexec.DefaultExecer
 	}
 	cmd := execer.CommandContext(sandbox.ctx, "sh", "-c", spec.Command)
-	cmd.Env = p.environ(spec, socket, sandbox.loopback)
+	cmd.Env = p.environ(spec)
 	cmd.Stdout, cmd.Stderr = output, output
 	if home, err := os.UserHomeDir(); err == nil {
 		cmd.Dir = home
@@ -167,11 +145,7 @@ type podSandbox struct {
 	runtime *PodRuntime
 	spec    Spec
 	dir     string
-	socket  string
-	// loopback is the address the channel is also served on.
-	loopback string
-	server   *http.Server
-	output   *os.File
+	output  *os.File
 	// ctx ends the workload's process.
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -258,7 +232,7 @@ func (s *podSandbox) Attach(ctx context.Context, conn net.Conn, height, width ui
 		}
 	}()
 	cmd := execer.PTYCommandContext(ctx, "sh", "-c", s.spec.Command)
-	cmd.Env = append(s.runtime.environ(s.spec, s.socket, s.loopback), "TERM=xterm-256color")
+	cmd.Env = append(s.runtime.environ(s.spec), "TERM=xterm-256color")
 	if home, err := os.UserHomeDir(); err == nil {
 		cmd.Dir = home
 	}
@@ -324,7 +298,6 @@ func (s *podSandbox) Wait(ctx context.Context) (int, error) {
 
 func (s *podSandbox) Close(context.Context) error {
 	s.cancel()
-	_ = s.server.Close()
 	select {
 	case <-s.done:
 	case <-time.After(10 * time.Second):

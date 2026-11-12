@@ -10,9 +10,6 @@ INSERT INTO workload_identities (
 	name,
 	command,
 	scopes,
-	image,
-	network,
-	mounts,
 	interactive,
 	remove_workspace
 )
@@ -27,9 +24,6 @@ VALUES (
 	@name,
 	@command,
 	@scopes,
-	@image,
-	@network,
-	@mounts,
 	@interactive,
 	@remove_workspace
 )
@@ -140,17 +134,14 @@ WHERE
 	AND finished_at IS NULL
 RETURNING *;
 
--- UpdateWorkloadIdentitySandbox records the sandbox the daemon started for
--- the workload and what its policy settled on.
+-- UpdateWorkloadIdentitySandbox records where the daemon started the
+-- workload.
 -- name: UpdateWorkloadIdentitySandbox :one
 UPDATE
 	workload_identities
 SET
 	runtime = @runtime,
 	sandbox_id = @sandbox_id,
-	image = @image,
-	network = @network,
-	mounts = @mounts,
 	started_at = @started_at
 WHERE
 	id = @id

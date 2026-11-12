@@ -108,7 +108,6 @@ import (
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/echo"
-	"github.com/coder/coder/v2/provisioner/sandbox"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionerd"
 	"github.com/coder/coder/v2/provisionerd/proto"
@@ -673,8 +672,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return err
 			}
 
-			// Where workspaces of sandbox templates get their pods, and
-			// where the daemons in those pods are vouched for.
+			// The cluster that vouches for workspace daemons that
+			// authenticate as the pod they run in.
 			sandboxCluster, err := agentsandbox.ClusterFromEnv(inv.Environ.Get, vals.AccessURL.String())
 			if err != nil {
 				return err
@@ -1288,11 +1287,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			for _, pt := range vals.Provisioner.DaemonTypes {
 				provisionerTypes = append(provisionerTypes, codersdk.ProvisionerType(pt))
 			}
-			// With a cluster to claim sandboxes in, sandbox templates
-			// can be built.
-			if sandboxCluster != nil {
-				provisionerTypes = append(provisionerTypes, codersdk.ProvisionerTypeSandbox)
-			}
 			for i := int64(0); i < vals.Provisioner.Daemons.Value(); i++ {
 				suffix := fmt.Sprintf("%d", i)
 				// The suffix is added to the hostname, so we may need to trim to fit into
@@ -1781,40 +1775,6 @@ func newProvisionerDaemon(
 			})
 
 			connector[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
-		case codersdk.ProvisionerTypeSandbox:
-			cluster := coderAPI.SandboxCluster
-			if cluster == nil {
-				return nil, xerrors.Errorf("the %q provisioner needs a cluster: set %s", provisionerType, agentsandbox.EnvNamespace)
-			}
-			sandboxClient, sandboxServer := drpcsdk.MemTransportPipe()
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				<-ctx.Done()
-				_ = sandboxClient.Close()
-				_ = sandboxServer.Close()
-			}()
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				defer cancel()
-				err := sandbox.Serve(ctx, &sandbox.ServeOptions{
-					ServeOptions: &provisionersdk.ServeOptions{
-						Listener:      sandboxServer,
-						WorkDirectory: workDir,
-						Logger:        logger.Named("sandbox"),
-					},
-					Kube:      cluster.Kube,
-					Namespace: cluster.Namespace,
-				})
-				if err != nil && !xerrors.Is(err, context.Canceled) {
-					select {
-					case errCh <- err:
-					default:
-					}
-				}
-			}()
-			connector[string(database.ProvisionerTypeSandbox)] = sdkproto.NewDRPCProvisionerClient(sandboxClient)
 		default:
 			return nil, xerrors.Errorf("unknown provisioner type %q", provisionerType)
 		}

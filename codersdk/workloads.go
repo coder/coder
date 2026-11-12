@@ -9,7 +9,6 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -18,58 +17,9 @@ import (
 	"github.com/coder/websocket"
 )
 
-const (
-	// WorkloadIdentityHeader is set by a workspace daemon on a request it
-	// forwards for one of its workloads. It names the workload identity the
-	// request belongs to. coderd honors it only together with that daemon's
-	// own credential, and only for an identity assigned to that daemon.
-	WorkloadIdentityHeader = "Coder-Workload-Identity"
-	// WorkloadSocketEnv is set inside a workload's sandbox. It is the path
-	// of a unix socket that leads to Coder's API as that workload. The
-	// socket is the workload's identity: the sandbox holds no credential.
-	WorkloadSocketEnv = "CODER_WORKLOAD_SOCKET"
-	// WorkloadTermEnv carries the terminal type for an interactive
-	// workload's command past the program that starts it.
-	WorkloadTermEnv = "CODER_WORKLOAD_TERM"
-)
-
-// WorkloadNetwork is what a workload's sandbox can reach over the network.
-// Its channel to Coder works in every mode.
-type WorkloadNetwork string
-
-const (
-	// WorkloadNetworkNone gives the sandbox no network at all. Coder,
-	// through the channel, is the only thing it can talk to.
-	WorkloadNetworkNone WorkloadNetwork = "none"
-	// WorkloadNetworkOutbound gives the sandbox ordinary outbound network
-	// access. It still cannot reach other sandboxes.
-	WorkloadNetworkOutbound WorkloadNetwork = "outbound"
-)
-
-// WorkloadMount is a directory of the workspace that a workload's sandbox
-// can see, at the same path.
-type WorkloadMount struct {
-	Path string `json:"path"`
-	// Writable lets the workload change the directory. Without it the
-	// workload can only read.
-	Writable bool `json:"writable,omitempty"`
-}
-
-// String formats the mount the way the CLI accepts it.
-func (m WorkloadMount) String() string {
-	if m.Writable {
-		return m.Path + ":rw"
-	}
-	return m.Path
-}
-
-// ParseWorkloadMount parses "path" or "path:rw".
-func ParseWorkloadMount(raw string) WorkloadMount {
-	if path, ok := strings.CutSuffix(raw, ":rw"); ok {
-		return WorkloadMount{Path: path, Writable: true}
-	}
-	return WorkloadMount{Path: strings.TrimSuffix(raw, ":ro")}
-}
+// WorkloadTokenNamePrefix starts the name of the API token that is a
+// workload's credential. The workload identity's ID follows.
+const WorkloadTokenNamePrefix = "workload-"
 
 // WorkloadEndReason says why a workload is over.
 type WorkloadEndReason string
@@ -96,8 +46,8 @@ const (
 	// WorkloadIdentityKindDaemon is a workspace daemon declared by the
 	// template.
 	WorkloadIdentityKindDaemon WorkloadIdentityKind = "daemon"
-	// WorkloadIdentityKindWorkload is a workload started at runtime inside
-	// a workspace daemon's sandbox.
+	// WorkloadIdentityKindWorkload is a workload started at runtime, next
+	// to a workspace daemon that has a sandbox to itself.
 	WorkloadIdentityKindWorkload WorkloadIdentityKind = "workload"
 )
 
@@ -108,9 +58,8 @@ const (
 	// WorkloadAttestationAgentToken means the process holds a Coder-issued
 	// agent token. Anything that holds the token is the daemon.
 	WorkloadAttestationAgentToken WorkloadAttestation = "agent-token"
-	// WorkloadAttestationWorkspaceDaemon means the workspace daemon vouches
-	// for the workload: it created the sandbox and it alone connects the
-	// sandbox to Coder. The workload holds no credential.
+	// WorkloadAttestationWorkspaceDaemon means the workload's credential
+	// was handed to a workspace daemon that holds an agent token.
 	WorkloadAttestationWorkspaceDaemon WorkloadAttestation = "workspace-daemon"
 	// WorkloadAttestationKubernetesPod means a cluster confirmed which pod
 	// the identity's daemon runs in, from the token the kubelet obtained
@@ -119,9 +68,9 @@ const (
 	WorkloadAttestationKubernetesPod WorkloadAttestation = "kubernetes-pod"
 )
 
-// WorkloadSandbox is where a workload runs inside its workspace daemon.
+// WorkloadSandbox is where a workload runs.
 type WorkloadSandbox struct {
-	// Runtime is the isolation backend, for example "docker".
+	// Runtime is what runs it, for example "pod".
 	Runtime string `json:"runtime"`
 	// ID identifies the sandbox to that runtime.
 	ID string `json:"id"`
@@ -185,7 +134,7 @@ const (
 	WorkloadStatusFailed WorkloadStatus = "failed"
 )
 
-// Workload is a command that runs in a sandbox inside a workspace daemon,
+// Workload is a command that runs in a workspace that was made for it,
 // with an identity of its own.
 type Workload struct {
 	// ID is the workload's identity ID.
@@ -207,58 +156,33 @@ type Workload struct {
 	FinishedAt *time.Time `json:"finished_at,omitempty" format:"date-time"`
 	// ExitCode is the command's exit code, when it is known.
 	ExitCode *int `json:"exit_code,omitempty"`
-	// Image, Network and Mounts are what the daemon's policy settled on.
-	Image   string          `json:"image,omitempty"`
-	Network WorkloadNetwork `json:"network,omitempty"`
-	Mounts  []WorkloadMount `json:"mounts,omitempty"`
 	// Identity is the workload's identity as it is displayed.
 	Identity string `json:"identity"`
-	// SponsorID is the user account whose permissions bound what the
-	// workload may do.
+	// SponsorID is the user account that asked for the workload and
+	// answers for it.
 	SponsorID       uuid.UUID `json:"sponsor_id" format:"uuid"`
 	SponsorUsername string    `json:"sponsor_username"`
-	// UserID is the service account that is this identity, for a workload
-	// with a workspace to itself. The workload acts as it and owns the
-	// workspace.
+	// UserID is the service account that is this identity. The workload
+	// acts as it, and it owns the workspace.
 	UserID *uuid.UUID `json:"user_id,omitempty" format:"uuid"`
-	// Scopes narrow the sponsor's permissions. An empty list grants nothing.
+	// Scopes are what the identity may do. An empty list grants nothing.
 	Scopes  []APIKeyScope    `json:"scopes"`
 	Sandbox *WorkloadSandbox `json:"sandbox,omitempty"`
 }
 
-// CreateWorkloadRequest asks for a workload in a workspace.
-type CreateWorkloadRequest struct {
+// LaunchWorkloadRequest asks for a workload. The workload gets a workspace
+// to itself, which its identity owns, and the caller sponsors it.
+type LaunchWorkloadRequest struct {
 	// Name is optional. It must be a valid agent name.
 	Name string `json:"name,omitempty"`
-	// Agent selects the workspace daemon by name. It may be empty when the
-	// workspace has exactly one.
-	Agent string `json:"agent,omitempty"`
-	// Command is run by a shell inside the sandbox.
+	// Command is run by a shell.
 	Command string `json:"command"`
-	// Image asks for another image than the daemon's default. The
-	// template decides which images are allowed.
-	Image string `json:"image,omitempty"`
-	// Network asks for another network than the daemon's default. Asking
-	// for none is always allowed.
-	Network WorkloadNetwork `json:"network,omitempty"`
-	// Mounts asks for directories of the workspace to be visible in the
-	// sandbox. The template decides which directories may be shared.
-	Mounts []WorkloadMount `json:"mounts,omitempty"`
 	// Interactive gives the command a terminal that the sponsor can attach
 	// to.
 	Interactive bool `json:"interactive,omitempty"`
-	// Scopes are the API key scopes the workload may use on the sponsor's
-	// behalf. Without any, the workload can do nothing in Coder.
+	// Scopes are the API key scopes the workload may use. Without any,
+	// the workload can do nothing in Coder.
 	Scopes []APIKeyScope `json:"scopes,omitempty"`
-	// RemoveWorkspace deletes the workspace when the workload is over. It
-	// is for a workspace that was made for this one workload.
-	RemoveWorkspace bool `json:"remove_workspace,omitempty"`
-}
-
-// LaunchWorkloadRequest asks for a workload with a workspace to itself. The
-// workload's identity owns the workspace, and the caller sponsors it.
-type LaunchWorkloadRequest struct {
-	CreateWorkloadRequest
 	// TemplateID is the template the workspace is made from. The caller
 	// must be allowed to use it.
 	TemplateID uuid.UUID `json:"template_id" format:"uuid"`
@@ -282,29 +206,22 @@ type WorkloadLogEvent struct {
 
 // AgentWorkloadSpec is what coderd asks a workspace daemon to run.
 type AgentWorkloadSpec struct {
-	// ID is the workload identity the daemon vouches for when it forwards
-	// the sandbox's requests.
+	// ID is the workload identity.
 	ID      uuid.UUID `json:"id" format:"uuid"`
 	Name    string    `json:"name"`
 	Command string    `json:"command"`
-	// Image, Network and Mounts are requests. The daemon's policy, which
-	// the template sets, decides whether to honor them.
-	Image   string          `json:"image,omitempty"`
-	Network WorkloadNetwork `json:"network,omitempty"`
-	Mounts  []WorkloadMount `json:"mounts,omitempty"`
 	// Interactive gives the command a terminal.
 	Interactive bool `json:"interactive,omitempty"`
+	// SessionToken is the workload's own credential for Coder. It is
+	// handed out once: it is empty when the daemon asks again.
+	SessionToken string `json:"session_token,omitempty"`
 }
 
 // AgentWorkloadState is a workload as its workspace daemon sees it.
 type AgentWorkloadState struct {
-	ID      uuid.UUID       `json:"id" format:"uuid"`
-	Name    string          `json:"name"`
-	Sandbox WorkloadSandbox `json:"sandbox"`
-	// Image, Network and Mounts are what the daemon's policy settled on.
-	Image     string          `json:"image"`
-	Network   WorkloadNetwork `json:"network"`
-	Mounts    []WorkloadMount `json:"mounts,omitempty"`
+	ID        uuid.UUID       `json:"id" format:"uuid"`
+	Name      string          `json:"name"`
+	Sandbox   WorkloadSandbox `json:"sandbox"`
 	Running   bool            `json:"running"`
 	ExitCode  *int            `json:"exit_code,omitempty"`
 	StartedAt time.Time       `json:"started_at" format:"date-time"`
@@ -327,20 +244,6 @@ type AgentWorkloadExit struct {
 	Reason   WorkloadEndReason `json:"reason"`
 	// OutputTail is the end of the workload's output.
 	OutputTail string `json:"output_tail,omitempty"`
-}
-
-// CreateWorkspaceWorkload runs a command in a new sandbox of a workspace.
-func (c *Client) CreateWorkspaceWorkload(ctx context.Context, workspaceID uuid.UUID, req CreateWorkloadRequest) (Workload, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/workloads", workspaceID), req)
-	if err != nil {
-		return Workload{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		return Workload{}, ReadBodyAsError(res)
-	}
-	var workload Workload
-	return workload, ReadBodyAsJSON(res, &workload)
 }
 
 // LaunchWorkload runs a command in a workspace that is made for it and
@@ -488,10 +391,11 @@ func (c *Client) Workloads(ctx context.Context, opts WorkspaceWorkloadsOptions) 
 	return workloads, ReadBodyAsJSON(res, &workloads)
 }
 
-// WorkloadIdentity returns the identity coderd sees for the caller. It
-// works for a workspace daemon and for a workload inside one.
+// WorkloadIdentity returns the identity coderd sees for the caller, when
+// the caller is a workload. A workspace daemon asks with
+// agentsdk.Client.Identity.
 func (c *Client) WorkloadIdentity(ctx context.Context) (WorkloadIdentity, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/identity", nil)
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workloads/identity", nil)
 	if err != nil {
 		return WorkloadIdentity{}, err
 	}

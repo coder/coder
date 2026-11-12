@@ -1687,23 +1687,20 @@ export interface AgentWorkloadExit {
  */
 export interface AgentWorkloadSpec {
 	/**
-	 * ID is the workload identity the daemon vouches for when it forwards
-	 * the sandbox's requests.
+	 * ID is the workload identity.
 	 */
 	readonly id: string;
 	readonly name: string;
 	readonly command: string;
 	/**
-	 * Image, Network and Mounts are requests. The daemon's policy, which
-	 * the template sets, decides whether to honor them.
-	 */
-	readonly image?: string;
-	readonly network?: WorkloadNetwork;
-	readonly mounts?: readonly WorkloadMount[];
-	/**
 	 * Interactive gives the command a terminal.
 	 */
 	readonly interactive?: boolean;
+	/**
+	 * SessionToken is the workload's own credential for Coder. It is
+	 * handed out once: it is empty when the daemon asks again.
+	 */
+	readonly session_token?: string;
 }
 
 // From codersdk/workloads.go
@@ -1730,12 +1727,6 @@ export interface AgentWorkloadState {
 	readonly id: string;
 	readonly name: string;
 	readonly sandbox: WorkloadSandbox;
-	/**
-	 * Image, Network and Mounts are what the daemon's policy settled on.
-	 */
-	readonly image: string;
-	readonly network: WorkloadNetwork;
-	readonly mounts?: readonly WorkloadMount[];
 	readonly running: boolean;
 	readonly exit_code?: number;
 	readonly started_at: string;
@@ -5035,56 +5026,6 @@ export interface CreateUserSecretRequest {
 	readonly enabled?: boolean;
 }
 
-// From codersdk/workloads.go
-/**
- * CreateWorkloadRequest asks for a workload in a workspace.
- */
-export interface CreateWorkloadRequest {
-	/**
-	 * Name is optional. It must be a valid agent name.
-	 */
-	readonly name?: string;
-	/**
-	 * Agent selects the workspace daemon by name. It may be empty when the
-	 * workspace has exactly one.
-	 */
-	readonly agent?: string;
-	/**
-	 * Command is run by a shell inside the sandbox.
-	 */
-	readonly command: string;
-	/**
-	 * Image asks for another image than the daemon's default. The
-	 * template decides which images are allowed.
-	 */
-	readonly image?: string;
-	/**
-	 * Network asks for another network than the daemon's default. Asking
-	 * for none is always allowed.
-	 */
-	readonly network?: WorkloadNetwork;
-	/**
-	 * Mounts asks for directories of the workspace to be visible in the
-	 * sandbox. The template decides which directories may be shared.
-	 */
-	readonly mounts?: readonly WorkloadMount[];
-	/**
-	 * Interactive gives the command a terminal that the sponsor can attach
-	 * to.
-	 */
-	readonly interactive?: boolean;
-	/**
-	 * Scopes are the API key scopes the workload may use on the sponsor's
-	 * behalf. Without any, the workload can do nothing in Coder.
-	 */
-	readonly scopes?: readonly APIKeyScope[];
-	/**
-	 * RemoveWorkspace deletes the workspace when the workload is over. It
-	 * is for a workspace that was made for this one workload.
-	 */
-	readonly remove_workspace?: boolean;
-}
-
 // From codersdk/workspaces.go
 /**
  * CreateWorkspaceBuildOnSuccessRequest queues a follow-up build that
@@ -6801,10 +6742,28 @@ export const JobErrorCodes: JobErrorCode[] = [
 
 // From codersdk/workloads.go
 /**
- * LaunchWorkloadRequest asks for a workload with a workspace to itself. The
- * workload's identity owns the workspace, and the caller sponsors it.
+ * LaunchWorkloadRequest asks for a workload. The workload gets a workspace
+ * to itself, which its identity owns, and the caller sponsors it.
  */
-export interface LaunchWorkloadRequest extends CreateWorkloadRequest {
+export interface LaunchWorkloadRequest {
+	/**
+	 * Name is optional. It must be a valid agent name.
+	 */
+	readonly name?: string;
+	/**
+	 * Command is run by a shell.
+	 */
+	readonly command: string;
+	/**
+	 * Interactive gives the command a terminal that the sponsor can attach
+	 * to.
+	 */
+	readonly interactive?: boolean;
+	/**
+	 * Scopes are the API key scopes the workload may use. Without any,
+	 * the workload can do nothing in Coder.
+	 */
+	readonly scopes?: readonly APIKeyScope[];
 	/**
 	 * TemplateID is the template the workspace is made from. The caller
 	 * must be allowed to use it.
@@ -9174,13 +9133,9 @@ export interface ProvisionerTiming {
 }
 
 // From codersdk/organizations.go
-export type ProvisionerType = "echo" | "sandbox" | "terraform";
+export type ProvisionerType = "echo" | "terraform";
 
-export const ProvisionerTypes: ProvisionerType[] = [
-	"echo",
-	"sandbox",
-	"terraform",
-];
+export const ProvisionerTypes: ProvisionerType[] = ["echo", "terraform"];
 
 // From codersdk/workspaceproxy.go
 /**
@@ -12436,7 +12391,7 @@ export interface WebsocketReport extends BaseReport {
 
 // From codersdk/workloads.go
 /**
- * Workload is a command that runs in a sandbox inside a workspace daemon,
+ * Workload is a command that runs in a workspace that was made for it,
  * with an identity of its own.
  */
 export interface Workload {
@@ -12470,29 +12425,22 @@ export interface Workload {
 	 */
 	readonly exit_code?: number;
 	/**
-	 * Image, Network and Mounts are what the daemon's policy settled on.
-	 */
-	readonly image?: string;
-	readonly network?: WorkloadNetwork;
-	readonly mounts?: readonly WorkloadMount[];
-	/**
 	 * Identity is the workload's identity as it is displayed.
 	 */
 	readonly identity: string;
 	/**
-	 * SponsorID is the user account whose permissions bound what the
-	 * workload may do.
+	 * SponsorID is the user account that asked for the workload and
+	 * answers for it.
 	 */
 	readonly sponsor_id: string;
 	readonly sponsor_username: string;
 	/**
-	 * UserID is the service account that is this identity, for a workload
-	 * with a workspace to itself. The workload acts as it and owns the
-	 * workspace.
+	 * UserID is the service account that is this identity. The workload
+	 * acts as it, and it owns the workspace.
 	 */
 	readonly user_id?: string;
 	/**
-	 * Scopes narrow the sponsor's permissions. An empty list grants nothing.
+	 * Scopes are what the identity may do. An empty list grants nothing.
 	 */
 	readonly scopes: readonly APIKeyScope[];
 	readonly sandbox?: WorkloadSandbox;
@@ -12576,15 +12524,6 @@ export interface WorkloadIdentity {
 }
 
 // From codersdk/workloads.go
-/**
- * WorkloadIdentityHeader is set by a workspace daemon on a request it
- * forwards for one of its workloads. It names the workload identity the
- * request belongs to. coderd honors it only together with that daemon's
- * own credential, and only for an identity assigned to that daemon.
- */
-export const WorkloadIdentityHeader = "Coder-Workload-Identity";
-
-// From codersdk/workloads.go
 export type WorkloadIdentityKind = "daemon" | "workload";
 
 export const WorkloadIdentityKinds: WorkloadIdentityKind[] = [
@@ -12604,30 +12543,11 @@ export interface WorkloadLogEvent {
 
 // From codersdk/workloads.go
 /**
- * WorkloadMount is a directory of the workspace that a workload's sandbox
- * can see, at the same path.
- */
-export interface WorkloadMount {
-	readonly path: string;
-	/**
-	 * Writable lets the workload change the directory. Without it the
-	 * workload can only read.
-	 */
-	readonly writable?: boolean;
-}
-
-// From codersdk/workloads.go
-export type WorkloadNetwork = "none" | "outbound";
-
-export const WorkloadNetworks: WorkloadNetwork[] = ["none", "outbound"];
-
-// From codersdk/workloads.go
-/**
- * WorkloadSandbox is where a workload runs inside its workspace daemon.
+ * WorkloadSandbox is where a workload runs.
  */
 export interface WorkloadSandbox {
 	/**
-	 * Runtime is the isolation backend, for example "docker".
+	 * Runtime is what runs it, for example "pod".
 	 */
 	readonly runtime: string;
 	/**
@@ -12635,14 +12555,6 @@ export interface WorkloadSandbox {
 	 */
 	readonly id: string;
 }
-
-// From codersdk/workloads.go
-/**
- * WorkloadSocketEnv is set inside a workload's sandbox. It is the path
- * of a unix socket that leads to Coder's API as that workload. The
- * socket is the workload's identity: the sandbox holds no credential.
- */
-export const WorkloadSocketEnv = "CODER_WORKLOAD_SOCKET";
 
 // From codersdk/workloads.go
 export type WorkloadStatus =
@@ -12668,10 +12580,10 @@ export const WorkloadStatuses: WorkloadStatus[] = [
 
 // From codersdk/workloads.go
 /**
- * WorkloadTermEnv carries the terminal type for an interactive
- * workload's command past the program that starts it.
+ * WorkloadTokenNamePrefix starts the name of the API token that is a
+ * workload's credential. The workload identity's ID follows.
  */
-export const WorkloadTermEnv = "CODER_WORKLOAD_TERM";
+export const WorkloadTokenNamePrefix = "workload-";
 
 // From codersdk/workspaces.go
 /**

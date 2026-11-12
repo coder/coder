@@ -1794,8 +1794,8 @@ type sqlcQuerier interface {
 	// workload ended to one that was finished before the daemon reported in,
 	// for example a workload a user removed.
 	UpdateWorkloadIdentityOutcome(ctx context.Context, arg UpdateWorkloadIdentityOutcomeParams) error
-	// UpdateWorkloadIdentitySandbox records the sandbox the daemon started for
-	// the workload and what its policy settled on.
+	// UpdateWorkloadIdentitySandbox records where the daemon started the
+	// workload.
 	UpdateWorkloadIdentitySandbox(ctx context.Context, arg UpdateWorkloadIdentitySandboxParams) (WorkloadIdentity, error)
 	// UpdateWorkloadIdentityWorkspaceAgent gives a workload to the daemon of
 	// the workspace that was built for it.
