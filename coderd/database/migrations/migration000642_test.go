@@ -239,6 +239,7 @@ func TestMigration000642DownWithData(t *testing.T) {
 	require.ErrorAs(t, err, &refused)
 	require.Equal(t, "migration 000642 down: 2 chat messages still wait for their prompt hooks. "+
 		"Keep this release running until chatd has started these turns, then run the down migration again.", refused.Message)
+	require.Empty(t, refused.Hint, "no caller prints a HINT, so the guidance must be in the message")
 	require.Equal(t, schemaBefore, schemaFingerprint(ctx, t, sqlDB), "schema after a refused down")
 	require.Equal(t, rowsBefore, rowCounts(), "rows after a refused down")
 
