@@ -3,6 +3,7 @@ package chatautomation
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -75,7 +76,7 @@ func Tool(options ToolOptions) fantasy.AgentTool {
 	}
 	return fantasy.NewAgentTool(
 		ToolName,
-		"List the chat automations that you own in this organization, or get one automation by ID. "+
+		"List the chat automations that you own in this organization, or get one automation of this organization by ID. "+
 			"An automation sends a saved prompt to a chat from a webhook or a schedule. "+
 			"A list result holds at most the newest "+strconv.Itoa(listMaxItems)+" automations and cuts each prompt to "+
 			strconv.Itoa(listPromptMaxRunes)+" characters; use get for a full prompt.",
@@ -94,10 +95,10 @@ func Tool(options ToolOptions) fantasy.AgentTool {
 			case toolActionGet:
 				result, err = getAutomation(ctx, options, args.ID)
 			default:
-				return fantasy.NewTextErrorResponse(xerrors.Errorf(
-					"unknown action %q: the actions are %s and %s", args.Action, toolActionList, toolActionGet).Error()), nil
+				return fantasy.NewTextErrorResponse(fmt.Sprintf(
+					"unknown action %q: the actions are %s and %s", args.Action, toolActionList, toolActionGet)), nil
 			}
-			if errNotFound(err) {
+			if xerrors.Is(err, errAutomationNotFound) {
 				return fantasy.NewTextErrorResponse("automation not found"), nil
 			}
 			if err != nil {
@@ -114,10 +115,6 @@ func Tool(options ToolOptions) fantasy.AgentTool {
 }
 
 var errAutomationNotFound = xerrors.New("automation not found")
-
-func errNotFound(err error) bool {
-	return xerrors.Is(err, errAutomationNotFound)
-}
 
 func listAutomations(ctx context.Context, options ToolOptions) (listResult, error) {
 	// The owner filter is the chat owner, also in an administrator's chat.
