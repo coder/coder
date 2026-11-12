@@ -86,36 +86,10 @@ func TestReapPendingJobRecheck(t *testing.T) {
 			if tc.lookupError {
 				tx.EXPECT().GetEligibleProvisionerDaemonsByProvisionerJobIDs(gomock.Any(), []uuid.UUID{job.ID}).Return(nil, xerrors.New("lookup failed"))
 			}
-			reapType, err := reapJob(t.Context(), testutil.Logger(t), db, nil, &jobToReap{
+			err := reapJob(t.Context(), testutil.Logger(t), db, nil, &jobToReap{
 				ID: job.ID, Type: Pending, Threshold: PendingJobDuration,
 			})
 			require.ErrorContains(t, err, tc.wantError)
-			require.Equal(t, Pending, reapType)
 		})
 	}
-}
-
-// TestReapHungJobRecheck verifies that a hung job updated after candidate
-// selection is skipped.
-func TestReapHungJobRecheck(t *testing.T) {
-	t.Parallel()
-
-	now := dbtime.Now()
-	job := database.ProvisionerJob{
-		ID:        uuid.New(),
-		JobStatus: database.ProvisionerJobStatusRunning,
-		StartedAt: sql.NullTime{Time: now.Add(-10 * time.Minute), Valid: true},
-		UpdatedAt: now,
-	}
-	db := dbmock.NewMockStore(gomock.NewController(t))
-	tx := dbmock.NewMockStore(gomock.NewController(t))
-	db.EXPECT().InTx(gomock.Any(), gomock.Any()).DoAndReturn(func(fn func(database.Store) error, _ *database.TxOptions) error {
-		return fn(tx)
-	})
-	tx.EXPECT().GetProvisionerJobByIDForUpdate(gomock.Any(), job.ID).Return(job, nil)
-
-	_, err := reapJob(t.Context(), testutil.Logger(t), db, nil, &jobToReap{
-		ID: job.ID, Type: Hung, Threshold: HungJobDuration,
-	})
-	require.ErrorAs(t, err, &jobIneligibleError{})
 }

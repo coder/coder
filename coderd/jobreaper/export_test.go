@@ -13,6 +13,5 @@ import (
 // ReapPendingJob runs the locked recheck and reap for a pending job, as the
 // detector does for a candidate job.
 func ReapPendingJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub.Pubsub, id uuid.UUID) error {
-	_, err := reapJob(ctx, log, db, pub, &jobToReap{ID: id, Type: Pending, Threshold: PendingJobDuration})
-	return err
+	return reapJob(ctx, log, db, pub, &jobToReap{ID: id, Type: Pending, Threshold: PendingJobDuration})
 }

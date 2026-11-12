@@ -327,18 +327,17 @@ WHERE
 
 -- name: GetProvisionerJobsToBeReaped :many
 WITH pending_requirements AS (
-	-- Requirement sets of pending jobs past the ordinary timeout that have
-	-- not reached the absolute age limit. Jobs that share an organization,
-	-- provisioner type, and tags have the same eligible daemons, and jobs
-	-- usually share a few template tag sets, so distinct sets are far fewer
-	-- than pending jobs. Checking daemon eligibility per set costs
-	-- sets x daemons calls to the plpgsql provisioner_tagset_contains
-	-- function, which Postgres cannot inline, instead of jobs x daemons.
+	-- Requirement sets of pending jobs past the ordinary timeout. Jobs that
+	-- share an organization, provisioner type, and tags have the same
+	-- eligible daemons, and jobs usually share a few template tag sets, so
+	-- distinct sets are far fewer than pending jobs. Checking daemon
+	-- eligibility per set costs sets x daemons calls to the plpgsql
+	-- provisioner_tagset_contains function, which Postgres cannot inline,
+	-- instead of jobs x daemons.
 	SELECT DISTINCT organization_id, provisioner, tags
 	FROM provisioner_jobs
 	WHERE job_status = 'pending'::provisioner_job_status
 		AND updated_at < @pending_since
-		AND updated_at >= @max_pending_since
 ),
 protected_requirements AS (
 	-- Requirement sets with an eligible, recently seen daemon that is making
@@ -386,11 +385,10 @@ WHERE
 		pj.updated_at < @pending_since
 		AND pj.started_at IS NULL
 		AND pj.completed_at IS NULL
-		-- Unless it is pending within the absolute age limit and an eligible
-		-- provisioner is online and making progress.
+		-- Unless it is pending and an eligible provisioner is online and
+		-- making progress.
 		AND NOT (
 			pj.job_status = 'pending'::provisioner_job_status
-			AND pj.updated_at >= @max_pending_since
 			AND EXISTS (
 				SELECT 1
 				FROM protected_requirements pr

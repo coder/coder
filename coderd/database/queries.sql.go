@@ -26828,18 +26828,17 @@ func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, created
 
 const getProvisionerJobsToBeReaped = `-- name: GetProvisionerJobsToBeReaped :many
 WITH pending_requirements AS (
-	-- Requirement sets of pending jobs past the ordinary timeout that have
-	-- not reached the absolute age limit. Jobs that share an organization,
-	-- provisioner type, and tags have the same eligible daemons, and jobs
-	-- usually share a few template tag sets, so distinct sets are far fewer
-	-- than pending jobs. Checking daemon eligibility per set costs
-	-- sets x daemons calls to the plpgsql provisioner_tagset_contains
-	-- function, which Postgres cannot inline, instead of jobs x daemons.
+	-- Requirement sets of pending jobs past the ordinary timeout. Jobs that
+	-- share an organization, provisioner type, and tags have the same
+	-- eligible daemons, and jobs usually share a few template tag sets, so
+	-- distinct sets are far fewer than pending jobs. Checking daemon
+	-- eligibility per set costs sets x daemons calls to the plpgsql
+	-- provisioner_tagset_contains function, which Postgres cannot inline,
+	-- instead of jobs x daemons.
 	SELECT DISTINCT organization_id, provisioner, tags
 	FROM provisioner_jobs
 	WHERE job_status = 'pending'::provisioner_job_status
 		AND updated_at < $1
-		AND updated_at >= $2
 ),
 protected_requirements AS (
 	-- Requirement sets with an eligible, recently seen daemon that is making
@@ -26852,7 +26851,7 @@ protected_requirements AS (
 		WHERE pd.organization_id = pr.organization_id
 			AND pr.provisioner = ANY(pd.provisioners)
 			AND provisioner_tagset_contains(pd.tags::tagset, pr.tags::tagset)
-			AND pd.last_seen_at >= $5::timestamptz
+			AND pd.last_seen_at >= $4::timestamptz
 			-- Progress is a recently completed job or a running job that is
 			-- not hung, so builds longer than the window still count. Keep the
 			-- legs as separate EXISTS so each is a range scan on
@@ -26864,7 +26863,7 @@ protected_requirements AS (
 					FROM provisioner_jobs wj
 					WHERE wj.worker_id = pd.id
 						AND wj.organization_id = pd.organization_id
-						AND wj.completed_at >= $6::timestamptz
+						AND wj.completed_at >= $5::timestamptz
 				)
 				OR EXISTS (
 					SELECT 1
@@ -26872,7 +26871,7 @@ protected_requirements AS (
 					WHERE wj.worker_id = pd.id
 						AND wj.organization_id = pd.organization_id
 						AND wj.completed_at IS NULL
-						AND wj.updated_at >= $3
+						AND wj.updated_at >= $2
 				)
 			)
 	)
@@ -26887,11 +26886,10 @@ WHERE
 		pj.updated_at < $1
 		AND pj.started_at IS NULL
 		AND pj.completed_at IS NULL
-		-- Unless it is pending within the absolute age limit and an eligible
-		-- provisioner is online and making progress.
+		-- Unless it is pending and an eligible provisioner is online and
+		-- making progress.
 		AND NOT (
 			pj.job_status = 'pending'::provisioner_job_status
-			AND pj.updated_at >= $2
 			AND EXISTS (
 				SELECT 1
 				FROM protected_requirements pr
@@ -26904,17 +26902,16 @@ WHERE
 	OR
 	(
 		-- If the job has been started but not completed before @hung_since, reap it.
-		pj.updated_at < $3
+		pj.updated_at < $2
 		AND pj.started_at IS NOT NULL
 		AND pj.completed_at IS NULL
 	)
 ORDER BY random()
-LIMIT $4
+LIMIT $3
 `
 
 type GetProvisionerJobsToBeReapedParams struct {
 	PendingSince             time.Time `db:"pending_since" json:"pending_since"`
-	MaxPendingSince          time.Time `db:"max_pending_since" json:"max_pending_since"`
 	HungSince                time.Time `db:"hung_since" json:"hung_since"`
 	MaxJobs                  int32     `db:"max_jobs" json:"max_jobs"`
 	ProvisionerSeenSince     time.Time `db:"provisioner_seen_since" json:"provisioner_seen_since"`
@@ -26925,7 +26922,6 @@ type GetProvisionerJobsToBeReapedParams struct {
 func (q *sqlQuerier) GetProvisionerJobsToBeReaped(ctx context.Context, arg GetProvisionerJobsToBeReapedParams) ([]ProvisionerJob, error) {
 	rows, err := q.db.QueryContext(ctx, getProvisionerJobsToBeReaped,
 		arg.PendingSince,
-		arg.MaxPendingSince,
 		arg.HungSince,
 		arg.MaxJobs,
 		arg.ProvisionerSeenSince,

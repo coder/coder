@@ -116,8 +116,9 @@ func TestDetectorPendingProvisionerAvailability(t *testing.T) {
 		wantReaped           bool
 	}{
 		{name: "Online"},
-		// A moving queue protects jobs for hours, well past PendingJobDuration.
-		{name: "OnlineLongQueue", jobAge: 3 * time.Hour},
+		// A moving queue protects jobs for as long as it keeps moving, with no
+		// absolute age limit.
+		{name: "OnlineLongQueue", jobAge: 48 * time.Hour},
 		{name: "OnlineRunningLongBuild", progress: runningJob},
 		{name: "OnlineNoProgress", progress: noProgress, wantReaped: true},
 		{name: "WrongOrganization", wrongOrg: true, wantReaped: true},
@@ -193,59 +194,6 @@ func TestDetectorPendingProvisionerAvailability(t *testing.T) {
 			}
 		})
 	}
-}
-
-// TestDetectorPendingMaximumAge verifies that a job pending past the absolute
-// age limit is reaped even when an eligible provisioner is online and making
-// progress.
-func TestDetectorPendingMaximumAge(t *testing.T) {
-	t.Parallel()
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	env := newDetectorTestEnv(ctx, t)
-	defer env.close()
-
-	// GIVEN: A pending job past the absolute age limit and an eligible online
-	// provisioner that is making progress.
-	now := dbtime.Now()
-	queuedAt := now.Add(-jobreaper.MaxPendingJobDuration - time.Hour)
-	org := dbgen.Organization(t, env.DB, database.Organization{})
-	user := dbgen.User(t, env.DB, database.User{})
-	file := dbgen.File(t, env.DB, database.File{})
-	tags := database.StringMap{"pool": "test"}
-	newDaemonWithProgress(t, env.DB, database.ProvisionerDaemon{
-		OrganizationID: org.ID, Tags: tags,
-		LastSeenAt: sql.NullTime{Time: now, Valid: true},
-	}, completedRecently, now)
-	job := newTemplateJob(t, env.DB, database.ProvisionerJob{
-		OrganizationID: org.ID,
-		InitiatorID:    user.ID,
-		FileID:         file.ID,
-		Type:           database.ProvisionerJobTypeTemplateVersionImport,
-		CreatedAt:      queuedAt,
-		UpdatedAt:      queuedAt,
-		Tags:           tags,
-	})
-
-	// WHEN: The detector runs.
-	stats := env.tick(ctx, now)
-
-	// THEN: The job is reaped for exceeding the maximum pending age.
-	require.NoError(t, stats.Error)
-	require.Contains(t, stats.TerminatedJobIDs, job.ID)
-	requireTerminatedJob(ctx, t, env.DB, job.ID, now, jobreaper.PendingMaxAge)
-
-	// Verify the build log explains why the job is being terminated.
-	logs, err := env.DB.GetProvisionerLogsAfterID(ctx, database.GetProvisionerLogsAfterIDParams{
-		JobID:        job.ID,
-		CreatedAfter: 0,
-	})
-	require.NoError(t, err)
-	var logMessages []string
-	for _, log := range logs {
-		logMessages = append(logMessages, log.Output)
-	}
-	require.Contains(t, logMessages, "Coder: Build has been pending for more than 24 hours, exceeding the maximum pending age. It will be terminated. Contact your administrator.")
 }
 
 // TestDetectorExcludesProtectedPendingJobsFromCandidates verifies that
