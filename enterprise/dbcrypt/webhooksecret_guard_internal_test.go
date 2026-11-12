@@ -24,6 +24,7 @@ func TestWebhookSecretMethodsAreOverridden(t *testing.T) {
 	t.Parallel()
 
 	carriers := storeMethodsWithField(reflect.TypeFor[database.Store](), "WebhookSecret")
+	t.Logf("database.Store methods that carry a webhook secret: %v", carriers)
 	require.Subset(t, carriers, []string{"InsertChatAutomation", "GetChatAutomationByID"},
 		"the walk must find the queries of A1 that carry the secret")
 

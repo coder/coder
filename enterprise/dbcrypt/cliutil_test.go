@@ -2079,6 +2079,12 @@ func TestRotateChatAutomations(t *testing.T) {
 		require.Equal(t, before[row.ID], chatAutomationXmin(f.ctx, t, f.sqlDB, row.ID), "row must not be rewritten")
 	}
 	requireDBCryptKeyRevoked(f.ctx, t, f.rawDB, f.cipherA)
+
+	cryptDBB, err := dbcrypt.New(f.ctx, f.rawDB, f.cipherB)
+	require.NoError(t, err)
+	read, err := cryptDBB.GetChatAutomationByID(f.ctx, rows.secret.ID)
+	require.NoError(t, err)
+	require.Equal(t, chatAutomationSecret, read.WebhookSecret.String, "a secret written under cipher A reads under cipher B")
 }
 
 // TestDecryptChatAutomations covers the webhook secret of chat_automations.
@@ -2128,6 +2134,8 @@ func TestDeleteChatAutomations(t *testing.T) {
 	require.Equal(t, sql.NullString{Valid: true}, got.WebhookSecret, "the secret is blanked, not NULL")
 	require.False(t, got.WebhookSecretKeyID.Valid)
 	require.Equal(t, rows.secret.WebhookSecretVersion, got.WebhookSecretVersion)
+	_, err := f.sqlDB.ExecContext(f.ctx, `UPDATE chat_automations SET name = name WHERE id = $1`, rows.secret.ID)
+	require.NoError(t, err, "the blanked row still passes its CHECK constraints")
 	for _, row := range untouched {
 		require.Equal(t, before[row.ID], chatAutomationXmin(f.ctx, t, f.sqlDB, row.ID), "row must not be rewritten")
 	}
