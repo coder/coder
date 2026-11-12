@@ -319,7 +319,7 @@ Actions: `create`, `write`
 
 ### ChatAutomation
 
-Actions: `create`, `write`, `delete`, `start`
+Actions: `delete`
 
 <table width="100%">
 <thead><tr><th width="75%">Field</th><th width="25%">Tracked</th></tr></thead>
