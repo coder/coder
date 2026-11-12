@@ -1205,7 +1205,7 @@ func (s *taskStarter) executeLocalTools(
 	chathooks.RestoreToolCallOrder(outcome.Content, decision.localToolCalls)
 
 	var asyncQuestion string
-	if prepared.AsyncAskUserQuestion {
+	if prepared.BuiltinToolNames[chattool.AskUserQuestionAsyncName] {
 		asyncQuestion = s.lastAsyncQuestion(ctx, input, decision.localToolCalls, outcome.Content)
 	}
 

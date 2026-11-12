@@ -884,9 +884,6 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		ui bool
 		// askStops reports whether ask_user_question ends the turn.
 		askStops bool
-		// askAsync reports whether the turn gets the
-		// ask_user_question_async tool.
-		askAsync bool
 		// prompt lists the instructions the system prompt must contain;
 		// the others in the set must be absent.
 		prompt   []string
@@ -913,23 +910,20 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			name:        "UIRoot",
 			experiments: codersdk.Experiments{codersdk.ExperimentChatAsyncQuestions},
 			ui:          true,
-			askAsync:    true,
 			prompt:      []string{advisorGuidance, acpSubagentPromptBlock},
 			want:        []string{chattool.AskUserQuestionAsyncName, "spawn_agent", chatadvisor.ToolName},
 		},
 		{
-			name:     "UIRootExperimentOff",
-			ui:       true,
-			prompt:   []string{advisorGuidance, acpSubagentPromptBlock},
-			want:     []string{chatadvisor.ToolName},
-			dontWant: []string{"ask_user_question"},
+			name:   "UIRootExperimentOff",
+			ui:     true,
+			prompt: []string{advisorGuidance, acpSubagentPromptBlock},
+			want:   []string{chatadvisor.ToolName},
 		},
 		{
 			name:        "APIRoot",
 			experiments: codersdk.Experiments{codersdk.ExperimentChatAsyncQuestions},
 			prompt:      []string{advisorGuidance, acpSubagentPromptBlock},
 			want:        []string{chatadvisor.ToolName},
-			dontWant:    []string{"ask_user_question"},
 		},
 		{
 			name:        "UIChild",
@@ -937,7 +931,6 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			ui:          true,
 			child:       true,
 			want:        []string{"read_file"},
-			dontWant:    []string{"ask_user_question"},
 		},
 		{
 			name:        "PlanRoot",
@@ -1127,7 +1120,6 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			_, askStops := env.StopAfterTools["ask_user_question"]
 			require.Equal(t, tt.askStops, askStops)
 			require.NotContains(t, env.StopAfterTools, chattool.AskUserQuestionAsyncName)
-			require.Equal(t, tt.askAsync, env.AsyncAskUserQuestion)
 
 			for _, name := range []string{"ask_user_question", chattool.AskUserQuestionAsyncName} {
 				require.Equal(t, slices.Contains(tt.want, name), slices.Contains(offered, name), name)

@@ -73,9 +73,6 @@ type turnEnvironment struct {
 	ExclusiveToolNames map[string]bool
 	BuiltinToolNames   map[string]bool
 	ToolNameToConfigID map[string]uuid.UUID
-	// AsyncAskUserQuestion reports whether this turn offers the
-	// ask_user_question_async tool.
-	AsyncAskUserQuestion bool
 
 	MaxSteps   int
 	Compaction *generationCompaction
@@ -1082,7 +1079,6 @@ func (p *Server) buildTurnEnvironment(
 		ExclusiveToolNames:   exclusiveToolNames,
 		BuiltinToolNames:     builtinToolNames,
 		ToolNameToConfigID:   toolNameToConfigID,
-		AsyncAskUserQuestion: asyncAskUserQuestion,
 		MaxSteps:             p.chatLimits.MaxStepsPerTurn,
 		Compaction: &generationCompaction{
 			Override:        compactionOverride,
