@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	entaudit "github.com/coder/coder/v2/enterprise/audit"
 	"github.com/coder/coder/v2/enterprise/audit/backends"
@@ -50,7 +51,8 @@ func TestChatAutomationDeleteAuditEntry(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	require.NoError(t, codersdk.NewExperimentalClient(memberClient).DeleteChatAutomation(ctx, first.OrganizationID, automation.ID))
 
-	res, err := ownerClient.Request(ctx, http.MethodGet, "/api/v2/audit?limit=50&q=resource_type:chat_automation", nil)
+	auditorClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID, rbac.RoleAuditor())
+	res, err := auditorClient.Request(ctx, http.MethodGet, "/api/v2/audit?limit=50&q=resource_type:chat_automation", nil)
 	require.NoError(t, err)
 	defer res.Body.Close()
 	require.Equal(t, http.StatusOK, res.StatusCode)
