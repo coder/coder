@@ -212,6 +212,10 @@ func TestDelete(t *testing.T) {
 			{status: database.ChatStatusError, queue: "ha", wantQueue: "h", wantStatus: database.ChatStatusError},
 			{status: database.ChatStatusRunning, queue: "h", wantQueue: "h", wantStatus: database.ChatStatusRunning},
 		}},
+		// Enough chats that an unordered read would not come out sorted.
+		{name: "ManyChats", chats: slices.Repeat([]chatCase{
+			{status: database.ChatStatusRunning, queue: "a", wantStatus: database.ChatStatusRunning},
+		}, 8)},
 		{name: "ArchivedChat", chats: []chatCase{
 			{status: database.ChatStatusError, archived: true, queue: "a", wantStatus: database.ChatStatusError},
 		}},
