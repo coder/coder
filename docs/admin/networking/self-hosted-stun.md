@@ -43,7 +43,7 @@ This guide runs it in STUN-only mode.
 1. Replace the contents of coturn's configuration file with this STUN-only configuration.
    On Debian and Ubuntu, the file is `/etc/turnserver.conf`:
 
-   ```text
+   ```txt
    listening-port=3478
    stun-only
    no-rfc5780
@@ -100,7 +100,9 @@ On other container platforms, expose UDP port 3478 without a proxy that replaces
 
 ## Configure Coder
 
-Set [`CODER_DERP_SERVER_STUN_ADDRESSES`](../../reference/cli/server/index.md#--derp-server-stun-addresses) to a comma-separated list of your STUN servers, in `host:port` form:
+Set [`CODER_DERP_SERVER_STUN_ADDRESSES`](../../reference/cli/server/index.md#--derp-server-stun-addresses) to a comma-separated list of your STUN servers, in `host:port` form.
+Coder ignores this setting when you disable the built-in DERP relay with `CODER_DERP_SERVER_ENABLE=false`.
+In that case, [use a DERP map](#use-a-custom-derp-map) instead.
 
 ```sh
 CODER_DERP_SERVER_STUN_ADDRESSES=stun1.example.com:3478,stun2.example.com:3478
@@ -124,20 +126,20 @@ Keep these behaviors in mind:
   Coder doesn't add them back.
 - Each entry can be a hostname or an IP address, and must include the port.
   Hostnames must resolve from every network your clients and workspaces use.
-- Run two or more STUN servers on separate hosts.
-  Coder queries each server separately, so direct connections keep working if one server goes down.
+- Run at least two STUN servers on separate hosts.
+  Coder lists each server as its own region, so a single unreachable server doesn't remove the others.
 
-### Use a custom relay map
+### Use a custom DERP map
 
-Coder's built-in relay is optional for self-hosted STUN.
-You need it only to configure STUN servers with `CODER_DERP_SERVER_STUN_ADDRESSES`, because Coder ignores that setting when you set `CODER_DERP_SERVER_ENABLE=false`.
+Coder's built-in DERP relay is optional for self-hosted STUN.
+You need the built-in DERP relay only to configure STUN servers with `CODER_DERP_SERVER_STUN_ADDRESSES`, because Coder ignores that setting when you set `CODER_DERP_SERVER_ENABLE=false`.
 
-Without the built-in relay, add your STUN servers to the [custom relay map](./index.md#custom-relays) that you provide with `CODER_DERP_CONFIG_URL` or `CODER_DERP_CONFIG_PATH`:
+Without the built-in DERP relay, add your STUN servers to the [DERP map](./index.md#custom-relays) that you provide with `CODER_DERP_CONFIG_URL` or `CODER_DERP_CONFIG_PATH`:
 
 - Give each STUN server its own region with a unique `RegionID`.
 - Give each region one node with a unique `Name`, the STUN server's `HostName`, `"STUNOnly": true`, and `"STUNPort": 3478`.
 - Keep at least one relay node in the map.
-  Coder doesn't start if the relay map contains only STUN servers.
+  Coder doesn't start if the DERP map contains only STUN servers.
 
 ## Verify direct connections
 
@@ -176,7 +178,7 @@ The first command uses `jq` to shorten the `coder netcheck` output, so install `
 
    The output reports a direct (`p2p`) connection:
 
-   ```text
+   ```txt
    pong from <workspace> p2p via  203.0.113.10:41641  in 25ms
    ...
    ✔ You are connected directly (p2p)

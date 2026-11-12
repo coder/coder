@@ -118,6 +118,20 @@ After you have custom DERP servers, you can launch Coder with them like so:
           "HostName": "your-hostname.com"
         }
       ]
+    },
+    "2": {
+      "RegionID": 2,
+      "RegionCode": "mystun",
+      "RegionName": "My STUN",
+      "Nodes": [
+        {
+          "Name": "2",
+          "RegionID": 2,
+          "HostName": "stun.example.com",
+          "STUNOnly": true,
+          "STUNPort": 3478
+        }
+      ]
     }
   }
 }
@@ -126,6 +140,8 @@ After you have custom DERP servers, you can launch Coder with them like so:
 ```sh
 coder server --derp-config-path derpmap.json
 ```
+
+A node with `"STUNOnly": true` serves STUN requests only and doesn't relay traffic.
 
 ### Dashboard connections
 
