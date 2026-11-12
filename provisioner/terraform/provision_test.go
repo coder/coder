@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -157,13 +158,74 @@ func sendGraph(sess proto.DRPCProvisioner_SessionClient, source proto.GraphSourc
 	}}})
 }
 
-//nolint:paralleltest // Avoid "text file busy"; see explanation below.
+// fakeTerraform stands in for the terraform binary. It prints the output set
+// here instead of running Terraform, and records the commands it is given.
+// See testdata/fake_terraform.sh.
+type fakeTerraform struct {
+	// plan and state are what `terraform show -json` prints for the plan
+	// file and for the state.
+	plan, state string
+	// graphs are what successive `terraform graph` runs print. A run with an
+	// empty or missing entry fails.
+	graphs []string
+	// real is the path of a Terraform binary that runs every command
+	// instead, for tests that only need the commands recorded.
+	real string
+	// hang makes plan and graph wait to be interrupted, which the fake
+	// records as "interrupted plan" and "interrupted graph".
+	hang bool
+
+	dir string
+}
+
+// install sets the fake up in a directory of its own and returns the path to
+// use as the terraform binary. That path links to a checked-in script, so
+// tests using it can run in parallel. Tests that write the script they
+// execute can't: it fails with "text file busy" while a process that another
+// test forked still has the script open for writing.
+func (f *fakeTerraform) install(t *testing.T) string {
+	t.Helper()
+	f.dir = t.TempDir()
+	files := map[string]string{"plan.json": f.plan, "state.json": f.state, "real": f.real}
+	for i, graph := range f.graphs {
+		files[fmt.Sprintf("graph.%d.dot", i+1)] = graph
+	}
+	if f.hang {
+		files["hang"] = "1"
+	}
+	for name, content := range files {
+		if content != "" {
+			require.NoError(t, os.WriteFile(filepath.Join(f.dir, name), []byte(content), 0o600))
+		}
+	}
+	script, err := filepath.Abs(filepath.Join("testdata", "fake_terraform.sh"))
+	require.NoError(t, err)
+	binaryPath := filepath.Join(f.dir, "terraform")
+	require.NoError(t, os.Symlink(script, binaryPath))
+	return binaryPath
+}
+
+// commands returns the arguments of every command with one of the given
+// subcommands that has run so far, in the order the commands started.
+func (f *fakeTerraform) commands(t *testing.T, subcommands ...string) []string {
+	t.Helper()
+	content, err := os.ReadFile(filepath.Join(f.dir, "commands"))
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	require.NoError(t, err)
+	var commands []string
+	for _, command := range strings.Split(strings.TrimSpace(string(content)), "\n") {
+		subcommand, _, _ := strings.Cut(command, " ")
+		if slices.Contains(subcommands, subcommand) {
+			commands = append(commands, command)
+		}
+	}
+	return commands
+}
+
 func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
-	// This test and its subtests must run serially. Each subtest writes and
-	// immediately executes a temporary shell script that mocks Terraform.
-	// Another test forking while the script is open for writing can leave a
-	// writable file descriptor in its child even after os.WriteFile returns,
-	// causing execution to fail with "text file busy".
+	t.Parallel()
 
 	const selfDependencyPlanJSON = `{
 		"format_version":"1.2",
@@ -287,41 +349,12 @@ func TestGraphProcessesScriptOrdersOnlyForStart(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		//nolint:paralleltest // Avoid the script descriptor race above.
 		t.Run(test.name, func(t *testing.T) {
-			dir := t.TempDir()
-			planPath := filepath.Join(dir, "plan.json")
-			graphPath := filepath.Join(dir, "graph.dot")
-			graphArgsPath := filepath.Join(dir, "graph-args")
-			require.NoError(t, os.WriteFile(planPath, []byte(test.planJSON), 0o600))
-			require.NoError(t, os.WriteFile(graphPath, []byte(graphDOT), 0o600))
+			t.Parallel()
 
-			binaryPath := filepath.Join(dir, "terraform")
-			binary := fmt.Sprintf(`#!/bin/sh
-case "$1" in
-version)
-	printf '%%s\n' '{"terraform_version":"1.15.0","platform":"linux_amd64","provider_selections":{}}'
-	;;
-show)
-	cat %q
-	;;
-graph)
-	printf '%%s\n' "$*" >> %q
-	cat %q
-	;;
-init)
-	exit 0
-	;;
-*)
-	exit 1
-	;;
-esac
-`, planPath, graphArgsPath, graphPath)
-			// #nosec G306 - The test Terraform shim must be executable.
-			require.NoError(t, os.WriteFile(binaryPath, []byte(binary), 0o700))
-
+			tf := &fakeTerraform{plan: test.planJSON, graphs: []string{graphDOT}}
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
-				binaryPath: binaryPath,
+				binaryPath: tf.install(t),
 			})
 			sess := configure(ctx, t, api, &proto.Config{})
 			init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
@@ -344,21 +377,13 @@ esac
 				require.Contains(t, logs, test.warningContains)
 				require.Contains(t, logs, "module.bootstrap")
 			}
-
-			graphArgs, err := os.ReadFile(graphArgsPath)
-			require.NoError(t, err)
-			require.Equal(t, "graph -type=plan\n", string(graphArgs))
+			require.Equal(t, []string{"graph -type=plan"}, tf.commands(t, "graph"))
 		})
 	}
 }
 
-//nolint:paralleltest // Avoid "text file busy"; see explanation below.
 func TestGraphResolvesAppliedScriptOrders(t *testing.T) {
-	// This test and its subtests must run serially. Each subtest writes and
-	// immediately executes a temporary shell script that mocks Terraform.
-	// Another test forking while the script is open for writing can leave a
-	// writable file descriptor in its child even after os.WriteFile returns,
-	// causing execution to fail with "text file busy".
+	t.Parallel()
 
 	// Terraform records the script order data source in prior state when it is
 	// read during planning. The plan fixture reproduces that shape so this test
@@ -430,49 +455,12 @@ func TestGraphResolvesAppliedScriptOrders(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		//nolint:paralleltest // Avoid the script descriptor race above.
 		t.Run(test.name, func(t *testing.T) {
-			dir := t.TempDir()
-			planPath := filepath.Join(dir, "plan.json")
-			statePath := filepath.Join(dir, "state.json")
-			graphPath := filepath.Join(dir, "graph.dot")
-			showArgsPath := filepath.Join(dir, "show-args")
-			graphArgsPath := filepath.Join(dir, "graph-args")
-			require.NoError(t, os.WriteFile(planPath, planJSON, 0o600))
-			require.NoError(t, os.WriteFile(statePath, []byte(test.stateJSON), 0o600))
-			require.NoError(t, os.WriteFile(graphPath, []byte(graphDOT), 0o600))
+			t.Parallel()
 
-			binaryPath := filepath.Join(dir, "terraform")
-			binary := fmt.Sprintf(`#!/bin/sh
-case "$1" in
-version)
-	printf '%%s\n' '{"terraform_version":"1.15.0","platform":"linux_amd64","provider_selections":{}}'
-	;;
-show)
-	printf '%%s\n' "$*" >> %q
-	if [ "$#" -eq 3 ]; then
-		cat %q
-	else
-		cat %q
-	fi
-	;;
-graph)
-	printf '%%s\n' "$*" >> %q
-	cat %q
-	;;
-plan|init)
-	exit 0
-	;;
-*)
-	exit 1
-	;;
-esac
-`, showArgsPath, statePath, planPath, graphArgsPath, graphPath)
-			// #nosec G306 - The test Terraform shim must be executable.
-			require.NoError(t, os.WriteFile(binaryPath, []byte(binary), 0o700))
-
+			tf := &fakeTerraform{plan: string(planJSON), state: test.stateJSON, graphs: []string{graphDOT}}
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
-				binaryPath: binaryPath,
+				binaryPath: tf.install(t),
 			})
 			sess := configure(ctx, t, api, &proto.Config{})
 			init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
@@ -501,57 +489,30 @@ esac
 			} else {
 				require.Contains(t, graph.Error, test.errorContains)
 			}
-			showArgs, err := os.ReadFile(showArgsPath)
-			require.NoError(t, err)
-			commands := strings.Split(strings.TrimSpace(string(showArgs)), "\n")
+			shows := tf.commands(t, "show")
 			if test.planFirst {
-				require.Len(t, commands, 2)
-				require.Contains(t, commands[0], "terraform.tfplan")
-				require.Equal(t, "show -json -no-color", commands[1])
+				require.Len(t, shows, 2)
+				require.Contains(t, shows[0], "terraform.tfplan")
+				require.Equal(t, "show -json -no-color", shows[1])
 			} else {
-				require.Equal(t, []string{"show -json -no-color"}, commands)
+				require.Equal(t, []string{"show -json -no-color"}, shows)
 			}
 
 			if test.wantGraphCall {
-				graphArgs, err := os.ReadFile(graphArgsPath)
-				require.NoError(t, err)
-				require.Equal(t, "graph -type=plan\n", string(graphArgs))
+				require.Equal(t, []string{"graph -type=plan"}, tf.commands(t, "graph"))
 			} else {
-				_, err := os.Stat(graphArgsPath)
-				require.ErrorIs(t, err, os.ErrNotExist)
+				require.Empty(t, tf.commands(t, "graph"))
 			}
 		})
 	}
 }
 
-// writeTerraformShim writes an executable script that stands in for the
-// terraform binary and returns its path.
-func writeTerraformShim(t *testing.T, dir, script string) string {
-	t.Helper()
-	binaryPath := filepath.Join(dir, "terraform")
-	// #nosec G306 - The test Terraform shim must be executable.
-	require.NoError(t, os.WriteFile(binaryPath, []byte(script), 0o700))
-	return binaryPath
-}
-
-// readShimCalls returns the lines a shim appended to path, one per call it
-// recorded, or nil if it recorded none.
-func readShimCalls(t *testing.T, path string) []string {
-	t.Helper()
-	content, err := os.ReadFile(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	require.NoError(t, err)
-	return strings.Split(strings.TrimSpace(string(content)), "\n")
-}
-
 // TestGraphReusesPlanResults covers when Graph reuses the parsed plan and the
 // graph that Plan computed, and when it runs Terraform again. In every case
 // Graph must attach the agent to its container.
-//
-//nolint:paralleltest // Avoid "text file busy"; see TestGraphResolvesAppliedScriptOrders.
 func TestGraphReusesPlanResults(t *testing.T) {
+	t.Parallel()
+
 	const planJSON = `{
 		"format_version":"1.2",
 		"terraform_version":"1.15.0",
@@ -583,109 +544,64 @@ func TestGraphReusesPlanResults(t *testing.T) {
 		"[root] coder_agent.main (expand)" [label = "coder_agent.main"]
 		"[root] coder_agent.main (deposed 00000001)" [label = "coder_agent.main"]
 	}`
+	// An external agent that the template no longer declares. Apply destroys
+	// it, so only a rebuilt graph leaves it out.
+	const graphWithOrphanDOT = `digraph {
+		"[root] docker_container.workspace" [label = "docker_container.workspace"]
+		"[root] coder_agent.main (expand)" [label = "coder_agent.main"]
+		"[root] coder_external_agent.gone (orphan)" [label = "coder_external_agent.gone"]
+		"[root] docker_container.workspace" -> "[root] coder_agent.main (expand)"
+	}`
 
 	tests := []struct {
 		name   string
 		source proto.GraphSource
-		// graphDOT is what `terraform graph` prints during Plan, and
-		// rebuiltGraphDOT, if set, what it prints after that.
-		graphDOT        string
-		rebuiltGraphDOT string
-		// failFirstGraph makes the graph run during Plan fail.
-		failFirstGraph bool
-		wantShowCalls  []string
-		wantGraphCalls int
+		// graphs are what successive `terraform graph` runs print, the
+		// first of them during Plan. An empty one fails. Terraform must
+		// graph once per entry.
+		graphs []string
+		// wantShows counts `terraform show` runs: Plan shows the plan file,
+		// and Graph shows the state.
+		wantShows int
 	}{
 		{
-			name:           "PlanSourceReusesPlanAndGraph",
-			source:         proto.GraphSource_SOURCE_PLAN,
-			graphDOT:       graphDOT,
-			wantShowCalls:  []string{"plan"},
-			wantGraphCalls: 1,
+			name:      "PlanSourceReusesPlanAndGraph",
+			source:    proto.GraphSource_SOURCE_PLAN,
+			graphs:    []string{graphDOT},
+			wantShows: 1,
 		},
 		{
-			name:           "StateSourceReusesGraph",
-			source:         proto.GraphSource_SOURCE_STATE,
-			graphDOT:       graphDOT,
-			wantShowCalls:  []string{"plan", "state"},
-			wantGraphCalls: 1,
+			name:      "StateSourceReusesGraph",
+			source:    proto.GraphSource_SOURCE_STATE,
+			graphs:    []string{graphDOT},
+			wantShows: 2,
 		},
 		{
-			name:            "PriorStateNodesRebuildGraph",
-			source:          proto.GraphSource_SOURCE_STATE,
-			graphDOT:        graphWithDeposedDOT,
-			rebuiltGraphDOT: graphDOT,
-			wantShowCalls:   []string{"plan", "state"},
-			wantGraphCalls:  2,
+			name:      "DeposedObjectRebuildsGraph",
+			source:    proto.GraphSource_SOURCE_STATE,
+			graphs:    []string{graphWithDeposedDOT, graphDOT},
+			wantShows: 2,
 		},
 		{
-			name:           "GraphFailedDuringPlan",
-			source:         proto.GraphSource_SOURCE_STATE,
-			graphDOT:       graphDOT,
-			failFirstGraph: true,
-			wantShowCalls:  []string{"plan", "state"},
-			wantGraphCalls: 2,
+			name:      "OrphanedResourceRebuildsGraph",
+			source:    proto.GraphSource_SOURCE_STATE,
+			graphs:    []string{graphWithOrphanDOT, graphDOT},
+			wantShows: 2,
+		},
+		{
+			name:      "GraphFailedDuringPlan",
+			source:    proto.GraphSource_SOURCE_STATE,
+			graphs:    []string{"", graphDOT},
+			wantShows: 2,
 		},
 	}
 	for _, test := range tests {
-		//nolint:paralleltest // Avoid "text file busy"; see above.
 		t.Run(test.name, func(t *testing.T) {
-			dir := t.TempDir()
-			planPath := filepath.Join(dir, "plan.json")
-			statePath := filepath.Join(dir, "state.json")
-			graphPath := filepath.Join(dir, "graph.dot")
-			rebuiltGraphPath := filepath.Join(dir, "rebuilt-graph.dot")
-			failGraphPath := filepath.Join(dir, "fail-graph")
-			showCallsPath := filepath.Join(dir, "show-calls")
-			graphCallsPath := filepath.Join(dir, "graph-calls")
-			require.NoError(t, os.WriteFile(planPath, []byte(planJSON), 0o600))
-			require.NoError(t, os.WriteFile(statePath, []byte(stateJSON), 0o600))
-			require.NoError(t, os.WriteFile(graphPath, []byte(test.graphDOT), 0o600))
-			if test.rebuiltGraphDOT != "" {
-				require.NoError(t, os.WriteFile(rebuiltGraphPath, []byte(test.rebuiltGraphDOT), 0o600))
-			}
-			if test.failFirstGraph {
-				require.NoError(t, os.WriteFile(failGraphPath, nil, 0o600))
-			}
+			t.Parallel()
 
-			// `terraform show` takes the plan file as its last argument and
-			// shows the state without it.
-			binaryPath := writeTerraformShim(t, dir, fmt.Sprintf(`#!/bin/sh
-case "$1" in
-version)
-	printf '%%s\n' '{"terraform_version":"1.15.0","platform":"linux_amd64","provider_selections":{}}'
-	;;
-show)
-	if [ "$#" -eq 3 ]; then
-		echo state >> %[1]q
-		cat %[2]q
-	else
-		echo plan >> %[1]q
-		cat %[3]q
-	fi
-	;;
-graph)
-	echo graph >> %[4]q
-	if [ -f %[5]q ]; then
-		rm %[5]q
-		exit 1
-	fi
-	cat %[6]q
-	if [ -f %[7]q ]; then
-		mv %[7]q %[6]q
-	fi
-	;;
-plan|init)
-	exit 0
-	;;
-*)
-	exit 1
-	;;
-esac
-`, showCallsPath, statePath, planPath, graphCallsPath, failGraphPath, graphPath, rebuiltGraphPath))
-
+			tf := &fakeTerraform{plan: planJSON, state: stateJSON, graphs: test.graphs}
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
-				binaryPath: binaryPath,
+				binaryPath: tf.install(t),
 			})
 			sess := configure(ctx, t, api, &proto.Config{})
 			init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
@@ -704,9 +620,10 @@ esac
 			require.Equal(t, "workspace", graph.Resources[0].Name)
 			require.Len(t, graph.Resources[0].Agents, 1)
 			require.Equal(t, "main", graph.Resources[0].Agents[0].Name)
+			require.False(t, graph.HasExternalAgents)
 
-			require.Equal(t, test.wantShowCalls, readShimCalls(t, showCallsPath))
-			require.Len(t, readShimCalls(t, graphCallsPath), test.wantGraphCalls)
+			require.Len(t, tf.commands(t, "show"), test.wantShows)
+			require.Len(t, tf.commands(t, "graph"), len(test.graphs))
 		})
 	}
 }
@@ -714,9 +631,9 @@ esac
 // TestGraphRebuildsForPriorStateObjects runs real Terraform, because Graph
 // recognizes deposed and orphaned objects by the names Terraform gives their
 // nodes in the graph it builds during Plan. Such a graph must not be reused.
-//
-//nolint:paralleltest // Avoid "text file busy"; see TestGraphResolvesAppliedScriptOrders.
 func TestGraphRebuildsForPriorStateObjects(t *testing.T) {
+	t.Parallel()
+
 	terraformPath, err := exec.LookPath("terraform")
 	if err != nil {
 		ctx := testutil.Context(t, testutil.WaitLong)
@@ -739,41 +656,33 @@ func TestGraphRebuildsForPriorStateObjects(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		state          []byte
-		wantGraphCalls int
+		name       string
+		state      []byte
+		wantGraphs int
 	}{
 		{
-			name:           "NoPriorStateObjects",
-			state:          state(resource("kept", current)),
-			wantGraphCalls: 1,
+			name:       "NoPriorStateObjects",
+			state:      state(resource("kept", current)),
+			wantGraphs: 1,
 		},
 		{
-			name:           "DeposedObject",
-			state:          state(resource("kept", current, deposed)),
-			wantGraphCalls: 2,
+			name:       "DeposedObject",
+			state:      state(resource("kept", current, deposed)),
+			wantGraphs: 2,
 		},
 		{
-			name:           "OrphanedResource",
-			state:          state(resource("kept", current), resource("removed", current)),
-			wantGraphCalls: 2,
+			name:       "OrphanedResource",
+			state:      state(resource("kept", current), resource("removed", current)),
+			wantGraphs: 2,
 		},
 	}
 	for _, test := range tests {
-		//nolint:paralleltest // Avoid "text file busy"; see above.
 		t.Run(test.name, func(t *testing.T) {
-			dir := t.TempDir()
-			graphCallsPath := filepath.Join(dir, "graph-calls")
-			// Record graph runs and leave everything to the real Terraform.
-			binaryPath := writeTerraformShim(t, dir, fmt.Sprintf(`#!/bin/sh
-if [ "$1" = graph ]; then
-	echo graph >> %q
-fi
-exec %q "$@"
-`, graphCallsPath, terraformPath))
+			t.Parallel()
 
+			tf := &fakeTerraform{real: terraformPath}
 			ctx, api := setupProvisioner(t, &provisionerServeOptions{
-				binaryPath: binaryPath,
+				binaryPath: tf.install(t),
 			})
 			sess := configure(ctx, t, api, &proto.Config{})
 			init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, map[string]string{"main.tf": config}))
@@ -790,7 +699,7 @@ exec %q "$@"
 			_, response = readProvisionLog(t, sess)
 			require.NotNil(t, response.GetGraph())
 			require.Empty(t, response.GetGraph().Error)
-			require.Len(t, readShimCalls(t, graphCallsPath), test.wantGraphCalls)
+			require.Len(t, tf.commands(t, "graph"), test.wantGraphs)
 		})
 	}
 }
@@ -904,6 +813,36 @@ func TestProvision_Cancel(t *testing.T) {
 			require.Equal(t, tt.wantLog, gotLog)
 		})
 	}
+}
+
+// TestProvision_CancelPlanInterruptsGraph cancels a Plan while `terraform
+// plan` and the `terraform graph` beside it are both running. Plan must
+// interrupt both and wait for both to exit before it returns.
+func TestProvision_CancelPlanInterruptsGraph(t *testing.T) {
+	t.Parallel()
+
+	tf := &fakeTerraform{hang: true}
+	ctx, api := setupProvisioner(t, &provisionerServeOptions{
+		binaryPath: tf.install(t),
+		// Fail soon if a command isn't interrupted.
+		exitTimeout: testutil.WaitShort,
+	})
+	sess := configure(ctx, t, api, &proto.Config{})
+	init := sendInitAndGetResp(t, sess, testutil.CreateTar(t, nil))
+	require.Empty(t, init.Error)
+	require.NoError(t, sendPlan(sess, proto.WorkspaceTransition_START))
+
+	// A graph that has not started when the cancel arrives never runs, so
+	// wait until both commands have.
+	testutil.Eventually(testutil.Context(t, testutil.WaitLong), t, func(context.Context) bool {
+		return len(tf.commands(t, "plan", "graph")) == 2
+	}, testutil.IntervalFast)
+	require.NoError(t, sess.Send(&proto.Request{Type: &proto.Request_Cancel{Cancel: &proto.CancelRequest{}}}))
+
+	_, response := readProvisionLog(t, sess)
+	require.NotNil(t, response.GetPlan())
+	require.Contains(t, response.GetPlan().Error, "exit status 1")
+	require.ElementsMatch(t, []string{"interrupted plan", "interrupted graph"}, tf.commands(t, "interrupted"))
 }
 
 // below we exec fake_cancel_hang.sh, which causes the kernel to execute it, and if more than
@@ -1769,7 +1708,6 @@ func TestProvision(t *testing.T) {
 				require.NotNil(t, applyComplete)
 
 				if testCase.Response != nil {
-					// Graph the applied state.
 					resp = provision(&proto.Request{Type: &proto.Request_Graph{Graph: &proto.GraphRequest{
 						Source: proto.GraphSource_SOURCE_STATE,
 					}}})
