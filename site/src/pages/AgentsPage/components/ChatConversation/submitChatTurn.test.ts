@@ -61,7 +61,6 @@ const buildParams = (
 		compact: vi.fn().mockResolvedValue(undefined),
 		clearChatContext: vi.fn().mockResolvedValue(undefined),
 		store,
-		chatStatus: store.getSnapshot().chatStatus,
 		agentId: "chat-1",
 		clearChatErrorReason: vi.fn(),
 		effectiveSelectedModel: pickerModel.id,
@@ -512,7 +511,7 @@ describe("submitChatTurn", () => {
 			store.applyServerChatStatus("running");
 		});
 		expect(visibleTexts(store)).toEqual(["first", "answer", "new"]);
-		expect(store.getSnapshot().pendingEntries).toEqual([]);
+		expect(selectOrderedMessageIDs(store.getSnapshot())).toEqual([1, 2, 9]);
 	});
 
 	it("restores the transcript when an edit fails", async () => {
@@ -567,7 +566,7 @@ describe("submitChatTurn", () => {
 			store.applyServerChatStatus("running");
 		});
 		expect(visibleTexts(store)).toEqual(["first", "hello"]);
-		expect(store.getSnapshot().pendingEntries).toEqual([]);
+		expect(selectOrderedMessageIDs(store.getSnapshot())).toEqual([1, 9]);
 	});
 
 	it("shows a send once when the stream reports it before the response", async () => {
@@ -583,38 +582,35 @@ describe("submitChatTurn", () => {
 		await submitChatTurn(buildParams({ store, sendMessage }));
 
 		expect(visibleTexts(store)).toEqual(["first", "hello"]);
-		expect(store.getSnapshot().pendingEntries).toEqual([]);
+		expect(selectOrderedMessageIDs(store.getSnapshot())).toEqual([1, 9]);
 	});
 
-	it("shows a send to a running chat in the queue until the stream reports it", async () => {
-		const store = seededStore([], "running");
-		const queued: ChatQueuedMessage = {
-			...MockChatQueuedMessage,
-			id: 4,
-			content: [{ type: "text", text: "hello" }],
-		};
+	it.each([
+		{ busyBehavior: undefined, lane: "steer" },
+		{ busyBehavior: "queue", lane: "queue" },
+	] as const)(
+		"shows a send to a running chat in the $lane lane until the stream reports it",
+		async ({ busyBehavior, lane }) => {
+			const store = seededStore([], "running");
+			const queued: ChatQueuedMessage = {
+				...MockChatQueuedMessage,
+				id: 4,
+				busy_behavior: lane,
+				content: [{ type: "text", text: "hello" }],
+			};
 
-		await submitChatTurn(buildParams({ store }));
-		expect(
-			selectQueuedMessages(store.getSnapshot()).map((row) => row.content),
-		).toEqual([queued.content]);
+			await submitChatTurn(buildParams({ store, busyBehavior }));
+			expect(
+				selectQueuedMessages(store.getSnapshot()).map((row) => [
+					row.busy_behavior,
+					row.content,
+				]),
+			).toEqual([[lane, queued.content]]);
 
-		store.batch(() => {
 			store.setQueuedMessages([queued], 2);
-			store.applyServerChatStatus("running");
-		});
-		expect(selectQueuedMessages(store.getSnapshot())).toEqual([queued]);
-		expect(store.getSnapshot().pendingEntries).toEqual([]);
-	});
-
-	it("places a send by the status the page shows", async () => {
-		const store = seededStore([]);
-
-		await submitChatTurn(buildParams({ store, chatStatus: "running" }));
-
-		expect(visibleTexts(store)).toEqual([]);
-		expect(selectQueuedMessages(store.getSnapshot())).toHaveLength(1);
-	});
+			expect(selectQueuedMessages(store.getSnapshot())).toEqual([queued]);
+		},
+	);
 
 	it("clears plan mode when implementing the plan", async () => {
 		const sendMessage = vi.fn().mockResolvedValue({ queued: false });

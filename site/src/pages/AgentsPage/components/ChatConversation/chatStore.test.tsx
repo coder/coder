@@ -36,6 +36,7 @@ import { createDeferred } from "#/testHelpers/deferred";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import type { OneWayMessageEvent } from "#/utils/OneWayWebSocket";
 import {
+	isPendingRowID,
 	type PendingAction,
 	selectChatStatus,
 	selectHasStreamState,
@@ -4837,18 +4838,18 @@ describe("chat stream contract", () => {
 					clearChatErrorReason: errorReasons.clear,
 				});
 				const { store } = chat;
+				const messageIDs = useChatSelector(store, selectOrderedMessageIDs);
+				const queuedIDs = useChatSelector(store, selectQueuedMessages).map(
+					(message) => message.id,
+				);
 				return {
 					store,
-					pendingCount: useChatSelector(
-						store,
-						(state) => state.pendingEntries.length,
-					),
+					pendingRowCount: [...messageIDs, ...queuedIDs].filter(isPendingRowID)
+						.length,
 					fetchMoreMessages: chat.fetchMoreMessages,
 					isFetchingMoreMessages: chat.isFetchingMoreMessages,
-					messageIDs: useChatSelector(store, selectOrderedMessageIDs),
-					queuedIDs: useChatSelector(store, selectQueuedMessages).map(
-						(message) => message.id,
-					),
+					messageIDs,
+					queuedIDs,
 					status: useChatSelector(store, selectChatStatus),
 					error: useChatSelector(store, selectShownError),
 					retry: useChatSelector(store, selectRetryState),
@@ -4880,6 +4881,7 @@ describe("chat stream contract", () => {
 			name: "send",
 			action: {
 				kind: "send",
+				busyBehavior: "steer",
 				message: buildMessage(chatID, 0, "user", "second"),
 			},
 			status: "waiting",
@@ -4890,6 +4892,7 @@ describe("chat stream contract", () => {
 			name: "queued send",
 			action: {
 				kind: "send",
+				busyBehavior: "steer",
 				message: buildMessage(chatID, 0, "user", "second"),
 			},
 			status: "running",
@@ -4946,24 +4949,24 @@ describe("chat stream contract", () => {
 			);
 			await waitFor(() => expect(sockets).toHaveLength(1));
 			act(() => {
+				result.current.store.applyServerChatStatus(status);
 				void result.current.store.runPendingAction(
 					action,
-					status,
 					() => new Promise(() => {}),
 				);
 			});
-			expect(result.current.pendingCount).toBe(1);
+			expect(result.current.pendingRowCount).toBe(1);
 
 			act(() => {
 				sockets[0].emitOpen();
 				sockets[0].emitDataBatch(replayed);
 			});
-			expect(result.current.pendingCount).toBe(1);
+			expect(result.current.pendingRowCount).toBe(1);
 
 			act(() => {
 				sockets[0].emitDataBatch(committed);
 			});
-			expect(result.current.pendingCount).toBe(0);
+			expect(result.current.pendingRowCount).toBe(0);
 		},
 	);
 
@@ -4974,9 +4977,13 @@ describe("chat stream contract", () => {
 		);
 		await waitFor(() => expect(sockets).toHaveLength(1));
 		act(() => {
+			result.current.store.applyServerChatStatus("running");
 			void result.current.store.runPendingAction(
-				{ kind: "send", message: buildMessage(chatID, 0, "user", "second") },
-				"running",
+				{
+					kind: "send",
+					busyBehavior: "steer",
+					message: buildMessage(chatID, 0, "user", "second"),
+				},
 				() => new Promise(() => {}),
 			);
 		});
@@ -4994,7 +5001,6 @@ describe("chat stream contract", () => {
 			});
 		});
 		expect(result.current.queuedIDs).toEqual([]);
-		expect(result.current.pendingCount).toBe(0);
 	});
 
 	it("ends a pending part at a resent event that the dropped connection never delivered", async () => {
@@ -5002,36 +5008,40 @@ describe("chat stream contract", () => {
 		const sockets = mockWatchChatWithFreshSockets();
 		const { result } = renderChat({
 			...page([buildMessage(chatID, 1, "user", "prompt")]),
-			queued_messages: [buildQueuedMessage(chatID, 10, "queued")],
+			queued_messages: [
+				{
+					...buildQueuedMessage(chatID, 10, "held"),
+					editing_since: "2025-01-01T00:01:00.000Z",
+				},
+				buildQueuedMessage(chatID, 11, "next"),
+			],
 		});
 		await waitFor(() => expect(sockets).toHaveLength(1));
 		act(() => {
+			result.current.store.applyServerChatStatus("paused");
 			void result.current.store.runPendingAction(
-				{ kind: "send", message: buildMessage(chatID, 0, "user", "second") },
-				"error",
+				{ kind: "deleteQueued", queuedMessageID: 10 },
 				() => new Promise(() => {}),
 			);
 		});
+		expect(result.current.pendingRowCount).toBe(1);
 
-		// The send's commit sends the queue head and queues the send. The
-		// connection drops after the head's message.
-		const sentHead: TypesGen.ChatStreamEvent = {
+		// The delete resumes the paused chat, which sends the next row. The
+		// connection drops after that row's message.
+		const sentNext: TypesGen.ChatStreamEvent = {
 			type: "message",
 			chat_id: chatID,
 			message: {
-				...buildMessage(chatID, 2, "user", "queued"),
-				queued_message_id: 10,
+				...buildMessage(chatID, 2, "user", "next"),
+				queued_message_id: 11,
 			},
 			snapshot_version: 5,
 		};
 		act(() => {
 			sockets[0].emitOpen();
-			sockets[0].emitData(sentHead);
+			sockets[0].emitData(sentNext);
 		});
-		// The head shows as a message and not in the queue.
-		expect(result.current.messageIDs).toContain(2);
-		expect(result.current.queuedIDs).toHaveLength(1);
-		expect(result.current.queuedIDs).not.toContain(10);
+		expect(result.current.pendingRowCount).toBe(1);
 		act(() => {
 			sockets[0].emitError();
 		});
@@ -5043,17 +5053,19 @@ describe("chat stream contract", () => {
 		act(() => {
 			sockets[1].emitOpen();
 			sockets[1].emitDataBatch([
-				sentHead,
+				sentNext,
 				{
 					type: "queue_update",
 					chat_id: chatID,
-					queued_messages: [buildQueuedMessage(chatID, 11, "second")],
+					queued_messages: [],
 					snapshot_version: 5,
 				},
 			]);
 		});
-		expect(result.current.queuedIDs).toEqual([11]);
-		expect(result.current.pendingCount).toBe(0);
+		expect(result.current).toMatchObject({
+			messageIDs: [1, 2],
+			queuedIDs: [],
+		});
 	});
 
 	it("shows a chat's pending send in no other chat", async () => {
@@ -5086,8 +5098,11 @@ describe("chat stream contract", () => {
 		const sentFrom = result.current.store;
 		act(() => {
 			void sentFrom.runPendingAction(
-				{ kind: "send", message: buildMessage(chatID, 0, "user", "sent") },
-				"waiting",
+				{
+					kind: "send",
+					busyBehavior: "steer",
+					message: buildMessage(chatID, 0, "user", "sent"),
+				},
 				() => new Promise(() => {}),
 			);
 		});
