@@ -1,5 +1,10 @@
 import { useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
+import {
+	useMutation,
+	useMutationState,
+	useQuery,
+	useQueryClient,
+} from "react-query";
 import { useLocation } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import {
@@ -120,8 +125,16 @@ const ProjectsPage: React.FC = () => {
 			toast.error(getErrorMessage(error, "Failed to unpin project."));
 		},
 	});
-	// A pin change shows once its request settles, so repeats are dropped.
-	const pinningId = pinMutation.isPending && pinMutation.variables.project.id;
+	// A pin shows once its request settles, so repeats are dropped. Pins queue
+	// in one scope, so each project's pending pin is tracked, not only the last.
+	const pendingPinIds = new Set(
+		useMutationState({
+			filters: { mutationKey: pinOptions.mutationKey, status: "pending" },
+			select: (mutation) =>
+				(mutation.state.variables as { project?: ChatProject } | undefined)
+					?.project?.id,
+		}),
+	);
 	const unpinningId = unpinMutation.isPending && unpinMutation.variables.id;
 	const restoreFocus = () => {
 		const target = returnFocusRef.current;
@@ -190,8 +203,9 @@ const ProjectsPage: React.FC = () => {
 					openProjectDialog(undefined, newProjectButtonRef.current)
 				}
 				onPin={(project) =>
-					pinningId !== project.id && pinMutation.mutate({ project })
+					!pendingPinIds.has(project.id) && pinMutation.mutate({ project })
 				}
+				pendingPinIds={pendingPinIds}
 				onUnpin={(project) =>
 					unpinningId !== project.id && unpinMutation.mutate(project)
 				}

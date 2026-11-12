@@ -17,6 +17,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/DropdownMenu/DropdownMenu";
+import { Spinner } from "#/components/Spinner/Spinner";
 import {
 	Tooltip,
 	TooltipContent,
@@ -32,6 +33,8 @@ type ProjectCardProps = {
 	readonly to: To;
 	readonly onPin: () => void;
 	readonly onUnpin: () => void;
+	/** A pin request for the project is running, so Pin is held back. */
+	readonly pinPending: boolean;
 	readonly onEdit: (returnFocusTo: HTMLElement | null) => void;
 	readonly onDelete: (returnFocusTo: HTMLElement | null) => void;
 };
@@ -52,6 +55,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 	to,
 	onPin,
 	onUnpin,
+	pinPending,
 	onEdit,
 	onDelete,
 }) => {
@@ -141,7 +145,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 						<ProjectActionsMenuItems
 							Item={DropdownMenuItem}
 							Separator={DropdownMenuSeparator}
-							onPin={pinned ? undefined : onPin}
+							onPin={pinned || pinPending ? undefined : onPin}
 							onUnpin={pinned ? onUnpin : undefined}
 							permissions={project.permissions}
 							onEdit={() => {
@@ -155,7 +159,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 						/>
 					</DropdownMenuContent>
 				</DropdownMenu>
-				{pinned && (
+				{pinned ? (
 					<Tooltip>
 						<TooltipTrigger asChild>
 							<Button
@@ -172,8 +176,14 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 								<PinOffIcon className="hidden group-hover/pin:block group-focus-visible/pin:block" />
 							</Button>
 						</TooltipTrigger>
-						<TooltipContent>Unpin project</TooltipContent>
+						<TooltipContent side="bottom">Unpin project</TooltipContent>
 					</Tooltip>
+				) : (
+					// Holds the pin's place, so a second click there after unpinning
+					// does not open the actions menu.
+					<span className="flex size-7 items-center justify-center">
+						<Spinner loading={pinPending} label={`Pinning ${project.name}`} />
+					</span>
 				)}
 			</div>
 		</div>
@@ -190,7 +200,7 @@ const ActivityLabel: React.FC<ActivityLabelProps> = ({ summary }) => {
 	let label =
 		summary.own_chat_count > 0 ? `${summary.own_chat_count} read` : "No chats";
 	if (own_needs_attention) {
-		icon = <CircleAlertIcon className="text-content-warning" />;
+		icon = <CircleAlertIcon className="text-highlight-orange" />;
 		label = "Needs attention";
 	} else if (own_running) {
 		icon = <runningStatus.icon className={runningStatus.className} />;

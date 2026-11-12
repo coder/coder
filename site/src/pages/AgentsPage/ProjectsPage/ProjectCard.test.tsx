@@ -22,6 +22,7 @@ const renderCard = (overrides: Partial<ChatProjectSummary> = {}) => {
 			<ProjectCard
 				summary={{ ...MockChatProjectSummary, ...overrides }}
 				to="/agents/projects/chat-project-1"
+				pinPending={false}
 				{...callbacks}
 			/>
 		</MemoryRouter>,

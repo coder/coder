@@ -38,6 +38,8 @@ type ProjectsPageViewProps = {
 	readonly onCreateProject: () => void;
 	readonly onPin: (project: ChatProject) => void;
 	readonly onUnpin: (project: ChatProject) => void;
+	/** The projects with a pin request running. */
+	readonly pendingPinIds: ReadonlySet<string>;
 	readonly onEdit: ProjectAction;
 	readonly onDelete: ProjectAction;
 };
@@ -54,6 +56,7 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 	onCreateProject,
 	onPin,
 	onUnpin,
+	pendingPinIds,
 	onEdit,
 	onDelete,
 }) => {
@@ -113,6 +116,7 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 							}}
 							onPin={() => onPin(summary.project)}
 							onUnpin={() => onUnpin(summary.project)}
+							pinPending={pendingPinIds.has(summary.project.id)}
 							onEdit={(returnFocusTo) => onEdit(summary.project, returnFocusTo)}
 							onDelete={(returnFocusTo) =>
 								onDelete(summary.project, returnFocusTo)

@@ -113,6 +113,7 @@ const meta: Meta<typeof ProjectsPageView> = {
 		onCreateProject: fn(),
 		onPin: fn(),
 		onUnpin: fn(),
+		pendingPinIds: new Set(),
 		onEdit: fn(),
 		onDelete: fn(),
 	},
