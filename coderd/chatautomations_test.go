@@ -712,6 +712,33 @@ func TestCreateChatAutomationRejected(t *testing.T) {
 	}
 }
 
+// TestCreateChatAutomationLimits checks that the prompt size and the shortest
+// schedule interval come from the deployment settings.
+func TestCreateChatAutomationLimits(t *testing.T) {
+	t.Parallel()
+	env := newChatAutomationEnv(t, nil, func(o *coderdtest.Options) {
+		o.DeploymentValues.AI.Chat.MaxPromptBytes = serpent.Int64(10)
+		o.DeploymentValues.AI.Chat.MinAutomationScheduleInterval = serpent.Duration(time.Hour)
+	})
+	org := env.first.OrganizationID
+	member := env.actor(t, rbac.ScopedRoleAgentsAccess(org))
+
+	_, status, body := postChatAutomation(t, member.client, org, codersdk.CreateChatAutomationRequest{
+		Name: "limits", Kind: codersdk.ChatAutomationKindSchedule, Prompt: strings.Repeat("a", 11),
+		TargetMode: codersdk.ChatAutomationTargetModeNewChat, NewChatModelConfigID: &env.model.ID,
+		ScheduleCron: "*/30 * * * *", ScheduleTimeZone: "UTC",
+	})
+
+	require.Equal(t, http.StatusBadRequest, status, string(body))
+	var got codersdk.Response
+	require.NoError(t, json.Unmarshal(body, &got))
+	fields := []string{}
+	for _, v := range got.Validations {
+		fields = append(fields, v.Field)
+	}
+	require.ElementsMatch(t, []string{"prompt", "schedule_cron"}, fields)
+}
+
 // createStore fails what a create does after its checks. InTx hands the
 // wrapper to the callback so that the overrides reach the transaction.
 type createStore struct {
