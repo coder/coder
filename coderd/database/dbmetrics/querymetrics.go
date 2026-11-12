@@ -1592,6 +1592,14 @@ func (m queryMetricsStore) GetChatAutomationsByOrganizationID(ctx context.Contex
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatAutomationsWithWebhookSecretByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatAutomation, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatAutomationsWithWebhookSecretByOwnerID(ctx, ownerID)
+	m.queryLatencies.WithLabelValues("GetChatAutomationsWithWebhookSecretByOwnerID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatAutomationsWithWebhookSecretByOwnerID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatByID(ctx, id)
@@ -5919,6 +5927,14 @@ func (m queryMetricsStore) UpdateEncryptedAIProviderSettings(ctx context.Context
 	m.queryLatencies.WithLabelValues("UpdateEncryptedAIProviderSettings").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateEncryptedAIProviderSettings").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateEncryptedChatAutomationWebhookSecret(ctx context.Context, arg database.UpdateEncryptedChatAutomationWebhookSecretParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateEncryptedChatAutomationWebhookSecret(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateEncryptedChatAutomationWebhookSecret").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateEncryptedChatAutomationWebhookSecret").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) UpdateEncryptedChatMCPServerHeaders(ctx context.Context, arg database.UpdateEncryptedChatMCPServerHeadersParams) error {

@@ -3389,6 +3389,14 @@ func (q *querier) GetChatAutomationsByOrganizationID(ctx context.Context, arg da
 	return q.db.GetAuthorizedChatAutomationsByOrganizationID(ctx, arg, prepared)
 }
 
+func (q *querier) GetChatAutomationsWithWebhookSecretByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatAutomation, error) {
+	// Only used by the dbcrypt rotation, which operates on every row.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatAutomationsWithWebhookSecretByOwnerID(ctx, ownerID)
+}
+
 func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	return fetch(q.log, q.auth, q.db.GetChatByID)(ctx, id)
 }
@@ -8337,6 +8345,14 @@ func (q *querier) UpdateEncryptedAIProviderSettings(ctx context.Context, arg dat
 		return database.AIProvider{}, err
 	}
 	return q.db.UpdateEncryptedAIProviderSettings(ctx, arg)
+}
+
+func (q *querier) UpdateEncryptedChatAutomationWebhookSecret(ctx context.Context, arg database.UpdateEncryptedChatAutomationWebhookSecretParams) error {
+	// Only used by the dbcrypt rotation, which operates on every row.
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateEncryptedChatAutomationWebhookSecret(ctx, arg)
 }
 
 func (q *querier) UpdateEncryptedChatMCPServerHeaders(ctx context.Context, arg database.UpdateEncryptedChatMCPServerHeadersParams) error {

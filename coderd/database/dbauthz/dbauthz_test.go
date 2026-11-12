@@ -1426,6 +1426,17 @@ func (s *MethodTestSuite) TestChats() {
 		// No asserts here because it re-routes through GetChatAutomationsByOrganizationID which uses SQLFilter.
 		check.Args(arg, emptyPreparedAuthorized{}).Asserts().Returns(rows)
 	}))
+	s.Run("GetChatAutomationsWithWebhookSecretByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		ownerID := uuid.New()
+		rows := []database.ChatAutomation{testutil.Fake(s.T(), faker, database.ChatAutomation{OwnerID: ownerID})}
+		dbm.EXPECT().GetChatAutomationsWithWebhookSecretByOwnerID(gomock.Any(), ownerID).Return(rows, nil).AnyTimes()
+		check.Args(ownerID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(rows)
+	}))
+	s.Run("UpdateEncryptedChatAutomationWebhookSecret", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.UpdateEncryptedChatAutomationWebhookSecretParams{ID: uuid.New()}
+		dbm.EXPECT().UpdateEncryptedChatAutomationWebhookSecret(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
+	}))
 	s.Run("CountChatAutomationsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ownerID := uuid.New()
 		dbm.EXPECT().CountChatAutomationsByOwnerID(gomock.Any(), ownerID).Return(int64(3), nil).AnyTimes()
