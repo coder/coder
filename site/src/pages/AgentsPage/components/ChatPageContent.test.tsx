@@ -226,16 +226,13 @@ describe("ChatPageTimeline async questions", () => {
 			store.replaceMessages(MockNewerAsyncQuestionMessages);
 		});
 		rerenderTimeline();
-		await user.click(
-			await screen.findByRole("radio", { name: /^Check it by hand/ }),
-		);
 		await user.click(screen.getByRole("button", { name: "Submit" }));
 
 		await waitFor(() => {
 			expect(onSendAskUserQuestionResponse).toHaveBeenCalledTimes(1);
 		});
 		expect(onSendAskUserQuestionResponse).toHaveBeenCalledWith(
-			"Check it by hand in a dev deployment.",
+			"Cover the change with unit tests.",
 			MockNewerAsyncQuestionId,
 		);
 	});
