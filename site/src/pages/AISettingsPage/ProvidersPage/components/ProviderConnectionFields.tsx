@@ -47,12 +47,20 @@ export const ProviderConnectionFields: React.FC<
 			descriptionPosition="below"
 			description={
 				providerType === "copilot" ? (
-					<>
-						The base URL for your Copilot tier:{" "}
-						<code>https://api.individual.githubcopilot.com</code>,{" "}
-						<code>https://api.business.githubcopilot.com</code>, or{" "}
-						<code>https://api.enterprise.githubcopilot.com</code>.
-					</>
+					<div className="flex flex-col gap-2">
+						<p className="m-0">
+							The base URL for your Copilot tier:{" "}
+							<code>https://api.individual.githubcopilot.com</code>,{" "}
+							<code>https://api.business.githubcopilot.com</code>, or{" "}
+							<code>https://api.enterprise.githubcopilot.com</code>.
+						</p>
+						<p className="m-0">
+							Copilot authenticates with each user's GitHub OAuth token at
+							request time, so there is no API key to configure here. This
+							requires a GitHub external authentication provider to be
+							configured.
+						</p>
+					</div>
 				) : (
 					"The base URL where the provider's API is hosted."
 				)
@@ -60,13 +68,7 @@ export const ProviderConnectionFields: React.FC<
 			className="w-full"
 			placeholder={baseUrlPlaceholder}
 		/>
-		{providerType === "copilot" ? (
-			<p className="text-sm text-content-secondary m-0">
-				Copilot authenticates with each user's GitHub OAuth token at request
-				time, so there is no API key to configure here. This requires a GitHub
-				external authentication provider to be configured.
-			</p>
-		) : (
+		{providerType !== "copilot" && (
 			<CredentialField
 				required={providerType !== "anthropic"}
 				label="API key"

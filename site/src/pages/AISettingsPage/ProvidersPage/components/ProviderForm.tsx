@@ -697,7 +697,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 							}
 						/>
 						{!isMantle && (
-							<>
+							<div className="flex flex-col gap-2">
 								<div className="grid grid-cols-2 items-start gap-4">
 									<FormField
 										required
@@ -726,46 +726,46 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
 									</DocsLink>
 									.
 								</p>
-							</>
+							</div>
 						)}
-						<div className="grid grid-cols-2 items-start gap-4">
-							<CredentialField
-								label="Access key"
-								helpers={getFieldHelpers("accessKey")}
-								onBlur={() => handleCredentialBlur("accessKey")}
-								onFocus={() => handleCredentialFocus("accessKey")}
-							/>
-							<CredentialField
-								label="Access key secret"
-								helpers={getFieldHelpers("accessKeySecret")}
-								onBlur={() => handleCredentialBlur("accessKeySecret")}
-								onFocus={() => handleCredentialFocus("accessKeySecret")}
-							/>
+						<div className="flex flex-col gap-2">
+							<div className="grid grid-cols-2 items-start gap-4">
+								<CredentialField
+									label="Access key"
+									helpers={getFieldHelpers("accessKey")}
+									onBlur={() => handleCredentialBlur("accessKey")}
+									onFocus={() => handleCredentialFocus("accessKey")}
+								/>
+								<CredentialField
+									label="Access key secret"
+									helpers={getFieldHelpers("accessKeySecret")}
+									onBlur={() => handleCredentialBlur("accessKeySecret")}
+									onFocus={() => handleCredentialFocus("accessKeySecret")}
+								/>
+							</div>
+							<p className="text-xs text-content-secondary m-0">
+								Optional. Leave both fields blank to authenticate with the AWS
+								environment (IAM role, instance profile, AWS_PROFILE).{" "}
+								<DocsLink
+									size="sm"
+									href={docs(
+										"/ai-governance/ai-gateway/providers#amazon-bedrock",
+									)}
+									target="_blank"
+									rel="noreferrer"
+								>
+									View docs
+								</DocsLink>
+							</p>
 						</div>
-						<p className="text-xs text-content-secondary m-0">
-							Optional. Leave both fields blank to authenticate with the AWS
-							environment (IAM role, instance profile, AWS_PROFILE).{" "}
-							<DocsLink
-								size="sm"
-								href={docs(
-									"/ai-governance/ai-gateway/providers#amazon-bedrock",
-								)}
-								target="_blank"
-								rel="noreferrer"
-							>
-								View docs
-							</DocsLink>
-						</p>
 						<FormField
 							field={getFieldHelpers("roleArn")}
 							label="Role ARN"
+							description="Optional. When a role ARN is set, the gateway assumes that role (using the base identity) before calling Bedrock."
+							descriptionPosition="below"
 							className="w-full"
 							placeholder="arn:aws:iam::123456789012:role/BedrockRole"
 						/>
-						<p className="text-xs text-content-secondary m-0">
-							Optional. When a role ARN is set, the gateway assumes that role
-							(using the base identity) before calling Bedrock.
-						</p>
 						{editing && awsExternalId && (
 							<div className="flex flex-col gap-2">
 								<Label>External ID</Label>

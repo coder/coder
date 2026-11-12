@@ -124,22 +124,24 @@ export const ClaudePlatformFields: React.FC<ClaudePlatformFieldsProps> = ({
 			onBlur={() => onCredentialBlur("apiKey")}
 			onFocus={() => onCredentialFocus("apiKey")}
 			placeholder="sk-ant-..."
+			description={
+				<>
+					Optional. Client keys take precedence when BYOK is enabled, followed
+					by stored provider keys. Without either, requests use the gateway's
+					ambient AWS credentials. AWS identity is configured on the gateway,
+					not per provider.{" "}
+					<DocsLink
+						size="sm"
+						href={docs(
+							"/ai-governance/ai-gateway/providers#claude-platform-for-aws",
+						)}
+						target="_blank"
+						rel="noreferrer"
+					>
+						View docs
+					</DocsLink>
+				</>
+			}
 		/>
-		<p className="text-xs text-content-secondary m-0">
-			Optional. Client keys take precedence when BYOK is enabled, followed by
-			stored provider keys. Without either, requests use the gateway's ambient
-			AWS credentials. AWS identity is configured on the gateway, not per
-			provider.{" "}
-			<DocsLink
-				size="sm"
-				href={docs(
-					"/ai-governance/ai-gateway/providers#claude-platform-for-aws",
-				)}
-				target="_blank"
-				rel="noreferrer"
-			>
-				View docs
-			</DocsLink>
-		</p>
 	</>
 );
