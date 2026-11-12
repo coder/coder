@@ -22,10 +22,8 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	experimentrules "github.com/coder/coder/v2/coderd/experiments"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/codersdk"
@@ -130,11 +128,10 @@ func TestChatAutomationsExperimentGate(t *testing.T) {
 	client, user := coderdtest.CreateAnotherUser(t, env.owner, env.first.OrganizationID)
 	id := env.automation(t, database.ChatAutomation{OwnerID: user.ID}).ID
 	ctx := testutil.Context(t, testutil.WaitShort)
-	_, _, _, err := experimentrules.WriteRule(dbauthz.AsSystemRestricted(ctx), env.api.Database, env.first.UserID,
-		codersdk.ExperimentChatAutomations, experimentrules.Rule{
-			Mode:      experimentrules.ModeCondition,
-			Condition: fmt.Sprintf("user.username != %q", user.Username),
-		}, 0)
+	_, err := codersdk.NewExperimentalClient(env.owner).PutExperimentRule(ctx, codersdk.ExperimentChatAutomations, codersdk.PutExperimentRuleRequest{
+		Mode:      codersdk.ExperimentRuleModeCondition,
+		Condition: fmt.Sprintf("user.username != %q", user.Username),
+	})
 	require.NoError(t, err)
 
 	for _, req := range []struct{ method, suffix string }{
