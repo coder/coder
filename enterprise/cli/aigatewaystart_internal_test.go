@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/aibridged"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 // mockReloader returns err for the first failUntil Reload calls, then nil.
@@ -87,6 +88,13 @@ func (p *controlledShutdownPool) Shutdown(ctx context.Context) error {
 // testGatewayOption mutates the default standaloneGatewayParams before the
 // gateway is constructed.
 type testGatewayOption func(*standaloneGatewayParams)
+
+// withClock sets the clock the gateway uses for its shutdown timeouts.
+func withClock(clock quartz.Clock) testGatewayOption {
+	return func(p *standaloneGatewayParams) {
+		p.clock = clock
+	}
+}
 
 // newTestStandaloneGateway constructs a standalone gateway for
 // testing, with a controllable shutdown pool and optional customizations.
@@ -296,13 +304,14 @@ func TestRunStandaloneGateway_DaemonExited(t *testing.T) {
 
 func TestRunStandaloneGateway_HTTPStopsBeforeDaemonShutdown(t *testing.T) {
 	t.Parallel()
+	mClock := quartz.NewMock(t)
 
 	testCtx := testutil.Context(t, testutil.WaitShort)
 	modifyTLS := func(p *standaloneGatewayParams) {
 		p.tlsCertFile = filepath.Join(t.TempDir(), "missing.crt")
 		p.tlsKeyFile = filepath.Join(t.TempDir(), "missing.key")
 	}
-	gateway, pool := newTestStandaloneGateway(t, modifyTLS)
+	gateway, pool := newTestStandaloneGateway(t, modifyTLS, withClock(mClock))
 	shutdownErr := xerrors.New("pool shutdown failed")
 	shutdownStarted := make(chan struct{}, 1)
 	shutdownRelease := make(chan struct{})
@@ -355,6 +364,7 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 
 	// Set up a running daemon, provider reloader, and blocked HTTP request.
 	testCtx := testutil.Context(t, testutil.WaitShort)
+	mClock := quartz.NewMock(t)
 
 	// inFlightPath scopes the blocking handler to the request this test keeps in
 	// flight. Another test may probe a port the OS later assigns to this
@@ -364,7 +374,7 @@ func TestStandaloneGatewayServe_ShutdownOrder(t *testing.T) {
 	handlerStarted := make(chan struct{}, 1)
 	httpShutdownStarted := make(chan struct{}, 1)
 	releaseHandler := make(chan struct{})
-	gateway, _ := newTestStandaloneGateway(t)
+	gateway, _ := newTestStandaloneGateway(t, withClock(mClock))
 	gateway.reloader = reloader
 	// The gateway mux is replaced with a handler this test can block, so an
 	// in-flight request is observable during shutdown.
