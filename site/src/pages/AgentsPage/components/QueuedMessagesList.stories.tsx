@@ -362,7 +362,8 @@ export const PendingRowDisablesActions: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await userEvent.hover(canvas.getByText("Not stored yet"));
+		const sendPending = canvas.getAllByRole("button", { name: "Send now" })[1];
+		await userEvent.hover(sendPending);
 	},
 };
 
