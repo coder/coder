@@ -162,16 +162,24 @@ type server struct {
 	versionMu     sync.Mutex
 	cachedVersion *version.Version
 
-	// sessionsMu guards sessions, which carries Plan's results to the Graph
-	// of the same session.
+	// sessionsMu guards sessions, which carries what Init and Plan leave
+	// for the later RPCs of the same session.
 	sessionsMu sync.Mutex
 	sessions   map[*provisionersdk.Session]sessionState
 }
 
-// sessionState is what Plan leaves for the Graph of the same session.
-// Callers get a copy; the plan it points to is shared and must not be
-// modified.
+// sessionState is what Init and Plan leave for the later RPCs of the same
+// session. Callers get a copy; the plan it points to is shared and must not
+// be modified.
 type sessionState struct {
+	// initSkipped is set when Init ran manualInit instead of `terraform
+	// init`. Plan then runs init if Terraform asks for it.
+	initSkipped bool
+
+	// importedLockFileRestored is set while the lock file captured at import
+	// stands in for the template's, so a failed init can fall back to it.
+	importedLockFileRestored bool
+
 	// plan is the parsed plan file and graph the `terraform graph` output
 	// from the most recent successful Plan, so Graph doesn't have to run
 	// Terraform for them again. A plan-source Graph converts the whole plan,

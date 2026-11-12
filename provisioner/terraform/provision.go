@@ -10,9 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
-	"sync"
 	"time"
 
 	tfjson "github.com/hashicorp/terraform-json"
@@ -109,39 +107,23 @@ func (s *server) Init(
 		return provisionersdk.InitErrorf("unable to clean stale Terraform plugins: %s", err)
 	}
 
-	s.logger.Debug(ctx, "running terraform initialization")
+	sessState := sessionState{importedLockFileRestored: restored}
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageInit)
-	err = e.init(ctx, killCtx, sess)
-	if err != nil && restored && ctx.Err() == nil {
-		err = s.initWithTemplateLockFile(ctx, killCtx, e, sess, err)
-	}
-	endStage(err)
-	if err != nil {
-		s.logger.Debug(ctx, "init failed", slog.Error(err))
-
-		// Special handling for "text file busy" c.f. https://github.com/coder/coder/issues/14726
-		// We believe this might be due to some race condition that prevents the
-		// terraform-provider-coder process from exiting.  When terraform tries to install the
-		// provider during this init, it copies over the local cache. Normally this isn't an issue,
-		// but if the terraform-provider-coder process is still running from a previous build, Linux
-		// returns "text file busy" error when attempting to open the file.
-		//
-		// Capturing the stack trace from the process should help us figure out why it has not
-		// exited.  We'll drop these diagnostics in a CRITICAL log so that operators are likely to
-		// notice, and also because it indicates this provisioner could be permanently broken and
-		// require a restart.
-		var errTFB *textFileBusyError
-		if xerrors.As(err, &errTFB) {
-			stacktrace := tryGettingCoderProviderStacktrace(sess)
-			s.logger.Critical(ctx, "init: text file busy",
-				slog.Error(errTFB),
-				slog.F("stdout", errTFB.stdout),
-				slog.F("stderr", errTFB.stderr),
-				slog.F("provider_coder_stacktrace", stacktrace),
-			)
+	// Imports and dry runs never get a captured lock file, so they always
+	// run init.
+	if restored && manualInit(ctx, s.logger, sess.Files, s.cachePath, e.basicEnv()) {
+		sessState.initSkipped = true
+		sess.ProvisionLog(proto.LogLevel_INFO, "Skipping terraform init: using cached providers pinned by the dependency lock file")
+		endStage(nil)
+	} else {
+		s.logger.Debug(ctx, "running terraform initialization")
+		err = s.initWorkingDirectory(ctx, killCtx, e, sess, &sessState)
+		endStage(err)
+		if err != nil {
+			return provisionersdk.InitErrorf("initialize terraform: %s", err)
 		}
-		return provisionersdk.InitErrorf("initialize terraform: %s", err)
 	}
+	s.setSessionState(sess.Context(), sess, sessState)
 
 	modules, err := getModules(sess.Files)
 	if err != nil {
@@ -182,6 +164,44 @@ func (s *server) Init(
 		ModuleFiles:     moduleFiles,
 		ModuleFilesHash: nil,
 	}
+}
+
+// initWorkingDirectory runs `terraform init`. If it fails with the lock file
+// captured at import, it tries once more with the template's own and clears
+// sessState.importedLockFileRestored.
+func (s *server) initWorkingDirectory(ctx, killCtx context.Context, e *executor, sess *provisionersdk.Session, sessState *sessionState) error {
+	err := e.init(ctx, killCtx, sess)
+	if err != nil && sessState.importedLockFileRestored && ctx.Err() == nil {
+		sessState.importedLockFileRestored = false
+		err = s.initWithTemplateLockFile(ctx, killCtx, e, sess, err)
+	}
+	if err == nil {
+		return nil
+	}
+	s.logger.Debug(ctx, "init failed", slog.Error(err))
+
+	// Special handling for "text file busy" c.f. https://github.com/coder/coder/issues/14726
+	// We believe this might be due to some race condition that prevents the
+	// terraform-provider-coder process from exiting.  When terraform tries to install the
+	// provider during this init, it copies over the local cache. Normally this isn't an issue,
+	// but if the terraform-provider-coder process is still running from a previous build, Linux
+	// returns "text file busy" error when attempting to open the file.
+	//
+	// Capturing the stack trace from the process should help us figure out why it has not
+	// exited.  We'll drop these diagnostics in a CRITICAL log so that operators are likely to
+	// notice, and also because it indicates this provisioner could be permanently broken and
+	// require a restart.
+	var errTFB *textFileBusyError
+	if xerrors.As(err, &errTFB) {
+		stacktrace := tryGettingCoderProviderStacktrace(sess)
+		s.logger.Critical(ctx, "init: text file busy",
+			slog.Error(errTFB),
+			slog.F("stdout", errTFB.stdout),
+			slog.F("stderr", errTFB.stderr),
+			slog.F("provider_coder_stacktrace", stacktrace),
+		)
+	}
+	return err
 }
 
 // initWithTemplateLockFile retries a failed init with the template's own lock
@@ -251,35 +271,25 @@ func (s *server) Plan(
 		return provisionersdk.PlanErrorf("plan vars: %s", err)
 	}
 
-	// `terraform graph` only reads the configuration and the state, and
-	// takes no state lock, so it runs beside the plan. Each of the two
-	// starts every provider, so Plan's memory peaks higher than it would
-	// running them in turn. The graph reflects the state before apply; Graph
-	// builds it again when that matters.
-	var (
-		wg       sync.WaitGroup
-		rawGraph string
-		graphErr error
-	)
+	sessState := s.loadSessionState(sess)
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
-	// On Windows the state lock that plan holds stops other processes from
-	// reading the state file, so the graph is left to Graph there.
-	if runtime.GOOS != "windows" {
-		wg.Go(func() {
-			rawGraph, graphErr = e.graph(ctx, killCtx)
-		})
+	var (
+		resp     *proto.PlanComplete
+		plan     *tfjson.Plan
+		rawGraph string
+	)
+	if sessState.initSkipped {
+		resp, plan, rawGraph, err = s.planAfterManualInit(ctx, killCtx, e, sess, &sessState, env, vars, request)
+	} else {
+		resp, plan, rawGraph, err = e.planWithGraph(ctx, killCtx, env, vars, sess, request)
 	}
-	resp, plan, err := e.plan(ctx, killCtx, env, vars, sess, request)
-	wg.Wait()
 	endStage(err)
 	if err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
-	if graphErr != nil {
-		s.logger.Warn(ctx, "terraform graph failed during plan, the graph stage will retry it", slog.Error(graphErr))
-	}
 
-	s.setSessionState(sess.Context(), sess, sessionState{plan: plan, graph: rawGraph})
+	sessState.plan, sessState.graph = plan, rawGraph
+	s.setSessionState(sess.Context(), sess, sessState)
 
 	resp.Timings = e.timings.aggregate()
 	return resp

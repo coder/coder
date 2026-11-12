@@ -48,9 +48,7 @@ func (e *executor) basicEnv() []string {
 	// Required for "terraform init" to find "git" to
 	// clone Terraform modules.
 	env := safeEnviron()
-	// Only Linux reliably works with the Terraform plugin
-	// cache directory. It's unknown why this is.
-	if e.cachePath != "" && runtime.GOOS == "linux" {
+	if pluginCacheEnabled(e.cachePath) {
 		env = append(env, "TF_PLUGIN_CACHE_DIR="+e.cachePath)
 	}
 	if e.cliConfigPath != "" {
@@ -86,6 +84,12 @@ func (e *executor) command(killCtx context.Context, args ...string) *exec.Cmd {
 		}
 	}
 	return cmd
+}
+
+// pluginCacheEnabled reports whether Terraform uses cachePath as its plugin
+// cache. Only Linux reliably works with one, and it's unknown why.
+func pluginCacheEnabled(cachePath string) bool {
+	return cachePath != "" && runtime.GOOS == "linux"
 }
 
 func (e *executor) execWriteOutput(ctx, killCtx context.Context, args, env []string, stdOutWriter, stdErrWriter io.WriteCloser) (err error) {
@@ -402,6 +406,34 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	return msg, plan, nil
 }
 
+// planWithGraph runs `terraform graph` beside `terraform plan`: graph only
+// reads the configuration and the state, and takes no state lock. Each
+// starts every provider, so memory peaks higher than running them in turn.
+// The graph reflects the state before apply, and is empty if it wasn't built.
+func (e *executor) planWithGraph(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*proto.PlanComplete, *tfjson.Plan, string, error) {
+	var (
+		wg       sync.WaitGroup
+		rawGraph string
+		graphErr error
+	)
+	// On Windows the state lock that plan holds stops other processes from
+	// reading the state file, so the graph is left to Graph there.
+	if runtime.GOOS != "windows" {
+		wg.Go(func() {
+			rawGraph, graphErr = e.graph(ctx, killCtx)
+		})
+	}
+	resp, plan, err := e.plan(ctx, killCtx, env, vars, logr, req)
+	wg.Wait()
+	if err != nil {
+		return nil, nil, "", err
+	}
+	if graphErr != nil {
+		e.logger.Warn(ctx, "terraform graph failed during plan, the graph stage will retry it", slog.Error(graphErr))
+	}
+	return resp, plan, rawGraph, nil
+}
+
 func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
 	filtered := sm
 	filtered.Resources = []*tfjson.StateResource{}
@@ -626,6 +658,13 @@ type logSink interface {
 	ProvisionLog(l proto.LogLevel, o string)
 }
 
+// diagnosticSink is a logSink that picks where each Terraform diagnostic's
+// lines go.
+type diagnosticSink interface {
+	logSink
+	sinkForDiagnostic(diag *tfjson.Diagnostic) logSink
+}
+
 // logWriter creates a WriteCloser that will log each line of text at the given level.  The WriteCloser must be closed
 // by the caller to end logging, after which the returned channel will be closed to indicate that logging of the written
 // data has finished.  Failure to close the WriteCloser will leak a goroutine.
@@ -691,8 +730,12 @@ func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- an
 			continue
 		}
 
+		lineSink := sink
+		if ds, ok := sink.(diagnosticSink); ok && log.Diagnostic != nil {
+			lineSink = ds.sinkForDiagnostic(log.Diagnostic)
+		}
 		logLevel := convertTerraformLogLevel(log.Level, sink)
-		sink.ProvisionLog(logLevel, log.Message)
+		lineSink.ProvisionLog(logLevel, log.Message)
 
 		ts, span, err := extractTimingSpan(log)
 		if err != nil {
@@ -713,7 +756,7 @@ func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- an
 		}
 		logLevel = convertTerraformLogLevel(string(log.Diagnostic.Severity), sink)
 		for _, diagLine := range strings.Split(FormatDiagnostic(log.Diagnostic), "\n") {
-			sink.ProvisionLog(logLevel, diagLine)
+			lineSink.ProvisionLog(logLevel, diagLine)
 		}
 	}
 }

@@ -15,7 +15,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -28,6 +30,7 @@ import (
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	archivefs "github.com/coder/coder/v2/archive/fs"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -38,6 +41,7 @@ import (
 
 type provisionerServeOptions struct {
 	binaryPath    string
+	cachePath     string
 	cliConfigPath string
 	exitTimeout   time.Duration
 	workDir       string
@@ -48,7 +52,10 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 	if opts == nil {
 		opts = &provisionerServeOptions{}
 	}
-	cachePath := t.TempDir()
+	cachePath := opts.cachePath
+	if cachePath == "" {
+		cachePath = t.TempDir()
+	}
 	if opts.workDir == "" {
 		opts.workDir = t.TempDir()
 	}
@@ -823,6 +830,199 @@ exec %q "$@"
 			require.NotNil(t, response.GetGraph())
 			require.Empty(t, response.GetGraph().Error)
 			require.Len(t, readShimCalls(t, graphCallsPath), test.wantGraphCalls)
+		})
+	}
+}
+
+// TestPlanRetriesOnlyWhenInitIsNeeded covers a build that skipped init and
+// whose plan then fails. Plan runs a real init and plans again only when
+// Terraform reports that the working directory needs one, and the build log
+// shows the first plan's errors unless that retry fixed them.
+//
+//nolint:paralleltest // Avoid "text file busy"; see TestGraphResolvesAppliedScriptOrders.
+func TestPlanRetriesOnlyWhenInitIsNeeded(t *testing.T) {
+	if runtime.GOOS != "linux" {
+		t.Skip(initSkipOnlyOnLinux)
+	}
+
+	planJSON, err := os.ReadFile("testdata/script-order-plan.json")
+	require.NoError(t, err)
+	const unrelated = `{"@level":"error","@message":"Error: Unsupported attribute","type":"diagnostic","diagnostic":{"severity":"error","summary":"Unsupported attribute","detail":"This object has no argument named \"x\"."}}`
+	const needsInit = `{"@level":"error","@message":"Error: Required plugins are not installed","type":"diagnostic","diagnostic":{"severity":"error","summary":"Required plugins are not installed","detail":"Run \"terraform init\" to install all required plugins."}}`
+	// The precondition's message is the template's own text.
+	const precondition = `{"@level":"error","@message":"Error: Resource precondition failed","type":"diagnostic","diagnostic":{"severity":"error","summary":"Resource precondition failed","detail":"Run \"terraform init\" before creating workspaces.\nError: Module not installed"}}`
+	// What `terraform init -json` prints for the steps that job timings use.
+	const initOutput = `{"@level":"info","@message":"Initializing provider plugins...","@timestamp":"2025-10-22T17:48:31.000000Z","message_code":"initializing_provider_plugin_message","type":"init_output"}
+{"@level":"info","@message":"Terraform has been successfully initialized!","@timestamp":"2025-10-22T17:48:34.000000Z","message_code":"output_init_success_message","type":"init_output"}
+`
+	tests := []struct {
+		name       string
+		planOutput string
+		// secondPlanOutput, if set, makes the plan after the init fail too.
+		secondPlanOutput string
+		// initRuns leaves the plugin cache empty, so Init runs terraform init.
+		initRuns bool
+		// failInit makes every terraform init fail.
+		failInit    bool
+		wantInits   int
+		wantError   string
+		wantInLog   string
+		wantNoInLog string
+	}{
+		{
+			name:        "UnrelatedFailure",
+			planOutput:  unrelated,
+			wantError:   "terraform plan",
+			wantInLog:   "Error: Unsupported attribute",
+			wantNoInLog: logFallbackToInit,
+		},
+		{
+			name:        "PreconditionMentionsInit",
+			planOutput:  precondition,
+			wantError:   "terraform plan",
+			wantInLog:   "Error: Resource precondition failed",
+			wantNoInLog: logFallbackToInit,
+		},
+		{
+			name:        "NeedsInit",
+			planOutput:  needsInit,
+			wantInits:   1,
+			wantInLog:   logFallbackToInit,
+			wantNoInLog: "Required plugins are not installed",
+		},
+		{
+			// The init runs again with the template's own lock file.
+			name:       "FallbackInitFails",
+			planOutput: needsInit,
+			failInit:   true,
+			wantInits:  2,
+			wantError:  "initialize terraform",
+			wantInLog:  "Error: Required plugins are not installed",
+		},
+		{
+			// The init worked, so the first plan's errors are dropped.
+			name:             "PlanFailsAfterInit",
+			planOutput:       needsInit,
+			secondPlanOutput: unrelated,
+			wantInits:        1,
+			wantError:        "terraform plan",
+			wantInLog:        "Error: Unsupported attribute",
+			wantNoInLog:      "Required plugins are not installed",
+		},
+		{
+			// Only a build that skipped init falls back to one.
+			name:        "InitRan",
+			planOutput:  needsInit,
+			initRuns:    true,
+			wantInits:   1,
+			wantError:   "terraform plan",
+			wantInLog:   "Error: Required plugins are not installed",
+			wantNoInLog: logFallbackToInit,
+		},
+	}
+	for _, test := range tests {
+		//nolint:paralleltest // Avoid "text file busy"; see above.
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			planOutputPath := filepath.Join(dir, "plan-output")
+			planPath := filepath.Join(dir, "plan.json")
+			initArgsPath := filepath.Join(dir, "init-args")
+			planFailedPath := filepath.Join(dir, "plan-failed")
+			failInitPath := filepath.Join(dir, "fail-init")
+			if test.failInit {
+				require.NoError(t, os.WriteFile(failInitPath, nil, 0o600))
+			}
+			initOutputPath := filepath.Join(dir, "init-output")
+			require.NoError(t, os.WriteFile(initOutputPath, []byte(initOutput), 0o600))
+			secondPlanOutputPath := filepath.Join(dir, "second-plan-output")
+			if test.secondPlanOutput != "" {
+				require.NoError(t, os.WriteFile(secondPlanOutputPath, []byte(test.secondPlanOutput+"\n"), 0o600))
+			}
+			require.NoError(t, os.WriteFile(planOutputPath, []byte(test.planOutput+"\n"), 0o600))
+			require.NoError(t, os.WriteFile(planPath, planJSON, 0o600))
+			// The shim fails the first plan, and the next one too if it has
+			// output for it.
+			binaryPath := writeTerraformShim(t, dir, fmt.Sprintf(`#!/bin/sh
+case "$1" in
+version)
+	printf '%%s\n' '{"terraform_version":"1.15.0","platform":"linux_amd64","provider_selections":{}}'
+	;;
+init)
+	echo init >> %[1]q
+	if [ -f %[5]q ]; then
+		exit 1
+	fi
+	cat %[6]q
+	;;
+plan)
+	if [ ! -f %[2]q ]; then
+		touch %[2]q
+		cat %[3]q
+		exit 1
+	fi
+	if [ -f %[7]q ]; then
+		cat %[7]q
+		exit 1
+	fi
+	;;
+show)
+	cat %[4]q
+	;;
+graph)
+	echo 'digraph {}'
+	;;
+*)
+	exit 1
+	;;
+esac
+`, initArgsPath, planFailedPath, planOutputPath, planPath, failInitPath, initOutputPath, secondPlanOutputPath))
+
+			// The module archive captured at import pins one provider. Init
+			// skips terraform init when the plugin cache has it.
+			provider := "registry.terraform.io/coder/coder"
+			cachePath := t.TempDir()
+			if !test.initRuns {
+				providerDir := filepath.Join(cachePath, filepath.FromSlash(provider), "2.18.0", runtime.GOOS+"_"+runtime.GOARCH)
+				require.NoError(t, os.MkdirAll(providerDir, 0o700))
+				require.NoError(t, os.WriteFile(filepath.Join(providerDir, "terraform-provider-coder_v2.18.0"), nil, 0o600))
+			}
+			moduleArchive := testutil.CreateTar(t, map[string]string{
+				importedLockFileArchivePath(): fmt.Sprintf("provider %q {\n  version = \"2.18.0\"\n  hashes = [\"h1:fake=\"]\n}\n", provider),
+			})
+
+			ctx, api := setupProvisioner(t, &provisionerServeOptions{
+				binaryPath: binaryPath,
+				cachePath:  cachePath,
+			})
+			sess := configure(ctx, t, api, &proto.Config{})
+			initLog, initResp := sendBuildInit(t, sess, testutil.CreateTar(t, map[string]string{"main.tf": ""}), moduleArchive)
+			require.Empty(t, initResp.Error)
+			require.Equal(t, !test.initRuns, strings.Contains(initLog, logInitSkipped))
+
+			require.NoError(t, sendPlan(sess, proto.WorkspaceTransition_START))
+			planLog, response := readProvisionLog(t, sess)
+			plan := response.GetPlan()
+			require.NotNil(t, plan)
+			if test.wantError == "" {
+				require.Empty(t, plan.Error)
+			} else {
+				require.Contains(t, plan.Error, test.wantError)
+			}
+			require.Contains(t, planLog, test.wantInLog)
+			if test.wantNoInLog != "" {
+				require.NotContains(t, planLog, test.wantNoInLog)
+			}
+			require.Len(t, readShimCalls(t, initArgsPath), test.wantInits)
+			// The fallback init counts toward the plan stage, so stages don't
+			// overlap in job stats.
+			for _, timing := range plan.Timings {
+				require.Equal(t, string(database.ProvisionerJobTimingStagePlan), timing.Stage, timing.Resource)
+			}
+			if test.wantError == "" {
+				require.True(t, slices.ContainsFunc(plan.Timings, func(timing *proto.Timing) bool {
+					return timing.Resource == "provider plugins"
+				}), "the fallback init's timings are reported")
+			}
 		})
 	}
 }
@@ -1941,34 +2141,240 @@ func TestProvision_MalformedModules(t *testing.T) {
 	require.Contains(t, log, "Invalid block definition")
 }
 
-// TestProvision_LockFileCached checks that a build reuses the lock file
-// captured during import.
+const lockFileTestCoderOnly = `terraform {
+	required_providers {
+	  coder = {
+		source  = "coder/coder"
+		version = "0.6.20"
+	  }
+	}
+}`
+
+// setupLockFileProvisioner starts a provisioner that installs the providers
+// files need from a local mirror, so tests do not depend on the public
+// registry or on a developer's ~/.terraformrc.
+func setupLockFileProvisioner(t *testing.T, files map[string]string) (context.Context, proto.DRPCProvisionerClient) {
+	t.Helper()
+	cacheRootDir := filepath.Join(testutil.PersistentCacheDir(t), "terraform_lock_file_test")
+	cliConfigPath := testutil.CacheTFProviders(t, cacheRootDir, t.Name(), files)
+	return setupProvisioner(t, &provisionerServeOptions{cliConfigPath: cliConfigPath})
+}
+
+// importTemplate runs Init the way a template import does and returns its
+// log and response.
+func importTemplate(ctx context.Context, t *testing.T, api proto.DRPCProvisionerClient, source []byte) (string, *proto.InitComplete) {
+	t.Helper()
+	sess := configure(ctx, t, api, &proto.Config{})
+	var log strings.Builder
+	resp := sendInitAndGetResp(t, sess, source, func(line string) {
+		t.Log(line)
+		_, _ = log.WriteString(line)
+	})
+	require.Empty(t, resp.Error)
+	return log.String(), resp
+}
+
+// sendBuildInit sends a workspace build's Init, streaming the module archive
+// the way provisionerd does.
+func sendBuildInit(t *testing.T, sess proto.DRPCProvisioner_SessionClient, source, moduleFiles []byte) (string, *proto.InitComplete) {
+	t.Helper()
+	upload, chunks, err := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleFiles)
+	require.NoError(t, err)
+	err = sess.Send(&proto.Request{Type: &proto.Request_Init{Init: &proto.InitRequest{
+		TemplateSourceArchive: source,
+		OmitModuleFiles:       true,
+		InitialModuleTarHash:  upload.DataHash,
+	}}})
+	require.NoError(t, err)
+	err = sess.Send(&proto.Request{Type: &proto.Request_File{File: &proto.FileUpload{
+		Type: &proto.FileUpload_DataUpload{DataUpload: upload},
+	}}})
+	require.NoError(t, err)
+	for _, chunk := range chunks {
+		err = sess.Send(&proto.Request{Type: &proto.Request_File{File: &proto.FileUpload{
+			Type: &proto.FileUpload_ChunkPiece{ChunkPiece: chunk},
+		}}})
+		require.NoError(t, err)
+	}
+
+	log, last := readProvisionLog(t, sess)
+	require.NotNil(t, last.GetInit())
+	return log, last.GetInit()
+}
+
+const (
+	logInitSkipped      = "Skipping terraform init: using cached providers pinned by the dependency lock file"
+	logFallbackToInit   = "The cached providers and modules were not enough for this build, running terraform init"
+	initSkipOnlyOnLinux = "init is only skipped on Linux, where the plugin cache is used"
+)
+
+// lockFileReused matches Terraform reusing a version from the lock file in
+// both Terraform 1.16's and 1.17's wording.
+var lockFileReused = regexp.MustCompile(`Reusing (previous )?version.* from the dependency lock file`)
+
+// TestProvision_LockFileCached verifies that the lock file produced by the
+// import-time init is returned in the module archive, and that a later build
+// which receives that archive reuses the pinned providers: on Linux it skips
+// init and links them from the plugin cache, elsewhere init reuses the lock.
 func TestProvision_LockFileCached(t *testing.T) {
 	t.Parallel()
 
+	files := map[string]string{"main.tf": lockFileTestCoderOnly}
+	source := testutil.CreateTar(t, files)
+	ctx, api := setupLockFileProvisioner(t, files)
+
+	// Import: no module archive is available yet, so init must resolve the
+	// provider and write a fresh lock file.
+	importLog, importResp := importTemplate(ctx, t, api, source)
+	require.NotRegexp(t, lockFileReused, importLog)
+	require.NotContains(t, importLog, logInitSkipped)
+	require.NotEmpty(t, importResp.ModuleFiles, "expected the lock file to be archived even without modules")
+
+	lockFile := importedLockFile(t, importResp.ModuleFiles)
+	require.Contains(t, string(lockFile), `provider "registry.terraform.io/coder/coder"`)
+
+	buildSess := configure(ctx, t, api, &proto.Config{})
+	buildLog, buildResp := sendBuildInit(t, buildSess, source, importResp.ModuleFiles)
+	require.Empty(t, buildResp.Error)
+	if runtime.GOOS == "linux" {
+		// Every provider is pinned and already in the plugin cache, so init
+		// is replaced by linking the cached packages.
+		require.Contains(t, buildLog, logInitSkipped)
+		require.NotRegexp(t, lockFileReused, buildLog)
+	} else {
+		require.Regexp(t, lockFileReused, buildLog)
+	}
+
+	// Plan must work against the linked providers without a real init.
+	err := sendPlan(buildSess, proto.WorkspaceTransition_START)
+	require.NoError(t, err)
+	planLog, last := readProvisionLog(t, buildSess)
+	require.NotNil(t, last.GetPlan())
+	require.Empty(t, last.GetPlan().Error)
+	require.NotContains(t, planLog, logFallbackToInit)
+}
+
+// TestProvision_ImportRunsInitWithCommittedLockFile covers a template that
+// ships its own lock file whose providers are already cached. A committed
+// lock file may lack this platform's hashes, for example when it was
+// generated on another OS, so import must still run a real init: the lock
+// file it captures is the one builds trust to skip init.
+func TestProvision_ImportRunsInitWithCommittedLockFile(t *testing.T) {
+	t.Parallel()
+
+	files := map[string]string{"main.tf": lockFileTestCoderOnly}
+	ctx, api := setupLockFileProvisioner(t, files)
+
+	// The first import fills the plugin cache and produces a lock file.
+	_, firstImport := importTemplate(ctx, t, api, testutil.CreateTar(t, files))
+	files[".terraform.lock.hcl"] = string(importedLockFile(t, firstImport.ModuleFiles))
+
+	importLog, _ := importTemplate(ctx, t, api, testutil.CreateTar(t, files))
+	require.NotContains(t, importLog, logInitSkipped)
+	require.Regexp(t, lockFileReused, importLog, "a real init reads the committed lock file")
+}
+
+// TestProvision_LocalModuleRunsInit covers a template with a local module.
+// Its module archive carries the lock file but no module manifest, because
+// only remote modules are archived, so linking providers is not enough and
+// init runs normally.
+func TestProvision_LocalModuleRunsInit(t *testing.T) {
+	t.Parallel()
+
 	files := map[string]string{
-		"main.tf": `terraform {
-			required_providers {
-			  coder = {
-				source  = "coder/coder"
-				version = "0.6.20"
-			  }
-			}
+		"main.tf": lockFileTestCoderOnly + `
+		module "local" {
+		  source = "./local"
 		}`,
+		"local/main.tf": `output "value" { value = "ok" }`,
 	}
 	source := testutil.CreateTar(t, files)
-	cacheRootDir := filepath.Join(testutil.PersistentCacheDir(t), "terraform_lock_file_test")
-	cliConfigPath := testutil.CacheTFProviders(t, cacheRootDir, t.Name(), files)
-	ctx, api := setupProvisioner(t, &provisionerServeOptions{cliConfigPath: cliConfigPath})
+	ctx, api := setupLockFileProvisioner(t, files)
 
-	importResp := sendInitAndGetResp(t, configure(ctx, t, api, &proto.Config{}), source)
-	require.Empty(t, importResp.Error)
-	require.Contains(t, string(importedLockFile(t, importResp.ModuleFiles)), `provider "registry.terraform.io/coder/coder"`)
-
+	_, importResp := importTemplate(ctx, t, api, source)
 	buildLog, buildResp := sendBuildInit(t, configure(ctx, t, api, &proto.Config{}), source, importResp.ModuleFiles)
 	require.Empty(t, buildResp.Error)
-	// Terraform 1.17 reworded this message.
-	require.Regexp(t, `Reusing (previous )?version.* from the dependency lock file`, buildLog)
+	require.NotContains(t, buildLog, logInitSkipped)
+	require.Regexp(t, lockFileReused, buildLog)
+}
+
+// TestProvision_SkipInitWithModules covers a template with a module that
+// Terraform installs into .terraform/modules, as it does with a registry
+// module. The module archive restores it with the module manifest, so the
+// build skips init and plans without one.
+func TestProvision_SkipInitWithModules(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS != "linux" {
+		t.Skip(initSkipOnlyOnLinux)
+	}
+
+	// Terraform copies a module with an absolute path into .terraform/modules.
+	moduleDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(moduleDir, "main.tf"), []byte(`terraform {
+			required_providers {
+			  coder = { source = "coder/coder" }
+			}
+		}
+		data "coder_workspace" "me" {}`), 0o600))
+	source := testutil.CreateTar(t, map[string]string{
+		"main.tf": lockFileTestCoderOnly + fmt.Sprintf(`
+		module "installed" {
+		  source = %q
+		}`, moduleDir),
+	})
+	ctx, api := setupLockFileProvisioner(t, map[string]string{"main.tf": lockFileTestCoderOnly})
+
+	_, importResp := importTemplate(ctx, t, api, source)
+
+	buildSess := configure(ctx, t, api, &proto.Config{})
+	initLog, initResp := sendBuildInit(t, buildSess, source, importResp.ModuleFiles)
+	require.Empty(t, initResp.Error)
+	require.Contains(t, initLog, logInitSkipped)
+
+	require.NoError(t, sendPlan(buildSess, proto.WorkspaceTransition_START))
+	planLog, last := readProvisionLog(t, buildSess)
+	require.NotNil(t, last.GetPlan())
+	require.Empty(t, last.GetPlan().Error)
+	require.NotContains(t, planLog, logFallbackToInit)
+}
+
+// TestProvision_SkipInitFallsBack covers a cached provider package that no
+// longer matches the lock file. Init links it without reading it, Terraform
+// refuses to load it during plan, and Plan falls back to a real init.
+func TestProvision_SkipInitFallsBack(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS != "linux" {
+		t.Skip(initSkipOnlyOnLinux)
+	}
+
+	files := map[string]string{"main.tf": lockFileTestCoderOnly}
+	source := testutil.CreateTar(t, files)
+	cachePath := t.TempDir()
+	cacheRootDir := filepath.Join(testutil.PersistentCacheDir(t), "terraform_lock_file_test")
+	ctx, api := setupProvisioner(t, &provisionerServeOptions{
+		cliConfigPath: testutil.CacheTFProviders(t, cacheRootDir, t.Name(), files),
+		cachePath:     cachePath,
+	})
+
+	// The import's init fills the plugin cache.
+	_, importResp := importTemplate(ctx, t, api, source)
+	binaries, err := filepath.Glob(filepath.Join(cachePath, "*", "coder", "coder", "*", "*", "terraform-provider-coder*"))
+	require.NoError(t, err)
+	require.Len(t, binaries, 1)
+	require.NoError(t, os.Remove(binaries[0]))
+	require.NoError(t, os.WriteFile(binaries[0], []byte("not the provider"), 0o600))
+
+	buildSess := configure(ctx, t, api, &proto.Config{})
+	initLog, initResp := sendBuildInit(t, buildSess, source, importResp.ModuleFiles)
+	require.Empty(t, initResp.Error)
+	require.Contains(t, initLog, logInitSkipped)
+
+	// Whether the fallback init replaces the cached package depends on the
+	// Terraform version, so the plan's result isn't checked.
+	require.NoError(t, sendPlan(buildSess, proto.WorkspaceTransition_START))
+	planLog, last := readProvisionLog(t, buildSess)
+	require.NotNil(t, last.GetPlan())
+	require.Contains(t, planLog, logFallbackToInit)
 }
 
 // TestProvision_LockFileFallback covers a build whose provisioner can't install
@@ -2036,34 +2442,6 @@ func TestProvision_LockFileFallback(t *testing.T) {
 	})
 }
 
-// sendBuildInit sends a workspace build's Init, streaming the module archive
-// the way provisionerd does.
-func sendBuildInit(t *testing.T, sess proto.DRPCProvisioner_SessionClient, source, moduleFiles []byte) (string, *proto.InitComplete) {
-	t.Helper()
-	upload, chunks, err := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleFiles)
-	require.NoError(t, err)
-	err = sess.Send(&proto.Request{Type: &proto.Request_Init{Init: &proto.InitRequest{
-		TemplateSourceArchive: source,
-		OmitModuleFiles:       true,
-		InitialModuleTarHash:  upload.DataHash,
-	}}})
-	require.NoError(t, err)
-	err = sess.Send(&proto.Request{Type: &proto.Request_File{File: &proto.FileUpload{
-		Type: &proto.FileUpload_DataUpload{DataUpload: upload},
-	}}})
-	require.NoError(t, err)
-	for _, chunk := range chunks {
-		err = sess.Send(&proto.Request{Type: &proto.Request_File{File: &proto.FileUpload{
-			Type: &proto.FileUpload_ChunkPiece{ChunkPiece: chunk},
-		}}})
-		require.NoError(t, err)
-	}
-
-	log, last := readProvisionLog(t, sess)
-	require.NotNil(t, last.GetInit())
-	return log, last.GetInit()
-}
-
 // writeFakeProviderMirror returns a CLI config that installs providers only
 // from a filesystem mirror of fake example.com/coder packages, each given as
 // "name/version". Init never runs providers, so any executable will do.
@@ -2088,12 +2466,17 @@ func writeFakeProviderMirror(t *testing.T, packages ...string) string {
 	return cliConfigPath
 }
 
-// importedLockFile reads the captured lock file from a module archive. The
-// path is spelled out because provisioner versions must agree on it.
+// importedLockFile reads the captured lock file from a module archive.
 func importedLockFile(t *testing.T, moduleFiles []byte) []byte {
 	t.Helper()
-	content, err := fs.ReadFile(archivefs.FromTarReader(bytes.NewReader(moduleFiles)),
-		".terraform/coder/lockfiles/"+runtime.GOOS+"_"+runtime.GOARCH+".lock.hcl")
+	content, err := fs.ReadFile(archivefs.FromTarReader(bytes.NewReader(moduleFiles)), importedLockFileArchivePath())
 	require.NoError(t, err)
 	return content
+}
+
+// importedLockFileArchivePath is where the module archive stores the lock
+// file captured during import on this platform. The path is spelled out
+// because provisioner versions must agree on it.
+func importedLockFileArchivePath() string {
+	return ".terraform/coder/lockfiles/" + runtime.GOOS + "_" + runtime.GOARCH + ".lock.hcl"
 }
