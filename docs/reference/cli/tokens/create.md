@@ -61,9 +61,9 @@ Repeatable allow-list entry (`<type>:<uuid>`, e.g. workspace:1234-...).
 
 ### -o, --output
 
-|         |                         |
-|---------|-------------------------|
-| Type    | <code>text\|json</code> |
-| Default | <code>text</code>       |
+| Property | Value                   |
+|----------|-------------------------|
+| Type     | <code>text\|json</code> |
+| Default  | <code>text</code>       |
 
 Output format.
