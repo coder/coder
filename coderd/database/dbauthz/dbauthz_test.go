@@ -8446,6 +8446,27 @@ func TestAsAPIKeyRevoker(t *testing.T) {
 	})
 }
 
+func TestAsChatAutomationCounter(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	ctx := dbauthz.AsChatAutomationCounter(context.Background(), ownerID)
+	actor, ok := dbauthz.ActorFromContext(ctx)
+	require.True(t, ok)
+	require.Equal(t, rbac.SubjectTypeChatAutomationCounter, actor.Type)
+	require.Equal(t, ownerID.String(), actor.ID)
+
+	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+	// The count spans organizations, so its object has no organization.
+	owned := rbac.ResourceChatAutomation.WithOwner(ownerID.String())
+	require.NoError(t, auth.Authorize(ctx, actor, policy.ActionRead, owned))
+	for _, action := range []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete} {
+		require.Error(t, auth.Authorize(ctx, actor, action, owned), action)
+	}
+	require.Error(t, auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceChatAutomation.WithOwner(uuid.NewString())))
+	require.Error(t, auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceChat.WithOwner(ownerID.String())))
+}
+
 func TestAsChatdKeyMinter(t *testing.T) {
 	t.Parallel()
 

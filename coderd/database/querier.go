@@ -1254,6 +1254,10 @@ type sqlcQuerier interface {
 	InsertBoundaryLogs(ctx context.Context, arg InsertBoundaryLogsParams) ([]BoundaryLog, error)
 	InsertBoundarySession(ctx context.Context, arg InsertBoundarySessionParams) (BoundarySession, error)
 	InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error)
+	// Inserts only for an owner that is neither deleted nor a system user. The
+	// shared row lock makes a concurrent soft delete of the owner wait for this
+	// transaction, so its trigger then deletes the new row. Without it the
+	// insert could commit after the delete and leave the row behind.
 	InsertChatAutomation(ctx context.Context, arg InsertChatAutomationParams) (ChatAutomation, error)
 	// updated_at is the retention clock used by DeleteOldChatDebugRuns.
 	// Set it on every write to keep retention semantics correct.
