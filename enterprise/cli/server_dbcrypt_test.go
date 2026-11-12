@@ -204,6 +204,10 @@ func TestServerDBCrypt(t *testing.T) {
 		// a secret. Only the ciphertext is blanked.
 		automations, err := db.GetChatAutomationsWithWebhookSecretByOwnerID(ctx, usr.ID)
 		require.NoError(t, err, "failed to get chat automations for user %s", usr.ID)
+		if usr.Deleted {
+			require.Empty(t, automations)
+			continue
+		}
 		require.Len(t, automations, 1)
 		require.Equal(t, sql.NullString{Valid: true}, automations[0].WebhookSecret)
 		require.False(t, automations[0].WebhookSecretKeyID.Valid)
@@ -267,11 +271,6 @@ func genData(t *testing.T, db database.Store) []database.User {
 					ChatID:  chat.ID,
 					Headers: "headers-" + usr.ID.String(),
 				})
-				_ = dbgen.ChatAutomation(t, db, database.ChatAutomation{
-					OrganizationID: chatModel.OrganizationID,
-					OwnerID:        usr.ID,
-					WebhookSecret:  sql.NullString{String: "webhook-" + usr.ID.String(), Valid: true},
-				})
 				now := time.Now()
 				_, err := db.UpsertUserAIProviderKey(context.Background(), database.UpsertUserAIProviderKeyParams{
 					ID:           uuid.New(),
@@ -283,8 +282,14 @@ func genData(t *testing.T, db database.Store) []database.User {
 				})
 				require.NoError(t, err)
 
-				// Deleted users cannot have user_links or user_secrets.
+				// Deleted users cannot have user_links, user_secrets or chat
+				// automations: InsertChatAutomation refuses a deleted owner.
 				if !deleted {
+					_ = dbgen.ChatAutomation(t, db, database.ChatAutomation{
+						OrganizationID: chatModel.OrganizationID,
+						OwnerID:        usr.ID,
+						WebhookSecret:  sql.NullString{String: "webhook-" + usr.ID.String(), Valid: true},
+					})
 					// Fun fact: our schema allows _all_ login types to have
 					// a user_link. Even though I'm not sure how it could occur
 					// in practice, making sure to test all combinations here.
@@ -303,6 +308,7 @@ func genData(t *testing.T, db database.Store) []database.User {
 						FilePath: "",
 					})
 				}
+				usr.Deleted = deleted
 				users = append(users, usr)
 			}
 		}
@@ -367,9 +373,15 @@ func requireEncryptedWithCipher(ctx context.Context, t *testing.T, db database.S
 
 	automations, err := db.GetChatAutomationsWithWebhookSecretByOwnerID(ctx, userID)
 	require.NoError(t, err, "failed to get chat automations for user %s", userID)
-	require.Len(t, automations, 1)
-	requireEncryptedEquals(t, c, "webhook-"+userID.String(), automations[0].WebhookSecret.String)
-	require.Equal(t, c.HexDigest(), automations[0].WebhookSecretKeyID.String)
+	user, err := db.GetUserByID(ctx, userID)
+	require.NoError(t, err, "failed to get user %s", userID)
+	if user.Deleted {
+		require.Empty(t, automations)
+	} else {
+		require.Len(t, automations, 1)
+		requireEncryptedEquals(t, c, "webhook-"+userID.String(), automations[0].WebhookSecret.String)
+		require.Equal(t, c.HexDigest(), automations[0].WebhookSecretKeyID.String)
+	}
 
 	providers, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{
 		IncludeDeleted:  true,
