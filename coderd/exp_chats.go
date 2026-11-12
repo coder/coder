@@ -7847,7 +7847,7 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 // with any question-answer part first, plus pasted-text blob references
 // by file ID.
 //
-//nolint:revive // asyncQuestionsEnabled is a domain flag, not a control flag.
+//nolint:revive // asyncQuestionsEnabled is fixed for the life of the process.
 func createChatInputFromParts(
 	ctx context.Context,
 	db database.Store,
