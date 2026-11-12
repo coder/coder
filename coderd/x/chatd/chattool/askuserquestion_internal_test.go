@@ -24,7 +24,7 @@ func TestValidateAskUserQuestionArgs(t *testing.T) {
 			args: askUserQuestionArgs{Questions: []askUserQuestion{{
 				Header:   " \t ",
 				Question: "What should we build?",
-				Options:  validQuestionOptions(2),
+				Options:  validAskUserQuestionOptions(2),
 			}}},
 			wantErr: "questions[0].header is required",
 		},
@@ -33,7 +33,7 @@ func TestValidateAskUserQuestionArgs(t *testing.T) {
 			args: askUserQuestionArgs{Questions: []askUserQuestion{{
 				Header:   "Scope",
 				Question: "\n\t ",
-				Options:  validQuestionOptions(2),
+				Options:  validAskUserQuestionOptions(2),
 			}}},
 			wantErr: "questions[0].question is required",
 		},
@@ -42,7 +42,7 @@ func TestValidateAskUserQuestionArgs(t *testing.T) {
 			args: askUserQuestionArgs{Questions: []askUserQuestion{{
 				Header:   "Scope",
 				Question: "What should we build?",
-				Options:  validQuestionOptions(1),
+				Options:  validAskUserQuestionOptions(1),
 			}}},
 			wantErr: "questions[0].options must contain 2-4 items",
 		},
@@ -51,7 +51,7 @@ func TestValidateAskUserQuestionArgs(t *testing.T) {
 			args: askUserQuestionArgs{Questions: []askUserQuestion{{
 				Header:   "Scope",
 				Question: "What should we build?",
-				Options:  validQuestionOptions(5),
+				Options:  validAskUserQuestionOptions(5),
 			}}},
 			wantErr: "questions[0].options must contain 2-4 items",
 		},
@@ -84,7 +84,7 @@ func TestValidateAskUserQuestionArgs(t *testing.T) {
 			args: askUserQuestionArgs{Questions: []askUserQuestion{{
 				Header:   "Scope",
 				Question: "What should we build?",
-				Options:  validQuestionOptions(2),
+				Options:  validAskUserQuestionOptions(2),
 			}}},
 		},
 		{
@@ -92,7 +92,7 @@ func TestValidateAskUserQuestionArgs(t *testing.T) {
 			args: askUserQuestionArgs{Questions: []askUserQuestion{{
 				Header:   "Scope",
 				Question: "What should we build?",
-				Options:  validQuestionOptions(4),
+				Options:  validAskUserQuestionOptions(4),
 			}}},
 		},
 		{
@@ -101,12 +101,12 @@ func TestValidateAskUserQuestionArgs(t *testing.T) {
 				{
 					Header:   "Scope",
 					Question: "What should we build?",
-					Options:  validQuestionOptions(2),
+					Options:  validAskUserQuestionOptions(2),
 				},
 				{
 					Header:   "Timeline",
 					Question: "\t ",
-					Options:  validQuestionOptions(2),
+					Options:  validAskUserQuestionOptions(2),
 				},
 			}},
 			wantErr: "questions[1].question is required",
@@ -128,7 +128,7 @@ func TestValidateAskUserQuestionArgs(t *testing.T) {
 	}
 }
 
-func validQuestionOptions(count int) []askUserQuestionOption {
+func validAskUserQuestionOptions(count int) []askUserQuestionOption {
 	options := []askUserQuestionOption{
 		{Label: "Backend", Description: "Build the API first."},
 		{Label: "Frontend", Description: "Build the UI first."},
