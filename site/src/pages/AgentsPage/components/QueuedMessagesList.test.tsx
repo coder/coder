@@ -249,7 +249,6 @@ describe("QueuedMessagesList", () => {
 			<TooltipProvider>
 				<QueuedMessagesList
 					messages={messages}
-					busyRows={new Map()}
 					onDelete={onDelete}
 					onPromote={onPromote}
 					onEdit={onEdit}
@@ -271,6 +270,16 @@ describe("QueuedMessagesList", () => {
 		const handlers = renderList([{ ...MockChatQueuedMessage, id: 9 }]);
 		await user.click(screen.getByRole("button", { name }));
 		expect(handlers[handler]).toHaveBeenCalledWith(9);
+	});
+
+	it("offers Send now on queue rows only", async () => {
+		const user = userEvent.setup();
+		const { onPromote } = renderList([
+			{ ...MockChatQueuedMessage, id: 8, busy_behavior: "steer" },
+			{ ...MockChatQueuedMessage, id: 9, busy_behavior: "queue" },
+		]);
+		await user.click(screen.getByRole("button", { name: "Send now" }));
+		expect(onPromote).toHaveBeenCalledWith(9);
 	});
 
 	it("forwards Edit and Cancel edit with the row id", async () => {
