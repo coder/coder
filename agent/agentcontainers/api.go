@@ -561,6 +561,12 @@ func (api *API) discoverDevcontainersInProject(projectPath string) error {
 					}
 				}
 
+				// Container discovery only watches config files for entries
+				// it creates or that lack a config path, so watch here.
+				if err := api.watcher.Add(path); err != nil {
+					logger.Error(api.ctx, "watch devcontainer config file failed", slog.Error(err))
+				}
+
 				api.knownDevcontainers[workspaceFolder] = dc
 				api.broadcastUpdatesLocked()
 

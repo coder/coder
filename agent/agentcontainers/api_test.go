@@ -5000,6 +5000,103 @@ func TestDevcontainerDiscovery(t *testing.T) {
 			// Then: We expect the mock infra to not fail.
 		})
 	})
+
+	// Verify that a config file is watched when project discovery
+	// records the dev container before its container is listed.
+	t.Run("WatchConfigDiscoveredBeforeContainer", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx             = testutil.Context(t, testutil.WaitShort)
+			logger          = testutil.Logger(t)
+			startTime       = time.Date(2025, 1, 1, 12, 0, 0, 0, time.UTC)
+			mClock          = quartz.NewMock(t)
+			tickerTrap      = mClock.Trap().TickerFunc("updaterLoop")
+			fWatcher        = newFakeWatcher(t)
+			fCCLI           = &fakeContainerCLI{}
+			workspaceFolder = "/home/coder"
+			configPath      = "/home/coder/.devcontainer/devcontainer.json"
+
+			r = chi.NewRouter()
+		)
+		mClock.Set(startTime)
+
+		api := agentcontainers.NewAPI(logger,
+			agentcontainers.WithClock(mClock),
+			agentcontainers.WithWatcher(fWatcher),
+			agentcontainers.WithFileSystem(initFS(t, map[string]string{
+				"/home/coder/.git/HEAD": "",
+				configPath:              "",
+			})),
+			agentcontainers.WithManifestInfo("owner", "workspace", "parent-agent", workspaceFolder),
+			agentcontainers.WithContainerCLI(fCCLI),
+			agentcontainers.WithDevcontainerCLI(&fakeDevcontainerCLI{}),
+			agentcontainers.WithProjectDiscovery(true),
+		)
+		api.Start()
+		defer api.Close()
+		r.Mount("/", api.Routes())
+
+		tickerTrap.MustWait(ctx).MustRelease(ctx)
+		tickerTrap.Close()
+
+		listDevcontainers := func() []codersdk.WorkspaceAgentDevcontainer {
+			req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
+			rec := httptest.NewRecorder()
+			r.ServeHTTP(rec, req)
+			require.Equal(t, http.StatusOK, rec.Code)
+
+			var got codersdk.WorkspaceAgentListContainersResponse
+			err := json.NewDecoder(rec.Body).Decode(&got)
+			require.NoError(t, err)
+			return got.Devcontainers
+		}
+
+		// Given: The project is discovered while no container exists.
+		require.Eventuallyf(t, func() bool {
+			return len(listDevcontainers()) == 1
+		}, testutil.WaitShort, testutil.IntervalFast, "dev container never discovered")
+
+		// When: The container for the discovered project is listed.
+		fCCLI.mu.Lock()
+		fCCLI.containers = codersdk.WorkspaceAgentListContainersResponse{
+			Containers: []codersdk.WorkspaceAgentContainer{{
+				ID:           "container-id",
+				FriendlyName: "container-name",
+				CreatedAt:    startTime.Add(-time.Hour),
+				Labels: map[string]string{
+					agentcontainers.DevcontainerLocalFolderLabel: workspaceFolder,
+					agentcontainers.DevcontainerConfigFileLabel:  configPath,
+				},
+			}},
+		}
+		fCCLI.mu.Unlock()
+		err := api.RefreshContainers(ctx)
+		require.NoError(t, err)
+
+		dcs := listDevcontainers()
+		require.Len(t, dcs, 1)
+		require.NotNil(t, dcs[0].Container, "devcontainer should be linked to the container")
+		require.False(t, dcs[0].Dirty, "devcontainer should not be dirty initially")
+
+		// Then: The config file is watched.
+		require.Contains(t, fWatcher.addedPaths, configPath,
+			"watcher should be watching the discovered config file")
+
+		// And: Modifying the config file marks the devcontainer dirty.
+		fWatcher.waitNext(ctx)
+		fWatcher.sendEventWaitNextCalled(ctx, fsnotify.Event{
+			Name: configPath,
+			Op:   fsnotify.Write,
+		})
+		err = api.RefreshContainers(ctx)
+		require.NoError(t, err)
+
+		dcs = listDevcontainers()
+		require.Len(t, dcs, 1)
+		require.NotNil(t, dcs[0].Container, "devcontainer should be linked to the container")
+		require.True(t, dcs[0].Dirty, "devcontainer should be dirty after config file was modified")
+	})
 }
 
 // TestDevcontainerPrebuildSupport validates that devcontainers survive the transition
