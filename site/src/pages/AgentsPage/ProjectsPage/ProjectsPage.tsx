@@ -125,8 +125,8 @@ const ProjectsPage: React.FC = () => {
 			toast.error(getErrorMessage(error, "Failed to unpin project."));
 		},
 	});
-	// A pin shows once its request settles, so repeats are dropped. Pins queue
-	// in one scope, so each project's pending pin is tracked, not only the last.
+	// A pin shows once its request settles, so a card holds back Pin while its
+	// project's pin is pending, which may be queued behind other pins.
 	const pendingPinIds = new Set(
 		useMutationState({
 			filters: { mutationKey: pinOptions.mutationKey, status: "pending" },
@@ -202,9 +202,7 @@ const ProjectsPage: React.FC = () => {
 				onCreateProject={() =>
 					openProjectDialog(undefined, newProjectButtonRef.current)
 				}
-				onPin={(project) =>
-					!pendingPinIds.has(project.id) && pinMutation.mutate({ project })
-				}
+				onPin={(project) => pinMutation.mutate({ project })}
 				pendingPinIds={pendingPinIds}
 				onUnpin={(project) =>
 					unpinningId !== project.id && unpinMutation.mutate(project)

@@ -136,10 +136,8 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 					<DropdownMenuContent
 						align="end"
 						onCloseAutoFocus={(event) => {
-							if (dialogPickedRef.current) {
-								dialogPickedRef.current = false;
-								event.preventDefault();
-							}
+							if (dialogPickedRef.current) event.preventDefault();
+							dialogPickedRef.current = false;
 						}}
 					>
 						<ProjectActionsMenuItems

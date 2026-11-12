@@ -49,21 +49,16 @@ describe("getProjectsByTab", () => {
 			],
 			MockUserOwner.id,
 		);
-		expect({
-			yours: names(projects.yours),
-			shared: names(projects.shared),
-		}).toEqual({
-			yours: [
-				"first pin",
-				"second pin",
-				"newer",
-				"Tied",
-				"older",
-				"Alpha",
-				"zeta",
-			],
-			shared: ["theirs"],
-		});
+		expect(names(projects.shared)).toEqual(["theirs"]);
+		expect(names(projects.yours)).toEqual([
+			"first pin",
+			"second pin",
+			"newer",
+			"Tied",
+			"older",
+			"Alpha",
+			"zeta",
+		]);
 	});
 });
 
