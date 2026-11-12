@@ -2035,6 +2035,16 @@ func requireRawChatAutomation(ctx context.Context, t *testing.T, rawDB database.
 	return row
 }
 
+// chatAutomationXmin returns the xmin of a chat_automations row, which changes
+// with every write. A row that a command has no reason to change must keep it,
+// or the command conflicts with a coderd that writes the same row.
+func chatAutomationXmin(ctx context.Context, t *testing.T, sqlDB *sql.DB, id uuid.UUID) string {
+	t.Helper()
+	var xmin string
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT xmin::text FROM chat_automations WHERE id = $1`, id).Scan(&xmin))
+	return xmin
+}
+
 // TestRotateChatAutomations covers the webhook secret of chat_automations.
 // Rotate encrypts a plaintext secret and moves a secret from cipher A to
 // cipher B. It leaves a secret under the primary cipher, an empty secret and
@@ -2052,9 +2062,9 @@ func TestRotateChatAutomations(t *testing.T) {
 	})
 	require.Equal(t, f.cipherB.HexDigest(), current.WebhookSecretKeyID.String, "sanity check: seed must be encrypted under cipher B")
 	untouched := []database.ChatAutomation{rows.empty, rows.schedule, current}
-	before := map[uuid.UUID]database.ChatAutomation{}
+	before := map[uuid.UUID]string{}
 	for _, row := range untouched {
-		before[row.ID] = requireRawChatAutomation(f.ctx, t, f.rawDB, row.ID)
+		before[row.ID] = chatAutomationXmin(f.ctx, t, f.sqlDB, row.ID)
 	}
 
 	f.rotate(t)
@@ -2066,7 +2076,7 @@ func TestRotateChatAutomations(t *testing.T) {
 		require.Equal(t, row.WebhookSecretVersion, got.WebhookSecretVersion)
 	}
 	for _, row := range untouched {
-		require.Equal(t, before[row.ID], requireRawChatAutomation(f.ctx, t, f.rawDB, row.ID), "row must not be rewritten")
+		require.Equal(t, before[row.ID], chatAutomationXmin(f.ctx, t, f.sqlDB, row.ID), "row must not be rewritten")
 	}
 	requireDBCryptKeyRevoked(f.ctx, t, f.rawDB, f.cipherA)
 }
@@ -2081,9 +2091,9 @@ func TestDecryptChatAutomations(t *testing.T) {
 	rows := seedChatAutomations(t, f.rawDB, f.cryptDBA)
 	require.Equal(t, f.cipherA.HexDigest(), rows.secret.WebhookSecretKeyID.String, "sanity check: seed must be encrypted under cipher A")
 	untouched := []database.ChatAutomation{rows.empty, rows.schedule, rows.plain}
-	before := map[uuid.UUID]database.ChatAutomation{}
+	before := map[uuid.UUID]string{}
 	for _, row := range untouched {
-		before[row.ID] = requireRawChatAutomation(f.ctx, t, f.rawDB, row.ID)
+		before[row.ID] = chatAutomationXmin(f.ctx, t, f.sqlDB, row.ID)
 	}
 
 	f.decrypt(t)
@@ -2093,7 +2103,7 @@ func TestDecryptChatAutomations(t *testing.T) {
 	require.Equal(t, chatAutomationSecret, got.WebhookSecret.String)
 	require.Equal(t, rows.secret.WebhookSecretVersion, got.WebhookSecretVersion)
 	for _, row := range untouched {
-		require.Equal(t, before[row.ID], requireRawChatAutomation(f.ctx, t, f.rawDB, row.ID), "row must not be rewritten")
+		require.Equal(t, before[row.ID], chatAutomationXmin(f.ctx, t, f.sqlDB, row.ID), "row must not be rewritten")
 	}
 }
 
@@ -2107,9 +2117,9 @@ func TestDeleteChatAutomations(t *testing.T) {
 	rows := seedChatAutomations(t, f.rawDB, f.cryptDBA)
 	require.Equal(t, f.cipherA.HexDigest(), rows.secret.WebhookSecretKeyID.String, "sanity check: seed must be encrypted under cipher A")
 	untouched := []database.ChatAutomation{rows.empty, rows.schedule, rows.plain}
-	before := map[uuid.UUID]database.ChatAutomation{}
+	before := map[uuid.UUID]string{}
 	for _, row := range untouched {
-		before[row.ID] = requireRawChatAutomation(f.ctx, t, f.rawDB, row.ID)
+		before[row.ID] = chatAutomationXmin(f.ctx, t, f.sqlDB, row.ID)
 	}
 
 	f.delete(t)
@@ -2119,7 +2129,7 @@ func TestDeleteChatAutomations(t *testing.T) {
 	require.False(t, got.WebhookSecretKeyID.Valid)
 	require.Equal(t, rows.secret.WebhookSecretVersion, got.WebhookSecretVersion)
 	for _, row := range untouched {
-		require.Equal(t, before[row.ID], requireRawChatAutomation(f.ctx, t, f.rawDB, row.ID), "row must not be rewritten")
+		require.Equal(t, before[row.ID], chatAutomationXmin(f.ctx, t, f.sqlDB, row.ID), "row must not be rewritten")
 	}
 	requireAllKeysRevoked(f.ctx, t, f.rawDB)
 }
