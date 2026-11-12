@@ -687,6 +687,18 @@ func TestAIBridgeListSessions(t *testing.T) {
 		noOrg := sessions["no-org"].Organizations
 		require.NotNil(t, noOrg)
 		require.Empty(t, noOrg)
+
+		// Filtering by either org returns the multi-org session, because it has
+		// at least one interception in each. The no-org session never matches.
+		for _, org := range []database.Organization{orgA, orgB} {
+			res, err = client.AIBridgeListSessions(ctx, codersdk.AIBridgeListSessionsFilter{
+				Organization: org.Name,
+			})
+			require.NoError(t, err)
+			require.EqualValues(t, 1, res.Count)
+			require.Len(t, res.Sessions, 1)
+			require.Equal(t, "multi-org", res.Sessions[0].ID)
+		}
 	})
 
 	t.Run("Authorized", func(t *testing.T) {
