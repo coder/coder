@@ -796,3 +796,96 @@ func TestChatAutomationColumnsOnChats(t *testing.T) {
 	chat, err = first(db.GetAuthorizedChatsByChatFileID(ctx, file.ID, prepared))
 	requireColumns("GetAuthorizedChatsByChatFileID", chat, err)
 }
+
+func TestInsertChatAutomationOwnerGuard(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	o := newChatAutomationOrg(t, db, dbgen.User(t, db, database.User{}))
+	deleted := dbgen.User(t, db, database.User{Deleted: true})
+
+	cases := []struct {
+		name    string
+		ownerID uuid.UUID
+		wantErr error
+	}{
+		{name: "ActiveOwner", ownerID: o.user.ID},
+		{name: "SoftDeletedOwner", ownerID: deleted.ID, wantErr: sql.ErrNoRows},
+		{name: "SystemUser", ownerID: database.PrebuildsSystemUserID, wantErr: sql.ErrNoRows},
+		{name: "UnknownOwner", ownerID: uuid.New(), wantErr: sql.ErrNoRows},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			params := o.scheduleParams()
+			params.ID = nullUUID(uuid.New())
+			params.OwnerID = tc.ownerID
+			got, err := db.InsertChatAutomation(ctx, params)
+			if tc.wantErr != nil {
+				require.ErrorIs(t, err, tc.wantErr)
+				_, err = db.GetChatAutomationByID(ctx, params.ID.UUID)
+				require.ErrorIs(t, err, sql.ErrNoRows, "no row exists")
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, params.ID.UUID, got.ID)
+			require.Equal(t, tc.ownerID, got.OwnerID)
+		})
+	}
+}
+
+func TestInsertChatAutomationRacesUserSoftDelete(t *testing.T) {
+	t.Parallel()
+
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+
+	t.Run("DeleteCommitsFirst", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		o := newChatAutomationOrg(t, db, dbgen.User(t, db, database.User{}))
+		require.NoError(t, db.UpdateUserDeletedByID(ctx, o.user.ID))
+		_, err := db.InsertChatAutomation(ctx, o.scheduleParams())
+		require.ErrorIs(t, err, sql.ErrNoRows)
+	})
+
+	t.Run("InsertCommitsFirst", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		o := newChatAutomationOrg(t, db, dbgen.User(t, db, database.User{}))
+
+		var automationID uuid.UUID
+		softDelete := make(chan error, 1)
+		err := db.InTx(func(tx database.Store) error {
+			automation, err := tx.InsertChatAutomation(ctx, o.scheduleParams())
+			if err != nil {
+				return err
+			}
+			automationID = automation.ID
+			// The pool gives the soft delete another connection, outside
+			// this transaction.
+			go func() { softDelete <- db.UpdateUserDeletedByID(ctx, o.user.ID) }()
+			// The shared lock on the owner row must block the soft delete
+			// until this transaction commits.
+			require.Eventually(t, func() bool {
+				var waiting bool
+				err := sqlDB.QueryRowContext(ctx, `SELECT EXISTS (
+					SELECT 1 FROM pg_stat_activity
+					WHERE datname = current_database() AND wait_event_type = 'Lock'
+					AND query LIKE '%UpdateUserDeletedByID%'
+				)`).Scan(&waiting)
+				return err == nil && waiting
+			}, testutil.WaitShort, testutil.IntervalFast, "the soft delete waits on the owner row lock")
+			require.Empty(t, softDelete, "the soft delete finished before the insert committed")
+			return nil
+		}, nil)
+		require.NoError(t, err)
+
+		require.NoError(t, testutil.RequireReceive(ctx, t, softDelete))
+		_, err = db.GetChatAutomationByID(ctx, automationID)
+		require.ErrorIs(t, err, sql.ErrNoRows, "the user cleanup trigger deletes the automation")
+		var userDeleted bool
+		require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT deleted FROM users WHERE id = $1`, o.user.ID).Scan(&userDeleted))
+		require.True(t, userDeleted)
+	})
+}
