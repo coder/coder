@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -40,6 +41,19 @@ func TestChatManageAutomationsSwitch(t *testing.T) {
 		require.NoError(t, err)
 		return chat
 	}
+	// hasField reports whether the raw response of a chat holds the switch. The
+	// field is left out while the switch is off.
+	hasField := func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, id uuid.UUID) bool {
+		t.Helper()
+		res, err := client.Request(ctx, http.MethodGet, "/api/v2/chats/"+id.String(), nil)
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusOK, res.StatusCode)
+		var fields map[string]json.RawMessage
+		require.NoError(t, json.NewDecoder(res.Body).Decode(&fields))
+		_, ok := fields["manage_automations_enabled"]
+		return ok
+	}
 	create := func(t *testing.T, client *codersdk.ExperimentalClient, first codersdk.CreateFirstUserResponse) codersdk.Chat {
 		t.Helper()
 		chat, err := client.CreateChat(testutil.Context(t, testutil.WaitLong), codersdk.CreateChatRequest{
@@ -60,6 +74,7 @@ func TestChatManageAutomationsSwitch(t *testing.T) {
 		for _, enabled := range []bool{false, true} {
 			require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ManageAutomationsEnabled: ptr.Ref(enabled)}))
 			require.Equal(t, enabled, getChat(ctx, t, client, chat.ID).ManageAutomationsEnabled)
+			require.Equal(t, enabled, hasField(ctx, t, client, chat.ID))
 		}
 	})
 
@@ -71,17 +86,24 @@ func TestChatManageAutomationsSwitch(t *testing.T) {
 		chat := dbgen.Chat(t, db, database.Chat{
 			OrganizationID:           first.OrganizationID,
 			OwnerID:                  member.ID,
+			Title:                    "member chat",
 			LastModelConfigID:        createChatModel(t, client).ID,
 			ManageAutomationsEnabled: true,
 		})
 
 		// The deployment owner can update every chat, and still cannot
-		// change the switch of another user's chat.
-		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ManageAutomationsEnabled: ptr.Ref(false)})
+		// change the switch of another user's chat. The whole request fails:
+		// the title of the same request is not written either.
+		err := client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{
+			Title:                    ptr.Ref("renamed by the deployment owner"),
+			ManageAutomationsEnabled: ptr.Ref(false),
+		})
 
 		sdkErr := requireSDKError(t, err, http.StatusForbidden)
 		require.Equal(t, "Only the chat owner can change its automations switch.", sdkErr.Message)
-		require.True(t, getChat(ctx, t, client, chat.ID).ManageAutomationsEnabled)
+		got := getChat(ctx, t, client, chat.ID)
+		require.True(t, got.ManageAutomationsEnabled)
+		require.Equal(t, "member chat", got.Title)
 	})
 
 	t.Run("OwnerExperimentOff", func(t *testing.T) {
