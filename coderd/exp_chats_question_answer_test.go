@@ -62,10 +62,14 @@ func TestChatQuestionAnswer(t *testing.T) {
 	t.Parallel()
 
 	client := newChatClient(t, withChatWorkerDisabled, func(opts *coderdtest.Options) {
-		opts.DeploymentValues.Experiments = append(opts.DeploymentValues.Experiments, string(codersdk.ExperimentChatAsyncQuestions))
+		opts.DeploymentValues.Experiments = append(
+			opts.DeploymentValues.Experiments,
+			string(codersdk.ExperimentChatAsyncQuestions),
+		)
 	})
 	user := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModel(t, client)
+
 	questionID := uuid.New()
 	const answer = "Use Postgres.\nKeep the cache in SQLite."
 	input := []codersdk.ChatInputPart{
@@ -147,6 +151,8 @@ func TestChatQuestionAnswer(t *testing.T) {
 	t.Run("SentMessage", func(t *testing.T) {
 		t.Parallel()
 
+		// A chat created without content is idle, so the answer is not
+		// queued.
 		ctx := testutil.Context(t, testutil.WaitLong)
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: user.OrganizationID,
@@ -164,6 +170,7 @@ func TestChatQuestionAnswer(t *testing.T) {
 
 		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
 		require.NoError(t, err)
+
 		var userMessages []codersdk.ChatMessage
 		for _, message := range messages.Messages {
 			if message.Role == codersdk.ChatMessageRoleUser {
@@ -177,6 +184,8 @@ func TestChatQuestionAnswer(t *testing.T) {
 	t.Run("QueuedMessage", func(t *testing.T) {
 		t.Parallel()
 
+		// The initial message starts a turn that the disabled chat worker
+		// never finishes, so the chat stays busy and the answer is queued.
 		ctx := testutil.Context(t, testutil.WaitLong)
 		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: user.OrganizationID,
