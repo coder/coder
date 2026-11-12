@@ -79,7 +79,7 @@ func newTestRefresher(t *testing.T, clk quartz.Clock, opts ...testRefresherOpt) 
 		},
 	}
 
-	providers := func(context.Context, string) gitprovider.Provider { return prov }
+	providers := func(context.Context, string) (gitprovider.Provider, error) { return prov, nil }
 	tokens := func(context.Context, uuid.UUID, string) (*string, error) {
 		return new("tok"), nil
 	}
@@ -1367,7 +1367,7 @@ func TestWorker_NoTokenBackoff(t *testing.T) {
 	// Token resolver returns empty token → ErrNoTokenAvailable.
 	// Provider methods should never be called.
 	prov := &mockProvider{}
-	providers := func(context.Context, string) gitprovider.Provider { return prov }
+	providers := func(context.Context, string) (gitprovider.Provider, error) { return prov, nil }
 	tokens := func(context.Context, uuid.UUID, string) (*string, error) {
 		return new(""), nil
 	}
@@ -1386,5 +1386,56 @@ func TestWorker_NoTokenBackoff(t *testing.T) {
 	// The backoff should use NoTokenBackoff (10min), not
 	// DiffStatusTTL (2min).
 	expectedStaleAt := mClock.Now().UTC().Add(gitsync.NoTokenBackoff)
+	assert.WithinDuration(t, expectedStaleAt, backoffArgs[0].StaleAt, time.Second)
+}
+
+func TestWorker_UnimplementedProviderBackoff(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	chatID := uuid.New()
+	ownerID := uuid.New()
+
+	var mu sync.Mutex
+	var backoffArgs []database.BackoffChatDiffStatusParams
+	tickDone := make(chan struct{})
+
+	mClock := quartz.NewMock(t)
+
+	ctrl := gomock.NewController(t)
+	store := dbmock.NewMockStore(ctrl)
+
+	store.EXPECT().AcquireStaleChatDiffStatuses(gomock.Any(), gomock.Any()).
+		Return([]database.AcquireStaleChatDiffStatusesRow{
+			makeAcquiredRowWithBranch(chatID, ownerID, "feature"),
+		}, nil)
+	store.EXPECT().BackoffChatDiffStatus(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(_ context.Context, arg database.BackoffChatDiffStatusParams) error {
+			mu.Lock()
+			backoffArgs = append(backoffArgs, arg)
+			mu.Unlock()
+			close(tickDone)
+			return nil
+		})
+
+	providers := func(context.Context, string) (gitprovider.Provider, error) {
+		return nil, xerrors.Errorf("bitbucket-cloud: %w", gitsync.ErrProviderUnimplemented)
+	}
+	tokens := func(context.Context, uuid.UUID, string) (*string, error) {
+		t.Error("token resolver must not be called for an unimplemented provider")
+		return nil, xerrors.New("unexpected token resolution")
+	}
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	refresher := gitsync.NewRefresher(providers, tokens, logger, mClock)
+	worker := gitsync.NewWorker(store, refresher, nil, mClock, logger)
+
+	tickOnce(ctx, t, mClock, worker, tickDone)
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, backoffArgs, 1)
+	assert.Equal(t, chatID, backoffArgs[0].ChatID)
+	expectedStaleAt := mClock.Now().UTC().Add(gitsync.UnimplementedProviderBackoff)
 	assert.WithinDuration(t, expectedStaleAt, backoffArgs[0].StaleAt, time.Second)
 }
