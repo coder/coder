@@ -386,7 +386,6 @@ describe("AgentChatInput", () => {
 		);
 	});
 
-	// The locked editor shows that the flush below lets Lexical commit a focus.
 	it.each([
 		{ lockWhileLoading: false, focused: "Elsewhere" },
 		{ lockWhileLoading: true, focused: "Chat message" },
