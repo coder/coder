@@ -332,7 +332,7 @@ For a failed worker, the reaper also waits before it reports the failure to the 
 Must not be negative.
 A pool's `reap_delay` overrides this option.
 
-- If a build fails while Agent Relay is still dispatching it, Agent Relay deletes the workspace right away.
+- If a build fails or is still running when the pool's `dispatch_deadline` passes, Agent Relay deletes the workspace immediately.
 - If autostop could stop the workspace before the delay ends, the reaper deletes it right away.
 - A worker that never starts fails after the startup grace, so its delay might already have passed.
 - If the provider sends the session again and Agent Relay rebuilds the workspace, the delay starts over from the new build.
