@@ -7,12 +7,16 @@ import {
 import { useId, useState } from "react";
 import { chatWidthClass, useChatFullWidth } from "../hooks/useChatFullWidth";
 import type { AsyncQuestion } from "./ChatConversation/asyncQuestions";
-import { AskUserQuestionForm } from "./ChatElements/tools/AskUserQuestionTool";
-import { getAskUserQuestions } from "./ChatElements/tools/Tool";
+import {
+	type AskUserQuestion,
+	AskUserQuestionForm,
+} from "./ChatElements/tools/AskUserQuestionTool";
 
 type QuestionPanelProps = {
 	/** The open or pending async question. */
 	question: AsyncQuestion;
+	/** The question's sub-questions, never empty. */
+	questions: AskUserQuestion[];
 	/**
 	 * Hides the panel without unmounting it, so the form keeps its
 	 * selections.
@@ -27,6 +31,7 @@ type QuestionPanelProps = {
 
 export const QuestionPanel: React.FC<QuestionPanelProps> = ({
 	question,
+	questions,
 	isHidden,
 	onSubmitAnswer,
 }) => {
@@ -44,10 +49,6 @@ export const QuestionPanel: React.FC<QuestionPanelProps> = ({
 
 	const hidden =
 		isHidden || question.status === "pending" || isAwaitingDelivery;
-	const questions = getAskUserQuestions(
-		question.tool.args,
-		question.tool.result,
-	);
 
 	return (
 		<div

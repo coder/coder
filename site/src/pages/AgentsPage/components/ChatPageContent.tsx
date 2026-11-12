@@ -212,15 +212,23 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		showsStreamOutput(liveStatus) ? streamTools : [],
 		queuedMessages,
 	);
-	const panelQuestion = isReadOnly ? undefined : asyncQuestions.panelQuestion;
+	const newestOpenQuestion = isReadOnly
+		? undefined
+		: asyncQuestions.panelQuestion;
+	const panelQuestions = newestOpenQuestion
+		? getAskUserQuestions(
+				newestOpenQuestion.tool.args,
+				newestOpenQuestion.tool.result,
+			)
+		: [];
+	// A result whose call is in messages that are not loaded has no
+	// questions to show.
+	const panelQuestion =
+		panelQuestions.length > 0 ? newestOpenQuestion : undefined;
+
 	let questionAnnouncement = "";
 	if (panelQuestion?.status === "open") {
-		const questions = getAskUserQuestions(
-			panelQuestion.tool.args,
-			panelQuestion.tool.result,
-		);
-		const firstQuestionText = questions[0]?.question ?? "";
-		questionAnnouncement = `The agent asked a question: ${firstQuestionText}`;
+		questionAnnouncement = `The agent asked a question: ${panelQuestions[0].question}`;
 	}
 
 	const { titles: subagentTitles, variants: subagentVariants } =
@@ -294,6 +302,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 						<QuestionPanel
 							key={panelQuestion.questionId}
 							question={panelQuestion}
+							questions={panelQuestions}
 							// Saving an edit of an earlier message deletes every message
 							// after it and clears the queued messages, so an answer sent
 							// during the edit would be lost.

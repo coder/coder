@@ -240,6 +240,15 @@ describe("ChatPageTimeline async questions", () => {
 		);
 	});
 
+	it("does not announce a question whose questions cannot be read", () => {
+		const store = createChatStore();
+		store.replaceMessages([MockAsyncQuestionResultMessage]);
+
+		renderChatPageTimeline(store);
+
+		expect(screen.getByRole("status")).toHaveTextContent(/^$/);
+	});
+
 	it("announces an open question and clears the announcement after its answer", () => {
 		const store = createChatStore();
 		store.replaceMessages(MockAsyncQuestionMessages);
