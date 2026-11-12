@@ -711,6 +711,9 @@ Must be at least 1.
 
 Minimum time between two runs of a chat automation schedule.
 Creating a schedule that runs more often fails with HTTP 400.
+The check compares only the times of day of a schedule, counted around the clock.
+It ignores the days, so it can refuse a schedule whose runs near midnight fall on different days.
+It ignores clock changes, so on the day that a time zone changes its clock a schedule can run closer than this.
 Existing schedules are not changed.
 Must be between 1m and 24h.
 

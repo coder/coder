@@ -1897,7 +1897,7 @@ Maximum number of chat automations that one user can own across all organization
 | YAML        | <code>chat.minAutomationScheduleInterval</code>           |
 | Default     | <code>5m0s</code>                                         |
 
-Minimum time between two runs of a chat automation schedule. Creating a schedule that runs more often fails with HTTP 400. Existing schedules are not changed. Must be between 1m and 24h.
+Minimum time between two runs of a chat automation schedule. Creating a schedule that runs more often fails with HTTP 400. The check compares only the times of day of a schedule, counted around the clock. It ignores the days, so it can refuse a schedule whose runs near midnight fall on different days. It ignores clock changes, so on the day that a time zone changes its clock a schedule can run closer than this. Existing schedules are not changed. Must be between 1m and 24h.
 
 ### --chat-stream-silence-timeout
 
