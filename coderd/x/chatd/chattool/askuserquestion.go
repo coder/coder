@@ -182,29 +182,24 @@ func asyncQuestionResponse(questions []askUserQuestion) fantasy.ToolResponse {
 	return fantasy.NewTextResponse(string(data))
 }
 
-// AsyncQuestion returns the text of the first question in an async
-// ask_user_question result. It returns "" when result is not an async
-// ask_user_question result.
-func AsyncQuestion(result fantasy.ToolResultContent) (string, error) {
-	if result.ToolName != askUserQuestionToolName {
+// FirstAskedQuestion returns the text of the first question in the
+// input of an ask_user_question call.
+func FirstAskedQuestion(input string) (string, error) {
+	var args askUserQuestionArgs
+	if err := json.Unmarshal([]byte(input), &args); err != nil {
+		return "", xerrors.Errorf("decode ask_user_question input: %w", err)
+	}
+
+	if len(args.Questions) == 0 {
 		return "", nil
 	}
 
-	output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](result.Result)
-	if !ok {
-		return "", nil
-	}
+	return args.Questions[0].Question, nil
+}
 
-	var questionResult askUserQuestionAsyncResult
-	if err := json.Unmarshal([]byte(output.Text), &questionResult); err != nil {
-		return "", xerrors.Errorf("decode ask_user_question result: %w", err)
-	}
-
-	if questionResult.QuestionID == "" || len(questionResult.Questions) == 0 {
-		return "", nil
-	}
-
-	return questionResult.Questions[0].Question, nil
+// IsAskUserQuestion reports whether toolName is the ask_user_question tool.
+func IsAskUserQuestion(toolName string) bool {
+	return toolName == askUserQuestionToolName
 }
 
 func (t *askUserQuestionTool) ProviderOptions() fantasy.ProviderOptions {

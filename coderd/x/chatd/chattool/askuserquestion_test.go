@@ -10,7 +10,6 @@ import (
 	"charm.land/fantasy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/x/chatd/chattool"
 )
@@ -158,74 +157,49 @@ func TestAskUserQuestionInfo(t *testing.T) {
 	require.Equal(t, blockingInfo.Required, asyncInfo.Required)
 }
 
-func TestAsyncQuestion(t *testing.T) {
+func TestFirstAskedQuestion(t *testing.T) {
 	t.Parallel()
 
-	const asyncResult = `{
-		"question_id": "question-1",
+	const input = `{
 		"questions": [
-			{"question": "Which database?"},
-			{"question": "Which region?"}
+			{
+				"header": "Database",
+				"question": "Which database?",
+				"options": [
+					{"label": "Postgres", "description": "Use Postgres."},
+					{"label": "SQLite", "description": "Use SQLite."}
+				]
+			},
+			{
+				"header": "Region",
+				"question": "Which region?",
+				"options": [
+					{"label": "US", "description": "Use the US."},
+					{"label": "EU", "description": "Use the EU."}
+				]
+			}
 		]
 	}`
 
 	tests := []struct {
 		name    string
-		result  fantasy.ToolResultContent
+		input   string
 		want    string
 		wantErr bool
 	}{
 		{
-			name: "OtherTool",
-			result: fantasy.ToolResultContent{
-				ToolName: "read_file",
-				Result:   fantasy.ToolResultOutputContentText{Text: "not JSON"},
-			},
+			name:  "TwoQuestions",
+			input: input,
+			want:  "Which database?",
 		},
 		{
-			name: "NonTextOutput",
-			result: fantasy.ToolResultContent{
-				ToolName: "ask_user_question",
-				Result:   fantasy.ToolResultOutputContentError{Error: xerrors.New("questions is required")},
-			},
+			name:  "NoQuestions",
+			input: `{"questions":[]}`,
 		},
 		{
-			name: "InvalidJSON",
-			result: fantasy.ToolResultContent{
-				ToolName: "ask_user_question",
-				Result:   fantasy.ToolResultOutputContentText{Text: "not JSON"},
-			},
+			name:    "InvalidJSON",
+			input:   "not JSON",
 			wantErr: true,
-		},
-		{
-			name: "BlockingQuestion",
-			result: fantasy.ToolResultContent{
-				ToolName: "ask_user_question",
-				Result:   fantasy.ToolResultOutputContentText{Text: `{"questions":[{"question":"Which database?"}]}`},
-			},
-		},
-		{
-			name: "NoQuestions",
-			result: fantasy.ToolResultContent{
-				ToolName: "ask_user_question",
-				Result:   fantasy.ToolResultOutputContentText{Text: `{"question_id":"question-1","questions":[]}`},
-			},
-		},
-		{
-			name: "AsyncQuestion",
-			result: fantasy.ToolResultContent{
-				ToolName: "ask_user_question",
-				Result:   fantasy.ToolResultOutputContentText{Text: asyncResult},
-			},
-			want: "Which database?",
-		},
-		{
-			name: "PointerOutput",
-			result: fantasy.ToolResultContent{
-				ToolName: "ask_user_question",
-				Result:   &fantasy.ToolResultOutputContentText{Text: asyncResult},
-			},
-			want: "Which database?",
 		},
 	}
 
@@ -233,9 +207,10 @@ func TestAsyncQuestion(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			question, err := chattool.AsyncQuestion(testCase.result)
+			question, err := chattool.FirstAskedQuestion(testCase.input)
+
 			if testCase.wantErr {
-				require.ErrorContains(t, err, "decode ask_user_question result: ")
+				require.ErrorContains(t, err, "decode ask_user_question input: ")
 			} else {
 				require.NoError(t, err)
 			}

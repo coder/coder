@@ -9791,6 +9791,7 @@ func TestAsyncAskUserQuestionWebPush(t *testing.T) {
 	type runTurnOptions struct {
 		experiment       bool
 		failResultCommit bool
+		toolCallInput    string
 		wantStatus       database.ChatStatus
 		wantPushes       int32
 		// whileSecondModelCallHeld runs after the question result commits
@@ -9809,6 +9810,10 @@ func TestAsyncAskUserQuestionWebPush(t *testing.T) {
 		db, ps := dbtestutil.NewDB(t)
 		mockPush := &mockWebpushDispatcher{}
 		continueTurn := make(chan struct{}, 1)
+		toolCallInput := opts.toolCallInput
+		if toolCallInput == "" {
+			toolCallInput = questionToolCallInput
+		}
 
 		var streamCalls atomic.Int32
 		openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
@@ -9830,7 +9835,7 @@ func TestAsyncAskUserQuestionWebPush(t *testing.T) {
 
 			// First call: the model asks the question.
 			if callNumber == 1 {
-				toolCall := chattest.OpenAIToolCallChunk("ask_user_question", questionToolCallInput)
+				toolCall := chattest.OpenAIToolCallChunk("ask_user_question", toolCallInput)
 				return chattest.OpenAIStreamingResponse(toolCall)
 			}
 
@@ -9889,8 +9894,8 @@ func TestAsyncAskUserQuestionWebPush(t *testing.T) {
 				return streamCalls.Load() == 2
 			}, testutil.IntervalFast)
 			opts.whileSecondModelCallHeld(ctx, heldTurn{chat: chat, db: db, mockPush: mockPush})
-			continueTurn <- struct{}{}
 		}
+		continueTurn <- struct{}{}
 
 		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			fromDB, dbErr := db.GetChatByID(ctx, chat.ID)
@@ -9949,6 +9954,31 @@ func TestAsyncAskUserQuestionWebPush(t *testing.T) {
 
 		turnEndPush := turn.pushes[1]
 		require.NotEqual(t, questionBody, turnEndPush.Body)
+	})
+
+	t.Run("FailedQuestionSendsNoPush", func(t *testing.T) {
+		t.Parallel()
+
+		const input = `{
+			"questions": [{
+				"header": "Database",
+				"question": "Which database should we use?",
+				"options": [
+					{"label": "Postgres", "description": "Use Postgres."}
+				]
+			}]
+		}`
+		turn := runTurn(t, runTurnOptions{
+			experiment:    true,
+			toolCallInput: input,
+			wantStatus:    database.ChatStatusWaiting,
+			wantPushes:    1,
+		})
+
+		require.Equal(t, int32(2), turn.streamCalls)
+		for _, push := range turn.pushes {
+			require.False(t, strings.HasPrefix(push.Body, "Question: "), push.Body)
+		}
 	})
 
 	t.Run("ResultCommitFails", func(t *testing.T) {

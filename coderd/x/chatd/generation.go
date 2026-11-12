@@ -1206,7 +1206,7 @@ func (s *taskStarter) executeLocalTools(
 
 	var asyncQuestion string
 	if prepared.AsyncAskUserQuestion {
-		asyncQuestion = s.lastAsyncQuestion(ctx, input, outcome.Content)
+		asyncQuestion = s.lastAsyncQuestion(ctx, input, decision.localToolCalls, outcome.Content)
 	}
 
 	step := stepDataFromPersisted(outcome)
@@ -1247,20 +1247,38 @@ func (s *taskStarter) executeLocalTools(
 	})
 }
 
-// lastAsyncQuestion returns the first question of the last async
-// ask_user_question result in content, or "" when there is none.
-func (s *taskStarter) lastAsyncQuestion(ctx context.Context, input chatWorkerTaskStartInput, content []fantasy.Content) string {
-	var question string
+// lastAsyncQuestion returns the first question of the last
+// ask_user_question call in calls whose result in content is not an
+// error, or "" when there is none.
+func (s *taskStarter) lastAsyncQuestion(
+	ctx context.Context,
+	input chatWorkerTaskStartInput,
+	calls []fantasy.ToolCallContent,
+	content []fantasy.Content,
+) string {
+	successfulCalls := make(map[string]bool)
 	for _, block := range content {
 		toolResult, ok := asToolResultContent(block)
-		if !ok {
+		if !ok || !chattool.IsAskUserQuestion(toolResult.ToolName) {
 			continue
 		}
-		asked, err := chattool.AsyncQuestion(toolResult)
+		_, isText := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](toolResult.Result)
+		if !isText {
+			continue
+		}
+		successfulCalls[toolResult.ToolCallID] = true
+	}
+
+	var question string
+	for _, call := range calls {
+		if !chattool.IsAskUserQuestion(call.ToolName) || !successfulCalls[call.ToolCallID] {
+			continue
+		}
+		asked, err := chattool.FirstAskedQuestion(call.Input)
 		if err != nil {
-			s.opts.Logger.Warn(ctx, "skip question web push for unreadable tool result",
+			s.opts.Logger.Warn(ctx, "skip question web push for unreadable tool call",
 				slog.F("chat_id", input.ChatID),
-				slog.F("tool_call_id", toolResult.ToolCallID),
+				slog.F("tool_call_id", call.ToolCallID),
 				slog.Error(err),
 			)
 			continue
