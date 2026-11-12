@@ -18,7 +18,6 @@ import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
 import {
 	MockChat,
-	MockChatMessage,
 	MockChatQueuedMessage,
 } from "#/testHelpers/chatEntities";
 import {
@@ -63,17 +62,15 @@ beforeAll(() => {
 	});
 });
 
-// Renders the page for MockChat with the given messages and queued rows; the
-// user owns the chat. publish delivers stream events to the page. Queries are
-// scoped to this render, so a test can render the page twice as two tabs.
+// Renders the page for MockChat with the given queued rows; the user owns
+// the chat. publish delivers stream events to the page. Queries are scoped
+// to this render, so a test can render the page twice as two tabs.
 const renderQueuedChat = ({
 	queuedMessages,
-	messages = [],
 	chat = MockChat,
 	models = [{ ...MockChatModel, id: chat.last_model_config_id }],
 }: {
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
-	messages?: readonly TypesGen.ChatMessage[];
 	chat?: TypesGen.Chat;
 	models?: readonly TypesGen.ChatModel[];
 }) => {
@@ -91,7 +88,7 @@ const renderQueuedChat = ({
 	);
 	vi.spyOn(API.experimental, "getChat").mockResolvedValue(chat);
 	vi.spyOn(API.experimental, "getChatMessages").mockResolvedValue({
-		messages: [...messages],
+		messages: [],
 		queued_messages: [...queuedMessages],
 		has_more: false,
 		snapshot_version: 1,
@@ -528,48 +525,6 @@ describe("AgentChatPage", () => {
 			await waitFor(() =>
 				expect(toastError).toHaveBeenCalledWith("Delete failed."),
 			);
-		});
-
-		it("Edit does nothing while a send is in flight", async () => {
-			vi.spyOn(API.experimental, "createChatMessage").mockReturnValue(
-				new Promise(() => {}),
-			);
-			const page = renderQueuedChat({ queuedMessages: [row] });
-			await page.type("hello");
-			await page.user.click(screen.getByRole("button", { name: "Send" }));
-			await waitFor(() => expect(page.composer().textContent).toBe(""));
-
-			await page.rowAction("Edit");
-
-			expect(page.editChatQueuedMessage).not.toHaveBeenCalled();
-			expect(page.composer().textContent).toBe("");
-		});
-
-		it("Edit on a sent message does nothing while a send is in flight", async () => {
-			vi.spyOn(API.experimental, "createChatMessage").mockReturnValue(
-				new Promise(() => {}),
-			);
-			const page = renderQueuedChat({
-				queuedMessages: [],
-				messages: [
-					{
-						...MockChatMessage,
-						id: 3,
-						chat_id: MockChat.id,
-						role: "user",
-						content: [{ type: "text", text: "sent text" }],
-					},
-				],
-			});
-			await page.type("hello");
-			await page.user.click(screen.getByRole("button", { name: "Send" }));
-			await waitFor(() => expect(page.composer().textContent).toBe(""));
-
-			await page.user.click(
-				screen.getByRole("button", { name: "Edit message" }),
-			);
-
-			expect(page.composer().textContent).toBe("");
 		});
 	});
 

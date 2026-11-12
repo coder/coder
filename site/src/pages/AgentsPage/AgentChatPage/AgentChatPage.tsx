@@ -695,15 +695,7 @@ const AgentChatPage: React.FC = () => {
 	};
 
 	const handleBeginHistoryEdit = (messageId: number) => {
-		if (editing.isRequestInFlight()) {
-			return;
-		}
 		setComposerMode({ kind: "history", id: messageId });
-	};
-	const handleEditQueuedMessageWhenIdle = (id: number) => {
-		if (!editing.isRequestInFlight()) {
-			handleEditQueuedMessage(id);
-		}
 	};
 
 	const chatTitle = chatQuery.data?.title;
@@ -906,7 +898,7 @@ const AgentChatPage: React.FC = () => {
 					handleInterrupt={handleInterrupt}
 					handleDeleteQueuedMessage={handleDeleteQueuedMessage}
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
-					handleEditQueuedMessage={handleEditQueuedMessageWhenIdle}
+					handleEditQueuedMessage={handleEditQueuedMessage}
 					handleEndQueuedMessageEdit={handleEndQueuedMessageEdit}
 					queuedMessageUnderEditID={markedID}
 					onImplementPlan={handleImplementPlan}
