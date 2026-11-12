@@ -64,62 +64,70 @@ export const SelectionSummary: React.FC<SelectionSummaryProps> = ({
 	return (
 		<div>
 			<h2 className="text-xl font-semibold">Selection</h2>
-			<div className="text-sm">
-				<VariantContext.Provider value={indicatorVariant(1)}>
-					<StepIndicator
-						step={1}
-						onClick={
-							reachable(1) ? () => onNavigateStep("base-infra") : undefined
-						}
-					>
-						Base Template
-					</StepIndicator>
-				</VariantContext.Provider>
-				<VariantContext.Provider value={dividerVariant(1)}>
-					{selectedTemplate ? (
-						<BaseTemplateSelection
-							template={selectedTemplate}
+			<ol className="text-sm">
+				<li>
+					<VariantContext.Provider value={indicatorVariant(1)}>
+						<StepIndicator
+							step={1}
 							onClick={
-								reachable(1)
-									? () => onNavigateStep("base-parameters")
+								reachable(1) ? () => onNavigateStep("base-infra") : undefined
+							}
+						>
+							Base Template
+						</StepIndicator>
+					</VariantContext.Provider>
+					<VariantContext.Provider value={dividerVariant(1)}>
+						{selectedTemplate ? (
+							<BaseTemplateSelection
+								template={selectedTemplate}
+								onClick={
+									reachable(1)
+										? () => onNavigateStep("base-parameters")
+										: undefined
+								}
+							/>
+						) : (
+							<StepDivider />
+						)}
+					</VariantContext.Provider>
+				</li>
+				<li>
+					<VariantContext.Provider value={indicatorVariant(2)}>
+						<StepIndicator
+							step={2}
+							onClick={
+								reachable(2) ? () => onNavigateStep("module-select") : undefined
+							}
+						>
+							Modules
+						</StepIndicator>
+					</VariantContext.Provider>
+					<VariantContext.Provider value={dividerVariant(2)}>
+						{selectedModules ? (
+							<ModuleSelection
+								modules={selectedModules}
+								onSelectModule={onNavigateModule}
+							/>
+						) : (
+							<StepDivider />
+						)}
+					</VariantContext.Provider>
+				</li>
+				<li>
+					<VariantContext.Provider value={indicatorVariant(3)}>
+						<StepIndicator
+							step={3}
+							onClick={
+								reachable(3)
+									? () => onNavigateStep("customizations")
 									: undefined
 							}
-						/>
-					) : (
-						<StepDivider />
-					)}
-				</VariantContext.Provider>
-				<VariantContext.Provider value={indicatorVariant(2)}>
-					<StepIndicator
-						step={2}
-						onClick={
-							reachable(2) ? () => onNavigateStep("module-select") : undefined
-						}
-					>
-						Modules
-					</StepIndicator>
-				</VariantContext.Provider>
-				<VariantContext.Provider value={dividerVariant(2)}>
-					{selectedModules ? (
-						<ModuleSelection
-							modules={selectedModules}
-							onSelectModule={onNavigateModule}
-						/>
-					) : (
-						<StepDivider />
-					)}
-				</VariantContext.Provider>
-				<VariantContext.Provider value={indicatorVariant(3)}>
-					<StepIndicator
-						step={3}
-						onClick={
-							reachable(3) ? () => onNavigateStep("customizations") : undefined
-						}
-					>
-						Customizations
-					</StepIndicator>
-				</VariantContext.Provider>
-			</div>
+						>
+							Customizations
+						</StepIndicator>
+					</VariantContext.Provider>
+				</li>
+			</ol>
 		</div>
 	);
 };
