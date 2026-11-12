@@ -1014,7 +1014,7 @@
 								},
 								{
 									"title": "JetBrains",
-									"description": "Configure JetBrains AI Assistant to route model requests through AI Gateway.",
+									"description": "Use Claude Agent and Codex in JetBrains IDEs with AI Gateway.",
 									"path": "./ai-governance/ai-gateway/clients/jetbrains.md",
 									"state": ["premium"]
 								},
@@ -1433,6 +1433,11 @@
 							"title": "STUN and NAT",
 							"description": "Learn how Coder uses STUN and NAT traversal to establish direct peer-to-peer workspace connections.",
 							"path": "./admin/networking/stun.md"
+						},
+						{
+							"title": "Self-host a STUN server",
+							"description": "Run your own STUN server with coturn and configure Coder to use it for direct connections.",
+							"path": "./admin/networking/self-hosted-stun.md"
 						},
 						{
 							"title": "Workspace proxies",

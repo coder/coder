@@ -349,6 +349,17 @@ When collecting agent stats, aggregate metrics by a given set of comma-separated
 
 Collect database query metrics (may increase charges for metrics storage). If set to false, a reduced set of database metrics are still collected.
 
+### --prometheus-collect-workspace-stats
+
+| Property    | Value                                                         |
+|-------------|---------------------------------------------------------------|
+| Type        | <code>bool</code>                                             |
+| Environment | <code>$CODER_PROMETHEUS_COLLECT_WORKSPACE_STATS</code>        |
+| YAML        | <code>introspection.prometheus.collect_workspace_stats</code> |
+| Default     | <code>false</code>                                            |
+
+Collect per-workspace stats (may increase charges for metrics storage).
+
 ### --pprof-enable
 
 | Property    | Value                                   |
@@ -1831,7 +1842,7 @@ Maximum number of consecutive retries after a model generation fails with a tran
 | YAML        | <code>chat.maxQueuedMessagesPerChat</code>            |
 | Default     | <code>20</code>                                       |
 
-Maximum number of messages that can be queued in a chat. Sending a message to a chat whose queue is full fails with HTTP 429. Must be at least 1.
+Maximum number of messages that can be queued in a chat. Sending a message that would make a full queue longer fails with HTTP 429. Must be at least 1.
 
 ### --chat-max-attachments-per-chat
 
@@ -1886,7 +1897,18 @@ Maximum time to wait for the next streamed part from the chat model before the a
 | YAML        | <code>ai_gateway.enabled</code>        |
 | Default     | <code>true</code>                      |
 
-Whether to start an in-memory AI Gateway instance.
+Whether to enable AI Gateway. Use --ai-gateway-embedded-enabled to control whether coderd also starts an in-memory AI Gateway instance.
+
+### --ai-gateway-embedded-enabled
+
+| Property    | Value                                           |
+|-------------|-------------------------------------------------|
+| Type        | <code>bool</code>                               |
+| Environment | <code>$CODER_AI_GATEWAY_EMBEDDED_ENABLED</code> |
+| YAML        | <code>ai_gateway.embedded_enabled</code>        |
+| Default     | <code>true</code>                               |
+
+Whether to start an in-memory AI Gateway instance inside coderd. Has no effect unless --ai-gateway-enabled is true. Set to false when all AI Gateway traffic is served by standalone AI Gateway instances. Coder Agents requires this option to be set to true.
 
 ### --ai-gateway-retention
 

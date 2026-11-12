@@ -90,7 +90,7 @@ const settings: readonly {
 		context: "computer_use",
 		title: "Computer use",
 		description:
-			"Used by the computer use subagent to operate the virtual desktop. Supports Anthropic and OpenAI models, and Claude models from AWS Bedrock.",
+			"Used by the computer use subagent to operate the virtual desktop. Supports Anthropic, OpenAI, and OpenAI-compatible models, and Claude models from AWS Bedrock.",
 		unsetPlaceholder: "Use default model",
 		// This row lists only models that support computer use, so a saved model
 		// can be unavailable here while it stays enabled.
@@ -264,7 +264,7 @@ const OrganizationAgentSettingsView: React.FC<
 						This organization has no enabled chat models.
 					</p>
 				)}
-			<div className="flex flex-col gap-6 rounded-lg border border-solid border-border px-6 py-7">
+			<div className="flex flex-col gap-6 rounded-lg border px-6 py-7">
 				<DefaultModelSettings
 					defaultModelID={defaultModelID}
 					enabledModels={enabledModels}

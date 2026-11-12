@@ -167,7 +167,7 @@ const FieldLabel: React.FC<{
 				<TooltipTrigger asChild>
 					<InfoIcon className="size-3 text-content-secondary" />
 				</TooltipTrigger>
-				<TooltipContent side="top" className="max-w-[240px]">
+				<TooltipContent side="top" className="max-w-60">
 					{description}
 				</TooltipContent>
 			</Tooltip>
@@ -345,7 +345,7 @@ const SegmentedField: React.FC<
 						<TooltipTrigger asChild>
 							<InfoIcon className="size-3 text-content-secondary" />
 						</TooltipTrigger>
-						<TooltipContent side="top" className="max-w-[240px]">
+						<TooltipContent side="top" className="max-w-60">
 							{description}
 						</TooltipContent>
 					</Tooltip>
@@ -355,7 +355,7 @@ const SegmentedField: React.FC<
 				role="radiogroup"
 				aria-label={label}
 				className={cn(
-					"flex w-full items-center rounded-lg border border-solid border-border p-2",
+					"flex w-full items-center rounded-lg border p-2",
 					fieldError && "border-content-destructive",
 				)}
 			>
@@ -369,7 +369,7 @@ const SegmentedField: React.FC<
 							aria-checked={isActive}
 							disabled={disabled}
 							className={cn(
-								"flex h-6 flex-1 cursor-pointer items-center justify-center gap-2.5 rounded-xl border-0 px-2 pb-px text-sm font-normal leading-6 transition-colors focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+								"flex h-6 flex-1 cursor-pointer items-center justify-center gap-2.5 rounded-xl px-2 pb-px text-sm font-normal leading-6 transition-colors focus-visible:outline-solid focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
 								isActive
 									? "rounded bg-surface-tertiary text-content-primary"
 									: "bg-transparent text-content-secondary hover:text-content-primary",

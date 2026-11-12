@@ -149,7 +149,7 @@ const IconsPage: React.FC = () => {
 										defaultParametersForBuiltinIcons.get(icon.url) ?? "",
 									)}
 								/>
-								<figcaption className="w-[88px] h-12 text-xs font-normal text-ellipsis text-center overflow-hidden">
+								<figcaption className="w-22 h-12 text-xs font-normal text-ellipsis text-center overflow-hidden">
 									{icon.description}
 								</figcaption>
 							</div>

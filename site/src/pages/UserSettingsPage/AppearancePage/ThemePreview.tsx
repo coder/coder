@@ -25,7 +25,7 @@ export const ThemePreview: React.FC<ThemePreviewProps> = ({
 		<div className={cn(baseModeFor(theme), theme)}>
 			<div
 				className={cn(
-					"overflow-clip rounded-md border border-border border-solid bg-surface-primary text-content-primary select-none",
+					"overflow-clip rounded-md border bg-surface-primary text-content-primary select-none",
 					size === "sm" ? "w-56" : "w-full",
 					className,
 				)}
@@ -34,7 +34,7 @@ export const ThemePreview: React.FC<ThemePreviewProps> = ({
 				<div className="bg-surface-primary text-content-primary">
 					<div
 						className={cn(
-							"bg-surface-primary flex items-center justify-between border-0 border-b border-border border-solid",
+							"bg-surface-primary flex items-center justify-between border-b",
 							size === "sm" ? "px-2.5 py-1.5 mb-2" : "px-4 py-2.5 mb-3",
 						)}
 					>
@@ -100,7 +100,7 @@ export const ThemePreview: React.FC<ThemePreviewProps> = ({
 								className={cn(
 									"rounded-md flex-1",
 									size === "sm" ? "h-6" : "h-10",
-									"bg-surface-git-added border border-solid border-border",
+									"bg-surface-git-added border",
 								)}
 							>
 								<div
@@ -122,7 +122,7 @@ export const ThemePreview: React.FC<ThemePreviewProps> = ({
 				{label && (
 					<div
 						className={cn(
-							"border-0 border-t border-border border-solid font-medium text-content-primary",
+							"border-t font-medium text-content-primary",
 							size === "sm" ? "px-2.5 py-1.5 text-xs" : "px-4 py-2 text-sm",
 						)}
 					>

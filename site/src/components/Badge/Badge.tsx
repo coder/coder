@@ -7,20 +7,19 @@ import { cn } from "cn";
 import { Slot } from "radix-ui";
 
 const badgeVariants = cva(
-	`
-	inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-nowrap
-	transition-colors [&_svg]:py-0.5 border-solid
-	[&_svg]:pointer-events-none
-	`,
+	cn(
+		"inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-nowrap",
+		"transition-colors [&_svg]:py-0.5",
+		"[&_svg]:pointer-events-none",
+	),
 	{
 		variants: {
 			variant: {
 				default:
 					"border-transparent bg-surface-secondary text-content-secondary",
-				outline:
-					"border-border bg-transparent text-content-primary shadow-none",
+				outline: "bg-transparent text-content-primary shadow-none",
 				dashed:
-					"border-dashed border-border bg-surface-secondary text-content-secondary shadow-none",
+					"border-dashed bg-surface-secondary text-content-secondary shadow-none",
 				warning:
 					"border-highlight-orange bg-surface-orange text-highlight-orange",
 				destructive:
@@ -32,8 +31,8 @@ const badgeVariants = cva(
 				info: "border-border-pending bg-surface-sky text-highlight-sky",
 			},
 			size: {
-				sm: "h-[18px] border-0 rounded-sm text-2xs font-normal",
-				md: "h-[26px] py-1 text-xs font-normal",
+				sm: "h-4.5 border-0 rounded-sm text-2xs font-normal",
+				md: "h-6.5 py-1 text-xs font-normal",
 			},
 			svgSize: {
 				xs: "[&_svg]:size-icon-xs",
@@ -59,7 +58,7 @@ const badgeVariants = cva(
 			{
 				hover: true,
 				variant: "info",
-				class: "hover:bg-surface-info/20",
+				class: "hover:bg-highlight-sky/20",
 			},
 		],
 		defaultVariants: {

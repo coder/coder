@@ -5,7 +5,7 @@ import { FileIcon } from "#/components/FileIcon/FileIcon";
 import { getFileReferenceDisplay } from "./fileReferenceDisplay";
 
 export const fileReferenceChipVariants = cva(
-	"inline-flex min-h-5 max-w-[300px] select-none items-center gap-1 rounded-md border border-border bg-surface-primary py-0 pl-0.5 pr-1.5 align-middle font-sans text-[13px] font-normal leading-none text-inherit shadow-xs transition-colors",
+	"inline-flex min-h-5 max-w-75 select-none items-center gap-1 rounded-md border bg-surface-primary py-0 pl-0.5 pr-1.5 align-middle font-sans text-[13px] font-normal leading-none text-inherit shadow-xs transition-colors",
 	{
 		variants: {
 			interactive: {
@@ -37,7 +37,7 @@ export const fileReferenceChipVariants = cva(
 );
 
 const fileReferenceTriggerVariants = cva(
-	"inline-flex min-w-0 items-center gap-1 border-0 bg-transparent p-0 font-sans text-[13px] font-normal leading-none text-inherit",
+	"inline-flex min-w-0 items-center gap-1 bg-transparent p-0 font-sans text-[13px] font-normal leading-none text-inherit",
 	{
 		variants: {
 			interactive: {
@@ -141,7 +141,7 @@ export const ChipRemoveButton: React.FC<{
 }> = ({ label, onRemove }) => (
 	<button
 		type="button"
-		className="relative ml-0.5 inline-flex size-3.5 shrink-0 cursor-pointer items-center justify-center rounded border-0 bg-transparent p-0 text-content-secondary transition-colors after:absolute after:-inset-1.25 after:content-[''] hover:bg-surface-quaternary hover:text-content-primary"
+		className="relative ml-0.5 inline-flex size-3.5 shrink-0 cursor-pointer items-center justify-center rounded bg-transparent p-0 text-content-secondary transition-colors after:absolute after:-inset-1.25 after:content-[''] hover:bg-surface-quaternary hover:text-content-primary"
 		onClick={(e) => {
 			e.preventDefault();
 			e.stopPropagation();

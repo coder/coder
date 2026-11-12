@@ -48,7 +48,6 @@ import { useKebabMenu } from "#/components/Tabs/utils/useKebabMenu";
 import {
 	Tooltip,
 	TooltipContent,
-	TooltipProvider,
 	TooltipTrigger,
 } from "#/components/Tooltip/Tooltip";
 import { useProxy } from "#/contexts/ProxyContext";
@@ -109,7 +108,7 @@ const statusBorderClassByLifecycle: Partial<
 	shutdown_timeout: "border-border-warning",
 	start_error: "border-border-success",
 	shutdown_error: "border-border-warning",
-	off: "border-border",
+	off: "",
 };
 
 const getAgentBorderClass = (
@@ -117,14 +116,14 @@ const getAgentBorderClass = (
 	hasErrorState: boolean,
 ): string => {
 	if (hasErrorState) {
-		return "border-border";
+		return "";
 	}
 
 	// Lifecycle state is more specific than connection status, so it wins.
 	return (
 		statusBorderClassByLifecycle[agent.lifecycle_state] ??
 		statusBorderClassByStatus[agent.status] ??
-		"border-border"
+		""
 	);
 };
 
@@ -402,7 +401,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 		<div
 			key={agent.id}
 			className={cn(
-				"flex max-w-full flex-col rounded-lg border border-solid bg-surface-primary text-sm shadow-md overflow-clip",
+				"flex max-w-full flex-col rounded-lg border bg-surface-primary text-sm shadow-md overflow-clip",
 				borderClass,
 			)}
 		>
@@ -410,7 +409,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 				<div className="flex min-w-0 items-center gap-6 text-sm text-content-secondary">
 					<div className="flex min-w-0 w-full items-center gap-4 md:w-auto">
 						<AgentStatus agent={agent} />
-						<span className="block max-w-[260px] overflow-hidden text-ellipsis whitespace-nowrap text-base font-semibold text-content-primary">
+						<span className="block max-w-65 truncate text-base font-semibold text-content-primary">
 							{agent.name}
 						</span>
 					</div>
@@ -532,7 +531,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 				<AgentMetadata initialMetadata={initialMetadata} agent={agent} />
 			</div>
 
-			<section className="border-0 border-t border-solid border-border">
+			<section className="border-t">
 				<Collapsible open={shouldExpandLogs} onOpenChange={setShowLogs}>
 					<div className="px-4 py-2 relative">
 						<CollapsibleTrigger asChild>
@@ -584,7 +583,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 							*/}
 							{shouldExpandLogs &&
 								!(hasConnectivityIssues || shouldShowLogsTabs) && (
-									<div className="h-[300px] flex items-center justify-center">
+									<div className="h-75 flex items-center justify-center">
 										<Spinner size="lg" loading className="block mx-auto" />
 									</div>
 								)}
@@ -600,7 +599,7 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 								</div>
 							)}
 							{shouldShowLogsTabs && (
-								<div className="border border-solid rounded-md overflow-clip">
+								<div className="border rounded-md overflow-clip">
 									<Tabs
 										className="-mx-px -mt-px"
 										value={selectedLogTab}
@@ -697,34 +696,27 @@ export const AgentRow: React.FC<AgentRowProps> = ({
 											<div
 												className={cn(
 													"shrink-0 flex items-center gap-2 pl-2 pr-3",
-													"border-solid border-0 border-b border-l",
+													"border-b border-l",
 												)}
 											>
-												<TooltipProvider>
-													<Tooltip>
-														<TooltipTrigger asChild>
-															<Button
-																variant="subtle"
-																size="sm"
-																className="min-w-0"
-																disabled={!hasSelectedLogs}
-																onClick={() =>
-																	copyToClipboard(selectedLogsText)
-																}
-															>
-																{showCopiedSuccess ? (
-																	<CheckIcon />
-																) : (
-																	<CopyIcon />
-																)}
-																<span className="sr-only">{copyLogsLabel}</span>
-															</Button>
-														</TooltipTrigger>
-														<TooltipContent>
-															{showCopiedSuccess ? "Copied!" : copyLogsLabel}
-														</TooltipContent>
-													</Tooltip>
-												</TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<Button
+															variant="subtle"
+															size="sm"
+															className="min-w-0"
+															disabled={!hasSelectedLogs}
+															onClick={() => copyToClipboard(selectedLogsText)}
+														>
+															{showCopiedSuccess ? <CheckIcon /> : <CopyIcon />}
+															<span className="sr-only">{copyLogsLabel}</span>
+														</Button>
+													</TooltipTrigger>
+													<TooltipContent>
+														{showCopiedSuccess ? "Copied!" : copyLogsLabel}
+													</TooltipContent>
+												</Tooltip>
+
 												<DownloadSelectedAgentLogsButton
 													agentName={agent.name}
 													logSets={downloadableLogSets}

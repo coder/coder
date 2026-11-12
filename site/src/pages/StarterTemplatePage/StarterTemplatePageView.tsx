@@ -66,11 +66,8 @@ export const StarterTemplatePageView: React.FC<
 				</div>
 			</PageHeader>
 
-			<div
-				className="bg-surface-secondary border border-solid border-border rounded-lg"
-				id="readme"
-			>
-				<div className="px-8 pt-2 pb-12 max-w-[860px]">
+			<div className="bg-surface-secondary border rounded-lg" id="readme">
+				<div className="px-8 pt-2 pb-12 max-w-215">
 					<MemoizedMarkdown>{starterTemplate.markdown}</MemoizedMarkdown>
 				</div>
 			</div>

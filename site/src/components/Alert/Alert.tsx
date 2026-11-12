@@ -10,48 +10,45 @@ import {
 import { useState } from "react";
 import { Button } from "#/components/Button/Button";
 
-const alertVariants = cva(
-	"relative w-full rounded-lg border border-solid p-4 text-left",
-	{
-		variants: {
-			severity: {
-				info: "",
-				success: "",
-				warning: "",
-				error: "",
-			},
-			prominent: {
-				true: "",
-				false: "",
-			},
+const alertVariants = cva("relative w-full rounded-lg border p-4 text-left", {
+	variants: {
+		severity: {
+			info: "",
+			success: "",
+			warning: "",
+			error: "",
 		},
-		compoundVariants: [
-			{
-				prominent: false,
-				className: "border-border bg-surface-secondary",
-			},
-			{
-				severity: "success",
-				prominent: true,
-				className: "border-border-success bg-surface-green",
-			},
-			{
-				severity: "warning",
-				prominent: true,
-				className: "border-border-warning bg-surface-orange",
-			},
-			{
-				severity: "error",
-				prominent: true,
-				className: "border-border-destructive bg-surface-red",
-			},
-		],
-		defaultVariants: {
-			severity: "info",
-			prominent: false,
+		prominent: {
+			true: "",
+			false: "",
 		},
 	},
-);
+	compoundVariants: [
+		{
+			prominent: false,
+			className: "bg-surface-secondary",
+		},
+		{
+			severity: "success",
+			prominent: true,
+			className: "border-border-success bg-surface-green",
+		},
+		{
+			severity: "warning",
+			prominent: true,
+			className: "border-border-warning bg-surface-orange",
+		},
+		{
+			severity: "error",
+			prominent: true,
+			className: "border-border-destructive bg-surface-red",
+		},
+	],
+	defaultVariants: {
+		severity: "info",
+		prominent: false,
+	},
+});
 
 const severityIcons = {
 	info: { icon: InfoIcon, className: "text-highlight-sky", label: "Info" },
@@ -119,7 +116,7 @@ export const Alert: React.FC<AlertProps> = ({
 				)}
 			>
 				<div className="flex min-w-0 flex-1 items-start gap-3">
-					<Icon className={cn("size-icon-sm mt-[3px]", iconClassName)} />
+					<Icon className={cn("size-icon-sm mt-0.75", iconClassName)} />
 					<div className="flex min-w-0 flex-1 flex-col gap-4">
 						<div className="min-w-0 flex-1">
 							<span className="sr-only">{label}: </span>
