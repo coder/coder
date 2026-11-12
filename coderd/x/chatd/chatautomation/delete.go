@@ -37,9 +37,9 @@ func LockID(id uuid.UUID) int64 {
 // automation go. The chats publish their change after the commit.
 //
 // actor needs delete on the automation. The chat locks run as chatd, because
-// the owner's chats are not the actor's to update: an organization
-// administrator has no update on them, and the delete of the automation is
-// what authorizes the change of its queue.
+// a role that grants delete on automations, such as a custom role, need not
+// grant update on the owner's chats, and the delete of the automation is what
+// authorizes the change of its queue.
 func Delete(
 	ctx context.Context,
 	logger slog.Logger,
