@@ -351,35 +351,6 @@ export const PausedEditBehindHead: Story = {
 	},
 };
 
-// The begin request is in flight: the row shows as under edit and the Enter
-// hint is hidden because Enter saves the edit.
-export const BeginRequestPending: Story = {
-	args: {
-		queuedMessageUnderEditID: 1,
-		showEnterToSendHint: false,
-		messages: [
-			buildMessage(1, textContent("Run the test suite")),
-			buildMessage(2, textContent("Open the browser")),
-		],
-	},
-};
-
-// The end request is in flight while the row still carries the server
-// marker: the row shows no edit state.
-export const EndRequestPending: Story = {
-	args: {
-		queuedMessageUnderEditID: null,
-		messages: [
-			{
-				...MockChatQueuedMessageUnderEdit,
-				id: 1,
-				content: textContent("Run the test suite"),
-			},
-			buildMessage(2, textContent("Open the browser")),
-		],
-	},
-};
-
 // The second row is a pending send that the server has not stored yet, so
 // its actions are disabled.
 export const PendingRowDisablesActions: Story = {
