@@ -108,14 +108,11 @@ ORDER BY
     id DESC;
 
 -- name: CountChatAutomationsByOwnerID :one
--- Counts the automations of one owner across all organizations, except those
--- of a deleted organization: nothing runs there, and the owner cannot list or
--- delete them.
+-- Counts the automations of one owner across all organizations. A deleted
+-- organization counts too: its last member can still create there.
 SELECT COUNT(*)::bigint
 FROM chat_automations
-JOIN organizations ON organizations.id = chat_automations.organization_id
-WHERE chat_automations.owner_id = @owner_id::uuid
-  AND NOT organizations.deleted;
+WHERE owner_id = @owner_id::uuid;
 
 -- name: DeleteChatAutomationByID :exec
 DELETE FROM chat_automations

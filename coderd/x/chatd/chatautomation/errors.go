@@ -11,8 +11,9 @@ import (
 // ErrCreateForbidden means that the actor cannot create an automation.
 var ErrCreateForbidden = xerrors.New("not allowed to create a chat automation")
 
-// ErrOwnerUnavailable means that the owner is deleted or is a system user, so
-// no automation can belong to it.
+// ErrOwnerUnavailable means that the owner is deleted, or that the actor cannot
+// read it, so no automation can belong to it. The insert also refuses a system
+// user, but no API key and no tool actor is a system user.
 var ErrOwnerUnavailable = xerrors.New("the owner cannot own chat automations")
 
 // ErrReferenceUnavailable means that a chat, model configuration or project of

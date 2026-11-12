@@ -533,24 +533,26 @@ func TestCreateCap(t *testing.T) {
 		require.EqualValues(t, 2, count)
 	})
 
-	// Nothing runs in a deleted organization and its owners cannot list or
-	// delete its automations, so they do not count against the cap.
-	t.Run("DeletedOrganization", func(t *testing.T) {
+	// The last member of a deleted organization can still create there, so
+	// its automations count: the cap holds in the deleted organization and in
+	// the others.
+	t.Run("DeletedOrganizationStillCounts", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		a, b := newFixture(t, db, nil), newFixture(t, db, nil)
-		h, actor := newHarness(t, db, limits), userActor(t, db, a.owner.ID)
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: b.owner.ID, OrganizationID: a.org.ID})
+		h, actor := newHarness(t, db, limits), userActor(t, db, b.owner.ID)
 		for range 2 {
-			dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: b.org.ID, OwnerID: a.owner.ID})
+			_, err := h.creator.Create(ctx, actor, createParams(b.org.ID, webhookToNewChat(t, b)))
+			require.NoError(t, err)
 		}
-		_, err := h.creator.Create(ctx, actor, createParams(a.org.ID, webhookToNewChat(t, a)))
-		var limitErr *chatautomation.LimitError
-		require.ErrorAs(t, err, &limitErr)
-
 		require.NoError(t, db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{ID: b.org.ID, UpdatedAt: dbtime.Now()}))
 
-		_, err = h.creator.Create(ctx, actor, createParams(a.org.ID, webhookToNewChat(t, a)))
-		require.NoError(t, err)
+		for _, f := range []fixture{a, b} {
+			_, err := h.creator.Create(ctx, actor, createParams(f.org.ID, webhookToNewChat(t, f)))
+			var limitErr *chatautomation.LimitError
+			require.ErrorAs(t, err, &limitErr)
+		}
 	})
 }
 
@@ -704,8 +706,13 @@ func TestCreateTargetOwnership(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
 	f := newFixture(t, db, nil)
-	admin := member(t, db, f.org.ID, rbac.ScopedRoleOrgAdmin(f.org.ID).Name)
-	actor := userActor(t, db, admin.ID)
+	// Each subtest has its own admin, so that the automations of one cannot
+	// count in another.
+	newAdmin := func(t *testing.T) (database.User, rbac.Subject) {
+		t.Helper()
+		admin := member(t, db, f.org.ID, rbac.ScopedRoleOrgAdmin(f.org.ID).Name)
+		return admin, userActor(t, db, admin.ID)
+	}
 	toChat := func(chatID uuid.UUID) codersdk.CreateChatAutomationRequest {
 		req := webhookToNewChat(t, f)
 		req.TargetMode, req.NewChatModelConfigID, req.TargetChatID = codersdk.ChatAutomationTargetModeExistingChat, nil, &chatID
@@ -715,6 +722,7 @@ func TestCreateTargetOwnership(t *testing.T) {
 	t.Run("ChatOfAnotherUser", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
+		admin, actor := newAdmin(t)
 		h := newHarness(t, db, testLimits)
 
 		_, err := h.creator.Create(ctx, actor, createParams(f.org.ID, toChat(f.chat(t).ID)))
@@ -733,6 +741,7 @@ func TestCreateTargetOwnership(t *testing.T) {
 	t.Run("ChatOfTheOwner", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
+		admin, actor := newAdmin(t)
 		own := dbgen.Chat(t, db, database.Chat{OrganizationID: f.org.ID, OwnerID: admin.ID, LastModelConfigID: f.model.ID})
 
 		res, err := newHarness(t, db, testLimits).creator.Create(ctx, actor, createParams(f.org.ID, toChat(own.ID)))

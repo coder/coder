@@ -62,7 +62,7 @@ func createObject(organizationID, ownerID uuid.UUID) rbac.Object {
 // when actor cannot create it, *InvalidRequestError for a request that breaks a
 // field rule or names a chat, model or project that the actor cannot use,
 // *LimitError at the per-owner limit, ErrOwnerUnavailable when the owner is
-// deleted or a system user, and ErrReferenceUnavailable when a concurrent
+// deleted or unreadable, and ErrReferenceUnavailable when a concurrent
 // delete removed a chat, model configuration or project after the check. No
 // error text holds the prompt or a secret.
 func (c *Creator) Create(ctx context.Context, actor rbac.Subject, p CreateParams) (CreateResult, error) {
@@ -145,9 +145,9 @@ func (c *Creator) Create(ctx context.Context, actor rbac.Subject, p CreateParams
 }
 
 // missingRow says why the insert returned no row. The owner guard of the insert
-// refuses a deleted or system owner. The insert also reads the target chat,
-// creating chat, model configuration and project again, so when the owner is
-// fine, one of them was deleted since checkReferences read it.
+// refuses a deleted owner. The insert also reads the target chat, creating
+// chat, model configuration and project again, so when the owner is fine, one
+// of them was deleted since checkReferences read it.
 func missingRow(ctx context.Context, tx database.Store, owner uuid.UUID) error {
 	user, err := tx.GetUserByID(ctx, owner)
 	switch {
@@ -155,7 +155,7 @@ func missingRow(ctx context.Context, tx database.Store, owner uuid.UUID) error {
 		return ErrOwnerUnavailable
 	case err != nil:
 		return xerrors.Errorf("get owner: %w", err)
-	case user.Deleted || user.IsSystem:
+	case user.Deleted:
 		return ErrOwnerUnavailable
 	}
 	return ErrReferenceUnavailable
