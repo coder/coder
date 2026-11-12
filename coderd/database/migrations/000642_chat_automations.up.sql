@@ -254,7 +254,12 @@ COMMENT ON COLUMN chat_messages.prompt_hooks_pending IS 'Set when the message wa
 ALTER TABLE chat_queued_messages
     ADD COLUMN automation_id uuid,
     ADD COLUMN input_id uuid,
-    ADD COLUMN prompt_hooks_pending boolean NOT NULL DEFAULT false;
+    ADD COLUMN prompt_hooks_pending boolean NOT NULL DEFAULT false,
+    -- The queue is small, so validating this check under the lock is cheap.
+    ADD CONSTRAINT chat_queued_messages_automation_input_check CHECK (
+        (automation_id IS NULL AND input_id IS NULL)
+        OR (automation_id IS NOT NULL AND input_id IS NOT NULL)
+    );
 
 COMMENT ON COLUMN chat_queued_messages.automation_id IS 'Automation that queued this message. No foreign key: provenance stays after the automation is deleted.';
 COMMENT ON COLUMN chat_queued_messages.input_id IS 'Webhook delivery or schedule occurrence that queued this message. Set together with automation_id.';
