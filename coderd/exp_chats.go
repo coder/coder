@@ -7827,7 +7827,7 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 		return nil, "", nil
 	}
 	// Chat creation has no chat ID yet, so workspace-file-reference and
-	// question-answer parts are rejected because they require an existing chat.
+	// question-answer parts, which require an existing chat, are rejected.
 	content, pasteData, inputError := createChatInputFromParts(ctx, db, uuid.Nil, uuid.NullUUID{}, req.Content, "content", asyncQuestionsEnabled)
 	if inputError != nil {
 		return nil, "", inputError
@@ -7843,9 +7843,9 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 	return content, titleText, nil
 }
 
-// createChatInputFromParts validates input parts and returns message content
-// with any question-answer part first, plus pasted-text blob references
-// by file ID.
+// createChatInputFromParts validates input parts and converts them to
+// message content, with any question-answer part first. The returned map
+// holds pasted-text blob references by file ID.
 //
 //nolint:revive // asyncQuestionsEnabled is fixed for the life of the process.
 func createChatInputFromParts(
@@ -8082,6 +8082,7 @@ func createChatInputFromParts(
 		questionAnswer := codersdk.ChatMessageQuestionAnswer(questionAnswerID)
 		content = append([]codersdk.ChatMessagePart{questionAnswer}, content...)
 	}
+
 	return content, pasteData, nil
 }
 
