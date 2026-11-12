@@ -17,6 +17,11 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "#/components/Popover/Popover";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "#/components/Tooltip/Tooltip";
 
 type ComboboxContextProps = {
 	open: boolean;
@@ -80,20 +85,48 @@ export const ComboboxButton = ({
 	ref,
 	...props
 }: ComboboxButtonProps) => {
+	const labelRef = useRef<HTMLSpanElement>(null);
+	const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+	const label = selectedOption?.label ?? placeholder;
+
 	return (
-		<Button
-			className="flex items-center justify-between shrink-0 grow gap-2 pr-1.5 h-auto min-h-10 py-1 whitespace-normal"
-			style={{ flexBasis: width }}
-			variant="outline"
-			ref={ref}
-			{...props}
+		<Tooltip
+			open={isTooltipOpen}
+			// Measured on open rather than on render, so a text spacing override
+			// applied after mount still reveals the full label. Stays closed while
+			// the popover is open so it never covers the list.
+			onOpenChange={(open) => {
+				const span = labelRef.current;
+				setIsTooltipOpen(
+					open &&
+						props["aria-expanded"] !== true &&
+						span !== null &&
+						span.scrollWidth > span.clientWidth,
+				);
+			}}
 		>
-			{selectedOption?.startIcon}
-			<span className="text-left min-w-0 wrap-break-word grow">
-				{selectedOption?.label ?? placeholder}
-			</span>
-			<ChevronDownIcon className="size-icon-sm" />
-		</Button>
+			<TooltipTrigger asChild>
+				<Button
+					className="flex items-center justify-between shrink-0 grow gap-2 pr-1.5"
+					style={{ flexBasis: width }}
+					variant="outline"
+					ref={ref}
+					{...props}
+				>
+					{selectedOption?.startIcon}
+					<span
+						ref={labelRef}
+						className="text-left block overflow-hidden text-ellipsis grow"
+					>
+						{label}
+					</span>
+					<ChevronDownIcon className="size-icon-sm" />
+				</Button>
+			</TooltipTrigger>
+			<TooltipContent side="bottom" align="start" className="max-w-65">
+				{label}
+			</TooltipContent>
+		</Tooltip>
 	);
 };
 

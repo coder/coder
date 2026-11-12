@@ -113,6 +113,13 @@ export const LongLabels: Story = {
 	],
 };
 
+export const LongLabelTooltip: Story = {
+	...LongLabels,
+	play: async () => {
+		await userEvent.tab();
+	},
+};
+
 export const LoadingOptions: Story = {
 	args: {
 		options: undefined,
