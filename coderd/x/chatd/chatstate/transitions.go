@@ -308,6 +308,9 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, busyBehavi
 		ReasoningEffort: m.ReasoningEffort,
 		CreatedBy:       createdBy,
 		BusyBehavior:    busyBehavior,
+		// Only a message that an automation queues names one.
+		AutomationID: uuid.NullUUID{},
+		InputID:      uuid.NullUUID{},
 	})
 }
 
