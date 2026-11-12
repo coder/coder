@@ -371,7 +371,9 @@ func (s *standaloneGateway) run(ctx context.Context) error {
 }
 
 func (s *standaloneGateway) shutdownDaemon() error {
-	if err := shutdownWithTimeout(s.daemon.Shutdown, daemonShutdownTimeout); err != nil {
+	shutdownCtx, shutdownCancel := clockTimeout(context.Background(), s.clock, daemonShutdownTimeout, "aigateway", "daemon_shutdown")
+	defer shutdownCancel()
+	if err := s.daemon.Shutdown(shutdownCtx); err != nil {
 		return xerrors.Errorf("shutdown AI Gateway daemon: %w", err)
 	}
 	s.drpcClosed.Store(true)
@@ -446,7 +448,7 @@ func (s *standaloneGateway) serve(ctx context.Context) error {
 	s.logger.Info(ctx, "shutting down standalone AI Gateway")
 
 	provReloadCancel()
-	provReloadShutdownCtx, provReloadShutdownCancel := context.WithTimeout(context.Background(), providerReloadShutdownTimeout)
+	provReloadShutdownCtx, provReloadShutdownCancel := clockTimeout(context.Background(), s.clock, providerReloadShutdownTimeout, "aigateway", "provider_reload_shutdown")
 	defer provReloadShutdownCancel()
 
 	var provReloadStopErr error
@@ -461,7 +463,7 @@ func (s *standaloneGateway) serve(ctx context.Context) error {
 	// bridge cache while requests are draining. If it does not stop within its
 	// timeout, continue with best-effort graceful HTTP shutdown.
 	// The daemon remains connected so in-flight requests retain their DRPC connection.
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), httpShutdownTimeout)
+	shutdownCtx, shutdownCancel := clockTimeout(context.Background(), s.clock, httpShutdownTimeout, "aigateway", "http_shutdown")
 	defer shutdownCancel()
 	var httpShutdownErr error
 	if err := s.httpServer.Shutdown(shutdownCtx); err != nil {
@@ -576,4 +578,15 @@ func resolveAIGatewayKey(key string, keyFile string) (string, error) {
 		return "", xerrors.Errorf("read AI Gateway key file %q: %w", keyFile, err)
 	}
 	return strings.TrimSpace(string(data)), nil
+}
+
+// clockTimeout returns a context that is canceled when d elapses on clock.
+// The tags identify the timer so tests can trap it on a mock clock.
+func clockTimeout(ctx context.Context, clock quartz.Clock, d time.Duration, tags ...string) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancelCause(ctx)
+	timer := clock.AfterFunc(d, func() { cancel(context.DeadlineExceeded) }, tags...)
+	return ctx, func() {
+		timer.Stop()
+		cancel(context.Canceled)
+	}
 }
