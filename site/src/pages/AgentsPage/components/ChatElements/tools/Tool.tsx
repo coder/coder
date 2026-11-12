@@ -10,9 +10,9 @@ import {
 	type AskUserQuestion,
 	AskUserQuestionTool,
 } from "./AskUserQuestionTool";
-import { ACPToolNames, isACPToolName } from "./acpToolNames";
 import { AsyncQuestionCard } from "./AsyncQuestionCard";
 import { AsyncQuestionsContext } from "./AsyncQuestionsContext";
+import { ACPToolNames, isACPToolName } from "./acpToolNames";
 import { ChatClearedTool } from "./ChatClearedTool";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
@@ -734,7 +734,8 @@ const AskUserQuestionAsyncRenderer: React.FC<ToolRendererProps> = ({
 			: "") || (typeof result === "string" && isError ? result : "");
 	const questionId = getAsyncQuestionId(result);
 	const context = useContext(AsyncQuestionsContext);
-	const question = questionId === undefined ? undefined : context.byId.get(questionId);
+	const question =
+		questionId === undefined ? undefined : context.byId.get(questionId);
 
 	return (
 		<AsyncQuestionCard

@@ -3,7 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
-import { AskUserQuestionForm, AskUserQuestionTool } from "./AskUserQuestionTool";
+import {
+	AskUserQuestionForm,
+	AskUserQuestionTool,
+} from "./AskUserQuestionTool";
 
 const questions = [
 	{
@@ -45,7 +48,9 @@ describe("AskUserQuestionForm", () => {
 			</QueryClientProvider>,
 		);
 
-		expect(screen.getByRole("button", { name: "Submitting..." })).toBeDisabled();
+		expect(
+			screen.getByRole("button", { name: "Submitting..." }),
+		).toBeDisabled();
 
 		await act(async () => {
 			resolveSend?.();

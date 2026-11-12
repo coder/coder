@@ -607,10 +607,15 @@ export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	);
 };
 
-export const QuestionErrorView: React.FC<{
+type QuestionErrorViewProps = {
 	status: ToolStatus;
 	errorMessage?: string;
-}> = ({ status, errorMessage }) => (
+};
+
+export const QuestionErrorView: React.FC<QuestionErrorViewProps> = ({
+	status,
+	errorMessage,
+}) => (
 	<div className="w-full" role="alert">
 		<ToolCall.Root
 			status={status}
@@ -626,7 +631,11 @@ export const QuestionErrorView: React.FC<{
 	</div>
 );
 
-export const QuestionRunningHeader: React.FC<{ status: ToolStatus }> = ({
+type QuestionRunningHeaderProps = {
+	status: ToolStatus;
+};
+
+export const QuestionRunningHeader: React.FC<QuestionRunningHeaderProps> = ({
 	status,
 }) => (
 	<ToolCall.Root
@@ -642,13 +651,17 @@ export const QuestionRunningHeader: React.FC<{ status: ToolStatus }> = ({
 	</ToolCall.Root>
 );
 
-export const NoQuestionsAvailable = () => (
+export const NoQuestionsAvailable: React.FC = () => (
 	<p className="text-[13px] italic text-content-secondary">
 		No questions available.
 	</p>
 );
 
-export const SubmittedAnswer: React.FC<{ text: string }> = ({ text }) => (
+type SubmittedAnswerProps = {
+	text: string;
+};
+
+export const SubmittedAnswer: React.FC<SubmittedAnswerProps> = ({ text }) => (
 	<div className="mt-4 rounded-md border bg-surface-secondary px-3 py-2">
 		<p className="text-xs text-content-secondary">Submitted answer</p>
 		<p className="mt-1 whitespace-pre-wrap text-[13px] text-content-primary">

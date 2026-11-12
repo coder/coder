@@ -24,7 +24,10 @@ describe("AsyncQuestionCard", () => {
 		{
 			name: "running",
 			props: { status: "running" },
-			lines: ["Asking for clarification...", "Asked: Which cache should we use?"],
+			lines: [
+				"Asking for clarification...",
+				"Asked: Which cache should we use?",
+			],
 		},
 		{
 			name: "open in the question panel",

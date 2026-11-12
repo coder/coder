@@ -22,10 +22,7 @@ const toolMessage = (...tools: MergedTool[]): ParsedMessageEntry => ({
 	parsed: { ...parseMessageContent([]), tools },
 });
 
-const userMessage = (
-	text: string,
-	questionId?: string,
-): ParsedMessageEntry => {
+const userMessage = (text: string, questionId?: string): ParsedMessageEntry => {
 	const content: TypesGen.ChatMessagePart[] = [{ type: "text", text }];
 	if (questionId !== undefined) {
 		content.unshift({ type: "question-answer", question_id: questionId });

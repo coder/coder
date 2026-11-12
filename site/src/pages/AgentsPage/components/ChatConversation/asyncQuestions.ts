@@ -142,9 +142,14 @@ export const deriveAsyncQuestions = (
 			pendingAnswers,
 		);
 	}
-	const newestQuestion = newestQuestionId ? byId.get(newestQuestionId) : undefined;
+	const newestQuestion = newestQuestionId
+		? byId.get(newestQuestionId)
+		: undefined;
 	let panelQuestion: AsyncQuestion | undefined;
-	if (newestQuestion?.status === "open" || newestQuestion?.status === "pending") {
+	if (
+		newestQuestion?.status === "open" ||
+		newestQuestion?.status === "pending"
+	) {
 		panelQuestion = newestQuestion;
 	}
 	return { byId, panelQuestion };
