@@ -104,15 +104,12 @@ describe("workspaceSkillsFromChat", () => {
 	});
 });
 
-type ChatPageInputProps = React.ComponentProps<typeof ChatPageInput>;
-
 const renderChatPageInput = (
 	store: ReturnType<typeof createChatStore>,
-	overrides: Partial<ChatPageInputProps> = {},
-	Input: React.FC<ChatPageInputProps> = ChatPageInput,
+	overrides: Partial<React.ComponentProps<typeof ChatPageInput>> = {},
 ) =>
 	renderWithAuth(
-		<Input
+		<ChatPageInput
 			chat={{ ...MockChat, id: "", organization_id: "" }}
 			store={store}
 			modelCatalog={undefined}
@@ -552,7 +549,7 @@ describe("ChatPageInput", () => {
 		await screen.findByText("not stored yet");
 		await user.click(await screen.findByRole("button", { name: "Send now" }));
 		await user.click(screen.getByRole("button", { name: "Remove from queue" }));
-		await user.click(screen.getByTestId("chat-message-input"));
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
 		await user.keyboard("{Enter}");
 
 		expect(onPromoteQueuedMessage).not.toHaveBeenCalled();
