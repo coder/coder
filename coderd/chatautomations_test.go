@@ -474,3 +474,24 @@ func TestChatAutomationsInternalError(t *testing.T) {
 		})
 	}
 }
+
+// TestChatAutomationsDeleteQueuedMessage deletes an automation that a queued
+// message names: the answer is a 500 with no detail, and nothing changes.
+func TestChatAutomationsDeleteQueuedMessage(t *testing.T) {
+	t.Parallel()
+	env := newChatAutomationEnv(t, nil)
+	chat := env.chat(t, env.first.UserID, "")
+	automation := env.automation(t, database.ChatAutomation{OwnerID: env.first.UserID})
+	env.exec(t, `INSERT INTO chat_queued_messages (chat_id, content, created_by, automation_id, input_id)
+		VALUES ($1, '[]', $2, $3, $4)`, chat.ID, env.first.UserID, automation.ID, uuid.New())
+	env.auditor.ResetLogs()
+
+	status, body := doChatAutomation(t, env.owner, http.MethodDelete, chatAutomationPath(env.first.OrganizationID, "/"+automation.ID.String()))
+
+	require.Equal(t, http.StatusInternalServerError, status, string(body))
+	var res codersdk.Response
+	require.NoError(t, json.Unmarshal(body, &res))
+	require.Empty(t, res.Detail)
+	require.True(t, env.exists(t, automation.ID))
+	require.Empty(t, env.auditor.AuditLogs())
+}

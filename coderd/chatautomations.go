@@ -178,7 +178,7 @@ func (api *API) deleteChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer commitAudit()
 
-	deleted, err := chatautomation.Delete(ctx, api.Logger, api.Database, api.Pubsub, httpmw.UserAuthorization(ctx), organization.ID, id)
+	deleted, err := chatautomation.Delete(ctx, api.Database, httpmw.UserAuthorization(ctx), organization.ID, id)
 	if errors.Is(err, chatautomation.ErrDeleteForbidden) {
 		httpapi.Forbidden(rw)
 		return
