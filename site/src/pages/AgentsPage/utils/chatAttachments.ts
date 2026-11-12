@@ -2,6 +2,7 @@ import { getErrorMessage, isApiErrorResponse } from "#/api/errors";
 import type * as TypesGen from "#/api/typesGenerated";
 import { ChatAttachmentMediaTypes } from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
+import { isStandaloneDisplayMode } from "#/utils/platform";
 import { decodeDataURL } from "./dataUrls";
 
 const undisplayableAttachmentDetail = "File exists but could not be displayed.";
@@ -78,19 +79,10 @@ export async function probeAttachmentFailure(
 	return classifyAttachmentFailureResponse(response);
 }
 
-type IOSNavigator = Navigator & { standalone?: boolean };
-
 const isIOS = (): boolean =>
 	/iPad|iPhone|iPod/.test(navigator.userAgent) ||
 	// iPadOS 13+ reports a macOS user agent; the touchscreen is the tell.
 	(navigator.userAgent.includes("Mac") && navigator.maxTouchPoints > 1);
-
-const isStandaloneDisplayMode = (): boolean => {
-	const nav: IOSNavigator = navigator;
-	return (
-		matchMedia("(display-mode: standalone)").matches || nav.standalone === true
-	);
-};
 
 const canShareFile = (file: File): boolean =>
 	typeof navigator.share === "function" &&

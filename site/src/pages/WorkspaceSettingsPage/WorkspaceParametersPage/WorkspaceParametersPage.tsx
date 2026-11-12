@@ -349,7 +349,7 @@ const WorkspaceParametersPage: React.FC = () => {
 				/>
 			) : (
 				<EmptyState
-					className="border border-border border-solid rounded-md"
+					className="border rounded-md"
 					message="This workspace has no parameters"
 					cta={
 						<Link

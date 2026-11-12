@@ -186,7 +186,7 @@ const LicensesSettingsPageView: React.FC<Props> = ({
 
 				{!isLoading && canViewLicenses && licenses?.length === 0 && (
 					<EmptyState
-						className="rounded-lg border border-solid border-border"
+						className="rounded-lg border"
 						message="No licenses yet"
 						description={
 							<>

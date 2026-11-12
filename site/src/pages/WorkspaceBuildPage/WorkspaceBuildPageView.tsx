@@ -168,7 +168,7 @@ export const WorkspaceBuildPageView: React.FC<WorkspaceBuildPageViewProps> = ({
 				</Sidebar>
 
 				<ScrollArea>
-					<div className="flex items-center justify-between border-0 border-b border-solid border-border relative">
+					<div className="flex items-center justify-between border-b relative">
 						<Tabs
 							value={selectedTab}
 							onValueChange={(value: string) => {
@@ -210,7 +210,7 @@ export const WorkspaceBuildPageView: React.FC<WorkspaceBuildPageViewProps> = ({
 										<Alert
 											severity="error"
 											prominent
-											className="rounded-none border-0 border-b border-solid border-border"
+											className="rounded-none border-0 border-b border-border"
 										>
 											<div>
 												The workspace may have failed to delete due to a
@@ -226,7 +226,7 @@ export const WorkspaceBuildPageView: React.FC<WorkspaceBuildPageViewProps> = ({
 									<Alert
 										severity="warning"
 										prominent
-										className="rounded-none border-0 border-b border-solid border-border"
+										className="rounded-none border-0 border-b border-border"
 									>
 										Provisioner logs exceeded the max size of 1MB. Will not
 										continue to write provisioner logs for workspace build.

@@ -84,7 +84,7 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
 			<DropdownMenuTrigger asChild>
 				<button
 					type="button"
-					className="relative bg-transparent border-0 cursor-pointer p-0"
+					className="relative bg-transparent cursor-pointer p-0"
 				>
 					<Avatar fallback={user.username} src={user.avatar_url} size="lg" />
 					{/* Follows the avatar so its visible initials start the name. */}

@@ -136,15 +136,15 @@ assert_checkbox_parses_to() {
 
 # Branch A: a checked page.
 # shellcheck disable=SC2016 # backtick-quoted path in the fixture is literal Markdown, not command substitution.
-assert_checkbox_parses_to '- [x] [`docs/foo/bar.md`](https://coder.com/docs/@b/foo/bar)' "$(printf 'x\tdocs/foo/bar.md')"
+assert_checkbox_parses_to '- [x] [`docs/foo/bar.md`](https://pr-1.docs.cdr-preview.dev/foo/bar)' "$(printf 'x\tdocs/foo/bar.md')"
 
 # Branch B: an unchecked page.
 # shellcheck disable=SC2016
-assert_checkbox_parses_to '- [ ] [`docs/foo/baz.md`](https://coder.com/docs/@b/foo/baz)' "$(printf ' \tdocs/foo/baz.md')"
+assert_checkbox_parses_to '- [ ] [`docs/foo/baz.md`](https://pr-1.docs.cdr-preview.dev/foo/baz)' "$(printf ' \tdocs/foo/baz.md')"
 
 # Branch C: an uppercase X, which GitHub also renders as checked.
 # shellcheck disable=SC2016
-assert_checkbox_parses_to '- [X] [`docs/foo/qux.md`](https://coder.com/docs/@b/foo/qux)' "$(printf 'X\tdocs/foo/qux.md')"
+assert_checkbox_parses_to '- [X] [`docs/foo/qux.md`](https://pr-1.docs.cdr-preview.dev/foo/qux)' "$(printf 'X\tdocs/foo/qux.md')"
 
 # Branch D: a non-checklist line (prose, a header, the hidden markers)
 # must not match at all.
@@ -213,9 +213,9 @@ assert_round_trip_state() {
 	body=$(printf '%s\n' \
 		'## Docs preview' \
 		'' \
-		'- [x] [`docs/a.md`](https://coder.com/docs/@b/a)' \
-		'- [ ] [`docs/b.md`](https://coder.com/docs/@b/b)' \
-		'- [x] [`docs/c.md`](https://coder.com/docs/@b/c)' \
+		'- [x] [`docs/a.md`](https://pr-1.docs.cdr-preview.dev/a)' \
+		'- [ ] [`docs/b.md`](https://pr-1.docs.cdr-preview.dev/b)' \
+		'- [x] [`docs/c.md`](https://pr-1.docs.cdr-preview.dev/c)' \
 		'<!-- docs-preview -->' \
 		"<!-- ${STATE_PREFIX}${state_b64} -->")
 
@@ -600,6 +600,25 @@ IMAGE_PAGES_MAX=25
 # Default so the page-only cases below can call build_comment_body under
 # set -u; the image cases set it via render_image_section.
 image_section=""
+# The per-commit preview list, mirrored from docs-preview.yaml. Empty by
+# default so the cases that predate it render without the list.
+COMMITS_MAX=100
+commit_lines=""
+commit_count=0
+
+# merge_commit_lines mirrors docs-preview.yaml: this run's commit first, then
+# the earlier commits' lines read back from the existing comment, minus a
+# repeat of this commit, capped at COMMITS_MAX. Reads $SHORT_SHA, $PR_NUMBER
+# and $domain.
+merge_commit_lines() {
+	local body="$1" domain_re
+	domain_re=${domain//./\\.}
+	{
+		# shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters.
+		printf -- '- `%s` https://pr-%s-%s.%s\n' "$SHORT_SHA" "$PR_NUMBER" "$SHORT_SHA" "$domain"
+		printf '%s\n' "$body" | grep -E "^- \`[0-9a-f]{9}\` https://pr-${PR_NUMBER}-[0-9a-f]{9}\.${domain_re}\$" | grep -vF "\`${SHORT_SHA}\`" || true
+	} | awk -v max="$COMMITS_MAX" 'NR <= max'
+}
 
 page_url() {
 	local filename="$1" page_path url
@@ -689,11 +708,18 @@ build_comment_body() {
 	# whose state map is {}.
 	{
 		printf '## Docs preview\n\n'
+		# shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters.
+		printf 'Links open this pull request'"'"'s preview at %s, which updates with each push.\n\n' "$url_prefix"
 		if [ -n "$page_block" ]; then
 			printf '%s\n' "$page_block"
 		fi
 		if [ -n "$image_section" ]; then
 			printf '%s\n' "$image_section"
+		fi
+		if [ -n "$commit_lines" ]; then
+			printf '<details>\n<summary>Preview sites for each built commit (%s)</summary>\n\n' "$commit_count"
+			printf "Every built commit keeps its own preview, newest first. Previews aren't indexed by search engines and are deleted when this pull request is merged or closed.\n\n"
+			printf '%s\n\n</details>\n\n' "$commit_lines"
 		fi
 		printf '%s\n' "$DOCS_PREVIEW_MARKER"
 		printf '<!-- %s%s -->' "$STATE_PREFIX" "$state_b64"
@@ -731,7 +757,7 @@ github_comment_limit=65536
 # Repo-scale worst case: a 400-page docs migration on a long branch with
 # ~60-char paths. The cap must keep the real body under GitHub's 65536-char
 # limit while still listing as many pages as fit.
-url_prefix="https://coder.com/docs/@feature-team-very-long-branch-name-docs-migration-2024"
+url_prefix="https://pr-123456.docs.cdr-preview.dev"
 final_rows=$(jq -nc '[range(400) | {
 	filename: ("docs/reference/generated/section-\(. + 1000)/really-long-page-name-\(. + 1000).md"),
 	sha: ("0123456789abcdef0123456789abcdef" + (. + 100000 | tostring)),
@@ -759,7 +785,7 @@ else
 fi
 
 # A small PR keeps every page and renders no omitted-pages summary line.
-url_prefix="https://coder.com/docs/@short-branch"
+url_prefix="https://pr-1.docs.cdr-preview.dev"
 final_rows=$(jq -nc '[range(5) | {filename: ("docs/page-\(.).md"), sha: "abc", checked: false}]')
 total_pages=$(printf '%s' "$final_rows" | jq 'length')
 keep=$(cap_pages "$budget")
@@ -786,15 +812,15 @@ fi
 # render_image_section renders a nested list of each changed image with a
 # preview link for every page that embeds it. A docs-root page
 # (docs/README.md) links to the branch root with no trailing path.
-url_prefix="https://coder.com/docs/@branch"
+url_prefix="https://pr-1.docs.cdr-preview.dev"
 IMAGE_PAGES_MAX=25
 image_section_json='[{"image":"docs/images/a.png","pages":["docs/user-guides/x.md","docs/y.md"]},{"image":"docs/images/b.png","pages":["docs/README.md"]}]'
 section=$(render_image_section "$IMAGE_SECTION_BUDGET")
 # shellcheck disable=SC2016 # backtick-quoted paths are literal Markdown.
 if printf '%s' "$section" | grep -qF '#### Changed images' &&
 	printf '%s' "$section" | grep -qF -- '- `docs/images/a.png`' &&
-	printf '%s' "$section" | grep -qF -- '  - [`docs/user-guides/x.md`](https://coder.com/docs/@branch/user-guides/x)' &&
-	printf '%s' "$section" | grep -qF -- '  - [`docs/README.md`](https://coder.com/docs/@branch)'; then
+	printf '%s' "$section" | grep -qF -- '  - [`docs/user-guides/x.md`](https://pr-1.docs.cdr-preview.dev/user-guides/x)' &&
+	printf '%s' "$section" | grep -qF -- '  - [`docs/README.md`](https://pr-1.docs.cdr-preview.dev)'; then
 	echo "PASS: render_image_section (nested preview links; README maps to docs root)"
 else
 	echo "FAIL: render_image_section basic ->"
@@ -839,7 +865,7 @@ fi
 # hidden markers are present, and the state map is {}.
 final_rows='[]'
 total_pages=0
-url_prefix="https://coder.com/docs/@branch"
+url_prefix="https://pr-1.docs.cdr-preview.dev"
 image_section_json='[{"image":"docs/images/a.png","pages":["docs/user-guides/x.md"]}]'
 image_section=$(render_image_section "$IMAGE_SECTION_BUDGET")
 image_only_body=$(build_comment_body 0)
@@ -861,7 +887,7 @@ fi
 # listing the image on its own line with no sub-links.
 final_rows='[]'
 total_pages=0
-url_prefix="https://coder.com/docs/@branch"
+url_prefix="https://pr-1.docs.cdr-preview.dev"
 image_section_json='[{"image":"docs/images/icons/system.svg","pages":[]}]'
 image_section=$(render_image_section "$IMAGE_SECTION_BUDGET")
 icon_only_body=$(build_comment_body 0)
@@ -890,7 +916,7 @@ both_body=$(build_comment_body 2)
 if printf '%s' "$both_body" | grep -qF 'Check off each page' &&
 	printf '%s' "$both_body" | grep -qF -- '- [x] [`docs/a.md`]' &&
 	printf '%s' "$both_body" | grep -qF '#### Changed images' &&
-	printf '%s' "$both_body" | grep -qF -- '  - [`docs/a.md`](https://coder.com/docs/@branch/a)'; then
+	printf '%s' "$both_body" | grep -qF -- '  - [`docs/a.md`](https://pr-1.docs.cdr-preview.dev/a)'; then
 	echo "PASS: build_comment_body (pages and images both render)"
 else
 	echo "FAIL: build_comment_body pages+images ->"
@@ -901,6 +927,130 @@ if [ "$(recover_old_checked "$both_body" | jq -cS .)" = '{"docs/a.md":true,"docs
 	echo "PASS: build_comment_body (image sub-links excluded from checkbox state)"
 else
 	echo "FAIL: image sub-links polluted checkbox state -> $(recover_old_checked "$both_body")"
+	failures=$((failures + 1))
+fi
+
+# The per-commit preview list: this run's commit first, then the earlier
+# commits read back from the existing comment, minus a repeat of this commit
+# and any line for another PR or domain.
+PR_NUMBER='123'
+domain='docs.cdr-preview.dev'
+SHORT_SHA='ccccccccc'
+# shellcheck disable=SC2016 # backtick-quoted SHAs are literal Markdown.
+existing_commits_body=$(printf '%s\n' \
+	'## Docs preview' \
+	'- `bbbbbbbbb` https://pr-123-bbbbbbbbb.docs.cdr-preview.dev' \
+	'- `ccccccccc` https://pr-123-ccccccccc.docs.cdr-preview.dev' \
+	'- `aaaaaaaaa` https://pr-123-aaaaaaaaa.docs.cdr-preview.dev' \
+	'- `ddddddddd` https://pr-999-ddddddddd.docs.cdr-preview.dev' \
+	'- `eeeeeeeee` https://pr-123-eeeeeeeee.coderite.app')
+merged=$(merge_commit_lines "$existing_commits_body")
+# shellcheck disable=SC2016 # backtick-quoted SHAs are literal Markdown.
+expected_merged=$(printf '%s\n' \
+	'- `ccccccccc` https://pr-123-ccccccccc.docs.cdr-preview.dev' \
+	'- `bbbbbbbbb` https://pr-123-bbbbbbbbb.docs.cdr-preview.dev' \
+	'- `aaaaaaaaa` https://pr-123-aaaaaaaaa.docs.cdr-preview.dev')
+if [ "$merged" = "$expected_merged" ]; then
+	echo "PASS: merge_commit_lines (this commit first, earlier ones kept, repeats and other PRs dropped)"
+else
+	echo "FAIL: merge_commit_lines ->"
+	printf '%s\n' "$merged"
+	failures=$((failures + 1))
+fi
+
+# The list stops at COMMITS_MAX lines, keeping the newest.
+# shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters.
+long_commits_body=$(for i in $(seq 1 150); do printf -- '- `%09x` https://pr-123-%09x.docs.cdr-preview.dev\n' "$i" "$i"; done)
+capped=$(merge_commit_lines "$long_commits_body")
+# shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters.
+if [ "$(printf '%s\n' "$capped" | wc -l | tr -d ' ')" -eq 100 ] && [ "$(printf '%s\n' "$capped" | head -n 1)" = '- `ccccccccc` https://pr-123-ccccccccc.docs.cdr-preview.dev' ]; then
+	echo "PASS: merge_commit_lines (capped at 100, newest first)"
+else
+	echo "FAIL: merge_commit_lines cap -> $(printf '%s\n' "$capped" | wc -l) lines"
+	failures=$((failures + 1))
+fi
+
+# The list renders in a collapsible block, reads back from the comment the
+# workflow itself posted, and never counts as checkbox state.
+final_rows='[{"filename":"docs/a.md","sha":"s1","checked":true}]'
+total_pages=1
+image_section=""
+url_prefix="https://pr-123.docs.cdr-preview.dev"
+commit_lines="$expected_merged"
+commit_count=3
+commits_body=$(build_comment_body 1)
+if printf '%s' "$commits_body" | grep -qxF '<details>' &&
+	printf '%s' "$commits_body" | grep -qxF '<summary>Preview sites for each built commit (3)</summary>' &&
+	printf '%s' "$commits_body" | grep -qxF '</details>' &&
+	[ "$(SHORT_SHA='fffffffff' merge_commit_lines "$commits_body" | tail -n +2)" = "$expected_merged" ] &&
+	[ "$(recover_old_checked "$commits_body" | jq -c .)" = '{"docs/a.md":true}' ]; then
+	echo "PASS: build_comment_body (collapsible preview list round-trips; no checkbox pollution)"
+else
+	echo "FAIL: build_comment_body preview list ->"
+	printf '%s\n' "$commits_body"
+	failures=$((failures + 1))
+fi
+commit_lines=""
+commit_count=0
+
+# One comment per PR: the deploy job posts nothing itself and hands its commit
+# to docs-preview.yaml, which posts only when a non-generated page or image
+# changed.
+deploy_job=$(awk '/^  deploy:/{on=1} /^  comment:/{on=0} on' "$(dirname "${BASH_SOURCE[0]}")/docs-pr-preview-deploy.yaml")
+# shellcheck disable=SC2016 # the expected lines are literal workflow text.
+if ! grep -qF '/comments' <<<"$deploy_job" &&
+	! grep -qF 'pull-requests: write' <<<"$deploy_job" &&
+	grep -qF 'short_sha: ${{ needs.deploy.outputs.short_sha }}' "$(dirname "${BASH_SOURCE[0]}")/docs-pr-preview-deploy.yaml" &&
+	grep -qE '^      short_sha:' "$(dirname "${BASH_SOURCE[0]}")/docs-preview.yaml"; then
+	echo "PASS: the deploy job posts no comment and passes its commit to docs-preview.yaml"
+else
+	echo "FAIL: the deploy job still posts its own preview comment"
+	failures=$((failures + 1))
+fi
+
+# Preview links go to the PR's own preview on the preview-only domain in the
+# DOCS_PREVIEW_DOMAIN variable (docs.cdr-preview.dev), which
+# docs-pr-preview-deploy.yaml aliases on every build: never to a coder.com
+# branch path or a first-come vercel.app name. The link uses the domain only
+# after the workflow has validated it.
+workflow="$(dirname "${BASH_SOURCE[0]}")/docs-preview.yaml"
+# shellcheck disable=SC2016 # the expected lines are literal workflow text.
+if grep -qF 'DOCS_PREVIEW_DOMAIN: ${{ vars.DOCS_PREVIEW_DOMAIN }}' "$workflow" &&
+	grep -qF 'url_prefix="https://pr-${PR_NUMBER}.${domain}"' "$workflow" &&
+	! grep -qF 'coder.com/docs/@' "$workflow" &&
+	! grep -qE 'https://[^"[:space:]]*vercel\.app' "$workflow"; then
+	echo "PASS: preview links use pr-<n>.\$DOCS_PREVIEW_DOMAIN"
+else
+	echo "FAIL: docs-preview.yaml does not build preview links on pr-<n>.\$DOCS_PREVIEW_DOMAIN"
+	failures=$((failures + 1))
+fi
+
+# The comment links to a preview only once one exists: docs-preview.yaml
+# runs only when docs-pr-preview-deploy.yaml calls it after a deploy.
+deploy_workflow="$(dirname "${BASH_SOURCE[0]}")/docs-pr-preview-deploy.yaml"
+if grep -qE '^  workflow_call:' "$workflow" &&
+	! grep -qE '^  pull_request(_target)?:' "$workflow" &&
+	grep -qF 'uses: ./.github/workflows/docs-preview.yaml' "$deploy_workflow" &&
+	grep -qE '^    needs: \[?deploy' "$deploy_workflow"; then
+	echo "PASS: docs-preview comment runs only after a successful deploy"
+else
+	echo "FAIL: docs-preview.yaml can post preview links before a deploy succeeds"
+	failures=$((failures + 1))
+fi
+
+# The PR picks the engine commit through docs/.engine-ref. Once docs-engine is
+# public, a commit pushed to any fork of it can be fetched by SHA through
+# coder/docs-engine, so the engine job builds only commits on docs-engine main:
+# it checks out full history and fails before packing unless the pin is an
+# ancestor of origin/main.
+engine_job=$(awk '/^  engine:/{on=1} /^  build:/{on=0} on' "$deploy_workflow")
+# shellcheck disable=SC2016 # the expected lines are literal workflow text.
+if grep -qF 'fetch-depth: 0' <<<"$engine_job" &&
+	grep -qF 'git -C engine merge-base --is-ancestor "$REF" origin/main' <<<"$engine_job" &&
+	awk '/merge-base --is-ancestor/{seen=1} /name: Pack the engine source/{exit !seen}' <<<"$engine_job"; then
+	echo "PASS: the engine job builds only commits on docs-engine main"
+else
+	echo "FAIL: docs/.engine-ref can pin a docs-engine commit that is not on main"
 	failures=$((failures + 1))
 fi
 
