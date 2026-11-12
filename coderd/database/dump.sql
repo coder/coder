@@ -3885,7 +3885,8 @@ CREATE TABLE workload_identities (
     organization_id uuid NOT NULL,
     sponsor_id uuid NOT NULL,
     workspace_id uuid NOT NULL,
-    workspace_agent_id uuid NOT NULL,
+    workspace_agent_id uuid,
+    user_id uuid,
     name text NOT NULL,
     command text DEFAULT ''::text NOT NULL,
     scopes text[] DEFAULT '{}'::text[] NOT NULL,
@@ -3903,11 +3904,13 @@ CREATE TABLE workload_identities (
     remove_workspace boolean DEFAULT false NOT NULL
 );
 
-COMMENT ON TABLE workload_identities IS 'A workload identity is a principal for a workload that runs in a sandbox inside a workspace daemon. It acts with the permissions of its sponsor, narrowed to its scopes. The row outlives the workload as the record of what ran.';
+COMMENT ON TABLE workload_identities IS 'A workload identity is a principal for a workload. It is sponsored by a user account and can do nothing beyond its scopes. The row outlives the workload as the record of what ran.';
 
-COMMENT ON COLUMN workload_identities.sponsor_id IS 'The user account whose permissions bound what the workload may do.';
+COMMENT ON COLUMN workload_identities.sponsor_id IS 'The user account that asked for the workload and answers for it.';
 
-COMMENT ON COLUMN workload_identities.workspace_agent_id IS 'The workspace daemon that runs the workload. Only this daemon can vouch for the identity.';
+COMMENT ON COLUMN workload_identities.workspace_agent_id IS 'The workspace daemon that runs the workload. Only this daemon can vouch for the identity. NULL while the workspace that was made for the workload is being built.';
+
+COMMENT ON COLUMN workload_identities.user_id IS 'The service account that is this identity, when the workload has a workspace to itself. It owns that workspace, and the workload acts as it, narrowed to its scopes. NULL for a workload in a sandbox inside its sponsor''s workspace, which acts as its sponsor, narrowed to its scopes.';
 
 COMMENT ON COLUMN workload_identities.scopes IS 'API key scope names. An empty list grants nothing.';
 
@@ -5433,6 +5436,8 @@ CREATE UNIQUE INDEX webpush_subscriptions_user_id_endpoint_idx ON webpush_subscr
 
 CREATE INDEX workload_identities_sponsor_id_idx ON workload_identities USING btree (sponsor_id, finished_at);
 
+CREATE UNIQUE INDEX workload_identities_user_id_idx ON workload_identities USING btree (user_id) WHERE (user_id IS NOT NULL);
+
 CREATE INDEX workload_identities_workspace_agent_id_idx ON workload_identities USING btree (workspace_agent_id) WHERE (finished_at IS NULL);
 
 CREATE INDEX workload_identities_workspace_id_idx ON workload_identities USING btree (workspace_id, created_at);
@@ -6031,6 +6036,9 @@ ALTER TABLE ONLY workload_identities
 
 ALTER TABLE ONLY workload_identities
     ADD CONSTRAINT workload_identities_sponsor_id_fkey FOREIGN KEY (sponsor_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workload_identities
+    ADD CONSTRAINT workload_identities_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY workload_identities
     ADD CONSTRAINT workload_identities_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

@@ -6799,6 +6799,34 @@ export const JobErrorCodes: JobErrorCode[] = [
 	"REQUIRED_TEMPLATE_VARIABLES",
 ];
 
+// From codersdk/workloads.go
+/**
+ * LaunchWorkloadRequest asks for a workload with a workspace to itself. The
+ * workload's identity owns the workspace, and the caller sponsors it.
+ */
+export interface LaunchWorkloadRequest extends CreateWorkloadRequest {
+	/**
+	 * TemplateID is the template the workspace is made from. The caller
+	 * must be allowed to use it.
+	 */
+	readonly template_id: string;
+	/**
+	 * TemplateVersionPresetID selects a preset of the template's active
+	 * version. A workspace that was built ahead of time for the preset is
+	 * claimed when there is one.
+	 */
+	readonly template_version_preset_id?: string;
+	/**
+	 * WorkspaceName is optional. The workspace is named like the workload
+	 * otherwise.
+	 */
+	readonly workspace_name?: string;
+	/**
+	 * Keep leaves the workspace in place when the workload is over.
+	 */
+	readonly keep?: boolean;
+}
+
 // From codersdk/licenses.go
 export interface License {
 	readonly id: number;
@@ -12457,6 +12485,12 @@ export interface Workload {
 	 */
 	readonly sponsor_id: string;
 	readonly sponsor_username: string;
+	/**
+	 * UserID is the service account that is this identity, for a workload
+	 * with a workspace to itself. The workload acts as it and owns the
+	 * workspace.
+	 */
+	readonly user_id?: string;
 	/**
 	 * Scopes narrow the sponsor's permissions. An empty list grants nothing.
 	 */

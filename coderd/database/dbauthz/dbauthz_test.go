@@ -7267,6 +7267,17 @@ func (s *MethodTestSuite) TestWorkloadIdentities() {
 		dbm.EXPECT().GetWorkloadIdentityByID(gomock.Any(), identity.ID).Return(identity, nil).AnyTimes()
 		check.Args(identity.ID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(identity)
 	}))
+	s.Run("GetWorkloadIdentityByUserID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
+		dbm.EXPECT().GetWorkloadIdentityByUserID(gomock.Any(), identity.UserID).Return(identity, nil).AnyTimes()
+		check.Args(identity.UserID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(identity)
+	}))
+	s.Run("UpdateWorkloadIdentityWorkspaceAgent", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
+		arg := database.UpdateWorkloadIdentityWorkspaceAgentParams{ID: identity.ID, WorkspaceAgentID: identity.WorkspaceAgentID}
+		dbm.EXPECT().UpdateWorkloadIdentityWorkspaceAgent(gomock.Any(), arg).Return(identity, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(identity)
+	}))
 	s.Run("GetWorkloadIdentitiesByWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
 		dbm.EXPECT().GetWorkloadIdentitiesByWorkspaceID(gomock.Any(), identity.WorkspaceID).Return([]database.WorkloadIdentity{identity}, nil).AnyTimes()

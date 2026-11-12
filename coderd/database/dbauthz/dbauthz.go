@@ -5851,6 +5851,13 @@ func (q *querier) GetWorkloadIdentityByID(ctx context.Context, id uuid.UUID) (da
 	return q.db.GetWorkloadIdentityByID(ctx, id)
 }
 
+func (q *querier) GetWorkloadIdentityByUserID(ctx context.Context, userID uuid.NullUUID) (database.WorkloadIdentity, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.WorkloadIdentity{}, err
+	}
+	return q.db.GetWorkloadIdentityByUserID(ctx, userID)
+}
+
 func (q *querier) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceACLByIDRow, error) {
 	workspace, err := q.db.GetWorkspaceByID(ctx, id)
 	if err != nil {
@@ -9224,6 +9231,13 @@ func (q *querier) UpdateWorkloadIdentitySandbox(ctx context.Context, arg databas
 		return database.WorkloadIdentity{}, err
 	}
 	return q.db.UpdateWorkloadIdentitySandbox(ctx, arg)
+}
+
+func (q *querier) UpdateWorkloadIdentityWorkspaceAgent(ctx context.Context, arg database.UpdateWorkloadIdentityWorkspaceAgentParams) (database.WorkloadIdentity, error) {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return database.WorkloadIdentity{}, err
+	}
+	return q.db.UpdateWorkloadIdentityWorkspaceAgent(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspace(ctx context.Context, arg database.UpdateWorkspaceParams) (database.WorkspaceTable, error) {

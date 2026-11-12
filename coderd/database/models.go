@@ -6831,18 +6831,20 @@ type WebpushSubscription struct {
 	EndpointAuthKey   string    `db:"endpoint_auth_key" json:"endpoint_auth_key"`
 }
 
-// A workload identity is a principal for a workload that runs in a sandbox inside a workspace daemon. It acts with the permissions of its sponsor, narrowed to its scopes. The row outlives the workload as the record of what ran.
+// A workload identity is a principal for a workload. It is sponsored by a user account and can do nothing beyond its scopes. The row outlives the workload as the record of what ran.
 type WorkloadIdentity struct {
 	ID             uuid.UUID `db:"id" json:"id"`
 	CreatedAt      time.Time `db:"created_at" json:"created_at"`
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	// The user account whose permissions bound what the workload may do.
+	// The user account that asked for the workload and answers for it.
 	SponsorID   uuid.UUID `db:"sponsor_id" json:"sponsor_id"`
 	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
-	// The workspace daemon that runs the workload. Only this daemon can vouch for the identity.
-	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
-	Name             string    `db:"name" json:"name"`
-	Command          string    `db:"command" json:"command"`
+	// The workspace daemon that runs the workload. Only this daemon can vouch for the identity. NULL while the workspace that was made for the workload is being built.
+	WorkspaceAgentID uuid.NullUUID `db:"workspace_agent_id" json:"workspace_agent_id"`
+	// The service account that is this identity, when the workload has a workspace to itself. It owns that workspace, and the workload acts as it, narrowed to its scopes. NULL for a workload in a sandbox inside its sponsor's workspace, which acts as its sponsor, narrowed to its scopes.
+	UserID  uuid.NullUUID `db:"user_id" json:"user_id"`
+	Name    string        `db:"name" json:"name"`
+	Command string        `db:"command" json:"command"`
 	// API key scope names. An empty list grants nothing.
 	Scopes []string `db:"scopes" json:"scopes"`
 	// The image asked for, and once the workload has started, the one the daemon's policy settled on. The same holds for network and mounts.

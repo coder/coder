@@ -19,7 +19,7 @@ coder run [flags] [--template <template> | <workspace>] [-- command...]
 ```console
 Run a command as a workload. The workload gets its own identity, sponsored by you. It can do nothing in Coder unless you give it scopes, and it never receives your credentials. The command's output is streamed and its exit code returned.
 
-With --template, the workload gets a workspace of its own: a new workspace is made from the template for this one command and deleted when the command is over. With a sandbox template that takes about a second. Without --template, the workload runs in a sandbox that the daemon of an existing workspace creates.
+With --template, the workload gets a workspace of its own, which its identity owns and shares with you. The workspace is made from the template for this one command, claiming one that was built ahead of time when the template keeps such workspaces, and deleted when the command is over. Without --template, the workload runs in a sandbox that the daemon of an existing workspace creates.
   - Run a command in a workspace of its own and see who it is:
 
      $ coder run --template sandbox -- coder identity
@@ -73,7 +73,7 @@ A name for the workload.
 |----------|---------------------------|
 | Type     | <code>string-array</code> |
 
-A permission the workload may use on your behalf, as an API token scope such as workspace:read. Repeat it for several. Without any, the workload can do nothing in Coder.
+A permission the workload may use, as an API token scope such as workspace:read. Repeat it for several. Without any, the workload can do nothing in Coder.
 
 ### --image
 
@@ -105,7 +105,15 @@ A directory of the workspace to show in the sandbox, at the same path. It is rea
 |----------|---------------------|
 | Type     | <code>string</code> |
 
-Give the workload a workspace of its own, made from this template and deleted when the command is over. Use a sandbox template, whose workspaces are claimed from a warm pool, for a start in about a second.
+Give the workload a workspace of its own, made from this template and deleted when the command is over. The workload's identity owns the workspace and shares it with you.
+
+### --preset
+
+| Property | Value               |
+|----------|---------------------|
+| Type     | <code>string</code> |
+
+With --template, the preset of the template to use. A workspace that was built ahead of time for the preset is claimed when there is one.
 
 ### --keep
 

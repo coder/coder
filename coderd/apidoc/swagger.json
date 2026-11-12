@@ -14189,6 +14189,40 @@
 				"x-apidocgen": {
 					"skip": true
 				}
+			},
+			"post": {
+				"consumes": ["application/json"],
+				"produces": ["application/json"],
+				"tags": ["Workspaces"],
+				"summary": "Run a workload in a workspace of its own (experimental)",
+				"operationId": "launch-workload",
+				"parameters": [
+					{
+						"description": "Launch workload request",
+						"name": "request",
+						"in": "body",
+						"required": true,
+						"schema": {
+							"$ref": "#/definitions/codersdk.LaunchWorkloadRequest"
+						}
+					}
+				],
+				"responses": {
+					"201": {
+						"description": "Created",
+						"schema": {
+							"$ref": "#/definitions/codersdk.Workload"
+						}
+					}
+				},
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"x-apidocgen": {
+					"skip": true
+				}
 			}
 		},
 		"/api/v2/workspace-quota/{user}": {
@@ -25628,6 +25662,75 @@
 				"MissingTemplateParameter"
 			]
 		},
+		"codersdk.LaunchWorkloadRequest": {
+			"type": "object",
+			"properties": {
+				"agent": {
+					"description": "Agent selects the workspace daemon by name. It may be empty when the\nworkspace has exactly one.",
+					"type": "string"
+				},
+				"command": {
+					"description": "Command is run by a shell inside the sandbox.",
+					"type": "string"
+				},
+				"image": {
+					"description": "Image asks for another image than the daemon's default. The\ntemplate decides which images are allowed.",
+					"type": "string"
+				},
+				"interactive": {
+					"description": "Interactive gives the command a terminal that the sponsor can attach\nto.",
+					"type": "boolean"
+				},
+				"keep": {
+					"description": "Keep leaves the workspace in place when the workload is over.",
+					"type": "boolean"
+				},
+				"mounts": {
+					"description": "Mounts asks for directories of the workspace to be visible in the\nsandbox. The template decides which directories may be shared.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.WorkloadMount"
+					}
+				},
+				"name": {
+					"description": "Name is optional. It must be a valid agent name.",
+					"type": "string"
+				},
+				"network": {
+					"description": "Network asks for another network than the daemon's default. Asking\nfor none is always allowed.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.WorkloadNetwork"
+						}
+					]
+				},
+				"remove_workspace": {
+					"description": "RemoveWorkspace deletes the workspace when the workload is over. It\nis for a workspace that was made for this one workload.",
+					"type": "boolean"
+				},
+				"scopes": {
+					"description": "Scopes are the API key scopes the workload may use on the sponsor's\nbehalf. Without any, the workload can do nothing in Coder.",
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.APIKeyScope"
+					}
+				},
+				"template_id": {
+					"description": "TemplateID is the template the workspace is made from. The caller\nmust be allowed to use it.",
+					"type": "string",
+					"format": "uuid"
+				},
+				"template_version_preset_id": {
+					"description": "TemplateVersionPresetID selects a preset of the template's active\nversion. A workspace that was built ahead of time for the preset is\nclaimed when there is one.",
+					"type": "string",
+					"format": "uuid"
+				},
+				"workspace_name": {
+					"description": "WorkspaceName is optional. The workspace is named like the workload\notherwise.",
+					"type": "string"
+				}
+			}
+		},
 		"codersdk.License": {
 			"type": "object",
 			"properties": {
@@ -32428,6 +32531,11 @@
 				},
 				"status": {
 					"$ref": "#/definitions/codersdk.WorkloadStatus"
+				},
+				"user_id": {
+					"description": "UserID is the service account that is this identity, for a workload\nwith a workspace to itself. The workload acts as it and owns the\nworkspace.",
+					"type": "string",
+					"format": "uuid"
 				},
 				"workspace_id": {
 					"type": "string",

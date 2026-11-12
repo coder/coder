@@ -881,6 +881,7 @@ Actions: `start`, `stop`, `connect`
 <tr><td><code>scopes</code></td><td>Yes</td></tr>
 <tr><td><code>sponsor_id</code></td><td>Yes</td></tr>
 <tr><td><code>started_at</code></td><td>No</td></tr>
+<tr><td><code>user_id</code></td><td>Yes</td></tr>
 <tr><td><code>workspace_agent_id</code></td><td>Yes</td></tr>
 <tr><td><code>workspace_id</code></td><td>Yes</td></tr>
 </tbody>

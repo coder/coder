@@ -7268,6 +7268,21 @@ func (mr *MockStoreMockRecorder) GetWorkloadIdentityByID(ctx, id any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkloadIdentityByID", reflect.TypeOf((*MockStore)(nil).GetWorkloadIdentityByID), ctx, id)
 }
 
+// GetWorkloadIdentityByUserID mocks base method.
+func (m *MockStore) GetWorkloadIdentityByUserID(ctx context.Context, userID uuid.NullUUID) (database.WorkloadIdentity, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkloadIdentityByUserID", ctx, userID)
+	ret0, _ := ret[0].(database.WorkloadIdentity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkloadIdentityByUserID indicates an expected call of GetWorkloadIdentityByUserID.
+func (mr *MockStoreMockRecorder) GetWorkloadIdentityByUserID(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkloadIdentityByUserID", reflect.TypeOf((*MockStore)(nil).GetWorkloadIdentityByUserID), ctx, userID)
+}
+
 // GetWorkspaceACLByID mocks base method.
 func (m *MockStore) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceACLByIDRow, error) {
 	m.ctrl.T.Helper()
@@ -12413,6 +12428,21 @@ func (m *MockStore) UpdateWorkloadIdentitySandbox(ctx context.Context, arg datab
 func (mr *MockStoreMockRecorder) UpdateWorkloadIdentitySandbox(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkloadIdentitySandbox", reflect.TypeOf((*MockStore)(nil).UpdateWorkloadIdentitySandbox), ctx, arg)
+}
+
+// UpdateWorkloadIdentityWorkspaceAgent mocks base method.
+func (m *MockStore) UpdateWorkloadIdentityWorkspaceAgent(ctx context.Context, arg database.UpdateWorkloadIdentityWorkspaceAgentParams) (database.WorkloadIdentity, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkloadIdentityWorkspaceAgent", ctx, arg)
+	ret0, _ := ret[0].(database.WorkloadIdentity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateWorkloadIdentityWorkspaceAgent indicates an expected call of UpdateWorkloadIdentityWorkspaceAgent.
+func (mr *MockStoreMockRecorder) UpdateWorkloadIdentityWorkspaceAgent(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkloadIdentityWorkspaceAgent", reflect.TypeOf((*MockStore)(nil).UpdateWorkloadIdentityWorkspaceAgent), ctx, arg)
 }
 
 // UpdateWorkspace mocks base method.

@@ -1124,6 +1124,9 @@ type sqlcQuerier interface {
 	// GetWorkloadIdentityByID also returns finished identities. Callers that
 	// authorize with the identity must check finished_at.
 	GetWorkloadIdentityByID(ctx context.Context, id uuid.UUID) (WorkloadIdentity, error)
+	// GetWorkloadIdentityByUserID returns the identity a service account
+	// is, whether or not its workload is over.
+	GetWorkloadIdentityByUserID(ctx context.Context, userID uuid.NullUUID) (WorkloadIdentity, error)
 	GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (GetWorkspaceACLByIDRow, error)
 	GetWorkspaceAgentAndWorkspaceByID(ctx context.Context, id uuid.UUID) (GetWorkspaceAgentAndWorkspaceByIDRow, error)
 	GetWorkspaceAgentByID(ctx context.Context, id uuid.UUID) (WorkspaceAgent, error)
@@ -1794,6 +1797,9 @@ type sqlcQuerier interface {
 	// UpdateWorkloadIdentitySandbox records the sandbox the daemon started for
 	// the workload and what its policy settled on.
 	UpdateWorkloadIdentitySandbox(ctx context.Context, arg UpdateWorkloadIdentitySandboxParams) (WorkloadIdentity, error)
+	// UpdateWorkloadIdentityWorkspaceAgent gives a workload to the daemon of
+	// the workspace that was built for it.
+	UpdateWorkloadIdentityWorkspaceAgent(ctx context.Context, arg UpdateWorkloadIdentityWorkspaceAgentParams) (WorkloadIdentity, error)
 	UpdateWorkspace(ctx context.Context, arg UpdateWorkspaceParams) (WorkspaceTable, error)
 	UpdateWorkspaceACLByID(ctx context.Context, arg UpdateWorkspaceACLByIDParams) error
 	UpdateWorkspaceAgentConnectionByID(ctx context.Context, arg UpdateWorkspaceAgentConnectionByIDParams) error

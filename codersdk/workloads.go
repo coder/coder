@@ -217,6 +217,10 @@ type Workload struct {
 	// workload may do.
 	SponsorID       uuid.UUID `json:"sponsor_id" format:"uuid"`
 	SponsorUsername string    `json:"sponsor_username"`
+	// UserID is the service account that is this identity, for a workload
+	// with a workspace to itself. The workload acts as it and owns the
+	// workspace.
+	UserID *uuid.UUID `json:"user_id,omitempty" format:"uuid"`
 	// Scopes narrow the sponsor's permissions. An empty list grants nothing.
 	Scopes  []APIKeyScope    `json:"scopes"`
 	Sandbox *WorkloadSandbox `json:"sandbox,omitempty"`
@@ -249,6 +253,24 @@ type CreateWorkloadRequest struct {
 	// RemoveWorkspace deletes the workspace when the workload is over. It
 	// is for a workspace that was made for this one workload.
 	RemoveWorkspace bool `json:"remove_workspace,omitempty"`
+}
+
+// LaunchWorkloadRequest asks for a workload with a workspace to itself. The
+// workload's identity owns the workspace, and the caller sponsors it.
+type LaunchWorkloadRequest struct {
+	CreateWorkloadRequest
+	// TemplateID is the template the workspace is made from. The caller
+	// must be allowed to use it.
+	TemplateID uuid.UUID `json:"template_id" format:"uuid"`
+	// TemplateVersionPresetID selects a preset of the template's active
+	// version. A workspace that was built ahead of time for the preset is
+	// claimed when there is one.
+	TemplateVersionPresetID uuid.UUID `json:"template_version_preset_id,omitempty" format:"uuid"`
+	// WorkspaceName is optional. The workspace is named like the workload
+	// otherwise.
+	WorkspaceName string `json:"workspace_name,omitempty"`
+	// Keep leaves the workspace in place when the workload is over.
+	Keep bool `json:"keep,omitempty"`
 }
 
 // WorkloadLogEvent is one item of a workload's output stream. The last
@@ -310,6 +332,21 @@ type AgentWorkloadExit struct {
 // CreateWorkspaceWorkload runs a command in a new sandbox of a workspace.
 func (c *Client) CreateWorkspaceWorkload(ctx context.Context, workspaceID uuid.UUID, req CreateWorkloadRequest) (Workload, error) {
 	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/workspaces/%s/workloads", workspaceID), req)
+	if err != nil {
+		return Workload{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusCreated {
+		return Workload{}, ReadBodyAsError(res)
+	}
+	var workload Workload
+	return workload, ReadBodyAsJSON(res, &workload)
+}
+
+// LaunchWorkload runs a command in a workspace that is made for it and
+// that its identity owns.
+func (c *Client) LaunchWorkload(ctx context.Context, req LaunchWorkloadRequest) (Workload, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/workloads", req)
 	if err != nil {
 		return Workload{}, err
 	}

@@ -300,13 +300,11 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 
 			reinitCtx, reinitCancel := context.WithCancel(ctx)
 			defer reinitCancel()
-			var reinitEvents <-chan agentsdk.ReinitializationEvent
-			// A daemon that is whichever pod it runs in has nothing to be
-			// reinitialized with: it becomes somebody when its pod is
-			// claimed, and waits for that when it authenticates.
-			if agentAuth.agentAuth != "kubernetes" {
-				reinitEvents = agentsdk.WaitForReinitLoop(reinitCtx, logger, client)
-			}
+			// A daemon in a workspace that was built ahead of time is told
+			// when the workspace gets its owner. That holds for a daemon
+			// that is whichever pod it runs in as well: the pod stays, and
+			// whom it works for changes.
+			reinitEvents := agentsdk.WaitForReinitLoop(reinitCtx, logger, client)
 
 			// Read and strip env vars before the reinit
 			// loop so config survives agent restarts.

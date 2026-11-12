@@ -72,8 +72,11 @@ func (api *API) registerWorkspaceWorkloadRoutes(r chi.Router) {
 // registerWorkloadRoutes adds the workloads of the caller, whichever
 // workspace they run in.
 func (api *API) registerWorkloadRoutes(r chi.Router) {
-	r.With(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentRuntimeWorkloads)).
-		Get("/workloads", api.sponsoredWorkloads)
+	r.Route("/workloads", func(r chi.Router) {
+		r.Use(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentRuntimeWorkloads))
+		r.Get("/", api.sponsoredWorkloads)
+		r.Post("/", api.postWorkload)
+	})
 }
 
 // @Summary List the workloads you sponsor (experimental)
@@ -127,12 +130,12 @@ func (api *API) sponsoredWorkloads(rw http.ResponseWriter, r *http.Request) {
 			}
 			workspaces[identity.WorkspaceID] = name
 		}
-		if _, ok := agents[identity.WorkspaceAgentID]; !ok {
+		if _, ok := agents[identity.WorkspaceAgentID.UUID]; !ok {
 			name := ""
-			if agent, err := api.Database.GetWorkspaceAgentByID(sysCtx, identity.WorkspaceAgentID); err == nil {
+			if agent, err := api.Database.GetWorkspaceAgentByID(sysCtx, identity.WorkspaceAgentID.UUID); err == nil {
 				name = agent.Name
 			}
-			agents[identity.WorkspaceAgentID] = name
+			agents[identity.WorkspaceAgentID.UUID] = name
 		}
 		// What coderd has on record. Whether a daemon still runs a live
 		// workload is found out when its workspace's workloads are listed.
@@ -140,7 +143,7 @@ func (api *API) sponsoredWorkloads(rw http.ResponseWriter, r *http.Request) {
 		if identity.StartedAt.Valid {
 			status = codersdk.WorkloadStatusRunning
 		}
-		workload := workloadFromIdentity(identity, agents[identity.WorkspaceAgentID], username, status)
+		workload := workloadFromIdentity(identity, agents[identity.WorkspaceAgentID.UUID], username, status)
 		workload.WorkspaceName = workspaces[identity.WorkspaceID]
 		workloads = append(workloads, workload)
 	}
@@ -229,7 +232,7 @@ func workloadFromIdentity(identity database.WorkloadIdentity, agentName, sponsor
 		ID:              identity.ID,
 		Name:            identity.Name,
 		WorkspaceID:     identity.WorkspaceID,
-		AgentID:         identity.WorkspaceAgentID,
+		AgentID:         identity.WorkspaceAgentID.UUID,
 		AgentName:       agentName,
 		Status:          status,
 		Command:         identity.Command,
@@ -240,7 +243,10 @@ func workloadFromIdentity(identity database.WorkloadIdentity, agentName, sponsor
 		Scopes:          workloadScopes(identity.Scopes),
 		Image:           identity.Image,
 		Network:         codersdk.WorkloadNetwork(identity.Network),
-		OwnWorkspace:    identity.RemoveWorkspace,
+		OwnWorkspace:    identity.RemoveWorkspace || identity.UserID.Valid,
+	}
+	if identity.UserID.Valid {
+		workload.UserID = &identity.UserID.UUID
 	}
 	for _, mount := range identity.Mounts {
 		workload.Mounts = append(workload.Mounts, codersdk.ParseWorkloadMount(mount))
@@ -360,7 +366,7 @@ func (api *API) workloadAuditFields(ctx context.Context, identity database.Workl
 		fields["workspace_name"] = workspace.Name
 		fields["workspace_owner"] = workspace.OwnerUsername
 	}
-	if agent, err := api.Database.GetWorkspaceAgentByID(sysCtx, identity.WorkspaceAgentID); err == nil {
+	if agent, err := api.Database.GetWorkspaceAgentByID(sysCtx, identity.WorkspaceAgentID.UUID); err == nil {
 		fields["workspace_agent"] = agent.Name
 	}
 	for key, value := range extra {
@@ -450,7 +456,9 @@ func (api *API) finishWorkload(ctx context.Context, identity database.WorkloadId
 const workloadWorkspaceGrace = 3 * time.Second
 
 // removeWorkloadWorkspace deletes the workspace that was made for a
-// workload, as its sponsor.
+// workload, as the workspace's owner: the workload's own identity when it
+// has one, its sponsor otherwise. An identity that owned the workspace is
+// retired when the workspace is gone.
 func (api *API) removeWorkloadWorkspace(identity database.WorkloadIdentity) {
 	ctx, cancel := context.WithTimeout(api.ctx, time.Minute)
 	defer cancel()
@@ -460,14 +468,19 @@ func (api *API) removeWorkloadWorkspace(identity database.WorkloadIdentity) {
 		return
 	case <-time.After(workloadWorkspaceGrace):
 	}
-	//nolint:gocritic // The sponsor's permissions are looked up to act as the sponsor.
-	sponsor, _, err := httpmw.UserRBACSubject(dbauthz.AsSystemRestricted(ctx), api.Database, identity.SponsorID, rbac.ScopeAll)
+	ownerID := identity.SponsorID
+	if identity.UserID.Valid {
+		ownerID = identity.UserID.UUID
+	}
+	//nolint:gocritic // The owner's permissions are looked up to act as the owner.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	owner, _, err := httpmw.UserRBACSubject(sysCtx, api.Database, ownerID, rbac.ScopeAll)
 	if err != nil {
-		logger.Warn(ctx, "delete the workspace of a finished workload: get sponsor", slog.Error(err))
+		logger.Warn(ctx, "delete the workspace of a finished workload: get owner", slog.Error(err))
 		return
 	}
-	ctx = dbauthz.As(ctx, sponsor)
-	workspace, err := api.Database.GetWorkspaceByID(ctx, identity.WorkspaceID)
+	ownerCtx := dbauthz.As(ctx, owner)
+	workspace, err := api.Database.GetWorkspaceByID(ownerCtx, identity.WorkspaceID)
 	if err != nil {
 		logger.Warn(ctx, "delete the workspace of a finished workload: get workspace", slog.Error(err))
 		return
@@ -475,10 +488,10 @@ func (api *API) removeWorkloadWorkspace(identity database.WorkloadIdentity) {
 	if workspace.Deleted {
 		return
 	}
-	_, err = api.postWorkspaceBuildsInternal(ctx, database.APIKey{UserID: identity.SponsorID}, workspace,
+	_, err = api.postWorkspaceBuildsInternal(ownerCtx, database.APIKey{UserID: identity.SponsorID}, workspace,
 		codersdk.CreateWorkspaceBuildRequest{Transition: codersdk.WorkspaceTransitionDelete},
 		func(action policy.Action, object rbac.Objecter) bool {
-			return api.HTTPAuth.Authorizer.Authorize(ctx, sponsor, action, object.RBACObject()) == nil
+			return api.HTTPAuth.Authorizer.Authorize(ownerCtx, owner, action, object.RBACObject()) == nil
 		},
 		audit.WorkspaceBuildBaggage{},
 	)
@@ -522,7 +535,7 @@ func (api *API) listWorkspaceWorkloads(ctx context.Context, workspaceID uuid.UUI
 	unreachable := make(map[uuid.UUID]bool)
 	now := dbtime.Now()
 	for _, identity := range identities {
-		agent, ok := latest[identity.WorkspaceAgentID]
+		agent, ok := latest[identity.WorkspaceAgentID.UUID]
 		if !ok {
 			// The daemon that ran the workload is gone, and with it the
 			// only thing that could vouch for the identity.
@@ -601,14 +614,14 @@ func (api *API) listFinishedWorkspaceWorkloads(ctx context.Context, workspaceID 
 			}
 			sponsors[identity.SponsorID] = sponsor.Username
 		}
-		if _, ok := agents[identity.WorkspaceAgentID]; !ok {
+		if _, ok := agents[identity.WorkspaceAgentID.UUID]; !ok {
 			name := ""
-			if agent, err := api.Database.GetWorkspaceAgentByID(sysCtx, identity.WorkspaceAgentID); err == nil {
+			if agent, err := api.Database.GetWorkspaceAgentByID(sysCtx, identity.WorkspaceAgentID.UUID); err == nil {
 				name = agent.Name
 			}
-			agents[identity.WorkspaceAgentID] = name
+			agents[identity.WorkspaceAgentID.UUID] = name
 		}
-		result = append(result, workloadFromIdentity(identity, agents[identity.WorkspaceAgentID], sponsors[identity.SponsorID], ""))
+		result = append(result, workloadFromIdentity(identity, agents[identity.WorkspaceAgentID.UUID], sponsors[identity.SponsorID], ""))
 	}
 	return result, nil
 }
@@ -647,88 +660,14 @@ func (api *API) postWorkspaceWorkload(rw http.ResponseWriter, r *http.Request) {
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	if req.Command == "" || len(req.Command) > maxWorkloadCommandBytes || strings.ContainsRune(req.Command, 0) {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "A workload needs a command of at most 64 KiB without NUL bytes.",
-		})
+	scopes, refusal := workloadRequestScopes(req)
+	if refusal != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, *refusal)
 		return
 	}
-	scopes := make([]string, 0, len(req.Scopes))
-	for _, scope := range req.Scopes {
-		name := rbac.CanonicalScopeName(rbac.ScopeName(scope))
-		if !rbac.IsExternalScope(name) {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: fmt.Sprintf("%q is not a scope a workload can be given.", scope),
-				Detail:  "Use the scope names API tokens accept, for example workspace:read or template:read.",
-			})
-			return
-		}
-		// A workload exists to have less than its sponsor.
-		if name == rbac.ScopeAll {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "A workload cannot be given every permission of its sponsor.",
-				Detail:  "Name the scopes it needs, for example workspace:read or template:read.",
-			})
-			return
-		}
-		if !slices.Contains(scopes, string(name)) {
-			scopes = append(scopes, string(name))
-		}
-	}
-
-	// Workloads run inside a daemon the template declared: sub-agents are
-	// themselves hosted by one.
-	agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspace.ID)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-	daemons := slices.DeleteFunc(agents, func(agent database.WorkspaceAgent) bool {
-		return agent.ParentID.Valid || agent.Deleted || (req.Agent != "" && agent.Name != req.Agent)
-	})
-	if len(daemons) > 1 {
-		// A template can keep workloads away from the human's daemon by
-		// giving them a daemon of their own. Pick the one that runs them.
-		daemons = slices.DeleteFunc(daemons, func(agent database.WorkspaceAgent) bool {
-			if agent.Status(dbtime.Now(), api.AgentInactiveDisconnectTimeout).Status != database.WorkspaceAgentStatusConnected {
-				return true
-			}
-			_, err := api.agentWorkloadStates(ctx, agent.ID)
-			return err != nil
-		})
-		if len(daemons) == 0 {
-			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-				Message: "No daemon of this workspace can run workloads.",
-				Detail:  "The template must start an agent with CODER_AGENT_WORKLOAD_RUNTIME set and give it a sandbox runtime such as Docker.",
-			})
-			return
-		}
-	}
-	switch {
-	case len(daemons) == 0:
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: "This workspace has no daemon to run the workload in. Is it started?",
-		})
-		return
-	case len(daemons) > 1:
-		names := make([]string, 0, len(daemons))
-		for _, daemon := range daemons {
-			names = append(names, daemon.Name)
-		}
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: fmt.Sprintf("Several daemons of this workspace can run workloads. Choose one of: %s.", strings.Join(names, ", ")),
-		})
-		return
-	}
-	daemon := daemons[0]
-	// A daemon that has just been claimed for a new workspace may still be
-	// on its way. One that has gone away is not.
-	switch daemon.Status(dbtime.Now(), api.AgentInactiveDisconnectTimeout).Status {
-	case database.WorkspaceAgentStatusConnected, database.WorkspaceAgentStatusConnecting:
-	default:
-		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
-			Message: fmt.Sprintf("The workspace daemon %q is not connected.", daemon.Name),
-		})
+	daemon, status, refusal := api.workloadDaemon(ctx, workspace.ID, req.Agent)
+	if refusal != nil {
+		httpapi.Write(ctx, rw, status, *refusal)
 		return
 	}
 
@@ -782,7 +721,8 @@ func (api *API) postWorkspaceWorkload(rw http.ResponseWriter, r *http.Request) {
 		OrganizationID:   workspace.OrganizationID,
 		SponsorID:        sponsor.ID,
 		WorkspaceID:      workspace.ID,
-		WorkspaceAgentID: daemon.ID,
+		WorkspaceAgentID: uuid.NullUUID{UUID: daemon.ID, Valid: true},
+		UserID:           uuid.NullUUID{},
 		Name:             name,
 		Command:          req.Command,
 		Scopes:           scopes,
@@ -796,6 +736,106 @@ func (api *API) postWorkspaceWorkload(rw http.ResponseWriter, r *http.Request) {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	api.awaitWorkloadStart(rw, r, identity, daemon, sponsor)
+}
+
+// workloadRequestScopes checks what a workload is asked to run and returns
+// the scopes it asks for, by their canonical names.
+func workloadRequestScopes(req codersdk.CreateWorkloadRequest) ([]string, *codersdk.Response) {
+	if req.Command == "" || len(req.Command) > maxWorkloadCommandBytes || strings.ContainsRune(req.Command, 0) {
+		return nil, &codersdk.Response{
+			Message: "A workload needs a command of at most 64 KiB without NUL bytes.",
+		}
+	}
+	scopes := make([]string, 0, len(req.Scopes))
+	for _, scope := range req.Scopes {
+		name := rbac.CanonicalScopeName(rbac.ScopeName(scope))
+		if !rbac.IsExternalScope(name) {
+			return nil, &codersdk.Response{
+				Message: fmt.Sprintf("%q is not a scope a workload can be given.", scope),
+				Detail:  "Use the scope names API tokens accept, for example workspace:read or template:read.",
+			}
+		}
+		// A workload exists to have less than a user account.
+		if name == rbac.ScopeAll {
+			return nil, &codersdk.Response{
+				Message: "A workload cannot be given every permission.",
+				Detail:  "Name the scopes it needs, for example workspace:read or template:read.",
+			}
+		}
+		if !slices.Contains(scopes, string(name)) {
+			scopes = append(scopes, string(name))
+		}
+	}
+	return scopes, nil
+}
+
+// workloadDaemon picks the daemon of a workspace that runs its workloads.
+// When there is none it returns why, with the status to answer with.
+func (api *API) workloadDaemon(ctx context.Context, workspaceID uuid.UUID, agentName string) (database.WorkspaceAgent, int, *codersdk.Response) {
+	var none database.WorkspaceAgent
+	// Workloads run inside a daemon the template declared: sub-agents are
+	// themselves hosted by one.
+	agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ctx, workspaceID)
+	if err != nil {
+		return none, http.StatusInternalServerError, &codersdk.Response{
+			Message: "Internal error fetching the daemons of the workspace.",
+			Detail:  err.Error(),
+		}
+	}
+	daemons := slices.DeleteFunc(agents, func(agent database.WorkspaceAgent) bool {
+		return agent.ParentID.Valid || agent.Deleted || (agentName != "" && agent.Name != agentName)
+	})
+	if len(daemons) > 1 {
+		// A template can keep workloads away from the human's daemon by
+		// giving them a daemon of their own. Pick the one that runs them.
+		daemons = slices.DeleteFunc(daemons, func(agent database.WorkspaceAgent) bool {
+			if agent.Status(dbtime.Now(), api.AgentInactiveDisconnectTimeout).Status != database.WorkspaceAgentStatusConnected {
+				return true
+			}
+			_, err := api.agentWorkloadStates(ctx, agent.ID)
+			return err != nil
+		})
+		if len(daemons) == 0 {
+			return none, http.StatusConflict, &codersdk.Response{
+				Message: "No daemon of this workspace can run workloads.",
+				Detail:  "The template must start an agent with CODER_AGENT_WORKLOAD_RUNTIME set and give it a sandbox runtime such as Docker.",
+			}
+		}
+	}
+	switch {
+	case len(daemons) == 0:
+		return none, http.StatusConflict, &codersdk.Response{
+			Message: "This workspace has no daemon to run the workload in. Is it started?",
+		}
+	case len(daemons) > 1:
+		names := make([]string, 0, len(daemons))
+		for _, daemon := range daemons {
+			names = append(names, daemon.Name)
+		}
+		return none, http.StatusBadRequest, &codersdk.Response{
+			Message: fmt.Sprintf("Several daemons of this workspace can run workloads. Choose one of: %s.", strings.Join(names, ", ")),
+		}
+	}
+	daemon := daemons[0]
+	// A daemon that has just been claimed for a new workspace may still be
+	// on its way. One that has gone away is not.
+	switch daemon.Status(dbtime.Now(), api.AgentInactiveDisconnectTimeout).Status {
+	case database.WorkspaceAgentStatusConnected, database.WorkspaceAgentStatusConnecting:
+	default:
+		return none, http.StatusConflict, &codersdk.Response{
+			Message: fmt.Sprintf("The workspace daemon %q is not connected.", daemon.Name),
+		}
+	}
+	return daemon, http.StatusOK, nil
+}
+
+// awaitWorkloadStart hands a workload to its daemon, waits until the daemon
+// has started it and answers the request with the outcome.
+func (api *API) awaitWorkloadStart(rw http.ResponseWriter, r *http.Request, identity database.WorkloadIdentity, daemon database.WorkspaceAgent, sponsor database.User) {
+	ctx := r.Context()
+	//nolint:gocritic // The caller was authorized to run the workload.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
 
 	// What ran, where, for whom and with which permissions is recorded
 	// whether or not the sandbox starts.
@@ -805,7 +845,7 @@ func (api *API) postWorkspaceWorkload(rw http.ResponseWriter, r *http.Request) {
 			Log:              api.Logger,
 			UserID:           sponsor.ID,
 			RequestID:        httpmw.RequestID(r),
-			OrganizationID:   workspace.OrganizationID,
+			OrganizationID:   identity.OrganizationID,
 			IP:               r.RemoteAddr,
 			UserAgent:        r.UserAgent(),
 			Action:           database.AuditActionStart,
@@ -1035,7 +1075,7 @@ func (api *API) workspaceWorkloadLogs(rw http.ResponseWriter, r *http.Request) {
 	dialed := make(chan daemonResponse, 1)
 	go func() {
 		//nolint:bodyclose // Whoever takes the response from the channel closes it.
-		res, release, err := api.workloadAgentRequest(dialCtx, identity.WorkspaceAgentID, http.MethodGet, "/"+identity.ID.String()+"/logs", nil)
+		res, release, err := api.workloadAgentRequest(dialCtx, identity.WorkspaceAgentID.UUID, http.MethodGet, "/"+identity.ID.String()+"/logs", nil)
 		dialed <- daemonResponse{res: res, release: release, err: err}
 	}()
 	abandon := func() {
@@ -1152,15 +1192,15 @@ func (api *API) workspaceWorkloadAttach(rw http.ResponseWriter, r *http.Request)
 	// only its sponsor may. The terminal is inside the sandbox: it gives
 	// the human no more than the workload has, and the workload nothing of
 	// the human's.
-	apiKey := httpmw.APIKey(r)
-	if apiKey.UserID != workspace.OwnerID || isWorkloadCaller(r) {
-		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
-			Message: "Only the owner of a workspace can attach to its workloads.",
-		})
-		return
-	}
 	identity, ok := api.workloadParam(rw, r, workspace.ID)
 	if !ok {
+		return
+	}
+	apiKey := httpmw.APIKey(r)
+	if (apiKey.UserID != workspace.OwnerID && apiKey.UserID != identity.SponsorID) || isWorkloadCaller(r) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "Only the sponsor of a workload can attach to it.",
+		})
 		return
 	}
 	if identity.FinishedAt.Valid {
@@ -1168,7 +1208,7 @@ func (api *API) workspaceWorkloadAttach(rw http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	agentConn, release, err := api.agentProvider.AgentConn(ctx, identity.WorkspaceAgentID)
+	agentConn, release, err := api.agentProvider.AgentConn(ctx, identity.WorkspaceAgentID.UUID)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
 			Message: "The workspace daemon could not be reached.",
@@ -1242,7 +1282,7 @@ func (api *API) workspaceWorkloadAttach(rw http.ResponseWriter, r *http.Request)
 func (api *API) deleteWorkspaceWorkload(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	workspace := httpmw.WorkspaceParam(r)
-	if !api.Authorize(r, policy.ActionUpdate, workspace) {
+	if !api.Authorize(r, policy.ActionRead, workspace) {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -1255,7 +1295,20 @@ func (api *API) deleteWorkspaceWorkload(rw http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
+	// A sponsor answers for the workload and may end it, also where the
+	// workload's identity owns the workspace and the sponsor only shares it.
+	if httpmw.APIKey(r).UserID != identity.SponsorID && !api.Authorize(r, policy.ActionUpdate, workspace) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	// A workspace that an identity owns exists for that one workload. A
+	// sponsor who removes the workload removes it, also when it was kept:
+	// the sponsor shares the workspace and has no other way to delete it.
+	removeKept := identity.UserID.Valid && !identity.RemoveWorkspace
 	if identity.FinishedAt.Valid {
+		if removeKept {
+			go api.removeWorkloadWorkspace(identity)
+		}
 		rw.WriteHeader(http.StatusNoContent)
 		return
 	}
@@ -1267,9 +1320,12 @@ func (api *API) deleteWorkspaceWorkload(rw http.ResponseWriter, r *http.Request)
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	if removeKept {
+		go api.removeWorkloadWorkspace(identity)
+	}
 	stopCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	res, release, err := api.workloadAgentRequest(stopCtx, identity.WorkspaceAgentID, http.MethodDelete, "/"+identity.ID.String(), nil)
+	res, release, err := api.workloadAgentRequest(stopCtx, identity.WorkspaceAgentID.UUID, http.MethodDelete, "/"+identity.ID.String(), nil)
 	if err != nil {
 		api.Logger.Warn(ctx, "stop the sandbox of a removed workload", slog.F("workload_id", identity.ID), slog.Error(err))
 	} else {
@@ -1318,7 +1374,7 @@ waiting:
 		//nolint:gocritic // The daemon is authenticated; identities have no permission of their own yet.
 		identities, err = api.Database.GetPendingWorkloadIdentitiesByWorkspaceAgentID(dbauthz.AsSystemRestricted(ctx),
 			database.GetPendingWorkloadIdentitiesByWorkspaceAgentIDParams{
-				WorkspaceAgentID: agent.ID,
+				WorkspaceAgentID: uuid.NullUUID{UUID: agent.ID, Valid: true},
 				CreatedAfter:     dbtime.Now().Add(-workloadStartTimeout),
 			})
 		if err != nil {
@@ -1381,7 +1437,7 @@ func (api *API) postWorkspaceAgentWorkloadStarted(rw http.ResponseWriter, r *htt
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	// A daemon reports only on workloads coderd gave it.
 	identity, err := api.Database.GetWorkloadIdentityByID(sysCtx, id)
-	if err != nil || identity.WorkspaceAgentID != agent.ID {
+	if err != nil || identity.WorkspaceAgentID.UUID != agent.ID {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -1444,7 +1500,7 @@ func (api *API) postWorkspaceAgentWorkloadExit(rw http.ResponseWriter, r *http.R
 	// A daemon reports only on workloads coderd gave it.
 	//nolint:gocritic // The daemon is authenticated; identities have no permission of their own yet.
 	identity, err := api.Database.GetWorkloadIdentityByID(dbauthz.AsSystemRestricted(ctx), id)
-	if err != nil || identity.WorkspaceAgentID != agent.ID {
+	if err != nil || identity.WorkspaceAgentID.UUID != agent.ID {
 		httpapi.ResourceNotFound(rw)
 		return
 	}
@@ -1521,23 +1577,29 @@ func (api *API) vouchedWorkloadIdentity(ctx context.Context, agentToken, identit
 	if identity.FinishedAt.Valid {
 		return noIdentity, noAgent, xerrors.New("the workload is over")
 	}
-	if identity.WorkspaceAgentID != row.WorkspaceAgent.ID {
+	if identity.WorkspaceAgentID.UUID != row.WorkspaceAgent.ID {
 		return noIdentity, noAgent, xerrors.New("the workload identity is not assigned to this daemon")
 	}
 	return identity, row.WorkspaceAgent, nil
 }
 
 // resolveWorkloadAPIKey lets a workload call the user API through its
-// workspace daemon. The workload acts as its sponsor, with the sponsor's
-// permissions narrowed to the identity's scopes. No API key exists in the
-// database: the returned key only carries the sponsor and the identity to
+// workspace daemon. A workload with a workspace to itself acts as its own
+// service account, narrowed to the identity's scopes: it has nothing of its
+// sponsor's. A workload in a sandbox inside its sponsor's workspace acts as
+// its sponsor, narrowed to the identity's scopes. No API key exists in the
+// database: the returned key only carries the account and the identity to
 // the handlers.
 func (api *API) resolveWorkloadAPIKey(ctx context.Context, agentToken, identityID string) (*httpmw.ValidateAPIKeyResult, bool) {
 	identity, _, err := api.vouchedWorkloadIdentity(ctx, agentToken, identityID)
 	if err != nil {
 		return nil, false
 	}
-	subject, status, err := httpmw.UserRBACSubject(ctx, api.Database, identity.SponsorID, workloadScope{
+	userID := identity.SponsorID
+	if identity.UserID.Valid {
+		userID = identity.UserID.UUID
+	}
+	subject, status, err := httpmw.UserRBACSubject(ctx, api.Database, userID, workloadScope{
 		identityID: identity.ID, scopes: identity.Scopes,
 	})
 	if err != nil || status != database.UserStatusActive {
@@ -1547,7 +1609,7 @@ func (api *API) resolveWorkloadAPIKey(ctx context.Context, agentToken, identityI
 	return &httpmw.ValidateAPIKeyResult{
 		Key: database.APIKey{
 			ID:        httpmw.WorkloadAPIKeyIDPrefix + identity.ID.String(),
-			UserID:    identity.SponsorID,
+			UserID:    userID,
 			LoginType: database.LoginTypeToken,
 			CreatedAt: identity.CreatedAt,
 			UpdatedAt: now,
@@ -1598,7 +1660,7 @@ func (api *API) workspaceAgentIdentity(rw http.ResponseWriter, r *http.Request) 
 	// answer must then describe the workload and never the daemon.
 	if vouched := r.Header.Get(codersdk.WorkloadIdentityHeader); vouched != "" {
 		record, _, err := api.vouchedWorkloadIdentity(ctx, httpmw.APITokenFromRequest(r), vouched)
-		if err != nil || record.WorkspaceAgentID != agent.ID {
+		if err != nil || record.WorkspaceAgentID.UUID != agent.ID {
 			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 				Message: "Workload identity not accepted.",
 			})

@@ -670,6 +670,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"sponsor_id":         ActionTrack,
 		"workspace_id":       ActionTrack,
 		"workspace_agent_id": ActionTrack,
+		"user_id":            ActionTrack,
 		"name":               ActionTrack,
 		"command":            ActionTrack,
 		"scopes":             ActionTrack,

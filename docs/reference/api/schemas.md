@@ -11180,6 +11180,51 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |-----------------------------------------------------------------------------------|
 | `INSUFFICIENT_QUOTA`, `MISSING_TEMPLATE_PARAMETER`, `REQUIRED_TEMPLATE_VARIABLES` |
 
+## codersdk.LaunchWorkloadRequest
+
+```json
+{
+  "agent": "string",
+  "command": "string",
+  "image": "string",
+  "interactive": true,
+  "keep": true,
+  "mounts": [
+    {
+      "path": "string",
+      "writable": true
+    }
+  ],
+  "name": "string",
+  "network": "none",
+  "remove_workspace": true,
+  "scopes": [
+    "all"
+  ],
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "template_version_preset_id": "512a53a7-30da-446e-a1fc-713c630baff1",
+  "workspace_name": "string"
+}
+```
+
+### Properties
+
+| Name                         | Type                                                      | Required | Restrictions | Description                                                                                                                                                         |
+|------------------------------|-----------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent`                      | string                                                    | false    |              | Agent selects the workspace daemon by name. It may be empty when the workspace has exactly one.                                                                     |
+| `command`                    | string                                                    | false    |              | Command is run by a shell inside the sandbox.                                                                                                                       |
+| `image`                      | string                                                    | false    |              | Image asks for another image than the daemon's default. The template decides which images are allowed.                                                              |
+| `interactive`                | boolean                                                   | false    |              | Interactive gives the command a terminal that the sponsor can attach to.                                                                                            |
+| `keep`                       | boolean                                                   | false    |              | Keep leaves the workspace in place when the workload is over.                                                                                                       |
+| `mounts`                     | array of [codersdk.WorkloadMount](#codersdkworkloadmount) | false    |              | Mounts asks for directories of the workspace to be visible in the sandbox. The template decides which directories may be shared.                                    |
+| `name`                       | string                                                    | false    |              | Name is optional. It must be a valid agent name.                                                                                                                    |
+| `network`                    | [codersdk.WorkloadNetwork](#codersdkworkloadnetwork)      | false    |              | Network asks for another network than the daemon's default. Asking for none is always allowed.                                                                      |
+| `remove_workspace`           | boolean                                                   | false    |              | Remove workspace deletes the workspace when the workload is over. It is for a workspace that was made for this one workload.                                        |
+| `scopes`                     | array of [codersdk.APIKeyScope](#codersdkapikeyscope)     | false    |              | Scopes are the API key scopes the workload may use on the sponsor's behalf. Without any, the workload can do nothing in Coder.                                      |
+| `template_id`                | string                                                    | false    |              | Template ID is the template the workspace is made from. The caller must be allowed to use it.                                                                       |
+| `template_version_preset_id` | string                                                    | false    |              | Template version preset ID selects a preset of the template's active version. A workspace that was built ahead of time for the preset is claimed when there is one. |
+| `workspace_name`             | string                                                    | false    |              | Workspace name is optional. The workspace is named like the workload otherwise.                                                                                     |
+
 ## codersdk.License
 
 ```json
@@ -19032,6 +19077,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "sponsor_id": "32cfe838-2a19-497d-9bb7-2d262b6713b5",
   "sponsor_username": "string",
   "status": "starting",
+  "user_id": "a169451c-8525-4352-b8ca-070dd449a1a5",
   "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
   "workspace_name": "string"
 }
@@ -19039,28 +19085,29 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                                      | Required | Restrictions | Description                                                                                            |
-|--------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------|
-| `agent_id`         | string                                                    | false    |              |                                                                                                        |
-| `agent_name`       | string                                                    | false    |              |                                                                                                        |
-| `command`          | string                                                    | false    |              |                                                                                                        |
-| `created_at`       | string                                                    | false    |              |                                                                                                        |
-| `exit_code`        | integer                                                   | false    |              | Exit code is the command's exit code, when it is known.                                                |
-| `finished_at`      | string                                                    | false    |              | Finished at is set once the workload is over.                                                          |
-| `id`               | string                                                    | false    |              | ID is the workload's identity ID.                                                                      |
-| `identity`         | string                                                    | false    |              | Identity is the workload's identity as it is displayed.                                                |
-| `image`            | string                                                    | false    |              | Image, Network and Mounts are what the daemon's policy settled on.                                     |
-| `mounts`           | array of [codersdk.WorkloadMount](#codersdkworkloadmount) | false    |              |                                                                                                        |
-| `name`             | string                                                    | false    |              |                                                                                                        |
-| `network`          | [codersdk.WorkloadNetwork](#codersdkworkloadnetwork)      | false    |              |                                                                                                        |
-| `own_workspace`    | boolean                                                   | false    |              | Own workspace means the workspace was made for this workload and is deleted when the workload is over. |
-| `sandbox`          | [codersdk.WorkloadSandbox](#codersdkworkloadsandbox)      | false    |              |                                                                                                        |
-| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope)     | false    |              | Scopes narrow the sponsor's permissions. An empty list grants nothing.                                 |
-| `sponsor_id`       | string                                                    | false    |              | Sponsor ID is the user account whose permissions bound what the workload may do.                       |
-| `sponsor_username` | string                                                    | false    |              |                                                                                                        |
-| `status`           | [codersdk.WorkloadStatus](#codersdkworkloadstatus)        | false    |              |                                                                                                        |
-| `workspace_id`     | string                                                    | false    |              |                                                                                                        |
-| `workspace_name`   | string                                                    | false    |              | Workspace name is set when workloads of several workspaces are listed.                                 |
+| Name               | Type                                                      | Required | Restrictions | Description                                                                                                                                      |
+|--------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_id`         | string                                                    | false    |              |                                                                                                                                                  |
+| `agent_name`       | string                                                    | false    |              |                                                                                                                                                  |
+| `command`          | string                                                    | false    |              |                                                                                                                                                  |
+| `created_at`       | string                                                    | false    |              |                                                                                                                                                  |
+| `exit_code`        | integer                                                   | false    |              | Exit code is the command's exit code, when it is known.                                                                                          |
+| `finished_at`      | string                                                    | false    |              | Finished at is set once the workload is over.                                                                                                    |
+| `id`               | string                                                    | false    |              | ID is the workload's identity ID.                                                                                                                |
+| `identity`         | string                                                    | false    |              | Identity is the workload's identity as it is displayed.                                                                                          |
+| `image`            | string                                                    | false    |              | Image, Network and Mounts are what the daemon's policy settled on.                                                                               |
+| `mounts`           | array of [codersdk.WorkloadMount](#codersdkworkloadmount) | false    |              |                                                                                                                                                  |
+| `name`             | string                                                    | false    |              |                                                                                                                                                  |
+| `network`          | [codersdk.WorkloadNetwork](#codersdkworkloadnetwork)      | false    |              |                                                                                                                                                  |
+| `own_workspace`    | boolean                                                   | false    |              | Own workspace means the workspace was made for this workload and is deleted when the workload is over.                                           |
+| `sandbox`          | [codersdk.WorkloadSandbox](#codersdkworkloadsandbox)      | false    |              |                                                                                                                                                  |
+| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope)     | false    |              | Scopes narrow the sponsor's permissions. An empty list grants nothing.                                                                           |
+| `sponsor_id`       | string                                                    | false    |              | Sponsor ID is the user account whose permissions bound what the workload may do.                                                                 |
+| `sponsor_username` | string                                                    | false    |              |                                                                                                                                                  |
+| `status`           | [codersdk.WorkloadStatus](#codersdkworkloadstatus)        | false    |              |                                                                                                                                                  |
+| `user_id`          | string                                                    | false    |              | User ID is the service account that is this identity, for a workload with a workspace to itself. The workload acts as it and owns the workspace. |
+| `workspace_id`     | string                                                    | false    |              |                                                                                                                                                  |
+| `workspace_name`   | string                                                    | false    |              | Workspace name is set when workloads of several workspaces are listed.                                                                           |
 
 ## codersdk.WorkloadAttestation
 

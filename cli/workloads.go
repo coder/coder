@@ -197,6 +197,7 @@ func (r *RootCmd) run() *serpent.Command {
 	var (
 		name     string
 		template string
+		preset   string
 		keep     bool
 		agent    string
 		image    string
@@ -223,8 +224,9 @@ func (r *RootCmd) run() *serpent.Command {
 		Long: "Run a command as a workload. The workload gets its own identity, sponsored by you. It can do nothing in " +
 			"Coder unless you give it scopes, and it never receives your credentials. The command's output is streamed " +
 			"and its exit code returned.\n\n" +
-			"With --template, the workload gets a workspace of its own: a new workspace is made from the template for " +
-			"this one command and deleted when the command is over. With a sandbox template that takes about a second. " +
+			"With --template, the workload gets a workspace of its own, which its identity owns and shares with you. " +
+			"The workspace is made from the template for this one command, claiming one that was built ahead of time " +
+			"when the template keeps such workspaces, and deleted when the command is over. " +
 			"Without --template, the workload runs in a sandbox that the daemon of an existing workspace creates.\n" +
 			FormatExamples(
 				Example{
@@ -300,7 +302,7 @@ func (r *RootCmd) run() *serpent.Command {
 				case remove != "" || logs != "":
 					// Live workloads are listed first, so a running
 					// workload wins over an earlier one of the same name.
-					workloads, err := client.Workloads(ctx, codersdk.WorkspaceWorkloadsOptions{Finished: logs != ""})
+					workloads, err := client.Workloads(ctx, codersdk.WorkspaceWorkloadsOptions{Finished: true})
 					if err != nil {
 						return err
 					}
@@ -396,19 +398,7 @@ func (r *RootCmd) run() *serpent.Command {
 			for _, mount := range mounts {
 				workloadMounts = append(workloadMounts, codersdk.ParseWorkloadMount(mount))
 			}
-			if template != "" {
-				// The workload gets a workspace of its own, named like it.
-				if name == "" {
-					name = "run-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
-				}
-				workspace, err = createWorkloadWorkspace(ctx, client, template, name, phase)
-				if err != nil {
-					return err
-				}
-			} else if keep {
-				return xerrors.New("--keep is for a workspace made with --template")
-			}
-			workload, err := client.CreateWorkspaceWorkload(ctx, workspace.ID, codersdk.CreateWorkloadRequest{
+			request := codersdk.CreateWorkloadRequest{
 				Name:    name,
 				Agent:   agent,
 				Command: shellquote.Join(command...),
@@ -417,21 +407,40 @@ func (r *RootCmd) run() *serpent.Command {
 				Mounts:  workloadMounts,
 				Scopes:  slice.StringEnums[codersdk.APIKeyScope](scopes),
 
-				Interactive:     stdin && tty,
-				RemoveWorkspace: template != "" && !keep,
-			})
-			if err != nil {
-				if template != "" && !keep {
-					// The workspace was made for a workload that does not
-					// exist. coderd removes it when a workload fails to
-					// start; this covers a request that was refused.
-					removeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
-					defer cancel()
-					_, _ = client.CreateWorkspaceBuild(removeCtx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
-						Transition: codersdk.WorkspaceTransitionDelete,
-					})
+				Interactive: stdin && tty,
+			}
+			var workload codersdk.Workload
+			switch {
+			case template != "":
+				// The workload gets a workspace of its own, named like it.
+				// coderd makes both: the workspace belongs to the
+				// workload's identity, not to whoever runs this command.
+				if request.Name == "" {
+					request.Name = "run-" + strings.ReplaceAll(uuid.NewString(), "-", "")[:8]
 				}
-				return err
+				templateID, presetID, err := resolveWorkloadTemplate(ctx, client, template, preset)
+				if err != nil {
+					return err
+				}
+				phase("template found")
+				workload, err = client.LaunchWorkload(ctx, codersdk.LaunchWorkloadRequest{
+					CreateWorkloadRequest:   request,
+					TemplateID:              templateID,
+					TemplateVersionPresetID: presetID,
+					Keep:                    keep,
+				})
+				if err != nil {
+					return err
+				}
+			case keep:
+				return xerrors.New("--keep is for a workspace made with --template")
+			case preset != "":
+				return xerrors.New("--preset is for a workspace made with --template")
+			default:
+				workload, err = client.CreateWorkspaceWorkload(ctx, workspace.ID, request)
+				if err != nil {
+					return err
+				}
 			}
 			phase("workload started")
 			if detach {
@@ -445,7 +454,7 @@ func (r *RootCmd) run() *serpent.Command {
 					return err
 				}
 				exitCode := -1
-				err = client.WorkspaceWorkloadLogs(ctx, workspace.ID, workload.ID, func(event codersdk.WorkloadLogEvent) error {
+				err = client.WorkspaceWorkloadLogs(ctx, workload.WorkspaceID, workload.ID, func(event codersdk.WorkloadLogEvent) error {
 					if event.ExitCode != nil {
 						exitCode = *event.ExitCode
 					}
@@ -467,7 +476,7 @@ func (r *RootCmd) run() *serpent.Command {
 				// that was attached to it.
 				removeCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 				defer cancel()
-				_ = client.DeleteWorkspaceWorkload(removeCtx, workspace.ID, workload.ID)
+				_ = client.DeleteWorkspaceWorkload(removeCtx, workload.WorkspaceID, workload.ID)
 				return ctx.Err()
 			}
 			return err
@@ -481,7 +490,7 @@ func (r *RootCmd) run() *serpent.Command {
 		},
 		{
 			Flag:        "scope",
-			Description: "A permission the workload may use on your behalf, as an API token scope such as workspace:read. Repeat it for several. Without any, the workload can do nothing in Coder.",
+			Description: "A permission the workload may use, as an API token scope such as workspace:read. Repeat it for several. Without any, the workload can do nothing in Coder.",
 			Value:       serpent.StringArrayOf(&scopes),
 		},
 		{
@@ -507,8 +516,13 @@ func (r *RootCmd) run() *serpent.Command {
 		},
 		{
 			Flag:        "template",
-			Description: "Give the workload a workspace of its own, made from this template and deleted when the command is over. Use a sandbox template, whose workspaces are claimed from a warm pool, for a start in about a second.",
+			Description: "Give the workload a workspace of its own, made from this template and deleted when the command is over. The workload's identity owns the workspace and shares it with you.",
 			Value:       serpent.StringOf(&template),
+		},
+		{
+			Flag:        "preset",
+			Description: "With --template, the preset of the template to use. A workspace that was built ahead of time for the preset is claimed when there is one.",
+			Value:       serpent.StringOf(&preset),
 		},
 		{
 			Flag:        "keep",
@@ -565,57 +579,33 @@ func (r *RootCmd) run() *serpent.Command {
 	return cmd
 }
 
-// createWorkloadWorkspace makes a workspace for one workload and waits for
-// its build.
-func createWorkloadWorkspace(ctx context.Context, client *codersdk.Client, templateName, name string, phase func(string)) (codersdk.Workspace, error) {
+// resolveWorkloadTemplate finds the template a workload's workspace is made
+// from and, when one is named, the preset of its active version.
+func resolveWorkloadTemplate(ctx context.Context, client *codersdk.Client, templateName, presetName string) (templateID, presetID uuid.UUID, err error) {
 	templates, err := client.Templates(ctx, codersdk.TemplateFilter{ExactName: templateName})
-	phase("template found")
 	if err != nil {
-		return codersdk.Workspace{}, xerrors.Errorf("find template %q: %w", templateName, err)
+		return uuid.Nil, uuid.Nil, xerrors.Errorf("find template %q: %w", templateName, err)
 	}
 	switch len(templates) {
 	case 0:
-		return codersdk.Workspace{}, xerrors.Errorf("there is no template %q", templateName)
+		return uuid.Nil, uuid.Nil, xerrors.Errorf("there is no template %q", templateName)
 	case 1:
 	default:
-		return codersdk.Workspace{}, xerrors.Errorf("several organizations have a template %q", templateName)
+		return uuid.Nil, uuid.Nil, xerrors.Errorf("several organizations have a template %q", templateName)
 	}
-	workspace, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
-		TemplateID: templates[0].ID,
-		Name:       name,
-	})
+	if presetName == "" {
+		return templates[0].ID, uuid.Nil, nil
+	}
+	presets, err := client.TemplateVersionPresets(ctx, templates[0].ActiveVersionID)
 	if err != nil {
-		return codersdk.Workspace{}, xerrors.Errorf("create a workspace for the workload: %w", err)
+		return uuid.Nil, uuid.Nil, xerrors.Errorf("list the presets of template %q: %w", templateName, err)
 	}
-	phase("workspace created")
-	// A sandbox template builds in a fraction of a second, so look often
-	// at first. The sooner the workload follows the build, the better: a
-	// daemon that has just been claimed is busy setting itself up soon
-	// after.
-	began := time.Now()
-	for {
-		build, err := client.WorkspaceBuild(ctx, workspace.LatestBuild.ID)
-		if err != nil {
-			return codersdk.Workspace{}, xerrors.Errorf("wait for the workload's workspace: %w", err)
-		}
-		switch build.Job.Status {
-		case codersdk.ProvisionerJobSucceeded:
-			phase("workspace built")
-			return workspace, nil
-		case codersdk.ProvisionerJobFailed, codersdk.ProvisionerJobCanceled:
-			return codersdk.Workspace{}, xerrors.Errorf("the workload's workspace %q could not be built: %s", name, build.Job.Error)
-		default:
-		}
-		wait := 20 * time.Millisecond
-		if time.Since(began) > 3*time.Second {
-			wait = 250 * time.Millisecond
-		}
-		select {
-		case <-ctx.Done():
-			return codersdk.Workspace{}, ctx.Err()
-		case <-time.After(wait):
+	for _, preset := range presets {
+		if preset.Name == presetName {
+			return templates[0].ID, preset.ID, nil
 		}
 	}
+	return uuid.Nil, uuid.Nil, xerrors.Errorf("template %q has no preset %q", templateName, presetName)
 }
 
 // followWorkload prints a workload's output until its command ends, and

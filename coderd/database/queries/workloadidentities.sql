@@ -6,6 +6,7 @@ INSERT INTO workload_identities (
 	sponsor_id,
 	workspace_id,
 	workspace_agent_id,
+	user_id,
 	name,
 	command,
 	scopes,
@@ -22,6 +23,7 @@ VALUES (
 	@sponsor_id,
 	@workspace_id,
 	@workspace_agent_id,
+	@user_id,
 	@name,
 	@command,
 	@scopes,
@@ -42,6 +44,16 @@ FROM
 	workload_identities
 WHERE
 	id = @id;
+
+-- GetWorkloadIdentityByUserID returns the identity a service account
+-- is, whether or not its workload is over.
+-- name: GetWorkloadIdentityByUserID :one
+SELECT
+	*
+FROM
+	workload_identities
+WHERE
+	user_id = @user_id;
 
 -- GetWorkloadIdentitiesByWorkspaceID returns the live workloads of a
 -- workspace.
@@ -115,6 +127,18 @@ ORDER BY
 	finished_at DESC
 LIMIT
 	@limit_opt :: integer;
+
+-- UpdateWorkloadIdentityWorkspaceAgent gives a workload to the daemon of
+-- the workspace that was built for it.
+-- name: UpdateWorkloadIdentityWorkspaceAgent :one
+UPDATE
+	workload_identities
+SET
+	workspace_agent_id = @workspace_agent_id
+WHERE
+	id = @id
+	AND finished_at IS NULL
+RETURNING *;
 
 -- UpdateWorkloadIdentitySandbox records the sandbox the daemon started for
 -- the workload and what its policy settled on.

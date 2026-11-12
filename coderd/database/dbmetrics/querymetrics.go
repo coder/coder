@@ -3856,6 +3856,14 @@ func (m queryMetricsStore) GetWorkloadIdentityByID(ctx context.Context, id uuid.
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkloadIdentityByUserID(ctx context.Context, userID uuid.NullUUID) (database.WorkloadIdentity, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkloadIdentityByUserID(ctx, userID)
+	m.queryLatencies.WithLabelValues("GetWorkloadIdentityByUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkloadIdentityByUserID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceACLByID(ctx context.Context, id uuid.UUID) (database.GetWorkspaceACLByIDRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceACLByID(ctx, id)
@@ -6574,6 +6582,14 @@ func (m queryMetricsStore) UpdateWorkloadIdentitySandbox(ctx context.Context, ar
 	r0, r1 := m.s.UpdateWorkloadIdentitySandbox(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkloadIdentitySandbox").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkloadIdentitySandbox").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateWorkloadIdentityWorkspaceAgent(ctx context.Context, arg database.UpdateWorkloadIdentityWorkspaceAgentParams) (database.WorkloadIdentity, error) {
+	start := time.Now()
+	r0, r1 := m.s.UpdateWorkloadIdentityWorkspaceAgent(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkloadIdentityWorkspaceAgent").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateWorkloadIdentityWorkspaceAgent").Inc()
 	return r0, r1
 }
 
