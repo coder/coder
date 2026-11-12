@@ -3125,30 +3125,33 @@ export const SlashCompactYieldsToPersonalSkill: Story = {
 	},
 };
 
-const promotedQueueHeadChat: TypesGen.Chat = {
+const erroredQueueChat: TypesGen.Chat = {
 	id: CHAT_ID,
 	...baseChatFields,
-	title: "Promoted queue head",
+	title: "Errored chat with a queue",
 	status: "error",
 };
 
-const promotedQueueHeadMessages: TypesGen.ChatMessagesResponse = {
+const erroredQueueMessages: TypesGen.ChatMessagesResponse = {
 	messages: slashCommandMessages.messages,
 	queued_messages: [
 		{
 			...MockChatQueuedMessage,
 			id: 41,
 			chat_id: CHAT_ID,
-			content: [{ type: "text", text: "Queued head prompt" }],
+			content: [{ type: "text", text: "Queued after turn" }],
 		},
 	],
 	has_more: false,
 };
 
-export const QueuedSendPromotesPreviousHead: Story = {
+// A send to an errored chat goes to the steer lane, which the server
+// delivers at once, so the message shows in the transcript and the After
+// turn row stays queued.
+export const SendToErroredChatWithQueue: Story = {
 	parameters: {
 		queries: [
-			...buildQueries(promotedQueueHeadChat, promotedQueueHeadMessages, {
+			...buildQueries(erroredQueueChat, erroredQueueMessages, {
 				diffUrl: undefined,
 			}),
 			{
@@ -3157,8 +3160,8 @@ export const QueuedSendPromotesPreviousHead: Story = {
 						canUpdateChat: {
 							object: {
 								resource_type: "chat",
-								owner_id: promotedQueueHeadChat.owner_id,
-								organization_id: promotedQueueHeadChat.organization_id,
+								owner_id: erroredQueueChat.owner_id,
+								organization_id: erroredQueueChat.organization_id,
 							},
 							action: "update",
 						},
@@ -3170,15 +3173,13 @@ export const QueuedSendPromotesPreviousHead: Story = {
 	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		spyOn(API.experimental, "createChatMessage").mockResolvedValue({
+			queued: false,
+		});
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const sendSpy = spyOn(
-			API.experimental,
-			"createChatMessage",
-		).mockResolvedValue({ queued: true });
-
-		expect(await canvas.findByText("Queued head prompt")).toBeVisible();
+		await canvas.findByText("Queued after turn");
 		// The stream reports the chat's status on connect.
 		loadedChatStore(CHAT_ID)?.applyServerChatStatus("error");
 
@@ -3186,17 +3187,8 @@ export const QueuedSendPromotesPreviousHead: Story = {
 		await userEvent.click(editor);
 		await userEvent.type(editor, "Follow-up prompt");
 		await userEvent.keyboard("{Enter}");
-		await waitFor(() => {
-			expect(sendSpy).toHaveBeenCalledTimes(1);
-		});
-
 		const timeline = within(await canvas.findByTestId("conversation-timeline"));
-		await waitFor(() => {
-			expect(timeline.getByText("Queued head prompt")).toBeVisible();
-			expect(canvas.getAllByText("Queued head prompt")).toHaveLength(1);
-			expect(canvas.getAllByText("Follow-up prompt")).toHaveLength(1);
-			expect(timeline.queryByText("Follow-up prompt")).not.toBeInTheDocument();
-		});
+		await timeline.findByText("Follow-up prompt");
 	},
 };
 

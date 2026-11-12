@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { authorizationKey, getAuthorizationKey } from "#/api/queries/authCheck";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat } from "#/testHelpers/chatEntities";
+import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
 import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
@@ -261,7 +261,7 @@ describe("ChatPageInput", () => {
 						archived,
 					};
 					const store = createChatStore();
-					store.setQueuedMessages([MockChatQueuedMessage]);
+					store.setQueuedMessages([MockChatQueuedMessage], 1);
 					vi.spyOn(API, "checkAuthorization").mockImplementation(
 						async ({ checks }) =>
 							Object.fromEntries(
@@ -344,7 +344,7 @@ describe("ChatPageInput", () => {
 						: Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
 			);
 			const store = createChatStore();
-			store.setQueuedMessages([MockChatQueuedMessage]);
+			store.setQueuedMessages([MockChatQueuedMessage], 1);
 			const { queryClient } = renderChatPageInput(store, {
 				onDeleteQueuedMessage,
 			});
@@ -607,6 +607,9 @@ describe("ChatPageInput", () => {
 		const user = userEvent.setup();
 		const onPromoteQueuedMessage = vi.fn();
 		const onDeleteQueuedMessage = vi.fn();
+		vi.spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+			Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+		);
 		const store = createChatStore();
 		store.seed({
 			messages: [],
@@ -618,6 +621,7 @@ describe("ChatPageInput", () => {
 		void store.runPendingAction(
 			{
 				kind: "send",
+				busyBehavior: "queue",
 				message: {
 					id: 0,
 					chat_id: "",
@@ -626,7 +630,6 @@ describe("ChatPageInput", () => {
 					content: [{ type: "text", text: "not stored yet" }],
 				},
 			},
-			"running",
 			() => new Promise(() => {}),
 		);
 
@@ -636,94 +639,12 @@ describe("ChatPageInput", () => {
 		});
 		await screen.findByText("not stored yet");
 		expect(screen.queryByText("to send")).toBeNull();
-		await user.click(screen.getByRole("button", { name: "Send now" }));
+		await user.click(await screen.findByRole("button", { name: "Send now" }));
 		await user.click(screen.getByRole("button", { name: "Remove from queue" }));
 		await user.click(screen.getByTestId("chat-message-input"));
 		await user.keyboard("{Enter}");
 
 		expect(onPromoteQueuedMessage).not.toHaveBeenCalled();
 		expect(onDeleteQueuedMessage).not.toHaveBeenCalled();
-	});
-
-	it("keeps an Enter-started promote the row's only request until it settles", async () => {
-		const user = userEvent.setup();
-		const promote = createDeferred<undefined>();
-		const onPromoteQueuedMessage = vi
-			.fn()
-			.mockReturnValueOnce(promote.promise)
-			.mockResolvedValue(undefined);
-		const onDeleteQueuedMessage = vi.fn();
-		const store = createChatStore();
-		store.seed({
-			messages: [],
-			queued_messages: [
-				{
-					id: 1,
-					chat_id: "",
-					created_at: "2025-01-01T00:00:00.000Z",
-					content: [{ type: "text", text: "queued" }],
-				},
-			],
-			has_more: false,
-			snapshot_version: 1,
-		});
-		store.applyServerChatStatus("running");
-
-		renderChatPageInput(store, {
-			onPromoteQueuedMessage,
-			onDeleteQueuedMessage,
-		});
-		await screen.findByText("queued");
-		await user.click(screen.getByTestId("chat-message-input"));
-		await user.keyboard("{Enter}");
-		await user.keyboard("{Enter}");
-		const remove = screen.getByRole("button", { name: "Remove from queue" });
-		expect(remove).toBeDisabled();
-		expect(screen.getByRole("button", { name: "Send now" })).toBeDisabled();
-		expect(onPromoteQueuedMessage.mock.calls).toEqual([[1]]);
-
-		await act(async () => {
-			promote.resolve(undefined);
-		});
-		expect(remove).toBeEnabled();
-		await user.click(remove);
-		expect(onDeleteQueuedMessage.mock.calls).toEqual([[1]]);
-	});
-
-	it("lets another queued row act while one row's request is in flight", async () => {
-		const user = userEvent.setup();
-		const onDeleteQueuedMessage = vi
-			.fn()
-			.mockReturnValueOnce(new Promise(() => {}))
-			.mockResolvedValue(undefined);
-		const queuedRow = (id: number, text: string) => ({
-			id,
-			chat_id: "",
-			created_at: "2025-01-01T00:00:00.000Z",
-			content: [{ type: "text" as const, text }],
-		});
-		const store = createChatStore();
-		store.seed({
-			messages: [],
-			queued_messages: [
-				queuedRow(1, "first queued"),
-				queuedRow(2, "second queued"),
-			],
-			has_more: false,
-			snapshot_version: 1,
-		});
-		store.applyServerChatStatus("running");
-
-		renderChatPageInput(store, { onDeleteQueuedMessage });
-		await screen.findByText("second queued");
-		const [removeFirst, removeSecond] = screen.getAllByRole("button", {
-			name: "Remove from queue",
-		});
-		await user.click(removeFirst);
-
-		expect(removeFirst).toBeDisabled();
-		expect(removeSecond).toBeEnabled();
-		await user.click(removeSecond);
-		expect(onDeleteQueuedMessage.mock.calls).toEqual([[1], [2]]);
 	});
 });

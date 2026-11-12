@@ -19,7 +19,6 @@ const meta: Meta<typeof QueuedMessagesList> = {
 	title: "pages/AgentsPage/QueuedMessagesList",
 	component: QueuedMessagesList,
 	args: {
-		busyRows: new Map(),
 		onDelete: fn(),
 		onPromote: fn(),
 		onEdit: fn(),
@@ -282,6 +281,33 @@ export const WaitingBehindHeadUnderEdit: Story = {
 	},
 };
 
+// A steer row under edit holds every steer row, so the steer row above it
+// waits too. Its Waiting badge shows its tooltip.
+export const SteerRowUnderEditHoldsLane: Story = {
+	args: {
+		queuedMessageUnderEditID: 2,
+		showEnterToSendHint: false,
+		messages: [
+			{
+				...buildMessage(1, textContent("Also check the error logs")),
+				busy_behavior: "steer",
+			},
+			{
+				...MockChatQueuedMessageUnderEdit,
+				id: 2,
+				busy_behavior: "steer",
+				content: textContent("Skip the flaky test"),
+			},
+			buildMessage(3, textContent("Then open a pull request")),
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const [waitingAbove] = canvas.getAllByRole("button", { name: "Waiting" });
+		await userEvent.hover(waitingAbove);
+	},
+};
+
 // The queue head is under edit on a paused chat, so the Enter-to-send hint is
 // hidden, and the Cancel edit tooltip says cancelling sends the head.
 export const HeadUnderEdit: Story = {
@@ -354,14 +380,18 @@ export const EndRequestPending: Story = {
 	},
 };
 
-// A delete in flight disables only that row's actions.
-export const DeleteInFlightDisablesRow: Story = {
+// The second row is a pending send that the server has not stored yet, so
+// its actions are disabled.
+export const PendingRowDisablesActions: Story = {
 	args: {
 		messages: [
 			buildMessage(1, textContent("First queued")),
-			buildMessage(2, textContent("Second queued")),
+			buildMessage(Number.MAX_SAFE_INTEGER, textContent("Not stored yet")),
 		],
-		busyRows: new Map([[1, "delete"]]),
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.hover(canvas.getByText("Not stored yet"));
 	},
 };
 

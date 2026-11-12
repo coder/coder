@@ -197,6 +197,9 @@ const renderChatPage = (
 	vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
 		MockUserPreferenceSettings,
 	);
+	vi.spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+		Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+	);
 	vi.spyOn(API.experimental, "getMCPServerConfigs").mockResolvedValue([]);
 	return renderWithAuth(<Outlet context={outletContext} />, {
 		path: "/agents",

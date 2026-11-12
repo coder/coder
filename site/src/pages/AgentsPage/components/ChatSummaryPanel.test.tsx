@@ -135,7 +135,6 @@ describe("ChatSummaryPanel attachments", () => {
 					editedMessageID: mockOldestLoadedMessage.id,
 					message: mockOldestLoadedMessage,
 				},
-				null,
 				() => new Promise(() => {}),
 			);
 		});

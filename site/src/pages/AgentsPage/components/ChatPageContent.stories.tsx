@@ -541,7 +541,7 @@ export const QueuePermissionError: Story = {
 	},
 	render: () => {
 		const store = createChatStore();
-		store.setQueuedMessages([MockChatQueuedMessage]);
+		store.setQueuedMessages([MockChatQueuedMessage], 1);
 		return <StoryChatPageInput store={store} />;
 	},
 	play: async ({ canvasElement }) => {
@@ -572,7 +572,7 @@ export const QueuePermissionRefetchError: Story = {
 	},
 	render: () => {
 		const store = createChatStore();
-		store.setQueuedMessages([MockChatQueuedMessage]);
+		store.setQueuedMessages([MockChatQueuedMessage], 1);
 		return <StoryChatPageInput store={store} />;
 	},
 	play: async ({ canvasElement }) => {
