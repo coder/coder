@@ -68,7 +68,7 @@ const compareSummaries = (a: ChatProjectSummary, b: ChatProjectSummary) => {
  * Each tab lists pinned projects first in pin order, then the rest by latest
  * activity, then projects without chats, with ties broken by name.
  */
-export const getProjectsByTab = (
+const getProjectsByTab = (
 	summaries: readonly ChatProjectSummary[],
 	userId: string,
 ): ProjectsByTab => {

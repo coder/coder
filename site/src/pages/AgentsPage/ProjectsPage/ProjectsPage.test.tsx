@@ -10,7 +10,7 @@ import {
 	MockUserOwner,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
-import ProjectsPage, { getProjectsByTab } from "./ProjectsPage";
+import ProjectsPage from "./ProjectsPage";
 
 // The header reads the agents layout's outlet context.
 vi.mock("../components/AgentPageHeader", () => ({
@@ -29,28 +29,27 @@ const summary = (
 	project: { ...MockChatProject, id: name, name, owner_id: ownerId },
 });
 
-const names = (summaries: readonly ChatProjectSummary[]) =>
-	summaries.map((s) => s.project.name);
+const cardNames = () =>
+	screen.getAllByRole("link").map((link) => link.textContent);
 
-describe("getProjectsByTab", () => {
-	it("splits by owner and orders pins, then activity, then no chats", () => {
+describe("ProjectsPage", () => {
+	it("orders your projects and lists others' projects under Shared with you", async () => {
+		const user = userEvent.setup();
 		const earlier = "2026-11-01T00:00:00Z";
 		const later = "2026-11-02T00:00:00Z";
-		const projects = getProjectsByTab(
-			[
-				summary("zeta"),
-				summary("Alpha"),
-				summary("theirs", {}, MockUserMember.id),
-				summary("older", { last_activity_at: earlier }),
-				summary("second pin", { pinned: true, pin_order: 2 }),
-				summary("newer", { last_activity_at: later }),
-				summary("Tied", { last_activity_at: later }),
-				summary("first pin", { pinned: true, pin_order: 1 }),
-			],
-			MockUserOwner.id,
-		);
-		expect(names(projects.shared)).toEqual(["theirs"]);
-		expect(names(projects.yours)).toEqual([
+		vi.spyOn(API.experimental, "getChatProjectSummaries").mockResolvedValue([
+			summary("zeta"),
+			summary("Alpha"),
+			summary("theirs", {}, MockUserMember.id),
+			summary("older", { last_activity_at: earlier }),
+			summary("second pin", { pinned: true, pin_order: 2 }),
+			summary("newer", { last_activity_at: later }),
+			summary("Tied", { last_activity_at: later }),
+			summary("first pin", { pinned: true, pin_order: 1 }),
+		]);
+		renderWithAuth(<ProjectsPage />);
+		await screen.findByRole("link", { name: "zeta" });
+		expect(cardNames()).toEqual([
 			"first pin",
 			"second pin",
 			"newer",
@@ -59,29 +58,34 @@ describe("getProjectsByTab", () => {
 			"Alpha",
 			"zeta",
 		]);
+		await user.click(screen.getByRole("tab", { name: "Shared with you" }));
+		await waitFor(() => expect(cardNames()).toEqual(["theirs"]));
 	});
-});
 
-describe("ProjectsPage", () => {
-	it("pins a project at the end from its card's actions menu", async () => {
+	it("pins at the end and holds back Pin while each project's pin is pending", async () => {
 		const user = userEvent.setup();
 		vi.spyOn(API.experimental, "getChatProjectSummaries").mockResolvedValue([
 			summary("India"),
+			summary("Kilo"),
 		]);
 		const pin = vi
 			.spyOn(API.experimental, "pinChatProject")
 			.mockReturnValue(new Promise(() => {}));
 		renderWithAuth(<ProjectsPage />);
+		const openActions = async (name: string) =>
+			user.click(
+				await screen.findByRole("button", {
+					name: `Open project actions for ${name}`,
+				}),
+			);
 
-		await user.click(
-			await screen.findByRole("button", {
-				name: "Open project actions for India",
-			}),
-		);
-		await user.click(
-			await screen.findByRole("menuitem", { name: "Pin project" }),
-		);
-
+		// Pins run in order, so Kilo's pin waits behind India's.
+		for (const name of ["India", "Kilo"]) {
+			await openActions(name);
+			await user.click(
+				await screen.findByRole("menuitem", { name: "Pin project" }),
+			);
+		}
 		await waitFor(() =>
 			expect(pin).toHaveBeenCalledWith(
 				MockChatProject.organization_id,
@@ -89,6 +93,9 @@ describe("ProjectsPage", () => {
 				undefined,
 			),
 		);
+		await openActions("India");
+		await screen.findByRole("menuitem", { name: "Edit project" });
+		expect(screen.queryByRole("menuitem", { name: "Pin project" })).toBeNull();
 	});
 
 	it("unpins once when the pin button is double-clicked", async () => {
