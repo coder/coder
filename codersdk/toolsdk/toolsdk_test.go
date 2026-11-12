@@ -2050,15 +2050,15 @@ func TestTemplateToolsOrganization(t *testing.T) {
 	dbgen.OrganizationMember(t, store, database.OrganizationMember{OrganizationID: otherOrg.ID, UserID: owner.UserID})
 	tb, err := toolsdk.NewDeps(client)
 	require.NoError(t, err)
-	// nolint:gocritic // This is in a test package and does not end up in the build
+	//nolint:gocritic // This is in a test package and does not end up in the build
 	file := dbgen.File(t, store, database.File{})
-	// nolint:gocritic // This is in a test package and does not end up in the build
+	//nolint:gocritic // This is in a test package and does not end up in the build
 	existing := dbfake.TemplateVersion(t, store).
 		Seed(database.TemplateVersion{OrganizationID: owner.OrganizationID, CreatedBy: owner.UserID}).
 		Do()
 	unattachedVersion := func(t *testing.T, organizationID uuid.UUID) uuid.UUID {
 		t.Helper()
-		// nolint:gocritic // This is in a test package and does not end up in the build
+		//nolint:gocritic // This is in a test package and does not end up in the build
 		return dbfake.TemplateVersion(t, store).
 			Seed(database.TemplateVersion{OrganizationID: organizationID, CreatedBy: owner.UserID}).
 			SkipCreateTemplate().Do().TemplateVersion.ID
