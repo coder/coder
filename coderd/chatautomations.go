@@ -8,6 +8,8 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -34,6 +36,13 @@ func (api *API) requireChatAutomationsExperiment(next http.Handler) http.Handler
 	})
 }
 
+// writeChatAutomationError answers 500 with no detail. The request logger
+// logs the body of a 5xx response, so the cause goes to a log field instead.
+func (api *API) writeChatAutomationError(ctx context.Context, rw http.ResponseWriter, message string, err error) {
+	api.Logger.Error(ctx, message, slog.Error(err))
+	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: message})
+}
+
 // @Summary List chat automations
 // @ID list-chat-automations
 // @Security CoderSessionToken
@@ -50,7 +59,7 @@ func (api *API) listChatAutomations(rw http.ResponseWriter, r *http.Request) {
 
 	ownerID, found, err := api.chatAutomationOwnerFilter(ctx, httpmw.APIKey(r).UserID, r.URL.Query().Get("owner"))
 	if err != nil {
-		httpapi.InternalServerError(rw, err)
+		api.writeChatAutomationError(ctx, rw, "Failed to list chat automations.", err)
 		return
 	}
 	if !found {
@@ -63,19 +72,13 @@ func (api *API) listChatAutomations(rw http.ResponseWriter, r *http.Request) {
 		OwnerID:        ownerID,
 	})
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list chat automations.",
-			Detail:  err.Error(),
-		})
+		api.writeChatAutomationError(ctx, rw, "Failed to list chat automations.", err)
 		return
 	}
 	automations := slice.List(rows, db2sdk.ChatAutomationFromListRow)
 	refs, err := api.loadChatAutomationRefs(ctx, automations)
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to list chat automations.",
-			Detail:  err.Error(),
-		})
+		api.writeChatAutomationError(ctx, rw, "Failed to list chat automations.", err)
 		return
 	}
 	now := dbtime.Now()
@@ -135,18 +138,12 @@ func (api *API) getChatAutomation(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat automation.",
-			Detail:  err.Error(),
-		})
+		api.writeChatAutomationError(ctx, rw, "Failed to get chat automation.", err)
 		return
 	}
 	refs, err := api.loadChatAutomationRefs(ctx, []database.ChatAutomation{automation})
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to get chat automation.",
-			Detail:  err.Error(),
-		})
+		api.writeChatAutomationError(ctx, rw, "Failed to get chat automation.", err)
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.ChatAutomation(automation, refs, dbtime.Now()))
@@ -184,10 +181,7 @@ func (api *API) deleteChatAutomation(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Failed to delete chat automation.",
-			Detail:  err.Error(),
-		})
+		api.writeChatAutomationError(ctx, rw, "Failed to delete chat automation.", err)
 		return
 	}
 	aReq.Old = deleted
