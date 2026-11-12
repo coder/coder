@@ -5542,6 +5542,7 @@ const (
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
 	ExperimentChatACPSubagents          Experiment = "chat-acp-subagents"          // Enables workspace-local ACP subagent tools in root chats.
 	ExperimentChatAutomations           Experiment = "chat-automations"            // Enables webhook and scheduled automations that deliver prompts to agent chats.
+	ExperimentChatAsyncQuestions        Experiment = "chat-async-questions"        // Lets agents in web UI chats ask the user a question without ending the turn.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5605,6 +5606,7 @@ var ExperimentsKnown = Experiments{
 	ExperimentChatStageMetrics,
 	ExperimentChatACPSubagents,
 	ExperimentChatAutomations,
+	ExperimentChatAsyncQuestions,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
