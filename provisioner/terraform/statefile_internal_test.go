@@ -5,6 +5,7 @@ package terraform
 import (
 	"context"
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -81,196 +82,31 @@ func Test_readStateFile_Rejects(t *testing.T) {
 	})
 }
 
-// stateFileTestFiles is a template whose state exercises how `terraform show
-// -json` orders and addresses entries: data sources, counted and keyed
-// resources and modules, nested modules, and unusual keys.
-var stateFileTestFiles = map[string]string{
-	"main.tf": `
-terraform {
-  required_providers {
-    coder = {
-      source  = "coder/coder"
-      version = "2.15.0"
-    }
-  }
+// stateFileTemplateDir holds the template that
+// Test_readStateFile_MatchesTerraformShow applies.
+const stateFileTemplateDir = "testdata/statefile/ordering"
+
+// readTemplateDir returns the files of the template in dir, keyed by their
+// slash-separated path.
+func readTemplateDir(t *testing.T, dir string) map[string]string {
+	t.Helper()
+	files := map[string]string{}
+	fsys := os.DirFS(dir)
+	require.NoError(t, fs.WalkDir(fsys, ".", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() {
+			return err
+		}
+		content, err := fs.ReadFile(fsys, path)
+		files[path] = string(content)
+		return err
+	}))
+	return files
 }
 
-variable "fail_provisioner" {
-  type    = bool
-  default = false
-}
-
-data "coder_workspace" "me" {}
-
-data "coder_parameter" "region" {
-  name    = "region"
-  default = "us"
-  option {
-    name  = "US"
-    value = "us"
-  }
-  option {
-    name  = "EU"
-    value = "eu"
-  }
-}
-
-data "coder_parameter" "cpus" {
-  name    = "cpus"
-  type    = "number"
-  default = 2
-  validation {
-    min = 1
-    max = 8
-  }
-}
-
-data "coder_external_auth" "github" {
-  id       = "github"
-  optional = true
-}
-
-resource "coder_agent" "main" {
-  arch = "amd64"
-  os   = "linux"
-  env  = { REGION = data.coder_parameter.region.value }
-  metadata {
-    key          = "load"
-    display_name = "Load"
-    script       = "uptime"
-    interval     = 10
-  }
-}
-
-# terraform_data.input is dynamically typed, so the state file records its
-# type next to its value.
-resource "terraform_data" "host" {
-  input = coder_agent.main.token
-}
-
-resource "coder_metadata" "host" {
-  resource_id = terraform_data.host.id
-  item {
-    key   = "region"
-    value = data.coder_parameter.region.value
-  }
-  item {
-    key       = "password"
-    value     = "hunter2"
-    sensitive = true
-  }
-}
-
-resource "coder_app" "apps" {
-  for_each     = toset(["code", "web ui"])
-  agent_id     = coder_agent.main.id
-  slug         = replace(each.key, " ", "-")
-  display_name = each.key
-  url          = "http://localhost:8080"
-  healthcheck {
-    url       = "http://localhost:8080/healthz"
-    interval  = 5
-    threshold = 3
-  }
-}
-
-# Integer keys sort numerically: [10] follows [9].
-resource "coder_env" "counted" {
-  count    = 11
-  agent_id = coder_agent.main.id
-  name     = "COUNTED_${count.index}"
-  value    = tostring(count.index)
-}
-
-# String keys sort bytewise and are quoted in addresses the way Terraform
-# quotes them, which escapes template introducers and non-printable runes.
-resource "coder_env" "keys" {
-  for_each = toset([
-    "", "B", "a", "web ui", "quote\"d", "back\\slash", "a$${b}", "c%%{d}",
-    "tab\there", "new\nline", "cr\rlf\n", "bell\u0007", "del\u007f",
-    "nbsp\u00a0", "ünïcödé", "🚀",
-  ])
-  agent_id = coder_agent.main.id
-  name     = "KEY_${md5(each.key)}"
-  value    = each.key
-}
-
-# When fail_provisioner is set, replacing this agent leaves a tainted new
-# object and keeps the old one as a deposed object. Nothing hosts the agent:
-# its current and deposed graph nodes share a label, and ConvertState picks
-# either one.
-resource "coder_agent" "replaced" {
-  arch = "amd64"
-  os   = "linux"
-  lifecycle {
-    create_before_destroy = true
-  }
-  provisioner "local-exec" {
-    command = var.fail_provisioner ? "exit 1" : "exit 0"
-  }
-}
-
-# module.child holds no resources itself, and its key contains ".module.".
-module "child" {
-  for_each = toset(["x.module.y"])
-  source   = "./child"
-  agent_id = coder_agent.main.id
-}
-
-# Module instances sort by address: [10] precedes [2].
-module "counted" {
-  count    = 11
-  source   = "./child/grandchild"
-  agent_id = coder_agent.main.id
-}
-
-# module.wrap sorts before module.wrap-sibling, but holds no resources itself,
-# and the state file lists module.wrap.module.grandchild after
-# module.wrap-sibling.
-module "wrap" {
-  source   = "./child"
-  agent_id = coder_agent.main.id
-}
-
-module "wrap-sibling" {
-  source   = "./child/grandchild"
-  agent_id = coder_agent.main.id
-}
-`,
-	"child/main.tf": `
-terraform {
-  required_providers {
-    coder = { source = "coder/coder" }
-  }
-}
-variable "agent_id" { type = string }
-module "grandchild" {
-  for_each = toset(["one"])
-  source   = "./grandchild"
-  agent_id = var.agent_id
-}
-`,
-	"child/grandchild/main.tf": `
-terraform {
-  required_providers {
-    coder = { source = "coder/coder" }
-  }
-}
-variable "agent_id" { type = string }
-data "coder_workspace" "me" {}
-resource "coder_script" "deep" {
-  agent_id     = var.agent_id
-  display_name = "deep"
-  script       = "echo deep"
-  run_on_start = true
-}
-`,
-}
-
-// Test_readStateFile_MatchesTerraformShow applies stateFileTestFiles with
-// real Terraform and checks that readStateFile returns what Graph's
-// `terraform show -json` fallback returns, and that both convert to the
-// same resources.
+// Test_readStateFile_MatchesTerraformShow applies the template in
+// stateFileTemplateDir with real Terraform and checks that readStateFile
+// returns what Graph's `terraform show -json` fallback returns, and that
+// both convert to the same resources.
 func Test_readStateFile_MatchesTerraformShow(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitSuperLong)
@@ -284,8 +120,9 @@ func Test_readStateFile_MatchesTerraformShow(t *testing.T) {
 		binary = &systemBinaryDetails{absolutePath: path}
 	}
 
+	files := readTemplateDir(t, stateFileTemplateDir)
 	dir := t.TempDir()
-	for name, content := range stateFileTestFiles {
+	for name, content := range files {
 		path := filepath.Join(dir, filepath.FromSlash(name))
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
 		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
@@ -296,7 +133,7 @@ func Test_readStateFile_MatchesTerraformShow(t *testing.T) {
 	cacheRootDir := filepath.Join(testutil.PersistentCacheDir(t), "terraform_statefile_test")
 	srv := &server{
 		binaryPath:    binary.absolutePath,
-		cliConfigPath: testutil.CacheTFProviders(t, cacheRootDir, t.Name(), stateFileTestFiles),
+		cliConfigPath: testutil.CacheTFProviders(t, cacheRootDir, t.Name(), files),
 		logger:        logger,
 		tracer:        noop.NewTracerProvider().Tracer(""),
 	}
