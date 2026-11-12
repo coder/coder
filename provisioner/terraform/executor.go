@@ -333,6 +333,26 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink, pluginDir st
 	return nil
 }
 
+// initFromPluginCache runs `terraform init` with the plugin cache as the only
+// source of providers. It fails when the cache can't supply them, which is
+// routine for a cold cache, and the caller then runs a normal init.
+func (e *executor) initFromPluginCache(ctx, killCtx context.Context, logr logSink) error {
+	if !pluginCacheEnabled(e.cachePath) {
+		return xerrors.New("the plugin cache is not enabled")
+	}
+	// An operator's init flags can need the provider registry or a provider
+	// mirror, as -upgrade does.
+	env := e.basicEnv()
+	if safeEnvironValue(env, "TF_CLI_ARGS") != "" || safeEnvironValue(env, "TF_CLI_ARGS_init") != "" {
+		return xerrors.New("init flags are set in the environment")
+	}
+	err := e.init(ctx, killCtx, logr, e.cachePath)
+	if err != nil && ctx.Err() == nil {
+		logr.ProvisionLog(proto.LogLevel_INFO, "Running terraform init again, this time not limited to the plugin cache.")
+	}
+	return err
+}
+
 func checksumFileCRC32(ctx context.Context, logger slog.Logger, path string) uint32 {
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -661,36 +681,6 @@ func waitCommand(killCtx context.Context, cmd *exec.Cmd) error {
 
 type logSink interface {
 	ProvisionLog(l proto.LogLevel, o string)
-}
-
-// heldErrorSink passes log lines on to sink as they arrive, except errors,
-// which it holds until flush.
-type heldErrorSink struct {
-	sink logSink
-	// mu guards held while a command logs. Nothing writes to held once the
-	// command has returned.
-	mu   sync.Mutex
-	held []string
-}
-
-func (h *heldErrorSink) ProvisionLog(l proto.LogLevel, o string) {
-	if l != proto.LogLevel_ERROR {
-		h.sink.ProvisionLog(l, o)
-		return
-	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.held = append(h.held, o)
-}
-
-// flush logs the held errors and forgets them.
-func (h *heldErrorSink) flush() {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	for _, line := range h.held {
-		h.sink.ProvisionLog(proto.LogLevel_ERROR, line)
-	}
-	h.held = nil
 }
 
 // logWriter creates a WriteCloser that will log each line of text at the given level.  The WriteCloser must be closed

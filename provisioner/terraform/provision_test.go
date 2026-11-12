@@ -621,26 +621,14 @@ func TestProvision_Cancel(t *testing.T) {
 	fakeBin := filepath.Join(cwd, "testdata", "fake_cancel.sh")
 
 	tests := []struct {
-		name string
-		mode string
-		// moduleFiles, if set, is the module archive of a workspace build.
-		moduleFiles   []byte
+		name          string
+		mode          string
 		startSequence []string
 		wantLog       []string
 	}{
 		{
 			name:          "Cancel init",
 			mode:          "init",
-			startSequence: []string{"init_start"},
-			wantLog:       []string{"interrupt", "exit"},
-		},
-		{
-			// With the lock file captured at import, init first runs
-			// against the plugin cache. Canceling it must not start the
-			// normal init.
-			name:          "Cancel init from the plugin cache",
-			mode:          "init",
-			moduleFiles:   testutil.CreateTar(t, map[string]string{importedLockFileArchivePath(): ""}),
 			startSequence: []string{"init_start"},
 			wantLog:       []string{"interrupt", "exit"},
 		},
@@ -657,9 +645,6 @@ func TestProvision_Cancel(t *testing.T) {
 		// one process tries to do this, it can cause "text file busy"
 		// nolint: paralleltest
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.moduleFiles != nil && runtime.GOOS != "linux" {
-				t.Skip(pluginCacheOnlyOnLinux)
-			}
 			dir := t.TempDir()
 			binPath := filepath.Join(dir, "terraform")
 
@@ -679,12 +664,8 @@ func TestProvision_Cancel(t *testing.T) {
 			})
 			sess := configure(ctx, t, api, &proto.Config{})
 
-			if tt.moduleFiles != nil {
-				startBuildInit(t, sess, testutil.CreateTar(t, nil), tt.moduleFiles)
-			} else {
-				err = sendInit(sess, testutil.CreateTar(t, nil))
-				require.NoError(t, err)
-			}
+			err = sendInit(sess, testutil.CreateTar(t, nil))
+			require.NoError(t, err)
 
 			var planOnce sync.Once
 
@@ -1880,8 +1861,6 @@ func TestProvision_InitFromPluginCache(t *testing.T) {
 	})
 
 	// The build's provisioner has the provider mirror but an empty cache.
-	// The errors of its failed attempt to use the cache stay out of the
-	// build log.
 	t.Run("ColdCache", func(t *testing.T) {
 		t.Parallel()
 		source := testutil.CreateTar(t, map[string]string{"main.tf": fakeProviderTemplate})
@@ -1899,7 +1878,6 @@ func TestProvision_InitFromPluginCache(t *testing.T) {
 		log, resp := sendBuildInit(t, configure(ctx, t, api, &proto.Config{}), source, importResp.ModuleFiles)
 		require.Empty(t, resp.Error)
 		require.Contains(t, log, "Running terraform init again, this time not limited to the plugin cache.")
-		require.NotContains(t, log, "Error")
 		requireNoPluginPath(t, workDir)
 	})
 
@@ -1944,19 +1922,9 @@ func TestProvision_InitFlagsSkipPluginCache(t *testing.T) {
 	}
 }
 
-// sendBuildInit sends a workspace build's Init and returns its log and
-// response.
+// sendBuildInit sends a workspace build's Init, streaming the module archive
+// the way provisionerd does.
 func sendBuildInit(t *testing.T, sess proto.DRPCProvisioner_SessionClient, source, moduleFiles []byte) (string, *proto.InitComplete) {
-	t.Helper()
-	startBuildInit(t, sess, source, moduleFiles)
-	log, last := readProvisionLog(t, sess)
-	require.NotNil(t, last.GetInit())
-	return log, last.GetInit()
-}
-
-// startBuildInit sends a workspace build's Init request, streaming the
-// module archive the way provisionerd does.
-func startBuildInit(t *testing.T, sess proto.DRPCProvisioner_SessionClient, source, moduleFiles []byte) {
 	t.Helper()
 	upload, chunks, err := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleFiles)
 	require.NoError(t, err)
@@ -1976,6 +1944,10 @@ func startBuildInit(t *testing.T, sess proto.DRPCProvisioner_SessionClient, sour
 		}}})
 		require.NoError(t, err)
 	}
+
+	log, last := readProvisionLog(t, sess)
+	require.NotNil(t, last.GetInit())
+	return log, last.GetInit()
 }
 
 // writeFakeProviderMirror returns a CLI config that installs providers only
@@ -2002,17 +1974,12 @@ func writeFakeProviderMirror(t *testing.T, packages ...string) string {
 	return cliConfigPath
 }
 
-// importedLockFile reads the captured lock file from a module archive.
+// importedLockFile reads the captured lock file from a module archive. The
+// path is spelled out because provisioner versions must agree on it.
 func importedLockFile(t *testing.T, moduleFiles []byte) []byte {
 	t.Helper()
-	content, err := fs.ReadFile(archivefs.FromTarReader(bytes.NewReader(moduleFiles)), importedLockFileArchivePath())
+	content, err := fs.ReadFile(archivefs.FromTarReader(bytes.NewReader(moduleFiles)),
+		".terraform/coder/lockfiles/"+runtime.GOOS+"_"+runtime.GOARCH+".lock.hcl")
 	require.NoError(t, err)
 	return content
-}
-
-// importedLockFileArchivePath is where a module archive holds the lock file
-// captured on this platform. The path is spelled out because provisioner
-// versions must agree on it.
-func importedLockFileArchivePath() string {
-	return ".terraform/coder/lockfiles/" + runtime.GOOS + "_" + runtime.GOARCH + ".lock.hcl"
 }

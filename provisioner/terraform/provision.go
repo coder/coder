@@ -112,11 +112,7 @@ func (s *server) Init(
 	// The captured lock file pins every provider version, so a warm plugin
 	// cache can supply them without the provider registry or a provider
 	// mirror.
-	done := false
-	if restored {
-		done, err = s.initFromPluginCache(ctx, killCtx, e, sess)
-	}
-	if !done {
+	if !restored || e.initFromPluginCache(ctx, killCtx, sess) != nil {
 		err = e.init(ctx, killCtx, sess, "")
 		if err != nil && restored && ctx.Err() == nil {
 			err = s.initWithTemplateLockFile(ctx, killCtx, e, sess, err)
@@ -189,33 +185,6 @@ func (s *server) Init(
 		ModuleFiles:     moduleFiles,
 		ModuleFilesHash: nil,
 	}
-}
-
-// initFromPluginCache runs `terraform init` with the plugin cache as the only
-// source of providers. It reports false if a normal init has to run instead.
-// A cold cache makes this init fail, so its errors only reach the build log
-// when no normal init follows. Otherwise they go to the debug log.
-func (s *server) initFromPluginCache(ctx, killCtx context.Context, e *executor, sess *provisionersdk.Session) (bool, error) {
-	if !pluginCacheEnabled(e.cachePath) {
-		return false, nil
-	}
-	// An operator's init flags can need the provider registry or a provider
-	// mirror, as -upgrade does.
-	env := e.basicEnv()
-	if safeEnvironValue(env, "TF_CLI_ARGS") != "" || safeEnvironValue(env, "TF_CLI_ARGS_init") != "" {
-		return false, nil
-	}
-	logr := &heldErrorSink{sink: sess}
-	err := e.init(ctx, killCtx, logr, e.cachePath)
-	if err == nil || ctx.Err() != nil {
-		// A canceled init is not run again.
-		logr.flush()
-		return true, err
-	}
-	s.logger.Debug(ctx, "terraform init from the plugin cache failed, running a normal init",
-		slog.Error(err), slog.F("errors", logr.held))
-	sess.ProvisionLog(proto.LogLevel_INFO, "Running terraform init again, this time not limited to the plugin cache.")
-	return false, nil
 }
 
 // initWithTemplateLockFile retries a failed init with the template's own lock
