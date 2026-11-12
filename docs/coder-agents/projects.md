@@ -8,7 +8,9 @@ title: Projects
 
 Projects group related Coder Agents chats.
 Every chat in a project gets the project's instructions, skills, and memory, so you don't repeat the same context in each chat.
-Select **Projects** below **New chat** in the **Agents** page sidebar to see your projects as cards, in a **Your projects** tab for projects you own and a **Shared with you** tab for projects that other users own and you can use.
+Select **Projects** below **New chat** in the **Agents** page sidebar to see your projects as cards.
+The **Your projects** tab lists the projects you own.
+The **Shared with you** tab lists projects that other users own and you can use.
 Each card shows whether one of your chats in the project needs attention or is running, or else how many of your chats are unread or read.
 It also shows how many users can use the project, counting its owner, and when your chats in it last changed.
 [Pinned projects](#pin-a-project) also appear in the sidebar.
@@ -61,7 +63,8 @@ Its chats are kept and move back to your chat list.
   Select **Remove from project** to take it out.
 - Drag a chat in the sidebar onto a pinned project.
   Only pinned projects appear in the sidebar, so use **Move to project** to move a chat into an unpinned project.
-  A dialog then explains that the sidebar lists the project's chats only while the project is pinned, and offers **Pin project** and **Go to project**.
+  If that move takes the chat out of the sidebar, a dialog explains that the sidebar lists the project's chats only while the project is pinned, and offers **Pin project** and **Go to project**.
+  This happens when the chat isn't pinned and was listed in the sidebar before the move.
 
 You can move only top-level chats that you own, that aren't archived, and that aren't running.
 Sub-agent chats always follow their top-level chat.
