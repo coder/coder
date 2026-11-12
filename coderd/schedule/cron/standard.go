@@ -23,9 +23,8 @@ import (
 // name for the zone of the host), its last segment is not "localtime",
 // "posixrules" or "Factory" (files of zone data that are not zones), and
 // time.LoadLocation loads it on this host. The names "posix", "right", "Local",
-// "localtime", "posixrules" and "Factory" match in any letter case, because a
-// host with a case-insensitive file system loads "factory" as "Factory". A spec
-// that never runs, such as "0 0 30 2 *", is an error.
+// "localtime", "posixrules" and "Factory" match in any letter case. A spec that
+// never runs, such as "0 0 30 2 *", is an error.
 //
 // The schedule follows local time across daylight saving changes. A repeated
 // local time runs at its first instance only. A nonexistent local time runs at
@@ -96,7 +95,9 @@ func isNotZone(name string) bool {
 	return strings.EqualFold(name, "Local") || containsFold(notZoneFiles, segments[len(segments)-1])
 }
 
-// containsFold reports whether names holds name, ignoring letter case.
+// containsFold reports whether names holds name, ignoring letter case. A host
+// with a case-insensitive file system loads "factory" as "Factory", so an exact
+// match would let it through.
 func containsFold(names []string, name string) bool {
 	return slices.ContainsFunc(names, func(n string) bool { return strings.EqualFold(n, name) })
 }
