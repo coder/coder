@@ -15,6 +15,10 @@ var ErrCreateForbidden = xerrors.New("not allowed to create a chat automation")
 // no automation can belong to it.
 var ErrOwnerUnavailable = xerrors.New("the owner cannot own chat automations")
 
+// ErrReferenceUnavailable means that a chat, model configuration or project of
+// the automation was deleted while the automation was created.
+var ErrReferenceUnavailable = xerrors.New("a chat, model configuration or project of the chat automation no longer exists")
+
 // InvalidRequestError lists every field of a create request that Create
 // rejects. Each detail is static text or a limit and never quotes the prompt
 // or the webhook secret, so a caller can return the list as it is.

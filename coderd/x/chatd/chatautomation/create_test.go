@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -478,14 +479,16 @@ func TestCreateCap(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	// Two creates with one slot left. The first stops after its count, so the
-	// second runs while the first holds the owner lock: it must wait for the
-	// lock, count after the first has inserted, and be refused. Without the
-	// lock it counts the same automations and both insert.
+	// Two creates with one slot left, in two organizations of one owner. The
+	// first stops after its count, so the second runs while the first holds
+	// the owner lock: it must wait for the lock, count after the first has
+	// inserted, and be refused. Without the lock, or with a lock per
+	// organization, it counts the same automations and both insert.
 	t.Run("Concurrent", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		f := newFixture(t, db, nil)
+		f, other := newFixture(t, db, nil), newFixture(t, db, nil)
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: f.owner.ID, OrganizationID: other.org.ID})
 		first, second, actor := newHarness(t, db, limits), newHarness(t, db, limits), userActor(t, db, f.owner.ID)
 		_, err := second.creator.Create(ctx, actor, createParams(f.org.ID, webhookToNewChat(t, f)))
 		require.NoError(t, err)
@@ -497,14 +500,14 @@ func TestCreateCap(t *testing.T) {
 		var once sync.Once
 		unblock := func() { once.Do(func() { close(release) }) }
 		t.Cleanup(unblock)
-		create := func(h harness) {
-			_, err := h.creator.Create(ctx, actor, createParams(f.org.ID, webhookToNewChat(t, f)))
+		create := func(h harness, in fixture) {
+			_, err := h.creator.Create(ctx, actor, createParams(in.org.ID, webhookToNewChat(t, in)))
 			results <- err
 		}
 
-		go create(first)
+		go create(first, f)
 		testutil.RequireReceive(ctx, t, counted)
-		go create(second)
+		go create(second, other)
 		// The second create has either finished or waits for the advisory lock.
 		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
 			var waiting int
@@ -528,6 +531,26 @@ func TestCreateCap(t *testing.T) {
 		count, err := db.CountChatAutomationsByOwnerID(ctx, f.owner.ID)
 		require.NoError(t, err)
 		require.EqualValues(t, 2, count)
+	})
+
+	// Nothing runs in a deleted organization and its owners cannot list or
+	// delete its automations, so they do not count against the cap.
+	t.Run("DeletedOrganization", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		a, b := newFixture(t, db, nil), newFixture(t, db, nil)
+		h, actor := newHarness(t, db, limits), userActor(t, db, a.owner.ID)
+		for range 2 {
+			dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: b.org.ID, OwnerID: a.owner.ID})
+		}
+		_, err := h.creator.Create(ctx, actor, createParams(a.org.ID, webhookToNewChat(t, a)))
+		var limitErr *chatautomation.LimitError
+		require.ErrorAs(t, err, &limitErr)
+
+		require.NoError(t, db.UpdateOrganizationDeletedByID(ctx, database.UpdateOrganizationDeletedByIDParams{ID: b.org.ID, UpdatedAt: dbtime.Now()}))
+
+		_, err = h.creator.Create(ctx, actor, createParams(a.org.ID, webhookToNewChat(t, a)))
+		require.NoError(t, err)
 	})
 }
 
@@ -672,4 +695,92 @@ func TestCreateCreatingChat(t *testing.T) {
 			require.NotContains(t, h.rec.names(), "InsertChatAutomation")
 		})
 	}
+}
+
+// TestCreateTargetOwnership gives the actor create and update on every chat of
+// the organization, as an organization admin who also holds agents-access has,
+// so that only the ownership rule can refuse another user's chat.
+func TestCreateTargetOwnership(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	f := newFixture(t, db, nil)
+	admin := member(t, db, f.org.ID, rbac.ScopedRoleOrgAdmin(f.org.ID).Name)
+	actor := userActor(t, db, admin.ID)
+	toChat := func(chatID uuid.UUID) codersdk.CreateChatAutomationRequest {
+		req := webhookToNewChat(t, f)
+		req.TargetMode, req.NewChatModelConfigID, req.TargetChatID = codersdk.ChatAutomationTargetModeExistingChat, nil, &chatID
+		return req
+	}
+
+	t.Run("ChatOfAnotherUser", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		h := newHarness(t, db, testLimits)
+
+		_, err := h.creator.Create(ctx, actor, createParams(f.org.ID, toChat(f.chat(t).ID)))
+
+		var invalid *chatautomation.InvalidRequestError
+		require.ErrorAs(t, err, &invalid)
+		require.Len(t, invalid.Validations, 1)
+		require.Equal(t, "target_chat_id", invalid.Validations[0].Field)
+		require.Contains(t, invalid.Validations[0].Detail, "Only the owner of a chat")
+		require.NotContains(t, h.rec.names(), "InsertChatAutomation")
+		count, err := db.CountChatAutomationsByOwnerID(ctx, admin.ID)
+		require.NoError(t, err)
+		require.Zero(t, count)
+	})
+
+	t.Run("ChatOfTheOwner", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		own := dbgen.Chat(t, db, database.Chat{OrganizationID: f.org.ID, OwnerID: admin.ID, LastModelConfigID: f.model.ID})
+
+		res, err := newHarness(t, db, testLimits).creator.Create(ctx, actor, createParams(f.org.ID, toChat(own.ID)))
+
+		require.NoError(t, err)
+		require.Equal(t, own.ID, res.Automation.TargetChatID.UUID)
+	})
+}
+
+// TestCreateScheduleNeedsNow checks that an enabled schedule is refused when
+// the caller passes no time for its first run. The API always passes one, and
+// the agent tool is the other caller.
+func TestCreateScheduleNeedsNow(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	f := newFixture(t, db, nil)
+	req := webhookToNewChat(t, f)
+	req.Kind, req.WebhookAuth, req.ScheduleCron, req.ScheduleTimeZone = codersdk.ChatAutomationKindSchedule, "", "0 9 * * *", "UTC"
+	p := createParams(f.org.ID, req)
+	p.Now = time.Time{}
+
+	_, err := newHarness(t, db, testLimits).creator.Create(testutil.Context(t, testutil.WaitMedium), userActor(t, db, f.owner.ID), p)
+
+	require.ErrorContains(t, err, "no time for the first run")
+	var invalid *chatautomation.InvalidRequestError
+	require.NotErrorAs(t, err, &invalid)
+}
+
+// TestCreateReferenceDeleted deletes the target chat after Create has checked
+// it, so that the insert is what finds it missing. The owner is fine, so the
+// answer must not say that the owner is unavailable.
+func TestCreateReferenceDeleted(t *testing.T) {
+	t.Parallel()
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	f := newFixture(t, db, nil)
+	target := f.chat(t)
+	req := webhookToNewChat(t, f)
+	req.TargetMode, req.NewChatModelConfigID, req.TargetChatID = codersdk.ChatAutomationTargetModeExistingChat, nil, &target.ID
+	h := newHarness(t, db, testLimits)
+	h.rec.afterCount = func() {
+		_, err := sqlDB.ExecContext(ctx, "DELETE FROM chats WHERE id = $1", target.ID)
+		require.NoError(t, err)
+	}
+
+	_, err := h.creator.Create(ctx, userActor(t, db, f.owner.ID), createParams(f.org.ID, req))
+
+	require.ErrorIs(t, err, chatautomation.ErrReferenceUnavailable)
+	require.NotErrorIs(t, err, chatautomation.ErrOwnerUnavailable)
+	require.Contains(t, h.rec.names(), "InsertChatAutomation")
 }

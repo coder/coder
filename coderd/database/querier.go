@@ -105,7 +105,9 @@ type sqlcQuerier interface {
 	ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
-	// Counts the automations of one owner across all organizations.
+	// Counts the automations of one owner across all organizations, except those
+	// of a deleted organization: nothing runs there, and the owner cannot list or
+	// delete them.
 	CountChatAutomationsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error)
 	// Excluding the candidate keeps ownership takeover capacity-neutral.
 	CountChatCapacityActiveByPool(ctx context.Context, arg CountChatCapacityActiveByPoolParams) (CountChatCapacityActiveByPoolRow, error)

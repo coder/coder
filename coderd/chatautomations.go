@@ -99,6 +99,11 @@ func (api *API) postChatAutomation(rw http.ResponseWriter, r *http.Request) {
 			Message: "This user cannot own chat automations.",
 		})
 		return
+	case errors.Is(err, chatautomation.ErrReferenceUnavailable):
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "A chat, model configuration or project of this automation was deleted while it was created. Check them and try again.",
+		})
+		return
 	case errors.Is(err, chatautomation.ErrCreateForbidden):
 		httpapi.Forbidden(rw)
 		return

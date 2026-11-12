@@ -5726,10 +5726,14 @@ func (q *sqlQuerier) UpsertBoundaryUsageStats(ctx context.Context, arg UpsertBou
 const countChatAutomationsByOwnerID = `-- name: CountChatAutomationsByOwnerID :one
 SELECT COUNT(*)::bigint
 FROM chat_automations
-WHERE owner_id = $1::uuid
+JOIN organizations ON organizations.id = chat_automations.organization_id
+WHERE chat_automations.owner_id = $1::uuid
+  AND NOT organizations.deleted
 `
 
-// Counts the automations of one owner across all organizations.
+// Counts the automations of one owner across all organizations, except those
+// of a deleted organization: nothing runs there, and the owner cannot list or
+// delete them.
 func (q *sqlQuerier) CountChatAutomationsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countChatAutomationsByOwnerID, ownerID)
 	var column_1 int64

@@ -61,8 +61,10 @@ func createObject(organizationID, ownerID uuid.UUID) rbac.Object {
 // Create creates an automation that actor owns. It returns ErrCreateForbidden
 // when actor cannot create it, *InvalidRequestError for a request that breaks a
 // field rule or names a chat, model or project that the actor cannot use,
-// *LimitError at the per-owner limit, and ErrOwnerUnavailable when the owner is
-// deleted or a system user. No error text holds the prompt or a secret.
+// *LimitError at the per-owner limit, ErrOwnerUnavailable when the owner is
+// deleted or a system user, and ErrReferenceUnavailable when a concurrent
+// delete removed a chat, model configuration or project after the check. No
+// error text holds the prompt or a secret.
 func (c *Creator) Create(ctx context.Context, actor rbac.Subject, p CreateParams) (CreateResult, error) {
 	if !dbauthz.IsWrapped(c.db) {
 		return CreateResult{}, xerrors.New("chat automation store is not wrapped by dbauthz")
@@ -83,7 +85,7 @@ func (c *Creator) Create(ctx context.Context, actor rbac.Subject, p CreateParams
 		return CreateResult{}, err
 	}
 	if len(rejected) == 0 {
-		rejected, err = c.checkReferences(ctx, actor, p)
+		rejected, err = c.checkReferences(ctx, actor, owner, p)
 		if err != nil {
 			return CreateResult{}, err
 		}
@@ -124,14 +126,10 @@ func (c *Creator) Create(ctx context.Context, actor rbac.Subject, p CreateParams
 				insert.WebhookSecret = sql.NullString{String: secret, Valid: true}
 			}
 		}
-		// A missing row means that the owner guard of the insert refused the
-		// owner. The insert also reads each reference again, so a chat, model
-		// configuration or project that a concurrent delete removed after
-		// checkReferences gives the same answer. That race is rare and harmless.
 		row, err := tx.InsertChatAutomation(actorCtx, insert)
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
-			return ErrOwnerUnavailable
+			return missingRow(actorCtx, tx, owner)
 		case dbauthz.IsNotAuthorizedError(err):
 			return ErrCreateForbidden
 		case err != nil:
@@ -146,10 +144,27 @@ func (c *Creator) Create(ctx context.Context, actor rbac.Subject, p CreateParams
 	return result, nil
 }
 
+// missingRow says why the insert returned no row. The owner guard of the insert
+// refuses a deleted or system owner. The insert also reads the target chat,
+// creating chat, model configuration and project again, so when the owner is
+// fine, one of them was deleted since checkReferences read it.
+func missingRow(ctx context.Context, tx database.Store, owner uuid.UUID) error {
+	user, err := tx.GetUserByID(ctx, owner)
+	switch {
+	case httpapi.Is404Error(err), dbauthz.IsNotAuthorizedError(err):
+		return ErrOwnerUnavailable
+	case err != nil:
+		return xerrors.Errorf("get owner: %w", err)
+	case user.Deleted || user.IsSystem:
+		return ErrOwnerUnavailable
+	}
+	return ErrReferenceUnavailable
+}
+
 // checkReferences reads the chat, model configuration and project that the
 // request names, as the actor. A reference that does not exist and one that the
 // actor cannot read give the same detail.
-func (c *Creator) checkReferences(ctx context.Context, actor rbac.Subject, p CreateParams) ([]codersdk.ValidationError, error) {
+func (c *Creator) checkReferences(ctx context.Context, actor rbac.Subject, owner uuid.UUID, p CreateParams) ([]codersdk.ValidationError, error) {
 	actorCtx := dbauthz.As(ctx, actor)
 	req := p.Request
 	var v violations
@@ -182,6 +197,14 @@ func (c *Creator) checkReferences(ctx context.Context, actor rbac.Subject, p Cre
 			v.add("target_chat_id", "Chat is not a root chat.")
 		case c.authorizer.Authorize(ctx, actor, policy.ActionUpdate, chat.RBACObject()) != nil:
 			v.add("target_chat_id", "You cannot send messages to this chat.")
+		// Only the chat owner may send a message to a chat, as in
+		// checkSendChatMessage (coderd/exp_chats.go): organization admins pass
+		// the update check above, but chat processing forwards the owner's
+		// credentials (OIDC tokens, provider API keys) to external services.
+		// A run into a chat that the automation's owner does not own would
+		// act with the credentials of another user.
+		case chat.OwnerID != owner:
+			v.add("target_chat_id", "Only the owner of a chat can use it as the target of an automation.")
 		}
 	}
 	if req.NewChatModelConfigID != nil {
@@ -232,11 +255,12 @@ func insertParams(owner uuid.UUID, p CreateParams, n normalized) (database.Inser
 		cronSpec = sql.NullString{String: n.schedule.Cron(), Valid: true}
 		zone = sql.NullString{String: req.ScheduleTimeZone, Valid: true}
 		if n.enabled {
-			next := n.schedule.Next(p.Now)
-			if p.Now.IsZero() || next.IsZero() {
-				return database.InsertChatAutomationParams{}, xerrors.New("no next run time for the schedule")
+			// cron.Standard refuses a schedule that never runs, so Next of
+			// a real time is never zero. A zero Now is a caller bug.
+			if p.Now.IsZero() {
+				return database.InsertChatAutomationParams{}, xerrors.New("create params have no time for the first run of the schedule")
 			}
-			nextRun = sql.NullTime{Time: next, Valid: true}
+			nextRun = sql.NullTime{Time: n.schedule.Next(p.Now), Valid: true}
 		}
 	}
 	return database.InsertChatAutomationParams{

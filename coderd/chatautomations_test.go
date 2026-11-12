@@ -707,6 +707,10 @@ func TestCreateChatAutomationRejected(t *testing.T) {
 	})
 	require.NoError(t, err)
 	scoped := chatAutomationActor{client: codersdk.New(env.owner.URL, codersdk.WithSessionToken(token.Key)), id: member.id}
+	// An administrator that holds agents-access passes the update check on a
+	// member's chat, and the ownership rule must still refuse it.
+	adminWithAgents := env.actor(t, agentsAccess, rbac.ScopedRoleOrgAdmin(org))
+	membersChat := env.chat(t, member.id, "member chat")
 	otherOrg := dbgen.Organization(t, env.db, database.Organization{})
 	otherAdminClient, otherAdmin := coderdtest.CreateAnotherUser(t, env.owner, otherOrg.ID, rbac.ScopedRoleOrgAdmin(otherOrg.ID))
 
@@ -750,6 +754,15 @@ func TestCreateChatAutomationRejected(t *testing.T) {
 			req.Prompt = canary + strings.Repeat("a", 2*codersdk.DefaultChatMaxPromptBytes)
 			return req
 		}, http.StatusRequestEntityTooLarge, "Request body too large.", nil},
+		"TargetChatOfAnotherUser": {
+			adminWithAgents, func(canary string) any {
+				req := valid(canary)
+				req.TargetMode, req.NewChatModelConfigID, req.TargetChatID = codersdk.ChatAutomationTargetModeExistingChat, nil, &membersChat.ID
+				return req
+			},
+			http.StatusBadRequest, "Validation failed.",
+			[]string{"target_chat_id"},
+		},
 		"AtLimit": {
 			atLimit, validBody, http.StatusConflict,
 			"You can have at most 1 chat automations across all organizations. Delete one to create another.", nil,
@@ -819,12 +832,26 @@ type createStore struct {
 	database.Store
 	insertErr error
 	usersErr  error
+	// afterLock runs after the create has taken the owner lock, and before the
+	// insert reads each reference again, so a test can change what the create
+	// checked a moment before.
+	afterLock func(ctx context.Context)
 }
 
 func (s createStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
 	return s.Store.InTx(func(tx database.Store) error {
-		return fn(createStore{Store: tx, insertErr: s.insertErr, usersErr: s.usersErr})
+		return fn(createStore{Store: tx, insertErr: s.insertErr, usersErr: s.usersErr, afterLock: s.afterLock})
 	}, opts)
+}
+
+func (s createStore) AcquireLock(ctx context.Context, id int64) error {
+	if err := s.Store.AcquireLock(ctx, id); err != nil {
+		return err
+	}
+	if s.afterLock != nil {
+		s.afterLock(ctx)
+	}
+	return nil
 }
 
 func (s createStore) InsertChatAutomation(ctx context.Context, arg database.InsertChatAutomationParams) (database.ChatAutomation, error) {
@@ -846,6 +873,66 @@ func bearerChatAutomation(env chatAutomationEnv) codersdk.CreateChatAutomationRe
 		Name: "automation-" + uuid.NewString(), Kind: codersdk.ChatAutomationKindWebhook, Prompt: "Review the alert.",
 		TargetMode: codersdk.ChatAutomationTargetModeNewChat, NewChatModelConfigID: &env.model.ID,
 		WebhookAuth: codersdk.ChatAutomationWebhookAuthBearer,
+	}
+}
+
+// TestChatAutomationsCreateRaces deletes what the create checked, after the
+// check and before the insert reads it again. The insert then returns no row,
+// and the answer must say which of the two things is gone.
+func TestChatAutomationsCreateRaces(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		status  int
+		message string
+		// race deletes something. It runs on the raw store and the raw database.
+		race func(t *testing.T, ctx context.Context, env chatAutomationEnv, owner chatAutomationActor, target database.Chat)
+	}{
+		{
+			"OwnerDeleted", http.StatusForbidden, "This user cannot own chat automations.",
+			func(t *testing.T, ctx context.Context, env chatAutomationEnv, owner chatAutomationActor, _ database.Chat) {
+				require.NoError(t, env.db.UpdateUserDeletedByID(ctx, owner.id))
+			},
+		},
+		{
+			"TargetChatDeleted", http.StatusConflict, "A chat, model configuration or project of this automation was deleted while it was created. Check them and try again.",
+			func(t *testing.T, ctx context.Context, env chatAutomationEnv, _ chatAutomationActor, target database.Chat) {
+				_, err := env.sqlDB.ExecContext(ctx, "DELETE FROM chats WHERE id = $1", target.ID)
+				require.NoError(t, err)
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			var env chatAutomationEnv
+			var owner chatAutomationActor
+			var target database.Chat
+			armed := false
+			env = newChatAutomationEnv(t, func(db database.Store) database.Store {
+				return createStore{Store: db, afterLock: func(ctx context.Context) {
+					if armed {
+						tc.race(t, ctx, env, owner, target)
+					}
+				}}
+			})
+			owner = env.actor(t, rbac.ScopedRoleAgentsAccess(env.first.OrganizationID))
+			target = env.chat(t, owner.id, "target")
+			req := bearerChatAutomation(env)
+			req.TargetMode, req.NewChatModelConfigID, req.TargetChatID = codersdk.ChatAutomationTargetModeExistingChat, nil, &target.ID
+			armed = true
+
+			_, status, body := postChatAutomation(t, owner.client, env.first.OrganizationID, req)
+
+			require.Equal(t, tc.status, status, string(body))
+			var got codersdk.Response
+			require.NoError(t, json.Unmarshal(body, &got))
+			require.Equal(t, tc.message, got.Message)
+			require.Empty(t, got.Detail)
+			require.Empty(t, env.automationAudit(owner.id))
+			var rows int
+			require.NoError(t, env.sqlDB.QueryRowContext(testutil.Context(t, testutil.WaitShort), "SELECT count(*) FROM chat_automations WHERE owner_id = $1", owner.id).Scan(&rows))
+			require.Zero(t, rows)
+		})
 	}
 }
 
