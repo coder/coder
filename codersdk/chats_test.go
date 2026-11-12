@@ -536,6 +536,29 @@ func TestChatMessagePartVariantTags(t *testing.T) {
 	})
 }
 
+func TestChatMessagePart_QuestionID_JSON(t *testing.T) {
+	t.Parallel()
+
+	textPart := codersdk.ChatMessageText("hi")
+	textData, err := json.Marshal(textPart)
+	require.NoError(t, err)
+
+	var textJSON map[string]any
+	err = json.Unmarshal(textData, &textJSON)
+	require.NoError(t, err)
+	require.NotContains(t, textJSON, "question_id")
+
+	id := uuid.New()
+	questionAnswerPart := codersdk.ChatMessageQuestionAnswer(id)
+	questionAnswerData, err := json.Marshal(questionAnswerPart)
+	require.NoError(t, err)
+
+	var questionAnswerJSON map[string]any
+	err = json.Unmarshal(questionAnswerData, &questionAnswerJSON)
+	require.NoError(t, err)
+	require.Equal(t, id.String(), questionAnswerJSON["question_id"])
+}
+
 func TestChatMessagePart_CreatedAt_JSON(t *testing.T) {
 	t.Parallel()
 

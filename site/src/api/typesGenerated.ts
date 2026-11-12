@@ -3743,7 +3743,7 @@ export interface ChatQuestionAnswerPart {
 	 * QuestionID is the question_id from the result of the async
 	 * ask_user_question call that the message answers.
 	 */
-	readonly question_id: string;
+	readonly question_id?: string;
 }
 
 // From codersdk/chats.go

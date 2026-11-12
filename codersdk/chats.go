@@ -690,7 +690,7 @@ type ChatMessagePart struct {
 	SkillWorkspaceID uuid.UUID `json:"skill_workspace_id,omitzero" format:"uuid" typescript:"-" swaggerignore:"true"`
 	// QuestionID is the question_id from the result of the async
 	// ask_user_question call that the message answers.
-	QuestionID string `json:"question_id" variants:"question-answer"`
+	QuestionID string `json:"question_id,omitempty" variants:"question-answer?"`
 	// ContextFileSkillMetaFile is the basename of the skill
 	// meta file (e.g. "SKILL.md") at the time of persistence.
 	// Internal only: restored on subsequent turns so the
