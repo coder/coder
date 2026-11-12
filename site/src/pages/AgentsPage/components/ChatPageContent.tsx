@@ -42,6 +42,7 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AgentChatInput";
+import { deriveAsyncQuestions } from "./ChatConversation/asyncQuestions";
 import { ConversationTimeline } from "./ChatConversation/ConversationTimeline";
 import type { ChatDetailError } from "./ChatConversation/chatError";
 import { getLatestContextUsage } from "./ChatConversation/chatHelpers";
@@ -65,7 +66,10 @@ import {
 	LiveStreamTailContent,
 	TerminalStatusRow,
 } from "./ChatConversation/LiveStreamTail";
-import { deriveLiveStatus } from "./ChatConversation/liveStatusModel";
+import {
+	deriveLiveStatus,
+	showsStreamOutput,
+} from "./ChatConversation/liveStatusModel";
 import {
 	buildSubagentMaps,
 	getPendingToolCallIDs,
@@ -81,8 +85,11 @@ import {
 	ACPContext,
 	buildACPSessionDescriptors,
 } from "./ChatElements/tools/ACPContext";
+import { AsyncQuestionsContext } from "./ChatElements/tools/AsyncQuestionsContext";
+import { getAskUserQuestions } from "./ChatElements/tools/Tool";
 import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
+import { QuestionPanel } from "./QuestionPanel";
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
 
 type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
@@ -128,7 +135,12 @@ type ChatPageTimelineProps = {
 	onEditUserMessage?: (messageId: number) => void;
 	editingMessageId?: number | null;
 	onImplementPlan?: () => Promise<void> | void;
-	onSendAskUserQuestionResponse?: (message: string) => Promise<void> | void;
+	/** The viewer cannot act on this chat: it is archived, or another user's. */
+	isReadOnly: boolean;
+	onSendAskUserQuestionResponse?: (
+		message: string,
+		questionId?: string,
+	) => Promise<void> | void;
 	urlTransform: UrlTransform;
 	mcpServers: readonly TypesGen.MCPServerConfig[];
 	footer?: React.ReactNode;
@@ -149,6 +161,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	editingMessageId,
 	onImplementPlan,
 	onSendAskUserQuestionResponse,
+	isReadOnly,
 	urlTransform,
 	mcpServers,
 	footer,
@@ -193,6 +206,26 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		pendingToolCallIDs,
 		liveToolResults: streamState?.toolResults,
 	});
+	const queuedMessages = useChatSelector(store, selectQueuedMessages);
+	const liveTools = showsStreamOutput(liveStatus) ? streamTools : [];
+	const asyncQuestions = deriveAsyncQuestions(
+		parsedMessages,
+		liveTools,
+		queuedMessages,
+	);
+	const panelCandidate = isReadOnly ? undefined : asyncQuestions.panelQuestion;
+	const panelQuestions = panelCandidate
+		? getAskUserQuestions(panelCandidate.tool.args, panelCandidate.tool.result)
+		: [];
+	// A result whose call is in messages that are not loaded has no
+	// questions to show.
+	const panelQuestion = panelQuestions.length > 0 ? panelCandidate : undefined;
+
+	let questionAnnouncement = "";
+	if (panelQuestion?.status === "open") {
+		questionAnnouncement = `The agent asked a question: ${panelQuestions[0].question}`;
+	}
+
 	const { titles: subagentTitles, variants: subagentVariants } =
 		buildSubagentMaps(parsedMessages);
 	const acpSessions = buildACPSessionDescriptors([
@@ -200,62 +233,88 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		...streamTools,
 	]);
 	const onRenderProfiler = useOnRenderProfiler();
+	// Saving an edit of an earlier message deletes every message after it
+	// and clears the queued messages, so an answer sent during the edit
+	// would be lost.
+	const isEditingMessage = editingMessageId != null;
+	const visiblePanelQuestionId = isEditingMessage
+		? undefined
+		: panelQuestion?.questionId;
 
 	return (
-		<ACPContext value={acpSessions}>
-			<Profiler id="AgentChat" onRender={onRenderProfiler}>
-				<ChatMessageScroller
-					hasMoreMessages={hasMoreMessages}
-					isFetchingMoreMessages={isFetchingMoreMessages}
-					isHydratingMessages={isHydratingMessages}
-					hasFetchMoreError={hasFetchMoreError}
-					hasTranscriptRows={parsedMessages.length > 0}
-					onFetchMoreMessages={onFetchMoreMessages}
-				>
-					{/* VNC sessions for completed agents may already be
+		<AsyncQuestionsContext
+			value={{
+				byId: asyncQuestions.byId,
+				panelQuestionId: visiblePanelQuestionId,
+			}}
+		>
+			<ACPContext value={acpSessions}>
+				<Profiler id="AgentChat" onRender={onRenderProfiler}>
+					<ChatMessageScroller
+						hasMoreMessages={hasMoreMessages}
+						isFetchingMoreMessages={isFetchingMoreMessages}
+						isHydratingMessages={isHydratingMessages}
+						hasFetchMoreError={hasFetchMoreError}
+						hasTranscriptRows={parsedMessages.length > 0}
+						onFetchMoreMessages={onFetchMoreMessages}
+					>
+						{/* VNC sessions for completed agents may already be
 					   terminated, so inline desktop previews are disabled
 					   via showDesktopPreviews={false} to avoid a perpetual
 					   "disconnected" state. The MonitorIcon variant still
 					   renders correctly. */}
-					<ConversationTimeline
-						hasMoreMessages={hasMoreMessages}
-						chatStatus={chatStatus}
-						organizationId={organizationId}
-						parsedMessages={parsedMessages}
-						chatFiles={chatFiles}
-						initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
-						streamState={liveStreamState}
-						streamTools={streamTools}
-						liveStatus={liveStatus}
-						subagentStatusOverrides={subagentStatusOverrides}
-						subagentTitles={subagentTitles}
-						subagentVariants={subagentVariants}
-						onEditUserMessage={onEditUserMessage}
-						editingMessageId={editingMessageId}
-						onImplementPlan={onImplementPlan}
-						onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
-						isChatCompleted={isChatCompleted}
-						hasActiveStream={hasStream}
-						isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
-						urlTransform={urlTransform}
-						mcpServers={mcpServers}
-						showDesktopPreviews={false}
-					/>
-					<TerminalStatusRow liveStatus={liveStatus} />
-				</ChatMessageScroller>
-				{/* The empty state sits outside the scroller content, which holds
+						<ConversationTimeline
+							hasMoreMessages={hasMoreMessages}
+							chatStatus={chatStatus}
+							organizationId={organizationId}
+							parsedMessages={parsedMessages}
+							chatFiles={chatFiles}
+							initialActiveTurnMaxMessageId={initialActiveTurnMaxMessageId}
+							streamState={liveStreamState}
+							streamTools={streamTools}
+							liveStatus={liveStatus}
+							subagentStatusOverrides={subagentStatusOverrides}
+							subagentTitles={subagentTitles}
+							subagentVariants={subagentVariants}
+							onEditUserMessage={onEditUserMessage}
+							editingMessageId={editingMessageId}
+							onImplementPlan={onImplementPlan}
+							onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
+							isChatCompleted={isChatCompleted}
+							hasActiveStream={hasStream}
+							isAwaitingFirstStreamChunk={isAwaitingFirstStreamChunk}
+							urlTransform={urlTransform}
+							mcpServers={mcpServers}
+							showDesktopPreviews={false}
+						/>
+						<TerminalStatusRow liveStatus={liveStatus} />
+					</ChatMessageScroller>
+					{/* The empty state sits outside the scroller content, which holds
 			    transcript rows only. */}
-				<div
-					className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}
-				>
-					<LiveStreamTailContent
-						isTranscriptEmpty={parsedMessages.length === 0}
-						liveStatus={liveStatus}
-					/>
-					{footer}
-				</div>
-			</Profiler>
-		</ACPContext>
+					<div
+						className={cn("mx-auto w-full px-4", chatWidthClass(chatFullWidth))}
+					>
+						<LiveStreamTailContent
+							isTranscriptEmpty={parsedMessages.length === 0}
+							liveStatus={liveStatus}
+						/>
+						{footer}
+					</div>
+					{panelQuestion && (
+						<QuestionPanel
+							key={panelQuestion.questionId}
+							question={panelQuestion}
+							questions={panelQuestions}
+							isHidden={isEditingMessage}
+							onSubmitAnswer={onSendAskUserQuestionResponse}
+						/>
+					)}
+					<span role="status" className="sr-only">
+						{questionAnnouncement}
+					</span>
+				</Profiler>
+			</ACPContext>
+		</AsyncQuestionsContext>
 	);
 };
 

@@ -1,6 +1,6 @@
 import { File as FileViewer } from "@pierre/diffs/react";
 import { cn } from "cn";
-import { memo } from "react";
+import { memo, useContext } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useTheme } from "#/theme/context";
 import type { SourceLink } from "../../ChatConversation/types";
@@ -10,6 +10,8 @@ import {
 	type AskUserQuestion,
 	AskUserQuestionTool,
 } from "./AskUserQuestionTool";
+import { AsyncQuestionCard } from "./AsyncQuestionCard";
+import { AsyncQuestionsContext } from "./AsyncQuestionsContext";
 import { ACPToolNames, isACPToolName } from "./acpToolNames";
 import { ChatClearedTool } from "./ChatClearedTool";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
@@ -45,9 +47,11 @@ import {
 	asString,
 	buildEditDiff,
 	DIFFS_FONT_STYLE,
+	findInToolResult,
 	formatModelIntentLabel,
 	formatResultOutput,
 	formatToolInput,
+	getAsyncQuestionId,
 	getFileContentForViewer,
 	getFileViewerOptions,
 	getFileViewerOptionsNoHeader,
@@ -211,34 +215,10 @@ const getWorkspaceQuotaTitle = (
 const parseAskUserQuestionResult = (
 	result: unknown,
 ): AskUserQuestion[] | null => {
-	const parsedResult = parseArgs(result);
-	const directQuestions = parsedResult
-		? parseAskUserQuestions(parsedResult.questions)
-		: null;
-	if (directQuestions) {
-		return directQuestions;
-	}
-
-	const resultRecord = asRecord(result);
-	if (!resultRecord) {
-		return null;
-	}
-
-	for (const value of [
-		resultRecord.output,
-		resultRecord.content,
-		resultRecord.text,
-	]) {
-		const parsedValue = parseArgs(value);
-		const questions = parsedValue
-			? parseAskUserQuestions(parsedValue.questions)
-			: null;
-		if (questions) {
-			return questions;
-		}
-	}
-
-	return null;
+	const questions = findInToolResult(result, (record) =>
+		parseAskUserQuestions(record.questions),
+	);
+	return questions ?? null;
 };
 
 const ExecuteRenderer: React.FC<ToolRendererProps> = ({
@@ -687,6 +667,47 @@ const ChatSummarizedRenderer: React.FC<ToolRendererProps> = ({
 	);
 };
 
+/**
+ * Reads the questions from the call's args, or from its result when the
+ * args have none.
+ */
+export const getAskUserQuestions = (
+	args: unknown,
+	result: unknown,
+): AskUserQuestion[] => {
+	const parsedArgs = parseArgs(args);
+	const questionsFromArgs = parsedArgs
+		? parseAskUserQuestions(parsedArgs.questions)
+		: null;
+	if (questionsFromArgs && questionsFromArgs.length > 0) {
+		return questionsFromArgs;
+	}
+
+	const questionsFromResult = parseAskUserQuestionResult(result);
+	if (questionsFromResult && questionsFromResult.length > 0) {
+		return questionsFromResult;
+	}
+
+	return questionsFromArgs ?? questionsFromResult ?? [];
+};
+
+const getQuestionErrorMessage = (
+	result: unknown,
+	isError: boolean,
+): string | undefined => {
+	const resultRecord = asRecord(result);
+	if (resultRecord) {
+		const errorValue = resultRecord.error || resultRecord.message;
+		return asString(errorValue) || undefined;
+	}
+
+	if (typeof result === "string" && isError) {
+		return result || undefined;
+	}
+
+	return undefined;
+};
+
 const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 	args,
 	status,
@@ -697,33 +718,47 @@ const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 	isLatestAskUserQuestion,
 	previousResponseText,
 }) => {
-	const parsedArgs = parseArgs(args);
-	const questionsFromArgs = parsedArgs
-		? parseAskUserQuestions(parsedArgs.questions)
-		: null;
-	const questionsFromResult = parseAskUserQuestionResult(result);
-	const questions =
-		questionsFromArgs && questionsFromArgs.length > 0
-			? questionsFromArgs
-			: questionsFromResult && questionsFromResult.length > 0
-				? questionsFromResult
-				: (questionsFromArgs ?? questionsFromResult ?? []);
-	const resultRecord = asRecord(result);
-	const errorMessage =
-		(resultRecord
-			? asString(resultRecord.error || resultRecord.message)
-			: "") || (typeof result === "string" && isError ? result : "");
+	const questions = getAskUserQuestions(args, result);
+	const errorMessage = getQuestionErrorMessage(result, isError);
 
 	return (
 		<AskUserQuestionTool
 			questions={questions}
 			status={status}
 			isError={isError}
-			errorMessage={errorMessage || undefined}
+			errorMessage={errorMessage}
 			onSubmitAnswer={onSendAskUserQuestionResponse}
 			isChatCompleted={isChatCompleted}
 			isLatestAskUserQuestion={isLatestAskUserQuestion}
 			previousResponseText={previousResponseText}
+		/>
+	);
+};
+
+const AskUserQuestionAsyncRenderer: React.FC<ToolRendererProps> = ({
+	args,
+	status,
+	result,
+	isError,
+}) => {
+	const questions = getAskUserQuestions(args, result);
+	const errorMessage = getQuestionErrorMessage(result, isError);
+	const questionId = getAsyncQuestionId(result);
+	const context = useContext(AsyncQuestionsContext);
+	const question =
+		questionId === undefined ? undefined : context.byId.get(questionId);
+	const isInQuestionPanel =
+		questionId !== undefined && context.panelQuestionId === questionId;
+
+	return (
+		<AsyncQuestionCard
+			questions={questions}
+			status={status}
+			isError={isError}
+			errorMessage={errorMessage}
+			questionStatus={question?.status}
+			answerText={question?.answerText}
+			isInQuestionPanel={isInQuestionPanel}
 		/>
 	);
 };
@@ -1199,6 +1234,7 @@ export const toolRenderers: Record<string, React.FC<ToolRendererProps>> = {
 	chat_cleared: ChatClearedRenderer,
 	chat_summarized: ChatSummarizedRenderer,
 	ask_user_question: AskUserQuestionRenderer,
+	ask_user_question_async: AskUserQuestionAsyncRenderer,
 	propose_plan: ProposePlanRenderer,
 	advisor: AdvisorRenderer,
 	computer: ComputerRenderer,

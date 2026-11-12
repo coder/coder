@@ -238,6 +238,11 @@ const allToolShowcaseItems: ToolShowcaseItem[] = [
 		status: "running",
 	},
 	{
+		name: "ask_user_question_async",
+		args: { questions: [] },
+		status: "running",
+	},
+	{
 		name: "advisor",
 		args: { question: "Which icon family should represent transcript tools?" },
 		result: { answer: "Use category-level icons for better scanning." },

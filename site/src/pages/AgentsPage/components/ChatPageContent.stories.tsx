@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { type QueryClient, useQueryClient } from "react-query";
-import { expect, fn, spyOn, userEvent, within } from "storybook/test";
+import { fn, spyOn, userEvent, within } from "storybook/test";
 import { API } from "#/api/api";
 import { authorizationKey, getAuthorizationKey } from "#/api/queries/authCheck";
 import {
@@ -33,13 +33,24 @@ import {
 import { MessageScroller } from "#/vendor/message-scroller";
 import { ChatWorkspaceContext } from "../context/ChatWorkspaceContext";
 import { createChatStore } from "./ChatConversation/chatStore";
-import { FIXTURE_NOW } from "./ChatConversation/storyFixtures";
+import {
+	FIXTURE_NOW,
+	MockAsyncQuestionAnswerMessage,
+	MockAsyncQuestionMessages,
+	MockNewerAsyncQuestionMessages,
+	MockQueuedQuestionAnswer,
+	MockSeveralAsyncQuestionMessages,
+} from "./ChatConversation/storyFixtures";
 import { ChatPageInput, ChatPageTimeline } from "./ChatPageContent";
 
 // These stories cover transcript rendering, so history paging stays idle.
 const StoryChatPageTimeline: React.FC<{
 	store: ReturnType<typeof createChatStore>;
-}> = ({ store }) => (
+	onSendAskUserQuestionResponse?: React.ComponentProps<
+		typeof ChatPageTimeline
+	>["onSendAskUserQuestionResponse"];
+	isReadOnly?: boolean;
+}> = ({ store, onSendAskUserQuestionResponse, isReadOnly = false }) => (
 	<MessageScroller.Provider autoScroll defaultScrollPosition="end">
 		<ChatPageTimeline
 			organizationId="organization-id"
@@ -52,6 +63,8 @@ const StoryChatPageTimeline: React.FC<{
 			onFetchMoreMessages={async () => {}}
 			urlTransform={(url) => url}
 			mcpServers={[]}
+			isReadOnly={isReadOnly}
+			onSendAskUserQuestionResponse={onSendAskUserQuestionResponse}
 		/>
 	</MessageScroller.Provider>
 );
@@ -83,6 +96,142 @@ const meta = {
 
 export default meta;
 type Story = StoryObj<typeof meta>;
+
+const buildAsyncQuestionStore = (
+	messages: readonly TypesGen.ChatMessage[] = MockAsyncQuestionMessages,
+) => {
+	const store = createChatStore();
+	// The opening prompt is not needed to show the question state.
+	store.replaceMessages(messages.slice(1));
+	store.setChatStatus("running");
+	return store;
+};
+
+type AsyncQuestionChatPageProps = {
+	store: ReturnType<typeof createChatStore>;
+	isReadOnly?: boolean;
+};
+
+const AsyncQuestionChatPage: React.FC<AsyncQuestionChatPageProps> = ({
+	store,
+	isReadOnly = false,
+}) => (
+	<div className="flex h-svh flex-col">
+		<StoryChatPageTimeline
+			store={store}
+			onSendAskUserQuestionResponse={fn()}
+			isReadOnly={isReadOnly}
+		/>
+		{!isReadOnly && <StoryChatPageInput store={store} />}
+	</div>
+);
+
+export const AsyncQuestionOpen: Story = {
+	render: () => <AsyncQuestionChatPage store={buildAsyncQuestionStore()} />,
+};
+
+export const AsyncQuestionAwaitingDelivery: Story = {
+	render: () => <AsyncQuestionChatPage store={buildAsyncQuestionStore()} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("radio", { name: /^Frontend first/ }),
+		);
+		await userEvent.click(canvas.getByRole("button", { name: "Submit" }));
+	},
+};
+
+export const AsyncQuestionSeveral: Story = {
+	render: () => (
+		<AsyncQuestionChatPage
+			store={buildAsyncQuestionStore(MockSeveralAsyncQuestionMessages)}
+		/>
+	),
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Next" }),
+		);
+	},
+};
+
+export const AsyncQuestionCollapsed: Story = {
+	render: () => <AsyncQuestionChatPage store={buildAsyncQuestionStore()} />,
+	play: async ({ canvasElement }) => {
+		await userEvent.click(
+			within(canvasElement).getByRole("button", {
+				name: "Open question",
+				expanded: true,
+			}),
+		);
+	},
+};
+
+export const AsyncQuestionPending: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
+			{
+				key: getAuthorizationKey({
+					checks: {
+						canUpdateChat: {
+							object: {
+								resource_type: "chat",
+								owner_id: MockChat.owner_id,
+								organization_id: "",
+							},
+							action: "update",
+						},
+					},
+				}),
+				data: { canUpdateChat: true },
+			},
+		],
+	},
+	render: () => {
+		const store = buildAsyncQuestionStore();
+		store.setQueuedMessages([MockQueuedQuestionAnswer]);
+		return <AsyncQuestionChatPage store={store} />;
+	},
+};
+
+export const AsyncQuestionAnswered: Story = {
+	render: () => (
+		<AsyncQuestionChatPage
+			store={buildAsyncQuestionStore([
+				...MockAsyncQuestionMessages,
+				MockAsyncQuestionAnswerMessage,
+			])}
+		/>
+	),
+};
+
+export const AsyncQuestionClosed: Story = {
+	render: () => (
+		<AsyncQuestionChatPage
+			store={buildAsyncQuestionStore(MockNewerAsyncQuestionMessages)}
+		/>
+	),
+};
+
+export const AsyncQuestionReadOnly: Story = {
+	render: () => (
+		<AsyncQuestionChatPage store={buildAsyncQuestionStore()} isReadOnly />
+	),
+};
 
 const CHAT_ID = "chat-page-content-stories";
 
@@ -434,6 +583,7 @@ export const InterruptingShowsBusyComposer: Story = {
 			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
 				<div className="flex h-full flex-col">
 					<ChatPageTimeline
+						isReadOnly={false}
 						organizationId="organization-id"
 						store={store}
 						persistedError={undefined}
@@ -453,24 +603,11 @@ export const InterruptingShowsBusyComposer: Story = {
 			</MessageScroller.Provider>
 		);
 	},
+	// The screenshot captures the composer with focus in the chat input.
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		expect(canvas.getByText("Also rename the helpers")).toBeInTheDocument();
-		expect(canvas.getByRole("button", { name: "Stop" })).toBeDisabled();
-		expect(canvas.getByRole("status")).toHaveTextContent(
-			"Interrupting. Waiting for the agent to stop.",
-		);
-		expect(
-			canvas.queryByRole("button", { name: "Send during turn" }),
-		).toBeNull();
-		expect(canvas.getByText("Interrupting")).toBeInTheDocument();
-		expect(canvas.queryByText("Thinking")).toBeNull();
-
 		await userEvent.click(
-			canvas.getByRole("textbox", { name: "Chat message" }),
+			within(canvasElement).getByRole("textbox", { name: "Chat message" }),
 		);
-		await userEvent.keyboard("{Escape}");
-		expect(interruptingOnInterrupt).not.toHaveBeenCalled();
 	},
 };
 

@@ -13,7 +13,21 @@ import {
 import { createMockWebSocket } from "#/testHelpers/websockets";
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import { ChatWorkspaceContext } from "../../../context/ChatWorkspaceContext";
-import { Tool } from "./Tool";
+import { getAskUserQuestions, Tool } from "./Tool";
+
+describe("getAskUserQuestions", () => {
+	it("reads wrapped questions when the direct questions are malformed", () => {
+		const mockQuestions = [
+			{ header: "Cache", question: "Which cache should we use?", options: [] },
+		];
+		const result = {
+			questions: null,
+			output: JSON.stringify({ questions: mockQuestions }),
+		};
+
+		expect(getAskUserQuestions({}, result)).toEqual(mockQuestions);
+	});
+});
 
 afterEach(() => {
 	vi.restoreAllMocks();

@@ -53,6 +53,7 @@ export const toolIcons: Partial<Record<string, LucideIcon>> = {
 	thinking: LightbulbIcon,
 	propose_plan: RouteIcon,
 	ask_user_question: BadgeQuestionMarkIcon,
+	ask_user_question_async: BadgeQuestionMarkIcon,
 	advisor: CompassIcon,
 	computer: MonitorIcon,
 	find_tools: SearchIcon,

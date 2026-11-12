@@ -1,7 +1,11 @@
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChatMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChatMessage,
+	MockChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
 import { MockUserPreferenceSettings } from "#/testHelpers/entities";
 import { MockPngBase64 } from "#/testHelpers/files";
+import type { AskUserQuestion } from "../ChatElements/tools/AskUserQuestionTool";
 import {
 	type DeriveLiveStatusParams,
 	deriveLiveStatus,
@@ -573,6 +577,186 @@ export const MockQuestionCallMessage: TypesGen.ChatMessage = {
 			created_at: workingFixtureTime(5),
 		},
 	],
+};
+
+/**
+ * Builds the args of a question tool call. The generated type declares
+ * args as a string map, but real args hold the questions as an array.
+ */
+export const buildQuestionArgs = (
+	questions: readonly AskUserQuestion[],
+): TypesGen.ChatToolCallPart["args"] =>
+	({ questions }) as unknown as TypesGen.ChatToolCallPart["args"];
+
+export const MockAsyncQuestionId = "5f0c0000-0000-4000-8000-000000000001";
+export const MockNewerAsyncQuestionId = "5f0c0000-0000-4000-8000-000000000002";
+
+export const MockAsyncQuestions: AskUserQuestion[] = [
+	{
+		header: "Scope",
+		question: "Which part should change first?",
+		options: [
+			{
+				label: "Backend first, then the UI.",
+				description:
+					"Start with the API contract before updating the interface.",
+			},
+			{
+				label: "Frontend first, then the API.",
+				description: "Build the interface before connecting it to the API.",
+			},
+			{
+				label: "Both together.",
+				description: "Change the API and the interface in the same step.",
+			},
+		],
+	},
+];
+
+const MockTestingAsyncQuestion: AskUserQuestion = {
+	header: "Testing",
+	question: "How should the change be verified?",
+	options: [
+		{
+			label: "Cover the change with unit tests.",
+			description: "Check the changed behavior automatically.",
+		},
+		{
+			label: "Check it by hand in a dev deployment.",
+			description: "Try the workflow in a running deployment.",
+		},
+	],
+};
+
+const MockRolloutAsyncQuestion: AskUserQuestion = {
+	header: "Rollout",
+	question: "Who should get the change first?",
+	options: [
+		{
+			label: "Internal users",
+			description: "Start with the team before a wider release.",
+		},
+		{
+			label: "Small beta",
+			description: "Start with a limited set of workspaces.",
+		},
+	],
+};
+
+const MockSeveralAsyncQuestions: AskUserQuestion[] = [
+	...MockAsyncQuestions,
+	MockTestingAsyncQuestion,
+	MockRolloutAsyncQuestion,
+];
+
+const MockAsyncQuestionResult = {
+	question_id: MockAsyncQuestionId,
+	status: "Continue with work that does not depend on the answer.",
+};
+
+export const MockAsyncQuestionCallMessage: TypesGen.ChatMessage = {
+	...MockQuestionCallMessage,
+	content: [
+		{
+			type: "tool-call",
+			tool_call_id: "async-question",
+			tool_name: "ask_user_question_async",
+			args: buildQuestionArgs(MockAsyncQuestions),
+			created_at: workingFixtureTime(5),
+		},
+	],
+};
+
+export const MockAsyncQuestionResultMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 5,
+	role: "tool",
+	created_at: workingFixtureTime(6),
+	content: [
+		{
+			type: "tool-result",
+			tool_call_id: "async-question",
+			tool_name: "ask_user_question_async",
+			result: MockAsyncQuestionResult,
+			created_at: workingFixtureTime(6),
+		},
+	],
+};
+
+export const MockAsyncQuestionMessages: TypesGen.ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 1),
+	MockAsyncQuestionCallMessage,
+	MockAsyncQuestionResultMessage,
+];
+
+export const MockSeveralAsyncQuestionMessages: TypesGen.ChatMessage[] = [
+	...MockWorkingMessages.slice(0, 1),
+	{
+		...MockAsyncQuestionCallMessage,
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: "async-question",
+				tool_name: "ask_user_question_async",
+				args: buildQuestionArgs(MockSeveralAsyncQuestions),
+				created_at: workingFixtureTime(5),
+			},
+		],
+	},
+	MockAsyncQuestionResultMessage,
+];
+
+export const MockNewerAsyncQuestionMessages: TypesGen.ChatMessage[] = [
+	...MockAsyncQuestionMessages,
+	{
+		...MockAsyncQuestionCallMessage,
+		id: 6,
+		created_at: workingFixtureTime(7),
+		content: [
+			{
+				type: "tool-call",
+				tool_call_id: "newer-async-question",
+				tool_name: "ask_user_question_async",
+				args: buildQuestionArgs([MockTestingAsyncQuestion]),
+				created_at: workingFixtureTime(7),
+			},
+		],
+	},
+	{
+		...MockAsyncQuestionResultMessage,
+		id: 7,
+		created_at: workingFixtureTime(8),
+		content: [
+			{
+				type: "tool-result",
+				tool_call_id: "newer-async-question",
+				tool_name: "ask_user_question_async",
+				result: {
+					...MockAsyncQuestionResult,
+					question_id: MockNewerAsyncQuestionId,
+				},
+				created_at: workingFixtureTime(8),
+			},
+		],
+	},
+];
+
+export const MockQueuedQuestionAnswer: TypesGen.ChatQueuedMessage = {
+	...MockChatQueuedMessage,
+	busy_behavior: "steer",
+	content: [
+		{ type: "question-answer", question_id: MockAsyncQuestionId },
+		{ type: "text", text: "Frontend first, then the API." },
+	],
+	created_at: workingFixtureTime(7),
+};
+
+export const MockAsyncQuestionAnswerMessage: TypesGen.ChatMessage = {
+	...MockChatMessage,
+	id: 6,
+	role: "user",
+	content: MockQueuedQuestionAnswer.content,
+	created_at: workingFixtureTime(7),
 };
 
 /** A client tool call after the first step of MockWorkingMessages. */
