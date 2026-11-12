@@ -162,15 +162,15 @@ type server struct {
 	versionMu     sync.Mutex
 	cachedVersion *version.Version
 
-	// sessionsMu guards sessions, which carries Plan's results to the Graph
-	// of the same session.
+	// sessionsMu guards sessions, which carries what Init and Plan leave
+	// for the later RPCs of the same session.
 	sessionsMu sync.Mutex
 	sessions   map[*provisionersdk.Session]sessionState
 }
 
-// sessionState is what Plan leaves for the Graph of the same session.
-// Callers get a copy; the plan it points to is shared and must not be
-// modified.
+// sessionState is what Init and Plan leave for the later RPCs of the same
+// session. Callers get a copy; the plan it points to is shared and must not
+// be modified.
 type sessionState struct {
 	// initSkipped is set when Init linked cached providers instead of
 	// running `terraform init`, so Plan can fall back to a real init if
