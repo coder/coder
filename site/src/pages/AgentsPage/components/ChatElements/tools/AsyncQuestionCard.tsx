@@ -57,6 +57,15 @@ export const AsyncQuestionCard: React.FC<AsyncQuestionCardProps> = ({
 		statusText = "Answer in the question panel above the chat input.";
 	}
 
+	let footer: React.ReactNode = null;
+	if (answerText !== undefined) {
+		footer = <SubmittedAnswer text={answerText} />;
+	} else if (statusText) {
+		footer = (
+			<p className="mt-3 text-[13px] text-content-secondary">{statusText}</p>
+		);
+	}
+
 	return (
 		<div className="w-full">
 			{isRunning && <QuestionRunningHeader status={status} />}
@@ -70,15 +79,7 @@ export const AsyncQuestionCard: React.FC<AsyncQuestionCardProps> = ({
 					/>
 				))}
 			</div>
-			{answerText !== undefined ? (
-				<SubmittedAnswer text={answerText} />
-			) : (
-				statusText && (
-					<p className="mt-3 text-[13px] text-content-secondary">
-						{statusText}
-					</p>
-				)
-			)}
+			{footer}
 		</div>
 	);
 };
