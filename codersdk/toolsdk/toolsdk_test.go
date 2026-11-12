@@ -1207,6 +1207,29 @@ func TestTools(t *testing.T) {
 			require.Equal(t, "us-west-2", params[0].Value)
 		})
 
+		t.Run("WithoutRichParameters", func(t *testing.T) {
+			// LLMs omit rich_parameters for templates that need none.
+			args, err := json.Marshal(map[string]any{
+				"template_id": r.Template.ID.String(),
+				"name":        testutil.GetRandomNameHyphenated(t),
+			})
+			require.NoError(t, err)
+			result, err := toolsdk.CreateWorkspace.Generic().Handler(t.Context(), tb, args)
+			require.NoError(t, err)
+			var ws codersdk.Workspace
+			require.NoError(t, json.Unmarshal(result, &ws))
+			require.NotEqual(t, uuid.Nil, ws.ID)
+
+			// Typed callers with a nil map must not encode it as null,
+			// which the object schema rejects.
+			ws, err = testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
+				TemplateID: r.Template.ID.String(),
+				Name:       testutil.GetRandomNameHyphenated(t),
+			})
+			require.NoError(t, err)
+			require.NotEqual(t, uuid.Nil, ws.ID)
+		})
+
 		t.Run("RejectsBothIDs", func(t *testing.T) {
 			_, err := testTool(t, toolsdk.CreateWorkspace, tb, toolsdk.CreateWorkspaceArgs{
 				User:              "me",
@@ -2236,6 +2259,146 @@ func TestToolSchemaFields(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestToolSchemaMemberTypes ensures LLMs can produce values for every tool
+// argument. Models cannot fill an object schema that declares neither
+// properties nor additionalProperties, or an array schema without items;
+// they fall back to strings, which validation then rejects.
+func TestToolSchemaMemberTypes(t *testing.T) {
+	t.Parallel()
+
+	for _, tool := range toolsdk.All {
+		t.Run(tool.Name, func(t *testing.T) {
+			t.Parallel()
+
+			// Round-trip through JSON so the walker sees the same
+			// generic shape that clients receive, regardless of the Go
+			// types used to declare the schema.
+			raw, err := json.Marshal(tool.Schema.Properties)
+			require.NoError(t, err)
+			var properties map[string]any
+			require.NoError(t, json.Unmarshal(raw, &properties))
+
+			root := map[string]any{"type": "object", "properties": properties}
+			for _, problem := range schemaMemberProblems("$", root) {
+				t.Error(problem)
+			}
+		})
+	}
+}
+
+func TestSchemaMemberProblems(t *testing.T) {
+	t.Parallel()
+
+	stringSchema := map[string]any{"type": "string"}
+	tests := []struct {
+		name   string
+		schema map[string]any
+		want   []string
+	}{
+		{
+			name:   "StringMap",
+			schema: map[string]any{"type": "object", "additionalProperties": stringSchema},
+		},
+		{
+			name:   "StringArray",
+			schema: map[string]any{"type": "array", "items": stringSchema},
+		},
+		{
+			name:   "BareObject",
+			schema: map[string]any{"type": "object"},
+			want:   []string{"$: object schema declares neither properties nor additionalProperties"},
+		},
+		{
+			name:   "BareArray",
+			schema: map[string]any{"type": "array"},
+			want:   []string{"$: array schema does not declare items"},
+		},
+		{
+			name:   "NullableBareObject",
+			schema: map[string]any{"type": []any{"object", "null"}},
+			want:   []string{"$: object schema declares neither properties nor additionalProperties"},
+		},
+		{
+			name: "NestedInProperties",
+			schema: map[string]any{"type": "object", "properties": map[string]any{
+				"b": map[string]any{"type": "array"},
+				"a": map[string]any{"type": "object"},
+			}},
+			want: []string{
+				"$.properties.a: object schema declares neither properties nor additionalProperties",
+				"$.properties.b: array schema does not declare items",
+			},
+		},
+		{
+			name:   "NestedInItems",
+			schema: map[string]any{"type": "array", "items": map[string]any{"type": "object"}},
+			want:   []string{"$.items: object schema declares neither properties nor additionalProperties"},
+		},
+		{
+			name:   "NestedInAdditionalProperties",
+			schema: map[string]any{"type": "object", "additionalProperties": map[string]any{"type": "array"}},
+			want:   []string{"$.additionalProperties: array schema does not declare items"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, schemaMemberProblems("$", tc.schema))
+		})
+	}
+}
+
+// schemaMemberProblems reports every object node under the JSON-decoded
+// schema node that declares neither properties nor additionalProperties, and
+// every array node that does not declare items. Child paths are visited in
+// sorted order so results are deterministic.
+func schemaMemberProblems(path string, node any) []string {
+	schema, ok := node.(map[string]any)
+	if !ok {
+		// Boolean schemas such as additionalProperties: false have no
+		// members to check.
+		return nil
+	}
+
+	var types []any
+	switch typ := schema["type"].(type) {
+	case string:
+		types = []any{typ}
+	case []any:
+		types = typ
+	}
+
+	var problems []string
+	for _, typ := range types {
+		switch typ {
+		case "object":
+			_, hasProperties := schema["properties"]
+			_, hasAdditional := schema["additionalProperties"]
+			if !hasProperties && !hasAdditional {
+				problems = append(problems, path+": object schema declares neither properties nor additionalProperties")
+			}
+		case "array":
+			if _, hasItems := schema["items"]; !hasItems {
+				problems = append(problems, path+": array schema does not declare items")
+			}
+		}
+	}
+
+	if properties, ok := schema["properties"].(map[string]any); ok {
+		names := make([]string, 0, len(properties))
+		for name := range properties {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			problems = append(problems, schemaMemberProblems(path+".properties."+name, properties[name])...)
+		}
+	}
+	problems = append(problems, schemaMemberProblems(path+".items", schema["items"])...)
+	problems = append(problems, schemaMemberProblems(path+".additionalProperties", schema["additionalProperties"])...)
+	return problems
 }
 
 // TestMain runs after all tests to ensure that all tools in this package have
