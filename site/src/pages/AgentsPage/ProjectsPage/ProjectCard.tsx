@@ -225,10 +225,10 @@ type ActivityLabelProps = {
 };
 
 const ActivityLabel: React.FC<ActivityLabelProps> = ({ summary }) => {
-	const { own_needs_attention, own_running, own_unread_count } = summary;
+	const { own_chat_count, own_needs_attention, own_running, own_unread_count } =
+		summary;
 	let icon: React.ReactNode = null;
-	let label =
-		summary.own_chat_count > 0 ? `${summary.own_chat_count} read` : "No chats";
+	let label = own_chat_count > 0 ? `${own_chat_count} read` : "No chats";
 	if (own_needs_attention) {
 		icon = <CircleAlertIcon className="text-highlight-orange" />;
 		label = "Needs attention";
