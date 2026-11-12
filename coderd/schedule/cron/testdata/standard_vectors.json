@@ -1,0 +1,174 @@
+{
+  "specs": [
+    {"spec": "*/15 * * * *", "accepted": true},
+    {"spec": "0 9 * * 1-5", "accepted": true},
+    {"spec": "0 9 * * 0", "accepted": true},
+    {"spec": "30 8 1,15 JAN-MAR MON-FRI", "accepted": true},
+    {"spec": "0 0 29 2 *", "accepted": true},
+    {"spec": "0 9 * * 7", "accepted": false, "reason": "7 is not a day of week, Sunday is 0"},
+    {"spec": "0 9 L * *", "accepted": false, "reason": "L (last day of the month) is not supported"},
+    {"spec": "0 9 * * 1#2", "accepted": false, "reason": "# (nth weekday of the month) is not supported"},
+    {"spec": "0 0 9 * * *", "accepted": false, "reason": "six fields: there is no seconds field, a spec has exactly five fields"},
+    {"spec": "@daily", "accepted": false, "reason": "descriptors such as @daily are not supported"},
+    {"spec": "0 0 30 2 *", "accepted": false, "reason": "the schedule never runs, February has no 30th day"}
+  ],
+  "runs": [
+    {
+      "name": "NewYorkSpring/NonexistentTimeRunsAfterChange",
+      "spec": "30 2 * * *",
+      "timeZone": "America/New_York",
+      "after": "2026-03-07T12:00:00-05:00",
+      "next": [
+        "2026-03-08T03:00:00-04:00",
+        "2026-03-09T02:30:00-04:00",
+        "2026-03-10T02:30:00-04:00"
+      ]
+    },
+    {
+      "name": "NewYorkSpring/NonexistentTimesAndGapEndRunOnce",
+      "spec": "0 2,3 * * *",
+      "timeZone": "America/New_York",
+      "after": "2026-03-08T00:00:00-05:00",
+      "next": [
+        "2026-03-08T03:00:00-04:00",
+        "2026-03-09T02:00:00-04:00",
+        "2026-03-09T03:00:00-04:00"
+      ]
+    },
+    {
+      "name": "NewYorkSpring/ManyNonexistentTimesRunOnce",
+      "spec": "*/30 1-3 * * *",
+      "timeZone": "America/New_York",
+      "after": "2026-03-08T00:00:00-05:00",
+      "next": [
+        "2026-03-08T01:00:00-05:00",
+        "2026-03-08T01:30:00-05:00",
+        "2026-03-08T03:00:00-04:00",
+        "2026-03-08T03:30:00-04:00",
+        "2026-03-09T01:00:00-04:00"
+      ]
+    },
+    {
+      "name": "NewYorkSpring/RunStartedInsideTheGap",
+      "spec": "30 2 * * *",
+      "timeZone": "America/New_York",
+      "after": "2026-03-08T01:59:59-05:00",
+      "next": ["2026-03-08T03:00:00-04:00", "2026-03-09T02:30:00-04:00"]
+    },
+    {
+      "name": "NewYorkFall/RepeatedTimeRunsAtFirstInstance",
+      "spec": "30 1 * * *",
+      "timeZone": "America/New_York",
+      "after": "2026-10-31T12:00:00-04:00",
+      "next": [
+        "2026-11-01T01:30:00-04:00",
+        "2026-11-02T01:30:00-05:00",
+        "2026-11-03T01:30:00-05:00"
+      ]
+    },
+    {
+      "name": "NewYorkFall/HourlyRunsOncePerLocalHour",
+      "spec": "0 * * * *",
+      "timeZone": "America/New_York",
+      "after": "2026-11-01T00:00:00-04:00",
+      "next": [
+        "2026-11-01T01:00:00-04:00",
+        "2026-11-01T02:00:00-05:00",
+        "2026-11-01T03:00:00-05:00"
+      ]
+    },
+    {
+      "name": "NewYorkFall/EveryTwentyMinutesSkipsSecondInstances",
+      "spec": "*/20 1 * * *",
+      "timeZone": "America/New_York",
+      "after": "2026-11-01T00:30:00-04:00",
+      "next": [
+        "2026-11-01T01:00:00-04:00",
+        "2026-11-01T01:20:00-04:00",
+        "2026-11-01T01:40:00-04:00",
+        "2026-11-02T01:00:00-05:00"
+      ]
+    },
+    {
+      "name": "NewYorkFall/EveryFifteenMinutesPausesDuringRepeatedHour",
+      "spec": "*/15 * * * *",
+      "timeZone": "America/New_York",
+      "after": "2026-11-01T01:30:00-04:00",
+      "next": [
+        "2026-11-01T01:45:00-04:00",
+        "2026-11-01T02:00:00-05:00",
+        "2026-11-01T02:15:00-05:00"
+      ]
+    },
+    {
+      "name": "NewYorkFall/FromInsideRepeatedPeriodFirstInstance",
+      "spec": "30 1 * * *",
+      "timeZone": "America/New_York",
+      "after": "2026-11-01T01:10:00-04:00",
+      "next": ["2026-11-01T01:30:00-04:00", "2026-11-02T01:30:00-05:00"]
+    },
+    {
+      "name": "NewYorkFall/FromInsideRepeatedPeriodSecondInstance",
+      "spec": "30 1 * * *",
+      "timeZone": "America/New_York",
+      "after": "2026-11-01T01:10:00-05:00",
+      "next": ["2026-11-02T01:30:00-05:00"]
+    },
+    {
+      "name": "NewYorkFall/FromSecondInstanceNextTimeAfterRepeat",
+      "spec": "0 2 * * *",
+      "timeZone": "America/New_York",
+      "after": "2026-11-01T01:10:00-05:00",
+      "next": ["2026-11-01T02:00:00-05:00", "2026-11-02T02:00:00-05:00"]
+    },
+    {
+      "name": "BerlinSpring/NonexistentTimeRunsAfterChange",
+      "spec": "30 2 * * *",
+      "timeZone": "Europe/Berlin",
+      "after": "2026-03-28T12:00:00+01:00",
+      "next": ["2026-03-29T03:00:00+02:00", "2026-03-30T02:30:00+02:00"]
+    },
+    {
+      "name": "BerlinFall/RepeatedTimeRunsAtFirstInstance",
+      "spec": "30 2 * * *",
+      "timeZone": "Europe/Berlin",
+      "after": "2026-10-24T12:00:00+02:00",
+      "next": ["2026-10-25T02:30:00+02:00", "2026-10-26T02:30:00+01:00"]
+    },
+    {
+      "name": "BerlinFall/TimeAfterRepeatedPeriodRunsOnce",
+      "spec": "0 3 * * *",
+      "timeZone": "Europe/Berlin",
+      "after": "2026-10-24T12:00:00+02:00",
+      "next": ["2026-10-25T03:00:00+01:00", "2026-10-26T03:00:00+01:00"]
+    },
+    {
+      "name": "LordHoweSpring/NonexistentTimeRunsAfterChange",
+      "spec": "15 2 * * *",
+      "timeZone": "Australia/Lord_Howe",
+      "after": "2026-10-03T12:00:00+10:30",
+      "next": ["2026-10-04T02:30:00+11:00", "2026-10-05T02:15:00+11:00"]
+    },
+    {
+      "name": "LordHoweFall/RepeatedTimeRunsAtFirstInstance",
+      "spec": "45 1 * * *",
+      "timeZone": "Australia/Lord_Howe",
+      "after": "2026-04-04T12:00:00+11:00",
+      "next": ["2026-04-05T01:45:00+11:00", "2026-04-06T01:45:00+10:30"]
+    },
+    {
+      "name": "ChathamSpring/NonexistentTimeRunsAfterChange",
+      "spec": "30 3 * * *",
+      "timeZone": "Pacific/Chatham",
+      "after": "2026-09-26T12:00:00+12:45",
+      "next": ["2026-09-27T03:45:00+13:45", "2026-09-28T03:30:00+13:45"]
+    },
+    {
+      "name": "ChathamFall/RepeatedTimeRunsAtFirstInstance",
+      "spec": "15 3 * * *",
+      "timeZone": "Pacific/Chatham",
+      "after": "2026-04-04T12:00:00+13:45",
+      "next": ["2026-04-05T03:15:00+13:45", "2026-04-06T03:15:00+12:45"]
+    }
+  ]
+}
