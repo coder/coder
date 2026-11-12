@@ -4,20 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
-
-func TestFormatPIDs(t *testing.T) {
-	t.Parallel()
-
-	require.Empty(t, formatPIDs(nil))
-	require.Equal(t, "6652", formatPIDs(pq.Int64Array{6652}))
-	require.Equal(t, "6652,6653", formatPIDs(pq.Int64Array{6652, 6653}))
-}
 
 // TestReporterClosed covers a Lock call that golang-migrate abandoned on its
 // lock timeout: it keeps waiting after the run returned, and nothing it

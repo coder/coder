@@ -3,9 +3,6 @@ package migrations
 import (
 	"context"
 	"database/sql"
-	"fmt"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -32,6 +29,20 @@ const (
 	stateRunning       = "running"
 	stateWaitingOnLock = "waiting_on_lock"
 	stateUnknown       = "unknown"
+)
+
+// Messages are constant so lines of one kind can be filtered; variable data
+// such as the position of a step goes into fields.
+const (
+	msgAcquiringLock    = "acquiring database migration lock"
+	msgAcquiredLock     = "acquired database migration lock"
+	msgStillWaitingLock = "still waiting for database migration lock"
+	msgUpToDate         = "database schema is up to date"
+	msgRequired         = "database migration required"
+	msgApplying         = "applying database migration"
+	msgStillApplying    = "still applying database migration"
+	msgApplied          = "database migration applied, pending commit"
+	msgObserverFailed   = "database migration progress details unavailable"
 )
 
 type migrationRef struct {
@@ -149,13 +160,13 @@ func (r *reporter) lockWaitStarted(phase string) {
 	if r.runCtx.Err() == nil {
 		// Debug level: the lock is usually free, so this should not add a line
 		// to every server start. A real wait shows up through the heartbeat.
-		r.logger.Debug(r.runCtx, "acquiring database migration lock",
+		r.logger.Debug(r.runCtx, msgAcquiringLock,
 			slog.F("phase", phase))
 	}
 
 	stop := r.startHeartbeat(func(ctx context.Context, activity []slog.Field) {
 		fields := append([]slog.Field{slog.F("elapsed_ms", r.clock.Since(since).Milliseconds())}, activity...)
-		r.logger.Info(ctx, "still waiting for database migration lock", fields...)
+		r.logger.Info(ctx, msgStillWaitingLock, fields...)
 	})
 
 	r.mu.Lock()
@@ -187,7 +198,7 @@ func (r *reporter) lockAcquired(phase string) {
 	if r.runCtx.Err() != nil {
 		return
 	}
-	r.logger.Debug(r.runCtx, "acquired database migration lock",
+	r.logger.Debug(r.runCtx, msgAcquiredLock,
 		slog.F("phase", phase),
 		slog.F("waited_ms", waited.Milliseconds()))
 }
@@ -218,14 +229,14 @@ func (r *reporter) versionRead(version int) {
 	if len(pending) == 0 {
 		// Debug level: most starts have nothing to migrate, and they should
 		// not add a line to every server start.
-		r.logger.Debug(ctx, "database schema is up to date", versionField("version", version)...)
+		r.logger.Debug(ctx, msgUpToDate, versionField("version", version)...)
 		return
 	}
 	fields := versionField("from_version", version)
 	fields = append(fields,
 		slog.F("target_version", pending[len(pending)-1].version),
 		slog.F("pending", len(pending)))
-	r.logger.Info(ctx, "database migration required", fields...)
+	r.logger.Info(ctx, msgRequired, fields...)
 }
 
 // stepStarted is called after golang-migrate marked version as in progress,
@@ -244,16 +255,14 @@ func (r *reporter) stepStarted(version int) {
 	from := r.fromVersion
 	r.mu.Unlock()
 
-	r.perStep(from, fmt.Sprintf("applying update %d of %d", position, total),
-		stepFields(ref, position, total)...)
+	r.perStep(from, msgApplying, stepFields(ref, position, total)...)
 
 	// The heartbeat stays at info on a fresh install:
 	// it only appears for slow steps, and it is the liveness signal.
-	msg := fmt.Sprintf("still applying update %d of %d", position, total)
 	stop := r.startHeartbeat(func(ctx context.Context, activity []slog.Field) {
 		fields := append([]slog.Field{slog.F("elapsed_ms", r.clock.Since(now).Milliseconds())}, activity...)
 		fields = append(fields, stepFields(ref, position, total)...)
-		r.logger.Info(ctx, msg, fields...)
+		r.logger.Info(ctx, msgStillApplying, fields...)
 	})
 
 	r.mu.Lock()
@@ -278,7 +287,7 @@ func (r *reporter) stepApplied(version int) {
 
 	fields := stepFields(ref, position, total)
 	fields = append(fields, slog.F("duration_ms", duration.Milliseconds()))
-	r.perStep(from, "database migration applied, pending commit", fields...)
+	r.perStep(from, msgApplied, fields...)
 }
 
 // close is called once the run has returned. It stops every heartbeat of the
@@ -372,12 +381,14 @@ func (r *reporter) backendActivity(ctx context.Context) ([]slog.Field, error) {
 	if err != nil {
 		return []slog.Field{slog.F("state", stateUnknown)}, err
 	}
-	if waitType.String != "Lock" {
+	if !waitType.Valid || waitType.String != "Lock" {
 		return []slog.Field{slog.F("state", stateRunning)}, nil
 	}
 	fields := []slog.Field{slog.F("state", stateWaitingOnLock), slog.F("wait_event", waitEvent.String)}
 	if len(blockers) > 0 {
-		fields = append(fields, slog.F("blocked_by", formatPIDs(blockers)))
+		// Converted so it logs as a list of PIDs, not as pq.Int64Array's
+		// PostgreSQL array literal.
+		fields = append(fields, slog.F("blocked_by", []int64(blockers)))
 	}
 	return fields, nil
 }
@@ -389,7 +400,7 @@ func (r *reporter) observerErrorLocked(ctx context.Context, err error) {
 		return
 	}
 	r.observerFailed = true
-	r.logger.Warn(ctx, "database migration progress details unavailable", slog.Error(err))
+	r.logger.Warn(ctx, msgObserverFailed, slog.Error(err))
 }
 
 // inSource reports whether version is one of the migrations in the source.
@@ -462,13 +473,4 @@ func versionField(name string, version int) []slog.Field {
 		return nil
 	}
 	return []slog.Field{slog.F(name, version)}
-}
-
-// formatPIDs returns bare PIDs: "6652" or "6652,6653".
-func formatPIDs(pids pq.Int64Array) string {
-	parts := make([]string, len(pids))
-	for i, p := range pids {
-		parts[i] = strconv.FormatInt(p, 10)
-	}
-	return strings.Join(parts, ",")
 }

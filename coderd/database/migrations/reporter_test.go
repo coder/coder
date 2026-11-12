@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"fmt"
-	"strconv"
 	"sync"
 	"testing"
 	"testing/fstest"
@@ -162,9 +161,11 @@ func TestReporter(t *testing.T) {
 		require.Equal(t, 3, field(t, required, "target_version"))
 		require.Equal(t, 2, field(t, required, "pending"))
 
+		applyingEntries := sink.Entries(hasMessage("applying database migration"))
+		require.Len(t, applyingEntries, 2)
 		for position, version := range []int{2, 3} {
+			applying := applyingEntries[position]
 			position++
-			applying := onlyEntry(t, sink, fmt.Sprintf("applying update %d of 2", position))
 			require.Equal(t, slog.LevelInfo, applying.Level)
 			require.Equal(t, []string{"version", "name", "position", "total"}, fieldNames(applying))
 			require.Equal(t, version, field(t, applying, "version"))
@@ -250,7 +251,7 @@ func TestReporter(t *testing.T) {
 		mClock.Advance(time.Second).MustWait(ctx)
 		// Per-step lines are at debug on a fresh install, but the heartbeat
 		// stays at info: it is the liveness signal of a slow step.
-		beat := waitForEntry(ctx, t, sink, "still applying update 2 of 2")
+		beat := waitForEntry(ctx, t, sink, "still applying database migration")
 		require.Equal(t, slog.LevelInfo, beat.Level)
 
 		require.NoError(t, holder.Rollback())
@@ -262,8 +263,10 @@ func TestReporter(t *testing.T) {
 		require.Equal(t, []string{"target_version", "pending"}, fieldNames(required))
 		require.Equal(t, 2, field(t, required, "pending"))
 
-		for _, msg := range []string{"applying update 1 of 2", "applying update 2 of 2"} {
-			require.Equal(t, slog.LevelDebug, onlyEntry(t, sink, msg).Level, msg)
+		applyingEntries := sink.Entries(hasMessage("applying database migration"))
+		require.Len(t, applyingEntries, 2)
+		for _, e := range applyingEntries {
+			require.Equal(t, slog.LevelDebug, e.Level)
 		}
 		applied := sink.Entries(hasMessage("database migration applied, pending commit"))
 		require.Len(t, applied, 2)
@@ -314,7 +317,7 @@ func TestReporter(t *testing.T) {
 		require.Equal(t, int64(1000), field(t, beat, "elapsed_ms"))
 		require.Equal(t, "waiting_on_lock", field(t, beat, "state"))
 		require.Equal(t, "advisory", field(t, beat, "wait_event"))
-		require.Equal(t, strconv.Itoa(holderPID), field(t, beat, "blocked_by"))
+		require.Equal(t, []int64{int64(holderPID)}, field(t, beat, "blocked_by"))
 
 		require.NoError(t, holder.Rollback())
 		require.NoError(t, testutil.TryReceive(ctx, t, done))
@@ -364,7 +367,7 @@ func TestReporter(t *testing.T) {
 
 		waitForLockWait(ctx, t, db, appName)
 		mClock.Advance(time.Second).MustWait(ctx)
-		beat := waitForEntry(ctx, t, sink, "still applying update 2 of 2")
+		beat := waitForEntry(ctx, t, sink, "still applying database migration")
 		require.Equal(t, slog.LevelInfo, beat.Level)
 		require.Equal(t, []string{
 			"elapsed_ms", "state", "wait_event", "blocked_by", "version", "name", "position", "total",
@@ -372,7 +375,7 @@ func TestReporter(t *testing.T) {
 		require.Equal(t, int64(1000), field(t, beat, "elapsed_ms"))
 		require.Equal(t, "waiting_on_lock", field(t, beat, "state"))
 		require.Equal(t, "relation", field(t, beat, "wait_event"))
-		require.Equal(t, strconv.Itoa(blockerPID), field(t, beat, "blocked_by"))
+		require.Equal(t, []int64{int64(blockerPID)}, field(t, beat, "blocked_by"))
 		require.Equal(t, 3, field(t, beat, "version"))
 		require.Equal(t, "step_3", field(t, beat, "name"))
 		require.Equal(t, 2, field(t, beat, "position"))
@@ -487,7 +490,7 @@ func TestReporter(t *testing.T) {
 		close(observer.release)
 		_ = testutil.TryReceive(ctx, t, observer.returned)
 		advance.MustWait(ctx)
-		require.Empty(t, sink.Entries(hasMessage("still applying update 1 of 1")))
+		require.Empty(t, sink.Entries(hasMessage("still applying database migration")))
 		require.Empty(t, sink.Entries(hasMessage("database migration progress details unavailable")))
 	})
 }
