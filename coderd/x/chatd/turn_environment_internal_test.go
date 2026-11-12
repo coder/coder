@@ -882,6 +882,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		ui bool
 		// askStops reports whether ask_user_question ends the turn.
 		askStops bool
+		askAsync bool
 		// prompt lists the instructions the system prompt must contain;
 		// the others in the set must be absent.
 		prompt   []string
@@ -908,6 +909,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			name:        "UIRoot",
 			experiments: codersdk.Experiments{codersdk.ExperimentChatAsyncQuestions},
 			ui:          true,
+			askAsync:    true,
 			prompt:      []string{advisorGuidance, acpSubagentPromptBlock},
 			want:        []string{"ask_user_question", "spawn_agent", chatadvisor.ToolName},
 		},
@@ -953,8 +955,15 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			name:     "PlanRootExperimentOff",
 			planMode: plan,
 			askStops: true,
+			spawn:    true,
 			prompt:   []string{planRootOverlay, proposePlan},
-			want:     []string{"ask_user_question"},
+			want: []string{
+				"write_file", "edit_files", "execute", "process_output", "ask_user_question", "propose_plan",
+				"spawn_agent", "approved__echo", "filtered__visible", "inline__echo",
+			},
+			dontWant: []string{
+				"blocked__echo", "filtered__hidden", "forced__echo", "workspace__echo", "web_search", chatadvisor.ToolName,
+			},
 		},
 		{
 			name:     "PlanChild",
@@ -1110,6 +1119,19 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			}
 			_, askStops := env.StopAfterTools["ask_user_question"]
 			require.Equal(t, tt.askStops, askStops)
+			require.Equal(t, tt.askAsync, env.AsyncAskUserQuestion)
+			if slices.Contains(offered, "ask_user_question") {
+				tool := findToolByName(env.Tools, "ask_user_question")
+				require.NotNil(t, tool)
+
+				description := tool.Info().Description
+				if tt.askAsync {
+					require.Contains(t, description, "without stopping your work")
+				} else {
+					require.Contains(t, description, "during plan mode")
+				}
+			}
+
 			// chatloop offers every registered tool when the active list is
 			// empty, so an Explore child must not register a tool it hides.
 			if tt.child && tt.mode == explore {
