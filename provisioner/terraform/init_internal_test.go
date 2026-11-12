@@ -98,20 +98,22 @@ func Test_linkCachedProviders(t *testing.T) {
 
 	coder := lockedProvider{Source: "registry.terraform.io/coder/coder", Version: "2.18.0"}
 	docker := lockedProvider{Source: "registry.terraform.io/kreuzwerker/docker", Version: "4.6.0"}
+	cache := fakeCache(t, coder, docker)
+	files := tfpath.Layout(t.TempDir())
 
-	t.Run("AllCached", func(t *testing.T) {
-		t.Parallel()
-		cache := fakeCache(t, coder, docker)
-		files := tfpath.Layout(t.TempDir())
+	require.NoError(t, linkCachedProviders(files, cache, []lockedProvider{coder, docker}))
 
-		require.NoError(t, linkCachedProviders(files, cache, []lockedProvider{coder, docker}))
+	for _, p := range []lockedProvider{coder, docker} {
+		target, err := os.Readlink(providerPackageDir(files.ProvidersDirectory(), p))
+		require.NoError(t, err)
+		require.Equal(t, providerPackageDir(cache, p), target)
+	}
+}
 
-		for _, p := range []lockedProvider{coder, docker} {
-			target, err := os.Readlink(providerPackageDir(files.ProvidersDirectory(), p))
-			require.NoError(t, err)
-			require.Equal(t, providerPackageDir(cache, p), target)
-		}
-	})
+func Test_checkCachedProviders(t *testing.T) {
+	t.Parallel()
+
+	coder := lockedProvider{Source: "registry.terraform.io/coder/coder", Version: "2.18.0"}
 
 	// The template's source archive can put a package where the link goes.
 	t.Run("PackageInPlace", func(t *testing.T) {
@@ -122,20 +124,8 @@ func Test_linkCachedProviders(t *testing.T) {
 		require.NoError(t, os.MkdirAll(filepath.Dir(planted), 0o755))
 		require.NoError(t, os.WriteFile(planted, nil, 0o600))
 
-		err := linkCachedProviders(files, cache, []lockedProvider{coder})
+		err := checkCachedProviders(files, cache, []lockedProvider{coder})
 		require.ErrorContains(t, err, "already holds provider registry.terraform.io/coder/coder@2.18.0")
-		require.FileExists(t, planted)
-	})
-
-	t.Run("MissingProvider", func(t *testing.T) {
-		t.Parallel()
-		cache := fakeCache(t, coder)
-		files := tfpath.Layout(t.TempDir())
-
-		err := linkCachedProviders(files, cache, []lockedProvider{coder, docker})
-		require.ErrorContains(t, err, "registry.terraform.io/kreuzwerker/docker@4.6.0 is not in the plugin cache")
-		_, err = os.Stat(files.TerraformMetadataDir())
-		require.ErrorIs(t, err, os.ErrNotExist, "nothing should be linked when a provider is missing")
 	})
 
 	t.Run("EmptyProviderDir", func(t *testing.T) {
@@ -144,13 +134,13 @@ func Test_linkCachedProviders(t *testing.T) {
 		require.NoError(t, os.MkdirAll(providerPackageDir(cache, coder), 0o755))
 		files := tfpath.Layout(t.TempDir())
 
-		err := linkCachedProviders(files, cache, []lockedProvider{coder})
+		err := checkCachedProviders(files, cache, []lockedProvider{coder})
 		require.Error(t, err, "a provider directory without a binary is not usable")
 	})
 
 	t.Run("NoCache", func(t *testing.T) {
 		t.Parallel()
-		require.Error(t, linkCachedProviders(tfpath.Layout(t.TempDir()), "", []lockedProvider{coder}))
+		require.Error(t, checkCachedProviders(tfpath.Layout(t.TempDir()), "", []lockedProvider{coder}))
 	})
 }
 
@@ -224,6 +214,14 @@ func Test_manualInit(t *testing.T) {
 		files := newWorkDir(t)
 		require.True(t, manualInit(t.Context(), logger, files, fakeCache(t, coder, docker), nil))
 		require.DirExists(t, files.ProvidersDirectory())
+	})
+
+	// One provider missing from the cache leaves the others unlinked.
+	t.Run("MissingProvider", func(t *testing.T) {
+		t.Parallel()
+		files := newWorkDir(t)
+		require.False(t, manualInit(t.Context(), logger, files, fakeCache(t, coder), nil))
+		require.NoDirExists(t, files.ProvidersDirectory())
 	})
 
 	// Only `terraform init` can set up a backend or HCP Terraform.

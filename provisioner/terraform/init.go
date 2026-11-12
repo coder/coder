@@ -83,10 +83,9 @@ func providerPackageDir(root string, p lockedProvider) string {
 	return filepath.Join(root, filepath.FromSlash(p.Source), p.Version, terraformPlatform())
 }
 
-// linkCachedProviders symlinks each provider from the plugin cache into
-// .terraform/providers, as `terraform init` does on a cache hit. If a
-// provider can't be linked, it links nothing.
-func linkCachedProviders(files tfpath.Layout, cachePath string, providers []lockedProvider) error {
+// checkCachedProviders returns an error if the plugin cache can't supply a
+// provider, or the working directory already holds one.
+func checkCachedProviders(files tfpath.Layout, cachePath string, providers []lockedProvider) error {
 	if cachePath == "" {
 		return xerrors.New("there is no plugin cache")
 	}
@@ -106,6 +105,13 @@ func linkCachedProviders(files tfpath.Layout, cachePath string, providers []lock
 			return xerrors.Errorf("the working directory already holds provider %s@%s", p.Source, p.Version)
 		}
 	}
+	return nil
+}
+
+// linkCachedProviders symlinks each provider from the plugin cache into
+// .terraform/providers, as `terraform init` does on a cache hit. If a link
+// fails, it removes .terraform/providers.
+func linkCachedProviders(files tfpath.Layout, cachePath string, providers []lockedProvider) error {
 	for _, p := range providers {
 		src := providerPackageDir(cachePath, p)
 		dst := providerPackageDir(files.ProvidersDirectory(), p)
@@ -251,8 +257,12 @@ func manualInit(ctx context.Context, logger slog.Logger, files tfpath.Layout, ca
 		logger.Debug(ctx, "cannot skip terraform init: module check failed", slog.Error(err))
 		return false
 	}
+	if err := checkCachedProviders(files, cachePath, providers); err != nil {
+		logger.Debug(ctx, "cannot skip terraform init: provider check failed", slog.Error(err))
+		return false
+	}
 	if err := linkCachedProviders(files, cachePath, providers); err != nil {
-		logger.Debug(ctx, "cannot skip terraform init: linking cached providers failed", slog.Error(err))
+		logger.Warn(ctx, "cannot skip terraform init: linking cached providers failed", slog.Error(err))
 		return false
 	}
 	names := make([]string, 0, len(providers))
