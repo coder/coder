@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { screen, within } from "storybook/test";
+import AutoSizer from "react-virtualized-auto-sizer";
+import { screen, userEvent, within } from "storybook/test";
 import type { Line } from "#/components/Logs/LogLine";
 import { AGENT_LOG_LINE_HEIGHT } from "./AgentLogLine";
 import { AgentLogs } from "./AgentLogs";
@@ -35,8 +36,22 @@ export const SourceIconFocused: Story = {
 
 export const Overflowed: Story = {
 	args: {
-		className: "max-h-[420px]",
+		height: 256,
 		overflowed: true,
+	},
+	// AgentRow renders the logs inside AutoSizer, whose own div is 0px wide.
+	render: (args) => (
+		<AutoSizer disableHeight>
+			{({ width }) => <AgentLogs {...args} width={width} />}
+		</AutoSizer>
+	),
+};
+
+export const OverflowedTooltip: Story = {
+	...Overflowed,
+	play: async ({ canvasElement }) => {
+		await userEvent.hover(within(canvasElement).getByText("Logs overflowed"));
+		await screen.findByRole("tooltip");
 	},
 };
 
