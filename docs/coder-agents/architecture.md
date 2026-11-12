@@ -92,7 +92,9 @@ A "Context cleared" marker shows where the reset happened.
 ### Message queuing
 
 Users can send follow-up messages while the agent is actively working.
-Messages are queued in the database and delivered when the agent completes its current turn (the full sequence of steps until the model stops calling tools).
+Messages are held in the database and delivered before the agent's next model call.
+API and Model Context Protocol (MCP) clients can set `busy_behavior` to `queue` to deliver a message when the current turn ends (the full sequence of steps until the model stops calling tools).
+Interrupt the agent only to stop it, not to send it a message.
 There is no need to wait for a response before providing additional context or redirecting the agent.
 
 ## Tool execution
@@ -156,7 +158,7 @@ Sub-agents spawned by `spawn_agent` do not have access to them and cannot create
 
 `propose_plan` and `ask_user_question` are only exposed while plan mode is active.
 In that mode, `write_file` and `edit_files` are restricted to the chat-specific plan file, while `execute` and `process_output` remain available for exploration such as cloning repositories, searching code, and running inspection commands.
-Root plan-mode chats may also receive administrator-approved external MCP tools.
+Root plan-mode chats can also receive administrator-approved external MCP tools.
 Workspace MCP tools remain unavailable in plan mode, and plan-mode sub-agents still do not receive any MCP tools.
 Dynamic, provider-native, and computer-use tools are not available.
 
@@ -164,15 +166,15 @@ Dynamic, provider-native, and computer-use tools are not available.
 
 These tools manage sub-agents (child chats that work on independent tasks in parallel).
 
-| Tool                                        | What it does                                                                                                                                                                                                                                                                                                                                                                                                   |
-|---------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `spawn_agent` (`type=general` or `explore`) | Delegates a task to a sub-agent with its own context window. Optionally accepts `model_config_id` and `reasoning_effort` to run the child on a specific enabled model instead of the configured default.                                                                                                                                                                                                       |
-| `list_subagent_models`                      | Lists the enabled model configurations the agent can pass to `spawn_agent` as `model_config_id`.                                                                                                                                                                                                                                                                                                               |
-| `wait_agent`                                | Waits for a sub-agent to finish and collects its result.                                                                                                                                                                                                                                                                                                                                                       |
-| `message_agent`                             | Sends a follow-up message to a running sub-agent.                                                                                                                                                                                                                                                                                                                                                              |
-| `interrupt_agent`                           | Halts a sub-agent's current turn; it transitions to waiting or running if there are queued messages.                                                                                                                                                                                                                                                                                                           |
-| `spawn_agent` (`type=computer_use`)         | Spawns a sub-agent with desktop interaction capabilities (screenshot, mouse, keyboard). Runs on the organization's computer use model, or on its default model when no usable computer use model is set. The model must come from an Anthropic or OpenAI AI provider, or be a Claude model from an AWS Bedrock AI provider. Requires the [virtual desktop experiment](./platform-controls/virtual-desktop.md). |
-| `list_agents`                               | Lists spawned child agents, most recently active first.                                                                                                                                                                                                                                                                                                                                                        |
+| Tool                                        | What it does                                                                                                                                                                                                                                                                                                                                                                                                                       |
+|---------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `spawn_agent` (`type=general` or `explore`) | Delegates a task to a sub-agent with its own context window. Optionally accepts `model_config_id` and `reasoning_effort` to run the child on a specific enabled model instead of the configured default.                                                                                                                                                                                                                           |
+| `list_subagent_models`                      | Lists the enabled model configurations the agent can pass to `spawn_agent` as `model_config_id`.                                                                                                                                                                                                                                                                                                                                   |
+| `wait_agent`                                | Waits for a sub-agent to finish and collects its result.                                                                                                                                                                                                                                                                                                                                                                           |
+| `message_agent`                             | Sends a follow-up message to a sub-agent. An idle sub-agent starts a new turn. A busy sub-agent receives the message before its next model call.                                                                                                                                                                                                                                                                                   |
+| `interrupt_agent`                           | Halts a sub-agent's current turn; it transitions to waiting, to running if there are queued messages, or to paused if the next queued message, or any queued `steer` message, is being edited.                                                                                                                                                                                                                                     |
+| `spawn_agent` (`type=computer_use`)         | Spawns a sub-agent with desktop interaction capabilities (screenshot, mouse, keyboard). Runs on the organization's computer use model, or on its default model when no usable computer use model is set. The model must come from an Anthropic, OpenAI, or OpenAI-compatible AI provider, or be a Claude model from an AWS Bedrock AI provider. Requires the [virtual desktop experiment](./platform-controls/virtual-desktop.md). |
+| `list_agents`                               | Lists spawned child agents, most recently active first.                                                                                                                                                                                                                                                                                                                                                                            |
 
 ### Provider tools
 
@@ -232,7 +234,7 @@ All chat data is stored in the control plane database, not in the workspace.
 - **Compressed context**:
   when the agent compacts the conversation, summaries are stored with a compression flag so the original context budget is preserved.
 - **Queued messages**:
-  follow-up messages sent while the agent is working are held in a queue and delivered in order.
+  follow-up messages sent while the agent is working are held until a delivery point: `steer` messages go in before the next model call, and `queue` messages go in after the turn ends.
 
 Because state lives in the database:
 

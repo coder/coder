@@ -14,7 +14,7 @@ import { Link } from "#/components/Link/Link";
 import { docs } from "#/utils/docs";
 
 const warnBoxClassName =
-	"mt-6 flex gap-2 rounded-lg border border-solid border-border-warning bg-surface-orange p-3 leading-snug text-content-warning";
+	"mt-6 flex gap-2 rounded-lg border border-border-warning bg-surface-orange p-3 leading-snug text-content-warning";
 
 type WorkspaceDeleteDialogProps = {
 	workspace: Workspace;
@@ -79,7 +79,7 @@ export const WorkspaceDeleteDialog: React.FC<WorkspaceDeleteDialogProps> = ({
 			disabled={!confirmation.confirmed}
 			description={
 				<>
-					<div className="flex items-center justify-between rounded-md border border-solid border-border p-4 mb-5 leading-snug">
+					<div className="flex items-center justify-between rounded-md border p-4 mb-5 leading-snug">
 						<div>
 							<p className="m-0 text-base font-semibold text-content-primary">
 								{workspace.name}
@@ -87,7 +87,7 @@ export const WorkspaceDeleteDialog: React.FC<WorkspaceDeleteDialogProps> = ({
 							<p className="m-0 text-xs text-content-secondary">workspace</p>
 						</div>
 						<div className="text-right">
-							<p className="m-0 text-xs font-medium text-content-primary">
+							<p className="m-0 text-xs text-content-primary">
 								{dayjs(workspace.created_at).fromNow()}
 							</p>
 							<p className="m-0 text-xs text-content-secondary">created</p>

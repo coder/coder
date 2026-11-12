@@ -431,7 +431,7 @@ export const CreateWorkspacePageView: React.FC<
 							</Button>
 						)}
 					</div>
-					<span className="flex flex-row items-center gap-2">
+					<span className="flex items-center gap-2">
 						<h1 className="text-3xl font-semibold m-0">New workspace</h1>
 
 						<InfoTooltip>
@@ -456,7 +456,7 @@ export const CreateWorkspacePageView: React.FC<
 				<form
 					onSubmit={form.handleSubmit}
 					aria-label="Create workspace form"
-					className="flex flex-col gap-10 w-full border border-border border-solid rounded-lg p-6"
+					className="flex flex-col gap-10 w-full border rounded-lg p-6"
 					data-testid="form"
 				>
 					{Boolean(error) && <ErrorAlert error={error} />}
@@ -793,7 +793,7 @@ export const CreateWorkspacePageView: React.FC<
 						</section>
 					)}
 
-					<div className="flex flex-row justify-end">
+					<div className="flex justify-end">
 						<Button type="submit" disabled={disabled}>
 							<Spinner loading={creatingWorkspace} />
 							Create workspace

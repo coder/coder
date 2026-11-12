@@ -62,6 +62,25 @@ const lineBreakRemarkPlugins = [
 	remarkBreaks,
 ];
 
+// Spacing and list layout for every chat Markdown block. These are
+// descendant selectors rather than component overrides so Streamdown
+// keeps rendering the list elements and their props, such as an
+// ordered list's start value.
+const markdownRootClassName = cn(
+	// Top-level paragraphs carry the browser's default 1em margin, which
+	// would otherwise outweigh the block gap.
+	"space-y-3 [&>p]:my-0",
+	// Streamdown places list markers inside the text box, so wrapped lines
+	// start under the marker. Outside markers align them with the item text.
+	"[&_ol]:list-outside [&_ol]:pl-6 [&_ul]:list-outside [&_ul]:pl-6",
+	// The checkbox replaces the marker only on task items, so mixed lists
+	// keep their other bullets and nested task lists keep their indent.
+	"[&_.task-list-item]:list-none",
+	// Streamdown renders every paragraph in a list item inline, which joins
+	// the paragraphs of a multi-paragraph item into one line.
+	"[&_li]:py-0.5 [&_li>p]:my-0 [&_li>p]:block [&_li>p+p]:mt-1",
+);
+
 const noInlineNodes: readonly InlineNode[] = [];
 const InlineNodesContext = createContext(noInlineNodes);
 
@@ -86,6 +105,7 @@ type MarkdownComponentProps = {
 	checked?: boolean;
 	disabled?: boolean;
 	className?: string;
+	style?: React.CSSProperties;
 };
 
 /**
@@ -207,11 +227,11 @@ const createComponents = (
 					aria-hidden="true"
 					className={cn(
 						"mr-2 inline-flex size-4 shrink-0 items-center justify-center",
-						"rounded-sm border border-solid",
+						"rounded-sm border",
 						"align-middle relative -top-px",
 						checked
 							? "border-content-link bg-content-link text-white"
-							: "border-border bg-surface-primary",
+							: "bg-surface-primary",
 					)}
 				>
 					{checked && (
@@ -241,18 +261,22 @@ const createComponents = (
 		),
 		// Horizontal rule: render a clean 1px solid line using theme
 		// tokens instead of the default border.
-		hr: () => (
-			<hr className="my-6 border-0 border-t border-solid border-border" />
-		),
+		hr: () => <hr className="my-6 border-t" />,
 		// Table cells: streamdown defaults to text-sm (14px).
 		// Drop the explicit size so cells inherit the 13px base.
-		th: ({ children }: MarkdownComponentProps) => (
-			<th className="whitespace-nowrap px-4 py-2 text-left font-semibold">
+		// The style carries the column alignment from the separator row.
+		th: ({ children, style }: MarkdownComponentProps) => (
+			<th
+				className="whitespace-nowrap px-4 py-2 text-left font-semibold"
+				style={style}
+			>
 				{children}
 			</th>
 		),
-		td: ({ children }: MarkdownComponentProps) => (
-			<td className="px-4 py-2">{children}</td>
+		td: ({ children, style }: MarkdownComponentProps) => (
+			<td className="px-4 py-2" style={style}>
+				{children}
+			</td>
 		),
 		// Inline code only, fenced blocks are handled by the pre override.
 		code: ({ children }: MarkdownComponentProps) => (
@@ -286,7 +310,7 @@ const createComponents = (
 					// and rounding from its direct child, so the frame must stay
 					// on the outermost element rather than the ScrollArea.
 					const codeBlock = (
-						<div className="group/code-block relative my-4 overflow-hidden rounded-md border border-solid border-border bg-surface-primary">
+						<div className="group/code-block relative my-4 overflow-hidden rounded-md border bg-surface-primary">
 							<ScrollArea
 								orientation="both"
 								scrollBarClassName="w-1.5"
@@ -348,7 +372,7 @@ export const Response = ({
 }: ResponseProps) => {
 	const theme = useTheme();
 	const fileViewerThemeType: FileViewerThemeType =
-		theme.palette.mode === "dark" ? "dark" : "light";
+		theme.mode === "dark" ? "dark" : "light";
 	const components = componentsByTheme[fileViewerThemeType];
 	const { markdown, inlineNodes } =
 		typeof children === "string"
@@ -366,6 +390,8 @@ export const Response = ({
 		>
 			<InlineNodesContext value={inlineNodes ?? noInlineNodes}>
 				<Streamdown
+					// Streamdown merges this over its own space-y-4 root class.
+					className={markdownRootClassName}
 					controls={false}
 					components={components}
 					urlTransform={urlTransform}

@@ -105,10 +105,10 @@ const Emoji: React.FC<EmojiPickerListEmojiProps> = ({ emoji, ...props }) => (
 	<button
 		type="button"
 		className={cn(
-			"flex size-8 items-center justify-center rounded-md border-0 bg-transparent p-0",
+			"flex size-8 items-center justify-center rounded-md bg-transparent p-0",
 			// The active emoji is the keyboard focus indicator: DOM focus stays
 			// in the search input or viewport while arrow keys move it.
-			"data-[active]:bg-surface-tertiary data-[active]:ring-2 data-[active]:ring-content-link data-[active]:ring-inset",
+			"data-active:bg-surface-tertiary data-active:ring-2 data-active:ring-content-link data-active:ring-inset",
 		)}
 		{...props}
 	>
@@ -188,13 +188,13 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({
 
 	return (
 		<Frimousse.Root
-			className="isolate flex h-[400px] w-fit flex-col"
+			className="isolate flex h-100 w-fit flex-col"
 			resolveEmojiData={() => emojiData}
 			onEmojiSelect={({ emoji }) => onEmojiSelect(emojiToValue(emoji))}
 		>
 			<nav
 				aria-label="Emoji categories"
-				className="flex justify-between border-0 border-b border-solid border-border px-1.5"
+				className="flex justify-between border-b px-1.5"
 			>
 				{emojiData.categories.map((category, i) => {
 					const isCurrent = search === "" && activeCategory === i;
@@ -207,7 +207,7 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({
 							title={category.label}
 							onClick={() => scrollToCategory(i)}
 							className={cn(
-								"flex size-8 cursor-pointer items-center justify-center rounded-md border-0 border-b-2 border-solid border-transparent bg-transparent p-0 text-content-secondary",
+								"flex size-8 cursor-pointer items-center justify-center rounded-md border-b-2 border-transparent bg-transparent p-0 text-content-secondary",
 								"hover:text-content-primary focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link focus-visible:ring-inset",
 								"aria-[current]:rounded-b-none aria-[current]:border-content-link aria-[current]:text-content-primary [&_svg]:size-4",
 							)}
@@ -228,7 +228,7 @@ const EmojiPicker: React.FC<EmojiPickerProps> = ({
 					placeholder="Search emojis and icons"
 					aria-label="Search emojis and icons"
 					// Hide the browser's native clear button in favor of the one below.
-					className="h-9 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm text-content-primary outline-hidden placeholder:text-content-secondary [&::-webkit-search-cancel-button]:appearance-none"
+					className="h-9 min-w-0 flex-1 bg-transparent px-0 text-sm text-content-primary outline-hidden placeholder:text-content-secondary [&::-webkit-search-cancel-button]:appearance-none"
 				/>
 				<InputGroupAddon align="inline-end">
 					{search !== "" && (

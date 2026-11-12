@@ -113,7 +113,7 @@ export const ChatSearchDialog: React.FC<ChatSearchDialogProps> = ({
 				// input + gap-4 + summary + space-y-3 + the 300px scroll area in
 				// ChatSearchResults). The max(1rem, ...) clamp keeps the dialog
 				// fully visible on short viewports.
-				className="top-[max(1rem,calc(50%-218px))] w-[calc(100vw-2rem)] max-w-[560px] translate-y-0 gap-4 border-border bg-surface-primary p-6 sm:p-6"
+				className="top-[max(1rem,calc(50%-218px))] w-[calc(100vw-2rem)] max-w-140 translate-y-0 gap-4 bg-surface-primary p-6 sm:p-6"
 				// Suppress the open/close animation. The `animate-in`/`animate-out`
 				// rules applied via CVA in `dialogVariants` outrank Tailwind class
 				// overrides, so we disable them with an inline style to avoid the
@@ -469,10 +469,8 @@ const FilterDropdown: React.FC<{
 	const activeKeys = new Set(filters.map((f) => f.key));
 
 	return (
-		<div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-md border border-solid border-border bg-surface-primary p-3 shadow-md">
-			<h3 className="m-0 mb-2 text-xs font-medium text-content-secondary">
-				Filter by
-			</h3>
+		<div className="absolute left-0 right-0 top-full z-10 mt-1 rounded-md border bg-surface-primary p-3 shadow-md">
+			<h3 className="m-0 mb-2 text-xs text-content-secondary">Filter by</h3>
 			<div className="flex flex-wrap gap-2">
 				{FILTER_DEFINITIONS.map((def) => {
 					const Icon = def.icon;

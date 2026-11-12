@@ -21,7 +21,7 @@ Following these recommendations will:
 
 ## Lock your provider and module versions
 
-If you add a Terraform provider to `required_providers` without specifying a version requirement, Terraform will always fetch the latest version on each invocation:
+If you add a Terraform provider to `required_providers` without specifying a version requirement, Terraform selects the latest version whenever it resolves providers:
 
 ```tf
 terraform {
@@ -36,8 +36,10 @@ terraform {
 }
 ```
 
-Any new releases of the `coder` or `frobnicate` providers will be picked up upon the next time a workspace is built using this template.
-This may include breaking changes.
+New releases of the `coder` or `frobnicate` providers are picked up the next time you push a template version, because workspace builds reuse the [provider versions that Coder selected](../../workspaces/speed-up-templates.md#template-lock-file) when it imported the template version.
+Builds on a provisioner with a different operating system or architecture, or with module caching disabled, pick up new releases on every build.
+Builds that can't install the versions selected at import also pick up new releases, except for providers pinned by a lock file you commit with the template.
+New releases can include breaking changes.
 
 To prevent this, add a [version constraint](https://developer.hashicorp.com/terraform/language/expressions/version-constraints) to each provider in the `required_providers` block:
 
@@ -72,7 +74,7 @@ module "razzledazzle" {
 ## Use a Dependency Lock File
 
 Terraform allows creating a [dependency lock file](https://developer.hashicorp.com/terraform/language/files/dependency-lock) to track which provider versions were selected previously.
-This allows you to ensure that the next workspace build uses the same provider versions as with the last build.
+This allows you to make sure that the next workspace build uses the same provider versions as with the last build.
 
 To create a new Terraform lock file, run the [`terraform init` command](https://developer.hashicorp.com/terraform/cli/commands/init) inside a folder containing the Terraform source code for a given template.
 

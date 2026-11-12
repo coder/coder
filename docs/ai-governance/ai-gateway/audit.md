@@ -15,7 +15,7 @@ This structure gives auditors clear provenance over who initiated what, and why.
 | **Interception** | A single intercepted request/response pair between client and provider.                                                                                                                                                |                                                                               |
 | **Thread**       | A multi-part interaction starting with a human prompt that triggers one or more tool calls, forming an agentic loop.                                                                                                                                  |
 | **Agentic loop** | A sequence of tool invocations the agent performs to satisfy a request. The model ends its turn with a tool call, the client invokes it, sends the result back, and the cycle repeats until the model has enough information to formulate a response. |
-| **Session**      | A set of threads grouped by a client-provided session key. Claude Code and Codex provide session IDs automatically; other clients may not.                                                                                                            |
+| **Session**      | A set of threads grouped by a client-provided session key. Claude Code and Codex provide session IDs automatically; other clients might not.                                                                                                          |
 
 ## Human vs. Agent attribution
 
@@ -73,7 +73,7 @@ To see which model was used for pricing, hover over the model.
 The agentic loop shows its duration and number of tool calls, and each step shows tool call details (including arguments and Model Context Protocol (MCP) server URLs).
 
 The **Session summary** card beside the timeline shows the session's total token usage, with the same breakdown, and its total cost.
-A warning next to a cost means some usage was unpriced, so the actual cost may be higher.
+A warning next to a cost means some usage was unpriced, so the actual cost might be higher.
 To learn how Coder prices usage and how to add missing prices, refer to [How spend is calculated](./cost-controls.md#how-spend-is-calculated).
 
 The card also reports the session's [Agent Firewall](../agent-firewall/index.md) activity:
@@ -113,7 +113,7 @@ AI Gateway captures the following data from each request/response:
 - Last user prompt
 - Token usage
 - Tool calls (requests only, not responses)
-  - Responses may be very large, and generally have lower audit value than requests
+  - Responses can be very large, and generally have lower audit value than requests
   - In future, we will support storing these results
 - Model thinking/reasoning
 

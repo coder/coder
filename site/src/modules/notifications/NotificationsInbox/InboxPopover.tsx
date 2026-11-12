@@ -48,7 +48,7 @@ export const InboxPopover: React.FC<InboxPopoverProps> = ({
 				<InboxButton unreadCount={unreadCount} />
 			</PopoverTrigger>
 			<PopoverContent
-				className="w-(--radix-popper-available-width) max-w-[466px]"
+				className="w-(--radix-popper-available-width) max-w-116.5"
 				align="end"
 			>
 				{/*
@@ -59,12 +59,12 @@ export const InboxPopover: React.FC<InboxPopoverProps> = ({
 					className={cn([
 						"[--bottom-offset:48px]",
 						"[--max-height:calc(var(--radix-popover-content-available-height)-var(--bottom-offset))]",
-						"[&>[data-radix-scroll-area-viewport]]:max-h-(--max-height)",
+						"*:data-radix-scroll-area-viewport:max-h-(--max-height)",
 					])}
 				>
 					<div
 						className={cn([
-							"flex items-center justify-between p-3 border-0 border-b border-solid border-border",
+							"flex items-center justify-between p-3 border-b",
 							"sticky top-0 bg-surface-primary z-10 rounded-t",
 						])}
 					>
@@ -101,10 +101,8 @@ export const InboxPopover: React.FC<InboxPopoverProps> = ({
 									role="list"
 									aria-label="Notifications"
 									className={cn([
-										"[&>[role=listitem]]:border-0 [&>[role=listitem]:not(:last-child)]:border-b",
-										"[&>[role=listitem]]:border-solid [&>[role=listitem]]:border-border",
-										hasMoreNotifications &&
-											"border-0 border-b border-solid border-border",
+										"[&>[role=listitem]:not(:last-child)]:border-b",
+										hasMoreNotifications && "border-b",
 									])}
 								>
 									{notifications.map((notification) => (

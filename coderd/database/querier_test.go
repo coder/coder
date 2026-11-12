@@ -885,6 +885,124 @@ func templateInsightsByTemplateParams(t *testing.T, startTime, endTime time.Time
 	return database.GetTemplateInsightsByTemplateParams{StartTime: startTime, EndTime: endTime}
 }
 
+func TestGetTemplateParameterInsights(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	startTime := dbtime.Now().Add(-time.Hour).Truncate(time.Minute)
+	endTime := startTime.Add(30 * time.Minute)
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	user := dbgen.User(t, db, database.User{})
+	newTemplate := func() (database.Template, database.TemplateVersion) {
+		tpl := dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: user.ID})
+		ver := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+		})
+		return tpl, ver
+	}
+	addParam := func(ver database.TemplateVersion, name, description string) {
+		dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{
+			TemplateVersionID: ver.ID,
+			Name:              name,
+			DisplayName:       name,
+			Description:       description,
+			Options:           []byte("[]"),
+		})
+	}
+	newWorkspace := func(tpl database.Template) database.WorkspaceTable {
+		return dbgen.Workspace(t, db, database.WorkspaceTable{OrganizationID: org.ID, TemplateID: tpl.ID, OwnerID: user.ID})
+	}
+	addBuild := func(ws database.WorkspaceTable, ver database.TemplateVersion, buildNumber int32, createdAt time.Time, values map[string]string) {
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{OrganizationID: org.ID, InitiatorID: user.ID})
+		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: ver.ID,
+			BuildNumber:       buildNumber,
+			InitiatorID:       user.ID,
+			JobID:             job.ID,
+			CreatedAt:         createdAt,
+		})
+		params := make([]database.WorkspaceBuildParameter, 0, len(values))
+		for name, value := range values {
+			params = append(params, database.WorkspaceBuildParameter{WorkspaceBuildID: build.ID, Name: name, Value: value})
+		}
+		dbgen.WorkspaceBuildParameters(t, db, params)
+	}
+
+	// Templates A and B share an identical region definition, so they form one
+	// group. Template C uses the same name with a different description, so it
+	// forms its own group. Only template A has a size parameter.
+	tplA, verA := newTemplate()
+	tplB, verB := newTemplate()
+	tplC, verC := newTemplate()
+	addParam(verA, "region", "Shared region")
+	addParam(verA, "size", "Size")
+	addParam(verB, "region", "Shared region")
+	addParam(verC, "region", "Other region")
+
+	// Only the latest build inside the window counts for each workspace.
+	wsA1 := newWorkspace(tplA)
+	addBuild(wsA1, verA, 1, startTime.Add(-10*time.Minute), map[string]string{"region": "ap", "size": "small"})
+	addBuild(wsA1, verA, 2, startTime.Add(5*time.Minute), map[string]string{"region": "eu", "size": "small"})
+	addBuild(wsA1, verA, 3, startTime.Add(10*time.Minute), map[string]string{"region": "us", "size": "large"})
+	addBuild(wsA1, verA, 4, endTime.Add(2*time.Minute), map[string]string{"region": "ap", "size": "small"})
+	addBuild(newWorkspace(tplA), verA, 1, startTime.Add(15*time.Minute), map[string]string{"region": "us", "size": "small"})
+	addBuild(newWorkspace(tplB), verB, 1, startTime.Add(20*time.Minute), map[string]string{"region": "eu"})
+	addBuild(newWorkspace(tplC), verC, 1, startTime.Add(25*time.Minute), map[string]string{"region": "eu"})
+	// Builds outside the window are ignored.
+	addBuild(newWorkspace(tplB), verB, 1, endTime.Add(time.Minute), map[string]string{"region": "ap"})
+	addBuild(newWorkspace(tplA), verA, 1, startTime.Add(-time.Minute), map[string]string{"region": "ap", "size": "large"})
+
+	type paramCount struct {
+		TemplateIDs string
+		Name        string
+		Description string
+		Value       string
+		Count       int64
+	}
+	// joinIDs makes template ID sets comparable regardless of order.
+	joinIDs := func(ids ...uuid.UUID) string {
+		s := make([]string, 0, len(ids))
+		for _, id := range ids {
+			s = append(s, id.String())
+		}
+		slices.Sort(s)
+		return strings.Join(s, ",")
+	}
+	query := func(templateIDs []uuid.UUID) []paramCount {
+		rows, err := db.GetTemplateParameterInsights(ctx, database.GetTemplateParameterInsightsParams{
+			StartTime:   startTime,
+			EndTime:     endTime,
+			TemplateIDs: templateIDs,
+		})
+		require.NoError(t, err)
+		got := make([]paramCount, 0, len(rows))
+		for _, row := range rows {
+			got = append(got, paramCount{joinIDs(row.TemplateIDs...), row.Name, row.Description, row.Value, row.Count})
+		}
+		return got
+	}
+
+	require.ElementsMatch(t, []paramCount{
+		{joinIDs(tplA.ID, tplB.ID), "region", "Shared region", "us", 2},
+		{joinIDs(tplA.ID, tplB.ID), "region", "Shared region", "eu", 1},
+		{joinIDs(tplA.ID), "size", "Size", "large", 1},
+		{joinIDs(tplA.ID), "size", "Size", "small", 1},
+		{joinIDs(tplC.ID), "region", "Other region", "eu", 1},
+	}, query(nil))
+
+	require.ElementsMatch(t, []paramCount{
+		{joinIDs(tplA.ID), "region", "Shared region", "us", 2},
+		{joinIDs(tplA.ID), "size", "Size", "large", 1},
+		{joinIDs(tplA.ID), "size", "Size", "small", 1},
+		{joinIDs(tplC.ID), "region", "Other region", "eu", 1},
+	}, query([]uuid.UUID{tplA.ID, tplC.ID}))
+}
+
 func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 	t.Parallel()
 
@@ -7685,6 +7803,7 @@ func createTmplVersionAndPreset(
 
 type createPrebuiltWorkspaceOpts struct {
 	failedJob      bool
+	succeededJob   bool
 	createdAt      time.Time
 	readyAgents    int
 	notReadyAgents int
@@ -7705,12 +7824,19 @@ func createPrebuiltWorkspace(
 	if opts != nil && opts.failedJob {
 		jobError = sql.NullString{String: "failed", Valid: true}
 	}
+	var jobStartedAt, jobCompletedAt sql.NullTime
+	if opts != nil && opts.succeededJob {
+		jobStartedAt = sql.NullTime{Time: now.Add(-1 * time.Minute), Valid: true}
+		jobCompletedAt = sql.NullTime{Time: now, Valid: true}
+	}
 	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 		Type:           database.ProvisionerJobTypeWorkspaceBuild,
 		OrganizationID: orgID,
 
-		CreatedAt: now.Add(-1 * time.Minute),
-		Error:     jobError,
+		CreatedAt:   now.Add(-1 * time.Minute),
+		StartedAt:   jobStartedAt,
+		CompletedAt: jobCompletedAt,
+		Error:       jobError,
 	})
 
 	// create ready agents
@@ -8717,7 +8843,9 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 		name string
 		// true - build is successful
 		// false - build is unsuccessful
-		buildSuccesses  []bool
+		buildSuccesses []bool
+		// newestInFlight adds a pending build after buildSuccesses, as the reconciler sees while it is still creating.
+		newestInFlight  bool
 		hardLimit       int64
 		expHitHardLimit bool
 	}{
@@ -8763,6 +8891,20 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 			hardLimit:       3,
 			expHitHardLimit: false,
 		},
+		{
+			name:            "last 3 builds are failed and a newer one is in flight - hard limit is reached",
+			buildSuccesses:  []bool{false, false, false},
+			newestInFlight:  true,
+			hardLimit:       3,
+			expHitHardLimit: true,
+		},
+		{
+			name:            "last build is successful and a newer one is in flight - hard limit is NOT reached",
+			buildSuccesses:  []bool{false, false, true},
+			newestInFlight:  true,
+			hardLimit:       3,
+			expHitHardLimit: false,
+		},
 		// hardLimit set to zero, implicitly disables the hard limit.
 		{
 			name:            "despite 5 failed builds, the hard limit is not reached because it's disabled.",
@@ -8789,8 +8931,14 @@ func TestGetPresetsAtFailureLimit(t *testing.T) {
 			tmplV1 := createTmplVersionAndPreset(t, db, tmpl, tmpl.ActiveVersionID, now, nil)
 			for idx, buildSuccess := range tc.buildSuccesses {
 				createPrebuiltWorkspace(ctx, t, db, tmpl, tmplV1, orgID, now, &createPrebuiltWorkspaceOpts{
-					failedJob: !buildSuccess,
-					createdAt: hourBefore.Add(time.Duration(idx) * time.Second),
+					failedJob:    !buildSuccess,
+					succeededJob: buildSuccess,
+					createdAt:    hourBefore.Add(time.Duration(idx) * time.Second),
+				})
+			}
+			if tc.newestInFlight {
+				createPrebuiltWorkspace(ctx, t, db, tmpl, tmplV1, orgID, now, &createPrebuiltWorkspaceOpts{
+					createdAt: hourBefore.Add(time.Duration(len(tc.buildSuccesses)) * time.Second),
 				})
 			}
 

@@ -87,7 +87,7 @@ For intercepted requests, AI Gateway always removes client headers whose names s
 Configured actor headers are still re-injected from authenticated account values, and passthrough requests are unaffected.
 AI Gateway omits the email header when the authenticated account has no email address.
 Actor header settings apply to every configured provider.
-Email is personal information, so set the email option only if every upstream may receive it.
+Email is personal information, so set the email option only if every upstream can receive it.
 Gateway does not inject actor headers on passthrough routes.
 
 ### Header name restrictions

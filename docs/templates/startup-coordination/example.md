@@ -70,7 +70,7 @@ This script demonstrates several [best practices](./usage.md#best-practices):
 
 - Checking for Coder CLI availability before using sync commands
 - Tracking whether `coder exp sync` started successfully
-- Using `trap` to ensure completion even if the script exits early
+- Using `trap` to make sure the script completes even if it exits early
 - Graceful degradation when `coder exp sync` isn't available
 - Redirecting `coder exp sync` output to reduce noise in logs
 
@@ -210,7 +210,7 @@ A short summary of the changes:
 
 - We've broken the monolithic "setup" script into two separate scripts: one for the `apt` commands, and one for the `pip` commands.
   - In each script, we've added a `coder exp sync start $SCRIPT_NAME` command to mark the startup script as started.
-  - We've also added an exit trap to ensure that we mark the startup scripts as completed.
+  - We've also added an exit trap to make sure that we mark the startup scripts as completed.
     Without this, the `coder exp sync wait` command would eventually time out.
 - We have used the `post_clone_script` feature of the `git-clone` module to allow waiting on the Git repository clone.
 - In the `pip-install` script, we have declared a dependency on both `git-clone` and `apt-install`.

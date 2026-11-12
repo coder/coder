@@ -119,7 +119,7 @@ Keeping expired keys for a short period allows Coder to return a more helpful er
 
 Workspace agent logs are deleted based on when the agent last connected, not the age of the logs themselves.
 **Logs from the latest build of each workspace are always retained** regardless of when the agent last connected.
-This ensures you can always debug issues with active workspaces.
+This makes sure you can always debug issues with active workspaces.
 
 For non-latest builds, logs are deleted if the agent hasn't connected within the retention period.
 Setting `--workspace-agent-logs-retention=7d` deletes logs for agents that haven't connected in 7&nbsp;days (excluding those from the latest build).
@@ -152,19 +152,11 @@ ai_gateway:
 
 > [!WARNING]
 > Audit Logs provide critical security and compliance information.
-> Purging Audit Logs may impact your organization's ability to investigate security incidents or meet compliance requirements.
+> Purging Audit Logs might impact your organization's ability to investigate security incidents or meet compliance requirements.
 > Consult your security and compliance teams before configuring Audit Log retention.
 
-Common compliance frameworks have varying retention requirements:
-
-- **System and Organization Controls (SOC) 2**:
-  Typically requires 1&nbsp;year of audit logs.
-- **Health Insurance Portability and Accountability Act (HIPAA)**:
-  Requires 6&nbsp;years for certain records.
-- **Payment Card Industry Data Security Standard (PCI DSS)**:
-  Requires 1&nbsp;year of audit logs, with 3&nbsp;months immediately available.
-- **General Data Protection Regulation (GDPR)**:
-  Requires data minimization but does not specify maximum retention.
+Retention requirements depend on the regulations and frameworks your organization follows, and on how your organization applies them.
+Some frameworks set a minimum period for audit records, and others don't prescribe one, so Coder doesn't recommend a period for any specific framework.
 
 ### External Log Aggregation
 
@@ -173,7 +165,7 @@ See [Capture and export audit logs](../security/audit-logs.md#capture-and-export
 
 ### Database Maintenance
 
-After enabling retention policies, you may want to run a `VACUUM` operation on your PostgreSQL database to reclaim disk space.
+After enabling retention policies, you might want to run a `VACUUM` operation on your PostgreSQL database to reclaim disk space.
 See [Maintenance Procedures](../security/audit-logs.md#maintenance-procedures-for-the-audit-logs-table) for guidance.
 
 <a id="keeping-data-indefinitely"></a>

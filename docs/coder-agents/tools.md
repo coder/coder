@@ -176,7 +176,7 @@ For templates that work with defaults, the agent skips straight to `create_works
 | `template_id` | string | Required. The template universally unique identifier (UUID) from `list_templates`  |
 | `name`        | string | Optional workspace name. One is generated if omitted                               |
 | `parameters`  | object | Optional template parameter values from `read_template`                            |
-| `preset_id`   | string | Optional preset UUID. Applies preset parameters and may claim a prebuilt workspace |
+| `preset_id`   | string | Optional preset UUID. Applies preset parameters and can claim a prebuilt workspace |
 
 Guardrails:
 

@@ -558,6 +558,7 @@ func toolResultContentToPart(
 			Data:     output.Data,
 			MimeType: output.MediaType,
 			Text:     strings.ToValidUTF8(output.Text, "\uFFFD"),
+			Filename: output.Filename,
 		}
 		// Tool renderers only receive the persisted result JSON, while
 		// ClientMetadata is consumed later to append sibling file parts.
@@ -1151,6 +1152,7 @@ func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePa
 						Data:      media.Data,
 						MediaType: media.MimeType,
 						Text:      strings.ToValidUTF8(media.Text, "\uFFFD"),
+						Filename:  media.Filename,
 					},
 					ProviderOptions: opts,
 				}
@@ -1207,7 +1209,8 @@ func toolResultPartToMessagePart(logger slog.Logger, part codersdk.ChatMessagePa
 // cannot drift.
 //
 // The "mime_type" key intentionally diverges from the fantasy
-// struct tag (json:"media_type"). Optional attachment identity
+// struct tag (json:"media_type"). Filename is the tool's name for the
+// media and reaches the model. Optional attachment identity
 // fields are UI hints only. They let the frontend recognize when the
 // same media was also promoted into a durable file part, but the prompt
 // reconstruction path must continue to ignore them. Keep additions
@@ -1216,6 +1219,7 @@ type persistedMediaResult struct {
 	Data             string `json:"data"`
 	MimeType         string `json:"mime_type"`
 	Text             string `json:"text"`
+	Filename         string `json:"filename,omitempty"`
 	AttachmentFileID string `json:"attachment_file_id,omitempty"`
 	AttachmentName   string `json:"attachment_name,omitempty"`
 }

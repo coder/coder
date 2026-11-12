@@ -10787,7 +10787,7 @@ func (q *sqlQuerier) GetChatQueuedForCapacity(ctx context.Context, arg GetChatQu
 }
 
 const getChatQueuedMessageByID = `-- name: GetChatQueuedMessageByID :one
-SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior FROM chat_queued_messages
 WHERE id = $1::bigint AND chat_id = $2::uuid
 `
 
@@ -10809,18 +10809,21 @@ func (q *sqlQuerier) GetChatQueuedMessageByID(ctx context.Context, arg GetChatQu
 		&i.CreatedBy,
 		&i.ReasoningEffort,
 		&i.EditingSince,
+		&i.BusyBehavior,
 	)
 	return i, err
 }
 
 const getChatQueuedMessageHead = `-- name: GetChatQueuedMessageHead :one
-SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior FROM chat_queued_messages
 WHERE chat_id = $1::uuid
-ORDER BY position ASC, id ASC
+ORDER BY (busy_behavior = 'steer' AND editing_since IS NOT NULL) DESC, CASE busy_behavior WHEN 'steer' THEN 0 ELSE 1 END, position ASC, id ASC
 LIMIT 1
 `
 
-// Returns the queue head (lowest position, then lowest id).
+// Returns the queue head: the first row in GetChatQueuedMessages order.
+// A steer row under edit comes first instead, because it holds the
+// whole steer lane.
 func (q *sqlQuerier) GetChatQueuedMessageHead(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error) {
 	row := q.db.QueryRowContext(ctx, getChatQueuedMessageHead, chatID)
 	var i ChatQueuedMessage
@@ -10834,18 +10837,20 @@ func (q *sqlQuerier) GetChatQueuedMessageHead(ctx context.Context, chatID uuid.U
 		&i.CreatedBy,
 		&i.ReasoningEffort,
 		&i.EditingSince,
+		&i.BusyBehavior,
 	)
 	return i, err
 }
 
 const getChatQueuedMessages = `-- name: GetChatQueuedMessages :many
-SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since FROM chat_queued_messages
+SELECT id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior FROM chat_queued_messages
 WHERE chat_id = $1
-ORDER BY position ASC, id ASC
+ORDER BY CASE busy_behavior WHEN 'steer' THEN 0 ELSE 1 END, position ASC, id ASC
 `
 
-// Returns the queue in promotion order (position ASC, id ASC), the same
-// order chatstate uses to pick the head. Clients read the queue through
+// Returns the queue in promotion order (steer lane first, then the queue
+// lane, each by position ASC, id ASC), the same order chatstate uses to
+// pick the head. Clients read the queue through
 // this query, so it must not order by created_at: promoting a message
 // changes only its position, and concurrent senders can commit with
 // created_at and position in opposite orders.
@@ -10868,6 +10873,7 @@ func (q *sqlQuerier) GetChatQueuedMessages(ctx context.Context, chatID uuid.UUID
 			&i.CreatedBy,
 			&i.ReasoningEffort,
 			&i.EditingSince,
+			&i.BusyBehavior,
 		); err != nil {
 			return nil, err
 		}
@@ -12756,7 +12762,7 @@ SELECT
     chats.owner_id
 FROM chats
 WHERE chats.id = $1::uuid
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior
 `
 
 type InsertChatQueuedMessageParams struct {
@@ -12787,20 +12793,22 @@ func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChat
 		&i.CreatedBy,
 		&i.ReasoningEffort,
 		&i.EditingSince,
+		&i.BusyBehavior,
 	)
 	return i, err
 }
 
 const insertChatQueuedMessageWithCreator = `-- name: InsertChatQueuedMessageWithCreator :one
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, busy_behavior)
 VALUES (
     $1::uuid,
     $2::jsonb,
     $3::uuid,
     $4::chat_reasoning_effort,
-    $5::uuid
+    $5::uuid,
+    $6::chat_busy_behavior
 )
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior
 `
 
 type InsertChatQueuedMessageWithCreatorParams struct {
@@ -12809,6 +12817,7 @@ type InsertChatQueuedMessageWithCreatorParams struct {
 	ModelConfigID   uuid.NullUUID           `db:"model_config_id" json:"model_config_id"`
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 	CreatedBy       uuid.UUID               `db:"created_by" json:"created_by"`
+	BusyBehavior    ChatBusyBehavior        `db:"busy_behavior" json:"busy_behavior"`
 }
 
 // Inserts a queued message that carries a position (from the default
@@ -12821,6 +12830,7 @@ func (q *sqlQuerier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg
 		arg.ModelConfigID,
 		arg.ReasoningEffort,
 		arg.CreatedBy,
+		arg.BusyBehavior,
 	)
 	var i ChatQueuedMessage
 	err := row.Scan(
@@ -12833,6 +12843,7 @@ func (q *sqlQuerier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg
 		&i.CreatedBy,
 		&i.ReasoningEffort,
 		&i.EditingSince,
+		&i.BusyBehavior,
 	)
 	return i, err
 }
@@ -13237,7 +13248,7 @@ WHERE id = (
     ORDER BY cqm.created_at ASC, cqm.id ASC
     LIMIT 1
 )
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior
 `
 
 func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (ChatQueuedMessage, error) {
@@ -13253,6 +13264,7 @@ func (q *sqlQuerier) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID)
 		&i.CreatedBy,
 		&i.ReasoningEffort,
 		&i.EditingSince,
+		&i.BusyBehavior,
 	)
 	return i, err
 }
@@ -13365,35 +13377,6 @@ func (q *sqlQuerier) ReorderChatQueuedMessageToFront(ctx context.Context, arg Re
 	return result.RowsAffected()
 }
 
-const reorderChatQueuedMessageToHead = `-- name: ReorderChatQueuedMessageToHead :execrows
-UPDATE chat_queued_messages AS target
-SET position = COALESCE(
-    (SELECT MIN(position) FROM chat_queued_messages WHERE chat_id = $1::uuid),
-    0
-) - 1
-WHERE target.id = $2::bigint
-  AND target.chat_id = $1::uuid
-  AND target.position > COALESCE(
-    (SELECT MIN(position) FROM chat_queued_messages WHERE chat_id = $1::uuid),
-    target.position
-  )
-`
-
-type ReorderChatQueuedMessageToHeadParams struct {
-	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
-	ID     int64     `db:"id" json:"id"`
-}
-
-// Sets the target queued message's position to one less than the
-// current minimum position for that chat, moving it to the head.
-func (q *sqlQuerier) ReorderChatQueuedMessageToHead(ctx context.Context, arg ReorderChatQueuedMessageToHeadParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, reorderChatQueuedMessageToHead, arg.ChatID, arg.ID)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
-}
-
 const setChatContextSnapshot = `-- name: SetChatContextSnapshot :exec
 UPDATE chats
 SET
@@ -13462,6 +13445,27 @@ WHERE chat_id = $1::uuid
 func (q *sqlQuerier) SoftDeleteContextFileMessages(ctx context.Context, chatID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, softDeleteContextFileMessages, chatID)
 	return err
+}
+
+const steerChatQueuedMessage = `-- name: SteerChatQueuedMessage :execrows
+UPDATE chat_queued_messages
+SET position = nextval('chat_queued_messages_position_seq'),
+    busy_behavior = 'steer'
+WHERE id = $1::bigint
+  AND chat_id = $2::uuid
+`
+
+type SteerChatQueuedMessageParams struct {
+	ID     int64     `db:"id" json:"id"`
+	ChatID uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+func (q *sqlQuerier) SteerChatQueuedMessage(ctx context.Context, arg SteerChatQueuedMessageParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, steerChatQueuedMessage, arg.ID, arg.ChatID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const syncAgentChatsContextLiveResources = `-- name: SyncAgentChatsContextLiveResources :many
@@ -14866,7 +14870,7 @@ SET content = $1::jsonb,
     model_config_id = $2::uuid,
     reasoning_effort = $3::chat_reasoning_effort
 WHERE id = $4::bigint AND chat_id = $5::uuid
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior
 `
 
 type UpdateChatQueuedMessageContentParams struct {
@@ -14897,6 +14901,7 @@ func (q *sqlQuerier) UpdateChatQueuedMessageContent(ctx context.Context, arg Upd
 		&i.CreatedBy,
 		&i.ReasoningEffort,
 		&i.EditingSince,
+		&i.BusyBehavior,
 	)
 	return i, err
 }
@@ -14905,7 +14910,7 @@ const updateChatQueuedMessageEditing = `-- name: UpdateChatQueuedMessageEditing 
 UPDATE chat_queued_messages
 SET editing_since = CASE WHEN $1::boolean THEN COALESCE(editing_since, NOW()) ELSE NULL END
 WHERE id = $2::bigint AND chat_id = $3::uuid
-RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since
+RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior
 `
 
 type UpdateChatQueuedMessageEditingParams struct {
@@ -14929,6 +14934,7 @@ func (q *sqlQuerier) UpdateChatQueuedMessageEditing(ctx context.Context, arg Upd
 		&i.CreatedBy,
 		&i.ReasoningEffort,
 		&i.EditingSince,
+		&i.BusyBehavior,
 	)
 	return i, err
 }
@@ -19083,7 +19089,11 @@ SELECT
 	wbp.value,
 	COUNT(wbp.value) AS count
 FROM unique_template_params utp
-JOIN workspace_build_parameters wbp ON (utp.workspace_build_ids @> ARRAY[wbp.workspace_build_id] AND utp.name = wbp.name)
+	-- Each build ID appears at most once per group (one parameter row per version
+	-- and name, one latest build per workspace), so unnest cannot double count.
+	-- The equality join lets Postgres use the (workspace_build_id, name) index.
+CROSS JOIN LATERAL unnest(utp.workspace_build_ids) AS b(id)
+JOIN workspace_build_parameters wbp ON (wbp.workspace_build_id = b.id AND wbp.name = utp.name)
 GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value
 `
 
@@ -24660,6 +24670,8 @@ WITH filtered_builds AS (
 	WHERE tvp.desired_instances IS NOT NULL -- Consider only presets that have a prebuild configuration.
 		AND wlb.transition = 'start'::workspace_transition
 		AND w.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'
+		-- Rank only finished builds, so an in-flight build cannot hold a slot in the last hard_limit.
+		AND wlb.job_status IN ('succeeded'::provisioner_job_status, 'failed'::provisioner_job_status, 'canceled'::provisioner_job_status)
 ),
 time_sorted_builds AS (
 	-- Group builds by preset, then sort each group by created_at.
@@ -24684,7 +24696,7 @@ type GetPresetsAtFailureLimitRow struct {
 
 // GetPresetsAtFailureLimit groups workspace builds by preset ID.
 // Each preset is associated with exactly one template version ID.
-// For each preset, the query checks the last hard_limit builds.
+// For each preset, the query checks the last hard_limit finished builds.
 // If all of them failed, the preset is considered to have hit the hard failure limit.
 // The query returns a list of preset IDs that have reached this failure threshold.
 // Only active template versions with configured presets are considered.
@@ -42667,6 +42679,61 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 		&i.UserACLDisplayInfo,
 	)
 	return i, err
+}
+
+const getWorkspaceLastUsedForMetrics = `-- name: GetWorkspaceLastUsedForMetrics :many
+SELECT
+    w.id AS workspace_id,
+    o.name AS organization_name,
+    t.name AS template_name,
+    u.username AS owner_username,
+    w.name AS workspace_name,
+    w.last_used_at
+FROM workspaces w
+JOIN users u ON w.owner_id = u.id
+JOIN templates t ON w.template_id = t.id
+JOIN organizations o ON w.organization_id = o.id
+WHERE w.deleted = false
+AND u.deleted = false
+`
+
+type GetWorkspaceLastUsedForMetricsRow struct {
+	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	OrganizationName string    `db:"organization_name" json:"organization_name"`
+	TemplateName     string    `db:"template_name" json:"template_name"`
+	OwnerUsername    string    `db:"owner_username" json:"owner_username"`
+	WorkspaceName    string    `db:"workspace_name" json:"workspace_name"`
+	LastUsedAt       time.Time `db:"last_used_at" json:"last_used_at"`
+}
+
+func (q *sqlQuerier) GetWorkspaceLastUsedForMetrics(ctx context.Context) ([]GetWorkspaceLastUsedForMetricsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceLastUsedForMetrics)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceLastUsedForMetricsRow
+	for rows.Next() {
+		var i GetWorkspaceLastUsedForMetricsRow
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.OrganizationName,
+			&i.TemplateName,
+			&i.OwnerUsername,
+			&i.WorkspaceName,
+			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkspaceUniqueOwnerCountByTemplateIDs = `-- name: GetWorkspaceUniqueOwnerCountByTemplateIDs :many

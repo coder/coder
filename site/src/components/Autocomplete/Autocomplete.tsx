@@ -135,14 +135,10 @@ export function Autocomplete<TOption>({
 		[isSelected, clearable, onChange, handleOpenChange],
 	);
 
-	const handleClear = useCallback(
-		(e: React.SyntheticEvent) => {
-			e.stopPropagation();
-			onChange(null);
-			handleInputChange("");
-		},
-		[onChange, handleInputChange],
-	);
+	const handleClear = useCallback(() => {
+		onChange(null);
+		handleInputChange("");
+	}, [onChange, handleInputChange]);
 
 	const handleKeyDown = useCallback(
 		(e: React.KeyboardEvent<HTMLElement>) => {
@@ -294,11 +290,11 @@ export function Autocomplete<TOption>({
 						}}
 						onKeyDownCapture={handleInlineKeyDown}
 						className={cn(
-							`flex h-10 w-full items-center rounded-md border border-border border-solid
-							bg-transparent px-3 py-2 text-sm shadow-xs transition-colors
-							placeholder:text-content-secondary text-content-primary
-							focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
-							disabled:cursor-not-allowed disabled:opacity-50`,
+							"flex h-10 w-full items-center rounded-md border",
+							"bg-transparent px-3 py-2 text-sm shadow-xs transition-colors",
+							"placeholder:text-content-secondary text-content-primary",
+							"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+							"disabled:cursor-not-allowed disabled:opacity-50",
 							className,
 						)}
 					/>
@@ -364,73 +360,77 @@ export function Autocomplete<TOption>({
 
 	return (
 		<Popover open={isOpen} onOpenChange={handleOpenChange}>
-			<PopoverTrigger asChild disabled={disabled}>
-				<button
-					type="button"
-					ref={triggerRef}
-					id={id}
-					data-testid={testId}
-					aria-expanded={isOpen}
-					aria-haspopup="listbox"
-					aria-describedby={triggerAriaDescribedBy}
-					aria-labelledby={triggerAriaLabelledBy}
-					disabled={disabled}
-					className={cn(
-						`flex h-10 w-full items-center justify-between gap-2
-						rounded-md border border-border border-solid bg-transparent px-3 py-2
-						text-sm shadow-xs transition-colors
-						placeholder:text-content-secondary
-						focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link
-						disabled:cursor-not-allowed disabled:opacity-50`,
-						className,
-					)}
-				>
-					<span className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
-						{startAdornment}
-						<span
-							className={cn(
-								"truncate text-left",
-								displayValue
-									? "text-content-primary"
-									: "text-content-secondary",
-							)}
-						>
-							{displayValue || placeholder}
-						</span>
-					</span>
-					<span className="flex items-center shrink-0">
-						{loading && <Spinner size="sm" loading className="mr-1" />}
-						{showClearButton && (
-							<span
-								role="button"
-								tabIndex={0}
-								onClick={handleClear}
-								onKeyDown={(e) => {
-									if (e.key === "Enter" || e.key === " ") {
-										handleClear(e);
-									}
-								}}
-								className="flex items-center justify-center size-6 rounded hover:bg-surface-secondary transition-colors cursor-pointer"
-								aria-label="Clear selection"
-							>
-								<XIcon className="size-4 text-content-secondary hover:text-content-primary" />
-							</span>
+			<div className={cn("relative w-full", className)}>
+				<PopoverTrigger asChild disabled={disabled}>
+					<button
+						type="button"
+						ref={triggerRef}
+						id={id}
+						data-testid={testId}
+						aria-expanded={isOpen}
+						aria-haspopup="listbox"
+						aria-describedby={triggerAriaDescribedBy}
+						aria-labelledby={triggerAriaLabelledBy}
+						disabled={disabled}
+						className={cn(
+							"flex h-10 w-full items-center justify-between gap-2",
+							"rounded-md border bg-transparent px-3 py-2",
+							"text-sm shadow-xs transition-colors",
+							"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+							"disabled:cursor-not-allowed disabled:opacity-50",
 						)}
-						<span className="flex items-center justify-center size-5">
-							<ChevronDownIcon
-								open={isOpen}
-								className="size-4 text-content-secondary"
-							/>
+					>
+						<span className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
+							{startAdornment}
+							<span
+								className={cn(
+									"truncate text-left",
+									displayValue
+										? "text-content-primary"
+										: "text-content-secondary",
+								)}
+							>
+								{displayValue || placeholder}
+							</span>
 						</span>
-					</span>
-				</button>
-			</PopoverTrigger>
+						<span className="flex items-center shrink-0">
+							{loading && <Spinner size="sm" loading className="mr-1" />}
+							{/* Reserves room for the clear button, which can't nest in this button. */}
+							{showClearButton && <span className="size-6" />}
+							<span className="flex items-center justify-center size-5">
+								<ChevronDownIcon
+									open={isOpen}
+									className="size-4 text-content-secondary"
+								/>
+							</span>
+						</span>
+					</button>
+				</PopoverTrigger>
+				{showClearButton && (
+					<button
+						type="button"
+						onClick={handleClear}
+						className={cn(
+							"absolute right-[33px] top-1/2 -translate-y-1/2",
+							"flex items-center justify-center size-6 rounded transition-colors",
+							"hover:bg-surface-secondary",
+							"focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link",
+						)}
+						aria-label="Clear selection"
+					>
+						<XIcon className="size-4 text-content-secondary hover:text-content-primary" />
+					</button>
+				)}
+			</div>
 			<PopoverContent
 				className="w-(--radix-popover-trigger-width) p-0"
 				align="start"
 				onKeyDownCapture={handleKeyDown}
 			>
-				<Command shouldFilter={controlledInputValue === undefined}>
+				<Command
+					shouldFilter={controlledInputValue === undefined}
+					label={placeholder}
+				>
 					<CommandInput
 						placeholder={placeholder}
 						value={inputValue}

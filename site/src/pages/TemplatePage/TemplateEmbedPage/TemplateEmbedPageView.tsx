@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type {
@@ -146,7 +147,7 @@ export const TemplateEmbedPageView: React.FC<TemplateEmbedPageViewProps> = ({
 						)
 					)}
 
-					<div className="flex flex-row items-center gap-4">
+					<div className="flex items-center gap-4">
 						{isLoading ? (
 							<Button disabled={isLoading}>Test</Button>
 						) : (
@@ -251,9 +252,10 @@ const ButtonPreview: React.FC<ButtonPreviewProps> = ({
 	return (
 		<div className="flex gap-8 pt-4 flex-col items-center justify-center">
 			<div
-				className="
-				flex flex-col items-center justify-center p-6
-			 	rounded-lg border border-border border-solid bg-surface-secondary"
+				className={cn(
+					"flex flex-col items-center justify-center p-6",
+					"rounded-lg border bg-surface-secondary",
+				)}
 			>
 				<img src="/open-in-coder.svg" alt="Open in Coder button" />
 			</div>

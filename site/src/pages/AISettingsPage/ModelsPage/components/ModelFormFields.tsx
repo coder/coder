@@ -80,16 +80,14 @@ const CollapsibleSection: React.FC<{
 			onOpenChange={onOpenChange}
 			className={cn("p-4", className)}
 		>
-			<CollapsibleTrigger className="flex w-full cursor-pointer items-start gap-2 border-0 bg-transparent p-0 text-left transition-colors hover:text-content-primary">
+			<CollapsibleTrigger className="flex w-full cursor-pointer items-start gap-2 bg-transparent p-0 text-left transition-colors hover:text-content-primary">
 				{open ? (
 					<ChevronDownIcon className="mt-1 size-4 shrink-0 text-content-secondary" />
 				) : (
 					<ChevronRightIcon className="mt-1 size-4 shrink-0 text-content-secondary" />
 				)}
 				<div>
-					<h3 className="m-0 text-sm font-medium text-content-primary">
-						{title}
-					</h3>
+					<h3 className="m-0 text-sm text-content-primary">{title}</h3>
 					<p className="m-0 text-xs text-content-secondary">{description}</p>
 				</div>
 			</CollapsibleTrigger>
@@ -193,7 +191,7 @@ export const ModelFormFields: React.FC<{
 		getVisibleProviderFields(selectedProviderState.provider).length > 0;
 
 	return (
-		<div className="border border-solid p-6 rounded-lg">
+		<div className="border p-6 rounded-lg">
 			<form
 				onSubmit={form.handleSubmit}
 				spellCheck={false}
@@ -308,7 +306,7 @@ export const ModelFormFields: React.FC<{
 					{organizationField}
 				</div>
 
-				<div className="overflow-hidden rounded-lg border border-solid border-border">
+				<div className="overflow-hidden rounded-lg border">
 					<CollapsibleSection
 						title="Cost estimate"
 						description={
@@ -343,7 +341,7 @@ export const ModelFormFields: React.FC<{
 							description="Tune provider-specific behavior like reasoning, tool calling, and web search."
 							open={showProviderConfig}
 							onOpenChange={setShowProviderConfig}
-							className="border-0 border-t border-solid border-border"
+							className="border-t"
 							contentClassName="pt-3 pl-6"
 						>
 							<ModelConfigFields
@@ -367,7 +365,7 @@ export const ModelFormFields: React.FC<{
 						description="Low-level parameters like temperature and penalties. Rarely need changing."
 						open={showAdvanced}
 						onOpenChange={setShowAdvanced}
-						className="border-0 border-t border-solid border-border"
+						className="border-t"
 						contentClassName="grid grid-cols-2 gap-3 pt-3 pl-6 sm:grid-cols-3"
 					>
 						<GeneralModelConfigFields
@@ -386,7 +384,7 @@ export const ModelFormFields: React.FC<{
 									<TooltipTrigger asChild>
 										<InfoIcon className="size-3 text-content-secondary" />
 									</TooltipTrigger>
-									<TooltipContent side="top" className="max-w-[240px]">
+									<TooltipContent side="top" className="max-w-60">
 										Percentage at which context is compressed.
 									</TooltipContent>
 								</Tooltip>

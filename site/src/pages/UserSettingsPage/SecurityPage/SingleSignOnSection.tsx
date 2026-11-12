@@ -106,7 +106,7 @@ export const useSingleSignOnSection = () => {
 const SSOEmptyState: React.FC = () => {
 	return (
 		<EmptyState
-			className="rounded-lg border border-solid border-border min-h-0"
+			className="rounded-lg border min-h-0"
 			message="No SSO Providers"
 			description="No SSO providers are configured with this Coder deployment."
 			cta={
@@ -182,7 +182,7 @@ export const SingleSignOnSection: React.FC<SingleSignOnSectionProps> = ({
 						{noSsoEnabled && <SSOEmptyState />}
 					</>
 				) : (
-					<div className="bg-surface-secondary rounded-md border border-border border-solid p-4 flex gap-4 items-center text-sm">
+					<div className="bg-surface-secondary rounded-md border p-4 flex gap-4 items-center text-sm">
 						<CircleCheckIcon className="text-content-success size-icon-xs" />
 						<span>
 							Authenticated with{" "}
