@@ -1321,6 +1321,45 @@ func TestGetTemplatesWithAgentsAllowedFilter(t *testing.T) {
 	require.False(t, authorized[0].AgentsAllowed)
 }
 
+// TestGetAuthorizedTemplatesAllowList runs the compiled RBAC filter for a
+// token allow-list that names a single template against the real query, which
+// joins template_versions and therefore needs a qualified template ID column.
+func TestGetAuthorizedTemplatesAllowList(t *testing.T) {
+	t.Parallel()
+
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+
+	org := dbgen.Organization(t, db, database.Organization{})
+	owner := dbgen.User(t, db, database.User{
+		RBACRoles: []string{rbac.RoleOwner().String()},
+	})
+	allowed := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      owner.ID,
+	})
+	_ = dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      owner.ID,
+	})
+
+	scope := database.APIKeyScopes{database.ApiKeyScopeTemplateRead}.WithAllowList(database.AllowList{
+		{Type: rbac.ResourceTemplate.Type, ID: allowed.ID.String()},
+	})
+	subject, _, err := httpmw.UserRBACSubject(ctx, db, owner.ID, scope)
+	require.NoError(t, err)
+	prepared, err := authorizer.Prepare(ctx, subject, policy.ActionRead, rbac.ResourceTemplate.Type)
+	require.NoError(t, err)
+
+	got, err := db.GetAuthorizedTemplates(ctx, database.GetTemplatesWithFilterParams{
+		OrganizationID: org.ID,
+	}, prepared)
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	require.Equal(t, allowed.ID, got[0].ID)
+}
+
 func TestGetWorkspaceAgentUsageStatsAndLabels(t *testing.T) {
 	t.Parallel()
 
