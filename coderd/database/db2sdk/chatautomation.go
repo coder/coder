@@ -78,7 +78,7 @@ func ChatAutomation(a database.ChatAutomation, refs ChatAutomationRefs, now time
 		Prompt:               a.Prompt,
 		ScheduleNextRunAt:    nullTimePtr(a.ScheduleNextRunAt),
 		NextRunTimes:         chatAutomationNextRunTimes(a, now),
-		// B2 fills the reasons: they are the pre-checks of a run.
+		// Empty until the run path reports why an automation cannot run.
 		PausedReasons: []codersdk.ChatAutomationPausedReason{},
 		CreatedAt:     a.CreatedAt,
 		UpdatedAt:     a.UpdatedAt,

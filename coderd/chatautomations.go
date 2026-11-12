@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -178,6 +179,10 @@ func (api *API) deleteChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	defer commitAudit()
 
 	deleted, err := chatautomation.Delete(ctx, api.Logger, api.Database, api.Pubsub, httpmw.UserAuthorization(ctx), organization.ID, id)
+	if errors.Is(err, chatautomation.ErrDeleteForbidden) {
+		httpapi.Forbidden(rw)
+		return
+	}
 	if httpapi.Is404Error(err) {
 		httpapi.ResourceNotFound(rw)
 		return
@@ -222,7 +227,7 @@ func (api *API) loadChatAutomationRefs(ctx context.Context, automations []databa
 		users, err := api.Database.GetUsersByIDs(ctx, mapKeys(ownerIDs))
 		switch {
 		case dbauthz.IsNotAuthorizedError(err):
-			// The caller cannot read an owner, so no owner is shown.
+			// The caller cannot read at least one owner, so no owner is shown.
 		case err != nil:
 			return refs, xerrors.Errorf("get owners: %w", err)
 		default:

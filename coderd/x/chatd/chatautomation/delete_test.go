@@ -188,6 +188,40 @@ func TestDelete(t *testing.T) {
 	}, pub.published())
 }
 
+// TestDeleteForbidden deletes as a role that can read the automation and not
+// delete it: no chat is locked and nothing changes.
+func TestDeleteForbidden(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	f := newFixture(t, db, sqlDB)
+	chat := f.chat(t)
+	automation := f.automation(t, chat)
+	f.queue(ctx, t, chat.ID, automation.ID)
+	before := f.snapshot(ctx, t, chat.ID)
+	actor := rbac.Subject{
+		Type: rbac.SubjectTypeUser,
+		ID:   uuid.NewString(),
+		Roles: rbac.Roles{{
+			Identifier: rbac.RoleIdentifier{Name: "automation-reader", OrganizationID: f.org.ID},
+			ByOrgID: map[string]rbac.OrgPermissions{f.org.ID.String(): {
+				Org: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceChatAutomation.Type: {policy.ActionRead},
+				}),
+			}},
+		}},
+		Scope: rbac.ScopeAll,
+	}
+	pub := &recordingPublisher{}
+
+	_, err := chatautomation.Delete(ctx, testutil.Logger(t), authorized(t, db), pub, actor, f.org.ID, automation.ID)
+	require.ErrorIs(t, err, chatautomation.ErrDeleteForbidden)
+	require.True(t, f.automationExists(ctx, t, automation.ID))
+	require.Equal(t, []uuid.UUID{automation.ID}, f.queued(ctx, t, chat.ID))
+	require.Equal(t, before, f.snapshot(ctx, t, chat.ID))
+	require.Empty(t, pub.published())
+}
+
 // TestDeleteOtherOrganization deletes, through another organization, an
 // automation that the actor can read: it is not found and nothing changes.
 func TestDeleteOtherOrganization(t *testing.T) {

@@ -17,6 +17,10 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 )
 
+// ErrDeleteForbidden means that the actor can read the automation and cannot
+// delete it.
+var ErrDeleteForbidden = xerrors.New("not allowed to delete the chat automation")
+
 // LockID returns the advisory lock that every path that runs or changes one
 // automation takes first: a run, an edit, a disable, a delete and a rotation.
 // The lock lasts to the end of the transaction.
@@ -28,7 +32,8 @@ func LockID(id uuid.UUID) int64 {
 // transaction. It returns the deleted row, with its webhook secret, for the
 // audit entry. An automation that does not exist, that actor cannot read, or
 // that belongs to another organization gives an error that
-// httpapi.Is404Error reports.
+// httpapi.Is404Error reports. An actor that can read it and cannot delete it
+// gets ErrDeleteForbidden.
 //
 // The lock order is the one of every other path: the automation lock first,
 // then the lock of each chat that holds a queued message of the automation,
@@ -69,6 +74,9 @@ func Delete(
 		// Every run takes the automation lock first, so no run adds a
 		// queued message to a chat after this read.
 		chatIDs, err := tx.GetChatIDsWithQueuedMessagesByAutomationID(actorCtx, id)
+		if dbauthz.IsNotAuthorizedError(err) {
+			return ErrDeleteForbidden
+		}
 		if err != nil {
 			return xerrors.Errorf("get chats with queued messages: %w", err)
 		}
