@@ -128,6 +128,18 @@ func TestStandard(t *testing.T) {
 			{name: "AbsolutePath", spec: "0 9 * * *", zone: "/etc/localtime", wantErr: "is not a zone name"},
 			{name: "ParentPath", spec: "0 9 * * *", zone: "../zoneinfo/UTC", wantErr: "is not a zone name"},
 			{name: "OnlyADot", spec: "0 9 * * *", zone: ".", wantErr: "is not a zone name"},
+			// Directories of zone data that some hosts have, with other versions
+			// of the zones. The right ones give wrong runs. Rejected on every host.
+			{name: "RightZone", spec: "0 9 * * *", zone: "right/America/New_York", wantErr: "is not a zone name"},
+			{name: "PosixZone", spec: "0 9 * * *", zone: "posix/America/New_York", wantErr: "is not a zone name"},
+			{name: "RightUTC", spec: "0 9 * * *", zone: "right/UTC", wantErr: "is not a zone name"},
+			{name: "PosixUTC", spec: "0 9 * * *", zone: "posix/UTC", wantErr: "is not a zone name"},
+			{name: "PosixFactory", spec: "0 9 * * *", zone: "posix/Factory", wantErr: "is not a zone name"},
+			{name: "RightFactory", spec: "0 9 * * *", zone: "right/Factory", wantErr: "is not a zone name"},
+			// The files that are not zones, in any directory.
+			{name: "FactoryInADirectory", spec: "0 9 * * *", zone: "Etc/Factory", wantErr: `"Etc/Factory" is not supported`},
+			{name: "LocaltimeInADirectory", spec: "0 9 * * *", zone: "Etc/localtime", wantErr: `"Etc/localtime" is not supported`},
+			{name: "PosixrulesInADirectory", spec: "0 9 * * *", zone: "Etc/posixrules", wantErr: `"Etc/posixrules" is not supported`},
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -138,6 +150,15 @@ func TestStandard(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestStandard_ErrorHoldsTheZoneNameOnce(t *testing.T) {
+	t.Parallel()
+	for _, zone := range []string{"Nowhere/Land", strings.Repeat("x", 300), "Etc/Factory", "./localtime", "posix/UTC"} {
+		_, err := cron.Standard("0 9 * * *", zone)
+		require.Error(t, err)
+		require.Equalf(t, 1, strings.Count(err.Error(), zone), "error %q", err)
+	}
 }
 
 func TestStandard_Next(t *testing.T) {
@@ -411,9 +432,13 @@ func TestStandard_Next_DST(t *testing.T) {
 // TestStandard_Next_InsideRepeatedPeriod calls Next from the second pass of a
 // repeated period. Each reading that follows resolves to an instant of the first
 // pass, which is before the call, so Next walks all of them before it finds the
-// answer. That pins the bound on the readings that Next walks: Kwajalein
-// repeated 23 hours and Sitka a whole day, the longest repeat in the zone data,
-// which is 1,440 readings of a schedule that runs every minute.
+// answer. That pins the bound on the readings that Next walks. Kwajalein
+// repeated 23 hours. In 1867 the clocks of Alaska went back exactly 24 hours, so
+// a whole day repeated, the longest repeat in the zone data. For a schedule that
+// runs every minute the walk visits one reading for each minute of that day, and
+// one more when the clock changed at a time with seconds. That is 1,440 readings
+// in Sitka, which changed at a whole minute, and 1,441 in Juneau, which changed
+// at 15:33:32, as did Adak, Anchorage, Atka, Metlakatla, Nome and Yakutat.
 func TestStandard_Next_InsideRepeatedPeriod(t *testing.T) {
 	t.Parallel()
 
@@ -432,8 +457,10 @@ func TestStandard_Next_InsideRepeatedPeriod(t *testing.T) {
 		// Clocks went from UTC+11 to UTC-12 and repeated 23 hours: 1,380 readings.
 		{"KwajaleinEveryMinute", "* * * * *", "Pacific/Kwajalein", "1969-09-30T13:00:00Z", "1969-10-01T12:00:00Z"},
 		// From the instant of the change, the whole repeated day of 1867-10-19
-		// follows: 1,440 readings.
+		// follows. The change reading is 15:30:00, so the walk has 1,440 readings.
 		{"SitkaEveryMinute", "* * * * *", "America/Sitka", "1867-10-19T00:31:13Z", "1867-10-20T00:31:13Z"},
+		// The same day, but the change reading is 15:33:32: 1,441 readings.
+		{"JuneauEveryMinute", "* * * * *", "America/Juneau", "1867-10-19T00:31:13Z", "1867-10-20T00:31:41Z"},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {

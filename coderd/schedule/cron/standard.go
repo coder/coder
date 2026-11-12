@@ -17,10 +17,12 @@ import (
 //
 // The spec must not start with CRON_TZ= or TZ=, and descriptors such as
 // @daily are not supported. timeZone is an IANA time zone name such as
-// "America/New_York". A name with an empty, "." or ".." segment, such as
-// "./localtime", is an error. So are "Local", which is a Go name for the zone of
-// the host, and "localtime", "posixrules" and "Factory", which are files in the
-// zone data of a host and are not zones. A spec that never runs, such as
+// "America/New_York", and Standard accepts it only when no segment is empty,
+// "." or "..", the first segment is not "posix" or "right" (directories of zone
+// data that hold other versions of the zones), the name is not "Local" (a Go
+// name for the zone of the host), its last segment is not "localtime",
+// "posixrules" or "Factory" (files of zone data that are not zones), and
+// time.LoadLocation loads it on this host. A spec that never runs, such as
 // "0 0 30 2 *", is an error.
 //
 // The schedule follows local time across daylight saving changes. A repeated
@@ -48,34 +50,48 @@ func Standard(spec, timeZone string) (*Schedule, error) {
 	switch {
 	case timeZone == "":
 		return nil, xerrors.New("time zone is empty")
-	case !plainSegments(timeZone):
-		// time.LoadLocation cleans the path, so "./localtime" reaches the file
-		// that "localtime" names, and "America//New_York" a zone under another name.
+	case !isZoneName(timeZone):
 		return nil, xerrors.Errorf("time zone %q is not a zone name, use an IANA time zone name such as America/New_York", timeZone)
-	case slices.Contains(notZones, timeZone):
+	case isNotZone(timeZone):
 		return nil, xerrors.Errorf("time zone %q is not supported, use an IANA time zone name", timeZone)
 	}
 	loc, err := time.LoadLocation(timeZone)
 	if err != nil {
-		return nil, xerrors.Errorf("load time zone %q: %w", timeZone, err)
+		// Go's error holds the name too, so it is left out.
+		return nil, xerrors.Errorf("unknown time zone %q", timeZone)
 	}
 	return standardIn(fields, loc)
 }
 
-// notZones are names that time.LoadLocation accepts and that are not IANA time
-// zones: a Go name for the zone of the host, and files that zone data holds. What
-// they give depends on the host.
-var notZones = []string{"Local", "localtime", "posixrules", "Factory"}
+// otherVersions are directories of zone data that hold other versions of the
+// zones: "right/" counts leap seconds, which gives wrong runs, and "posix/"
+// repeats the zones of the top directory.
+var otherVersions = []string{"posix", "right"}
 
-// plainSegments reports whether name has no empty, "." or ".." segment, which
-// also means that it does not start or end with a slash.
-func plainSegments(name string) bool {
-	for _, segment := range strings.Split(name, "/") {
+// notZoneFiles are files of zone data that are not zones. What they give
+// depends on the host.
+var notZoneFiles = []string{"localtime", "posixrules", "Factory"}
+
+// isZoneName reports whether name has no empty, "." or ".." segment, which also
+// means that it does not start or end with a slash, and does not start in a
+// directory of other versions. time.LoadLocation cleans the path, so
+// "./localtime" reaches the file that "localtime" names, and "America//New_York"
+// a zone under another name.
+func isZoneName(name string) bool {
+	segments := strings.Split(name, "/")
+	for _, segment := range segments {
 		if segment == "" || segment == "." || segment == ".." {
 			return false
 		}
 	}
-	return true
+	return !slices.Contains(otherVersions, segments[0])
+}
+
+// isNotZone reports whether name is "Local", a Go name for the zone of the host,
+// or ends in a file of zone data that is not a zone.
+func isNotZone(name string) bool {
+	segments := strings.Split(name, "/")
+	return name == "Local" || slices.Contains(notZoneFiles, segments[len(segments)-1])
 }
 
 // standardIn is Standard for fields that have passed its checks and a zone
