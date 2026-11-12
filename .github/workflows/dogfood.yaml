@@ -223,6 +223,7 @@ jobs:
     needs:
       - build_image
     runs-on: ubuntu-latest
+    environment: main
     # Only main pushes the image that workspaces pull.
     if: failure() && github.ref == 'refs/heads/main'
     permissions: {}
