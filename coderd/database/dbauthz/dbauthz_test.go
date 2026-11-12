@@ -187,46 +187,32 @@ func TestNew(t *testing.T) {
 	require.NoError(t, rec.AllAsserted(), "should only be 1 rbac call")
 }
 
-func TestGetChatDiffStatusesByChatIDsBatchAuthz(t *testing.T) {
+// The method suite can only allow or deny every chat, so it cannot catch a
+// check that stops after the first readable chat.
+func TestGetChatDiffStatusesByChatIDsMixedAccess(t *testing.T) {
 	t.Parallel()
 
 	ctx := dbauthz.As(context.Background(), rbac.Subject{ID: uuid.NewString(), Scope: rbac.ScopeAll})
 	faker := gofakeit.New(0)
-	chatA := testutil.Fake(t, faker, database.Chat{})
-	chatB := testutil.Fake(t, faker, database.Chat{})
-	ids := []uuid.UUID{chatA.ID, chatB.ID}
+	readable := testutil.Fake(t, faker, database.Chat{})
+	unreadable := testutil.Fake(t, faker, database.Chat{})
+	ids := []uuid.UUID{readable.ID, unreadable.ID}
 
-	newQuerier := func(t *testing.T, authz rbac.Authorizer) (*dbmock.MockStore, database.Store) {
-		db := dbmock.NewMockStore(gomock.NewController(t))
-		db.EXPECT().Wrappers().Return([]string{}).AnyTimes()
-		return db, dbauthz.New(db, authz, slog.Make(), coderdtest.AccessControlStorePointer())
+	authz := &coderdtest.FakeAuthorizer{
+		ConditionalReturn: func(_ context.Context, _ rbac.Subject, _ policy.Action, object rbac.Object) error {
+			if object.ID == unreadable.ID.String() {
+				return xerrors.New("denied")
+			}
+			return nil
+		},
 	}
+	db := dbmock.NewMockStore(gomock.NewController(t))
+	db.EXPECT().Wrappers().Return([]string{}).AnyTimes()
+	db.EXPECT().GetChatsByIDs(gomock.Any(), ids).Times(1).Return([]database.Chat{readable, unreadable}, nil)
+	q := dbauthz.New(db, authz, slog.Make(), coderdtest.AccessControlStorePointer())
 
-	t.Run("MissingChat", func(t *testing.T) {
-		t.Parallel()
-		db, q := newQuerier(t, &coderdtest.FakeAuthorizer{})
-		db.EXPECT().GetChatsByIDs(gomock.Any(), ids).Times(1).Return([]database.Chat{chatA}, nil)
-
-		_, err := q.GetChatDiffStatusesByChatIDs(ctx, ids)
-		require.ErrorIs(t, err, sql.ErrNoRows)
-	})
-
-	t.Run("Unauthorized", func(t *testing.T) {
-		t.Parallel()
-		authz := &coderdtest.FakeAuthorizer{
-			ConditionalReturn: func(_ context.Context, _ rbac.Subject, _ policy.Action, object rbac.Object) error {
-				if object.ID == chatB.ID.String() {
-					return xerrors.New("denied")
-				}
-				return nil
-			},
-		}
-		db, q := newQuerier(t, authz)
-		db.EXPECT().GetChatsByIDs(gomock.Any(), ids).Times(1).Return([]database.Chat{chatA, chatB}, nil)
-
-		_, err := q.GetChatDiffStatusesByChatIDs(ctx, ids)
-		require.True(t, dbauthz.IsNotAuthorizedError(err), "expected not authorized, got %v", err)
-	})
+	_, err := q.GetChatDiffStatusesByChatIDs(ctx, ids)
+	require.True(t, dbauthz.IsNotAuthorizedError(err), "expected not authorized, got %v", err)
 }
 
 func TestChatFilesAllowLinkedChatReads(t *testing.T) {
@@ -1174,6 +1160,13 @@ func (s *MethodTestSuite) TestChats() {
 		check.Args(ids).
 			Asserts(chatA, policy.ActionRead, chatB, policy.ActionRead).
 			Returns([]database.ChatDiffStatus{diffStatusA, diffStatusB})
+	}))
+	// A requested chat that does not exist must fail, not be silently skipped.
+	s.Run("GetChatDiffStatusesByChatIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		ids := []uuid.UUID{chat.ID, uuid.New()}
+		dbm.EXPECT().GetChatsByIDs(gomock.Any(), ids).Return([]database.Chat{chat}, nil).AnyTimes()
+		check.Args(ids).Asserts(chat, policy.ActionRead).Errors(sql.ErrNoRows)
 	}))
 	s.Run("GetChatsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chatA := testutil.Fake(s.T(), faker, database.Chat{})
