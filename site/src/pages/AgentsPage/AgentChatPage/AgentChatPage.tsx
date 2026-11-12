@@ -113,6 +113,22 @@ import {
 
 const AGENT_BINDING_REPAIR_POLL_MS = 30_000;
 
+const reportQueuedEditError = async (
+	request: () => Promise<unknown>,
+	failureMessage: string,
+) => {
+	try {
+		await request();
+	} catch (error) {
+		toast.error(
+			getErrorStatus(error) === 404
+				? "Queued message was already sent or removed."
+				: getErrorMessage(error, failureMessage),
+		);
+		throw error;
+	}
+};
+
 const AgentChatPage: React.FC = () => {
 	const { agentId } = useParams() as { agentId: string };
 	const {
@@ -553,14 +569,17 @@ const AgentChatPage: React.FC = () => {
 		});
 	};
 
-	// A failed request shows the row again, so the error is not rethrown.
 	const requestDeleteQueuedMessage = async (id: number) => {
 		try {
 			await store.runPendingAction(
 				{ kind: "deleteQueued", queuedMessageID: id },
 				() => deleteQueuedMessage(id),
 			);
-		} catch {}
+		} catch (error) {
+			toast.error(
+				getErrorMessage(error, "Failed to delete the queued message."),
+			);
+		}
 	};
 
 	const requestPromoteQueuedMessage = async (id: number) => {
@@ -576,22 +595,6 @@ const AgentChatPage: React.FC = () => {
 		}
 	};
 
-	// Reports a failed queued-message edit and rethrows it.
-	const reportQueuedEditError = async (
-		request: () => Promise<unknown>,
-		failureMessage: string,
-	) => {
-		try {
-			await request();
-		} catch (error) {
-			toast.error(
-				getErrorStatus(error) === 404
-					? "Queued message was already sent or removed."
-					: getErrorMessage(error, failureMessage),
-			);
-			throw error;
-		}
-	};
 	const saveQueuedMessage = (
 		id: number,
 		req: TypesGen.EditChatQueuedMessageRequest,

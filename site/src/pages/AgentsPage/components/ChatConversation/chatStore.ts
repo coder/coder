@@ -27,30 +27,6 @@ const buildOrderedMessageIDs = (
 	return orderedMessageIDs;
 };
 
-const mapsEqualByRef = <K, V>(left: Map<K, V>, right: Map<K, V>): boolean => {
-	if (left.size !== right.size) {
-		return false;
-	}
-	for (const [key, value] of left) {
-		if (!right.has(key) || right.get(key) !== value) {
-			return false;
-		}
-	}
-	return true;
-};
-
-const arraysEqual = <T>(left: readonly T[], right: readonly T[]): boolean => {
-	if (left.length !== right.length) {
-		return false;
-	}
-	for (let index = 0; index < left.length; index += 1) {
-		if (left[index] !== right[index]) {
-			return false;
-		}
-	}
-	return true;
-};
-
 const retryStatesEqual = (
 	left: RetryState | null,
 	right: RetryState,
@@ -112,10 +88,16 @@ export const isTurnCompletedChatStatus = (
  * the stream reports it.
  */
 export type PendingAction =
-	| { kind: "edit"; editedMessageID: number; message?: TypesGen.ChatMessage }
+	| {
+			kind: "edit";
+			editedMessageID: number;
+			content: readonly TypesGen.ChatMessagePart[];
+	  }
 	| {
 			kind: "send";
-			message: TypesGen.ChatMessage;
+			chatID: string;
+			content: readonly TypesGen.ChatMessagePart[];
+			modelConfigID?: string;
 			busyBehavior: TypesGen.ChatBusyBehavior;
 	  }
 	| { kind: "deleteQueued"; queuedMessageID: number }
@@ -214,7 +196,7 @@ export type ChatStore = {
 		action: PendingAction,
 		request: () => Promise<unknown>,
 	) => Promise<void>;
-	setClientError: (reason: ChatDetailError | null) => void;
+	setClientError: (reason: ChatDetailError) => void;
 	clearClientError: () => void;
 	setRetryState: (state: RetryState) => void;
 	clearRetryState: () => void;
@@ -307,35 +289,6 @@ export const createChatStore = (): ChatStore => {
 			return pendingParts.length === current.pendingParts.length
 				? current
 				: { ...current, pendingParts };
-		});
-	};
-
-	const replaceMessages = (messages: readonly TypesGen.ChatMessage[]): void => {
-		const nextMessagesByID = buildMessageMap(messages);
-		const nextOrderedMessageIDs = buildOrderedMessageIDs(messages);
-
-		// Fast-path: skip setState entirely when nothing changed.
-		if (
-			mapsEqualByRef(state.messagesByID, nextMessagesByID) &&
-			arraysEqual(state.orderedMessageIDs, nextOrderedMessageIDs)
-		) {
-			return;
-		}
-
-		setState((current) => {
-			// Re-check equality against `current` inside the updater
-			// to avoid overwriting a concurrent state change.
-			if (
-				mapsEqualByRef(current.messagesByID, nextMessagesByID) &&
-				arraysEqual(current.orderedMessageIDs, nextOrderedMessageIDs)
-			) {
-				return current;
-			}
-			return {
-				...current,
-				messagesByID: nextMessagesByID,
-				orderedMessageIDs: nextOrderedMessageIDs,
-			};
 		});
 	};
 
@@ -435,22 +388,21 @@ export const createChatStore = (): ChatStore => {
 		},
 		seed,
 		resetHistoryFrom: (fromID, snapshotVersion) => {
-			// The stream sends one reset for each edit, so a reset at or below
-			// historyResetVersion is a resend. On the first open, a reset above
-			// the page's snapshot_version can be one the page already holds: it
-			// applies again and drops an older page in flight, which
-			// ChatMessageScroller requests again while the transcript start is
-			// in view.
+			// A reset at or below historyResetVersion is already applied.
 			if (snapshotVersion <= historyResetVersion) {
 				return;
 			}
 			historyResetVersion = snapshotVersion;
 			batch(() => {
-				replaceMessages(
-					[...state.messagesByID.values()].filter(
-						(message) => message.id < fromID,
+				setState((current) => ({
+					...current,
+					messagesByID: new Map(
+						[...current.messagesByID].filter(([id]) => id < fromID),
 					),
-				);
+					orderedMessageIDs: current.orderedMessageIDs.filter(
+						(id) => id < fromID,
+					),
+				}));
 				endPending("history_reset", snapshotVersion);
 			});
 		},
@@ -500,9 +452,12 @@ export const createChatStore = (): ChatStore => {
 		runPendingAction: async (action, request) => {
 			const actionID = nextPendingActionID++;
 			const syncedVersion = syncedSnapshotVersion;
-			const parts = pendingChanges(action, state.view, state.chatStatus, () => {
-				return nextPendingRowID--;
-			}).map((change) => ({ ...change, actionID, syncedVersion }));
+			const parts = pendingChanges(
+				action,
+				state.view,
+				state.chatStatus,
+				() => nextPendingRowID--,
+			).map((change) => ({ ...change, actionID, syncedVersion }));
 			setState((current) => ({
 				...current,
 				pendingParts: [...current.pendingParts, ...parts],
@@ -725,10 +680,13 @@ const pendingChanges = (
 	const isIdle = !isActiveChatStatus(status);
 	const isPaused = status === "paused";
 	if (action.kind === "edit") {
+		const edited = view.messagesByID.get(action.editedMessageID);
 		const transcript: PendingChange = {
 			endsAt: ["history_reset"],
 			hideFromID: action.editedMessageID,
-			messages: action.message && [{ ...action.message, id: nextRowID() }],
+			messages: edited && [
+				{ ...edited, id: nextRowID(), content: action.content },
+			],
 		};
 		// An edit clears the queue. The server sends no queue_update when the
 		// queue is already empty.
@@ -737,14 +695,13 @@ const pendingChanges = (
 			: [transcript];
 	}
 	if (action.kind === "send") {
-		const { message } = action;
 		const row: TypesGen.ChatQueuedMessage = {
 			id: nextRowID(),
-			chat_id: message.chat_id,
-			model_config_id: message.model_config_id,
-			content: message.content ?? [],
+			chat_id: action.chatID,
+			model_config_id: action.modelConfigID,
+			content: action.content,
 			busy_behavior: action.busyBehavior,
-			created_at: message.created_at,
+			created_at: new Date().toISOString(),
 		};
 		return [
 			queueChange(

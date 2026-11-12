@@ -1,6 +1,6 @@
 import type { CreateChatMessageRequestWithClearablePlanMode } from "#/api/api";
 import { getErrorMessage } from "#/api/errors";
-import { buildOptimisticEditedMessage } from "#/api/queries/chatMessageEdits";
+import { buildOptimisticEditedContent } from "#/api/queries/chatMessageEdits";
 import { planModeFieldsForCreateMessage } from "#/api/queries/chats";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
@@ -310,13 +310,11 @@ export async function submitChatTurn(
 				kind: "editQueued",
 				queuedMessageID,
 				editing: false,
-				content:
-					row &&
-					buildOptimisticEditedMessage({
-						requestContent: content,
-						originalMessage: { ...row, role: "user" },
-						attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
-					}).content,
+				content: buildOptimisticEditedContent({
+					requestContent: content,
+					originalContent: row?.content,
+					attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
+				}),
 			},
 			() => saveQueuedMessage(queuedMessageID, request),
 		);
@@ -343,13 +341,11 @@ export async function submitChatTurn(
 			{
 				kind: "edit",
 				editedMessageID,
-				message:
-					originalEditedMessage &&
-					buildOptimisticEditedMessage({
-						requestContent: request.content,
-						originalMessage: originalEditedMessage,
-						attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
-					}),
+				content: buildOptimisticEditedContent({
+					requestContent: content,
+					originalContent: originalEditedMessage?.content,
+					attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
+				}),
 			},
 			() => editMessage({ messageId: editedMessageID, req: request }),
 		);
@@ -370,18 +366,12 @@ export async function submitChatTurn(
 			kind: "send",
 			// The server steers a send that names no lane.
 			busyBehavior: busyBehavior ?? "steer",
-			message: buildOptimisticEditedMessage({
+			chatID: agentId,
+			content: buildOptimisticEditedContent({
 				requestContent: content,
-				originalMessage: {
-					// The store replaces the ID with a pending row ID.
-					id: 0,
-					chat_id: agentId,
-					created_at: new Date().toISOString(),
-					role: "user",
-					model_config_id: selectedModelConfigID,
-				},
 				attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
 			}),
+			modelConfigID: selectedModelConfigID,
 		},
 		() => sendMessage(request),
 	);

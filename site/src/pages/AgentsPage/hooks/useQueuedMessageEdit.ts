@@ -9,8 +9,7 @@ import type { EditingTarget } from "../components/ChatConversation/types";
 /**
  * What the user chose for the composer in this chat session. "follow" edits
  * the marked row, "draft" writes a new message, and a target edits that row.
- * The marked row is the one the shown queue marks under edit, which this
- * tab's pending begin or end changes at the click.
+ * The marked row is the one that the shown queue marks as under edit.
  */
 export type ComposerMode = EditingTarget | "draft" | "follow";
 
@@ -49,7 +48,6 @@ export function useQueuedMessageEdit(deps: {
 	isOwner: boolean;
 	setQueuedMessageEditing: (id: number, editing: boolean) => Promise<void>;
 }): {
-	// The row that the shown queue marks as under edit.
 	markedID: number | null;
 	composerTarget: EditingTarget | null;
 	handleEditQueuedMessage: (id: number) => void;
@@ -63,7 +61,7 @@ export function useQueuedMessageEdit(deps: {
 	// The choice of the latest Edit until the begin's handlers below have
 	// applied its outcome. While the composer holds that choice it stays the
 	// target, so the editor never sees it go away before a refusal restores
-	// the earlier mode; react-query can report the settled request first.
+	// the earlier mode; the store removes a refused begin's mark first.
 	const [unappliedEdit, setUnappliedEdit] = useState<EditingTarget | null>(
 		null,
 	);

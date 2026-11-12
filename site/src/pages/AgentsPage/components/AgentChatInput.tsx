@@ -1547,7 +1547,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							offersSendAfterTurn ? handleSubmitAfterTurn : undefined
 						}
 						sendShortcut={sendShortcut}
-						// submit does not send while isLoading.
+						// An unlocked editor stays editable while isLoading, and
+						// submit sends nothing then.
 						disabled={isReadOnly || (lockWhileLoading && isLoading)}
 						hasWorkspace={hasSkillsWorkspace}
 						organizationId={chatOrganizationId}
