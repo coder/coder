@@ -247,7 +247,6 @@ export function useConversationEditingState(deps: {
 		);
 	};
 
-	// Stores draft, or removes the stored draft when draft is empty.
 	const saveDraft = (draft: string | undefined) => {
 		if (!draft) {
 			localStorage.removeItem(draftStorageKey);
@@ -310,8 +309,8 @@ export function useConversationEditingState(deps: {
 		}
 		removeQueuedEdit(loadedTarget?.target);
 
-		// The editor also keeps its content during a request, whose rollback
-		// restores it.
+		// During a request the editor also keeps its content, because the
+		// request's rollback would overwrite a target loaded now.
 		if (
 			(isEditorChanged() || requestInFlightRef.current !== null) &&
 			(target === null || composerMode === "follow")

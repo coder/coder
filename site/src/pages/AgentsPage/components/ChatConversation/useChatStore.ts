@@ -491,7 +491,7 @@ export const useChatStore = (
 				void storeQuery.refetch();
 			}
 		},
-		fetchMoreMessages: () => fetchMoreMessages(),
+		fetchMoreMessages,
 		isFetchingMoreMessages,
 		hasFetchMoreError,
 	};

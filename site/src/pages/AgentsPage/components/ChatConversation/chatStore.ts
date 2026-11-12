@@ -388,7 +388,6 @@ export const createChatStore = (): ChatStore => {
 		},
 		seed,
 		resetHistoryFrom: (fromID, snapshotVersion) => {
-			// A reset at or below historyResetVersion is already applied.
 			if (snapshotVersion <= historyResetVersion) {
 				return;
 			}
