@@ -42,7 +42,6 @@ describe("ProjectCard", () => {
 		).toHaveAccessibleDescription(description);
 	});
 
-	// Unpinning removes the pin button, which must not drop focus to the page.
 	it("unpins from the pin button and keeps focus in the card", async () => {
 		const user = userEvent.setup();
 		const { onUnpin } = renderCard();
@@ -57,8 +56,6 @@ describe("ProjectCard", () => {
 		).toHaveFocus();
 	});
 
-	// In a browser, the dialog that a mouse pick opens can lose focus to the
-	// closing menu, which leaves focus on the page when it returns focus.
 	it.each(["Edit project", "Delete project"])(
 		"keeps focus off the actions button after picking %s with the mouse",
 		async (item) => {

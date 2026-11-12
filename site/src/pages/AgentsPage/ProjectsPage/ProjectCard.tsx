@@ -71,7 +71,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 						to={to}
 						aria-describedby={footerId}
 						// The overlay makes the whole card the link's hit area.
-						className="text-content-primary no-underline outline-none after:absolute after:inset-0 after:rounded-lg"
+						className="text-content-primary no-underline outline-hidden after:absolute after:inset-0 after:rounded-lg"
 					>
 						{project.name}
 					</Link>

@@ -40,12 +40,9 @@ type DialogState = { readonly project?: ChatProject; readonly open: boolean };
 
 // Pins and unpins share a mutation key, and only a pin's variables wrap the
 // project.
-type PinChatProjectVariables = Parameters<
-	NonNullable<ReturnType<typeof pinChatProject>["mutationFn"]>
->[0];
 const isPinVariables = (
 	variables: unknown,
-): variables is PinChatProjectVariables =>
+): variables is { readonly project: ChatProject } =>
 	typeof variables === "object" && variables !== null && "project" in variables;
 
 const compareNames = (a: ChatProjectSummary, b: ChatProjectSummary) =>
