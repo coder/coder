@@ -175,7 +175,7 @@ func TestSteerQueuedMessageResolvesOrganizationModel(t *testing.T) {
 		localModel := dbgen.ChatModelConfig(t, f.DB, database.ChatModelConfig{
 			OrganizationID: f.Org.ID,
 		})
-		promoted := steerQueuedMessageWithModel(t, f, localModel.ID)
+		promoted := steerQueuedMessageWithModel(t, f, f.Model.ID, localModel.ID)
 		require.Equal(t, localModel.ID, promoted.ModelConfigID.UUID)
 	})
 
@@ -187,14 +187,19 @@ func TestSteerQueuedMessageResolvesOrganizationModel(t *testing.T) {
 			OrganizationID: foreignOrg.ID,
 			IsDefault:      true,
 		})
-		promoted := steerQueuedMessageWithModel(t, f, foreignModel.ID)
+		promoted := steerQueuedMessageWithModel(t, f, foreignModel.ID, foreignModel.ID)
 		require.Equal(t, f.Model.ID, promoted.ModelConfigID.UUID)
 	})
 
 	t.Run("missing model falls back to local default", func(t *testing.T) {
 		t.Parallel()
 		f := newTestFixture(t)
-		promoted := steerQueuedMessageWithModel(t, f, uuid.New())
+		deleted := dbgen.ChatModelConfig(t, f.DB, database.ChatModelConfig{
+			OrganizationID: f.Org.ID,
+		})
+		_, err := f.DB.DeleteChatModelConfigByID(context.Background(), deleted.ID)
+		require.NoError(t, err)
+		promoted := steerQueuedMessageWithModel(t, f, deleted.ID, uuid.New())
 		require.Equal(t, f.Model.ID, promoted.ModelConfigID.UUID)
 	})
 
@@ -205,8 +210,22 @@ func TestSteerQueuedMessageResolvesOrganizationModel(t *testing.T) {
 			OrganizationID: f.Org.ID,
 		})
 		setChatModelConfigEnabled(t, f.DB, disabled, false)
-		promoted := steerQueuedMessageWithModel(t, f, disabled.ID)
+		promoted := steerQueuedMessageWithModel(t, f, disabled.ID, disabled.ID)
 		require.Equal(t, f.Model.ID, promoted.ModelConfigID.UUID)
+	})
+
+	t.Run("disabled model falls back to chat model", func(t *testing.T) {
+		t.Parallel()
+		f := newTestFixture(t)
+		chatModel := dbgen.ChatModelConfig(t, f.DB, database.ChatModelConfig{
+			OrganizationID: f.Org.ID,
+		})
+		disabled := dbgen.ChatModelConfig(t, f.DB, database.ChatModelConfig{
+			OrganizationID: f.Org.ID,
+		})
+		setChatModelConfigEnabled(t, f.DB, disabled, false)
+		promoted := steerQueuedMessageWithModel(t, f, chatModel.ID, disabled.ID)
+		require.Equal(t, chatModel.ID, promoted.ModelConfigID.UUID)
 	})
 
 	t.Run("missing local default rejects promotion", func(t *testing.T) {
@@ -390,12 +409,18 @@ func (s *modelConfigErrorStore) GetEnabledChatModelConfigByID(
 func steerQueuedMessageWithModel(
 	t *testing.T,
 	f *testFixture,
-	modelConfigID uuid.UUID,
+	chatModelConfigID uuid.UUID,
+	queuedModelConfigID uuid.UUID,
 ) database.ChatMessage {
 	t.Helper()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	created := createTestChat(t, f)
-	message := userTextMessage("queued model resolution", f.User.ID, modelConfigID)
+	_, err := f.DB.UpdateChatLastModelConfigByID(ctx, database.UpdateChatLastModelConfigByIDParams{
+		ID:                created.Chat.ID,
+		LastModelConfigID: chatModelConfigID,
+	})
+	require.NoError(t, err)
+	message := userTextMessage("queued model resolution", f.User.ID, queuedModelConfigID)
 	queued, err := f.DB.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
 		ChatID:        created.Chat.ID,
 		Content:       message.Content.RawMessage,

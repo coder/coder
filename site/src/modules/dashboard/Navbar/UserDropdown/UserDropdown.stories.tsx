@@ -279,7 +279,7 @@ export const AvatarBorderNormal: Story = {
 		await step("shows no severity indicator for normal spend", async () => {
 			const canvas = within(canvasElement);
 			expect(
-				canvas.getByRole("button", { name: "User menu" }),
+				canvas.getByRole("button", { name: /User menu$/ }),
 			).toBeInTheDocument();
 		});
 	},
@@ -299,7 +299,7 @@ export const AvatarBorderWarning: Story = {
 		await step("labels the trigger with the warning state", async () => {
 			const canvas = within(canvasElement);
 			await canvas.findByRole("button", {
-				name: "User menu. AI spend is nearing its limit",
+				name: /User menu\. AI spend is nearing its limit$/,
 			});
 		});
 	},
@@ -319,7 +319,7 @@ export const AvatarBorderExceeded: Story = {
 		await step("labels the trigger with the exceeded state", async () => {
 			const canvas = within(canvasElement);
 			await canvas.findByRole("button", {
-				name: "User menu. AI spend limit exceeded",
+				name: /User menu\. AI spend limit exceeded$/,
 			});
 		});
 	},

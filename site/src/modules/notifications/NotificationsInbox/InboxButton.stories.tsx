@@ -28,14 +28,14 @@ export const BadgeTransition: Story = {
 				<div className="flex gap-2">
 					<button
 						type="button"
-						className="rounded border border-solid border-border px-3 py-1 text-sm bg-surface-primary text-content-primary"
+						className="rounded border px-3 py-1 text-sm bg-surface-primary text-content-primary"
 						onClick={() => setCount((c) => c + 1)}
 					>
 						Add notification
 					</button>
 					<button
 						type="button"
-						className="rounded border border-solid border-border px-3 py-1 text-sm bg-surface-primary text-content-primary"
+						className="rounded border px-3 py-1 text-sm bg-surface-primary text-content-primary"
 						onClick={() => setCount(0)}
 					>
 						Clear all

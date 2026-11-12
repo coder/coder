@@ -9,7 +9,7 @@ import { Slot } from "radix-ui";
 const badgeVariants = cva(
 	cn(
 		"inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-nowrap",
-		"transition-colors [&_svg]:py-0.5 border-solid",
+		"transition-colors [&_svg]:py-0.5",
 		"[&_svg]:pointer-events-none",
 	),
 	{
@@ -17,10 +17,9 @@ const badgeVariants = cva(
 			variant: {
 				default:
 					"border-transparent bg-surface-secondary text-content-secondary",
-				outline:
-					"border-border bg-transparent text-content-primary shadow-none",
+				outline: "bg-transparent text-content-primary shadow-none",
 				dashed:
-					"border-dashed border-border bg-surface-secondary text-content-secondary shadow-none",
+					"border-dashed bg-surface-secondary text-content-secondary shadow-none",
 				warning:
 					"border-highlight-orange bg-surface-orange text-highlight-orange",
 				destructive:
