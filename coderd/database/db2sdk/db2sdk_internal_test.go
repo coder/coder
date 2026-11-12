@@ -465,6 +465,7 @@ func TestBuildAIBridgeThreadAttributionAndActions(t *testing.T) {
 				},
 				make(map[uuid.UUID][]database.AIBridgeUserPrompt),
 				make(map[uuid.UUID][]database.AIBridgeModelThought),
+				make(map[uuid.UUID]*codersdk.AIBridgeInterceptionOrganization),
 			)
 
 			require.Equal(t, tt.wantRoot, thread.Attribution)
@@ -548,6 +549,7 @@ func TestBuildAIBridgeThreadPricedModel(t *testing.T) {
 		},
 		make(map[uuid.UUID][]database.AIBridgeUserPrompt),
 		make(map[uuid.UUID][]database.AIBridgeModelThought),
+		make(map[uuid.UUID]*codersdk.AIBridgeInterceptionOrganization),
 	)
 
 	rootPricedModel := &codersdk.AIBridgePricedModel{
@@ -586,6 +588,7 @@ func TestBuildAIBridgeThreadMissingRoot(t *testing.T) {
 		make(map[uuid.UUID][]database.AIBridgeToolUsage),
 		make(map[uuid.UUID][]database.AIBridgeUserPrompt),
 		make(map[uuid.UUID][]database.AIBridgeModelThought),
+		make(map[uuid.UUID]*codersdk.AIBridgeInterceptionOrganization),
 	)
 
 	require.Empty(t, thread.Attribution)
@@ -648,6 +651,7 @@ func TestBuildAIBridgeThreadStandaloneRootActions(t *testing.T) {
 				make(map[uuid.UUID][]database.AIBridgeToolUsage),
 				make(map[uuid.UUID][]database.AIBridgeUserPrompt),
 				make(map[uuid.UUID][]database.AIBridgeModelThought),
+				make(map[uuid.UUID]*codersdk.AIBridgeInterceptionOrganization),
 			)
 
 			require.Equal(t, tt.wantAttribution, thread.Attribution)

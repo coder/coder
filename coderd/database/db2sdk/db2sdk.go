@@ -1172,6 +1172,11 @@ func PreviewParameterValidation(v *previewtypes.ParameterValidation) codersdk.Pr
 	}
 }
 
+// AIBridgeInterceptionOrganizationSource converts a database organization source to its SDK value.
+func AIBridgeInterceptionOrganizationSource(source database.AIBridgeInterceptionOrganizationSource) codersdk.AIBridgeInterceptionOrganizationSource {
+	return codersdk.AIBridgeInterceptionOrganizationSource(source)
+}
+
 func AIBridgeSession(row database.ListAIBridgeSessionsRow) codersdk.AIBridgeSession {
 	session := codersdk.AIBridgeSession{
 		ID: row.SessionID,
@@ -1267,10 +1272,12 @@ func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSes
 	// SQL query.
 	interceptionsByThread := make(map[uuid.UUID][]database.AIBridgeInterception, len(interceptions))
 	var threadIDs []uuid.UUID
+	orgsByInterception := make(map[uuid.UUID]*codersdk.AIBridgeInterceptionOrganization, len(interceptions))
 	for _, row := range interceptions {
 		if _, ok := interceptionsByThread[row.ThreadID]; !ok {
 			threadIDs = append(threadIDs, row.ThreadID)
 		}
+		orgsByInterception[row.AIBridgeInterception.ID] = aiBridgeInterceptionOrganization(row)
 		interceptionsByThread[row.ThreadID] = append(interceptionsByThread[row.ThreadID], row.AIBridgeInterception)
 	}
 
@@ -1279,7 +1286,7 @@ func AIBridgeSessionThreads(p AIBridgeSessionThreadsParams) codersdk.AIBridgeSes
 	var pageStartedAt, pageEndedAt *time.Time
 	for _, threadID := range threadIDs {
 		intcs := interceptionsByThread[threadID]
-		thread := buildAIBridgeThread(threadID, intcs, tokensByInterception, toolsByInterception, promptsByInterception, thoughtsByInterception)
+		thread := buildAIBridgeThread(threadID, intcs, tokensByInterception, toolsByInterception, promptsByInterception, thoughtsByInterception, orgsByInterception)
 		for _, intc := range intcs {
 			if pageStartedAt == nil || intc.StartedAt.Before(*pageStartedAt) {
 				t := intc.StartedAt
@@ -1390,6 +1397,7 @@ func buildAIBridgeThread(
 	toolsByInterception map[uuid.UUID][]database.AIBridgeToolUsage,
 	promptsByInterception map[uuid.UUID][]database.AIBridgeUserPrompt,
 	thoughtsByInterception map[uuid.UUID][]database.AIBridgeModelThought,
+	orgsByInterception map[uuid.UUID]*codersdk.AIBridgeInterceptionOrganization,
 ) codersdk.AIBridgeThread {
 	// Find the root interception (where id == threadID) to get the
 	// thread prompt and model.
@@ -1411,6 +1419,7 @@ func buildAIBridgeThread(
 	if rootIntc != nil {
 		thread.Model = rootIntc.Model
 		thread.Provider = rootIntc.Provider
+		thread.Organization = orgsByInterception[rootIntc.ID]
 		thread.CredentialKind = string(rootIntc.CredentialKind)
 		thread.CredentialHint = sanitizeCredentialHint(rootIntc.CredentialHint)
 		// Get first user prompt from root interception.
@@ -1493,6 +1502,7 @@ func buildAIBridgeThread(
 
 		actions = append(actions, codersdk.AIBridgeAgenticAction{
 			InterceptionID: intc.ID,
+			Organization:   orgsByInterception[intc.ID],
 			Model:          intc.Model,
 			Attribution:    aiBridgeInterceptionAttribution(intc),
 			TokenUsage:     actionTokenUsage,
@@ -1730,6 +1740,23 @@ func sanitizeCredentialHint(hint string) string {
 		return "..."
 	}
 	return hint
+}
+
+// aiBridgeInterceptionOrganization returns the organization stored on a
+// thread row, or nil when the interception has none.
+func aiBridgeInterceptionOrganization(row database.ListAIBridgeSessionThreadsRow) *codersdk.AIBridgeInterceptionOrganization {
+	if !row.AIBridgeInterception.OrganizationID.Valid {
+		return nil
+	}
+	return &codersdk.AIBridgeInterceptionOrganization{
+		MinimalOrganization: codersdk.MinimalOrganization{
+			ID:          row.AIBridgeInterception.OrganizationID.UUID,
+			Name:        row.OrganizationName,
+			DisplayName: row.OrganizationDisplayName,
+			Icon:        row.OrganizationIcon,
+		},
+		Source: AIBridgeInterceptionOrganizationSource(row.AIBridgeInterception.OrganizationSource.AIBridgeInterceptionOrganizationSource),
+	}
 }
 
 // aiBridgeSessionOrganizations decodes the organizations JSON array built by

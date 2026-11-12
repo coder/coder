@@ -2224,12 +2224,20 @@ WITH paginated_threads AS (
 )
 SELECT
 	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
-	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint, aibridge_interceptions.agent_firewall_session_id, aibridge_interceptions.agent_firewall_sequence_number, aibridge_interceptions.error_type, aibridge_interceptions.error_message, aibridge_interceptions.workspace_id, aibridge_interceptions.organization_id, aibridge_interceptions.organization_source
+	aibridge_interceptions.id, aibridge_interceptions.initiator_id, aibridge_interceptions.provider, aibridge_interceptions.model, aibridge_interceptions.started_at, aibridge_interceptions.metadata, aibridge_interceptions.ended_at, aibridge_interceptions.api_key_id, aibridge_interceptions.client, aibridge_interceptions.thread_parent_id, aibridge_interceptions.thread_root_id, aibridge_interceptions.client_session_id, aibridge_interceptions.session_id, aibridge_interceptions.provider_name, aibridge_interceptions.credential_kind, aibridge_interceptions.credential_hint, aibridge_interceptions.agent_firewall_session_id, aibridge_interceptions.agent_firewall_sequence_number, aibridge_interceptions.error_type, aibridge_interceptions.error_message, aibridge_interceptions.workspace_id, aibridge_interceptions.organization_id, aibridge_interceptions.organization_source,
+	COALESCE(org.name, '')::text AS organization_name,
+	COALESCE(org.display_name, '')::text AS organization_display_name,
+	COALESCE(org.icon, '')::text AS organization_icon
 FROM
 	aibridge_interceptions
 JOIN
 	paginated_threads pt
 		ON pt.thread_id = COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id)
+LEFT JOIN LATERAL (
+	SELECT o.name, o.display_name, o.icon
+	FROM organizations o
+	WHERE o.id = aibridge_interceptions.organization_id
+) org ON true
 WHERE
 	aibridge_interceptions.session_id = $1::text
 	AND aibridge_interceptions.ended_at IS NOT NULL
@@ -2250,8 +2258,11 @@ type ListAIBridgeSessionThreadsParams struct {
 }
 
 type ListAIBridgeSessionThreadsRow struct {
-	ThreadID             uuid.UUID            `db:"thread_id" json:"thread_id"`
-	AIBridgeInterception AIBridgeInterception `db:"aibridge_interception" json:"aibridge_interception"`
+	ThreadID                uuid.UUID            `db:"thread_id" json:"thread_id"`
+	AIBridgeInterception    AIBridgeInterception `db:"aibridge_interception" json:"aibridge_interception"`
+	OrganizationName        string               `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName string               `db:"organization_display_name" json:"organization_display_name"`
+	OrganizationIcon        string               `db:"organization_icon" json:"organization_icon"`
 }
 
 // Returns all interceptions belonging to paginated threads within a session.
@@ -2296,6 +2307,9 @@ func (q *sqlQuerier) ListAIBridgeSessionThreads(ctx context.Context, arg ListAIB
 			&i.AIBridgeInterception.WorkspaceID,
 			&i.AIBridgeInterception.OrganizationID,
 			&i.AIBridgeInterception.OrganizationSource,
+			&i.OrganizationName,
+			&i.OrganizationDisplayName,
+			&i.OrganizationIcon,
 		); err != nil {
 			return nil, err
 		}
