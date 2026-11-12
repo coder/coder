@@ -91,7 +91,9 @@ export const TemplatesFilter: React.FC<TemplatesFilterProps> = ({
 			return orgOption(org);
 		},
 		getOptions: async () => {
-			const orgs = await API.getMyOrganizations();
+			// Templates are listed by permission, not membership, so offer every
+			// organization the user can read rather than only their own.
+			const orgs = await API.getOrganizations();
 			return orgs.map(orgOption);
 		},
 	});
