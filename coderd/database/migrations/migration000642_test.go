@@ -210,6 +210,11 @@ func TestMigration000642DownWithData(t *testing.T) {
 	exec(`INSERT INTO chat_messages (chat_id, role, content_version, automation_id, input_id, prompt_hooks_pending)
 		VALUES ($1, 'user', 1, $2, $3, true)`, chatID, automationID, uuid.New())
 	exec(`UPDATE chats SET automation_id = $2, manage_automations_enabled = true WHERE id = $1`, chatID, automationID)
+	// The flag and the automation ID do not always appear together.
+	exec(`INSERT INTO chat_queued_messages (chat_id, content, created_by, automation_id, input_id)
+		VALUES ($1, '["automation, hooks done"]', $2, $3, $4)`, chatID, userID, automationID, uuid.New())
+	exec(`INSERT INTO chat_messages (chat_id, role, content_version, prompt_hooks_pending)
+		VALUES ($1, 'user', 1, true)`, chatID)
 
 	// The history message above still waits for its prompt hooks. The down
 	// must not drop that flag, and a refused down changes nothing.
@@ -227,13 +232,13 @@ func TestMigration000642DownWithData(t *testing.T) {
 		return counts
 	}
 	schemaBefore, rowsBefore := schemaFingerprint(ctx, t, sqlDB), rowCounts()
-	require.Equal(t, "1 automations, 3 queued messages, 1 pending messages, 11 keys, 2 tokens, 1 automation chats", rowsBefore)
+	require.Equal(t, "1 automations, 4 queued messages, 2 pending messages, 11 keys, 2 tokens, 1 automation chats", rowsBefore)
 
 	_, err := sqlDB.ExecContext(ctx, string(down))
 	var refused *pq.Error
 	require.ErrorAs(t, err, &refused)
-	require.Equal(t, "migration 000642 down: 1 chat messages still wait for their prompt hooks", refused.Message)
-	require.Equal(t, "Keep this release running until chatd has started these turns, then run the down migration again.", refused.Hint)
+	require.Equal(t, "migration 000642 down: 2 chat messages still wait for their prompt hooks. "+
+		"Keep this release running until chatd has started these turns, then run the down migration again.", refused.Message)
 	require.Equal(t, schemaBefore, schemaFingerprint(ctx, t, sqlDB), "schema after a refused down")
 	require.Equal(t, rowsBefore, rowCounts(), "rows after a refused down")
 
@@ -300,7 +305,7 @@ func TestMigration000642DownWithData(t *testing.T) {
 	var messages, chats int
 	require.NoError(t, sqlDB.QueryRowContext(ctx,
 		`SELECT count(*) FROM chat_messages WHERE chat_id = $1`, chatID).Scan(&messages))
-	require.Equal(t, 1, messages, "history messages stay")
+	require.Equal(t, 2, messages, "history messages stay")
 	require.NoError(t, sqlDB.QueryRowContext(ctx,
 		`SELECT count(*) FROM chats WHERE id = $1`, chatID).Scan(&chats))
 	require.Equal(t, 1, chats)
@@ -461,9 +466,11 @@ func TestMigration000642WaitsForOpenTransaction(t *testing.T) {
 		name      string
 		from      uint
 		migration []byte
+		lockRole  bool
 	}{
 		{name: "Up", from: 641, migration: up},
 		{name: "Down", from: 642, migration: down},
+		{name: "DownBehindCustomRole", from: 642, migration: down, lockRole: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -472,12 +479,27 @@ func TestMigration000642WaitsForOpenTransaction(t *testing.T) {
 			stepTo(t, sqlDB, tc.from)
 			ctx := testutil.Context(t, testutil.WaitLong)
 			chatID, _ := seedChatWithStatus(ctx, t, sqlDB, "waiting")
+			lockSQL, updateSQL, rowID := `SELECT id FROM chats WHERE id = $1 FOR UPDATE`,
+				`UPDATE chats SET title = 'renamed' WHERE id = $1`, chatID
+			if tc.lockRole {
+				// The down rewrites every custom role that names
+				// chat_automation.
+				rowID = uuid.New()
+				_, err := sqlDB.ExecContext(ctx, `
+					INSERT INTO custom_roles (id, name, display_name, organization_id, site_permissions, org_permissions, user_permissions, member_permissions)
+					SELECT $1, 'automation-role', 'Automation Role', organization_id, '[]',
+						'[{"negate": false, "resource_type": "chat_automation", "action": "read"}]', '[]', '[]'
+					FROM chats WHERE id = $2`, rowID, chatID)
+				require.NoError(t, err)
+				lockSQL = `SELECT id FROM custom_roles WHERE id = $1 FOR UPDATE`
+				updateSQL = `UPDATE custom_roles SET display_name = 'Renamed' WHERE id = $1`
+			}
 
 			conn, appPID := dedicatedConn(ctx, t, sqlDB)
 			tx, err := conn.BeginTx(ctx, nil)
 			require.NoError(t, err)
 			defer func() { _ = tx.Rollback() }()
-			_, err = tx.ExecContext(ctx, `SELECT id FROM chats WHERE id = $1 FOR UPDATE`, chatID)
+			_, err = tx.ExecContext(ctx, lockSQL, rowID)
 			require.NoError(t, err)
 
 			pid, migrated := startRolledBackMigration(ctx, t, sqlDB, tc.migration)
@@ -492,7 +514,7 @@ func TestMigration000642WaitsForOpenTransaction(t *testing.T) {
 			}))
 
 			requireNoDeadlockVictim(ctx, t, "application", async(func() error {
-				if _, err := tx.ExecContext(ctx, `UPDATE chats SET title = 'renamed' WHERE id = $1`, chatID); err != nil {
+				if _, err := tx.ExecContext(ctx, updateSQL, rowID); err != nil {
 					return err
 				}
 				return tx.Commit()
@@ -500,4 +522,41 @@ func TestMigration000642WaitsForOpenTransaction(t *testing.T) {
 			requireNoDeadlockVictim(ctx, t, "migration", migrated)
 		})
 	}
+}
+
+// The down counts the pending messages after it holds the chat tables. A
+// message that commits while the down waits for its locks must still stop
+// it.
+func TestMigration000642DownRefusesMessageCommittedWhileItWaits(t *testing.T) {
+	t.Parallel()
+
+	sqlDB := testSQLDB(t)
+	stepTo(t, sqlDB, 642)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	_, down := readMigration000642(t)
+	chatID, _ := seedChatWithStatus(ctx, t, sqlDB, "waiting")
+
+	appConn, appPID := dedicatedConn(ctx, t, sqlDB)
+	tx, err := appConn.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	_, err = tx.ExecContext(ctx, `
+		INSERT INTO chat_messages (chat_id, role, content_version, prompt_hooks_pending)
+		VALUES ($1, 'user', 1, true)`, chatID)
+	require.NoError(t, err)
+
+	migrationConn, migrationPID := dedicatedConn(ctx, t, sqlDB)
+	migration := async(func() error {
+		_, err := migrationConn.ExecContext(ctx, string(down))
+		return err
+	})
+	requireWaitsFor(ctx, t, sqlDB, migrationPID, appPID)
+	require.NoError(t, tx.Commit())
+
+	err = testutil.TryReceive(ctx, t, migration)
+	require.ErrorContains(t, err, "1 chat messages still wait for their prompt hooks")
+	var pending int
+	require.NoError(t, sqlDB.QueryRowContext(ctx,
+		`SELECT count(*) FROM chat_messages WHERE prompt_hooks_pending`).Scan(&pending))
+	require.Equal(t, 1, pending, "the refused down keeps the flag")
 }
