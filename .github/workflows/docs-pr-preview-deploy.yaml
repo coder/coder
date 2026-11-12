@@ -220,7 +220,8 @@ jobs:
     permissions:
       pull-requests: write
     env:
-      VERCEL_CLI_VERSION: 59.3.0
+      # 59.x needs team access, which a project-scoped token lacks.
+      VERCEL_CLI_VERSION: 65.11.0
       REPO: ${{ github.repository }}
       PR_NUMBER: ${{ github.event.pull_request.number }}
       SHA: ${{ github.event.pull_request.head.sha }}
