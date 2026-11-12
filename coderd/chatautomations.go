@@ -11,7 +11,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -178,7 +177,10 @@ func (api *API) chatAutomationOwnerFilter(ctx context.Context, callerID uuid.UUI
 	case codersdk.Me:
 		return callerID, true, nil
 	}
-	if parsed, err := uuid.Parse(owner); err == nil {
+	// Only the canonical form with hyphens is an ID. uuid.Parse also accepts 32
+	// hexadecimal characters, which is a valid username, and the braces and
+	// urn:uuid: forms.
+	if parsed, err := uuid.Parse(owner); len(owner) == len(uuid.Nil.String()) && err == nil {
 		// The nil UUID is no user, and must not reach a query that reads it
 		// as every owner.
 		return parsed, parsed != uuid.Nil, nil
@@ -307,7 +309,18 @@ func (api *API) loadChatAutomationRefs(ctx context.Context, automations []databa
 		users, err := api.Database.GetUsersByIDs(ctx, mapKeys(ownerIDs))
 		switch {
 		case dbauthz.IsNotAuthorizedError(err):
-			// The caller cannot read at least one owner, so no owner is shown.
+			// The batch read is all or nothing. Read the owners one by one and
+			// leave out each one that the caller cannot read.
+			for id := range ownerIDs {
+				user, err := api.Database.GetUserByID(ctx, id)
+				if httpapi.Is404Error(err) {
+					continue
+				}
+				if err != nil {
+					return refs, xerrors.Errorf("get owner: %w", err)
+				}
+				refs.Owners[id] = user
+			}
 		case err != nil:
 			return refs, xerrors.Errorf("get owners: %w", err)
 		default:

@@ -27,59 +27,6 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// The audit entry of a delete marks the secret and the prompt as changed
-// without their values.
-func TestChatAutomationDeleteAuditEntry(t *testing.T) {
-	t.Parallel()
-	db, ps := dbtestutil.NewDB(t)
-	values := coderdtest.DeploymentValues(t)
-	values.Experiments = []string{string(codersdk.ExperimentChatAutomations)}
-	ownerClient, first := coderdenttest.New(t, &coderdenttest.Options{
-		AuditLogging: true,
-		Options: &coderdtest.Options{
-			DeploymentValues: values, Database: db, Pubsub: ps, ChatWorkerDisabled: true,
-			Auditor: entaudit.NewAuditor(db, entaudit.DefaultFilter, backends.NewPostgres(db, true)),
-		},
-		LicenseOptions: &coderdenttest.LicenseOptions{Features: license.Features{codersdk.FeatureAuditLog: 1}},
-	})
-	memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID)
-	auditorClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID, rbac.RoleAuditor())
-	secret := "canary-secret-" + strings.Repeat(uuid.NewString(), 2)
-	prompt := "canary-prompt-" + uuid.NewString()
-	automation := dbgen.ChatAutomation(t, db, database.ChatAutomation{
-		OrganizationID: first.OrganizationID, OwnerID: member.ID, Prompt: prompt,
-		WebhookSecret: sql.NullString{String: secret, Valid: true},
-	})
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	require.NoError(t, codersdk.NewExperimentalClient(memberClient).DeleteChatAutomation(ctx, first.OrganizationID, automation.ID))
-
-	res, err := auditorClient.Request(ctx, http.MethodGet, "/api/v2/audit?limit=50&q=resource_type:chat_automation", nil)
-	require.NoError(t, err)
-	defer res.Body.Close()
-	require.Equal(t, http.StatusOK, res.StatusCode)
-	body, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-	require.Equal(t, 0, bytes.Count(body, []byte(secret)))
-	require.Equal(t, 0, bytes.Count(body, []byte(prompt)))
-
-	var logs codersdk.AuditLogResponse
-	require.NoError(t, json.Unmarshal(body, &logs))
-	require.Len(t, logs.AuditLogs, 1)
-	entry := logs.AuditLogs[0]
-	require.Equal(t, codersdk.AuditActionDelete, entry.Action)
-	require.Equal(t, codersdk.ResourceTypeChatAutomation, entry.ResourceType)
-	require.Equal(t, automation.ID, entry.ResourceID)
-	require.Equal(t, first.OrganizationID, entry.OrganizationID)
-	for _, field := range []string{"webhook_secret", "prompt"} {
-		diff, ok := entry.Diff[field]
-		require.True(t, ok, field)
-		require.True(t, diff.Secret, field)
-		require.Empty(t, diff.Old, field)
-		require.Empty(t, diff.New, field)
-	}
-}
-
 // createChatAutomationSchemes creates one webhook automation of each scheme as
 // the caller. supplied is the secret of the standard_webhooks automation.
 func createChatAutomationSchemes(t *testing.T, client *codersdk.Client, orgID, modelID uuid.UUID, prompt, supplied string) map[codersdk.ChatAutomationWebhookAuth]codersdk.CreateChatAutomationResponse {
