@@ -15,22 +15,47 @@ import (
 func TestChatQuestionAnswerExperimentDisabled(t *testing.T) {
 	t.Parallel()
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	client := newChatClient(t, withChatWorkerDisabled)
 	user := coderdtest.CreateFirstUser(t, client.Client)
 	_ = createChatModel(t, client)
 
-	_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
-		OrganizationID: user.OrganizationID,
-		Content: []codersdk.ChatInputPart{
-			{Type: codersdk.ChatInputPartTypeQuestionAnswer},
-			{Type: codersdk.ChatInputPartTypeText, Text: "Use Postgres."},
-		},
+	t.Run("Create", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeQuestionAnswer},
+				{Type: codersdk.ChatInputPartTypeText, Text: "Use Postgres."},
+			},
+		})
+
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Async questions are not enabled on this deployment.", sdkErr.Message)
+		require.Equal(t, "Enable the chat-async-questions experiment.", sdkErr.Detail)
 	})
 
-	sdkErr := requireSDKError(t, err, http.StatusBadRequest)
-	require.Equal(t, "Async questions are not enabled on this deployment.", sdkErr.Message)
-	require.Equal(t, "Enable the chat-async-questions experiment.", sdkErr.Detail)
+	t.Run("Send", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+		})
+		require.NoError(t, err)
+
+		_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeQuestionAnswer},
+				{Type: codersdk.ChatInputPartTypeText, Text: "Use Postgres."},
+			},
+		})
+
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Async questions are not enabled on this deployment.", sdkErr.Message)
+		require.Equal(t, "Enable the chat-async-questions experiment.", sdkErr.Detail)
+	})
 }
 
 func TestChatQuestionAnswer(t *testing.T) {
@@ -119,53 +144,60 @@ func TestChatQuestionAnswer(t *testing.T) {
 		require.Equal(t, "content[1].question-answer requires an existing chat.", sdkErr.Detail)
 	})
 
-	for _, testCase := range []struct {
-		name string
-		busy bool
-	}{
-		{name: "SentMessage"},
-		{name: "QueuedMessage", busy: true},
-	} {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
+	t.Run("SentMessage", func(t *testing.T) {
+		t.Parallel()
 
-			ctx := testutil.Context(t, testutil.WaitLong)
-			createRequest := codersdk.CreateChatRequest{OrganizationID: user.OrganizationID}
-			if testCase.busy {
-				createRequest.Content = []codersdk.ChatInputPart{
-					{Type: codersdk.ChatInputPartTypeText, Text: "initial message"},
-				}
-			}
-			chat, err := client.CreateChat(ctx, createRequest)
-			require.NoError(t, err)
-
-			created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
-				Content:      input,
-				BusyBehavior: codersdk.ChatBusyBehaviorQueue,
-			})
-			require.NoError(t, err)
-			require.Equal(t, testCase.busy, created.Queued)
-
-			messages, err := client.GetChatMessages(ctx, chat.ID, nil)
-			require.NoError(t, err)
-			if testCase.busy {
-				require.NotNil(t, created.QueuedMessage)
-				require.Equal(t, wantContent, created.QueuedMessage.Content)
-				require.Len(t, messages.QueuedMessages, 1)
-				require.Equal(t, wantContent, messages.QueuedMessages[0].Content)
-				return
-			}
-
-			require.NotNil(t, created.Message)
-			require.Equal(t, wantContent, created.Message.Content)
-			var userMessages []codersdk.ChatMessage
-			for _, message := range messages.Messages {
-				if message.Role == codersdk.ChatMessageRoleUser {
-					userMessages = append(userMessages, message)
-				}
-			}
-			require.Len(t, userMessages, 1)
-			require.Equal(t, wantContent, userMessages[0].Content)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
 		})
-	}
+		require.NoError(t, err)
+
+		created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content:      input,
+			BusyBehavior: codersdk.ChatBusyBehaviorQueue,
+		})
+		require.NoError(t, err)
+		require.False(t, created.Queued)
+		require.NotNil(t, created.Message)
+		require.Equal(t, wantContent, created.Message.Content)
+
+		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		var userMessages []codersdk.ChatMessage
+		for _, message := range messages.Messages {
+			if message.Role == codersdk.ChatMessageRoleUser {
+				userMessages = append(userMessages, message)
+			}
+		}
+		require.Len(t, userMessages, 1)
+		require.Equal(t, wantContent, userMessages[0].Content)
+	})
+
+	t.Run("QueuedMessage", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			OrganizationID: user.OrganizationID,
+			Content: []codersdk.ChatInputPart{
+				{Type: codersdk.ChatInputPartTypeText, Text: "initial message"},
+			},
+		})
+		require.NoError(t, err)
+
+		created, err := client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+			Content:      input,
+			BusyBehavior: codersdk.ChatBusyBehaviorQueue,
+		})
+		require.NoError(t, err)
+		require.True(t, created.Queued)
+		require.NotNil(t, created.QueuedMessage)
+		require.Equal(t, wantContent, created.QueuedMessage.Content)
+
+		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
+		require.NoError(t, err)
+		require.Len(t, messages.QueuedMessages, 1)
+		require.Equal(t, wantContent, messages.QueuedMessages[0].Content)
+	})
 }
