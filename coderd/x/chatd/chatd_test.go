@@ -9732,8 +9732,8 @@ func (s *failFirstToolResultCommitStore) InsertChatMessages(ctx context.Context,
 	return s.Store.InsertChatMessages(ctx, arg)
 }
 
-// committedQuestionIDs returns the question_id of every ask_user_question_async
-// result committed to the chat.
+// committedQuestionIDs returns the question_id of every
+// ask_user_question_async result committed to the chat.
 func committedQuestionIDs(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID) []string {
 	t.Helper()
 
@@ -9896,6 +9896,8 @@ func TestAsyncAskUserQuestionWebPush(t *testing.T) {
 			}, testutil.IntervalFast)
 			opts.whileSecondModelCallHeld(ctx, heldTurn{chat: chat, db: db, mockPush: mockPush})
 		}
+		// The channel is buffered, so without a callback the second model
+		// call is released before it starts.
 		continueTurn <- struct{}{}
 
 		testutil.Eventually(ctx, t, func(ctx context.Context) bool {
@@ -9961,7 +9963,7 @@ func TestAsyncAskUserQuestionWebPush(t *testing.T) {
 	t.Run("FailedQuestionSendsNoPush", func(t *testing.T) {
 		t.Parallel()
 
-		const input = `{
+		const blankHeaderInput = `{
 			"questions": [{
 				"header": "   ",
 				"question": "Which database should we use?",
@@ -9971,9 +9973,10 @@ func TestAsyncAskUserQuestionWebPush(t *testing.T) {
 				]
 			}]
 		}`
+
 		turn := runTurn(t, runTurnOptions{
 			experiment:    true,
-			toolCallInput: input,
+			toolCallInput: blankHeaderInput,
 			wantStatus:    database.ChatStatusWaiting,
 			wantPushes:    1,
 		})

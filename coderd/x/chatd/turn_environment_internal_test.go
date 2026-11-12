@@ -1121,8 +1121,11 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			require.Equal(t, tt.askStops, askStops)
 			require.NotContains(t, env.StopAfterTools, chattool.AskUserQuestionAsyncName)
 
+			// A question tool is offered exactly when the case lists it in want.
 			for _, name := range []string{"ask_user_question", chattool.AskUserQuestionAsyncName} {
-				require.Equal(t, slices.Contains(tt.want, name), slices.Contains(offered, name), name)
+				wantOffered := slices.Contains(tt.want, name)
+				isOffered := slices.Contains(offered, name)
+				require.Equal(t, wantOffered, isOffered, name)
 			}
 
 			// chatloop offers every registered tool when the active list is
