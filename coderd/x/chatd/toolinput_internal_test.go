@@ -3,6 +3,7 @@ package chatd
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"charm.land/fantasy"
@@ -33,18 +34,19 @@ func TestPartitionToolCallsValidatesSchema(t *testing.T) {
 		Nested     map[string]map[string]string `json:"nested,omitempty"`
 	}
 	for _, tt := range []struct {
-		input   string
-		wantErr string
+		input    string
+		wantErr  string
+		wantPath string
 	}{
-		{input: `{}`, wantErr: `missing properties: ["target"]`},
-		{input: `{"target":{}}`, wantErr: `missing properties: ["path"]`},
-		{input: `{"target":{"path":1}}`, wantErr: `want "string"`},
-		{input: `{"target":{"path":"a"},"count":1.5}`, wantErr: `want "integer"`},
-		{input: `null`, wantErr: `want "object"`},
-		{input: `[]`, wantErr: `want "object"`},
-		{input: `{"target":{"path":"a"},"parameters":{"cpu":42}}`, wantErr: `want "string"`},
-		{input: `{"target":{"path":"a"},"targets":[{"first":{}}]}`, wantErr: `missing properties: ["path"]`},
-		{input: `{"target":{"path":"a"},"nested":{"first":{"cpu":42}}}`, wantErr: `want "string"`},
+		{input: `{}`, wantErr: `missing properties: ["target"]`, wantPath: "root"},
+		{input: `{"target":{}}`, wantErr: `missing properties: ["path"]`, wantPath: "/properties/target"},
+		{input: `{"target":{"path":1}}`, wantErr: `want "string"`, wantPath: "/properties/target/properties/path"},
+		{input: `{"target":{"path":"a"},"count":1.5}`, wantErr: `want "integer"`, wantPath: "/properties/count"},
+		{input: `null`, wantErr: `want "object"`, wantPath: "root"},
+		{input: `[]`, wantErr: `want "object"`, wantPath: "root"},
+		{input: `{"target":{"path":"a"},"parameters":{"cpu":42}}`, wantErr: `want "string"`, wantPath: "/properties/parameters/additionalProperties"},
+		{input: `{"target":{"path":"a"},"targets":[{"first":{}}]}`, wantErr: `missing properties: ["path"]`, wantPath: "/properties/targets/items/additionalProperties"},
+		{input: `{"target":{"path":"a"},"nested":{"first":{"cpu":42}}}`, wantErr: `want "string"`, wantPath: "/properties/nested/additionalProperties/additionalProperties"},
 		{input: `{"target":{"path":"a"},"extra":1}`},
 		{input: `{"target":{"path":"a"},"count":1,"parameters":{"cpu":"2","CPU":"4"},"targets":[{"first":{"path":"b"}}],"nested":{"first":{"cpu":"2"}}}`},
 	} {
@@ -60,7 +62,10 @@ func TestPartitionToolCallsValidatesSchema(t *testing.T) {
 			if tt.wantErr != "" {
 				require.Empty(t, allowed)
 				require.Len(t, rejected, 1)
-				require.ErrorContains(t, rejected[0].Result.(fantasy.ToolResultOutputContentError).Error, tt.wantErr)
+				err := rejected[0].Result.(fantasy.ToolResultOutputContentError).Error
+				require.ErrorContains(t, err, tt.wantErr)
+				require.ErrorContains(t, err, "validating "+tt.wantPath+": ")
+				require.Equal(t, 1, strings.Count(err.Error(), "validating "))
 			} else {
 				require.Empty(t, rejected)
 				require.Equal(t, []fantasy.ToolCallContent{call}, allowed)
