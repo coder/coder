@@ -33,6 +33,7 @@ import (
 	coderdtracing "github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd"
+	"github.com/coder/quartz"
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
 )
@@ -263,6 +264,7 @@ type standaloneGatewayParams struct {
 
 	// Runtime dependencies.
 	dialer aibridged.Dialer
+	clock  quartz.Clock
 
 	// Observability.
 	// logger is the gateway-scoped logger; derived loggers (daemon,
@@ -284,6 +286,9 @@ type standaloneGateway struct {
 	httpAddress string
 	tlsCertFile string
 	tlsKeyFile  string
+
+	// Runtime dependencies.
+	clock quartz.Clock
 
 	// State.
 	drpcClosed             atomic.Bool
@@ -332,6 +337,10 @@ func newStandaloneGateway(params standaloneGatewayParams) (*standaloneGateway, e
 	}
 
 	providerLogger := params.logger.Named("providers")
+	clock := params.clock
+	if clock == nil {
+		clock = quartz.NewReal()
+	}
 	gateway := &standaloneGateway{
 		daemon:   daemon,
 		reloader: agpl.NewProviderRPCReloader(daemon.ReplaceProviders, daemon.Client, params.bridgeConfig, providerLogger, params.metrics, params.providerMetrics),
@@ -340,6 +349,8 @@ func newStandaloneGateway(params standaloneGatewayParams) (*standaloneGateway, e
 		httpAddress: params.httpAddress,
 		tlsCertFile: params.tlsCertFile,
 		tlsKeyFile:  params.tlsKeyFile,
+
+		clock: clock,
 
 		logger:         params.logger,
 		providerLogger: providerLogger,
