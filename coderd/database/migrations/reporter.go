@@ -64,7 +64,6 @@ type reporter struct {
 	names         map[int]string
 	total         int
 	position      int
-	current       migrationRef
 	stepStart     time.Time
 	lockWaitStart time.Time
 
@@ -128,7 +127,8 @@ func (r *reporter) setBackend(pid int, xid string) {
 	r.xid = xid
 }
 
-// lockWaitStarted is called when another session holds the migration lock.
+// lockWaitStarted is called right before Lock requests the migration lock.
+// The heartbeat only appears if the wait lasts a full interval.
 func (r *reporter) lockWaitStarted(phase string) {
 	since := r.clock.Now()
 
@@ -140,7 +140,9 @@ func (r *reporter) lockWaitStarted(phase string) {
 	if closed {
 		return
 	}
-	r.logger.Info(context.Background(), "waiting for database migration lock",
+	// Debug level: the lock is usually free, so this should not add a line to
+	// every server start. A real wait shows up through the heartbeat.
+	r.logger.Debug(context.Background(), "acquiring database migration lock",
 		slog.F("phase", phase))
 
 	stop := r.startHeartbeat(func(ctx context.Context, activity []slog.Field) {
@@ -172,7 +174,7 @@ func (r *reporter) stopLockWaitHeartbeat() {
 	}
 }
 
-// lockAcquired is called after a wait for the migration lock succeeded.
+// lockAcquired is called after Lock acquired the migration lock.
 func (r *reporter) lockAcquired(phase string) {
 	r.mu.Lock()
 	waited := r.clock.Since(r.lockWaitStart)
@@ -183,7 +185,7 @@ func (r *reporter) lockAcquired(phase string) {
 	if closed {
 		return
 	}
-	r.logger.Info(context.Background(), "acquired database migration lock",
+	r.logger.Debug(context.Background(), "acquired database migration lock",
 		slog.F("phase", phase),
 		slog.F("waited_ms", waited.Milliseconds()))
 }
@@ -235,7 +237,6 @@ func (r *reporter) stepStarted(version int) {
 	r.mu.Lock()
 	r.position++
 	ref := migrationRef{version: version, name: r.names[version]}
-	r.current = ref
 	r.stepStart = now
 	position, total := r.position, r.total
 	from := r.fromVersion

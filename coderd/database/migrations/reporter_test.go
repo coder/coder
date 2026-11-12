@@ -183,9 +183,16 @@ func TestReporter(t *testing.T) {
 			require.IsType(t, int64(0), field(t, e, "duration_ms"))
 		}
 
-		// The lock was free, so nothing about waiting for it is logged.
-		require.Empty(t, sink.Entries(hasMessage("waiting for database migration lock")))
-		require.Empty(t, sink.Entries(hasMessage("acquired database migration lock")))
+		// A free lock is only logged at debug: setup and batch each log
+		// acquiring and acquired.
+		for _, msg := range []string{"acquiring database migration lock", "acquired database migration lock"} {
+			entries := sink.Entries(hasMessage(msg))
+			require.Len(t, entries, 2, msg)
+			for _, e := range entries {
+				require.Equal(t, slog.LevelDebug, e.Level, msg)
+			}
+		}
+		require.Empty(t, sink.Entries(hasMessage("still waiting for database migration lock")))
 	})
 
 	t.Run("UpToDate", func(t *testing.T) {
@@ -199,11 +206,12 @@ func TestReporter(t *testing.T) {
 			migrations.WithLogger(sink.Logger()),
 		))
 
-		entries := sink.Entries()
-		require.Len(t, entries, 1)
-		require.Equal(t, "database schema is up to date", entries[0].Message)
-		require.Equal(t, slog.LevelDebug, entries[0].Level)
-		require.Equal(t, 1, field(t, entries[0], "version"))
+		entry := onlyEntry(t, sink, "database schema is up to date")
+		require.Equal(t, slog.LevelDebug, entry.Level)
+		require.Equal(t, 1, field(t, entry, "version"))
+		for _, e := range sink.Entries() {
+			require.Equal(t, slog.LevelDebug, e.Level, "an up to date start logs nothing above debug: %s", e.Message)
+		}
 	})
 
 	t.Run("FreshInstall", func(t *testing.T) {
@@ -233,9 +241,10 @@ func TestReporter(t *testing.T) {
 			)
 		}()
 
-		// One heartbeat ticker per step.
-		trap.MustWait(ctx).MustRelease(ctx)
-		trap.MustWait(ctx).MustRelease(ctx)
+		// One heartbeat ticker per lock (setup, batch) and per step.
+		for range 4 {
+			trap.MustWait(ctx).MustRelease(ctx)
+		}
 
 		waitForLockWait(ctx, t, db, appName)
 		mClock.Advance(time.Second).MustWait(ctx)
@@ -291,10 +300,11 @@ func TestReporter(t *testing.T) {
 		// The step's heartbeat after the wait must not block on the trap.
 		trap.Close()
 
-		waiting := onlyEntry(t, sink, "waiting for database migration lock")
-		require.Equal(t, slog.LevelInfo, waiting.Level)
-		require.Equal(t, []string{"phase"}, fieldNames(waiting))
-		require.Equal(t, "setup", field(t, waiting, "phase"))
+		acquiring := sink.Entries(hasMessage("acquiring database migration lock"))
+		require.NotEmpty(t, acquiring)
+		require.Equal(t, slog.LevelDebug, acquiring[0].Level)
+		require.Equal(t, []string{"phase"}, fieldNames(acquiring[0]))
+		require.Equal(t, "setup", field(t, acquiring[0], "phase"))
 
 		waitForLockWait(ctx, t, db, appName)
 		mClock.Advance(time.Second).MustWait(ctx)
@@ -309,12 +319,15 @@ func TestReporter(t *testing.T) {
 		require.NoError(t, holder.Rollback())
 		require.NoError(t, testutil.TryReceive(ctx, t, done))
 
-		acquired := onlyEntry(t, sink, "acquired database migration lock")
-		require.Equal(t, []string{"phase", "waited_ms"}, fieldNames(acquired))
-		require.Equal(t, "setup", field(t, acquired, "phase"))
-		require.Equal(t, int64(1000), field(t, acquired, "waited_ms"))
-		// The lock was free for the batch, so only one wait is logged.
-		require.Len(t, sink.Entries(hasMessage("waiting for database migration lock")), 1)
+		acquired := sink.Entries(hasMessage("acquired database migration lock"))
+		require.Len(t, acquired, 2)
+		require.Equal(t, []string{"phase", "waited_ms"}, fieldNames(acquired[0]))
+		require.Equal(t, "setup", field(t, acquired[0], "phase"))
+		require.Equal(t, int64(1000), field(t, acquired[0], "waited_ms"))
+		// The lock was free for the batch, so it waited no time.
+		require.Equal(t, "batch", field(t, acquired[1], "phase"))
+		require.Equal(t, int64(0), field(t, acquired[1], "waited_ms"))
+		require.Len(t, sink.Entries(hasMessage("still waiting for database migration lock")), 1)
 	})
 
 	t.Run("StepBlockedByTableLock", func(t *testing.T) {
@@ -344,9 +357,10 @@ func TestReporter(t *testing.T) {
 			)
 		}()
 
-		// One heartbeat ticker per step.
-		trap.MustWait(ctx).MustRelease(ctx)
-		trap.MustWait(ctx).MustRelease(ctx)
+		// One heartbeat ticker per lock (setup, batch) and per step.
+		for range 4 {
+			trap.MustWait(ctx).MustRelease(ctx)
+		}
 
 		waitForLockWait(ctx, t, db, appName)
 		mClock.Advance(time.Second).MustWait(ctx)
@@ -451,7 +465,10 @@ func TestReporter(t *testing.T) {
 			)
 		}()
 
-		trap.MustWait(ctx).MustRelease(ctx)
+		// One heartbeat ticker per lock (setup, batch) and the step.
+		for range 3 {
+			trap.MustWait(ctx).MustRelease(ctx)
+		}
 		waitForLockWait(ctx, t, db, appName)
 		mClock.Advance(time.Second).MustWait(ctx)
 		// The heartbeat check is in flight and ignores cancellation.

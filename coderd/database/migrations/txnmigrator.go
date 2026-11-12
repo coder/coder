@@ -48,17 +48,10 @@ func (d *pgTxnDriver) Lock() error {
 	if err != nil {
 		return err
 	}
-	return d.lockWithReporter()
-}
-
-// lockWithReporter takes the same transaction-scoped advisory lock as Lock.
-// It first identifies the transaction for reporting, then tries the lock, and
-// reports only when it has to wait for another session.
-func (d *pgTxnDriver) lockWithReporter() error {
-	if d.reporter.appName != "" {
-		if _, err := d.tx.ExecContext(d.ctx, `SELECT set_config('application_name', $1, true)`, d.reporter.appName); err != nil {
-			return xerrors.Errorf("set application name: %w", err)
-		}
+	// Name the connection and identify the transaction before waiting, so the
+	// heartbeat can find the migration backend in pg_stat_activity.
+	if _, err := d.tx.ExecContext(d.ctx, `SELECT set_config('application_name', $1, true)`, d.reporter.appName); err != nil {
+		return xerrors.Errorf("set application name: %w", err)
 	}
 	var (
 		pid int
@@ -69,16 +62,8 @@ func (d *pgTxnDriver) lockWithReporter() error {
 	}
 	d.reporter.setBackend(pid, xid)
 
-	var acquired bool
-	if err := d.tx.QueryRowContext(d.ctx, `SELECT pg_try_advisory_xact_lock($1)`, lockID).Scan(&acquired); err != nil {
-		return xerrors.Errorf("try advisory lock: %w", err)
-	}
-	if acquired {
-		return nil
-	}
-
 	d.reporter.lockWaitStarted(d.phase)
-	_, err := d.tx.ExecContext(d.ctx, `SELECT pg_advisory_xact_lock($1)`, lockID)
+	_, err = d.tx.ExecContext(d.ctx, `SELECT pg_advisory_xact_lock($1)`, lockID)
 	if err != nil {
 		d.reporter.stopLockWaitHeartbeat()
 		return xerrors.Errorf("exec select: %w", err)
