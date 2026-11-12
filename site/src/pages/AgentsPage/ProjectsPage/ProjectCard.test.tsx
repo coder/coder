@@ -1,7 +1,7 @@
-import { screen } from "@testing-library/react";
+import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 import type { ChatProjectSummary } from "#/api/typesGenerated";
 import {
 	MockChatProject,
@@ -69,6 +69,25 @@ describe("ProjectCard", () => {
 			}),
 		).toHaveFocus();
 	});
+
+	// In a browser, the dialog that a mouse pick opens can lose focus to the
+	// closing menu, which leaves focus on the page when it returns focus.
+	it.each(["Edit project", "Delete project"])(
+		"keeps focus off the actions button after picking %s with the mouse",
+		async (item) => {
+			vi.useFakeTimers();
+			onTestFinished(() => {
+				vi.useRealTimers();
+			});
+			const user = userEvent.setup({ delay: null });
+			renderCard();
+			const actions = screen.getByRole("button", { name: /^Open project/ });
+			await user.click(actions);
+			await user.click(screen.getByRole("menuitem", { name: item }));
+			act(() => vi.runOnlyPendingTimers());
+			expect(actions).not.toHaveFocus();
+		},
+	);
 
 	it("pins from the actions menu with the keyboard", async () => {
 		const user = userEvent.setup();

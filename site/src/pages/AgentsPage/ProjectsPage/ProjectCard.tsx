@@ -58,6 +58,9 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 	const { project, pinned, member_count, last_activity_at } = summary;
 	const footerId = useId();
 	const actionsButtonRef = useRef<HTMLButtonElement>(null);
+	// The dialog that Edit or Delete opens takes focus, which the closing menu
+	// must not move back to its button.
+	const dialogPickedRef = useRef(false);
 	return (
 		<div className="group relative flex min-w-0 flex-col gap-3 rounded-lg border border-solid border-border bg-surface-primary p-4 hover:bg-surface-secondary has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-content-link">
 			<div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-solid border-border bg-surface-secondary">
@@ -128,10 +131,12 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 					</DropdownMenuTrigger>
 					<DropdownMenuContent
 						align="end"
-						// Focus that an item moved into its dialog stays there.
-						onCloseAutoFocus={(event) =>
-							document.activeElement !== document.body && event.preventDefault()
-						}
+						onCloseAutoFocus={(event) => {
+							if (dialogPickedRef.current) {
+								dialogPickedRef.current = false;
+								event.preventDefault();
+							}
+						}}
 					>
 						<ProjectActionsMenuItems
 							Item={DropdownMenuItem}
@@ -139,8 +144,14 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 							onPin={pinned ? undefined : onPin}
 							onUnpin={pinned ? onUnpin : undefined}
 							permissions={project.permissions}
-							onEdit={() => onEdit(actionsButtonRef.current)}
-							onDelete={() => onDelete(actionsButtonRef.current)}
+							onEdit={() => {
+								dialogPickedRef.current = true;
+								onEdit(actionsButtonRef.current);
+							}}
+							onDelete={() => {
+								dialogPickedRef.current = true;
+								onDelete(actionsButtonRef.current);
+							}}
 						/>
 					</DropdownMenuContent>
 				</DropdownMenu>
