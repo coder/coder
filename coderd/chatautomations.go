@@ -98,7 +98,10 @@ func (api *API) chatAutomationOwnerFilter(ctx context.Context, callerID uuid.UUI
 	case codersdk.Me:
 		return callerID, true, nil
 	}
-	if parsed, err := uuid.Parse(owner); err == nil {
+	// Only the canonical form with hyphens is an ID. uuid.Parse also accepts 32
+	// hexadecimal characters, which is a valid username, and the braces and
+	// urn:uuid: forms.
+	if parsed, err := uuid.Parse(owner); len(owner) == len(uuid.Nil.String()) && err == nil {
 		// The nil UUID is no user, and must not reach a query that reads it
 		// as every owner.
 		return parsed, parsed != uuid.Nil, nil

@@ -294,6 +294,12 @@ func TestChatAutomationsOwnerFilter(t *testing.T) {
 	adminClient, _ := coderdtest.CreateAnotherUser(t, env.owner, org, rbac.ScopedRoleOrgAdmin(org))
 	mine := env.automation(t, database.ChatAutomation{OwnerID: member.ID})
 	env.automation(t, database.ChatAutomation{OwnerID: other.ID})
+	// A username of 32 hexadecimal characters is the ID of another user
+	// without its hyphens.
+	hexName := strings.ReplaceAll(member.ID.String(), "-", "")
+	hexUser := dbgen.User(t, env.db, database.User{Username: hexName})
+	dbgen.OrganizationMember(t, env.db, database.OrganizationMember{UserID: hexUser.ID, OrganizationID: org})
+	hexMine := env.automation(t, database.ChatAutomation{OwnerID: hexUser.ID})
 
 	for name, tc := range map[string]struct {
 		owner string
@@ -305,6 +311,10 @@ func TestChatAutomationsOwnerFilter(t *testing.T) {
 		"UnknownUsername": {"no-such-user-" + uuid.NewString()[:8], nil},
 		"NilUUID":         {uuid.Nil.String(), nil},
 		"Email":           {member.Email, nil},
+		// Only the canonical form of an ID is an ID.
+		"HexUsername": {hexName, []uuid.UUID{hexMine.ID}},
+		"Braces":      {"{" + member.ID.String() + "}", nil},
+		"URN":         {"urn:uuid:" + member.ID.String(), nil},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
