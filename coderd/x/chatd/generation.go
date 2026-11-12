@@ -1044,8 +1044,13 @@ func (s *taskStarter) admitStepToolCalls(
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
 	valid, _, invalid := partitionInvalidToolCalls(prepared, toolCalls)
-	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), valid)
+	presented, modelInputs := presentHookToolInputs(prepared, valid)
+	preflight, err := s.server.hooks.PreflightPendingToolCalls(ctx, chathooks.ChatFor(prepared.Chat, input.hookTurnID()), presented)
 	if err != nil {
+		countBatch()
+		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
+	}
+	if err := restoreHookToolInputs(prepared, &preflight, modelInputs); err != nil {
 		countBatch()
 		return chathooks.PreToolUseExecutionResult{}, chathooks.GenerationDispatchError(agenthooks.EventPreToolUse, err)
 	}
