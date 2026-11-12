@@ -3272,9 +3272,9 @@ export const SendingFromHistoryDoesNotSnapToBottom: Story = {
 				store.upsertDurableMessages(
 					[
 						{
+							...MockChatMessage,
 							id: 41,
 							chat_id: CHAT_ID,
-							created_at: new Date().toISOString(),
 							role: "user",
 							content: [{ type: "text", text: "Follow-up question." }],
 						},
