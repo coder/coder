@@ -1248,7 +1248,7 @@ func (s *taskStarter) executeLocalTools(
 }
 
 // lastAsyncQuestion returns the first question of the last
-// ask_user_question call in calls whose result in content is not an
+// ask_user_question_async call in calls whose result in content is not an
 // error, or "" when there is none.
 func (s *taskStarter) lastAsyncQuestion(
 	ctx context.Context,
@@ -1259,7 +1259,7 @@ func (s *taskStarter) lastAsyncQuestion(
 	successfulCalls := make(map[string]bool)
 	for _, block := range content {
 		toolResult, ok := asToolResultContent(block)
-		if !ok || !chattool.IsAskUserQuestion(toolResult.ToolName) {
+		if !ok || toolResult.ToolName != chattool.AskUserQuestionAsyncName {
 			continue
 		}
 		_, isText := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](toolResult.Result)
@@ -1271,7 +1271,7 @@ func (s *taskStarter) lastAsyncQuestion(
 
 	var question string
 	for _, call := range calls {
-		if !chattool.IsAskUserQuestion(call.ToolName) || !successfulCalls[call.ToolCallID] {
+		if call.ToolName != chattool.AskUserQuestionAsyncName || !successfulCalls[call.ToolCallID] {
 			continue
 		}
 		asked, err := chattool.FirstAskedQuestion(call.Input)

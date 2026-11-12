@@ -884,8 +884,8 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		ui bool
 		// askStops reports whether ask_user_question ends the turn.
 		askStops bool
-		// askAsync reports whether the turn gets the async
-		// ask_user_question tool.
+		// askAsync reports whether the turn gets the
+		// ask_user_question_async tool.
 		askAsync bool
 		// prompt lists the instructions the system prompt must contain;
 		// the others in the set must be absent.
@@ -915,7 +915,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			ui:          true,
 			askAsync:    true,
 			prompt:      []string{advisorGuidance, acpSubagentPromptBlock},
-			want:        []string{"ask_user_question", "spawn_agent", chatadvisor.ToolName},
+			want:        []string{chattool.AskUserQuestionAsyncName, "spawn_agent", chatadvisor.ToolName},
 		},
 		{
 			name:     "UIRootExperimentOff",
@@ -981,10 +981,12 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			},
 		},
 		{
-			name:   "ExploreRoot",
-			mode:   explore,
-			prompt: []string{exploreOverlay},
-			want:   []string{"read_file", "execute", "process_output"},
+			name:        "ExploreRoot",
+			mode:        explore,
+			experiments: codersdk.Experiments{codersdk.ExperimentChatAsyncQuestions},
+			ui:          true,
+			prompt:      []string{exploreOverlay},
+			want:        []string{"read_file", "execute", "process_output"},
 			dontWant: []string{
 				"write_file", "edit_files", "approved__echo", "blocked__echo", "forced__echo", "inline__echo",
 				"workspace__echo", "web_search", chatadvisor.ToolName,
@@ -1124,18 +1126,11 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 
 			_, askStops := env.StopAfterTools["ask_user_question"]
 			require.Equal(t, tt.askStops, askStops)
+			require.NotContains(t, env.StopAfterTools, chattool.AskUserQuestionAsyncName)
 			require.Equal(t, tt.askAsync, env.AsyncAskUserQuestion)
 
-			if slices.Contains(offered, "ask_user_question") {
-				tool := findToolByName(env.Tools, "ask_user_question")
-				require.NotNil(t, tool)
-
-				description := tool.Info().Description
-				if tt.askAsync {
-					require.Contains(t, description, "without ending your turn")
-				} else {
-					require.Contains(t, description, "during plan mode")
-				}
+			for _, name := range []string{"ask_user_question", chattool.AskUserQuestionAsyncName} {
+				require.Equal(t, slices.Contains(tt.want, name), slices.Contains(offered, name), name)
 			}
 
 			// chatloop offers every registered tool when the active list is

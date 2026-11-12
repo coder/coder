@@ -9732,7 +9732,7 @@ func (s *failFirstToolResultCommitStore) InsertChatMessages(ctx context.Context,
 	return s.Store.InsertChatMessages(ctx, arg)
 }
 
-// committedQuestionIDs returns the question_id of every ask_user_question
+// committedQuestionIDs returns the question_id of every ask_user_question_async
 // result committed to the chat.
 func committedQuestionIDs(ctx context.Context, t *testing.T, db database.Store, chatID uuid.UUID) []string {
 	t.Helper()
@@ -9747,7 +9747,7 @@ func committedQuestionIDs(ctx context.Context, t *testing.T, db database.Store, 
 
 		for _, part := range parts {
 			isToolResult := part.Type == codersdk.ChatMessagePartTypeToolResult
-			if !isToolResult || part.ToolName != "ask_user_question" {
+			if !isToolResult || part.ToolName != chattool.AskUserQuestionAsyncName {
 				continue
 			}
 
@@ -9763,9 +9763,8 @@ func committedQuestionIDs(ctx context.Context, t *testing.T, db database.Store, 
 }
 
 // TestAsyncAskUserQuestionWebPush verifies that in a chat created from the
-// web UI, ask_user_question outside plan mode does not end the turn, and
-// that the owner gets a web push naming the question once its result
-// commits.
+// web UI, ask_user_question_async does not end the turn, and the owner
+// gets a web push naming the question once its result commits.
 func TestAsyncAskUserQuestionWebPush(t *testing.T) {
 	t.Parallel()
 
@@ -9824,18 +9823,19 @@ func TestAsyncAskUserQuestionWebPush(t *testing.T) {
 			offered := offeredToolNames(t, req)
 			callNumber := streamCalls.Add(1)
 
-			// Experiment off: the tool is not offered and the model ends the
-			// turn with text.
+			// Experiment off: neither question tool is offered, and the model
+			// ends the turn with text.
 			if !opts.experiment {
 				assert.NotContains(t, offered, "ask_user_question")
+				assert.NotContains(t, offered, chattool.AskUserQuestionAsyncName)
 				return chattest.OpenAIStreamingResponse(chattest.OpenAITextChunks("continuing")...)
 			}
 
-			assert.Contains(t, offered, "ask_user_question")
+			assert.Contains(t, offered, chattool.AskUserQuestionAsyncName)
 
 			// First call: the model asks the question.
 			if callNumber == 1 {
-				toolCall := chattest.OpenAIToolCallChunk("ask_user_question", toolCallInput)
+				toolCall := chattest.OpenAIToolCallChunk(chattool.AskUserQuestionAsyncName, toolCallInput)
 				return chattest.OpenAIStreamingResponse(toolCall)
 			}
 

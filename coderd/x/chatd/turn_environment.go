@@ -73,8 +73,8 @@ type turnEnvironment struct {
 	ExclusiveToolNames map[string]bool
 	BuiltinToolNames   map[string]bool
 	ToolNameToConfigID map[string]uuid.UUID
-	// AsyncAskUserQuestion reports whether this turn offers the async
-	// ask_user_question tool.
+	// AsyncAskUserQuestion reports whether this turn offers the
+	// ask_user_question_async tool.
 	AsyncAskUserQuestion bool
 
 	MaxSteps   int
@@ -718,15 +718,15 @@ func (p *Server) buildTurnEnvironment(
 	}
 
 	// Web UI chats can answer a question while the agent keeps working, so
-	// outside plan mode the question does not end the turn. API chats keep
-	// the tool in plan mode only, where it ends the turn.
+	// outside plan mode they get ask_user_question_async, which does not end
+	// the turn. Plan mode keeps ask_user_question, which ends it.
 	isUIChat := chat.ClientType == database.ChatClientTypeUi
 	asyncQuestionsEnabled := p.experiments.Enabled(codersdk.ExperimentChatAsyncQuestions)
 	asyncAskUserQuestion := isRootChat && !isPlanModeTurn && !isExploreSubagent && isUIChat && asyncQuestionsEnabled
 	if isPlanModeTurn && isRootChat {
-		tools = append(tools, chattool.NewAskUserQuestionTool(chattool.AskUserQuestionOptions{}))
+		tools = append(tools, chattool.NewAskUserQuestionTool())
 	} else if asyncAskUserQuestion {
-		tools = append(tools, chattool.NewAskUserQuestionTool(chattool.AskUserQuestionOptions{Async: true}))
+		tools = append(tools, chattool.NewAskUserQuestionAsyncTool())
 	}
 	if isRootChat {
 		tools, err = p.appendRootChatTools(ctx, tools, rootChatToolsOptions{

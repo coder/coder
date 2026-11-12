@@ -7,26 +7,12 @@ import (
 	"strings"
 
 	"charm.land/fantasy"
-	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 )
 
 const (
-	askUserQuestionToolName      = "ask_user_question"
-	askUserQuestionToolDesc      = "Ask the user one or more structured clarification questions during plan mode. Use this instead of listing open questions in prose. Each question should have a short label, a detailed question, and 2-4 answer options."
-	askUserQuestionAsyncToolDesc = "Ask the user one or more structured questions without ending your turn. " +
-		"The call returns at once and the answer arrives later as a user message. " +
-		"Use it only for decisions that depend on the user's context or preference; if one option is clearly best, proceed with it and state the assumption. " +
-		"Asking again replaces an earlier unanswered question."
-	askUserQuestionAsyncStatusFormat = "The questions are shown to the user. " +
-		"Continue with work that does not depend on the answer, and state the assumptions you make. " +
-		"If you cannot continue without the answer, finish what you can and end your turn with a note of what is blocked. " +
-		"The answer arrives as a user message that starts with \"Answer to ask_user_question %s:\"."
-
-	// maxAsyncQuestionResultBytes is the smallest tool-result budget that
-	// chatloop.ToolResultByteBudget returns. A longer result would be
-	// truncated into invalid JSON and lose its question_id.
-	maxAsyncQuestionResultBytes = 16 << 10
+	askUserQuestionToolName = "ask_user_question"
+	askUserQuestionToolDesc = "Ask the user one or more structured clarification questions during plan mode. Use this instead of listing open questions in prose. Each question should have a short label, a detailed question, and 2-4 answer options."
 )
 
 var (
@@ -49,27 +35,12 @@ type askUserQuestionArgs struct {
 	Questions []askUserQuestion `json:"questions"`
 }
 
-type askUserQuestionAsyncResult struct {
-	Questions  []askUserQuestion `json:"questions"`
-	QuestionID string            `json:"question_id"`
-	Status     string            `json:"status"`
-}
-
-// AskUserQuestionOptions configures the ask_user_question tool.
-type AskUserQuestionOptions struct {
-	// Async selects the description and the result for a question that
-	// does not end the turn. The result carries a question_id that the
-	// user's answer refers to.
-	Async bool
-}
-
 // NewAskUserQuestionTool creates the ask_user_question tool.
-func NewAskUserQuestionTool(opts AskUserQuestionOptions) fantasy.AgentTool {
-	return &askUserQuestionTool{opts: opts}
+func NewAskUserQuestionTool() fantasy.AgentTool {
+	return &askUserQuestionTool{}
 }
 
 type askUserQuestionTool struct {
-	opts            AskUserQuestionOptions
 	providerOptions fantasy.ProviderOptions
 }
 
@@ -81,61 +52,60 @@ func (*askUserQuestionTool) GetName() string {
 	return askUserQuestionToolName
 }
 
-func (t *askUserQuestionTool) Info() fantasy.ToolInfo {
-	description := askUserQuestionToolDesc
-	if t.opts.Async {
-		description = askUserQuestionAsyncToolDesc
-	}
-
+func (*askUserQuestionTool) Info() fantasy.ToolInfo {
 	return fantasy.ToolInfo{
 		Name:        askUserQuestionToolName,
-		Description: description,
-		Parameters: map[string]any{
-			"questions": map[string]any{
-				"type":        "array",
-				"description": "The structured clarification questions to present to the user.",
-				"minItems":    1,
-				"items": map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"header": map[string]any{
-							"type":        "string",
-							"description": "A short label for the question.",
-						},
-						"question": map[string]any{
-							"type":        "string",
-							"description": "The detailed question text.",
-						},
-						"options": map[string]any{
-							"type":        "array",
-							"description": "The answer options the user can choose from. Do not include an 'Other' or freeform option; one is provided automatically by the UI.",
-							"minItems":    2,
-							"maxItems":    4,
-							"items": map[string]any{
-								"type": "object",
-								"properties": map[string]any{
-									"label": map[string]any{
-										"type":        "string",
-										"description": "A short answer label.",
-									},
-									"description": map[string]any{
-										"type":        "string",
-										"description": "More detail about what this option means.",
-									},
-								},
-								"required": []string{"label", "description"},
-							},
-						},
-					},
-					"required": []string{"header", "question", "options"},
-				},
-			},
-		},
-		Required: []string{"questions"},
+		Description: askUserQuestionToolDesc,
+		Parameters:  askUserQuestionParameters(),
+		Required:    []string{"questions"},
 	}
 }
 
-func (t *askUserQuestionTool) Run(_ context.Context, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
+func askUserQuestionParameters() map[string]any {
+	return map[string]any{
+		"questions": map[string]any{
+			"type":        "array",
+			"description": "The structured clarification questions to present to the user.",
+			"minItems":    1,
+			"items": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"header": map[string]any{
+						"type":        "string",
+						"description": "A short label for the question.",
+					},
+					"question": map[string]any{
+						"type":        "string",
+						"description": "The detailed question text.",
+					},
+					"options": map[string]any{
+						"type":        "array",
+						"description": "The answer options the user can choose from. Do not include an 'Other' or freeform option; one is provided automatically by the UI.",
+						"minItems":    2,
+						"maxItems":    4,
+						"items": map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"label": map[string]any{
+									"type":        "string",
+									"description": "A short answer label.",
+								},
+								"description": map[string]any{
+									"type":        "string",
+									"description": "More detail about what this option means.",
+								},
+							},
+							"required": []string{"label", "description"},
+						},
+					},
+				},
+				"required": []string{"header", "question", "options"},
+			},
+		},
+	}
+}
+
+func (*askUserQuestionTool) Run(_ context.Context, call fantasy.ToolCall) (fantasy.ToolResponse, error) {
 	var args askUserQuestionArgs
 	if err := json.Unmarshal([]byte(call.Input), &args); err != nil {
 		return fantasy.NewTextErrorResponse(fmt.Sprintf("invalid parameters: %s", err)), nil
@@ -145,61 +115,11 @@ func (t *askUserQuestionTool) Run(_ context.Context, call fantasy.ToolCall) (fan
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
 
-	if t.opts.Async {
-		return asyncQuestionResponse(args.Questions), nil
-	}
-
 	data, err := json.Marshal(map[string]any{"questions": args.Questions})
 	if err != nil {
 		return fantasy.NewTextErrorResponse("failed to marshal questions: " + err.Error()), nil
 	}
 	return fantasy.NewTextResponse(string(data)), nil
-}
-
-// asyncQuestionResponse returns the result of an async question, with a
-// new question_id, or an error response when the result does not fit in
-// maxAsyncQuestionResultBytes.
-func asyncQuestionResponse(questions []askUserQuestion) fantasy.ToolResponse {
-	questionID := uuid.NewString()
-	result := askUserQuestionAsyncResult{
-		Questions:  questions,
-		QuestionID: questionID,
-		Status:     fmt.Sprintf(askUserQuestionAsyncStatusFormat, questionID),
-	}
-	data, err := json.Marshal(result)
-	if err != nil {
-		return fantasy.NewTextErrorResponse("failed to marshal questions: " + err.Error())
-	}
-
-	if len(data) > maxAsyncQuestionResultBytes {
-		message := fmt.Sprintf(
-			"questions are too long: %d bytes, limit %d; shorten the question and option text",
-			len(data), maxAsyncQuestionResultBytes,
-		)
-		return fantasy.NewTextErrorResponse(message)
-	}
-
-	return fantasy.NewTextResponse(string(data))
-}
-
-// FirstAskedQuestion returns the text of the first question in the
-// input of an ask_user_question call.
-func FirstAskedQuestion(input string) (string, error) {
-	var args askUserQuestionArgs
-	if err := json.Unmarshal([]byte(input), &args); err != nil {
-		return "", xerrors.Errorf("decode ask_user_question input: %w", err)
-	}
-
-	if len(args.Questions) == 0 {
-		return "", nil
-	}
-
-	return args.Questions[0].Question, nil
-}
-
-// IsAskUserQuestion reports whether toolName is the ask_user_question tool.
-func IsAskUserQuestion(toolName string) bool {
-	return toolName == askUserQuestionToolName
 }
 
 func (t *askUserQuestionTool) ProviderOptions() fantasy.ProviderOptions {
