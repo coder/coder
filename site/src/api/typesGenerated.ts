@@ -2951,7 +2951,7 @@ export interface ChatInputPart {
 	readonly skill_name?: string;
 	/**
 	 * QuestionID is only set when Type is ChatInputPartTypeQuestionAnswer.
-	 * It is the question_id from the result of the async ask_user_question
+	 * It is the question_id from the result of the ask_user_question_async
 	 * call that the message answers.
 	 */
 	readonly question_id?: string;
@@ -3740,8 +3740,8 @@ export const ChatProviderConfigSources: ChatProviderConfigSource[] = [
 export interface ChatQuestionAnswerPart {
 	readonly type: "question-answer";
 	/**
-	 * QuestionID is the question_id from the result of the async
-	 * ask_user_question call that the message answers.
+	 * QuestionID is the question_id from the result of the
+	 * ask_user_question_async call that the message answers.
 	 */
 	readonly question_id?: string;
 }

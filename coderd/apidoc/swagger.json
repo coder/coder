@@ -20356,7 +20356,7 @@
 					"type": "string"
 				},
 				"question_id": {
-					"description": "QuestionID is only set when Type is ChatInputPartTypeQuestionAnswer.\nIt is the question_id from the result of the async ask_user_question\ncall that the message answers.",
+					"description": "QuestionID is only set when Type is ChatInputPartTypeQuestionAnswer.\nIt is the question_id from the result of the ask_user_question_async\ncall that the message answers.",
 					"type": "string",
 					"format": "uuid"
 				},
@@ -20565,7 +20565,7 @@
 					"type": "boolean"
 				},
 				"question_id": {
-					"description": "QuestionID is the question_id from the result of the async\nask_user_question call that the message answers.",
+					"description": "QuestionID is the question_id from the result of the\nask_user_question_async call that the message answers.",
 					"type": "string"
 				},
 				"reasoning_delta": {
