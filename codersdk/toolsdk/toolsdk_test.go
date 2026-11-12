@@ -1069,6 +1069,7 @@ func TestTools(t *testing.T) {
 			})
 			require.NoError(t, err)
 			require.NotEmpty(t, tv)
+			require.Equal(t, owner.OrganizationID, tv.OrganizationID, "defaults to the sole organization")
 		})
 		t.Run("WithTemplateID", func(t *testing.T) {
 			tv, err := testTool(t, toolsdk.CreateTemplateVersion, tb, toolsdk.CreateTemplateVersionArgs{
@@ -2031,6 +2032,109 @@ func TestTools(t *testing.T) {
 				}
 			})
 		}
+	})
+}
+
+// TestTemplateToolsOrganization covers organization selection for the
+// template creation tools when the caller belongs to several organizations.
+func TestTemplateToolsOrganization(t *testing.T) {
+	t.Parallel()
+
+	client, store := coderdtest.NewWithDatabase(t, nil)
+	owner := coderdtest.CreateFirstUser(t, client)
+	defaultOrg, err := client.Organization(t.Context(), owner.OrganizationID)
+	require.NoError(t, err)
+	// A second membership makes the default organization ambiguous.
+	// API-created organization names are valid names, so mirror that here.
+	otherOrg := dbgen.Organization(t, store, database.Organization{Name: testutil.GetRandomNameHyphenated(t)})
+	dbgen.OrganizationMember(t, store, database.OrganizationMember{OrganizationID: otherOrg.ID, UserID: owner.UserID})
+	tb, err := toolsdk.NewDeps(client)
+	require.NoError(t, err)
+	// nolint:gocritic // This is in a test package and does not end up in the build
+	file := dbgen.File(t, store, database.File{})
+	// nolint:gocritic // This is in a test package and does not end up in the build
+	existing := dbfake.TemplateVersion(t, store).
+		Seed(database.TemplateVersion{OrganizationID: owner.OrganizationID, CreatedBy: owner.UserID}).
+		Do()
+	unattachedVersion := func(t *testing.T, organizationID uuid.UUID) uuid.UUID {
+		t.Helper()
+		// nolint:gocritic // This is in a test package and does not end up in the build
+		return dbfake.TemplateVersion(t, store).
+			Seed(database.TemplateVersion{OrganizationID: organizationID, CreatedBy: owner.UserID}).
+			SkipCreateTemplate().Do().TemplateVersion.ID
+	}
+
+	t.Run("CreateTemplateVersion", func(t *testing.T) {
+		t.Parallel()
+		t.Run("OmittedRequiresChoice", func(t *testing.T) {
+			t.Parallel()
+			_, err := testTool(t, toolsdk.CreateTemplateVersion, tb, toolsdk.CreateTemplateVersionArgs{
+				FileID: file.ID.String(),
+			})
+			require.ErrorContains(t, err, "organization_id is required because you belong to multiple organizations")
+			require.ErrorContains(t, err, fmt.Sprintf("%s (%s)", defaultOrg.Name, defaultOrg.ID))
+			require.ErrorContains(t, err, fmt.Sprintf("%s (%s)", otherOrg.Name, otherOrg.ID))
+		})
+		for name, organization := range map[string]string{"ByName": otherOrg.Name, "ByID": otherOrg.ID.String()} {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				tv, err := testTool(t, toolsdk.CreateTemplateVersion, tb, toolsdk.CreateTemplateVersionArgs{
+					OrganizationID: organization,
+					FileID:         file.ID.String(),
+				})
+				require.NoError(t, err)
+				require.Equal(t, otherOrg.ID, tv.OrganizationID)
+			})
+		}
+		t.Run("DefaultsToTemplateOrganization", func(t *testing.T) {
+			t.Parallel()
+			tv, err := testTool(t, toolsdk.CreateTemplateVersion, tb, toolsdk.CreateTemplateVersionArgs{
+				FileID:     file.ID.String(),
+				TemplateID: existing.Template.ID.String(),
+			})
+			require.NoError(t, err)
+			require.Equal(t, owner.OrganizationID, tv.OrganizationID)
+			require.NotNil(t, tv.TemplateID)
+			require.Equal(t, existing.Template.ID, *tv.TemplateID)
+		})
+		t.Run("RejectsOtherOrganizationForTemplate", func(t *testing.T) {
+			t.Parallel()
+			_, err := testTool(t, toolsdk.CreateTemplateVersion, tb, toolsdk.CreateTemplateVersionArgs{
+				OrganizationID: otherOrg.Name,
+				FileID:         file.ID.String(),
+				TemplateID:     existing.Template.ID.String(),
+			})
+			require.ErrorContains(t, err, "template_id belongs to organization "+owner.OrganizationID.String())
+		})
+	})
+
+	t.Run("CreateTemplate", func(t *testing.T) {
+		t.Parallel()
+		for name, organization := range map[string]string{"ByName": otherOrg.Name, "ByID": otherOrg.ID.String(), "DefaultsToVersionOrganization": ""} {
+			t.Run(name, func(t *testing.T) {
+				t.Parallel()
+				created, err := testTool(t, toolsdk.CreateTemplate, tb, toolsdk.CreateTemplateArgs{
+					OrganizationID: organization,
+					Name:           testutil.GetRandomNameHyphenated(t),
+					DisplayName:    "Test Template",
+					Description:    "This is a test template",
+					VersionID:      unattachedVersion(t, otherOrg.ID).String(),
+				})
+				require.NoError(t, err)
+				require.Equal(t, otherOrg.ID, created.OrganizationID)
+			})
+		}
+		t.Run("RejectsOtherOrganizationForVersion", func(t *testing.T) {
+			t.Parallel()
+			_, err := testTool(t, toolsdk.CreateTemplate, tb, toolsdk.CreateTemplateArgs{
+				OrganizationID: defaultOrg.Name,
+				Name:           testutil.GetRandomNameHyphenated(t),
+				DisplayName:    "Test Template",
+				Description:    "This is a test template",
+				VersionID:      unattachedVersion(t, otherOrg.ID).String(),
+			})
+			require.ErrorContains(t, err, "version_id belongs to organization "+otherOrg.ID.String())
+		})
 	})
 }
 

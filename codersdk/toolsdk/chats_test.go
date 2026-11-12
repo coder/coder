@@ -921,8 +921,8 @@ func TestChatTools(t *testing.T) {
 			require.ErrorContains(t, err, expected)
 		}
 
-		_, err = testTool(t, toolsdk.ListChatModelConfigs, tb, toolsdk.ListChatModelConfigsArgs{OrganizationID: "not-a-uuid"})
-		require.ErrorContains(t, err, "organization_id must be a valid UUID")
+		_, err = testTool(t, toolsdk.ListChatModelConfigs, tb, toolsdk.ListChatModelConfigsArgs{OrganizationID: "not a name"})
+		require.ErrorContains(t, err, "organization_id must be an organization UUID or name")
 
 		_, err = testTool(t, toolsdk.GetChat, tb, toolsdk.GetChatArgs{ChatID: "not-a-uuid"})
 		require.ErrorContains(t, err, "chat_id must be a valid UUID")
