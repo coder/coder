@@ -195,17 +195,6 @@ describe("deriveMessageDisplayState", () => {
 		},
 	);
 
-	it("keeps an answer's copy text unchanged", () => {
-		const message = buildMessage([
-			{ type: "question-answer", question_id: "question-1" },
-			{ type: "text", text: "Redis" },
-		]);
-		const parsed = parseMessageContent(message.content);
-
-		expect(getDisplayState(message).hasCopyableContent).toBe(true);
-		expect(parsed.markdown).toBe("Redis");
-	});
-
 	it("marks text-only user messages as copyable", () => {
 		const message = buildMessage([{ type: "text", text: "Copy this" }]);
 

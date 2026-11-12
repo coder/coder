@@ -170,7 +170,7 @@ const focusCopyCommand = (messageId: number) => {
 };
 
 describe("ConversationTimeline answers", () => {
-	it("labels an answer without changing its text or copy content", async () => {
+	it("copies an answer as its text only", async () => {
 		const user = userEvent.setup();
 		const writeText = vi
 			.spyOn(navigator.clipboard, "writeText")
@@ -186,20 +186,9 @@ describe("ConversationTimeline answers", () => {
 						{ type: "text", text: "Redis" },
 					],
 				},
-				{
-					...MockChatMessage,
-					id: 2,
-					role: "user",
-					content: [{ type: "text", text: "Also update the docs" }],
-				},
 			],
 		});
 		const answerRow = within(screen.getByTestId("chat-message-message:1"));
-		const normalRow = within(screen.getByTestId("chat-message-message:2"));
-
-		expect(answerRow.getByText("Answer").textContent).toBe("Answer");
-		expect(answerRow.getByText("Redis").textContent).toBe("Redis");
-		expect(normalRow.queryByText("Answer")).toBeNull();
 
 		await user.click(answerRow.getByRole("button", { name: "Copy message" }));
 

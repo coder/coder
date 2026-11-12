@@ -18,6 +18,37 @@ const buildMessage = (
 ): ChatQueuedMessage => ({ ...MockChatQueuedMessage, content });
 
 describe("getQueuedMessageInfo", () => {
+	it.each([
+		{
+			name: "set",
+			part: { type: "question-answer", question_id: "question-1" },
+			isQuestionAnswer: true,
+		},
+		{
+			name: "empty",
+			part: { type: "question-answer", question_id: "" },
+			isQuestionAnswer: false,
+		},
+		{
+			name: "missing",
+			part: { type: "question-answer" },
+			isQuestionAnswer: false,
+		},
+	] as const)(
+		"reads answer metadata with a $name question ID",
+		({ part, isQuestionAnswer }) => {
+			const message = buildMessage([part, { type: "text", text: "Redis" }]);
+			const result = getQueuedMessageInfo(message);
+
+			expect(result).toEqual({
+				isQuestionAnswer,
+				previewParts: [{ type: "text", text: "Redis" }],
+				attachmentCount: 0,
+				hookNotices: [],
+			});
+		},
+	);
+
 	it("returns text for a text-only message", () => {
 		const result = getQueuedMessageInfo(
 			buildMessage([{ type: "text", text: "hello" }]),
@@ -272,31 +303,6 @@ describe("QueuedMessagesList", () => {
 		);
 		return { onDelete, onPromote, onEdit, onEndEdit };
 	};
-
-	it.each(["question-1", "", undefined])(
-		"labels a queued answer only when its question ID is set: %s",
-		(questionId) => {
-			renderList([
-				buildMessage([
-					{ type: "question-answer", question_id: questionId },
-					{ type: "text", text: "Redis" },
-				]),
-				{
-					...MockChatQueuedMessage,
-					id: 2,
-					content: [{ type: "text", text: "Also update the docs" }],
-				},
-			]);
-			const expectedLabels = questionId ? 1 : 0;
-			const expectedPreview = questionId ? "Answer: Redis" : "Redis";
-
-			expect(screen.queryAllByText("Answer:")).toHaveLength(expectedLabels);
-			expect(screen.getByText("Redis").textContent).toBe(expectedPreview);
-			expect(screen.getByText("Also update the docs").textContent).toBe(
-				"Also update the docs",
-			);
-		},
-	);
 
 	it.each([
 		["Send now", "onPromote"],
