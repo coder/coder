@@ -55,6 +55,9 @@ describe("LoginPage", () => {
 		// When
 		render(<LoginPage />);
 		await waitForLoaderToBeRemoved();
+		// The live region exists before the error so screen readers announce it.
+		const [errorRegion] = screen.getAllByRole("alert");
+		expect(errorRegion).toBeEmptyDOMElement();
 		const email = screen.getByLabelText(/Email/);
 		const password = screen.getByLabelText(/Password/);
 		await userEvent.type(email, "test@coder.com");
@@ -64,8 +67,7 @@ describe("LoginPage", () => {
 		fireEvent.click(signInButton);
 
 		// Then
-		const errorMessage = await screen.findByText(apiErrorMessage);
-		expect(errorMessage).toBeDefined();
+		await waitFor(() => expect(errorRegion).toHaveTextContent(apiErrorMessage));
 	});
 
 	it("associates validation errors with their inputs", async () => {
@@ -86,6 +88,7 @@ describe("LoginPage", () => {
 			"signin-password-error",
 		);
 
+		const alertsBeforeSubmit = screen.getAllByRole("alert");
 		const signInButton = await screen.findByText("Sign In");
 		fireEvent.click(signInButton);
 
@@ -93,6 +96,8 @@ describe("LoginPage", () => {
 		const emailError = await screen.findByText(
 			"Please enter an email address.",
 		);
+		// Mounted before the error so screen readers announce it.
+		expect(alertsBeforeSubmit).toContain(emailError);
 		expect(emailInput).toHaveAttribute("aria-invalid", "true");
 		expect(emailInput).toHaveAttribute(
 			"aria-describedby",

@@ -34,11 +34,17 @@ export const SignInForm: React.FC<SignInFormProps> = ({
 				{applicationName}
 			</h1>
 
-			{Boolean(error) && (
-				<div className="mb-8">
-					<ErrorAlert error={error} showDebugDetail={false} />
-				</div>
-			)}
+			{/* Stays mounted so screen readers announce each new sign in error. */}
+			<div role="alert">
+				{Boolean(error) && (
+					<ErrorAlert
+						error={error}
+						showDebugDetail={false}
+						role="none"
+						className="mb-8"
+					/>
+				)}
+			</div>
 
 			{message && (
 				<div className="mb-8">
