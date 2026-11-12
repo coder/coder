@@ -1601,8 +1601,9 @@ type generationCommitHooks struct {
 	PostCommitError error
 	// AsyncQuestion is the text of the async question asked in this step,
 	// or "". It is pushed to the chat owner only after the step commits
-	// without a fail-closed hook error, because the user cannot see a
-	// question whose result did not commit.
+	// without a fail-closed hook error: a step that did not commit shows
+	// no question, and a fail-closed step ends the turn with an error push
+	// instead.
 	AsyncQuestion string
 }
 
