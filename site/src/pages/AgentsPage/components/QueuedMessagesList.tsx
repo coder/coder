@@ -57,8 +57,8 @@ export const getQueuedMessageInfo = (
 	const previewParts: QueuedMessagePreviewPart[] = [];
 	const hookNotices: string[] = [];
 	for (const part of message.content) {
-		if (part.type === "question-answer" && part.question_id) {
-			isQuestionAnswer = true;
+		if (part.type === "question-answer") {
+			isQuestionAnswer = Boolean(part.question_id);
 		} else if (
 			part.type === "file" ||
 			part.type === "workspace-file-reference"
