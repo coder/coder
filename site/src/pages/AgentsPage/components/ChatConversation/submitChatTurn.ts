@@ -50,8 +50,6 @@ export type SubmitChatTurnParams = {
 	compact: () => Promise<unknown>;
 	clearChatContext: () => Promise<unknown>;
 	store: ChatStore;
-	// The status the page shows, which places a pending send.
-	chatStatus: TypesGen.ChatStatus | null;
 	agentId: string;
 	clearChatErrorReason: (chatId: string) => void;
 	effectiveSelectedModel: string;
@@ -213,7 +211,6 @@ export async function submitChatTurn(
 		compact,
 		clearChatContext,
 		store,
-		chatStatus,
 		agentId,
 		clearChatErrorReason,
 		effectiveSelectedModel,
@@ -240,7 +237,7 @@ export async function submitChatTurn(
 		clearChatErrorReason(agentId);
 		store.clearClientError();
 		try {
-			await store.runPendingAction(action, chatStatus, request);
+			await store.runPendingAction(action, request);
 		} catch (error) {
 			scrollToEnd({ behavior: "smooth" });
 			onRequestError(error);
@@ -289,22 +286,25 @@ export async function submitChatTurn(
 
 	if (editingTarget?.kind === "queued") {
 		const queuedMessageID = editingTarget.id;
+		const row = selectQueuedMessages(store.getSnapshot()).find(
+			(queued) => queued.id === queuedMessageID,
+		);
 		// A queued row keeps its model and effort unless the user changes
 		// them during this edit; the picker otherwise shows the chat's model,
-		// not the row's.
+		// not the row's. A row whose model is no longer selectable takes the
+		// picker's model, as a history edit does.
 		const request: TypesGen.EditChatQueuedMessageRequest = {
 			content,
-			model_config_id: isEditModelDirtyRef.current
-				? effectiveSelectedModel || undefined
-				: undefined,
+			model_config_id:
+				isEditModelDirtyRef.current ||
+				isUnavailableHistoricalModelID(row?.model_config_id, modelOptions)
+					? effectiveSelectedModel || undefined
+					: undefined,
 			reasoning_effort: isEditReasoningEffortDirtyRef.current
 				? effectiveReasoningEffort
 				: undefined,
 			editing: false,
 		};
-		const row = selectQueuedMessages(store.getSnapshot()).find(
-			(queued) => queued.id === queuedMessageID,
-		);
 		await store.runPendingAction(
 			{
 				kind: "editQueued",
@@ -318,7 +318,6 @@ export async function submitChatTurn(
 						attachmentMediaTypes: buildAttachmentMediaTypes(attachments),
 					}).content,
 			},
-			chatStatus,
 			() => saveQueuedMessage(queuedMessageID, request),
 		);
 		return;
@@ -369,6 +368,8 @@ export async function submitChatTurn(
 	await runTurnRequest(
 		{
 			kind: "send",
+			// The server steers a send that names no lane.
+			busyBehavior: busyBehavior ?? "steer",
 			message: buildOptimisticEditedMessage({
 				requestContent: content,
 				originalMessage: {

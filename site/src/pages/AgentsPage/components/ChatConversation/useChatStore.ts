@@ -27,7 +27,6 @@ import {
 	createChatStore,
 	isActiveChatStatus,
 	isTurnCompletedChatStatus,
-	selectOldestStoredMessageID,
 	selectShownError,
 	selectStreamState,
 } from "./chatStore";
@@ -120,15 +119,10 @@ export const useChatStore = (
 		isPending: isFetchingMoreMessages,
 		isError: hasFetchMoreError,
 	} = useMutation({
-		mutationFn: async () => {
-			const oldestID = selectOldestStoredMessageID(store.getSnapshot());
-			if (oldestID === undefined) {
-				return;
-			}
-			const resetCount = store.getHistoryResetCount();
-			const page = await fetchOlderChatMessages(chatID, oldestID);
-			store.prependOlderMessages(page.messages, page.has_more, resetCount);
-		},
+		mutationFn: () =>
+			store.loadOlderMessages((beforeID) =>
+				fetchOlderChatMessages(chatID, beforeID),
+			),
 	});
 
 	useEffect(() => {
