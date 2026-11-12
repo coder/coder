@@ -8113,13 +8113,13 @@ func (q *querier) UpdateChatMCPServerIDs(ctx context.Context, arg database.Updat
 	return q.db.UpdateChatMCPServerIDs(ctx, arg)
 }
 
-func (q *querier) UpdateChatManageAutomationsEnabledByID(ctx context.Context, arg database.UpdateChatManageAutomationsEnabledByIDParams) (database.Chat, error) {
+func (q *querier) UpdateChatManageAutomationsEnabledByID(ctx context.Context, arg database.UpdateChatManageAutomationsEnabledByIDParams) error {
 	chat, err := q.db.GetChatByID(ctx, arg.ID)
 	if err != nil {
-		return database.Chat{}, err
+		return err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.Chat{}, err
+		return err
 	}
 	return q.db.UpdateChatManageAutomationsEnabledByID(ctx, arg)
 }

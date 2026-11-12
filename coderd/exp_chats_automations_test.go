@@ -121,7 +121,7 @@ func TestChatManageAutomationsSwitch(t *testing.T) {
 		require.False(t, getChat(ctx, t, client, chat.ID).ManageAutomationsEnabled)
 
 		//nolint:gocritic // Seed a switch that was on before the experiment went off.
-		_, err = db.UpdateChatManageAutomationsEnabledByID(dbauthz.AsSystemRestricted(ctx), database.UpdateChatManageAutomationsEnabledByIDParams{
+		err = db.UpdateChatManageAutomationsEnabledByID(dbauthz.AsSystemRestricted(ctx), database.UpdateChatManageAutomationsEnabledByIDParams{
 			ID: chat.ID, ManageAutomationsEnabled: true,
 		})
 		require.NoError(t, err)

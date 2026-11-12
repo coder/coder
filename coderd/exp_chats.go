@@ -3056,14 +3056,14 @@ func (api *API) updateChat(
 	}
 
 	if req.ManageAutomationsEnabled != nil {
-		updatedChat, err := api.Database.UpdateChatManageAutomationsEnabledByID(ctx, database.UpdateChatManageAutomationsEnabledByIDParams{
+		err := api.Database.UpdateChatManageAutomationsEnabledByID(ctx, database.UpdateChatManageAutomationsEnabledByIDParams{
 			ID:                       chat.ID,
 			ManageAutomationsEnabled: *req.ManageAutomationsEnabled,
 		})
 		if err != nil {
 			return database.Chat{}, chatUpdateError(err, "Failed to update chat automations switch.")
 		}
-		chat = updatedChat
+		chat.ManageAutomationsEnabled = *req.ManageAutomationsEnabled
 	}
 
 	// The move is the last write, so a refused move keeps the earlier
