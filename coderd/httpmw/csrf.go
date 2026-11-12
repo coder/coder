@@ -12,6 +12,9 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
+// repeatedSlashesRe matches runs of slashes that the router collapses to one.
+var repeatedSlashesRe = regexp.MustCompile(`/+`)
+
 // CSRF is a middleware that verifies that a CSRF token is present in the request
 // for non-GET requests.
 // If enforce is false, then CSRF enforcement is disabled. We still want
@@ -40,26 +43,23 @@ func CSRF(cookieCfg codersdk.HTTPCookieConfig) func(next http.Handler) http.Hand
 			http.Error(w, "Something is wrong with your CSRF token. Please refresh the page. If this error persists, try clearing your cookies.", http.StatusBadRequest)
 		}))
 
-		mw.ExemptRegexp(regexp.MustCompile("/api/v2/users/first"))
-
 		// Exempt all requests that do not require CSRF protection.
 		// All GET requests are exempt by default.
 		mw.ExemptPath("/api/v2/csp/reports")
 
-		// This should not be required?
-		mw.ExemptRegexp(regexp.MustCompile("/api/v2/users/first"))
-
+		// nosurf matches these as unanchored regular expressions, so each
+		// one must start with ^ and end with $ or (/|$). An unanchored
+		// pattern such as "derp/*" exempted every path containing "derp",
+		// including usernames, and an exempt request skips the origin
+		// check as well as the token check.
+		mw.ExemptRegexp(regexp.MustCompile(`^/api/v2/users/first$`))
 		// Agent authenticated routes
-		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceagents/me/*"))
-		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceagents/*"))
+		mw.ExemptRegexp(regexp.MustCompile(`^/api/v2/workspaceagents/me(/|$)`))
+		mw.ExemptRegexp(regexp.MustCompile(`^/api/v2/workspaceagents/(aws|azure|google)-instance-identity$`))
 		// Workspace Proxy routes
-		mw.ExemptRegexp(regexp.MustCompile("api/v2/workspaceproxies/me/*"))
+		mw.ExemptRegexp(regexp.MustCompile(`^/api/v2/workspaceproxies/me(/|$)`))
 		// Derp routes
-		mw.ExemptRegexp(regexp.MustCompile("derp/*"))
-		// Scim
-		mw.ExemptRegexp(regexp.MustCompile("api/v2/scim/*"))
-		// Provisioner daemon routes
-		mw.ExemptRegexp(regexp.MustCompile("/organizations/[^/]+/provisionerdaemons/*"))
+		mw.ExemptRegexp(regexp.MustCompile(`^/derp(/|$)`))
 
 		mw.ExemptFunc(func(r *http.Request) bool {
 			// The router collapses repeated slashes before matching, so

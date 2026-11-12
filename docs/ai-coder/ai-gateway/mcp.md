@@ -21,7 +21,7 @@ AI Gateway can connect to MCP servers and inject tools automatically, enabling y
 >
 > [_Streamable HTTP_](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports) is the only supported transport currently. In future releases we will support the (now deprecated) [_Server-Sent Events_](https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#backwards-compatibility) transport.
 
-AI Gateway makes use of [External Auth](../../admin/external-auth/index.md) applications, as they define OAuth2 connections to upstream services. If your External Auth application hosts a remote MCP server, you can configure AI Gateway to connect to it, retrieve its tools and inject them into requests automatically - all while using each individual user's access token.
+AI Gateway makes use of [External Auth](../../admin/external-auth.md) applications, as they define OAuth2 connections to upstream services. If your External Auth application hosts a remote MCP server, you can configure AI Gateway to connect to it, retrieve its tools and inject them into requests automatically - all while using each individual user's access token.
 
 For example, GitHub has a [remote MCP server](https://github.com/github/github-mcp-server?tab=readme-ov-file#remote-github-mcp-server) and we can use it as follows.
 
@@ -81,4 +81,4 @@ If you have [Coder MCP Server](../mcp-server.md) enabled, as well as have `CODER
 
 - **Coder MCP tools not being injected**: in order for Coder MCP tools to be injected, the internal MCP server needs to be active. Follow the instructions in the [MCP Server](../mcp-server.md) page to enable it and ensure `CODER_AI_GATEWAY_INJECT_CODER_MCP_TOOLS` is set to `true`.
 
-- **External Auth tools not being injected**: this is generally due to the requesting user not being authenticated against the [External Auth](../../admin/external-auth/index.md) app; when this is the case, no attempt is made to connect to the MCP server.
+- **External Auth tools not being injected**: this is generally due to the requesting user not being authenticated against the [External Auth](../../admin/external-auth.md) app; when this is the case, no attempt is made to connect to the MCP server.

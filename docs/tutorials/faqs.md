@@ -17,7 +17,7 @@ Visit <https://coder.com/trial> or contact
 
 <summary>You can add a license through the UI or CLI</summary>
 
-<!-- copied from docs/admin/licensing/index.md -->
+<!-- copied from docs/admin/licensing.md -->
 
 <div class="tabs">
 
@@ -64,7 +64,7 @@ Visit <https://coder.com/trial> or contact
 
 </details>
 
-Visit the [licensing documentation](../admin/licensing/index.md) for more
+Visit the [licensing documentation](../admin/licensing.md) for more
 information about licenses.
 
 ## I'm experiencing networking issues, so want to disable Tailscale, STUN, Direct connections and force use of websocket

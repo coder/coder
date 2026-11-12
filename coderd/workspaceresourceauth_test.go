@@ -291,7 +291,7 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		t.Parallel()
 
 		instanceID := newTestInstanceID(t)
-		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, true)
+		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, true, "coder")
 		client := coderdtest.New(t, &coderdtest.Options{
 			GoogleTokenValidator: validator,
 		})
@@ -310,7 +310,7 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		t.Parallel()
 
 		instanceID := newTestInstanceID(t)
-		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false)
+		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false, "coder")
 		client := coderdtest.New(t, &coderdtest.Options{
 			GoogleTokenValidator: validator,
 		})
@@ -329,7 +329,26 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 		t.Parallel()
 
 		instanceID := newTestInstanceID(t)
-		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false)
+		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false, "coder")
+		client, store := setupInstanceIDWorkspace(t, &coderdtest.Options{
+			GoogleTokenValidator: validator,
+		}, workspaceAgentsForInstanceID(instanceID, "dev"))
+		expectedAgent := requireWorkspaceAgentByInstanceIDAndName(t, store, instanceID, "dev")
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		agentClient := agentsdk.New(client.URL, agentsdk.WithGoogleInstanceIdentity("", metadata))
+		err := agentClient.RefreshToken(ctx)
+		require.NoError(t, err)
+		require.Equal(t, expectedAgent.AuthToken.String(), agentClient.SDK.SessionToken())
+	})
+
+	t.Run("ForeignAudience", func(t *testing.T) {
+		t.Parallel()
+
+		instanceID := newTestInstanceID(t)
+		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false, "other-service")
 		client, _ := setupInstanceIDWorkspace(t, &coderdtest.Options{
 			GoogleTokenValidator: validator,
 		}, workspaceAgentsForInstanceID(instanceID, "dev"))
@@ -339,14 +358,16 @@ func TestPostWorkspaceAuthGoogleInstanceIdentity(t *testing.T) {
 
 		agentClient := agentsdk.New(client.URL, agentsdk.WithGoogleInstanceIdentity("", metadata))
 		err := agentClient.RefreshToken(ctx)
-		require.NoError(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
 	})
 
 	t.Run("Ambiguous/GoogleWithSelector", func(t *testing.T) {
 		t.Parallel()
 
 		instanceID := newTestInstanceID(t)
-		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false)
+		validator, metadata := coderdtest.NewGoogleInstanceIdentity(t, instanceID, false, "coder")
 		client, store := setupInstanceIDWorkspace(t, &coderdtest.Options{
 			GoogleTokenValidator: validator,
 		}, workspaceAgentsForInstanceID(instanceID, "alpha", "beta"))
