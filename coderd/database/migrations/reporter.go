@@ -45,6 +45,15 @@ type migrationRef struct {
 // pooled connection with a short timeout, against PostgreSQL system views.
 // Without WithLogger it runs the same way with a zero slog.Logger, which
 // discards every line.
+//
+// Concurrency: golang-migrate calls the driver, and so the reporter, in order
+// from the goroutine running Up. The one exception is Lock: golang-migrate
+// runs it in its own goroutine and abandons it after LockTimeout, so a Lock
+// can still be waiting, and call the reporter, after Up has returned. Every
+// heartbeat therefore derives its context from runCtx, which close cancels:
+// a heartbeat started before or after close is stopped either way. r.mu
+// guards the fields below it and makes a heartbeat's final context check and
+// its log line atomic with stopping it.
 type reporter struct {
 	logger     slog.Logger
 	appName    string
@@ -52,6 +61,10 @@ type reporter struct {
 	interval   time.Duration
 	observerDB *sql.DB
 	source     source.Driver
+
+	// runCtx is canceled by close, which stops every heartbeat of the run.
+	runCtx context.Context
+	cancel context.CancelFunc
 
 	mu         sync.Mutex
 	backendPID int
@@ -70,8 +83,6 @@ type reporter struct {
 	stopLockWait func()
 	stopStep     func()
 
-	// closed is set once the run has returned.
-	closed         bool
 	observerFailed bool
 }
 
@@ -94,12 +105,15 @@ func newReporter(db *sql.DB, o upOptions) *reporter {
 	if o.observerDB == nil {
 		o.observerDB = db
 	}
+	runCtx, cancel := context.WithCancel(context.Background())
 	return &reporter{
 		logger:      logger,
 		appName:     o.appName,
 		clock:       o.clock,
 		interval:    o.heartbeatInterval,
 		observerDB:  o.observerDB,
+		runCtx:      runCtx,
+		cancel:      cancel,
 		fromVersion: database.NilVersion,
 	}
 }
@@ -108,9 +122,6 @@ func newReporter(db *sql.DB, o upOptions) *reporter {
 func (r *reporter) lockStarted() {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.closed {
-		return
-	}
 	r.backendPID = 0
 	r.xid = ""
 }
@@ -120,9 +131,6 @@ func (r *reporter) lockStarted() {
 func (r *reporter) setBackend(pid int, xid string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.closed {
-		return
-	}
 	r.backendPID = pid
 	r.xid = xid
 }
@@ -133,17 +141,17 @@ func (r *reporter) lockWaitStarted(phase string) {
 	since := r.clock.Now()
 
 	r.mu.Lock()
-	closed := r.closed
 	r.lockWaitStart = since
 	r.mu.Unlock()
 
-	if closed {
-		return
+	// An abandoned Lock can get here after close. Logging is skipped, and
+	// the heartbeat below starts already stopped.
+	if r.runCtx.Err() == nil {
+		// Debug level: the lock is usually free, so this should not add a line
+		// to every server start. A real wait shows up through the heartbeat.
+		r.logger.Debug(r.runCtx, "acquiring database migration lock",
+			slog.F("phase", phase))
 	}
-	// Debug level: the lock is usually free, so this should not add a line to
-	// every server start. A real wait shows up through the heartbeat.
-	r.logger.Debug(context.Background(), "acquiring database migration lock",
-		slog.F("phase", phase))
 
 	stop := r.startHeartbeat(func(ctx context.Context, activity []slog.Field) {
 		fields := append([]slog.Field{slog.F("elapsed_ms", r.clock.Since(since).Milliseconds())}, activity...)
@@ -151,12 +159,6 @@ func (r *reporter) lockWaitStarted(phase string) {
 	})
 
 	r.mu.Lock()
-	if r.closed {
-		// The run returned while the heartbeat started.
-		r.mu.Unlock()
-		stop()
-		return
-	}
 	r.stopLockWait = stop
 	r.mu.Unlock()
 }
@@ -178,14 +180,14 @@ func (r *reporter) stopLockWaitHeartbeat() {
 func (r *reporter) lockAcquired(phase string) {
 	r.mu.Lock()
 	waited := r.clock.Since(r.lockWaitStart)
-	closed := r.closed
 	r.mu.Unlock()
 
 	r.stopLockWaitHeartbeat()
-	if closed {
+	// An abandoned Lock that gets the lock after close logs nothing.
+	if r.runCtx.Err() != nil {
 		return
 	}
-	r.logger.Debug(context.Background(), "acquired database migration lock",
+	r.logger.Debug(r.runCtx, "acquired database migration lock",
 		slog.F("phase", phase),
 		slog.F("waited_ms", waited.Milliseconds()))
 }
@@ -279,22 +281,18 @@ func (r *reporter) stepApplied(version int) {
 	r.perStep(from, "database migration applied, pending commit", fields...)
 }
 
-// stopHeartbeats stops every running heartbeat.
-// Called before the migration transaction ends.
-func (r *reporter) stopHeartbeats() {
-	r.stopLockWaitHeartbeat()
-	r.stopStepHeartbeat()
-}
-
-// close is called once the run has returned. It stops every heartbeat.
+// close is called once the run has returned. It stops every heartbeat of the
+// run, including one an abandoned Lock starts later. It does not wait for a
+// heartbeat check that is in flight. Canceling under r.mu means no heartbeat
+// line is written after close returns.
 func (r *reporter) close() {
 	r.mu.Lock()
-	r.closed = true
+	r.cancel()
 	r.mu.Unlock()
-
-	r.stopHeartbeats()
 }
 
+// stopStepHeartbeat stops the step heartbeat, if one is running. Unlock calls
+// it for a step that failed before stepApplied.
 func (r *reporter) stopStepHeartbeat() {
 	r.mu.Lock()
 	stop := r.stopStep
@@ -317,52 +315,39 @@ func (r *reporter) perStep(fromVersion int, msg string, fields ...slog.Field) {
 }
 
 // startHeartbeat calls emit with the migration connection's state every
-// interval until stop is called. stop returns without waiting for a check
-// that is in flight: canceling a query only asks PostgreSQL to abort it, and
-// the call keeps blocking until the server answers, which would delay the
-// migration. A check that finishes after stop is discarded, so no heartbeat
-// line is written after stop returns.
-// It must not be called while holding r.mu.
+// interval until stop is called or the run is closed.
+//
+// stop only cancels: it never waits for a check that is in flight, because
+// canceling a lib/pq query still blocks until the server answers, and that
+// would delay the migration. Instead, a tick re-checks its context and emits
+// under r.mu, and stop cancels under r.mu, so no heartbeat line is written
+// after stop returns. stop must not be called while holding r.mu.
 func (r *reporter) startHeartbeat(emit func(ctx context.Context, activity []slog.Field)) (stop func()) {
-	ctx, cancel := context.WithCancel(context.Background())
-	ticker := r.clock.NewTicker(r.interval, "migrations", "heartbeat")
-	var (
-		// emitMu makes stopping and writing a heartbeat line exclusive.
-		emitMu  sync.Mutex
-		stopped bool
-	)
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				activity, err := r.backendActivity(ctx)
-				emitMu.Lock()
-				if stopped {
-					// The step or wait is over,
-					// so the result no longer describes anything.
-					emitMu.Unlock()
-					return
-				}
-				if err != nil {
-					r.observerError(ctx, err)
-				}
-				emit(ctx, activity)
-				emitMu.Unlock()
-			}
+	ctx, cancel := context.WithCancel(r.runCtx)
+	_ = r.clock.TickerFunc(ctx, r.interval, func() error {
+		if ctx.Err() != nil {
+			return ctx.Err()
 		}
-	}()
+		activity, err := r.backendActivity(ctx)
 
-	var once sync.Once
+		r.mu.Lock()
+		defer r.mu.Unlock()
+		if ctx.Err() != nil {
+			// Stopped during the check: the step or wait is over, so the
+			// result no longer describes anything.
+			return ctx.Err()
+		}
+		if err != nil {
+			r.observerErrorLocked(ctx, err)
+		}
+		emit(ctx, activity)
+		return nil
+	}, "migrations", "heartbeat")
+
 	return func() {
-		once.Do(func() {
-			emitMu.Lock()
-			stopped = true
-			emitMu.Unlock()
-			cancel()
-			ticker.Stop()
-		})
+		r.mu.Lock()
+		cancel()
+		r.mu.Unlock()
 	}
 }
 
@@ -397,17 +382,14 @@ func (r *reporter) backendActivity(ctx context.Context) ([]slog.Field, error) {
 	return fields, nil
 }
 
-// observerError logs the first failed reporting query only.
-// Reporting failures never affect the migration.
-func (r *reporter) observerError(ctx context.Context, err error) {
-	r.mu.Lock()
-	first := !r.observerFailed
-	r.observerFailed = true
-	r.mu.Unlock()
-
-	if first {
-		r.logger.Warn(ctx, "database migration progress details unavailable", slog.Error(err))
+// observerErrorLocked logs the first failed reporting query only. Reporting
+// failures never affect the migration. The caller holds r.mu.
+func (r *reporter) observerErrorLocked(ctx context.Context, err error) {
+	if r.observerFailed {
+		return
 	}
+	r.observerFailed = true
+	r.logger.Warn(ctx, "database migration progress details unavailable", slog.Error(err))
 }
 
 // inSource reports whether version is one of the migrations in the source.

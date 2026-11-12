@@ -230,7 +230,7 @@ func TestReporter(t *testing.T) {
 		require.NoError(t, err)
 
 		mClock := quartz.NewMock(t)
-		trap := mClock.Trap().NewTicker("migrations", "heartbeat")
+		trap := mClock.Trap().TickerFunc("migrations", "heartbeat")
 		defer trap.Close()
 		sink := testutil.NewFakeSink(t)
 
@@ -286,7 +286,7 @@ func TestReporter(t *testing.T) {
 		require.NoError(t, err)
 
 		mClock := quartz.NewMock(t)
-		trap := mClock.Trap().NewTicker("migrations", "heartbeat")
+		trap := mClock.Trap().TickerFunc("migrations", "heartbeat")
 		sink := testutil.NewFakeSink(t)
 
 		done := make(chan error, 1)
@@ -346,7 +346,7 @@ func TestReporter(t *testing.T) {
 		require.NoError(t, err)
 
 		mClock := quartz.NewMock(t)
-		trap := mClock.Trap().NewTicker("migrations", "heartbeat")
+		trap := mClock.Trap().TickerFunc("migrations", "heartbeat")
 		defer trap.Close()
 		sink := testutil.NewFakeSink(t)
 
@@ -403,7 +403,7 @@ func TestReporter(t *testing.T) {
 		require.NoError(t, err)
 
 		mClock := quartz.NewMock(t)
-		trap := mClock.Trap().NewTicker("migrations", "heartbeat")
+		trap := mClock.Trap().TickerFunc("migrations", "heartbeat")
 		sink := testutil.NewFakeSink(t)
 
 		done := make(chan error, 1)
@@ -454,7 +454,7 @@ func TestReporter(t *testing.T) {
 
 		observer, observerDB := newBlockingObserver(t)
 		mClock := quartz.NewMock(t)
-		trap := mClock.Trap().NewTicker("migrations", "heartbeat")
+		trap := mClock.Trap().TickerFunc("migrations", "heartbeat")
 		defer trap.Close()
 		sink := testutil.NewFakeSink(t)
 
@@ -470,7 +470,9 @@ func TestReporter(t *testing.T) {
 			trap.MustWait(ctx).MustRelease(ctx)
 		}
 		waitForLockWait(ctx, t, db, appName)
-		mClock.Advance(time.Second).MustWait(ctx)
+		// Advance waits for the tick to finish, and this tick blocks until the
+		// observer is released, so wait for it only at the end.
+		advance := mClock.Advance(time.Second)
 		// The heartbeat check is in flight and ignores cancellation.
 		_ = testutil.TryReceive(ctx, t, observer.entered)
 
@@ -484,6 +486,7 @@ func TestReporter(t *testing.T) {
 		// pass falsely, if the discarded line were still being written.
 		close(observer.release)
 		_ = testutil.TryReceive(ctx, t, observer.returned)
+		advance.MustWait(ctx)
 		require.Empty(t, sink.Entries(hasMessage("still applying update 1 of 1")))
 		require.Empty(t, sink.Entries(hasMessage("database migration progress details unavailable")))
 	})

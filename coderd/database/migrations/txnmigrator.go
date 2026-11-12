@@ -73,7 +73,9 @@ func (d *pgTxnDriver) Lock() error {
 }
 
 func (d *pgTxnDriver) Unlock() error {
-	d.reporter.stopHeartbeats()
+	// Lock always stops its own lock wait heartbeat, so only a step that
+	// failed before it was applied can still have one running.
+	d.reporter.stopStepHeartbeat()
 	err := d.tx.Commit()
 	d.tx = nil
 	if err != nil {
