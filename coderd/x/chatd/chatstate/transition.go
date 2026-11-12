@@ -25,6 +25,7 @@ const (
 	TransitionRecordRetryState        Transition = "RecordRetryState"
 	TransitionDeliverSteerMessages    Transition = "DeliverSteerMessages"
 	TransitionCommitStep              Transition = "CommitStep"
+	TransitionResolvePromptHooks      Transition = "ResolvePromptHooks"
 	TransitionEnterRequiresAction     Transition = "EnterRequiresAction"
 	TransitionFinishInterruption      Transition = "FinishInterruption"
 	TransitionFinishTurn              Transition = "FinishTurn"
@@ -105,6 +106,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionRecordRetryState:        {StateR0},
 		TransitionDeliverSteerMessages:    {StateR0},
 		TransitionCommitStep:              {StateR0},
+		TransitionResolvePromptHooks:      {StateR0},
 		TransitionEnterRequiresAction:     {StateA0},
 		TransitionFinishTurn:              {StateW},
 		TransitionFinishError:             {StateE0},
@@ -120,6 +122,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionRecordRetryState:        {StateR1},
 		TransitionDeliverSteerMessages:    {StateR0, StateR1, StateR1P},
 		TransitionCommitStep:              {StateR1},
+		TransitionResolvePromptHooks:      {StateR1},
 		TransitionEnterRequiresAction:     {StateA1},
 		TransitionFinishTurn:              {StateR0, StateR1, StateR1P},
 		TransitionFinishError:             {StateE1},
@@ -135,6 +138,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionRecordRetryState:        {StateR1P},
 		TransitionDeliverSteerMessages:    {StateR1P},
 		TransitionCommitStep:              {StateR1P},
+		TransitionResolvePromptHooks:      {StateR1P},
 		TransitionEnterRequiresAction:     {StateA1P},
 		TransitionFinishTurn:              {StateP},
 		TransitionFinishError:             {StateE1P},
