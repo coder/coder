@@ -20,7 +20,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -731,10 +730,15 @@ func TestCreateChatAutomationRejected(t *testing.T) {
 		return rejection{who, validBody, http.StatusForbidden, "Forbidden.", nil}
 	}
 	for name, tc := range map[string]rejection{
-		"InvalidJSON": {member, func(canary string) any { return []byte(fmt.Sprintf(`{"enabled": %q}`, canary)) },
-			http.StatusBadRequest, "Request body must be valid JSON.", nil},
-		"EmptyObject": {member, func(string) any { return []byte(`{}`) },
-			http.StatusBadRequest, "Validation failed.", []string{"name", "kind", "target_mode", "prompt"}},
+		"InvalidJSON": {
+			member, func(canary string) any { return []byte(fmt.Sprintf(`{"enabled": %q}`, canary)) },
+			http.StatusBadRequest, "Request body must be valid JSON.", nil,
+		},
+		"EmptyObject": {
+			member, func(string) any { return []byte(`{}`) },
+			http.StatusBadRequest, "Validation failed.",
+			[]string{"name", "kind", "target_mode", "prompt"},
+		},
 		"SecretForBearer": {member, func(canary string) any {
 			req := valid(canary)
 			req.WebhookSecret = canary
@@ -746,8 +750,10 @@ func TestCreateChatAutomationRejected(t *testing.T) {
 			req.Prompt = canary + strings.Repeat("a", 2*codersdk.DefaultChatMaxPromptBytes)
 			return req
 		}, http.StatusRequestEntityTooLarge, "Request body too large.", nil},
-		"AtLimit": {atLimit, validBody, http.StatusConflict,
-			"You can have at most 1 chat automations across all organizations. Delete one to create another.", nil},
+		"AtLimit": {
+			atLimit, validBody, http.StatusConflict,
+			"You can have at most 1 chat automations across all organizations. Delete one to create another.", nil,
+		},
 		"OrganizationAdmin":      forbidden(env.actor(t, rbac.ScopedRoleOrgAdmin(org))),
 		"TemplateAdmin":          forbidden(env.actor(t, rbac.RoleTemplateAdmin())),
 		"UserAdmin":              forbidden(env.actor(t, rbac.RoleUserAdmin())),
