@@ -853,12 +853,6 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, db.UpsertChatAdvisorConfig(ctx, string(advisorConfig)))
 
-	server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
-		withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
-		withInternalTestServerExperiments(codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers, codersdk.ExperimentChatACPSubagents}),
-	)
-	server.mcpHTTPClient = mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(netip.MustParsePrefix("127.0.0.0/8")))
-
 	explore := database.NullChatMode{ChatMode: database.ChatModeExplore, Valid: true}
 	plan := database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
 	const (
@@ -873,16 +867,21 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		"spawn_agent", "wait_agent", "message_agent", "interrupt_agent", "list_agents",
 	}
 	tests := []struct {
-		name     string
-		mode     database.NullChatMode
-		planMode database.NullChatPlanMode
-		child    bool
+		name        string
+		mode        database.NullChatMode
+		planMode    database.NullChatPlanMode
+		child       bool
+		experiments codersdk.Experiments
 		// spawn delegates to a general sub-agent, which must keep the
 		// parent's plan mode.
 		spawn bool
 		// replaceMCP sends a follow-up message that asks to replace the
 		// MCP selection before the next turn is prepared.
 		replaceMCP bool
+		// ui creates the chat as the web UI does.
+		ui bool
+		// askStops reports whether ask_user_question ends the turn.
+		askStops bool
 		// prompt lists the instructions the system prompt must contain;
 		// the others in the set must be absent.
 		prompt   []string
@@ -906,10 +905,42 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			dontWant: append([]string{"ask_user_question", chatadvisor.ToolName}, rootOnlyTools...),
 		},
 		{
-			name:     "PlanRoot",
-			planMode: plan,
-			spawn:    true,
-			prompt:   []string{planRootOverlay, proposePlan},
+			name:        "UIRoot",
+			experiments: codersdk.Experiments{codersdk.ExperimentChatAsyncQuestions},
+			ui:          true,
+			prompt:      []string{advisorGuidance, acpSubagentPromptBlock},
+			want:        []string{"ask_user_question", "spawn_agent", chatadvisor.ToolName},
+		},
+		{
+			name:     "UIRootExperimentOff",
+			ui:       true,
+			prompt:   []string{advisorGuidance, acpSubagentPromptBlock},
+			want:     []string{chatadvisor.ToolName},
+			dontWant: []string{"ask_user_question"},
+		},
+		{
+			name:        "APIRoot",
+			experiments: codersdk.Experiments{codersdk.ExperimentChatAsyncQuestions},
+			prompt:      []string{advisorGuidance, acpSubagentPromptBlock},
+			want:        []string{chatadvisor.ToolName},
+			dontWant:    []string{"ask_user_question"},
+		},
+		{
+			name:        "UIChild",
+			experiments: codersdk.Experiments{codersdk.ExperimentChatAsyncQuestions},
+			ui:          true,
+			child:       true,
+			want:        []string{"read_file"},
+			dontWant:    []string{"ask_user_question"},
+		},
+		{
+			name:        "PlanRoot",
+			experiments: codersdk.Experiments{codersdk.ExperimentChatAsyncQuestions},
+			ui:          true,
+			planMode:    plan,
+			askStops:    true,
+			spawn:       true,
+			prompt:      []string{planRootOverlay, proposePlan},
 			want: []string{
 				"write_file", "edit_files", "execute", "process_output", "ask_user_question", "propose_plan",
 				"spawn_agent", "approved__echo", "filtered__visible", "inline__echo",
@@ -917,6 +948,13 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			dontWant: []string{
 				"blocked__echo", "filtered__hidden", "forced__echo", "workspace__echo", "web_search", chatadvisor.ToolName,
 			},
+		},
+		{
+			name:     "PlanRootExperimentOff",
+			planMode: plan,
+			askStops: true,
+			prompt:   []string{planRootOverlay, proposePlan},
+			want:     []string{"ask_user_question"},
 		},
 		{
 			name:     "PlanChild",
@@ -968,6 +1006,14 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 			t.Parallel()
 
 			ctx := chatdTestContext(t)
+			experiments := codersdk.Experiments{codersdk.ExperimentChatInlineMCPServers, codersdk.ExperimentChatACPSubagents}
+			experiments = append(experiments, tt.experiments...)
+			server := newInternalTestServer(t, db, ps, chatprovider.ProviderAPIKeys{},
+				withInternalTestServerTransportFactory(&aibridgeTestFactory{}),
+				withInternalTestServerExperiments(experiments),
+			)
+			server.mcpHTTPClient = mcpclient.NewHTTPClient(nil, safedial.WithAllowedPrefixes(netip.MustParsePrefix("127.0.0.0/8")))
+
 			input := chatstate.CreateChatInput{
 				OrganizationID:    org.ID,
 				OwnerID:           user.ID,
@@ -987,6 +1033,9 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 					CreatedBy:      uuid.NullUUID{UUID: user.ID, Valid: true},
 					ContentVersion: chatprompt.CurrentContentVersion,
 				}},
+			}
+			if tt.ui {
+				input.ClientType = database.ChatClientTypeUi
 			}
 			if tt.child {
 				input.ParentChatID = uuid.NullUUID{UUID: parent.ID, Valid: true}
@@ -1059,6 +1108,8 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 					require.False(t, loaded[name], name)
 				}
 			}
+			_, askStops := env.StopAfterTools["ask_user_question"]
+			require.Equal(t, tt.askStops, askStops)
 			// chatloop offers every registered tool when the active list is
 			// empty, so an Explore child must not register a tool it hides.
 			if tt.child && tt.mode == explore {
