@@ -1066,6 +1066,49 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 	return result, nil
 }
 
+// DeleteQueuedMessagesByAutomationInput configures
+// [Tx.DeleteQueuedMessagesByAutomation].
+type DeleteQueuedMessagesByAutomationInput struct {
+	AutomationIDs []uuid.UUID
+}
+
+// DeleteQueuedMessagesByAutomationResult is returned by
+// [Tx.DeleteQueuedMessagesByAutomation].
+type DeleteQueuedMessagesByAutomationResult struct {
+	// Deleted is the number of queued messages that were removed.
+	Deleted int64
+	// Chat is the updated chat when the transition left P, else nil.
+	Chat *database.Chat
+}
+
+// DeleteQueuedMessagesByAutomation removes every queued message that one
+// of the automations queued. It is the queue cleanup of a disabled or
+// deleted automation, so unlike DeleteQueuedMessage it also runs on an
+// archived chat, and on a chat without such a message it changes
+// nothing. From P it leaves paused once the head is ready or the queue
+// is empty (see leavePaused).
+func (tx *Tx) DeleteQueuedMessagesByAutomation(input DeleteQueuedMessagesByAutomationInput) (DeleteQueuedMessagesByAutomationResult, error) {
+	chat, from, err := tx.requireFromAllowed(TransitionDeleteQueuedMessagesByAutomation)
+	if err != nil {
+		return DeleteQueuedMessagesByAutomationResult{}, err
+	}
+	deleted, err := tx.store.DeleteChatQueuedMessagesByAutomationIDs(tx.ctx, database.DeleteChatQueuedMessagesByAutomationIDsParams{
+		ChatID:        tx.chatID,
+		AutomationIDs: input.AutomationIDs,
+	})
+	if err != nil {
+		return DeleteQueuedMessagesByAutomationResult{}, xerrors.Errorf("delete queued messages of automations: %w", err)
+	}
+	result := DeleteQueuedMessagesByAutomationResult{Deleted: deleted}
+	if from == StateP {
+		result.Chat, _, err = tx.leavePaused(chat)
+		if err != nil {
+			return DeleteQueuedMessagesByAutomationResult{}, err
+		}
+	}
+	return result, nil
+}
+
 // EditQueuedMessageInput configures [Tx.EditQueuedMessage]. Nil fields
 // leave the corresponding column untouched.
 type EditQueuedMessageInput struct {

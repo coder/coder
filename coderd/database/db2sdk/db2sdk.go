@@ -2012,6 +2012,19 @@ func convertChatProjectMemory(memory database.ChatProjectMemory, createdByUserna
 	}
 }
 
+// ChatWatchEventChat builds the chat embedded in ChatWatchEvent
+// notifications. These payloads travel through PostgreSQL NOTIFY, so
+// omit fields that can grow large and that watch consumers already read
+// from the REST chat endpoint.
+func ChatWatchEventChat(chat database.Chat, diffStatus *codersdk.ChatDiffStatus) codersdk.Chat {
+	sdkChat := Chat(chat, nil, nil)
+	sdkChat.Files = nil
+	if diffStatus != nil {
+		sdkChat.DiffStatus = diffStatus
+	}
+	return sdkChat
+}
+
 // Chat converts a database.Chat to a codersdk.Chat. It coalesces
 // nil slices and maps to empty values for JSON serialization and
 // derives RootChatID from the parent chain when not explicitly set.

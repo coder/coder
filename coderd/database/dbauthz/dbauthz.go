@@ -2306,8 +2306,15 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
 }
 
-func (q *querier) DeleteChatAutomationByID(ctx context.Context, id uuid.UUID) error {
-	return deleteQ(q.log, q.auth, q.db.GetChatAutomationByID, q.db.DeleteChatAutomationByID)(ctx, id)
+func (q *querier) DeleteChatAutomationByID(ctx context.Context, id uuid.UUID) (int64, error) {
+	automation, err := q.db.GetChatAutomationByID(ctx, id)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionDelete, automation); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteChatAutomationByID(ctx, id)
 }
 
 func (q *querier) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
@@ -2431,6 +2438,17 @@ func (q *querier) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg
 	}
 	_ = chat
 	return q.db.DeleteChatQueuedMessageReturningCount(ctx, arg)
+}
+
+func (q *querier) DeleteChatQueuedMessagesByAutomationIDs(ctx context.Context, arg database.DeleteChatQueuedMessagesByAutomationIDsParams) (int64, error) {
+	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
+	if err != nil {
+		return 0, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+		return 0, err
+	}
+	return q.db.DeleteChatQueuedMessagesByAutomationIDs(ctx, arg)
 }
 
 func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
@@ -3381,6 +3399,15 @@ func (q *querier) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (data
 	return fetch(q.log, q.auth, q.db.GetChatAutomationByID)(ctx, id)
 }
 
+func (q *querier) GetChatAutomationIDsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]uuid.UUID, error) {
+	// The list spans organizations, so the object has no organization and
+	// organization-scoped grants do not match it.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatAutomation.WithOwner(ownerID.String())); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatAutomationIDsByOwnerID(ctx, ownerID)
+}
+
 func (q *querier) GetChatAutomationsByOrganizationID(ctx context.Context, arg database.GetChatAutomationsByOrganizationIDParams) ([]database.GetChatAutomationsByOrganizationIDRow, error) {
 	prepared, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceChatAutomation.Type)
 	if err != nil {
@@ -3625,16 +3652,13 @@ func (q *querier) GetChatHeartbeat(ctx context.Context, arg database.GetChatHear
 	return q.db.GetChatHeartbeat(ctx, arg)
 }
 
-func (q *querier) GetChatIDsWithQueuedMessagesByAutomationID(ctx context.Context, automationID uuid.UUID) ([]uuid.UUID, error) {
-	// The read is part of deleting the automation.
-	automation, err := q.db.GetChatAutomationByID(ctx, automationID)
-	if err != nil {
+func (q *querier) GetChatIDsWithQueuedMessagesByAutomationIDs(ctx context.Context, automationIDs []uuid.UUID) ([]uuid.UUID, error) {
+	// The read spans the chats of any owner. The queue cleanup of an
+	// automation runs it as chatd, and the automation rows can be gone.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
 		return nil, err
 	}
-	if err := q.authorizeContext(ctx, policy.ActionDelete, automation); err != nil {
-		return nil, err
-	}
-	return q.db.GetChatIDsWithQueuedMessagesByAutomationID(ctx, automationID)
+	return q.db.GetChatIDsWithQueuedMessagesByAutomationIDs(ctx, automationIDs)
 }
 
 func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {

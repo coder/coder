@@ -399,6 +399,8 @@ func defaultApplier(tr chatstate.Transition) applierFn {
 		return applyClearContext
 	case chatstate.TransitionDeleteQueuedMessage:
 		return applyDeleteQueuedMessage
+	case chatstate.TransitionDeleteQueuedMessagesByAutomation:
+		return applyDeleteQueuedMessagesByAutomation(uuid.New())
 	case chatstate.TransitionSteerQueuedMessage:
 		return applySteerQueuedMessage
 	case chatstate.TransitionEditQueuedMessage:
@@ -450,26 +452,27 @@ func mustMarshalParts(t *testing.T, parts []codersdk.ChatMessagePart) pqtype.Nul
 // AllowedExecutionTransitionsFrom and AllowedExecutionTransitionOutputs.
 
 type transitionCaseResult struct {
-	setProject              chatstate.SetProjectResult
-	sendMessage             chatstate.SendMessageResult
-	editMessage             chatstate.EditMessageResult
-	requestCompaction       chatstate.RequestCompactionResult
-	clearContext            chatstate.ClearContextResult
-	deleteQueuedMessage     chatstate.DeleteQueuedMessageResult
-	steerQueuedMessage      chatstate.SteerQueuedMessageResult
-	editQueuedMessage       chatstate.EditQueuedMessageResult
-	interrupt               chatstate.InterruptResult
-	completeRequiresAction  chatstate.CompleteRequiresActionResult
-	recordGenerationAttempt chatstate.RecordGenerationAttemptResult
-	recordRetryState        chatstate.RecordRetryStateResult
-	deliverSteerMessages    chatstate.DeliverSteerMessagesResult
-	commitStep              chatstate.CommitStepResult
-	enterRequiresAction     chatstate.EnterRequiresActionResult
-	finishInterruption      chatstate.FinishInterruptionResult
-	finishTurn              chatstate.FinishTurnResult
-	finishError             chatstate.FinishErrorResult
-	cancelRequiresAction    chatstate.CancelRequiresActionResult
-	reconcileInvalidState   chatstate.ReconcileInvalidStateResult
+	setProject                       chatstate.SetProjectResult
+	sendMessage                      chatstate.SendMessageResult
+	editMessage                      chatstate.EditMessageResult
+	requestCompaction                chatstate.RequestCompactionResult
+	clearContext                     chatstate.ClearContextResult
+	deleteQueuedMessage              chatstate.DeleteQueuedMessageResult
+	deleteQueuedMessagesByAutomation chatstate.DeleteQueuedMessagesByAutomationResult
+	steerQueuedMessage               chatstate.SteerQueuedMessageResult
+	editQueuedMessage                chatstate.EditQueuedMessageResult
+	interrupt                        chatstate.InterruptResult
+	completeRequiresAction           chatstate.CompleteRequiresActionResult
+	recordGenerationAttempt          chatstate.RecordGenerationAttemptResult
+	recordRetryState                 chatstate.RecordRetryStateResult
+	deliverSteerMessages             chatstate.DeliverSteerMessagesResult
+	commitStep                       chatstate.CommitStepResult
+	enterRequiresAction              chatstate.EnterRequiresActionResult
+	finishInterruption               chatstate.FinishInterruptionResult
+	finishTurn                       chatstate.FinishTurnResult
+	finishError                      chatstate.FinishErrorResult
+	cancelRequiresAction             chatstate.CancelRequiresActionResult
+	reconcileInvalidState            chatstate.ReconcileInvalidStateResult
 }
 
 type applierFn func(t *testing.T, f *testFixture, tx *chatstate.Tx, seeded seededChat, from chatstate.ExecutionState, result *transitionCaseResult) error
@@ -1181,7 +1184,8 @@ func matrixCases() []transitionCaseSpec {
 			deleteQueuedCaseAt(ready, blocked, scenarioEditBehindHead, multiEditingBehind, 0),
 		)
 	}
-	return append(cases, editingQueueMatrixCases()...)
+	cases = append(cases, editingQueueMatrixCases()...)
+	return append(cases, automationQueueMatrixCases()...)
 }
 
 // emptyQueueSibling maps each ready-head state to the sibling with the

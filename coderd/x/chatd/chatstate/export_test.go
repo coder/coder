@@ -92,6 +92,7 @@ var AllExecutionTransitions = []Transition{
 	TransitionRequestCompaction,
 	TransitionClearContext,
 	TransitionDeleteQueuedMessage,
+	TransitionDeleteQueuedMessagesByAutomation,
 	TransitionSteerQueuedMessage,
 	TransitionEditQueuedMessage,
 	TransitionInterrupt,

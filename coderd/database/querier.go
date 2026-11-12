@@ -155,7 +155,9 @@ type sqlcQuerier interface {
 	// be recreated.
 	DeleteAllWebpushSubscriptions(ctx context.Context) error
 	DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, userID uuid.UUID) error
-	DeleteChatAutomationByID(ctx context.Context, id uuid.UUID) error
+	// Returns the number of deleted rows, so that the caller sees a row that
+	// was already gone.
+	DeleteChatAutomationByID(ctx context.Context, id uuid.UUID) (int64, error)
 	// Clears a chat's pinned context resources. Used as the first half of a
 	// clear-then-copy re-pin, and on its own when the chat's current agent
 	// has no snapshot.
@@ -182,6 +184,9 @@ type sqlcQuerier interface {
 	// number of affected rows so callers can detect missing rows without
 	// a follow-up read.
 	DeleteChatQueuedMessageReturningCount(ctx context.Context, arg DeleteChatQueuedMessageReturningCountParams) (int64, error)
+	// Deletes the queued messages of the chat that the given automations
+	// queued. Returns the number of deleted rows.
+	DeleteChatQueuedMessagesByAutomationIDs(ctx context.Context, arg DeleteChatQueuedMessagesByAutomationIDsParams) (int64, error)
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
 	DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error)
@@ -468,6 +473,9 @@ type sqlcQuerier interface {
 	// Auto-archive window in days. 0 disables.
 	GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchiveDays int32) (int32, error)
 	GetChatAutomationByID(ctx context.Context, id uuid.UUID) (ChatAutomation, error)
+	// Returns the automations of one owner across all organizations, in ID
+	// order, which is the order in which automation locks are taken.
+	GetChatAutomationIDsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]uuid.UUID, error)
 	// The all-zero owner_id means every owner. The webhook secret and its key
 	// ID are left out, so a list never loads or decrypts a secret.
 	GetChatAutomationsByOrganizationID(ctx context.Context, arg GetChatAutomationsByOrganizationIDParams) ([]GetChatAutomationsByOrganizationIDRow, error)
@@ -511,9 +519,10 @@ type sqlcQuerier interface {
 	GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error)
 	GetChatGatewayAPIKey(ctx context.Context, arg GetChatGatewayAPIKeyParams) (APIKey, error)
 	GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatParams) (ChatHeartbeat, error)
-	// Returns the chats that hold messages that the automation queued, in chat ID
-	// order, which is the order in which chat rows are locked.
-	GetChatIDsWithQueuedMessagesByAutomationID(ctx context.Context, automationID uuid.UUID) ([]uuid.UUID, error)
+	// Returns the chats that hold messages that the automations queued, in chat
+	// ID order, which is the order in which chat rows are locked. The automation
+	// rows can be gone already: a queued message keeps the ID of its automation.
+	GetChatIDsWithQueuedMessagesByAutomationIDs(ctx context.Context, automationIds []uuid.UUID) ([]uuid.UUID, error)
 	// GetChatIncludeDefaultSystemPrompt preserves the legacy default
 	// for deployments created before the explicit include-default toggle.
 	// When the toggle is unset, a non-empty custom prompt implies false;
@@ -1280,7 +1289,8 @@ type sqlcQuerier interface {
 	InsertChatQueuedMessage(ctx context.Context, arg InsertChatQueuedMessageParams) (ChatQueuedMessage, error)
 	// Inserts a queued message that carries a position (from the default
 	// sequence) and an explicit created_by reference. Use this when the
-	// queued-message creator differs from the chat owner.
+	// queued-message creator differs from the chat owner. A message that an
+	// automation queued carries automation_id and input_id, always together.
 	InsertChatQueuedMessageWithCreator(ctx context.Context, arg InsertChatQueuedMessageWithCreatorParams) (ChatQueuedMessage, error)
 	InsertCryptoKey(ctx context.Context, arg InsertCryptoKeyParams) (CryptoKey, error)
 	InsertCustomRole(ctx context.Context, arg InsertCustomRoleParams) (CustomRole, error)

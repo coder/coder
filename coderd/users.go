@@ -30,6 +30,8 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatautomation"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -709,9 +711,39 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = api.Database.UpdateUserDeletedByID(ctx, user.ID)
+	// The transaction below reads the automations of the user as the
+	// system, so the caller is checked first.
+	if !api.Authorize(r, policy.ActionDelete, user) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	// The soft delete removes the automations of the user in a trigger. A
+	// run that holds an automation lock can queue a message until then, so
+	// the locks come first and the queue cleanup last. The cleanup locks
+	// chat rows, and it comes after the soft delete because other
+	// transactions lock rows that the trigger deletes, or the user row,
+	// before a chat row.
+	var publish func()
+	err = api.Database.InTx(func(tx database.Store) error {
+		automationIDs, err := chatautomation.LockByOwner(ctx, tx, user.ID)
+		if err != nil {
+			return err
+		}
+		if err := tx.UpdateUserDeletedByID(ctx, user.ID); err != nil {
+			return err
+		}
+		publish, err = chatautomation.DeleteQueuedMessages(ctx, api.Logger, tx, api.Pubsub, automationIDs)
+		return err
+	}, nil)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
+		return
+	}
+	if errors.Is(err, chatstate.ErrInvalidState) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "A chat that holds queued automation messages of this user is in an invalid state. Reconcile the chat, then delete the user again.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 	if err != nil {
@@ -721,6 +753,7 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	publish()
 	user.Deleted = true
 	aReq.New = user
 
