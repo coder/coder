@@ -10917,6 +10917,8 @@ WHERE
     chat_id = $1::uuid
     AND visibility IN ('model', 'both')
     AND deleted = false
+    -- A message that waits for its hooks is not part of any prompt yet.
+    AND prompt_hooks_pending = false
     AND (
         (
             role = 'system'
@@ -15443,8 +15445,9 @@ type UpdateChatQueuedMessageContentParams struct {
 	ChatID          uuid.UUID               `db:"chat_id" json:"chat_id"`
 }
 
-// Replaces the content and per-message overrides of a queued message. The
-// caller ran the submit hooks on the new content, so the flag is cleared.
+// Replaces the content and per-message overrides of a queued message. An edit
+// is a new submission, so the flag is cleared: the caller runs the submit hooks
+// on the new content when they are on.
 func (q *sqlQuerier) UpdateChatQueuedMessageContent(ctx context.Context, arg UpdateChatQueuedMessageContentParams) (ChatQueuedMessage, error) {
 	row := q.db.QueryRowContext(ctx, updateChatQueuedMessageContent,
 		arg.Content,

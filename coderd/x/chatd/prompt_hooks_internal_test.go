@@ -3,7 +3,6 @@ package chatd
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -327,29 +326,10 @@ func TestResolvePromptHooksOutcomes(t *testing.T) {
 	}
 }
 
-// TestResolvePromptHooksRunsAgainAfterACrash covers a worker that dies after
-// the hook answered and before the transaction committed: the flag is still
-// set, so the next task runs the hooks again and applies one result.
-func TestResolvePromptHooksRunsAgainAfterACrash(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-	h := newPromptHooksHarness(t, func(n int) (int, string) {
-		return http.StatusOK, fmt.Sprintf(`{"permission":{"decision":"allow","input_override":{"prompt":"answer %d"}}}`, n)
-	})
-
-	crashCtx, crash := context.WithCancel(ctx)
-	err := h.runDuring(crashCtx, t, h.workerID, h.runnerID, crash)
-	require.ErrorIs(t, err, errTaskExpectedExit)
-	require.Equal(t, promptHooksRow{pending: true, parts: plain("flagged")}, h.row(t, h.flagged.ID))
-
-	require.NoError(t, h.run(ctx, t, h.workerID, h.runnerID))
-	require.Equal(t, 2, h.requestCount())
-	require.Equal(t, promptHooksRow{parts: plain("answer 2")}, h.row(t, h.flagged.ID))
-}
-
-// TestResolvePromptHooksSecondReplica covers a worker whose lease ended while
-// its hook ran. The second worker owns the chat, so the first worker's late
-// result is dropped and the second worker's result is the one that applies.
+// TestResolvePromptHooksSecondReplica covers a worker that dies, or whose
+// lease ends, while its hook runs. The second worker owns the chat, so the
+// first worker's late result is dropped, the flag is still set, and the
+// second worker runs the hooks again and applies its own result.
 func TestResolvePromptHooksSecondReplica(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitLong)
@@ -480,35 +460,15 @@ func TestResolvePromptHooksConcurrentActors(t *testing.T) {
 
 func TestFirstPromptHooksPending(t *testing.T) {
 	t.Parallel()
-
 	row := func(id int64, pending bool) database.ChatMessage {
 		return database.ChatMessage{ID: id, PromptHooksPending: pending}
 	}
-	boundary, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
-		Type:       codersdk.ChatMessagePartTypeToolCall,
-		ToolName:   "chat_cleared",
-		ToolCallID: "call_clear",
-	}})
-	require.NoError(t, err)
-	clear := database.ChatMessage{ID: 50, Compressed: true, Content: boundary, ContentVersion: chatprompt.CurrentContentVersion}
 
-	tests := []struct {
-		name     string
-		messages []database.ChatMessage
-		want     int64
-	}{
-		{name: "Oldest", messages: []database.ChatMessage{row(1, false), row(2, true), row(3, true)}, want: 2},
-		{name: "HiddenByAClear", messages: []database.ChatMessage{row(1, true), clear, row(60, false)}},
-		{name: "AfterAClear", messages: []database.ChatMessage{row(1, true), clear, row(60, true)}, want: 60},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			got, ok := firstPromptHooksPending(tt.messages)
-			require.Equal(t, tt.want != 0, ok)
-			require.Equal(t, tt.want, got.ID)
-		})
-	}
+	_, ok := firstPromptHooksPending([]database.ChatMessage{row(1, false)})
+	require.False(t, ok)
+	got, ok := firstPromptHooksPending([]database.ChatMessage{row(1, false), row(2, true), row(3, true)})
+	require.True(t, ok)
+	require.EqualValues(t, 2, got.ID)
 }
 
 func TestMergeManualTitleMessagesSkipsPendingPromptHooks(t *testing.T) {

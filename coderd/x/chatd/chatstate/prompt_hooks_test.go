@@ -7,7 +7,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -98,11 +97,9 @@ func TestPromptHooksPendingRowsAreUserVisible(t *testing.T) {
 	}
 }
 
-// TestResolvePromptHooksRejectsMisuse covers what the transition matrix does
-// not: new content without a version, and a second resolution, which must be
-// loud and must not look like sql.ErrNoRows, which chatd treats as a deleted
-// chat.
-func TestResolvePromptHooksRejectsMisuse(t *testing.T) {
+// TestResolvePromptHooksTwice checks that a second resolution is loud and
+// does not look like sql.ErrNoRows, which chatd treats as a deleted chat.
+func TestResolvePromptHooksTwice(t *testing.T) {
 	t.Parallel()
 	f := newTestFixture(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -112,20 +109,15 @@ func TestResolvePromptHooksRejectsMisuse(t *testing.T) {
 		Content:            userTextMessage("hello", f.User.ID, f.Model.ID).Content,
 		PromptHooksPending: true,
 	})
-	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-	resolve := func(input chatstate.ResolvePromptHooksInput) error {
-		input.MessageID = flagged.ID
-		return m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-			_, err := tx.ResolvePromptHooks(input)
+	resolve := func() error {
+		return chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID).Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			_, err := tx.ResolvePromptHooks(chatstate.ResolvePromptHooksInput{MessageID: flagged.ID})
 			return err
 		})
 	}
 
-	rewritten, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("rewritten")})
-	require.NoError(t, err)
-	require.ErrorContains(t, resolve(chatstate.ResolvePromptHooksInput{Content: rewritten}), "content version")
-	require.NoError(t, resolve(chatstate.ResolvePromptHooksInput{}))
-	require.ErrorIs(t, resolve(chatstate.ResolvePromptHooksInput{}), chatstate.ErrPromptHooksNotPending)
+	require.NoError(t, resolve())
+	require.ErrorIs(t, resolve(), chatstate.ErrPromptHooksNotPending)
 }
 
 func TestClearContextClearsPromptHooksPending(t *testing.T) {

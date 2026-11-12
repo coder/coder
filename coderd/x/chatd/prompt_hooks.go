@@ -23,10 +23,9 @@ import (
 const promptHooksDeniedFallback = "Chat message denied by lifecycle hook."
 
 // firstPromptHooksPending returns the oldest message that still waits for its
-// user_prompt_submit hooks. A message before the latest context boundary is
-// hidden from the model, so its hooks do not matter.
+// user_prompt_submit hooks.
 func firstPromptHooksPending(messages []database.ChatMessage) (database.ChatMessage, bool) {
-	for _, message := range messages[latestContextBoundaryIndex(messages)+1:] {
+	for _, message := range messages {
 		if message.PromptHooksPending {
 			return message, true
 		}
@@ -136,9 +135,8 @@ func (s *taskStarter) applyPromptHooks(
 			return xerrors.Errorf("load chat for prompt hooks: %w", err)
 		}
 		if _, err := tx.ResolvePromptHooks(chatstate.ResolvePromptHooksInput{
-			MessageID:      message.ID,
-			Content:        outcome.content,
-			ContentVersion: chatprompt.CurrentContentVersion,
+			MessageID: message.ID,
+			Content:   outcome.content,
 		}); err != nil {
 			return err
 		}
@@ -146,9 +144,6 @@ func (s *taskStarter) applyPromptHooks(
 		committed, err = store.GetChatByID(ctx, input.ChatID)
 		return err
 	})
-	if errors.Is(err, chatstate.ErrPromptHooksNotPending) {
-		return err
-	}
 	if err != nil {
 		return normalizeTaskTransitionError(err, "apply prompt hooks")
 	}

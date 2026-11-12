@@ -201,6 +201,7 @@ func TestPromptHooksPendingTurn(t *testing.T) {
 			waitForChatStatus(ctx, t, h.db, chat.ID, database.ChatStatusWaiting)
 			require.Equal(t, []string{"flagged"}, h.promptsSeen())
 			require.True(t, h.modelSaw(tt.wantText))
+			require.False(t, h.modelSaw("flagged"), "the model must see the rewrite, not the original")
 			text, message := h.messageText(ctx, t, flagged.ID)
 			require.Equal(t, tt.wantText, text)
 			require.False(t, message.PromptHooksPending)

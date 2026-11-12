@@ -1661,8 +1661,9 @@ type sqlcQuerier interface {
 	// Sets the project of one chat. A NULL project_id removes the chat from
 	// its project.
 	UpdateChatProjectIDByID(ctx context.Context, arg UpdateChatProjectIDByIDParams) error
-	// Replaces the content and per-message overrides of a queued message. The
-	// caller ran the submit hooks on the new content, so the flag is cleared.
+	// Replaces the content and per-message overrides of a queued message. An edit
+	// is a new submission, so the flag is cleared: the caller runs the submit hooks
+	// on the new content when they are on.
 	UpdateChatQueuedMessageContent(ctx context.Context, arg UpdateChatQueuedMessageContentParams) (ChatQueuedMessage, error)
 	// Begins (@editing = true) or ends the row's edit. Beginning keeps an
 	// existing editing_since, so the timestamp marks the first begin.

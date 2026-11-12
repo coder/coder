@@ -287,9 +287,8 @@ func applyResolvePromptHooks(t *testing.T, _ *testFixture, tx *chatstate.Tx, see
 	t.Helper()
 	var err error
 	result.resolvePromptHooks, err = tx.ResolvePromptHooks(chatstate.ResolvePromptHooksInput{
-		MessageID:      seeded.promptHooksMessageID,
-		Content:        mustMarshalParts(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("rewritten")}),
-		ContentVersion: chatprompt.CurrentContentVersion,
+		MessageID: seeded.promptHooksMessageID,
+		Content:   mustMarshalParts(t, []codersdk.ChatMessagePart{codersdk.ChatMessageText("rewritten")}),
 	})
 	return err
 }

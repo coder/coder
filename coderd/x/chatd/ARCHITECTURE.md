@@ -238,6 +238,7 @@ stateDiagram-v2
     R0 --> R0: RecordGenerationAttempt
     R0 --> R0: RecordRetryState
     R0 --> R0: CommitStep
+    R0 --> R0: ResolvePromptHooks
     R0 --> A0: EnterRequiresAction
     R0 --> I0: Interrupt
     R0 --> R0: EditMessage
@@ -250,6 +251,7 @@ stateDiagram-v2
     R1 --> R1: RecordGenerationAttempt
     R1 --> R1: RecordRetryState
     R1 --> R1: CommitStep
+    R1 --> R1: ResolvePromptHooks
     R1 --> A1: EnterRequiresAction
     R1 --> I1: Interrupt
     R1 --> R0: EditMessage
@@ -271,6 +273,7 @@ stateDiagram-v2
     R1P --> R1P: RecordGenerationAttempt
     R1P --> R1P: RecordRetryState
     R1P --> R1P: CommitStep
+    R1P --> R1P: ResolvePromptHooks
     R1P --> A1P: EnterRequiresAction
     R1P --> I1P: Interrupt
     R1P --> R0: EditMessage
@@ -1151,7 +1154,7 @@ Retriable conditions include, but are not limited to:
 
 The generation goroutine is responsible for calling the LLM API and executing tools. It is spawned when the event indicates the core state machine is in `R0` or `R1` (status is `running`).
 
-Before anything else in a step can show a message to the model, the goroutine settles the oldest message after the latest context boundary that has `prompt_hooks_pending` set. The flag means that the `user_prompt_submit` hooks of the message have not run. With lifecycle hooks off, the goroutine only clears the flag. Otherwise it dispatches the hooks outside any transaction, with the capacity class of admitted work, and applies the outcome with `ResolvePromptHooks` in one short transaction. The goroutine then ends, and the history change starts a new task. A hook can rewrite the message, as it can for a human message. A denial soft-deletes the message and moves the chat to `error` with kind `hook_denied` in one transaction, and the messages queued behind it stay queued. A dispatch failure moves the chat to `error` with kind `hook_dispatch_failed` and keeps the message, so its hooks run again when the chat resumes. If the worker dies after the hooks answered and before the transaction commits, the flag is still set, so the next worker runs the hooks again.
+Before anything else in a step can show a message to the model, the goroutine settles the oldest message after the latest context boundary that has `prompt_hooks_pending` set. The flag means that the `user_prompt_submit` hooks of the message have not run. With lifecycle hooks off, the goroutine only clears the flag. Otherwise it dispatches the hooks outside any transaction, with the capacity class of admitted work, and applies the outcome with `ResolvePromptHooks` in one short transaction. The goroutine then ends, and the history change starts a new task. A hook can rewrite the message, as it can for a human message. A denial soft-deletes the message and moves the chat to `error` with kind `hook_denied` in one transaction, and the messages queued behind it stay queued. A dispatch failure moves the chat to `error` with kind `hook_dispatch_failed` and keeps the message, so its hooks run again when the chat resumes. If the task ends before the transaction commits, because the worker dies, an interrupt or an edit arrives, or another worker takes the chat, the flag is still set, so the hooks run again. A message that an interrupt or an error leaves flagged waits for the next turn of the chat. Until its hooks have run, no model reads the message: the prompt query skips it, and so do the title and summary generators.
 
 It inspects the chat's message history, and decides what's the next step to take. The result of that step is the application of one of the following core state machine transitions:
 

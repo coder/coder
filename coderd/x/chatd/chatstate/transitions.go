@@ -1832,10 +1832,8 @@ var ErrPromptHooksNotPending = xerrors.New("message is not waiting for its promp
 // ResolvePromptHooksInput configures [Tx.ResolvePromptHooks].
 type ResolvePromptHooksInput struct {
 	MessageID int64
-	// Content replaces the content of the message when it is valid. It is
-	// stored with ContentVersion.
-	Content        pqtype.NullRawMessage
-	ContentVersion int16
+	// Content replaces the content of the message when it is valid.
+	Content pqtype.NullRawMessage
 	// Deny soft-deletes the message.
 	Deny bool
 }
@@ -1854,14 +1852,11 @@ func (tx *Tx) ResolvePromptHooks(input ResolvePromptHooksInput) (ResolvePromptHo
 	if _, _, err := tx.requireFromAllowed(TransitionResolvePromptHooks); err != nil {
 		return ResolvePromptHooksResult{}, err
 	}
-	if input.Content.Valid && input.ContentVersion == 0 {
-		return ResolvePromptHooksResult{}, xerrors.New("resolve prompt hooks: new content needs a content version")
-	}
 	message, err := tx.store.ResolveChatMessagePromptHooks(tx.ctx, database.ResolveChatMessagePromptHooksParams{
 		ID:             input.MessageID,
 		ChatID:         tx.chatID,
 		Content:        input.Content,
-		ContentVersion: sql.NullInt16{Int16: input.ContentVersion, Valid: input.Content.Valid},
+		ContentVersion: sql.NullInt16{Int16: chatprompt.CurrentContentVersion, Valid: input.Content.Valid},
 		Deleted:        input.Deny,
 	})
 	if errors.Is(err, sql.ErrNoRows) {

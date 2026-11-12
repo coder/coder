@@ -633,6 +633,8 @@ WHERE
     chat_id = @chat_id::uuid
     AND visibility IN ('model', 'both')
     AND deleted = false
+    -- A message that waits for its hooks is not part of any prompt yet.
+    AND prompt_hooks_pending = false
     AND (
         (
             role = 'system'
@@ -3111,8 +3113,9 @@ WHERE id = @id::bigint AND chat_id = @chat_id::uuid
 RETURNING *;
 
 -- name: UpdateChatQueuedMessageContent :one
--- Replaces the content and per-message overrides of a queued message. The
--- caller ran the submit hooks on the new content, so the flag is cleared.
+-- Replaces the content and per-message overrides of a queued message. An edit
+-- is a new submission, so the flag is cleared: the caller runs the submit hooks
+-- on the new content when they are on.
 UPDATE chat_queued_messages
 SET content = @content::jsonb,
     model_config_id = sqlc.narg('model_config_id')::uuid,

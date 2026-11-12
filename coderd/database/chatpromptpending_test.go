@@ -125,6 +125,27 @@ func TestChatPromptHooksPendingQueries(t *testing.T) {
 		})
 	})
 
+	t.Run("PromptQuerySkipsFlagged", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		chat := newChat(t)
+		plain, flagged := newMessage(t, chat.ID, false), newMessage(t, chat.ID, true)
+		ids := func() []int64 {
+			rows, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+			require.NoError(t, err)
+			out := make([]int64, 0, len(rows))
+			for _, row := range rows {
+				out = append(out, row.ID)
+			}
+			return out
+		}
+
+		require.Equal(t, []int64{plain.ID}, ids())
+		_, err := db.ResolveChatMessagePromptHooks(ctx, database.ResolveChatMessagePromptHooksParams{ID: flagged.ID, ChatID: chat.ID})
+		require.NoError(t, err)
+		require.Equal(t, []int64{plain.ID, flagged.ID}, ids())
+	})
+
 	t.Run("SoftDeleteClearsTheFlag", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
