@@ -168,32 +168,6 @@ export const InteractiveSingleQuestion: Story = {
 	},
 };
 
-export const OptionsWithoutDescriptions: Story = {
-	args: {
-		status: "completed",
-		result: JSON.stringify({
-			questions: [
-				{
-					header: "Implementation Approach",
-					question: "How should we structure the database migration?",
-					options: [
-						{ label: "Single migration" },
-						{
-							label: "Incremental migrations",
-							description:
-								"Split into multiple sequential migrations. More flexible rollback.",
-						},
-						{ label: "No migration" },
-					],
-				},
-			],
-		}),
-		isChatCompleted: true,
-		isLatestAskUserQuestion: true,
-		onSendAskUserQuestionResponse: fn(),
-	},
-};
-
 export const InteractiveSingleQuestionOther: Story = {
 	args: {
 		status: "completed",
@@ -222,6 +196,32 @@ export const InteractiveSingleQuestionOther: Story = {
 			"Other: Use a canary rollout",
 		);
 		expect(canvas.getByText("Other: Use a canary rollout")).toBeInTheDocument();
+	},
+};
+
+export const OptionsWithoutDescriptions: Story = {
+	args: {
+		status: "completed",
+		result: JSON.stringify({
+			questions: [
+				{
+					header: "Implementation Approach",
+					question: "How should we structure the database migration?",
+					options: [
+						{ label: "Single migration" },
+						{
+							label: "Incremental migrations",
+							description:
+								"Split into multiple sequential migrations. More flexible rollback.",
+						},
+						{ label: "No migration" },
+					],
+				},
+			],
+		}),
+		isChatCompleted: true,
+		isLatestAskUserQuestion: true,
+		onSendAskUserQuestionResponse: fn(),
 	},
 };
 
