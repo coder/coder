@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/x/chatd/agentselect"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatautomation"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatopenai"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
@@ -2590,6 +2591,15 @@ func (p *Server) appendRootChatTools(
 			Logger:        p.logger,
 		}),
 	)
+	if p.manageAutomationsAvailable(ctx, opts.chat) {
+		tools = append(tools, chatautomation.Tool(chatautomation.ToolOptions{
+			DB:             p.db,
+			OwnerID:        opts.chat.OwnerID,
+			OrganizationID: opts.chat.OrganizationID,
+			Logger:         p.logger,
+			Clock:          p.clock,
+		}))
+	}
 	if opts.isPlanModeTurn {
 		tools = append(tools, chattool.ProposePlan(chattool.ProposePlanOptions{
 			GetWorkspaceConn: opts.workspaceCtx.getWorkspaceConn,

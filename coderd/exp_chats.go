@@ -2771,6 +2771,23 @@ func (api *API) updateChat(
 		})
 	}
 
+	// RFC: "Only the chat owner can change its interim composer switch,
+	// `manage_automations_enabled`." The switch is a chat field, so an
+	// administrator with update permission must not change it.
+	if req.ManageAutomationsEnabled != nil {
+		if chat.OwnerID != callerID {
+			return database.Chat{}, httperror.NewResponseError(http.StatusForbidden, codersdk.Response{
+				Message: "Only the chat owner can change its automations switch.",
+			})
+		}
+		// Turning it off is always allowed, so a stale switch can be cleared.
+		if *req.ManageAutomationsEnabled && !api.ExperimentEvaluator.Enabled(ctx, callerID, codersdk.ExperimentChatAutomations) {
+			return database.Chat{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
+				Message: "Chat automations are not enabled for you.",
+			})
+		}
+	}
+
 	// The binding decides where the owner's later prompts and tool calls
 	// run. Checking the owner's SSH access to the target is not enough,
 	// because a non-owner can first share their own workspace with them.
@@ -3034,6 +3051,17 @@ func (api *API) updateChat(
 		})
 		if err != nil {
 			return database.Chat{}, chatUpdateError(err, "Failed to update chat plan mode.")
+		}
+		chat = updatedChat
+	}
+
+	if req.ManageAutomationsEnabled != nil {
+		updatedChat, err := api.Database.UpdateChatManageAutomationsEnabledByID(ctx, database.UpdateChatManageAutomationsEnabledByIDParams{
+			ID:                       chat.ID,
+			ManageAutomationsEnabled: *req.ManageAutomationsEnabled,
+		})
+		if err != nil {
+			return database.Chat{}, chatUpdateError(err, "Failed to update chat automations switch.")
 		}
 		chat = updatedChat
 	}

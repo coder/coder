@@ -53,6 +53,9 @@ type CreateChatInput struct {
 	// MaxFileLinks is the maximum number of files linked to the chat. It
 	// must be positive when FileIDs is not empty.
 	MaxFileLinks int
+	// ManageAutomationsEnabled is the starting value of the chat's
+	// manage_automations switch.
+	ManageAutomationsEnabled bool
 }
 
 // CreateChatResult is the value returned by [CreateChat]. It carries
@@ -171,6 +174,8 @@ func insertChat(
 			Labels:            input.Labels,
 			DynamicTools:      input.DynamicTools,
 			ClientType:        input.ClientType,
+
+			ManageAutomationsEnabled: input.ManageAutomationsEnabled,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert chat: %w", err)

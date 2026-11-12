@@ -2200,6 +2200,12 @@ export interface Chat {
 	readonly warnings?: readonly string[];
 	readonly client_type: ChatClientType;
 	/**
+	 * ManageAutomationsEnabled is the owner's switch for the
+	 * manage_automations tool. The tool also needs the chat-automations
+	 * experiment and a root chat. Experimental.
+	 */
+	readonly manage_automations_enabled?: boolean;
+	/**
 	 * InlineMCPServers lists the inline MCP servers declared on the chat,
 	 * without headers. Only the single-chat GET sets it.
 	 * Experimental.
@@ -11292,6 +11298,12 @@ export interface UpdateChatRequest {
 	 * nil: no change, ptr to "plan": enable, ptr to "": clear.
 	 */
 	readonly plan_mode?: ChatPlanMode;
+	/**
+	 * ManageAutomationsEnabled switches the manage_automations tool for the
+	 * chat. Only the chat owner can change it, and turning it on needs the
+	 * chat-automations experiment. nil: no change. Experimental.
+	 */
+	readonly manage_automations_enabled?: boolean;
 }
 
 // From codersdk/chats.go

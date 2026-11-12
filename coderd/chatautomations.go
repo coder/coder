@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -76,7 +75,7 @@ func (api *API) listChatAutomations(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	automations := slice.List(rows, db2sdk.ChatAutomationFromListRow)
-	refs, err := api.loadChatAutomationRefs(ctx, automations)
+	refs, err := chatautomation.LoadRefs(ctx, api.Database, automations)
 	if err != nil {
 		api.writeChatAutomationError(ctx, rw, "Failed to list chat automations.", err)
 		return
@@ -146,7 +145,7 @@ func (api *API) getChatAutomation(rw http.ResponseWriter, r *http.Request) {
 		api.writeChatAutomationError(ctx, rw, "Failed to get chat automation.", err)
 		return
 	}
-	refs, err := api.loadChatAutomationRefs(ctx, []database.ChatAutomation{automation})
+	refs, err := chatautomation.LoadRefs(ctx, api.Database, []database.ChatAutomation{automation})
 	if err != nil {
 		api.writeChatAutomationError(ctx, rw, "Failed to get chat automation.", err)
 		return
@@ -206,65 +205,4 @@ func parseChatAutomationID(rw http.ResponseWriter, r *http.Request) (uuid.UUID, 
 		return uuid.Nil, false
 	}
 	return id, true
-}
-
-// loadChatAutomationRefs reads the owners and chats of the rows in one query
-// each.
-func (api *API) loadChatAutomationRefs(ctx context.Context, automations []database.ChatAutomation) (db2sdk.ChatAutomationRefs, error) {
-	refs := db2sdk.ChatAutomationRefs{
-		Owners: make(map[uuid.UUID]database.User),
-		Chats:  make(map[uuid.UUID]database.Chat),
-	}
-	ownerIDs := make(map[uuid.UUID]struct{})
-	chatIDs := make(map[uuid.UUID]struct{})
-	for _, a := range automations {
-		ownerIDs[a.OwnerID] = struct{}{}
-		for _, id := range []uuid.NullUUID{a.TargetChatID, a.CreatedByChatID} {
-			if id.Valid {
-				chatIDs[id.UUID] = struct{}{}
-			}
-		}
-	}
-	if len(ownerIDs) > 0 {
-		users, err := api.Database.GetUsersByIDs(ctx, mapKeys(ownerIDs))
-		switch {
-		case dbauthz.IsNotAuthorizedError(err):
-			// The batch read is all or nothing. Read the owners one by one and
-			// leave out each one that the caller cannot read.
-			for id := range ownerIDs {
-				user, err := api.Database.GetUserByID(ctx, id)
-				if httpapi.Is404Error(err) {
-					continue
-				}
-				if err != nil {
-					return refs, xerrors.Errorf("get owner: %w", err)
-				}
-				refs.Owners[id] = user
-			}
-		case err != nil:
-			return refs, xerrors.Errorf("get owners: %w", err)
-		default:
-			for _, u := range users {
-				refs.Owners[u.ID] = u
-			}
-		}
-	}
-	if len(chatIDs) > 0 {
-		chats, err := api.Database.GetChatsByIDs(ctx, mapKeys(chatIDs))
-		if err != nil {
-			return refs, xerrors.Errorf("get chats: %w", err)
-		}
-		for _, c := range chats {
-			refs.Chats[c.ID] = c
-		}
-	}
-	return refs, nil
-}
-
-func mapKeys(set map[uuid.UUID]struct{}) []uuid.UUID {
-	keys := make([]uuid.UUID, 0, len(set))
-	for k := range set {
-		keys = append(keys, k)
-	}
-	return keys
 }
