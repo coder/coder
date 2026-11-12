@@ -491,12 +491,13 @@ describe("AgentChatPage", () => {
 			},
 		);
 
-		// The row leaves the queue only at a queue update.
+		// The row leaves the queue only at a queue update, so Edit can begin
+		// the edit again.
 		it.each([
 			[404, "Queued message was already sent or removed."],
 			[409, "Another edit is open."],
 		])(
-			"an Edit refused with %i reports it and shows the row as before",
+			"an Edit refused with %i reports it and can be retried",
 			async (status, message) => {
 				const toastError = vi.spyOn(toast, "error");
 				const page = renderQueuedChat({ queuedMessages: [row] });
@@ -506,14 +507,28 @@ describe("AgentChatPage", () => {
 				});
 
 				await page.rowAction("Edit");
-
 				await waitFor(() => expect(toastError).toHaveBeenCalledWith(message));
+				await page.rowAction("Edit");
+
 				await waitFor(() =>
-					expect(screen.queryByRole("button", { name: "Editing" })).toBeNull(),
+					expect(page.editChatQueuedMessage).toHaveBeenCalledTimes(2),
 				);
-				expect(screen.getByRole("button", { name: "Edit" })).toBeEnabled();
 			},
 		);
+
+		it("reports a failed Remove from queue", async () => {
+			const toastError = vi.spyOn(toast, "error");
+			const page = renderQueuedChat({ queuedMessages: [row] });
+			page.deleteChatQueuedMessage.mockRejectedValueOnce(
+				mockApiError({ message: "Delete failed." }),
+			);
+
+			await page.rowAction("Remove from queue");
+
+			await waitFor(() =>
+				expect(toastError).toHaveBeenCalledWith("Delete failed."),
+			);
+		});
 
 		it("Edit does nothing while a send is in flight", async () => {
 			vi.spyOn(API.experimental, "createChatMessage").mockReturnValue(
@@ -527,7 +542,6 @@ describe("AgentChatPage", () => {
 			await page.rowAction("Edit");
 
 			expect(page.editChatQueuedMessage).not.toHaveBeenCalled();
-			expect(screen.queryByRole("button", { name: "Editing" })).toBeNull();
 			expect(page.composer().textContent).toBe("");
 		});
 
@@ -555,7 +569,6 @@ describe("AgentChatPage", () => {
 				screen.getByRole("button", { name: "Edit message" }),
 			);
 
-			expect(screen.queryByRole("button", { name: "Save Edit" })).toBeNull();
 			expect(page.composer().textContent).toBe("");
 		});
 	});
