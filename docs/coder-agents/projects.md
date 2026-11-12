@@ -77,7 +77,8 @@ Set `project_id` to the nil universally unique identifier (UUID) (`00000000-0000
 
 - To pin a project, open its card's menu on the **Projects** page and select **Pin project**.
   The project appears at the end of the **Pinned** area of the sidebar, below your pinned chats.
-- To unpin a project, select the pin icon on its card, or open its menu on its card or in the sidebar and select **Unpin project**.
+- To unpin a project, select the pin icon on its card.
+- You can also open the project's menu on its card or in the sidebar and select **Unpin project**.
 - To reorder pinned projects, drag them in the **Pinned** area of the sidebar.
 
 Pins are personal and change only your own sidebar.
