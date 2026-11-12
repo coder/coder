@@ -719,10 +719,10 @@ func (p *Server) buildTurnEnvironment(
 	// the turn. Plan mode keeps ask_user_question, which ends it.
 	isUIChat := chat.ClientType == database.ChatClientTypeUi
 	asyncQuestionsEnabled := p.experiments.Enabled(codersdk.ExperimentChatAsyncQuestions)
-	asyncAskUserQuestion := isRootChat && !isPlanModeTurn && !isExploreSubagent && isUIChat && asyncQuestionsEnabled
+	offersAskUserQuestionAsync := isRootChat && !isPlanModeTurn && !isExploreSubagent && isUIChat && asyncQuestionsEnabled
 	if isPlanModeTurn && isRootChat {
 		tools = append(tools, chattool.NewAskUserQuestionTool())
-	} else if asyncAskUserQuestion {
+	} else if offersAskUserQuestionAsync {
 		tools = append(tools, chattool.NewAskUserQuestionAsyncTool())
 	}
 	if isRootChat {
