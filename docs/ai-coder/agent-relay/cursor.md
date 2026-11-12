@@ -107,7 +107,7 @@ resource "coder_agent" "main" {
 Use the latest module version from the registry.
 
 > [!NOTE]
-> Module version 1.0.0 and later need Coder 2.39 or later and Agent Relay v0.14.0 or later, and receive the credential as a workspace build secret.
+> Module version 1.0.0 and later need Coder 2.39 or later and the latest Agent Relay release, and receive the credential as a workspace build secret.
 > Do not set `AGENT_RELAY_CURSOR_TOKEN` in the template yourself.
 > To upgrade from an early access module version, refer to [Upgrade from early access](./setup.md#upgrade-from-early-access).
 
