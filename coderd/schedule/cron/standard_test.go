@@ -140,6 +140,13 @@ func TestStandard(t *testing.T) {
 			{name: "FactoryInADirectory", spec: "0 9 * * *", zone: "Etc/Factory", wantErr: `"Etc/Factory" is not supported`},
 			{name: "LocaltimeInADirectory", spec: "0 9 * * *", zone: "Etc/localtime", wantErr: `"Etc/localtime" is not supported`},
 			{name: "PosixrulesInADirectory", spec: "0 9 * * *", zone: "Etc/posixrules", wantErr: `"Etc/posixrules" is not supported`},
+			// A host with a case-insensitive file system loads these names as
+			// the zones and files above, so letter case does not change the rule.
+			{name: "FactoryLowercase", spec: "0 9 * * *", zone: "factory", wantErr: `"factory" is not supported`},
+			{name: "LocalUppercase", spec: "0 9 * * *", zone: "LOCAL", wantErr: `"LOCAL" is not supported`},
+			{name: "LocaltimeUppercase", spec: "0 9 * * *", zone: "LOCALTIME", wantErr: `"LOCALTIME" is not supported`},
+			{name: "PosixUppercase", spec: "0 9 * * *", zone: "POSIX/UTC", wantErr: "is not a zone name"},
+			{name: "RightCapitalized", spec: "0 9 * * *", zone: "Right/UTC", wantErr: "is not a zone name"},
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {

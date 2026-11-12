@@ -22,8 +22,10 @@ import (
 // data that hold other versions of the zones), the name is not "Local" (a Go
 // name for the zone of the host), its last segment is not "localtime",
 // "posixrules" or "Factory" (files of zone data that are not zones), and
-// time.LoadLocation loads it on this host. A spec that never runs, such as
-// "0 0 30 2 *", is an error.
+// time.LoadLocation loads it on this host. The names "posix", "right", "Local",
+// "localtime", "posixrules" and "Factory" match in any letter case, because a
+// host with a case-insensitive file system loads "factory" as "Factory". A spec
+// that never runs, such as "0 0 30 2 *", is an error.
 //
 // The schedule follows local time across daylight saving changes. A repeated
 // local time runs at its first instance only. A nonexistent local time runs at
@@ -84,14 +86,19 @@ func isZoneName(name string) bool {
 			return false
 		}
 	}
-	return !slices.Contains(otherVersions, segments[0])
+	return !containsFold(otherVersions, segments[0])
 }
 
 // isNotZone reports whether name is "Local", a Go name for the zone of the host,
 // or ends in a file of zone data that is not a zone.
 func isNotZone(name string) bool {
 	segments := strings.Split(name, "/")
-	return name == "Local" || slices.Contains(notZoneFiles, segments[len(segments)-1])
+	return strings.EqualFold(name, "Local") || containsFold(notZoneFiles, segments[len(segments)-1])
+}
+
+// containsFold reports whether names holds name, ignoring letter case.
+func containsFold(names []string, name string) bool {
+	return slices.ContainsFunc(names, func(n string) bool { return strings.EqualFold(n, name) })
 }
 
 // standardIn is Standard for fields that have passed its checks and a zone
