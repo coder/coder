@@ -24,7 +24,6 @@ import { reorderPinnedChat } from "#/api/queries/chats";
 import type {
 	Chat,
 	ChatModel,
-	ChatProject,
 	ChatProjectSummary,
 	Organization,
 } from "#/api/typesGenerated";
@@ -48,6 +47,7 @@ import {
 	DEFAULT_AGENT_SIDEBAR_FILTERS,
 	getSidebarChatListInput,
 } from "../../../utils/agentSidebarFilters";
+import { focusFirstVisible } from "../../../utils/focus";
 import { getOwnPinnedChats } from "../../../utils/pinnedChats";
 import { getTimeGroup, TIME_GROUPS } from "../../../utils/timeGroups";
 import { canManageChat } from "../../ChatActionsMenuItems";
@@ -80,7 +80,7 @@ import {
 } from "./ChatSectionHeader";
 import { LoadMoreSentinel } from "./LoadMoreSentinel";
 import { PinnedSection } from "./PinnedSection";
-import type { ProjectAction } from "./ProjectFolders";
+import { type ProjectAction, projectLabelOf } from "./ProjectFolders";
 import {
 	applyLocalPinOrder,
 	movedChatOf,
@@ -91,7 +91,7 @@ import {
 	refocusKeyboardPinDrag,
 	SyncDragTargetOnScroll,
 } from "./projectDrag";
-import { groupChatsByProject } from "./projectGrouping";
+import { getOrganizationLabels, groupChatsByProject } from "./projectGrouping";
 import { SectionSwitcher } from "./SectionSwitcher";
 import { SidebarSectionHeader } from "./SidebarSectionHeader";
 import { UserSidebarFooter } from "./UserSidebarFooter";
@@ -118,10 +118,10 @@ const dragSensors = [
 
 type ChatsPanelProps = {
 	readonly chatProjectsEnabled: boolean;
-	/** Every project the user can see, which names the projects of chats. */
-	readonly projects: readonly ChatProject[];
 	/** The user's pinned projects, in pin order. */
 	readonly pinnedProjects: readonly ChatProjectSummary[];
+	/** Every project's summary, pinned or not. */
+	readonly projectSummaries: readonly ChatProjectSummary[];
 	readonly organizations: readonly Organization[];
 	readonly isPinnedProjectsLoading: boolean;
 	readonly pinnedProjectsError: unknown;
@@ -158,8 +158,8 @@ type ChatsPanelProps = {
 
 export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 	chatProjectsEnabled,
-	projects,
 	pinnedProjects,
+	projectSummaries,
 	organizations,
 	isPinnedProjectsLoading,
 	pinnedProjectsError,
@@ -232,12 +232,12 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		folderProjectIds,
 	} = groupChatsByProject(
 		unpinnedOwnedChats,
-		pinnedProjects,
+		projectSummaries,
 		isPinnedProjectsLoading,
 	);
 	const { chatsByProjectId: pinnedChatsByProjectId } = groupChatsByProject(
 		pinnedChats,
-		pinnedProjects,
+		projectSummaries,
 	);
 	const hasAppliedResultFilters =
 		sidebarFilters.prStatuses.length > 0 ||
@@ -278,8 +278,17 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		(chat) => chat.id,
 	);
 	const pinnedChatIds = sortedPinnedChats.map((chat) => chat.id);
-	const projectNameById = new Map(projects.map((p) => [p.id, p.name]));
+	const projects = projectSummaries.map((summary) => summary.project);
+	const organizationLabels = getOrganizationLabels(projects, organizations);
+	const projectLabelById = new Map(
+		projects.map((p) => [
+			p.id,
+			projectLabelOf(p, organizationLabels.get(p.id)),
+		]),
+	);
 
+	const projectsNavItemRef = useRef<HTMLElement | null>(null);
+	const filterTriggerRef = useRef<HTMLButtonElement | null>(null);
 	const dragInstructionsId = useId();
 	const moveMutation = useMoveChatToProject();
 	const moveToUnpinnedProjectDialog = useMoveToUnpinnedProjectDialog();
@@ -305,7 +314,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 
 		// dnd-kit has already moved the dragged pin to source.index, so the drop
 		// target does not matter. The pins can change during a drag, so the old
-		// index comes from the chat ID. ProjectFolders reorders pinned projects.
+		// index comes from the chat ID.
 		if (
 			disablePinnedReordering ||
 			!isSortable(source) ||
@@ -421,7 +430,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 		navigateAfterArchive,
 		onOpenRenameDialog,
 		dragInstructionsId,
-		projectNameById,
+		projectLabelById,
 	};
 
 	const chatSections = (
@@ -487,6 +496,9 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 					<FilterPopover
 						filters={sidebarFilters}
 						onFiltersChange={onSidebarFiltersChange}
+						triggerRef={(element) => {
+							filterTriggerRef.current = element;
+						}}
 					/>
 				</>
 			}
@@ -502,6 +514,11 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 			sources: DEFAULT_AGENT_SIDEBAR_FILTERS.sources,
 		});
 	};
+
+	// The Projects nav item hides on a small screen, where the chat filters
+	// take focus instead.
+	const focusSidebarFallback = () =>
+		focusFirstVisible([projectsNavItemRef.current, filterTriggerRef.current]);
 
 	return (
 		<div
@@ -578,9 +595,14 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 						icon={FolderKanbanIcon}
 						label="Projects"
 						active={isProjectsActive}
-						// Moved chats can be found here, so the move dialog returns
-						// focus here when the chat leaves the sidebar.
-						ref={moveToUnpinnedProjectDialog?.setFocusFallback}
+						// Takes focus when the move dialog's chat or the last pinned
+						// project leaves the sidebar, since both can be found here.
+						ref={(element) => {
+							projectsNavItemRef.current = element;
+							moveToUnpinnedProjectDialog?.setFocusFallback(
+								element ? focusSidebarFallback : undefined,
+							);
+						}}
 						to={{ pathname: "/agents/projects", search: locationSearch }}
 					/>
 				)}
@@ -700,6 +722,7 @@ export const ChatsPanel: React.FC<ChatsPanelProps> = ({
 																	error: pinnedProjectsError,
 																	onRetry: onRetryPinnedProjects,
 																	emptyMessage: emptyStateMessage,
+																	focusUnpinFallback: focusSidebarFallback,
 																}
 															: undefined
 													}

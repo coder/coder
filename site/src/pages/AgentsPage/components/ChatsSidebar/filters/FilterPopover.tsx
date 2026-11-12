@@ -70,6 +70,7 @@ const SOURCE_OPTIONS = AGENT_SOURCE_ORDER.map((source) => ({
 type FilterPopoverProps = {
 	readonly filters: AgentSidebarFilters;
 	readonly onFiltersChange: (filters: AgentSidebarFilters) => void;
+	readonly triggerRef?: (element: HTMLButtonElement | null) => void;
 };
 
 const haveSameSelections = <T extends string>(
@@ -123,6 +124,7 @@ const FilterSubmenu: React.FC<{
 export const FilterPopover: React.FC<FilterPopoverProps> = ({
 	filters,
 	onFiltersChange,
+	triggerRef,
 }) => {
 	const setGroupBy = (value: string) => {
 		if (value !== "date" && value !== "chat_status") {
@@ -199,7 +201,12 @@ export const FilterPopover: React.FC<FilterPopoverProps> = ({
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild>
-				<Button variant="subtle" size="icon" aria-label="Filter agents">
+				<Button
+					ref={triggerRef}
+					variant="subtle"
+					size="icon"
+					aria-label="Filter agents"
+				>
 					<FilterIcon />
 				</Button>
 			</DropdownMenuTrigger>

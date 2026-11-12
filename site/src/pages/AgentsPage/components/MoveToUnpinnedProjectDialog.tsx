@@ -16,16 +16,16 @@ import {
 } from "#/components/Dialog/Dialog";
 import { Spinner } from "#/components/Spinner/Spinner";
 import { toast } from "#/components/Toaster/toast";
+import { focusFirstVisible } from "../utils/focus";
 import { buildAgentProjectPath } from "../utils/navigation";
 
 type MoveToUnpinnedProjectDialogControls = {
-	/** Opens the dialog for a chat that moved into an unpinned project. */
 	readonly show: (project: ChatProject, chatId: string) => void;
 	/**
-	 * Registers the element that takes focus when the dialog closes and the
-	 * moved chat has no actions button on screen.
+	 * Registers what moves focus when the dialog closes and the moved chat has
+	 * no actions button on screen. It returns whether an element took focus.
 	 */
-	readonly setFocusFallback: (element: HTMLElement | null) => void;
+	readonly setFocusFallback: (focus: (() => boolean) | undefined) => void;
 };
 
 const MoveToUnpinnedProjectContext = createContext<
@@ -47,39 +47,56 @@ export const MoveToUnpinnedProjectDialogProvider: React.FC<
 	React.PropsWithChildren
 > = ({ children }) => {
 	// The project stays after closing so the exit animation keeps its text.
+	// Each show gets its own ID, so a pin started from an earlier dialog
+	// neither closes nor disables a later one.
 	const [dialog, setDialog] = useState<{
+		id: number;
 		project?: ChatProject;
 		chatId?: string;
 		open: boolean;
-	}>({ open: false });
-	const focusFallbackRef = useRef<HTMLElement | null>(null);
+	}>({ id: 0, open: false });
+	const focusFallbackRef = useRef<(() => boolean) | undefined>(undefined);
 	// The menu that moved the chat often unmounts with its row, or is still
 	// closing when the move finishes, so Radix would return focus to the body.
+	// A small screen keeps the sidebar's copy of the button mounted but hidden.
 	const restoreFocus = (event: Event) => {
-		const target =
-			document.querySelector<HTMLElement>(
-				`[data-chat-actions-for="${dialog.chatId}"]:not(:disabled)`,
-			) ?? focusFallbackRef.current;
-		if (target?.isConnected) {
+		const focused =
+			focusFirstVisible([
+				...document.querySelectorAll<HTMLElement>(
+					`[data-chat-actions-for="${dialog.chatId}"]:not(:disabled)`,
+				),
+			]) ||
+			(focusFallbackRef.current?.() ?? false);
+		if (focused) {
 			event.preventDefault();
-			target.focus();
 		}
 	};
 	return (
 		<MoveToUnpinnedProjectContext
 			value={{
-				show: (project, chatId) => setDialog({ project, chatId, open: true }),
-				setFocusFallback: (element) => {
-					focusFallbackRef.current = element;
+				show: (project, chatId) =>
+					setDialog((current) => ({
+						id: current.id + 1,
+						project,
+						chatId,
+						open: true,
+					})),
+				setFocusFallback: (focus) => {
+					focusFallbackRef.current = focus;
 				},
 			}}
 		>
 			{children}
 			{dialog.project && (
 				<MoveToUnpinnedProjectDialog
+					key={dialog.id}
 					project={dialog.project}
 					open={dialog.open}
-					onClose={() => setDialog((current) => ({ ...current, open: false }))}
+					onClose={() =>
+						setDialog((current) =>
+							current.id === dialog.id ? { ...current, open: false } : current,
+						)
+					}
 					onCloseAutoFocus={restoreFocus}
 				/>
 			)}
@@ -113,14 +130,16 @@ export const MoveToUnpinnedProjectDialog: React.FC<
 		<Dialog open={open} onOpenChange={(next) => !next && onClose()}>
 			<DialogContent onCloseAutoFocus={onCloseAutoFocus}>
 				<DialogHeader>
-					<DialogTitle>Chat moved to {project.name}</DialogTitle>
-					<DialogDescription>
-						Chats in {project.name} appear in the sidebar only while you have
-						the project pinned. Pin it to keep this chat in the sidebar, or find
-						the chat on the project page.
+					<DialogTitle className="wrap-anywhere">
+						Chat moved to {project.name}
+					</DialogTitle>
+					<DialogDescription className="wrap-anywhere">
+						This chat appears in the sidebar only while {project.name} is
+						pinned. Pin the project to keep it there, or find the chat on the
+						project page.
 					</DialogDescription>
 				</DialogHeader>
-				<DialogFooter>
+				<DialogFooter className="gap-2 sm:space-x-0">
 					<DialogClose asChild>
 						<Button variant="subtle">Close</Button>
 					</DialogClose>

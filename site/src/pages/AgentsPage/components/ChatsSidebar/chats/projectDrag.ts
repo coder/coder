@@ -42,19 +42,26 @@ export type DropTargetData = { readonly dropTarget: DropTarget };
 /** The dnd-kit type of a pinned project drag, which only reorders the pins. */
 export const PROJECT_PIN_DRAG_TYPE = "project-pin";
 
-/** The dnd-kit data of a pinned project drag. */
-export type ProjectPinDragData = { readonly project: ChatProject };
+/**
+ * Carries the whole project, not its ID: the drop sends the pin request with
+ * its organization and the announcements read the folder's label, even if the
+ * summaries change during the drag.
+ */
+export type ProjectPinDragData = {
+	readonly project: ChatProject;
+	readonly label: string;
+};
 
 const isProjectPinDragData = (
 	data: Record<string, unknown>,
 ): data is ProjectPinDragData => "project" in data;
 
-/** The project of a pinned project drag, or undefined for any other drag. */
+/** The data of a pinned project drag, or undefined for any other drag. */
 export const pinnedProjectOf = (
 	source: Draggable | null,
-): ChatProject | undefined =>
+): ProjectPinDragData | undefined =>
 	source?.type === PROJECT_PIN_DRAG_TYPE && isProjectPinDragData(source.data)
-		? source.data.project
+		? source.data
 		: undefined;
 
 const isChatDragData = (data: Record<string, unknown>): data is ChatDragData =>
@@ -132,9 +139,9 @@ const announcedTarget = (target: Droppable | null): string | undefined => {
  */
 export const chatDragAnnouncements = {
 	dragstart: ({ operation: { source } }: DragStartEvent) => {
-		const project = pinnedProjectOf(source);
-		if (project) {
-			return `Picked up project ${project.name}.`;
+		const projectLabel = pinnedProjectOf(source)?.label;
+		if (projectLabel) {
+			return `Picked up project ${projectLabel}.`;
 		}
 		const chat = draggedChatOf(source);
 		return chat && `Picked up chat ${chat.title}.`;
@@ -144,10 +151,10 @@ export const chatDragAnnouncements = {
 		chatPinCount: number,
 		projectPinCount: number,
 	) => {
-		const project = pinnedProjectOf(source);
-		if (project) {
+		const projectLabel = pinnedProjectOf(source)?.label;
+		if (projectLabel) {
 			return isSortable(target)
-				? `Project ${project.name} is at position ${target.index + 1} of ${projectPinCount}.`
+				? `Project ${projectLabel} is at position ${target.index + 1} of ${projectPinCount}.`
 				: undefined;
 		}
 		const chat = movedChatOf(source);
@@ -158,17 +165,20 @@ export const chatDragAnnouncements = {
 				? `Chat ${pin.title} is at position ${target.index + 1} of ${chatPinCount}.`
 				: undefined;
 		}
-		const over = announcedTarget(target);
+		const over =
+			projectIdForTarget(chat, dropTargetOf(target)) === undefined
+				? undefined
+				: announcedTarget(target);
 		return over
 			? `Chat ${chat.title} is over ${over}.`
 			: `Chat ${chat.title} is not over a project or Chats.`;
 	},
 	dragend: ({ operation: { source, target }, canceled }: DragEndEvent) => {
-		const project = pinnedProjectOf(source);
-		if (project) {
+		const projectLabel = pinnedProjectOf(source)?.label;
+		if (projectLabel) {
 			return canceled
-				? `Moving project ${project.name} was canceled.`
-				: `Project ${project.name} was dropped.`;
+				? `Moving project ${projectLabel} was canceled.`
+				: `Project ${projectLabel} was dropped.`;
 		}
 		const chat = draggedChatOf(source);
 		if (!chat) {
@@ -257,11 +267,8 @@ export const moveKeyboardChatDrag = (
 	manager: DragDropManager,
 ): void => {
 	const { source, position, shape } = manager.dragOperation;
-	if (
-		!source ||
-		!(event.nativeEvent instanceof KeyboardEvent) ||
-		!movedChatOf(source)
-	) {
+	const chat = movedChatOf(source);
+	if (!source || !(event.nativeEvent instanceof KeyboardEvent) || !chat) {
 		return;
 	}
 	event.preventDefault();
@@ -270,12 +277,23 @@ export const moveKeyboardChatDrag = (
 		return;
 	}
 	const { x, y } = position.current;
-	const targets = dropTargetsOf(manager, source);
+	// The keyboard stops skip the folders that would move nothing.
+	const targets = dropTargetsOf(manager, source).filter(
+		(target) => projectIdForTarget(chat, dropTargetOf(target)) !== undefined,
+	);
+	// The drag stops on a target's top row, so Chats, which holds the
+	// folders, is a stop above them.
+	const topRowBottom = (rect: DOMRect) =>
+		rect.top +
+		Math.min(
+			rect.height,
+			shape?.current.boundingRectangle.height ?? rect.height,
+		);
 	const next = targets
 		.map((target) => target.element)
 		.filter((element) => element !== undefined)
 		.map((element) => ({ element, rect: element.getBoundingClientRect() }))
-		.filter(({ rect }) => (step > 0 ? rect.top > y : rect.bottom < y))
+		.filter(({ rect }) => (step > 0 ? rect.top > y : topRowBottom(rect) < y))
 		.sort((a, b) => (a.rect.top - b.rect.top) * step)[0];
 	if (!next) {
 		return;
