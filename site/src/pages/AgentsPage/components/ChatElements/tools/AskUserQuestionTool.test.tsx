@@ -19,6 +19,43 @@ const questions = [
 ];
 
 describe("AskUserQuestionTool", () => {
+	it("submits an option without a description as its label", async () => {
+		const user = userEvent.setup();
+		const onSubmitAnswer = vi.fn();
+
+		render(
+			<QueryClientProvider client={createTestQueryClient()}>
+				<AskUserQuestionTool
+					questions={[
+						{
+							...questions[0],
+							options: [
+								...questions[0].options,
+								{ label: "Incremental migrations" },
+							],
+						},
+					]}
+					status="completed"
+					isError={false}
+					isChatCompleted
+					isLatestAskUserQuestion
+					onSubmitAnswer={onSubmitAnswer}
+				/>
+			</QueryClientProvider>,
+		);
+
+		expect(screen.queryByText("No description provided.")).toBeNull();
+
+		await user.click(
+			screen.getByRole("radio", { name: "Incremental migrations" }),
+		);
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+
+		expect(onSubmitAnswer).toHaveBeenCalledExactlyOnceWith(
+			"Incremental migrations",
+		);
+	});
+
 	it("allows retrying the same answer after submission fails", async () => {
 		const user = userEvent.setup();
 		const onSubmitAnswer = vi
