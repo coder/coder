@@ -1,3 +1,4 @@
+import type { SerializedEditorState } from "lexical";
 import isEqual from "lodash/isEqual";
 import {
 	useEffect,
@@ -74,8 +75,8 @@ const joinEditorStates = (
 		return undefined;
 	}
 	try {
-		const head = JSON.parse(before);
-		const tail = JSON.parse(after);
+		const head: SerializedEditorState = JSON.parse(before);
+		const tail: SerializedEditorState = JSON.parse(after);
 		return JSON.stringify({
 			...head,
 			root: {
@@ -180,9 +181,6 @@ export function useConversationEditingState(deps: {
 		hasFileReferences: hasFileReferencesRef.current,
 	});
 	// The request in flight, from submit until it settles or the page unmounts.
-	// While a new message is in flight, content changes save what a failure
-	// would restore as the draft, so a reload or unmount mid-send keeps the
-	// sent message and what was typed since.
 	const requestInFlightRef = useRef<RequestInFlight | null>(null);
 	// The draft this hook last stored, or null if it stored none or last
 	// removed it.
@@ -249,8 +247,7 @@ export function useConversationEditingState(deps: {
 		);
 	};
 
-	// Stores draft, or removes the stored draft when draft is empty, and
-	// records the stored value in storedDraftRef for the check after unmount.
+	// Stores draft, or removes the stored draft when draft is empty.
 	const saveDraft = (draft: string | undefined) => {
 		if (!draft) {
 			localStorage.removeItem(draftStorageKey);
@@ -293,13 +290,11 @@ export function useConversationEditingState(deps: {
 	// target. A layout effect because the Lexical editor is uncontrolled and
 	// the load must land before paint. Whether the editor changed is checked
 	// only when the target changes, so text typed and deleted again does not
-	// count. A changed editor, like one with a request in flight, keeps its
-	// content: if its target goes away it stays as a new-message draft,
-	// followed by the compose draft if the user changed it during the edit's
-	// failed request, and in follow mode it does not load a newly marked row.
-	// If an unchanged edit's target goes away, the pre-edit draft comes back
-	// and the composer follows the marked row, unless the composer mode was
-	// already set to draft, as a refused Edit does.
+	// count. A changed editor keeps its content: if its target goes away it
+	// stays as a new-message draft, and in follow mode it does not load a
+	// newly marked row. If an unchanged edit's target goes away, the pre-edit
+	// draft comes back and the composer follows the marked row, unless the
+	// composer mode was already set to draft, as a refused Edit does.
 	// The pre-edit draft is captured once per session. A queued row with
 	// saved text typed against its current content loads that text, which
 	// counts as changed against the row's content. When that edit ends, the
@@ -315,6 +310,8 @@ export function useConversationEditingState(deps: {
 		}
 		removeQueuedEdit(loadedTarget?.target);
 
+		// The editor also keeps its content during a request, whose rollback
+		// restores it.
 		if (
 			(isEditorChanged() || requestInFlightRef.current !== null) &&
 			(target === null || composerMode === "follow")
@@ -322,6 +319,8 @@ export function useConversationEditingState(deps: {
 			if (loadedTarget !== null) {
 				onLoadedTargetChange?.();
 				setLoadedTarget(null);
+				// The compose draft follows the edit's text if the user changed
+				// it during the edit's failed request.
 				const typed = draftBeforeEdit?.typedDuringRequest;
 				if (typed && hasContent(typed)) {
 					const kept = restoredDraft(
@@ -399,19 +398,17 @@ export function useConversationEditingState(deps: {
 		setComposerMode(next);
 	};
 
-	// Records the request in flight and returns a rollback for its failure. A
-	// send clears the composer and an edit shows the compose draft, so the
-	// user can write a new message during the request. After a failed edit,
-	// what the composer showed during the request becomes the compose draft
-	// that Cancel restores.
+	// A send clears the composer and an edit shows the compose draft, so the
+	// user can write the next message during the request. Returns the
+	// rollback for a failed request.
 	const removeSubmittedContent = (
 		message: string,
-		requestTarget: EditingTarget | undefined,
+		requestTarget: EditingTarget | null,
 	) => {
 		const snapshot: RequestInFlight = {
 			message,
 			editorState: serializedEditorStateRef.current,
-			target: requestTarget ?? null,
+			target: requestTarget,
 			loadedTarget,
 			loadedContent: loadedContentRef.current,
 			hasFileReferences: hasFileReferencesRef.current,
@@ -437,6 +434,7 @@ export function useConversationEditingState(deps: {
 				hasFileReferencesRef.current =
 					snapshot.hasFileReferences || shown.hasFileReferences;
 			} else {
+				// Cancel restores what the composer showed during the request.
 				setDraftBeforeEdit({
 					text: shown.text,
 					editorState: shown.editorState,
@@ -459,16 +457,15 @@ export function useConversationEditingState(deps: {
 		workspaceUploads,
 		busyBehavior,
 	}: SendChatMessageOptions) => {
-		const sendTarget = target ?? undefined;
 		const sendPromise = onSend({
 			message,
 			attachments,
 			workspaceUploads,
 			busyBehavior,
-			editingTarget: sendTarget,
+			editingTarget: target ?? undefined,
 		});
 
-		const rollback = removeSubmittedContent(message, sendTarget);
+		const rollback = removeSubmittedContent(message, target);
 
 		try {
 			await sendPromise;
@@ -495,8 +492,8 @@ export function useConversationEditingState(deps: {
 		// The composer holds the chat's draft: for a send what was typed since,
 		// for an edit the compose draft as edited since.
 		persistDraft();
-		if (sendTarget !== undefined) {
-			removeQueuedEdit(sendTarget);
+		if (target !== null) {
+			removeQueuedEdit(target);
 			setDraftBeforeEdit(null);
 		}
 	};
@@ -535,6 +532,8 @@ export function useConversationEditingState(deps: {
 		if (target !== null) {
 			return;
 		}
+		// During a send, the stored draft is what a failure would restore, so
+		// a reload keeps the sent message and what was typed since.
 		const requestInFlight = requestInFlightRef.current;
 		if (requestInFlight && requestInFlight.target === null) {
 			const draft = restoredDraft(requestInFlight, composerContent());

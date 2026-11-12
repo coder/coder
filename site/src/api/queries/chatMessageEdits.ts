@@ -1,16 +1,20 @@
 import type * as TypesGen from "#/api/typesGenerated";
 
-const buildOptimisticEditedContent = ({
+/**
+ * The content that a message shows for requestContent before the server
+ * returns it. A file part that originalContent holds keeps its details.
+ */
+export const buildOptimisticEditedContent = ({
 	requestContent,
-	originalMessage,
+	originalContent = [],
 	attachmentMediaTypes,
 }: {
 	requestContent: readonly TypesGen.ChatInputPart[];
-	originalMessage: TypesGen.ChatMessage;
+	originalContent?: readonly TypesGen.ChatMessagePart[];
 	attachmentMediaTypes?: ReadonlyMap<string, string>;
 }): readonly TypesGen.ChatMessagePart[] => {
 	const existingFilePartsByID = new Map<string, TypesGen.ChatFilePart>();
-	for (const part of originalMessage.content ?? []) {
+	for (const part of originalContent) {
 		if (part.type === "file" && part.file_id) {
 			existingFilePartsByID.set(part.file_id, part);
 		}
@@ -57,20 +61,3 @@ const buildOptimisticEditedContent = ({
 		);
 	});
 };
-
-export const buildOptimisticEditedMessage = ({
-	requestContent,
-	originalMessage,
-	attachmentMediaTypes,
-}: {
-	requestContent: readonly TypesGen.ChatInputPart[];
-	originalMessage: TypesGen.ChatMessage;
-	attachmentMediaTypes?: ReadonlyMap<string, string>;
-}): TypesGen.ChatMessage => ({
-	...originalMessage,
-	content: buildOptimisticEditedContent({
-		requestContent,
-		originalMessage,
-		attachmentMediaTypes,
-	}),
-});

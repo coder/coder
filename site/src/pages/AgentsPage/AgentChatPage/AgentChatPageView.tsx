@@ -154,7 +154,7 @@ type AgentChatPageViewProps = {
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
 	hasFetchMoreError: boolean;
-	onFetchMoreMessages: () => Promise<unknown>;
+	onFetchMoreMessages: () => void;
 
 	urlTransform: UrlTransform;
 

@@ -1,28 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { buildOptimisticEditedMessage } from "./chatMessageEdits";
+import { buildOptimisticEditedContent } from "./chatMessageEdits";
 
-const makeUserMessage = (
-	content: readonly TypesGen.ChatMessagePart[] = [
-		{ type: "text", text: "original" },
-	],
-): TypesGen.ChatMessage => ({
-	id: 1,
-	chat_id: "chat-1",
-	created_at: "2025-01-01T00:00:00.000Z",
-	role: "user",
-	content,
-});
-
-describe("buildOptimisticEditedMessage", () => {
+describe("buildOptimisticEditedContent", () => {
 	it("preserves image MIME types for newly attached files", () => {
-		const message = buildOptimisticEditedMessage({
+		const content = buildOptimisticEditedContent({
 			requestContent: [{ type: "file", file_id: "image-1" }],
-			originalMessage: makeUserMessage(),
 			attachmentMediaTypes: new Map([["image-1", "image/png"]]),
 		});
 
-		expect(message.content).toEqual([
+		expect(content).toEqual([
 			{ type: "file", file_id: "image-1", media_type: "image/png" },
 		]);
 	});
@@ -33,13 +20,13 @@ describe("buildOptimisticEditedMessage", () => {
 			file_id: "existing-1",
 			media_type: "image/jpeg",
 		};
-		const message = buildOptimisticEditedMessage({
+		const content = buildOptimisticEditedContent({
 			requestContent: [{ type: "file", file_id: "existing-1" }],
-			originalMessage: makeUserMessage([existingFilePart]),
+			originalContent: [existingFilePart],
 			attachmentMediaTypes: new Map([["existing-1", "text/plain"]]),
 		});
 
-		expect(message.content).toEqual([existingFilePart]);
+		expect(content).toEqual([existingFilePart]);
 	});
 
 	it("keeps skill invocations as skill parts", () => {
@@ -48,11 +35,10 @@ describe("buildOptimisticEditedMessage", () => {
 			skill_source: "project",
 			skill_name: "triage",
 		};
-		const message = buildOptimisticEditedMessage({
+		const content = buildOptimisticEditedContent({
 			requestContent: [skillPart],
-			originalMessage: makeUserMessage(),
 		});
 
-		expect(message.content).toEqual([skillPart]);
+		expect(content).toEqual([skillPart]);
 	});
 });

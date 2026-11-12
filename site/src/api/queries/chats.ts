@@ -2548,7 +2548,7 @@ export const promoteChatQueuedMessage = (
 	},
 });
 
-export type EditChatQueuedMessageVariables = {
+type EditChatQueuedMessageVariables = {
 	queuedMessageId: number;
 	req: TypesGen.EditChatQueuedMessageRequest;
 };

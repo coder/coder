@@ -61,7 +61,7 @@ export const useChatStore = (
 	loadStatus: QueryStatus;
 	loadError: unknown;
 	retryLoad: () => void;
-	fetchMoreMessages: () => Promise<unknown>;
+	fetchMoreMessages: () => void;
 	isFetchingMoreMessages: boolean;
 	hasFetchMoreError: boolean;
 } => {
@@ -115,7 +115,7 @@ export const useChatStore = (
 	);
 
 	const {
-		mutateAsync: fetchMoreMessages,
+		mutate: fetchMoreMessages,
 		isPending: isFetchingMoreMessages,
 		isError: hasFetchMoreError,
 	} = useMutation({
@@ -145,10 +145,8 @@ export const useChatStore = (
 			});
 		};
 
-		// The cleanups clear the transient state when the visit ends, so a
-		// reopened store renders without it. A request that fails after the
-		// visit ended still sets clientError, which shows for one frame until
-		// this reset.
+		// A request that fails after the visit ended sets clientError, which
+		// the cleanups cannot clear.
 		store.resetTransientState();
 
 		if (!initialDataLoaded || aiGatewayDisabled) {
@@ -295,12 +293,13 @@ export const useChatStore = (
 					}
 
 					if (streamEvent.type === "history_reset") {
+						const fromID = streamEvent.history_reset?.from_message_id;
+						if (fromID === undefined) {
+							continue;
+						}
 						discardBufferedParts();
 						store.clearStreamState();
-						store.resetHistoryFrom(
-							streamEvent.history_reset?.from_message_id ?? 0,
-							version,
-						);
+						store.resetHistoryFrom(fromID, version);
 						void invalidateChatSearches(queryClient);
 						needsStreamReset = false;
 						continue;
@@ -492,9 +491,7 @@ export const useChatStore = (
 				void storeQuery.refetch();
 			}
 		},
-		// The catch drops the error, because hasFetchMoreError reports
-		// it.
-		fetchMoreMessages: () => fetchMoreMessages().catch(() => undefined),
+		fetchMoreMessages: () => fetchMoreMessages(),
 		isFetchingMoreMessages,
 		hasFetchMoreError,
 	};
