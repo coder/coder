@@ -70,6 +70,8 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 					<Link
 						to={to}
 						aria-describedby={footerId}
+						// Shows the full name when it is truncated.
+						title={project.name}
 						// The overlay makes the whole card the link's hit area.
 						className="text-content-primary no-underline outline-hidden after:absolute after:inset-0 after:rounded-lg"
 					>
@@ -142,9 +144,9 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 	onDelete,
 }) => {
 	const actionsButtonRef = useRef<HTMLButtonElement>(null);
-	// The dialog that Edit or Delete opens takes focus, which the closing menu
-	// must not move back to its button.
-	const dialogPickedRef = useRef(false);
+	// Edit and Delete open a dialog only once the menu has closed, so the
+	// closing menu cannot take focus back from the dialog.
+	const pickedDialogRef = useRef<typeof onEdit>(undefined);
 	return (
 		<div className="absolute top-4 right-4 z-10 flex h-8 items-center">
 			<DropdownMenu>
@@ -162,8 +164,12 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 				<DropdownMenuContent
 					align="end"
 					onCloseAutoFocus={(event) => {
-						if (dialogPickedRef.current) event.preventDefault();
-						dialogPickedRef.current = false;
+						const openDialog = pickedDialogRef.current;
+						pickedDialogRef.current = undefined;
+						if (openDialog) {
+							event.preventDefault();
+							openDialog(actionsButtonRef.current);
+						}
 					}}
 				>
 					<ProjectActionsMenuItems
@@ -173,12 +179,10 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 						onUnpin={pinned ? onUnpin : undefined}
 						permissions={project.permissions}
 						onEdit={() => {
-							dialogPickedRef.current = true;
-							onEdit(actionsButtonRef.current);
+							pickedDialogRef.current = onEdit;
 						}}
 						onDelete={() => {
-							dialogPickedRef.current = true;
-							onDelete(actionsButtonRef.current);
+							pickedDialogRef.current = onDelete;
 						}}
 					/>
 				</DropdownMenuContent>
@@ -201,7 +205,9 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 							<PinOffIcon className="hidden group-hover/pin:block group-focus-visible/pin:block" />
 						</Button>
 					</TooltipTrigger>
-					<TooltipContent side="bottom">Unpin project</TooltipContent>
+					<TooltipContent side="bottom" align="end">
+						Unpin project
+					</TooltipContent>
 				</Tooltip>
 			) : (
 				// Holds the pin's place, so a second click there after unpinning

@@ -90,4 +90,16 @@ describe("ProjectsPage", () => {
 			),
 		);
 	});
+
+	it("moves focus to New project when Retry loads the projects", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "getChatProjectSummaries")
+			.mockRejectedValueOnce(new Error("boom"))
+			.mockResolvedValue([summary("Kilo")]);
+		renderWithAuth(<ProjectsPage />);
+		await user.click(await screen.findByRole("button", { name: "Retry" }));
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "New project" })).toHaveFocus(),
+		);
+	});
 });

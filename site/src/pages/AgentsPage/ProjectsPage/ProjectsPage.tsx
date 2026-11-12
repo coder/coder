@@ -147,9 +147,9 @@ const ProjectsPage: React.FC = () => {
 				isPinVariables(variables) ? variables.project.id : undefined,
 		}).filter((id) => id !== undefined),
 	);
-	const unpinningId = unpinMutation.isPending
-		? unpinMutation.variables.id
-		: undefined;
+	// isPending reaches a render a task late, so a fast double-click on Unpin
+	// would read it as false and unpin twice.
+	const unpinningIdRef = useRef<string | undefined>(undefined);
 
 	const restoreFocus = () => {
 		const target = returnFocusRef.current;
@@ -210,7 +210,13 @@ const ProjectsPage: React.FC = () => {
 				}
 				projects={projectsByTab}
 				error={summariesQuery.error}
-				onRetry={() => void summariesQuery.refetch()}
+				onRetry={async () => {
+					const { isSuccess } = await summariesQuery.refetch();
+					// The loaded grid replaces Retry, so focus moves to New project.
+					if (isSuccess) {
+						requestAnimationFrame(() => newProjectButtonRef.current?.focus());
+					}
+				}}
 				projectLinkSearch={projectLinkSearch}
 				newProjectButtonRef={newProjectButtonRef}
 				onCreateProject={() =>
@@ -219,7 +225,13 @@ const ProjectsPage: React.FC = () => {
 				onPin={(project) => pinMutation.mutate({ project })}
 				pendingPinIds={pendingPinIds}
 				onUnpin={(project) => {
-					if (unpinningId !== project.id) unpinMutation.mutate(project);
+					if (unpinningIdRef.current === project.id) return;
+					unpinningIdRef.current = project.id;
+					unpinMutation.mutate(project, {
+						onSettled: () => {
+							unpinningIdRef.current = undefined;
+						},
+					});
 				}}
 				onEdit={openProjectDialog}
 				onDelete={(project, returnFocusTo) => {
