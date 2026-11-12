@@ -143,7 +143,6 @@ type QueuedMessageActionButtonProps = {
 	// Defaults to label.
 	tooltip?: string;
 	icon: React.ReactNode;
-	disabled: boolean;
 	// Makes the button unavailable and replaces the tooltip with the reason.
 	disabledReason?: string;
 	destructive?: boolean;
@@ -154,7 +153,6 @@ const QueuedMessageActionButton: React.FC<QueuedMessageActionButtonProps> = ({
 	label,
 	tooltip,
 	icon,
-	disabled,
 	disabledReason,
 	destructive = false,
 	onClick,
@@ -167,7 +165,6 @@ const QueuedMessageActionButton: React.FC<QueuedMessageActionButtonProps> = ({
 					variant="subtle"
 					size="icon"
 					aria-label={label}
-					disabled={disabled}
 					// aria-disabled leaves the button focusable and hoverable, so the
 					// tooltip can show the reason.
 					aria-disabled={unavailable}
@@ -285,7 +282,11 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 										hoveredID === item.id || (isFirst && hoveredID === null)
 									}
 									// The server does not have a pending row yet.
-									disabled={isPendingRowID(item.id)}
+									disabledReason={
+										isPendingRowID(item.id)
+											? "Waiting for the server."
+											: undefined
+									}
 									isChatPaused={isChatPaused}
 									editDisabledReason={
 										isChatPaused && underEditIndex !== -1 && !item.isUnderEdit
@@ -351,7 +352,8 @@ type QueuedMessageRowProps = {
 	item: QueuedMessageItem;
 	showEnterToSendHint: boolean;
 	showActions: boolean;
-	disabled: boolean;
+	// Applies to every action of the row.
+	disabledReason: string | undefined;
 	isChatPaused: boolean;
 	editDisabledReason: string | undefined;
 	onMouseEnter: () => void;
@@ -366,7 +368,7 @@ const QueuedMessageRow: React.FC<QueuedMessageRowProps> = ({
 	item,
 	showEnterToSendHint,
 	showActions,
-	disabled,
+	disabledReason,
 	isChatPaused,
 	editDisabledReason,
 	onMouseEnter,
@@ -457,7 +459,7 @@ const QueuedMessageRow: React.FC<QueuedMessageRowProps> = ({
 								isChatPaused ? "Cancel edit and send unchanged" : "Cancel edit"
 							}
 							icon={<XIcon className="size-3.5" />}
-							disabled={disabled}
+							disabledReason={disabledReason}
 							onClick={onEndEdit}
 						/>
 					)}
@@ -465,8 +467,7 @@ const QueuedMessageRow: React.FC<QueuedMessageRowProps> = ({
 						<QueuedMessageActionButton
 							label="Edit"
 							icon={<PencilIcon className="size-3.5" />}
-							disabled={disabled}
-							disabledReason={editDisabledReason}
+							disabledReason={disabledReason ?? editDisabledReason}
 							onClick={onEdit}
 						/>
 					)}
@@ -474,7 +475,7 @@ const QueuedMessageRow: React.FC<QueuedMessageRowProps> = ({
 						<QueuedMessageActionButton
 							label="Send now"
 							icon={<ArrowUpIcon className="size-3.5" />}
-							disabled={disabled}
+							disabledReason={disabledReason}
 							onClick={onPromote}
 						/>
 					)}
@@ -483,7 +484,7 @@ const QueuedMessageRow: React.FC<QueuedMessageRowProps> = ({
 							label="Remove from queue"
 							tooltip="Remove"
 							icon={<Trash2Icon className="size-3.5" />}
-							disabled={disabled}
+							disabledReason={disabledReason}
 							destructive
 							onClick={onDelete}
 						/>
