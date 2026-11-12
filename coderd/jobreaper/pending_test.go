@@ -47,22 +47,22 @@ func newDaemonJob(
 	})
 }
 
-// daemonProgress is how a test daemon is, or is not, making progress.
+// daemonProgress is how a test daemon is, or is not, making progress. The
+// zero value is completedRecently, so table rows that omit it get a daemon
+// that is making progress.
 type daemonProgress int
 
 const (
 	// completedRecently: the daemon completed a job inside the window.
 	completedRecently daemonProgress = iota
-	// runningJob: the daemon completed nothing inside the window but is
+	// runningLongBuild: the daemon completed nothing inside the window but is
 	// running a job that started before the window and is still being
-	// updated, like a long build.
-	runningJob
+	// updated.
+	runningLongBuild
 	// noProgress: the daemon's last job completed before the window.
 	noProgress
 )
 
-// newDaemonWithProgress creates a provisioner daemon and the job history that
-// gives it the requested progress at now.
 func newDaemonWithProgress(
 	t *testing.T, db database.Store, seed database.ProvisionerDaemon,
 	progress daemonProgress, now time.Time,
@@ -74,7 +74,7 @@ func newDaemonWithProgress(
 	case completedRecently:
 		newDaemonJob(t, db, daemon, now.Add(-10*time.Minute),
 			sql.NullTime{Time: now.Add(-5 * time.Minute), Valid: true})
-	case runningJob:
+	case runningLongBuild:
 		windowStart := now.Add(-jobreaper.ProvisionerProgressWindow)
 		job := newDaemonJob(t, db, daemon, windowStart.Add(-10*time.Minute), sql.NullTime{})
 		// Acquisition sets updated_at to started_at, so refresh it as the
@@ -116,10 +116,10 @@ func TestDetectorPendingProvisionerAvailability(t *testing.T) {
 		wantReaped           bool
 	}{
 		{name: "Online"},
-		// A moving queue protects jobs for as long as it keeps moving, with no
-		// absolute age limit.
+		// A daemon making progress protects jobs for as long as it keeps
+		// making progress, with no absolute age limit.
 		{name: "OnlineLongQueue", jobAge: 48 * time.Hour},
-		{name: "OnlineRunningLongBuild", progress: runningJob},
+		{name: "OnlineRunningLongBuild", progress: runningLongBuild},
 		{name: "OnlineNoProgress", progress: noProgress, wantReaped: true},
 		{name: "WrongOrganization", wrongOrg: true, wantReaped: true},
 		{name: "WrongProvisionerType", wrongProvisionerType: true, wantReaped: true},
@@ -135,7 +135,7 @@ func TestDetectorPendingProvisionerAvailability(t *testing.T) {
 			now := dbtime.Now()
 			org := dbgen.Organization(t, env.DB, database.Organization{})
 			tags := database.StringMap{"pool": "test"}
-			queuedAt := now.Add(-35 * time.Minute)
+			queuedAt := now.Add(-jobreaper.PendingJobDuration - 5*time.Minute)
 			if tc.jobAge != 0 {
 				queuedAt = now.Add(-tc.jobAge)
 			}
@@ -153,6 +153,21 @@ func TestDetectorPendingProvisionerAvailability(t *testing.T) {
 				Tags:           tags,
 				CanceledAt:     canceledAt,
 			})
+			// A pending job with the same requirements makes the requirement
+			// set protected, so the canceled job is reaped only because it is
+			// not pending.
+			var pendingSibling database.ProvisionerJob
+			if tc.canceled {
+				pendingSibling = newTemplateJob(t, env.DB, database.ProvisionerJob{
+					OrganizationID: org.ID,
+					InitiatorID:    user.ID,
+					FileID:         file.ID,
+					Type:           database.ProvisionerJobTypeTemplateVersionImport,
+					CreatedAt:      queuedAt,
+					UpdatedAt:      queuedAt,
+					Tags:           tags,
+				})
+			}
 			daemonSeed := database.ProvisionerDaemon{
 				OrganizationID: org.ID,
 				Tags:           tags,
@@ -181,10 +196,13 @@ func TestDetectorPendingProvisionerAvailability(t *testing.T) {
 					reapType = jobreaper.Hung
 				}
 				requireTerminatedJob(ctx, t, env.DB, job.ID, now, reapType)
+				if tc.canceled {
+					require.NotContains(t, stats.TerminatedJobIDs, pendingSibling.ID)
+				}
 			} else {
 				require.NotContains(t, stats.TerminatedJobIDs, job.ID)
-				// The candidate query excluded the job, so run the locked
-				// recheck directly to cover its progress query.
+				// The tick did not reap the job, so run the locked recheck
+				// directly to cover its progress query.
 				err := jobreaper.ReapPendingJob(ctx, testutil.Logger(t), env.DB, env.Pubsub, job.ID)
 				require.ErrorContains(t, err, "an eligible provisioner is online and making progress")
 				current, err := env.DB.GetProvisionerJobByID(ctx, job.ID)
@@ -209,7 +227,7 @@ func TestDetectorExcludesProtectedPendingJobsFromCandidates(t *testing.T) {
 		progress daemonProgress
 	}{
 		{name: "CompletedRecently", progress: completedRecently},
-		{name: "RunningLongBuild", progress: runningJob},
+		{name: "RunningLongBuild", progress: runningLongBuild},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -225,6 +243,7 @@ func TestDetectorExcludesProtectedPendingJobsFromCandidates(t *testing.T) {
 			user := dbgen.User(t, env.DB, database.User{})
 			file := dbgen.File(t, env.DB, database.File{})
 			tags := database.StringMap{"pool": "available"}
+			queuedAt := now.Add(-jobreaper.PendingJobDuration - 5*time.Minute)
 			newDaemonWithProgress(t, env.DB, database.ProvisionerDaemon{
 				OrganizationID: org.ID, Tags: tags,
 				LastSeenAt: sql.NullTime{Time: now.Add(-2 * time.Minute), Valid: true},
@@ -233,7 +252,7 @@ func TestDetectorExcludesProtectedPendingJobsFromCandidates(t *testing.T) {
 				newTemplateJob(t, env.DB, database.ProvisionerJob{
 					OrganizationID: org.ID, InitiatorID: user.ID, FileID: file.ID,
 					Type:      database.ProvisionerJobTypeTemplateVersionImport,
-					CreatedAt: now.Add(-35 * time.Minute), UpdatedAt: now.Add(-35 * time.Minute),
+					CreatedAt: queuedAt, UpdatedAt: queuedAt,
 					Tags: tags,
 				})
 			}
@@ -242,7 +261,7 @@ func TestDetectorExcludesProtectedPendingJobsFromCandidates(t *testing.T) {
 				job := newTemplateJob(t, env.DB, database.ProvisionerJob{
 					OrganizationID: org.ID, InitiatorID: user.ID, FileID: file.ID,
 					Type:      database.ProvisionerJobTypeTemplateVersionImport,
-					CreatedAt: now.Add(-35 * time.Minute), UpdatedAt: now.Add(-35 * time.Minute),
+					CreatedAt: queuedAt, UpdatedAt: queuedAt,
 					Tags: database.StringMap{"pool": "missing"},
 				})
 				expected = append(expected, job.ID)

@@ -340,8 +340,6 @@ WITH pending_requirements AS (
 		AND updated_at < @pending_since
 ),
 protected_requirements AS (
-	-- Requirement sets with an eligible, recently seen daemon that is making
-	-- progress.
 	SELECT pr.organization_id, pr.provisioner, pr.tags
 	FROM pending_requirements pr
 	WHERE EXISTS (
@@ -351,10 +349,9 @@ protected_requirements AS (
 			AND pr.provisioner = ANY(pd.provisioners)
 			AND provisioner_tagset_contains(pd.tags::tagset, pr.tags::tagset)
 			AND pd.last_seen_at >= @provisioner_seen_since::timestamptz
-			-- Progress is a recently completed job or a running job that is
-			-- not hung, so builds longer than the window still count. Keep the
-			-- legs as separate EXISTS so each is a range scan on
-			-- provisioner_jobs_worker_id_organization_id_completed_at_idx.
+			-- The running leg lets builds longer than the window count as
+			-- progress. Keep the legs as separate EXISTS so each is a range
+			-- scan on provisioner_jobs_worker_id_organization_id_completed_at_idx.
 			-- Keep in sync with HasProvisionerDaemonMakingProgress.
 			AND (
 				EXISTS (
@@ -410,8 +407,10 @@ ORDER BY random()
 LIMIT @max_jobs;
 
 -- name: HasProvisionerDaemonMakingProgress :one
--- Applies the daemon progress rule from GetProvisionerJobsToBeReaped to the
--- given daemons. Keep the two in sync.
+-- Returns true when any of the given daemons is making progress, using the
+-- progress rule from GetProvisionerJobsToBeReaped (keep the two in sync). It
+-- does not check heartbeat or eligibility, so callers must pass only online,
+-- eligible daemons.
 SELECT EXISTS (
 	SELECT 1
 	FROM provisioner_daemons pd
@@ -422,7 +421,7 @@ SELECT EXISTS (
 				FROM provisioner_jobs wj
 				WHERE wj.worker_id = pd.id
 					AND wj.organization_id = pd.organization_id
-					AND wj.completed_at >= @progress_since::timestamptz
+					AND wj.completed_at >= @provisioner_progress_since::timestamptz
 			)
 			OR EXISTS (
 				SELECT 1

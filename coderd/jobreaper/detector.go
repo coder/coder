@@ -30,13 +30,16 @@ const (
 
 	// ProvisionerProgressWindow is how recently an eligible provisioner must
 	// have completed a job, when it is not running a job that is still being
-	// updated, for the reaper to treat the queue as moving and protect pending
-	// jobs it can run.
+	// updated, to count as making progress and protect pending jobs it can
+	// run. A running job counts while its provisioner keeps updating it, even
+	// if the build is stuck, so pending jobs behind a pool whose eligible
+	// provisioners are all stuck stay queued until a stuck build is canceled.
 	ProvisionerProgressWindow = 30 * time.Minute
 
 	// ProvisionerStaleInterval is how recently a provisioner must have sent a
-	// heartbeat for the reaper to treat it as online and protect pending jobs
-	// it can run. It is longer than the interval used to display provisioners
+	// heartbeat for the reaper to treat it as online. An eligible provisioner
+	// protects pending jobs it can run only while it is online and making
+	// progress. It is longer than the interval used to display provisioners
 	// as online so that a delayed heartbeat does not expose queued jobs to
 	// reaping.
 	ProvisionerStaleInterval = 5 * time.Minute
@@ -280,9 +283,10 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 		}
 		// A healthy provisioner pool can have a long queue. Preserve pending
 		// jobs while an eligible provisioner is online and making progress.
-		// Keep these eligibility, heartbeat, and progress rules in sync with
-		// GetProvisionerJobsToBeReaped and HasProvisionerDaemonMakingProgress
-		// in coderd/database/queries/provisionerjobs.sql.
+		// Keep the eligibility lookup, the heartbeat check, and the progress
+		// window and hung cutoff arguments aligned with
+		// GetProvisionerJobsToBeReaped in
+		// coderd/database/queries/provisionerjobs.sql.
 		if jobToReap.Type == Pending {
 			now := dbtime.Now()
 			daemons, err := db.GetEligibleProvisionerDaemonsByProvisionerJobIDs(
@@ -300,9 +304,9 @@ func reapJob(ctx context.Context, log slog.Logger, db database.Store, pub pubsub
 			}
 			if len(onlineDaemonIDs) > 0 {
 				makingProgress, err := db.HasProvisionerDaemonMakingProgress(ctx, database.HasProvisionerDaemonMakingProgressParams{
-					DaemonIds:     onlineDaemonIDs,
-					ProgressSince: now.Add(-ProvisionerProgressWindow),
-					HungSince:     now.Add(-HungJobDuration),
+					DaemonIds:                onlineDaemonIDs,
+					ProvisionerProgressSince: now.Add(-ProvisionerProgressWindow),
+					HungSince:                now.Add(-HungJobDuration),
 				})
 				if err != nil {
 					return xerrors.Errorf("check provisioner daemon progress: %w", err)

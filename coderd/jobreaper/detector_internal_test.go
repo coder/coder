@@ -51,8 +51,8 @@ func TestReapPendingJobRecheck(t *testing.T) {
 			job := database.ProvisionerJob{
 				ID:        uuid.New(),
 				JobStatus: database.ProvisionerJobStatusPending,
-				CreatedAt: now.Add(-35 * time.Minute),
-				UpdatedAt: now.Add(-35 * time.Minute),
+				CreatedAt: now.Add(-PendingJobDuration - 5*time.Minute),
+				UpdatedAt: now.Add(-PendingJobDuration - 5*time.Minute),
 			}
 			if tc.acquired {
 				job.JobStatus = database.ProvisionerJobStatusRunning
@@ -78,7 +78,6 @@ func TestReapPendingJobRecheck(t *testing.T) {
 					{JobID: job.ID, ProvisionerDaemon: online},
 					{JobID: job.ID, ProvisionerDaemon: stale},
 				}, nil)
-				// Only online daemons are checked for progress.
 				tx.EXPECT().HasProvisionerDaemonMakingProgress(gomock.Any(), gomock.Cond(func(arg database.HasProvisionerDaemonMakingProgressParams) bool {
 					return slices.Equal(arg.DaemonIds, []uuid.UUID{online.ID})
 				})).Return(true, nil)

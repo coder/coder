@@ -26841,8 +26841,6 @@ WITH pending_requirements AS (
 		AND updated_at < $1
 ),
 protected_requirements AS (
-	-- Requirement sets with an eligible, recently seen daemon that is making
-	-- progress.
 	SELECT pr.organization_id, pr.provisioner, pr.tags
 	FROM pending_requirements pr
 	WHERE EXISTS (
@@ -26852,10 +26850,9 @@ protected_requirements AS (
 			AND pr.provisioner = ANY(pd.provisioners)
 			AND provisioner_tagset_contains(pd.tags::tagset, pr.tags::tagset)
 			AND pd.last_seen_at >= $4::timestamptz
-			-- Progress is a recently completed job or a running job that is
-			-- not hung, so builds longer than the window still count. Keep the
-			-- legs as separate EXISTS so each is a range scan on
-			-- provisioner_jobs_worker_id_organization_id_completed_at_idx.
+			-- The running leg lets builds longer than the window count as
+			-- progress. Keep the legs as separate EXISTS so each is a range
+			-- scan on provisioner_jobs_worker_id_organization_id_completed_at_idx.
 			-- Keep in sync with HasProvisionerDaemonMakingProgress.
 			AND (
 				EXISTS (
@@ -26996,15 +26993,17 @@ SELECT EXISTS (
 `
 
 type HasProvisionerDaemonMakingProgressParams struct {
-	DaemonIds     []uuid.UUID `db:"daemon_ids" json:"daemon_ids"`
-	ProgressSince time.Time   `db:"progress_since" json:"progress_since"`
-	HungSince     time.Time   `db:"hung_since" json:"hung_since"`
+	DaemonIds                []uuid.UUID `db:"daemon_ids" json:"daemon_ids"`
+	ProvisionerProgressSince time.Time   `db:"provisioner_progress_since" json:"provisioner_progress_since"`
+	HungSince                time.Time   `db:"hung_since" json:"hung_since"`
 }
 
-// Applies the daemon progress rule from GetProvisionerJobsToBeReaped to the
-// given daemons. Keep the two in sync.
+// Returns true when any of the given daemons is making progress, using the
+// progress rule from GetProvisionerJobsToBeReaped (keep the two in sync). It
+// does not check heartbeat or eligibility, so callers must pass only online,
+// eligible daemons.
 func (q *sqlQuerier) HasProvisionerDaemonMakingProgress(ctx context.Context, arg HasProvisionerDaemonMakingProgressParams) (bool, error) {
-	row := q.db.QueryRowContext(ctx, hasProvisionerDaemonMakingProgress, pq.Array(arg.DaemonIds), arg.ProgressSince, arg.HungSince)
+	row := q.db.QueryRowContext(ctx, hasProvisionerDaemonMakingProgress, pq.Array(arg.DaemonIds), arg.ProvisionerProgressSince, arg.HungSince)
 	var making_progress bool
 	err := row.Scan(&making_progress)
 	return making_progress, err
