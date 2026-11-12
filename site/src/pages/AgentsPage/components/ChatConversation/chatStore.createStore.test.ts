@@ -704,7 +704,7 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 		addPending(store, {
 			kind: "edit",
 			editedMessageID: 1,
-			message: makeMessage(1, "user", "edited"),
+			content: [{ type: "text", text: "edited" }],
 		});
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
@@ -738,9 +738,9 @@ const textOf = (content: readonly TypesGen.ChatMessagePart[] | undefined) => {
 	return part?.type === "text" ? part.text : "";
 };
 
-const first = makeMessage(1, "user", "first");
-const q10 = makeQueuedMessage(10, "q10");
-const q11 = makeQueuedMessage(11, "q11");
+const mockFirstMessage = makeMessage(1, "user", "first");
+const mockQueuedRow10 = makeQueuedMessage(10, "q10");
+const mockQueuedRow11 = makeQueuedMessage(11, "q11");
 
 const steerRow = (id: number, text: string): TypesGen.ChatQueuedMessage => ({
 	...makeQueuedMessage(id, text),
@@ -782,20 +782,15 @@ const visible = (store: ChatStore) => {
 	};
 };
 
-// A user message as submitChatTurn builds it at the click.
+// A send as submitChatTurn passes it at the click.
 const pendingSend = (
 	text: string,
 	busyBehavior: TypesGen.ChatBusyBehavior = "steer",
 ): PendingAction => ({
 	kind: "send",
+	chatID: "chat-1",
 	busyBehavior,
-	message: {
-		id: 0,
-		chat_id: "chat-1",
-		created_at: "2025-01-01T00:00:00.000Z",
-		role: "user",
-		content: [{ type: "text", text }],
-	},
+	content: [{ type: "text", text }],
 });
 
 // The request never settles, so only the stream ends the action.
@@ -805,14 +800,14 @@ const addPending = (store: ChatStore, action: PendingAction) =>
 describe("pending actions", () => {
 	it("gives the rows it shows IDs the server never assigns", () => {
 		const store = seededStore(
-			[first, makeMessage(2, "user", "old")],
+			[mockFirstMessage, makeMessage(2, "user", "old")],
 			[],
 			"running",
 		);
 		addPending(store, {
 			kind: "edit",
 			editedMessageID: 2,
-			message: makeMessage(2, "user", "new"),
+			content: [{ type: "text", text: "new" }],
 		});
 		addPending(store, pendingSend("queued"));
 
@@ -831,7 +826,7 @@ describe("pending actions", () => {
 	});
 
 	it("shows nothing for a promoted row the queue no longer holds", () => {
-		const store = seededStore([first], [q10], "error");
+		const store = seededStore([mockFirstMessage], [mockQueuedRow10], "error");
 		const before = visible(store);
 
 		addPending(store, { kind: "promoteQueued", queuedMessageID: 11 });
@@ -840,7 +835,7 @@ describe("pending actions", () => {
 	});
 
 	it("stops showing a failed action", async () => {
-		const store = seededStore([first], [q10], "running");
+		const store = seededStore([mockFirstMessage], [mockQueuedRow10], "running");
 		const request = createDeferred<undefined>();
 		const run = store.runPendingAction(
 			{ kind: "deleteQueued", queuedMessageID: 10 },
@@ -855,7 +850,11 @@ describe("pending actions", () => {
 	});
 
 	it("a failed queued edit shows the queue as before and drops no row", async () => {
-		const store = seededStore([first], [q10, underEdit(q11)], "running");
+		const store = seededStore(
+			[mockFirstMessage],
+			[mockQueuedRow10, underEdit(mockQueuedRow11)],
+			"running",
+		);
 		const request = createDeferred<undefined>();
 		const run = store.runPendingAction(
 			{ kind: "editQueued", queuedMessageID: 10, editing: true },
@@ -899,10 +898,11 @@ const placementScenarios: PlacementScenario[] = [
 	...(["running", "requires_action", "interrupting"] as const).map(
 		(status): PlacementScenario => ({
 			name: `send with status ${status}`,
-			queue: [q10],
+			queue: [mockQueuedRow10],
 			status,
 			action: pendingSend("s11"),
-			stream: (store) => store.setQueuedMessages([steerRow(11, "s11"), q10], 2),
+			stream: (store) =>
+				store.setQueuedMessages([steerRow(11, "s11"), mockQueuedRow10], 2),
 		}),
 	),
 	{
@@ -910,31 +910,32 @@ const placementScenarios: PlacementScenario[] = [
 		queue: [steerRow(10, "s10")],
 		status: "running",
 		action: pendingSend("q11", "queue"),
-		stream: (store) => store.setQueuedMessages([steerRow(10, "s10"), q11], 2),
+		stream: (store) =>
+			store.setQueuedMessages([steerRow(10, "s10"), mockQueuedRow11], 2),
 	},
 	{
 		name: "send to an errored chat with a queue",
-		queue: [q10],
+		queue: [mockQueuedRow10],
 		status: "error",
 		action: pendingSend("s11"),
 		stream: (store) => {
 			store.upsertDurableMessages([delivered(2, "s11", 11)], 2);
-			store.setQueuedMessages([q10], 2);
+			store.setQueuedMessages([mockQueuedRow10], 2);
 		},
 	},
 	{
 		name: "send after turn to an errored chat with a queue",
-		queue: [q10],
+		queue: [mockQueuedRow10],
 		status: "error",
 		action: pendingSend("q11", "queue"),
 		stream: (store) => {
 			store.upsertDurableMessages([delivered(2, "q10", 10)], 2);
-			store.setQueuedMessages([q11], 2);
+			store.setQueuedMessages([mockQueuedRow11], 2);
 		},
 	},
 	{
 		name: "send to a paused chat",
-		queue: [underEdit(q10)],
+		queue: [underEdit(mockQueuedRow10)],
 		status: "paused",
 		action: pendingSend("s11"),
 		stream: (store) =>
@@ -942,10 +943,11 @@ const placementScenarios: PlacementScenario[] = [
 	},
 	{
 		name: "send after turn to a paused chat",
-		queue: [underEdit(q10)],
+		queue: [underEdit(mockQueuedRow10)],
 		status: "paused",
 		action: pendingSend("q11", "queue"),
-		stream: (store) => store.setQueuedMessages([underEdit(q10), q11], 2),
+		stream: (store) =>
+			store.setQueuedMessages([underEdit(mockQueuedRow10), mockQueuedRow11], 2),
 	},
 	{
 		name: "send to an errored chat whose steer row is under edit",
@@ -961,16 +963,16 @@ const placementScenarios: PlacementScenario[] = [
 	{
 		name: "edit",
 		messages: [
-			first,
+			mockFirstMessage,
 			makeMessage(2, "assistant", "a"),
 			makeMessage(3, "user", "old"),
 		],
-		queue: [q10],
+		queue: [mockQueuedRow10],
 		status: "running",
 		action: {
 			kind: "edit",
 			editedMessageID: 3,
-			message: makeMessage(3, "user", "new"),
+			content: [{ type: "text", text: "new" }],
 		},
 		stream: (store) => {
 			store.resetHistoryFrom(3, 2);
@@ -981,15 +983,15 @@ const placementScenarios: PlacementScenario[] = [
 	...(["running", "error"] as const).map(
 		(status): PlacementScenario => ({
 			name: `delete queued with status ${status}`,
-			queue: [q10, q11],
+			queue: [mockQueuedRow10, mockQueuedRow11],
 			status,
 			action: { kind: "deleteQueued", queuedMessageID: 10 },
-			stream: (store) => store.setQueuedMessages([q11], 2),
+			stream: (store) => store.setQueuedMessages([mockQueuedRow11], 2),
 		}),
 	),
 	{
 		name: "delete the row that holds a paused chat",
-		queue: [underEdit(q10), q11],
+		queue: [underEdit(mockQueuedRow10), mockQueuedRow11],
 		status: "paused",
 		action: { kind: "deleteQueued", queuedMessageID: 10 },
 		stream: (store) => {
@@ -1000,26 +1002,27 @@ const placementScenarios: PlacementScenario[] = [
 	...(["running", "requires_action"] as const).map(
 		(status): PlacementScenario => ({
 			name: `promote with status ${status}`,
-			queue: [steerRow(9, "s9"), q10, q11],
+			queue: [steerRow(9, "s9"), mockQueuedRow10, mockQueuedRow11],
 			status,
 			action: { kind: "promoteQueued", queuedMessageID: 11 },
 			stream: (store) =>
 				store.setQueuedMessages(
-					[steerRow(9, "s9"), steerRow(11, "q11"), q10],
+					[steerRow(9, "s9"), steerRow(11, "q11"), mockQueuedRow10],
 					2,
 				),
 		}),
 	),
 	{
 		name: "promote a row under edit in a running chat",
-		queue: [q10, underEdit(q11)],
+		queue: [mockQueuedRow10, underEdit(mockQueuedRow11)],
 		status: "running",
 		action: { kind: "promoteQueued", queuedMessageID: 11 },
-		stream: (store) => store.setQueuedMessages([steerRow(11, "q11"), q10], 2),
+		stream: (store) =>
+			store.setQueuedMessages([steerRow(11, "q11"), mockQueuedRow10], 2),
 	},
 	{
 		name: "promote in an errored chat",
-		queue: [steerRow(9, "s9"), q10, q11],
+		queue: [steerRow(9, "s9"), mockQueuedRow10, mockQueuedRow11],
 		status: "error",
 		action: { kind: "promoteQueued", queuedMessageID: 11 },
 		stream: (store) => {
@@ -1027,38 +1030,39 @@ const placementScenarios: PlacementScenario[] = [
 				[delivered(2, "s9", 9), delivered(3, "q11", 11)],
 				2,
 			);
-			store.setQueuedMessages([q10], 2);
+			store.setQueuedMessages([mockQueuedRow10], 2);
 		},
 	},
 	{
 		name: "promote in a paused chat",
-		queue: [underEdit(q10), q11],
+		queue: [underEdit(mockQueuedRow10), mockQueuedRow11],
 		status: "paused",
 		action: { kind: "promoteQueued", queuedMessageID: 11 },
 		stream: (store) => {
 			store.upsertDurableMessages([delivered(2, "q11", 11)], 2);
-			store.setQueuedMessages([underEdit(q10)], 2);
+			store.setQueuedMessages([underEdit(mockQueuedRow10)], 2);
 		},
 	},
 	{
 		name: "begin a queued edit while another row is under edit",
-		queue: [q10, underEdit(q11)],
+		queue: [mockQueuedRow10, underEdit(mockQueuedRow11)],
 		status: "running",
 		action: { kind: "editQueued", queuedMessageID: 10, editing: true },
-		stream: (store) => store.setQueuedMessages([underEdit(q10), q11], 2),
+		stream: (store) =>
+			store.setQueuedMessages([underEdit(mockQueuedRow10), mockQueuedRow11], 2),
 	},
 	...(["running", "error"] as const).map(
 		(status): PlacementScenario => ({
 			name: `end a queued edit with status ${status}`,
-			queue: [underEdit(q10)],
+			queue: [underEdit(mockQueuedRow10)],
 			status,
 			action: { kind: "editQueued", queuedMessageID: 10, editing: false },
-			stream: (store) => store.setQueuedMessages([q10], 2),
+			stream: (store) => store.setQueuedMessages([mockQueuedRow10], 2),
 		}),
 	),
 	{
 		name: "save a queued edit",
-		queue: [underEdit(q10)],
+		queue: [underEdit(mockQueuedRow10)],
 		status: "running",
 		action: {
 			kind: "editQueued",
@@ -1072,7 +1076,7 @@ const placementScenarios: PlacementScenario[] = [
 	...[undefined, "q10 saved"].map(
 		(saved): PlacementScenario => ({
 			name: `${saved ? "save" : "end"} the edit that holds a paused chat`,
-			queue: [underEdit(q10), q11],
+			queue: [underEdit(mockQueuedRow10), mockQueuedRow11],
 			status: "paused",
 			action: {
 				kind: "editQueued",
@@ -1082,7 +1086,7 @@ const placementScenarios: PlacementScenario[] = [
 			},
 			stream: (store) => {
 				store.upsertDurableMessages([delivered(2, saved ?? "q10", 10)], 2);
-				store.setQueuedMessages([q11], 2);
+				store.setQueuedMessages([mockQueuedRow11], 2);
 			},
 		}),
 	),
@@ -1110,7 +1114,7 @@ const placementScenarios: PlacementScenario[] = [
 
 describe("pending actions show the server's change", () => {
 	it.each(placementScenarios)("$name", (scenario) => {
-		const messages = scenario.messages ?? [first];
+		const messages = scenario.messages ?? [mockFirstMessage];
 		const actor = seededStore(messages, scenario.queue, scenario.status);
 		const observer = seededStore(messages, scenario.queue, scenario.status);
 		addPending(actor, scenario.action);
@@ -1163,7 +1167,7 @@ const partEndScenarios: {
 	},
 	{
 		name: "a promote at another request's user message",
-		queue: [q10, q11],
+		queue: [mockQueuedRow10, mockQueuedRow11],
 		status: "running",
 		action: { kind: "promoteQueued", queuedMessageID: 11 },
 		others: (store) => {
@@ -1175,7 +1179,7 @@ const partEndScenarios: {
 	},
 	{
 		name: "a promote at another request's queue update",
-		queue: [q10, q11],
+		queue: [mockQueuedRow10, mockQueuedRow11],
 		status: "running",
 		action: { kind: "promoteQueued", queuedMessageID: 11 },
 		others: (store) => {
@@ -1183,22 +1187,26 @@ const partEndScenarios: {
 			store.resetHistoryFrom(99, 2);
 		},
 		end: (store) =>
-			store.setQueuedMessages([q10, q11, makeQueuedMessage(12, "theirs")], 2),
+			store.setQueuedMessages(
+				[mockQueuedRow10, mockQueuedRow11, makeQueuedMessage(12, "theirs")],
+				2,
+			),
 	},
 	{
 		name: "a delete at a queue update that still lists the row",
-		queue: [q10, q11],
+		queue: [mockQueuedRow10, mockQueuedRow11],
 		status: "running",
 		action: { kind: "deleteQueued", queuedMessageID: 10 },
 		others: (store) => {
 			store.upsertDurableMessages([makeMessage(2, "user", "theirs")], 2);
 			store.resetHistoryFrom(99, 2);
 		},
-		end: (store) => store.setQueuedMessages([q10, q11], 2),
+		end: (store) =>
+			store.setQueuedMessages([mockQueuedRow10, mockQueuedRow11], 2),
 	},
 	{
 		name: "a queued edit at a queue update",
-		queue: [q10],
+		queue: [mockQueuedRow10],
 		status: "running",
 		action: { kind: "editQueued", queuedMessageID: 10, editing: true },
 		others: (store) => {
@@ -1206,7 +1214,10 @@ const partEndScenarios: {
 			store.resetHistoryFrom(99, 2);
 		},
 		end: (store) =>
-			store.setQueuedMessages([q10, makeQueuedMessage(12, "theirs")], 2),
+			store.setQueuedMessages(
+				[mockQueuedRow10, makeQueuedMessage(12, "theirs")],
+				2,
+			),
 	},
 	{
 		name: "an edit's transcript at a history reset",
@@ -1215,36 +1226,47 @@ const partEndScenarios: {
 		action: {
 			kind: "edit",
 			editedMessageID: 1,
-			message: makeMessage(1, "user", "new"),
+			content: [{ type: "text", text: "new" }],
 		},
 		others: (store) => {
 			store.upsertDurableMessages([makeMessage(2, "user", "theirs")], 2);
-			store.setQueuedMessages([q10], 2);
+			store.setQueuedMessages([mockQueuedRow10], 2);
 		},
 		end: (store) => store.resetHistoryFrom(1, 2),
 	},
 	{
 		name: "an edit's queue at a queue update",
-		queue: [q10],
+		queue: [mockQueuedRow10],
 		status: "waiting",
 		action: {
 			kind: "edit",
 			editedMessageID: 1,
-			message: makeMessage(1, "user", "new"),
+			content: [{ type: "text", text: "new" }],
 		},
 		others: (store) => {
 			store.resetHistoryFrom(1, 2);
 			store.upsertDurableMessages([makeMessage(2, "user", "theirs")], 2);
 		},
 		end: (store) =>
-			store.setQueuedMessages([q10, makeQueuedMessage(12, "theirs")], 2),
+			store.setQueuedMessages(
+				[mockQueuedRow10, makeQueuedMessage(12, "theirs")],
+				2,
+			),
 	},
 ];
 
 describe("pending part ends", () => {
 	it.each(partEndScenarios)("ends $name", (scenario) => {
-		const actor = seededStore([first], scenario.queue, scenario.status);
-		const observer = seededStore([first], scenario.queue, scenario.status);
+		const actor = seededStore(
+			[mockFirstMessage],
+			scenario.queue,
+			scenario.status,
+		);
+		const observer = seededStore(
+			[mockFirstMessage],
+			scenario.queue,
+			scenario.status,
+		);
 		addPending(actor, scenario.action);
 
 		for (const store of [actor, observer]) {

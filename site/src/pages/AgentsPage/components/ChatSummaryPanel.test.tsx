@@ -133,7 +133,7 @@ describe("ChatSummaryPanel attachments", () => {
 				{
 					kind: "edit",
 					editedMessageID: mockOldestLoadedMessage.id,
-					message: mockOldestLoadedMessage,
+					content: [{ type: "text", text: "edited" }],
 				},
 				() => new Promise(() => {}),
 			);

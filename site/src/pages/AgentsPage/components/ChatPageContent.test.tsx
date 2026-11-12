@@ -622,13 +622,8 @@ describe("ChatPageInput", () => {
 			{
 				kind: "send",
 				busyBehavior: "queue",
-				message: {
-					id: 0,
-					chat_id: "",
-					created_at: "2025-01-01T00:00:00.000Z",
-					role: "user",
-					content: [{ type: "text", text: "not stored yet" }],
-				},
+				chatID: "",
+				content: [{ type: "text", text: "not stored yet" }],
 			},
 			() => new Promise(() => {}),
 		);
