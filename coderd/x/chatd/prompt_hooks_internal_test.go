@@ -7,7 +7,6 @@ import (
 	"net/http/httptest"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -98,7 +97,7 @@ func newPromptHooksHarness(t *testing.T, reply func(n int) (status int, body str
 		consumer.URL,
 		false,
 		"test-hook-secret-32-bytes-minimum!!",
-		time.Second,
+		testutil.WaitLong,
 		"test-deployment",
 		"test-version",
 		prometheus.NewRegistry(),
@@ -324,6 +323,43 @@ func TestResolvePromptHooksOutcomes(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestResolvePromptHooksUsesReservedCapacity fills the admission share of the
+// dispatcher with held dispatches. A flagged message is already accepted, so
+// its hooks must still run.
+func TestResolvePromptHooksUsesReservedCapacity(t *testing.T) {
+	t.Parallel()
+	// The admission share of the dispatcher, maxAdmissionDispatches in the
+	// dispatch package.
+	const admissionShare = 192
+	ctx := testutil.Context(t, testutil.WaitLong)
+	release := make(chan struct{})
+	h := newPromptHooksHarness(t, func(n int) (int, string) {
+		if n <= admissionShare {
+			<-release
+		}
+		return http.StatusOK, hookAllow
+	})
+	var held sync.WaitGroup
+	defer held.Wait()
+	defer close(release)
+	for range admissionShare {
+		held.Add(1)
+		go func() {
+			defer held.Done()
+			_, _ = h.starter.server.hooks.Trigger(ctx, chathooks.ChatFor(h.chat, nil),
+				chathooks.Message{Source: chathooks.SessionStartSourceStartup},
+				agenthooks.EventSessionStart, dispatch.CapacityClassAdmission)
+		}()
+	}
+	testutil.Eventually(ctx, t, func(context.Context) bool { return h.requestCount() == admissionShare }, testutil.IntervalFast)
+
+	require.NoError(t, h.run(ctx, t, h.workerID, h.runnerID))
+
+	require.Equal(t, admissionShare+1, h.requestCount())
+	require.Equal(t, promptHooksRow{parts: plain("flagged")}, h.row(t, h.flagged.ID))
+	require.Equal(t, database.ChatStatusRunning, h.chatNow(t).Status)
 }
 
 // TestResolvePromptHooksSecondReplica covers a worker that dies, or whose
