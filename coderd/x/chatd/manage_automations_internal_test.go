@@ -10,11 +10,11 @@ import (
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 )
 
-// TestSubagentSpawnStartsWithAutomationsOff creates a child of a chat whose
+// TestManageAutomationsSubagentSpawn creates a child of a chat whose
 // switch is on, the way spawn_agent does. The child starts with the switch
 // off: the tool is for root chats, and no product path turns a child's switch
 // on.
-func TestSubagentSpawnStartsWithAutomationsOff(t *testing.T) {
+func TestManageAutomationsSubagentSpawn(t *testing.T) {
 	t.Parallel()
 
 	db, ps := dbtestutil.NewDB(t)
