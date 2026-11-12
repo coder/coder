@@ -229,6 +229,7 @@ func TestChatAutomationsOwnerLifecycle(t *testing.T) {
 	require.Len(t, logs, 1)
 	require.Equal(t, database.AuditActionDelete, logs[0].Action)
 	require.Equal(t, older.ID, logs[0].ResourceID)
+	require.Equal(t, org, logs[0].OrganizationID)
 }
 
 func TestChatAutomationsAuthorization(t *testing.T) {
