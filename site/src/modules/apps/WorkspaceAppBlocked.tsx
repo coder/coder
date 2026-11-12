@@ -24,23 +24,27 @@ export const WorkspaceAppBlocked: React.FC<WorkspaceAppBlockedProps> = ({
 	const { permissions } = useAuthenticated();
 	const canEditDeploymentConfig = permissions.editDeploymentConfig;
 
+	return reason.kind === "csp" ? (
+		<CSPBlockedContent
+			block={reason}
+			canEditDeploymentConfig={canEditDeploymentConfig}
+		/>
+	) : (
+		<MissingWildcardContent canEditDeploymentConfig={canEditDeploymentConfig} />
+	);
+};
+
+type BlockedLayoutProps = { title: string; children: React.ReactNode };
+
+const BlockedLayout: React.FC<BlockedLayoutProps> = ({ title, children }) => {
 	return (
 		<div className="flex size-full items-center justify-center p-4">
 			<div className="text-center max-w-md">
 				<h3 className="font-medium text-content-primary text-base mb-3">
-					{reason.kind === "csp" ? "Your browser blocked this app" : "Error"}
+					{title}
 				</h3>
 				<div className="text-content-secondary text-sm flex flex-col gap-3 items-center">
-					{reason.kind === "csp" ? (
-						<CSPBlockedContent
-							block={reason}
-							canEditDeploymentConfig={canEditDeploymentConfig}
-						/>
-					) : (
-						<MissingWildcardContent
-							canEditDeploymentConfig={canEditDeploymentConfig}
-						/>
-					)}
+					{children}
 				</div>
 			</div>
 		</div>
@@ -56,7 +60,7 @@ const CSPBlockedContent: React.FC<CSPBlockedProps> = ({
 	canEditDeploymentConfig,
 }) => {
 	return (
-		<>
+		<BlockedLayout title="Your browser blocked this app">
 			<div className="px-4">
 				<CSPBlockedMessage
 					block={block}
@@ -97,7 +101,7 @@ const CSPBlockedContent: React.FC<CSPBlockedProps> = ({
 					</Button>
 				)}
 			</div>
-		</>
+		</BlockedLayout>
 	);
 };
 
@@ -140,7 +144,7 @@ const MissingWildcardContent: React.FC<MissingWildcardProps> = ({
 	canEditDeploymentConfig,
 }) => {
 	return (
-		<>
+		<BlockedLayout title="Error">
 			<div className="px-4">
 				This application has <InlineCode>subdomain = true</InlineCode>
 				{canEditDeploymentConfig ? (
@@ -167,7 +171,7 @@ const MissingWildcardContent: React.FC<MissingWildcardProps> = ({
 					<NewTabLabel />
 				</a>
 			</Button>
-		</>
+		</BlockedLayout>
 	);
 };
 
