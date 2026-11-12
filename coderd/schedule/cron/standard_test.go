@@ -285,7 +285,8 @@ func TestStandard_Next(t *testing.T) {
 // runs every minute the walk visits one reading for each minute of that day, and
 // one more when the clock changed at a time with seconds. That is 1,440 readings
 // in Sitka, which changed at a whole minute, and 1,441 in Juneau, which changed
-// at 15:33:32, as did Adak, Anchorage, Atka, Metlakatla, Nome and Yakutat.
+// at 15:33:32. Adak, Anchorage, Atka, Metlakatla, Nome and Yakutat changed at
+// other times with seconds, so the walk has 1,441 readings there too.
 func TestStandard_Next_InsideRepeatedPeriod(t *testing.T) {
 	t.Parallel()
 
