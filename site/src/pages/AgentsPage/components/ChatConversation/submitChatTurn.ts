@@ -35,6 +35,8 @@ import type { EditingTarget } from "./types";
 
 export type SubmitChatTurnParams = {
 	message: string;
+	/** The question_id of the async question that this message answers. */
+	questionAnswerId?: string;
 	attachments?: readonly PendingAttachment[];
 	workspaceUploads?: readonly PendingWorkspaceUpload[];
 	editingTarget?: EditingTarget;
@@ -318,6 +320,7 @@ export async function submitChatTurn(
 
 	const { content, hasContent } = buildChatInputContent({
 		message,
+		questionAnswerId: params.questionAnswerId,
 		attachments,
 		workspaceUploads,
 		composerParts,

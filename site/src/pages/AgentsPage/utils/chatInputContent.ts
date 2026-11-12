@@ -54,11 +54,13 @@ export const buildChatInputContent = ({
 	attachments,
 	workspaceUploads,
 	composerParts,
+	questionAnswerId,
 }: {
 	message: string;
 	attachments?: readonly PendingAttachment[];
 	workspaceUploads?: readonly PendingWorkspaceUpload[];
 	composerParts?: readonly ChatComposerContentPart[];
+	questionAnswerId?: string;
 }): { content: TypesGen.ChatInputPart[]; hasContent: boolean } => {
 	const content: TypesGen.ChatInputPart[] = [];
 
@@ -103,6 +105,10 @@ export const buildChatInputContent = ({
 		for (const upload of workspaceUploads) {
 			content.push(toWorkspaceFileReferencePart(upload));
 		}
+	}
+
+	if (questionAnswerId && content.length > 0) {
+		content.unshift({ type: "question-answer", question_id: questionAnswerId });
 	}
 
 	return { content, hasContent: content.length > 0 };

@@ -284,6 +284,9 @@ export const applyMessagePartToStreamState = (
 		// skill-invocation parts only appear in persisted user
 		// messages, never via SSE streaming.
 		case "skill-invocation":
+		// question-answer parts only appear in persisted user
+		// messages, never via SSE streaming.
+		case "question-answer":
 			return prev;
 		default: {
 			const _exhaustive: never = part;

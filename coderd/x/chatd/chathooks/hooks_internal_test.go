@@ -287,6 +287,14 @@ func TestUserPromptMessageShowsSkillInvocations(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.Equal(t, "please run /project/triage on the issue", message.Prompt)
+
+	questionID := uuid.New()
+	answerMessage, err := UserPromptMessage([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageQuestionAnswer(questionID),
+		codersdk.ChatMessageText("Use Postgres."),
+	})
+	require.NoError(t, err)
+	require.Equal(t, "Use Postgres.", answerMessage.Prompt)
 }
 
 func TestUserPromptMessageOmitsResolvedSkillFields(t *testing.T) {

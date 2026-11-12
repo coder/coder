@@ -22536,6 +22536,11 @@ const docTemplate = `{
                     "description": "The following fields are only set when Type is\nChatInputPartTypeFileReference.",
                     "type": "string"
                 },
+                "question_id": {
+                    "description": "QuestionID is only set when Type is ChatInputPartTypeQuestionAnswer.\nIt is the question_id from the result of the ask_user_question_async\ncall that the message answers.",
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "skill_name": {
                     "type": "string"
                 },
@@ -22583,14 +22588,16 @@ const docTemplate = `{
                 "file",
                 "file-reference",
                 "workspace-file-reference",
-                "skill-invocation"
+                "skill-invocation",
+                "question-answer"
             ],
             "x-enum-varnames": [
                 "ChatInputPartTypeText",
                 "ChatInputPartTypeFile",
                 "ChatInputPartTypeFileReference",
                 "ChatInputPartTypeWorkspaceFileReference",
-                "ChatInputPartTypeSkillInvocation"
+                "ChatInputPartTypeSkillInvocation",
+                "ChatInputPartTypeQuestionAnswer"
             ]
         },
         "codersdk.ChatMessage": {
@@ -22738,6 +22745,10 @@ const docTemplate = `{
                     "description": "ProviderExecuted indicates the tool call was executed by\nthe provider (e.g. Anthropic computer use).",
                     "type": "boolean"
                 },
+                "question_id": {
+                    "description": "QuestionID is the question_id from the result of the\nask_user_question_async call that the message answers.",
+                    "type": "string"
+                },
                 "reasoning_delta": {
                     "type": "string"
                 },
@@ -22833,7 +22844,8 @@ const docTemplate = `{
                 "workspace-file-reference",
                 "skill-invocation",
                 "hook-context",
-                "hook-notice"
+                "hook-notice",
+                "question-answer"
             ],
             "x-enum-varnames": [
                 "ChatMessagePartTypeText",
@@ -22848,7 +22860,8 @@ const docTemplate = `{
                 "ChatMessagePartTypeWorkspaceFileReference",
                 "ChatMessagePartTypeSkillInvocation",
                 "ChatMessagePartTypeHookContext",
-                "ChatMessagePartTypeHookNotice"
+                "ChatMessagePartTypeHookNotice",
+                "ChatMessagePartTypeQuestionAnswer"
             ]
         },
         "codersdk.ChatMessageRole": {

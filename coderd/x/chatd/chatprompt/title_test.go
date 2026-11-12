@@ -17,6 +17,7 @@ func TestTitleText(t *testing.T) {
 
 	pasteFileID := uuid.New()
 	otherPasteFileID := uuid.New()
+	questionID := uuid.New()
 	syntheticPasteFile := func(id uuid.UUID) codersdk.ChatMessagePart {
 		return codersdk.ChatMessageFile(id, "text/plain", "pasted-text-2026-01-02-03-04-05.txt")
 	}
@@ -78,6 +79,14 @@ func TestTitleText(t *testing.T) {
 				codersdk.ChatMessageText("the new issues"),
 			},
 			want: "/project/triage the new issues",
+		},
+		{
+			name: "ignores question-answer parts",
+			parts: []codersdk.ChatMessagePart{
+				codersdk.ChatMessageQuestionAnswer(questionID),
+				codersdk.ChatMessageText("Use Postgres."),
+			},
+			want: "Use Postgres.",
 		},
 		{
 			name: "falls back to paste content for file only messages",

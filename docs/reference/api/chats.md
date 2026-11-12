@@ -391,6 +391,7 @@ curl -X POST http://coder-server:8080/api/v2/chats \
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "question_id": "827e810a-4b1a-40f6-8bc2-c3dd6fcedc25",
       "skill_name": "string",
       "skill_source": "personal",
       "start_line": 0,
@@ -3045,6 +3046,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
             ]
           ],
           "provider_executed": true,
+          "question_id": "string",
           "reasoning_delta": "string",
           "result": {},
           "result_delta": "string",
@@ -3120,6 +3122,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
             ]
           ],
           "provider_executed": true,
+          "question_id": "string",
           "reasoning_delta": "string",
           "result": {},
           "result_delta": "string",
@@ -3187,6 +3190,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "question_id": "827e810a-4b1a-40f6-8bc2-c3dd6fcedc25",
       "skill_name": "string",
       "skill_source": "personal",
       "start_line": 0,
@@ -3272,6 +3276,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           ]
         ],
         "provider_executed": true,
+        "question_id": "string",
         "reasoning_delta": "string",
         "result": {},
         "result_delta": "string",
@@ -3345,6 +3350,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
             ]
           ],
           "provider_executed": true,
+          "question_id": "string",
           "reasoning_delta": "string",
           "result": {},
           "result_delta": "string",
@@ -3420,6 +3426,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           ]
         ],
         "provider_executed": true,
+        "question_id": "string",
         "reasoning_delta": "string",
         "result": {},
         "result_delta": "string",
@@ -3487,6 +3494,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "question_id": "827e810a-4b1a-40f6-8bc2-c3dd6fcedc25",
       "skill_name": "string",
       "skill_source": "personal",
       "start_line": 0,
@@ -3557,6 +3565,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           ]
         ],
         "provider_executed": true,
+        "question_id": "string",
         "reasoning_delta": "string",
         "result": {},
         "result_delta": "string",
@@ -3630,6 +3639,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
             ]
           ],
           "provider_executed": true,
+          "question_id": "string",
           "reasoning_delta": "string",
           "result": {},
           "result_delta": "string",
@@ -3783,6 +3793,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/queue/{queuedMessage}
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "question_id": "827e810a-4b1a-40f6-8bc2-c3dd6fcedc25",
       "skill_name": "string",
       "skill_source": "personal",
       "start_line": 0,
@@ -4273,6 +4284,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             ]
           ],
           "provider_executed": true,
+          "question_id": "string",
           "reasoning_delta": "string",
           "result": {},
           "result_delta": "string",
@@ -4345,6 +4357,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           ]
         ],
         "provider_executed": true,
+        "question_id": "string",
         "reasoning_delta": "string",
         "result": {},
         "result_delta": "string",
@@ -4405,6 +4418,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
               ]
             ],
             "provider_executed": true,
+            "question_id": "string",
             "reasoning_delta": "string",
             "result": {},
             "result_delta": "string",
@@ -4506,6 +4520,7 @@ Status Code **200**
 | `»»» narration`                    | boolean                                                                          | false    |              | Narration marks assistant text that the model labeled as commentary on its work rather than its answer. Only providers that label their output set it.                                                                                                                                                                                                                                                     |
 | `»»» parsed_commands`              | array                                                                            | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
 | `»»» provider_executed`            | boolean                                                                          | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
+| `»»» question_id`                  | string                                                                           | false    |              | Question ID is the question_id from the result of the ask_user_question_async call that the message answers.                                                                                                                                                                                                                                                                                               |
 | `»»» reasoning_delta`              | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» result`                       | object                                                                           | false    |              | Result is the tool output, which can be any JSON value.                                                                                                                                                                                                                                                                                                                                                    |
 | `»»» result_delta`                 | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -4570,14 +4585,14 @@ Status Code **200**
 
 #### Enumerated Values
 
-| Property        | Value(s)                                                                                                                                                                                                                                                                                                                |
-|-----------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `kind`          | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                                                |
-| `skill_source`  | `org`, `personal`, `project`, `workspace`                                                                                                                                                                                                                                                                               |
-| `type`          | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `queue_update`, `reasoning`, `retry`, `skill`, `skill-invocation`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
-| `role`          | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                                                   |
-| `busy_behavior` | `queue`, `steer`                                                                                                                                                                                                                                                                                                        |
-| `status`        | `error`, `interrupting`, `paused`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                              |
+| Property        | Value(s)                                                                                                                                                                                                                                                                                                                                   |
+|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `kind`          | `auth`, `config`, `content_filter`, `generic`, `hook_denied`, `hook_dispatch_failed`, `missing_key`, `overloaded`, `provider_disabled`, `rate_limit`, `stream_silence_timeout`, `timeout`, `usage_limit`                                                                                                                                   |
+| `skill_source`  | `org`, `personal`, `project`, `workspace`                                                                                                                                                                                                                                                                                                  |
+| `type`          | `action_required`, `context-file`, `error`, `file`, `file-reference`, `history_reset`, `hook-context`, `hook-notice`, `message`, `message_part`, `preview_reset`, `question-answer`, `queue_update`, `reasoning`, `retry`, `skill`, `skill-invocation`, `source`, `status`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
+| `role`          | `assistant`, `system`, `tool`, `user`                                                                                                                                                                                                                                                                                                      |
+| `busy_behavior` | `queue`, `steer`                                                                                                                                                                                                                                                                                                                           |
+| `status`        | `error`, `interrupting`, `paused`, `requires_action`, `running`, `waiting`                                                                                                                                                                                                                                                                 |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

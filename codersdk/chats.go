@@ -509,6 +509,10 @@ const (
 	// either attached to a prompt or in its own row. It is excluded from model
 	// prompts and rejected in client-submitted content.
 	ChatMessagePartTypeHookNotice ChatMessagePartType = "hook-notice"
+	// ChatMessagePartTypeQuestionAnswer marks a user message as the answer
+	// to an ask_user_question_async call. The server renders it for the model
+	// as a line that names the question.
+	ChatMessagePartTypeQuestionAnswer ChatMessagePartType = "question-answer"
 )
 
 // AllChatMessagePartTypes returns all known ChatMessagePartType values.
@@ -527,6 +531,7 @@ func AllChatMessagePartTypes() []ChatMessagePartType {
 		ChatMessagePartTypeSkillInvocation,
 		ChatMessagePartTypeHookContext,
 		ChatMessagePartTypeHookNotice,
+		ChatMessagePartTypeQuestionAnswer,
 	}
 }
 
@@ -683,6 +688,9 @@ type ChatMessagePart struct {
 	// prompt shows SkillDir only while the chat stays bound to this
 	// workspace.
 	SkillWorkspaceID uuid.UUID `json:"skill_workspace_id,omitzero" format:"uuid" typescript:"-" swaggerignore:"true"`
+	// QuestionID is the question_id from the result of the
+	// ask_user_question_async call that the message answers.
+	QuestionID string `json:"question_id,omitempty" variants:"question-answer?"`
 	// ContextFileSkillMetaFile is the basename of the skill
 	// meta file (e.g. "SKILL.md") at the time of persistence.
 	// Internal only: restored on subsequent turns so the
@@ -811,6 +819,14 @@ func ChatMessageSkillInvocation(source ChatSkillSource, name string) ChatMessage
 	}
 }
 
+// ChatMessageQuestionAnswer builds a question-answer chat message part.
+func ChatMessageQuestionAnswer(questionID uuid.UUID) ChatMessagePart {
+	return ChatMessagePart{
+		Type:       ChatMessagePartTypeQuestionAnswer,
+		QuestionID: questionID.String(),
+	}
+}
+
 // ChatMessageSource builds a source chat message part.
 func ChatMessageSource(sourceID, sourceURL, title string) ChatMessagePart {
 	return ChatMessagePart{
@@ -830,6 +846,7 @@ const (
 	ChatInputPartTypeFileReference          ChatInputPartType = "file-reference"
 	ChatInputPartTypeWorkspaceFileReference ChatInputPartType = "workspace-file-reference"
 	ChatInputPartTypeSkillInvocation        ChatInputPartType = "skill-invocation"
+	ChatInputPartTypeQuestionAnswer         ChatInputPartType = "question-answer"
 )
 
 // ChatSkillSource identifies where an invoked skill is stored.
@@ -869,6 +886,10 @@ type ChatInputPart struct {
 	// as the chat owner when the message is sent.
 	SkillSource ChatSkillSource `json:"skill_source,omitempty"`
 	SkillName   string          `json:"skill_name,omitempty"`
+	// QuestionID is only set when Type is ChatInputPartTypeQuestionAnswer.
+	// It is the question_id from the result of the ask_user_question_async
+	// call that the message answers.
+	QuestionID uuid.UUID `json:"question_id,omitzero" format:"uuid"`
 }
 
 // SubmitToolResultsRequest is the body for POST /chats/{id}/tool-results.

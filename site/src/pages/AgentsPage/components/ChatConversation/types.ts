@@ -91,6 +91,8 @@ export type ParsedMessageContent = {
 	partBlockIndices: number[];
 	sources: Array<{ url: string; title: string }>;
 	hookNotices: string[];
+	/** The question_id of the message's question-answer part, if it has one. */
+	questionAnswerId?: string;
 };
 
 export type ParsedMessageEntry = {

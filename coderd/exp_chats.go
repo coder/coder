@@ -1442,7 +1442,8 @@ func (api *API) createChat(
 		}
 	}
 
-	contentBlocks, titleText, inputError := createChatInputFromRequest(ctx, api.Database, req)
+	asyncQuestionsEnabled := api.Experiments.Enabled(codersdk.ExperimentChatAsyncQuestions)
+	contentBlocks, titleText, inputError := createChatInputFromRequest(ctx, api.Database, req, asyncQuestionsEnabled)
 	if inputError != nil {
 		return database.Chat{}, codersdk.Chat{}, httperror.NewResponseError(http.StatusBadRequest, *inputError)
 	}
@@ -3210,7 +3211,8 @@ func (api *API) sendChatMessage(
 	chat database.Chat,
 	req codersdk.CreateChatMessageRequest,
 ) (codersdk.CreateChatMessageResponse, error) {
-	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, chat.ID, chat.WorkspaceID, req.Content, "content")
+	asyncQuestionsEnabled := api.Experiments.Enabled(codersdk.ExperimentChatAsyncQuestions)
+	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, chat.ID, chat.WorkspaceID, req.Content, "content", asyncQuestionsEnabled)
 	if inputError != nil {
 		return codersdk.CreateChatMessageResponse{}, httperror.NewResponseError(http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -3461,7 +3463,8 @@ func (api *API) patchChatMessage(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, chat.ID, chat.WorkspaceID, req.Content, "content")
+	asyncQuestionsEnabled := api.Experiments.Enabled(codersdk.ExperimentChatAsyncQuestions)
+	contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, chat.ID, chat.WorkspaceID, req.Content, "content", asyncQuestionsEnabled)
 	if inputError != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: inputError.Message,
@@ -3809,7 +3812,8 @@ func (api *API) patchChatQueuedMessage(rw http.ResponseWriter, r *http.Request) 
 		Editing:         req.Editing,
 	}
 	if req.Content != nil {
-		contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, chat.ID, chat.WorkspaceID, req.Content, "content")
+		asyncQuestionsEnabled := api.Experiments.Enabled(codersdk.ExperimentChatAsyncQuestions)
+		contentBlocks, _, inputError := createChatInputFromParts(ctx, api.Database, chat.ID, chat.WorkspaceID, req.Content, "content", asyncQuestionsEnabled)
 		if inputError != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: inputError.Message,
@@ -7809,7 +7813,7 @@ func isWindowsAbsPath(p string) bool {
 		(('a' <= p[0] && p[0] <= 'z') || ('A' <= p[0] && p[0] <= 'Z'))
 }
 
-func createChatInputFromRequest(ctx context.Context, db database.Store, req codersdk.CreateChatRequest) (
+func createChatInputFromRequest(ctx context.Context, db database.Store, req codersdk.CreateChatRequest, asyncQuestionsEnabled bool) (
 	[]codersdk.ChatMessagePart,
 	string,
 	*codersdk.Response,
@@ -7822,9 +7826,9 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 	if len(req.Content) == 0 {
 		return nil, "", nil
 	}
-	// Chat creation has no chat ID yet, so workspace-file-reference
-	// parts are rejected (they require an existing chat's uploads).
-	content, pasteData, inputError := createChatInputFromParts(ctx, db, uuid.Nil, uuid.NullUUID{}, req.Content, "content")
+	// Chat creation has no chat ID yet, so workspace-file-reference and
+	// question-answer parts, which require an existing chat, are rejected.
+	content, pasteData, inputError := createChatInputFromParts(ctx, db, uuid.Nil, uuid.NullUUID{}, req.Content, "content", asyncQuestionsEnabled)
 	if inputError != nil {
 		return nil, "", inputError
 	}
@@ -7840,9 +7844,10 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 }
 
 // createChatInputFromParts validates input parts and converts them to
-// message content. The returned map holds pasted-text blob references
-// by file ID; the create path derives a title from it, message send
-// and edit discard it without copying blob data.
+// message content, with any question-answer part first. The returned map
+// holds pasted-text blob references by file ID.
+//
+//nolint:revive // asyncQuestionsEnabled is fixed for the life of the process.
 func createChatInputFromParts(
 	ctx context.Context,
 	db database.Store,
@@ -7850,6 +7855,7 @@ func createChatInputFromParts(
 	chatWorkspaceID uuid.NullUUID,
 	parts []codersdk.ChatInputPart,
 	fieldName string,
+	asyncQuestionsEnabled bool,
 ) ([]codersdk.ChatMessagePart, map[uuid.UUID][]byte, *codersdk.Response) {
 	if len(parts) == 0 {
 		return nil, nil, &codersdk.Response{
@@ -7860,6 +7866,7 @@ func createChatInputFromParts(
 
 	content := make([]codersdk.ChatMessagePart, 0, len(parts))
 	var pasteData map[uuid.UUID][]byte
+	var questionAnswerID uuid.UUID
 	skillInvocations := 0
 	for i, part := range parts {
 		switch strings.ToLower(strings.TrimSpace(string(part.Type))) {
@@ -8021,6 +8028,36 @@ func createChatInputFromParts(
 				}
 			}
 			content = append(content, codersdk.ChatMessageSkillInvocation(part.SkillSource, part.SkillName))
+		case string(codersdk.ChatInputPartTypeQuestionAnswer):
+			if !asyncQuestionsEnabled {
+				return nil, nil, &codersdk.Response{
+					Message: "Async questions are not enabled on this deployment.",
+					Detail:  fmt.Sprintf("Enable the %s experiment.", codersdk.ExperimentChatAsyncQuestions),
+				}
+			}
+
+			if chatID == uuid.Nil {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].question-answer requires an existing chat.", fieldName, i),
+				}
+			}
+
+			if part.QuestionID == uuid.Nil {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].question_id is required.", fieldName, i),
+				}
+			}
+
+			if questionAnswerID != uuid.Nil {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s can answer at most one question.", fieldName),
+				}
+			}
+
+			questionAnswerID = part.QuestionID
 		default:
 			return nil, nil, &codersdk.Response{
 				Message: "Invalid input part.",
@@ -8040,6 +8077,12 @@ func createChatInputFromParts(
 			Detail:  fmt.Sprintf("%s must include at least one text or file part.", fieldName),
 		}
 	}
+
+	if questionAnswerID != uuid.Nil {
+		questionAnswer := codersdk.ChatMessageQuestionAnswer(questionAnswerID)
+		content = append([]codersdk.ChatMessagePart{questionAnswer}, content...)
+	}
+
 	return content, pasteData, nil
 }
 

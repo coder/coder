@@ -1371,6 +1371,10 @@ func partsToMessageParts(
 			result = append(result, fantasy.TextPart{
 				Text: skillInvocationPartToText(part, chatWorkspaceID),
 			})
+		case codersdk.ChatMessagePartTypeQuestionAnswer:
+			result = append(result, fantasy.TextPart{
+				Text: chattool.AskUserQuestionAsyncAnswerLine(part.QuestionID),
+			})
 		case codersdk.ChatMessagePartTypeContextFile:
 			if part.ContextFileContent == "" {
 				continue
@@ -1704,6 +1708,7 @@ var partNulFields = []partNulField{
 	{name: "SkillName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillName }},
 	{name: "SkillSource", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return (*string)(&p.SkillSource) }},
 	{name: "SkillDir", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.SkillDir }},
+	{name: "QuestionID", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.QuestionID }},
 	{name: "WorkspaceFilePath", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.WorkspaceFilePath }},
 	{name: "WorkspaceFileName", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.WorkspaceFileName }},
 	{name: "WorkspaceFileMediaType", policy: nulReject, str: func(p *codersdk.ChatMessagePart) *string { return &p.WorkspaceFileMediaType }},

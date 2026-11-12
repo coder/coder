@@ -1262,6 +1262,43 @@ func TestSkillInvocationPrompt(t *testing.T) {
 	}
 }
 
+func TestQuestionAnswerPrompt(t *testing.T) {
+	t.Parallel()
+
+	questionID := uuid.New()
+	answerLine := chattool.AskUserQuestionAsyncAnswerLine(questionID.String())
+	// The surrounding spaces and the newline show that the answer text
+	// reaches the prompt unchanged.
+	const answer = "  Use Postgres.\nKeep the cache in SQLite.  "
+	raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageQuestionAnswer(questionID),
+		codersdk.ChatMessageText(answer),
+	})
+	require.NoError(t, err)
+
+	prompt, err := chatprompt.ConvertMessagesWithFiles(
+		context.Background(),
+		[]database.ChatMessage{{
+			Role:           database.ChatMessageRoleUser,
+			Visibility:     database.ChatMessageVisibilityBoth,
+			Content:        raw,
+			ContentVersion: chatprompt.CurrentContentVersion,
+		}},
+		nil,
+		slogtest.Make(t, nil),
+		nil,
+		uuid.NullUUID{},
+	)
+
+	require.NoError(t, err)
+	require.Len(t, prompt, 1)
+	require.Equal(t, fantasy.MessageRoleUser, prompt[0].Role)
+	require.Equal(t, []fantasy.MessagePart{
+		fantasy.TextPart{Text: answerLine},
+		fantasy.TextPart{Text: answer},
+	}, prompt[0].Content)
+}
+
 // TestAssistantWriteRoundTrip verifies the Stage 4 write path:
 // fantasy.Content (with ProviderMetadata) → PartFromContent →
 // MarshalParts → DB → ParseContent (SDK path) →
