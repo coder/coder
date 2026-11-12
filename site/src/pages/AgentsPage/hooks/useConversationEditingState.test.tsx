@@ -127,8 +127,8 @@ const setMobileViewport = (isMobile: boolean) => {
 
 // The row the shown queue marks, or none. This tab's pending begin or end
 // changes it at the click.
-type ServerProps = {
-	serverMarkedID: number | null;
+type MarkedRowProps = {
+	markedID: number | null;
 };
 
 type EditingHarnessHandle = ReturnType<typeof useConversationEditingState> & {
@@ -141,11 +141,11 @@ type EditingHarnessHandle = ReturnType<typeof useConversationEditingState> & {
 const EditingWithEditor = ({
 	chatID,
 	contents,
-	serverMarkedID,
+	markedID,
 	ref,
 	onCommit,
 	onSend,
-}: ServerProps & {
+}: MarkedRowProps & {
 	chatID: string;
 	contents: ReadonlyMap<number, readonly ChatMessagePart[]>;
 	ref: React.Ref<EditingHarnessHandle>;
@@ -160,7 +160,7 @@ const EditingWithEditor = ({
 	const [chatInputRef] = useState(() => createRef<ChatMessageInputRef>());
 	const [inputValueRef] = useState(() => ({ current: "" }));
 	const [composerMode, setComposerMode] = useState<ComposerMode>("follow");
-	const target = deriveComposerTarget(composerMode, serverMarkedID, true);
+	const target = deriveComposerTarget(composerMode, markedID, true);
 	const editing = useConversationEditingState({
 		chatID,
 		onSend: async (options) =>
@@ -226,17 +226,13 @@ describe("useConversationEditingState", () => {
 		const contentKey = (target: EditingTarget) => `${target.kind}:${target.id}`;
 
 		const resolvedChatID = args.length === 0 ? chatID : args[0];
-		const initialProps: ServerProps = { serverMarkedID: null };
+		const initialProps: MarkedRowProps = { markedID: null };
 
 		const hook = renderHook(
-			(props: ServerProps) => {
+			(props: MarkedRowProps) => {
 				const [composerMode, setComposerMode] =
 					useState<ComposerMode>("follow");
-				const target = deriveComposerTarget(
-					composerMode,
-					props.serverMarkedID,
-					true,
-				);
+				const target = deriveComposerTarget(composerMode, props.markedID, true);
 				const editing = useConversationEditingState({
 					chatID: resolvedChatID,
 					onSend,
@@ -262,16 +258,16 @@ describe("useConversationEditingState", () => {
 		) => {
 			contents.set(contentKey(target), textContent(text, fileBlocks));
 			if (target.kind === "queued") {
-				hook.rerender({ serverMarkedID: target.id });
+				hook.rerender({ markedID: target.id });
 			}
 			hook.result.current.setComposerMode(target);
 		};
 		// The shown queue marks a row, or none.
-		const markOnServer = (id: number | null, text = "queued text") => {
+		const markRow = (id: number | null, text = "queued text") => {
 			if (id !== null) {
 				contents.set(contentKey({ kind: "queued", id }), textContent(text));
 			}
-			hook.rerender({ serverMarkedID: id });
+			hook.rerender({ markedID: id });
 		};
 
 		return {
@@ -280,7 +276,7 @@ describe("useConversationEditingState", () => {
 			onLoadedTargetChange,
 			inputValueRef,
 			beginEdit,
-			markOnServer,
+			markRow,
 		};
 	};
 
@@ -296,7 +292,7 @@ describe("useConversationEditingState", () => {
 			editingTarget: EditingTarget | undefined;
 			composerParts: readonly ChatComposerContentPart[];
 		}[] = [];
-		const ui = (props: ServerProps) => (
+		const ui = (props: MarkedRowProps) => (
 			<QueryClientProvider client={queryClient}>
 				<EditingWithEditor
 					ref={handle}
@@ -310,7 +306,7 @@ describe("useConversationEditingState", () => {
 				/>
 			</QueryClientProvider>
 		);
-		const view = render(ui({ serverMarkedID: null }));
+		const view = render(ui({ markedID: null }));
 		const current = () => {
 			if (!handle.current) {
 				throw new Error("harness is not mounted");
@@ -320,7 +316,7 @@ describe("useConversationEditingState", () => {
 		const editorText = () =>
 			screen.getByRole("textbox", { name: "Chat message" }).textContent;
 		// Async act, so the editor's remount commits settle inside it.
-		const markOnServer = async (
+		const markRow = async (
 			id: number | null,
 			content?: string | readonly ChatMessagePart[],
 		) => {
@@ -330,13 +326,13 @@ describe("useConversationEditingState", () => {
 					typeof content === "string" ? textContent(content) : content,
 				);
 			}
-			await act(async () => view.rerender(ui({ serverMarkedID: id })));
+			await act(async () => view.rerender(ui({ markedID: id })));
 		};
 		const beginEdit = async (
 			id: number,
 			content: string | readonly ChatMessagePart[],
 		) => {
-			await markOnServer(id, content);
+			await markRow(id, content);
 			await act(async () => current().setComposerMode({ kind: "queued", id }));
 		};
 		// Lexical does not handle userEvent keystrokes in jsdom; a paste goes
@@ -429,7 +425,7 @@ describe("useConversationEditingState", () => {
 			...view,
 			current,
 			editorText,
-			markOnServer,
+			markRow,
 			beginEdit,
 			type,
 			deleteBack,
@@ -904,7 +900,7 @@ describe("useConversationEditingState", () => {
 
 	// The page ignores Edit while isRequestInFlight reports a request.
 	it("reports a send as in flight until it settles, and does not load a row marked during it", async () => {
-		const { result, onSend, unmount, markOnServer } = renderEditing();
+		const { result, onSend, unmount, markRow } = renderEditing();
 		result.current.chatInputRef.current = createMockChatInputHandle().handle;
 		const send = createDeferred<undefined>();
 		onSend.mockReturnValueOnce(send.promise);
@@ -914,7 +910,7 @@ describe("useConversationEditingState", () => {
 			sent = result.current.handleSendFromInput({ message: "hello" });
 		});
 		expect(result.current.isRequestInFlight()).toBe(true);
-		markOnServer(5, "queued text");
+		markRow(5, "queued text");
 
 		expect(result.current.editingTarget).toBeNull();
 		expect(result.current.editorInitialValue).toBe("");
@@ -1363,7 +1359,7 @@ describe("useConversationEditingState", () => {
 					current,
 					editorText,
 					beginEdit,
-					markOnServer,
+					markRow,
 					type,
 					change,
 				} = renderEditingWithEditor();
@@ -1374,7 +1370,7 @@ describe("useConversationEditingState", () => {
 				await change(edit);
 				const textWhileEditing = editorText();
 
-				await markOnServer(null);
+				await markRow(null);
 
 				const modify = edit === "typed";
 				const expectedDraft = modify ? textWhileEditing : "draft";
@@ -1421,25 +1417,19 @@ describe("useConversationEditingState", () => {
 			async (_name, opened, edit) => {
 				// A stored draft leaves the composer unchanged, so it can follow.
 				localStorage.setItem(expectedKey, "draft");
-				const {
-					unmount,
-					current,
-					editorText,
-					beginEdit,
-					markOnServer,
-					change,
-				} = renderEditingWithEditor();
+				const { unmount, current, editorText, beginEdit, markRow, change } =
+					renderEditingWithEditor();
 
 				if (opened === "edit") {
 					await beginEdit(42, "queued text");
 				} else {
-					await markOnServer(42, "queued text");
+					await markRow(42, "queued text");
 				}
 				expect(editorText()).toBe("queued text");
 				await change(edit);
 				const textWhileEditing = editorText();
 
-				await markOnServer(6, "other row");
+				await markRow(6, "other row");
 
 				const modify = edit === "typed";
 				expect(current().editingTarget).toEqual(
@@ -1455,7 +1445,7 @@ describe("useConversationEditingState", () => {
 
 				// The followed edit is untouched too, so its end gives the draft back.
 				if (!modify) {
-					await markOnServer(null);
+					await markRow(null);
 					expect(current().composerMode).toBe("follow");
 					expect(editorText()).toBe("draft");
 				}
@@ -1488,7 +1478,7 @@ describe("useConversationEditingState", () => {
 					unmount,
 					current,
 					editorText,
-					markOnServer,
+					markRow,
 					change,
 					committedTargets,
 				} = renderEditingWithEditor();
@@ -1496,7 +1486,7 @@ describe("useConversationEditingState", () => {
 				await change(edit);
 				const textBeforeMarker = editorText();
 
-				await markOnServer(6, "other row");
+				await markRow(6, "other row");
 
 				if (edit === "typed") {
 					// No commit shows the edit, so edit chrome such as the row's
@@ -1513,7 +1503,7 @@ describe("useConversationEditingState", () => {
 				} else {
 					expect(current().editingTarget).toEqual({ kind: "queued", id: 6 });
 					expect(editorText()).toBe("other row");
-					await markOnServer(null);
+					await markRow(null);
 					expect(editorText()).toBe(storedDraft);
 				}
 				unmount();
@@ -1522,11 +1512,11 @@ describe("useConversationEditingState", () => {
 
 		it("on reload, opens the marked row and keeps the saved draft for when the edit ends", () => {
 			localStorage.setItem(expectedKey, "saved draft");
-			const { result, unmount, markOnServer } = renderEditing();
+			const { result, unmount, markRow } = renderEditing();
 			expect(result.current.editingTarget).toBeNull();
 
 			// Reload: the store hydrates after the first render.
-			markOnServer(5, "run the migrations");
+			markRow(5, "run the migrations");
 
 			expect(result.current.editingTarget).toEqual({ kind: "queued", id: 5 });
 			expect(result.current.editorInitialValue).toBe("run the migrations");
@@ -1542,15 +1532,15 @@ describe("useConversationEditingState", () => {
 			});
 			expect(result.current.composerMode).toBe("follow");
 
-			markOnServer(null);
+			markRow(null);
 			expect(result.current.editingTarget).toBeNull();
 			expect(result.current.editorInitialValue).toBe("saved draft");
 			unmount();
 		});
 
 		it("text changed while following the marked row stays as a draft when the marker leaves, so a later marker on another row does not open it", () => {
-			const { result, unmount, markOnServer } = renderEditing();
-			markOnServer(5);
+			const { result, unmount, markRow } = renderEditing();
+			markRow(5);
 
 			act(() => {
 				result.current.handleContentChange(
@@ -1561,11 +1551,11 @@ describe("useConversationEditingState", () => {
 			});
 			expect(result.current.editingTarget).toEqual({ kind: "queued", id: 5 });
 
-			markOnServer(null);
+			markRow(null);
 			expect(result.current.editingTarget).toBeNull();
 			expect(result.current.inputValueRef.current).toBe("queued text!");
 
-			markOnServer(6);
+			markRow(6);
 			expect(result.current.editingTarget).toBeNull();
 			expect(result.current.inputValueRef.current).toBe("queued text!");
 			unmount();
@@ -1595,7 +1585,7 @@ describe("useConversationEditingState", () => {
 					current,
 					editorText,
 					beginEdit,
-					markOnServer,
+					markRow,
 					deleteBack,
 					addFileReference,
 				} = renderEditingWithEditor();
@@ -1606,7 +1596,7 @@ describe("useConversationEditingState", () => {
 				await addFileReference("main.go");
 				const textWhileEditing = editorText();
 
-				await markOnServer(null);
+				await markRow(null);
 
 				expect(current().composerMode).toBe("draft");
 				expect(editorText()).toBe(textWhileEditing);
@@ -1625,14 +1615,14 @@ describe("useConversationEditingState", () => {
 				const {
 					unmount,
 					current,
-					markOnServer,
+					markRow,
 					setRowContent,
 					contentParts,
 					sends,
 				} = renderEditingWithEditor();
 				setRowContent(42, contentWithChips);
 				if (kind === "queued") {
-					await markOnServer(42);
+					await markRow(42);
 				}
 				await act(async () => current().setComposerMode({ kind, id: 42 }));
 				const loadedParts: readonly ChatComposerContentPart[] = [
@@ -1700,7 +1690,7 @@ describe("useConversationEditingState", () => {
 					current,
 					editorText,
 					beginEdit,
-					markOnServer,
+					markRow,
 					type,
 					appendSkill,
 					removeSkill,
@@ -1727,7 +1717,7 @@ describe("useConversationEditingState", () => {
 				const stateWhileEditing =
 					current().chatInputRef.current?.getEditorState();
 
-				await markOnServer(null);
+				await markRow(null);
 
 				expect(current().composerMode).toBe(modified ? "draft" : "follow");
 				if (modified) {
@@ -1746,7 +1736,7 @@ describe("useConversationEditingState", () => {
 		// although it differs from the stored draft it started from.
 		it("after a new message is sent, the empty composer follows a newly marked row", async () => {
 			localStorage.setItem(expectedKey, "saved draft");
-			const { unmount, current, editorText, markOnServer, change } =
+			const { unmount, current, editorText, markRow, change } =
 				renderEditingWithEditor();
 			await change("typed");
 			await act(async () => {
@@ -1754,7 +1744,7 @@ describe("useConversationEditingState", () => {
 			});
 			expect(editorText()).toBe("");
 
-			await markOnServer(6, "other row");
+			await markRow(6, "other row");
 
 			expect(current().editingTarget).toEqual({ kind: "queued", id: 6 });
 			expect(editorText()).toBe("other row");
@@ -1769,13 +1759,13 @@ describe("useConversationEditingState", () => {
 			await first.addFileReference("b.go");
 			first.unmount();
 
-			const { unmount, current, markOnServer, removeFirstFileReference } =
+			const { unmount, current, markRow, removeFirstFileReference } =
 				renderEditingWithEditor();
 			await removeFirstFileReference();
 			const stored = localStorage.getItem(expectedKey) ?? undefined;
 			expect(getChipNodes(stored)).toHaveLength(1);
 
-			await markOnServer(6, "other row");
+			await markRow(6, "other row");
 
 			expect(current().editingTarget).toBeNull();
 			expect(localStorage.getItem(expectedKey)).toBe(stored);
@@ -1783,10 +1773,10 @@ describe("useConversationEditingState", () => {
 		});
 
 		it("reports a loaded target change when a marked row loads or leaves, and not when the composer picks the loaded row", () => {
-			const { result, unmount, markOnServer, onLoadedTargetChange } =
+			const { result, unmount, markRow, onLoadedTargetChange } =
 				renderEditing();
 
-			markOnServer(5);
+			markRow(5);
 			expect(onLoadedTargetChange).toHaveBeenCalledTimes(1);
 
 			act(() => {
@@ -1794,14 +1784,14 @@ describe("useConversationEditingState", () => {
 			});
 			expect(onLoadedTargetChange).toHaveBeenCalledTimes(1);
 
-			markOnServer(null);
+			markRow(null);
 			expect(onLoadedTargetChange).toHaveBeenCalledTimes(2);
 			unmount();
 		});
 
 		describe("edit sessions", () => {
 			it("cancelling a modified history edit while a row is marked opens that row, and its end gives the draft back", () => {
-				const { result, unmount, beginEdit, markOnServer } = renderEditing();
+				const { result, unmount, beginEdit, markRow } = renderEditing();
 				act(() => {
 					result.current.handleContentChange("my draft", "my draft", false);
 					beginEdit({ kind: "history", id: 7 }, "old message");
@@ -1813,7 +1803,7 @@ describe("useConversationEditingState", () => {
 						false,
 					);
 				});
-				markOnServer(5, "queued text");
+				markRow(5, "queued text");
 
 				act(() => {
 					result.current.handleCancelEdit({ kind: "queued", id: 5 });
@@ -1821,7 +1811,7 @@ describe("useConversationEditingState", () => {
 				expect(result.current.editingTarget).toEqual({ kind: "queued", id: 5 });
 				expect(result.current.editorInitialValue).toBe("queued text");
 
-				markOnServer(null);
+				markRow(null);
 				expect(result.current.editingTarget).toBeNull();
 				expect(result.current.editorInitialValue).toBe("my draft");
 				unmount();
@@ -1854,8 +1844,7 @@ describe("useConversationEditingState", () => {
 			});
 
 			it("a save that fails after the row was dropped keeps the text as a new-message draft", async () => {
-				const { result, unmount, onSend, beginEdit, markOnServer } =
-					renderEditing();
+				const { result, unmount, onSend, beginEdit, markRow } = renderEditing();
 				let rejectSave: (error: Error) => void = () => undefined;
 				onSend.mockImplementationOnce(
 					() =>
@@ -1879,7 +1868,7 @@ describe("useConversationEditingState", () => {
 				act(() => {
 					save = result.current.handleSendFromInput({ message: "queued edit" });
 				});
-				markOnServer(null);
+				markRow(null);
 				await act(async () => {
 					rejectSave(new Error("gone"));
 					await save.catch(() => undefined);
@@ -1894,7 +1883,7 @@ describe("useConversationEditingState", () => {
 			it.each(["before", "after"] as const)(
 				"a save that fails with its row dropped %s the failure keeps the edit followed by what was typed during the save as a new-message draft",
 				async (dropped) => {
-					const { result, unmount, onSend, beginEdit, markOnServer } =
+					const { result, unmount, onSend, beginEdit, markRow } =
 						renderEditing();
 					const save = createDeferred<undefined>();
 					onSend.mockReturnValueOnce(save.promise);
@@ -1924,14 +1913,14 @@ describe("useConversationEditingState", () => {
 						);
 					});
 					if (dropped === "before") {
-						markOnServer(null);
+						markRow(null);
 					}
 					await act(async () => {
 						save.reject(new Error("gone"));
 						await saved.catch(() => undefined);
 					});
 					if (dropped === "after") {
-						markOnServer(null);
+						markRow(null);
 					}
 
 					const kept = "queued edit\n\ndraft typed";
