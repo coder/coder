@@ -47,6 +47,7 @@ import (
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
+	"github.com/coder/coder/v2/agent/agentcontextconfig"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/agent/proto"
@@ -4381,7 +4382,10 @@ func setupAgentWithSecrets(t testing.TB, metadata agentsdk.Manifest, secrets []a
 		Logger:                 logger.Named("agent"),
 		ReconnectingPTYTimeout: ptyTimeout,
 		EnvironmentVariables:   map[string]string{},
-		StatsReportInterval:    agenttest.StatsInterval,
+		ContextConfig: agentcontextconfig.Config{
+			MCPConfigFiles: filepath.Join(os.TempDir(), "coder-agent-test", metadata.AgentID.String(), ".mcp.json"),
+		},
+		StatsReportInterval: agenttest.StatsInterval,
 	}
 
 	for _, opt := range opts {
