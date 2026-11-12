@@ -1,8 +1,10 @@
 package chatd_test
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -40,6 +42,20 @@ func automationsEvaluator(t *testing.T, mode string) *experimentrules.Evaluator 
 	evaluator, err := experimentrules.New(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), store, static)
 	require.NoError(t, err)
 	return evaluator
+}
+
+// flipStore is a rules store that fails to read once broken is set. The
+// evaluator then fails closed and decides that the experiment is off.
+type flipStore struct {
+	experimentstest.Store
+	broken atomic.Bool
+}
+
+func (s *flipStore) Rules(ctx context.Context) (map[codersdk.Experiment]experimentrules.StoredRule, error) {
+	if s.broken.Load() {
+		return nil, xerrors.New("rules are unavailable")
+	}
+	return s.Store.Rules(ctx)
 }
 
 // TestManageAutomationsAvailable checks each condition of the RFC sentence:
@@ -132,11 +148,20 @@ func TestManageAutomationsDefault(t *testing.T) {
 // experiment on, the request lists the tool, and a list call and a get call
 // reach the chat history without the webhook secret, also in the debug
 // records. With the experiment off, the request has no such tool although the
-// chat's switch is on.
+// chat's switch is on. The experiment is read again for each step: when it
+// turns off while the second step runs, the third request has no tool, and the
+// call that the second step returned is refused.
 func TestManageAutomationsTurn(t *testing.T) {
 	t.Parallel()
 
-	for name, experiment := range map[string]string{"ExperimentOn": "on", "ExperimentOff": "off"} {
+	for name, tc := range map[string]struct {
+		experiment      string
+		offInSecondStep bool
+	}{
+		"ExperimentOn":              {experiment: "on"},
+		"ExperimentOff":             {experiment: "off"},
+		"ExperimentOffInSecondStep": {experiment: "on", offInSecondStep: true},
+	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
@@ -148,6 +173,14 @@ func TestManageAutomationsTurn(t *testing.T) {
 				tools [][]string
 			)
 			var calls atomic.Int32
+			evaluator := automationsEvaluator(t, tc.experiment)
+			var rules flipStore
+			if tc.offInSecondStep {
+				var err error
+				evaluator, err = experimentrules.New(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), &rules,
+					codersdk.Experiments{codersdk.ExperimentChatAutomations})
+				require.NoError(t, err)
+			}
 			openAIURL := chattest.NewOpenAI(t, func(req *chattest.OpenAIRequest) chattest.OpenAIResponse {
 				if !req.Stream {
 					return chattest.OpenAINonStreamingResponse("title")
@@ -161,10 +194,13 @@ func TestManageAutomationsTurn(t *testing.T) {
 				mu.Unlock()
 				switch calls.Add(1) {
 				case 1:
-					if experiment == "on" {
+					if tc.experiment == "on" {
 						return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk(chatautomation.ToolName, `{"action":"list"}`))
 					}
 				case 2:
+					if tc.offInSecondStep {
+						rules.broken.Store(true)
+					}
 					return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk(chatautomation.ToolName,
 						fmt.Sprintf(`{"action":"get","id":%q}`, automationID.Load())))
 				}
@@ -181,13 +217,13 @@ func TestManageAutomationsTurn(t *testing.T) {
 			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
 				cfg.AlwaysEnableDebugLogs = true
-				cfg.ExperimentEvaluator = automationsEvaluator(t, experiment)
+				cfg.ExperimentEvaluator = evaluator
 			})
 			// Created idle, so that the switch of the experiment-off chat can be
 			// turned on before its first turn.
 			chat, err := server.CreateChat(ctx, chatd.CreateOptions{OrganizationID: org.ID, OwnerID: user.ID, Title: "automations", ModelConfigID: model.ID})
 			require.NoError(t, err)
-			require.Equal(t, experiment == "on", chat.ManageAutomationsEnabled)
+			require.Equal(t, tc.experiment == "on", chat.ManageAutomationsEnabled)
 			_, err = db.UpdateChatManageAutomationsEnabledByID(ctx, database.UpdateChatManageAutomationsEnabledByIDParams{
 				ID: chat.ID, ManageAutomationsEnabled: true,
 			})
@@ -205,7 +241,7 @@ func TestManageAutomationsTurn(t *testing.T) {
 			mu.Lock()
 			first := tools[0]
 			mu.Unlock()
-			if experiment == "off" {
+			if tc.experiment == "off" {
 				require.NotContains(t, first, chatautomation.ToolName)
 				require.Equal(t, int32(1), calls.Load())
 				return
@@ -219,6 +255,18 @@ func TestManageAutomationsTurn(t *testing.T) {
 				}
 			}
 			require.Len(t, results, 2)
+			if tc.offInSecondStep {
+				mu.Lock()
+				steps := slices.Clone(tools)
+				mu.Unlock()
+				require.Len(t, steps, 3)
+				require.Contains(t, steps[1], chatautomation.ToolName)
+				require.NotContains(t, steps[2], chatautomation.ToolName)
+				require.False(t, results[0].IsError, string(results[0].Result))
+				require.True(t, results[1].IsError)
+				require.Contains(t, string(results[1].Result), "Tool not active in this turn")
+				return
+			}
 			for _, result := range results {
 				require.False(t, result.IsError, string(result.Result))
 				require.Contains(t, string(result.Result), automation.ID.String())
