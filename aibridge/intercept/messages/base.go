@@ -63,7 +63,12 @@ var bedrockSupportedBetaFlags = map[string]bool{
 	"tool-search-tool-2025-10-19": true,
 	// Supported on Claude Opus 4.5.
 	"tool-examples-2025-10-29": true,
+	// Enables the thinking.block_binding body field. Not gated per model:
+	// clients send it only to models that enforce thinking block binding.
+	bedrockBetaThinkingBinding: true,
 }
+
+const bedrockBetaThinkingBinding = "thinking-binding-controls-2026-08-01"
 
 type interceptionBase struct {
 	id           uuid.UUID
@@ -406,6 +411,13 @@ func (i *interceptionBase) augmentRequestForBedrock() {
 	}
 	i.reqPayload = updated
 
+	updated, err = i.reqPayload.convertThinkingBlockBindingForBedrock(i.clientHeaders)
+	if err != nil {
+		i.logger.Warn(context.Background(), "failed to convert thinking block binding for Bedrock", slog.Error(err))
+		return
+	}
+	i.reqPayload = updated
+
 	// Adaptive-only models accept output_config but reject some of its
 	// sub-fields (currently: output_config.format). Strip those after the
 	// top-level pass has decided to keep output_config.
@@ -431,13 +443,18 @@ func bedrockModelSupportsAdaptiveThinking(model string) bool {
 
 // bedrockModelRequiresAdaptiveThinking returns true if the given Bedrock model
 // ID only supports the "adaptive" thinking type and rejects the legacy
-// "enabled" + budget_tokens shape with a 400. Claude Opus 4.7 was the first
-// model in this category.
+// "enabled" + budget_tokens shape with a 400. The Opus 5, Fable 5, and
+// Mythos 5 prefixes also match their point releases.
 //
 // See https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-opus-4-7.html
+// and https://docs.aws.amazon.com/bedrock/latest/userguide/claude-messages-adaptive-thinking.html
 func bedrockModelRequiresAdaptiveThinking(model string) bool {
 	return strings.Contains(model, "anthropic.claude-opus-4-7") ||
-		strings.Contains(model, "anthropic.claude-opus-4-8")
+		strings.Contains(model, "anthropic.claude-opus-4-8") ||
+		strings.Contains(model, "anthropic.claude-opus-5") ||
+		strings.Contains(model, "anthropic.claude-haiku-5-5") ||
+		strings.Contains(model, "anthropic.claude-fable-5") ||
+		strings.Contains(model, "anthropic.claude-mythos-5")
 }
 
 // filterBedrockBetaFlags removes unsupported beta flags from the Anthropic-Beta

@@ -1,6 +1,7 @@
 package integrationtest
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -317,6 +318,15 @@ func TestResponsesOutputMatchesUpstream(t *testing.T) {
 			expectModel:          "gpt-6.7",
 			expectPromptRecorded: "hello_wrong_format",
 			expectedClient:       aibridge.ClientUnknown,
+			expectTokenUsage: &recorder.TokenUsageRecord{
+				MsgID:  "resp_123",
+				Input:  11,
+				Output: 18,
+				ExtraTokenTypes: map[string]int64{
+					"output_reasoning": 0,
+					"total_tokens":     29,
+				},
+			},
 		},
 	}
 
@@ -1090,10 +1100,12 @@ func startRejectingListener(t *testing.T) (addr string) {
 				return
 			}
 
-			// Read at least 1 byte so the client has started writing
-			// before we RST, ensuring a consistent "connection reset by peer".
-			buf := make([]byte, 1)
-			_, _ = c.Read(buf)
+			// Drain the request before the RST so the client observes a
+			// read-side reset rather than a racy body-write failure.
+			if req, err := http.ReadRequest(bufio.NewReader(c)); err == nil {
+				_, _ = io.Copy(io.Discard, req.Body)
+				_ = req.Body.Close()
+			}
 			if tc, ok := c.(*net.TCPConn); ok {
 				_ = tc.SetLinger(0)
 			}

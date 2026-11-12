@@ -1,11 +1,14 @@
 package webpush_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -491,6 +494,141 @@ func TestPush(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, subscriptions, 1, "only the healthy subscription should remain")
 		require.Equal(t, okSubscription.ID, subscriptions[0].ID)
+	})
+
+	// EndlessBodyIsBounded reproduces a push endpoint that answers and then
+	// streams a body that never ends. The read must stop at the cap and the
+	// call must return.
+	t.Run("EndlessBodyIsBounded", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name       string
+			statusCode int
+			wantErr    bool
+		}{
+			{name: "Created", statusCode: http.StatusCreated, wantErr: false},
+			{name: "ServerError", statusCode: http.StatusInternalServerError, wantErr: true},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitShort)
+				var written atomic.Int64
+				manager, store, serverURL := setupPushTest(ctx, t, func(w http.ResponseWriter, r *http.Request) {
+					assertWebpushPayload(t, r)
+					w.WriteHeader(tc.statusCode)
+					flusher, _ := w.(http.Flusher)
+					chunk := bytes.Repeat([]byte("x"), 4<<10)
+					for r.Context().Err() == nil {
+						n, err := w.Write(chunk)
+						written.Add(int64(n))
+						if err != nil {
+							return
+						}
+						if flusher != nil {
+							flusher.Flush()
+						}
+					}
+				})
+				user := dbgen.User(t, store, database.User{})
+				_, err := store.InsertWebpushSubscription(ctx, database.InsertWebpushSubscriptionParams{
+					UserID:            user.ID,
+					Endpoint:          serverURL,
+					EndpointAuthKey:   validEndpointAuthKey,
+					EndpointP256dhKey: validEndpointP256dhKey,
+					CreatedAt:         dbtime.Now(),
+				})
+				require.NoError(t, err)
+
+				err = manager.Dispatch(ctx, user.ID, randomWebpushMessage(t))
+				if tc.wantErr {
+					require.Error(t, err)
+					// The body is quoted in the error, so the error length shows
+					// how much of it was buffered.
+					require.LessOrEqual(t, len(err.Error()), webpush.MaxResponseBodyBytes+256)
+				} else {
+					require.NoError(t, err)
+				}
+				require.GreaterOrEqual(t, written.Load(), int64(webpush.MaxResponseBodyBytes), "the server should have written at least the cap")
+
+				subscriptions, err := store.GetWebpushSubscriptionsByUserID(ctx, user.ID)
+				require.NoError(t, err)
+				require.Len(t, subscriptions, 1, "neither status marks the subscription stale")
+			})
+		}
+	})
+
+	// HeaderFloodIsRejected reproduces a push endpoint that answers with a
+	// very large header block. The transport must reject it before the body
+	// is read.
+	t.Run("HeaderFloodIsRejected", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			assertWebpushPayload(t, r)
+			w.Header().Set("X-Padding", strings.Repeat("x", 1<<20))
+			w.WriteHeader(http.StatusCreated)
+		}))
+		t.Cleanup(server.Close)
+		client := server.Client()
+		transport, ok := client.Transport.(*http.Transport)
+		require.True(t, ok)
+		transport.MaxResponseHeaderBytes = 64 << 10
+
+		db, _ := dbtestutil.NewDB(t)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		manager, err := webpush.New(ctx, &logger, db, "http://example.com", webpush.WithHTTPClient(client))
+		require.NoError(t, err)
+
+		user := dbgen.User(t, db, database.User{})
+		_, err = db.InsertWebpushSubscription(ctx, database.InsertWebpushSubscriptionParams{
+			UserID:            user.ID,
+			Endpoint:          server.URL,
+			EndpointAuthKey:   validEndpointAuthKey,
+			EndpointP256dhKey: validEndpointP256dhKey,
+			CreatedAt:         dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		err = manager.Dispatch(ctx, user.ID, randomWebpushMessage(t))
+		require.ErrorContains(t, err, "response headers exceeded")
+
+		subscriptions, err := db.GetWebpushSubscriptionsByUserID(ctx, user.ID)
+		require.NoError(t, err)
+		require.Len(t, subscriptions, 1, "a transport error is not a stale-subscription signal")
+	})
+
+	// StalledServerTimesOut reproduces a push endpoint that accepts the
+	// connection and never responds. The client timeout must end the call.
+	t.Run("StalledServerTimesOut", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		release := make(chan struct{})
+		server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+			<-release
+		}))
+		// Cleanups run in reverse order. The server's Close waits for the
+		// handler to return, so the handler must be released first.
+		t.Cleanup(server.Close)
+		t.Cleanup(func() { close(release) })
+		client := server.Client()
+		client.Timeout = time.Second
+
+		db, _ := dbtestutil.NewDB(t)
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		manager, err := webpush.New(ctx, &logger, db, "http://example.com", webpush.WithHTTPClient(client))
+		require.NoError(t, err)
+
+		err = manager.Test(ctx, codersdk.WebpushSubscription{
+			Endpoint:  server.URL,
+			AuthKey:   validEndpointAuthKey,
+			P256DHKey: validEndpointP256dhKey,
+		})
+		require.Error(t, err)
+		var netErr net.Error
+		require.ErrorAs(t, err, &netErr)
+		require.True(t, netErr.Timeout(), "expected a timeout, got: %v", err)
+		require.NoError(t, ctx.Err(), "the client timeout, not the test context, should end the call")
 	})
 }
 

@@ -4,18 +4,26 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/netip"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"tailscale.com/tailcfg"
 
+	"cdr.dev/slog/v3/sloggers/slogtest"
+	"github.com/coder/coder/v2/agent/agentfiles"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
@@ -131,6 +139,62 @@ func TestAgentConnAppHTTPClientRefusesRedirects(t *testing.T) {
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.invalid/", nil)
 	require.NoError(t, err)
 	require.ErrorIs(t, client.CheckRedirect(req, nil), http.ErrUseLastResponse)
+}
+
+// TestAgentConnReadFileInRoot verifies that ReadFileInRoot sends root
+// to the agent as its own parameter, so the agent's root-confined read
+// refuses a symlink that leaves root.
+func TestAgentConnReadFileInRoot(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("symlinks are not reliably supported on Windows")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
+
+	base := t.TempDir()
+	root := filepath.Join(base, "skill")
+	require.NoError(t, os.Mkdir(root, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(root, "notes.md"), []byte("notes"), 0o600))
+	const outsideBytes = "outside-secret-bytes"
+	outsideFile := filepath.Join(base, "secret.txt")
+	require.NoError(t, os.WriteFile(outsideFile, []byte(outsideBytes), 0o600))
+	require.NoError(t, os.Symlink(outsideFile, filepath.Join(root, "escape.md")))
+
+	clientID := uuid.New()
+	agentID := uuid.New()
+	clientConn, _ := newTailnetConn(t, derpMap, clientID, "client")
+	agentTailnetConn, agentIP := newTailnetConn(t, derpMap, agentID, "agent")
+	stitchTailnet(t, map[uuid.UUID]*tailnet.Conn{
+		clientID: clientConn,
+		agentID:  agentTailnetConn,
+	})
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+	filesAPI := agentfiles.NewAPI(logger, afero.NewOsFs(), nil)
+	mux := http.NewServeMux()
+	mux.Handle("/api/v0/", http.StripPrefix("/api/v0", filesAPI.Routes()))
+	serveTailnetHTTP(t, agentTailnetConn, mux)
+
+	conn := workspacesdk.NewAgentConn(clientConn, workspacesdk.AgentConnOptions{
+		AgentID: agentID,
+	})
+	require.True(t, clientConn.AwaitReachable(ctx, agentIP))
+
+	reader, _, err := conn.ReadFileInRoot(ctx, root, "notes.md", 0, 0)
+	require.NoError(t, err)
+	got, err := io.ReadAll(reader)
+	require.NoError(t, reader.Close())
+	require.NoError(t, err)
+	require.Equal(t, "notes", string(got))
+
+	_, _, err = conn.ReadFileInRoot(ctx, root, "escape.md", 0, 0)
+	var sdkErr *codersdk.Error
+	require.ErrorAs(t, err, &sdkErr)
+	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
+	require.NotContains(t, err.Error(), outsideBytes)
 }
 
 func newTailnetConn(t *testing.T, derpMap *tailcfg.DERPMap, id uuid.UUID, name string) (*tailnet.Conn, netip.Addr) {

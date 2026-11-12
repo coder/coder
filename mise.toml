@@ -8,8 +8,8 @@ lockfile = true
 [tools]
 # Languages and runtimes.
 bun = "1.2.15"
-go = "1.26.5"
-node = "22.19.0"
+go = "1.26.10"
+node = "22.23.4"
 pnpm = "10.33.2"
 
 # Codegen and proto toolchain.
@@ -40,7 +40,7 @@ golangci-lint = "1.64.8"
 helm = "3.21.0"
 kubectx = "0.9.4"
 syft = "1.20.0"
-terraform = "1.15.5"
+terraform = "1.17.1"
 
 # Developer-environment niceties for the dogfood image. Non-dogfood
 # users who run `mise install` here will pull these too; they are

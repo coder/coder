@@ -12,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 )
 
 func TestGenerate(t *testing.T) {
@@ -185,4 +186,19 @@ func TestInvalid(t *testing.T) {
 
 	require.Falsef(t, apikey.ValidateHash(hash, secret+"_"), "different secret")
 	require.Falsef(t, apikey.ValidateHash(hash[:len(hash)-1], secret), "different hash length")
+}
+
+func TestInheritWithinCallerLegacyScopeAlias(t *testing.T) {
+	t.Parallel()
+
+	caller := database.APIKey{
+		ExpiresAt: dbtime.Now().Add(time.Hour),
+		Scopes:    database.APIKeyScopes{database.ApiKeyScopeCoderAll},
+		AllowList: database.AllowList{{Type: policy.WildcardSymbol, ID: policy.WildcardSymbol}},
+	}
+	params, err := apikey.InheritWithinCaller(caller, apikey.CreateParams{Scope: "all"})
+	require.NoError(t, err)
+	// Generate only rewrites aliases on the legacy field, so the alias must
+	// be canonical by the time it moves into Scopes.
+	require.Equal(t, database.APIKeyScopes{database.ApiKeyScopeCoderAll}, params.Scopes)
 }
