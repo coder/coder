@@ -169,6 +169,44 @@ const focusCopyCommand = (messageId: number) => {
 	return button;
 };
 
+describe("ConversationTimeline answers", () => {
+	it("labels an answer without changing its text or copy content", async () => {
+		const user = userEvent.setup();
+		const writeText = vi
+			.spyOn(navigator.clipboard, "writeText")
+			.mockResolvedValue();
+		renderTimeline({
+			messages: [
+				{
+					...MockChatMessage,
+					id: 1,
+					role: "user",
+					content: [
+						{ type: "question-answer", question_id: "question-1" },
+						{ type: "text", text: "Redis" },
+					],
+				},
+				{
+					...MockChatMessage,
+					id: 2,
+					role: "user",
+					content: [{ type: "text", text: "Also update the docs" }],
+				},
+			],
+		});
+		const answerRow = within(screen.getByTestId("chat-message-message:1"));
+		const normalRow = within(screen.getByTestId("chat-message-message:2"));
+
+		expect(answerRow.getByText("Answer").textContent).toBe("Answer");
+		expect(answerRow.getByText("Redis").textContent).toBe("Redis");
+		expect(normalRow.queryByText("Answer")).toBeNull();
+
+		await user.click(answerRow.getByRole("button", { name: "Copy message" }));
+
+		expect(writeText).toHaveBeenCalledWith("Redis");
+	});
+});
+
 describe("ConversationTimeline working blocks", () => {
 	it("copies the whole message from the answer that ends a row folded by its work", async () => {
 		const user = userEvent.setup();

@@ -843,6 +843,52 @@ export const UserMessageWithMarkdown: Story = {
 	}),
 };
 
+export const UserMessageAsyncQuestionAnswer: Story = {
+	args: buildStoryArgs(
+		{
+			...baseMessage,
+			id: 1,
+			role: "user",
+			content: [
+				{
+					type: "question-answer",
+					question_id: "11111111-1111-4111-8111-111111111111",
+				},
+				{ type: "text", text: askUserQuestionSubmittedResponse },
+			],
+		},
+		{
+			...baseMessage,
+			id: 2,
+			role: "user",
+			content: [
+				{
+					type: "question-answer",
+					question_id: "22222222-2222-4222-8222-222222222222",
+				},
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+				{ type: "text", text: "on the rollout plan." },
+			],
+		},
+		{
+			...baseMessage,
+			id: 3,
+			role: "user",
+			content: [
+				{
+					type: "question-answer",
+					question_id: "33333333-3333-4333-8333-333333333333",
+				},
+				buildTextAttachmentPart("storybook-text-only"),
+			],
+		},
+	),
+};
+
 /** Regression guard: a single image attachment must not be duplicated. */
 export const UserMessageWithSingleImage: Story = {
 	args: {

@@ -26,6 +26,8 @@ export type MessageDisplayState = {
 	userFileBlocks: FileRenderBlock[];
 	workspaceFileBlocks: WorkspaceFileReferenceBlock[];
 	workspaceFileReferenceCount: number;
+	/** The message answers an async question. */
+	isQuestionAnswer: boolean;
 	hasUserMessageBody: boolean;
 	hasFileBlocks: boolean;
 	hasWorkspaceFileReferences: boolean;
@@ -211,6 +213,7 @@ export const deriveMessageDisplayState = ({
 		userFileBlocks,
 		workspaceFileBlocks,
 		workspaceFileReferenceCount,
+		isQuestionAnswer: isUser && Boolean(parsed.questionAnswerId),
 		hasUserMessageBody,
 		hasFileBlocks,
 		hasWorkspaceFileReferences,

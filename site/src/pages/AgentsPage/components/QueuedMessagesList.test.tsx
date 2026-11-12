@@ -23,6 +23,7 @@ describe("getQueuedMessageInfo", () => {
 			buildMessage([{ type: "text", text: "hello" }]),
 		);
 		expect(result).toEqual({
+			isQuestionAnswer: false,
 			previewParts: [{ type: "text", text: "hello" }],
 			attachmentCount: 0,
 			hookNotices: [],
@@ -58,6 +59,7 @@ describe("getQueuedMessageInfo", () => {
 			]),
 		);
 		expect(result).toEqual({
+			isQuestionAnswer: false,
 			previewParts: [{ type: "text", text: "hello" }],
 			attachmentCount: 0,
 			hookNotices: ["policy notice"],
@@ -69,6 +71,7 @@ describe("getQueuedMessageInfo", () => {
 			buildMessage([{ type: "text", text: "line1\nline2" }]),
 		);
 		expect(result).toEqual({
+			isQuestionAnswer: false,
 			previewParts: [{ type: "text", text: "line1\nline2" }],
 			attachmentCount: 0,
 			hookNotices: [],
@@ -80,6 +83,7 @@ describe("getQueuedMessageInfo", () => {
 			buildMessage([{ type: "file", file_id: "a", media_type: "image/png" }]),
 		);
 		expect(result).toEqual({
+			isQuestionAnswer: false,
 			previewParts: [],
 			attachmentCount: 1,
 			hookNotices: [],
@@ -94,6 +98,7 @@ describe("getQueuedMessageInfo", () => {
 			]),
 		);
 		expect(result).toEqual({
+			isQuestionAnswer: false,
 			previewParts: [],
 			attachmentCount: 2,
 			hookNotices: [],
@@ -108,6 +113,7 @@ describe("getQueuedMessageInfo", () => {
 			]),
 		);
 		expect(result).toEqual({
+			isQuestionAnswer: false,
 			previewParts: [{ type: "text", text: "look" }],
 			attachmentCount: 1,
 			hookNotices: [],
@@ -117,6 +123,7 @@ describe("getQueuedMessageInfo", () => {
 	it("returns no preview for empty content", () => {
 		const result = getQueuedMessageInfo(buildMessage([]));
 		expect(result).toEqual({
+			isQuestionAnswer: false,
 			previewParts: [],
 			attachmentCount: 0,
 			hookNotices: [],
@@ -128,6 +135,7 @@ describe("getQueuedMessageInfo", () => {
 			buildMessage([{ type: "text", text: "  " }]),
 		);
 		expect(result).toEqual({
+			isQuestionAnswer: false,
 			previewParts: [],
 			attachmentCount: 0,
 			hookNotices: [],
@@ -142,6 +150,7 @@ describe("getQueuedMessageInfo", () => {
 			]),
 		);
 		expect(result).toEqual({
+			isQuestionAnswer: false,
 			previewParts: [],
 			attachmentCount: 1,
 			hookNotices: [],
@@ -156,6 +165,7 @@ describe("getQueuedMessageInfo", () => {
 			]),
 		);
 		expect(result).toEqual({
+			isQuestionAnswer: false,
 			previewParts: [
 				{ type: "text", text: "a" },
 				{ type: "text", text: "b" },
@@ -174,6 +184,7 @@ describe("getQueuedMessageInfo", () => {
 			]),
 		);
 		expect(result).toEqual({
+			isQuestionAnswer: false,
 			previewParts: [{ type: "text", text: "check this" }],
 			attachmentCount: 2,
 			hookNotices: [],
@@ -261,6 +272,31 @@ describe("QueuedMessagesList", () => {
 		);
 		return { onDelete, onPromote, onEdit, onEndEdit };
 	};
+
+	it.each(["question-1", "", undefined])(
+		"labels a queued answer only when its question ID is set: %s",
+		(questionId) => {
+			renderList([
+				buildMessage([
+					{ type: "question-answer", question_id: questionId },
+					{ type: "text", text: "Redis" },
+				]),
+				{
+					...MockChatQueuedMessage,
+					id: 2,
+					content: [{ type: "text", text: "Also update the docs" }],
+				},
+			]);
+			const expectedLabels = questionId ? 1 : 0;
+			const expectedPreview = questionId ? "Answer: Redis" : "Redis";
+
+			expect(screen.queryAllByText("Answer:")).toHaveLength(expectedLabels);
+			expect(screen.getByText("Redis").textContent).toBe(expectedPreview);
+			expect(screen.getByText("Also update the docs").textContent).toBe(
+				"Also update the docs",
+			);
+		},
+	);
 
 	it.each([
 		["Send now", "onPromote"],

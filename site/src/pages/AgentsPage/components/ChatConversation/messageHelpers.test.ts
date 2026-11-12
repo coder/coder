@@ -175,6 +175,37 @@ const message = ({
 });
 
 describe("deriveMessageDisplayState", () => {
+	it.each([
+		{ role: "user", questionId: "question-1", expected: true },
+		{ role: "assistant", questionId: "question-1", expected: false },
+		{ role: "user", questionId: "", expected: false },
+		{ role: "user", questionId: undefined, expected: false },
+	] as const)(
+		"marks $role messages with question ID $questionId as answers: $expected",
+		({ role, questionId, expected }) => {
+			const message = buildMessage(
+				[
+					{ type: "question-answer", question_id: questionId },
+					{ type: "text", text: "Redis" },
+				],
+				role,
+			);
+
+			expect(getDisplayState(message).isQuestionAnswer).toBe(expected);
+		},
+	);
+
+	it("keeps an answer's copy text unchanged", () => {
+		const message = buildMessage([
+			{ type: "question-answer", question_id: "question-1" },
+			{ type: "text", text: "Redis" },
+		]);
+		const parsed = parseMessageContent(message.content);
+
+		expect(getDisplayState(message).hasCopyableContent).toBe(true);
+		expect(parsed.markdown).toBe("Redis");
+	});
+
 	it("marks text-only user messages as copyable", () => {
 		const message = buildMessage([{ type: "text", text: "Copy this" }]);
 

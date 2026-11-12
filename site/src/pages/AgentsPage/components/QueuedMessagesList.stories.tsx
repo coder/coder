@@ -54,6 +54,43 @@ export const SingleMessage: Story = {
 	},
 };
 
+export const AsyncQuestionAnswer: Story = {
+	args: {
+		messages: [
+			buildMessage(1, [
+				{
+					type: "question-answer",
+					question_id: "11111111-1111-4111-8111-111111111111",
+				},
+				{
+					type: "text",
+					text: "1. Scope: Backend\n2. Rollout: Single migration",
+				},
+			]),
+			buildMessage(2, textContent("Also update the docs")),
+		],
+	},
+};
+
+export const AsyncQuestionAnswerWithSkillChip: Story = {
+	args: {
+		messages: [
+			buildMessage(1, [
+				{
+					type: "question-answer",
+					question_id: "11111111-1111-4111-8111-111111111111",
+				},
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+				{ type: "text", text: "Use the backend plan" },
+			]),
+		],
+	},
+};
+
 export const ReadOnly: Story = {
 	args: {
 		messages: [MockChatQueuedMessage],
