@@ -392,6 +392,37 @@ func TestChatAutomationReferenceDeletes(t *testing.T) {
 	got = get(withProject.ID)
 	require.False(t, got.ProjectID.Valid)
 	require.Equal(t, database.ChatAutomationTargetModeNewChat, got.TargetMode)
+
+	// DeleteOldChats deletes many chats in one statement. Each deleted chat
+	// runs its own SET NULL update, and the row's other reference then
+	// still points at a chat that the statement already deleted. The IDs
+	// and the insert order fix which chat PostgreSQL deletes first.
+	for _, targetFirst := range []bool{true, false} {
+		firstID, secondID := uuid.New(), uuid.New()
+		firstID[0], secondID[0] = 0x00, 0xff
+		first := dbgen.Chat(t, db, database.Chat{
+			ID: firstID, OrganizationID: o.org.ID, OwnerID: o.user.ID, LastModelConfigID: o.model.ID,
+		})
+		second := dbgen.Chat(t, db, database.Chat{
+			ID: secondID, OrganizationID: o.org.ID, OwnerID: o.user.ID, LastModelConfigID: o.model.ID,
+		})
+		target, creator := first, second
+		if !targetFirst {
+			target, creator = second, first
+		}
+
+		params := o.webhookParams()
+		params.TargetChatID = nullUUID(target.ID)
+		params.CreatedByChatID = nullUUID(creator.ID)
+		automation, err := db.InsertChatAutomation(ctx, params)
+		require.NoError(t, err)
+
+		_, err = sqlDB.ExecContext(ctx, `DELETE FROM chats WHERE id IN ($1, $2)`, target.ID, creator.ID)
+		require.NoError(t, err, "targetFirst=%t", targetFirst)
+		got = get(automation.ID)
+		require.False(t, got.TargetChatID.Valid, "targetFirst=%t", targetFirst)
+		require.False(t, got.CreatedByChatID.Valid, "targetFirst=%t", targetFirst)
+	}
 }
 
 func TestChatAutomationCascadesAndProvenance(t *testing.T) {

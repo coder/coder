@@ -48,7 +48,7 @@ BEGIN
 	SELECT count(*) INTO pending FROM chat_messages WHERE prompt_hooks_pending;
 	IF pending > 0 THEN
 		RAISE EXCEPTION 'migration 000642 down: % chat messages still wait for their prompt hooks', pending
-			USING HINT = 'Let chatd start their turns, or delete these messages, then run the down migration again.';
+			USING HINT = 'Keep this release running until chatd has started these turns, then run the down migration again.';
 	END IF;
 END;
 $$;

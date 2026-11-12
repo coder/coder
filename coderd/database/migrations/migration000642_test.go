@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/testutil"
@@ -212,11 +213,29 @@ func TestMigration000642DownWithData(t *testing.T) {
 
 	// The history message above still waits for its prompt hooks. The down
 	// must not drop that flag, and a refused down changes nothing.
+	rowCounts := func() string {
+		t.Helper()
+		var counts string
+		require.NoError(t, sqlDB.QueryRowContext(ctx, `
+			SELECT format('%s automations, %s queued messages, %s pending messages, %s keys, %s tokens, %s automation chats',
+				(SELECT count(*) FROM chat_automations),
+				(SELECT count(*) FROM chat_queued_messages),
+				(SELECT count(*) FROM chat_messages WHERE prompt_hooks_pending),
+				(SELECT count(*) FROM api_keys),
+				(SELECT count(*) FROM oauth2_provider_app_tokens),
+				(SELECT count(*) FROM chats WHERE automation_id IS NOT NULL))`).Scan(&counts))
+		return counts
+	}
+	schemaBefore, rowsBefore := schemaFingerprint(ctx, t, sqlDB), rowCounts()
+	require.Equal(t, "1 automations, 3 queued messages, 1 pending messages, 11 keys, 2 tokens, 1 automation chats", rowsBefore)
+
 	_, err := sqlDB.ExecContext(ctx, string(down))
-	require.ErrorContains(t, err, "1 chat messages still wait for their prompt hooks")
-	var automations int
-	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT count(*) FROM chat_automations`).Scan(&automations))
-	require.Equal(t, 1, automations, "a refused down keeps the table and its rows")
+	var refused *pq.Error
+	require.ErrorAs(t, err, &refused)
+	require.Equal(t, "migration 000642 down: 1 chat messages still wait for their prompt hooks", refused.Message)
+	require.Equal(t, "Keep this release running until chatd has started these turns, then run the down migration again.", refused.Hint)
+	require.Equal(t, schemaBefore, schemaFingerprint(ctx, t, sqlDB), "schema after a refused down")
+	require.Equal(t, rowsBefore, rowCounts(), "rows after a refused down")
 
 	exec(`UPDATE chat_messages SET prompt_hooks_pending = false WHERE chat_id = $1`, chatID)
 	_, err = sqlDB.ExecContext(ctx, string(down))
@@ -255,6 +274,18 @@ func TestMigration000642DownWithData(t *testing.T) {
 		require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT `+column+`::text FROM custom_roles WHERE id = $1`, mixedRoleID).Scan(&got))
 		require.JSONEq(t, want, got, column)
 	}
+
+	// The previous release fails every request that loads a key or a role
+	// naming a resource type it does not know.
+	var leftovers int
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `
+		SELECT
+			(SELECT count(*) FROM api_keys
+				WHERE scopes::text LIKE '%chat_automation%' OR allow_list::text LIKE '%chat_automation%')
+			+ (SELECT count(*) FROM custom_roles
+				WHERE site_permissions::text || org_permissions::text || user_permissions::text || member_permissions::text
+					LIKE '%chat_automation%')`).Scan(&leftovers))
+	require.Zero(t, leftovers, "keys and roles that still name chat_automation")
 
 	var removedLabels int
 	require.NoError(t, sqlDB.QueryRowContext(ctx, `
@@ -308,10 +339,7 @@ func TestMigration000642DownConcurrentTokenDelete(t *testing.T) {
 
 	// Run the lock block, then let the application start its delete, then
 	// run the rest of the migration.
-	const lockBlockEnd = "\n$$;\n"
-	i := bytes.Index(down, []byte(lockBlockEnd))
-	require.Positive(t, i, "lock block not found")
-	lockBlock, rest := down[:i+len(lockBlockEnd)], down[i+len(lockBlockEnd):]
+	lockBlock, rest := splitAfterLockBlock(t, down)
 
 	migrationConn, migrationPID := dedicatedConn(ctx, t, sqlDB)
 	migrationTx, err := migrationConn.BeginTx(ctx, nil)
@@ -340,41 +368,136 @@ func TestMigration000642DownConcurrentTokenDelete(t *testing.T) {
 	require.Zero(t, tokens, "the application's delete ran after the migration rolled back")
 }
 
-// A running server takes these locks on every request. The down migration
-// waits for them with short timeouts instead of queueing behind them, so
-// that new requests do not queue behind the migration.
-func TestMigration000642DownWaitsForOpenTransaction(t *testing.T) {
+// The statements after the up migration's lock block need locks that
+// application transactions also take. A transaction that holds one of them
+// and then waits for a chat table would deadlock with the migration, so the
+// lock block must take them all.
+func TestMigration000642UpLocksBeforeChanges(t *testing.T) {
 	t.Parallel()
 
-	sqlDB := testSQLDB(t)
-	stepTo(t, sqlDB, 642)
-	ctx := testutil.Context(t, testutil.WaitLong)
-	_, down := readMigration000642(t)
-	chatID, _ := seedChatWithStatus(ctx, t, sqlDB, "waiting")
+	for _, tc := range []struct {
+		name string
+		app  func(ctx context.Context, conn *sql.Conn, chatID, userID uuid.UUID) error
+	}{
+		{
+			// The insert locks chat_queued_messages, then its foreign key
+			// and triggers lock chats. The migration alters both tables.
+			name: "QueueMessage",
+			app: func(ctx context.Context, conn *sql.Conn, chatID, userID uuid.UUID) error {
+				_, err := conn.ExecContext(ctx, `
+					INSERT INTO chat_queued_messages (chat_id, content, created_by)
+					VALUES ($1, '[]', $2)`, chatID, userID)
+				return err
+			},
+		},
+		{
+			// The chat_automations foreign key to users locks users.
+			name: "UpdateUserThenChat",
+			app: func(ctx context.Context, conn *sql.Conn, chatID, userID uuid.UUID) error {
+				tx, err := conn.BeginTx(ctx, nil)
+				if err != nil {
+					return err
+				}
+				defer func() { _ = tx.Rollback() }()
+				if _, err := tx.ExecContext(ctx, `UPDATE users SET updated_at = now() WHERE id = $1`, userID); err != nil {
+					return err
+				}
+				if _, err := tx.ExecContext(ctx, `UPDATE chats SET title = 'renamed' WHERE id = $1`, chatID); err != nil {
+					return err
+				}
+				return tx.Commit()
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	conn, appPID := dedicatedConn(ctx, t, sqlDB)
-	tx, err := conn.BeginTx(ctx, nil)
-	require.NoError(t, err)
-	defer func() { _ = tx.Rollback() }()
-	_, err = tx.ExecContext(ctx, `SELECT id FROM chats WHERE id = $1 FOR UPDATE`, chatID)
-	require.NoError(t, err)
+			sqlDB := testSQLDB(t)
+			stepTo(t, sqlDB, 641)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			up, _ := readMigration000642(t)
+			chatID, userID := seedChatWithStatus(ctx, t, sqlDB, "waiting")
+			lockBlock, rest := splitAfterLockBlock(t, up)
 
-	pid, migrated := startRolledBackMigration(ctx, t, sqlDB, down)
-	requireWaitsFor(ctx, t, sqlDB, pid, appPID)
+			migrationConn, migrationPID := dedicatedConn(ctx, t, sqlDB)
+			migrationTx, err := migrationConn.BeginTx(ctx, nil)
+			require.NoError(t, err)
+			defer func() { _ = migrationTx.Rollback() }()
+			_, err = migrationTx.ExecContext(ctx, string(lockBlock))
+			require.NoError(t, err)
 
-	// Between attempts the migration holds nothing, so a reader of the
-	// view it drops gets through.
-	reader, _ := dedicatedConn(ctx, t, sqlDB)
-	requireNoDeadlockVictim(ctx, t, "reader", async(func() error {
-		var id uuid.UUID
-		return reader.QueryRowContext(ctx, `SELECT id FROM chats_expanded WHERE id = $1`, chatID).Scan(&id)
-	}))
+			appConn, appPID := dedicatedConn(ctx, t, sqlDB)
+			app := async(func() error { return tc.app(ctx, appConn, chatID, userID) })
+			requireWaitsFor(ctx, t, sqlDB, appPID, migrationPID)
 
-	requireNoDeadlockVictim(ctx, t, "application", async(func() error {
-		if _, err := tx.ExecContext(ctx, `UPDATE chats SET title = 'renamed' WHERE id = $1`, chatID); err != nil {
-			return err
-		}
-		return tx.Commit()
-	}))
-	requireNoDeadlockVictim(ctx, t, "migration", migrated)
+			migration := async(func() error {
+				_, err := migrationTx.ExecContext(ctx, string(rest))
+				return errors.Join(err, migrationTx.Rollback())
+			})
+			requireNoDeadlockVictim(ctx, t, "migration", migration)
+			requireNoDeadlockVictim(ctx, t, "application", app)
+		})
+	}
+}
+
+// splitAfterLockBlock cuts a migration after the DO block that takes its
+// table locks, so that a test can act between the two parts.
+func splitAfterLockBlock(t *testing.T, migration []byte) (lockBlock, rest []byte) {
+	t.Helper()
+	const lockBlockEnd = "\n$$;\n"
+	i := bytes.Index(migration, []byte(lockBlockEnd))
+	require.Positive(t, i, "lock block not found")
+	return migration[:i+len(lockBlockEnd)], migration[i+len(lockBlockEnd):]
+}
+
+// A running server takes these locks on every request. The migration waits
+// for them with short timeouts instead of queueing behind them, so that new
+// requests do not queue behind the migration.
+func TestMigration000642WaitsForOpenTransaction(t *testing.T) {
+	t.Parallel()
+
+	up, down := readMigration000642(t)
+	for _, tc := range []struct {
+		name      string
+		from      uint
+		migration []byte
+	}{
+		{name: "Up", from: 641, migration: up},
+		{name: "Down", from: 642, migration: down},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			sqlDB := testSQLDB(t)
+			stepTo(t, sqlDB, tc.from)
+			ctx := testutil.Context(t, testutil.WaitLong)
+			chatID, _ := seedChatWithStatus(ctx, t, sqlDB, "waiting")
+
+			conn, appPID := dedicatedConn(ctx, t, sqlDB)
+			tx, err := conn.BeginTx(ctx, nil)
+			require.NoError(t, err)
+			defer func() { _ = tx.Rollback() }()
+			_, err = tx.ExecContext(ctx, `SELECT id FROM chats WHERE id = $1 FOR UPDATE`, chatID)
+			require.NoError(t, err)
+
+			pid, migrated := startRolledBackMigration(ctx, t, sqlDB, tc.migration)
+			requireWaitsFor(ctx, t, sqlDB, pid, appPID)
+
+			// Between attempts the migration holds nothing, so a reader of the
+			// view it drops gets through.
+			reader, _ := dedicatedConn(ctx, t, sqlDB)
+			requireNoDeadlockVictim(ctx, t, "reader", async(func() error {
+				var id uuid.UUID
+				return reader.QueryRowContext(ctx, `SELECT id FROM chats_expanded WHERE id = $1`, chatID).Scan(&id)
+			}))
+
+			requireNoDeadlockVictim(ctx, t, "application", async(func() error {
+				if _, err := tx.ExecContext(ctx, `UPDATE chats SET title = 'renamed' WHERE id = $1`, chatID); err != nil {
+					return err
+				}
+				return tx.Commit()
+			}))
+			requireNoDeadlockVictim(ctx, t, "migration", migrated)
+		})
+	}
 }
