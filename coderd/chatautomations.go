@@ -122,6 +122,8 @@ func (api *API) chatAutomationOwnerFilter(ctx context.Context, callerID uuid.UUI
 // @Success 200 {object} codersdk.ChatAutomation
 // @Router /api/experimental/organizations/{organization}/chats/automations/{automation} [get]
 // @x-apidocgen {"skip": true}
+//
+//nolint:revive // get-return: revive assumes get* must be a getter, but this is an HTTP handler.
 func (api *API) getChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	organization := httpmw.OrganizationParam(r)
