@@ -238,12 +238,16 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		...streamTools,
 	]);
 	const onRenderProfiler = useOnRenderProfiler();
+	// Saving an edit of an earlier message deletes every message after it
+	// and clears the queued messages, so an answer sent during the edit
+	// would be lost.
+	const isEditingMessage = editingMessageId != null;
 
 	return (
 		<AsyncQuestionsContext
 			value={{
 				byId: asyncQuestions.byId,
-				panelQuestionId: panelQuestion?.questionId,
+				panelQuestionId: isEditingMessage ? undefined : panelQuestion?.questionId,
 			}}
 		>
 			<ACPContext value={acpSessions}>
@@ -303,10 +307,7 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 							key={panelQuestion.questionId}
 							question={panelQuestion}
 							questions={panelQuestions}
-							// Saving an edit of an earlier message deletes every message
-							// after it and clears the queued messages, so an answer sent
-							// during the edit would be lost.
-							isHidden={editingMessageId != null}
+							isHidden={isEditingMessage}
 							onSubmitAnswer={onSendAskUserQuestionResponse}
 						/>
 					)}
