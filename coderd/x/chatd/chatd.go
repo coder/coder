@@ -2684,7 +2684,10 @@ func (p *Server) dispatchQuestionPush(
 	if !p.webpushConfigured() {
 		return
 	}
-	body := "Question: " + truncateRunes(strings.TrimSpace(question), maxQuestionPushRunes)
+
+	trimmedQuestion := strings.TrimSpace(question)
+	body := "Question: " + truncateRunes(trimmedQuestion, maxQuestionPushRunes)
+
 	pushCtx, stopPushCtx := p.inflightChatContext(ctx, chat)
 	if err := p.goInflight(func() {
 		defer stopPushCtx()

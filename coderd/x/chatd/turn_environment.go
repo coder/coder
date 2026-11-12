@@ -1224,6 +1224,7 @@ func (p *Server) afterGenerationOutcome(
 	if outcome.AsyncQuestion != "" {
 		p.dispatchQuestionPush(ctx, chat, outcome.AsyncQuestion, logger)
 	}
+
 	switch outcome.Kind {
 	case runnerActionKindFinishTurn:
 		finalizeCtx := context.WithoutCancel(ctx)

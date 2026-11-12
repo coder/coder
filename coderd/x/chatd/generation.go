@@ -1247,8 +1247,8 @@ func (s *taskStarter) executeLocalTools(
 	})
 }
 
-// lastAsyncQuestion returns the last non-empty question text found in
-// async ask_user_question results in content.
+// lastAsyncQuestion returns the first question of the last async
+// ask_user_question result in content, or "" when there is none.
 func (s *taskStarter) lastAsyncQuestion(ctx context.Context, input chatWorkerTaskStartInput, content []fantasy.Content) string {
 	var question string
 	for _, block := range content {
@@ -1581,8 +1581,10 @@ func (s *taskStarter) openGenerationAttempt(
 
 type generationCommitHooks struct {
 	PostCommitError error
-	// AsyncQuestion is passed on only after the step commits without a
-	// fail-closed hook error, so failed steps do not send question web pushes.
+	// AsyncQuestion is the text of the async question asked in this step,
+	// or "". It is pushed to the chat owner only after the step commits
+	// without a fail-closed hook error, because the user cannot see a
+	// question whose result did not commit.
 	AsyncQuestion string
 }
 

@@ -61,8 +61,9 @@ type askUserQuestionAsyncResult struct {
 
 // AskUserQuestionOptions configures the ask_user_question tool.
 type AskUserQuestionOptions struct {
-	// Async makes the call return without ending the turn. The result
-	// carries a question_id that the user's answer refers to.
+	// Async selects the description and the result for a question that
+	// does not end the turn. The result carries a question_id that the
+	// user's answer refers to.
 	Async bool
 }
 
