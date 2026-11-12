@@ -3963,12 +3963,12 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Description Each read sends the changes since the previous read.
 // @Description When you set `snapshot_version` to a value `S`, the first read sends what changed at a `snapshot_version` of `S` or greater:
 // @Description
-// @Description - A `message` event for each message that is not deleted.
+// @Description - A `message` event for each message that isn't deleted.
 // @Description - A `history_reset` event for each edit.
 // @Description - A `queue_update` event, if the queue changed.
 // @Description
 // @Description The server ignores `after_id` when you set `snapshot_version`.
-// @Description The server returns `400 Bad Request` when `snapshot_version` is not an integer, is less than 1, or is greater than the chat's `snapshot_version`.
+// @Description The server returns `400 Bad Request` when `snapshot_version` isn't an integer, is less than 1, or is greater than the chat's `snapshot_version`.
 // @Description
 // @Description On a stream that you open with `snapshot_version`, the `message`, `queue_update`, and `history_reset` events include `snapshot_version`.
 // @Description Each read sends these events in order of `snapshot_version`.

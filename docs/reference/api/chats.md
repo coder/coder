@@ -4221,12 +4221,12 @@ The server reads the chat when the stream opens and each time the chat changes.
 Each read sends the changes since the previous read.
 When you set `snapshot_version` to a value `S`, the first read sends what changed at a `snapshot_version` of `S` or greater:
 
-- A `message` event for each message that is not deleted.
+- A `message` event for each message that isn't deleted.
 - A `history_reset` event for each edit.
 - A `queue_update` event, if the queue changed.
 
 The server ignores `after_id` when you set `snapshot_version`.
-The server returns `400 Bad Request` when `snapshot_version` is not an integer, is less than 1, or is greater than the chat's `snapshot_version`.
+The server returns `400 Bad Request` when `snapshot_version` isn't an integer, is less than 1, or is greater than the chat's `snapshot_version`.
 
 On a stream that you open with `snapshot_version`, the `message`, `queue_update`, and `history_reset` events include `snapshot_version`.
 Each read sends these events in order of `snapshot_version`.
