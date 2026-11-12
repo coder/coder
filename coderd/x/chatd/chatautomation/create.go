@@ -125,7 +125,7 @@ func (c *Creator) Create(ctx context.Context, actor rbac.Subject, p CreateParams
 			}
 		}
 		// A missing row means that the owner guard of the insert refused the
-		// owner. The references were read before, so nothing else gives it.
+		// owner. checkReferences read every other row that the insert reads.
 		row, err := tx.InsertChatAutomation(actorCtx, insert)
 		switch {
 		case errors.Is(err, sql.ErrNoRows):
@@ -151,6 +151,21 @@ func (c *Creator) checkReferences(ctx context.Context, actor rbac.Subject, p Cre
 	actorCtx := dbauthz.As(ctx, actor)
 	req := p.Request
 	var v violations
+
+	// Only the agent tool sets a creating chat. The insert would report a
+	// missing one as a missing owner, and the database would refuse one from
+	// another organization.
+	if p.CreatedByChatID.Valid {
+		chat, err := c.db.GetChatByID(actorCtx, p.CreatedByChatID.UUID)
+		switch {
+		case dbauthz.IsNotAuthorizedError(err):
+			return nil, ErrCreateForbidden
+		case err != nil:
+			return nil, xerrors.Errorf("get creating chat: %w", err)
+		case chat.OrganizationID != p.OrganizationID:
+			return nil, xerrors.New("creating chat is not in this organization")
+		}
+	}
 
 	if req.TargetChatID != nil {
 		chat, err := c.db.GetChatByID(actorCtx, *req.TargetChatID)

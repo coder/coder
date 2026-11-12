@@ -204,6 +204,12 @@ func validateSchedule(v *violations, req codersdk.CreateChatAutomationRequest, l
 	if !complete {
 		return nil
 	}
+	// A valid spec never fails because of the zone, so an error here names
+	// the field that caused it.
+	if _, err := cron.Standard("* * * * *", req.ScheduleTimeZone); err != nil {
+		v.add("schedule_time_zone", err.Error())
+		return nil
+	}
 	sched, err := cron.Standard(req.ScheduleCron, req.ScheduleTimeZone)
 	if err != nil {
 		v.add("schedule_cron", err.Error())
