@@ -6,10 +6,10 @@ import type {
 	UpdateUserAppearanceSettingsRequest,
 	UserAppearanceSettings,
 } from "#/api/typesGenerated";
+import { MockUserMember } from "#/testHelpers/entities";
+import { withAuthProvider } from "#/testHelpers/storybook";
 import { CONCRETE_THEMES } from "#/theme";
 import { AppearanceForm } from "./AppearanceForm";
-import { withAuthProvider } from "#/testHelpers/storybook";
-import { MockUserMember } from "#/testHelpers/entities";
 
 const onUpdateTheme = action("update");
 
