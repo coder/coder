@@ -14,6 +14,7 @@ export const useChatInputFocusAfterSend = (
 	send: SendChatMessage,
 ): SendChatMessage => {
 	const [focusRequest, setFocusRequest] = useState(0);
+
 	// The chat input refuses focus while the send keeps it disabled, so focus
 	// waits for the commit that enables it again.
 	useEffect(() => {
@@ -27,6 +28,7 @@ export const useChatInputFocusAfterSend = (
 		const noteUserMove = () => {
 			userMovedFocus = true;
 		};
+
 		// A click, even on text that takes no focus, or a focus change while the
 		// answer sends is the user's own move, and the chat input leaves it alone.
 		document.addEventListener("pointerdown", noteUserMove, true);
@@ -35,9 +37,11 @@ export const useChatInputFocusAfterSend = (
 			document.removeEventListener("pointerdown", noteUserMove, true);
 			document.removeEventListener("focusin", noteUserMove, true);
 		});
+
 		if (!userMovedFocus) {
 			setFocusRequest((count) => count + 1);
 		}
+
 		return response;
 	};
 };

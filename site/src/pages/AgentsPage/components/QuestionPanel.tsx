@@ -47,13 +47,16 @@ export const QuestionPanel: React.FC<QuestionPanelProps> = ({
 		setIsAwaitingDelivery(false);
 	}
 
-	const hidden =
+	const isPanelHidden =
 		isHidden || question.status === "pending" || isAwaitingDelivery;
+	const submitAnswer = onSubmitAnswer
+		? (message: string) => onSubmitAnswer(message, question.questionId)
+		: undefined;
 
 	return (
 		<div
 			// `hidden` wins over `flex` only through Tailwind preflight's `[hidden]` rule.
-			hidden={hidden}
+			hidden={isPanelHidden}
 			className="flex max-h-[40svh] min-h-0 flex-col overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin"
 		>
 			<section
@@ -86,11 +89,7 @@ export const QuestionPanel: React.FC<QuestionPanelProps> = ({
 				<div id={contentId} hidden={isCollapsed} className="px-3 pb-3">
 					<AskUserQuestionForm
 						questions={questions}
-						onSubmitAnswer={
-							onSubmitAnswer
-								? (message) => onSubmitAnswer(message, question.questionId)
-								: undefined
-						}
+						onSubmitAnswer={submitAnswer}
 						onSubmitted={() => {
 							setIsAwaitingDelivery(true);
 						}}

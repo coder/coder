@@ -207,24 +207,19 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		liveToolResults: streamState?.toolResults,
 	});
 	const queuedMessages = useChatSelector(store, selectQueuedMessages);
+	const liveTools = showsStreamOutput(liveStatus) ? streamTools : [];
 	const asyncQuestions = deriveAsyncQuestions(
 		parsedMessages,
-		showsStreamOutput(liveStatus) ? streamTools : [],
+		liveTools,
 		queuedMessages,
 	);
-	const newestOpenQuestion = isReadOnly
-		? undefined
-		: asyncQuestions.panelQuestion;
-	const panelQuestions = newestOpenQuestion
-		? getAskUserQuestions(
-				newestOpenQuestion.tool.args,
-				newestOpenQuestion.tool.result,
-			)
+	const panelCandidate = isReadOnly ? undefined : asyncQuestions.panelQuestion;
+	const panelQuestions = panelCandidate
+		? getAskUserQuestions(panelCandidate.tool.args, panelCandidate.tool.result)
 		: [];
 	// A result whose call is in messages that are not loaded has no
 	// questions to show.
-	const panelQuestion =
-		panelQuestions.length > 0 ? newestOpenQuestion : undefined;
+	const panelQuestion = panelQuestions.length > 0 ? panelCandidate : undefined;
 
 	let questionAnnouncement = "";
 	if (panelQuestion?.status === "open") {
@@ -242,14 +237,15 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 	// and clears the queued messages, so an answer sent during the edit
 	// would be lost.
 	const isEditingMessage = editingMessageId != null;
+	const visiblePanelQuestionId = isEditingMessage
+		? undefined
+		: panelQuestion?.questionId;
 
 	return (
 		<AsyncQuestionsContext
 			value={{
 				byId: asyncQuestions.byId,
-				panelQuestionId: isEditingMessage
-					? undefined
-					: panelQuestion?.questionId,
+				panelQuestionId: visiblePanelQuestionId,
 			}}
 		>
 			<ACPContext value={acpSessions}>
