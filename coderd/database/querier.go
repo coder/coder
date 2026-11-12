@@ -471,6 +471,9 @@ type sqlcQuerier interface {
 	// The all-zero owner_id means every owner. The webhook secret and its key
 	// ID are left out, so a list never loads or decrypts a secret.
 	GetChatAutomationsByOrganizationID(ctx context.Context, arg GetChatAutomationsByOrganizationIDParams) ([]GetChatAutomationsByOrganizationIDRow, error)
+	// Returns the automations of one owner that hold a webhook secret, secret
+	// included. Used only by the dbcrypt key rotation utility.
+	GetChatAutomationsWithWebhookSecretByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]ChatAutomation, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForShare(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
@@ -1684,6 +1687,10 @@ type sqlcQuerier interface {
 	// Used by the dbcrypt key rotation utility to re-encrypt or decrypt
 	// rows in place.
 	UpdateEncryptedAIProviderSettings(ctx context.Context, arg UpdateEncryptedAIProviderSettingsParams) (AIProvider, error)
+	// Rewrites only the secret and its key ID. The version stays, because
+	// re-encrypting does not change the secret. Used only by the dbcrypt key
+	// rotation utility to re-encrypt or decrypt rows in place.
+	UpdateEncryptedChatAutomationWebhookSecret(ctx context.Context, arg UpdateEncryptedChatAutomationWebhookSecretParams) error
 	UpdateEncryptedChatMCPServerHeaders(ctx context.Context, arg UpdateEncryptedChatMCPServerHeadersParams) error
 	UpdateEncryptedUserAIProviderKey(ctx context.Context, arg UpdateEncryptedUserAIProviderKeyParams) (UserAIProviderKey, error)
 	// Updates only the encrypted columns on a row. Used by the dbcrypt key
