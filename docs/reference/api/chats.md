@@ -4241,7 +4241,7 @@ After the `history_reset` event, the stream sends each message with that ID or h
 
 On each new connection, the server sends the chat's current status again.
 When the chat has an error, a pending retry, or pending tool calls, the server also sends the `error`, `retry`, or `action_required` event again.
-The server then sends the `message_part` events of the reply in progress again, from its first part.
+The server then again sends the `message_part` events of the response that the agent is writing, from its first part.
 
 When you don't set `snapshot_version`, the events don't include `snapshot_version`, and `history_reset` events don't include `from_message_id`.
 After a `history_reset` event, the server sends every message in the chat as `message` events.

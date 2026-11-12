@@ -1394,10 +1394,10 @@ The following chat stream events, delivered to the client over WebSocket, are su
 - `action_required`: a dynamic tool call was issued by the chat worker, the client must execute it and submit the result.
 - `retry`: emitted when the chat worker is waiting before retrying a failed generation attempt.
 - `preview_reset`: a reset of the stream's preview state (message parts), emitted when the history version changes or a new generation attempt starts.
-- `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history. On streams opened with `snapshot_version` it includes `from_message_id`, the lowest message ID the edit removed, and the client drops its messages from that ID on. On other streams, the `message` events that follow replace the whole history.
+- `history_reset`: a reset of the stream's history state (committed messages), emitted when the message history is edited and some messages are removed from the history. On streams opened with `snapshot_version` it includes `from_message_id`, the ID of the edited message. The edit deleted that message and every message after it, so the client deletes its messages with that ID or higher. On other streams, the `message` events that follow replace the whole history.
   - TODO (#29808): on the first sync with an `after_id`, this is emitted only when message `after_id` is deleted or missing. Describe this here.
 
-On streams opened with `snapshot_version`, `message`, `queue_update`, and `history_reset` (the versioned events) include the chat's `snapshot_version` when the change was made: the message's `revision`, the chat's `queue_version`, and the `revision` of the messages the edit removed. A client reconnects with the highest one it applied. Other streams do not set it.
+On streams opened with `snapshot_version`, `message`, `queue_update`, and `history_reset` (the versioned events) include the chat's `snapshot_version` when the change was made: the message's `revision`, the chat's `queue_version`, and the `revision` of the messages the edit deleted. A client reconnects with the highest one it received. Other streams do not set it.
 
 ## Endpoint lifecycle
 
@@ -1487,7 +1487,7 @@ The loop processes one operation at a time. It must not process another input ha
 
 After fetching, if `db.snapshot_version <= local.snapshot_version`, return no-op. Otherwise apply the database result.
 
-The endpoint's initial bootstrap fetch skips the hint check in steps 1 to 3, fetches unconditionally, and applies the database result the same way. Because it runs against the null local state, every database field is newer and the full state is emitted, except the history and queue written before the client's `snapshot_version` parameter.
+The endpoint's initial bootstrap fetch skips the hint check in steps 1 to 3, fetches unconditionally, and applies the database result the same way. Because it runs against the null local state, every database field is newer and the full state is emitted, except the messages and the queue that last changed before the version in the client's `snapshot_version` parameter.
 
 Applying the database result means, in deterministic order:
 
