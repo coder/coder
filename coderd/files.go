@@ -114,6 +114,16 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 		contentType = tarMimeType
 	}
 
+	// Every upload is a tar by this point. Rejecting an unreadable one here
+	// avoids storing a file that only fails once a template version reads it.
+	if err := archive.ValidateTar(data); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid .tar archive file.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	hashBytes := sha256.Sum256(data)
 	hash := hex.EncodeToString(hashBytes[:])
 	file, err := api.Database.GetFileByHashAndCreator(ctx, database.GetFileByHashAndCreatorParams{

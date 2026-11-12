@@ -28,6 +28,44 @@ var ErrArchiveTooLarge = xerrors.New("archive exceeds maximum size")
 // contents fail validation during conversion.
 var ErrInvalidZipContent = xerrors.New("invalid zip content")
 
+// ErrGzipCompressed reports that an archive expected to be an uncompressed
+// tar is gzip compressed.
+var ErrGzipCompressed = xerrors.New("archive is gzip compressed, upload an uncompressed tar or a .zip archive instead")
+
+// IsGzip reports whether data starts with the gzip magic bytes.
+func IsGzip(data []byte) bool {
+	return len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b
+}
+
+// ValidateTar reports whether data is a readable tar archive. Every entry
+// must have a valid header and exactly as many content bytes as the header
+// declares, which is what reading the archive back into a filesystem
+// requires. Entry contents are discarded rather than buffered.
+func ValidateTar(data []byte) error {
+	if IsGzip(data) {
+		return ErrGzipCompressed
+	}
+
+	tarReader := tar.NewReader(bytes.NewReader(data))
+	for {
+		header, err := tarReader.Next()
+		if errors.Is(err, io.EOF) {
+			return nil
+		}
+		if err != nil {
+			return xerrors.Errorf("read tar header: %w", err)
+		}
+
+		size, err := io.CopyN(io.Discard, tarReader, header.Size)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return xerrors.Errorf("read tar entry %q: %w", header.Name, err)
+		}
+		if size != header.Size {
+			return xerrors.Errorf("tar entry %q has %d bytes of content, but its header declares %d", header.Name, size, header.Size)
+		}
+	}
+}
+
 // CreateTarFromZip converts the given zipReader to a tar archive.
 // maxSize limits the total tar output, including tar metadata.
 func CreateTarFromZip(zipReader *zip.Reader, maxSize int64) ([]byte, error) {

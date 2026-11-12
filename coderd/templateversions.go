@@ -1826,7 +1826,14 @@ func (api *API) dynamicTemplateVersionTags(ctx context.Context, rw http.Response
 	var files fs.FS
 	switch file.Mimetype {
 	case "application/x-tar":
-		files = archivefs.FromTarReader(bytes.NewBuffer(file.Data))
+		files, err = archivefs.FromTarReader(bytes.NewBuffer(file.Data))
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid .tar archive file.",
+				Detail:  err.Error(),
+			})
+			return nil, false
+		}
 	case "application/zip":
 		files, err = archivefs.FromZipReader(bytes.NewReader(file.Data), int64(len(file.Data)))
 		if err != nil {

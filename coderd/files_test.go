@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/binary"
 	"io"
@@ -39,6 +40,31 @@ func TestPostFiles(t *testing.T) {
 		return zipBytes.Bytes()
 	}
 
+	buildTarWithFile := func(t *testing.T, name string, contents []byte) []byte {
+		t.Helper()
+
+		var tarBytes bytes.Buffer
+		tw := tar.NewWriter(&tarBytes)
+		require.NoError(t, tw.WriteHeader(&tar.Header{Name: name, Mode: 0o644, Size: int64(len(contents))}))
+		_, err := tw.Write(contents)
+		require.NoError(t, err)
+		require.NoError(t, tw.Close())
+
+		return tarBytes.Bytes()
+	}
+
+	gzipBytes := func(t *testing.T, data []byte) []byte {
+		t.Helper()
+
+		var gzipped bytes.Buffer
+		gw := gzip.NewWriter(&gzipped)
+		_, err := gw.Write(data)
+		require.NoError(t, err)
+		require.NoError(t, gw.Close())
+
+		return gzipped.Bytes()
+	}
+
 	// Single instance shared across all sub-tests. Each sub-test
 	// creates independent resources with unique IDs so parallel
 	// execution is safe.
@@ -69,6 +95,35 @@ func TestPostFiles(t *testing.T) {
 
 		_, err := client.Upload(ctx, "application/x-zip-compressed", bytes.NewReader(archivetest.TestZipFileBytes()))
 		require.NoError(t, err)
+	})
+
+	t.Run("InvalidTar", func(t *testing.T) {
+		t.Parallel()
+
+		validTar := buildTarWithFile(t, "main.tf", []byte("terraform {}"))
+		for _, tc := range []struct {
+			name       string
+			data       []byte
+			wantDetail string
+		}{
+			{name: "Gzipped", data: gzipBytes(t, validTar), wantDetail: "gzip"},
+			{name: "NotAnArchive", data: []byte("this is not a tar archive")},
+			// Cut inside the file contents, so the header parses but the
+			// entry is incomplete.
+			{name: "Truncated", data: validTar[:520]},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				_, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(tc.data))
+				var apiErr *codersdk.Error
+				require.ErrorAs(t, err, &apiErr)
+				require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+				require.Equal(t, "Invalid .tar archive file.", apiErr.Message)
+				require.Contains(t, apiErr.Detail, tc.wantDetail)
+			})
+		}
 	})
 
 	t.Run("InsertAlreadyExists", func(t *testing.T) {
