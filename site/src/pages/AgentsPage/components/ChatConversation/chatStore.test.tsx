@@ -808,7 +808,12 @@ describe("useChatStore", () => {
 						part: { type: "text", text: "stale" },
 					},
 				},
-				{ type: "history_reset", chat_id: chatID, snapshot_version: 2 },
+				{
+					type: "history_reset",
+					chat_id: chatID,
+					history_reset: { from_message_id: 1 },
+					snapshot_version: 2,
+				},
 				{
 					type: "message",
 					chat_id: chatID,
@@ -1419,9 +1424,7 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID2, 1);
 		});
 
-		// The old WebSocket was closed during effect cleanup.
 		expect(mockSocket1.close).toHaveBeenCalled();
-		// No stream state from chat-1 remains.
 		expect(result.current.streamState).toBeNull();
 	});
 
@@ -2524,7 +2527,6 @@ describe("useChatStore", () => {
 			});
 		});
 
-		// Transition to running, which should clear retry state.
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
@@ -2665,7 +2667,6 @@ describe("useChatStore", () => {
 				"waiting",
 			);
 		});
-		// The subagent status event must not change the main chat's status.
 		expect(result.current.chatStatus).toBe("running");
 	});
 
@@ -3491,7 +3492,6 @@ describe("useChatStore", () => {
 			expect(watchChat).toHaveBeenCalledWith(chatID, 1);
 		});
 
-		// Transition to running, which should call clearChatErrorReason.
 		act(() => {
 			mockSocket.emitData({
 				type: "status",
@@ -4882,7 +4882,8 @@ describe("chat stream contract", () => {
 			action: {
 				kind: "send",
 				busyBehavior: "steer",
-				message: buildMessage(chatID, 0, "user", "second"),
+				chatID,
+				content: [{ type: "text", text: "second" }],
 			},
 			status: "waiting",
 			replayed: [message(1, "user", 4)],
@@ -4893,7 +4894,8 @@ describe("chat stream contract", () => {
 			action: {
 				kind: "send",
 				busyBehavior: "steer",
-				message: buildMessage(chatID, 0, "user", "second"),
+				chatID,
+				content: [{ type: "text", text: "second" }],
 			},
 			status: "running",
 			replayed: [
@@ -4918,7 +4920,7 @@ describe("chat stream contract", () => {
 			action: {
 				kind: "edit",
 				editedMessageID: 1,
-				message: buildMessage(chatID, 1, "user", "edited"),
+				content: [{ type: "text", text: "edited" }],
 			},
 			status: "waiting",
 			replayed: [
@@ -4982,7 +4984,8 @@ describe("chat stream contract", () => {
 				{
 					kind: "send",
 					busyBehavior: "steer",
-					message: buildMessage(chatID, 0, "user", "second"),
+					chatID,
+					content: [{ type: "text", text: "second" }],
 				},
 				() => new Promise(() => {}),
 			);
@@ -5101,7 +5104,8 @@ describe("chat stream contract", () => {
 				{
 					kind: "send",
 					busyBehavior: "steer",
-					message: buildMessage(chatID, 0, "user", "sent"),
+					chatID,
+					content: [{ type: "text", text: "sent" }],
 				},
 				() => new Promise(() => {}),
 			);
