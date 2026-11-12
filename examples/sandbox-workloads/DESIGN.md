@@ -88,10 +88,10 @@ with the ordinary provisioner, and a new workspace claims one.
   prebuilt instances. Terraform builds every pod and destroys every pod.
 - **The foundation** holds what the pods share.
 - **Claiming** is the new part. Today a claim runs Terraform once more, to
-  apply what depends on the new owner, and hands the daemon a new token.
-  With pod identity there is no token to hand over. A template that
-  declares nothing owner-dependent could be claimed by changing the
-  workspace's owner and name in the database, with no build.
+  apply what depends on the new owner. The daemon keeps its token and is
+  told to start over as the new owner's. A template that declares nothing
+  owner-dependent could be claimed by changing the workspace's owner and
+  name in the database, with no build.
 - **A run** is a claim, then the workload, then an ordinary delete build
   in the background.
 
