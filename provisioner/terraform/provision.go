@@ -111,11 +111,8 @@ func (s *server) Init(
 
 	sessState := sessionState{importedLockFileRestored: restored}
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageInit)
-	// Only a lock file captured by a real `terraform init` on this platform
-	// during import is known to carry the provider hashes this platform
-	// needs. Any other lock file, such as one committed from another OS, may
-	// not, and template import and dry runs never have a captured one, so they
-	// always run a real init and the lock file they capture is complete.
+	// Only the lock file captured at import is known to hold this platform's
+	// hashes. Imports and dry runs have none, so they always run init.
 	if restored && manualInit(ctx, s.logger, sess.Files, s.cachePath, e.basicEnv()) {
 		sessState.initSkipped = true
 		sess.ProvisionLog(proto.LogLevel_INFO, "Skipping terraform init: using cached providers pinned by the dependency lock file")
@@ -128,7 +125,6 @@ func (s *server) Init(
 			return provisionersdk.InitErrorf("initialize terraform: %s", err)
 		}
 	}
-	// Plan decides from this whether it can fall back to a real init.
 	s.setSessionState(sess.Context(), sess, sessState)
 
 	modules, err := getModules(sess.Files)
@@ -172,9 +168,8 @@ func (s *server) Init(
 	}
 }
 
-// initWorkingDirectory runs `terraform init`, retrying once with the
-// template's own lock file if the captured one fails, and adds diagnostics
-// when it fails with "text file busy".
+// initWorkingDirectory runs `terraform init`. If it fails with the lock file
+// captured at import, it tries once more with the template's own.
 func (s *server) initWorkingDirectory(ctx, killCtx context.Context, e *executor, sess *provisionersdk.Session, sessState *sessionState) error {
 	err := e.init(ctx, killCtx, sess)
 	if err != nil && sessState.importedLockFileRestored && ctx.Err() == nil {
@@ -278,14 +273,6 @@ func (s *server) Plan(
 	}
 
 	sessState := s.loadSessionState(sess)
-	// After a skipped init, hold back the diagnostics that say init is needed:
-	// the fallback below handles them, and they would otherwise show up in
-	// the log of a build that succeeds.
-	initDiags := &initDiagnosticsSink{logSink: sess}
-	var planLogs logSink = sess
-	if sessState.initSkipped {
-		planLogs = initDiags
-	}
 	// `terraform graph` only reads the configuration and the state, and
 	// takes no state lock, so it runs beside the plan. Each of the two
 	// starts every provider, so Plan's memory peaks higher than it would
@@ -308,28 +295,14 @@ func (s *server) Plan(
 		return e.plan(ctx, killCtx, env, vars, logr, request)
 	}
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
-	resp, plan, err := planWithGraph(planLogs)
-	if heldErrors := initDiags.heldErrors(); err != nil && len(heldErrors) > 0 && ctx.Err() == nil {
-		// Init only linked cached providers, and Terraform reports that the
-		// working directory needs more, for example because a cached package
-		// no longer matches the lock file. Run the real init and plan once
-		// more.
-		s.logger.Warn(ctx, "plan failed after skipping terraform init, retrying with a full init",
-			slog.Error(err), slog.F("plan_errors", heldErrors))
-		sess.ProvisionLog(proto.LogLevel_WARN, "Terraform reported that the working directory is not initialized, running terraform init")
-		sessState.initSkipped = false
-		// The init counts toward the plan stage: job stats measure each stage
-		// from its first start to its last end, so stages must not interleave.
-		initErr := s.initWorkingDirectory(ctx, killCtx, e, sess, &sessState)
-		if initErr != nil {
-			// The plan never ran again, so show why it failed the first time.
-			initDiags.release()
-			endStage(initErr)
-			return provisionersdk.PlanErrorf("initialize terraform: %s", initErr.Error())
-		}
-		resp, plan, err = planWithGraph(sess)
+	var (
+		resp *proto.PlanComplete
+		plan *tfjson.Plan
+	)
+	if sessState.initSkipped {
+		resp, plan, err = s.planAfterManualInit(ctx, killCtx, e, sess, &sessState, planWithGraph)
 	} else {
-		initDiags.release()
+		resp, plan, err = planWithGraph(sess)
 	}
 	endStage(err)
 	if err != nil {

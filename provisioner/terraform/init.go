@@ -10,7 +10,6 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
-	"sync"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/gohcl"
@@ -20,18 +19,19 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/provisionersdk/tfpath"
 )
 
-// lockedProvider is one provider entry from a .terraform.lock.hcl file.
+// lockedProvider is a provider entry in a .terraform.lock.hcl file.
 type lockedProvider struct {
-	// Source is the fully qualified provider address, for example
+	// Source is the full provider address, such as
 	// registry.terraform.io/coder/coder.
 	Source  string   `hcl:"source,label"`
 	Version string   `hcl:"version"`
 	Hashes  []string `hcl:"hashes,optional"`
-	// Remain absorbs the constraints attribute, which we don't need.
+	// Remain absorbs the attributes we don't read.
 	Remain hcl.Body `hcl:",remain"`
 }
 
@@ -40,8 +40,7 @@ type lockFile struct {
 	Remain    hcl.Body         `hcl:",remain"`
 }
 
-// parseLockFile returns the providers pinned by a Terraform dependency lock
-// file.
+// parseLockFile returns the providers a dependency lock file pins.
 func parseLockFile(path string) ([]lockedProvider, error) {
 	parser := hclparse.NewParser()
 	file, diags := parser.ParseHCLFile(path)
@@ -61,40 +60,33 @@ func parseLockFile(path string) ([]lockedProvider, error) {
 	return lock.Providers, nil
 }
 
-// validateLockedProvider rejects lock file entries that linking can't use
-// safely: a source or version that could escape the plugin cache or
-// .terraform/providers, where both become path components, or no h1 hash.
-// Plan loads a linked package unverified when its entry has no hashes, and
-// can't check a zh hash against an unpacked package.
+// validateLockedProvider rejects entries that manualInit can't link safely.
 func validateLockedProvider(p lockedProvider) error {
 	switch {
 	case strings.Count(p.Source, "/") != 2, strings.Contains(p.Source, ".."):
+		// The source becomes a path, so it must be exactly
+		// hostname/namespace/type.
 		return xerrors.Errorf("unexpected provider source %q", p.Source)
 	case p.Version == "", strings.Contains(p.Version, "/"), strings.Contains(p.Version, ".."):
+		// The version becomes a path component.
 		return xerrors.Errorf("unexpected version %q for provider %q", p.Version, p.Source)
 	case !slices.ContainsFunc(p.Hashes, func(hash string) bool { return strings.HasPrefix(hash, "h1:") }):
+		// Without an h1 hash, plan can't verify the linked package.
 		return xerrors.Errorf("no h1 hash for provider %q", p.Source)
 	}
 	return nil
 }
 
-// providerPackageDir returns the directory of a provider package below root,
-// in the layout shared by the plugin cache and the .terraform/providers
-// directory that terraform init creates.
+// providerPackageDir returns where p's package lives under root. The plugin
+// cache and .terraform/providers share this layout.
 func providerPackageDir(root string, p lockedProvider) string {
 	return filepath.Join(root, filepath.FromSlash(p.Source), p.Version, terraformPlatform())
 }
 
-// linkCachedProviders reproduces the part of `terraform init` that matters
-// for a workspace build when nothing needs to be downloaded: it links every
-// provider pinned by the lock file from the plugin cache into
-// .terraform/providers. It reports false without touching the working
-// directory when any pinned provider is missing from the cache, or when the
-// working directory already holds something else in a provider's place, in
-// which case the caller must run a real init.
-//
-// This mirrors Terraform's own behavior with TF_PLUGIN_CACHE_DIR, which
-// creates an absolute symlink from the working directory into the cache.
+// linkCachedProviders symlinks each provider from the plugin cache into
+// .terraform/providers, as `terraform init` does on a cache hit. It links
+// nothing and reports false if a provider isn't cached or the working
+// directory already holds something in its place.
 func linkCachedProviders(files tfpath.Layout, cachePath string, providers []lockedProvider) (bool, error) {
 	if cachePath == "" || len(providers) == 0 {
 		return false, nil
@@ -131,10 +123,8 @@ func linkCachedProviders(files tfpath.Layout, cachePath string, providers []lock
 	return true, nil
 }
 
-// modulesReady reports whether the working directory already contains
-// everything `terraform init` would have installed for modules: either the
-// module manifest from a previous init is present along with every module it
-// lists, or the configuration declares no module calls at all.
+// modulesReady reports whether every module `terraform init` would install
+// is already in the working directory.
 func modulesReady(files tfpath.Layout) (bool, error) {
 	content, err := os.ReadFile(files.ModulesFilePath())
 	switch {
@@ -143,8 +133,7 @@ func modulesReady(files tfpath.Layout) (bool, error) {
 		if err := json.Unmarshal(content, &manifest); err != nil {
 			return false, xerrors.Errorf("parse module manifest: %w", err)
 		}
-		// The module archive keeps the manifest even when it left out
-		// modules that exceeded its size limit.
+		// The manifest also lists modules the archive left out for size.
 		for _, m := range manifest.Modules {
 			if m.Key == "" {
 				// The root module.
@@ -158,6 +147,7 @@ func modulesReady(files tfpath.Layout) (bool, error) {
 	case !errors.Is(err, fs.ErrNotExist):
 		return false, xerrors.Errorf("read module manifest: %w", err)
 	}
+	// Without a manifest, the template must not call any module.
 	module, diags := tfconfig.LoadModule(files.WorkDirectory())
 	if diags.HasErrors() {
 		return false, xerrors.Errorf("load module: %w", diags.Err())
@@ -165,29 +155,19 @@ func modulesReady(files tfpath.Layout) (bool, error) {
 	return len(module.ModuleCalls) == 0, nil
 }
 
-// initCustomizingEnv lists the Terraform environment variables that change
-// where `terraform init` installs providers or how it runs. Linking cached
-// providers into .terraform can't honor them.
+// initCustomizingEnv are the variables that change where or how `terraform
+// init` installs providers. manualInit can't honor them.
 var initCustomizingEnv = []string{"TF_DATA_DIR", "TF_CLI_ARGS", "TF_CLI_ARGS_init"}
 
-// manualInit tries to make the working directory ready for plan and
-// apply without running `terraform init`. That command costs a few hundred
-// milliseconds even when it has nothing to download, because it contacts the
-// registry for every pinned provider and re-verifies package checksums. When
-// the dependency lock file pins every provider to a version that is already
-// in the plugin cache, and modules are already present, linking the cached
-// packages is equivalent for plan and apply, which still check the linked
-// packages against the lock file's hashes. What is skipped is init's check
-// that the configured provider sources still offer the pinned versions.
+// manualInit links the cached providers into the working directory itself,
+// instead of running `terraform init`. This is only for speed: with every
+// provider cached, init still spends 0.3s to 1.4s calling the registry and
+// hashing the packages. It reports false if a real init is needed.
 //
-// The caller must only use this with a lock file that a real init produced
-// on this platform, so it holds hashes this platform can verify.
-//
-// It returns true when init was skipped. Any problem is reported as false so
-// the caller falls back to a real init. env is the environment Terraform
-// runs with.
+// The lock file must come from a real init on this platform, so that plan
+// can verify the linked packages against its hashes. env is the environment
+// Terraform runs with.
 func manualInit(ctx context.Context, logger slog.Logger, files tfpath.Layout, cachePath string, env []string) bool {
-	// Terraform only fills the plugin cache when basicEnv hands it one.
 	if !pluginCacheEnabled(cachePath) {
 		return false
 	}
@@ -214,7 +194,7 @@ func manualInit(ctx context.Context, logger slog.Logger, files tfpath.Layout, ca
 	linked, err := linkCachedProviders(files, cachePath, providers)
 	if err != nil {
 		logger.Warn(ctx, "cannot skip terraform init: linking cached providers failed", slog.Error(err))
-		// Remove any partial provider tree so init starts from a clean slate.
+		// Leave nothing half-linked for the real init.
 		_ = os.RemoveAll(files.ProvidersDirectory())
 		return false
 	}
@@ -230,13 +210,39 @@ func manualInit(ctx context.Context, logger slog.Logger, files tfpath.Layout, ca
 	return true
 }
 
-// needsInitSummaries start the summaries of the Terraform diagnostics that
-// mean the working directory is missing something `terraform init` installs.
-//
-// "Missing required provider" is left out on purpose. Plan reports it for a
-// provider that only the workspace's state needs. The init that Init runs
-// never sees that state, so falling back for it would let a build pass or
-// fail depending on whether init was skipped.
+// planAfterManualInit plans in a working directory that manualInit prepared.
+// If Terraform reports that the directory needs `terraform init`, it runs
+// init and plans once more.
+func (s *server) planAfterManualInit(
+	ctx, killCtx context.Context, e *executor, sess *provisionersdk.Session, sessState *sessionState,
+	plan func(logSink) (*proto.PlanComplete, *tfjson.Plan, error),
+) (*proto.PlanComplete, *tfjson.Plan, error) {
+	logs := &initDiagnosticsSink{logSink: sess}
+	resp, parsed, err := plan(logs)
+	held := logs.heldErrors()
+	if err == nil || len(held) == 0 || ctx.Err() != nil {
+		logs.release()
+		return resp, parsed, err
+	}
+
+	s.logger.Warn(ctx, "plan failed after skipping terraform init, retrying with a full init",
+		slog.Error(err), slog.F("plan_errors", held))
+	sess.ProvisionLog(proto.LogLevel_WARN, "Terraform reported that the working directory is not initialized, running terraform init")
+	sessState.initSkipped = false
+	// This init counts toward the plan stage: job stats can't interleave
+	// stages.
+	if err := s.initWorkingDirectory(ctx, killCtx, e, sess, sessState); err != nil {
+		// The plan won't run again, so log why it failed.
+		logs.release()
+		return nil, nil, xerrors.Errorf("initialize terraform: %w", err)
+	}
+	return plan(sess)
+}
+
+// needsInitSummaries are how the summaries of Terraform's "run terraform
+// init" errors begin. "Missing required provider" is left out: plan also
+// reports it for a provider that only the state needs, and init runs without
+// the state.
 var needsInitSummaries = []string{
 	"Required plugins are not installed",
 	"Inconsistent dependency lock file",
@@ -246,57 +252,45 @@ var needsInitSummaries = []string{
 	"Backend initialization required",
 }
 
-// initDiagnosticsSink forwards a plan's provision logs, except for the
-// diagnostics that mean the working directory needs `terraform init`. It
-// holds those back, so Plan can drop them when a real init fixes the plan
-// and release them when it doesn't. Only the diagnostic's summary decides:
-// its detail can quote the template, such as a precondition's error message.
+// initDiagnosticsSink is the log sink for the plan that follows manualInit.
+// It holds back the errors in needsInitSummaries, so that a build which
+// recovers by running init doesn't log them. Only the summary is matched,
+// because the detail can quote the template.
 type initDiagnosticsSink struct {
 	logSink
-
-	mu   sync.Mutex
+	// held is written while the plan logs and read after it returns.
 	held []string
 }
 
 var _ diagnosticSink = (*initDiagnosticsSink)(nil)
 
 func (s *initDiagnosticsSink) diagnosticLog(diag *tfjson.Diagnostic) logSink {
-	needsInit := slices.ContainsFunc(needsInitSummaries, func(prefix string) bool {
-		return strings.HasPrefix(diag.Summary, prefix)
-	})
-	if !needsInit {
-		return s.logSink
+	for _, prefix := range needsInitSummaries {
+		if strings.HasPrefix(diag.Summary, prefix) {
+			return heldLogSink{s}
+		}
 	}
-	return heldLogSink{s}
+	return s.logSink
 }
 
-// heldLogSink holds back the lines logged to it.
+// heldLogSink keeps the lines logged to it in sink.held.
 type heldLogSink struct {
 	sink *initDiagnosticsSink
 }
 
 func (h heldLogSink) ProvisionLog(_ proto.LogLevel, output string) {
-	h.sink.mu.Lock()
-	defer h.sink.mu.Unlock()
 	h.sink.held = append(h.sink.held, output)
 }
 
-// heldErrors returns the lines of the diagnostics held back so far. Any line
-// means the plan reported that the working directory needs init.
+// heldErrors returns the held lines. Any line means plan asked for init.
 func (s *initDiagnosticsSink) heldErrors() []string {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return slices.Clone(s.held)
+	return s.held
 }
 
-// release forwards the held lines. The diagnostics in needsInitSummaries are
-// all errors.
+// release logs the held lines.
 func (s *initDiagnosticsSink) release() {
-	s.mu.Lock()
-	held := s.held
-	s.held = nil
-	s.mu.Unlock()
-	for _, line := range held {
+	for _, line := range s.held {
 		s.ProvisionLog(proto.LogLevel_ERROR, line)
 	}
+	s.held = nil
 }

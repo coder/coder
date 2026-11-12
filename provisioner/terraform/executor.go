@@ -86,9 +86,8 @@ func (e *executor) command(killCtx context.Context, args ...string) *exec.Cmd {
 	return cmd
 }
 
-// pluginCacheEnabled reports whether Terraform gets cachePath as its plugin
-// cache directory. Only Linux reliably works with the Terraform plugin cache
-// directory. It's unknown why this is.
+// pluginCacheEnabled reports whether Terraform uses cachePath as its plugin
+// cache. Only Linux reliably works with one, and it's unknown why.
 func pluginCacheEnabled(cachePath string) bool {
 	return cachePath != "" && runtime.GOOS == "linux"
 }
@@ -631,8 +630,8 @@ type logSink interface {
 	ProvisionLog(l proto.LogLevel, o string)
 }
 
-// diagnosticSink is a logSink that chooses where the log lines of each
-// Terraform diagnostic go, for example to hold them back.
+// diagnosticSink is a logSink that picks where each Terraform diagnostic's
+// lines go.
 type diagnosticSink interface {
 	logSink
 	diagnosticLog(diag *tfjson.Diagnostic) logSink
