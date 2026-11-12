@@ -397,13 +397,46 @@ For logs, metrics, and troubleshooting, refer to [Monitor Agent Relay](./monitor
 
 ## Workspace lifecycle
 
-The provider module publishes the worker's state through the `agent_relay_status` metadata item.
-Agent Relay's reaper reads it on each sweep:
+Agent Relay cleans up the workspaces it creates with a background process called the reaper.
+The reaper works in passes called sweeps.
+In each sweep, it reads every relay workspace's `agent_relay_status` metadata item, which the provider module publishes, and acts on it.
+After a sweep ends, the reaper waits 30&nbsp;seconds before it starts the next one.
+A sweep checks each pool in turn, so it takes longer when you have more pools and workspaces.
+The reaper can act 30&nbsp;seconds or more after a workspace reaches one of these states:
 
-- When the worker exits normally, Agent Relay deletes the workspace.
-- When the worker fails or disappears, Agent Relay deletes the workspace and records the failure.
-- When a build fails or is canceled, Agent Relay deletes the workspace on the next sweep.
-- Agent Relay deletes a workspace that is still building or not started after the [startup grace](./configuration.md#--reap-startup-grace), 15&nbsp;minutes by default.
+| Workspace state                                                                                     | What the reaper does                                             |
+|-----------------------------------------------------------------------------------------------------|------------------------------------------------------------------|
+| The worker is starting, working, or serving a session                                               | Keeps the workspace.                                             |
+| The worker exited normally                                                                          | Deletes the workspace.                                           |
+| The worker failed or disappeared                                                                    | Reports the failure to the provider, then deletes the workspace. |
+| The build succeeded, but the worker hasn't started within the startup grace                         | Reports the failure to the provider, then deletes the workspace. |
+| The build failed or was canceled                                                                    | Deletes the workspace.                                           |
+| The build is still running after the longer of the startup grace and the pool's `dispatch_deadline` | Cancels the build, then deletes the workspace.                   |
+
+The startup grace is 15&nbsp;minutes by default and starts when the latest build is created.
+If you set a [reap delay](./configuration.md#--reap-delay), the reaper waits for it before it deletes a workspace or reports a failure, except in the cases that the option's reference lists.
+If a delete fails three times in a row, the reaper stops and leaves the workspace for you to remove.
+Refer to [A workspace is never deleted](./troubleshooting.md#a-workspace-is-never-deleted).
+
+### Choose cleanup settings
+
+Keep the defaults unless you need one of these outcomes:
+
+| Goal                                                              | Setting                                                                                        | Default                        |
+|-------------------------------------------------------------------|------------------------------------------------------------------------------------------------|--------------------------------|
+| Give a slow template more time to build and start its worker      | [`--reap-startup-grace`](./configuration.md#--reap-startup-grace)                              | `15m`                          |
+| Inspect a workspace where the worker failed soon after it started | [`--reap-delay`](./configuration.md#--reap-delay) for every pool, or `reap_delay` for one pool | `0s`, which deletes right away |
+| Keep autostop from stopping a workspace during a session          | The [session attachment metadata item](#keep-attached-workspaces-running)                      | Off                            |
+| Release idle sessions sooner or later                             | The pool's [`idle_release_timeout`](./configuration.md#fields-for-every-pool)                  | `1h`                           |
+
+The other reaper options, [`--reap-workers`](./configuration.md#--reap-workers), [`--reap-keepalive-refresh-before`](./configuration.md#--reap-keepalive-refresh-before), and [`--reap-keepalive-bump-by`](./configuration.md#--reap-keepalive-bump-by), limit how many workspaces a sweep handles at once and tune when the reaper extends an attached workspace's autostop deadline.
+You don't need them for the goals in this table.
+
+Each setting has a cost:
+
+- A longer startup grace also means a broken template takes longer to fail, so developers wait longer before they see an error.
+- A reap delay postpones provider retries and the failure messages that developers see, and the kept workspaces keep using resources.
+  Set it while you debug, then set it back to `0s`.
 
 Keep these Coder settings in mind for relay templates:
 
