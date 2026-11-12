@@ -191,8 +191,6 @@ Each event has a `type` field:
 | `queue_update`    | The queued message list changed (the event includes the whole list)                                                     |
 | `action_required` | The agent called a tool you provided, so run the tool and send the result with `POST /api/v2/chats/{chat}/tool-results` |
 
-Ignore event types and fields that your client doesn't recognize.
-
 The server increases a chat's `snapshot_version` each time it changes the chat's messages, queue, or status.
 To keep your client in sync with the chat:
 
