@@ -16,6 +16,7 @@ import {
 import {
 	MockChatAttachment,
 	MockChatMessage,
+	MockChatQueuedMessageNotFoundError,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
 import { MockChatModel } from "#/testHelpers/chatModels";
