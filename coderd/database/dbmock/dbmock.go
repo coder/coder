@@ -3007,6 +3007,21 @@ func (mr *MockStoreMockRecorder) GetChatAutomationsByOrganizationID(ctx, arg any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutomationsByOrganizationID", reflect.TypeOf((*MockStore)(nil).GetChatAutomationsByOrganizationID), ctx, arg)
 }
 
+// GetChatAutomationsWithWebhookSecretByOwnerID mocks base method.
+func (m *MockStore) GetChatAutomationsWithWebhookSecretByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatAutomation, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatAutomationsWithWebhookSecretByOwnerID", ctx, ownerID)
+	ret0, _ := ret[0].([]database.ChatAutomation)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatAutomationsWithWebhookSecretByOwnerID indicates an expected call of GetChatAutomationsWithWebhookSecretByOwnerID.
+func (mr *MockStoreMockRecorder) GetChatAutomationsWithWebhookSecretByOwnerID(ctx, ownerID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatAutomationsWithWebhookSecretByOwnerID", reflect.TypeOf((*MockStore)(nil).GetChatAutomationsWithWebhookSecretByOwnerID), ctx, ownerID)
+}
+
 // GetChatByID mocks base method.
 func (m *MockStore) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	m.ctrl.T.Helper()
@@ -11259,6 +11274,20 @@ func (m *MockStore) UpdateEncryptedAIProviderSettings(ctx context.Context, arg d
 func (mr *MockStoreMockRecorder) UpdateEncryptedAIProviderSettings(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEncryptedAIProviderSettings", reflect.TypeOf((*MockStore)(nil).UpdateEncryptedAIProviderSettings), ctx, arg)
+}
+
+// UpdateEncryptedChatAutomationWebhookSecret mocks base method.
+func (m *MockStore) UpdateEncryptedChatAutomationWebhookSecret(ctx context.Context, arg database.UpdateEncryptedChatAutomationWebhookSecretParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateEncryptedChatAutomationWebhookSecret", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateEncryptedChatAutomationWebhookSecret indicates an expected call of UpdateEncryptedChatAutomationWebhookSecret.
+func (mr *MockStoreMockRecorder) UpdateEncryptedChatAutomationWebhookSecret(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateEncryptedChatAutomationWebhookSecret", reflect.TypeOf((*MockStore)(nil).UpdateEncryptedChatAutomationWebhookSecret), ctx, arg)
 }
 
 // UpdateEncryptedChatMCPServerHeaders mocks base method.

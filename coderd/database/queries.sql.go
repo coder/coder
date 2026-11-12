@@ -5922,6 +5922,69 @@ func (q *sqlQuerier) GetChatAutomationsByOrganizationID(ctx context.Context, arg
 	return items, nil
 }
 
+const getChatAutomationsWithWebhookSecretByOwnerID = `-- name: GetChatAutomationsWithWebhookSecretByOwnerID :many
+SELECT id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, prompt, target_mode, target_chat_id, when_busy, new_chat_model_config_id, reasoning_effort, project_id, webhook_auth, webhook_secret, webhook_secret_key_id, webhook_secret_version, schedule_cron, schedule_time_zone, schedule_next_run_at, schedule_revision, last_run_at, last_run_outcome, last_run_reason, last_run_chat_id, last_run_unaccepted_count, created_at, updated_at
+FROM chat_automations
+WHERE owner_id = $1::uuid
+  AND webhook_secret IS NOT NULL
+ORDER BY id
+`
+
+// Returns the automations of one owner that hold a webhook secret, secret
+// included. Used only by the dbcrypt key rotation utility.
+func (q *sqlQuerier) GetChatAutomationsWithWebhookSecretByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]ChatAutomation, error) {
+	rows, err := q.db.QueryContext(ctx, getChatAutomationsWithWebhookSecretByOwnerID, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ChatAutomation
+	for rows.Next() {
+		var i ChatAutomation
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.Name,
+			&i.CreatedByChatID,
+			&i.Kind,
+			&i.Enabled,
+			&i.Prompt,
+			&i.TargetMode,
+			&i.TargetChatID,
+			&i.WhenBusy,
+			&i.NewChatModelConfigID,
+			&i.ReasoningEffort,
+			&i.ProjectID,
+			&i.WebhookAuth,
+			&i.WebhookSecret,
+			&i.WebhookSecretKeyID,
+			&i.WebhookSecretVersion,
+			&i.ScheduleCron,
+			&i.ScheduleTimeZone,
+			&i.ScheduleNextRunAt,
+			&i.ScheduleRevision,
+			&i.LastRunAt,
+			&i.LastRunOutcome,
+			&i.LastRunReason,
+			&i.LastRunChatID,
+			&i.LastRunUnacceptedCount,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getChatIDsWithQueuedMessagesByAutomationID = `-- name: GetChatIDsWithQueuedMessagesByAutomationID :many
 SELECT DISTINCT chat_id
 FROM chat_queued_messages
@@ -6081,6 +6144,28 @@ func (q *sqlQuerier) InsertChatAutomation(ctx context.Context, arg InsertChatAut
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const updateEncryptedChatAutomationWebhookSecret = `-- name: UpdateEncryptedChatAutomationWebhookSecret :exec
+UPDATE chat_automations
+SET
+    webhook_secret = $1::text,
+    webhook_secret_key_id = $2::text
+WHERE id = $3::uuid
+`
+
+type UpdateEncryptedChatAutomationWebhookSecretParams struct {
+	WebhookSecret      sql.NullString `db:"webhook_secret" json:"webhook_secret"`
+	WebhookSecretKeyID sql.NullString `db:"webhook_secret_key_id" json:"webhook_secret_key_id"`
+	ID                 uuid.UUID      `db:"id" json:"id"`
+}
+
+// Rewrites only the secret and its key ID. The version stays, because
+// re-encrypting does not change the secret. Used only by the dbcrypt key
+// rotation utility to re-encrypt or decrypt rows in place.
+func (q *sqlQuerier) UpdateEncryptedChatAutomationWebhookSecret(ctx context.Context, arg UpdateEncryptedChatAutomationWebhookSecretParams) error {
+	_, err := q.db.ExecContext(ctx, updateEncryptedChatAutomationWebhookSecret, arg.WebhookSecret, arg.WebhookSecretKeyID, arg.ID)
+	return err
 }
 
 const deleteChatDebugDataAfterMessageID = `-- name: DeleteChatDebugDataAfterMessageID :execrows
