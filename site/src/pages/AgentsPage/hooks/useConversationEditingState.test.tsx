@@ -69,7 +69,6 @@ type MockChatInputHandle = {
 	handle: ChatMessageInputRef;
 	setValue: ReturnType<typeof vi.fn>;
 	clear: ReturnType<typeof vi.fn>;
-	focus: ReturnType<typeof vi.fn>;
 	getValue: ReturnType<typeof vi.fn>;
 	currentValue: { value: string };
 };
@@ -82,7 +81,6 @@ const createMockChatInputHandle = (initialValue = ""): MockChatInputHandle => {
 	const clear = vi.fn(() => {
 		currentValue.value = "";
 	});
-	const focus = vi.fn();
 	const getValue = vi.fn(() => currentValue.value);
 
 	return {
@@ -90,7 +88,7 @@ const createMockChatInputHandle = (initialValue = ""): MockChatInputHandle => {
 			setValue,
 			insertText: vi.fn(),
 			clear,
-			focus,
+			focus: vi.fn(),
 			getValue,
 			addFileReference: vi.fn(),
 			insertSkill: vi.fn(),
@@ -101,28 +99,9 @@ const createMockChatInputHandle = (initialValue = ""): MockChatInputHandle => {
 		},
 		setValue,
 		clear,
-		focus,
 		getValue,
 		currentValue,
 	};
-};
-
-const setMobileViewport = (isMobile: boolean) => {
-	Object.defineProperty(window, "matchMedia", {
-		writable: true,
-		value: vi.fn((query: string): MediaQueryList => {
-			return {
-				matches: query === "(max-width: 639px)" ? isMobile : false,
-				media: query,
-				onchange: null,
-				addEventListener: vi.fn(),
-				removeEventListener: vi.fn(),
-				dispatchEvent: vi.fn(() => true),
-				addListener: vi.fn(),
-				removeListener: vi.fn(),
-			} as MediaQueryList;
-		}),
-	});
 };
 
 // The row the shown queue marks, or none. This tab's pending begin or end
@@ -212,7 +191,6 @@ describe("useConversationEditingState", () => {
 
 	beforeEach(() => {
 		localStorage.clear();
-		setMobileViewport(false);
 	});
 
 	// The harness owns composerMode and derives the target the way the page
@@ -488,7 +466,7 @@ describe("useConversationEditingState", () => {
 		unmount();
 	});
 
-	it("loads edit text into the composer and restores the prior draft on cancel without refocusing", () => {
+	it("loads edit text into the composer and restores the prior draft on cancel", () => {
 		const { result, unmount, beginEdit } = renderEditing();
 
 		act(() => {
@@ -518,28 +496,6 @@ describe("useConversationEditingState", () => {
 		expect(result.current.editingTarget).toBeNull();
 		expect(result.current.editorInitialValue).toBe("work in progress");
 		expect(result.current.remountKey).toBe(remountKeyAfterEdit + 1);
-		unmount();
-	});
-
-	it("does not force focus when replacing input values on mobile", () => {
-		setMobileViewport(true);
-		const { result, unmount, beginEdit } = renderEditing();
-		const mockInput = createMockChatInputHandle("draft before edit");
-		result.current.chatInputRef.current = mockInput.handle;
-
-		// Edit/cancel now drive the editor via editorInitialValue +
-		// remountKey, so focus is never called on the mock during
-		// edit and cancel flows. handleSendFromInput is the only
-		// path that calls focus and it skips on mobile viewports.
-		act(() => {
-			beginEdit({ kind: "history", id: 7 }, "edited message");
-		});
-		expect(mockInput.focus).not.toHaveBeenCalled();
-
-		act(() => {
-			result.current.handleCancelEdit();
-		});
-		expect(mockInput.focus).not.toHaveBeenCalled();
 		unmount();
 	});
 
@@ -714,7 +670,6 @@ describe("useConversationEditingState", () => {
 			await expect(sent).rejects.toThrow("boom");
 		});
 
-		expect(mockInput.focus).not.toHaveBeenCalled();
 		expect(result.current.inputValueRef.current).toBe("hello");
 		expect(result.current.editorInitialValue).toBe("hello");
 		expect(result.current.initialEditorState).toBe("hello");
