@@ -36,7 +36,7 @@ children:
     path: ./ai-governance/ai-gateway/clients/vscode.md
     state: [premium]
   - title: JetBrains
-    description: Configure JetBrains AI Assistant to route model requests through AI Gateway.
+    description: Use Claude Agent and Codex in JetBrains IDEs with AI Gateway.
     path: ./ai-governance/ai-gateway/clients/jetbrains.md
     state: [premium]
   - title: Junie
