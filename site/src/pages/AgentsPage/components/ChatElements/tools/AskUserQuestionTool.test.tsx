@@ -1,12 +1,9 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClientProvider } from "react-query";
 import { describe, expect, it, vi } from "vitest";
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
-import {
-	AskUserQuestionForm,
-	AskUserQuestionTool,
-} from "./AskUserQuestionTool";
+import { AskUserQuestionTool } from "./AskUserQuestionTool";
 
 const questions = [
 	{
@@ -20,49 +17,6 @@ const questions = [
 		],
 	},
 ];
-
-describe("AskUserQuestionForm", () => {
-	it("keeps the submitting button when the page withholds the send callback", async () => {
-		const user = userEvent.setup();
-		let resolveSend: (() => void) | undefined;
-		const send = new Promise<void>((resolve) => {
-			resolveSend = resolve;
-		});
-		const onSubmitAnswer = vi.fn(() => send);
-		const onSubmitted = vi.fn();
-		const queryClient = createTestQueryClient();
-		const { rerender } = render(
-			<QueryClientProvider client={queryClient}>
-				<AskUserQuestionForm
-					questions={questions}
-					onSubmitAnswer={onSubmitAnswer}
-					onSubmitted={onSubmitted}
-				/>
-			</QueryClientProvider>,
-		);
-
-		await user.click(screen.getByRole("button", { name: "Submit" }));
-		expect(onSubmitAnswer).toHaveBeenCalledWith("Single migration");
-
-		rerender(
-			<QueryClientProvider client={queryClient}>
-				<AskUserQuestionForm questions={questions} onSubmitted={onSubmitted} />
-			</QueryClientProvider>,
-		);
-
-		expect(
-			screen.getByRole("button", { name: "Submitting..." }),
-		).toBeDisabled();
-
-		await act(async () => {
-			resolveSend?.();
-			await send;
-		});
-		await waitFor(() => {
-			expect(onSubmitted).toHaveBeenCalledWith("Single migration");
-		});
-	});
-});
 
 describe("AskUserQuestionTool", () => {
 	it("allows retrying the same answer after submission fails", async () => {

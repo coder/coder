@@ -247,7 +247,9 @@ export const ChatPageTimeline: React.FC<ChatPageTimelineProps> = ({
 		<AsyncQuestionsContext
 			value={{
 				byId: asyncQuestions.byId,
-				panelQuestionId: isEditingMessage ? undefined : panelQuestion?.questionId,
+				panelQuestionId: isEditingMessage
+					? undefined
+					: panelQuestion?.questionId,
 			}}
 		>
 			<ACPContext value={acpSessions}>

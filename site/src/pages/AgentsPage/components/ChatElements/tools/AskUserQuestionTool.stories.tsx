@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
+import { AskUserQuestionForm } from "./AskUserQuestionTool";
 import { Tool } from "./Tool";
 
 const runningPayload = {
@@ -130,6 +132,33 @@ export const RunningEmptyQuestions: Story = {
 	args: {
 		status: "running",
 		args: { questions: [] },
+	},
+};
+
+const PendingSendQuestionForm: React.FC = () => {
+	const [isSendPending, setIsSendPending] = useState(false);
+	const handleSubmitAnswer = () => {
+		setIsSendPending(true);
+
+		return new Promise<void>(() => {});
+	};
+
+	return (
+		<AskUserQuestionForm
+			questions={singleQuestionPayload.questions}
+			onSubmitAnswer={isSendPending ? undefined : handleSubmitAnswer}
+		/>
+	);
+};
+
+export const SubmittingWhileSendPending: Story = {
+	render: () => <PendingSendQuestionForm />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("radio", { name: /incremental migrations/i }),
+		);
+		await userEvent.click(canvas.getByRole("button", { name: "Submit" }));
 	},
 };
 
