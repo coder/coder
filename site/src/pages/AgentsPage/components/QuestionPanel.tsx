@@ -57,7 +57,7 @@ export const QuestionPanel: React.FC<QuestionPanelProps> = ({
 		<div
 			// `hidden` wins over `flex` only through Tailwind preflight's `[hidden]` rule.
 			hidden={isPanelHidden}
-			className="flex max-h-[40svh] min-h-0 flex-col overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin"
+			className="flex max-h-[60svh] min-h-0 flex-col overflow-y-auto px-4 scrollbar-gutter-stable scrollbar-thin"
 		>
 			<section
 				aria-label="Question from the agent"
