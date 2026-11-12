@@ -176,8 +176,9 @@ func (p *Server) prepareSendMessage(ctx context.Context, opts SendMessageOptions
 }
 
 // sendMessageLocked is the part of SendMessage that runs in the chat's
-// transaction, under its row lock. It also returns when the queued
-// message that the send promoted was queued.
+// transaction, under its row lock. The returned time is when the queued
+// message that this send delivered was queued, and zero when it
+// delivered none.
 func (p *Server) sendMessageLocked(
 	ctx context.Context,
 	tx *chatstate.Tx,
