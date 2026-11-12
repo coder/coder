@@ -88,7 +88,10 @@ import { ImageLightbox } from "./ImageLightbox";
 import { MCPServerIconStack } from "./MCPServerIconStack";
 import { MCPServersMenuContent } from "./MCPServersMenuContent";
 import { ProjectSkillActions } from "./ProjectSkillActions";
-import { QueuedMessagesList, type QueuedRowAction } from "./QueuedMessagesList";
+import {
+	canSendQueuedMessageNow,
+	QueuedMessagesList,
+} from "./QueuedMessagesList";
 import { TextPreviewDialog } from "./TextPreviewDialog";
 import { WorkspacePill } from "./WorkspacePill";
 import { WorkspaceUploadPreview } from "./WorkspaceUploadPreview";
@@ -604,6 +607,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		!isEditingMessage &&
 		queuedMessages.length > 0 &&
 		queuedMessages[0].id !== queuedMessageUnderEditID &&
+		canSendQueuedMessageNow(queuedMessages[0].busy_behavior) &&
 		!isPendingRowID(queuedMessages[0].id);
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
@@ -1197,37 +1201,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		hasModelOptions &&
 		hasSendableContent &&
 		!hasActiveUploads;
-	// Enter, Send now, Remove and Cancel edit check it, so each queued row has
-	// at most one request in flight.
-	const [busyRows, setBusyRows] = useState<
-		ReadonlyMap<number, QueuedRowAction>
-	>(new Map());
-	const runRowAction = async (
-		id: number,
-		action: QueuedRowAction,
-		request: ((id: number) => Promise<void> | void) | undefined,
-	) => {
-		if (!request || busyRows.has(id)) {
-			return;
-		}
-		setBusyRows((current) => new Map(current).set(id, action));
-		try {
-			await request(id);
-		} catch {
-			// The caller handles the failure; a failed delete shows the row again.
-		}
-		setBusyRows((current) => {
-			const next = new Map(current);
-			next.delete(id);
-			return next;
-		});
-	};
-
-	const handleSubmit = () => {
+	const submit = (busyBehavior?: TypesGen.ChatBusyBehavior) => {
 		const text = internalRef.current?.getValue()?.trim() ?? "";
 
-		// An empty composer sends the queue head unless the head is under edit or
-		// is a pending row, which the server does not have yet.
 		if (
 			!busyBehavior &&
 			!text &&
@@ -1240,11 +1216,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			enterSendsHead &&
 			onPromoteQueuedMessage
 		) {
-			void runRowAction(
-				queuedMessages[0].id,
-				"promote",
-				onPromoteQueuedMessage,
-			);
+			void onPromoteQueuedMessage(queuedMessages[0].id);
 			return;
 		}
 
@@ -1436,17 +1408,10 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 			{queuedMessages.length > 0 && (
 				<QueuedMessagesList
 					messages={queuedMessages}
-					busyRows={busyRows}
-					onDelete={(id) =>
-						void runRowAction(id, "delete", onDeleteQueuedMessage)
-					}
-					onPromote={(id) =>
-						void runRowAction(id, "promote", onPromoteQueuedMessage)
-					}
+					onDelete={onDeleteQueuedMessage}
+					onPromote={onPromoteQueuedMessage}
 					onEdit={onEditQueuedMessage}
-					onEndEdit={(id) =>
-						void runRowAction(id, "end_edit", onEndQueuedMessageEdit)
-					}
+					onEndEdit={onEndQueuedMessageEdit}
 					isChatPaused={isChatPaused}
 					queuedMessageUnderEditID={queuedMessageUnderEditID}
 					composerQueuedMessageID={composerQueuedMessageID}
@@ -1582,7 +1547,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							offersSendAfterTurn ? handleSubmitAfterTurn : undefined
 						}
 						sendShortcut={sendShortcut}
-						// handleSubmit does not send while isLoading.
+						// submit does not send while isLoading.
 						disabled={isReadOnly || (lockWhileLoading && isLoading)}
 						hasWorkspace={hasSkillsWorkspace}
 						organizationId={chatOrganizationId}

@@ -561,7 +561,6 @@ const AgentChatPage: React.FC = () => {
 		try {
 			await store.runPendingAction(
 				{ kind: "deleteQueued", queuedMessageID: id },
-				liveChatStatus,
 				() => deleteQueuedMessage(id),
 			);
 		} catch {}
@@ -573,7 +572,6 @@ const AgentChatPage: React.FC = () => {
 		try {
 			await store.runPendingAction(
 				{ kind: "promoteQueued", queuedMessageID: id },
-				liveChatStatus,
 				() => promoteQueuedMessage(id),
 			);
 		} catch (error) {
@@ -608,7 +606,6 @@ const AgentChatPage: React.FC = () => {
 	const setQueuedMessageEditing = (id: number, editing: boolean) =>
 		store.runPendingAction(
 			{ kind: "editQueued", queuedMessageID: id, editing },
-			liveChatStatus,
 			() =>
 				reportQueuedEditError(
 					() =>
@@ -675,9 +672,11 @@ const AgentChatPage: React.FC = () => {
 			editing.handleCancelEdit();
 		}
 	};
+	// reportQueuedEditError reports a failure, and the row then shows as
+	// under edit again.
 	const handleEndQueuedMessageEdit = (id: number) => {
 		closeQueuedEditOf(id);
-		return requestEndQueuedMessageEdit(id);
+		return requestEndQueuedMessageEdit(id).catch(() => undefined);
 	};
 	const handleDeleteQueuedMessage = (id: number) => {
 		closeQueuedEditOf(id);
@@ -690,7 +689,7 @@ const AgentChatPage: React.FC = () => {
 
 	const handleCancelEdit = () => {
 		if (composerTarget?.kind === "queued") {
-			void handleEndQueuedMessageEdit(composerTarget.id).catch(() => undefined);
+			void handleEndQueuedMessageEdit(composerTarget.id);
 			return;
 		}
 		if (composerTarget?.kind === "history" && isOwner && markedID !== null) {
@@ -764,7 +763,6 @@ const AgentChatPage: React.FC = () => {
 		compact,
 		clearChatContext,
 		store,
-		chatStatus: liveChatStatus,
 		agentId,
 		clearChatErrorReason,
 		effectiveSelectedModel,
