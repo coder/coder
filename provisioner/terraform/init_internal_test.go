@@ -55,9 +55,6 @@ func Test_parseLockFile(t *testing.T) {
 		"registry.terraform.io/kreuzwerker/docker@4.6.0",
 	}, got)
 
-	// Sources and versions become path components when providers are
-	// linked, so anything that could escape the cache is rejected. Without
-	// hashes plan would not verify the linked package.
 	entry := func(source, version, hashes string) string {
 		return fmt.Sprintf("provider %q {\n  version = %q\n  hashes = [%s]\n}\n", source, version, hashes)
 	}
@@ -107,20 +104,15 @@ func Test_linkCachedProviders(t *testing.T) {
 		cache := fakeCache(t, coder, docker)
 		files := tfpath.Layout(t.TempDir())
 
-		linked, err := linkCachedProviders(files, cache, []lockedProvider{coder, docker})
+		reason, err := linkCachedProviders(files, cache, []lockedProvider{coder, docker})
 		require.NoError(t, err)
-		require.True(t, linked)
+		require.Empty(t, reason)
 
 		for _, p := range []lockedProvider{coder, docker} {
 			target, err := os.Readlink(providerPackageDir(files.ProvidersDirectory(), p))
 			require.NoError(t, err)
 			require.Equal(t, providerPackageDir(cache, p), target)
 		}
-
-		// Links from an earlier attempt are reused.
-		linked, err = linkCachedProviders(files, cache, []lockedProvider{coder, docker})
-		require.NoError(t, err)
-		require.True(t, linked)
 	})
 
 	// The template's source archive can put a package where the link goes.
@@ -132,9 +124,9 @@ func Test_linkCachedProviders(t *testing.T) {
 		require.NoError(t, os.MkdirAll(filepath.Dir(planted), 0o755))
 		require.NoError(t, os.WriteFile(planted, nil, 0o600))
 
-		linked, err := linkCachedProviders(files, cache, []lockedProvider{coder})
+		reason, err := linkCachedProviders(files, cache, []lockedProvider{coder})
 		require.NoError(t, err)
-		require.False(t, linked)
+		require.Contains(t, reason, "already holds provider registry.terraform.io/coder/coder@2.18.0")
 		require.FileExists(t, planted)
 	})
 
@@ -143,9 +135,9 @@ func Test_linkCachedProviders(t *testing.T) {
 		cache := fakeCache(t, coder)
 		files := tfpath.Layout(t.TempDir())
 
-		linked, err := linkCachedProviders(files, cache, []lockedProvider{coder, docker})
+		reason, err := linkCachedProviders(files, cache, []lockedProvider{coder, docker})
 		require.NoError(t, err)
-		require.False(t, linked)
+		require.Contains(t, reason, "registry.terraform.io/kreuzwerker/docker@4.6.0 is not in the plugin cache")
 		_, err = os.Stat(files.TerraformMetadataDir())
 		require.ErrorIs(t, err, os.ErrNotExist, "nothing should be linked when a provider is missing")
 	})
@@ -156,38 +148,38 @@ func Test_linkCachedProviders(t *testing.T) {
 		require.NoError(t, os.MkdirAll(providerPackageDir(cache, coder), 0o755))
 		files := tfpath.Layout(t.TempDir())
 
-		linked, err := linkCachedProviders(files, cache, []lockedProvider{coder})
+		reason, err := linkCachedProviders(files, cache, []lockedProvider{coder})
 		require.NoError(t, err)
-		require.False(t, linked, "a provider directory without a binary is not usable")
+		require.NotEmpty(t, reason, "a provider directory without a binary is not usable")
 	})
 
 	t.Run("NoCache", func(t *testing.T) {
 		t.Parallel()
-		linked, err := linkCachedProviders(tfpath.Layout(t.TempDir()), "", []lockedProvider{coder})
+		reason, err := linkCachedProviders(tfpath.Layout(t.TempDir()), "", []lockedProvider{coder})
 		require.NoError(t, err)
-		require.False(t, linked)
+		require.NotEmpty(t, reason)
 	})
 }
 
-func Test_modulesReady(t *testing.T) {
+func Test_missingModules(t *testing.T) {
 	t.Parallel()
 
 	t.Run("NoModuleCalls", func(t *testing.T) {
 		t.Parallel()
 		files := tfpath.Layout(t.TempDir())
 		require.NoError(t, os.WriteFile(filepath.Join(files.WorkDirectory(), "main.tf"), []byte(`resource "null_resource" "a" {}`), 0o600))
-		ready, err := modulesReady(files)
+		reason, err := missingModules(files)
 		require.NoError(t, err)
-		require.True(t, ready)
+		require.Empty(t, reason)
 	})
 
 	t.Run("ModuleCallWithoutManifest", func(t *testing.T) {
 		t.Parallel()
 		files := tfpath.Layout(t.TempDir())
 		require.NoError(t, os.WriteFile(filepath.Join(files.WorkDirectory(), "main.tf"), []byte(`module "m" { source = "./m" }`), 0o600))
-		ready, err := modulesReady(files)
+		reason, err := missingModules(files)
 		require.NoError(t, err)
-		require.False(t, ready)
+		require.Contains(t, reason, "no saved module manifest")
 	})
 
 	withManifest := func(t *testing.T) tfpath.Layout {
@@ -210,9 +202,9 @@ module "remote" { source = "example.com/x/y/z" }`), 0o600))
 		t.Parallel()
 		files := withManifest(t)
 		require.NoError(t, os.MkdirAll(filepath.Join(files.ModulesDirectory(), "remote"), 0o755))
-		ready, err := modulesReady(files)
+		reason, err := missingModules(files)
 		require.NoError(t, err)
-		require.True(t, ready)
+		require.Empty(t, reason)
 	})
 
 	// The module archive keeps the manifest when it leaves out modules over
@@ -220,9 +212,9 @@ module "remote" { source = "example.com/x/y/z" }`), 0o600))
 	t.Run("ManifestWithMissingModule", func(t *testing.T) {
 		t.Parallel()
 		files := withManifest(t)
-		ready, err := modulesReady(files)
+		reason, err := missingModules(files)
 		require.NoError(t, err)
-		require.False(t, ready)
+		require.Contains(t, reason, "module remote is not in the working directory")
 	})
 }
 
@@ -248,6 +240,18 @@ func Test_manualInit(t *testing.T) {
 		require.True(t, manualInit(t.Context(), logger, files, fakeCache(t, coder, docker), nil))
 		require.DirExists(t, files.ProvidersDirectory())
 	})
+
+	// Only `terraform init` can set up a backend or HCP Terraform.
+	for name, settings := range map[string]string{"Backend": `backend "local" {}`, "Cloud": `cloud {}`} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			files := newWorkDir(t)
+			config := "terraform {\n" + settings + "\n}\n"
+			require.NoError(t, os.WriteFile(filepath.Join(files.WorkDirectory(), "backend.tf"), []byte(config), 0o600))
+			require.False(t, manualInit(t.Context(), logger, files, fakeCache(t, coder, docker), nil))
+			require.NoDirExists(t, files.ProvidersDirectory())
+		})
+	}
 
 	// With TF_DATA_DIR, Terraform doesn't look for providers in .terraform.
 	t.Run("CustomizedInit", func(t *testing.T) {
@@ -311,11 +315,11 @@ func Test_initDiagnosticsSink(t *testing.T) {
 				return lines
 			}
 			if !test.wantHeld {
-				require.Empty(t, sink.heldErrors())
+				require.Empty(t, sink.heldLines())
 				require.Equal(t, append(diagnosticLines, "stderr"), forwarded())
 				return
 			}
-			require.Equal(t, diagnosticLines, sink.heldErrors())
+			require.Equal(t, diagnosticLines, sink.heldLines())
 			require.Equal(t, []string{"stderr"}, forwarded())
 
 			sink.release()

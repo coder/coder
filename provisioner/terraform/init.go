@@ -84,54 +84,50 @@ func providerPackageDir(root string, p lockedProvider) string {
 }
 
 // linkCachedProviders symlinks each provider from the plugin cache into
-// .terraform/providers, as `terraform init` does on a cache hit. It links
-// nothing and reports false if a provider isn't cached or the working
-// directory already holds something in its place.
-func linkCachedProviders(files tfpath.Layout, cachePath string, providers []lockedProvider) (bool, error) {
-	if cachePath == "" || len(providers) == 0 {
-		return false, nil
+// .terraform/providers, as `terraform init` does on a cache hit. If a
+// provider can't be linked, it links nothing and returns the reason.
+func linkCachedProviders(files tfpath.Layout, cachePath string, providers []lockedProvider) (reason string, err error) {
+	if cachePath == "" {
+		return "there is no plugin cache", nil
+	}
+	if len(providers) == 0 {
+		return "the lock file pins no providers", nil
 	}
 	for _, p := range providers {
 		entries, err := os.ReadDir(providerPackageDir(cachePath, p))
-		if err != nil {
-			return false, nil
-		}
 		hasBinary := slices.ContainsFunc(entries, func(entry os.DirEntry) bool {
 			return strings.HasPrefix(entry.Name(), "terraform-provider-")
 		})
-		if !hasBinary {
-			return false, nil
+		if err != nil || !hasBinary {
+			return fmt.Sprintf("provider %s@%s is not in the plugin cache", p.Source, p.Version), nil
 		}
-		// The template's source archive could have put a package there.
-		target, err := os.Readlink(providerPackageDir(files.ProvidersDirectory(), p))
-		switch {
-		case errors.Is(err, fs.ErrNotExist):
-		case err != nil, target != providerPackageDir(cachePath, p):
-			return false, nil
+		// The template's source archive could have put something there.
+		if _, err := os.Lstat(providerPackageDir(files.ProvidersDirectory(), p)); !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Sprintf("the working directory already holds provider %s@%s", p.Source, p.Version), nil
 		}
 	}
 	for _, p := range providers {
 		src := providerPackageDir(cachePath, p)
 		dst := providerPackageDir(files.ProvidersDirectory(), p)
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			return false, xerrors.Errorf("create provider directory: %w", err)
+			return "", xerrors.Errorf("create provider directory: %w", err)
 		}
-		if err := os.Symlink(src, dst); err != nil && !errors.Is(err, os.ErrExist) {
-			return false, xerrors.Errorf("link provider %s: %w", p.Source, err)
+		if err := os.Symlink(src, dst); err != nil {
+			return "", xerrors.Errorf("link provider %s: %w", p.Source, err)
 		}
 	}
-	return true, nil
+	return "", nil
 }
 
-// modulesReady reports whether every module `terraform init` would install
-// is already in the working directory.
-func modulesReady(files tfpath.Layout) (bool, error) {
+// missingModules returns why the working directory lacks a module that
+// `terraform init` would install, or "" if it lacks none.
+func missingModules(files tfpath.Layout) (reason string, err error) {
 	content, err := os.ReadFile(files.ModulesFilePath())
 	switch {
 	case err == nil:
 		var manifest modulesFile
 		if err := json.Unmarshal(content, &manifest); err != nil {
-			return false, xerrors.Errorf("parse module manifest: %w", err)
+			return "", xerrors.Errorf("parse module manifest: %w", err)
 		}
 		// The manifest also lists modules the archive left out for size.
 		for _, m := range manifest.Modules {
@@ -140,19 +136,76 @@ func modulesReady(files tfpath.Layout) (bool, error) {
 				continue
 			}
 			if _, err := os.Stat(filepath.Join(files.WorkDirectory(), filepath.FromSlash(m.Dir))); err != nil {
-				return false, nil
+				return fmt.Sprintf("module %s is not in the working directory", m.Key), nil
 			}
 		}
-		return true, nil
+		return "", nil
 	case !errors.Is(err, fs.ErrNotExist):
-		return false, xerrors.Errorf("read module manifest: %w", err)
+		return "", xerrors.Errorf("read module manifest: %w", err)
 	}
 	// Without a manifest, the template must not call any module.
 	module, diags := tfconfig.LoadModule(files.WorkDirectory())
 	if diags.HasErrors() {
-		return false, xerrors.Errorf("load module: %w", diags.Err())
+		return "", xerrors.Errorf("load module: %w", diags.Err())
 	}
-	return len(module.ModuleCalls) == 0, nil
+	if len(module.ModuleCalls) > 0 {
+		return "the template calls modules but has no saved module manifest", nil
+	}
+	return "", nil
+}
+
+// These schemas find the blocks of a terraform block that only `terraform
+// init` can set up.
+var (
+	terraformBlockSchema = &hcl.BodySchema{Blocks: []hcl.BlockHeaderSchema{{Type: "terraform"}}}
+	backendSchema        = &hcl.BodySchema{Blocks: []hcl.BlockHeaderSchema{
+		{Type: "backend", LabelNames: []string{"type"}},
+		{Type: "cloud"},
+	}}
+)
+
+// declaresBackend reports whether the root module in dir configures a
+// backend or HCP Terraform.
+func declaresBackend(dir string) (bool, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return false, xerrors.Errorf("read working directory: %w", err)
+	}
+	parser := hclparse.NewParser()
+	for _, entry := range entries {
+		var (
+			file  *hcl.File
+			diags hcl.Diagnostics
+			path  = filepath.Join(dir, entry.Name())
+		)
+		switch {
+		case entry.IsDir():
+			continue
+		case strings.HasSuffix(entry.Name(), ".tf"):
+			file, diags = parser.ParseHCLFile(path)
+		case strings.HasSuffix(entry.Name(), ".tf.json"):
+			file, diags = parser.ParseJSONFile(path)
+		default:
+			continue
+		}
+		if diags.HasErrors() {
+			return false, xerrors.Errorf("parse %s: %w", entry.Name(), diags)
+		}
+		root, _, diags := file.Body.PartialContent(terraformBlockSchema)
+		if diags.HasErrors() {
+			return false, xerrors.Errorf("read %s: %w", entry.Name(), diags)
+		}
+		for _, block := range root.Blocks {
+			settings, _, diags := block.Body.PartialContent(backendSchema)
+			if diags.HasErrors() {
+				return false, xerrors.Errorf("read %s: %w", entry.Name(), diags)
+			}
+			if len(settings.Blocks) > 0 {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
 }
 
 // initCustomizingEnv are the variables that change where or how `terraform
@@ -182,24 +235,33 @@ func manualInit(ctx context.Context, logger slog.Logger, files tfpath.Layout, ca
 		logger.Debug(ctx, "cannot skip terraform init: unusable lock file", slog.Error(err))
 		return false
 	}
-	ready, err := modulesReady(files)
+	backend, err := declaresBackend(files.WorkDirectory())
+	if err != nil {
+		logger.Debug(ctx, "cannot skip terraform init: backend check failed", slog.Error(err))
+		return false
+	}
+	if backend {
+		logger.Debug(ctx, "cannot skip terraform init: the template configures a backend")
+		return false
+	}
+	reason, err := missingModules(files)
 	if err != nil {
 		logger.Debug(ctx, "cannot skip terraform init: module check failed", slog.Error(err))
 		return false
 	}
-	if !ready {
-		logger.Debug(ctx, "cannot skip terraform init: modules are not installed")
+	if reason != "" {
+		logger.Debug(ctx, "cannot skip terraform init", slog.F("reason", reason))
 		return false
 	}
-	linked, err := linkCachedProviders(files, cachePath, providers)
+	reason, err = linkCachedProviders(files, cachePath, providers)
 	if err != nil {
 		logger.Warn(ctx, "cannot skip terraform init: linking cached providers failed", slog.Error(err))
 		// Leave nothing half-linked for the real init.
 		_ = os.RemoveAll(files.ProvidersDirectory())
 		return false
 	}
-	if !linked {
-		logger.Debug(ctx, "cannot skip terraform init: a pinned provider is not cached, or the working directory already holds one")
+	if reason != "" {
+		logger.Debug(ctx, "cannot skip terraform init", slog.F("reason", reason))
 		return false
 	}
 	names := make([]string, 0, len(providers))
@@ -219,7 +281,7 @@ func (s *server) planAfterManualInit(
 ) (*proto.PlanComplete, *tfjson.Plan, error) {
 	logs := &initDiagnosticsSink{logSink: sess}
 	resp, parsed, err := plan(logs)
-	held := logs.heldErrors()
+	held := logs.heldLines()
 	if err == nil || len(held) == 0 || ctx.Err() != nil {
 		logs.release()
 		return resp, parsed, err
@@ -227,7 +289,7 @@ func (s *server) planAfterManualInit(
 
 	s.logger.Warn(ctx, "plan failed after skipping terraform init, retrying with a full init",
 		slog.Error(err), slog.F("plan_errors", held))
-	sess.ProvisionLog(proto.LogLevel_WARN, "Terraform reported that the working directory is not initialized, running terraform init")
+	sess.ProvisionLog(proto.LogLevel_WARN, "The cached providers and modules were not enough for this build, running terraform init")
 	sessState.initSkipped = false
 	// This init counts toward the plan stage: job stats can't interleave
 	// stages.
@@ -239,11 +301,11 @@ func (s *server) planAfterManualInit(
 	return plan(sess)
 }
 
-// needsInitSummaries are how the summaries of Terraform's "run terraform
-// init" errors begin. "Missing required provider" is left out: plan also
-// reports it for a provider that only the state needs, and init runs without
-// the state.
-var needsInitSummaries = []string{
+// needsInitSummaryPrefixes are how the summaries of Terraform's "run
+// terraform init" errors begin. "Missing required provider" is left out: plan
+// also reports it for a provider that only the state needs, and init runs
+// without the state.
+var needsInitSummaryPrefixes = []string{
 	"Required plugins are not installed",
 	"Inconsistent dependency lock file",
 	"Module not installed",
@@ -253,7 +315,7 @@ var needsInitSummaries = []string{
 }
 
 // initDiagnosticsSink is the log sink for the plan that follows manualInit.
-// It holds back the errors in needsInitSummaries, so that a build which
+// It holds back the errors in needsInitSummaryPrefixes, so that a build which
 // recovers by running init doesn't log them. Only the summary is matched,
 // because the detail can quote the template.
 type initDiagnosticsSink struct {
@@ -264,8 +326,8 @@ type initDiagnosticsSink struct {
 
 var _ diagnosticSink = (*initDiagnosticsSink)(nil)
 
-func (s *initDiagnosticsSink) diagnosticLog(diag *tfjson.Diagnostic) logSink {
-	for _, prefix := range needsInitSummaries {
+func (s *initDiagnosticsSink) sinkForDiagnostic(diag *tfjson.Diagnostic) logSink {
+	for _, prefix := range needsInitSummaryPrefixes {
 		if strings.HasPrefix(diag.Summary, prefix) {
 			return heldLogSink{s}
 		}
@@ -282,8 +344,8 @@ func (h heldLogSink) ProvisionLog(_ proto.LogLevel, output string) {
 	h.sink.held = append(h.sink.held, output)
 }
 
-// heldErrors returns the held lines. Any line means plan asked for init.
-func (s *initDiagnosticsSink) heldErrors() []string {
+// heldLines returns the held lines. Any line means plan asked for init.
+func (s *initDiagnosticsSink) heldLines() []string {
 	return s.held
 }
 

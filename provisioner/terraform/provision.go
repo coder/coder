@@ -111,8 +111,8 @@ func (s *server) Init(
 
 	sessState := sessionState{importedLockFileRestored: restored}
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageInit)
-	// Only the lock file captured at import is known to hold this platform's
-	// hashes. Imports and dry runs have none, so they always run init.
+	// Imports and dry runs never get a captured lock file, so they always
+	// run init.
 	if restored && manualInit(ctx, s.logger, sess.Files, s.cachePath, e.basicEnv()) {
 		sessState.initSkipped = true
 		sess.ProvisionLog(proto.LogLevel_INFO, "Skipping terraform init: using cached providers pinned by the dependency lock file")
@@ -169,7 +169,8 @@ func (s *server) Init(
 }
 
 // initWorkingDirectory runs `terraform init`. If it fails with the lock file
-// captured at import, it tries once more with the template's own.
+// captured at import, it tries once more with the template's own and clears
+// sessState.importedLockFileRestored.
 func (s *server) initWorkingDirectory(ctx, killCtx context.Context, e *executor, sess *provisionersdk.Session, sessState *sessionState) error {
 	err := e.init(ctx, killCtx, sess)
 	if err != nil && sessState.importedLockFileRestored && ctx.Err() == nil {
@@ -282,7 +283,7 @@ func (s *server) Plan(
 		rawGraph string
 		graphErr error
 	)
-	planWithGraph := func(logr logSink) (*proto.PlanComplete, *tfjson.Plan, error) {
+	planWithGraph := func(sink logSink) (*proto.PlanComplete, *tfjson.Plan, error) {
 		var wg sync.WaitGroup
 		// On Windows the state lock that plan holds stops other processes
 		// from reading the state file, so the graph is left to Graph there.
@@ -292,7 +293,7 @@ func (s *server) Plan(
 			})
 		}
 		defer wg.Wait()
-		return e.plan(ctx, killCtx, env, vars, logr, request)
+		return e.plan(ctx, killCtx, env, vars, sink, request)
 	}
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
 	var (

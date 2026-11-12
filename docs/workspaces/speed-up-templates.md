@@ -100,10 +100,15 @@ If `terraform init` fails with that lock file, for example because the provision
 If the warning appears on every build, push a new template version and update workspaces to it.
 Coder doesn't reuse the lock file when [module caching](../templates/extending-templates/modules.md#module-caching) is disabled for the template or the deployment.
 
-On Linux provisioners, a build that reuses the lock file skips `terraform init` when every provider in the lock file is already in the provisioner's [cache directory](#cache-directory) and the build has no modules to download.
-A template that has only local modules always runs `terraform init`, as does every build on a provisioner that sets `TF_DATA_DIR`, `TF_CLI_ARGS`, or `TF_CLI_ARGS_init`.
+On Linux provisioners, a build that reuses the lock file skips `terraform init` when every provider in the lock file is already in the provisioner's [cache directory](#cache-directory) and the build has every module it needs.
+A build has every module it needs when the template uses no modules, or when the [modules cached](../templates/extending-templates/modules.md#module-caching) with the template version include every remote module the template uses.
+Coder caches modules only for templates that use at least one remote module, so a template that has only local modules always runs `terraform init`.
+So does a template that has a `backend` or `cloud` block in its `terraform` block, and every build on a provisioner that sets `TF_DATA_DIR`, `TF_CLI_ARGS`, or `TF_CLI_ARGS_init`.
+If a build that skipped `terraform init` finds that the working directory needs it, the build runs `terraform init`, plans again, and logs a warning.
+
 Builds that skip `terraform init` don't contact the provider registry or a provider mirror, so they don't check that those provider versions are still available.
 A provisioner removes a cached provider 30&nbsp;days after downloading it, and the next build on that provisioner that uses the provider runs `terraform init` again.
+To make builds check sooner (for example, after you withdraw a provider version from a provider mirror), delete that provider version from each provisioner's cache directory.
 To change provider versions, push a new template version and update workspaces to it.
 
 Committing your own lock file also pins provider versions across template pushes.

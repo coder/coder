@@ -634,7 +634,7 @@ type logSink interface {
 // lines go.
 type diagnosticSink interface {
 	logSink
-	diagnosticLog(diag *tfjson.Diagnostic) logSink
+	sinkForDiagnostic(diag *tfjson.Diagnostic) logSink
 }
 
 // logWriter creates a WriteCloser that will log each line of text at the given level.  The WriteCloser must be closed
@@ -704,7 +704,7 @@ func (e *executor) provisionReadAndLog(sink logSink, r io.Reader, done chan<- an
 
 		lineSink := sink
 		if ds, ok := sink.(diagnosticSink); ok && log.Diagnostic != nil {
-			lineSink = ds.diagnosticLog(log.Diagnostic)
+			lineSink = ds.sinkForDiagnostic(log.Diagnostic)
 		}
 		logLevel := convertTerraformLogLevel(log.Level, sink)
 		lineSink.ProvisionLog(logLevel, log.Message)

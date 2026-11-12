@@ -858,14 +858,16 @@ func TestPlanRetriesOnlyWhenInitIsNeeded(t *testing.T) {
 	tests := []struct {
 		name       string
 		planOutput string
+		// secondPlanOutput, if set, makes the plan after the init fail too.
+		secondPlanOutput string
+		// initRuns leaves the plugin cache empty, so Init runs terraform init.
+		initRuns bool
 		// failInit makes every terraform init fail.
-		failInit bool
-		// failEveryPlan makes the plan after the init fail like the first.
-		failEveryPlan bool
-		wantInits     int
-		wantError     string
-		wantInLog     string
-		wantNoInLog   string
+		failInit    bool
+		wantInits   int
+		wantError   string
+		wantInLog   string
+		wantNoInLog string
 	}{
 		{
 			name:        "UnrelatedFailure",
@@ -898,12 +900,24 @@ func TestPlanRetriesOnlyWhenInitIsNeeded(t *testing.T) {
 			wantInLog:  "Error: Required plugins are not installed",
 		},
 		{
-			name:          "PlanFailsAfterInit",
-			planOutput:    needsInit,
-			failEveryPlan: true,
-			wantInits:     1,
-			wantError:     "terraform plan",
-			wantInLog:     "Error: Required plugins are not installed",
+			// The init worked, so the first plan's errors are dropped.
+			name:             "PlanFailsAfterInit",
+			planOutput:       needsInit,
+			secondPlanOutput: unrelated,
+			wantInits:        1,
+			wantError:        "terraform plan",
+			wantInLog:        "Error: Unsupported attribute",
+			wantNoInLog:      "Required plugins are not installed",
+		},
+		{
+			// Only a build that skipped init falls back to one.
+			name:        "InitRan",
+			planOutput:  needsInit,
+			initRuns:    true,
+			wantInits:   1,
+			wantError:   "terraform plan",
+			wantInLog:   "Error: Required plugins are not installed",
+			wantNoInLog: logFallbackToInit,
 		},
 	}
 	for _, test := range tests {
@@ -920,14 +934,14 @@ func TestPlanRetriesOnlyWhenInitIsNeeded(t *testing.T) {
 			}
 			initOutputPath := filepath.Join(dir, "init-output")
 			require.NoError(t, os.WriteFile(initOutputPath, []byte(initOutput), 0o600))
-			failEveryPlanPath := filepath.Join(dir, "fail-every-plan")
-			if test.failEveryPlan {
-				require.NoError(t, os.WriteFile(failEveryPlanPath, nil, 0o600))
+			secondPlanOutputPath := filepath.Join(dir, "second-plan-output")
+			if test.secondPlanOutput != "" {
+				require.NoError(t, os.WriteFile(secondPlanOutputPath, []byte(test.secondPlanOutput+"\n"), 0o600))
 			}
 			require.NoError(t, os.WriteFile(planOutputPath, []byte(test.planOutput+"\n"), 0o600))
 			require.NoError(t, os.WriteFile(planPath, planJSON, 0o600))
-			// The shim fails the first plan and, unless failEveryPlan is set,
-			// succeeds after that.
+			// The shim fails the first plan, and the next one too if it has
+			// output for it.
 			binaryPath := writeTerraformShim(t, dir, fmt.Sprintf(`#!/bin/sh
 case "$1" in
 version)
@@ -941,9 +955,13 @@ init)
 	cat %[6]q
 	;;
 plan)
-	if [ ! -f %[2]q ] || [ -f %[7]q ]; then
+	if [ ! -f %[2]q ]; then
 		touch %[2]q
 		cat %[3]q
+		exit 1
+	fi
+	if [ -f %[7]q ]; then
+		cat %[7]q
 		exit 1
 	fi
 	;;
@@ -957,15 +975,17 @@ graph)
 	exit 1
 	;;
 esac
-`, initArgsPath, planFailedPath, planOutputPath, planPath, failInitPath, initOutputPath, failEveryPlanPath))
+`, initArgsPath, planFailedPath, planOutputPath, planPath, failInitPath, initOutputPath, secondPlanOutputPath))
 
-			// The module archive captured at import pins one provider that
-			// is already in the plugin cache, so Init skips terraform init.
+			// The module archive captured at import pins one provider. Init
+			// skips terraform init when the plugin cache has it.
 			provider := "registry.terraform.io/coder/coder"
 			cachePath := t.TempDir()
-			providerDir := filepath.Join(cachePath, filepath.FromSlash(provider), "2.18.0", runtime.GOOS+"_"+runtime.GOARCH)
-			require.NoError(t, os.MkdirAll(providerDir, 0o700))
-			require.NoError(t, os.WriteFile(filepath.Join(providerDir, "terraform-provider-coder_v2.18.0"), nil, 0o600))
+			if !test.initRuns {
+				providerDir := filepath.Join(cachePath, filepath.FromSlash(provider), "2.18.0", runtime.GOOS+"_"+runtime.GOARCH)
+				require.NoError(t, os.MkdirAll(providerDir, 0o700))
+				require.NoError(t, os.WriteFile(filepath.Join(providerDir, "terraform-provider-coder_v2.18.0"), nil, 0o600))
+			}
 			moduleArchive := testutil.CreateTar(t, map[string]string{
 				importedLockFileArchivePath(): fmt.Sprintf("provider %q {\n  version = \"2.18.0\"\n  hashes = [\"h1:fake=\"]\n}\n", provider),
 			})
@@ -977,7 +997,7 @@ esac
 			sess := configure(ctx, t, api, &proto.Config{})
 			initLog, initResp := sendBuildInit(t, sess, testutil.CreateTar(t, map[string]string{"main.tf": ""}), moduleArchive)
 			require.Empty(t, initResp.Error)
-			require.Contains(t, initLog, logInitSkipped)
+			require.Equal(t, !test.initRuns, strings.Contains(initLog, logInitSkipped))
 
 			require.NoError(t, sendPlan(sess, proto.WorkspaceTransition_START))
 			planLog, response := readProvisionLog(t, sess)
@@ -2184,7 +2204,7 @@ func sendBuildInit(t *testing.T, sess proto.DRPCProvisioner_SessionClient, sourc
 
 const (
 	logInitSkipped      = "Skipping terraform init: using cached providers pinned by the dependency lock file"
-	logFallbackToInit   = "Terraform reported that the working directory is not initialized, running terraform init"
+	logFallbackToInit   = "The cached providers and modules were not enough for this build, running terraform init"
 	initSkipOnlyOnLinux = "init is only skipped on Linux, where the plugin cache is used"
 )
 
@@ -2210,8 +2230,6 @@ func TestProvision_LockFileCached(t *testing.T) {
 	require.NotContains(t, importLog, logInitSkipped)
 	require.NotEmpty(t, importResp.ModuleFiles, "expected the lock file to be archived even without modules")
 
-	// The lock file is keyed by platform so builds on a different platform
-	// ignore it.
 	lockFile := importedLockFile(t, importResp.ModuleFiles)
 	require.Contains(t, string(lockFile), `provider "registry.terraform.io/coder/coder"`)
 
@@ -2256,11 +2274,11 @@ func TestProvision_ImportRunsInitWithCommittedLockFile(t *testing.T) {
 	require.Regexp(t, lockFileReused, importLog, "a real init reads the committed lock file")
 }
 
-// TestProvision_SkipInitRequiresModules covers a template with a local
-// module. Its module archive carries the lock file but no module manifest,
-// because only remote modules are archived, so linking providers is not
-// enough and init runs normally.
-func TestProvision_SkipInitRequiresModules(t *testing.T) {
+// TestProvision_LocalModuleRunsInit covers a template with a local module.
+// Its module archive carries the lock file but no module manifest, because
+// only remote modules are archived, so linking providers is not enough and
+// init runs normally.
+func TestProvision_LocalModuleRunsInit(t *testing.T) {
 	t.Parallel()
 
 	files := map[string]string{
@@ -2448,8 +2466,7 @@ func writeFakeProviderMirror(t *testing.T, packages ...string) string {
 	return cliConfigPath
 }
 
-// importedLockFile reads the captured lock file from a module archive. The
-// path is spelled out because provisioner versions must agree on it.
+// importedLockFile reads the captured lock file from a module archive.
 func importedLockFile(t *testing.T, moduleFiles []byte) []byte {
 	t.Helper()
 	content, err := fs.ReadFile(archivefs.FromTarReader(bytes.NewReader(moduleFiles)), importedLockFileArchivePath())
@@ -2458,7 +2475,8 @@ func importedLockFile(t *testing.T, moduleFiles []byte) []byte {
 }
 
 // importedLockFileArchivePath is where the module archive stores the lock
-// file captured during import on this platform.
+// file captured during import on this platform. The path is spelled out
+// because provisioner versions must agree on it.
 func importedLockFileArchivePath() string {
 	return ".terraform/coder/lockfiles/" + runtime.GOOS + "_" + runtime.GOARCH + ".lock.hcl"
 }
