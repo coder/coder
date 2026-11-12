@@ -510,8 +510,8 @@ const (
 	// prompts and rejected in client-submitted content.
 	ChatMessagePartTypeHookNotice ChatMessagePartType = "hook-notice"
 	// ChatMessagePartTypeQuestionAnswer marks a user message as the answer
-	// to an ask_user_question_async call. The server renders it into the user's
-	// prompt as a line that names the question.
+	// to an ask_user_question_async call. The server renders it for the model
+	// as a line that names the question.
 	ChatMessagePartTypeQuestionAnswer ChatMessagePartType = "question-answer"
 )
 
