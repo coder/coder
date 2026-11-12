@@ -5,17 +5,17 @@ and slow cluster: a single k3s node in QEMU software emulation, with coderd
 on the host. The template kept three workspaces ready, and coderd looked
 every 15 seconds whether one needed replacing.
 
-All 29 checks passed, in four minutes. The sponsor in every check is an
+All 33 checks passed, in four minutes. The sponsor in every check is an
 ordinary member, not an administrator.
 
 ## Speed
 
 | What                                                          | Time                         |
 |---------------------------------------------------------------|------------------------------|
-| `coder run --template prebuilt -- true`, five runs, pool full | median 2.1 s, 2.0 s to 2.2 s |
-| The same in the four runs before                              | medians of 2.0 s to 2.3 s    |
-| Five at once on a pool of three: the three that claimed       | 2.4 s to 4.9 s               |
-| The two that got a workspace built for them                   | 9.1 s and 10.4 s             |
+| `coder run --template prebuilt -- true`, five runs, pool full | median 2.2 s, 2.1 s to 3.0 s |
+| The same in the six runs before                               | medians of 2.0 s to 2.3 s    |
+| Five at once on a pool of three: the three that claimed       | 2.3 s to 4.1 s               |
+| The two that got a workspace built for them                   | 9.0 s and 11.1 s             |
 | From a claim until the pool was full again, one try           | 9 s                          |
 | The sponsor entering the workspace with `coder ssh`           | 0.8 s                        |
 
@@ -28,6 +28,12 @@ for its new owner. The output and the exit code take 10 ms more.
 - **The identity owns the workspace.** The owner is a service account that
   cannot sign in, not the sponsor. The pod was running before the workload
   was asked for: the workspace was claimed, not built.
+- **coderd holds nothing of the cluster's.** It knows the cluster from the
+  operator in it: the issuer of its tokens, its key and the namespace.
+  Registering a cluster takes the operator's key: no key, a guess and an
+  administrator's session are refused. The operator itself may do nothing
+  in the cluster but read its public keys, and nothing in the cluster
+  grants coderd anything.
 - **The cluster vouches for it.** The workload's identity names the pod's
   UID, and the sponsor.
 - **The workload has a token of its own.** It is the identity account's
@@ -62,6 +68,11 @@ claimed. It also covers a template that is open to the sponsor and to
 nobody else: the workload's workspace is made and deleted all the same.
 
 ## Not shown
+
+- **A cluster whose operator stops.** coderd stops believing the cluster
+  after two minutes. Only the test covers it.
+- **A workload that is claimed just after coderd restarted** took 6.7 s
+  twice, and 2 s again once the pool had been replaced.
 
 - **A template that is restricted to groups, on the cluster.** Only the
   test covers it.

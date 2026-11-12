@@ -1,0 +1,87 @@
+# The go-between of the cluster and Coder. It tells coderd how to recognize
+# the cluster's pod tokens: the issuer and the public keys they are signed
+# with. coderd needs no way to the cluster's API and no credential for it.
+#
+# The operator needs no permission either. What it reads, every service
+# account of a cluster may read. Apply with the URL of your deployment and
+# a name for the cluster, after creating the secret with the operator key:
+#
+#   kubectl -n coder-sandbox-workloads create secret generic \
+#     coder-pod-identity-operator --from-file=key=operator-key
+#   CODER_URL=https://coder.example.com CLUSTER_NAME=my-cluster \
+#     envsubst < operator.yaml | kubectl apply -f -
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: coder-pod-identity-operator
+  namespace: coder-sandbox-workloads
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coder-pod-identity-operator
+  namespace: coder-sandbox-workloads
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coder-pod-identity-operator
+  template:
+    metadata:
+      labels:
+        app: coder-pod-identity-operator
+    spec:
+      serviceAccountName: coder-pod-identity-operator
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 5
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: operator
+          image: alpine:3.22
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              until wget -q -O /opt/coder/coder.tmp "$CODER_URL/bin/coder-linux-amd64"; do sleep 2; done
+              chmod +x /opt/coder/coder.tmp && mv /opt/coder/coder.tmp /opt/coder/coder
+              exec /opt/coder/coder exp pod-identity-operator
+          env:
+            - name: CODER_URL
+              value: ${CODER_URL}
+            - name: CODER_POD_IDENTITY_CLUSTER_NAME
+              value: ${CLUSTER_NAME}
+            # The key coderd accepts registrations with. It is good for
+            # nothing else.
+            - name: CODER_POD_IDENTITY_OPERATOR_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: coder-pod-identity-operator
+                  key: key
+            - name: HOME
+              value: /tmp
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          volumeMounts:
+            - name: coder
+              mountPath: /opt/coder
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: coder
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

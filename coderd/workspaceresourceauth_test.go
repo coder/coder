@@ -12,12 +12,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/x/podidentity"
 	"github.com/coder/coder/v2/coderd/x/podidentity/podidentitytest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -557,12 +559,15 @@ func TestPostWorkspaceAuthKubernetesPodIdentity(t *testing.T) {
 	t.Run("Refused", func(t *testing.T) {
 		t.Parallel()
 		cluster := podidentitytest.NewCluster(t)
-		client := coderdtest.New(t, &coderdtest.Options{PodIdentity: cluster.AsCluster()})
-		// Whatever the cluster does not confirm as a pod's token is refused,
-		// and refused at once: there is no pod to wait for.
+		client := coderdtest.New(t, &coderdtest.Options{PodIdentity: cluster.Registry()})
+		// Whatever the cluster's keys do not confirm as a pod's token is
+		// refused, and refused at once: there is no pod to wait for.
 		for name, token := range map[string]string{
-			"forged":           "made-up",
-			"not bound to pod": cluster.NewServiceAccountToken(),
+			"forged":               "made-up",
+			"signed by a stranger": podidentitytest.NewCluster(t).NewPod("pod-1").Token,
+			"not bound to a pod":   cluster.Token("", "", podidentitytest.TokenOptions{NotPodBound: true}),
+			"another namespace":    cluster.Token("pod-1", uuid.NewString(), podidentitytest.TokenOptions{Namespace: "elsewhere"}),
+			"another audience":     cluster.Token("pod-1", uuid.NewString(), podidentitytest.TokenOptions{Audience: "https://kubernetes.default.svc"}),
 		} {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			agentClient := agentsdk.New(client.URL, agentsdk.WithKubernetesPodIdentity(tokenFile(t, token)))
@@ -573,20 +578,52 @@ func TestPostWorkspaceAuthKubernetesPodIdentity(t *testing.T) {
 		}
 	})
 
-	t.Run("OtherNamespace", func(t *testing.T) {
+	t.Run("Operator", func(t *testing.T) {
 		t.Parallel()
 		cluster := podidentitytest.NewCluster(t)
-		// The token is a pod's, and genuine. The pod is not in the
-		// namespace this deployment accepts pods from.
-		accepted := cluster.AsCluster()
-		accepted.Namespace = "elsewhere"
-		client := coderdtest.New(t, &coderdtest.Options{PodIdentity: accepted})
+		pod := cluster.NewPod("pod-1")
+		// coderd knows no cluster. It has only the key that operators
+		// register clusters with.
+		client := coderdtest.New(t, &coderdtest.Options{
+			PodIdentity:            podidentity.NewRegistry(podidentitytest.Audience),
+			PodIdentityOperatorKey: "operators-only",
+		})
+		_ = coderdtest.CreateFirstUser(t, client)
 		ctx := testutil.Context(t, testutil.WaitShort)
-		agentClient := agentsdk.New(client.URL, agentsdk.WithKubernetesPodIdentity(tokenFile(t, cluster.NewPod("pod-1").Token)))
-		err := agentClient.RefreshToken(ctx)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		present := func() int {
+			res, err := client.RequestWithoutSessionToken(ctx, http.MethodPost, "/api/v2/workspaceagents/kubernetes-pod-identity",
+				agentsdk.KubernetesPodIdentityToken{Token: pod.Token})
+			require.NoError(t, err)
+			defer res.Body.Close()
+			return res.StatusCode
+		}
+		require.Equal(t, http.StatusUnauthorized, present(), "a pod of a cluster nobody registered")
+
+		jwks, err := json.Marshal(cluster.Keys())
+		require.NoError(t, err)
+		register := codersdk.RegisterPodIdentityIssuerRequest{
+			IssuerURL: podidentitytest.IssuerURL, JWKS: jwks, Namespaces: []string{podidentitytest.Namespace},
+		}
+		// Registering a cluster takes the operator key. A user's session is
+		// not one.
+		for _, key := range []string{"", "guessed", client.SessionToken()} {
+			_, err = client.RegisterPodIdentityIssuer(ctx, key, "cluster-a", register)
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr)
+			require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		}
+		registered, err := client.RegisterPodIdentityIssuer(ctx, "operators-only", "cluster-a", register)
+		require.NoError(t, err)
+		require.Equal(t, "cluster-a", registered.Name)
+		require.Len(t, registered.KeyIDs, 1)
+		issuers, err := client.PodIdentityIssuers(ctx)
+		require.NoError(t, err)
+		require.Len(t, issuers, 1)
+		require.Equal(t, []string{podidentitytest.Namespace}, issuers[0].Namespaces)
+
+		// The cluster is believed now: the pod is a pod, which no workspace
+		// build has registered.
+		require.Equal(t, http.StatusNotFound, present())
 	})
 
 	t.Run("WaitsToBeRegistered", func(t *testing.T) {
@@ -598,7 +635,7 @@ func TestPostWorkspaceAuthKubernetesPodIdentity(t *testing.T) {
 		stranger := cluster.NewPod("pod-2")
 
 		client, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
-			PodIdentity:              cluster.AsCluster(),
+			PodIdentity:              cluster.Registry(),
 			IncludeProvisionerDaemon: true,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
@@ -641,7 +678,7 @@ func TestPostWorkspaceAuthKubernetesPodIdentity(t *testing.T) {
 		agent := requireWorkspaceAgentByInstanceIDAndName(t, store, instanceID, "main")
 		require.Equal(t, agent.AuthToken.String(), agentClient.GetSessionToken())
 
-		// Another pod of the same pool, with a token just as genuine, is
+		// Another pod of the same cluster, with a token just as genuine, is
 		// still nobody.
 		res, err := client.RequestWithoutSessionToken(ctx, http.MethodPost, "/api/v2/workspaceagents/kubernetes-pod-identity",
 			agentsdk.KubernetesPodIdentityToken{Token: stranger.Token})

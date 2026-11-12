@@ -243,6 +243,30 @@ def main():
         return report.finish()
     report.check("P5", "the pool is full", settle(size), f"{len(pool())} of {size} workspaces ready and waiting")
 
+    report.section("O. The cluster's go-between")
+    status, issuers = http("GET", "/api/v2/podidentity/issuers", ADMIN_TOKEN)
+    issuers = issuers if isinstance(issuers, list) else []
+    report.check(
+        "O1", "coderd knows the cluster from the operator in it: the issuer of its tokens, its keys and the namespace",
+        status == 200 and len(issuers) == 1 and issuers[0]["key_ids"] and NAMESPACE in issuers[0]["namespaces"],
+        [(i["name"], i["issuer_url"], len(i["key_ids"]), i["namespaces"]) for i in issuers],
+    )
+    intruder = {"issuer_url": "https://kubernetes.default.svc.cluster.local", "jwks": {"keys": []}, "namespaces": [NAMESPACE]}
+    refused = [http("PUT", "/api/v2/podidentity/issuers/intruder", body=intruder, headers={"Coder-Pod-Identity-Operator-Key": key})[0]
+               for key in ("", "guessed", ADMIN_TOKEN)]
+    report.check("O2", "registering a cluster takes the operator's key: no key, a guess and an administrator's session are refused",
+                 refused == [401, 401, 401], f"-> {refused}")
+    operator = f"system:serviceaccount:{NAMESPACE}:coder-pod-identity-operator"
+    may = {what: kubectl("auth", "can-i", *what.split(), "--as", operator).stdout.strip()
+           for what in ("create tokenreviews.authentication.k8s.io", "get pods", "get secrets", "create pods")}
+    keys = kubectl("auth", "can-i", "get", "/openid/v1/jwks", "--as", operator, "--as-group", "system:serviceaccounts").stdout.strip()
+    report.check("O3", "the operator may do nothing in the cluster but read what every service account may: its public keys",
+                 set(may.values()) == {"no"} and keys == "yes", f"{may}; read the signing keys: {keys}")
+    grants = run(["kubectl", *( ["--context", KUBE_CONTEXT] if KUBE_CONTEXT else []), "get", "clusterrolebindings,rolebindings", "-A", "-o", "json"]).stdout
+    held = [b["metadata"]["name"] for b in json.loads(grants or '{"items": []}')["items"]
+            if any(sub.get("name") == "coder-server" for sub in b.get("subjects") or [])]
+    report.check("O4", "nothing in the cluster grants coderd anything", held == [], f"bindings for a coderd service account: {held}")
+
     report.section("A. Speed")
     times = []
     for _ in range(5):

@@ -33,38 +33,78 @@ scoped permissions. The parts that are new are listed under
 
 ## Files
 
-| File                                             | Purpose                                                   |
-|--------------------------------------------------|-----------------------------------------------------------|
-| [template/main.tf](template/main.tf)             | The template: a pod, pod identity, and how many are ready |
-| [cluster/namespace.yaml](cluster/namespace.yaml) | The namespace of the pods                                 |
-| [cluster/coder.yaml](cluster/coder.yaml)         | What lets coderd ask the cluster whose token a pod has    |
-| [cluster/users.yaml](cluster/users.yaml)         | A name and a shell for the user the pods run as           |
-| [validate.py](validate.py)                       | Checks a running setup, from inside and outside           |
-| [RESULTS.md](RESULTS.md)                         | What the checks showed, and the limits                    |
+| File                                                | Purpose                                                   |
+|-----------------------------------------------------|-----------------------------------------------------------|
+| [template/main.tf](template/main.tf)                | The template: a pod, pod identity, and how many are ready |
+| [cluster/namespace.yaml](cluster/namespace.yaml)    | The namespace of the pods                                 |
+| [cluster/pods.yaml](cluster/pods.yaml)              | The pods' service account, which may do nothing           |
+| [cluster/operator.yaml](cluster/operator.yaml)      | The go-between that registers the cluster with coderd     |
+| [cluster/users.yaml](cluster/users.yaml)            | A name and a shell for the user the pods run as           |
+| [provider/](provider/kubernetes-pod-identity.patch) | The change to the Coder Terraform provider this needs     |
+| [validate.py](validate.py)                          | Checks a running setup, from inside and outside           |
+| [RESULTS.md](RESULTS.md)                            | What the checks showed, and the limits                    |
 
 ## Set up
 
 coderd needs a Premium license, for prebuilt workspaces and service
-accounts, and the `runtime-workloads` experiment. It also needs to ask the
-cluster whose token a pod presents. Inside the cluster, run coderd as the
-service account `coder-server` and set only the namespace. Outside, give it
-the API server's URL, its certificate authority and a token of that
-service account.
+accounts, and the `runtime-workloads` experiment. It needs no way to the
+cluster's API and no credential for the cluster. It is given a key, and an
+operator in the cluster registers the cluster with that key.
 
 ```sh
-kubectl apply -f cluster/namespace.yaml -f cluster/coder.yaml -f cluster/users.yaml
-kubectl -n coder-sandbox-workloads create token coder-server --duration 720h > kube-token
+head -c 32 /dev/urandom | base64 > operator-key
 
 CODER_EXPERIMENTS=runtime-workloads \
-CODER_POD_IDENTITY_NAMESPACE=coder-sandbox-workloads \
-CODER_POD_IDENTITY_KUBE_URL=https://<api-server> \
-CODER_POD_IDENTITY_KUBE_CA_FILE=ca.crt \
-CODER_POD_IDENTITY_KUBE_TOKEN_FILE=kube-token \
+CODER_POD_IDENTITY_OPERATOR_KEY="$(cat operator-key)" \
 coder server
 
-coder templates push prebuilt -d template \
-  --variable coder_url=https://coder.example.com --yes
+kubectl apply -f cluster/namespace.yaml -f cluster/pods.yaml -f cluster/users.yaml
+kubectl -n coder-sandbox-workloads create secret generic \
+  coder-pod-identity-operator --from-file=key=operator-key
+CODER_URL=https://coder.example.com CLUSTER_NAME=my-cluster \
+  envsubst < cluster/operator.yaml | kubectl apply -f -
+
+coder templates push prebuilt -d template --yes
 ```
+
+The template says `auth = "kubernetes-pod-identity"`, which the Coder
+Terraform provider does not accept yet.
+[provider/kubernetes-pod-identity.patch](provider/kubernetes-pod-identity.patch)
+adds it to version 2.20.0 of the provider. Build the provider with the
+patch and point Terraform at it with a filesystem mirror, in the file
+`TF_CLI_CONFIG_FILE` names for coderd:
+
+```hcl
+provider_installation {
+  filesystem_mirror {
+    path    = "/path/to/mirror"
+    include = ["registry.terraform.io/coder/coder"]
+  }
+  direct {
+    exclude = ["registry.terraform.io/coder/coder"]
+  }
+}
+```
+
+The provider binary goes to
+`<mirror>/registry.terraform.io/coder/coder/2.20.1/linux_amd64/terraform-provider-coder_v2.20.1`.
+
+## How coderd believes a pod
+
+1. **The operator registers the cluster.** It runs in the cluster and reads
+   what every service account there may read: the issuer of the cluster's
+   service account tokens and the public keys they are signed with. It
+   sends these to coderd with the operator key, every 30 seconds.
+1. **The kubelet gets the pod a token.** The pod's spec asks for a token
+   for coderd's URL. The cluster signs it and binds it to the pod.
+1. **The daemon presents the token to coderd.**
+1. **coderd checks it against the registered keys.** The signature, the
+   audience, the expiry, that it is bound to a pod, and that the pod is in
+   a namespace the operator named. coderd asks the cluster nothing.
+1. **The pod's UID finds the agent** that the template registered it for.
+
+coderd stops believing a cluster two minutes after its operator last
+renewed the registration.
 
 ## Try it
 
@@ -101,8 +141,11 @@ claimed workspace is replaced. The default is one minute.
   the workspace as the identity, and lets it use the template because its
   sponsor may. The template need not be open to everybody.
 - **Pod identity.** The daemon proves which pod it is with the kubelet's
-  token, and coderd asks the cluster whose token it is. Pods outside the
-  namespace coderd was given are refused. The template holds no token. A prebuilt workspace's daemon gets a new credential when the
+  token, and coderd checks the token against the cluster's keys. The
+  template holds no token.
+- **An operator in the cluster**, `coder exp pod-identity-operator`,
+  registers the cluster's keys with coderd. coderd holds no credential for
+  the cluster, and the operator needs no permission in it. A prebuilt workspace's daemon gets a new credential when the
   workspace is claimed, because the pod is found by its UID and not by a
   token.
 - **No session token for an identity.** A build normally hands Terraform a
@@ -121,11 +164,18 @@ claimed workspace is replaced. The default is one minute.
   whatever its scopes.
 - **The template must not need the owner's external authentication.** An
   identity has none, by design.
+- **A pod that is deleted is believed until its token expires**, ten
+  minutes at most. coderd no longer asks the cluster whether the pod is
+  still there.
+- **The operator key is one key for every cluster.** Whoever has it can
+  register keys of their own and then be any pod. A key per cluster or per
+  organization would bound that.
+- **Registered clusters are held in memory.** Replicas tell each other. A
+  coderd that has just started believes no pod until the operator's next
+  registration, half a minute at most.
 - **coderd believes the template about which pod is which agent's.** A
   template registers a pod's UID as its agent's instance. Whoever may
   write templates could register somebody else's pod.
-- **The template names another kind of instance identity.** The Terraform
-  provider has no `kubernetes` authentication type yet.
 - **The workload and its pod's daemon are one principal.** The workload can
   read the pod's token, and with it be the daemon.
 - **A sponsor who enters the workspace is inside the workload's pod** and

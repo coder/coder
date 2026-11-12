@@ -36,11 +36,6 @@ variable "namespace" {
   default     = "coder-sandbox-workloads"
 }
 
-variable "coder_url" {
-  type        = string
-  description = "Where pods reach Coder. It is also the audience of the pod's token."
-}
-
 variable "users_config_map" {
   type        = string
   description = "A ConfigMap with passwd and group files that name the pod's user. The daemon needs the name for terminals."
@@ -68,10 +63,8 @@ data "coder_workspace_preset" "agent" {
 resource "coder_agent" "main" {
   os   = "linux"
   arch = "amd64"
-  # The provider has no "kubernetes" authentication type yet. Any instance
-  # identity makes coderd find the daemon by its instance ID, which is what
-  # the daemon in the pod asks for.
-  auth = "google-instance-identity"
+  # The daemon is whoever the cluster says its pod is. It is given no token.
+  auth = "kubernetes-pod-identity"
 }
 
 resource "kubernetes_pod_v1" "workload" {
@@ -79,10 +72,6 @@ resource "kubernetes_pod_v1" "workload" {
   metadata {
     name      = "coder-${data.coder_workspace.me.id}"
     namespace = var.namespace
-    # Naming the agent here is what makes it the agent of this resource.
-    annotations = {
-      "coder.com/agent-id" = coder_agent.main.id
-    }
   }
   spec {
     # The service account can do nothing in the cluster, and its ordinary
@@ -100,19 +89,11 @@ resource "kubernetes_pod_v1" "workload" {
       }
     }
     container {
-      name    = "workload"
-      image   = "alpine:3.22"
-      command = ["sh", "-c", "set -eu; until wget -q -O /opt/coder/coder.tmp \"$CODER_AGENT_URL/bin/coder-linux-amd64\"; do sleep 2; done; chmod +x /opt/coder/coder.tmp && mv /opt/coder/coder.tmp /opt/coder/coder; exec /opt/coder/coder agent"]
-      env {
-        name  = "CODER_AGENT_URL"
-        value = var.coder_url
-      }
-      # The daemon is whoever the cluster says this pod is. There is no
-      # token in this template.
-      env {
-        name  = "CODER_AGENT_AUTH"
-        value = "kubernetes"
-      }
+      name  = "workload"
+      image = "alpine:3.22"
+      # The script downloads the daemon from Coder and starts it. It holds
+      # no credential.
+      command = ["sh", "-c", coder_agent.main.init_script]
       # The pod is the sandbox of one workload.
       env {
         name  = "CODER_AGENT_WORKLOAD_RUNTIME"
@@ -125,10 +106,6 @@ resource "kubernetes_pod_v1" "workload" {
       env {
         name  = "HOME"
         value = "/home/coder"
-      }
-      env {
-        name  = "PATH"
-        value = "/opt/coder:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
       }
       security_context {
         allow_privilege_escalation = false
@@ -168,10 +145,6 @@ resource "kubernetes_pod_v1" "workload" {
         read_only  = true
       }
       volume_mount {
-        name       = "coder"
-        mount_path = "/opt/coder"
-      }
-      volume_mount {
         name       = "home"
         mount_path = "/home/coder"
       }
@@ -187,7 +160,7 @@ resource "kubernetes_pod_v1" "workload" {
       projected {
         sources {
           service_account_token {
-            audience           = var.coder_url
+            audience           = data.coder_workspace.me.access_url
             expiration_seconds = 600
             path               = "token"
           }
@@ -199,10 +172,6 @@ resource "kubernetes_pod_v1" "workload" {
       config_map {
         name = var.users_config_map
       }
-    }
-    volume {
-      name = "coder"
-      empty_dir {}
     }
     volume {
       name = "home"

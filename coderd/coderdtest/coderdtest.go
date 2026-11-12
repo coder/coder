@@ -128,14 +128,17 @@ type Options struct {
 	OIDCConfig           *coderd.OIDCConfig
 	GoogleTokenValidator *idtoken.Validator
 	// PodIdentity turns on Kubernetes pod identity for workspace daemons.
-	PodIdentity         *podidentity.Cluster
-	SSHKeygenAlgorithm  gitsshkey.Algorithm
-	AutobuildTicker     <-chan time.Time
-	AutobuildStats      chan<- autobuild.Stats
-	Auditor             audit.Auditor
-	TLSCertificates     []tls.Certificate
-	ExternalAuthConfigs []*externalauth.Config
-	TrialGenerator      func(ctx context.Context, body codersdk.LicensorTrialRequest) error
+	PodIdentity *podidentity.Registry
+	// PodIdentityOperatorKey lets a cluster's operator register its
+	// cluster.
+	PodIdentityOperatorKey string
+	SSHKeygenAlgorithm     gitsshkey.Algorithm
+	AutobuildTicker        <-chan time.Time
+	AutobuildStats         chan<- autobuild.Stats
+	Auditor                audit.Auditor
+	TLSCertificates        []tls.Certificate
+	ExternalAuthConfigs    []*externalauth.Config
+	TrialGenerator         func(ctx context.Context, body codersdk.LicensorTrialRequest) error
 	// MCPAllowedPrivateCIDRs exempts IP ranges from the MCP
 	// SSRF guard for MCP server and OAuth2 traffic. Defaults to loopback so
 	// tests can serve mock MCP and authorization servers via httptest.
@@ -653,6 +656,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			OIDCConfig:                         options.OIDCConfig,
 			GoogleTokenValidator:               options.GoogleTokenValidator,
 			PodIdentity:                        options.PodIdentity,
+			PodIdentityOperatorKey:             options.PodIdentityOperatorKey,
 			SSHKeygenAlgorithm:                 options.SSHKeygenAlgorithm,
 			DERPServer:                         derpServer,
 			APIRateLimit:                       options.APIRateLimit,

@@ -187,17 +187,22 @@ type Options struct {
 	Authorizer                     rbac.Authorizer
 	AzureCertificates              azureidentity.Options
 	GoogleTokenValidator           *idtoken.Validator
-	PodIdentity                    *podidentity.Cluster
-	GithubOAuth2Config             *GithubOAuth2Config
-	OIDCConfig                     *OIDCConfig
-	PrometheusRegistry             *prometheus.Registry
-	StrictTransportSecurityCfg     httpmw.HSTSConfig
-	SSHKeygenAlgorithm             gitsshkey.Algorithm
-	Telemetry                      telemetry.Reporter
-	TracerProvider                 trace.TracerProvider
-	ExternalAuthConfigs            []*externalauth.Config
-	RealIPConfig                   *httpmw.RealIPConfig
-	TrialGenerator                 func(ctx context.Context, body codersdk.LicensorTrialRequest) error
+	// PodIdentity holds the clusters whose pods may be workspace daemons.
+	// Nil turns authentication by pod identity off.
+	PodIdentity *podidentity.Registry
+	// PodIdentityOperatorKey is what a cluster's operator presents to
+	// register its cluster.
+	PodIdentityOperatorKey     string
+	GithubOAuth2Config         *GithubOAuth2Config
+	OIDCConfig                 *OIDCConfig
+	PrometheusRegistry         *prometheus.Registry
+	StrictTransportSecurityCfg httpmw.HSTSConfig
+	SSHKeygenAlgorithm         gitsshkey.Algorithm
+	Telemetry                  telemetry.Reporter
+	TracerProvider             trace.TracerProvider
+	ExternalAuthConfigs        []*externalauth.Config
+	RealIPConfig               *httpmw.RealIPConfig
+	TrialGenerator             func(ctx context.Context, body codersdk.LicensorTrialRequest) error
 	// RefreshEntitlements is used to set correct entitlements after creating first user and generating trial license.
 	RefreshEntitlements func(ctx context.Context) error
 	// Entitlements can come from the enterprise caller if enterprise code is
@@ -1086,6 +1091,24 @@ func New(options *Options) *API {
 
 	api.workspaceAgentConnWatcher = workspaceconnwatcher.New(api.ctx, options.Logger, options.Pubsub, options.Database)
 
+	if api.PodIdentity != nil {
+		// An operator registers its cluster with one replica. The others
+		// hear of it here. The subscription ends with the pubsub.
+		_, err := options.Pubsub.Subscribe(podidentity.IssuerChannel, func(ctx context.Context, raw []byte) {
+			issuer, err := podidentity.UnmarshalIssuer(raw)
+			if err != nil {
+				options.Logger.Warn(ctx, "decode a registered cluster", slog.Error(err))
+				return
+			}
+			if err := api.PodIdentity.Put(issuer); err != nil {
+				options.Logger.Warn(ctx, "register a cluster another replica heard of", slog.Error(err))
+			}
+		})
+		if err != nil {
+			options.Logger.Warn(api.ctx, "listen for registered clusters", slog.Error(err))
+		}
+	}
+
 	api.workspaceBuildOrchestrator = wsbuildorchestrator.New(wsbuildorchestrator.Options{
 		Logger:            options.Logger,
 		Database:          options.Database,
@@ -1830,6 +1853,11 @@ func New(options *Options) *API {
 					})
 				})
 			})
+		})
+		r.Route("/podidentity/issuers", func(r chi.Router) {
+			// A cluster's operator has a key, and no user's credential.
+			r.Put("/{issuer}", api.putPodIdentityIssuer)
+			r.With(apiKeyMiddleware).Get("/", api.podIdentityIssuers)
 		})
 		r.Route("/workspaceagents", func(r chi.Router) {
 			r.Post("/azure-instance-identity", api.postWorkspaceAuthAzureInstanceIdentity)

@@ -1,0 +1,15 @@
+diff --git a/provider/agent.go b/provider/agent.go
+index ff117bb..42a09cb 100644
+--- a/provider/agent.go
++++ b/provider/agent.go
+@@ -108,8 +108,8 @@ func agentResource() *schema.Resource {
+ 				Default:      "token",
+ 				ForceNew:     true,
+ 				Optional:     true,
+-				Description:  "The authentication type the agent will use. Must be one of: `\"token\"`, `\"google-instance-identity\"`, `\"aws-instance-identity\"`, `\"azure-instance-identity\"`.",
+-				ValidateFunc: validation.StringInSlice([]string{"token", "google-instance-identity", "aws-instance-identity", "azure-instance-identity"}, false),
++				Description:  "The authentication type the agent will use. Must be one of: `\"token\"`, `\"google-instance-identity\"`, `\"aws-instance-identity\"`, `\"azure-instance-identity\"`, `\"kubernetes-pod-identity\"`.",
++				ValidateFunc: validation.StringInSlice([]string{"token", "google-instance-identity", "aws-instance-identity", "azure-instance-identity", "kubernetes-pod-identity"}, false),
+ 			},
+ 			"dir": {
+ 				Type:     schema.TypeString,

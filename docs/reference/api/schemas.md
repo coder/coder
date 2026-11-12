@@ -13717,6 +13717,32 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `negate`        | boolean                                        | false    |              | Negate makes this a negative permission |
 | `resource_type` | [codersdk.RBACResource](#codersdkrbacresource) | false    |              |                                         |
 
+## codersdk.PodIdentityIssuer
+
+```json
+{
+  "issuer_url": "string",
+  "key_ids": [
+    "string"
+  ],
+  "name": "string",
+  "namespaces": [
+    "string"
+  ],
+  "seen_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name         | Type            | Required | Restrictions | Description |
+|--------------|-----------------|----------|--------------|-------------|
+| `issuer_url` | string          | false    |              |             |
+| `key_ids`    | array of string | false    |              |             |
+| `name`       | string          | false    |              |             |
+| `namespaces` | array of string | false    |              |             |
+| `seen_at`    | string          | false    |              |             |
+
 ## codersdk.PostOAuth2ProviderAppRequest
 
 ```json
@@ -14798,6 +14824,26 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Name      | Type                                                        | Required | Restrictions | Description |
 |-----------|-------------------------------------------------------------|----------|--------------|-------------|
 | `regions` | array of [codersdk.WorkspaceProxy](#codersdkworkspaceproxy) | false    |              |             |
+
+## codersdk.RegisterPodIdentityIssuerRequest
+
+```json
+{
+  "issuer_url": "string",
+  "jwks": {},
+  "namespaces": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type            | Required | Restrictions | Description                                                               |
+|--------------|-----------------|----------|--------------|---------------------------------------------------------------------------|
+| `issuer_url` | string          | false    |              | Issuer URL is the issuer of the cluster's service account tokens.         |
+| `jwks`       | object          | false    |              | Jwks is the cluster's public signing keys, as the cluster publishes them. |
+| `namespaces` | array of string | false    |              | Namespaces are the namespaces whose pods may be workspace daemons.        |
 
 ## codersdk.Replica
 

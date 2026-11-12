@@ -672,11 +672,19 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return err
 			}
 
-			// The cluster that vouches for workspace daemons that
-			// authenticate as the pod they run in.
-			podIdentityCluster, err := podidentity.ClusterFromEnv(inv.Environ.Get, vals.AccessURL.String())
-			if err != nil {
-				return err
+			// Workspace daemons may authenticate as the Kubernetes pod they
+			// run in once an operator key is set. The operators of the
+			// clusters register their clusters' keys with it. coderd needs
+			// no access to any cluster. These are not deployment options
+			// yet.
+			var podIdentity *podidentity.Registry
+			podIdentityOperatorKey := inv.Environ.Get("CODER_POD_IDENTITY_OPERATOR_KEY")
+			if podIdentityOperatorKey != "" {
+				audience := inv.Environ.Get("CODER_POD_IDENTITY_AUDIENCE")
+				if audience == "" {
+					audience = vals.AccessURL.String()
+				}
+				podIdentity = podidentity.NewRegistry(audience)
 			}
 
 			sshKeygenAlgorithm, err := gitsshkey.ParseAlgorithm(vals.SSHKeygenAlgorithm.String())
@@ -770,7 +778,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				Pubsub:                      nil,
 				CacheDir:                    cacheDir,
 				GoogleTokenValidator:        googleTokenValidator,
-				PodIdentity:                 podIdentityCluster,
+				PodIdentity:                 podIdentity,
+				PodIdentityOperatorKey:      podIdentityOperatorKey,
 				ExternalAuthConfigs:         nil,
 				RealIPConfig:                realIPConfig,
 				SSHKeygenAlgorithm:          sshKeygenAlgorithm,

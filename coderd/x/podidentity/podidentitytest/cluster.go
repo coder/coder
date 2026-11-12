@@ -1,21 +1,31 @@
-// Package podidentitytest provides a stand-in for a cluster that vouches
-// for pods.
+// Package podidentitytest provides a stand-in for a Kubernetes cluster's
+// service account token signer.
 package podidentitytest
 
 import (
-	"encoding/json"
-	"encoding/pem"
-	"net/http"
-	"net/http/httptest"
-	"os"
-	"path/filepath"
-	"sync"
+	"crypto/rand"
+	"crypto/rsa"
 	"testing"
+	"time"
 
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/x/podidentity"
+)
+
+const (
+	// IssuerURL is the issuer of the tokens a Cluster signs. Real clusters
+	// often share this very one.
+	IssuerURL = "https://kubernetes.default.svc.cluster.local"
+	// Audience is what a valid token is issued for.
+	Audience = "https://coder.example.com"
+	// Namespace is the namespace of a Cluster's pods.
+	Namespace = "workspaces"
+	// ServiceAccount is the service account of a Cluster's pods.
+	ServiceAccount = "coder-workload"
 )
 
 // Pod is a pod of the fake cluster.
@@ -26,105 +36,95 @@ type Pod struct {
 	Token string
 }
 
-// Cluster is a fake Kubernetes API server. It answers token reviews.
+// Cluster signs pod tokens the way a Kubernetes API server does.
 type Cluster struct {
 	t      testing.TB
-	server *httptest.Server
-	// Kube is a client for the fake.
-	Kube *podidentity.KubeClient
-	// Audience is what the fake's pod tokens are issued for.
-	Audience string
-	// Namespace is the only namespace of the fake.
-	Namespace string
-
-	mu sync.Mutex
-	// tokens maps a token to the user the cluster reports for it.
-	tokens map[string]map[string]any
+	Name   string
+	key    *rsa.PrivateKey
+	keyID  string
+	signer jose.Signer
 }
 
-// NewCluster starts a fake cluster.
+// NewCluster returns a cluster with a signing key of its own.
 func NewCluster(t testing.TB) *Cluster {
 	t.Helper()
-	c := &Cluster{
-		t: t, Audience: "https://coder.example.com", Namespace: "sandboxes",
-		tokens: make(map[string]map[string]any),
-	}
-	c.server = httptest.NewTLSServer(http.HandlerFunc(c.serve))
-	t.Cleanup(c.server.Close)
-
-	dir := t.TempDir()
-	ca := filepath.Join(dir, "ca.crt")
-	require.NoError(t, os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{
-		Type: "CERTIFICATE", Bytes: c.server.Certificate().Raw,
-	}), 0o600))
-	token := filepath.Join(dir, "token")
-	require.NoError(t, os.WriteFile(token, []byte("coder-server-token\n"), 0o600))
-	kube, err := podidentity.NewKubeClient(podidentity.KubeConfig{URL: c.server.URL, TokenFile: token, CAFile: ca})
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
 	require.NoError(t, err)
-	c.Kube = kube
-	return c
+	keyID := uuid.NewString()
+	signer, err := jose.NewSigner(
+		jose.SigningKey{Algorithm: jose.RS256, Key: jose.JSONWebKey{Key: key, KeyID: keyID}},
+		(&jose.SignerOptions{}).WithType("JWT"),
+	)
+	require.NoError(t, err)
+	return &Cluster{t: t, Name: "cluster-" + keyID[:8], key: key, keyID: keyID, signer: signer}
 }
 
-// AsCluster returns the fake as coderd is configured with it.
-func (c *Cluster) AsCluster() *podidentity.Cluster {
-	return &podidentity.Cluster{Kube: c.Kube, Namespace: c.Namespace, Attestor: podidentity.NewAttestor(c.Kube, c.Audience)}
+// Keys returns the cluster's public signing keys.
+func (c *Cluster) Keys() jose.JSONWebKeySet {
+	return jose.JSONWebKeySet{Keys: []jose.JSONWebKey{{
+		Key: &c.key.PublicKey, KeyID: c.keyID, Algorithm: string(jose.RS256), Use: "sig",
+	}}}
+}
+
+// Issuer is the cluster as its operator registers it.
+func (c *Cluster) Issuer(seenAt time.Time) podidentity.Issuer {
+	return podidentity.Issuer{
+		Name: c.Name, URL: IssuerURL, Keys: c.Keys(), Namespaces: []string{Namespace}, SeenAt: seenAt,
+	}
+}
+
+// Registry returns a registry that believes this cluster.
+func (c *Cluster) Registry() *podidentity.Registry {
+	c.t.Helper()
+	registry := podidentity.NewRegistry(Audience)
+	require.NoError(c.t, registry.Put(c.Issuer(time.Now())))
+	return registry
+}
+
+// TokenOptions changes what a token says.
+type TokenOptions struct {
+	Audience  string
+	Namespace string
+	Expiry    time.Time
+	// NotPodBound omits the pod, as in a token made for a service account
+	// alone.
+	NotPodBound bool
+}
+
+// Token signs a token for a pod.
+func (c *Cluster) Token(podName, podUID string, opts TokenOptions) string {
+	c.t.Helper()
+	if opts.Audience == "" {
+		opts.Audience = Audience
+	}
+	if opts.Namespace == "" {
+		opts.Namespace = Namespace
+	}
+	if opts.Expiry.IsZero() {
+		opts.Expiry = time.Now().Add(10 * time.Minute)
+	}
+	kubernetes := map[string]any{
+		"namespace":      opts.Namespace,
+		"serviceaccount": map[string]any{"name": ServiceAccount, "uid": uuid.NewString()},
+	}
+	if !opts.NotPodBound {
+		kubernetes["pod"] = map[string]any{"name": podName, "uid": podUID}
+	}
+	raw, err := jwt.Signed(c.signer).Claims(jwt.Claims{
+		Issuer:    IssuerURL,
+		Subject:   "system:serviceaccount:" + opts.Namespace + ":" + ServiceAccount,
+		Audience:  jwt.Audience{opts.Audience},
+		Expiry:    jwt.NewNumericDate(opts.Expiry),
+		NotBefore: jwt.NewNumericDate(time.Now().Add(-time.Hour)),
+		IssuedAt:  jwt.NewNumericDate(time.Now().Add(-time.Hour)),
+	}).Claims(map[string]any{"kubernetes.io": kubernetes}).Serialize()
+	require.NoError(c.t, err)
+	return raw
 }
 
 // NewPod adds a pod, with a token of its own.
 func (c *Cluster) NewPod(name string) Pod {
-	pod := Pod{Name: name, UID: uuid.NewString(), Token: "pod-token-" + uuid.NewString()}
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.tokens[pod.Token] = map[string]any{
-		"username": "system:serviceaccount:" + c.Namespace + ":coder-workload",
-		"extra": map[string][]string{
-			"authentication.kubernetes.io/pod-name": {pod.Name},
-			"authentication.kubernetes.io/pod-uid":  {pod.UID},
-		},
-	}
-	return pod
-}
-
-// NewServiceAccountToken adds a token of the workload service account that
-// is not bound to any pod.
-func (c *Cluster) NewServiceAccountToken() string {
-	token := "sa-token-" + uuid.NewString()
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.tokens[token] = map[string]any{"username": "system:serviceaccount:" + c.Namespace + ":coder-workload"}
-	return token
-}
-
-func (c *Cluster) serve(rw http.ResponseWriter, r *http.Request) {
-	write := func(status int, body any) {
-		rw.Header().Set("Content-Type", "application/json")
-		rw.WriteHeader(status)
-		_ = json.NewEncoder(rw).Encode(body)
-	}
-	if r.Header.Get("Authorization") != "Bearer coder-server-token" {
-		write(http.StatusUnauthorized, map[string]any{"message": "Unauthorized"})
-		return
-	}
-
-	switch {
-	case r.Method == http.MethodPost && r.URL.Path == "/apis/authentication.k8s.io/v1/tokenreviews":
-		var review struct {
-			Spec struct {
-				Token     string   `json:"token"`
-				Audiences []string `json:"audiences"`
-			} `json:"spec"`
-		}
-		_ = json.NewDecoder(r.Body).Decode(&review)
-		c.mu.Lock()
-		user, ok := c.tokens[review.Spec.Token]
-		c.mu.Unlock()
-		status := map[string]any{"authenticated": false, "error": "invalid bearer token"}
-		if ok && len(review.Spec.Audiences) == 1 && review.Spec.Audiences[0] == c.Audience {
-			status = map[string]any{"authenticated": true, "audiences": review.Spec.Audiences, "user": user}
-		}
-		write(http.StatusCreated, map[string]any{"status": status})
-
-	default:
-		write(http.StatusNotFound, map[string]any{"message": "the fake cluster has no " + r.Method + " " + r.URL.Path})
-	}
+	c.t.Helper()
+	uid := uuid.NewString()
+	return Pod{Name: name, UID: uid, Token: c.Token(name, uid, TokenOptions{})}
 }

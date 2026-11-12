@@ -11421,6 +11421,81 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/podidentity/issuers": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "List the clusters that issue pod identities",
+                "operationId": "list-pod-identity-issuers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.PodIdentityIssuer"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/podidentity/issuers/{issuer}": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Register a cluster that issues pod identities",
+                "operationId": "register-pod-identity-issuer",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Name of the cluster",
+                        "name": "issuer",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "The cluster's issuer and keys",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RegisterPodIdentityIssuerRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PodIdentityIssuer"
+                        }
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/prebuilds/settings": {
             "get": {
                 "produces": [
@@ -30313,6 +30388,33 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.PodIdentityIssuer": {
+            "type": "object",
+            "properties": {
+                "issuer_url": {
+                    "type": "string"
+                },
+                "key_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "namespaces": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "seen_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
         "codersdk.PostOAuth2ProviderAppRequest": {
             "type": "object",
             "required": [
@@ -31436,6 +31538,26 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.WorkspaceProxy"
+                    }
+                }
+            }
+        },
+        "codersdk.RegisterPodIdentityIssuerRequest": {
+            "type": "object",
+            "properties": {
+                "issuer_url": {
+                    "description": "IssuerURL is the issuer of the cluster's service account tokens.",
+                    "type": "string"
+                },
+                "jwks": {
+                    "description": "JWKS is the cluster's public signing keys, as the cluster publishes\nthem.",
+                    "type": "object"
+                },
+                "namespaces": {
+                    "description": "Namespaces are the namespaces whose pods may be workspace daemons.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     }
                 }
             }

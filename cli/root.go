@@ -178,6 +178,7 @@ func (r *RootCmd) AGPLExperimental() []*serpent.Command {
 		r.syncCommand(),
 		r.updateUserEmail(),
 		r.experimentRulesCommand(),
+		r.podIdentityOperator(),
 	}
 }
 
@@ -1115,7 +1116,7 @@ func (a *AgentAuth) CreateClient() (*agentsdk.Client, error) {
 		return agentsdk.New(&a.agentURL, agentsdk.WithAWSInstanceIdentity(iiOpts...)), nil
 	case "azure-instance-identity":
 		return agentsdk.New(&a.agentURL, agentsdk.WithAzureInstanceIdentity(iiOpts...)), nil
-	case "kubernetes":
+	case "kubernetes-pod-identity":
 		return agentsdk.New(&a.agentURL, agentsdk.WithKubernetesPodIdentity(a.agentPodTokenFile, iiOpts...)), nil
 	default:
 		return nil, xerrors.Errorf("unknown agent auth type: %s", a.agentAuth)

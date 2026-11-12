@@ -2,13 +2,16 @@ package coderd
 
 import (
 	"context"
-	"errors"
+	"crypto/subtle"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/mitchellh/mapstructure"
 
 	"cdr.dev/slog/v3"
@@ -16,6 +19,8 @@ import (
 	"github.com/coder/coder/v2/coderd/azureidentity"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/x/podidentity"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -138,9 +143,9 @@ func (api *API) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 const maxKubernetesPodIdentityWait = 30 * time.Second
 
 // A workspace daemon in a Kubernetes pod proves which pod it is with the
-// token the kubelet obtained for the pod. coderd asks the cluster whether
-// the token is genuine, for whom it was issued, and to which pod it is
-// bound. Nothing the pod says about itself is believed.
+// token the kubelet obtained for the pod. coderd checks the token against
+// the signing keys of the pod's cluster, which an operator in that cluster
+// registered. Nothing the pod says about itself is believed.
 //
 // A pod's daemon starts before the build that makes the pod is over, and
 // so before the pod is registered as the workspace's. Such a pod is told
@@ -169,20 +174,12 @@ func (api *API) postWorkspaceAuthKubernetesPodIdentity(rw http.ResponseWriter, r
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
-	pod, err := api.PodIdentity.Attestor.Attest(ctx, req.Token)
+	// The token is checked against the keys of the clusters whose
+	// operators registered them. coderd asks no cluster anything.
+	pod, err := api.PodIdentity.Attest(req.Token, time.Now())
 	if err != nil {
-		if !errors.Is(err, podidentity.ErrNotAttested) {
-			api.Logger.Warn(ctx, "ask the cluster about a pod token", slog.Error(err))
-		}
 		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-			Message: "The cluster did not confirm the token as a pod's.",
-		})
-		return
-	}
-	// Only pods of the namespace that was set up for workspaces count.
-	if pod.Namespace != api.PodIdentity.Namespace {
-		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-			Message: "The pod is not in the namespace this deployment accepts pods from.",
+			Message: "No registered cluster confirms the token as a pod's.",
 		})
 		return
 	}
@@ -309,4 +306,108 @@ func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, in
 	httpapi.Write(ctx, rw, http.StatusOK, agentsdk.AuthenticateResponse{
 		SessionToken: agent.AuthToken.String(),
 	})
+}
+
+// The operator of a cluster tells coderd how to recognize the cluster's pod
+// tokens: the issuer, its public signing keys, and the namespaces whose
+// pods may be workspace daemons. It renews this regularly. coderd believes
+// a cluster for as long as its operator does.
+//
+// @Summary Register a cluster that issues pod identities
+// @ID register-pod-identity-issuer
+// @Accept json
+// @Produce json
+// @Tags Agents
+// @Param issuer path string true "Name of the cluster"
+// @Param request body codersdk.RegisterPodIdentityIssuerRequest true "The cluster's issuer and keys"
+// @Success 200 {object} codersdk.PodIdentityIssuer
+// @Router /api/v2/podidentity/issuers/{issuer} [put]
+// @x-apidocgen {"skip": true}
+func (api *API) putPodIdentityIssuer(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if api.PodIdentity == nil || api.PodIdentityOperatorKey == "" {
+		httpapi.Write(ctx, rw, http.StatusNotImplemented, codersdk.Response{
+			Message: "Kubernetes pod identity is not configured on this deployment.",
+		})
+		return
+	}
+	// The operator proves itself with a key that is good for this and
+	// nothing else.
+	presented := r.Header.Get(codersdk.PodIdentityOperatorKeyHeader)
+	if subtle.ConstantTimeCompare([]byte(presented), []byte(api.PodIdentityOperatorKey)) != 1 {
+		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+			Message: "The operator key is not the one this deployment was given.",
+		})
+		return
+	}
+	var req codersdk.RegisterPodIdentityIssuerRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	var keys jose.JSONWebKeySet
+	if err := json.Unmarshal(req.JWKS, &keys); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "The cluster's signing keys are not a JSON Web Key Set.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	issuer := podidentity.Issuer{
+		Name:       chi.URLParam(r, "issuer"),
+		URL:        req.IssuerURL,
+		Keys:       keys,
+		Namespaces: req.Namespaces,
+		SeenAt:     time.Now(),
+	}
+	if err := api.PodIdentity.Put(issuer); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "The cluster cannot be registered.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	// Every replica must know the cluster. They hear of it here.
+	if raw, err := podidentity.MarshalIssuer(issuer); err == nil {
+		if err := api.Pubsub.Publish(podidentity.IssuerChannel, raw); err != nil {
+			api.Logger.Warn(ctx, "announce a registered cluster", slog.Error(err))
+		}
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, podIdentityIssuer(issuer))
+}
+
+// @Summary List the clusters that issue pod identities
+// @ID list-pod-identity-issuers
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Success 200 {array} codersdk.PodIdentityIssuer
+// @Router /api/v2/podidentity/issuers [get]
+// @x-apidocgen {"skip": true}
+func (api *API) podIdentityIssuers(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceDeploymentConfig) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	issuers := []codersdk.PodIdentityIssuer{}
+	if api.PodIdentity != nil {
+		for _, issuer := range api.PodIdentity.Issuers(time.Now()) {
+			issuers = append(issuers, podIdentityIssuer(issuer))
+		}
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, issuers)
+}
+
+func podIdentityIssuer(issuer podidentity.Issuer) codersdk.PodIdentityIssuer {
+	keyIDs := make([]string, 0, len(issuer.Keys.Keys))
+	for _, key := range issuer.Keys.Keys {
+		keyIDs = append(keyIDs, key.KeyID)
+	}
+	return codersdk.PodIdentityIssuer{
+		Name:       issuer.Name,
+		IssuerURL:  issuer.URL,
+		KeyIDs:     keyIDs,
+		Namespaces: issuer.Namespaces,
+		SeenAt:     issuer.SeenAt,
+	}
 }

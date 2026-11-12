@@ -8643,6 +8643,25 @@ export interface Permission {
 	readonly action: RBACAction;
 }
 
+// From codersdk/podidentity.go
+/**
+ * PodIdentityIssuer is a cluster that coderd believes about its pods.
+ */
+export interface PodIdentityIssuer {
+	readonly name: string;
+	readonly issuer_url: string;
+	readonly key_ids: readonly string[];
+	readonly namespaces: readonly string[];
+	readonly seen_at: string;
+}
+
+// From codersdk/podidentity.go
+/**
+ * PodIdentityOperatorKeyHeader carries the key with which the operator of a
+ * cluster registers its cluster. The key is good for that and nothing else.
+ */
+export const PodIdentityOperatorKeyHeader = "Coder-Pod-Identity-Operator-Key";
+
 // From codersdk/oauth2.go
 export interface PostOAuth2ProviderAppRequest {
 	readonly name: string;
@@ -9442,6 +9461,27 @@ export type RegionTypes = Region | WorkspaceProxy;
 // From codersdk/workspaceproxy.go
 export interface RegionsResponse<R extends RegionTypes> {
 	readonly regions: readonly R[];
+}
+
+// From codersdk/podidentity.go
+/**
+ * RegisterPodIdentityIssuerRequest describes a cluster whose pods may be
+ * workspace daemons.
+ */
+export interface RegisterPodIdentityIssuerRequest {
+	/**
+	 * IssuerURL is the issuer of the cluster's service account tokens.
+	 */
+	readonly issuer_url: string;
+	/**
+	 * JWKS is the cluster's public signing keys, as the cluster publishes
+	 * them.
+	 */
+	readonly jwks: Record<string, string>;
+	/**
+	 * Namespaces are the namespaces whose pods may be workspace daemons.
+	 */
+	readonly namespaces: readonly string[];
 }
 
 // From codersdk/replicas.go
