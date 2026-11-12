@@ -1266,12 +1266,14 @@ func TestQuestionAnswerPrompt(t *testing.T) {
 	t.Parallel()
 
 	questionID := uuid.New()
-	questionIDText := questionID.String()
-	answerLine := chattool.AskUserQuestionAsyncAnswerLine(questionIDText)
+	answerLine := chattool.AskUserQuestionAsyncAnswerLine(questionID.String())
+	// The surrounding spaces and the newline show that the answer text
+	// reaches the prompt unchanged.
 	const answer = "  Use Postgres.\nKeep the cache in SQLite.  "
-	questionAnswer := codersdk.ChatMessageQuestionAnswer(questionID)
-	text := codersdk.ChatMessageText(answer)
-	raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{questionAnswer, text})
+	raw, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{
+		codersdk.ChatMessageQuestionAnswer(questionID),
+		codersdk.ChatMessageText(answer),
+	})
 	require.NoError(t, err)
 
 	prompt, err := chatprompt.ConvertMessagesWithFiles(
