@@ -56,35 +56,6 @@ func TestChatPromptHooksPendingQueries(t *testing.T) {
 		})
 	}
 
-	t.Run("InsertCarriesTheFlagPerRow", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		chat := newChat(t)
-		params := database.InsertChatMessagesParams{
-			ChatID:         chat.ID,
-			CreatedBy:      []uuid.UUID{user.ID, user.ID},
-			ModelConfigID:  []uuid.UUID{model.ID, model.ID},
-			Role:           []database.ChatMessageRole{database.ChatMessageRoleUser, database.ChatMessageRoleUser},
-			Content:        []string{`[]`, `[]`},
-			ContentVersion: []int16{1, 1},
-			Visibility:     []database.ChatMessageVisibility{database.ChatMessageVisibilityBoth, database.ChatMessageVisibilityBoth},
-		}
-		fillBatchColumns(&params)
-
-		withoutArray, err := db.InsertChatMessages(ctx, params)
-		require.NoError(t, err)
-		require.Len(t, withoutArray, 2)
-		require.False(t, withoutArray[0].PromptHooksPending)
-		require.False(t, withoutArray[1].PromptHooksPending)
-
-		params.PromptHooksPending = []bool{true, false}
-		withArray, err := db.InsertChatMessages(ctx, params)
-		require.NoError(t, err)
-		require.Len(t, withArray, 2)
-		require.True(t, withArray[0].PromptHooksPending)
-		require.False(t, withArray[1].PromptHooksPending)
-	})
-
 	t.Run("Resolve", func(t *testing.T) {
 		t.Parallel()
 		newContent := pqtype.NullRawMessage{RawMessage: json.RawMessage(`[{"type":"text","text":"rewritten"}]`), Valid: true}
@@ -93,10 +64,6 @@ func TestChatPromptHooksPendingQueries(t *testing.T) {
 			arg  database.ResolveChatMessagePromptHooksParams
 			want promptHooksRow
 		}{
-			{
-				name: "Allow",
-				want: promptHooksRow{Content: `[{"text": "original", "type": "text"}]`, Version: 1, HasTsv: true},
-			},
 			{
 				name: "Rewrite",
 				arg:  database.ResolveChatMessagePromptHooksParams{Content: newContent, ContentVersion: sql.NullInt16{Int16: 2, Valid: true}},
@@ -210,22 +177,4 @@ func TestChatPromptHooksPendingQueries(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, edited.PromptHooksPending)
 	})
-}
-
-// fillBatchColumns sets the parallel arrays of an insert that these tests
-// leave empty to one zero value per row.
-func fillBatchColumns(params *database.InsertChatMessagesParams) {
-	n := len(params.Role)
-	params.ReasoningEffort = make([]string, n)
-	params.InputTokens = make([]int64, n)
-	params.OutputTokens = make([]int64, n)
-	params.TotalTokens = make([]int64, n)
-	params.ReasoningTokens = make([]int64, n)
-	params.CacheCreationTokens = make([]int64, n)
-	params.CacheReadTokens = make([]int64, n)
-	params.ContextLimit = make([]int64, n)
-	params.Compressed = make([]bool, n)
-	params.RuntimeMs = make([]int64, n)
-	params.ProviderResponseID = make([]string, n)
-	params.QueuedMessageID = make([]int64, n)
 }

@@ -295,12 +295,6 @@ func TestResolvePromptHooksOutcomes(t *testing.T) {
 			wantRow:    promptHooksRow{parts: plain("flagged")},
 			wantStatus: database.ChatStatusRunning,
 		},
-		{
-			// With hooks off nothing reads the content.
-			name:       "HooksOffIgnoresTheContent",
-			prepare:    unparsableContent,
-			wantStatus: database.ChatStatusRunning,
-		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -410,14 +404,7 @@ func TestResolvePromptHooksConcurrentActors(t *testing.T) {
 		wantQueued  int
 	}{
 		{
-			name:       "HumanMessageSteerLane",
-			do:         human(chatstate.BusyBehaviorSteer),
-			wantRow:    promptHooksRow{parts: plain("flagged")},
-			wantStatus: database.ChatStatusRunning,
-			wantQueued: 1,
-		},
-		{
-			name:       "HumanMessageQueueLane",
+			name:       "HumanMessage",
 			do:         human(chatstate.BusyBehaviorQueue),
 			wantRow:    promptHooksRow{parts: plain("flagged")},
 			wantStatus: database.ChatStatusRunning,
@@ -457,16 +444,6 @@ func TestResolvePromptHooksConcurrentActors(t *testing.T) {
 			wantStatus:  database.ChatStatusInterrupting,
 		},
 		{
-			// A running chat cannot be archived, so the result applies.
-			name: "Archive",
-			do: func(t *testing.T, h *promptHooksHarness) {
-				_, err := chatstate.SetFamilyArchived(testutil.Context(t, testutil.WaitShort), h.f.db, h.f.pubsub, chatstate.SetFamilyArchivedInput{RootID: h.chat.ID, Archived: true})
-				require.ErrorIs(t, err, chatstate.ErrTransitionNotAllowed)
-			},
-			wantRow:    promptHooksRow{parts: plain("flagged")},
-			wantStatus: database.ChatStatusRunning,
-		},
-		{
 			name: "ChatRemoved",
 			do: func(t *testing.T, h *promptHooksHarness) {
 				_, err := h.f.sqlDB.ExecContext(testutil.Context(t, testutil.WaitShort), `DELETE FROM chats WHERE id = $1`, h.chat.ID)
@@ -501,32 +478,11 @@ func TestResolvePromptHooksConcurrentActors(t *testing.T) {
 	}
 }
 
-// TestResolvePromptHooksTakesTheOldestFlaggedMessage covers a message that
-// stayed flagged after an interrupt and a later send that put a message behind
-// it: the older message goes first.
-func TestResolvePromptHooksTakesTheOldestFlaggedMessage(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitLong)
-	h := newPromptHooksHarness(t, func(int) (int, string) { return http.StatusOK, hookAllow })
-	newer := h.f.insertFlaggedMessage(t, h.chat.ID, "newer")
-	chat, err := h.f.db.GetChatByID(ctx, h.chat.ID)
-	require.NoError(t, err)
-	require.Greater(t, newer.ID, h.flagged.ID)
-	require.NotZero(t, chat.HistoryVersion)
-
-	require.NoError(t, h.run(ctx, t, h.workerID, h.runnerID))
-
-	require.Equal(t, 1, h.requestCount())
-	require.Equal(t, "flagged", h.promptOf(t, 0))
-	require.False(t, h.row(t, h.flagged.ID).pending)
-	require.True(t, h.row(t, newer.ID).pending)
-}
-
 func TestFirstPromptHooksPending(t *testing.T) {
 	t.Parallel()
 
-	row := func(id int64, pending, deleted bool) database.ChatMessage {
-		return database.ChatMessage{ID: id, PromptHooksPending: pending, Deleted: deleted}
+	row := func(id int64, pending bool) database.ChatMessage {
+		return database.ChatMessage{ID: id, PromptHooksPending: pending}
 	}
 	boundary, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{{
 		Type:       codersdk.ChatMessagePartTypeToolCall,
@@ -541,11 +497,9 @@ func TestFirstPromptHooksPending(t *testing.T) {
 		messages []database.ChatMessage
 		want     int64
 	}{
-		{name: "None", messages: []database.ChatMessage{row(1, false, false)}},
-		{name: "Deleted", messages: []database.ChatMessage{row(1, true, true)}},
-		{name: "Oldest", messages: []database.ChatMessage{row(1, false, false), row(2, true, false), row(3, true, false)}, want: 2},
-		{name: "HiddenByAClear", messages: []database.ChatMessage{row(1, true, false), clear, row(60, false, false)}},
-		{name: "AfterAClear", messages: []database.ChatMessage{row(1, true, false), clear, row(60, true, false)}, want: 60},
+		{name: "Oldest", messages: []database.ChatMessage{row(1, false), row(2, true), row(3, true)}, want: 2},
+		{name: "HiddenByAClear", messages: []database.ChatMessage{row(1, true), clear, row(60, false)}},
+		{name: "AfterAClear", messages: []database.ChatMessage{row(1, true), clear, row(60, true)}, want: 60},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -27,7 +27,7 @@ const promptHooksDeniedFallback = "Chat message denied by lifecycle hook."
 // hidden from the model, so its hooks do not matter.
 func firstPromptHooksPending(messages []database.ChatMessage) (database.ChatMessage, bool) {
 	for _, message := range messages[latestContextBoundaryIndex(messages)+1:] {
-		if message.PromptHooksPending && !message.Deleted {
+		if message.PromptHooksPending {
 			return message, true
 		}
 	}
@@ -65,10 +65,10 @@ func (s *taskStarter) resolvePromptHooks(
 		return false, nil
 	}
 	outcome, err := s.dispatchPromptHooks(ctx, input, chat, message)
-	if err == nil && outcome.denial != "" {
-		return true, s.denyPromptHooks(ctx, machine, input, message, outcome.denial)
-	}
 	if err == nil {
+		if outcome.denial != "" {
+			return true, s.denyPromptHooks(ctx, machine, input, message, outcome.denial)
+		}
 		err = s.applyPromptHooks(ctx, machine, input, message, outcome)
 	}
 	if err == nil {

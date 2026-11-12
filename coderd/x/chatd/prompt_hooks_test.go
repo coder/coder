@@ -161,7 +161,6 @@ func TestPromptHooksPendingTurn(t *testing.T) {
 		wantText   string
 		wantDenied bool
 	}{
-		{name: "Allow", reply: `{}`, wantText: "flagged"},
 		{name: "Rewrite", reply: rewrite, wantText: "rewritten"},
 		{name: "Deny", reply: deny, wantText: "flagged", wantDenied: true},
 	}

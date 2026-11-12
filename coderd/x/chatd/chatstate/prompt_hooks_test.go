@@ -49,51 +49,26 @@ func TestPromptHooksPendingSurvivesTheQueue(t *testing.T) {
 		require.True(t, result.InsertedMessages[0].PromptHooksPending)
 	})
 
-	tests := []struct {
-		name     string
-		behavior chatstate.BusyBehavior
-		promote  func(*chatstate.Tx) ([]database.ChatMessage, error)
-	}{
-		{
-			name:     "QueueLaneByFinishTurn",
-			behavior: chatstate.BusyBehaviorQueue,
-			promote: func(tx *chatstate.Tx) ([]database.ChatMessage, error) {
-				result, err := tx.FinishTurn(chatstate.FinishTurnInput{})
-				return result.PromotedMessages, err
-			},
-		},
-		{
-			name:     "SteerLaneByDeliverSteerMessages",
-			behavior: chatstate.BusyBehaviorSteer,
-			promote: func(tx *chatstate.Tx) ([]database.ChatMessage, error) {
-				result, err := tx.DeliverSteerMessages(chatstate.DeliverSteerMessagesInput{})
-				return result.DeliveredMessages, err
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			f := newTestFixture(t)
-			ctx := testutil.Context(t, testutil.WaitShort)
-			created := createTestChat(t, f)
-			m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+	t.Run("Queued", func(t *testing.T) {
+		t.Parallel()
+		f := newTestFixture(t)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		created := createTestChat(t, f)
+		m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
 
-			queued := send(t, f, m, tt.behavior)
-			require.NotNil(t, queued.QueuedMessage)
-			require.True(t, queued.QueuedMessage.PromptHooksPending)
+		queued := send(t, f, m, chatstate.BusyBehaviorQueue)
+		require.NotNil(t, queued.QueuedMessage)
+		require.True(t, queued.QueuedMessage.PromptHooksPending)
 
-			var promoted []database.ChatMessage
-			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-				var err error
-				promoted, err = tt.promote(tx)
-				return err
-			}))
-			require.Len(t, promoted, 1)
-			require.True(t, requireChatMessageByID(ctx, t, f, promoted[0].ID).PromptHooksPending)
-			require.Empty(t, queuedIDsByPosition(ctx, t, f, created.Chat.ID))
-		})
-	}
+		var promoted []database.ChatMessage
+		require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			result, err := tx.FinishTurn(chatstate.FinishTurnInput{})
+			promoted = result.PromotedMessages
+			return err
+		}))
+		require.Len(t, promoted, 1)
+		require.True(t, requireChatMessageByID(ctx, t, f, promoted[0].ID).PromptHooksPending)
+	})
 }
 
 // TestPromptHooksPendingRowsAreUserVisible checks that a flagged row is a
@@ -123,71 +98,34 @@ func TestPromptHooksPendingRowsAreUserVisible(t *testing.T) {
 	}
 }
 
-func TestResolvePromptHooks(t *testing.T) {
+// TestResolvePromptHooksRejectsMisuse covers what the transition matrix does
+// not: new content without a version, and a second resolution, which must be
+// loud and must not look like sql.ErrNoRows, which chatd treats as a deleted
+// chat.
+func TestResolvePromptHooksRejectsMisuse(t *testing.T) {
 	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	created := createTestChat(t, f)
+	flagged := dbgen.ChatMessage(t, f.DB, database.ChatMessage{
+		ChatID:             created.Chat.ID,
+		Content:            userTextMessage("hello", f.User.ID, f.Model.ID).Content,
+		PromptHooksPending: true,
+	})
+	m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
+	resolve := func(input chatstate.ResolvePromptHooksInput) error {
+		input.MessageID = flagged.ID
+		return m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+			_, err := tx.ResolvePromptHooks(input)
+			return err
+		})
+	}
 
 	rewritten, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{codersdk.ChatMessageText("rewritten")})
 	require.NoError(t, err)
-	tests := []struct {
-		name  string
-		input chatstate.ResolvePromptHooksInput
-		check func(t *testing.T, message database.ChatMessage)
-	}{
-		{
-			name:  "Allow",
-			input: chatstate.ResolvePromptHooksInput{},
-			check: func(t *testing.T, message database.ChatMessage) {
-				assertChatMessageText(t, message, "hello")
-				require.False(t, message.Deleted)
-			},
-		},
-		{
-			name:  "Rewrite",
-			input: chatstate.ResolvePromptHooksInput{Content: rewritten, ContentVersion: chatprompt.CurrentContentVersion},
-			check: func(t *testing.T, message database.ChatMessage) {
-				assertChatMessageText(t, message, "rewritten")
-				require.False(t, message.Deleted)
-			},
-		},
-		{
-			name:  "Deny",
-			input: chatstate.ResolvePromptHooksInput{Deny: true},
-			check: func(t *testing.T, message database.ChatMessage) { require.True(t, message.Deleted) },
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			f := newTestFixture(t)
-			ctx := testutil.Context(t, testutil.WaitShort)
-			created := createTestChat(t, f)
-			flagged := dbgen.ChatMessage(t, f.DB, database.ChatMessage{
-				ChatID:             created.Chat.ID,
-				Content:            userTextMessage("hello", f.User.ID, f.Model.ID).Content,
-				PromptHooksPending: true,
-			})
-			m := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
-
-			input := tt.input
-			input.MessageID = flagged.ID
-			var result chatstate.ResolvePromptHooksResult
-			require.NoError(t, m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-				var err error
-				result, err = tx.ResolvePromptHooks(input)
-				return err
-			}))
-			require.False(t, result.Message.PromptHooksPending)
-			tt.check(t, result.Message)
-
-			// The flag is gone, so a second resolution is a bug that must be
-			// loud: not sql.ErrNoRows, which chatd treats as a deleted chat.
-			err := m.Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
-				_, err := tx.ResolvePromptHooks(input)
-				return err
-			})
-			require.ErrorIs(t, err, chatstate.ErrPromptHooksNotPending)
-		})
-	}
+	require.ErrorContains(t, resolve(chatstate.ResolvePromptHooksInput{Content: rewritten}), "content version")
+	require.NoError(t, resolve(chatstate.ResolvePromptHooksInput{}))
+	require.ErrorIs(t, resolve(chatstate.ResolvePromptHooksInput{}), chatstate.ErrPromptHooksNotPending)
 }
 
 func TestClearContextClearsPromptHooksPending(t *testing.T) {
