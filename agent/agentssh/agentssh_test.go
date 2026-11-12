@@ -6,7 +6,10 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
+	"io/fs"
 	"net"
 	"os"
 	"os/user"
@@ -682,6 +685,91 @@ func TestSSHShutdownReason(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestNewServer_UnixRemoteForwardSocketOwnership verifies that when a newer
+// SSH connection takes over a remote forwarded Unix socket path, closing the
+// older connection's forward does not remove the newer connection's socket.
+func TestNewServer_UnixRemoteForwardSocketOwnership(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS == "windows" {
+		t.Skip("unix domain sockets are not fully supported on Windows")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	logger := testutil.Logger(t)
+	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
+	require.NoError(t, err)
+	require.NoError(t, s.UpdateHostSigner(42))
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	serveDone := testutil.Go(t, func() {
+		_ = s.Serve(ln)
+	})
+	t.Cleanup(func() {
+		_ = s.Close()
+		<-serveDone
+	})
+
+	socketPath := filepath.Join(testutil.TempDirUnixSocket(t), "remote.sock")
+
+	// forward listens on socketPath through a new SSH connection and answers
+	// every forwarded connection with name.
+	forward := func(name string) (*ssh.Client, net.Listener) {
+		c := sshClient(t, ln.Addr().String())
+		l, err := c.ListenUnix(socketPath)
+		require.NoError(t, err, name)
+		testutil.Go(t, func() {
+			for {
+				conn, err := l.Accept()
+				if err != nil {
+					return
+				}
+				_, _ = conn.Write([]byte(name))
+				_ = conn.Close()
+			}
+		})
+		// Registered after testutil.Go so the listener is closed before its
+		// cleanup waits for the accept loop to return.
+		t.Cleanup(func() { _ = l.Close() })
+		return c, l
+	}
+	requireReaches := func(want string) {
+		t.Helper()
+		var d net.Dialer
+		conn, err := d.DialContext(ctx, "unix", socketPath)
+		require.NoError(t, err)
+		defer conn.Close()
+		got := make([]byte, len(want))
+		_, err = io.ReadFull(conn, got)
+		require.NoError(t, err)
+		require.Equal(t, want, string(got))
+	}
+
+	_, l1 := forward("one")
+	requireReaches("one")
+	_, l2 := forward("two")
+	requireReaches("two")
+
+	// Canceling the forward waits for the server to close its listener, so
+	// the older connection's cleanup has finished when Close returns.
+	require.NoError(t, l1.Close())
+	require.FileExists(t, socketPath)
+	requireReaches("two")
+
+	// The last owner still removes its socket.
+	require.NoError(t, l2.Close())
+	require.NoFileExists(t, socketPath)
+
+	// A disconnecting owner removes its socket too.
+	c3, _ := forward("three")
+	requireReaches("three")
+	require.NoError(t, c3.Close())
+	require.Eventually(t, func() bool {
+		_, err := os.Lstat(socketPath)
+		return errors.Is(err, fs.ErrNotExist)
+	}, testutil.WaitLong, testutil.IntervalFast)
 }
 
 func sshClient(t *testing.T, addr string) *ssh.Client {
