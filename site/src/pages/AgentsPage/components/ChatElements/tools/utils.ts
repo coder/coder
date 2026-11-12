@@ -181,14 +181,22 @@ export const parseArgs = (args: unknown): Record<string, unknown> | null => {
 /** The name of the tool that asks an async question. */
 export const ASYNC_QUESTION_TOOL_NAME = "ask_user_question_async";
 
-/** Finds the first result record with key, including JSON result wrappers. */
-export const findToolResultRecord = (
+/**
+ * Applies pick to the tool result, then to the JSON under its output,
+ * content and text keys, and returns the first value pick does not
+ * reject. A result can be the object itself, a JSON string, or an object
+ * that wraps the JSON under one of those keys.
+ */
+export const findInToolResult = <T>(
 	result: unknown,
-	key: string,
-): Record<string, unknown> | undefined => {
+	pick: (record: Record<string, unknown>) => T | null | undefined,
+): T | undefined => {
 	const parsedResult = parseArgs(result);
-	if (parsedResult && key in parsedResult) {
-		return parsedResult;
+	if (parsedResult) {
+		const value = pick(parsedResult);
+		if (value !== null && value !== undefined) {
+			return value;
+		}
 	}
 
 	const resultRecord = asRecord(result);
@@ -202,8 +210,13 @@ export const findToolResultRecord = (
 		resultRecord.text,
 	]) {
 		const parsedValue = parseArgs(value);
-		if (parsedValue && key in parsedValue) {
-			return parsedValue;
+		if (!parsedValue) {
+			continue;
+		}
+
+		const pickedValue = pick(parsedValue);
+		if (pickedValue !== null && pickedValue !== undefined) {
+			return pickedValue;
 		}
 	}
 
@@ -214,15 +227,15 @@ export const findToolResultRecord = (
  * Returns the question_id from the result of an ask_user_question_async
  * call, or undefined when the result has none.
  */
-export const getAsyncQuestionId = (result: unknown): string | undefined => {
-	const record = findToolResultRecord(result, "question_id");
-	const questionId = record?.question_id;
-	if (typeof questionId !== "string" || questionId.length === 0) {
-		return undefined;
-	}
+export const getAsyncQuestionId = (result: unknown): string | undefined =>
+	findInToolResult(result, (record) => {
+		const questionId = record.question_id;
+		if (typeof questionId !== "string" || questionId.length === 0) {
+			return undefined;
+		}
 
-	return questionId;
-};
+		return questionId;
+	});
 
 /**
  * Parses value, or its JSON encoding, as an array whose items all pass
