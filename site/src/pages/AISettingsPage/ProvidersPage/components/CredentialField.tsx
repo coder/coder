@@ -30,8 +30,8 @@ export const CredentialField: React.FC<CredentialFieldProps> = ({
 	const helperId = `${inputId}-helper`;
 	const descriptionId = `${inputId}-description`;
 	const describedBy = [
-		description ? descriptionId : null,
 		helpers.error ? errorId : helpers.helperText ? helperId : null,
+		description ? descriptionId : null,
 	]
 		.filter(Boolean)
 		.join(" ");
@@ -84,8 +84,12 @@ export const CredentialField: React.FC<CredentialFieldProps> = ({
 		<div className="flex flex-col gap-2">
 			{labelNode}
 			{inputNode}
-			{descriptionNode}
-			{helperNode}
+			{(helperNode || descriptionNode) && (
+				<div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+					{helperNode}
+					{descriptionNode}
+				</div>
+			)}
 		</div>
 	);
 };
