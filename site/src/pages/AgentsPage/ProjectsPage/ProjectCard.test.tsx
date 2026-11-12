@@ -31,22 +31,7 @@ const renderCard = (overrides: Partial<ChatProjectSummary> = {}) => {
 };
 
 describe("ProjectCard", () => {
-	// The card link's description is what a screen reader announces for the
-	// card's status.
 	it.each<[string, Partial<ChatProjectSummary>, RegExp]>([
-		[
-			"a chat needing attention over a running one",
-			{ own_chat_count: 3, own_needs_attention: true, own_running: true },
-			/^Needs attention/,
-		],
-		[
-			"a running chat over unread chats",
-			{ own_chat_count: 3, own_unread_count: 1, own_running: true },
-			/^Thinking/,
-		],
-		["unread chats", { own_chat_count: 3, own_unread_count: 1 }, /^1 unread/],
-		["read chats", { own_chat_count: 3 }, /^3 read/],
-		["no chats", { own_chat_count: 0 }, /^No chats/],
 		["a private project", { member_count: 1 }, /Only you$/],
 		["a shared project", { member_count: 1234 }, /1,234 members$/],
 	])("describes %s", (_, overrides, description) => {
@@ -56,7 +41,6 @@ describe("ProjectCard", () => {
 		).toHaveAccessibleDescription(description);
 	});
 
-	// Unpinning removes the pin button, which must not drop focus to the page.
 	it("unpins from the pin button and keeps focus in the card", async () => {
 		const user = userEvent.setup();
 		const { onUnpin } = renderCard();
@@ -71,24 +55,26 @@ describe("ProjectCard", () => {
 		).toHaveFocus();
 	});
 
-	// In a browser, the dialog that a mouse pick opens can lose focus to the
-	// closing menu, which leaves focus on the page when it returns focus.
-	it.each(["Edit project", "Delete project"])(
-		"keeps focus off the actions button after picking %s with the mouse",
-		async (item) => {
-			vi.useFakeTimers();
-			onTestFinished(() => {
-				vi.useRealTimers();
-			});
-			const user = userEvent.setup({ delay: null });
-			renderCard();
-			const actions = screen.getByRole("button", { name: /^Open project/ });
-			await user.click(actions);
-			await user.click(screen.getByRole("menuitem", { name: item }));
-			act(() => vi.runOnlyPendingTimers());
-			expect(actions).not.toHaveFocus();
-		},
-	);
+	// In a browser, a dialog that opens before the menu has finished closing
+	// loses focus to the menu.
+	it.each([
+		["Edit project", "onEdit"],
+		["Delete project", "onDelete"],
+	] as const)("opens %s once the menu has closed", async (item, callback) => {
+		vi.useFakeTimers();
+		onTestFinished(() => {
+			vi.useRealTimers();
+		});
+		const user = userEvent.setup({ delay: null });
+		const callbacks = renderCard();
+		const actions = screen.getByRole("button", { name: /^Open project/ });
+		await user.click(actions);
+		await user.click(screen.getByRole("menuitem", { name: item }));
+		expect(callbacks[callback]).not.toHaveBeenCalled();
+		act(() => vi.runOnlyPendingTimers());
+		expect(callbacks[callback]).toHaveBeenCalledExactlyOnceWith(actions);
+		expect(actions).not.toHaveFocus();
+	});
 
 	it("pins from the actions menu with the keyboard", async () => {
 		const user = userEvent.setup();

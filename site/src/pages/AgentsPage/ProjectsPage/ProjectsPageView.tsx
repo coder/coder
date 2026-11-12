@@ -38,7 +38,10 @@ type ProjectsPageViewProps = {
 	readonly onCreateProject: () => void;
 	readonly onPin: (project: ChatProject) => void;
 	readonly onUnpin: (project: ChatProject) => void;
-	/** The projects with a pin request running. */
+	/**
+	 * Projects whose pin is still pending. Their cards show a spinner and leave
+	 * Pin out of the menu until the request settles.
+	 */
 	readonly pendingPinIds: ReadonlySet<string>;
 	readonly onEdit: ProjectAction;
 	readonly onDelete: ProjectAction;
@@ -61,72 +64,60 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 	onDelete,
 }) => {
 	const summaries = projects?.[tab];
-	// Only the selected tab's content is mounted, so both tabs render this.
-	const content = (
-		<>
-			{Boolean(error) && (
-				<ErrorAlert
-					error={error}
-					showDebugDetail={false}
-					className="mb-6"
-					actions={
-						<Button size="sm" variant="outline" onClick={onRetry}>
-							Retry
-						</Button>
-					}
-				/>
-			)}
-			{!summaries ? (
-				!error && (
-					<ProjectGrid role="status">
-						<span className="sr-only">Loading projects</span>
-						{Array.from({ length: 6 }, (_, index) => (
-							<Skeleton key={index} className="h-44 rounded-lg" />
-						))}
-					</ProjectGrid>
-				)
-			) : summaries.length === 0 ? (
-				tab === "yours" ? (
-					<EmptyProjects
-						title="No projects yet"
-						description="Projects group related chats and give each one shared instructions, skills, and memory."
-					>
-						<Button variant="outline" onClick={onCreateProject}>
-							<PlusIcon />
-							New project
-						</Button>
-					</EmptyProjects>
-				) : (
-					<EmptyProjects
-						title="No shared projects yet"
-						description="Projects that other users share with you appear here."
+	let body: React.ReactNode = null;
+	if (summaries && summaries.length > 0) {
+		body = (
+			<ProjectGrid>
+				{summaries.map((summary) => (
+					<ProjectCard
+						key={summary.project.id}
+						summary={summary}
+						to={{
+							pathname: buildAgentProjectPath({
+								projectId: summary.project.id,
+							}),
+							search: projectLinkSearch,
+						}}
+						onPin={() => onPin(summary.project)}
+						onUnpin={() => onUnpin(summary.project)}
+						pinPending={pendingPinIds.has(summary.project.id)}
+						onEdit={(returnFocusTo) => onEdit(summary.project, returnFocusTo)}
+						onDelete={(returnFocusTo) =>
+							onDelete(summary.project, returnFocusTo)
+						}
 					/>
-				)
-			) : (
-				<ProjectGrid>
-					{summaries.map((summary) => (
-						<ProjectCard
-							key={summary.project.id}
-							summary={summary}
-							to={{
-								pathname: buildAgentProjectPath({
-									projectId: summary.project.id,
-								}),
-								search: projectLinkSearch,
-							}}
-							onPin={() => onPin(summary.project)}
-							onUnpin={() => onUnpin(summary.project)}
-							pinPending={pendingPinIds.has(summary.project.id)}
-							onEdit={(returnFocusTo) => onEdit(summary.project, returnFocusTo)}
-							onDelete={(returnFocusTo) =>
-								onDelete(summary.project, returnFocusTo)
-							}
-						/>
-					))}
-				</ProjectGrid>
-			)}
-		</>
-	);
+				))}
+			</ProjectGrid>
+		);
+	} else if (summaries && tab === "yours") {
+		body = (
+			<EmptyProjects
+				title="No projects yet"
+				description="Projects group related chats and give each one shared instructions, skills, and memory."
+			>
+				<Button variant="outline" onClick={onCreateProject}>
+					<PlusIcon />
+					New project
+				</Button>
+			</EmptyProjects>
+		);
+	} else if (summaries) {
+		body = (
+			<EmptyProjects
+				title="No shared projects yet"
+				description="Projects that other users share with you appear here."
+			/>
+		);
+	} else if (!error) {
+		body = (
+			<ProjectGrid role="status">
+				<span className="sr-only">Loading projects</span>
+				{Array.from({ length: 6 }, (_, index) => (
+					<Skeleton key={index} className="h-44 rounded-lg" />
+				))}
+			</ProjectGrid>
+		);
+	}
 
 	return (
 		<div className="order-last flex min-h-0 flex-1 flex-col overflow-auto px-4 pt-6 sm:order-0 sm:px-[85.5px]">
@@ -156,11 +147,21 @@ export const ProjectsPageView: React.FC<ProjectsPageViewProps> = ({
 						<TabsTrigger value="yours">Your projects</TabsTrigger>
 						<TabsTrigger value="shared">Shared with you</TabsTrigger>
 					</TabsList>
-					<TabsContent value="yours" className="pt-6">
-						{content}
-					</TabsContent>
-					<TabsContent value="shared" className="pt-6">
-						{content}
+					{/* Only the selected tab's panel mounts, so one serves both tabs. */}
+					<TabsContent value={tab} className="pt-6">
+						{Boolean(error) && (
+							<ErrorAlert
+								error={error}
+								showDebugDetail={false}
+								className="mb-6"
+								actions={
+									<Button size="sm" variant="outline" onClick={onRetry}>
+										Retry
+									</Button>
+								}
+							/>
+						)}
+						{body}
 					</TabsContent>
 				</Tabs>
 			</div>
