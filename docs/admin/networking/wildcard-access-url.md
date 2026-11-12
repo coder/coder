@@ -155,7 +155,8 @@ If the header has no `frame-src` directive, the browser uses its `default-src` d
 If a URL uses a port other than the default port of its scheme, include the port, for example `*.coder.example.com:8443`.
 `CODER_ADDITIONAL_CSP_POLICY` doesn't change that header, because it changes only the policy that Coder sends.
 
-If an app redirects to another origin in the frame, for example an external sign-in page, add that origin to the policy that Coder sends:
+If an app redirects to another origin in the frame, for example an external sign-in page, every policy on the dashboard page must allow that origin, including a header that a reverse proxy adds.
+To add the origin to the policy that Coder sends, set `CODER_ADDITIONAL_CSP_POLICY`:
 
 ```sh
 export CODER_ADDITIONAL_CSP_POLICY="frame-src https://sso.example.com"
