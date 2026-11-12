@@ -572,8 +572,5 @@ export function useConversationEditingState(deps: {
 		handleSendFromInput,
 		handleContentChange,
 		handleLoadingDraftChange,
-		// An edit opened during a request would be overwritten by the
-		// request's rollback, so callers do not open one then.
-		isRequestInFlight: () => requestInFlightRef.current !== null,
 	};
 }

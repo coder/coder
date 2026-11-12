@@ -853,8 +853,7 @@ describe("useConversationEditingState", () => {
 		});
 	});
 
-	// The page ignores Edit while isRequestInFlight reports a request.
-	it("reports a send as in flight until it settles, and does not load a row marked during it", async () => {
+	it("does not load a row marked during a send", async () => {
 		const { result, onSend, unmount, markRow } = renderEditing();
 		result.current.chatInputRef.current = createMockChatInputHandle().handle;
 		const send = createDeferred<undefined>();
@@ -864,7 +863,6 @@ describe("useConversationEditingState", () => {
 		act(() => {
 			sent = result.current.handleSendFromInput({ message: "hello" });
 		});
-		expect(result.current.isRequestInFlight()).toBe(true);
 		markRow(5, "queued text");
 
 		expect(result.current.editingTarget).toBeNull();
@@ -873,7 +871,6 @@ describe("useConversationEditingState", () => {
 			send.resolve(undefined);
 			await sent;
 		});
-		expect(result.current.isRequestInFlight()).toBe(false);
 		unmount();
 	});
 
