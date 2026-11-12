@@ -39,7 +39,8 @@ func (api *API) appHost(rw http.ResponseWriter, r *http.Request) {
 }
 
 // subdomainAppHost returns the primary wildcard app host, with the access URL
-// port when the wildcard has no port. The frontend frames apps on this host.
+// port when the wildcard has no port. The frontend frames apps on this host. It
+// returns an empty string when no wildcard access URL is configured.
 func (api *API) subdomainAppHost() string {
 	return appurl.SubdomainAppHost(api.AppHostname, api.AccessURL)
 }

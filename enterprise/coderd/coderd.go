@@ -815,7 +815,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	// the calls to the workspace proxies hang and this takes some time.
 	go api.forceWorkspaceProxyHealthUpdate(ctx)
 
-	// Use proxy health to return the healthy workspace proxy hostnames.
+	// Use proxy health to return the hostnames of every registered workspace
+	// proxy.
 	f := api.ProxyHealth.ProxyHosts
 	api.AGPL.WorkspaceProxyHostsFn.Store(&f)
 

@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -89,11 +88,11 @@ func TestCSPFrameSrcAdmitsPrimaryRegion(t *testing.T) {
 	defer res.Body.Close()
 
 	var frameSrc []string
-	for _, directive := range strings.Split(res.Header.Get("Content-Security-Policy"), ";") {
+	for directive := range strings.SplitSeq(res.Header.Get("Content-Security-Policy"), ";") {
 		fields := strings.Fields(directive)
 		if len(fields) > 0 && fields[0] == "frame-src" {
 			frameSrc = fields[1:]
 		}
 	}
-	require.Contains(t, frameSrc, appurl.ConvertAppHostForCSP(client.URL.Host, primary.WildcardHostname))
+	require.Contains(t, frameSrc, "*.test.coder.com:"+client.URL.Port())
 }

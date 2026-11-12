@@ -2261,8 +2261,8 @@ type API struct {
 	WebpushDispatcher webpush.Dispatcher
 	QuotaCommitter    atomic.Pointer[proto.QuotaCommitter]
 	AppearanceFetcher atomic.Pointer[appearance.Fetcher]
-	// WorkspaceProxyHostsFn returns the hosts of healthy workspace proxies
-	// for header reasons.
+	// WorkspaceProxyHostsFn returns the hosts of every registered workspace
+	// proxy for header reasons.
 	WorkspaceProxyHostsFn atomic.Pointer[func() []*proxyhealth.ProxyHost]
 	// TemplateScheduleStore is a pointer to an atomic pointer because this is
 	// passed to another struct, and we want them all to be the same reference.
