@@ -58,12 +58,6 @@ const (
 	DefaultChatMinAutomationScheduleInterval = 5 * time.Minute
 )
 
-// The range of --chat-min-automation-schedule-interval.
-const (
-	MinChatMinAutomationScheduleInterval = time.Minute
-	MaxChatMinAutomationScheduleInterval = 24 * time.Hour
-)
-
 // MaxChatFileSizeBytes is the upload-endpoint cap for chat
 // attachments.
 const MaxChatFileSizeBytes = 10 * 1024 * 1024

@@ -901,9 +901,9 @@ chat:
   # not delete existing automations. Must be at least 1.
   # (default: 50, type: int)
   maxAutomationsPerOwner: 50
-  # Minimum time between two runs of a chat automation schedule. Creating or
-  # changing a schedule that runs more often fails with HTTP 400. Existing schedules
-  # are not changed. Must be between 1m and 24h.
+  # Minimum time between two runs of a chat automation schedule. Creating a schedule
+  # that runs more often fails with HTTP 400. Existing schedules are not changed.
+  # Must be between 1m and 24h.
   # (default: 5m0s, type: duration)
   minAutomationScheduleInterval: 5m0s
   # Deprecated: AI Gateway routing is now the only routing path. Setting this value

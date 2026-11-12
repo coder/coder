@@ -4577,7 +4577,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Min Automation Schedule Interval",
-			Description: "Minimum time between two runs of a chat automation schedule. Creating or changing a schedule that runs more often fails with HTTP 400. Existing schedules are not changed. Must be between 1m and 24h.",
+			Description: "Minimum time between two runs of a chat automation schedule. Creating a schedule that runs more often fails with HTTP 400. Existing schedules are not changed. Must be between 1m and 24h.",
 			Flag:        "chat-min-automation-schedule-interval",
 			Env:         "CODER_CHAT_MIN_AUTOMATION_SCHEDULE_INTERVAL",
 			Value:       &c.AI.Chat.MinAutomationScheduleInterval,
@@ -5315,8 +5315,8 @@ func (c *DeploymentValues) Validate() error {
 		return xerrors.Errorf("chat stream silence timeout (%s) must be between 0 and 24h; set --chat-stream-silence-timeout to a valid duration", timeout)
 	}
 
-	if interval := c.AI.Chat.MinAutomationScheduleInterval.Value(); interval < MinChatMinAutomationScheduleInterval || interval > MaxChatMinAutomationScheduleInterval {
-		return xerrors.Errorf("chat minimum automation schedule interval (%s) must be between %s and %s; set --chat-min-automation-schedule-interval to a valid duration", interval, MinChatMinAutomationScheduleInterval, MaxChatMinAutomationScheduleInterval)
+	if interval := c.AI.Chat.MinAutomationScheduleInterval.Value(); interval < time.Minute || interval > 24*time.Hour {
+		return xerrors.Errorf("chat minimum automation schedule interval (%s) must be between 1m and 24h; set --chat-min-automation-schedule-interval to a valid duration", interval)
 	}
 
 	for _, limit := range []struct {

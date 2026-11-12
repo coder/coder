@@ -126,8 +126,10 @@ func validateRequest(req codersdk.CreateChatAutomationRequest, limits Limits) (n
 		n.whenBusy = database.NullChatAutomationWhenBusy{ChatAutomationWhenBusy: whenBusy, Valid: true}
 		v.forbid("when target_mode is existing_chat, because an existing chat keeps its model and reasoning effort",
 			setField{"new_chat_model_config_id", req.NewChatModelConfigID != nil},
-			setField{"project_id", req.ProjectID != nil},
 			setField{"reasoning_effort", req.ReasoningEffort != ""},
+		)
+		v.forbid("when target_mode is existing_chat, because only a new chat has a project",
+			setField{"project_id", req.ProjectID != nil},
 		)
 	case codersdk.ChatAutomationTargetModeNewChat:
 		if req.NewChatModelConfigID == nil {

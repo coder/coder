@@ -125,7 +125,9 @@ func (c *Creator) Create(ctx context.Context, actor rbac.Subject, p CreateParams
 			}
 		}
 		// A missing row means that the owner guard of the insert refused the
-		// owner. checkReferences read every other row that the insert reads.
+		// owner. The insert also reads each reference again, so a chat, model
+		// configuration or project that a concurrent delete removed after
+		// checkReferences gives the same answer. That race is rare and harmless.
 		row, err := tx.InsertChatAutomation(actorCtx, insert)
 		switch {
 		case errors.Is(err, sql.ErrNoRows):

@@ -710,7 +710,7 @@ Must be at least 1.
 ### Min automation schedule interval
 
 Minimum time between two runs of a chat automation schedule.
-Creating or changing a schedule that runs more often fails with HTTP 400.
+Creating a schedule that runs more often fails with HTTP 400.
 Existing schedules are not changed.
 Must be between 1m and 24h.
 

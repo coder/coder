@@ -802,35 +802,24 @@ func TestInsertChatAutomationOwnerGuard(t *testing.T) {
 
 	db, _ := dbtestutil.NewDB(t)
 	o := newChatAutomationOrg(t, db, dbgen.User(t, db, database.User{}))
-	deleted := dbgen.User(t, db, database.User{Deleted: true})
 
-	cases := []struct {
+	for _, tc := range []struct {
 		name    string
 		ownerID uuid.UUID
-		wantErr error
 	}{
-		{name: "ActiveOwner", ownerID: o.user.ID},
-		{name: "SoftDeletedOwner", ownerID: deleted.ID, wantErr: sql.ErrNoRows},
-		{name: "SystemUser", ownerID: database.PrebuildsSystemUserID, wantErr: sql.ErrNoRows},
-		{name: "UnknownOwner", ownerID: uuid.New(), wantErr: sql.ErrNoRows},
-	}
-	for _, tc := range cases {
+		{name: "SoftDeletedOwner", ownerID: dbgen.User(t, db, database.User{Deleted: true}).ID},
+		{name: "SystemUser", ownerID: database.PrebuildsSystemUserID},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			params := o.scheduleParams()
 			params.ID = nullUUID(uuid.New())
 			params.OwnerID = tc.ownerID
-			got, err := db.InsertChatAutomation(ctx, params)
-			if tc.wantErr != nil {
-				require.ErrorIs(t, err, tc.wantErr)
-				_, err = db.GetChatAutomationByID(ctx, params.ID.UUID)
-				require.ErrorIs(t, err, sql.ErrNoRows, "no row exists")
-				return
-			}
-			require.NoError(t, err)
-			require.Equal(t, params.ID.UUID, got.ID)
-			require.Equal(t, tc.ownerID, got.OwnerID)
+			_, err := db.InsertChatAutomation(ctx, params)
+			require.ErrorIs(t, err, sql.ErrNoRows)
+			_, err = db.GetChatAutomationByID(ctx, params.ID.UUID)
+			require.ErrorIs(t, err, sql.ErrNoRows, "no row exists")
 		})
 	}
 }

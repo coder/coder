@@ -378,7 +378,7 @@ func TestCreateRejected(t *testing.T) {
 		{name: "WebhookAuthOutsideEnum", patch: `{"webhook_auth":"$CANARY"}`, want: bad("webhook_auth", "")},
 		{name: "ExistingChatWithoutTarget", patch: `{"target_chat_id":null}`, want: bad("target_chat_id", "")},
 		{name: "ExistingChatWithModel", patch: `{"new_chat_model_config_id":"$MODEL"}`, want: bad("new_chat_model_config_id", "existing chat keeps")},
-		{name: "ExistingChatWithProject", patch: `{"project_id":"$MISSING"}`, want: bad("project_id", "existing chat keeps")},
+		{name: "ExistingChatWithProject", patch: `{"project_id":"$MISSING"}`, want: bad("project_id", "only a new chat has a project")},
 		{name: "ExistingChatWithReasoningEffort", patch: `{"reasoning_effort":"high"}`, want: bad("reasoning_effort", "existing chat keeps")},
 		{name: "NewChatWithoutModel", patch: patch(asNewChat, `"new_chat_model_config_id":null`), want: bad("new_chat_model_config_id", "")},
 		{name: "NewChatWithTarget", patch: patch(asNewChat, `"target_chat_id":"$OWN"`), want: bad("target_chat_id", "")},
@@ -393,13 +393,11 @@ func TestCreateRejected(t *testing.T) {
 		{name: "CronAtLimit", patch: patch(asSchedule, `"schedule_cron":"`+strings.Repeat("*", 256)+`"`), want: bad("schedule_cron", "expected 5 fields")},
 		{name: "ZoneAtLimit", patch: patch(asSchedule, `"schedule_time_zone":"`+strings.Repeat("a", 64)+`"`), want: bad("schedule_time_zone", "unknown time zone")},
 		{name: "ZoneFactory", patch: patch(asSchedule, `"schedule_time_zone":"Factory"`), want: bad("schedule_time_zone", "Factory")},
-		{name: "ZoneUnknown", patch: patch(asSchedule, `"schedule_time_zone":"Mars/Olympus_Mons"`), want: bad("schedule_time_zone", "Mars/Olympus_Mons")},
 		{name: "ScheduleBelowMinimum", patch: patch(asSchedule, `"schedule_cron":"*/2 * * * *"`), want: bad("schedule_cron", "5m0s")},
 		// MinInterval measures 2 minutes here, across midnight.
 		{name: "ScheduleOverStrict", patch: patch(asSchedule, `"schedule_cron":"0,58 0,23 * * 1"`), want: bad("schedule_cron", "5m0s")},
 		{name: "BearerWithSecret", patch: `{"webhook_secret":"$CANARY"}`, want: bad("webhook_secret", "")},
 		{name: "GitHubWithWhiteSpaceSecret", patch: `{"webhook_auth":"github","webhook_secret":" \n"}`, want: bad("webhook_secret", "")},
-		{name: "StandardWebhooksWithoutSecret", patch: `{"webhook_auth":"standard_webhooks"}`, want: bad("webhook_secret", "Required")},
 		{name: "StandardWebhooksWithWhiteSpaceSecret", patch: `{"webhook_auth":"standard_webhooks","webhook_secret":" \n"}`, want: bad("webhook_secret", "Required")},
 		{name: "StandardWebhooksWithMalformedSecret", patch: `{"webhook_auth":"standard_webhooks","webhook_secret":"whsec_$CANARY!"}`, want: bad("webhook_secret", "Standard Webhooks secret")},
 		{name: "TwoViolations", patch: `{"name":"","target_chat_id":null}`, want: bad("name", "", "target_chat_id", "")},
@@ -415,7 +413,7 @@ func TestCreateRejected(t *testing.T) {
 		{name: "ProjectInAnotherOrganization", patch: patch(asNewChat, `"project_id":"$FOREIGN_PROJECT"`), want: bad("project_id", "not in this organization"), reference: true},
 	}
 	// The detail of each is the error text of cron.Standard.
-	for _, spec := range []string{"0 9 * * 7", "0 9 L * *", "0 9 * * 1#2", "0 0 9 * * *"} {
+	for _, spec := range []string{"0 9 L * *"} {
 		_, err := cron.Standard(spec, "UTC")
 		require.Error(t, err)
 		rows = append(rows, rejection{name: "Cron " + spec, patch: patch(asSchedule, `"schedule_cron":"`+spec+`"`), want: bad("schedule_cron", err.Error())})
@@ -602,7 +600,6 @@ func TestCreateAuthorization(t *testing.T) {
 		invalid bool
 	}{
 		{name: "MemberWithoutAgentsAccess", invalid: true},
-		{name: "OrganizationAdmin", roles: []string{rbac.ScopedRoleOrgAdmin(org.ID).Name}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

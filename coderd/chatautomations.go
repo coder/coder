@@ -100,7 +100,7 @@ func (api *API) postChatAutomation(rw http.ResponseWriter, r *http.Request) {
 			Message: "This user cannot own chat automations.",
 		})
 		return
-	case errors.Is(err, chatautomation.ErrCreateForbidden) || dbauthz.IsNotAuthorizedError(err):
+	case errors.Is(err, chatautomation.ErrCreateForbidden):
 		httpapi.Forbidden(rw)
 		return
 	case err != nil:
