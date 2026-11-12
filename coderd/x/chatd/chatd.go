@@ -1254,7 +1254,7 @@ type Config struct {
 	// means that they are off for everyone.
 	ExperimentEvaluator *experimentrules.Evaluator
 	PrometheusRegistry  prometheus.Registerer
-	TracerProvider                 trace.TracerProvider
+	TracerProvider      trace.TracerProvider
 
 	AgentCapacityUnlock AgentCapacityUnlock
 
