@@ -79,15 +79,16 @@ describe("parseToolResultIsError", () => {
 
 describe("getEditableContentPayload", () => {
 	it.each([
-		[
-			"11111111-1111-4111-8111-111111111111",
-			"11111111-1111-4111-8111-111111111111",
-		],
-		["", undefined],
-		[undefined, undefined],
+		{
+			name: "set",
+			questionId: "11111111-1111-4111-8111-111111111111",
+			expectedQuestionId: "11111111-1111-4111-8111-111111111111",
+		},
+		{ name: "empty", questionId: "", expectedQuestionId: undefined },
+		{ name: "missing", questionId: undefined, expectedQuestionId: undefined },
 	] as const)(
-		"keeps only a non-empty question ID when editing: %s",
-		(questionId, expectedQuestionId) => {
+		"keeps only a non-empty question ID when editing: $name",
+		({ questionId, expectedQuestionId }) => {
 			const payload = getEditableContentPayload([
 				{ type: "question-answer", question_id: questionId },
 				{ type: "text", text: "Redis" },
@@ -115,6 +116,7 @@ describe("getEditableContentPayload", () => {
 			},
 			...content,
 		];
+
 		const draft = serializeMessageDraft(content);
 		const answerDraft = serializeMessageDraft(answerContent);
 		const payload = getEditableContentPayload(answerContent);

@@ -38,6 +38,7 @@ describe("getQueuedMessageInfo", () => {
 		"reads answer metadata with a $name question ID",
 		({ part, isQuestionAnswer }) => {
 			const message = buildMessage([part, { type: "text", text: "Redis" }]);
+
 			const result = getQueuedMessageInfo(message);
 
 			expect(result).toEqual({

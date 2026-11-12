@@ -1118,7 +1118,7 @@ describe("useConversationEditingState", () => {
 				);
 			});
 
-			it("sends a new message without an ID after ending an answer's edit", async () => {
+			it("sends a new message without a question ID after ending an answer's edit", async () => {
 				const { result, beginEdit, onSend } = renderEditing();
 				act(() => beginEdit(target, answerContent));
 				act(() => result.current.handleCancelEdit());
