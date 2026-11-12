@@ -47,8 +47,8 @@ DECLARE
 BEGIN
 	SELECT count(*) INTO pending FROM chat_messages WHERE prompt_hooks_pending;
 	IF pending > 0 THEN
-		RAISE EXCEPTION 'migration 000642 down: % chat messages still wait for their prompt hooks', pending
-			USING HINT = 'Keep this release running until chatd has started these turns, then run the down migration again.';
+		-- The guidance is in the message: the migrator prints no HINT.
+		RAISE EXCEPTION 'migration 000642 down: % chat messages still wait for their prompt hooks. Keep this release running until chatd has started these turns, then run the down migration again.', pending;
 	END IF;
 END;
 $$;
