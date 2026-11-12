@@ -3,7 +3,7 @@ title: Install Coder in your infrastructure
 ---
 
 This section describes how to plan, install, and configure a Coder deployment, from the initial decisions you need to make in order to successfully run Coder to a steady-state operating environment.
-The five phases are meant to be read in order: each phase produces the required information for the next phase.
+The five phases are meant to be read in order: each phase produces the information you need for the next phase.
 
 > [!TIP]
 > If you only need the `coder` command-line client on your own machine, refer to [Coder CLI](./cli.md).
