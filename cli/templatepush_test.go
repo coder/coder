@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -560,6 +562,122 @@ display_name: [broken
 		assert.Len(t, templateVersions, 2)
 		assert.Equal(t, template.ActiveVersionID, templateVersions[0].ID)
 		require.NotEqual(t, "example", templateVersions[0].Name)
+	})
+
+	t.Run("CreatePrivate", func(t *testing.T) {
+		t.Parallel()
+		logger := testutil.Logger(t)
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+		inv, root := clitest.New(t, "templates", "push", "private-create",
+			"--directory", source,
+			"--test.provisioner", string(database.ProvisionerTypeEcho),
+			"--private",
+		)
+		clitest.SetupConfig(t, templateAdmin, root)
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		inv = inv.WithContext(ctx)
+		w := clitest.StartWithWaiter(t, inv)
+
+		stdout.ExpectMatch(ctx, "Upload")
+		stdin.WriteLine("yes")
+
+		w.RequireSuccess()
+
+		template, err := client.TemplateByName(ctx, owner.OrganizationID, "private-create")
+		require.NoError(t, err)
+
+		// Without the 'everyone' group in the ACL, a regular member cannot
+		// see the template.
+		_, err = member.Template(ctx, template.ID)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+	})
+
+	t.Run("UpdatePrivate", func(t *testing.T) {
+		t.Parallel()
+
+		for _, activate := range []bool{true, false} {
+			t.Run(fmt.Sprintf("Activate=%t", activate), func(t *testing.T) {
+				t.Parallel()
+				logger := testutil.Logger(t)
+				client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+				owner := coderdtest.CreateFirstUser(t, client)
+				templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+				member, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+				version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+				_ = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+				created := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID, func(req *codersdk.CreateTemplateRequest) {
+					req.DisplayName = "Private Template"
+					req.Description = "settings that push must preserve"
+					req.Icon = "/icon/private.svg"
+					req.DefaultTTLMillis = new(time.Hour.Milliseconds())
+					req.ActivityBumpMillis = new((30 * time.Minute).Milliseconds())
+					req.AllowUserCancelWorkspaceJobs = new(false)
+					req.AgentsAllowed = new(false)
+				})
+
+				ctx := testutil.Context(t, testutil.WaitMedium)
+
+				// The member can see the template through the 'everyone'
+				// group before the push.
+				_, err := member.Template(ctx, created.ID)
+				require.NoError(t, err)
+
+				before, err := client.Template(ctx, created.ID)
+				require.NoError(t, err)
+
+				source := clitest.CreateTemplateVersionSource(t, &echo.Responses{
+					Parse:          echo.ParseComplete,
+					ProvisionApply: echo.ApplyComplete,
+				})
+				inv, root := clitest.New(t, "templates", "push", before.Name,
+					"--directory", source,
+					"--test.provisioner", string(database.ProvisionerTypeEcho),
+					fmt.Sprintf("--activate=%t", activate),
+					"--private",
+				)
+				clitest.SetupConfig(t, templateAdmin, root)
+				stdout := expecter.NewAttachedToInvocation(t, inv)
+				stdin := testutil.NewWriterAttachedToInvocation(t, logger.Named("stdin"), inv)
+
+				inv = inv.WithContext(ctx)
+				w := clitest.StartWithWaiter(t, inv)
+
+				stdout.ExpectMatch(ctx, "Upload")
+				stdin.WriteLine("yes")
+
+				w.RequireSuccess()
+
+				_, err = member.Template(ctx, before.ID)
+				var apiErr *codersdk.Error
+				require.ErrorAs(t, err, &apiErr)
+				require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+
+				after, err := client.Template(ctx, before.ID)
+				require.NoError(t, err)
+				if activate {
+					require.NotEqual(t, before.ActiveVersionID, after.ActiveVersionID)
+				} else {
+					require.Equal(t, before.ActiveVersionID, after.ActiveVersionID)
+				}
+				// Every other setting must be unchanged.
+				after.ActiveVersionID = before.ActiveVersionID
+				after.UpdatedAt = before.UpdatedAt
+				require.Equal(t, before, after)
+			})
+		}
 	})
 
 	t.Run("UseWorkingDir", func(t *testing.T) {
