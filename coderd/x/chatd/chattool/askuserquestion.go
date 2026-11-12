@@ -150,23 +150,7 @@ func (t *askUserQuestionTool) Run(_ context.Context, call fantasy.ToolCall) (fan
 	}
 
 	if t.opts.Async {
-		questionID := uuid.NewString()
-		result := askUserQuestionAsyncResult{
-			Questions:  args.Questions,
-			QuestionID: questionID,
-			Status:     fmt.Sprintf(askUserQuestionAsyncStatusFormat, questionID),
-		}
-		data, err := json.Marshal(result)
-		if err != nil {
-			return fantasy.NewTextErrorResponse("failed to marshal questions: " + err.Error()), nil
-		}
-
-		if len(data) > maxAsyncQuestionResultBytes {
-			message := fmt.Sprintf("questions are too long: %d bytes, limit %d; shorten the question and option text", len(data), maxAsyncQuestionResultBytes)
-			return fantasy.NewTextErrorResponse(message), nil
-		}
-
-		return fantasy.NewTextResponse(string(data)), nil
+		return asyncQuestionResponse(args.Questions), nil
 	}
 
 	data, err := json.Marshal(map[string]any{"questions": args.Questions})
@@ -174,6 +158,32 @@ func (t *askUserQuestionTool) Run(_ context.Context, call fantasy.ToolCall) (fan
 		return fantasy.NewTextErrorResponse("failed to marshal questions: " + err.Error()), nil
 	}
 	return fantasy.NewTextResponse(string(data)), nil
+}
+
+// asyncQuestionResponse returns the result of an async question, with a
+// new question_id, or an error response when the result does not fit in
+// maxAsyncQuestionResultBytes.
+func asyncQuestionResponse(questions []askUserQuestion) fantasy.ToolResponse {
+	questionID := uuid.NewString()
+	result := askUserQuestionAsyncResult{
+		Questions:  questions,
+		QuestionID: questionID,
+		Status:     fmt.Sprintf(askUserQuestionAsyncStatusFormat, questionID),
+	}
+	data, err := json.Marshal(result)
+	if err != nil {
+		return fantasy.NewTextErrorResponse("failed to marshal questions: " + err.Error())
+	}
+
+	if len(data) > maxAsyncQuestionResultBytes {
+		message := fmt.Sprintf(
+			"questions are too long: %d bytes, limit %d; shorten the question and option text",
+			len(data), maxAsyncQuestionResultBytes,
+		)
+		return fantasy.NewTextErrorResponse(message)
+	}
+
+	return fantasy.NewTextResponse(string(data))
 }
 
 // AsyncQuestion returns the text of the first question in an async

@@ -18,7 +18,17 @@ import (
 func TestAskUserQuestion(t *testing.T) {
 	t.Parallel()
 
-	const input = `{"questions":[{"header":"Scope","question":"What should we build?","options":[{"label":"Backend","description":"Build the API first."},{"label":"Frontend","description":"Build the UI first."}]}]}`
+	const input = `{
+		"questions": [{
+			"header": "Scope",
+			"question": "What should we build?",
+			"options": [
+				{"label": "Backend", "description": "Build the API first."},
+				{"label": "Frontend", "description": "Build the UI first."}
+			]
+		}]
+	}`
+
 	run := func(t *testing.T, tool fantasy.AgentTool, input string) fantasy.ToolResponse {
 		t.Helper()
 
@@ -35,7 +45,9 @@ func TestAskUserQuestion(t *testing.T) {
 		t.Parallel()
 
 		tool := chattool.NewAskUserQuestionTool(chattool.AskUserQuestionOptions{})
+
 		response := run(t, tool, input)
+
 		require.False(t, response.IsError)
 		require.JSONEq(t, input, response.Content)
 	})
@@ -44,7 +56,9 @@ func TestAskUserQuestion(t *testing.T) {
 		t.Parallel()
 
 		tool := chattool.NewAskUserQuestionTool(chattool.AskUserQuestionOptions{Async: true})
+
 		response := run(t, tool, input)
+
 		require.False(t, response.IsError)
 
 		var result map[string]json.RawMessage
@@ -72,6 +86,7 @@ func TestAskUserQuestion(t *testing.T) {
 		t.Parallel()
 
 		tool := chattool.NewAskUserQuestionTool(chattool.AskUserQuestionOptions{Async: true})
+
 		var questionIDs []string
 		for range 2 {
 			response := run(t, tool, input)
@@ -84,22 +99,26 @@ func TestAskUserQuestion(t *testing.T) {
 			require.NotEmpty(t, result.QuestionID)
 			questionIDs = append(questionIDs, result.QuestionID)
 		}
+
 		require.NotEqual(t, questionIDs[0], questionIDs[1])
 	})
 
 	t.Run("AsyncTooLong", func(t *testing.T) {
 		t.Parallel()
 
-		longInput := strings.Replace(input, "What should we build?", strings.Repeat("q", 16<<10), 1)
+		longQuestion := strings.Repeat("q", 16<<10)
+		longInput := strings.Replace(input, "What should we build?", longQuestion, 1)
 		asyncTool := chattool.NewAskUserQuestionTool(chattool.AskUserQuestionOptions{Async: true})
-		response := run(t, asyncTool, longInput)
-		require.True(t, response.IsError)
-		require.True(t, strings.HasPrefix(response.Content, "questions are too long"), response.Content)
-
 		blockingTool := chattool.NewAskUserQuestionTool(chattool.AskUserQuestionOptions{})
-		response = run(t, blockingTool, longInput)
-		require.False(t, response.IsError)
-		require.JSONEq(t, longInput, response.Content)
+
+		asyncResponse := run(t, asyncTool, longInput)
+		blockingResponse := run(t, blockingTool, longInput)
+
+		require.True(t, asyncResponse.IsError)
+		require.True(t, strings.HasPrefix(asyncResponse.Content, "questions are too long"), asyncResponse.Content)
+
+		require.False(t, blockingResponse.IsError)
+		require.JSONEq(t, longInput, blockingResponse.Content)
 	})
 
 	t.Run("InvalidArgs", func(t *testing.T) {
@@ -116,7 +135,9 @@ func TestAskUserQuestion(t *testing.T) {
 				t.Parallel()
 
 				tool := chattool.NewAskUserQuestionTool(chattool.AskUserQuestionOptions{Async: testCase.async})
+
 				response := run(t, tool, `{"questions":[]}`)
+
 				require.True(t, response.IsError)
 				require.Equal(t, "questions is required", response.Content)
 			})
@@ -139,6 +160,14 @@ func TestAskUserQuestionInfo(t *testing.T) {
 
 func TestAsyncQuestion(t *testing.T) {
 	t.Parallel()
+
+	const asyncResult = `{
+		"question_id": "question-1",
+		"questions": [
+			{"question": "Which database?"},
+			{"question": "Which region?"}
+		]
+	}`
 
 	tests := []struct {
 		name    string
@@ -186,7 +215,7 @@ func TestAsyncQuestion(t *testing.T) {
 			name: "AsyncQuestion",
 			result: fantasy.ToolResultContent{
 				ToolName: "ask_user_question",
-				Result:   fantasy.ToolResultOutputContentText{Text: `{"question_id":"question-1","questions":[{"question":"Which database?"},{"question":"Which region?"}]}`},
+				Result:   fantasy.ToolResultOutputContentText{Text: asyncResult},
 			},
 			want: "Which database?",
 		},
@@ -194,7 +223,7 @@ func TestAsyncQuestion(t *testing.T) {
 			name: "PointerOutput",
 			result: fantasy.ToolResultContent{
 				ToolName: "ask_user_question",
-				Result:   &fantasy.ToolResultOutputContentText{Text: `{"question_id":"question-1","questions":[{"question":"Which database?"},{"question":"Which region?"}]}`},
+				Result:   &fantasy.ToolResultOutputContentText{Text: asyncResult},
 			},
 			want: "Which database?",
 		},
