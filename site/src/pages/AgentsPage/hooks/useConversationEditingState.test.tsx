@@ -38,17 +38,7 @@ import {
 import {
 	type ComposerMode,
 	deriveComposerTarget,
-	type MarkerRequest,
 } from "./useQueuedMessageEdit";
-
-const mockIdleMarker: MarkerRequest = {
-	isPending: false,
-	variables: undefined,
-};
-const pendingBegin = (id: number): MarkerRequest => ({
-	isPending: true,
-	variables: { queuedMessageId: id, req: { editing: true } },
-});
 
 const textContent = (
 	text: string,
@@ -135,10 +125,10 @@ const setMobileViewport = (isMobile: boolean) => {
 	});
 };
 
-// The row the store marks, or none, and the latest marker request.
+// The row the shown queue marks, or none. This tab's pending begin or end
+// changes it at the click.
 type ServerProps = {
 	serverMarkedID: number | null;
-	marker: MarkerRequest;
 };
 
 type EditingHarnessHandle = ReturnType<typeof useConversationEditingState> & {
@@ -152,7 +142,6 @@ const EditingWithEditor = ({
 	chatID,
 	contents,
 	serverMarkedID,
-	marker,
 	ref,
 	onCommit,
 	onSend,
@@ -171,12 +160,7 @@ const EditingWithEditor = ({
 	const [chatInputRef] = useState(() => createRef<ChatMessageInputRef>());
 	const [inputValueRef] = useState(() => ({ current: "" }));
 	const [composerMode, setComposerMode] = useState<ComposerMode>("follow");
-	const target = deriveComposerTarget(
-		composerMode,
-		serverMarkedID,
-		marker,
-		true,
-	);
+	const target = deriveComposerTarget(composerMode, serverMarkedID, true);
 	const editing = useConversationEditingState({
 		chatID,
 		onSend: async (options) =>
@@ -232,7 +216,7 @@ describe("useConversationEditingState", () => {
 	});
 
 	// The harness owns composerMode and derives the target the way the page
-	// does: from the mode, the store marker and the marker request.
+	// does: from the mode and the row the shown queue marks.
 	const renderEditing = (...args: [] | [string]) => {
 		const onSend = vi.fn().mockResolvedValue(undefined);
 		const onLoadedTargetChange = vi.fn();
@@ -242,10 +226,7 @@ describe("useConversationEditingState", () => {
 		const contentKey = (target: EditingTarget) => `${target.kind}:${target.id}`;
 
 		const resolvedChatID = args.length === 0 ? chatID : args[0];
-		const initialProps: ServerProps = {
-			serverMarkedID: null,
-			marker: mockIdleMarker,
-		};
+		const initialProps: ServerProps = { serverMarkedID: null };
 
 		const hook = renderHook(
 			(props: ServerProps) => {
@@ -254,7 +235,6 @@ describe("useConversationEditingState", () => {
 				const target = deriveComposerTarget(
 					composerMode,
 					props.serverMarkedID,
-					props.marker,
 					true,
 				);
 				const editing = useConversationEditingState({
@@ -273,8 +253,8 @@ describe("useConversationEditingState", () => {
 			{ initialProps },
 		);
 
-		// Callers wrap this in act. A queued target is marked on the server
-		// first, as a settled begin request does on the page.
+		// Callers wrap this in act. A queued target is marked first, as the
+		// store's pending begin does at the click on the page.
 		const beginEdit = (
 			target: EditingTarget,
 			text: string,
@@ -282,37 +262,16 @@ describe("useConversationEditingState", () => {
 		) => {
 			contents.set(contentKey(target), textContent(text, fileBlocks));
 			if (target.kind === "queued") {
-				hook.rerender({ serverMarkedID: target.id, marker: mockIdleMarker });
+				hook.rerender({ serverMarkedID: target.id });
 			}
 			hook.result.current.setComposerMode(target);
 		};
-		// The store marks a row, or none, with the latest marker request.
-		const markOnServer = (
-			id: number | null,
-			text = "queued text",
-			marker = mockIdleMarker,
-		) => {
+		// The shown queue marks a row, or none.
+		const markOnServer = (id: number | null, text = "queued text") => {
 			if (id !== null) {
 				contents.set(contentKey({ kind: "queued", id }), textContent(text));
 			}
-			hook.rerender({ serverMarkedID: id, marker });
-		};
-
-		// Sets the content a row loads with, without the server marking it
-		// under edit.
-		const setRowContent = (target: EditingTarget, text: string) => {
-			contents.set(contentKey(target), textContent(text));
-		};
-		// Edit on another row as the page does it: the begin request is
-		// pending while the server still marks the previous row.
-		const openEditWhileBeginPending = (
-			id: number,
-			text: string,
-			serverMarkedID: number | null,
-		) => {
-			setRowContent({ kind: "queued", id }, text);
-			hook.rerender({ serverMarkedID, marker: pendingBegin(id) });
-			act(() => hook.result.current.setComposerMode({ kind: "queued", id }));
+			hook.rerender({ serverMarkedID: id });
 		};
 
 		return {
@@ -322,7 +281,6 @@ describe("useConversationEditingState", () => {
 			inputValueRef,
 			beginEdit,
 			markOnServer,
-			openEditWhileBeginPending,
 		};
 	};
 
@@ -352,7 +310,7 @@ describe("useConversationEditingState", () => {
 				/>
 			</QueryClientProvider>
 		);
-		const view = render(ui({ serverMarkedID: null, marker: mockIdleMarker }));
+		const view = render(ui({ serverMarkedID: null }));
 		const current = () => {
 			if (!handle.current) {
 				throw new Error("harness is not mounted");
@@ -372,9 +330,7 @@ describe("useConversationEditingState", () => {
 					typeof content === "string" ? textContent(content) : content,
 				);
 			}
-			await act(async () =>
-				view.rerender(ui({ serverMarkedID: id, marker: mockIdleMarker })),
-			);
+			await act(async () => view.rerender(ui({ serverMarkedID: id })));
 		};
 		const beginEdit = async (
 			id: number,
@@ -1872,8 +1828,7 @@ describe("useConversationEditingState", () => {
 			});
 
 			it("Cancel after switching to another row gives the draft from before the first edit back", () => {
-				const { result, unmount, beginEdit, openEditWhileBeginPending } =
-					renderEditing();
+				const { result, unmount, beginEdit } = renderEditing();
 				act(() => {
 					result.current.handleContentChange("draft", "draft", false);
 					beginEdit({ kind: "queued", id: 42 }, "queued text");
@@ -1886,7 +1841,8 @@ describe("useConversationEditingState", () => {
 					);
 				});
 
-				openEditWhileBeginPending(6, "other row", 42);
+				// The store's pending begin moves the mark to row 6 at the click.
+				act(() => beginEdit({ kind: "queued", id: 6 }, "other row"));
 				expect(result.current.editingTarget).toEqual({ kind: "queued", id: 6 });
 
 				act(() => {
