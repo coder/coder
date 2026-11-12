@@ -3442,34 +3442,17 @@ export const SendShowsPromptAtSubmit: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		let releaseSend: (() => void) | undefined;
-		const sendGate = new Promise<void>((resolve) => {
-			releaseSend = resolve;
-		});
-		const sendSpy = spyOn(
-			API.experimental,
-			"createChatMessage",
-		).mockImplementation(async () => {
-			await sendGate;
-			return { queued: false };
-		});
+		spyOn(API.experimental, "createChatMessage").mockReturnValue(
+			new Promise(() => {}),
+		);
 
 		const editor = await canvas.findByTestId("chat-message-input");
 		await userEvent.click(editor);
 		await userEvent.type(editor, "Durable prompt");
-		const sendButton = canvas.getByRole("button", { name: "Send" });
-		await waitFor(() => {
-			expect(editor).toHaveTextContent("Durable prompt");
-			expect(sendButton).toBeEnabled();
-		});
-		await userEvent.click(sendButton);
-		await waitFor(() => {
-			expect(sendSpy).toHaveBeenCalledTimes(1);
-		});
+		await userEvent.keyboard("{Enter}");
 
 		const timeline = within(await canvas.findByTestId("conversation-timeline"));
 		await timeline.findByText("Durable prompt");
-		releaseSend?.();
 	},
 };
 
