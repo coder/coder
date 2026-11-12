@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS workspace_app_stats_session_ended_at_idx;

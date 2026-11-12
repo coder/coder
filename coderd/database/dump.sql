@@ -359,6 +359,11 @@ CREATE TYPE build_reason AS ENUM (
     'jetbrains_connection'
 );
 
+CREATE TYPE chat_busy_behavior AS ENUM (
+    'queue',
+    'steer'
+);
+
 CREATE TYPE chat_client_type AS ENUM (
     'ui',
     'api'
@@ -406,7 +411,8 @@ CREATE TYPE chat_status AS ENUM (
     'running',
     'error',
     'requires_action',
-    'interrupting'
+    'interrupting',
+    'paused'
 );
 
 CREATE TYPE chat_title_source AS ENUM (
@@ -2307,7 +2313,7 @@ CREATE TABLE chat_organization_model_overrides (
     context text NOT NULL,
     model_config_id uuid NOT NULL,
     reasoning_effort text,
-    CONSTRAINT chat_organization_model_overrides_context_check CHECK ((context = ANY (ARRAY['general'::text, 'explore'::text, 'title_generation'::text, 'compaction'::text, 'advisor'::text])))
+    CONSTRAINT chat_organization_model_overrides_context_check CHECK ((context = ANY (ARRAY['general'::text, 'explore'::text, 'title_generation'::text, 'compaction'::text, 'advisor'::text, 'computer_use'::text])))
 );
 
 CREATE TABLE chat_organization_system_prompts (
@@ -2389,10 +2395,16 @@ CREATE TABLE chat_queued_messages (
     model_config_id uuid,
     "position" bigint DEFAULT nextval('chat_queued_messages_position_seq'::regclass) NOT NULL,
     created_by uuid NOT NULL,
-    reasoning_effort chat_reasoning_effort
+    reasoning_effort chat_reasoning_effort,
+    editing_since timestamp with time zone,
+    busy_behavior chat_busy_behavior DEFAULT 'queue'::chat_busy_behavior NOT NULL
 );
 
 COMMENT ON COLUMN chat_queued_messages.reasoning_effort IS 'Stores the selected effort until the queued row is promoted.';
+
+COMMENT ON COLUMN chat_queued_messages.editing_since IS 'Set while the owner edits the row. A row under edit is not promoted into history until the edit ends.';
+
+COMMENT ON COLUMN chat_queued_messages.busy_behavior IS 'queue: delivered at turn end. steer: delivered before the next model call.';
 
 CREATE SEQUENCE chat_queued_messages_id_seq
     START WITH 1
@@ -2898,9 +2910,11 @@ CREATE TABLE mcp_server_configs (
     signing_secret text DEFAULT ''::text NOT NULL,
     signing_secret_key_id text,
     oauth2_resource text DEFAULT ''::text NOT NULL,
+    oauth2_client_registration text DEFAULT 'manual'::text NOT NULL,
     CONSTRAINT mcp_server_configs_auth_type_check CHECK ((auth_type = ANY (ARRAY['none'::text, 'oauth2'::text, 'api_key'::text, 'custom_headers'::text, 'user_oidc'::text]))),
     CONSTRAINT mcp_server_configs_availability_check CHECK ((availability = ANY (ARRAY['force_on'::text, 'default_on'::text, 'default_off'::text]))),
     CONSTRAINT mcp_server_configs_group_acl_is_object CHECK ((jsonb_typeof(group_acl) = 'object'::text)),
+    CONSTRAINT mcp_server_configs_oauth2_client_registration_check CHECK ((oauth2_client_registration = ANY (ARRAY['manual'::text, 'dynamic'::text]))),
     CONSTRAINT mcp_server_configs_transport_check CHECK ((transport = ANY (ARRAY['streamable_http'::text, 'sse'::text]))),
     CONSTRAINT mcp_server_configs_user_acl_is_object CHECK ((jsonb_typeof(user_acl) = 'object'::text))
 );
@@ -3114,6 +3128,24 @@ COMMENT ON COLUMN oauth2_provider_apps.registration_access_token IS 'RFC 7592: H
 
 COMMENT ON COLUMN oauth2_provider_apps.registration_client_uri IS 'RFC 7592: URI for client configuration endpoint';
 
+CREATE TABLE organization_member_disabled_skills (
+    organization_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    skill_id uuid NOT NULL
+);
+
+COMMENT ON TABLE organization_member_disabled_skills IS 'Organization skills that a member turned off for their own chats. Applied only while organizations.members_can_disable_skills is true.';
+
+CREATE TABLE organization_member_skill_settings (
+    organization_id uuid NOT NULL,
+    user_id uuid NOT NULL,
+    all_skills_disabled boolean DEFAULT false NOT NULL
+);
+
+COMMENT ON TABLE organization_member_skill_settings IS 'Per-member organization skill settings. Applied only while organizations.members_can_disable_skills is true.';
+
+COMMENT ON COLUMN organization_member_skill_settings.all_skills_disabled IS 'Whether the member turned off every organization skill, including skills added later. Per-skill choices in organization_member_disabled_skills are kept and apply again when this is false.';
+
 CREATE TABLE organizations (
     id uuid NOT NULL,
     name text NOT NULL,
@@ -3125,12 +3157,15 @@ CREATE TABLE organizations (
     icon text DEFAULT ''::text NOT NULL,
     deleted boolean DEFAULT false NOT NULL,
     shareable_workspace_owners shareable_workspace_owners DEFAULT 'everyone'::shareable_workspace_owners NOT NULL,
-    default_org_member_roles text[] NOT NULL
+    default_org_member_roles text[] NOT NULL,
+    members_can_disable_skills boolean DEFAULT false NOT NULL
 );
 
 COMMENT ON COLUMN organizations.shareable_workspace_owners IS 'Controls whose workspaces can be shared: none, everyone, or service_accounts.';
 
 COMMENT ON COLUMN organizations.default_org_member_roles IS 'Roles granted to every member of this organization at request time. The set is unioned into each member''s effective roles when GetAuthorizationUserRoles runs, so changes propagate to all members on the next request. Deployments can use this column to revoke capabilities that would otherwise be considered normal organization member permissions.';
+
+COMMENT ON COLUMN organizations.members_can_disable_skills IS 'Whether organization members can turn off organization skills for their own chats. While false, member choices are kept but ignored.';
 
 CREATE TABLE parameter_schemas (
     id uuid NOT NULL,
@@ -4799,6 +4834,12 @@ ALTER TABLE ONLY oauth2_provider_app_tokens
 ALTER TABLE ONLY oauth2_provider_apps
     ADD CONSTRAINT oauth2_provider_apps_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY organization_member_disabled_skills
+    ADD CONSTRAINT organization_member_disabled_skills_pkey PRIMARY KEY (organization_id, user_id, skill_id);
+
+ALTER TABLE ONLY organization_member_skill_settings
+    ADD CONSTRAINT organization_member_skill_settings_pkey PRIMARY KEY (organization_id, user_id);
+
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_pkey PRIMARY KEY (organization_id, user_id);
 
@@ -5043,6 +5084,8 @@ COMMENT ON INDEX api_keys_last_used_idx IS 'Index for optimizing api_keys querie
 
 CREATE INDEX chat_heartbeats_heartbeat_at_idx ON chat_heartbeats USING btree (heartbeat_at);
 
+CREATE UNIQUE INDEX chat_queued_messages_one_editing_per_chat ON chat_queued_messages USING btree (chat_id) WHERE (editing_since IS NOT NULL);
+
 CREATE INDEX idx_agent_stats_created_at ON workspace_agent_stats USING btree (created_at);
 
 CREATE INDEX idx_agent_stats_user_id ON workspace_agent_stats USING btree (user_id);
@@ -5239,6 +5282,8 @@ CREATE INDEX idx_mcp_server_user_tokens_user_id ON mcp_server_user_tokens USING 
 
 CREATE INDEX idx_notification_messages_status ON notification_messages USING btree (status);
 
+CREATE INDEX idx_organization_member_disabled_skills_skill_id ON organization_member_disabled_skills USING btree (skill_id);
+
 CREATE INDEX idx_organization_member_organization_id_uuid ON organization_members USING btree (organization_id);
 
 CREATE INDEX idx_organization_member_user_id_uuid ON organization_members USING btree (user_id);
@@ -5353,6 +5398,10 @@ CREATE UNIQUE INDEX workspace_app_audit_sessions_unique_index ON workspace_app_a
 
 COMMENT ON INDEX workspace_app_audit_sessions_unique_index IS 'Unique index to ensure that we do not allow duplicate entries from multiple transactions.';
 
+CREATE INDEX workspace_app_stats_session_ended_at_idx ON workspace_app_stats USING btree (session_ended_at);
+
+COMMENT ON INDEX workspace_app_stats_session_ended_at_idx IS 'Supports the session_ended_at range filter in GetTemplateAppInsightsByTemplate (insights metrics collector).';
+
 CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING btree (workspace_id);
 
 CREATE INDEX workspace_app_statuses_app_id_idx ON workspace_app_statuses USING btree (app_id, created_at DESC);
@@ -5447,7 +5496,7 @@ CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_delete AFTER DE
 
 CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_insert AFTER INSERT ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
-CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
+CREATE TRIGGER trigger_bump_chat_queue_version_on_queued_message_update AFTER UPDATE OF content, model_config_id, "position", created_by, editing_since ON chat_queued_messages FOR EACH ROW EXECUTE FUNCTION bump_chat_queue_version_on_queued_message_change();
 
 CREATE TRIGGER trigger_delete_chat_project_user_acl_on_org_member_delete BEFORE DELETE ON organization_members FOR EACH ROW EXECUTE FUNCTION delete_chat_project_user_acl_on_org_member_delete();
 
@@ -5778,6 +5827,15 @@ ALTER TABLE ONLY oauth2_provider_app_tokens
 
 ALTER TABLE ONLY oauth2_provider_app_tokens
     ADD CONSTRAINT oauth2_provider_app_tokens_app_secret_id_fkey FOREIGN KEY (app_secret_id) REFERENCES oauth2_provider_app_secrets(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY organization_member_disabled_skills
+    ADD CONSTRAINT organization_member_disabled_skill_organization_id_user_id_fkey FOREIGN KEY (organization_id, user_id) REFERENCES organization_members(organization_id, user_id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY organization_member_disabled_skills
+    ADD CONSTRAINT organization_member_disabled_skills_skill_id_fkey FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY organization_member_skill_settings
+    ADD CONSTRAINT organization_member_skill_settings_organization_id_user_id_fkey FOREIGN KEY (organization_id, user_id) REFERENCES organization_members(organization_id, user_id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY organization_members
     ADD CONSTRAINT organization_members_organization_id_uuid_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;

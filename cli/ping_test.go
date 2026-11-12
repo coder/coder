@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -13,9 +14,54 @@ import (
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/coder/v2/testutil/expecter"
 )
+
+func TestPing_AgentSuggestions(t *testing.T) {
+	t.Parallel()
+
+	client, workspace, _ := setupWorkspaceForAgent(t, func(agents []*sdkproto.Agent) []*sdkproto.Agent {
+		agents[0].Name = "coder"
+		return append(agents, &sdkproto.Agent{
+			Id:   uuid.NewString(),
+			Name: "dev",
+			Auth: &sdkproto.Agent_Token{Token: uuid.NewString()},
+		})
+	})
+	qualifiedName := "myuser/" + workspace.Name
+	for _, tc := range []struct {
+		name  string
+		input string
+		want  string
+		json  bool
+	}{
+		{name: "Name", input: workspace.Name, want: workspace.Name},
+		{name: "OwnerAndName", input: qualifiedName, want: qualifiedName},
+		{name: "UUID", input: workspace.ID.String(), want: qualifiedName},
+		{name: "JSON", input: workspace.Name, want: workspace.Name, json: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			args := []string{"ping", tc.input}
+			if tc.json {
+				args = append(args, "--num", "1", "--output", "json")
+			}
+			inv, root := clitest.New(t, args...)
+			clitest.SetupConfig(t, client, root)
+			var stdout bytes.Buffer
+			inv.Stdout = &stdout
+			err := inv.WithContext(testutil.Context(t, testutil.WaitLong)).Run()
+			require.ErrorContains(t, err, "multiple agents found")
+			require.ErrorContains(t, err, "Try running:")
+			assert.Contains(t, err.Error(), "$ coder ping "+tc.want+".coder")
+			assert.Contains(t, err.Error(), "$ coder ping "+tc.want+".dev")
+			assert.NotContains(t, err.Error(), "$ ssh ")
+			assert.Empty(t, stdout.String())
+		})
+	}
+}
 
 func TestPing(t *testing.T) {
 	t.Parallel()

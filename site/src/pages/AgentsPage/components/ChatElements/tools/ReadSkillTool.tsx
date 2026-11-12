@@ -28,7 +28,7 @@ export const ReadSkillTool: React.FC<{
 			<ToolCall.Content>
 				{body && (
 					<ToolCall.Scrollable
-						className="mt-1.5 rounded-md border border-solid border-border"
+						className="mt-1.5 rounded-md border"
 						viewportClassName="max-h-64"
 						ariaLabel="Skill contents"
 					>

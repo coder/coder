@@ -537,6 +537,32 @@ func WorkspaceAgentEnvironment(workspaceAgent database.WorkspaceAgent) (map[stri
 	return envs, nil
 }
 
+// RedactedEnvValue replaces non-empty environment variable values in API
+// responses. Template authors commonly pass credentials through coder_env, and
+// there is no way to tell which values are sensitive. It matches the marker
+// used by the support bundle and the agent debug manifest.
+const RedactedEnvValue = "***REDACTED***"
+
+// redactEnv returns a copy of envs with every non-empty value replaced by
+// RedactedEnvValue. Keys are preserved so users can see which variables are
+// set. Empty values carry no secret and are kept as is.
+func redactEnv(envs map[string]string) map[string]string {
+	if envs == nil {
+		return nil
+	}
+	redacted := make(map[string]string, len(envs))
+	for k, v := range envs {
+		if v != "" {
+			v = RedactedEnvValue
+		}
+		redacted[k] = v
+	}
+	return redacted
+}
+
+// WorkspaceAgent converts a database agent to its API representation.
+// Environment variable values are redacted with RedactedEnvValue; the agent
+// receives the real values through its manifest instead.
 func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 	dbAgent database.WorkspaceAgent, apps []codersdk.WorkspaceApp, scripts []codersdk.WorkspaceAgentScript, logSources []codersdk.WorkspaceAgentLogSource,
 	agentInactiveDisconnectTimeout time.Duration, agentFallbackTroubleshootingURL string,
@@ -582,7 +608,7 @@ func WorkspaceAgent(derpMap *tailcfg.DERPMap, coordinator tailnet.Coordinator,
 		LogSources:               logSources,
 		Version:                  dbAgent.Version,
 		APIVersion:               dbAgent.APIVersion,
-		EnvironmentVariables:     envs,
+		EnvironmentVariables:     redactEnv(envs),
 		Directory:                dbAgent.Directory,
 		ExpandedDirectory:        dbAgent.ExpandedDirectory,
 		Apps:                     apps,
@@ -1793,13 +1819,20 @@ func ChatQueuedMessage(message database.ChatQueuedMessage) codersdk.ChatQueuedMe
 		parts = nil
 	}
 
-	return codersdk.ChatQueuedMessage{
+	queued := codersdk.ChatQueuedMessage{
 		ID:            message.ID,
 		ChatID:        message.ChatID,
 		ModelConfigID: nullUUIDPtr(message.ModelConfigID),
 		Content:       parts,
+		BusyBehavior:  codersdk.ChatBusyBehavior(message.BusyBehavior),
 		CreatedAt:     message.CreatedAt,
+		EditingSince:  nullTimePtr(message.EditingSince),
 	}
+	if message.ReasoningEffort.Valid {
+		effort := string(message.ReasoningEffort.ChatReasoningEffort)
+		queued.ReasoningEffort = &effort
+	}
+	return queued
 }
 
 // ChatQueuedMessages converts a slice of database queued messages

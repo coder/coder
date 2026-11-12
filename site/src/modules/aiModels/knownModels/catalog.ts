@@ -1,3 +1,4 @@
+import type { ChatComputerUseProvider } from "#/api/typesGenerated";
 import { normalizeProvider } from "#/modules/aiModels/helpers";
 import knownModelsGenerated from "./knownModelsGenerated.json";
 import type { KnownModel } from "./types";
@@ -76,6 +77,65 @@ export const findKnownModelByCanonicalId = (
 	return getKnownModelsForProvider(normalizedProvider).find(
 		(knownModel) => knownModel.modelIdentifier === modelId,
 	);
+};
+
+/**
+ * Canonical identifiers verified to accept chatd's computer use tool.
+ */
+export const knownComputerUseModels: readonly {
+	readonly provider: ChatComputerUseProvider;
+	readonly modelIdentifier: string;
+}[] = [
+	{ provider: "anthropic", modelIdentifier: "claude-fable-5-1" },
+	{ provider: "anthropic", modelIdentifier: "claude-fable-5" },
+	{ provider: "anthropic", modelIdentifier: "claude-opus-5-5" },
+	{ provider: "anthropic", modelIdentifier: "claude-opus-5" },
+	{ provider: "anthropic", modelIdentifier: "claude-opus-4-8" },
+	{ provider: "anthropic", modelIdentifier: "claude-opus-4-7" },
+	{ provider: "anthropic", modelIdentifier: "claude-opus-4-6" },
+	{ provider: "anthropic", modelIdentifier: "claude-sonnet-5-5" },
+	{ provider: "anthropic", modelIdentifier: "claude-sonnet-5" },
+	{ provider: "anthropic", modelIdentifier: "claude-sonnet-4-6" },
+	{ provider: "openai", modelIdentifier: "gpt-6-astra" },
+	{ provider: "openai", modelIdentifier: "gpt-6.1-sol" },
+	{ provider: "openai", modelIdentifier: "gpt-6-sol" },
+	{ provider: "openai", modelIdentifier: "gpt-6-luna" },
+	{ provider: "openai", modelIdentifier: "gpt-5.6-sol" },
+	{ provider: "openai", modelIdentifier: "gpt-5.6-terra" },
+	{ provider: "openai", modelIdentifier: "gpt-5.6-luna" },
+	{ provider: "openai", modelIdentifier: "gpt-5.5" },
+	{ provider: "openai", modelIdentifier: "gpt-5.4" },
+	{ provider: "openai", modelIdentifier: "gpt-5.4-mini" },
+];
+
+// Bedrock names Claude models with an optional inference profile prefix,
+// an "anthropic." vendor prefix and an optional "-vN:M" version suffix.
+const bedrockClaudeModelPattern =
+	/^(?:[a-z-]+\.)?anthropic\.(claude-.+?)(?:-v\d+(?::\d+)?)?$/;
+
+/**
+ * Matches exact canonical identifiers, and for Anthropic also the Claude
+ * identifier inside a Bedrock model ID. Does not match aliases or dated
+ * snapshots.
+ */
+export const isKnownComputerUseModel = (
+	provider: ChatComputerUseProvider,
+	modelId: string,
+): boolean => {
+	const isCurated = (modelIdentifier: string) =>
+		knownComputerUseModels.some(
+			(entry) =>
+				entry.provider === provider &&
+				entry.modelIdentifier === modelIdentifier,
+		);
+	if (isCurated(modelId)) {
+		return true;
+	}
+	if (provider !== "anthropic") {
+		return false;
+	}
+	const bedrockClaudeModel = bedrockClaudeModelPattern.exec(modelId)?.[1];
+	return bedrockClaudeModel !== undefined && isCurated(bedrockClaudeModel);
 };
 
 const formatCompactNumber = (value: number): string => {

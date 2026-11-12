@@ -1008,6 +1008,7 @@ type PrometheusConfig struct {
 	CollectAgentStats     serpent.Bool        `json:"collect_agent_stats" typescript:",notnull"`
 	CollectDBMetrics      serpent.Bool        `json:"collect_db_metrics" typescript:",notnull"`
 	AggregateAgentStatsBy serpent.StringArray `json:"aggregate_agent_stats_by" typescript:",notnull"`
+	CollectWorkspaceStats serpent.Bool        `json:"collect_workspace_stats" typescript:",notnull"`
 }
 
 type PprofConfig struct {
@@ -1979,13 +1980,23 @@ communicating directly.`,
 	// AI Gateway options
 	aiGatewayEnabled := serpent.Option{
 		Name:        "AI Gateway Enabled",
-		Description: "Whether to start an in-memory AI Gateway instance.",
+		Description: "Whether to enable AI Gateway. Use --ai-gateway-embedded-enabled to control whether coderd also starts an in-memory AI Gateway instance.",
 		Flag:        "ai-gateway-enabled",
 		Env:         "CODER_AI_GATEWAY_ENABLED",
 		Value:       &c.AI.BridgeConfig.Enabled,
 		Default:     "true",
 		Group:       &deploymentGroupAIGateway,
 		YAML:        "enabled",
+	}
+	aiGatewayEmbeddedEnabled := serpent.Option{
+		Name:        "AI Gateway Embedded Enabled",
+		Description: "Whether to start an in-memory AI Gateway instance inside coderd. Has no effect unless --ai-gateway-enabled is true. Set to false when all AI Gateway traffic is served by standalone AI Gateway instances. Coder Agents requires this option to be set to true.",
+		Flag:        "ai-gateway-embedded-enabled",
+		Env:         "CODER_AI_GATEWAY_EMBEDDED_ENABLED",
+		Value:       &c.AI.BridgeConfig.EmbeddedEnabled,
+		Default:     "true",
+		Group:       &deploymentGroupAIGateway,
+		YAML:        "embedded_enabled",
 	}
 	aiGatewayInjectCoderMCPTools := serpent.Option{
 		Name:        "AI Gateway Inject Coder MCP tools",
@@ -2700,6 +2711,16 @@ communicating directly.`,
 			YAML:    "collect_db_metrics",
 			Default: "false",
 		},
+		{
+			Name:        "Prometheus Collect Workspace Stats",
+			Description: "Collect per-workspace stats (may increase charges for metrics storage).",
+			Flag:        "prometheus-collect-workspace-stats",
+			Env:         "CODER_PROMETHEUS_COLLECT_WORKSPACE_STATS",
+			Value:       &c.Prometheus.CollectWorkspaceStats,
+			Group:       &deploymentGroupIntrospectionPrometheus,
+			YAML:        "collect_workspace_stats",
+			Default:     "false",
+		},
 		// Pprof settings
 		{
 			Name:        "pprof Enable",
@@ -3337,7 +3358,7 @@ communicating directly.`,
 		},
 		{
 			Name:        "Disable Terraform Module Cache",
-			Description: "Disable the reuse of Terraform modules cached at template import for all templates. Modules are re-downloaded on every workspace build. Individual templates cannot opt back in.",
+			Description: "Disable the reuse of Terraform modules and the provider lock file cached at template import for all templates. Modules are re-downloaded on every workspace build. Individual templates cannot opt back in.",
 			Flag:        "provisioner-disable-module-cache",
 			Env:         "CODER_PROVISIONER_DISABLE_MODULE_CACHE",
 			Default:     "false",
@@ -4002,7 +4023,9 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.ProxyHealthStatusInterval,
 			Group:       &deploymentGroupNetworkingHTTP,
 			YAML:        "proxyHealthInterval",
-			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
+			Annotations: serpent.Annotations{}.
+				Mark(annotationEnterpriseKey, "true").
+				Mark(annotationFormatDuration, "true"),
 		},
 		{
 			Name:        "Default Quiet Hours Schedule",
@@ -4504,7 +4527,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Chat: Max Queued Messages Per Chat",
-			Description: "Maximum number of messages that can be queued in a chat. Sending a message to a chat whose queue is full fails with HTTP 429. Must be at least 1.",
+			Description: "Maximum number of messages that can be queued in a chat. Sending a message that would make a full queue longer fails with HTTP 429. Must be at least 1.",
 			Flag:        "chat-max-queued-messages-per-chat",
 			Env:         "CODER_CHAT_MAX_QUEUED_MESSAGES_PER_CHAT",
 			Value:       &c.AI.Chat.MaxQueuedMessagesPerChat,
@@ -4578,6 +4601,7 @@ Write out the current server config as YAML to stdout.`,
 			UseInstead:  serpent.OptionSet{aiGatewayEnabled},
 		},
 		aiGatewayEnabled,
+		aiGatewayEmbeddedEnabled,
 		{
 			Name:        "AI Bridge Inject Coder MCP tools",
 			Description: "Deprecated: Injected MCP in AI Gateway is deprecated and will be removed in a future release. This option is an alias for --ai-gateway-inject-coder-mcp-tools.",
@@ -5007,6 +5031,9 @@ Write out the current server config as YAML to stdout.`,
 
 type AIBridgeConfig struct {
 	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
+	// EmbeddedEnabled controls whether coderd starts the in-memory AI
+	// Gateway. It only takes effect when Enabled is true.
+	EmbeddedEnabled serpent.Bool `json:"embedded_enabled" typescript:",notnull"`
 	// Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	InjectCoderMCPTools serpent.Bool     `json:"inject_coder_mcp_tools" typescript:",notnull"`
 	Retention           serpent.Duration `json:"retention" typescript:",notnull"`
@@ -5502,20 +5529,19 @@ const (
 	ExperimentNotifications             Experiment = "notifications"               // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage            Experiment = "workspace-usage"             // Enables the new workspace usage tracking.
 	ExperimentMCPServerHTTP             Experiment = "mcp-server-http"             // Enables the MCP HTTP server functionality.
-	ExperimentMCPToolSearch             Experiment = "mcp-tool-search"             // Defers MCP tool schemas behind a searchable catalog in agent chats.
 	ExperimentWorkspaceBuildUpdates     Experiment = "workspace-build-updates"     // Enables publishing workspace build updates to the all builds pubsub channel.
 	ExperimentNoNATSPubsub              Experiment = "no_nats_pubsub"              // Disables the embedded NATS pubsub, falling back to PostgreSQL pubsub.
 	ExperimentWorkspaceCapableLicensing Experiment = "workspace-capable-licensing" // Counts only users holding the workspace-create permission toward the license seat limit.
 	ExperimentAIGatewaySeatExclusion    Experiment = "ai-gateway-seat-exclusion"   // Excludes AI Gateway (AI Bridge) usage from AI Governance seat consumption.
 	ExperimentAIGatewayReverseProxy     Experiment = "ai-gateway-reverse-proxy"    // Uses stateless reverse proxy routing when MCP injection is not configured.
 	ExperimentChatProjectSharing        Experiment = "chat-project-sharing"        // Enables sharing agent chat projects with other users and groups.
-	ExperimentChatAdvisor               Experiment = "chat-advisor"                // Enables the advisor tool for root agent chats.
-	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use provider for agents.
+	ExperimentChatVirtualDesktop        Experiment = "chat-virtual-desktop"        // Enables virtual desktop and computer use for agents.
 	ExperimentAgentLifecycleHooks       Experiment = "agent-lifecycle-hooks"       // Enables chat lifecycle hook webhooks for agent chats.
 	ExperimentChatInlineMCPServers      Experiment = "chat-inline-mcp-servers"     // Enables inline MCP servers declared on POST /chats.
 	ExperimentEnableAIWorkspaceDebug    Experiment = "enable-ai-workspace-debug"   // Enables debugging failed workspace builds with Coder Agents.
 	ExperimentChatStageMetrics          Experiment = "chat-stage-metrics"          // Exposes chat lifecycle stage durations as Prometheus metrics.
 	ExperimentChatACPSubagents          Experiment = "chat-acp-subagents"          // Enables workspace-local ACP subagent tools in root chats.
+	ExperimentChatAutomations           Experiment = "chat-automations"            // Enables webhook and scheduled automations that deliver prompts to agent chats.
 )
 
 func (e Experiment) DisplayName() string {
@@ -5528,8 +5554,6 @@ func (e Experiment) DisplayName() string {
 		return "Workspace Usage Tracking"
 	case ExperimentMCPServerHTTP:
 		return "MCP HTTP Server Functionality"
-	case ExperimentMCPToolSearch:
-		return "MCP Tool Search"
 	case ExperimentWorkspaceBuildUpdates:
 		return "Workspace Build Updates Channel"
 	case ExperimentNoNATSPubsub:
@@ -5542,8 +5566,6 @@ func (e Experiment) DisplayName() string {
 		return "AI Gateway Reverse Proxy"
 	case ExperimentChatProjectSharing:
 		return "Chat Project Sharing"
-	case ExperimentChatAdvisor:
-		return "Chat Advisor"
 	case ExperimentChatVirtualDesktop:
 		return "Chat Virtual Desktop"
 	case ExperimentAgentLifecycleHooks:
@@ -5554,6 +5576,8 @@ func (e Experiment) DisplayName() string {
 		return "AI Workspace Debugging"
 	case ExperimentChatACPSubagents:
 		return "Chat ACP Subagents"
+	case ExperimentChatAutomations:
+		return "Chat Automations"
 	default:
 		// Split on hyphen and convert to title case
 		// e.g. "mcp-server-http" -> "Mcp Server Http"
@@ -5568,20 +5592,19 @@ var ExperimentsKnown = Experiments{
 	ExperimentNotifications,
 	ExperimentWorkspaceUsage,
 	ExperimentMCPServerHTTP,
-	ExperimentMCPToolSearch,
 	ExperimentNoNATSPubsub,
 	ExperimentWorkspaceBuildUpdates,
 	ExperimentWorkspaceCapableLicensing,
 	ExperimentAIGatewaySeatExclusion,
 	ExperimentAIGatewayReverseProxy,
 	ExperimentChatProjectSharing,
-	ExperimentChatAdvisor,
 	ExperimentChatVirtualDesktop,
 	ExperimentAgentLifecycleHooks,
 	ExperimentChatInlineMCPServers,
 	ExperimentEnableAIWorkspaceDebug,
 	ExperimentChatStageMetrics,
 	ExperimentChatACPSubagents,
+	ExperimentChatAutomations,
 }
 
 // ExperimentsSafe should include all experiments that are safe for
@@ -5598,7 +5621,7 @@ var ExperimentsSafe = Experiments{
 // startup list and need a restart to change.
 var ExperimentsUserScoped = Experiments{
 	ExperimentExample,
-	ExperimentMCPToolSearch,
+	ExperimentChatAutomations,
 }
 
 // Experiments is a list of experiments.

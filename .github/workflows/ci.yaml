@@ -168,7 +168,7 @@ jobs:
       - name: Set up mise tools
         uses: ./.github/actions/setup-mise
         with:
-          install-args: "node pnpm"
+          install-args: "go node pnpm"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
@@ -176,11 +176,20 @@ jobs:
       - name: Check docs
         run: pnpm check-docs
 
+      # The docs checker tests read the committed docs, and the Go test jobs
+      # skip docs-only pull requests. Fetch only the modules they need, with
+      # the retry the other Go jobs use for go mod download.
+      - name: Download docs checker modules
+        run: ./.github/scripts/retry.sh --timeout 120 -- go list -deps -test ./scripts/docs... > /dev/null
+
+      - name: Test docs checkers
+        run: go test ./scripts/docs...
+
       # Vale prose linter, advisory only. Scoped to changed Markdown under
       # docs/. Every Vale step is `continue-on-error` so this section can
       # never block the required `lint-docs` job: a `vale sync` network
       # blip or a baseline rule violation surfaces as an annotation, not a
-      # merge gate. Only markdownlint/table-formatter above stay blocking.
+      # merge gate. Only the checks above stay blocking.
       # `vale --no-exit` additionally keeps the baseline error count from
       # un-overridden upstream Google rules from failing the step. Lives
       # here rather than a standalone workflow so docs lint stays in the
@@ -1352,6 +1361,7 @@ jobs:
       - changes
     if: (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
+    environment: ci-signing
     permissions:
       # Necessary to push docker images to ghcr.io.
       packages: write
@@ -1388,9 +1398,13 @@ jobs:
         uses: ./.github/actions/setup-mise
         with:
           install-args: "go node pnpm cosign syft"
+          # Depot caches are shared across branches; don't trust them here.
+          use-cache: "false"
 
       - name: Install pnpm dependencies
         uses: ./.github/actions/pnpm-install
+        with:
+          use-cache: "false"
 
       - name: Install Go mise tools
         run: ./.github/scripts/retry.sh -- mise install --locked go:github.com/tc-hib/go-winres go:github.com/goreleaser/nfpm/v2/cmd/nfpm
@@ -1762,6 +1776,7 @@ jobs:
     needs:
       - required
     runs-on: ubuntu-latest
+    environment: main
     if: failure() && github.ref == 'refs/heads/main'
 
     steps:

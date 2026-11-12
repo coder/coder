@@ -68,7 +68,7 @@ const PolicyProvider: React.FC<{
 				<div role="group" aria-labelledby={badgeId}>
 					<span
 						id={badgeId}
-						className="mb-0.5 flex w-fit items-center gap-1 rounded border border-solid border-border px-1 text-[11px] leading-4 text-content-secondary"
+						className="mb-0.5 flex w-fit items-center gap-1 rounded border px-1 text-[11px] leading-4 text-content-secondary"
 					>
 						<ShieldIcon aria-hidden className="size-3 shrink-0" />
 						Modified by policy
@@ -232,7 +232,7 @@ const HeaderButton: React.FC<ToolCallHeaderButtonProps> = ({
 		<TranscriptRow
 			asChild
 			className={cn(
-				"m-0 min-w-0 max-w-full gap-2 border-0 bg-transparent p-0 text-left font-[inherit] text-inherit text-content-secondary transition-colors",
+				"m-0 min-w-0 max-w-full gap-2 bg-transparent p-0 text-left font-[inherit] text-content-secondary transition-colors",
 				collapsible && "cursor-pointer hover:text-content-primary",
 				className,
 			)}
@@ -445,6 +445,17 @@ const Content: React.FC<ToolCallContentProps> = ({ children }) => {
 	return children;
 };
 
+type ToolCallErrorDetailProps = {
+	children: string;
+};
+
+/** Shows a failed call's error message in the expanded row body. */
+const ErrorDetail: React.FC<ToolCallErrorDetailProps> = ({ children }) => (
+	<pre className="m-0 mt-1.5 whitespace-pre-wrap wrap-break-word bg-transparent p-0 font-mono text-xs leading-5 text-content-destructive">
+		{children}
+	</pre>
+);
+
 type ToolCallScrollableProps = Omit<
 	React.ComponentProps<typeof ScrollArea>,
 	| "viewportAriaLabel"
@@ -519,5 +530,6 @@ export const ToolCall = {
 	State,
 	Header,
 	Content,
+	ErrorDetail,
 	Scrollable,
 };
