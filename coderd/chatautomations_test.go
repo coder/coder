@@ -25,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -90,6 +91,28 @@ func (e chatAutomationEnv) exists(t *testing.T, id uuid.UUID) bool {
 	require.NoError(t, e.sqlDB.QueryRowContext(testutil.Context(t, testutil.WaitShort),
 		"SELECT count(*) FROM chat_automations WHERE id = $1", id).Scan(&n))
 	return n == 1
+}
+
+// readOnlyClient returns a client of a new organization member whose only
+// grant on chat automations is read, from a custom role. The custom role API
+// needs a license, and the role store loads rows without one.
+func (e chatAutomationEnv) readOnlyClient(t *testing.T) (*codersdk.Client, codersdk.User) {
+	t.Helper()
+	org := e.first.OrganizationID
+	role, err := e.db.InsertCustomRole(testutil.Context(t, testutil.WaitShort), database.InsertCustomRoleParams{
+		Name:           testutil.GetRandomName(t),
+		DisplayName:    "Automation reader",
+		OrganizationID: uuid.NullUUID{UUID: org, Valid: true},
+		OrgPermissions: database.CustomRolePermissions{{
+			ResourceType: rbac.ResourceChatAutomation.Type,
+			Action:       policy.ActionRead,
+		}},
+	})
+	require.NoError(t, err)
+	client, user := coderdtest.CreateAnotherUser(t, e.owner, org)
+	e.exec(t, "UPDATE organization_members SET roles = array_append(roles, $1) WHERE user_id = $2 AND organization_id = $3",
+		role.Name, user.ID, org)
+	return client, user
 }
 
 func chatAutomationPath(orgID uuid.UUID, suffix string) string {
@@ -281,6 +304,20 @@ func TestChatAutomationsAuthorization(t *testing.T) {
 		}
 		require.True(t, env.exists(t, a.ID))
 	})
+}
+
+// TestChatAutomationsReadOnlyRole sends a delete as a role that can read an
+// automation and not delete it: the answer is 403 and the row stays.
+func TestChatAutomationsReadOnlyRole(t *testing.T) {
+	t.Parallel()
+	env := newChatAutomationEnv(t, nil)
+	client, _ := env.readOnlyClient(t)
+	theirs := env.automation(t, database.ChatAutomation{OwnerID: env.first.UserID})
+
+	status, body := doChatAutomation(t, client, http.MethodDelete, chatAutomationPath(env.first.OrganizationID, "/"+theirs.ID.String()))
+
+	require.Equal(t, http.StatusForbidden, status, string(body))
+	require.True(t, env.exists(t, theirs.ID))
 }
 
 func TestChatAutomationsOwnerFilter(t *testing.T) {
