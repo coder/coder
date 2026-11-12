@@ -104,9 +104,8 @@ Coder doesn't reuse the lock file when [module caching](../templates/extending-t
 
 Builds that install providers from the cache directory don't check that those provider versions are still available from the provider registry or a provider mirror.
 A provisioner removes a cached provider 30&nbsp;days after downloading it, and the next build on that provisioner that uses the provider contacts the provider registry or provider mirror again.
-To make builds check sooner (for example, after you withdraw a provider version from a provider mirror), delete that provider version from each provisioner's cache directory.
-Built-in provisioners keep cached providers in `provisioner-<n>/tf` under the Coder server's cache directory, and external provisioners keep them in their own `--cache-dir`.
-Inside, a provider version is at `<hostname>/<namespace>/<type>/<version>`, for example `registry.terraform.io/coder/coder/2.20.0`.
+A provider that Terraform linked into the cache from a filesystem mirror stays there until you delete it.
+To make builds check sooner (for example, after you withdraw a provider version from a provider mirror), delete that provider version from each provisioner's [cache directory](#cache-directory).
 Builds on a provisioner that sets `TF_CLI_ARGS` or `TF_CLI_ARGS_init` always contact the provider registry or provider mirror.
 
 Committing your own lock file also pins provider versions across template pushes.
@@ -137,5 +136,7 @@ The next time the template is used, Terraform will attempt to cache the specific
 ### Cache directory
 
 Coder will instruct Terraform to cache its downloaded providers in the configured [`CODER_CACHE_DIRECTORY`](../reference/cli/server/index.md#--cache-dir) directory.
+Built-in provisioners keep cached providers in `provisioner-<n>/tf` under that directory, and external provisioners keep them in their own `--cache-dir`.
+Inside, a provider version is at `<hostname>/<namespace>/<type>/<version>`, for example `registry.terraform.io/coder/coder/2.20.0`.
 
 Make sure that this directory is set to a location on disk which will persist across restarts of Coder or [external provisioners](../install/operate/provisioners/index.md), if you're using them.

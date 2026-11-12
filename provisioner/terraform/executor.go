@@ -10,6 +10,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"slices"
 	"strings"
@@ -246,10 +247,10 @@ func (e *textFileBusyError) Error() string {
 	return "text file busy: " + e.exitErr.String()
 }
 
-// init runs `terraform init`. If pluginDir is set, Terraform installs only
-// the providers the lock file pins, and only from that directory, not from
-// the provider registry or a provider mirror. Modules and the backend are
-// initialized as usual.
+// init runs `terraform init`. If pluginDir is set, Terraform installs
+// providers only from that directory, not from the provider registry or a
+// provider mirror, and fails if the lock file doesn't pin one of them.
+// Modules and the backend are initialized as usual.
 func (e *executor) init(ctx, killCtx context.Context, logr logSink, pluginDir string) error {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
@@ -293,13 +294,18 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink, pluginDir st
 
 	env := e.basicEnv()
 	if pluginDir != "" {
-		// With a read-only lock file, init fails instead of installing a
-		// provider that the lock file doesn't pin and so can't verify.
+		// With a read-only lock file, init fails if it installed a provider
+		// that the lock file doesn't pin and so can't verify.
 		args = append(args, "-plugin-dir="+pluginDir, "-lockfile=readonly")
 		// Setting the cache as well only slows init down.
 		env = slices.DeleteFunc(env, func(v string) bool {
 			return strings.HasPrefix(v, "TF_PLUGIN_CACHE_DIR=")
 		})
+		// Terraform records -plugin-dir in the working directory, where it
+		// would stop plan and apply from finding provisioner plugins.
+		defer func() {
+			_ = os.Remove(filepath.Join(e.files.TerraformMetadataDir(), "plugin_path"))
+		}()
 	}
 
 	err = e.execWriteOutput(ctx, killCtx, args, env, outBuf, errBuf)
@@ -661,6 +667,8 @@ type logSink interface {
 // which it holds until flush.
 type heldErrorSink struct {
 	sink logSink
+	// mu guards held while a command logs. Nothing writes to held once the
+	// command has returned.
 	mu   sync.Mutex
 	held []string
 }

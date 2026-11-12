@@ -657,6 +657,9 @@ func TestProvision_Cancel(t *testing.T) {
 		// one process tries to do this, it can cause "text file busy"
 		// nolint: paralleltest
 		t.Run(tt.name, func(t *testing.T) {
+			if tt.moduleFiles != nil && runtime.GOOS != "linux" {
+				t.Skip(pluginCacheOnlyOnLinux)
+			}
 			dir := t.TempDir()
 			binPath := filepath.Join(dir, "terraform")
 
@@ -677,7 +680,7 @@ func TestProvision_Cancel(t *testing.T) {
 			sess := configure(ctx, t, api, &proto.Config{})
 
 			if tt.moduleFiles != nil {
-				sendBuildInitRequest(t, sess, testutil.CreateTar(t, nil), tt.moduleFiles)
+				startBuildInit(t, sess, testutil.CreateTar(t, nil), tt.moduleFiles)
 			} else {
 				err = sendInit(sess, testutil.CreateTar(t, nil))
 				require.NoError(t, err)
@@ -1767,12 +1770,12 @@ func TestProvision_LockFileCached(t *testing.T) {
 
 // Templates whose providers writeFakeProviderMirror supplies.
 const (
-	fakeOnly = `terraform {
+	fakeProviderTemplate = `terraform {
 		required_providers {
 		  fake = { source = "example.com/coder/fake" }
 		}
 	}`
-	fakeAndOther = `terraform {
+	fakeAndOtherProviderTemplate = `terraform {
 		required_providers {
 		  fake  = { source = "example.com/coder/fake" }
 		  other = { source = "example.com/coder/other" }
@@ -1810,7 +1813,7 @@ func TestProvision_LockFileFallback(t *testing.T) {
 	// Without a lock file of its own, the build selects versions again.
 	t.Run("NoTemplateLockFile", func(t *testing.T) {
 		t.Parallel()
-		source := testutil.CreateTar(t, map[string]string{"main.tf": fakeOnly})
+		source := testutil.CreateTar(t, map[string]string{"main.tf": fakeProviderTemplate})
 		log := build(t, source, importTemplate(t, source), "fake/1.1.0")
 		require.Contains(t, log, retryLog)
 		require.Contains(t, log, "example.com/coder/fake v1.1.0")
@@ -1820,9 +1823,9 @@ func TestProvision_LockFileFallback(t *testing.T) {
 	// top of it. The build keeps the template's pin and selects other again.
 	t.Run("TemplateLockFile", func(t *testing.T) {
 		t.Parallel()
-		fakeLock := importedLockFile(t, importTemplate(t, testutil.CreateTar(t, map[string]string{"main.tf": fakeOnly})))
+		fakeLock := importedLockFile(t, importTemplate(t, testutil.CreateTar(t, map[string]string{"main.tf": fakeProviderTemplate})))
 		source := testutil.CreateTar(t, map[string]string{
-			"main.tf":             fakeAndOther,
+			"main.tf":             fakeAndOtherProviderTemplate,
 			".terraform.lock.hcl": string(fakeLock),
 		})
 		log := build(t, source, importTemplate(t, source), "fake/1.0.0", "fake/1.1.0", "other/1.1.0")
@@ -1839,15 +1842,27 @@ const pluginCacheOnlyOnLinux = "the plugin cache is only used on Linux"
 // emptied. Only the plugin cache can supply the provider to that Init.
 func buildInitWithEmptyMirror(t *testing.T) *proto.InitComplete {
 	t.Helper()
-	source := testutil.CreateTar(t, map[string]string{"main.tf": fakeOnly})
+	source := testutil.CreateTar(t, map[string]string{"main.tf": fakeProviderTemplate})
 	cliConfigPath := writeFakeProviderMirror(t, "fake/1.0.0")
-	ctx, api := setupProvisioner(t, &provisionerServeOptions{cliConfigPath: cliConfigPath})
+	workDir := t.TempDir()
+	ctx, api := setupProvisioner(t, &provisionerServeOptions{cliConfigPath: cliConfigPath, workDir: workDir})
 	importResp := sendInitAndGetResp(t, configure(ctx, t, api, &proto.Config{}), source)
 	require.Empty(t, importResp.Error)
 
 	require.NoError(t, os.Rename(writeFakeProviderMirror(t), cliConfigPath))
 	_, resp := sendBuildInit(t, configure(ctx, t, api, &proto.Config{}), source, importResp.ModuleFiles)
+	requireNoPluginPath(t, workDir)
 	return resp
+}
+
+// requireNoPluginPath checks that no session under workDir kept Terraform's
+// record of -plugin-dir, which would stop plan and apply from finding
+// provisioner plugins.
+func requireNoPluginPath(t *testing.T, workDir string) {
+	t.Helper()
+	recorded, err := filepath.Glob(filepath.Join(workDir, "*", ".terraform", "plugin_path"))
+	require.NoError(t, err)
+	require.Empty(t, recorded)
 }
 
 // TestProvision_InitFromPluginCache covers a build that reuses the lock file
@@ -1869,20 +1884,23 @@ func TestProvision_InitFromPluginCache(t *testing.T) {
 	// build log.
 	t.Run("ColdCache", func(t *testing.T) {
 		t.Parallel()
-		source := testutil.CreateTar(t, map[string]string{"main.tf": fakeOnly})
+		source := testutil.CreateTar(t, map[string]string{"main.tf": fakeProviderTemplate})
 		importCtx, importAPI := setupProvisioner(t, &provisionerServeOptions{
 			cliConfigPath: writeFakeProviderMirror(t, "fake/1.0.0"),
 		})
 		importResp := sendInitAndGetResp(t, configure(importCtx, t, importAPI, &proto.Config{}), source)
 		require.Empty(t, importResp.Error)
 
+		workDir := t.TempDir()
 		ctx, api := setupProvisioner(t, &provisionerServeOptions{
 			cliConfigPath: writeFakeProviderMirror(t, "fake/1.0.0"),
+			workDir:       workDir,
 		})
 		log, resp := sendBuildInit(t, configure(ctx, t, api, &proto.Config{}), source, importResp.ModuleFiles)
 		require.Empty(t, resp.Error)
 		require.Contains(t, log, "Running terraform init again, this time not limited to the plugin cache.")
 		require.NotContains(t, log, "Error")
+		requireNoPluginPath(t, workDir)
 	})
 
 	// The lock file doesn't pin other, so Terraform can't verify a cached
@@ -1895,9 +1913,9 @@ func TestProvision_InitFromPluginCache(t *testing.T) {
 		// Importing both templates caches both providers, but only the
 		// second lock file pins other.
 		fakeImport := sendInitAndGetResp(t, configure(ctx, t, api, &proto.Config{}),
-			testutil.CreateTar(t, map[string]string{"main.tf": fakeOnly}))
+			testutil.CreateTar(t, map[string]string{"main.tf": fakeProviderTemplate}))
 		require.Empty(t, fakeImport.Error)
-		source := testutil.CreateTar(t, map[string]string{"main.tf": fakeAndOther})
+		source := testutil.CreateTar(t, map[string]string{"main.tf": fakeAndOtherProviderTemplate})
 		require.Empty(t, sendInitAndGetResp(t, configure(ctx, t, api, &proto.Config{}), source).Error)
 
 		require.NoError(t, os.Rename(writeFakeProviderMirror(t, "fake/1.0.0", "other/1.1.0"), cliConfigPath))
@@ -1916,23 +1934,29 @@ func TestProvision_InitFlagsSkipPluginCache(t *testing.T) {
 	if runtime.GOOS != "linux" {
 		t.Skip(pluginCacheOnlyOnLinux)
 	}
-	t.Setenv("TF_CLI_ARGS_init", "-input=false")
-	require.NotEmpty(t, buildInitWithEmptyMirror(t).Error)
+	for _, name := range []string{"TF_CLI_ARGS", "TF_CLI_ARGS_init"} {
+		//nolint:paralleltest // t.Setenv can't be used in a parallel test.
+		t.Run(name, func(t *testing.T) {
+			// Every Terraform command accepts -no-color.
+			t.Setenv(name, "-no-color")
+			require.NotEmpty(t, buildInitWithEmptyMirror(t).Error)
+		})
+	}
 }
 
 // sendBuildInit sends a workspace build's Init and returns its log and
 // response.
 func sendBuildInit(t *testing.T, sess proto.DRPCProvisioner_SessionClient, source, moduleFiles []byte) (string, *proto.InitComplete) {
 	t.Helper()
-	sendBuildInitRequest(t, sess, source, moduleFiles)
+	startBuildInit(t, sess, source, moduleFiles)
 	log, last := readProvisionLog(t, sess)
 	require.NotNil(t, last.GetInit())
 	return log, last.GetInit()
 }
 
-// sendBuildInitRequest sends a workspace build's Init request, streaming the
+// startBuildInit sends a workspace build's Init request, streaming the
 // module archive the way provisionerd does.
-func sendBuildInitRequest(t *testing.T, sess proto.DRPCProvisioner_SessionClient, source, moduleFiles []byte) {
+func startBuildInit(t *testing.T, sess proto.DRPCProvisioner_SessionClient, source, moduleFiles []byte) {
 	t.Helper()
 	upload, chunks, err := proto.BytesToDataUpload(proto.DataUploadType_UPLOAD_TYPE_MODULE_FILES, moduleFiles)
 	require.NoError(t, err)

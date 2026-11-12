@@ -205,15 +205,15 @@ func (s *server) initFromPluginCache(ctx, killCtx context.Context, e *executor, 
 	if safeEnvironValue(env, "TF_CLI_ARGS") != "" || safeEnvironValue(env, "TF_CLI_ARGS_init") != "" {
 		return false, nil
 	}
-	errs := &heldErrorSink{sink: sess}
-	err := e.init(ctx, killCtx, errs, e.cachePath)
+	logr := &heldErrorSink{sink: sess}
+	err := e.init(ctx, killCtx, logr, e.cachePath)
 	if err == nil || ctx.Err() != nil {
 		// A canceled init is not run again.
-		errs.flush()
+		logr.flush()
 		return true, err
 	}
 	s.logger.Debug(ctx, "terraform init from the plugin cache failed, running a normal init",
-		slog.Error(err), slog.F("errors", errs.held))
+		slog.Error(err), slog.F("errors", logr.held))
 	sess.ProvisionLog(proto.LogLevel_INFO, "Running terraform init again, this time not limited to the plugin cache.")
 	return false, nil
 }
