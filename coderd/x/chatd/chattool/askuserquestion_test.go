@@ -191,6 +191,14 @@ func TestAsyncQuestion(t *testing.T) {
 			},
 			want: "Which database?",
 		},
+		{
+			name: "PointerOutput",
+			result: fantasy.ToolResultContent{
+				ToolName: "ask_user_question",
+				Result:   &fantasy.ToolResultOutputContentText{Text: `{"question_id":"question-1","questions":[{"question":"Which database?"},{"question":"Which region?"}]}`},
+			},
+			want: "Which database?",
+		},
 	}
 
 	for _, testCase := range tests {

@@ -183,7 +183,7 @@ func AsyncQuestion(result fantasy.ToolResultContent) (string, error) {
 		return "", nil
 	}
 
-	output, ok := result.Result.(fantasy.ToolResultOutputContentText)
+	output, ok := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](result.Result)
 	if !ok {
 		return "", nil
 	}
