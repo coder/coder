@@ -214,6 +214,7 @@ Available query filters:
 - `initiator` - Filter by user ID or username
 - `provider` - Filter by AI provider (for example, `openai`, `anthropic`)
 - `model` - Filter by model name
+- `organization` - Filter by organization name or ID, matching sessions with at least one interception in that organization
 - `started_after` - Filter sessions after a timestamp
 - `started_before` - Filter sessions before a timestamp
 
