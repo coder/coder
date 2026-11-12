@@ -330,13 +330,10 @@ const AgentChatPage: React.FC = () => {
 		mutateAsync: requestQueuedMessageSave,
 	} = useMutation(editChatQueuedMessage(queryClient, agentId));
 	// Marker requests must not mark the composer pending, so they use a
-	// separate mutation instance. Its state tells the composer which begin or
-	// end is in flight.
-	const {
-		isPending: isMarkerPending,
-		variables: markerVariables,
-		mutateAsync: requestQueuedMessageEditing,
-	} = useMutation(editChatQueuedMessage(queryClient, agentId));
+	// separate mutation instance.
+	const { mutateAsync: requestQueuedMessageEditing } = useMutation(
+		editChatQueuedMessage(queryClient, agentId),
+	);
 	const updateChatWorkspaceBase = updateChatWorkspace(queryClient);
 	const {
 		isPending: isUpdateChatWorkspacePending,
@@ -623,7 +620,6 @@ const AgentChatPage: React.FC = () => {
 	const [composerMode, setComposerMode] = useState<ComposerMode>("follow");
 	const {
 		markedID,
-		queuedMessageUnderEditID,
 		composerTarget,
 		handleEditQueuedMessage,
 		handleEndQueuedMessageEdit: requestEndQueuedMessageEdit,
@@ -632,10 +628,6 @@ const AgentChatPage: React.FC = () => {
 		composerMode,
 		setComposerMode,
 		isOwner,
-		marker: {
-			isPending: isMarkerPending,
-			variables: markerVariables,
-		},
 		setQueuedMessageEditing,
 	});
 
@@ -913,7 +905,7 @@ const AgentChatPage: React.FC = () => {
 					handlePromoteQueuedMessage={handlePromoteQueuedMessage}
 					handleEditQueuedMessage={handleEditQueuedMessageWhenIdle}
 					handleEndQueuedMessageEdit={handleEndQueuedMessageEdit}
-					queuedMessageUnderEditID={queuedMessageUnderEditID}
+					queuedMessageUnderEditID={markedID}
 					onImplementPlan={handleImplementPlan}
 					onSendAskUserQuestionResponse={handleSendAskUserQuestionResponse}
 					urlTransform={urlTransform}

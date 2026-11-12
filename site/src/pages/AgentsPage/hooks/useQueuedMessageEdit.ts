@@ -1,5 +1,4 @@
 import { useState } from "react";
-import type { EditChatQueuedMessageVariables } from "#/api/queries/chats";
 import {
 	type ChatStore,
 	selectQueuedMessages,
@@ -15,47 +14,14 @@ import type { EditingTarget } from "../components/ChatConversation/types";
  */
 export type ComposerMode = EditingTarget | "draft" | "follow";
 
-/** The latest marker request's state, as reported by its useMutation. */
-export type MarkerRequest = {
-	isPending: boolean;
-	variables: EditChatQueuedMessageVariables | undefined;
-};
-
-const beginRequestedOn = (marker: MarkerRequest, id: number): boolean =>
-	marker.variables?.queuedMessageId === id &&
-	marker.variables.req.editing === true;
-
-/**
- * The queued row rendered as under edit. A pending marker request applies
- * before it settles, so the row reacts to Edit and Cancel edit without
- * waiting for the server.
- */
-export const deriveQueuedMessageUnderEditID = (
-	markedID: number | null,
-	marker: MarkerRequest,
-): number | null => {
-	if (marker.isPending && marker.variables) {
-		const { queuedMessageId, req } = marker.variables;
-		if (req.editing === true) {
-			return queuedMessageId;
-		}
-		if (req.editing === false && queuedMessageId === markedID) {
-			return null;
-		}
-	}
-	return markedID;
-};
-
 /**
  * The row the composer edits. In follow mode it is the owner's marked row. A
- * queued choice holds while that row is marked or its begin is in flight,
- * and is null otherwise. useConversationEditingState decides what the editor
- * does with the target.
+ * queued choice holds while that row is marked, and is null otherwise.
+ * useConversationEditingState decides what the editor does with the target.
  */
 export const deriveComposerTarget = (
 	composerMode: ComposerMode,
 	markedID: number | null,
-	marker: MarkerRequest,
 	isOwner: boolean,
 ): EditingTarget | null => {
 	if (composerMode === "follow") {
@@ -69,9 +35,7 @@ export const deriveComposerTarget = (
 	if (composerMode.kind === "history") {
 		return composerMode;
 	}
-	const beginPending =
-		marker.isPending && beginRequestedOn(marker, composerMode.id);
-	return markedID === composerMode.id || beginPending ? composerMode : null;
+	return markedID === composerMode.id ? composerMode : null;
 };
 
 /**
@@ -83,16 +47,15 @@ export function useQueuedMessageEdit(deps: {
 	composerMode: ComposerMode;
 	setComposerMode: React.Dispatch<React.SetStateAction<ComposerMode>>;
 	isOwner: boolean;
-	marker: MarkerRequest;
 	setQueuedMessageEditing: (id: number, editing: boolean) => Promise<void>;
 }): {
+	// The row that the shown queue marks as under edit.
 	markedID: number | null;
-	queuedMessageUnderEditID: number | null;
 	composerTarget: EditingTarget | null;
 	handleEditQueuedMessage: (id: number) => void;
 	handleEndQueuedMessageEdit: (id: number) => Promise<void>;
 } {
-	const { store, composerMode, setComposerMode, isOwner, marker } = deps;
+	const { store, composerMode, setComposerMode, isOwner } = deps;
 	const markedID = useChatSelector(
 		store,
 		(s) => selectQueuedMessages(s).find((row) => row.editing_since)?.id ?? null,
@@ -107,7 +70,7 @@ export function useQueuedMessageEdit(deps: {
 	const composerTarget =
 		composerMode === unappliedEdit
 			? unappliedEdit
-			: deriveComposerTarget(composerMode, markedID, marker, isOwner);
+			: deriveComposerTarget(composerMode, markedID, isOwner);
 
 	const handleEditQueuedMessage = (id: number) => {
 		const row = selectQueuedMessages(store.getSnapshot()).find(
@@ -142,7 +105,6 @@ export function useQueuedMessageEdit(deps: {
 
 	return {
 		markedID,
-		queuedMessageUnderEditID: deriveQueuedMessageUnderEditID(markedID, marker),
 		composerTarget,
 		handleEditQueuedMessage,
 		handleEndQueuedMessageEdit,
