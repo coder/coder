@@ -485,6 +485,54 @@ const docTemplate = `{
                 "x-apidocgen": {
                     "skip": true
                 }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat automation",
+                "operationId": "create-chat-automation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create chat automation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatAutomationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatAutomationResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             }
         },
         "/api/experimental/organizations/{organization}/chats/automations/{automation}": {
@@ -24901,6 +24949,107 @@ const docTemplate = `{
                 },
                 "type": {
                     "$ref": "#/definitions/codersdk.AIProviderType"
+                }
+            }
+        },
+        "codersdk.CreateChatAutomationRequest": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "description": "Enabled defaults to true.",
+                    "type": "boolean"
+                },
+                "kind": {
+                    "enum": [
+                        "webhook",
+                        "schedule"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationKind"
+                        }
+                    ]
+                },
+                "name": {
+                    "type": "string"
+                },
+                "new_chat_model_config_id": {
+                    "description": "NewChatModelConfigID, ProjectID and ReasoningEffort apply to new_chat.\nAn existing_chat automation keeps the model and reasoning effort of its\nchat.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "reasoning_effort": {
+                    "type": "string"
+                },
+                "schedule_cron": {
+                    "description": "ScheduleCron is a five-field cron expression and ScheduleTimeZone is an\nIANA time zone name.",
+                    "type": "string"
+                },
+                "schedule_time_zone": {
+                    "type": "string"
+                },
+                "target_chat_id": {
+                    "description": "TargetChatID is the root chat of an existing_chat automation.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "target_mode": {
+                    "enum": [
+                        "existing_chat",
+                        "new_chat"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationTargetMode"
+                        }
+                    ]
+                },
+                "webhook_auth": {
+                    "description": "WebhookAuth is required for a webhook.",
+                    "enum": [
+                        "bearer",
+                        "github",
+                        "standard_webhooks"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationWebhookAuth"
+                        }
+                    ]
+                },
+                "webhook_secret": {
+                    "description": "WebhookSecret is the whsec_ secret that the sender created. Set it for\nstandard_webhooks only: Coder creates the secret of the other schemes.",
+                    "type": "string"
+                },
+                "when_busy": {
+                    "description": "WhenBusy applies to existing_chat. It defaults to skip for a schedule\nand to queue for a webhook.",
+                    "enum": [
+                        "queue",
+                        "skip"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationWhenBusy"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.CreateChatAutomationResponse": {
+            "type": "object",
+            "properties": {
+                "automation": {
+                    "$ref": "#/definitions/codersdk.ChatAutomation"
+                },
+                "webhook_secret": {
+                    "type": "string"
                 }
             }
         },
