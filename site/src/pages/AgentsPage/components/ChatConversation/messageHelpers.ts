@@ -189,6 +189,7 @@ export const deriveMessageDisplayState = ({
 	const hasUserMessageBody =
 		userInlineContent.length > 0 || Boolean(parsed.markdown.trim());
 	const hasFileBlocks = userFileBlocks.length > 0;
+	const isQuestionAnswer = isUser && Boolean(parsed.questionAnswerId);
 	const { hasThinkingOnlyContent, endsWithResponseBlock } =
 		getRenderableContentState(parsed);
 	// The copy action row renders below the whole message, so assistant
@@ -213,7 +214,7 @@ export const deriveMessageDisplayState = ({
 		userFileBlocks,
 		workspaceFileBlocks,
 		workspaceFileReferenceCount,
-		isQuestionAnswer: isUser && Boolean(parsed.questionAnswerId),
+		isQuestionAnswer,
 		hasUserMessageBody,
 		hasFileBlocks,
 		hasWorkspaceFileReferences,
