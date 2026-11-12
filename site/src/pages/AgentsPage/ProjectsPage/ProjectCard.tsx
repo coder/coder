@@ -113,8 +113,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 					</time>
 				)}
 			</div>
-			{/* After the link in DOM and tab order, above its overlay to take its own
-			    clicks. */}
+			{/* Follows the link in tab order. */}
 			<ProjectCardActions
 				project={project}
 				pinned={pinned}

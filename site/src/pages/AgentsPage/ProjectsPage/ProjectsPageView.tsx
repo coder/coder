@@ -38,7 +38,10 @@ type ProjectsPageViewProps = {
 	readonly onCreateProject: () => void;
 	readonly onPin: (project: ChatProject) => void;
 	readonly onUnpin: (project: ChatProject) => void;
-	/** Projects whose pin is still pending show a spinner instead of Pin. */
+	/**
+	 * Projects whose pin is still pending. Their cards show a spinner and leave
+	 * Pin out of the menu until the request settles.
+	 */
 	readonly pendingPinIds: ReadonlySet<string>;
 	readonly onEdit: ProjectAction;
 	readonly onDelete: ProjectAction;
