@@ -158,7 +158,7 @@ func aiGatewayBYOKGuard(cfg codersdk.AIBridgeConfig) func(http.Handler) http.Han
 // @Security CoderSessionToken
 // @Produce json
 // @Tags AI Gateway
-// @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, provider_name, model, client, session_id, started_after, started_before."
+// @Param q query string false "Search query in the format `key:value`. Available keys are: initiator, provider, provider_name, model, client, session_id, organization, started_after, started_before."
 // @Param limit query int false "Page limit"
 // @Param after_session_id query string false "Cursor pagination after session ID (cannot be used with offset)"
 // @Param offset query int false "Offset pagination (cannot be used with after_session_id)"
