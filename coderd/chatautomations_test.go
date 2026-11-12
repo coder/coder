@@ -147,6 +147,32 @@ func TestChatAutomationsExperimentGate(t *testing.T) {
 	}
 }
 
+// failingRulesStore fails the read of the experiment rules.
+type failingRulesStore struct{ database.Store }
+
+func (failingRulesStore) GetExperimentRules(context.Context) ([]database.GetExperimentRulesRow, error) {
+	return nil, xerrors.New("experiment rules are unavailable")
+}
+
+// TestChatAutomationsExperimentEvaluationError checks that the gate fails
+// closed: the experiment is on in the static list, and the routes still answer
+// 404 when the evaluator cannot read its rules.
+func TestChatAutomationsExperimentEvaluationError(t *testing.T) {
+	t.Parallel()
+	env := newChatAutomationEnv(t, func(db database.Store) database.Store { return failingRulesStore{Store: db} })
+	id := env.automation(t, database.ChatAutomation{OwnerID: env.first.UserID}).ID
+
+	for _, req := range []struct{ method, suffix string }{
+		{http.MethodGet, ""},
+		{http.MethodGet, "/" + id.String()},
+		{http.MethodDelete, "/" + id.String()},
+	} {
+		status, body := doChatAutomation(t, env.owner, req.method, chatAutomationPath(env.first.OrganizationID, req.suffix))
+		require.Equal(t, http.StatusNotFound, status, "%s %q: %s", req.method, req.suffix, body)
+	}
+	require.True(t, env.exists(t, id))
+}
+
 func TestChatAutomationsOwnerLifecycle(t *testing.T) {
 	t.Parallel()
 	env := newChatAutomationEnv(t, nil)
