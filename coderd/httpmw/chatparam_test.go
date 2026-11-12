@@ -8,9 +8,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -123,7 +125,10 @@ func TestChatParam(t *testing.T) {
 			httpmw.ExtractChatParam(db),
 		)
 		rtr.Get("/", func(rw http.ResponseWriter, r *http.Request) {
-			_ = httpmw.ChatParam(r)
+			chat := httpmw.ChatParam(r)
+			cached, ok := dbauthz.ChatRBACFromContext(r.Context())
+			assert.True(t, ok, "chat RBAC object should be cached")
+			assert.Equal(t, dbauthz.CacheableChatRBAC(chat), cached)
 			rw.WriteHeader(http.StatusOK)
 		})
 

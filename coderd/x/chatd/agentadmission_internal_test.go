@@ -126,6 +126,11 @@ func TestWorker_InterruptingSortsBeforeRunning(t *testing.T) {
 	require.Len(t, rows, 2)
 	require.Equal(t, interrupting.ID, rows[0].ID)
 	require.Equal(t, requiresAction.ID, rows[1].ID)
+	// Acquisition authorizes from these fields instead of reading the chat.
+	for _, row := range rows {
+		require.Equal(t, f.user.ID, row.OwnerID)
+		require.Equal(t, f.org.ID, row.OrganizationID)
+	}
 }
 
 func TestWorker_AcquisitionCandidatesInterleavePools(t *testing.T) {
