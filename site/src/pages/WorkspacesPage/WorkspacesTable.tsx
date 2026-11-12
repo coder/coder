@@ -47,6 +47,7 @@ import { useAuthenticated } from "hooks";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import {
 	BanIcon,
+	CircleAlertIcon,
 	CloudIcon,
 	EllipsisVertical,
 	ExternalLinkIcon,
@@ -780,6 +781,27 @@ const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 		agent,
 	});
 
+	// Render a non-navigating icon with an explanatory tooltip instead of a
+	// broken link.
+	if (link.isBlocked) {
+		return (
+			<BaseIconLink
+				key={app.id}
+				label={`${link.label} has an untrusted URL`}
+				onClick={() => {}}
+			>
+				{app.icon ? (
+					<ExternalImage src={app.icon} />
+				) : (
+					<CircleAlertIcon
+						aria-hidden="true"
+						className="size-icon-sm text-content-warning"
+					/>
+				)}
+			</BaseIconLink>
+		);
+	}
+
 	return (
 		<BaseIconLink
 			key={app.id}
@@ -794,7 +816,7 @@ const IconAppLink: FC<IconAppLinkProps> = ({ app, workspace, agent }) => {
 
 type BaseIconLinkProps = PropsWithChildren<{
 	label: string;
-	href: string;
+	href?: string;
 	isLoading?: boolean;
 	onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
 	target?: string;

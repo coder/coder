@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -388,6 +389,15 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 	// Treat the message as untrusted input.
 	cleaned := strutil.UISanitize(req.Message)
 
+	// Drop disallowed URIs but still save the status.
+	uri := req.URI
+	if uri != "" && !isAllowedAppStatusURI(uri) {
+		api.Logger.Warn(ctx, "dropping disallowed app status uri",
+			slog.F("agent_id", workspaceAgent.ID),
+			slog.F("app_slug", req.AppSlug))
+		uri = ""
+	}
+
 	// Get the latest status for the workspace app to detect no-op updates
 	// nolint:gocritic // This is a system restricted operation.
 	latestAppStatus, err := api.Database.GetLatestWorkspaceAppStatusByAppID(dbauthz.AsSystemRestricted(ctx), app.ID)
@@ -410,8 +420,8 @@ func (api *API) patchWorkspaceAgentAppStatus(rw http.ResponseWriter, r *http.Req
 		State:       database.WorkspaceAppStatusState(req.State),
 		Message:     cleaned,
 		Uri: sql.NullString{
-			String: req.URI,
-			Valid:  req.URI != "",
+			String: uri,
+			Valid:  uri != "",
 		},
 	})
 	if err != nil {
@@ -2309,4 +2319,17 @@ func convertWorkspaceAgentLog(logEntry database.WorkspaceAgentLog) codersdk.Work
 		Level:     codersdk.LogLevel(logEntry.Level),
 		SourceID:  logEntry.LogSourceID,
 	}
+}
+
+// allowedAppStatusURISchemes are the only schemes kept on app status URIs.
+var allowedAppStatusURISchemes = []string{"http", "https", "file"}
+
+// isAllowedAppStatusURI reports whether uri uses an allowed scheme and has no
+// control characters.
+func isAllowedAppStatusURI(uri string) bool {
+	if strings.IndexFunc(uri, unicode.IsControl) >= 0 {
+		return false
+	}
+	u, err := url.Parse(uri)
+	return err == nil && slices.Contains(allowedAppStatusURISchemes, u.Scheme)
 }

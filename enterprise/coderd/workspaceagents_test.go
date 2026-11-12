@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -25,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -459,5 +462,110 @@ func TestWorkspaceExternalAgentCredentials(t *testing.T) {
 		var apiErr *codersdk.Error
 		require.ErrorAs(t, err, &apiErr)
 		require.Equal(t, "Workspace does not have an external agent.", apiErr.Message)
+	})
+
+	t.Run("RequiresSSHPermission", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		orgID := user.OrganizationID
+		memberClient, member := coderdtest.CreateAnotherUser(t, client, orgID)
+		templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, orgID, rbac.RoleTemplateAdmin())
+		orgTemplateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, orgID, rbac.ScopedRoleOrgTemplateAdmin(orgID))
+		orgAdminClient, _ := coderdtest.CreateAnotherUser(t, client, orgID, rbac.ScopedRoleOrgAdmin(orgID))
+		useShareeClient, useSharee := coderdtest.CreateAnotherUser(t, client, orgID)
+		adminShareeClient, adminSharee := coderdtest.CreateAnotherUser(t, client, orgID)
+
+		scopedMemberClient := func(scopes ...codersdk.APIKeyScope) *codersdk.Client {
+			token, err := memberClient.CreateToken(ctx, codersdk.Me, codersdk.CreateTokenRequest{
+				Scopes: scopes,
+			})
+			require.NoError(t, err)
+			scopedClient := codersdk.New(client.URL)
+			scopedClient.SetSessionToken(token.Key)
+			return scopedClient
+		}
+		// Reading a workspace also reads its template, so the read-only
+		// token needs template:read alongside workspace:read.
+		readOnlyClient := scopedMemberClient(codersdk.APIKeyScopeWorkspaceRead, codersdk.APIKeyScopeTemplateRead)
+		// The access and operate scopes don't include template:read on this
+		// branch, so add it for the workspace read below. It grants no SSH.
+		accessTokenClient := scopedMemberClient(codersdk.APIKeyScopeCoderWorkspacesAccess, codersdk.APIKeyScopeTemplateRead)
+		operateTokenClient := scopedMemberClient(codersdk.APIKeyScopeCoderWorkspacesOperate, codersdk.APIKeyScopeTemplateRead)
+		createTokenClient := scopedMemberClient(codersdk.APIKeyScopeCoderWorkspacesCreate)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: orgID,
+			OwnerID:        member.ID,
+		}).Seed(database.WorkspaceBuild{
+			HasExternalAgent: sql.NullBool{
+				Bool:  true,
+				Valid: true,
+			},
+		}).Resource(&proto.Resource{
+			Name: "test-agent",
+			Type: "coder_external_agent",
+		}).WithAgent(func(a []*proto.Agent) []*proto.Agent {
+			a[0].Name = "test-agent"
+			a[0].OperatingSystem = "linux"
+			a[0].Architecture = "amd64"
+			return a
+		}).Do()
+
+		// dbgen.Workspace doesn't persist UserACL on this branch, so set the
+		// shares directly. The system-restricted subject can't share a
+		// workspace here, so act as the workspace owner, who can.
+		ownerCtx := dbauthz.As(ctx, coderdtest.AuthzUserSubject(member, orgID))
+		err := db.UpdateWorkspaceACLByID(ownerCtx, database.UpdateWorkspaceACLByIDParams{
+			ID: r.Workspace.ID,
+			UserACL: database.WorkspaceACL{
+				useSharee.ID.String(): {
+					Permissions: db2sdk.WorkspaceRoleActions(codersdk.WorkspaceRoleUse),
+				},
+				adminSharee.ID.String(): {
+					Permissions: db2sdk.WorkspaceRoleActions(codersdk.WorkspaceRoleAdmin),
+				},
+			},
+			GroupACL: database.WorkspaceACL{},
+		})
+		require.NoError(t, err)
+
+		for _, tc := range []struct {
+			name    string
+			client  *codersdk.Client
+			allowed bool
+		}{
+			{name: "WorkspaceOwner", client: memberClient, allowed: true},
+			{name: "Owner", client: client, allowed: true},
+			{name: "ACLUse", client: useShareeClient, allowed: true},
+			{name: "ACLAdmin", client: adminShareeClient, allowed: true},
+			{name: "TemplateAdmin", client: templateAdminClient, allowed: false},
+			{name: "OrgTemplateAdmin", client: orgTemplateAdminClient, allowed: false},
+			{name: "OrgAdmin", client: orgAdminClient, allowed: false},
+			{name: "ReadOnlyToken", client: readOnlyClient, allowed: false},
+			{name: "WorkspacesAccessToken", client: accessTokenClient, allowed: true},
+			{name: "WorkspacesOperateToken", client: operateTokenClient, allowed: false},
+			{name: "WorkspacesCreateToken", client: createTokenClient, allowed: false},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitShort)
+
+				// Every caller can read the workspace, so a denial is caused
+				// by the missing SSH permission.
+				_, err := tc.client.Workspace(ctx, r.Workspace.ID)
+				require.NoError(t, err)
+
+				credentials, err := tc.client.WorkspaceExternalAgentCredentials(ctx, r.Workspace.ID, "test-agent")
+				if tc.allowed {
+					require.NoError(t, err)
+					require.Equal(t, r.AgentToken, credentials.AgentToken)
+					return
+				}
+				var apiErr *codersdk.Error
+				require.ErrorAs(t, err, &apiErr)
+				require.Equal(t, http.StatusNotFound, apiErr.StatusCode())
+			})
+		}
 	})
 }

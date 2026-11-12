@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -107,14 +108,18 @@ func (api *API) workspaceApplicationAuth(rw http.ResponseWriter, r *http.Request
 		exp = dbtime.Now().Add(api.DeploymentValues.Sessions.DefaultDuration.Value())
 		lifetimeSeconds = int64(api.DeploymentValues.Sessions.DefaultDuration.Value().Seconds())
 	}
-	cookie, _, err := api.createAPIKey(ctx, apikey.CreateParams{
+	cookie, _, err := api.createAPIKey(ctx, apiKey, apikey.CreateParams{
 		UserID:          apiKey.UserID,
 		LoginType:       database.LoginTypePassword,
 		DefaultLifetime: api.DeploymentValues.Sessions.DefaultDuration.Value(),
 		ExpiresAt:       exp,
 		LifetimeSeconds: lifetimeSeconds,
-		Scope:           database.ApiKeyScopeCoderApplicationConnect,
+		Scopes:          database.APIKeyScopes{database.ApiKeyScopeCoderApplicationConnect},
 	})
+	if errors.Is(err, apikey.ErrExceedsCaller) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create API key.",

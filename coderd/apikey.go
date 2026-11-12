@@ -2,6 +2,7 @@ package coderd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -25,6 +26,13 @@ import (
 	"github.com/coder/coder/v2/coderd/util/namesgenerator"
 	"github.com/coder/coder/v2/codersdk"
 )
+
+func writeExceedsCaller(ctx context.Context, rw http.ResponseWriter, err error) {
+	httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+		Message: "An API key cannot grant more than the API key creating it.",
+		Detail:  err.Error(),
+	})
+}
 
 // Creates a new token API key with the given scope and lifetime.
 //
@@ -68,8 +76,8 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 
 	// Map and validate requested scope.
 	// Accept legacy special scopes (all, application_connect) and external scopes.
-	// Default to coder:all scopes for backward compatibility.
-	scopes := database.APIKeyScopes{database.ApiKeyScopeCoderAll}
+	// Omitted scopes are inherited from the creating API key in createAPIKey.
+	var scopes database.APIKeyScopes
 	if len(createToken.Scopes) > 0 {
 		scopes = make(database.APIKeyScopes, 0, len(createToken.Scopes))
 		for _, s := range createToken.Scopes {
@@ -160,8 +168,12 @@ func (api *API) postToken(rw http.ResponseWriter, r *http.Request) {
 		params.LifetimeSeconds = int64(createToken.Lifetime.Seconds())
 	}
 
-	cookie, key, err := api.createAPIKey(ctx, params)
+	cookie, key, err := api.createAPIKey(ctx, httpmw.APIKey(r), params)
 	if err != nil {
+		if errors.Is(err, apikey.ErrExceedsCaller) {
+			writeExceedsCaller(ctx, rw, err)
+			return
+		}
 		if database.IsUniqueViolation(err, database.UniqueIndexAPIKeyName) {
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: fmt.Sprintf("A token with name %q already exists.", tokenName),
@@ -215,12 +227,16 @@ func (api *API) postAPIKey(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cookie, key, err := api.createAPIKey(ctx, apikey.CreateParams{
+	cookie, key, err := api.createAPIKey(ctx, httpmw.APIKey(r), apikey.CreateParams{
 		UserID:          user.ID,
 		DefaultLifetime: api.DeploymentValues.Sessions.DefaultTokenDuration.Value(),
 		LoginType:       database.LoginTypePassword,
 		RemoteAddr:      r.RemoteAddr,
 	})
+	if errors.Is(err, apikey.ErrExceedsCaller) {
+		writeExceedsCaller(ctx, rw, err)
+		return
+	}
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to create API key.",
@@ -494,7 +510,17 @@ func (api *API) getMaxTokenLifetime(ctx context.Context, userID uuid.UUID) (time
 	return maxLifetime, nil
 }
 
-func (api *API) createAPIKey(ctx context.Context, params apikey.CreateParams) (*http.Cookie, *database.APIKey, error) {
+// createAPIKey mints a key bounded by the caller's. Login flows have no caller
+// and use createLoginAPIKey.
+func (api *API) createAPIKey(ctx context.Context, caller database.APIKey, params apikey.CreateParams) (*http.Cookie, *database.APIKey, error) {
+	params, err := apikey.InheritWithinCaller(caller, params)
+	if err != nil {
+		return nil, nil, err
+	}
+	return api.createLoginAPIKey(ctx, params)
+}
+
+func (api *API) createLoginAPIKey(ctx context.Context, params apikey.CreateParams) (*http.Cookie, *database.APIKey, error) {
 	key, sessionToken, err := apikey.Generate(params)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("generate API key: %w", err)

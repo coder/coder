@@ -2,8 +2,15 @@ import {
 	MockWorkspace,
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
+	MockWorkspaceSubAgent,
 } from "testHelpers/entities";
-import { getAppHref, SESSION_TOKEN_PLACEHOLDER } from "./apps";
+import {
+	getAppHref,
+	isBareOrigin,
+	isSessionTokenDestinationTrusted,
+	SESSION_TOKEN_PLACEHOLDER,
+} from "./apps";
+import sessionTokenDestinationCases from "./sessionTokenDestinationCases.json";
 
 describe("getAppHref", () => {
 	it("returns the URL without changes when external app has regular URL", () => {
@@ -25,7 +32,7 @@ describe("getAppHref", () => {
 		const externalApp = {
 			...MockWorkspaceApp,
 			external: true,
-			url: `vscode://example.com?token=${SESSION_TOKEN_PLACEHOLDER}`,
+			url: `vscode://coder.coder-remote/open?url=${location.origin}&token=${SESSION_TOKEN_PLACEHOLDER}`,
 		};
 		const href = getAppHref(externalApp, {
 			host: "*.apps-host.tld",
@@ -34,7 +41,43 @@ describe("getAppHref", () => {
 			workspace: MockWorkspace,
 			token: "user-session-token",
 		});
-		expect(href).toBe("vscode://example.com?token=user-session-token");
+		expect(href).toBe(
+			`vscode://coder.coder-remote/open?url=${location.origin}&token=user-session-token`,
+		);
+	});
+
+	it("doesn't replace the session token when the link points to another deployment", () => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: `vscode://coder.coder-remote/open?url=https://attacker.example&token=${SESSION_TOKEN_PLACEHOLDER}`,
+		};
+		const href = getAppHref(externalApp, {
+			host: "*.apps-host.tld",
+			path: "/path-base",
+			agent: MockWorkspaceAgent,
+			workspace: MockWorkspace,
+			token: "user-session-token",
+		});
+		expect(href).toBe(externalApp.url);
+	});
+
+	it("strips the session token for sub-agent apps", () => {
+		const externalApp = {
+			...MockWorkspaceApp,
+			external: true,
+			url: `vscode://coder.coder-remote/open?url=${location.origin}&token=${SESSION_TOKEN_PLACEHOLDER}`,
+		};
+		const href = getAppHref(externalApp, {
+			host: "*.apps-host.tld",
+			path: "/path-base",
+			agent: MockWorkspaceSubAgent,
+			workspace: MockWorkspace,
+			token: "user-session-token",
+		});
+		expect(href).toBe(
+			`vscode://coder.coder-remote/open?url=${location.origin}&token=`,
+		);
 	});
 
 	it("doesn't return the URL with the session token replaced when using the HTTP protocol", () => {
@@ -131,5 +174,46 @@ describe("getAppHref", () => {
 		expect(href).toBe(
 			`/path-base/@${MockWorkspace.owner_name}/Test-Workspace.a-workspace-agent/apps/${app.slug}/`,
 		);
+	});
+});
+
+describe("isSessionTokenDestinationTrusted", () => {
+	// cli/open_internal_test.go runs the same cases against `coder open app`.
+	it.each(sessionTokenDestinationCases.cases)(
+		"$name (trusted: $trusted)",
+		({ url, trusted, origin }) => {
+			expect(
+				isSessionTokenDestinationTrusted(
+					url,
+					origin ?? sessionTokenDestinationCases.origin,
+				),
+			).toBe(trusted);
+		},
+	);
+
+	it("allows links to the current origin", () => {
+		const url = `vscode://coder.coder-remote/open?url=${location.origin}&token=${SESSION_TOKEN_PLACEHOLDER}`;
+		expect(isSessionTokenDestinationTrusted(url, undefined)).toBe(true);
+	});
+});
+
+describe("isBareOrigin", () => {
+	it.each(["https://coder.example.com", "http://localhost:3000/"])(
+		"allows %s",
+		(url) => {
+			expect(isBareOrigin(url)).toBe(true);
+		},
+	);
+
+	it.each([
+		"https://coder.example.com/@o/w.a/apps/x/",
+		"https://attacker.example@coder.example.com",
+		"https://coder.example.com/?x=1",
+		"https://coder.example.com/#x",
+		"https://coder.example.com/.",
+		"https://coder.example.com ",
+		"not-a-url",
+	])("rejects %s", (url) => {
+		expect(isBareOrigin(url)).toBe(false);
 	});
 });

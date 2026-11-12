@@ -9,6 +9,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/aibridge"
+	"github.com/coder/coder/v2/coderd/util/xurl"
 	"github.com/coder/coder/v2/enterprise/aibridged/proto"
 )
 
@@ -19,6 +20,7 @@ var (
 	ErrConnect               = xerrors.New("could not connect to coderd")
 	ErrUnauthorized          = xerrors.New("unauthorized")
 	ErrAcquireRequestHandler = xerrors.New("failed to acquire request handler")
+	ErrInvalidRequestPath    = xerrors.New("invalid request path")
 )
 
 // ServeHTTP is the entrypoint for requests which will be intercepted by AI Bridge.
@@ -34,6 +36,14 @@ func (s *Server) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	logger := s.logger.With(slog.F("path", r.URL.Path))
+
+	// Reject paths that an upstream could resolve outside the route they are
+	// matched on here, before any authorization or upstream request.
+	if xurl.ContainsEncodedPath(r.URL) {
+		logger.Warn(ctx, "invalid request path")
+		http.Error(rw, ErrInvalidRequestPath.Error(), http.StatusBadRequest)
+		return
+	}
 
 	key := strings.TrimSpace(ExtractAuthToken(r.Header))
 	if key == "" {

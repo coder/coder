@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -15,9 +16,47 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/site"
 )
+
+// Rejection reasons from the session check.
+var (
+	// The grant exceeds the signed-in session's scopes.
+	errBeyondSession = xerrors.New("scope requests permissions beyond the signed-in session")
+	// The session has an allow list, which `*:*` access tokens would escape.
+	errSessionAllowList = xerrors.New("the signed-in session is restricted to an allow list; authorize from an unrestricted session")
+)
+
+// withinSession requires the signed-in session to hold every scope the grant
+// carries and a `*:*` allow list, since access tokens are minted with one.
+// Scopes are not negotiated, so every access token is minted with coder:all.
+func withinSession(session database.APIKey) error {
+	if !slices.Contains(session.AllowList, rbac.AllowListAll()) {
+		return errSessionAllowList
+	}
+	if !session.Scopes.Has(database.ApiKeyScopeCoderAll) {
+		return xerrors.Errorf("'%s': %w", database.ApiKeyScopeCoderAll, errBeyondSession)
+	}
+	return nil
+}
+
+// redirectInvalidScope sends an RFC 6749 §4.1.2.1 invalid_scope error to the
+// client's redirect URI.
+func redirectInvalidScope(rw http.ResponseWriter, r *http.Request, params authorizeParams, err error) {
+	destination := *params.redirectURL
+	query := destination.Query()
+	query.Set("error", "invalid_scope")
+	query.Set("error_description", err.Error())
+	if params.state != "" {
+		query.Set("state", params.state)
+	}
+	destination.RawQuery = query.Encode()
+	// 302 rather than 307, matching the success redirect: some external OAuth2
+	// apps and browsers do not handle 307.
+	http.Redirect(rw, r, destination.String(), http.StatusFound)
+}
 
 type authorizeParams struct {
 	clientID            string
@@ -89,6 +128,13 @@ func ShowAuthorizePage(accessURL *url.URL) http.HandlerFunc {
 			return
 		}
 
+		// Checked here as well as on POST, so a request that cannot succeed
+		// fails before the consent page renders.
+		if err := withinSession(httpmw.APIKey(r)); err != nil {
+			redirectInvalidScope(rw, r, params, err)
+			return
+		}
+
 		cancel := params.redirectURL
 		cancelQuery := params.redirectURL.Query()
 		cancelQuery.Add("error", "access_denied")
@@ -121,6 +167,11 @@ func ProcessAuthorize(db database.Store) http.HandlerFunc {
 		params, _, err := extractAuthorizeParams(r, callbackURL)
 		if err != nil {
 			httpapi.WriteOAuth2Error(ctx, rw, http.StatusBadRequest, "invalid_request", err.Error())
+			return
+		}
+
+		if err := withinSession(apiKey); err != nil {
+			redirectInvalidScope(rw, r, params, err)
 			return
 		}
 

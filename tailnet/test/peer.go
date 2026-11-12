@@ -407,3 +407,12 @@ func (f FakeCoordinateeAuth) Authorize(ctx context.Context, _ *proto.CoordinateR
 }
 
 var _ tailnet.CoordinateeAuth = (*FakeCoordinateeAuth)(nil)
+
+// CoordinateeAuthFunc adapts a plain function to tailnet.CoordinateeAuth so a
+// test can return a specific error or panic on a chosen request without
+// declaring a new type.
+type CoordinateeAuthFunc func(context.Context, *proto.CoordinateRequest) error
+
+func (f CoordinateeAuthFunc) Authorize(ctx context.Context, req *proto.CoordinateRequest) error {
+	return f(ctx, req)
+}

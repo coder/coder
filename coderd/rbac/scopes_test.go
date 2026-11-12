@@ -61,3 +61,89 @@ func TestExpandScope(t *testing.T) {
 		}
 	})
 }
+
+func TestFirstScopeNotCovered(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		allowed   []rbac.ScopeName
+		requested []rbac.ScopeName
+		want      rbac.ScopeName
+		// wantErrContains names the side that could not be expanded.
+		wantErrContains string
+	}{
+		{
+			name:      "EmptyRequestIsCovered",
+			allowed:   []rbac.ScopeName{"workspace:read"},
+			requested: nil,
+		},
+		{
+			name:      "EveryRequestedScopeCovered",
+			allowed:   []rbac.ScopeName{"coder:workspaces.access"},
+			requested: []rbac.ScopeName{"workspace:read", "workspace:ssh"},
+		},
+		{
+			// The answer names which scope failed, not merely that one did.
+			name:      "NamesTheFirstUncovered",
+			allowed:   []rbac.ScopeName{"coder:workspaces.access"},
+			requested: []rbac.ScopeName{"workspace:read", "workspace:delete", "user_secret:delete"},
+			want:      "workspace:delete",
+		},
+		{
+			name:            "UnexpandableRequestedScopeNamed",
+			allowed:         []rbac.ScopeName{"coder:workspaces.access"},
+			requested:       []rbac.ScopeName{"workspace:read", "not_a_real_scope"},
+			want:            "not_a_real_scope",
+			wantErrContains: "expand requested scope",
+		},
+		{
+			name:            "UnexpandableAllowedScopeNamed",
+			allowed:         []rbac.ScopeName{"not_a_real_scope"},
+			requested:       []rbac.ScopeName{"workspace:read"},
+			want:            "not_a_real_scope",
+			wantErrContains: "expand allowed scope",
+		},
+		{
+			// The alias validates but is not an expandable name, so callers
+			// must canonicalize first.
+			name:            "LegacyAliasIsNotExpandable",
+			allowed:         []rbac.ScopeName{"all"},
+			requested:       []rbac.ScopeName{"workspace:read"},
+			want:            "all",
+			wantErrContains: "expand allowed scope",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := rbac.FirstScopeNotCovered(test.allowed, test.requested)
+			if test.wantErrContains != "" {
+				require.ErrorContains(t, err, test.wantErrContains)
+				require.Equal(t, test.want, got, "an undecidable comparison must name the scope it could not decide")
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, test.want, got)
+		})
+	}
+}
+
+// TestCanonicalScopeName pins the alias mapping. Without it the two case arms
+// could be swapped, so that requesting `all` persisted application_connect and
+// the reverse, and the suite would stay green.
+func TestCanonicalScopeName(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, rbac.ScopeAll, rbac.CanonicalScopeName("all"))
+	require.Equal(t, rbac.ScopeApplicationConnect, rbac.CanonicalScopeName("application_connect"))
+
+	// Canonical names and low-level names are returned unchanged, so callers
+	// can canonicalize unconditionally.
+	require.Equal(t, rbac.ScopeAll, rbac.CanonicalScopeName(rbac.ScopeAll))
+	require.Equal(t, rbac.ScopeApplicationConnect, rbac.CanonicalScopeName(rbac.ScopeApplicationConnect))
+	require.Equal(t, rbac.ScopeName("workspace:read"), rbac.CanonicalScopeName("workspace:read"))
+	require.Equal(t, rbac.ScopeName("not_a_real_scope"), rbac.CanonicalScopeName("not_a_real_scope"))
+}

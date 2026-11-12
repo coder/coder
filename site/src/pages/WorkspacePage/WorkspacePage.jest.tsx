@@ -10,12 +10,14 @@ import {
 	MockStartingWorkspace,
 	MockStoppedWorkspace,
 	MockTemplate,
+	MockTemplateVersion2,
 	MockTemplateVersionParameter1,
 	MockTemplateVersionParameter2,
 	MockUserOwner,
 	MockWorkspace,
 	MockWorkspaceBuild,
 	MockWorkspaceBuildDelete,
+	mockApiError,
 } from "testHelpers/entities";
 import {
 	type RenderWithAuthOptions,
@@ -34,6 +36,7 @@ import {
 import type { WorkspacePermissions } from "modules/workspaces/permissions";
 import { HttpResponse, http } from "msw";
 import type { FC } from "react";
+import { useSearchParams } from "react-router";
 import WorkspacePage from "./WorkspacePage";
 
 const { API, MissingBuildParameters } = apiModule;
@@ -499,6 +502,61 @@ describe("WorkspacePage", () => {
 					log_level: "debug",
 				});
 			});
+		});
+
+		it("sends users who must use the active version to its parameters when a retry fails", async () => {
+			const workspace: Workspace = {
+				...MockFailedWorkspace,
+				outdated: true,
+				template_require_active_version: true,
+				template_active_version_id: MockTemplateVersion2.id,
+			};
+			server.use(
+				http.post("/api/v2/authcheck", () => {
+					const permissions: WorkspacePermissions = {
+						readWorkspace: true,
+						updateWorkspace: true,
+						updateWorkspaceVersion: false,
+						deleteFailedWorkspace: false,
+						deploymentConfig: false,
+					};
+					return HttpResponse.json(permissions);
+				}),
+			);
+			jest.spyOn(API, "startWorkspace").mockRejectedValueOnce({
+				...mockApiError({ message: "cannot use non-active version" }),
+				code: "ERR_BAD_REQUEST",
+			});
+
+			const ParametersPage: FC = () => {
+				const [searchParams] = useSearchParams();
+				return (
+					<div>Parameters for {searchParams.get("templateVersionId")}</div>
+				);
+			};
+			await renderWorkspacePage(workspace, {
+				extraRoutes: [
+					{
+						path: "/:username/:workspace/settings/parameters",
+						element: <ParametersPage />,
+					},
+				],
+			});
+
+			const user = userEvent.setup();
+			const workspaceActions = screen.getByTestId("workspace-actions");
+			await user.click(
+				within(workspaceActions).getByRole("button", { name: retryButtonRe }),
+			);
+			await user.click(
+				await screen.findByRole("button", {
+					name: "Review workspace settings",
+				}),
+			);
+
+			expect(
+				await screen.findByText(`Parameters for ${MockTemplateVersion2.id}`),
+			).toBeInTheDocument();
 		});
 	});
 

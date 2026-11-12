@@ -26,9 +26,13 @@ import (
 // pretty easily in the default location, so this function uses /tmp instead to
 // get shorter paths. To keep paths short, we use a hash of the test name
 // instead of the full test name.
+//
+// On Linux, we also hit this limit on GitHub Actions runners: since Go 1.26,
+// t.TempDir() honors GOTMPDIR, which CI sets to a long path like
+// /home/runner/work/_temp/go-tmp/.
 func tempDirUnixSocket(t *testing.T) string {
 	t.Helper()
-	if runtime.GOOS == "darwin" {
+	if runtime.GOOS != "windows" {
 		// Use a short hash of the test name to keep the path under 104 chars
 		hash := sha256.Sum256([]byte(t.Name()))
 		hashStr := hex.EncodeToString(hash[:])[:8] // Use first 8 chars of hash

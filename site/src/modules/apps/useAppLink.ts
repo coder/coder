@@ -1,3 +1,4 @@
+import { buildInfo } from "api/queries/buildInfo";
 import { apiKey } from "api/queries/users";
 import type {
 	Workspace,
@@ -6,11 +7,13 @@ import type {
 } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useProxy } from "contexts/ProxyContext";
+import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import type React from "react";
 import { useQuery } from "react-query";
 import {
 	getAppHref,
 	isExternalApp,
+	isSessionTokenLinkBlocked,
 	needsSessionToken,
 	openAppInNewWindow,
 } from "./apps";
@@ -25,6 +28,7 @@ type AppLink = {
 	onClick: (e: React.MouseEvent) => void;
 	label: string;
 	hasToken: boolean;
+	isBlocked: boolean;
 };
 
 export const useAppLink = (
@@ -33,15 +37,24 @@ export const useAppLink = (
 ): AppLink => {
 	const label = app.display_name ?? app.slug;
 	const { proxy } = useProxy();
+	const { metadata } = useEmbeddedMetadata();
+	const { data: build } = useQuery(buildInfo(metadata["build-info"]));
+	const accessUrl = build?.dashboard_url;
+	const isBlocked = isSessionTokenLinkBlocked(app, accessUrl);
 	const { data: apiKeyResponse } = useQuery({
 		...apiKey(),
-		enabled: isExternalApp(app) && needsSessionToken(app),
+		enabled:
+			isExternalApp(app) &&
+			needsSessionToken(app) &&
+			!agent.parent_id &&
+			!isBlocked,
 	});
 
 	const href = getAppHref(app, {
 		agent,
 		workspace,
 		token: apiKeyResponse?.key,
+		accessUrl,
 		path: proxy.preferredPathAppURL,
 		host: proxy.preferredWildcardHostname,
 	});
@@ -105,5 +118,6 @@ export const useAppLink = (
 		onClick,
 		label,
 		hasToken: !!apiKeyResponse?.key,
+		isBlocked,
 	};
 };
