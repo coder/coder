@@ -7,9 +7,10 @@
 #   pr-<number>-<sha:0:9>.<domain>   one per built commit
 #
 # After a deploy succeeds, the comment job runs docs-preview.yaml, which links
-# each changed page to the first; the deploy job's own comment lists the
-# second for every commit built. docs-pr-preview-cleanup.yaml deletes them
-# when the PR closes.
+# each changed page to the first and keeps a collapsible list of the second
+# for every commit built, in the PR's only preview comment. It posts nothing
+# when only generated reference pages changed. docs-pr-preview-cleanup.yaml
+# deletes the previews when the PR closes.
 #
 # Only PRs from a branch in this repository build. Fork PRs get no preview:
 # their build would share the base branch's Actions cache scope and the
@@ -218,7 +219,10 @@ jobs:
     timeout-minutes: 15
     environment: docs-preview
     permissions:
-      pull-requests: write
+      # Read only: the head check below. The comment job posts the comment.
+      pull-requests: read
+    outputs:
+      short_sha: ${{ steps.deploy.outputs.short_sha }}
     env:
       # 59.x needs team access, which a project-scoped token lacks.
       VERCEL_CLI_VERSION: 65.11.0
@@ -326,47 +330,7 @@ jobs:
             echo "::notice::The PR head moved to ${current_head} during this build; ${head_alias} is left for that build."
           fi
 
-          {
-            echo "head_url=https://${head_alias}"
-            echo "commit_url=https://${commit_alias}"
-            echo "short_sha=${short_sha}"
-          } >> "$GITHUB_OUTPUT"
-
-      - name: Update the preview comment
-        env:
-          GH_TOKEN: ${{ github.token }}
-          HEAD_URL: ${{ steps.deploy.outputs.head_url }}
-          COMMIT_URL: ${{ steps.deploy.outputs.commit_url }}
-          SHORT_SHA: ${{ steps.deploy.outputs.short_sha }}
-        run: |
-          set -euo pipefail
-          marker='<!-- docs-pr-preview-deploy -->'
-          # Fail on a list error rather than fall through to a duplicate POST.
-          ids=$(gh api --paginate "repos/${REPO}/issues/${PR_NUMBER}/comments" \
-            --jq ".[] | select(.user.login == \"github-actions[bot]\") | select(.body | contains(\"${marker}\")) | .id")
-          existing_id=$(printf '%s\n' "$ids" | head -n 1) || true
-
-          # Carry the earlier commits' lines forward, newest first, capped so
-          # a long-lived PR stays well under the comment size limit.
-          earlier=""
-          if [ -n "$existing_id" ]; then
-            earlier=$(gh api "repos/${REPO}/issues/comments/${existing_id}" --jq '.body' \
-              | grep -E "^- \`[0-9a-f]{9}\` https://pr-${PR_NUMBER}-[0-9a-f]{9}\.${DOMAIN//./\\.}$" \
-              | grep -vF "\`${SHORT_SHA}\`" || true)
-          fi
-          # shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters.
-          commits=$(printf -- '- `%s` %s\n%s\n' "$SHORT_SHA" "$COMMIT_URL" "$earlier" | sed '/^$/d' | head -n 100)
-
-          body=$(printf '## Docs preview deployment\n\nThis pull request'"'"'s head: %s\n\nEvery built commit keeps its own preview, newest first:\n\n%s\n\nPreviews are not indexed by search engines and are deleted when this pull request is merged or closed.\n\n%s' \
-            "$HEAD_URL" "$commits" "$marker")
-
-          if [ -n "$existing_id" ]; then
-            gh api --method PATCH "repos/${REPO}/issues/comments/${existing_id}" --raw-field body="$body" >/dev/null
-            echo "Updated comment ${existing_id}."
-          else
-            gh api --method POST "repos/${REPO}/issues/${PR_NUMBER}/comments" --raw-field body="$body" >/dev/null
-            echo "Created the preview comment."
-          fi
+          echo "short_sha=${short_sha}" >> "$GITHUB_OUTPUT"
 
   # Runs after a successful deploy, so its per-page links never point at a
   # preview that does not exist yet.
@@ -377,3 +341,5 @@ jobs:
       contents: read
       pull-requests: write
     uses: ./.github/workflows/docs-preview.yaml
+    with:
+      short_sha: ${{ needs.deploy.outputs.short_sha }}

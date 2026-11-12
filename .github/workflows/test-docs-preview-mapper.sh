@@ -600,6 +600,25 @@ IMAGE_PAGES_MAX=25
 # Default so the page-only cases below can call build_comment_body under
 # set -u; the image cases set it via render_image_section.
 image_section=""
+# The per-commit preview list, mirrored from docs-preview.yaml. Empty by
+# default so the cases that predate it render without the list.
+COMMITS_MAX=100
+commit_lines=""
+commit_count=0
+
+# merge_commit_lines mirrors docs-preview.yaml: this run's commit first, then
+# the earlier commits' lines read back from the existing comment, minus a
+# repeat of this commit, capped at COMMITS_MAX. Reads $SHORT_SHA, $PR_NUMBER
+# and $domain.
+merge_commit_lines() {
+	local body="$1" domain_re
+	domain_re=${domain//./\\.}
+	{
+		# shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters.
+		printf -- '- `%s` https://pr-%s-%s.%s\n' "$SHORT_SHA" "$PR_NUMBER" "$SHORT_SHA" "$domain"
+		printf '%s\n' "$body" | grep -E "^- \`[0-9a-f]{9}\` https://pr-${PR_NUMBER}-[0-9a-f]{9}\.${domain_re}\$" | grep -vF "\`${SHORT_SHA}\`" || true
+	} | awk -v max="$COMMITS_MAX" 'NR <= max'
+}
 
 page_url() {
 	local filename="$1" page_path url
@@ -696,6 +715,11 @@ build_comment_body() {
 		fi
 		if [ -n "$image_section" ]; then
 			printf '%s\n' "$image_section"
+		fi
+		if [ -n "$commit_lines" ]; then
+			printf '<details>\n<summary>Preview sites for each built commit (%s)</summary>\n\n' "$commit_count"
+			printf "Every built commit keeps its own preview, newest first. Previews aren't indexed by search engines and are deleted when this pull request is merged or closed.\n\n"
+			printf '%s\n\n</details>\n\n' "$commit_lines"
 		fi
 		printf '%s\n' "$DOCS_PREVIEW_MARKER"
 		printf '<!-- %s%s -->' "$STATE_PREFIX" "$state_b64"
@@ -903,6 +927,84 @@ if [ "$(recover_old_checked "$both_body" | jq -cS .)" = '{"docs/a.md":true,"docs
 	echo "PASS: build_comment_body (image sub-links excluded from checkbox state)"
 else
 	echo "FAIL: image sub-links polluted checkbox state -> $(recover_old_checked "$both_body")"
+	failures=$((failures + 1))
+fi
+
+# The per-commit preview list: this run's commit first, then the earlier
+# commits read back from the existing comment, minus a repeat of this commit
+# and any line for another PR or domain.
+PR_NUMBER='123'
+domain='docs.cdr-preview.dev'
+SHORT_SHA='ccccccccc'
+# shellcheck disable=SC2016 # backtick-quoted SHAs are literal Markdown.
+existing_commits_body=$(printf '%s\n' \
+	'## Docs preview' \
+	'- `bbbbbbbbb` https://pr-123-bbbbbbbbb.docs.cdr-preview.dev' \
+	'- `ccccccccc` https://pr-123-ccccccccc.docs.cdr-preview.dev' \
+	'- `aaaaaaaaa` https://pr-123-aaaaaaaaa.docs.cdr-preview.dev' \
+	'- `ddddddddd` https://pr-999-ddddddddd.docs.cdr-preview.dev' \
+	'- `eeeeeeeee` https://pr-123-eeeeeeeee.coderite.app')
+merged=$(merge_commit_lines "$existing_commits_body")
+# shellcheck disable=SC2016 # backtick-quoted SHAs are literal Markdown.
+expected_merged=$(printf '%s\n' \
+	'- `ccccccccc` https://pr-123-ccccccccc.docs.cdr-preview.dev' \
+	'- `bbbbbbbbb` https://pr-123-bbbbbbbbb.docs.cdr-preview.dev' \
+	'- `aaaaaaaaa` https://pr-123-aaaaaaaaa.docs.cdr-preview.dev')
+if [ "$merged" = "$expected_merged" ]; then
+	echo "PASS: merge_commit_lines (this commit first, earlier ones kept, repeats and other PRs dropped)"
+else
+	echo "FAIL: merge_commit_lines ->"
+	printf '%s\n' "$merged"
+	failures=$((failures + 1))
+fi
+
+# The list stops at COMMITS_MAX lines, keeping the newest.
+# shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters.
+long_commits_body=$(for i in $(seq 1 150); do printf -- '- `%09x` https://pr-123-%09x.docs.cdr-preview.dev\n' "$i" "$i"; done)
+capped=$(merge_commit_lines "$long_commits_body")
+# shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters.
+if [ "$(printf '%s\n' "$capped" | wc -l | tr -d ' ')" -eq 100 ] && [ "$(printf '%s\n' "$capped" | head -n 1)" = '- `ccccccccc` https://pr-123-ccccccccc.docs.cdr-preview.dev' ]; then
+	echo "PASS: merge_commit_lines (capped at 100, newest first)"
+else
+	echo "FAIL: merge_commit_lines cap -> $(printf '%s\n' "$capped" | wc -l) lines"
+	failures=$((failures + 1))
+fi
+
+# The list renders in a collapsible block, reads back from the comment the
+# workflow itself posted, and never counts as checkbox state.
+final_rows='[{"filename":"docs/a.md","sha":"s1","checked":true}]'
+total_pages=1
+image_section=""
+url_prefix="https://pr-123.docs.cdr-preview.dev"
+commit_lines="$expected_merged"
+commit_count=3
+commits_body=$(build_comment_body 1)
+if printf '%s' "$commits_body" | grep -qxF '<details>' &&
+	printf '%s' "$commits_body" | grep -qxF '<summary>Preview sites for each built commit (3)</summary>' &&
+	printf '%s' "$commits_body" | grep -qxF '</details>' &&
+	[ "$(SHORT_SHA='fffffffff' merge_commit_lines "$commits_body" | tail -n +2)" = "$expected_merged" ] &&
+	[ "$(recover_old_checked "$commits_body" | jq -c .)" = '{"docs/a.md":true}' ]; then
+	echo "PASS: build_comment_body (collapsible preview list round-trips; no checkbox pollution)"
+else
+	echo "FAIL: build_comment_body preview list ->"
+	printf '%s\n' "$commits_body"
+	failures=$((failures + 1))
+fi
+commit_lines=""
+commit_count=0
+
+# One comment per PR: the deploy job posts nothing itself and hands its commit
+# to docs-preview.yaml, which posts only when a non-generated page or image
+# changed.
+deploy_job=$(awk '/^  deploy:/{on=1} /^  comment:/{on=0} on' "$(dirname "${BASH_SOURCE[0]}")/docs-pr-preview-deploy.yaml")
+# shellcheck disable=SC2016 # the expected lines are literal workflow text.
+if ! grep -qF '/comments' <<<"$deploy_job" &&
+	! grep -qF 'pull-requests: write' <<<"$deploy_job" &&
+	grep -qF 'short_sha: ${{ needs.deploy.outputs.short_sha }}' "$(dirname "${BASH_SOURCE[0]}")/docs-pr-preview-deploy.yaml" &&
+	grep -qE '^      short_sha:' "$(dirname "${BASH_SOURCE[0]}")/docs-preview.yaml"; then
+	echo "PASS: the deploy job posts no comment and passes its commit to docs-preview.yaml"
+else
+	echo "FAIL: the deploy job still posts its own preview comment"
 	failures=$((failures + 1))
 fi
 

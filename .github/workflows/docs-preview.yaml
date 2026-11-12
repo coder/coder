@@ -20,6 +20,11 @@
 # disk, so the job checks out the PR head. An image no navigable page
 # embeds (e.g. an icon referenced only from manifest.json) is still listed
 # on its own, so an image-only PR always gets a comment.
+#
+# This is the PR's only preview comment. A collapsible list at its end keeps
+# every built commit's own preview, newest first, read back from the comment
+# on each run. A PR that changes only generated reference pages, or no page or
+# image at all, gets no comment.
 
 name: docs-preview
 
@@ -27,6 +32,11 @@ on:
   # Called with the caller's pull_request event, whose docs/** paths filter
   # (minus docs/.style/**, contributor tooling that never deploys) applies.
   workflow_call:
+    inputs:
+      short_sha:
+        description: The first 9 characters of the deployed commit, whose preview is pr-<number>-<short_sha>.<domain>
+        type: string
+        required: true
 
 concurrency:
   group: docs-preview-${{ github.event.pull_request.number }}
@@ -61,8 +71,14 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
           DOCS_PREVIEW_DOMAIN: ${{ vars.DOCS_PREVIEW_DOMAIN }}
+          SHORT_SHA: ${{ inputs.short_sha }}
         run: |
           set -euo pipefail
+
+          if ! [[ "$SHORT_SHA" =~ ^[0-9a-f]{9}$ ]]; then
+            echo "::error::short_sha must be 9 lowercase hex characters." >&2
+            exit 1
+          fi
 
           # A vercel.app name is first-come across every Vercel account, so
           # only a Coder-owned domain is accepted.
@@ -85,6 +101,23 @@ jobs:
           # cases. Keep in sync with test-docs-preview-mapper.sh.
           IMAGE_SECTION_BUDGET=20000
           IMAGE_PAGES_MAX=25
+          # Per-commit preview lines kept in the collapsible list.
+          COMMITS_MAX=100
+
+          # The per-commit preview list, newest first: this run's commit, then
+          # the earlier commits' lines read back from the existing comment,
+          # minus a repeat of this commit. awk caps it without the SIGPIPE a
+          # head would raise under pipefail. Keep in sync with
+          # test-docs-preview-mapper.sh.
+          merge_commit_lines() {
+            local body="$1" domain_re
+            domain_re=${domain//./\\.}
+            {
+              # shellcheck disable=SC2016 # backticks are literal Markdown code-span delimiters.
+              printf -- '- `%s` https://pr-%s-%s.%s\n' "$SHORT_SHA" "$PR_NUMBER" "$SHORT_SHA" "$domain"
+              printf '%s\n' "$body" | grep -E "^- \`[0-9a-f]{9}\` https://pr-${PR_NUMBER}-[0-9a-f]{9}\.${domain_re}\$" | grep -vF "\`${SHORT_SHA}\`" || true
+            } | awk -v max="$COMMITS_MAX" 'NR <= max'
+          }
 
           # Returns IDs of github-actions[bot] comments on the PR whose
           # body contains DOCS_PREVIEW_MARKER.
@@ -344,6 +377,9 @@ jobs:
             fi
           fi
 
+          commit_lines=$(merge_commit_lines "$existing_body")
+          commit_count=$(printf '%s\n' "$commit_lines" | grep -c .)
+
           # Recover state from the existing comment, if any:
           #   - old_state: path -> sha map this workflow wrote last time
           #     (hidden marker).
@@ -495,6 +531,11 @@ jobs:
               fi
               if [ -n "$image_section" ]; then
                 printf '%s\n' "$image_section"
+              fi
+              if [ -n "$commit_lines" ]; then
+                printf '<details>\n<summary>Preview sites for each built commit (%s)</summary>\n\n' "$commit_count"
+                printf "Every built commit keeps its own preview, newest first. Previews aren't indexed by search engines and are deleted when this pull request is merged or closed.\n\n"
+                printf '%s\n\n</details>\n\n' "$commit_lines"
               fi
               printf '%s\n' "$DOCS_PREVIEW_MARKER"
               printf '<!-- %s%s -->' "$STATE_PREFIX" "$state_b64"
