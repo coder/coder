@@ -770,26 +770,72 @@ func TestCreateScheduleNeedsNow(t *testing.T) {
 	require.NotErrorAs(t, err, &invalid)
 }
 
-// TestCreateReferenceDeleted deletes the target chat after Create has checked
-// it, so that the insert is what finds it missing. The owner is fine, so the
-// answer must not say that the owner is unavailable.
+// insertHook runs before an insert reaches the database. It sits below
+// dbauthz, so dbauthz has already read the chat, model configuration and
+// project again by then.
+type insertHook struct {
+	database.Store
+	before func()
+}
+
+func (s insertHook) InsertChatAutomation(ctx context.Context, arg database.InsertChatAutomationParams) (database.ChatAutomation, error) {
+	s.before()
+	return s.Store.InsertChatAutomation(ctx, arg)
+}
+
+func (s insertHook) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error { return fn(insertHook{Store: tx, before: s.before}) }, opts)
+}
+
+// TestCreateReferenceDeleted deletes the target chat or the project after
+// Create has checked it. Either the read of dbauthz or a trigger of the table
+// finds it missing. The owner is fine, so the answer must not say that the
+// owner is unavailable.
 func TestCreateReferenceDeleted(t *testing.T) {
 	t.Parallel()
-	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	f := newFixture(t, db, nil)
-	target := f.chat(t)
-	req := webhookToNewChat(t, f)
-	req.TargetMode, req.NewChatModelConfigID, req.TargetChatID = codersdk.ChatAutomationTargetModeExistingChat, nil, &target.ID
-	h := newHarness(t, db, testLimits)
-	h.rec.afterCount = func() {
-		_, err := sqlDB.ExecContext(ctx, "DELETE FROM chats WHERE id = $1", target.ID)
-		require.NoError(t, err)
+	for _, tc := range []struct {
+		name string
+		// project deletes the project of a new chat instead of the target chat.
+		project bool
+		// afterRecheck deletes it after dbauthz has read it again.
+		afterRecheck bool
+	}{
+		{name: "ChatBeforeRecheck"},
+		{name: "ChatAfterRecheck", afterRecheck: true},
+		{name: "ProjectAfterRecheck", project: true, afterRecheck: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			f := newFixture(t, db, nil)
+			req := webhookToNewChat(t, f)
+			deleteSQL, id := "DELETE FROM chats WHERE id = $1", uuid.UUID{}
+			if tc.project {
+				project := dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: f.org.ID, OwnerID: f.owner.ID})
+				req.ProjectID, deleteSQL, id = &project.ID, "DELETE FROM chat_projects WHERE id = $1", project.ID
+			} else {
+				target := f.chat(t)
+				req.TargetMode, req.NewChatModelConfigID, req.TargetChatID = codersdk.ChatAutomationTargetModeExistingChat, nil, &target.ID
+				id = target.ID
+			}
+			remove := func() {
+				_, err := sqlDB.ExecContext(ctx, deleteSQL, id)
+				require.NoError(t, err)
+			}
+			var h harness
+			if tc.afterRecheck {
+				h = newHarness(t, insertHook{Store: db, before: remove}, testLimits)
+			} else {
+				h = newHarness(t, db, testLimits)
+				h.rec.afterCount = remove
+			}
+
+			_, err := h.creator.Create(ctx, userActor(t, db, f.owner.ID), createParams(f.org.ID, req))
+
+			require.ErrorIs(t, err, chatautomation.ErrReferenceUnavailable)
+			require.NotErrorIs(t, err, chatautomation.ErrOwnerUnavailable)
+			require.Contains(t, h.rec.names(), "InsertChatAutomation")
+		})
 	}
-
-	_, err := h.creator.Create(ctx, userActor(t, db, f.owner.ID), createParams(f.org.ID, req))
-
-	require.ErrorIs(t, err, chatautomation.ErrReferenceUnavailable)
-	require.NotErrorIs(t, err, chatautomation.ErrOwnerUnavailable)
-	require.Contains(t, h.rec.names(), "InsertChatAutomation")
 }

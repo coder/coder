@@ -52,6 +52,15 @@ type CreateResult struct {
 	GeneratedSecret string
 }
 
+// The triggers of chat_automations raise these constraints when a chat or
+// project of the row is gone or in another organization. checkReferences has
+// read them in this organization, so a trigger fires only when a concurrent
+// delete removes the chat or project between that read and the insert.
+const (
+	chatOrganizationTrigger    database.CheckConstraint = "chat_automations_chat_organization"
+	projectOrganizationTrigger database.CheckConstraint = "chat_automations_project_organization"
+)
+
 // createObject is the RBAC object of a new automation. dbauthz checks the same
 // object in InsertChatAutomation.
 func createObject(organizationID, ownerID uuid.UUID) rbac.Object {
@@ -132,6 +141,8 @@ func (c *Creator) Create(ctx context.Context, actor rbac.Subject, p CreateParams
 			return missingRow(actorCtx, tx, owner)
 		case dbauthz.IsNotAuthorizedError(err):
 			return ErrCreateForbidden
+		case database.IsCheckViolation(err, chatOrganizationTrigger, projectOrganizationTrigger):
+			return ErrReferenceUnavailable
 		case err != nil:
 			return xerrors.Errorf("insert chat automation: %w", err)
 		}
