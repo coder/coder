@@ -185,8 +185,8 @@ type sqlcQuerier interface {
 	// a follow-up read.
 	DeleteChatQueuedMessageReturningCount(ctx context.Context, arg DeleteChatQueuedMessageReturningCountParams) (int64, error)
 	// Deletes the queued messages of the chat that the given automations
-	// queued. Returns the number of deleted rows.
-	DeleteChatQueuedMessagesByAutomationIDs(ctx context.Context, arg DeleteChatQueuedMessagesByAutomationIDsParams) (int64, error)
+	// queued.
+	DeleteChatQueuedMessagesByAutomationIDs(ctx context.Context, arg DeleteChatQueuedMessagesByAutomationIDsParams) error
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
 	DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error)

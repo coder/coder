@@ -50,7 +50,7 @@ func automationQueueCase(from, want chatstate.ExecutionState, layout string) tra
 	automationIDs := map[rune]uuid.UUID{'a': uuid.New(), 'b': uuid.New(), 'o': uuid.New()}
 	// The seed fills these and the assertion of the same case reads them.
 	kept := []int64{}
-	var keptEditingID, removed int64
+	var keptEditingID int64
 
 	seed := func(t *testing.T, f *testFixture, from chatstate.ExecutionState) seededChat {
 		t.Helper()
@@ -80,7 +80,6 @@ func automationQueueCase(from, want chatstate.ExecutionState, layout string) tra
 				beginQueuedMessageEdit(ctx, t, f, seeded.chatID, row.ID)
 			}
 			if source == 'a' || source == 'b' {
-				removed++
 				continue
 			}
 			kept = append(kept, row.ID)
@@ -109,7 +108,6 @@ func automationQueueCase(from, want chatstate.ExecutionState, layout string) tra
 		apply:      applyDeleteQueuedMessagesByAutomation(automationIDs['a'], automationIDs['b']),
 		assert: func(ctx context.Context, t *testing.T, f *testFixture, seeded seededChat, base snapshotBaseline, result transitionCaseResult) {
 			got := result.deleteQueuedMessagesByAutomation
-			require.Equal(t, removed, got.Deleted, "every message of the two automations is removed")
 
 			// Leaving P for a running state promotes the next row.
 			promoted := 0
@@ -117,7 +115,7 @@ func automationQueueCase(from, want chatstate.ExecutionState, layout string) tra
 				promoted = 1
 			}
 			require.Equal(t, kept[promoted:], queuedIDsByPosition(ctx, t, f, seeded.chatID),
-				"the other queued messages keep their order")
+				"the messages of the two automations go, and the others keep their order")
 			assertQueueEditMarkers(ctx, t, f, seeded.chatID, keptEditingID)
 			require.Len(t, newActiveMessageIDs(base, activeHistoryIDs(ctx, t, f, seeded.chatID)), promoted,
 				"history changes only by a promotion")
@@ -199,7 +197,6 @@ func TestDeleteQueuedMessagesByAutomationKeepsOtherChats(t *testing.T) {
 		return applyDeleteQueuedMessagesByAutomation(automationID)(t, f, tx, seededChat{}, chatstate.StateR1, &result)
 	}))
 
-	require.EqualValues(t, 1, result.deleteQueuedMessagesByAutomation.Deleted)
 	require.Empty(t, queuedIDsByPosition(ctx, t, f, chatIDs[0]))
 	require.Len(t, queuedIDsByPosition(ctx, t, f, chatIDs[1]), 1)
 }

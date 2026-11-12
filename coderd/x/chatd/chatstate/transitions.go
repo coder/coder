@@ -1075,8 +1075,6 @@ type DeleteQueuedMessagesByAutomationInput struct {
 // DeleteQueuedMessagesByAutomationResult is returned by
 // [Tx.DeleteQueuedMessagesByAutomation].
 type DeleteQueuedMessagesByAutomationResult struct {
-	// Deleted is the number of queued messages that were removed.
-	Deleted int64
 	// Chat is the updated chat when the transition left P, else nil.
 	Chat *database.Chat
 }
@@ -1092,14 +1090,14 @@ func (tx *Tx) DeleteQueuedMessagesByAutomation(input DeleteQueuedMessagesByAutom
 	if err != nil {
 		return DeleteQueuedMessagesByAutomationResult{}, err
 	}
-	deleted, err := tx.store.DeleteChatQueuedMessagesByAutomationIDs(tx.ctx, database.DeleteChatQueuedMessagesByAutomationIDsParams{
+	err = tx.store.DeleteChatQueuedMessagesByAutomationIDs(tx.ctx, database.DeleteChatQueuedMessagesByAutomationIDsParams{
 		ChatID:        tx.chatID,
 		AutomationIDs: input.AutomationIDs,
 	})
 	if err != nil {
 		return DeleteQueuedMessagesByAutomationResult{}, xerrors.Errorf("delete queued messages of automations: %w", err)
 	}
-	result := DeleteQueuedMessagesByAutomationResult{Deleted: deleted}
+	var result DeleteQueuedMessagesByAutomationResult
 	if from == StateP {
 		result.Chat, _, err = tx.leavePaused(chat)
 		if err != nil {

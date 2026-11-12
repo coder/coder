@@ -302,6 +302,27 @@ func TestChatAutomationAuthorization(t *testing.T) {
 		require.EqualValues(t, 1, count)
 	})
 
+	// The queue cleanup of a deleted user runs as chatd. It reads the
+	// automations of the user across organizations, and the chats of any
+	// owner that hold their queued messages.
+	t.Run("QueueCleanupReads", func(t *testing.T) {
+		t.Parallel()
+		for _, actor := range []database.User{member, orgAdmin} {
+			_, err := db.GetChatAutomationIDsByOwnerID(asUser(t, actor), member.ID)
+			requireDenied(t, err)
+			_, err = db.GetChatIDsWithQueuedMessagesByAutomationIDs(asUser(t, actor), []uuid.UUID{memberAutomation.ID})
+			requireDenied(t, err)
+		}
+
+		//nolint:gocritic // The cleanup is a system read.
+		ctx := dbauthz.AsChatd(testutil.Context(t, testutil.WaitLong))
+		ids, err := db.GetChatAutomationIDsByOwnerID(ctx, member.ID)
+		require.NoError(t, err)
+		require.Contains(t, ids, memberAutomation.ID)
+		_, err = db.GetChatIDsWithQueuedMessagesByAutomationIDs(ctx, ids)
+		require.NoError(t, err)
+	})
+
 	t.Run("Delete", func(t *testing.T) {
 		t.Parallel()
 		for _, tc := range []struct {
@@ -319,7 +340,7 @@ func TestChatAutomationAuthorization(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 				automation := dbgen.ChatAutomation(t, db, database.ChatAutomation{OrganizationID: org.ID, OwnerID: tc.owner.ID})
-				err := db.DeleteChatAutomationByID(asUser(t, tc.actor), automation.ID)
+				_, err := db.DeleteChatAutomationByID(asUser(t, tc.actor), automation.ID)
 				_, getErr := rawDB.GetChatAutomationByID(testutil.Context(t, testutil.WaitLong), automation.ID)
 				if !tc.allowed {
 					requireDenied(t, err)
@@ -348,7 +369,8 @@ func TestChatAutomationAuthorization(t *testing.T) {
 			require.Empty(t, rows, "scope %s must not list automations", name)
 			_, err = db.InsertChatAutomation(ctx, webhook(member))
 			requireDenied(t, err)
-			requireDenied(t, db.DeleteChatAutomationByID(ctx, memberAutomation.ID))
+			_, err = db.DeleteChatAutomationByID(ctx, memberAutomation.ID)
+			requireDenied(t, err)
 		}
 	})
 
@@ -367,7 +389,8 @@ func TestChatAutomationAuthorization(t *testing.T) {
 
 		_, err = db.InsertChatAutomation(ctx, webhook(member))
 		requireDenied(t, err)
-		requireDenied(t, db.DeleteChatAutomationByID(ctx, memberAutomation.ID))
+		_, err = db.DeleteChatAutomationByID(ctx, memberAutomation.ID)
+		requireDenied(t, err)
 
 		// The insert above stops at the owner check, so ask RBAC directly.
 		subject, ok := dbauthz.ActorFromContext(ctx)

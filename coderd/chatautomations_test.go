@@ -658,10 +658,13 @@ func TestDeleteUserChatAutomations(t *testing.T) {
 		require.Equal(t, user.ID, logs[0].ResourceID)
 	})
 
+	// A user admin can delete a user and can read neither that user's
+	// automations nor chats: the cleanup does not depend on the caller.
 	t.Run("QueuedMessages", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
 		env := newChatAutomationEnv(t, nil)
+		userAdmin, _ := coderdtest.CreateAnotherUser(t, env.owner, env.first.OrganizationID, rbac.RoleUserAdmin())
 		_, user := coderdtest.CreateAnotherUser(t, env.owner, env.first.OrganizationID)
 		first := env.automation(t, database.ChatAutomation{OwnerID: user.ID})
 		second := env.automation(t, database.ChatAutomation{OwnerID: user.ID})
@@ -674,7 +677,7 @@ func TestDeleteUserChatAutomations(t *testing.T) {
 		require.NoError(t, err)
 		defer cancel()
 
-		require.NoError(t, env.owner.DeleteUser(ctx, user.ID))
+		require.NoError(t, userAdmin.DeleteUser(ctx, user.ID))
 
 		testutil.RequireReceive(ctx, t, updates)
 		require.False(t, env.exists(t, first.ID))

@@ -1081,12 +1081,11 @@ func (mr *MockStoreMockRecorder) DeleteChatQueuedMessageReturningCount(ctx, arg 
 }
 
 // DeleteChatQueuedMessagesByAutomationIDs mocks base method.
-func (m *MockStore) DeleteChatQueuedMessagesByAutomationIDs(ctx context.Context, arg database.DeleteChatQueuedMessagesByAutomationIDsParams) (int64, error) {
+func (m *MockStore) DeleteChatQueuedMessagesByAutomationIDs(ctx context.Context, arg database.DeleteChatQueuedMessagesByAutomationIDsParams) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteChatQueuedMessagesByAutomationIDs", ctx, arg)
-	ret0, _ := ret[0].(int64)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // DeleteChatQueuedMessagesByAutomationIDs indicates an expected call of DeleteChatQueuedMessagesByAutomationIDs.

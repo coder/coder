@@ -2440,13 +2440,13 @@ func (q *querier) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg
 	return q.db.DeleteChatQueuedMessageReturningCount(ctx, arg)
 }
 
-func (q *querier) DeleteChatQueuedMessagesByAutomationIDs(ctx context.Context, arg database.DeleteChatQueuedMessagesByAutomationIDsParams) (int64, error) {
+func (q *querier) DeleteChatQueuedMessagesByAutomationIDs(ctx context.Context, arg database.DeleteChatQueuedMessagesByAutomationIDsParams) error {
 	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
 	if err != nil {
-		return 0, err
+		return err
 	}
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return 0, err
+		return err
 	}
 	return q.db.DeleteChatQueuedMessagesByAutomationIDs(ctx, arg)
 }

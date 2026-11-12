@@ -3069,9 +3069,9 @@ WHERE id = @id::bigint AND chat_id = @chat_id::uuid;
 DELETE FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
 
--- name: DeleteChatQueuedMessagesByAutomationIDs :execrows
+-- name: DeleteChatQueuedMessagesByAutomationIDs :exec
 -- Deletes the queued messages of the chat that the given automations
--- queued. Returns the number of deleted rows.
+-- queued.
 DELETE FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid
   AND automation_id = ANY(@automation_ids::uuid[]);

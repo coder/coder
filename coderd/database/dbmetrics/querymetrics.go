@@ -648,12 +648,12 @@ func (m queryMetricsStore) DeleteChatQueuedMessageReturningCount(ctx context.Con
 	return r0, r1
 }
 
-func (m queryMetricsStore) DeleteChatQueuedMessagesByAutomationIDs(ctx context.Context, arg database.DeleteChatQueuedMessagesByAutomationIDsParams) (int64, error) {
+func (m queryMetricsStore) DeleteChatQueuedMessagesByAutomationIDs(ctx context.Context, arg database.DeleteChatQueuedMessagesByAutomationIDsParams) error {
 	start := time.Now()
-	r0, r1 := m.s.DeleteChatQueuedMessagesByAutomationIDs(ctx, arg)
+	r0 := m.s.DeleteChatQueuedMessagesByAutomationIDs(ctx, arg)
 	m.queryLatencies.WithLabelValues("DeleteChatQueuedMessagesByAutomationIDs").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "DeleteChatQueuedMessagesByAutomationIDs").Inc()
-	return r0, r1
+	return r0
 }
 
 func (m queryMetricsStore) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {

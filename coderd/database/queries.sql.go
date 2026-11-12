@@ -9419,7 +9419,7 @@ func (q *sqlQuerier) DeleteChatQueuedMessageReturningCount(ctx context.Context, 
 	return result.RowsAffected()
 }
 
-const deleteChatQueuedMessagesByAutomationIDs = `-- name: DeleteChatQueuedMessagesByAutomationIDs :execrows
+const deleteChatQueuedMessagesByAutomationIDs = `-- name: DeleteChatQueuedMessagesByAutomationIDs :exec
 DELETE FROM chat_queued_messages
 WHERE chat_id = $1::uuid
   AND automation_id = ANY($2::uuid[])
@@ -9431,13 +9431,10 @@ type DeleteChatQueuedMessagesByAutomationIDsParams struct {
 }
 
 // Deletes the queued messages of the chat that the given automations
-// queued. Returns the number of deleted rows.
-func (q *sqlQuerier) DeleteChatQueuedMessagesByAutomationIDs(ctx context.Context, arg DeleteChatQueuedMessagesByAutomationIDsParams) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteChatQueuedMessagesByAutomationIDs, arg.ChatID, pq.Array(arg.AutomationIDs))
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+// queued.
+func (q *sqlQuerier) DeleteChatQueuedMessagesByAutomationIDs(ctx context.Context, arg DeleteChatQueuedMessagesByAutomationIDsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteChatQueuedMessagesByAutomationIDs, arg.ChatID, pq.Array(arg.AutomationIDs))
+	return err
 }
 
 const deleteOldChats = `-- name: DeleteOldChats :execrows
