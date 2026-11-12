@@ -217,8 +217,9 @@ branch started from: a Docker sandbox inside a workspace's daemon.
 - **The sandbox provisioner is a shortcut.** It stands in for Terraform.
   [DESIGN.md](DESIGN.md) has ways to define the pool in Terraform and to do
   without it, with what each would cost.
-- **An idle pod of the pool is not free here.** It holds 20 MiB and uses
-  0.15 of a CPU. Nearly all of that CPU is the readiness probe in
-  [cluster/pool.yaml](cluster/pool.yaml), which runs a command every
-  second. The daemon itself used one CPU-second in 25 minutes.
+- **The numbers above were taken with a wasteful readiness probe.** It ran
+  a command in every pod each second, which cost 0.15 of a CPU per pod.
+  [cluster/pool.yaml](cluster/pool.yaml) now checks only until the daemon
+  runs, and an idle pod uses a few thousandths of a CPU and 20 MiB. The
+  checks were not run again after that change.
 - **One cluster, one coderd replica, one day.**

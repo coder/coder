@@ -73,11 +73,13 @@ spec:
             - name: PATH
               value: /opt/coder:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
           # Ready means the daemon runs and waits. Only such pods are handed
-          # out.
-          readinessProbe:
+          # out. This is checked until it is true and not again: a command
+          # run in the pod every second costs more than the idle daemon.
+          startupProbe:
             exec:
               command: ["sh", "-c", "pidof coder >/dev/null"]
             periodSeconds: 1
+            failureThreshold: 300
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:

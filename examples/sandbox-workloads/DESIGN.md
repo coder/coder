@@ -166,13 +166,14 @@ What a run waits for, on the cluster and machine of
 [RESULTS.md](RESULTS.md). Each line is `coder create` for a workspace
 whose pod comes from the same warm pool, three runs.
 
-| The workspace is built by                                                  | Create           | Delete         |
-|----------------------------------------------------------------------------|------------------|----------------|
-| The sandbox provisioner of this spike                                      | 0.53 s to 0.89 s | 0.1 s to 0.2 s |
-| Terraform, with an agent and nothing else                                  | 0.84 s to 0.86 s | 0.6 s          |
-| Terraform, claiming with shell commands that stand in for a claim resource | 3.2 s to 4.0 s   | 1.2 s          |
-| Terraform, claiming with the Kubernetes provider's manifest resource       | 8.1 s to 13.8 s  | 5.8 s to 7.3 s |
-| Terraform, claiming a prebuilt workspace of that template                  | 6.2 s to 7.1 s   | 6.3 s to 7.9 s |
+| The workspace is built by                                                           | Create           | Delete         |
+|-------------------------------------------------------------------------------------|------------------|----------------|
+| The sandbox provisioner of this spike                                               | 0.53 s to 0.89 s | 0.1 s to 0.2 s |
+| Terraform, with an agent and nothing else                                           | 0.84 s to 0.86 s | 0.6 s          |
+| Terraform, claiming with shell commands that stand in for a claim resource          | 3.2 s to 4.0 s   | 1.2 s          |
+| Terraform, claiming with the Kubernetes provider's manifest resource                | 8.1 s to 13.8 s  | 5.8 s to 7.3 s |
+| Terraform, claiming a prebuilt workspace of that template                           | 6.2 s to 7.1 s   | 6.3 s to 7.9 s |
+| Terraform, claiming a prebuilt workspace whose pod Terraform made, timed at the API | 1.7 s to 1.9 s   |                |
 
 - **Terraform itself is not slow.** A build that touches no cloud takes
   under a second.
@@ -186,6 +187,14 @@ whose pod comes from the same warm pool, three runs.
   six seconds, for the same reason as the line above it. With a warm pool
   behind the template, a prebuilt workspace saves nothing: the pod was
   running already.
+- **A prebuilt workspace claimed the ordinary way is faster than that.**
+  With a pod that Terraform made, an agent token and nothing that depends
+  on the owner, the claim took 1.7 s to 1.9 s from the request to the end
+  of the build, and the first `coder run` 1.0 s to 1.5 s more, while the
+  daemon started over for its new owner. `coder create` took 4.7 s to
+  4.9 s for the same claim: the command line adds about three seconds
+  when a preset is given, and the prebuilt line in the table includes
+  them.
 - **After a claim the daemon was slow to follow.** The first `coder run`
   in a claimed workspace took 5.7 s to 8.4 s, because the daemon of this
   spike is not told that its workspace has a new owner. It finds out when
