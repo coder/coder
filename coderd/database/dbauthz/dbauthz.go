@@ -471,6 +471,28 @@ var (
 		}.WithCachedASTValue()
 	}
 
+	// The cap on chat automations counts an owner's automations across
+	// organizations, an object that no organization-scoped grant matches.
+	subjectChatAutomationCounter = func(ownerID uuid.UUID) rbac.Subject {
+		return rbac.Subject{
+			Type:         rbac.SubjectTypeChatAutomationCounter,
+			FriendlyName: "Chat Automation Counter",
+			ID:           ownerID.String(),
+			Roles: rbac.Roles([]rbac.Role{
+				{
+					Identifier:  rbac.RoleIdentifier{Name: "chatautomationcounter"},
+					DisplayName: "Chat Automation Counter",
+					Site:        []rbac.Permission{},
+					User: rbac.Permissions(map[string][]policy.Action{
+						rbac.ResourceChatAutomation.Type: {policy.ActionRead},
+					}),
+					ByOrgID: map[string]rbac.OrgPermissions{},
+				},
+			}),
+			Scope: rbac.ScopeAll,
+		}.WithCachedASTValue()
+	}
+
 	subjectChatdKeyMinter = func(userID uuid.UUID) rbac.Subject {
 		return rbac.Subject{
 			Type:         rbac.SubjectTypeChatdKeyMinter,
@@ -982,6 +1004,13 @@ func AsSubAgentAPI(ctx context.Context, orgID uuid.UUID, userID uuid.UUID) conte
 // keys owned by the specified user, and nothing else.
 func AsAPIKeyRevoker(ctx context.Context, userID uuid.UUID) context.Context {
 	return As(ctx, subjectAPIKeyRevoker(userID))
+}
+
+// AsChatAutomationCounter returns a context with an actor that can read the
+// chat automations that the specified user owns, in every organization, and
+// nothing else. Use it only to count them for the per-owner limit.
+func AsChatAutomationCounter(ctx context.Context, ownerID uuid.UUID) context.Context {
+	return As(ctx, subjectChatAutomationCounter(ownerID))
 }
 
 // AsChatdKeyMinter returns a context with an actor that manages the synthetic
@@ -2431,6 +2460,11 @@ func (q *querier) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg
 	}
 	_ = chat
 	return q.db.DeleteChatQueuedMessageReturningCount(ctx, arg)
+}
+
+func (q *querier) DeleteChatQueuedMessagesByAutomationID(ctx context.Context, automationID uuid.UUID) error {
+	// The caller deletes the automation next, so the same check applies.
+	return deleteQ(q.log, q.auth, q.db.GetChatAutomationByID, q.db.DeleteChatQueuedMessagesByAutomationID)(ctx, automationID)
 }
 
 func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
@@ -4045,6 +4079,10 @@ func (q *querier) GetChats(ctx context.Context, arg database.GetChatsParams) ([]
 
 func (q *querier) GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]database.Chat, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByChatFileID)(ctx, fileID)
+}
+
+func (q *querier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByIDs)(ctx, ids)
 }
 
 func (q *querier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {

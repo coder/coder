@@ -1,4 +1,16 @@
 -- name: InsertChatAutomation :one
+-- Inserts only for an owner that is neither deleted nor a system user. The
+-- shared row lock makes a concurrent soft delete of the owner wait for this
+-- transaction, so its trigger then deletes the new row. Without it the
+-- insert could commit after the delete and leave the row behind.
+WITH owner AS (
+    SELECT id
+    FROM users
+    WHERE id = @owner_id::uuid
+      AND NOT deleted
+      AND NOT is_system
+    FOR SHARE
+)
 INSERT INTO chat_automations (
     id,
     organization_id,
@@ -21,10 +33,10 @@ INSERT INTO chat_automations (
     schedule_time_zone,
     schedule_next_run_at
 )
-VALUES (
+SELECT
     COALESCE(sqlc.narg('id')::uuid, gen_random_uuid()),
     @organization_id::uuid,
-    @owner_id::uuid,
+    owner.id,
     @name::text,
     sqlc.narg('created_by_chat_id')::uuid,
     @kind::chat_automation_kind,
@@ -42,7 +54,7 @@ VALUES (
     sqlc.narg('schedule_cron')::text,
     sqlc.narg('schedule_time_zone')::text,
     sqlc.narg('schedule_next_run_at')::timestamptz
-)
+FROM owner
 RETURNING *;
 
 -- name: GetChatAutomationByID :one
@@ -104,6 +116,12 @@ WHERE owner_id = @owner_id::uuid;
 -- name: DeleteChatAutomationByID :exec
 DELETE FROM chat_automations
 WHERE id = @id::uuid;
+
+-- name: DeleteChatQueuedMessagesByAutomationID :exec
+-- Deletes the messages that an automation queued and that a chat has not
+-- started yet.
+DELETE FROM chat_queued_messages
+WHERE automation_id = @automation_id::uuid;
 
 -- name: GetChatAutomationsWithWebhookSecretByOwnerID :many
 -- Returns the automations of one owner that hold a webhook secret, secret

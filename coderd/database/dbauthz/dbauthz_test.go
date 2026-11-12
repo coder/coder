@@ -1448,6 +1448,19 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteChatAutomationByID(gomock.Any(), automation.ID).Return(nil).AnyTimes()
 		check.Args(automation.ID).Asserts(automation, policy.ActionDelete)
 	}))
+	s.Run("DeleteChatQueuedMessagesByAutomationID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().DeleteChatQueuedMessagesByAutomationID(gomock.Any(), automation.ID).Return(nil).AnyTimes()
+		check.Args(automation.ID).Asserts(automation, policy.ActionDelete)
+	}))
+	s.Run("GetChatsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chatA := testutil.Fake(s.T(), faker, database.Chat{})
+		chatB := testutil.Fake(s.T(), faker, database.Chat{})
+		ids := []uuid.UUID{chatA.ID, chatB.ID}
+		dbm.EXPECT().GetChatsByIDs(gomock.Any(), ids).Return([]database.Chat{chatA, chatB}, nil).AnyTimes()
+		check.Args(ids).Asserts(chatA, policy.ActionRead, chatB, policy.ActionRead).Returns([]database.Chat{chatA, chatB})
+	}))
 	s.Run("CountChatProjectsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ownerID := uuid.New()
 		dbm.EXPECT().CountChatProjectsByOwnerID(gomock.Any(), ownerID).Return(int64(3), nil).AnyTimes()
@@ -8430,6 +8443,27 @@ func TestAsAPIKeyRevoker(t *testing.T) {
 		err := auth.Authorize(ctx, actor, policy.ActionDelete, rbac.ResourceApiKey.WithOwner(otherUserID.String()))
 		require.Error(t, err, "other users' api keys should not be deletable")
 	})
+}
+
+func TestAsChatAutomationCounter(t *testing.T) {
+	t.Parallel()
+
+	ownerID := uuid.New()
+	ctx := dbauthz.AsChatAutomationCounter(context.Background(), ownerID)
+	actor, ok := dbauthz.ActorFromContext(ctx)
+	require.True(t, ok)
+	require.Equal(t, rbac.SubjectTypeChatAutomationCounter, actor.Type)
+	require.Equal(t, ownerID.String(), actor.ID)
+
+	auth := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
+	// The count spans organizations, so its object has no organization.
+	owned := rbac.ResourceChatAutomation.WithOwner(ownerID.String())
+	require.NoError(t, auth.Authorize(ctx, actor, policy.ActionRead, owned))
+	for _, action := range []policy.Action{policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete} {
+		require.Error(t, auth.Authorize(ctx, actor, action, owned), action)
+	}
+	require.Error(t, auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceChatAutomation.WithOwner(uuid.NewString())))
+	require.Error(t, auth.Authorize(ctx, actor, policy.ActionRead, rbac.ResourceChat.WithOwner(ownerID.String())))
 }
 
 func TestAsChatdKeyMinter(t *testing.T) {
