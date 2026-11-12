@@ -54,6 +54,7 @@ jobs:
 
     if: github.actor != 'dependabot[bot]' # Skip Dependabot PRs
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    environment: ${{ github.ref == 'refs/heads/main' && 'main' || '' }}
     permissions:
       contents: read
       packages: write # push the dogfood base image to ghcr.io/coder/oss-dogfood-base
