@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { MockChatProjectInstructions } from "#/testHelpers/entities";
@@ -58,7 +58,7 @@ describe("ProjectInstructionsDialog", () => {
 		expect(props.onSave).toHaveBeenCalledWith("One.  \n\n\nTwo. Three.");
 	});
 
-	it("blocks Save and Delete when the saved instructions change while editing, until the user loads them", async () => {
+	it("blocks Save when the saved instructions change while editing, until the user loads them", async () => {
 		const { user, props, rerenderWithInstructions } = renderDialog({
 			instructions: MockChatProjectInstructions.instructions,
 		});
@@ -66,48 +66,43 @@ describe("ProjectInstructionsDialog", () => {
 		await user.type(textbox, " My edit.");
 
 		rerenderWithInstructions("Edited in another tab.");
+		await user.click(screen.getByRole("button", { name: "Clear" }));
 		await user.click(screen.getByRole("button", { name: "Save" }));
-		await user.click(screen.getByRole("button", { name: "Delete" }));
 		expect(props.onSave).not.toHaveBeenCalled();
 		expect(props.onDelete).not.toHaveBeenCalled();
 
 		await user.click(screen.getByRole("button", { name: "Load latest" }));
 		expect(textbox).toHaveValue("Edited in another tab.");
-		await user.click(screen.getByRole("button", { name: "Delete" }));
-		await user.click(
-			screen.getByRole("button", { name: "Delete instructions" }),
-		);
+		await user.click(screen.getByRole("button", { name: "Clear" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
 		expect(props.onDelete).toHaveBeenCalledTimes(1);
 	});
 
-	it("asks for confirmation before deleting", async () => {
+	it("removes the instructions only once the cleared draft is saved", async () => {
 		const { user, props } = renderDialog({
 			instructions: MockChatProjectInstructions.instructions,
 		});
+		const textbox = screen.getByRole("textbox", { name: "Instructions" });
 
-		await user.click(screen.getByRole("button", { name: "Delete" }));
+		await user.click(screen.getByRole("button", { name: "Clear" }));
+		expect(textbox).toHaveValue("");
+		expect(textbox).toHaveFocus();
 		expect(props.onDelete).not.toHaveBeenCalled();
-		await user.click(screen.getByRole("button", { name: "Cancel" }));
-		expect(props.onDelete).not.toHaveBeenCalled();
-		expect(screen.getByRole("button", { name: "Delete" })).toHaveFocus();
 
-		await user.click(screen.getByRole("button", { name: "Delete" }));
-		await user.click(
-			screen.getByRole("button", { name: "Delete instructions" }),
-		);
+		await user.click(screen.getByRole("button", { name: "Save" }));
 		expect(props.onDelete).toHaveBeenCalledTimes(1);
+		expect(props.onSave).not.toHaveBeenCalled();
 	});
 
-	it("clears a failed save's error before deleting", async () => {
+	it("clears a failed save's error before removing the instructions", async () => {
 		const { user, props } = renderDialog({
 			instructions: MockChatProjectInstructions.instructions,
 			saveError: new Error("Save failed."),
 		});
 
-		await user.click(screen.getByRole("button", { name: "Delete" }));
-		await user.click(
-			screen.getByRole("button", { name: "Delete instructions" }),
-		);
+		await user.click(screen.getByRole("button", { name: "Clear" }));
+		vi.mocked(props.onResetErrors).mockClear();
+		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		expect(props.onResetErrors).toHaveBeenCalledTimes(1);
 		expect(
@@ -132,19 +127,5 @@ describe("ProjectInstructionsDialog", () => {
 		expect(
 			vi.mocked(props.onResetErrors).mock.invocationCallOrder[0],
 		).toBeLessThan(vi.mocked(props.onSave).mock.invocationCallOrder[0]);
-	});
-
-	it("moves focus to Load latest when the saved instructions change during the delete confirmation", async () => {
-		const { user, props, rerenderWithInstructions } = renderDialog({
-			instructions: MockChatProjectInstructions.instructions,
-		});
-
-		await user.click(screen.getByRole("button", { name: "Delete" }));
-		rerenderWithInstructions("Edited in another tab.");
-
-		await waitFor(() =>
-			expect(screen.getByRole("button", { name: "Load latest" })).toHaveFocus(),
-		);
-		expect(props.onDelete).not.toHaveBeenCalled();
 	});
 });
