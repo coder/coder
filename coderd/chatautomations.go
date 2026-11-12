@@ -229,7 +229,18 @@ func (api *API) loadChatAutomationRefs(ctx context.Context, automations []databa
 		users, err := api.Database.GetUsersByIDs(ctx, mapKeys(ownerIDs))
 		switch {
 		case dbauthz.IsNotAuthorizedError(err):
-			// The caller cannot read at least one owner, so no owner is shown.
+			// The batch read is all or nothing. Read the owners one by one and
+			// leave out each one that the caller cannot read.
+			for id := range ownerIDs {
+				user, err := api.Database.GetUserByID(ctx, id)
+				if httpapi.Is404Error(err) {
+					continue
+				}
+				if err != nil {
+					return refs, xerrors.Errorf("get owner: %w", err)
+				}
+				refs.Owners[id] = user
+			}
 		case err != nil:
 			return refs, xerrors.Errorf("get owners: %w", err)
 		default:

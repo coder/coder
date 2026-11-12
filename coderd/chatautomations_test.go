@@ -306,16 +306,29 @@ func TestChatAutomationsAuthorization(t *testing.T) {
 	})
 }
 
-// TestChatAutomationsReadOnlyRole sends a delete as a role that can read an
-// automation and not delete it: the answer is 403 and the row stays.
+// TestChatAutomationsReadOnlyRole uses a role that can read automations and
+// cannot read other users. The list shows the owner that the caller can read
+// and leaves out the other. A delete answers 403 and the row stays.
 func TestChatAutomationsReadOnlyRole(t *testing.T) {
 	t.Parallel()
 	env := newChatAutomationEnv(t, nil)
-	client, _ := env.readOnlyClient(t)
+	org := env.first.OrganizationID
+	client, reader := env.readOnlyClient(t)
+	mine := env.automation(t, database.ChatAutomation{OwnerID: reader.ID})
 	theirs := env.automation(t, database.ChatAutomation{OwnerID: env.first.UserID})
 
-	status, body := doChatAutomation(t, client, http.MethodDelete, chatAutomationPath(env.first.OrganizationID, "/"+theirs.ID.String()))
+	list, err := codersdk.NewExperimentalClient(client).ChatAutomations(testutil.Context(t, testutil.WaitShort), org, "")
+	require.NoError(t, err)
+	owners := map[uuid.UUID]*codersdk.MinimalUser{}
+	for _, a := range list {
+		owners[a.ID] = a.Owner
+	}
+	require.Len(t, owners, 2)
+	require.NotNil(t, owners[mine.ID])
+	require.Equal(t, reader.Username, owners[mine.ID].Username)
+	require.Nil(t, owners[theirs.ID])
 
+	status, body := doChatAutomation(t, client, http.MethodDelete, chatAutomationPath(org, "/"+theirs.ID.String()))
 	require.Equal(t, http.StatusForbidden, status, string(body))
 	require.True(t, env.exists(t, theirs.ID))
 }
