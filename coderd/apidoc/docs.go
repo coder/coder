@@ -440,6 +440,137 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/organizations/{organization}/chats/automations": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat automations",
+                "operationId": "list-chat-automations",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Owner: me, a user ID or a username",
+                        "name": "owner",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatAutomation"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/automations/{automation}": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Get chat automation",
+                "operationId": "get-chat-automation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChatAutomation"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Delete chat automation",
+                "operationId": "delete-chat-automation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat automation ID",
+                        "name": "automation",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/organizations/{organization}/chats/projects": {
             "post": {
                 "consumes": [
@@ -20560,6 +20691,11 @@ const docTemplate = `{
                 "chat:read",
                 "chat:share",
                 "chat:update",
+                "chat_automation:*",
+                "chat_automation:create",
+                "chat_automation:delete",
+                "chat_automation:read",
+                "chat_automation:update",
                 "chat_model_config:*",
                 "chat_model_config:create",
                 "chat_model_config:delete",
@@ -20828,6 +20964,11 @@ const docTemplate = `{
                 "APIKeyScopeChatRead",
                 "APIKeyScopeChatShare",
                 "APIKeyScopeChatUpdate",
+                "APIKeyScopeChatAutomationAll",
+                "APIKeyScopeChatAutomationCreate",
+                "APIKeyScopeChatAutomationDelete",
+                "APIKeyScopeChatAutomationRead",
+                "APIKeyScopeChatAutomationUpdate",
                 "APIKeyScopeChatModelConfigAll",
                 "APIKeyScopeChatModelConfigCreate",
                 "APIKeyScopeChatModelConfigDelete",
@@ -22003,6 +22144,280 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
+        },
+        "codersdk.ChatAutomation": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "created_by_chat": {
+                    "$ref": "#/definitions/codersdk.ChatAutomationChat"
+                },
+                "created_by_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "kind": {
+                    "enum": [
+                        "webhook",
+                        "schedule"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationKind"
+                        }
+                    ]
+                },
+                "last_run": {
+                    "description": "LastRun is null until the first run.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationLastRun"
+                        }
+                    ]
+                },
+                "name": {
+                    "type": "string"
+                },
+                "new_chat_model_config_id": {
+                    "description": "NewChatModelConfigID, ProjectID and ReasoningEffort apply to\nnew_chat automations.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "next_run_times": {
+                    "description": "NextRunTimes lists up to five upcoming runs of an enabled schedule.",
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "date-time"
+                    }
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "owner": {
+                    "$ref": "#/definitions/codersdk.MinimalUser"
+                },
+                "owner_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "paused_reasons": {
+                    "description": "PausedReasons lists what stops the automation from running. It is\nempty until the run path reports reasons.",
+                    "type": "array",
+                    "items": {
+                        "enum": [
+                            "owner_inactive",
+                            "owner_not_member",
+                            "experiment_disabled",
+                            "target_unavailable",
+                            "model_unavailable"
+                        ],
+                        "$ref": "#/definitions/codersdk.ChatAutomationPausedReason"
+                    }
+                },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "reasoning_effort": {
+                    "type": "string"
+                },
+                "schedule_cron": {
+                    "type": "string"
+                },
+                "schedule_next_run_at": {
+                    "description": "ScheduleNextRunAt is the next occurrence that the scheduler\npublishes.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "schedule_time_zone": {
+                    "type": "string"
+                },
+                "target_chat": {
+                    "$ref": "#/definitions/codersdk.ChatAutomationChat"
+                },
+                "target_chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "target_mode": {
+                    "description": "TargetMode is existing_chat or new_chat.",
+                    "enum": [
+                        "existing_chat",
+                        "new_chat"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationTargetMode"
+                        }
+                    ]
+                },
+                "updated_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "webhook_auth": {
+                    "enum": [
+                        "bearer",
+                        "github",
+                        "standard_webhooks"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationWebhookAuth"
+                        }
+                    ]
+                },
+                "webhook_secret_version": {
+                    "description": "WebhookSecretVersion changes when the secret is rotated.",
+                    "type": "integer"
+                },
+                "when_busy": {
+                    "enum": [
+                        "queue",
+                        "skip"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationWhenBusy"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.ChatAutomationChat": {
+            "type": "object",
+            "properties": {
+                "archived": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatAutomationKind": {
+            "type": "string",
+            "enum": [
+                "webhook",
+                "schedule"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationKindWebhook",
+                "ChatAutomationKindSchedule"
+            ]
+        },
+        "codersdk.ChatAutomationLastRun": {
+            "type": "object",
+            "properties": {
+                "at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "chat_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "outcome": {
+                    "enum": [
+                        "accepted",
+                        "skipped",
+                        "refused"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationRunOutcome"
+                        }
+                    ]
+                },
+                "reason": {
+                    "description": "Reason is set for a skipped or refused run.",
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ChatAutomationPausedReason": {
+            "type": "string",
+            "enum": [
+                "owner_inactive",
+                "owner_not_member",
+                "experiment_disabled",
+                "target_unavailable",
+                "model_unavailable"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationPausedReasonOwnerInactive",
+                "ChatAutomationPausedReasonOwnerNotMember",
+                "ChatAutomationPausedReasonExperimentDisabled",
+                "ChatAutomationPausedReasonTargetUnavailable",
+                "ChatAutomationPausedReasonModelUnavailable"
+            ]
+        },
+        "codersdk.ChatAutomationRunOutcome": {
+            "type": "string",
+            "enum": [
+                "accepted",
+                "skipped",
+                "refused"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationRunOutcomeAccepted",
+                "ChatAutomationRunOutcomeSkipped",
+                "ChatAutomationRunOutcomeRefused"
+            ]
+        },
+        "codersdk.ChatAutomationTargetMode": {
+            "type": "string",
+            "enum": [
+                "existing_chat",
+                "new_chat"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationTargetModeExistingChat",
+                "ChatAutomationTargetModeNewChat"
+            ]
+        },
+        "codersdk.ChatAutomationWebhookAuth": {
+            "type": "string",
+            "enum": [
+                "bearer",
+                "github",
+                "standard_webhooks"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationWebhookAuthBearer",
+                "ChatAutomationWebhookAuthGitHub",
+                "ChatAutomationWebhookAuthStandardWebhooks"
+            ]
+        },
+        "codersdk.ChatAutomationWhenBusy": {
+            "type": "string",
+            "enum": [
+                "queue",
+                "skip"
+            ],
+            "x-enum-varnames": [
+                "ChatAutomationWhenBusyQueue",
+                "ChatAutomationWhenBusySkip"
+            ]
         },
         "codersdk.ChatBusyBehavior": {
             "type": "string",
@@ -30598,6 +31013,7 @@ const docTemplate = `{
                 "boundary_log",
                 "boundary_usage",
                 "chat",
+                "chat_automation",
                 "chat_model_config",
                 "chat_project",
                 "chat_project_memory",
@@ -30656,6 +31072,7 @@ const docTemplate = `{
                 "ResourceBoundaryLog",
                 "ResourceBoundaryUsage",
                 "ResourceChat",
+                "ResourceChatAutomation",
                 "ResourceChatModelConfig",
                 "ResourceChatProject",
                 "ResourceChatProjectMemory",

@@ -52,6 +52,23 @@ var genCtx = dbauthz.As(context.Background(), rbac.Subject{
 	Scope:  rbac.ExpandableScope(rbac.ScopeAll),
 })
 
+// chatAutomationGenCtx is the generator context for a chat automation of
+// ownerID. dbauthz lets only the owner create an automation, and the owner
+// role has no create permission, so genCtx cannot insert one.
+func chatAutomationGenCtx(ownerID uuid.UUID) context.Context {
+	return dbauthz.As(context.Background(), rbac.Subject{
+		ID: ownerID.String(),
+		Roles: rbac.Roles(append(must(rbac.RoleIdentifiers{rbac.RoleOwner()}.Expand()), rbac.Role{
+			Identifier: rbac.RoleIdentifier{Name: "dbgen-chat-automation"},
+			Site: rbac.Permissions(map[string][]policy.Action{
+				rbac.ResourceChatAutomation.Type: {policy.ActionCreate},
+			}),
+		})),
+		Groups: []string{},
+		Scope:  rbac.ExpandableScope(rbac.ScopeAll),
+	})
+}
+
 func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.AuditLog {
 	log, err := db.InsertAuditLog(genCtx, database.InsertAuditLogParams{
 		ID:     takeFirst(seed.ID, uuid.New()),
@@ -79,6 +96,60 @@ func AuditLog(t testing.TB, db database.Store, seed database.AuditLog) database.
 	})
 	require.NoError(t, err, "insert audit log")
 	return log
+}
+
+// ChatAutomation inserts a chat automation. Without a kind it is a bearer
+// webhook, and without a target mode it targets an existing chat. Columns
+// that the kind or the target mode requires get a value when the seed has
+// none. The organization and the owner must exist.
+func ChatAutomation(t testing.TB, db database.Store, seed database.ChatAutomation) database.ChatAutomation {
+	t.Helper()
+
+	params := database.InsertChatAutomationParams{
+		ID:                   uuid.NullUUID{UUID: seed.ID, Valid: seed.ID != uuid.Nil},
+		OrganizationID:       takeFirst(seed.OrganizationID, uuid.New()),
+		OwnerID:              takeFirst(seed.OwnerID, uuid.New()),
+		Name:                 takeFirst(seed.Name, testutil.GetRandomName(t)),
+		CreatedByChatID:      seed.CreatedByChatID,
+		Kind:                 takeFirst(seed.Kind, database.ChatAutomationKindWebhook),
+		Enabled:              seed.Enabled,
+		Prompt:               takeFirst(seed.Prompt, "Do the task."),
+		TargetMode:           takeFirst(seed.TargetMode, database.ChatAutomationTargetModeExistingChat),
+		TargetChatID:         seed.TargetChatID,
+		WhenBusy:             seed.WhenBusy,
+		NewChatModelConfigID: seed.NewChatModelConfigID,
+		ReasoningEffort:      seed.ReasoningEffort,
+		ProjectID:            seed.ProjectID,
+		WebhookAuth:          seed.WebhookAuth,
+		WebhookSecret:        seed.WebhookSecret,
+		WebhookSecretKeyID:   seed.WebhookSecretKeyID,
+		ScheduleCron:         seed.ScheduleCron,
+		ScheduleTimeZone:     seed.ScheduleTimeZone,
+		ScheduleNextRunAt:    seed.ScheduleNextRunAt,
+	}
+	switch params.Kind {
+	case database.ChatAutomationKindWebhook:
+		if !params.WebhookAuth.Valid {
+			params.WebhookAuth = database.NullChatAutomationWebhookAuth{ChatAutomationWebhookAuth: database.ChatAutomationWebhookAuthBearer, Valid: true}
+		}
+		if !params.WebhookSecret.Valid {
+			params.WebhookSecret = sql.NullString{String: uuid.NewString(), Valid: true}
+		}
+	case database.ChatAutomationKindSchedule:
+		if !params.ScheduleCron.Valid {
+			params.ScheduleCron = sql.NullString{String: "0 9 * * *", Valid: true}
+		}
+		if !params.ScheduleTimeZone.Valid {
+			params.ScheduleTimeZone = sql.NullString{String: "UTC", Valid: true}
+		}
+	}
+	if params.TargetMode == database.ChatAutomationTargetModeExistingChat && !params.WhenBusy.Valid {
+		params.WhenBusy = database.NullChatAutomationWhenBusy{ChatAutomationWhenBusy: database.ChatAutomationWhenBusyQueue, Valid: true}
+	}
+
+	automation, err := db.InsertChatAutomation(chatAutomationGenCtx(params.OwnerID), params)
+	require.NoError(t, err, "insert chat automation")
+	return automation
 }
 
 func ChatProject(t testing.TB, db database.Store, seed database.ChatProject) database.ChatProject {

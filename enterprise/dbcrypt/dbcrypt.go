@@ -994,6 +994,16 @@ func (db *dbCrypt) UpdateEncryptedChatMCPServerHeaders(ctx context.Context, para
 	return db.Store.UpdateEncryptedChatMCPServerHeaders(ctx, params)
 }
 
+// InsertChatAutomation refuses a webhook secret while a cipher is loaded.
+// This store does not encrypt chat_automations.webhook_secret yet, and
+// passing the insert through would store the secret in plaintext.
+func (db *dbCrypt) InsertChatAutomation(ctx context.Context, params database.InsertChatAutomationParams) (database.ChatAutomation, error) {
+	if db.primaryCipherDigest != "" && params.WebhookSecret.Valid && params.WebhookSecret.String != "" {
+		return database.ChatAutomation{}, xerrors.New("store chat automation webhook secret: database encryption is enabled and does not cover webhook secrets yet")
+	}
+	return db.Store.InsertChatAutomation(ctx, params)
+}
+
 func (db *dbCrypt) CreateUserSecret(ctx context.Context, params database.CreateUserSecretParams) (database.UserSecret, error) {
 	if err := db.encryptField(&params.Value, &params.ValueKeyID); err != nil {
 		return database.UserSecret{}, err

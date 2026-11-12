@@ -53,6 +53,7 @@ type customQuerier interface {
 	connectionLogQuerier
 	aibridgeQuerier
 	chatQuerier
+	chatAutomationQuerier
 	chatModelConfigQuerier
 	mcpServerConfigQuerier
 	organizationSkillQuerier
@@ -927,6 +928,8 @@ func (q *sqlQuerier) GetAuthorizedChats(ctx context.Context, arg GetChatsParams,
 			&i.Chat.CompactionRequestedAt,
 			&i.Chat.TitleSource,
 			&i.Chat.TitleUpdatedAt,
+			&i.Chat.AutomationID,
+			&i.Chat.ManageAutomationsEnabled,
 			&i.HasUnread); err != nil {
 			return nil, err
 		}
@@ -1011,7 +1014,9 @@ func (q *sqlQuerier) GetAuthorizedChatsByChatFileID(ctx context.Context, fileID 
 			&i.ContextError,
 			&i.CompactionRequestedAt,
 			&i.TitleSource,
-			&i.TitleUpdatedAt); err != nil {
+			&i.TitleUpdatedAt,
+			&i.AutomationID,
+			&i.ManageAutomationsEnabled); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1281,6 +1286,75 @@ func insertAuthorizedFilter(query string, replaceWith string) (string, error) {
 func (q *sqlQuerier) UpdateUserLinkRawJSON(ctx context.Context, userID uuid.UUID, data json.RawMessage) error {
 	_, err := q.sdb.ExecContext(ctx, "UPDATE user_links SET claims = $2 WHERE user_id = $1", userID, data)
 	return err
+}
+
+type chatAutomationQuerier interface {
+	GetAuthorizedChatAutomationsByOrganizationID(ctx context.Context, arg GetChatAutomationsByOrganizationIDParams, prepared rbac.PreparedAuthorized) ([]GetChatAutomationsByOrganizationIDRow, error)
+}
+
+func (q *sqlQuerier) GetAuthorizedChatAutomationsByOrganizationID(ctx context.Context, arg GetChatAutomationsByOrganizationIDParams, prepared rbac.PreparedAuthorized) ([]GetChatAutomationsByOrganizationIDRow, error) {
+	authorizedFilter, err := prepared.CompileToSQL(ctx, regosql.ConvertConfig{
+		VariableConverter: regosql.NoACLConverter(),
+	})
+	if err != nil {
+		return nil, xerrors.Errorf("compile authorized filter: %w", err)
+	}
+
+	filtered, err := insertAuthorizedFilter(getChatAutomationsByOrganizationID, fmt.Sprintf(" AND %s", authorizedFilter))
+	if err != nil {
+		return nil, xerrors.Errorf("insert authorized filter: %w", err)
+	}
+
+	// The name comment is for metric tracking
+	query := fmt.Sprintf("-- name: GetAuthorizedChatAutomationsByOrganizationID :many\n%s", filtered)
+	rows, err := q.db.QueryContext(ctx, query, arg.OrganizationID, arg.OwnerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatAutomationsByOrganizationIDRow
+	for rows.Next() {
+		var i GetChatAutomationsByOrganizationIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.OrganizationID,
+			&i.OwnerID,
+			&i.Name,
+			&i.CreatedByChatID,
+			&i.Kind,
+			&i.Enabled,
+			&i.Prompt,
+			&i.TargetMode,
+			&i.TargetChatID,
+			&i.WhenBusy,
+			&i.NewChatModelConfigID,
+			&i.ReasoningEffort,
+			&i.ProjectID,
+			&i.WebhookAuth,
+			&i.WebhookSecretVersion,
+			&i.ScheduleCron,
+			&i.ScheduleTimeZone,
+			&i.ScheduleNextRunAt,
+			&i.ScheduleRevision,
+			&i.LastRunAt,
+			&i.LastRunOutcome,
+			&i.LastRunReason,
+			&i.LastRunChatID,
+			&i.LastRunUnacceptedCount,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 type mcpServerConfigQuerier interface {

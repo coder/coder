@@ -1369,6 +1369,88 @@ func (s *MethodTestSuite) TestChats() {
 		// No asserts here because callers provide the SQL filter.
 		check.Args(orgID, emptyPreparedAuthorized{}).Asserts()
 	}))
+	s.Run("InsertChatAutomation", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		orgID := uuid.New()
+		target := testutil.Fake(s.T(), faker, database.Chat{OrganizationID: orgID})
+		creator := testutil.Fake(s.T(), faker, database.Chat{OrganizationID: orgID})
+		model := testutil.Fake(s.T(), faker, database.ChatModelConfig{OrganizationID: orgID})
+		project := testutil.Fake(s.T(), faker, database.ChatProject{OrganizationID: orgID})
+		// Only the owner creates an automation, so the actor is the owner.
+		arg := testutil.Fake(s.T(), faker, database.InsertChatAutomationParams{
+			OrganizationID:       orgID,
+			OwnerID:              testActorID,
+			TargetChatID:         uuid.NullUUID{UUID: target.ID, Valid: true},
+			CreatedByChatID:      uuid.NullUUID{UUID: creator.ID, Valid: true},
+			NewChatModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
+			ProjectID:            uuid.NullUUID{UUID: project.ID, Valid: true},
+		})
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{OrganizationID: orgID, OwnerID: testActorID})
+		dbm.EXPECT().GetChatByID(gomock.Any(), target.ID).Return(target, nil).AnyTimes()
+		dbm.EXPECT().GetChatByID(gomock.Any(), creator.ID).Return(creator, nil).AnyTimes()
+		dbm.EXPECT().GetChatModelConfigByID(gomock.Any(), model.ID).Return(model, nil).AnyTimes()
+		dbm.EXPECT().GetChatProjectByID(gomock.Any(), project.ID).Return(project, nil).AnyTimes()
+		dbm.EXPECT().InsertChatAutomation(gomock.Any(), arg).Return(automation, nil).AnyTimes()
+		modelObject := rbac.ResourceChatModelConfig.
+			WithID(model.ID).
+			InOrg(model.OrganizationID).
+			WithACLUserList(model.UserACL.RBACACL()).
+			WithGroupACL(model.GroupACL.RBACACL())
+		check.Args(arg).Asserts(
+			rbac.ResourceChatAutomation.InOrg(orgID).WithOwner(testActorID.String()), policy.ActionCreate,
+			target, policy.ActionUpdate,
+			creator, policy.ActionRead,
+			modelObject, policy.ActionRead,
+			project, policy.ActionRead,
+		).Returns(automation)
+	}))
+	s.Run("GetChatAutomationByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		check.Args(automation.ID).Asserts(automation, policy.ActionRead).Returns(automation)
+	}))
+	s.Run("GetChatAutomationsByOrganizationID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.GetChatAutomationsByOrganizationIDParams{OrganizationID: uuid.New()}
+		rows := []database.GetChatAutomationsByOrganizationIDRow{
+			testutil.Fake(s.T(), faker, database.GetChatAutomationsByOrganizationIDRow{OrganizationID: arg.OrganizationID}),
+		}
+		dbm.EXPECT().GetAuthorizedChatAutomationsByOrganizationID(gomock.Any(), arg, gomock.Any()).Return(rows, nil).AnyTimes()
+		// No asserts here because SQLFilter.
+		check.Args(arg).Asserts().Returns(rows)
+	}))
+	s.Run("GetAuthorizedChatAutomationsByOrganizationID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		arg := database.GetChatAutomationsByOrganizationIDParams{OrganizationID: uuid.New()}
+		rows := []database.GetChatAutomationsByOrganizationIDRow{
+			testutil.Fake(s.T(), faker, database.GetChatAutomationsByOrganizationIDRow{OrganizationID: arg.OrganizationID}),
+		}
+		dbm.EXPECT().GetAuthorizedChatAutomationsByOrganizationID(gomock.Any(), arg, gomock.Any()).Return(rows, nil).AnyTimes()
+		// No asserts here because it re-routes through GetChatAutomationsByOrganizationID which uses SQLFilter.
+		check.Args(arg, emptyPreparedAuthorized{}).Asserts().Returns(rows)
+	}))
+	s.Run("CountChatAutomationsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ownerID := uuid.New()
+		dbm.EXPECT().CountChatAutomationsByOwnerID(gomock.Any(), ownerID).Return(int64(3), nil).AnyTimes()
+		check.Args(ownerID).Asserts(rbac.ResourceChatAutomation.WithOwner(ownerID.String()), policy.ActionRead).Returns(int64(3))
+	}))
+	s.Run("DeleteChatAutomationByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().DeleteChatAutomationByID(gomock.Any(), automation.ID).Return(nil).AnyTimes()
+		check.Args(automation.ID).Asserts(automation, policy.ActionDelete)
+	}))
+	s.Run("GetChatIDsWithQueuedMessagesByAutomationID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		chatIDs := []uuid.UUID{uuid.New(), uuid.New()}
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().GetChatIDsWithQueuedMessagesByAutomationID(gomock.Any(), automation.ID).Return(chatIDs, nil).AnyTimes()
+		check.Args(automation.ID).Asserts(automation, policy.ActionDelete).Returns(chatIDs)
+	}))
+	s.Run("GetChatsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chatA := testutil.Fake(s.T(), faker, database.Chat{})
+		chatB := testutil.Fake(s.T(), faker, database.Chat{})
+		ids := []uuid.UUID{chatA.ID, chatB.ID}
+		dbm.EXPECT().GetChatsByIDs(gomock.Any(), ids).Return([]database.Chat{chatA, chatB}, nil).AnyTimes()
+		check.Args(ids).Asserts(chatA, policy.ActionRead, chatB, policy.ActionRead).Returns([]database.Chat{chatA, chatB})
+	}))
 	s.Run("CountChatProjectsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ownerID := uuid.New()
 		dbm.EXPECT().CountChatProjectsByOwnerID(gomock.Any(), ownerID).Return(int64(3), nil).AnyTimes()

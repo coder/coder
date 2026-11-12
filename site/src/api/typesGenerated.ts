@@ -803,6 +803,11 @@ export type APIKeyScope =
 	| "boundary_usage:read"
 	| "boundary_usage:update"
 	| "chat:*"
+	| "chat_automation:*"
+	| "chat_automation:create"
+	| "chat_automation:delete"
+	| "chat_automation:read"
+	| "chat_automation:update"
 	| "chat:create"
 	| "chat:delete"
 	| "chat_model_config:*"
@@ -1071,6 +1076,11 @@ export const APIKeyScopes: APIKeyScope[] = [
 	"boundary_usage:read",
 	"boundary_usage:update",
 	"chat:*",
+	"chat_automation:*",
+	"chat_automation:create",
+	"chat_automation:delete",
+	"chat_automation:read",
+	"chat_automation:update",
 	"chat:create",
 	"chat:delete",
 	"chat_model_config:*",
@@ -2309,6 +2319,153 @@ export interface ChatAttachmentsResponse {
 export interface ChatAutoArchiveDaysResponse {
 	readonly auto_archive_days: number;
 }
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomation is a webhook or schedule that sends a saved prompt to a
+ * chat as its owner. It has no webhook secret field: the API returns a
+ * secret only when it creates one.
+ */
+export interface ChatAutomation {
+	readonly id: string;
+	readonly organization_id: string;
+	readonly owner_id: string;
+	readonly owner: MinimalUser | null;
+	readonly name: string;
+	readonly kind: ChatAutomationKind;
+	readonly enabled: boolean;
+	/**
+	 * TargetMode is existing_chat or new_chat.
+	 */
+	readonly target_mode: ChatAutomationTargetMode;
+	readonly target_chat_id: string | null;
+	readonly target_chat: ChatAutomationChat | null;
+	readonly created_by_chat_id: string | null;
+	readonly created_by_chat: ChatAutomationChat | null;
+	readonly when_busy: ChatAutomationWhenBusy | null;
+	/**
+	 * NewChatModelConfigID, ProjectID and ReasoningEffort apply to
+	 * new_chat automations.
+	 */
+	readonly new_chat_model_config_id: string | null;
+	readonly project_id: string | null;
+	readonly reasoning_effort: string | null;
+	readonly webhook_auth: ChatAutomationWebhookAuth | null;
+	/**
+	 * WebhookSecretVersion changes when the secret is rotated.
+	 */
+	readonly webhook_secret_version: number;
+	readonly prompt: string;
+	readonly schedule_cron: string | null;
+	readonly schedule_time_zone: string | null;
+	/**
+	 * ScheduleNextRunAt is the next occurrence that the scheduler
+	 * publishes.
+	 */
+	readonly schedule_next_run_at: string | null;
+	/**
+	 * NextRunTimes lists up to five upcoming runs of an enabled schedule.
+	 */
+	readonly next_run_times: readonly string[];
+	/**
+	 * PausedReasons lists what stops the automation from running. It is
+	 * empty until the run path reports reasons.
+	 */
+	readonly paused_reasons: readonly ChatAutomationPausedReason[];
+	/**
+	 * LastRun is null until the first run.
+	 */
+	readonly last_run: ChatAutomationLastRun | null;
+	readonly created_at: string;
+	readonly updated_at: string;
+}
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomationChat identifies a chat that an automation refers to. The API
+ * sets it only when the caller can read the chat.
+ */
+export interface ChatAutomationChat {
+	readonly id: string;
+	readonly title: string;
+	readonly archived: boolean;
+}
+
+// From codersdk/chatautomations.go
+export type ChatAutomationKind = "schedule" | "webhook";
+
+export const ChatAutomationKinds: ChatAutomationKind[] = [
+	"schedule",
+	"webhook",
+];
+
+// From codersdk/chatautomations.go
+/**
+ * ChatAutomationLastRun is the latest run of an automation. It is one
+ * record, not a history.
+ */
+export interface ChatAutomationLastRun {
+	readonly at: string;
+	readonly outcome: ChatAutomationRunOutcome;
+	/**
+	 * Reason is set for a skipped or refused run.
+	 */
+	readonly reason: string | null;
+	readonly chat_id: string | null;
+}
+
+// From codersdk/chatautomations.go
+export type ChatAutomationPausedReason =
+	| "experiment_disabled"
+	| "model_unavailable"
+	| "owner_inactive"
+	| "owner_not_member"
+	| "target_unavailable";
+
+export const ChatAutomationPausedReasons: ChatAutomationPausedReason[] = [
+	"experiment_disabled",
+	"model_unavailable",
+	"owner_inactive",
+	"owner_not_member",
+	"target_unavailable",
+];
+
+// From codersdk/chatautomations.go
+export type ChatAutomationRunOutcome = "accepted" | "refused" | "skipped";
+
+export const ChatAutomationRunOutcomes: ChatAutomationRunOutcome[] = [
+	"accepted",
+	"refused",
+	"skipped",
+];
+
+// From codersdk/chatautomations.go
+export type ChatAutomationTargetMode = "existing_chat" | "new_chat";
+
+export const ChatAutomationTargetModes: ChatAutomationTargetMode[] = [
+	"existing_chat",
+	"new_chat",
+];
+
+// From codersdk/chatautomations.go
+export type ChatAutomationWebhookAuth =
+	| "bearer"
+	| "github"
+	| "standard_webhooks";
+
+export const ChatAutomationWebhookAuths: ChatAutomationWebhookAuth[] = [
+	"bearer",
+	"github",
+	"standard_webhooks",
+];
+
+export const ChatAutomationWhenBusies: ChatAutomationWhenBusy[] = [
+	"queue",
+	"skip",
+];
+
+// From codersdk/chatautomations.go
+export type ChatAutomationWhenBusy = "queue" | "skip";
 
 // From codersdk/chats.go
 export type ChatBusyBehavior = "queue" | "steer";
@@ -9174,6 +9331,7 @@ export type RBACResource =
 	| "boundary_log"
 	| "boundary_usage"
 	| "chat"
+	| "chat_automation"
 	| "chat_model_config"
 	| "chat_project"
 	| "chat_project_memory"
@@ -9232,6 +9390,7 @@ export const RBACResources: RBACResource[] = [
 	"boundary_log",
 	"boundary_usage",
 	"chat",
+	"chat_automation",
 	"chat_model_config",
 	"chat_project",
 	"chat_project_memory",

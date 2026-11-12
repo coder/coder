@@ -813,8 +813,12 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "chatd"},
 				DisplayName: "Chat Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceAIProvider.Type:        {policy.ActionRead},
-					rbac.ResourceChat.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					rbac.ResourceAIProvider.Type: {policy.ActionRead},
+					rbac.ResourceChat.Type:       {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+					// chatd records the next run time and the last run. RBAC
+					// cannot limit update to those fields: chatd must call
+					// only the queries that write them.
+					rbac.ResourceChatAutomation.Type:    {policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceChatProject.Type:       {policy.ActionRead},
 					rbac.ResourceChatProjectMemory.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 					rbac.ResourceChatModelConfig.Type:   {policy.ActionRead},
@@ -2094,6 +2098,15 @@ func (q *querier) CountAuditLogs(ctx context.Context, arg database.CountAuditLog
 	return q.db.CountAuthorizedAuditLogs(ctx, arg, prep)
 }
 
+func (q *querier) CountChatAutomationsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error) {
+	// The count spans organizations, so the object has no organization and
+	// organization-scoped grants do not match it.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChatAutomation.WithOwner(ownerID.String())); err != nil {
+		return 0, err
+	}
+	return q.db.CountChatAutomationsByOwnerID(ctx, ownerID)
+}
+
 func (q *querier) CountChatCapacityActiveByPool(ctx context.Context, arg database.CountChatCapacityActiveByPoolParams) (database.CountChatCapacityActiveByPoolRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceChat); err != nil {
 		return database.CountChatCapacityActiveByPoolRow{}, err
@@ -2291,6 +2304,10 @@ func (q *querier) DeleteApplicationConnectAPIKeysByUserID(ctx context.Context, u
 		return err
 	}
 	return q.db.DeleteApplicationConnectAPIKeysByUserID(ctx, userID)
+}
+
+func (q *querier) DeleteChatAutomationByID(ctx context.Context, id uuid.UUID) error {
+	return deleteQ(q.log, q.auth, q.db.GetChatAutomationByID, q.db.DeleteChatAutomationByID)(ctx, id)
 }
 
 func (q *querier) DeleteChatContextResourcesByChatID(ctx context.Context, chatID uuid.UUID) error {
@@ -3360,6 +3377,18 @@ func (q *querier) GetChatAutoArchiveDays(ctx context.Context, defaultAutoArchive
 	return q.db.GetChatAutoArchiveDays(ctx, defaultAutoArchiveDays)
 }
 
+func (q *querier) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (database.ChatAutomation, error) {
+	return fetch(q.log, q.auth, q.db.GetChatAutomationByID)(ctx, id)
+}
+
+func (q *querier) GetChatAutomationsByOrganizationID(ctx context.Context, arg database.GetChatAutomationsByOrganizationIDParams) ([]database.GetChatAutomationsByOrganizationIDRow, error) {
+	prepared, err := prepareSQLFilter(ctx, q.auth, policy.ActionRead, rbac.ResourceChatAutomation.Type)
+	if err != nil {
+		return nil, xerrors.Errorf("prepare sql filter: %w", err)
+	}
+	return q.db.GetAuthorizedChatAutomationsByOrganizationID(ctx, arg, prepared)
+}
+
 func (q *querier) GetChatByID(ctx context.Context, id uuid.UUID) (database.Chat, error) {
 	return fetch(q.log, q.auth, q.db.GetChatByID)(ctx, id)
 }
@@ -3594,6 +3623,18 @@ func (q *querier) GetChatHeartbeat(ctx context.Context, arg database.GetChatHear
 		return database.ChatHeartbeat{}, err
 	}
 	return q.db.GetChatHeartbeat(ctx, arg)
+}
+
+func (q *querier) GetChatIDsWithQueuedMessagesByAutomationID(ctx context.Context, automationID uuid.UUID) ([]uuid.UUID, error) {
+	// The read is part of deleting the automation.
+	automation, err := q.db.GetChatAutomationByID(ctx, automationID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionDelete, automation); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatIDsWithQueuedMessagesByAutomationID(ctx, automationID)
 }
 
 func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
@@ -4008,6 +4049,10 @@ func (q *querier) GetChats(ctx context.Context, arg database.GetChatsParams) ([]
 
 func (q *querier) GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]database.Chat, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByChatFileID)(ctx, fileID)
+}
+
+func (q *querier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByIDs)(ctx, ids)
 }
 
 func (q *querier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
@@ -6515,6 +6560,53 @@ func (q *querier) InsertBoundarySession(ctx context.Context, arg database.Insert
 
 func (q *querier) InsertChat(ctx context.Context, arg database.InsertChatParams) (database.Chat, error) {
 	return insert(q.log, q.auth, rbac.ResourceChat.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID), q.db.InsertChat)(ctx, arg)
+}
+
+func (q *querier) InsertChatAutomation(ctx context.Context, arg database.InsertChatAutomationParams) (database.ChatAutomation, error) {
+	act, ok := ActorFromContext(ctx)
+	if !ok {
+		return database.ChatAutomation{}, ErrNoActor
+	}
+	// Every run acts as the owner, so only the owner may create an
+	// automation. The checks below then hold for the owner too, because
+	// the actor is the owner.
+	if act.ID != arg.OwnerID.String() {
+		return database.ChatAutomation{}, logNotAuthorizedError(ctx, q.log, NotAuthorizedError{
+			Err: xerrors.New("only the owner may create a chat automation"),
+		})
+	}
+	object := rbac.ResourceChatAutomation.InOrg(arg.OrganizationID).WithOwner(arg.OwnerID.String())
+	if err := q.authorizeContext(ctx, policy.ActionCreate, object); err != nil {
+		return database.ChatAutomation{}, err
+	}
+	// Every run sends a message to the target chat, so the owner must be
+	// allowed to write to it.
+	if arg.TargetChatID.Valid {
+		chat, err := q.db.GetChatByID(ctx, arg.TargetChatID.UUID)
+		if err != nil {
+			return database.ChatAutomation{}, err
+		}
+		if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
+			return database.ChatAutomation{}, err
+		}
+	}
+	// The automation shows the title of its creating chat.
+	if arg.CreatedByChatID.Valid {
+		if _, err := q.GetChatByID(ctx, arg.CreatedByChatID.UUID); err != nil {
+			return database.ChatAutomation{}, err
+		}
+	}
+	if arg.NewChatModelConfigID.Valid {
+		if _, err := q.GetChatModelConfigByID(ctx, arg.NewChatModelConfigID.UUID); err != nil {
+			return database.ChatAutomation{}, err
+		}
+	}
+	if arg.ProjectID.Valid {
+		if _, err := q.GetChatProjectByID(ctx, arg.ProjectID.UUID); err != nil {
+			return database.ChatAutomation{}, err
+		}
+	}
+	return q.db.InsertChatAutomation(ctx, arg)
 }
 
 func (q *querier) InsertChatDebugRun(ctx context.Context, arg database.InsertChatDebugRunParams) (database.ChatDebugRun, error) {
@@ -10097,6 +10189,11 @@ func (q *querier) GetAuthorizedChats(ctx context.Context, arg database.GetChatsP
 
 func (q *querier) GetAuthorizedChatsByChatFileID(ctx context.Context, fileID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.Chat, error) {
 	return q.db.GetAuthorizedChatsByChatFileID(ctx, fileID, prepared)
+}
+
+func (q *querier) GetAuthorizedChatAutomationsByOrganizationID(ctx context.Context, arg database.GetChatAutomationsByOrganizationIDParams, _ rbac.PreparedAuthorized) ([]database.GetChatAutomationsByOrganizationIDRow, error) {
+	// GetChatAutomationsByOrganizationID prepares the filter itself.
+	return q.GetChatAutomationsByOrganizationID(ctx, arg)
 }
 
 func (q *querier) GetAuthorizedChatModelConfigs(ctx context.Context, organizationID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.ChatModelConfig, error) {
