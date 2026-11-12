@@ -97,12 +97,7 @@ const ReviewPanel: React.FC<ReviewPanelProps> = ({
 	// from the rest of the components in this file, and make the core parts of
 	// this component easier to reason about
 	return (
-		<div
-			className={cn(
-				"rounded-md px-4 py-3 border border-solid border-border text-sm",
-				className,
-			)}
-		>
+		<div className={cn("rounded-md px-4 py-3 border text-sm", className)}>
 			<div className="flex flex-wrap grow items-center gap-3">
 				<Avatar size="sm" variant="icon" src={workspaceIconUrl} />
 				<div className="flex flex-col gap-0.5">
@@ -132,9 +127,7 @@ const PanelListItem: React.FC<{ children: React.ReactNode }> = ({
 	children,
 }) => {
 	return (
-		<li className="not-last:border-b-border not-last:border-b not-last:border-solid border-0">
-			{children}
-		</li>
+		<li className="not-last:border-b-border not-last:border-b">{children}</li>
 	);
 };
 
@@ -176,7 +169,7 @@ const RunningWorkspacesWarning: React.FC<RunningWorkspacesWarningProps> = ({
 	return (
 		<div
 			ref={containerRef}
-			className="rounded-md border-border-warning border border-solid p-4"
+			className="rounded-md border-border-warning border p-4"
 		>
 			<h4 className="m-0 font-semibold flex items-center gap-2 text-content-primary">
 				<TriangleAlertIcon className="text-content-warning" size={16} />
@@ -273,7 +266,7 @@ const ContainerFooter: React.FC<ContainerFooterProps> = ({
 				// Also have to subtract padding here to make sure footer is
 				// full-bleed, and there's no risk of the border getting
 				// confused for the outline of one of the panels
-				"border-0 border-t border-solid border-t-border pt-8 -mx-8 px-8",
+				"border-t border-t-border pt-8 -mx-8 px-8",
 				className,
 			)}
 		>
@@ -302,7 +295,7 @@ const WorkspacesListSection: React.FC<WorkspacesListSectionProps> = ({
 				</p>
 			</div>
 
-			<ul className="m-0 list-none p-0 flex flex-col rounded-md border border-solid border-border">
+			<ul className="m-0 list-none p-0 flex flex-col rounded-md border">
 				{children}
 			</ul>
 		</section>
@@ -550,7 +543,7 @@ const ReviewForm: React.FC<ReviewFormProps> = ({
 								{dormant.map((ws) => (
 									<li
 										key={ws.id}
-										className="not-last:border-b-border not-last:border-b not-last:border-solid border-0"
+										className="not-last:border-b-border not-last:border-b"
 									>
 										<ReviewPanel
 											className="border-none"

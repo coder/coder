@@ -27,7 +27,7 @@ children:
     description: Configure VS Code to route its AI model requests through Coder's AI Gateway.
     path: ./ai-governance/ai-gateway/clients/vscode.md
   - title: JetBrains
-    description: Configure JetBrains AI Assistant to route model requests through AI Gateway.
+    description: Use Claude Agent and Codex in JetBrains IDEs with AI Gateway.
     path: ./ai-governance/ai-gateway/clients/jetbrains.md
   - title: Junie
     description: Configure Junie CLI to route requests through AI Gateway with a custom model profile.

@@ -19089,7 +19089,11 @@ SELECT
 	wbp.value,
 	COUNT(wbp.value) AS count
 FROM unique_template_params utp
-JOIN workspace_build_parameters wbp ON (utp.workspace_build_ids @> ARRAY[wbp.workspace_build_id] AND utp.name = wbp.name)
+	-- Each build ID appears at most once per group (one parameter row per version
+	-- and name, one latest build per workspace), so unnest cannot double count.
+	-- The equality join lets Postgres use the (workspace_build_id, name) index.
+CROSS JOIN LATERAL unnest(utp.workspace_build_ids) AS b(id)
+JOIN workspace_build_parameters wbp ON (wbp.workspace_build_id = b.id AND wbp.name = utp.name)
 GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value
 `
 
@@ -42675,6 +42679,61 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 		&i.UserACLDisplayInfo,
 	)
 	return i, err
+}
+
+const getWorkspaceLastUsedForMetrics = `-- name: GetWorkspaceLastUsedForMetrics :many
+SELECT
+    w.id AS workspace_id,
+    o.name AS organization_name,
+    t.name AS template_name,
+    u.username AS owner_username,
+    w.name AS workspace_name,
+    w.last_used_at
+FROM workspaces w
+JOIN users u ON w.owner_id = u.id
+JOIN templates t ON w.template_id = t.id
+JOIN organizations o ON w.organization_id = o.id
+WHERE w.deleted = false
+AND u.deleted = false
+`
+
+type GetWorkspaceLastUsedForMetricsRow struct {
+	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	OrganizationName string    `db:"organization_name" json:"organization_name"`
+	TemplateName     string    `db:"template_name" json:"template_name"`
+	OwnerUsername    string    `db:"owner_username" json:"owner_username"`
+	WorkspaceName    string    `db:"workspace_name" json:"workspace_name"`
+	LastUsedAt       time.Time `db:"last_used_at" json:"last_used_at"`
+}
+
+func (q *sqlQuerier) GetWorkspaceLastUsedForMetrics(ctx context.Context) ([]GetWorkspaceLastUsedForMetricsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceLastUsedForMetrics)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceLastUsedForMetricsRow
+	for rows.Next() {
+		var i GetWorkspaceLastUsedForMetricsRow
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.OrganizationName,
+			&i.TemplateName,
+			&i.OwnerUsername,
+			&i.WorkspaceName,
+			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkspaceUniqueOwnerCountByTemplateIDs = `-- name: GetWorkspaceUniqueOwnerCountByTemplateIDs :many

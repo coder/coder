@@ -67,8 +67,8 @@ const WorkspaceProxyPage: React.FC = () => {
 						<div
 							key={region.id}
 							className={cn(
-								"rounded-lg border border-solid text-sm",
-								region.healthy ? "border-border" : "border-border-warning",
+								"rounded-lg border text-sm",
+								!region.healthy && "border-border-warning",
 							)}
 						>
 							<header className="p-6 flex items-center justify-between gap-6">
@@ -76,7 +76,7 @@ const WorkspaceProxyPage: React.FC = () => {
 									<div className="size-9 flex items-center justify-center">
 										<ExternalImage
 											src={region.icon_url}
-											className="object-fill w-full h-full"
+											className="object-fill size-full"
 											alt=""
 										/>
 									</div>
@@ -127,7 +127,7 @@ const WorkspaceProxyPage: React.FC = () => {
 								</div>
 							</header>
 
-							<div className="border-0 border-t border-solid border-border flex items-center justify-between py-3 px-6 text-xs text-content-secondary">
+							<div className="border-t flex items-center justify-between py-3 px-6 text-xs text-content-secondary">
 								{region.status?.status === "unregistered" ? (
 									<span>Has not connected yet</span>
 								) : warnings.length === 0 && errors.length === 0 ? (

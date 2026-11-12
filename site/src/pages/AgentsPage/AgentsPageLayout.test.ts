@@ -14,6 +14,10 @@ import {
 	persistedAttachmentsStorageKey,
 	useFileAttachments,
 } from "./hooks/useFileAttachments";
+import {
+	type AgentSidebarFilters,
+	DEFAULT_AGENT_SIDEBAR_FILTERS,
+} from "./utils/agentSidebarFilters";
 
 describe("useEmptyStateDraft", () => {
 	beforeEach(() => {
@@ -903,40 +907,57 @@ const chatForFilterInvalidation = (
 	}) as TypesGen.Chat;
 
 describe(shouldInvalidateFilteredChatList.name, () => {
+	const mockPRStatusFilters: AgentSidebarFilters = {
+		...DEFAULT_AGENT_SIDEBAR_FILTERS,
+		prStatuses: ["open"],
+	};
+
 	it.each<{
 		name: string;
 		updatedChat: TypesGen.Chat;
 		eventKind: TypesGen.ChatWatchEventKind;
+		filters: AgentSidebarFilters;
 		expected: boolean;
 	}>([
 		{
 			name: "invalidates root chats for membership events",
 			updatedChat: chatForFilterInvalidation(),
+			eventKind: "status_change",
+			filters: DEFAULT_AGENT_SIDEBAR_FILTERS,
+			expected: true,
+		},
+		{
+			name: "invalidates root chats whose diff status changes under a PR status filter",
+			updatedChat: chatForFilterInvalidation(),
 			eventKind: "diff_status_change",
+			filters: mockPRStatusFilters,
 			expected: true,
 		},
 		{
 			name: "invalidates root chats that move to another project",
 			updatedChat: chatForFilterInvalidation(),
 			eventKind: "project_change",
+			filters: DEFAULT_AGENT_SIDEBAR_FILTERS,
 			expected: true,
 		},
 		{
 			name: "ignores non-membership events",
 			updatedChat: chatForFilterInvalidation(),
 			eventKind: "title_change",
+			filters: DEFAULT_AGENT_SIDEBAR_FILTERS,
 			expected: false,
 		},
 		{
 			name: "excludes child chats",
 			updatedChat: chatForFilterInvalidation({ parent_chat_id: "parent-1" }),
 			eventKind: "diff_status_change",
+			filters: mockPRStatusFilters,
 			expected: false,
 		},
-	])("$name", ({ updatedChat, eventKind, expected }) => {
-		expect(shouldInvalidateFilteredChatList(updatedChat, eventKind)).toBe(
-			expected,
-		);
+	])("$name", ({ updatedChat, eventKind, filters, expected }) => {
+		expect(
+			shouldInvalidateFilteredChatList(updatedChat, eventKind, filters),
+		).toBe(expected);
 	});
 });
 

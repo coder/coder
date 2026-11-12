@@ -169,7 +169,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 					type="button"
 					variant="subtle"
 					className={cn(
-						"h-7 min-w-0 shrink justify-start gap-1 rounded-full border-0 bg-surface-secondary px-2 py-0.5 text-xs font-medium shadow-none transition-colors hover:bg-surface-tertiary hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link [&>svg]:size-3.5! [&>svg]:p-0 [&>svg]:shrink-0 [&>svg]:transition hover:[&>svg]:text-content-primary [&>img]:size-3! [&>img]:p-0!",
+						"h-7 min-w-0 shrink justify-start gap-1 rounded-full bg-surface-secondary px-2 py-0.5 text-xs font-medium shadow-none transition-colors hover:bg-surface-tertiary hover:text-content-primary focus:ring-0 focus-visible:ring-2 focus-visible:ring-content-link [&>svg]:size-3.5! [&>svg]:p-0 [&>svg]:shrink-0 [&>svg]:transition hover:[&>svg]:text-content-primary [&>img]:size-3! [&>img]:p-0!",
 						className,
 					)}
 					onTouchStart={onTriggerTouchStart}
@@ -198,7 +198,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 				className={cn(
 					enableMobileFullWidthDropdown &&
 						"mobile-full-width-dropdown mobile-full-width-dropdown-above-composer",
-					"w-72 overflow-hidden border-border p-0",
+					"w-72 overflow-hidden p-0",
 					contentClassName,
 				)}
 				onOpenAutoFocus={(event) => {
@@ -214,13 +214,13 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 			>
 				<Command
 					shouldFilter={false}
-					className="**:[[cmdk-input-wrapper]]:border-0 **:[[cmdk-input-wrapper]]:border-border **:[[cmdk-input-wrapper]]:border-b **:[[cmdk-input-wrapper]]:border-solid **:[[cmdk-input-wrapper]]:px-3 **:[[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
+					label="Search models"
+					className="**:[[cmdk-input-wrapper]]:border-b **:[[cmdk-input-wrapper]]:px-3 **:[[cmdk-input-wrapper]]:py-2 [&_[cmdk-input-wrapper]>svg]:size-3.5"
 				>
 					<CommandInput
 						value={search}
 						onValueChange={setSearch}
 						placeholder="Search..."
-						aria-label="Search models"
 						className="h-auto py-0 text-xs font-normal leading-4.5 text-content-primary placeholder:text-content-disabled"
 					/>
 					<CommandList
@@ -249,7 +249,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 											!value && "bg-surface-secondary",
 										)}
 									>
-										<span className="min-w-0 truncate text-left text-xs font-medium leading-4.5 text-content-secondary">
+										<span className="min-w-0 truncate text-left text-xs leading-4.5 text-content-secondary">
 											{unsetLabel}
 										</span>
 										<CheckIcon
@@ -282,7 +282,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
 									}
 									className={cn(
 										"p-1 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-1 **:[[cmdk-group-heading]]:text-xs **:[[cmdk-group-heading]]:font-semibold **:[[cmdk-group-heading]]:leading-4.5 **:[[cmdk-group-heading]]:text-content-secondary",
-										index > 0 && "border-0 border-t border-solid border-border",
+										index > 0 && "border-t",
 									)}
 								>
 									{providerOptions.map((option) => (
@@ -343,9 +343,9 @@ const ReasoningEffortRow: React.FC<ReasoningEffortRowProps> = ({
 	const effortIndex = valueIndex >= 0 ? valueIndex : 0;
 
 	return (
-		<div className="flex items-center gap-3 border-0 border-t border-solid border-border px-3 py-2">
+		<div className="flex items-center gap-3 border-t px-3 py-2">
 			<div className="flex shrink-0 items-center gap-1">
-				<span className="text-xs font-medium leading-4.5 text-content-secondary">
+				<span className="text-xs leading-4.5 text-content-secondary">
 					Effort
 				</span>
 				<Tooltip>
@@ -417,11 +417,11 @@ const ModelOptionItem: React.FC<ModelOptionItemProps> = ({
 				isSelected && "bg-surface-secondary",
 			)}
 		>
-			<span className="min-w-0 truncate text-left text-xs font-medium leading-4.5 text-content-secondary">
+			<span className="min-w-0 truncate text-left text-xs leading-4.5 text-content-secondary">
 				{option.displayName}
 			</span>
 			{option.contextLimit != null && option.contextLimit > 0 && (
-				<span className="shrink-0 truncate text-left text-xs font-medium leading-4.5 text-content-secondary">
+				<span className="shrink-0 truncate text-left text-xs leading-4.5 text-content-secondary">
 					({formatContextLimit(option.contextLimit)})
 				</span>
 			)}
