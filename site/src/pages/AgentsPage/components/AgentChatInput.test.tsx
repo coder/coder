@@ -24,7 +24,11 @@ import {
 	MockChatQueuedMessage,
 	MockMCPServerConfig,
 } from "#/testHelpers/chatEntities";
-import { MockChatProject, MockWorkspace } from "#/testHelpers/entities";
+import {
+	MockChatProject,
+	MockUserPreferenceSettings,
+	MockWorkspace,
+} from "#/testHelpers/entities";
 import { createMockFile } from "#/testHelpers/files";
 import {
 	createTestQueryClient,
