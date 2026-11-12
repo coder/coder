@@ -3424,6 +3424,55 @@ export const EditAppliesMCPServerSelection: Story = {
 	},
 };
 
+// While an edit request runs, the composer shows the compose draft with its
+// workspace upload.
+export const EditInFlightShowsDraftWorkspaceUpload: Story = {
+	parameters: {
+		queries: [
+			...withoutQuery(
+				buildQueries(
+					{ id: CHAT_ID, ...baseChatFields, title: "Edit", status: "waiting" },
+					{
+						messages: [mcpEditableUserMessage],
+						queued_messages: [],
+						has_more: false,
+					},
+					{ diffUrl: undefined },
+				),
+				workspaceByIdKey(mockWorkspace.id),
+			),
+			// A connected agent allows workspace uploads.
+			{ key: workspaceByIdKey(mockWorkspace.id), data: rebuiltWorkspace },
+		],
+	},
+	beforeEach: () => {
+		spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		spyOn(API.experimental, "uploadChatWorkspaceFile").mockResolvedValue({
+			path: "/home/coder/archive.zip",
+			name: "archive.zip",
+			size: 3,
+			media_type: "application/zip",
+			workspace_id: mockWorkspace.id,
+		});
+		spyOn(API.experimental, "editChatMessage").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.upload(
+			await canvas.findByTestId("chat-attachment-file-input"),
+			new File(["zip"], "archive.zip", { type: "application/zip" }),
+		);
+		await canvas.findByRole("button", { name: "Remove archive.zip" });
+		await userEvent.click(canvas.getByRole("button", { name: "Edit message" }));
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Save Edit" }),
+		);
+		await canvas.findByRole("button", { name: "Remove archive.zip" });
+	},
+};
+
 export const SendShowsPromptAtSubmit: Story = {
 	parameters: {
 		queries: buildQueries(
