@@ -119,7 +119,6 @@ func TestAskUserQuestion(t *testing.T) {
 				response := run(t, tool, `{"questions":[]}`)
 				require.True(t, response.IsError)
 				require.Equal(t, "questions is required", response.Content)
-				require.NotContains(t, response.Content, "question_id")
 			})
 		}
 	})
