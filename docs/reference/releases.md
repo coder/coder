@@ -31,9 +31,9 @@ The date of a `.0` release for a given minor version is the same as a minor vers
 
 #### January releases
 
-Minor versions on the first Tuesday of January are **not** guaranteed to occur, due to changes in the Coder Team's availability during the December holiday season.
-That being said, an ad-hoc release might still occur.
-You should not rely on the existence a January release.
+Minor versions on the first Tuesday of January are **not** guaranteed to occur, due to limited availability of the Coder Team during the December holiday season.
+However, an ad-hoc release might still occur.
+Do not rely on the availability of a January minor release.
 If needed, reach out to Coder Support or your account team directly to determine if one will be occurring closer to the release date.
 
 ### Patch releases
@@ -56,7 +56,7 @@ Every fix is merged to `main` first, then backported to the release branches tha
 | Extended Support Release | Critical bug fixes and security patches |
 
 The Coder Team decides which releases receive a bug fix based on its severity and how likely users on each release are to encounter the bug.
-A fix might ship only in mainline and stable, in which case the supported path for older releases is to upgrade.
+A fix might ship only in mainline and stable, in which case the supported path for older releases is to upgrade to a supported release.
 
 Fixes that require a database schema change aren't backported.
 They ship in the next minor release.
