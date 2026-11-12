@@ -109,9 +109,13 @@ func (s *server) Init(
 
 	s.logger.Debug(ctx, "running terraform initialization")
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageInit)
-	err = e.init(ctx, killCtx, sess)
-	if err != nil && restored && ctx.Err() == nil {
-		err = s.initWithTemplateLockFile(ctx, killCtx, e, sess, err)
+	// The captured lock file pins every provider version, so a warm plugin
+	// cache can supply them without the registry.
+	if !restored || !s.initFromPluginCache(ctx, killCtx, e, sess) {
+		err = e.init(ctx, killCtx, sess, "")
+		if err != nil && restored && ctx.Err() == nil {
+			err = s.initWithTemplateLockFile(ctx, killCtx, e, sess, err)
+		}
 	}
 	endStage(err)
 	if err != nil {
@@ -182,6 +186,28 @@ func (s *server) Init(
 	}
 }
 
+// initFromPluginCache runs `terraform init` with the plugin cache as the only
+// source of providers, and reports whether that worked. The build log only
+// gets the output of a run that worked, because a cold cache is no error.
+func (s *server) initFromPluginCache(ctx, killCtx context.Context, e *executor, sess *provisionersdk.Session) bool {
+	if !pluginCacheEnabled(s.cachePath) {
+		return false
+	}
+	// An operator's init flags can need the registry, as -upgrade does.
+	env := e.basicEnv()
+	if safeEnvironValue(env, "TF_CLI_ARGS") != "" || safeEnvironValue(env, "TF_CLI_ARGS_init") != "" {
+		return false
+	}
+	logs := &bufferedLogSink{}
+	if err := e.init(ctx, killCtx, logs, s.cachePath); err != nil {
+		s.logger.Debug(ctx, "terraform init from the plugin cache failed, running a normal init",
+			slog.Error(err), slog.F("logs", logs.logs))
+		return false
+	}
+	logs.flush(sess)
+	return true
+}
+
 // initWithTemplateLockFile retries a failed init with the template's own lock
 // file, or none, as builds did before the captured lock file was reused. This
 // covers provisioners that can't install the captured versions, for example
@@ -195,7 +221,7 @@ func (s *server) initWithTemplateLockFile(ctx, killCtx context.Context, e *execu
 	if err := restoreTemplateLockFile(sess.Files); err != nil {
 		return errors.Join(initErr, err)
 	}
-	err := e.init(ctx, killCtx, sess)
+	err := e.init(ctx, killCtx, sess, "")
 	if err == nil {
 		sess.ProvisionLog(proto.LogLevel_WARN,
 			"If this warning appears on every build, push a new template version and update workspaces to it "+

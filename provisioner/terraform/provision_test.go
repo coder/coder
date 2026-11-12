@@ -1814,6 +1814,50 @@ func TestProvision_LockFileFallback(t *testing.T) {
 	})
 }
 
+// TestProvision_InitFromPluginCache covers a build that reuses the lock file
+// captured at import. Its init installs providers from the plugin cache
+// alone, and only uses the provider source if the cache lacks them.
+func TestProvision_InitFromPluginCache(t *testing.T) {
+	t.Parallel()
+	if runtime.GOOS != "linux" {
+		t.Skip("the plugin cache is only used on Linux")
+	}
+
+	source := testutil.CreateTar(t, map[string]string{
+		"main.tf": `terraform {
+			required_providers {
+			  fake = { source = "example.com/coder/fake" }
+			}
+		}`,
+	})
+	cliConfigPath := writeFakeProviderMirror(t, "fake/1.0.0")
+	ctx, api := setupProvisioner(t, &provisionerServeOptions{cliConfigPath: cliConfigPath})
+	// The import's init fills the plugin cache.
+	importResp := sendInitAndGetResp(t, configure(ctx, t, api, &proto.Config{}), source)
+	require.Empty(t, importResp.Error)
+
+	t.Run("WarmCache", func(t *testing.T) {
+		t.Parallel()
+		// Point the provisioner at an empty provider source, so that only
+		// the plugin cache holds the provider.
+		require.NoError(t, os.Rename(writeFakeProviderMirror(t), cliConfigPath))
+		_, resp := sendBuildInit(t, configure(ctx, t, api, &proto.Config{}), source, importResp.ModuleFiles)
+		require.Empty(t, resp.Error)
+	})
+
+	// Another provisioner has the provider source but an empty cache. The
+	// failed attempt to use the cache stays out of the build log.
+	t.Run("ColdCache", func(t *testing.T) {
+		t.Parallel()
+		ctx, api := setupProvisioner(t, &provisionerServeOptions{
+			cliConfigPath: writeFakeProviderMirror(t, "fake/1.0.0"),
+		})
+		log, resp := sendBuildInit(t, configure(ctx, t, api, &proto.Config{}), source, importResp.ModuleFiles)
+		require.Empty(t, resp.Error)
+		require.NotContains(t, log, "Error")
+	})
+}
+
 // sendBuildInit sends a workspace build's Init, streaming the module archive
 // the way provisionerd does.
 func sendBuildInit(t *testing.T, sess proto.DRPCProvisioner_SessionClient, source, moduleFiles []byte) (string, *proto.InitComplete) {

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -48,15 +49,19 @@ func (e *executor) basicEnv() []string {
 	// Required for "terraform init" to find "git" to
 	// clone Terraform modules.
 	env := safeEnviron()
-	// Only Linux reliably works with the Terraform plugin
-	// cache directory. It's unknown why this is.
-	if e.cachePath != "" && runtime.GOOS == "linux" {
+	if pluginCacheEnabled(e.cachePath) {
 		env = append(env, "TF_PLUGIN_CACHE_DIR="+e.cachePath)
 	}
 	if e.cliConfigPath != "" {
 		env = append(env, "TF_CLI_CONFIG_FILE="+e.cliConfigPath)
 	}
 	return env
+}
+
+// pluginCacheEnabled reports whether Terraform runs with a plugin cache. Only
+// Linux reliably works with one. It's unknown why this is.
+func pluginCacheEnabled(cachePath string) bool {
+	return cachePath != "" && runtime.GOOS == "linux"
 }
 
 // forceExitTimeout is how long a Terraform command can run after its
@@ -241,7 +246,9 @@ func (e *textFileBusyError) Error() string {
 	return "text file busy: " + e.exitErr.String()
 }
 
-func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
+// init runs `terraform init`. If pluginDir is set, Terraform installs
+// providers only from that directory and doesn't contact a registry.
+func (e *executor) init(ctx, killCtx context.Context, logr logSink, pluginDir string) error {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
@@ -282,7 +289,16 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 		args = append(args, "-json")
 	}
 
-	err = e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outBuf, errBuf)
+	env := e.basicEnv()
+	if pluginDir != "" {
+		args = append(args, "-plugin-dir="+pluginDir)
+		// Setting the cache as well only slows init down.
+		env = slices.DeleteFunc(env, func(v string) bool {
+			return strings.HasPrefix(v, "TF_PLUGIN_CACHE_DIR=")
+		})
+	}
+
+	err = e.execWriteOutput(ctx, killCtx, args, env, outBuf, errBuf)
 	var exitErr *exec.ExitError
 	if xerrors.As(err, &exitErr) {
 		textFileBusy := []byte("text file busy")
@@ -635,6 +651,26 @@ func waitCommand(killCtx context.Context, cmd *exec.Cmd) error {
 
 type logSink interface {
 	ProvisionLog(l proto.LogLevel, o string)
+}
+
+// bufferedLogSink holds log lines until flush passes them on.
+type bufferedLogSink struct {
+	mu   sync.Mutex
+	logs []*proto.Log
+}
+
+func (b *bufferedLogSink) ProvisionLog(l proto.LogLevel, o string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.logs = append(b.logs, &proto.Log{Level: l, Output: o})
+}
+
+func (b *bufferedLogSink) flush(sink logSink) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	for _, log := range b.logs {
+		sink.ProvisionLog(log.Level, log.Output)
+	}
 }
 
 // logWriter creates a WriteCloser that will log each line of text at the given level.  The WriteCloser must be closed
