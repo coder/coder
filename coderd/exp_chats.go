@@ -3981,6 +3981,9 @@ func (api *API) clearChatReadCursor(ctx context.Context, chatID uuid.UUID) error
 // @Description When managing history state, delete every message with that ID or higher.
 // @Description After the `history_reset` event, the stream sends each message with that ID or higher that isn't deleted.
 // @Description
+// @Description A messages page that you request with `before_id` includes no `snapshot_version`.
+// @Description If an edit occurs after the server reads the page, the page can contain messages that the edit deleted.
+// @Description
 // @Description On each new connection, the server sends the chat's current status again.
 // @Description When the chat has an error, a pending retry, or pending tool calls, the server also sends the `error`, `retry`, or `action_required` event again.
 // @Description The server then again sends the `message_part` events of the response that the agent is writing, from its first part.

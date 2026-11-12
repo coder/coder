@@ -4239,6 +4239,9 @@ The edit deleted that message and every message after it.
 When managing history state, delete every message with that ID or higher.
 After the `history_reset` event, the stream sends each message with that ID or higher that isn't deleted.
 
+A messages page that you request with `before_id` includes no `snapshot_version`.
+If an edit occurs after the server reads the page, the page can contain messages that the edit deleted.
+
 On each new connection, the server sends the chat's current status again.
 When the chat has an error, a pending retry, or pending tool calls, the server also sends the `error`, `retry`, or `action_required` event again.
 The server then again sends the `message_part` events of the response that the agent is writing, from its first part.
