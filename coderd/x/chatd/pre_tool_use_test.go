@@ -1388,7 +1388,8 @@ func TestPreToolUseHookEditFilesGroupedInput(t *testing.T) {
 		override      string
 		// wantArgs is the persisted tool-call input.
 		wantArgs string
-		// wantRequest is the agent request; nil means none is sent.
+		// wantRequest lists the files sent, one agent request each and
+		// in this order; nil means none is sent.
 		wantRequest []workspacesdk.FileEdits
 		// wantError is the chat error when the override fails closed.
 		wantError string
@@ -1522,7 +1523,7 @@ func TestPreToolUseHookEditFilesGroupedInput(t *testing.T) {
 			setupToolExecutionAgentConn(t, mockConn)
 			if tt.wantRequest != nil {
 				mockConn.EXPECT().
-					EditFiles(gomock.Any(), workspacesdk.FileEditRequest{Files: tt.wantRequest, IncludeDiff: true}).
+					EditFiles(gomock.Any(), workspacesdk.FileEditRequest{Files: tt.wantRequest, IncludeDiff: true, IndependentFiles: true}).
 					Return(workspacesdk.FileEditResponse{}, nil).
 					Times(1)
 			} else {
@@ -1626,8 +1627,9 @@ func TestPreToolUseHookEditFilesDenyAndOverrideInOneStep(t *testing.T) {
 	setupToolExecutionAgentConn(t, mockConn)
 	mockConn.EXPECT().
 		EditFiles(gomock.Any(), workspacesdk.FileEditRequest{
-			Files:       []workspacesdk.FileEdits{{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{{OldText: "x := 1", NewText: "x := 3"}}}},
-			IncludeDiff: true,
+			Files:            []workspacesdk.FileEdits{{Path: "/repo/a.go", Edits: []workspacesdk.FileEdit{{OldText: "x := 1", NewText: "x := 3"}}}},
+			IncludeDiff:      true,
+			IndependentFiles: true,
 		}).
 		Return(workspacesdk.FileEditResponse{}, nil).
 		Times(1)
