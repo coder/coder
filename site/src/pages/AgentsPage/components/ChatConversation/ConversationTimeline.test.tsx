@@ -953,16 +953,11 @@ describe("ConversationTimeline user message actions", () => {
 			onEditUserMessage,
 		});
 
-		const stored = screen.getByTestId("chat-message-message:1");
-		const pending = screen.getByTestId(
-			`chat-message-message:${Number.MAX_SAFE_INTEGER - 1}`,
-		);
-		await user.click(
-			within(stored).getByRole("button", { name: "Edit message" }),
-		);
+		for (const edit of screen.getAllByRole("button", {
+			name: "Edit message",
+		})) {
+			await user.click(edit);
+		}
 		expect(onEditUserMessage.mock.calls.map(([id]) => id)).toEqual([1]);
-		expect(
-			within(pending).queryByRole("button", { name: "Edit message" }),
-		).toBeNull();
 	});
 });

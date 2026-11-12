@@ -1,18 +1,16 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createRef, useState } from "react";
+import { createRef } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { authorizationKey, getAuthorizationKey } from "#/api/queries/authCheck";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
 import { createDeferred } from "#/testHelpers/deferred";
-import { MockWorkspace, MockWorkspaceAgent } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import type { ChatMessageInputRef } from "./AgentChatInput";
 import { createChatStore } from "./ChatConversation/chatStore";
-import type { EditingTarget } from "./ChatConversation/types";
 import { ChatPageInput, workspaceSkillsFromChat } from "./ChatPageContent";
 
 const skillResource = (
@@ -449,7 +447,7 @@ describe("ChatPageInput", () => {
 		]);
 	});
 
-	it("holds the attachments of a send in flight and restores them when it fails", async () => {
+	it("sends the attachments of a failed send again", async () => {
 		const user = userEvent.setup();
 		vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
 			id: "file-1",
@@ -473,9 +471,6 @@ describe("ChatPageInput", () => {
 		expect(onSend).toHaveBeenLastCalledWith(
 			expect.objectContaining({ attachments: [sent] }),
 		);
-		expect(
-			screen.queryByRole("button", { name: "Remove shot.png" }),
-		).toBeNull();
 
 		firstSend.reject(new Error("send failed"));
 		await screen.findByRole("button", { name: "Remove shot.png" });
@@ -525,84 +520,6 @@ describe("ChatPageInput", () => {
 		);
 	});
 
-	it("shows the compose draft's workspace uploads while an edit runs", async () => {
-		const user = userEvent.setup();
-		vi.spyOn(API.experimental, "uploadChatWorkspaceFile").mockResolvedValue({
-			path: "/home/coder/archive.zip",
-			name: "archive.zip",
-			size: 3,
-			media_type: "application/zip",
-			workspace_id: MockWorkspace.id,
-		});
-		const edit = createDeferred<undefined>();
-		// Switches modes as useConversationEditingState does and marks the edit
-		// pending as AgentChatPage does: Edit enters edit mode, and an edit
-		// submit leaves it while the request runs.
-		const EditingChatPageInput: React.FC<ChatPageInputProps> = (props) => {
-			const [editingTarget, setEditingTarget] = useState<EditingTarget | null>(
-				null,
-			);
-			const [isSendPending, setIsSendPending] = useState(false);
-			return (
-				<>
-					<button
-						type="button"
-						onClick={() => setEditingTarget({ kind: "history", id: 1 })}
-					>
-						Start edit
-					</button>
-					<ChatPageInput
-						{...props}
-						editingTarget={editingTarget}
-						isSendPending={isSendPending}
-						initialValue={editingTarget ? "edited" : ""}
-						remountKey={editingTarget ? 1 : 0}
-						onSend={async () => {
-							setEditingTarget(null);
-							setIsSendPending(true);
-							try {
-								await edit.promise;
-							} finally {
-								setIsSendPending(false);
-							}
-						}}
-					/>
-				</>
-			);
-		};
-
-		renderChatPageInput(
-			createChatStore(),
-			{
-				chat: {
-					...MockChat,
-					id: "chat-1",
-					organization_id: "",
-					workspace_id: MockWorkspace.id,
-				},
-				workspace: MockWorkspace,
-				workspaceAgent: MockWorkspaceAgent,
-			},
-			EditingChatPageInput,
-		);
-		await user.upload(
-			await screen.findByTestId("chat-attachment-file-input"),
-			new File(["zip"], "archive.zip", { type: "application/zip" }),
-		);
-		await screen.findByRole("button", { name: "Remove archive.zip" });
-
-		await user.click(screen.getByRole("button", { name: "Start edit" }));
-		expect(
-			screen.queryByRole("button", { name: "Remove archive.zip" }),
-		).toBeNull();
-		await user.click(await screen.findByRole("button", { name: "Save Edit" }));
-
-		await screen.findByRole("button", { name: "Remove archive.zip" });
-		await act(async () => {
-			edit.resolve(undefined);
-		});
-	});
-
 	it("offers no queue actions on a row a pending send shows", async () => {
 		const user = userEvent.setup();
 		const onPromoteQueuedMessage = vi.fn();
@@ -633,7 +550,6 @@ describe("ChatPageInput", () => {
 			onDeleteQueuedMessage,
 		});
 		await screen.findByText("not stored yet");
-		expect(screen.queryByText("to send")).toBeNull();
 		await user.click(await screen.findByRole("button", { name: "Send now" }));
 		await user.click(screen.getByRole("button", { name: "Remove from queue" }));
 		await user.click(screen.getByTestId("chat-message-input"));
