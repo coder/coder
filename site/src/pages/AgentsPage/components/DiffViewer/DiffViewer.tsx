@@ -13,13 +13,14 @@ import { cn } from "cn";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Skeleton } from "#/components/Skeleton/Skeleton";
+import {
+	DIFFS_GIT_COLOR_CSS,
+	DIFFS_GIT_COLOR_STYLE,
+} from "#/components/SyntaxHighlighter/diffsGitColors";
 import { useTheme } from "#/theme/context";
 import { countChangedLines } from "../../utils/countChangedLines";
 import { changeColor, changeLabel } from "../../utils/diffColors";
-import {
-	DIFFS_GIT_COLOR_STYLE,
-	SEPARATOR_CSS,
-} from "../ChatElements/tools/utils";
+import { SEPARATOR_CSS } from "../ChatElements/tools/utils";
 import { useActiveFileTracking } from "./useActiveFileTracking";
 
 type DiffViewerProps = {
@@ -433,7 +434,7 @@ export const DiffViewer: React.FC<DiffViewerProps> = ({
 		layout: { paddingTop: 0, paddingBottom: 0, gap: 0 },
 		hunkSeparators: "line-info",
 		itemMetrics: diffViewerMetrics,
-		unsafeCSS: SEPARATOR_CSS,
+		unsafeCSS: [SEPARATOR_CSS, DIFFS_GIT_COLOR_CSS].join(" "),
 		themeType: isDark ? "dark" : "light",
 		theme: isDark ? "github-dark-high-contrast" : "github-light",
 		enableLineSelection: true,
