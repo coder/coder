@@ -352,7 +352,7 @@ export const PausedEditBehindHead: Story = {
 };
 
 // The second row is a pending send that the server has not stored yet, so
-// its actions are disabled.
+// its actions are unavailable.
 export const PendingRowDisablesActions: Story = {
 	args: {
 		messages: [
