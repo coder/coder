@@ -135,7 +135,7 @@ func malformedToolResult(toolCall fantasy.ToolCallContent) fantasy.ToolResultCon
 
 func invalidToolInputResult(toolCall fantasy.ToolCallContent, err error) fantasy.ToolResultContent {
 	message := "This tool call was not executed because its input is invalid: " + err.Error() +
-		". Retry with a JSON object matching the tool schema, including all required properties and their declared types. Use the exact property names, each key used once."
+		". Retry with a JSON object matching the tool schema, including all required properties and their declared types."
 	return fantasy.ToolResultContent{
 		ToolCallID: toolCall.ToolCallID,
 		ToolName:   toolCall.ToolName,

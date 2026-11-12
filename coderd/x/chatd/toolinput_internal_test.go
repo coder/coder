@@ -62,7 +62,7 @@ func TestPartitionToolCallsValidatesSchema(t *testing.T) {
 				require.Len(t, rejected, 1)
 				err := rejected[0].Result.(fantasy.ToolResultOutputContentError).Error
 				require.EqualError(t, err, "This tool call was not executed because its input is invalid: "+tt.wantErr+
-					". Retry with a JSON object matching the tool schema, including all required properties and their declared types. Use the exact property names, each key used once.")
+					". Retry with a JSON object matching the tool schema, including all required properties and their declared types.")
 			} else {
 				require.Empty(t, rejected)
 				require.Equal(t, []fantasy.ToolCallContent{call}, allowed)
