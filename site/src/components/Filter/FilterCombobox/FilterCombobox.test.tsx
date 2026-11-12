@@ -2297,6 +2297,60 @@ describe("FilterCombobox", () => {
 		await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(""));
 	});
 
+	it.each<
+		[string, string, (harness: ReturnType<typeof setup>) => Promise<void>]
+	>([
+		[
+			"hover flyout",
+			"template:Foo",
+			async ({ user, filtersButton }) => {
+				await user.click(filtersButton);
+				await user.hover(
+					await screen.findByRole("option", { name: "Template" }),
+				);
+				await user.click(await screen.findByRole("button", { name: "foo" }));
+			},
+		],
+		[
+			"category",
+			"template:Foo",
+			async ({ user, filtersButton }) => {
+				await user.click(filtersButton);
+				await user.keyboard("{ArrowRight}");
+				await user.click(await screen.findByRole("option", { name: "foo" }));
+			},
+		],
+		[
+			"inline",
+			"status:Running",
+			async ({ user, filtersButton }) => {
+				await user.click(filtersButton);
+				await user.click(
+					await screen.findByRole("option", { name: "Running" }),
+				);
+			},
+		],
+	])(
+		"removes a chip whose value differs in case when its %s option is clicked",
+		async (_, initialValue, clickOption) => {
+			const templateCategory: FilterCategory = {
+				key: "template",
+				label: "Template",
+				getOptions: async () => [{ label: "foo", value: "foo" }],
+			};
+			const harness = setup([templateCategory, statusCategory], {
+				initialValue,
+				skipHover: true,
+			});
+
+			await clickOption(harness);
+
+			await waitFor(() =>
+				expect(harness.onChange).toHaveBeenLastCalledWith(""),
+			);
+		},
+	);
+
 	it("picks a category option with the keyboard from its search field", async () => {
 		const { user, onChange, input, filtersButton } = setup([
 			manyOwnersCategory,
