@@ -198,7 +198,7 @@ func (c *ExperimentalClient) ChatAutomations(ctx context.Context, organizationID
 	return requestJSON[[]ChatAutomation](ctx, c.Client, http.MethodGet, chatAutomationsPath(organizationID), http.StatusOK, nil, WithQueryParam("owner", owner))
 }
 
-// DeleteChatAutomation deletes a chat automation and the messages it queued.
+// DeleteChatAutomation deletes a chat automation.
 func (c *ExperimentalClient) DeleteChatAutomation(ctx context.Context, organizationID, automationID uuid.UUID) error {
 	return requestNoContent(ctx, c.Client, http.MethodDelete, fmt.Sprintf("%s/%s", chatAutomationsPath(organizationID), automationID), nil)
 }
