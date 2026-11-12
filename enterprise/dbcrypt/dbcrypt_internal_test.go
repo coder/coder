@@ -2499,6 +2499,8 @@ func TestChatAutomations(t *testing.T) {
 			{"CorruptData", db, fakeBase64RandomData(t, 32), digest},
 			// crypt does not hold the key that otherCrypt encrypts with.
 			{"MissingKey", otherCrypt, secret, sql.NullString{}},
+			// A plaintext secret that is not base64 under a key ID.
+			{"PlaintextUnderKeyID", db, secret, digest},
 		}
 		for _, tc := range cases {
 			t.Run(tc.name, func(t *testing.T) {

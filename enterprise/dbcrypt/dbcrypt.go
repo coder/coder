@@ -1263,7 +1263,7 @@ func (db *dbCrypt) decryptField(field *string, digest sql.NullString) error {
 	if err != nil {
 		// If it's not valid base64, we should complain loudly.
 		return &DecryptFailedError{
-			Inner: xerrors.Errorf("malformed encrypted field %q: %w", *field, err),
+			Inner: xerrors.Errorf("malformed encrypted field: %w", err),
 		}
 	}
 	decrypted, err := key.Decrypt(data)
