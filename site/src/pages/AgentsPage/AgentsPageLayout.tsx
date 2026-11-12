@@ -76,6 +76,7 @@ import {
 import { shouldNavigateAfterArchive } from "./utils/agentWorkspaceUtils";
 import { maybePlayChime } from "./utils/chime";
 import { readDeepLinkState } from "./utils/deepLinkState";
+import { useOpenNotificationChat } from "./utils/notificationWindow";
 
 export type AgentsPageOutletContext = {
 	chatErrorReasons: Record<string, ChatDetailError>;
@@ -189,6 +190,7 @@ const AgentsPageLayout: React.FC = () => {
 	const chatsQuery = useInfiniteQuery(
 		infiniteChats(getSidebarChatListInput(sidebarFilters)),
 	);
+	useOpenNotificationChat(chatsQuery.isLoading);
 	const organizationModels = useOrganizationChatModels(
 		organizations.map((organization) => organization.id),
 	);
