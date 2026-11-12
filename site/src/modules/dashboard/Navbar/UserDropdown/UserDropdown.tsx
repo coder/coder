@@ -87,7 +87,6 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
 					className="relative bg-transparent cursor-pointer p-0"
 				>
 					<Avatar fallback={user.username} src={user.avatar_url} size="lg" />
-					{/* Follows the avatar so its visible initials start the name. */}
 					<span className="sr-only">
 						{indicator ? `User menu. ${indicator.label}` : "User menu"}
 					</span>
