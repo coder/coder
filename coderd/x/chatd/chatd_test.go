@@ -895,6 +895,49 @@ func TestCreateChatWithoutInitialUserContent(t *testing.T) {
 	}
 }
 
+// TestChatOptionValidation covers the option checks of SendMessage and
+// CreateChat that reject a call before it reads or writes a chat.
+func TestChatOptionValidation(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newTestServer(t, db, ps, uuid.New())
+	user, org, _ := seedChatDependencies(t, db)
+	text := []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")}
+	send := func(opts chatd.SendMessageOptions) func(context.Context) error {
+		return func(ctx context.Context) error {
+			_, err := server.SendMessage(ctx, opts)
+			return err
+		}
+	}
+	create := func(opts chatd.CreateOptions) func(context.Context) error {
+		return func(ctx context.Context) error {
+			_, err := server.CreateChat(ctx, opts)
+			return err
+		}
+	}
+
+	for _, tc := range []struct {
+		name string
+		call func(context.Context) error
+		want string
+	}{
+		{"SendWithoutChatID", send(chatd.SendMessageOptions{Content: text}), "chat_id is required"},
+		{"SendWithoutContent", send(chatd.SendMessageOptions{ChatID: uuid.New()}), "content is required"},
+		{"SendWithUnknownBusyBehavior", send(chatd.SendMessageOptions{ChatID: uuid.New(), Content: text, BusyBehavior: "wait"}), `invalid busy behavior "wait"`},
+		{"CreateWithoutOrganization", create(chatd.CreateOptions{OwnerID: user.ID, Title: "title"}), "organization_id is required"},
+		{"CreateWithoutOwner", create(chatd.CreateOptions{OrganizationID: org.ID, Title: "title"}), "owner_id is required"},
+		{"CreateWithBlankTitle", create(chatd.CreateOptions{OrganizationID: org.ID, OwnerID: user.ID, Title: " "}), "title is required"},
+		{"CreateWithUnknownClientType", create(chatd.CreateOptions{OrganizationID: org.ID, OwnerID: user.ID, Title: "title", ClientType: "fax"}), `invalid client_type: "fax"`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			err := tc.call(testutil.Context(t, testutil.WaitLong))
+			require.EqualError(t, err, tc.want)
+		})
+	}
+}
+
 // TestSendMessageFirstUserTurnFallbackTitle verifies that the first
 // message on a chat created without initial content persists the
 // fallback title in the send itself, independent of title generation.
