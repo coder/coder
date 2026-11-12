@@ -16,10 +16,7 @@ import { API } from "#/api/api";
 import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
-import {
-	MockChat,
-	MockChatQueuedMessage,
-} from "#/testHelpers/chatEntities";
+import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
