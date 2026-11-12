@@ -3461,7 +3461,7 @@ func (q *querier) GetChatDiffStatusesByChatIDs(ctx context.Context, chatIDs []uu
 
 	// Authorize read on each parent chat with a single fetch rather than
 	// one GetChatByID round trip per chat.
-	chats, err := q.GetChatsByIDs(ctx, chatIDs)
+	chats, err := q.GetChatsByIDs(ctx, database.GetChatsByIDsParams{IDs: chatIDs})
 	if err != nil {
 		return nil, err
 	}
@@ -4003,8 +4003,8 @@ func (q *querier) GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByChatFileID)(ctx, fileID)
 }
 
-func (q *querier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
-	chats, err := q.db.GetChatsByIDs(ctx, ids)
+func (q *querier) GetChatsByIDs(ctx context.Context, arg database.GetChatsByIDsParams) ([]database.Chat, error) {
+	chats, err := q.db.GetChatsByIDs(ctx, arg)
 	if err != nil {
 		return nil, err
 	}
@@ -4014,13 +4014,6 @@ func (q *querier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]databas
 		}
 	}
 	return chats, nil
-}
-
-func (q *querier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceChat); err != nil {
-		return nil, err
-	}
-	return q.db.GetChatsByIDsForRunnerSync(ctx, ids)
 }
 
 func (q *querier) GetChatsByWorkspaceIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {

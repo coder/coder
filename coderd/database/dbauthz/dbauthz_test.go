@@ -208,7 +208,7 @@ func TestGetChatDiffStatusesByChatIDsMixedAccess(t *testing.T) {
 	}
 	db := dbmock.NewMockStore(gomock.NewController(t))
 	db.EXPECT().Wrappers().Return([]string{}).AnyTimes()
-	db.EXPECT().GetChatsByIDs(gomock.Any(), ids).Times(1).Return([]database.Chat{readable, unreadable}, nil)
+	db.EXPECT().GetChatsByIDs(gomock.Any(), database.GetChatsByIDsParams{IDs: ids}).Times(1).Return([]database.Chat{readable, unreadable}, nil)
 	q := dbauthz.New(db, authz, slog.Make(), coderdtest.AccessControlStorePointer())
 
 	_, err := q.GetChatDiffStatusesByChatIDs(ctx, ids)
@@ -874,12 +874,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatQueuedForCapacity(gomock.Any(), arg).Return(true, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(true)
 	}))
-	s.Run("GetChatsByIDsForRunnerSync", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		ids := []uuid.UUID{uuid.New(), uuid.New()}
-		chat := testutil.Fake(s.T(), faker, database.Chat{ID: ids[0]})
-		dbm.EXPECT().GetChatsByIDsForRunnerSync(gomock.Any(), ids).Return([]database.Chat{chat}, nil).AnyTimes()
-		check.Args(ids).Asserts(rbac.ResourceChat, policy.ActionUpdate).Returns([]database.Chat{chat})
-	}))
 	s.Run("ArchiveChatByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
@@ -1125,7 +1119,7 @@ func (s *MethodTestSuite) TestChats() {
 		ids := []uuid.UUID{chatA.ID, chatB.ID}
 		diffStatusA := testutil.Fake(s.T(), faker, database.ChatDiffStatus{ChatID: chatA.ID})
 		diffStatusB := testutil.Fake(s.T(), faker, database.ChatDiffStatus{ChatID: chatB.ID})
-		dbm.EXPECT().GetChatsByIDs(gomock.Any(), ids).Return([]database.Chat{chatA, chatB}, nil).AnyTimes()
+		dbm.EXPECT().GetChatsByIDs(gomock.Any(), database.GetChatsByIDsParams{IDs: ids}).Return([]database.Chat{chatA, chatB}, nil).AnyTimes()
 		dbm.EXPECT().GetChatDiffStatusesByChatIDs(gomock.Any(), ids).Return([]database.ChatDiffStatus{diffStatusA, diffStatusB}, nil).AnyTimes()
 		check.Args(ids).
 			Asserts(chatA, policy.ActionRead, chatB, policy.ActionRead).
@@ -1135,15 +1129,15 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("GetChatDiffStatusesByChatIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
 		ids := []uuid.UUID{chat.ID, uuid.New()}
-		dbm.EXPECT().GetChatsByIDs(gomock.Any(), ids).Return([]database.Chat{chat}, nil).AnyTimes()
+		dbm.EXPECT().GetChatsByIDs(gomock.Any(), database.GetChatsByIDsParams{IDs: ids}).Return([]database.Chat{chat}, nil).AnyTimes()
 		check.Args(ids).Asserts(chat, policy.ActionRead).Errors(sql.ErrNoRows)
 	}))
 	s.Run("GetChatsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chatA := testutil.Fake(s.T(), faker, database.Chat{})
 		chatB := testutil.Fake(s.T(), faker, database.Chat{})
-		ids := []uuid.UUID{chatA.ID, chatB.ID}
-		dbm.EXPECT().GetChatsByIDs(gomock.Any(), ids).Return([]database.Chat{chatA, chatB}, nil).AnyTimes()
-		check.Args(ids).
+		arg := database.GetChatsByIDsParams{IDs: []uuid.UUID{chatA.ID, chatB.ID}, SortByID: true}
+		dbm.EXPECT().GetChatsByIDs(gomock.Any(), arg).Return([]database.Chat{chatA, chatB}, nil).AnyTimes()
+		check.Args(arg).
 			Asserts(chatA, policy.ActionRead, chatB, policy.ActionRead).
 			Returns([]database.Chat{chatA, chatB})
 	}))
