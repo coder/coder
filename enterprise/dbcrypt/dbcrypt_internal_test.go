@@ -2411,12 +2411,23 @@ func TestChatAutomations(t *testing.T) {
 		t.Parallel()
 		cases := []struct {
 			name      string
-			seed      func(*database.ChatAutomation)
+			seed      func(a *database.ChatAutomation, activeKeyID sql.NullString)
 			encrypted bool
 		}{
-			{"Secret", func(a *database.ChatAutomation) { a.WebhookSecret = sql.NullString{String: secret, Valid: true} }, true},
-			{"EmptySecret", func(a *database.ChatAutomation) { a.WebhookSecret = sql.NullString{Valid: true} }, false},
-			{"Schedule", func(a *database.ChatAutomation) { a.Kind = database.ChatAutomationKindSchedule }, false},
+			{"Secret", func(a *database.ChatAutomation, _ sql.NullString) {
+				a.WebhookSecret = sql.NullString{String: secret, Valid: true}
+			}, true},
+			{"EmptySecret", func(a *database.ChatAutomation, _ sql.NullString) {
+				a.WebhookSecret = sql.NullString{Valid: true}
+			}, false},
+			// A key ID cannot name an empty secret.
+			{"EmptySecretWithKeyID", func(a *database.ChatAutomation, activeKeyID sql.NullString) {
+				a.WebhookSecret = sql.NullString{Valid: true}
+				a.WebhookSecretKeyID = activeKeyID
+			}, false},
+			{"Schedule", func(a *database.ChatAutomation, _ sql.NullString) {
+				a.Kind = database.ChatAutomationKindSchedule
+			}, false},
 		}
 		for _, tc := range cases {
 			for _, viaTx := range []bool{false, true} {
@@ -2428,7 +2439,7 @@ func TestChatAutomations(t *testing.T) {
 					t.Parallel()
 					db, crypt, ciphers := setup(t)
 					in := newSeed(t, db)
-					tc.seed(&in)
+					tc.seed(&in, sql.NullString{String: ciphers[0].HexDigest(), Valid: true})
 
 					var inserted, got database.ChatAutomation
 					write := func(store database.Store) error {

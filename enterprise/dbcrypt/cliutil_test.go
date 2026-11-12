@@ -2141,3 +2141,39 @@ func TestDeleteChatAutomations(t *testing.T) {
 	}
 	requireAllKeysRevoked(f.ctx, t, f.rawDB)
 }
+
+// TestChatAutomationsCorruptSecret covers a secret that does not decrypt under
+// a key that the command loaded. The command stops with a decrypt error and
+// revokes nothing.
+func TestChatAutomationsCorruptSecret(t *testing.T) {
+	t.Parallel()
+	seedCorrupt := func(t *testing.T, rawDB database.Store, cipher dbcrypt.Cipher) {
+		t.Helper()
+		dbgen.ChatAutomation(t, rawDB, database.ChatAutomation{
+			OrganizationID:     dbgen.Organization(t, rawDB, database.Organization{}).ID,
+			OwnerID:            dbgen.User(t, rawDB, database.User{}).ID,
+			WebhookSecret:      sql.NullString{String: base64.StdEncoding.EncodeToString([]byte(testutil.MustRandString(t, 32))), Valid: true},
+			WebhookSecretKeyID: sql.NullString{String: cipher.HexDigest(), Valid: true},
+		})
+	}
+
+	t.Run("Rotate", func(t *testing.T) {
+		t.Parallel()
+		f := newRotateFixture(t)
+		seedCorrupt(t, f.rawDB, f.cipherA)
+
+		var derr *dbcrypt.DecryptFailedError
+		require.ErrorAs(t, f.rotateErr(t), &derr)
+		requireDBCryptKeyActive(f.ctx, t, f.rawDB, f.cipherA)
+	})
+
+	t.Run("Decrypt", func(t *testing.T) {
+		t.Parallel()
+		f := newDecryptFixture(t)
+		seedCorrupt(t, f.rawDB, f.cipherA)
+
+		var derr *dbcrypt.DecryptFailedError
+		require.ErrorAs(t, f.decryptErr(t), &derr)
+		requireDBCryptKeyActive(f.ctx, t, f.rawDB, f.cipherA)
+	})
+}
