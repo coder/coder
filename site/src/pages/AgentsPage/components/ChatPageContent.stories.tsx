@@ -572,12 +572,11 @@ export const InterruptingShowsBusyComposer: Story = {
 			</MessageScroller.Provider>
 		);
 	},
+	// The screenshot captures the composer with focus in the chat input.
 	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("textbox", { name: "Chat message" }),
+			within(canvasElement).getByRole("textbox", { name: "Chat message" }),
 		);
-		await userEvent.keyboard("{Escape}");
 	},
 };
 

@@ -437,6 +437,16 @@ const mockSkillRequests = () => {
 		.mockResolvedValue([]);
 };
 
+const mockChatInputSettingsRequests = () => {
+	vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
+		MockUserPreferenceSettings,
+	);
+	vi.spyOn(
+		API.experimental,
+		"getUserChatCompactionThresholds",
+	).mockResolvedValue(MockUserChatCompactionThresholds);
+};
+
 beforeEach(() => {
 	// jsdom lacks Range geometry, which the slash menu reads to anchor.
 	// The method does not exist to spy on, so add it per test and remove
@@ -648,38 +658,38 @@ describe("ChatPageInput", () => {
 		expect(screen.getByRole("textbox", { name: "Chat message" })).toHaveFocus();
 	});
 
-	it.each([
-		{ status: "requires_action", interruptCalls: 1 },
-		{ status: "interrupting", interruptCalls: 0 },
-	] satisfies { status: TypesGen.ChatStatus; interruptCalls: number }[])(
-		"routes Stop while the chat is $status",
-		async ({ status, interruptCalls }) => {
-			vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
-				MockUserPreferenceSettings,
-			);
-			vi.spyOn(
-				API.experimental,
-				"getUserChatCompactionThresholds",
-			).mockResolvedValue(MockUserChatCompactionThresholds);
-			const user = userEvent.setup();
-			const onInterrupt = vi.fn();
-			const store = createChatStore();
-			store.setChatStatus(status);
+	it("routes Stop to onInterrupt while the chat requires action", async () => {
+		mockChatInputSettingsRequests();
+		const user = userEvent.setup();
+		const onInterrupt = vi.fn();
+		const store = createChatStore();
+		store.setChatStatus("requires_action");
 
-			renderChatPageInput(store, { onInterrupt });
+		renderChatPageInput(store, { onInterrupt });
 
-			await user.click(await screen.findByRole("button", { name: "Stop" }));
-			if (status === "interrupting") {
-				await user.click(screen.getByRole("textbox", { name: "Chat message" }));
-				await user.keyboard("{Escape}");
-				expect(screen.getByRole("status")).toHaveTextContent(
-					"Interrupting. Waiting for the agent to stop.",
-				);
-			}
+		await user.click(await screen.findByRole("button", { name: "Stop" }));
 
-			expect(onInterrupt).toHaveBeenCalledTimes(interruptCalls);
-		},
-	);
+		expect(onInterrupt).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not interrupt again from Stop or Escape while the chat is interrupting", async () => {
+		mockChatInputSettingsRequests();
+		const user = userEvent.setup();
+		const onInterrupt = vi.fn();
+		const store = createChatStore();
+		store.setChatStatus("interrupting");
+
+		renderChatPageInput(store, { onInterrupt });
+
+		await user.click(await screen.findByRole("button", { name: "Stop" }));
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.keyboard("{Escape}");
+
+		expect(screen.getByRole("status")).toHaveTextContent(
+			"Interrupting. Waiting for the agent to stop.",
+		);
+		expect(onInterrupt).not.toHaveBeenCalled();
+	});
 
 	it("rehydrates edited workspace file references only from the bound workspace", async () => {
 		const user = userEvent.setup();
