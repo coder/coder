@@ -1162,11 +1162,13 @@ title: Schemas
       "user": {}
     },
     "max_attachments_per_chat": 0,
+    "max_automations_per_owner": 0,
     "max_concurrent_recording_uploads": 0,
     "max_generation_retries": 0,
     "max_prompt_bytes": 0,
     "max_queued_messages_per_chat": 0,
     "max_steps_per_turn": 0,
+    "min_automation_schedule_interval": 0,
     "stream_silence_timeout": 0
   }
 }
@@ -2944,11 +2946,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     "user": {}
   },
   "max_attachments_per_chat": 0,
+  "max_automations_per_owner": 0,
   "max_concurrent_recording_uploads": 0,
   "max_generation_retries": 0,
   "max_prompt_bytes": 0,
   "max_queued_messages_per_chat": 0,
   "max_steps_per_turn": 0,
+  "min_automation_schedule_interval": 0,
   "stream_silence_timeout": 0
 }
 ```
@@ -2965,11 +2969,13 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `hook_timeout`                     | integer                    | false    |              |                                                                                                                                           |
 | `hook_url`                         | [serpent.URL](#serpenturl) | false    |              |                                                                                                                                           |
 | `max_attachments_per_chat`         | integer                    | false    |              | Max attachments per chat is the maximum number of files linked to a chat.                                                                 |
+| `max_automations_per_owner`        | integer                    | false    |              | Max automations per owner is the maximum number of chat automations that one user can own across all organizations.                       |
 | `max_concurrent_recording_uploads` | integer                    | false    |              | Max concurrent recording uploads is the maximum number of virtual desktop recordings that each Coder server stores at the same time.      |
 | `max_generation_retries`           | integer                    | false    |              | Max generation retries is the maximum number of consecutive retries after a model generation fails with a transient error.                |
 | `max_prompt_bytes`                 | integer                    | false    |              | Max prompt bytes is the maximum size in bytes of the deployment system prompt, the plan mode instructions, and each user's custom prompt. |
 | `max_queued_messages_per_chat`     | integer                    | false    |              | Max queued messages per chat is the maximum number of messages that can be queued in a chat.                                              |
 | `max_steps_per_turn`               | integer                    | false    |              | Max steps per turn is the maximum number of steps in a chat turn.                                                                         |
+| `min_automation_schedule_interval` | integer                    | false    |              | Min automation schedule interval is the minimum time between two runs of a chat automation schedule.                                      |
 | `stream_silence_timeout`           | integer                    | false    |              |                                                                                                                                           |
 
 ## codersdk.ChatContext
@@ -8305,11 +8311,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           "user": {}
         },
         "max_attachments_per_chat": 0,
+        "max_automations_per_owner": 0,
         "max_concurrent_recording_uploads": 0,
         "max_generation_retries": 0,
         "max_prompt_bytes": 0,
         "max_queued_messages_per_chat": 0,
         "max_steps_per_turn": 0,
+        "min_automation_schedule_interval": 0,
         "stream_silence_timeout": 0
       }
     },
@@ -8945,11 +8953,13 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "user": {}
       },
       "max_attachments_per_chat": 0,
+      "max_automations_per_owner": 0,
       "max_concurrent_recording_uploads": 0,
       "max_generation_retries": 0,
       "max_prompt_bytes": 0,
       "max_queued_messages_per_chat": 0,
       "max_steps_per_turn": 0,
+      "min_automation_schedule_interval": 0,
       "stream_silence_timeout": 0
     }
   },

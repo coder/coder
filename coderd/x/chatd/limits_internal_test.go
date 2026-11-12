@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -19,6 +20,8 @@ func TestLimitsFromConfig(t *testing.T) {
 		MaxAttachmentsPerChat:         serpent.Int64(9),
 		MaxPromptBytes:                serpent.Int64(1024),
 		MaxConcurrentRecordingUploads: serpent.Int64(1),
+		MaxAutomationsPerOwner:        serpent.Int64(4),
+		MinAutomationScheduleInterval: serpent.Duration(2 * time.Minute),
 	}
 	require.Equal(t, Limits{
 		MaxStepsPerTurn:               7,
@@ -27,5 +30,7 @@ func TestLimitsFromConfig(t *testing.T) {
 		MaxAttachmentsPerChat:         9,
 		MaxPromptBytes:                1024,
 		MaxConcurrentRecordingUploads: 1,
+		MaxAutomationsPerOwner:        4,
+		MinAutomationScheduleInterval: 2 * time.Minute,
 	}, LimitsFromConfig(cfg))
 }

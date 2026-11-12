@@ -2,6 +2,7 @@ package chatd
 
 import (
 	"cmp"
+	"time"
 
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -25,6 +26,12 @@ type Limits struct {
 	// MaxConcurrentRecordingUploads is the maximum number of virtual
 	// desktop recordings that the server stores at the same time.
 	MaxConcurrentRecordingUploads int
+	// MaxAutomationsPerOwner is the maximum number of chat automations
+	// that one user can own across all organizations.
+	MaxAutomationsPerOwner int
+	// MinAutomationScheduleInterval is the minimum time between two runs
+	// of a chat automation schedule.
+	MinAutomationScheduleInterval time.Duration
 }
 
 // LimitsFromConfig converts the deployment chat configuration to Limits.
@@ -36,6 +43,8 @@ func LimitsFromConfig(cfg codersdk.ChatConfig) Limits {
 		MaxAttachmentsPerChat:         int(cfg.MaxAttachmentsPerChat.Value()),
 		MaxPromptBytes:                int(cfg.MaxPromptBytes.Value()),
 		MaxConcurrentRecordingUploads: int(cfg.MaxConcurrentRecordingUploads.Value()),
+		MaxAutomationsPerOwner:        int(cfg.MaxAutomationsPerOwner.Value()),
+		MinAutomationScheduleInterval: cfg.MinAutomationScheduleInterval.Value(),
 	}
 }
 
@@ -48,5 +57,7 @@ func (l Limits) withDefaults() Limits {
 		MaxAttachmentsPerChat:         cmp.Or(l.MaxAttachmentsPerChat, codersdk.DefaultChatMaxAttachmentsPerChat),
 		MaxPromptBytes:                cmp.Or(l.MaxPromptBytes, codersdk.DefaultChatMaxPromptBytes),
 		MaxConcurrentRecordingUploads: cmp.Or(l.MaxConcurrentRecordingUploads, codersdk.DefaultChatMaxConcurrentRecordingUploads),
+		MaxAutomationsPerOwner:        cmp.Or(l.MaxAutomationsPerOwner, codersdk.DefaultChatMaxAutomationsPerOwner),
+		MinAutomationScheduleInterval: cmp.Or(l.MinAutomationScheduleInterval, codersdk.DefaultChatMinAutomationScheduleInterval),
 	}
 }
