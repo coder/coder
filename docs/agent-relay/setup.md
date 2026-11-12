@@ -18,7 +18,7 @@ Provider-specific steps live on the [Claude Code](./claude-code.md) and [Cursor]
 You need:
 
 - A Coder deployment with a Premium license, on version 2.39 or later.
-- The latest Agent Relay release.
+- Agent Relay v0.16.0 or later.
 - Somewhere to run the Agent Relay container: a Kubernetes cluster that you can reach with `kubectl` and `helm`, or a Docker host.
 - The [Coder CLI](https://coder.com/downloads), signed in as an `owner`.
 - An account with the provider you want to serve.
@@ -248,11 +248,10 @@ The module READMEs for [`coder/agent-relay-claude-code`](https://registry.coder.
 - Coder can't order the `startup_script` attribute of `coder_agent`.
   Move setup steps that the worker depends on into `coder_script` resources.
 - If a prerequisite fails or times out, Coder skips the module's scripts and the worker never starts.
-  Agent Relay v0.16.0 and later fail the session about a minute later.
+  Agent Relay v0.16.0 or later fails the session about a minute later.
   A Cursor request fails at that point.
   For Claude Code, Agent Relay hands the work order back to Anthropic once, rebuilds the workspace when Anthropic redelivers it, and fails the session if the second setup fails too.
   Agent Relay skips that retry when the failure comes later than the pool's `dispatch_deadline` after the build was created.
-  Agent Relay v0.15.0 and older wait out the [startup grace](./configuration.md#--reap-startup-grace) before failing a Cursor request, 15&nbsp;minutes by default, and hand a Claude Code work order back as retryable every time, so each redelivery runs the same setup again.
   On a claimed prebuild, the status item keeps reporting the prebuild's `idle`, so Agent Relay neither fails the session nor deletes the workspace.
   To start the worker even when setup fails, set `requires = "completion"` on the rule.
 - The session waits while prerequisites run, so set a `timeout` on each prerequisite.
@@ -419,7 +418,7 @@ The reaper can act 30&nbsp;seconds or more after a workspace reaches one of thes
 | The build is still running after the longer of the startup grace and the pool's `dispatch_deadline` | Cancels the build, then deletes the workspace.                   |
 
 The startup grace is 15&nbsp;minutes by default and starts when the latest build is created.
-For failed or timed-out startup scripts, Agent Relay v0.16.0 and later don't wait for the startup grace.
+For failed or timed-out startup scripts, Agent Relay v0.16.0 or later doesn't wait for the startup grace.
 After the agent reports `start_error` or `start_timeout`, the reaper waits for two `pending` reads of the worker status, the second from a newer status sample than the first.
 Refer to [Start the worker after workspace setup](#start-the-worker-after-workspace-setup).
 If you set a [reap delay](./configuration.md#--reap-delay), the reaper waits for it before it deletes a workspace or reports a failure, except in the cases that the option's reference lists.
@@ -489,7 +488,7 @@ Workspace names start with a provider prefix: `cc-` for Claude Code and `cur-` f
 
 ## Upgrade from early access
 
-Current Agent Relay releases and module version 1.0.0 deliver provider credentials as workspace build secrets, which need Coder 2.39 or later.
+Agent Relay v0.16.0 or later and module version 1.0.0 deliver provider credentials as workspace build secrets, which need Coder 2.39 or later.
 Early access module versions, `agent-relay-claude-code` 0.4.0 or earlier and `agent-relay-cursor` 0.7.0 or earlier, don't support build secrets.
 Upgrade Coder, Agent Relay, and every Agent Relay template in the same maintenance window.
 If you need help planning the upgrade, contact Coder.
@@ -505,7 +504,7 @@ If you need help planning the upgrade, contact Coder.
 
    `0` still turns off idle release.
 
-1. Upgrade Agent Relay to the latest release.
+1. Upgrade Agent Relay to v0.16.0 or later.
 
 1. Update every Agent Relay template to module version 1.0.0.
 
