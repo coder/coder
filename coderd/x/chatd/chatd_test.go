@@ -938,6 +938,82 @@ func TestChatOptionValidation(t *testing.T) {
 	}
 }
 
+// TestCreateChatDefaults verifies what CreateChat fills in for a root
+// chat that sets no labels and no message author, and that the
+// deployment system prompt precedes the organization's.
+func TestCreateChatDefaults(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newTestServer(t, db, ps, uuid.New())
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	const orgPrompt = "Organization instructions."
+	_, err := db.UpsertChatOrganizationSystemPrompt(ctx, database.UpsertChatOrganizationSystemPromptParams{
+		OrganizationID: org.ID,
+		SystemPrompt:   orgPrompt,
+	})
+	require.NoError(t, err)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID:     org.ID,
+		OwnerID:            user.ID,
+		Title:              "defaults",
+		ModelConfigID:      model.ID,
+		InitialUserContent: []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+	})
+	require.NoError(t, err)
+	require.Equal(t, uuid.NullUUID{UUID: chat.ID, Valid: true}, chat.RootChatID)
+	require.Equal(t, database.StringMap{}, chat.Labels)
+
+	messages, err := db.GetChatMessagesForPromptByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Greater(t, len(messages), 2)
+	requireTextPart(t, messages[0], chatd.DefaultSystemPrompt)
+	requireTextPart(t, messages[1], orgPrompt)
+	userIndex := slices.IndexFunc(messages, func(message database.ChatMessage) bool {
+		return message.Role == database.ChatMessageRoleUser
+	})
+	require.NotEqual(t, -1, userIndex)
+	require.Equal(t, uuid.NullUUID{UUID: user.ID, Valid: true}, messages[userIndex].CreatedBy)
+}
+
+// TestSendMessageStoresPlanModeAndInlineMCPServers verifies that a send
+// stores the plan mode and the inline MCP servers that it carries.
+func TestSendMessageStoresPlanModeAndInlineMCPServers(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+	server := newTestServer(t, db, ps, uuid.New())
+	ctx := testutil.Context(t, testutil.WaitLong)
+	user, org, model := seedChatDependencies(t, db)
+
+	chat, err := server.CreateChat(ctx, chatd.CreateOptions{
+		OrganizationID: org.ID,
+		OwnerID:        user.ID,
+		Title:          "send-options",
+		ModelConfigID:  model.ID,
+	})
+	require.NoError(t, err)
+
+	planMode := database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
+	inline := []codersdk.InlineMCPServerRequest{{Slug: "bot", URL: "http://127.0.0.1:1/mcp"}}
+	result, err := server.SendMessage(ctx, chatd.SendMessageOptions{
+		ChatID:           chat.ID,
+		Content:          []codersdk.ChatMessagePart{codersdk.ChatMessageText("hello")},
+		PlanMode:         &planMode,
+		InlineMCPServers: &inline,
+	})
+	require.NoError(t, err)
+	require.Equal(t, planMode, result.Chat.PlanMode)
+
+	stored, err := db.GetChatMCPServersByChatID(ctx, chat.ID)
+	require.NoError(t, err)
+	require.Len(t, stored, 1)
+	require.Equal(t, "bot", stored[0].Slug)
+}
+
 // TestSendMessageFirstUserTurnFallbackTitle verifies that the first
 // message on a chat created without initial content persists the
 // fallback title in the send itself, independent of title generation.
