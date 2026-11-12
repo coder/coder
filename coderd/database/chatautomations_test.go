@@ -835,57 +835,47 @@ func TestInsertChatAutomationOwnerGuard(t *testing.T) {
 	}
 }
 
+// TestInsertChatAutomationRacesUserSoftDelete covers a soft delete that starts
+// while an insert is open. The other order, a user that is already deleted, is
+// the SoftDeletedOwner row of TestInsertChatAutomationOwnerGuard.
 func TestInsertChatAutomationRacesUserSoftDelete(t *testing.T) {
 	t.Parallel()
 
 	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	ctx := testutil.Context(t, testutil.WaitLong)
+	o := newChatAutomationOrg(t, db, dbgen.User(t, db, database.User{}))
 
-	t.Run("DeleteCommitsFirst", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitMedium)
-		o := newChatAutomationOrg(t, db, dbgen.User(t, db, database.User{}))
-		require.NoError(t, db.UpdateUserDeletedByID(ctx, o.user.ID))
-		_, err := db.InsertChatAutomation(ctx, o.scheduleParams())
-		require.ErrorIs(t, err, sql.ErrNoRows)
-	})
-
-	t.Run("InsertCommitsFirst", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		o := newChatAutomationOrg(t, db, dbgen.User(t, db, database.User{}))
-
-		var automationID uuid.UUID
-		softDelete := make(chan error, 1)
-		err := db.InTx(func(tx database.Store) error {
-			automation, err := tx.InsertChatAutomation(ctx, o.scheduleParams())
-			if err != nil {
-				return err
-			}
-			automationID = automation.ID
-			// The pool gives the soft delete another connection, outside
-			// this transaction.
-			go func() { softDelete <- db.UpdateUserDeletedByID(ctx, o.user.ID) }()
-			// The shared lock on the owner row must block the soft delete
-			// until this transaction commits.
-			require.Eventually(t, func() bool {
-				var waiting bool
-				err := sqlDB.QueryRowContext(ctx, `SELECT EXISTS (
+	var automationID uuid.UUID
+	softDelete := make(chan error, 1)
+	err := db.InTx(func(tx database.Store) error {
+		automation, err := tx.InsertChatAutomation(ctx, o.scheduleParams())
+		if err != nil {
+			return err
+		}
+		automationID = automation.ID
+		// The pool gives the soft delete another connection, outside
+		// this transaction.
+		go func() { softDelete <- db.UpdateUserDeletedByID(ctx, o.user.ID) }()
+		// The shared lock on the owner row must block the soft delete
+		// until this transaction commits.
+		require.Eventually(t, func() bool {
+			var waiting bool
+			err := sqlDB.QueryRowContext(ctx, `SELECT EXISTS (
 					SELECT 1 FROM pg_stat_activity
 					WHERE datname = current_database() AND wait_event_type = 'Lock'
 					AND query LIKE '%UpdateUserDeletedByID%'
 				)`).Scan(&waiting)
-				return err == nil && waiting
-			}, testutil.WaitShort, testutil.IntervalFast, "the soft delete waits on the owner row lock")
-			require.Empty(t, softDelete, "the soft delete finished before the insert committed")
-			return nil
-		}, nil)
-		require.NoError(t, err)
+			return err == nil && waiting
+		}, testutil.WaitShort, testutil.IntervalFast, "the soft delete waits on the owner row lock")
+		require.Empty(t, softDelete, "the soft delete finished before the insert committed")
+		return nil
+	}, nil)
+	require.NoError(t, err)
 
-		require.NoError(t, testutil.RequireReceive(ctx, t, softDelete))
-		_, err = db.GetChatAutomationByID(ctx, automationID)
-		require.ErrorIs(t, err, sql.ErrNoRows, "the user cleanup trigger deletes the automation")
-		var userDeleted bool
-		require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT deleted FROM users WHERE id = $1`, o.user.ID).Scan(&userDeleted))
-		require.True(t, userDeleted)
-	})
+	require.NoError(t, testutil.RequireReceive(ctx, t, softDelete))
+	_, err = db.GetChatAutomationByID(ctx, automationID)
+	require.ErrorIs(t, err, sql.ErrNoRows, "the user cleanup trigger deletes the automation")
+	var userDeleted bool
+	require.NoError(t, sqlDB.QueryRowContext(ctx, `SELECT deleted FROM users WHERE id = $1`, o.user.ID).Scan(&userDeleted))
+	require.True(t, userDeleted)
 }
