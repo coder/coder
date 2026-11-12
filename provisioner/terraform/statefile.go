@@ -31,10 +31,6 @@ var errUnsupportedStateFile = xerrors.New("unsupported state file")
 // stateFileFormatVersion is the format Terraform has written since 0.12.
 const stateFileFormatVersion = 4
 
-// showFormatVersion is the format of the `terraform show -json` output that
-// readStateFile reproduces.
-const showFormatVersion = "1.0"
-
 // stateFile is the part of a Terraform state file that Coder reads.
 type stateFile struct {
 	Version          int                 `json:"version"`
@@ -65,25 +61,26 @@ type stateFileInstance struct {
 	Deposed        string            `json:"deposed"`
 }
 
-// readStateFile converts the state file at path into what `terraform show
-// -json` prints for it, without starting Terraform and the providers. The two
-// agree when the providers that wrote the file are the ones show would start,
-// as they are right after apply. Otherwise show would first upgrade the
-// resources to those providers' schemas.
+// readStateFile returns the root module that `terraform show -json` reports
+// for the state file at path, without starting Terraform and the providers.
+// An empty state has an empty root module. The two agree when the providers
+// that wrote the file are the ones show would start, as they are right after
+// apply. Otherwise show would first upgrade the resources to those
+// providers' schemas.
 //
-// It leaves out what Coder doesn't read: provider names, schema versions,
-// sensitive value markers, resource identities, outputs, and checks.
-// Attributes with a dynamic schema type, such as terraform_data.input, keep
-// the {"type", "value"} wrapper the file stores them in, because only the
-// provider schema identifies them. Coder reads no such attribute: the coder
-// provider is built on plugin SDK v2, which has no dynamic types, and what
-// Coder reads from other providers' resources are plain strings.
-func readStateFile(path string) (*tfjson.State, error) {
+// Resources lack what Coder doesn't read: provider names, schema versions,
+// sensitive value markers, and identities. Attributes with a dynamic schema
+// type, such as terraform_data.input, keep the {"type", "value"} wrapper the
+// file stores them in, because only the provider schema identifies them.
+// Coder reads no such attribute: the coder provider is built on plugin SDK
+// v2, which has no dynamic types, and what Coder reads from other providers'
+// resources are plain strings.
+func readStateFile(path string) (*tfjson.StateModule, error) {
 	content, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		// `terraform show -json` also reports a missing state file as an
 		// empty state.
-		return &tfjson.State{FormatVersion: showFormatVersion}, nil
+		return &tfjson.StateModule{}, nil
 	}
 	if err != nil {
 		return nil, xerrors.Errorf("read state file: %w", err)
@@ -92,7 +89,7 @@ func readStateFile(path string) (*tfjson.State, error) {
 }
 
 // parseStateFile is readStateFile for the content of a state file.
-func parseStateFile(content []byte) (*tfjson.State, error) {
+func parseStateFile(content []byte) (*tfjson.StateModule, error) {
 	var file stateFile
 	if err := json.Unmarshal(content, &file); err != nil {
 		return nil, xerrors.Errorf("decode state file: %w", err)
@@ -106,12 +103,6 @@ func parseStateFile(content []byte) (*tfjson.State, error) {
 	}
 	if !stateFileTerraformVersionSupported(tfVersion) {
 		return nil, xerrors.Errorf("%w: written by terraform %s", errUnsupportedStateFile, tfVersion)
-	}
-	if len(file.Resources) == 0 {
-		// `terraform show -json` prints no version or values for an empty
-		// state. For a state that only has outputs it prints an empty root
-		// module, which Graph treats the same.
-		return &tfjson.State{FormatVersion: showFormatVersion}, nil
 	}
 
 	root := &tfjson.StateModule{}
@@ -137,12 +128,7 @@ func parseStateFile(content []byte) (*tfjson.State, error) {
 			return cmp.Compare(a.Address, b.Address)
 		})
 	}
-
-	return &tfjson.State{
-		FormatVersion:    showFormatVersion,
-		TerraformVersion: file.TerraformVersion,
-		Values:           &tfjson.StateValues{RootModule: root},
-	}, nil
+	return root, nil
 }
 
 // stateFileTerraformVersionSupported reports whether readStateFile converts

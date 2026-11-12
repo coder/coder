@@ -1,3 +1,5 @@
+//go:build linux || darwin
+
 package terraform
 
 import (
@@ -22,21 +24,21 @@ import (
 func Test_readStateFile_EmptyState(t *testing.T) {
 	t.Parallel()
 
-	// `terraform show -json` reports an empty state as only a format version.
-	empty := &tfjson.State{FormatVersion: "1.0"}
+	// An empty state has an empty root module.
+	empty := &tfjson.StateModule{}
 
 	t.Run("NoResources", func(t *testing.T) {
 		t.Parallel()
-		state, err := parseStateFile([]byte(`{"version":4,"terraform_version":"1.16.2","resources":[]}`))
+		root, err := parseStateFile([]byte(`{"version":4,"terraform_version":"1.16.2","resources":[]}`))
 		require.NoError(t, err)
-		require.Equal(t, empty, state)
+		require.Equal(t, empty, root)
 	})
 
 	t.Run("MissingFile", func(t *testing.T) {
 		t.Parallel()
-		state, err := readStateFile(filepath.Join(t.TempDir(), "terraform.tfstate"))
+		root, err := readStateFile(filepath.Join(t.TempDir(), "terraform.tfstate"))
 		require.NoError(t, err)
-		require.Equal(t, empty, state)
+		require.Equal(t, empty, root)
 	})
 }
 
@@ -334,9 +336,9 @@ func Test_readStateFile_MatchesTerraformShow(t *testing.T) {
 	// A failed replacement leaves a tainted and a deposed object.
 	require.Error(t, terraform("apply", "-no-color", "-input=false", "-auto-approve",
 		"-replace=coder_agent.replaced", "-var=fail_provisioner=true"))
-	state, _ := requireStateFileMatchesShow(ctx, t, e)
+	root, _ := requireStateFileMatchesShow(ctx, t, e)
 	var replaced []*tfjson.StateResource
-	for _, resource := range state.Values.RootModule.Resources {
+	for _, resource := range root.Resources {
 		if resource.Address == "coder_agent.replaced" {
 			replaced = append(replaced, resource)
 		}
@@ -349,9 +351,9 @@ func Test_readStateFile_MatchesTerraformShow(t *testing.T) {
 
 	// A delete build leaves an empty state.
 	require.NoError(t, terraform("destroy", "-no-color", "-input=false", "-auto-approve"))
-	shown, err := e.state(ctx, ctx)
+	shown, err := e.stateRootModule(ctx, ctx)
 	require.NoError(t, err)
-	require.Nil(t, shown.Values)
+	require.Equal(t, &tfjson.StateModule{}, shown)
 	read, err := readStateFile(e.files.StateFilePath())
 	require.NoError(t, err)
 	require.Equal(t, shown, read)
@@ -360,23 +362,23 @@ func Test_readStateFile_MatchesTerraformShow(t *testing.T) {
 // requireStateFileMatchesShow checks that the state file in e's working
 // directory reads the same as `terraform show -json` shows it, apart from
 // the fields readStateFile leaves out, and that both convert to the same
-// resources. It returns the state read from the file, with dynamically
-// typed attributes unwrapped, and its conversion.
-func requireStateFileMatchesShow(ctx context.Context, t *testing.T, e *executor) (*tfjson.State, *State) {
+// resources. It returns the root module read from the file, with
+// dynamically typed attributes unwrapped, and its conversion.
+func requireStateFileMatchesShow(ctx context.Context, t *testing.T, e *executor) (*tfjson.StateModule, *State) {
 	t.Helper()
 
-	shown, err := e.state(ctx, ctx)
+	shown, err := e.stateRootModule(ctx, ctx)
 	require.NoError(t, err)
 	read, err := readStateFile(e.files.StateFilePath())
 	require.NoError(t, err)
-	require.NotNil(t, read.Values)
+	require.NotEmpty(t, read.Resources)
 
 	rawGraph, err := e.graph(ctx, ctx)
 	require.NoError(t, err)
 	logger := slogtest.Make(t, nil)
-	wantConverted, err := ConvertState(ctx, []*tfjson.StateModule{shown.Values.RootModule}, rawGraph, logger)
+	wantConverted, err := ConvertState(ctx, []*tfjson.StateModule{shown}, rawGraph, logger)
 	require.NoError(t, err)
-	gotConverted, err := ConvertState(ctx, []*tfjson.StateModule{read.Values.RootModule}, rawGraph, logger)
+	gotConverted, err := ConvertState(ctx, []*tfjson.StateModule{read}, rawGraph, logger)
 	require.NoError(t, err)
 	wantJSON, err := json.Marshal(wantConverted)
 	require.NoError(t, err)
@@ -385,9 +387,7 @@ func requireStateFileMatchesShow(ctx context.Context, t *testing.T, e *executor)
 	require.JSONEq(t, string(wantJSON), string(gotJSON))
 
 	// Drop what readStateFile leaves out because Coder doesn't read it.
-	shown.Checks = nil
-	shown.Values.Outputs = nil
-	require.NoError(t, forEachResource(shown.Values.RootModule, func(r *tfjson.StateResource) error {
+	require.NoError(t, forEachResource(shown, func(r *tfjson.StateResource) error {
 		r.ProviderName = ""
 		r.SchemaVersion = 0
 		r.SensitiveValues = nil
@@ -395,7 +395,7 @@ func requireStateFileMatchesShow(ctx context.Context, t *testing.T, e *executor)
 		r.IdentityValues = nil
 		return nil
 	}))
-	require.NoError(t, forEachResource(read.Values.RootModule, func(r *tfjson.StateResource) error {
+	require.NoError(t, forEachResource(read, func(r *tfjson.StateResource) error {
 		if r.Type != "terraform_data" {
 			return nil
 		}

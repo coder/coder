@@ -576,7 +576,9 @@ func (e *executor) apply(
 	}, nil
 }
 
-func (e *executor) state(ctx, killCtx context.Context) (*tfjson.State, error) {
+// stateRootModule returns the root module that `terraform show -json`
+// reports for the state. An empty state has an empty root module.
+func (e *executor) stateRootModule(ctx, killCtx context.Context) (*tfjson.StateModule, error) {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
 
@@ -586,7 +588,10 @@ func (e *executor) state(ctx, killCtx context.Context) (*tfjson.State, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("terraform show state: %w", err)
 	}
-	return state, nil
+	if state.Values == nil || state.Values.RootModule == nil {
+		return &tfjson.StateModule{}, nil
+	}
+	return state.Values.RootModule, nil
 }
 
 func interruptCommandOnCancel(ctx, killCtx context.Context, logger slog.Logger, cmd *exec.Cmd) {

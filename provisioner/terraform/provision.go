@@ -303,7 +303,7 @@ func (s *server) Graph(
 
 	sessState := s.loadSessionState(sess)
 
-	modules := []*tfjson.StateModule{}
+	var modules []*tfjson.StateModule
 	var planConfig *tfjson.Config
 	isStartTransition := request.GetMetadata().GetWorkspaceTransition() ==
 		proto.WorkspaceTransition_START
@@ -329,7 +329,7 @@ func (s *server) Graph(
 	case proto.GraphSource_SOURCE_STATE:
 		// Apply returns this file as the workspace's state, so it is where
 		// Terraform keeps the state.
-		tfState, err := readStateFile(e.files.StateFilePath())
+		root, err := readStateFile(e.files.StateFilePath())
 		if err != nil {
 			// Let Terraform read what readStateFile can't rather than fail
 			// the build. An unsupported file repeats on every build, so
@@ -339,14 +339,12 @@ func (s *server) Graph(
 				logFallback = s.logger.Debug
 			}
 			logFallback(ctx, "not reading terraform state file, falling back to terraform show", slog.Error(err))
-			tfState, err = e.state(ctx, killCtx)
+			root, err = e.stateRootModule(ctx, killCtx)
 		}
 		if err != nil {
 			return provisionersdk.GraphError("load tfstate for graph: %s", err)
 		}
-		if tfState.Values != nil {
-			modules = []*tfjson.StateModule{tfState.Values.RootModule}
-		}
+		modules = []*tfjson.StateModule{root}
 		convertScriptOrder = isStartTransition && hasScriptOrderDataSource(modules)
 		if convertScriptOrder {
 			// State JSON omits configuration, so script ordering takes it from
