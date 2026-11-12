@@ -144,6 +144,7 @@ Queued messages wait in two lanes. These rules apply to every transition that qu
 - `SendMessage(m, busy_behavior)` inserts a user message directly when the chat is idle, or queues it when the chat is busy. `busy_behavior` names the lane and must be `queue` or `steer` (see [Queued message lanes](#queued-message-lanes)). Outside `E1`, a busy send stores `m` in its lane and keeps the status, except a `steer` send from `E1P` or `P`. From `E1`, `E1P`, and `P`, `busy_behavior=steer` inserts the queued `steer` messages and then `m` into history, and `queue` messages stay queued. From `E1`, `busy_behavior=queue` queues `m` as a `queue` message and promotes the next messages. A `queue` send never runs before a message under edit.
 - `EditMessage(k, replacement)` clears queued messages, cancels or obsoletes active work, marks the truncated active-history suffix as deleted, inserts the replacement turn followed by any caller-provided suffix messages, and lands in `running`.
 - `DeleteQueuedMessage(qid)` removes one queued message without changing the active history. From `P`, removing the head promotes the message behind it and reaches `running`, or reaches `waiting` when the head was the last queued message.
+- `DeleteQueuedMessagesByAutomation(automation_ids)` removes every queued message that one of the given automations queued, without changing the active history. It is the queue cleanup of a deleted automation, so every valid state admits it, the archived states included, and it changes nothing where the queue holds no such message. It keeps the status, except from `P`, where it follows `DeleteQueuedMessage`: removing the head promotes the message behind it and reaches `running`, or reaches `waiting` when the queue is then empty. See [Chat automation queue cleanup](#chat-automation-queue-cleanup).
 - `SteerQueuedMessage(qid)` moves a queued message to the end of the `steer` lane. A `steer` message keeps its place. Steering a message under edit ends its edit. From `E1`, `E1P`, and `P`, it closes open tool calls with synthetic cancellation results, delivers the whole `steer` lane into history, and reaches `running`. When another `steer` message under edit is the head, nothing is delivered and the chat keeps its state. From the other states it keeps the chat status, and the `steer` lane waits for the next delivery point.
 - `EditQueuedMessage(qid, content?, editing?)` rewrites a queued message's content, begins or ends its edit, or both. Beginning an edit ends any other edit on the chat. From `P`, ending the head's edit promotes it and reaches `running`; beginning an edit on a different message is refused.
 - `Interrupt(reason)` requests cancellation of an active generation or closes pending dynamic-tool action. It preserves queued backlog. When no worker owns a `running` or `interrupting` chat, nothing is generating, so the same transaction also applies `FinishInterruption`, passing synthetic cancellation results for any outstanding tool calls as the interrupted suffix. In `W`, `E0`, `E1`, `E1P`, and `P` no turn is active, and an owned `I0`, `I1`, or `I1P` chat is left for the chat worker to finish. In these states there is nothing to interrupt, so it succeeds and changes no execution state.
@@ -191,6 +192,7 @@ stateDiagram-v2
     W --> E0: FinishError
     W --> XW: SetArchived(true)
     W --> W: SetProject
+    W --> W: DeleteQueuedMessagesByAutomation / no message of the automations
 
     E0 --> R0: SendMessage
     E0 --> R0: EditMessage
@@ -199,6 +201,7 @@ stateDiagram-v2
     E0 --> E0: Interrupt
     E0 --> XE0: SetArchived(true)
     E0 --> E0: SetProject
+    E0 --> E0: DeleteQueuedMessagesByAutomation / no message of the automations
 
     E1 --> R1: SendMessage(queue)
     E1 --> R0: SendMessage(steer) / promoted last queued
@@ -217,6 +220,9 @@ stateDiagram-v2
     E1 --> E1: Interrupt
     E1 --> XE1: SetArchived(true)
     E1 --> E1: SetProject
+    E1 --> E0: DeleteQueuedMessagesByAutomation / removed last queued
+    E1 --> E1: DeleteQueuedMessagesByAutomation / head still ready
+    E1 --> E1P: DeleteQueuedMessagesByAutomation / new head under edit
 
     E1P --> E1P: SendMessage(queue)
     E1P --> R1P: SendMessage(steer)
@@ -233,6 +239,9 @@ stateDiagram-v2
     E1P --> E1: EditQueuedMessage / end head edit or begin edit behind head
     E1P --> E1P: Interrupt
     E1P --> XE1P: SetArchived(true)
+    E1P --> E0: DeleteQueuedMessagesByAutomation / removed last queued
+    E1P --> E1: DeleteQueuedMessagesByAutomation / new head ready
+    E1P --> E1P: DeleteQueuedMessagesByAutomation / head kept
 
     R0 --> R0: RecordGenerationAttempt
     R0 --> R0: RecordRetryState
@@ -245,6 +254,7 @@ stateDiagram-v2
     R0 --> R1: SendMessage(queue)
     R0 --> R1: SendMessage(steer)
     R0 --> R0: DeliverSteerMessages
+    R0 --> R0: DeleteQueuedMessagesByAutomation / no message of the automations
 
     R1 --> R1: RecordGenerationAttempt
     R1 --> R1: RecordRetryState
@@ -266,6 +276,9 @@ stateDiagram-v2
     R1 --> R0: FinishTurn / promoted last queued
     R1 --> R1: FinishTurn / queue still non-empty after promoting
     R1 --> R1P: FinishTurn / new head under edit
+    R1 --> R0: DeleteQueuedMessagesByAutomation / removed last queued
+    R1 --> R1: DeleteQueuedMessagesByAutomation / head still ready
+    R1 --> R1P: DeleteQueuedMessagesByAutomation / new head under edit
 
     R1P --> R1P: RecordGenerationAttempt
     R1P --> R1P: RecordRetryState
@@ -283,11 +296,15 @@ stateDiagram-v2
     R1P --> R1P: EditQueuedMessage / content edit
     R1P --> R1: EditQueuedMessage / end head edit or begin edit behind head
     R1P --> P: FinishTurn
+    R1P --> R0: DeleteQueuedMessagesByAutomation / removed last queued
+    R1P --> R1: DeleteQueuedMessagesByAutomation / new head ready
+    R1P --> R1P: DeleteQueuedMessagesByAutomation / head kept
 
     I0 --> I1: SendMessage
     I0 --> R0: EditMessage
     I0 --> I0: Interrupt
     I0 --> W: FinishInterruption
+    I0 --> I0: DeleteQueuedMessagesByAutomation / no message of the automations
 
     I1 --> I1: SendMessage
     I1 --> R0: EditMessage
@@ -301,6 +318,9 @@ stateDiagram-v2
     I1 --> R0: FinishInterruption / promoted last queued
     I1 --> R1: FinishInterruption / queue still non-empty after promoting
     I1 --> R1P: FinishInterruption / new head under edit
+    I1 --> I0: DeleteQueuedMessagesByAutomation / removed last queued
+    I1 --> I1: DeleteQueuedMessagesByAutomation / head still ready
+    I1 --> I1P: DeleteQueuedMessagesByAutomation / new head under edit
 
     I1P --> I1P: SendMessage(queue)
     I1P --> I1: SendMessage(steer)
@@ -313,6 +333,9 @@ stateDiagram-v2
     I1P --> I1: EditQueuedMessage / end head edit or begin edit behind head
     I1P --> I1P: Interrupt
     I1P --> P: FinishInterruption
+    I1P --> I0: DeleteQueuedMessagesByAutomation / removed last queued
+    I1P --> I1: DeleteQueuedMessagesByAutomation / new head ready
+    I1P --> I1P: DeleteQueuedMessagesByAutomation / head kept
 
     A0 --> R0: CompleteRequiresAction
     A0 --> R0: Interrupt
@@ -320,6 +343,7 @@ stateDiagram-v2
     A0 --> A1: SendMessage(queue)
     A0 --> A1: SendMessage(steer)
     A0 --> R0: EditMessage
+    A0 --> A0: DeleteQueuedMessagesByAutomation / no message of the automations
 
     A1 --> R1: CompleteRequiresAction
     A1 --> R1: Interrupt
@@ -333,6 +357,9 @@ stateDiagram-v2
     A1 --> A1: SteerQueuedMessage
     A1 --> A1: EditQueuedMessage / content edit or edit behind head
     A1 --> A1P: EditQueuedMessage / begin edit on head
+    A1 --> A0: DeleteQueuedMessagesByAutomation / removed last queued
+    A1 --> A1: DeleteQueuedMessagesByAutomation / head still ready
+    A1 --> A1P: DeleteQueuedMessagesByAutomation / new head under edit
 
     A1P --> R1P: CompleteRequiresAction
     A1P --> R1P: Interrupt
@@ -346,6 +373,9 @@ stateDiagram-v2
     A1P --> A1: SteerQueuedMessage
     A1P --> A1P: EditQueuedMessage / content edit
     A1P --> A1: EditQueuedMessage / end head edit or begin edit behind head
+    A1P --> A0: DeleteQueuedMessagesByAutomation / removed last queued
+    A1P --> A1: DeleteQueuedMessagesByAutomation / new head ready
+    A1P --> A1P: DeleteQueuedMessagesByAutomation / head kept
 
     P --> P: SendMessage(queue)
     P --> R1P: SendMessage(steer)
@@ -362,11 +392,23 @@ stateDiagram-v2
     P --> R0: EditQueuedMessage / end head edit, promoted last queued
     P --> R1: EditQueuedMessage / end head edit, queue still non-empty
     P --> P: Interrupt
+    P --> W: DeleteQueuedMessagesByAutomation / removed last queued
+    P --> R0: DeleteQueuedMessagesByAutomation / removed head, promoted last queued
+    P --> R1: DeleteQueuedMessagesByAutomation / removed head, queue still non-empty after promoting next
+    P --> P: DeleteQueuedMessagesByAutomation / head kept
 
     XW --> W: SetArchived(false)
+    XW --> XW: DeleteQueuedMessagesByAutomation / no message of the automations
     XE0 --> E0: SetArchived(false)
+    XE0 --> XE0: DeleteQueuedMessagesByAutomation / no message of the automations
     XE1 --> E1: SetArchived(false)
+    XE1 --> XE0: DeleteQueuedMessagesByAutomation / removed last queued
+    XE1 --> XE1: DeleteQueuedMessagesByAutomation / head still ready
+    XE1 --> XE1P: DeleteQueuedMessagesByAutomation / new head under edit
     XE1P --> E1P: SetArchived(false)
+    XE1P --> XE0: DeleteQueuedMessagesByAutomation / removed last queued
+    XE1P --> XE1: DeleteQueuedMessagesByAutomation / new head ready
+    XE1P --> XE1P: DeleteQueuedMessagesByAutomation / head kept
 
     [Invalid] --> E0: ReconcileInvalidState / no queued messages
     [Invalid] --> E1: ReconcileInvalidState / ready head
@@ -807,6 +849,23 @@ No other input states are supported: generating chats and chats with queued mess
 ### `POST /api/v2/chats/{chat}/workspace-files`
 
 This endpoint uses no transition and writes nothing to the chat. Only the chat owner can upload, and they must have SSH access to the chat's workspace. It rejects archived chats and works in every other execution state, including while a turn is running. It streams the request body into the chat's workspace through a workspace agent and returns the file's path for the client to reference from a later message. The upload prefers the agent the chat is bound to. Otherwise it picks one with the chat worker's deterministic agent selection without binding the chat, so the file lands on the agent whose tools will read it.
+
+### Chat automation queue cleanup
+
+A queued message can name the automation that queued it (`chat_queued_messages.automation_id`). When an automation is deleted (`DELETE /api/experimental/organizations/{organization}/chats/automations/{automation}`), or when its owner is deleted (`DELETE /api/v2/users/{user}`), the same transaction removes those messages with `DeleteQueuedMessagesByAutomation`. A deleted automation leaves no queued message.
+
+Every path that runs or changes an automation takes its locks in this order:
+
+1. The advisory lock of each automation, in automation ID order.
+2. The row lock of each chat that holds such a message, in chat ID order, with the `snapshot_version` bump of every transition.
+
+A run takes the automation lock before it queues a message. A run that holds the lock commits first, and the cleanup removes its message. A later run waits for the lock and then finds no automation.
+
+The delete of a user soft deletes the user between the two steps. The soft delete trigger removes the automation rows, and rows of other tables such as `api_keys`. Other transactions lock one of those rows, or the user row, before a chat row, so the chat rows come last. A queued message has no foreign key to its automation, so the messages are still there for the second step.
+
+The transitions run as chatd: the cleanup must not depend on what the caller can do to a chat. They need chatstate and pubsub only, so the cleanup also works on a replica without a chat worker. The notifications go out after the transaction commits: `chat:update` for each changed chat, and the watch event of a status change for each chat that left `P`.
+
+A chat in an invalid state refuses the transition, as it refuses every transition but `ReconcileInvalidState`. The delete then answers `409`, names the chat, and changes nothing.
 
 ## Pubsub
 
