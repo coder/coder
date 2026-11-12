@@ -714,7 +714,7 @@ func (p *Server) buildTurnEnvironment(
 		chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 	}
 	if isPlanModeTurn && isRootChat {
-		tools = append(tools, chattool.NewAskUserQuestionTool())
+		tools = append(tools, chattool.NewAskUserQuestionTool(chattool.AskUserQuestionOptions{}))
 	}
 	if isRootChat {
 		tools, err = p.appendRootChatTools(ctx, tools, rootChatToolsOptions{
