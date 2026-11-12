@@ -38,5 +38,5 @@ func TestReporterClosed(t *testing.T) {
 
 	entries := sink.Entries()
 	require.Len(t, entries, 1)
-	require.Equal(t, "acquiring database migration lock", entries[0].Message)
+	require.Equal(t, msgAcquiringLock, entries[0].Message)
 }

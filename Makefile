@@ -1190,6 +1190,7 @@ gen/golden-files: \
 	agent/unit/testdata/.gen-golden \
 	cli/testdata/.gen-golden \
 	coderd/.gen-golden \
+	coderd/database/migrations/testdata/.gen-golden \
 	coderd/mcp/testdata/.gen-golden \
 	coderd/notifications/.gen-golden \
 	enterprise/cli/testdata/.gen-golden \
@@ -1628,6 +1629,10 @@ coderd/mcp/testdata/.gen-golden: $(wildcard coderd/mcp/testdata/*/*.golden) $(GO
 
 coderd/notifications/.gen-golden: $(wildcard coderd/notifications/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/notifications/*_test.go)
 	TZ=UTC go test ./coderd/notifications -run="Test.*Golden$$" -update
+	touch "$@"
+
+coderd/database/migrations/testdata/.gen-golden: $(wildcard coderd/database/migrations/testdata/reporter/*.golden) $(GO_SRC_FILES) $(wildcard coderd/database/migrations/*_test.go)
+	TZ=UTC go test ./coderd/database/migrations -run="TestReporter$$" -update
 	touch "$@"
 
 # Wait for fixture generation before reading its outputs under make -j.

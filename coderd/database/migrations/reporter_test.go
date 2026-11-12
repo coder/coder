@@ -1,10 +1,16 @@
 package migrations_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"flag"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"testing/fstest"
@@ -14,10 +20,15 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
+	"cdr.dev/slog/v3/sloggers/sloghuman"
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
+
+// To update the golden files:
+// make gen/golden-files
+var updateGoldenFiles = flag.Bool("update", false, "update .golden files")
 
 // migrationFS returns one migration per statement, named step_1, step_2, ...
 func migrationFS(stmts ...string) fstest.MapFS {
@@ -29,43 +40,73 @@ func migrationFS(stmts ...string) fstest.MapFS {
 	return fsys
 }
 
-func hasMessage(msg string) func(slog.SinkEntry) bool {
-	return func(e slog.SinkEntry) bool { return e.Message == msg }
+// goldenSink writes log entries in the server's human-readable format
+// (sloghuman) without the timestamp, so a run on a mock clock can be
+// compared byte for byte.
+type goldenSink struct {
+	mu    sync.Mutex
+	buf   bytes.Buffer
+	human slog.Sink
+	pids  map[int]string
 }
 
-func field(t *testing.T, e slog.SinkEntry, name string) any {
-	t.Helper()
-	for _, f := range e.Fields {
-		if f.Name == name {
-			return f.Value
-		}
+// zeroTimePrefix is what sloghuman writes for a zero time.
+const zeroTimePrefix = "0001-01-01 00:00:00.000 "
+
+func newGoldenSink() *goldenSink {
+	s := &goldenSink{pids: map[int]string{}}
+	s.human = sloghuman.Sink(&s.buf)
+	return s
+}
+
+func (s *goldenSink) logger() slog.Logger {
+	return slog.Make(s).Leveled(slog.LevelDebug)
+}
+
+// namePID makes String write pid as name. PostgreSQL assigns a new backend
+// PID to every connection, so a raw PID would change the output on every
+// run. A name keeps it stable and still shows that blocked_by reports the
+// session the test made block the migration.
+func (s *goldenSink) namePID(pid int, name string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pids[pid] = name
+}
+
+func (s *goldenSink) LogEntry(ctx context.Context, e slog.SinkEntry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	e.Time = time.Time{}
+	s.human.LogEntry(ctx, e)
+}
+
+func (*goldenSink) Sync() {}
+
+func (s *goldenSink) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := strings.ReplaceAll(s.buf.String(), "\n"+zeroTimePrefix, "\n")
+	out = strings.TrimPrefix(out, zeroTimePrefix)
+	for pid, name := range s.pids {
+		// sloghuman writes a single blocked_by PID as [6652].
+		out = strings.ReplaceAll(out, "["+strconv.Itoa(pid)+"]", "["+name+"]")
 	}
-	t.Fatalf("line %q has no field %q: %v", e.Message, name, e.Fields)
-	return nil
+	return out
 }
 
-func fieldNames(e slog.SinkEntry) []string {
-	names := make([]string, 0, len(e.Fields))
-	for _, f := range e.Fields {
-		names = append(names, f.Name)
+// requireGolden compares the sink's output with testdata/reporter/name.golden.
+func requireGolden(t *testing.T, sink *goldenSink, name string) {
+	t.Helper()
+	got := sink.String()
+	path := filepath.Join("testdata", "reporter", name+".golden")
+	if *updateGoldenFiles {
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+		require.NoError(t, os.WriteFile(path, []byte(got), 0o600))
+		return
 	}
-	return names
-}
-
-func onlyEntry(t *testing.T, sink *testutil.FakeSink, msg string) slog.SinkEntry {
-	t.Helper()
-	entries := sink.Entries(hasMessage(msg))
-	require.Len(t, entries, 1, "lines with message %q", msg)
-	return entries[0]
-}
-
-// waitForEntry waits until a line with msg has been logged and returns it.
-func waitForEntry(ctx context.Context, t *testing.T, sink *testutil.FakeSink, msg string) slog.SinkEntry {
-	t.Helper()
-	testutil.Eventually(ctx, t, func(context.Context) bool {
-		return len(sink.Entries(hasMessage(msg))) > 0
-	}, testutil.IntervalFast)
-	return sink.Entries(hasMessage(msg))[0]
+	want, err := os.ReadFile(path)
+	require.NoError(t, err, "read golden file, run \"make gen/golden-files\" to create it")
+	require.Equal(t, string(want), got, "golden file %s differs, run \"make gen/golden-files\" if the change is intended", path)
 }
 
 // waitForLockWait waits until the migration connection, identified by its
@@ -137,6 +178,18 @@ func backendPID(ctx context.Context, t *testing.T, tx *sql.Tx) int {
 	return pid
 }
 
+// testOptions are the options every test run uses: the sink's logger, a mock
+// clock so durations are stable, and a one second heartbeat.
+func testOptions(sink *goldenSink, mClock *quartz.Mock, appName string, fsys fstest.MapFS) []migrations.Option {
+	return []migrations.Option{
+		migrations.WithFS(fsys),
+		migrations.WithLogger(sink.logger()),
+		migrations.WithAppName(appName),
+		migrations.WithClock(mClock),
+		migrations.WithHeartbeatInterval(time.Second),
+	}
+}
+
 func TestReporter(t *testing.T) {
 	t.Parallel()
 	if testing.Short() {
@@ -148,52 +201,11 @@ func TestReporter(t *testing.T) {
 		db := testSQLDB(t)
 		require.NoError(t, migrations.Up(db, migrations.WithFS(migrationFS(`CREATE TABLE a (id int);`))))
 
-		sink := testutil.NewFakeSink(t)
-		err := migrations.Up(db, migrations.WithFS(migrationFS(`CREATE TABLE a (id int);`, `CREATE TABLE b (id int);`, `CREATE TABLE c (id int);`)),
-			migrations.WithLogger(sink.Logger()),
-		)
-		require.NoError(t, err)
+		sink := newGoldenSink()
+		fsys := migrationFS(`CREATE TABLE a (id int);`, `CREATE TABLE b (id int);`, `CREATE TABLE c (id int);`)
+		require.NoError(t, migrations.Up(db, testOptions(sink, quartz.NewMock(t), "test/success", fsys)...))
 
-		required := onlyEntry(t, sink, "database migration required")
-		require.Equal(t, slog.LevelInfo, required.Level)
-		require.Equal(t, []string{"from_version", "target_version", "pending"}, fieldNames(required))
-		require.Equal(t, 1, field(t, required, "from_version"))
-		require.Equal(t, 3, field(t, required, "target_version"))
-		require.Equal(t, 2, field(t, required, "pending"))
-
-		applyingEntries := sink.Entries(hasMessage("applying database migration"))
-		require.Len(t, applyingEntries, 2)
-		for position, version := range []int{2, 3} {
-			applying := applyingEntries[position]
-			position++
-			require.Equal(t, slog.LevelInfo, applying.Level)
-			require.Equal(t, []string{"version", "name", "position", "total"}, fieldNames(applying))
-			require.Equal(t, version, field(t, applying, "version"))
-			require.Equal(t, fmt.Sprintf("step_%d", version), field(t, applying, "name"))
-			require.Equal(t, position, field(t, applying, "position"))
-			require.Equal(t, 2, field(t, applying, "total"))
-		}
-
-		applied := sink.Entries(hasMessage("database migration applied, pending commit"))
-		require.Len(t, applied, 2)
-		for i, e := range applied {
-			require.Equal(t, slog.LevelInfo, e.Level)
-			require.Equal(t, []string{"version", "name", "position", "total", "duration_ms"}, fieldNames(e))
-			require.Equal(t, i+2, field(t, e, "version"))
-			require.Equal(t, i+1, field(t, e, "position"))
-			require.IsType(t, int64(0), field(t, e, "duration_ms"))
-		}
-
-		// A free lock is only logged at debug: setup and batch each log
-		// acquiring and acquired.
-		for _, msg := range []string{"acquiring database migration lock", "acquired database migration lock"} {
-			entries := sink.Entries(hasMessage(msg))
-			require.Len(t, entries, 2, msg)
-			for _, e := range entries {
-				require.Equal(t, slog.LevelDebug, e.Level, msg)
-			}
-		}
-		require.Empty(t, sink.Entries(hasMessage("still waiting for database migration lock")))
+		requireGolden(t, sink, "success")
 	})
 
 	t.Run("UpToDate", func(t *testing.T) {
@@ -202,17 +214,10 @@ func TestReporter(t *testing.T) {
 		fsys := migrationFS(`CREATE TABLE a (id int);`)
 		require.NoError(t, migrations.Up(db, migrations.WithFS(fsys)))
 
-		sink := testutil.NewFakeSink(t)
-		require.NoError(t, migrations.Up(db, migrations.WithFS(fsys),
-			migrations.WithLogger(sink.Logger()),
-		))
+		sink := newGoldenSink()
+		require.NoError(t, migrations.Up(db, testOptions(sink, quartz.NewMock(t), "test/up-to-date", fsys)...))
 
-		entry := onlyEntry(t, sink, "database schema is up to date")
-		require.Equal(t, slog.LevelDebug, entry.Level)
-		require.Equal(t, 1, field(t, entry, "version"))
-		for _, e := range sink.Entries() {
-			require.Equal(t, slog.LevelDebug, e.Level, "an up to date start logs nothing above debug: %s", e.Message)
-		}
+		requireGolden(t, sink, "up_to_date")
 	})
 
 	t.Run("FreshInstall", func(t *testing.T) {
@@ -227,52 +232,34 @@ func TestReporter(t *testing.T) {
 		holder, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
 		defer func() { _ = holder.Rollback() }()
+		sink := newGoldenSink()
+		sink.namePID(backendPID(ctx, t, holder), "holder")
 		_, err = holder.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, stepLock)
 		require.NoError(t, err)
 
 		mClock := quartz.NewMock(t)
 		trap := mClock.Trap().TickerFunc("migrations", "heartbeat")
 		defer trap.Close()
-		sink := testutil.NewFakeSink(t)
 
+		fsys := migrationFS(`CREATE TABLE a (id int);`, fmt.Sprintf(`SELECT pg_advisory_xact_lock(%d);`, stepLock))
 		done := make(chan error, 1)
 		go func() {
-			done <- migrations.Up(db, migrations.WithFS(migrationFS(`CREATE TABLE a (id int);`, fmt.Sprintf(`SELECT pg_advisory_xact_lock(%d);`, stepLock))),
-				migrations.WithLogger(sink.Logger()), migrations.WithAppName(appName), migrations.WithClock(mClock), migrations.WithHeartbeatInterval(time.Second),
-			)
+			done <- migrations.Up(db, testOptions(sink, mClock, appName, fsys)...)
 		}()
 
-		// One heartbeat ticker per lock (setup, batch) and per step.
+		// One heartbeat per lock (setup, batch) and per step.
 		for range 4 {
 			trap.MustWait(ctx).MustRelease(ctx)
 		}
-
 		waitForLockWait(ctx, t, db, appName)
 		mClock.Advance(time.Second).MustWait(ctx)
-		// Per-step lines are at debug on a fresh install, but the heartbeat
-		// stays at info: it is the liveness signal of a slow step.
-		beat := waitForEntry(ctx, t, sink, "still applying database migration")
-		require.Equal(t, slog.LevelInfo, beat.Level)
 
 		require.NoError(t, holder.Rollback())
 		require.NoError(t, testutil.TryReceive(ctx, t, done))
 
-		required := onlyEntry(t, sink, "database migration required")
-		require.Equal(t, slog.LevelInfo, required.Level)
-		// There is no version yet, so from_version is omitted, not -1.
-		require.Equal(t, []string{"target_version", "pending"}, fieldNames(required))
-		require.Equal(t, 2, field(t, required, "pending"))
-
-		applyingEntries := sink.Entries(hasMessage("applying database migration"))
-		require.Len(t, applyingEntries, 2)
-		for _, e := range applyingEntries {
-			require.Equal(t, slog.LevelDebug, e.Level)
-		}
-		applied := sink.Entries(hasMessage("database migration applied, pending commit"))
-		require.Len(t, applied, 2)
-		for _, e := range applied {
-			require.Equal(t, slog.LevelDebug, e.Level)
-		}
+		// Per-step lines are at debug on a fresh install, but the heartbeat
+		// stays at info: it is the liveness signal of a slow step.
+		requireGolden(t, sink, "fresh_install")
 	})
 
 	t.Run("WaitsForMigrationLock", func(t *testing.T) {
@@ -284,53 +271,30 @@ func TestReporter(t *testing.T) {
 		holder, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
 		defer func() { _ = holder.Rollback() }()
-		holderPID := backendPID(ctx, t, holder)
+		sink := newGoldenSink()
+		sink.namePID(backendPID(ctx, t, holder), "holder")
 		_, err = holder.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, migrations.LockID)
 		require.NoError(t, err)
 
 		mClock := quartz.NewMock(t)
 		trap := mClock.Trap().TickerFunc("migrations", "heartbeat")
-		sink := testutil.NewFakeSink(t)
 
 		done := make(chan error, 1)
 		go func() {
-			done <- migrations.Up(db, migrations.WithFS(migrationFS(`CREATE TABLE a (id int);`)),
-				migrations.WithLogger(sink.Logger()), migrations.WithAppName(appName), migrations.WithClock(mClock), migrations.WithHeartbeatInterval(time.Second),
-			)
+			done <- migrations.Up(db, testOptions(sink, mClock, appName, migrationFS(`CREATE TABLE a (id int);`))...)
 		}()
 
+		// The setup lock's heartbeat; later heartbeats must not block on the
+		// trap.
 		trap.MustWait(ctx).MustRelease(ctx)
-		// The step's heartbeat after the wait must not block on the trap.
 		trap.Close()
-
-		acquiring := sink.Entries(hasMessage("acquiring database migration lock"))
-		require.NotEmpty(t, acquiring)
-		require.Equal(t, slog.LevelDebug, acquiring[0].Level)
-		require.Equal(t, []string{"phase"}, fieldNames(acquiring[0]))
-		require.Equal(t, "setup", field(t, acquiring[0], "phase"))
-
 		waitForLockWait(ctx, t, db, appName)
 		mClock.Advance(time.Second).MustWait(ctx)
-		beat := waitForEntry(ctx, t, sink, "still waiting for database migration lock")
-		require.Equal(t, slog.LevelInfo, beat.Level)
-		require.Equal(t, []string{"elapsed_ms", "state", "wait_event", "blocked_by"}, fieldNames(beat))
-		require.Equal(t, int64(1000), field(t, beat, "elapsed_ms"))
-		require.Equal(t, "waiting_on_lock", field(t, beat, "state"))
-		require.Equal(t, "advisory", field(t, beat, "wait_event"))
-		require.Equal(t, []int64{int64(holderPID)}, field(t, beat, "blocked_by"))
 
 		require.NoError(t, holder.Rollback())
 		require.NoError(t, testutil.TryReceive(ctx, t, done))
 
-		acquired := sink.Entries(hasMessage("acquired database migration lock"))
-		require.Len(t, acquired, 2)
-		require.Equal(t, []string{"phase", "waited_ms"}, fieldNames(acquired[0]))
-		require.Equal(t, "setup", field(t, acquired[0], "phase"))
-		require.Equal(t, int64(1000), field(t, acquired[0], "waited_ms"))
-		// The lock was free for the batch, so it waited no time.
-		require.Equal(t, "batch", field(t, acquired[1], "phase"))
-		require.Equal(t, int64(0), field(t, acquired[1], "waited_ms"))
-		require.Len(t, sink.Entries(hasMessage("still waiting for database migration lock")), 1)
+		requireGolden(t, sink, "waits_for_migration_lock")
 	})
 
 	t.Run("StepBlockedByTableLock", func(t *testing.T) {
@@ -338,54 +302,37 @@ func TestReporter(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		db := testSQLDB(t)
 		const appName = "test/step-blocked-by-table-lock"
-		fsys := migrationFS(`CREATE TABLE a (id int);`, `CREATE TABLE b (id int);`, `ALTER TABLE a ADD COLUMN c int;`)
 		require.NoError(t, migrations.Up(db, migrations.WithFS(migrationFS(`CREATE TABLE a (id int);`))))
 
 		blocker, err := db.BeginTx(ctx, nil)
 		require.NoError(t, err)
 		defer func() { _ = blocker.Rollback() }()
-		blockerPID := backendPID(ctx, t, blocker)
+		sink := newGoldenSink()
+		sink.namePID(backendPID(ctx, t, blocker), "blocker")
 		_, err = blocker.ExecContext(ctx, `LOCK TABLE a IN ACCESS SHARE MODE`)
 		require.NoError(t, err)
 
 		mClock := quartz.NewMock(t)
 		trap := mClock.Trap().TickerFunc("migrations", "heartbeat")
 		defer trap.Close()
-		sink := testutil.NewFakeSink(t)
 
+		fsys := migrationFS(`CREATE TABLE a (id int);`, `CREATE TABLE b (id int);`, `ALTER TABLE a ADD COLUMN c int;`)
 		done := make(chan error, 1)
 		go func() {
-			done <- migrations.Up(db, migrations.WithFS(fsys),
-				migrations.WithLogger(sink.Logger()), migrations.WithAppName(appName), migrations.WithClock(mClock), migrations.WithHeartbeatInterval(time.Second),
-			)
+			done <- migrations.Up(db, testOptions(sink, mClock, appName, fsys)...)
 		}()
 
-		// One heartbeat ticker per lock (setup, batch) and per step.
+		// One heartbeat per lock (setup, batch) and per step.
 		for range 4 {
 			trap.MustWait(ctx).MustRelease(ctx)
 		}
-
 		waitForLockWait(ctx, t, db, appName)
 		mClock.Advance(time.Second).MustWait(ctx)
-		beat := waitForEntry(ctx, t, sink, "still applying database migration")
-		require.Equal(t, slog.LevelInfo, beat.Level)
-		require.Equal(t, []string{
-			"elapsed_ms", "state", "wait_event", "blocked_by", "version", "name", "position", "total",
-		}, fieldNames(beat))
-		require.Equal(t, int64(1000), field(t, beat, "elapsed_ms"))
-		require.Equal(t, "waiting_on_lock", field(t, beat, "state"))
-		require.Equal(t, "relation", field(t, beat, "wait_event"))
-		require.Equal(t, []int64{int64(blockerPID)}, field(t, beat, "blocked_by"))
-		require.Equal(t, 3, field(t, beat, "version"))
-		require.Equal(t, "step_3", field(t, beat, "name"))
-		require.Equal(t, 2, field(t, beat, "position"))
-		require.Equal(t, 2, field(t, beat, "total"))
 
 		require.NoError(t, blocker.Rollback())
 		require.NoError(t, testutil.TryReceive(ctx, t, done))
-		applied := sink.Entries(hasMessage("database migration applied, pending commit"))
-		require.Len(t, applied, 2)
-		require.Equal(t, int64(1000), field(t, applied[1], "duration_ms"))
+
+		requireGolden(t, sink, "step_blocked_by_table_lock")
 	})
 
 	t.Run("HeartbeatCheckFails", func(t *testing.T) {
@@ -407,35 +354,27 @@ func TestReporter(t *testing.T) {
 
 		mClock := quartz.NewMock(t)
 		trap := mClock.Trap().TickerFunc("migrations", "heartbeat")
-		sink := testutil.NewFakeSink(t)
+		sink := newGoldenSink()
 
+		opts := append(testOptions(sink, mClock, appName, migrationFS(`CREATE TABLE a (id int);`)), migrations.WithObserverDB(observer))
 		done := make(chan error, 1)
 		go func() {
-			done <- migrations.Up(db, migrations.WithFS(migrationFS(`CREATE TABLE a (id int);`)),
-				migrations.WithLogger(sink.Logger()), migrations.WithAppName(appName), migrations.WithClock(mClock), migrations.WithHeartbeatInterval(time.Second), migrations.WithObserverDB(observer),
-			)
+			done <- migrations.Up(db, opts...)
 		}()
 
 		trap.MustWait(ctx).MustRelease(ctx)
 		trap.Close()
-
 		waitForLockWait(ctx, t, db, appName)
-		for i := 1; i <= 2; i++ {
-			mClock.Advance(time.Second).MustWait(ctx)
-			testutil.Eventually(ctx, t, func(context.Context) bool {
-				return len(sink.Entries(hasMessage("still waiting for database migration lock"))) >= i
-			}, testutil.IntervalFast)
-		}
-		for _, beat := range sink.Entries(hasMessage("still waiting for database migration lock")) {
-			require.Equal(t, []string{"elapsed_ms", "state"}, fieldNames(beat))
-			require.Equal(t, "unknown", field(t, beat, "state"))
-		}
-		// Only the first failed check is reported.
-		warn := onlyEntry(t, sink, "database migration progress details unavailable")
-		require.Equal(t, slog.LevelWarn, warn.Level)
+		// Two failed checks: both heartbeats are written, the warning only
+		// once.
+		mClock.Advance(time.Second).MustWait(ctx)
+		mClock.Advance(time.Second).MustWait(ctx)
 
 		require.NoError(t, holder.Rollback())
 		require.NoError(t, testutil.TryReceive(ctx, t, done))
+
+		requireGolden(t, sink, "heartbeat_check_fails")
+		// The failed checks did not affect the migration.
 		var version int
 		require.NoError(t, db.QueryRowContext(ctx, `SELECT version FROM schema_migrations`).Scan(&version))
 		require.Equal(t, 1, version)
@@ -446,7 +385,6 @@ func TestReporter(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		db := testSQLDB(t)
 		const appName = "test/late-heartbeat-discarded"
-		fsys := migrationFS(`CREATE TABLE a (id int);`, `ALTER TABLE a ADD COLUMN c int;`)
 		require.NoError(t, migrations.Up(db, migrations.WithFS(migrationFS(`CREATE TABLE a (id int);`))))
 
 		blocker, err := db.BeginTx(ctx, nil)
@@ -459,16 +397,16 @@ func TestReporter(t *testing.T) {
 		mClock := quartz.NewMock(t)
 		trap := mClock.Trap().TickerFunc("migrations", "heartbeat")
 		defer trap.Close()
-		sink := testutil.NewFakeSink(t)
+		sink := newGoldenSink()
 
+		fsys := migrationFS(`CREATE TABLE a (id int);`, `ALTER TABLE a ADD COLUMN c int;`)
+		opts := append(testOptions(sink, mClock, appName, fsys), migrations.WithObserverDB(observerDB))
 		done := make(chan error, 1)
 		go func() {
-			done <- migrations.Up(db, migrations.WithFS(fsys),
-				migrations.WithLogger(sink.Logger()), migrations.WithAppName(appName), migrations.WithClock(mClock), migrations.WithHeartbeatInterval(time.Second), migrations.WithObserverDB(observerDB),
-			)
+			done <- migrations.Up(db, opts...)
 		}()
 
-		// One heartbeat ticker per lock (setup, batch) and the step.
+		// One heartbeat per lock (setup, batch) and the step.
 		for range 3 {
 			trap.MustWait(ctx).MustRelease(ctx)
 		}
@@ -479,18 +417,16 @@ func TestReporter(t *testing.T) {
 		// The heartbeat check is in flight and ignores cancellation.
 		_ = testutil.TryReceive(ctx, t, observer.entered)
 
-		// The step finishes while the check is still blocked: stopping the
-		// heartbeat must not wait for it.
+		// The step finishes and Up returns while the check is still blocked:
+		// stopping the heartbeat does not wait for it.
 		require.NoError(t, blocker.Rollback())
 		require.NoError(t, testutil.TryReceive(ctx, t, done))
-		require.Len(t, sink.Entries(hasMessage("database migration applied, pending commit")), 1)
 
-		// Once the late check returns, its result is discarded. This can only
-		// pass falsely, if the discarded line were still being written.
+		// Once the late check returns, its result is discarded, so the golden
+		// file has no heartbeat or warning line.
 		close(observer.release)
 		_ = testutil.TryReceive(ctx, t, observer.returned)
 		advance.MustWait(ctx)
-		require.Empty(t, sink.Entries(hasMessage("still applying database migration")))
-		require.Empty(t, sink.Entries(hasMessage("database migration progress details unavailable")))
+		requireGolden(t, sink, "late_heartbeat_discarded")
 	})
 }
