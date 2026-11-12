@@ -1262,6 +1262,8 @@ func (s *taskStarter) lastAsyncQuestion(
 		if !ok || toolResult.ToolName != chattool.AskUserQuestionAsyncName {
 			continue
 		}
+		// A failed call, such as one with invalid input, has an error
+		// result instead of text.
 		_, isText := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](toolResult.Result)
 		if !isText {
 			continue
