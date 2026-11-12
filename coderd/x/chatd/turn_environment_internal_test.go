@@ -867,10 +867,12 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		"spawn_agent", "wait_agent", "message_agent", "interrupt_agent", "list_agents",
 	}
 	tests := []struct {
-		name        string
-		mode        database.NullChatMode
-		planMode    database.NullChatPlanMode
-		child       bool
+		name     string
+		mode     database.NullChatMode
+		planMode database.NullChatPlanMode
+		child    bool
+		// experiments are enabled in addition to the inline MCP server and
+		// ACP subagent experiments that every case gets.
 		experiments codersdk.Experiments
 		// spawn delegates to a general sub-agent, which must keep the
 		// parent's plan mode.
@@ -882,6 +884,8 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 		ui bool
 		// askStops reports whether ask_user_question ends the turn.
 		askStops bool
+		// askAsync reports whether the turn gets the async
+		// ask_user_question tool.
 		askAsync bool
 		// prompt lists the instructions the system prompt must contain;
 		// the others in the set must be absent.
@@ -1117,9 +1121,11 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 					require.False(t, loaded[name], name)
 				}
 			}
+
 			_, askStops := env.StopAfterTools["ask_user_question"]
 			require.Equal(t, tt.askStops, askStops)
 			require.Equal(t, tt.askAsync, env.AsyncAskUserQuestion)
+
 			if slices.Contains(offered, "ask_user_question") {
 				tool := findToolByName(env.Tools, "ask_user_question")
 				require.NotNil(t, tool)

@@ -716,12 +716,13 @@ func (p *Server) buildTurnEnvironment(
 		chattool.ProcessList(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 		chattool.ProcessSignal(chattool.ProcessToolOptions{GetWorkspaceConn: workspaceCtx.getWorkspaceConn}),
 	}
+
 	// Web UI chats can answer a question while the agent keeps working, so
 	// outside plan mode the question does not end the turn. API chats keep
 	// the tool in plan mode only, where it ends the turn.
-	asyncAskUserQuestion := isRootChat && !isPlanModeTurn && !isExploreSubagent &&
-		chat.ClientType == database.ChatClientTypeUi &&
-		p.experiments.Enabled(codersdk.ExperimentChatAsyncQuestions)
+	isUIChat := chat.ClientType == database.ChatClientTypeUi
+	asyncQuestionsEnabled := p.experiments.Enabled(codersdk.ExperimentChatAsyncQuestions)
+	asyncAskUserQuestion := isRootChat && !isPlanModeTurn && !isExploreSubagent && isUIChat && asyncQuestionsEnabled
 	if isPlanModeTurn && isRootChat {
 		tools = append(tools, chattool.NewAskUserQuestionTool(chattool.AskUserQuestionOptions{}))
 	} else if asyncAskUserQuestion {
