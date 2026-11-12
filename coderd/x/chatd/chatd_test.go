@@ -9799,6 +9799,7 @@ func TestAsyncAskUserQuestionWebPush(t *testing.T) {
 	}
 	type turnResult struct {
 		chat        database.Chat
+		db          database.Store
 		streamCalls int32
 		pushes      []codersdk.WebpushMessage
 	}
@@ -9912,6 +9913,7 @@ func TestAsyncAskUserQuestionWebPush(t *testing.T) {
 		require.NoError(t, server.Close())
 		return turnResult{
 			chat:        chat,
+			db:          db,
 			streamCalls: streamCalls.Load(),
 			pushes:      mockPush.getMessages(),
 		}
@@ -9980,6 +9982,17 @@ func TestAsyncAskUserQuestionWebPush(t *testing.T) {
 		for _, push := range turn.pushes {
 			require.False(t, strings.HasPrefix(push.Body, "Question: "), push.Body)
 		}
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		parts := chatToolParts(ctx, t, turn.db, turn.chat.ID)
+		result := requireToolResultPart(t, parts, chattool.AskUserQuestionAsyncName)
+		require.True(t, result.IsError)
+
+		var output struct {
+			Error string `json:"error"`
+		}
+		require.NoError(t, json.Unmarshal(result.Result, &output))
+		require.Contains(t, output.Error, "questions[0].header is required")
 	})
 
 	t.Run("ResultCommitFails", func(t *testing.T) {
