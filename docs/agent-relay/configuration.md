@@ -308,6 +308,8 @@ Must be positive.
 - A workspace where the build succeeded but the worker still reports no status, or `pending`, fails after this grace.
 - A short grace can fail workspaces where the agent connects slowly or the worker starts slowly.
   Unless you run an isolated test deployment, keep the default.
+- When the template orders the worker after setup scripts, this is the budget those scripts share with the build.
+  Refer to [Start the worker after workspace setup](./setup.md#start-the-worker-after-workspace-setup).
 
 The reaper acts on the first [sweep](./setup.md#workspace-lifecycle) after the grace passes, which can be 30&nbsp;seconds or more later.
 Raise the grace when a working template takes longer than 15&nbsp;minutes to build and start its worker.
@@ -357,24 +359,6 @@ How many workspaces the reaper handles at the same time during each sweep.
 Workspace statuses and session attachment arrive with the workspace list, so this option limits only the delete, cancel, nack, and deadline extension calls that a sweep makes.
 The Helm chart has no dedicated value for this option.
 Set it with [`extraEnv`](#helm-values).
-
-### `--reap-startup-grace`
-
-| Property    | Value                                              |
-|-------------|----------------------------------------------------|
-| Type        | <code>duration</code>                              |
-| Environment | <code>$CODER_AGENT_RELAY_REAP_STARTUP_GRACE</code> |
-| YAML        | <code>reapStartupGrace</code>                      |
-| Helm        | <code>reapStartupGrace</code>                      |
-| Default     | <code>15m0s</code>                                 |
-
-How long the reaper waits, from the start of the latest build, for the build to finish and the worker to report in.
-Past it, Agent Relay deletes a workspace that's still building, and fails the session of a built workspace where the worker never started.
-A workspace that's still building also waits for its pool's `dispatch_deadline` when that's longer.
-Must be positive.
-A short grace might cut off slow agent connections and slow worker startups.
-When the template orders the worker after setup scripts, this is the budget those scripts share with the build.
-Refer to [Start the worker after workspace setup](./setup.md#start-the-worker-after-workspace-setup).
 
 ### `--reap-keepalive-refresh-before`
 
