@@ -11,6 +11,7 @@ import {
 	formatResultOutput,
 	formatShellDurationMs,
 	formatToolInput,
+	getAsyncQuestionId,
 	getDiffViewerOptions,
 	getFileContentForViewer,
 	getFileViewerOptions,
@@ -31,6 +32,29 @@ import {
 	stripSvnIndexHeaders,
 	summarizeParsedCommands,
 } from "./utils";
+
+describe("getAsyncQuestionId", () => {
+	it.each([
+		{ question_id: "question-one" },
+		JSON.stringify({ question_id: "question-one" }),
+		{ output: JSON.stringify({ question_id: "question-one" }) },
+		{ content: JSON.stringify({ question_id: "question-one" }) },
+		{ text: JSON.stringify({ question_id: "question-one" }) },
+	])("reads the question ID from %j", (result) => {
+		expect(getAsyncQuestionId(result)).toBe("question-one");
+	});
+
+	it("returns undefined when the result has no question ID", () => {
+		expect(getAsyncQuestionId({ status: "Continue working." })).toBeUndefined();
+	});
+
+	it.each(["not JSON", null, { question_id: "" }, { question_id: 42 }])(
+		"returns undefined for a malformed result %j",
+		(result) => {
+			expect(getAsyncQuestionId(result)).toBeUndefined();
+		},
+	);
+});
 
 describe("formatModelIntentLabel", () => {
 	it("returns empty string for empty values", () => {

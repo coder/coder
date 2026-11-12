@@ -45,6 +45,7 @@ import {
 	asString,
 	buildEditDiff,
 	DIFFS_FONT_STYLE,
+	findToolResultRecord,
 	formatModelIntentLabel,
 	formatResultOutput,
 	formatToolInput,
@@ -211,34 +212,8 @@ const getWorkspaceQuotaTitle = (
 const parseAskUserQuestionResult = (
 	result: unknown,
 ): AskUserQuestion[] | null => {
-	const parsedResult = parseArgs(result);
-	const directQuestions = parsedResult
-		? parseAskUserQuestions(parsedResult.questions)
-		: null;
-	if (directQuestions) {
-		return directQuestions;
-	}
-
-	const resultRecord = asRecord(result);
-	if (!resultRecord) {
-		return null;
-	}
-
-	for (const value of [
-		resultRecord.output,
-		resultRecord.content,
-		resultRecord.text,
-	]) {
-		const parsedValue = parseArgs(value);
-		const questions = parsedValue
-			? parseAskUserQuestions(parsedValue.questions)
-			: null;
-		if (questions) {
-			return questions;
-		}
-	}
-
-	return null;
+	const record = findToolResultRecord(result, "questions");
+	return record ? parseAskUserQuestions(record.questions) : null;
 };
 
 const ExecuteRenderer: React.FC<ToolRendererProps> = ({

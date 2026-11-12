@@ -178,6 +178,52 @@ export const parseArgs = (args: unknown): Record<string, unknown> | null => {
 	return asRecord(typeof args === "string" ? parseJSON(args) : args);
 };
 
+/** The name of the tool that asks an async question. */
+export const ASYNC_QUESTION_TOOL_NAME = "ask_user_question_async";
+
+/** Finds the first result record with key, including JSON result wrappers. */
+export const findToolResultRecord = (
+	result: unknown,
+	key: string,
+): Record<string, unknown> | undefined => {
+	const parsedResult = parseArgs(result);
+	if (parsedResult && key in parsedResult) {
+		return parsedResult;
+	}
+
+	const resultRecord = asRecord(result);
+	if (!resultRecord) {
+		return undefined;
+	}
+
+	for (const value of [
+		resultRecord.output,
+		resultRecord.content,
+		resultRecord.text,
+	]) {
+		const parsedValue = parseArgs(value);
+		if (parsedValue && key in parsedValue) {
+			return parsedValue;
+		}
+	}
+
+	return undefined;
+};
+
+/**
+ * Returns the question_id from the result of an ask_user_question_async
+ * call, or undefined when the result has none.
+ */
+export const getAsyncQuestionId = (result: unknown): string | undefined => {
+	const record = findToolResultRecord(result, "question_id");
+	const questionId = record?.question_id;
+	if (typeof questionId !== "string" || questionId.length === 0) {
+		return undefined;
+	}
+
+	return questionId;
+};
+
 /**
  * Parses value, or its JSON encoding, as an array whose items all pass
  * parseItem. Returns null otherwise. The JSON form exists because the
