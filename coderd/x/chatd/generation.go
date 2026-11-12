@@ -1203,7 +1203,12 @@ func (s *taskStarter) executeLocalTools(
 		outcome.Content = append(outcome.Content, result)
 	}
 	chathooks.RestoreToolCallOrder(outcome.Content, decision.localToolCalls)
-	asyncQuestion := s.lastAsyncQuestion(ctx, input, outcome.Content)
+
+	var asyncQuestion string
+	if prepared.AsyncAskUserQuestion {
+		asyncQuestion = s.lastAsyncQuestion(ctx, input, outcome.Content)
+	}
+
 	step := stepDataFromPersisted(outcome)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:       prepared.ModelConfigID,
