@@ -687,6 +687,30 @@ const ChatSummarizedRenderer: React.FC<ToolRendererProps> = ({
 	);
 };
 
+/**
+ * Reads the questions from the call's args, or from its result when the
+ * args have none.
+ */
+export const getAskUserQuestions = (
+	args: unknown,
+	result: unknown,
+): AskUserQuestion[] => {
+	const parsedArgs = parseArgs(args);
+	const questionsFromArgs = parsedArgs
+		? parseAskUserQuestions(parsedArgs.questions)
+		: null;
+	if (questionsFromArgs && questionsFromArgs.length > 0) {
+		return questionsFromArgs;
+	}
+
+	const questionsFromResult = parseAskUserQuestionResult(result);
+	if (questionsFromResult && questionsFromResult.length > 0) {
+		return questionsFromResult;
+	}
+
+	return questionsFromArgs ?? questionsFromResult ?? [];
+};
+
 const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 	args,
 	status,
@@ -697,17 +721,7 @@ const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 	isLatestAskUserQuestion,
 	previousResponseText,
 }) => {
-	const parsedArgs = parseArgs(args);
-	const questionsFromArgs = parsedArgs
-		? parseAskUserQuestions(parsedArgs.questions)
-		: null;
-	const questionsFromResult = parseAskUserQuestionResult(result);
-	const questions =
-		questionsFromArgs && questionsFromArgs.length > 0
-			? questionsFromArgs
-			: questionsFromResult && questionsFromResult.length > 0
-				? questionsFromResult
-				: (questionsFromArgs ?? questionsFromResult ?? []);
+	const questions = getAskUserQuestions(args, result);
 	const resultRecord = asRecord(result);
 	const errorMessage =
 		(resultRecord

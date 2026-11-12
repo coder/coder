@@ -346,7 +346,7 @@ type AnsweredQuestionTextProps = {
 	idPrefix: string;
 };
 
-const AnsweredQuestionText: React.FC<AnsweredQuestionTextProps> = ({
+export const AnsweredQuestionText: React.FC<AnsweredQuestionTextProps> = ({
 	question,
 	questionIndex,
 	idPrefix,
@@ -368,15 +368,18 @@ const AnsweredQuestionText: React.FC<AnsweredQuestionTextProps> = ({
 	);
 };
 
-export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
+type AskUserQuestionFormProps = {
+	questions: AskUserQuestion[];
+	/** Sends the answer. Undefined while an answer cannot be sent. */
+	onSubmitAnswer?: (message: string) => Promise<void> | void;
+	/** Called with the sent message after onSubmitAnswer resolves. */
+	onSubmitted?: (message: string) => void;
+};
+
+export const AskUserQuestionForm: React.FC<AskUserQuestionFormProps> = ({
 	questions,
-	status,
-	isError,
-	errorMessage,
-	isChatCompleted = false,
-	isLatestAskUserQuestion = false,
-	previousResponseText,
 	onSubmitAnswer,
+	onSubmitted,
 }) => {
 	const idPrefix = useId();
 	const filteredQuestions = questions.map(filterQuestionOptions);
@@ -384,34 +387,20 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		() => filteredQuestions.map(getDefaultAnswer),
 	);
 	const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-	const [submittedResponseText, setSubmittedResponseText] = useState<
-		string | null
-	>(null);
 	const submitAnswerMutation = useMutation({
 		mutationFn: async (message: string) => {
 			await onSubmitAnswer?.(message);
 		},
 		onSuccess: (_data, message) => {
-			setSubmittedResponseText(message);
+			onSubmitted?.(message);
 		},
 	});
-	const isRunning = status === "running";
-	const displayedSubmittedResponseText =
-		previousResponseText ?? submittedResponseText;
-	const hasSubmittedResponse = displayedSubmittedResponseText != null;
-	const showAnsweredState = status === "completed" && hasSubmittedResponse;
-	const showSubmittedResponse = showAnsweredState && isLatestAskUserQuestion;
 	const activeQuestionIndex = Math.min(
 		currentQuestionIndex,
 		Math.max(filteredQuestions.length - 1, 0),
 	);
 	const currentAnswer = answers[activeQuestionIndex];
-	const isInteractive =
-		isChatCompleted &&
-		status === "completed" &&
-		isLatestAskUserQuestion &&
-		!hasSubmittedResponse &&
-		Boolean(onSubmitAnswer);
+	const isInteractive = onSubmitAnswer !== undefined;
 	const isSubmitting = submitAnswerMutation.isPending;
 	const submitError = getSubmissionErrorMessage(submitAnswerMutation.error);
 	const canAdvanceToNextQuestion = isAnswerValid(currentAnswer);
@@ -530,64 +519,11 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		handleSubmit();
 	};
 
-	if (isError) {
-		return (
-			<div className="w-full" role="alert">
-				<ToolCall.Root
-					status={status}
-					isError
-					errorMessage={errorMessage || "Failed to ask questions"}
-					hasContent={false}
-				>
-					<ToolCall.Header
-						iconName="ask_user_question"
-						label={errorMessage || "Failed to ask questions"}
-					/>
-				</ToolCall.Root>
-			</div>
-		);
-	}
-
-	if (questions.length === 0) {
-		return (
-			<div className="w-full">
-				{isRunning ? (
-					<ToolCall.Root
-						status={status}
-						hasContent={false}
-						role="status"
-						aria-live="polite"
-					>
-						<ToolCall.Header
-							iconName="ask_user_question"
-							label="Asking for clarification..."
-						/>
-					</ToolCall.Root>
-				) : (
-					<p className="text-[13px] italic text-content-secondary">
-						No questions available.
-					</p>
-				)}
-			</div>
-		);
-	}
-
 	const content = (
 		<>
 			<div className="space-y-5">
 				{visibleQuestions.map(({ question, questionIndex }) => {
 					const questionKey = `${question.header}-${question.question}-${questionIndex}`;
-					if (showAnsweredState) {
-						return (
-							<AnsweredQuestionText
-								key={questionKey}
-								question={question}
-								questionIndex={questionIndex}
-								idPrefix={idPrefix}
-							/>
-						);
-					}
-
 					return (
 						<QuestionStep
 							key={questionKey}
@@ -611,15 +547,6 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 					);
 				})}
 			</div>
-
-			{showSubmittedResponse && (
-				<div className="mt-4 rounded-md border bg-surface-secondary px-3 py-2">
-					<p className="text-xs text-content-secondary">Submitted answer</p>
-					<p className="mt-1 whitespace-pre-wrap text-[13px] text-content-primary">
-						{displayedSubmittedResponseText || "No answer recorded."}
-					</p>
-				</div>
-			)}
 
 			{submitError && (
 				<div
@@ -671,25 +598,131 @@ export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
 		</>
 	);
 
+	return isInteractive ? (
+		<form onSubmit={handleFormSubmit}>{content}</form>
+	) : (
+		content
+	);
+};
+
+export const QuestionErrorView: React.FC<{
+	status: ToolStatus;
+	errorMessage?: string;
+}> = ({ status, errorMessage }) => (
+	<div className="w-full" role="alert">
+		<ToolCall.Root
+			status={status}
+			isError
+			errorMessage={errorMessage || "Failed to ask questions"}
+			hasContent={false}
+		>
+			<ToolCall.Header
+				iconName="ask_user_question"
+				label={errorMessage || "Failed to ask questions"}
+			/>
+		</ToolCall.Root>
+	</div>
+);
+
+export const QuestionRunningHeader: React.FC<{ status: ToolStatus }> = ({
+	status,
+}) => (
+	<ToolCall.Root
+		status={status}
+		hasContent={false}
+		role="status"
+		aria-live="polite"
+	>
+		<ToolCall.Header
+			iconName="ask_user_question"
+			label="Asking for clarification..."
+		/>
+	</ToolCall.Root>
+);
+
+export const NoQuestionsAvailable = () => (
+	<p className="text-[13px] italic text-content-secondary">
+		No questions available.
+	</p>
+);
+
+export const SubmittedAnswer: React.FC<{ text: string }> = ({ text }) => (
+	<div className="mt-4 rounded-md border bg-surface-secondary px-3 py-2">
+		<p className="text-xs text-content-secondary">Submitted answer</p>
+		<p className="mt-1 whitespace-pre-wrap text-[13px] text-content-primary">
+			{text || "No answer recorded."}
+		</p>
+	</div>
+);
+
+export const AskUserQuestionTool: React.FC<AskUserQuestionToolProps> = ({
+	questions,
+	status,
+	isError,
+	errorMessage,
+	isChatCompleted = false,
+	isLatestAskUserQuestion = false,
+	previousResponseText,
+	onSubmitAnswer,
+}) => {
+	const idPrefix = useId();
+	const [submittedResponseText, setSubmittedResponseText] = useState<
+		string | null
+	>(null);
+	const isRunning = status === "running";
+	const displayedSubmittedResponseText =
+		previousResponseText ?? submittedResponseText;
+	const hasSubmittedResponse = displayedSubmittedResponseText != null;
+	const showAnsweredState = status === "completed" && hasSubmittedResponse;
+	const showSubmittedResponse = showAnsweredState && isLatestAskUserQuestion;
+	const isInteractive =
+		isChatCompleted &&
+		status === "completed" &&
+		isLatestAskUserQuestion &&
+		!hasSubmittedResponse &&
+		Boolean(onSubmitAnswer);
+
+	if (isError) {
+		return <QuestionErrorView status={status} errorMessage={errorMessage} />;
+	}
+
+	if (questions.length === 0) {
+		return (
+			<div className="w-full">
+				{isRunning ? (
+					<QuestionRunningHeader status={status} />
+				) : (
+					<NoQuestionsAvailable />
+				)}
+			</div>
+		);
+	}
+
 	return (
 		<div className="w-full">
-			{isRunning && (
-				<ToolCall.Root
-					status={status}
-					hasContent={false}
-					role="status"
-					aria-live="polite"
-				>
-					<ToolCall.Header
-						iconName="ask_user_question"
-						label="Asking for clarification..."
-					/>
-				</ToolCall.Root>
-			)}
-			{isInteractive ? (
-				<form onSubmit={handleFormSubmit}>{content}</form>
+			{isRunning && <QuestionRunningHeader status={status} />}
+			{showAnsweredState ? (
+				<>
+					<div className="space-y-5">
+						{questions.map((question, questionIndex) => (
+							<AnsweredQuestionText
+								key={`${question.header}-${question.question}-${questionIndex}`}
+								question={question}
+								questionIndex={questionIndex}
+								idPrefix={idPrefix}
+							/>
+						))}
+					</div>
+					{showSubmittedResponse && (
+						<SubmittedAnswer text={displayedSubmittedResponseText} />
+					)}
+				</>
 			) : (
-				content
+				<AskUserQuestionForm
+					questions={questions}
+					onSubmitAnswer={isInteractive ? onSubmitAnswer : undefined}
+					onSubmitted={setSubmittedResponseText}
+				/>
 			)}
 		</div>
 	);

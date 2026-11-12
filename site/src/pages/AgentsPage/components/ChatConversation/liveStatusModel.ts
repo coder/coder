@@ -42,6 +42,11 @@ export type LiveStatusModel =
 			statusCode?: number;
 	  } & LiveStatusBase);
 
+// A live turn only reveals its stream blocks once output has accumulated.
+// Before that the callout and thinking indicator stand in for the turn.
+export const showsStreamOutput = (liveStatus: LiveStatusModel): boolean =>
+	liveStatus.phase === "streaming" || liveStatus.hasAccumulatedOutput;
+
 export const shouldRenderLiveAssistant = (
 	liveStatus: LiveStatusModel,
 ): boolean =>
