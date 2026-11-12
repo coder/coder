@@ -29,10 +29,12 @@ const (
 	toolActionList = "list"
 	toolActionGet  = "get"
 
-	// listMaxItems and listPromptMaxRunes bound a list result so that one
-	// call cannot fill the context window: at most 20 items of about 2 KB each.
+	// A list result is bounded in three ways so that one call cannot fill the
+	// context window: at most listMaxItems automations, each prompt cut to
+	// listPromptMaxRunes characters, and listMaxBytes of encoded automations.
 	listMaxItems       = 20
 	listPromptMaxRunes = 200
+	listMaxBytes       = 32 << 10
 )
 
 // ToolOptions configures the tool. The tool acts as OwnerID, the owner of the
@@ -75,7 +77,7 @@ func Tool(options ToolOptions) fantasy.AgentTool {
 		ToolName,
 		"List the chat automations that you own in this organization, or get one automation by ID. "+
 			"An automation sends a saved prompt to a chat from a webhook or a schedule. "+
-			"A list result is cut to the newest "+strconv.Itoa(listMaxItems)+" automations and each prompt to "+
+			"A list result holds at most the newest "+strconv.Itoa(listMaxItems)+" automations and cuts each prompt to "+
 			strconv.Itoa(listPromptMaxRunes)+" characters; use get for a full prompt.",
 		func(ctx context.Context, args toolArgs, _ fantasy.ToolCall) (fantasy.ToolResponse, error) {
 			actor, _, err := httpmw.UserRBACSubject(ctx, options.DB, options.OwnerID, rbac.ScopeAll)
@@ -137,20 +139,28 @@ func listAutomations(ctx context.Context, options ToolOptions) (listResult, erro
 		return listResult{}, err
 	}
 	now := options.Clock.Now()
-	result := listResult{Automations: make([]listItem, len(automations)), Total: total}
-	var notes []string
-	if total > len(automations) {
-		notes = append(notes, "Showing the newest "+strconv.Itoa(len(automations))+" of "+strconv.Itoa(total)+" automations.")
-	}
-	promptCut := false
-	for i, a := range automations {
+	result := listResult{Automations: []listItem{}, Total: total}
+	promptCut, size := false, 0
+	for _, a := range automations {
 		item := listItem{ChatAutomation: db2sdk.ChatAutomation(a, refs, now)}
 		if utf8.RuneCountInString(item.Prompt) > listPromptMaxRunes {
 			item.Prompt = string([]rune(item.Prompt)[:listPromptMaxRunes])
 			item.PromptTruncated = true
-			promptCut = true
 		}
-		result.Automations[i] = item
+		encoded, err := json.Marshal(item)
+		if err != nil {
+			return listResult{}, xerrors.Errorf("encode automation: %w", err)
+		}
+		if size+len(encoded) > listMaxBytes {
+			break
+		}
+		size += len(encoded)
+		promptCut = promptCut || item.PromptTruncated
+		result.Automations = append(result.Automations, item)
+	}
+	var notes []string
+	if total > len(result.Automations) {
+		notes = append(notes, "Showing the newest "+strconv.Itoa(len(result.Automations))+" of "+strconv.Itoa(total)+" automations.")
 	}
 	if promptCut {
 		notes = append(notes, "A prompt with prompt_truncated is cut; use get with the id for the full prompt.")
@@ -172,6 +182,12 @@ func getAutomation(ctx context.Context, options ToolOptions, rawID string) (code
 	}
 	if err != nil {
 		return codersdk.ChatAutomation{}, xerrors.Errorf("get automation: %w", err)
+	}
+	// The API answers 404 for an automation outside the organization of its
+	// route. The organization of the chat plays that role, so a prompt from
+	// another organization never reaches this chat's history.
+	if automation.OrganizationID != options.OrganizationID {
+		return codersdk.ChatAutomation{}, errAutomationNotFound
 	}
 	refs, err := LoadRefs(ctx, options.DB, []database.ChatAutomation{automation})
 	if err != nil {

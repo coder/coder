@@ -24,6 +24,7 @@ import (
 // whom owns automations whose webhook secret is a canary.
 type toolEnv struct {
 	db     database.Store
+	sqlDB  *sql.DB
 	org    database.Organization
 	admin  database.User
 	member database.User
@@ -33,7 +34,7 @@ type toolEnv struct {
 
 func newToolEnv(t *testing.T) toolEnv {
 	t.Helper()
-	db, _ := dbtestutil.NewDB(t)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 	org := dbgen.Organization(t, db, database.Organization{})
 	user := func(roles ...string) database.User {
 		u := dbgen.User(t, db, database.User{})
@@ -41,7 +42,7 @@ func newToolEnv(t *testing.T) toolEnv {
 		return u
 	}
 	return toolEnv{
-		db: db, org: org, canary: "canary-secret-" + uuid.NewString(),
+		db: db, sqlDB: sqlDB, org: org, canary: "canary-secret-" + uuid.NewString(),
 		admin: user(rbac.RoleOrgAdmin()), member: user(), other: user(),
 	}
 }
@@ -167,8 +168,33 @@ func TestToolListBound(t *testing.T) {
 	require.NotZero(t, whole)
 }
 
-// TestToolGet reads one automation as the chat owner: any automation that the
-// owner can read, and nothing else. Each failure gives the same answer.
+// TestToolListBytes lists automations whose rows are large, so that the byte
+// bound cuts the list before the count bound does.
+func TestToolListBytes(t *testing.T) {
+	t.Parallel()
+	e := newToolEnv(t)
+	for range 10 {
+		e.automation(t, e.member, "prompt")
+	}
+	_, err := e.sqlDB.ExecContext(testutil.Context(t, testutil.WaitLong),
+		`UPDATE chat_automations SET last_run_at = now(), last_run_outcome = 'skipped', last_run_reason = repeat('x', 10000)
+		WHERE organization_id = $1`, e.org.ID)
+	require.NoError(t, err)
+
+	resp := e.run(t, e.member, `{"action":"list"}`)
+
+	require.False(t, resp.IsError, resp.Content)
+	var got toolList
+	require.NoError(t, json.Unmarshal([]byte(resp.Content), &got))
+	require.Equal(t, 10, got.Total)
+	require.NotEmpty(t, got.Automations)
+	require.Less(t, len(got.Automations), 10)
+	require.Contains(t, got.Note, fmt.Sprintf("newest %d of 10", len(got.Automations)))
+	require.Less(t, len(resp.Content), 33<<10)
+}
+
+// TestToolGet reads one automation as the chat owner: any automation of the
+// chat's organization that the owner can read, and nothing else. Each failure gives the same answer.
 func TestToolGet(t *testing.T) {
 	t.Parallel()
 	e := newToolEnv(t)
@@ -177,6 +203,11 @@ func TestToolGet(t *testing.T) {
 	gone := dbgen.User(t, e.db, database.User{})
 	dbgen.OrganizationMember(t, e.db, database.OrganizationMember{UserID: gone.ID, OrganizationID: e.org.ID})
 	goneAutomation := e.automation(t, gone, "gone prompt")
+	// The member also belongs to another organization and owns an automation
+	// there. The chat is in the first organization.
+	otherOrg := dbgen.Organization(t, e.db, database.Organization{})
+	dbgen.OrganizationMember(t, e.db, database.OrganizationMember{UserID: e.member.ID, OrganizationID: otherOrg.ID})
+	otherOrgAutomation := dbgen.ChatAutomation(t, e.db, database.ChatAutomation{OrganizationID: otherOrg.ID, OwnerID: e.member.ID})
 	//nolint:gocritic // The soft delete trigger removes the user's automations.
 	require.NoError(t, e.db.UpdateUserDeletedByID(dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong)), gone.ID))
 
@@ -192,6 +223,7 @@ func TestToolGet(t *testing.T) {
 		"Malformed":         {owner: e.admin, id: "not-an-id"},
 		"Missing":           {owner: e.admin},
 		"SoftDeletedOwner":  {owner: e.admin, id: goneAutomation.ID.String()},
+		"OtherOrganization": {owner: e.member, id: otherOrgAutomation.ID.String()},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
