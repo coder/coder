@@ -7826,8 +7826,8 @@ func createChatInputFromRequest(ctx context.Context, db database.Store, req code
 	if len(req.Content) == 0 {
 		return nil, "", nil
 	}
-	// Chat creation has no chat ID yet, so workspace-file-reference
-	// parts are rejected (they require an existing chat's uploads).
+	// Chat creation has no chat ID yet, so workspace-file-reference and
+	// question-answer parts are rejected because they require an existing chat.
 	content, pasteData, inputError := createChatInputFromParts(ctx, db, uuid.Nil, uuid.NullUUID{}, req.Content, "content", asyncQuestionsEnabled)
 	if inputError != nil {
 		return nil, "", inputError
@@ -8033,6 +8033,13 @@ func createChatInputFromParts(
 				return nil, nil, &codersdk.Response{
 					Message: "Async questions are not enabled on this deployment.",
 					Detail:  fmt.Sprintf("Enable the %s experiment.", codersdk.ExperimentChatAsyncQuestions),
+				}
+			}
+
+			if chatID == uuid.Nil {
+				return nil, nil, &codersdk.Response{
+					Message: "Invalid input part.",
+					Detail:  fmt.Sprintf("%s[%d].question-answer requires an existing chat.", fieldName, i),
 				}
 			}
 

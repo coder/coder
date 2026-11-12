@@ -90,9 +90,13 @@ func TestChatQuestionAnswer(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitLong)
-			_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+			chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 				OrganizationID: user.OrganizationID,
-				Content:        testCase.content,
+			})
+			require.NoError(t, err)
+
+			_, err = client.CreateChatMessage(ctx, chat.ID, codersdk.CreateChatMessageRequest{
+				Content: testCase.content,
 			})
 
 			sdkErr := requireSDKError(t, err, http.StatusBadRequest)
@@ -101,26 +105,18 @@ func TestChatQuestionAnswer(t *testing.T) {
 		})
 	}
 
-	t.Run("AcceptedInCreate", func(t *testing.T) {
+	t.Run("RejectedInCreate", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitLong)
-		chat, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
+		_, err := client.CreateChat(ctx, codersdk.CreateChatRequest{
 			OrganizationID: user.OrganizationID,
 			Content:        input,
 		})
-		require.NoError(t, err)
 
-		messages, err := client.GetChatMessages(ctx, chat.ID, nil)
-		require.NoError(t, err)
-		var userMessages []codersdk.ChatMessage
-		for _, message := range messages.Messages {
-			if message.Role == codersdk.ChatMessageRoleUser {
-				userMessages = append(userMessages, message)
-			}
-		}
-		require.Len(t, userMessages, 1)
-		require.Equal(t, wantContent, userMessages[0].Content)
+		sdkErr := requireSDKError(t, err, http.StatusBadRequest)
+		require.Equal(t, "Invalid input part.", sdkErr.Message)
+		require.Equal(t, "content[1].question-answer requires an existing chat.", sdkErr.Detail)
 	})
 
 	for _, testCase := range []struct {
