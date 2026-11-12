@@ -14,17 +14,13 @@ import (
 const (
 	askUserQuestionToolName      = "ask_user_question"
 	askUserQuestionToolDesc      = "Ask the user one or more structured clarification questions during plan mode. Use this instead of listing open questions in prose. Each question should have a short label, a detailed question, and 2-4 answer options."
-	askUserQuestionAsyncToolDesc = "Ask the user one or more structured questions without stopping your work. " +
-		"The call returns immediately and does not wait for an answer. " +
+	askUserQuestionAsyncToolDesc = "Ask the user one or more structured questions without ending your turn. " +
+		"The call returns at once and the answer arrives later as a user message. " +
 		"Use it only for decisions that depend on the user's context or preference; if one option is clearly best, proceed with it and state the assumption. " +
-		"Continue with work that does not depend on the answer and state the assumptions you make. " +
-		"The answer arrives as a user message that starts with \"Answer to ask_user_question <question_id>:\", where <question_id> is the question_id in this call's result. " +
-		"It can arrive before your next step or after your turn ends. " +
-		"If you cannot continue without the answer, finish what you can and end your turn with a short note of what is blocked. " +
-		"Asking again replaces an earlier unanswered question. " +
-		"Each question needs a short header, the question itself, and 2-4 options. Each option has a short label and a description of what it means."
+		"Asking again replaces an earlier unanswered question."
 	askUserQuestionAsyncStatusFormat = "The questions are shown to the user. " +
-		"Do not wait for an answer; continue with work that does not depend on it. " +
+		"Continue with work that does not depend on the answer, and state the assumptions you make. " +
+		"If you cannot continue without the answer, finish what you can and end your turn with a note of what is blocked. " +
 		"The answer arrives as a user message that starts with \"Answer to ask_user_question %s:\"."
 
 	// maxAsyncQuestionResultBytes is the smallest tool-result budget that

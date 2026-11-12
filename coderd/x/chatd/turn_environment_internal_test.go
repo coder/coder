@@ -1132,7 +1132,7 @@ func TestBuildTurnEnvironmentToolPolicy(t *testing.T) {
 
 				description := tool.Info().Description
 				if tt.askAsync {
-					require.Contains(t, description, "without stopping your work")
+					require.Contains(t, description, "without ending your turn")
 				} else {
 					require.Contains(t, description, "during plan mode")
 				}
