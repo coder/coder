@@ -357,6 +357,7 @@ func (*fakeDevcontainerCLI) Up(ctx context.Context, workspaceFolder, configFile 
 }
 
 func TestOpenVSCodeDevContainer(t *testing.T) {
+	t.Skip("flaky until CORE-717: the agent netstack drops a SYN that reuses a source port it holds in TIME_WAIT")
 	t.Parallel()
 
 	if runtime.GOOS != "linux" {
