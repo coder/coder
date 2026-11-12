@@ -22,11 +22,6 @@ const (
 		"Continue with work that does not depend on the answer, and state the assumptions you make. " +
 		"If you cannot continue without the answer, finish what you can and end your turn with a note of what is blocked. " +
 		"The answer arrives as a user message that starts with \"Answer to ask_user_question_async %s:\"."
-
-	// maxAsyncQuestionResultBytes is the smallest tool-result budget that
-	// chatloop.ToolResultByteBudget returns. A longer result would be
-	// truncated into invalid JSON and lose its question_id.
-	maxAsyncQuestionResultBytes = 16 << 10
 )
 
 var (
@@ -35,9 +30,8 @@ var (
 )
 
 type askUserQuestionAsyncResult struct {
-	Questions  []askUserQuestion `json:"questions"`
-	QuestionID string            `json:"question_id"`
-	Status     string            `json:"status"`
+	QuestionID string `json:"question_id"`
+	Status     string `json:"status"`
 }
 
 // NewAskUserQuestionAsyncTool creates the ask_user_question_async tool.
@@ -78,30 +72,20 @@ func (*askUserQuestionAsyncTool) Run(_ context.Context, call fantasy.ToolCall) (
 		return fantasy.NewTextErrorResponse(err.Error()), nil
 	}
 
-	return asyncQuestionResponse(args.Questions), nil
+	return asyncQuestionResponse(), nil
 }
 
 // asyncQuestionResponse returns the result of an async question, with a
-// new question_id, or an error response when the result does not fit in
-// maxAsyncQuestionResultBytes.
-func asyncQuestionResponse(questions []askUserQuestion) fantasy.ToolResponse {
+// new question_id.
+func asyncQuestionResponse() fantasy.ToolResponse {
 	questionID := uuid.NewString()
 	result := askUserQuestionAsyncResult{
-		Questions:  questions,
 		QuestionID: questionID,
 		Status:     fmt.Sprintf(askUserQuestionAsyncStatusFormat, questionID),
 	}
 	data, err := json.Marshal(result)
 	if err != nil {
 		return fantasy.NewTextErrorResponse("failed to marshal questions: " + err.Error())
-	}
-
-	if len(data) > maxAsyncQuestionResultBytes {
-		message := fmt.Sprintf(
-			"questions are too long: %d bytes, limit %d; shorten the question and option text",
-			len(data), maxAsyncQuestionResultBytes,
-		)
-		return fantasy.NewTextErrorResponse(message)
 	}
 
 	return fantasy.NewTextResponse(string(data))

@@ -51,14 +51,9 @@ func TestAskUserQuestionAsync(t *testing.T) {
 
 		var result map[string]json.RawMessage
 		require.NoError(t, json.Unmarshal([]byte(response.Content), &result))
-		require.Len(t, result, 3)
-		require.Contains(t, result, "questions")
+		require.Len(t, result, 2)
 		require.Contains(t, result, "question_id")
 		require.Contains(t, result, "status")
-
-		var args map[string]json.RawMessage
-		require.NoError(t, json.Unmarshal([]byte(input), &args))
-		require.JSONEq(t, string(args["questions"]), string(result["questions"]))
 
 		var questionID string
 		require.NoError(t, json.Unmarshal(result["question_id"], &questionID))
@@ -91,22 +86,22 @@ func TestAskUserQuestionAsync(t *testing.T) {
 		require.NotEqual(t, questionIDs[0], questionIDs[1])
 	})
 
-	t.Run("AsyncTooLong", func(t *testing.T) {
+	t.Run("AcceptsLongQuestions", func(t *testing.T) {
 		t.Parallel()
 
-		longQuestion := strings.Repeat("q", 16<<10)
+		longQuestion := strings.Repeat("q", 20_000)
 		longInput := strings.Replace(input, "What should we build?", longQuestion, 1)
-		asyncTool := chattool.NewAskUserQuestionAsyncTool()
-		blockingTool := chattool.NewAskUserQuestionTool()
+		tool := chattool.NewAskUserQuestionAsyncTool()
 
-		asyncResponse := run(t, asyncTool, longInput)
-		blockingResponse := run(t, blockingTool, longInput)
+		response := run(t, tool, longInput)
 
-		require.True(t, asyncResponse.IsError)
-		require.True(t, strings.HasPrefix(asyncResponse.Content, "questions are too long"), asyncResponse.Content)
+		require.False(t, response.IsError, response.Content)
 
-		require.False(t, blockingResponse.IsError)
-		require.JSONEq(t, longInput, blockingResponse.Content)
+		var result struct {
+			QuestionID string `json:"question_id"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(response.Content), &result))
+		require.NotEmpty(t, result.QuestionID)
 	})
 
 	t.Run("InvalidArgs", func(t *testing.T) {

@@ -9961,10 +9961,11 @@ func TestAsyncAskUserQuestionWebPush(t *testing.T) {
 
 		const input = `{
 			"questions": [{
-				"header": "Database",
+				"header": "   ",
 				"question": "Which database should we use?",
 				"options": [
-					{"label": "Postgres", "description": "Use Postgres."}
+					{"label": "Postgres", "description": "Use Postgres."},
+					{"label": "SQLite", "description": "Use SQLite."}
 				]
 			}]
 		}`
