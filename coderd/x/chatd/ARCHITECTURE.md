@@ -588,6 +588,8 @@ With empty `content`, the chat starts idle with only system messages. This lets 
 
 No other input states are supported.
 
+A root chat starts with its `manage_automations_enabled` switch on when the `chat-automations` experiment is on for its owner. Sub-agent chats and chats that are created while the experiment is off start with it off.
+
 If the request sets `title`, the chat is created with a `user` title and automatic title generation does not run. Otherwise the chat is created with a `fallback` title derived from the prompt, after any `UserPromptSubmit` override, and automatic title generation starts; the response does not wait for the title model call. With an empty `content` array the `fallback` title is `New Chat`, and both steps happen at the first `POST /api/v2/chats/{chat}/messages` instead.
 
 ### `PATCH /api/v2/chats/{chat}`
@@ -622,6 +624,8 @@ Setting `project_id` on a root chat moves it into that project, and the nil UUID
 A move to the chat's current project succeeds without a transition, even while the chat runs. Child chats and archived chats can't be moved, and neither can a chat that the same request archives.
 
 Setting `title` writes a `user` title. The write happens even when the text is unchanged, unless the title is already a `user` title.
+
+Setting `manage_automations_enabled` writes the chat's switch and emits no state transition. Only the chat owner can set it, and turning it on needs the `chat-automations` experiment for the owner.
 
 ### `POST /api/v2/chats/{chat}/messages`
 
@@ -1234,6 +1238,12 @@ Subagent model and effort resolution follows this precedence:
 During generation preparation, the effective effort is resolved as the chat's `last_reasoning_effort` if set, else the config's `default`; clamped to the config's `max` on the global scale `none < minimal < low < medium < high < xhigh < max`; and passed through to the provider. The provider verifies whether the configured value is valid for that model at runtime. If the model config has no `reasoning_effort`, any user-selected value is ignored. The resolved value is injected into the provider-native options by `chatprovider.ProviderOptionsForCall`, which converts the model config and applies the effort in one step. For Anthropic, the fantasy provider converts effort into enabled budget thinking on models older than Claude 4.6, which reject adaptive thinking.
 
 `applyReasoningEffort` clamps `none` and `minimal` to `low` for GPT-6 Astra and its dated snapshots (`chatopenai.IsGPT6Astra`, a case-insensitive prefix match on `gpt-6-astra`), because that model rejects `none` with HTTP 400 and lists no `minimal` effort.
+
+##### Chat automations tool
+
+A turn offers the `manage_automations` tool only when all of these hold: the chat's `manage_automations_enabled` switch is on, the chat is a root chat and isn't archived, the chat is in neither plan mode nor explore mode, and the `chat-automations` experiment is on for the chat owner. The experiment is evaluated on each turn through `Config.ExperimentEvaluator`. A failed evaluation or a missing evaluator counts as off, so turning the experiment off removes the tool from the next turn without a write to the chat.
+
+The tool acts as the chat owner. Each call loads the owner's RBAC subject and reads through dbauthz, so the tool has no permission rules of its own and has the same permissions in every turn. `list` returns the owner's own automations in the chat's organization, newest first, also in an administrator's chat. A `list` result holds at most 20 automations, each prompt is cut to 200 characters, and the result says what it cut. `get` returns any automation that the owner can read. A result never holds a webhook secret, because it is built by the converter of the API. Any other action is a tool error.
 
 ##### OpenAI transport selection
 
