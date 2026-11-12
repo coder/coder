@@ -345,7 +345,7 @@ func TestChatAutomationsResponse(t *testing.T) {
 		NewChatModelConfigID: valid(env.model.ID), ProjectID: valid(project.ID),
 		ReasoningEffort: database.NullChatReasoningEffort{ChatReasoningEffort: database.ChatReasoningEffortHigh, Valid: true},
 	})
-	env.exec(t, `UPDATE chat_automations SET last_run_at = now() - interval '5 minutes', last_run_outcome = 'skipped',
+	env.exec(t, `UPDATE chat_automations SET last_run_at = TIMESTAMPTZ '2026-01-02 03:04:05+00', last_run_outcome = 'skipped',
 		last_run_reason = 'target chat busy', last_run_chat_id = $1 WHERE id = $2`, target.ID, newChat.ID)
 	// The allow list reaches the organization and this automation only, so
 	// the caller reads the automation but neither its owner nor its chats.
@@ -395,7 +395,7 @@ func TestChatAutomationsResponse(t *testing.T) {
 		require.Equal(t, &project.ID, got.ProjectID)
 		require.Equal(t, string(database.ChatReasoningEffortHigh), *got.ReasoningEffort)
 		require.NotNil(t, got.LastRun)
-		require.WithinDuration(t, time.Now().Add(-5*time.Minute), got.LastRun.At, time.Minute)
+		require.True(t, time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC).Equal(got.LastRun.At), got.LastRun.At)
 		require.Equal(t, codersdk.ChatAutomationRunOutcomeSkipped, got.LastRun.Outcome)
 		require.Equal(t, "target chat busy", *got.LastRun.Reason)
 		require.Equal(t, &target.ID, got.LastRun.ChatID)
