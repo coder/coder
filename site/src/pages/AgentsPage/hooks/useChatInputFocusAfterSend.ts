@@ -6,15 +6,15 @@ import type { SubmitChatTurnParams } from "../components/ChatConversation/submit
 type SendChatMessage = SubmitChatTurnParams["sendMessage"];
 
 /**
- * Wraps an answer's send so that the chat input takes focus once it is sent
- * and enabled again, unless the user clicked or moved focus during the send.
+ * Focuses the enabled chat input after an answer sends outside mobile
+ * viewports, unless the user clicked or moved focus during the send.
  */
 export const useChatInputFocusAfterSend = (
 	chatInputRef: React.RefObject<ChatMessageInputRef | null>,
 	send: SendChatMessage,
 ): SendChatMessage => {
 	const [focusRequest, setFocusRequest] = useState(0);
-	// The editor refuses focus while the send keeps it disabled, so the focus
+	// The chat input refuses focus while the send keeps it disabled, so focus
 	// waits for the commit that enables it again.
 	useEffect(() => {
 		if (focusRequest > 0 && !isMobileViewport()) {

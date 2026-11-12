@@ -739,6 +739,7 @@ export const MockNewerAsyncQuestionMessages: TypesGen.ChatMessage[] = [
 
 export const MockQueuedQuestionAnswer: TypesGen.ChatQueuedMessage = {
 	...MockChatQueuedMessage,
+	busy_behavior: "steer",
 	content: [
 		{ type: "question-answer", question_id: MockAsyncQuestionId },
 		{ type: "text", text: "Frontend first, then the API." },

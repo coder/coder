@@ -29,12 +29,14 @@ describe("AskUserQuestionForm", () => {
 			resolveSend = resolve;
 		});
 		const onSubmitAnswer = vi.fn(() => send);
+		const onSubmitted = vi.fn();
 		const queryClient = createTestQueryClient();
 		const { rerender } = render(
 			<QueryClientProvider client={queryClient}>
 				<AskUserQuestionForm
 					questions={questions}
 					onSubmitAnswer={onSubmitAnswer}
+					onSubmitted={onSubmitted}
 				/>
 			</QueryClientProvider>,
 		);
@@ -44,7 +46,7 @@ describe("AskUserQuestionForm", () => {
 
 		rerender(
 			<QueryClientProvider client={queryClient}>
-				<AskUserQuestionForm questions={questions} />
+				<AskUserQuestionForm questions={questions} onSubmitted={onSubmitted} />
 			</QueryClientProvider>,
 		);
 
@@ -57,7 +59,7 @@ describe("AskUserQuestionForm", () => {
 			await send;
 		});
 		await waitFor(() => {
-			expect(screen.queryByRole("button")).toBeNull();
+			expect(onSubmitted).toHaveBeenCalledWith("Single migration");
 		});
 	});
 });
