@@ -181,14 +181,20 @@ const (
 // with an identity of its own.
 type Workload struct {
 	// ID is the workload's identity ID.
-	ID          uuid.UUID      `json:"id" format:"uuid"`
-	Name        string         `json:"name"`
-	WorkspaceID uuid.UUID      `json:"workspace_id" format:"uuid"`
-	AgentID     uuid.UUID      `json:"agent_id" format:"uuid"`
-	AgentName   string         `json:"agent_name"`
-	Status      WorkloadStatus `json:"status"`
-	Command     string         `json:"command"`
-	CreatedAt   time.Time      `json:"created_at" format:"date-time"`
+	ID          uuid.UUID `json:"id" format:"uuid"`
+	Name        string    `json:"name"`
+	WorkspaceID uuid.UUID `json:"workspace_id" format:"uuid"`
+	// WorkspaceName is set when workloads of several workspaces are
+	// listed.
+	WorkspaceName string `json:"workspace_name,omitempty"`
+	// OwnWorkspace means the workspace was made for this workload and is
+	// deleted when the workload is over.
+	OwnWorkspace bool           `json:"own_workspace,omitempty"`
+	AgentID      uuid.UUID      `json:"agent_id" format:"uuid"`
+	AgentName    string         `json:"agent_name"`
+	Status       WorkloadStatus `json:"status"`
+	Command      string         `json:"command"`
+	CreatedAt    time.Time      `json:"created_at" format:"date-time"`
 	// FinishedAt is set once the workload is over.
 	FinishedAt *time.Time `json:"finished_at,omitempty" format:"date-time"`
 	// ExitCode is the command's exit code, when it is known.
@@ -232,6 +238,9 @@ type CreateWorkloadRequest struct {
 	// Scopes are the API key scopes the workload may use on the sponsor's
 	// behalf. Without any, the workload can do nothing in Coder.
 	Scopes []APIKeyScope `json:"scopes,omitempty"`
+	// RemoveWorkspace deletes the workspace when the workload is over. It
+	// is for a workspace that was made for this one workload.
+	RemoveWorkspace bool `json:"remove_workspace,omitempty"`
 }
 
 // WorkloadLogEvent is one item of a workload's output stream. The last
@@ -269,6 +278,15 @@ type AgentWorkloadState struct {
 	Running   bool            `json:"running"`
 	ExitCode  *int            `json:"exit_code,omitempty"`
 	StartedAt time.Time       `json:"started_at" format:"date-time"`
+}
+
+// AgentWorkloadStart is what a workspace daemon reports once it has tried
+// to start a workload that coderd gave it.
+type AgentWorkloadStart struct {
+	// State is set when the workload runs.
+	State *AgentWorkloadState `json:"state,omitempty"`
+	// Error says why it does not.
+	Error string `json:"error,omitempty"`
 }
 
 // AgentWorkloadExit is what a workspace daemon reports when a workload is
@@ -400,6 +418,29 @@ func (c *Client) AttachWorkspaceWorkload(ctx context.Context, workspaceID, workl
 		return nil, ReadBodyAsError(res)
 	}
 	return websocket.NetConn(context.Background(), conn, websocket.MessageBinary), nil
+}
+
+// Workloads lists the workloads the caller sponsors, in every workspace:
+// the live ones, oldest first, followed by finished ones when asked, newest
+// first. The workspace of a finished workload may be gone.
+func (c *Client) Workloads(ctx context.Context, opts WorkspaceWorkloadsOptions) ([]Workload, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/workloads", nil,
+		func(r *http.Request) {
+			if opts.Finished {
+				q := r.URL.Query()
+				q.Set("finished", "true")
+				r.URL.RawQuery = q.Encode()
+			}
+		})
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var workloads []Workload
+	return workloads, json.NewDecoder(res.Body).Decode(&workloads)
 }
 
 // WorkloadIdentity returns the identity coderd sees for the caller. It

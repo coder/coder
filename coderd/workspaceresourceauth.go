@@ -1,10 +1,13 @@
 package coderd
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/mitchellh/mapstructure"
 
@@ -13,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/azureidentity"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/x/agentsandbox"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
@@ -128,6 +132,92 @@ func (api *API) postWorkspaceAuthGoogleInstanceIdentity(rw http.ResponseWriter, 
 		return
 	}
 	api.handleAuthInstanceID(rw, r, claims.Google.ComputeEngine.InstanceID, req.AgentName)
+}
+
+// maxKubernetesPodIdentityWait bounds how long a pod's request is held.
+const maxKubernetesPodIdentityWait = 30 * time.Second
+
+// A workspace daemon in a Kubernetes pod proves which pod it is with the
+// token the kubelet obtained for the pod. coderd asks the cluster whether
+// the token is genuine, for whom it was issued, and to which pod it is
+// bound. Nothing the pod says about itself is believed.
+//
+// A pod from a warm pool runs its daemon before any workspace has claimed
+// it. Such a pod is told to wait: the request is held until a workspace
+// build registers the pod, or the wait runs out.
+//
+// @Summary Authenticate agent in a Kubernetes pod
+// @ID authenticate-agent-in-a-kubernetes-pod
+// @Security CoderSessionToken
+// @Accept json
+// @Produce json
+// @Tags Agents
+// @Param request body agentsdk.KubernetesPodIdentityToken true "Pod identity token"
+// @Success 200 {object} agentsdk.AuthenticateResponse
+// @Router /api/v2/workspaceagents/kubernetes-pod-identity [post]
+func (api *API) postWorkspaceAuthKubernetesPodIdentity(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if api.SandboxCluster == nil {
+		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+			Message: "Kubernetes pod identity is not configured on this deployment.",
+		})
+		return
+	}
+	var req agentsdk.KubernetesPodIdentityToken
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	pod, err := api.SandboxCluster.Attestor.Attest(ctx, req.Token)
+	if err != nil {
+		if !errors.Is(err, agentsandbox.ErrNotAttested) {
+			api.Logger.Warn(ctx, "ask the cluster about a pod token", slog.Error(err))
+		}
+		httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+			Message: "The cluster did not confirm the token as a pod's.",
+		})
+		return
+	}
+	instanceID := pod.InstanceID()
+
+	wait := min(time.Duration(req.WaitSeconds)*time.Second, maxKubernetesPodIdentityWait)
+	if wait > 0 {
+		claimed := make(chan struct{}, 1)
+		// Listening comes before looking, so that a claim in between is
+		// not missed.
+		unsubscribe, err := api.Pubsub.Subscribe(agentsandbox.ClaimedChannel(instanceID), func(context.Context, []byte) {
+			select {
+			case claimed <- struct{}{}:
+			default:
+			}
+		})
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		defer unsubscribe()
+		deadline := time.NewTimer(wait)
+		defer deadline.Stop()
+		// Look now and then as well, in case an announcement is lost.
+		look := time.NewTicker(5 * time.Second)
+		defer look.Stop()
+	waiting:
+		for {
+			//nolint:gocritic // Instance identity auth happens before agent auth.
+			agents, err := api.Database.GetWorkspaceBuildAgentsByInstanceID(dbauthz.AsSystemRestricted(ctx), instanceID)
+			if err != nil || len(agents) > 0 {
+				break
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-deadline.C:
+				break waiting
+			case <-claimed:
+			case <-look.C:
+			}
+		}
+	}
+	api.handleAuthInstanceID(rw, r, instanceID, req.AgentName)
 }
 
 func (api *API) handleAuthInstanceID(rw http.ResponseWriter, r *http.Request, instanceID string, agentName string) {

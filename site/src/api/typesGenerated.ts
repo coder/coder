@@ -1708,6 +1708,22 @@ export interface AgentWorkloadSpec {
 
 // From codersdk/workloads.go
 /**
+ * AgentWorkloadStart is what a workspace daemon reports once it has tried
+ * to start a workload that coderd gave it.
+ */
+export interface AgentWorkloadStart {
+	/**
+	 * State is set when the workload runs.
+	 */
+	readonly state?: AgentWorkloadState;
+	/**
+	 * Error says why it does not.
+	 */
+	readonly error?: string;
+}
+
+// From codersdk/workloads.go
+/**
  * AgentWorkloadState is a workload as its workspace daemon sees it.
  */
 export interface AgentWorkloadState {
@@ -5062,6 +5078,11 @@ export interface CreateWorkloadRequest {
 	 * behalf. Without any, the workload can do nothing in Coder.
 	 */
 	readonly scopes?: readonly APIKeyScope[];
+	/**
+	 * RemoveWorkspace deletes the workspace when the workload is over. It
+	 * is for a workspace that was made for this one workload.
+	 */
+	readonly remove_workspace?: boolean;
 }
 
 // From codersdk/workspaces.go
@@ -9125,9 +9146,13 @@ export interface ProvisionerTiming {
 }
 
 // From codersdk/organizations.go
-export type ProvisionerType = "echo" | "terraform";
+export type ProvisionerType = "echo" | "sandbox" | "terraform";
 
-export const ProvisionerTypes: ProvisionerType[] = ["echo", "terraform"];
+export const ProvisionerTypes: ProvisionerType[] = [
+	"echo",
+	"sandbox",
+	"terraform",
+];
 
 // From codersdk/workspaceproxy.go
 /**
@@ -12393,6 +12418,16 @@ export interface Workload {
 	readonly id: string;
 	readonly name: string;
 	readonly workspace_id: string;
+	/**
+	 * WorkspaceName is set when workloads of several workspaces are
+	 * listed.
+	 */
+	readonly workspace_name?: string;
+	/**
+	 * OwnWorkspace means the workspace was made for this workload and is
+	 * deleted when the workload is over.
+	 */
+	readonly own_workspace?: boolean;
 	readonly agent_id: string;
 	readonly agent_name: string;
 	readonly status: WorkloadStatus;

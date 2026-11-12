@@ -300,7 +300,13 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 
 			reinitCtx, reinitCancel := context.WithCancel(ctx)
 			defer reinitCancel()
-			reinitEvents := agentsdk.WaitForReinitLoop(reinitCtx, logger, client)
+			var reinitEvents <-chan agentsdk.ReinitializationEvent
+			// A daemon that is whichever pod it runs in has nothing to be
+			// reinitialized with: it becomes somebody when its pod is
+			// claimed, and waits for that when it authenticates.
+			if agentAuth.agentAuth != "kubernetes" {
+				reinitEvents = agentsdk.WaitForReinitLoop(reinitCtx, logger, client)
+			}
 
 			// Read and strip env vars before the reinit
 			// loop so config survives agent restarts.
@@ -347,6 +353,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 						Runtime: &agentworkload.DockerRuntime{
 							StateDir: filepath.Join(os.TempDir(), "coder-workloads"),
 							CLIPath:  cliPath,
+							Logger:   logger.Named("workloads"),
 						},
 						Policy: agentworkload.Policy{
 							DefaultImage:    workloadImage,
@@ -357,11 +364,42 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 						},
 						CoderURL:     &agentAuth.agentURL,
 						SessionToken: client.GetSessionToken,
+						Pending:      client.PendingWorkloads,
+						ReportStart:  client.ReportWorkloadStart,
 						ReportExit:   client.ReportWorkloadExit,
 					})
 					if err != nil {
 						// Workloads are optional. The daemon itself must
 						// still come up when its runtime is not ready.
+						logger.Error(ctx, "workloads are disabled: the runtime is not usable", slog.Error(err))
+						workloads = nil
+					}
+				case "pod":
+					// The daemon has a sandbox to itself, such as a pod made
+					// for one workload. The workload runs next to it.
+					cliPath, _ := os.Executable()
+					sandboxID, _ := os.Hostname()
+					workloads, err = agentworkload.New(ctx, agentworkload.Options{
+						Logger: logger.Named("workloads"),
+						Runtime: &agentworkload.PodRuntime{
+							SandboxID: sandboxID,
+							StateDir:  filepath.Join(os.TempDir(), "coder-workloads"),
+							CLIPath:   cliPath,
+							Execer:    execer,
+							Logger:    logger.Named("workloads"),
+						},
+						Policy: agentworkload.Policy{
+							DefaultImage:   workloadImage,
+							DefaultNetwork: codersdk.WorkloadNetwork(workloadNetwork),
+							Fixed:          true,
+						},
+						CoderURL:     &agentAuth.agentURL,
+						SessionToken: client.GetSessionToken,
+						Pending:      client.PendingWorkloads,
+						ReportStart:  client.ReportWorkloadStart,
+						ReportExit:   client.ReportWorkloadExit,
+					})
+					if err != nil {
 						logger.Error(ctx, "workloads are disabled: the runtime is not usable", slog.Error(err))
 						workloads = nil
 					}
@@ -584,7 +622,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 		{
 			Flag:        "workload-runtime",
 			Env:         "CODER_AGENT_WORKLOAD_RUNTIME",
-			Description: "Run workloads started with \"coder run\" in sandboxes inside this agent. The only runtime is \"docker\", which needs a Docker daemon that shares the agent's filesystem. Empty disables workloads.",
+			Description: "Run workloads started with \"coder run\". With \"docker\" each runs in a container of a Docker daemon that shares the agent's filesystem. With \"pod\" the agent's own pod is the sandbox of one workload, which runs next to the agent. Empty disables workloads.",
 			Value:       serpent.StringOf(&workloadRuntime),
 			Hidden:      true,
 		},

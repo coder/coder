@@ -1,0 +1,127 @@
+# A warm pool of sandbox pods for Coder workloads.
+#
+# Every pod in the pool already runs a Coder workspace daemon that belongs to
+# nobody yet. It waits until a workspace claims the pod. Apply with the URL
+# of your deployment:
+#
+#   CODER_URL=https://coder.example.com envsubst < pool.yaml | kubectl apply -f -
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxTemplate
+metadata:
+  name: coder-workload
+  namespace: coder-sandbox-workloads
+spec:
+  # What a workload can reach is decided here, for every pod of the pool: Coder
+  # and nothing else. The controller turns this into a NetworkPolicy.
+  networkPolicyManagement: Managed
+  networkPolicy:
+    egress:
+      - to:
+          - ipBlock:
+              cidr: ${CODER_IP}/32
+        ports:
+          - protocol: TCP
+            port: ${CODER_PORT}
+  podTemplate:
+    spec:
+      # The service account can do nothing in the cluster, and its ordinary
+      # token is not mounted.
+      serviceAccountName: coder-workload
+      automountServiceAccountToken: false
+      # The pod has a user namespace of its own. Root in the pod is an
+      # unprivileged user on the node, and it has no capabilities in the pod
+      # either. It is root so that the pod's user has a name and a shell in
+      # any image.
+      hostUsers: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 5
+      securityContext:
+        runAsUser: 0
+        runAsGroup: 0
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: workload
+          image: alpine:3.22
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              until wget -q -O /opt/coder/coder.tmp "$CODER_AGENT_URL/bin/coder-linux-amd64"; do sleep 2; done
+              chmod +x /opt/coder/coder.tmp && mv /opt/coder/coder.tmp /opt/coder/coder
+              exec /opt/coder/coder agent
+          env:
+            - name: CODER_AGENT_URL
+              value: ${CODER_URL}
+            # The daemon is whoever the cluster says this pod is. There is no
+            # token in this template.
+            - name: CODER_AGENT_AUTH
+              value: kubernetes
+            # The pod is the sandbox of one workload.
+            - name: CODER_AGENT_WORKLOAD_RUNTIME
+              value: pod
+            # For the record: what a workload gets here.
+            - name: CODER_AGENT_WORKLOAD_IMAGE
+              value: alpine:3.22
+            - name: CODER_AGENT_WORKLOAD_NETWORK
+              value: none
+            - name: CODER_AGENT_DEVCONTAINERS_ENABLE
+              value: "false"
+            - name: HOME
+              value: /root
+            - name: PATH
+              value: /opt/coder:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+          # Ready means the daemon runs and waits. Only such pods are handed
+          # out.
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "pidof coder >/dev/null"]
+            periodSeconds: 1
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: "2"
+              memory: 512Mi
+          volumeMounts:
+            - name: coder-identity
+              mountPath: /var/run/secrets/coder.com/identity
+              readOnly: true
+            - name: coder
+              mountPath: /opt/coder
+            - name: home
+              mountPath: /root
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        # The kubelet obtains this token for the pod and keeps it fresh. It
+        # is only good for telling Coder which pod this is.
+        - name: coder-identity
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: ${CODER_URL}
+                  expirationSeconds: 600
+                  path: token
+        - name: coder
+          emptyDir: {}
+        - name: home
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxWarmPool
+metadata:
+  name: coder-workload
+  namespace: coder-sandbox-workloads
+spec:
+  replicas: 3
+  sandboxTemplateRef:
+    name: coder-workload

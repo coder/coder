@@ -46,6 +46,7 @@ import (
 	"github.com/coder/coder/v2/coderd/usage"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wspubsub"
+	"github.com/coder/coder/v2/coderd/x/agentsandbox"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/drpcsdk"
@@ -2618,6 +2619,18 @@ func (s *server) completeWorkspaceBuildJob(ctx context.Context, job database.Pro
 					presetName,
 					buildTime,
 				)
+			}
+		}
+	}
+
+	// A daemon in a pod that was waiting to be claimed can stop waiting:
+	// this build registered its pod.
+	for _, protoResource := range jobType.WorkspaceBuild.Resources {
+		for _, protoAgent := range protoResource.GetAgents() {
+			if instanceID := protoAgent.GetInstanceId(); strings.HasPrefix(instanceID, agentsandbox.InstanceIDPrefix) {
+				if err := s.Pubsub.Publish(agentsandbox.ClaimedChannel(instanceID), []byte{}); err != nil {
+					s.Logger.Warn(ctx, "failed to announce that a pod was claimed", slog.Error(err))
+				}
 			}
 		}
 	}

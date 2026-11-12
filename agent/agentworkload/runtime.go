@@ -12,10 +12,15 @@ package agentworkload
 import (
 	"context"
 	"io"
+	"net"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 
+	"cdr.dev/slog/v3"
+	"github.com/coder/coder/v2/agent/agentexec"
+	"github.com/coder/coder/v2/agent/reconnectingpty"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -52,15 +57,34 @@ type Runtime interface {
 	Sweep(ctx context.Context) error
 }
 
+// AttachCommand runs a command in a terminal of the daemon's own and
+// connects conn to it. It serves runtimes whose way to a workload's terminal
+// is a command, such as `docker attach`.
+func AttachCommand(ctx context.Context, logger slog.Logger, execer agentexec.Execer, conn net.Conn, height, width uint16, name string, args ...string) error {
+	if execer == nil {
+		execer = agentexec.DefaultExecer
+	}
+	terminal := reconnectingpty.New(ctx, logger, execer, execer.PTYCommandContext(ctx, name, args...), &reconnectingpty.Options{
+		// The terminal belongs to this connection: the workload itself
+		// keeps running in its sandbox when the caller goes away.
+		Timeout:     time.Second,
+		BackendType: "buffered",
+	})
+	defer terminal.Close(nil)
+	return terminal.Attach(ctx, uuid.NewString(), conn, height, width, logger)
+}
+
 // Sandbox is a running or finished workload.
 type Sandbox interface {
 	// ID identifies the sandbox to its runtime.
 	ID() string
 	// Logs copies the workload's output to w until the workload exits.
 	Logs(ctx context.Context, w io.Writer) error
-	// AttachCommand returns a command that, run in a terminal by the
-	// daemon, is the terminal of an interactive workload.
-	AttachCommand() (name string, args []string)
+	// Attach connects conn to the terminal of an interactive workload
+	// until either of them ends. conn carries what a reconnecting PTY
+	// carries: JSON messages with input and window sizes one way, raw
+	// output the other.
+	Attach(ctx context.Context, conn net.Conn, height, width uint16) error
 	// Wait blocks until the workload exits and returns its exit code.
 	Wait(ctx context.Context) (int, error)
 	// Close stops the workload, closes its channel and removes the sandbox.

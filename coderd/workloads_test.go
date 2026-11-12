@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -39,6 +40,7 @@ type fakeRuntime struct {
 }
 
 type fakeSandbox struct {
+	t       testing.TB
 	id      string
 	command string
 	// server serves the sandbox's channel, as a runtime does on a socket
@@ -53,6 +55,7 @@ func (*fakeRuntime) Name() string { return "fake" }
 
 func (f *fakeRuntime) Start(_ context.Context, spec agentworkload.Spec, channel http.Handler) (agentworkload.Sandbox, error) {
 	sandbox := &fakeSandbox{
+		t:       f.t,
 		id:      "sandbox-" + spec.Name,
 		command: spec.Command,
 		server:  httptest.NewServer(channel),
@@ -93,10 +96,11 @@ func (s *fakeSandbox) Logs(ctx context.Context, w io.Writer) error {
 	return nil
 }
 
-// AttachCommand stands in for a sandbox's terminal with a shell that says
-// where it is and what it was told.
-func (s *fakeSandbox) AttachCommand() (string, []string) {
-	return "sh", []string{"-c", "echo terminal of " + s.id + "; read line; echo heard $line"}
+// Attach stands in for a sandbox's terminal with a shell that says where it
+// is and what it was told.
+func (s *fakeSandbox) Attach(ctx context.Context, conn net.Conn, height, width uint16) error {
+	return agentworkload.AttachCommand(ctx, testutil.Logger(s.t), nil, conn, height, width,
+		"sh", "-c", "echo terminal of "+s.id+"; read line; echo heard $line")
 }
 
 func (s *fakeSandbox) Wait(ctx context.Context) (int, error) {
@@ -156,6 +160,7 @@ func TestWorkloads(t *testing.T) {
 	require.NoError(t, os.Symlink(private, filepath.Join(shared, "way-out")))
 
 	runtime := &fakeRuntime{t: t, sandboxes: make(map[uuid.UUID]*fakeSandbox)}
+	daemonClient := agentsdk.New(adminClient.URL, agentsdk.WithFixedToken(build.AgentToken))
 	supervisor, err := agentworkload.New(context.Background(), agentworkload.Options{
 		Logger:  testutil.Logger(t).Named("workloads"),
 		Runtime: runtime,
@@ -167,7 +172,9 @@ func TestWorkloads(t *testing.T) {
 		},
 		CoderURL:     adminClient.URL,
 		SessionToken: func() string { return build.AgentToken },
-		ReportExit:   agentsdk.New(adminClient.URL, agentsdk.WithFixedToken(build.AgentToken)).ReportWorkloadExit,
+		Pending:      daemonClient.PendingWorkloads,
+		ReportStart:  daemonClient.ReportWorkloadStart,
+		ReportExit:   daemonClient.ReportWorkloadExit,
 	})
 	require.NoError(t, err)
 	_ = agenttest.New(t, adminClient.URL, build.AgentToken, func(o *agent.Options) {

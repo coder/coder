@@ -869,11 +869,13 @@ Actions: `start`, `stop`, `connect`
 <tr><td><code>finished_at</code></td><td>No</td></tr>
 <tr><td><code>id</code></td><td>Yes</td></tr>
 <tr><td><code>image</code></td><td>Yes</td></tr>
+<tr><td><code>interactive</code></td><td>Yes</td></tr>
 <tr><td><code>mounts</code></td><td>Yes</td></tr>
 <tr><td><code>name</code></td><td>Yes</td></tr>
 <tr><td><code>network</code></td><td>Yes</td></tr>
 <tr><td><code>organization_id</code></td><td>Yes</td></tr>
 <tr><td><code>output_tail</code></td><td>Yes</td></tr>
+<tr><td><code>remove_workspace</code></td><td>Yes</td></tr>
 <tr><td><code>runtime</code></td><td>Yes</td></tr>
 <tr><td><code>sandbox_id</code></td><td>Yes</td></tr>
 <tr><td><code>scopes</code></td><td>Yes</td></tr>

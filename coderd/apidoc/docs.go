@@ -15877,6 +15877,45 @@ const docTemplate = `{
                 ]
             }
         },
+        "/api/v2/workloads": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Workspaces"
+                ],
+                "summary": "List the workloads you sponsor (experimental)",
+                "operationId": "list-sponsored-workloads",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "Also list the most recent finished workloads",
+                        "name": "finished",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Workload"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/workspace-quota/{user}": {
             "get": {
                 "produces": [
@@ -16039,6 +16078,45 @@ const docTemplate = `{
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/agentsdk.GoogleInstanceIdentityToken"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.AuthenticateResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ]
+            }
+        },
+        "/api/v2/workspaceagents/kubernetes-pod-identity": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Authenticate agent in a Kubernetes pod",
+                "operationId": "authenticate-agent-in-a-kubernetes-pod",
+                "parameters": [
+                    {
+                        "description": "Pod identity token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/agentsdk.KubernetesPodIdentityToken"
                         }
                     }
                 ],
@@ -16389,6 +16467,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v2/workspaceagents/me/workloads/pending": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get the workloads a daemon has been given (experimental)",
+                "operationId": "get-workspace-agent-pending-workloads",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "How long to hold the request when there is none",
+                        "name": "wait_seconds",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.AgentWorkloadSpec"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/v2/workspaceagents/me/workloads/{workload}/exit": {
             "post": {
                 "consumes": [
@@ -16415,6 +16532,50 @@ const docTemplate = `{
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/codersdk.AgentWorkloadExit"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/v2/workspaceagents/me/workloads/{workload}/started": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Report whether a workload was started (experimental)",
+                "operationId": "post-workspace-agent-workload-started",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workload ID",
+                        "name": "workload",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "How starting the workload went",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.AgentWorkloadStart"
                         }
                     }
                 ],
@@ -19769,6 +19930,26 @@ const docTemplate = `{
                 }
             }
         },
+        "agentsdk.KubernetesPodIdentityToken": {
+            "type": "object",
+            "required": [
+                "token"
+            ],
+            "properties": {
+                "agent_name": {
+                    "description": "AgentName optionally selects a specific agent when multiple\nagents share the same instance identity. An empty string is\ntreated as unspecified.",
+                    "type": "string"
+                },
+                "token": {
+                    "description": "Token is the pod's projected service account token.",
+                    "type": "string"
+                },
+                "wait_seconds": {
+                    "description": "WaitSeconds asks coderd to hold the request for up to this long when\nno workspace has claimed the pod yet. A pod from a warm pool runs\nits daemon before it belongs to anybody.",
+                    "type": "integer"
+                }
+            }
+        },
         "agentsdk.Log": {
             "type": "object",
             "properties": {
@@ -21547,6 +21728,94 @@ const docTemplate = `{
                 },
                 "reason": {
                     "$ref": "#/definitions/codersdk.WorkloadEndReason"
+                }
+            }
+        },
+        "codersdk.AgentWorkloadSpec": {
+            "type": "object",
+            "properties": {
+                "command": {
+                    "type": "string"
+                },
+                "id": {
+                    "description": "ID is the workload identity the daemon vouches for when it forwards\nthe sandbox's requests.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "image": {
+                    "description": "Image, Network and Mounts are requests. The daemon's policy, which\nthe template sets, decides whether to honor them.",
+                    "type": "string"
+                },
+                "interactive": {
+                    "description": "Interactive gives the command a terminal.",
+                    "type": "boolean"
+                },
+                "mounts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkloadMount"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "network": {
+                    "$ref": "#/definitions/codersdk.WorkloadNetwork"
+                }
+            }
+        },
+        "codersdk.AgentWorkloadStart": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "description": "Error says why it does not.",
+                    "type": "string"
+                },
+                "state": {
+                    "description": "State is set when the workload runs.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.AgentWorkloadState"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.AgentWorkloadState": {
+            "type": "object",
+            "properties": {
+                "exit_code": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "image": {
+                    "description": "Image, Network and Mounts are what the daemon's policy settled on.",
+                    "type": "string"
+                },
+                "mounts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkloadMount"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "network": {
+                    "$ref": "#/definitions/codersdk.WorkloadNetwork"
+                },
+                "running": {
+                    "type": "boolean"
+                },
+                "sandbox": {
+                    "$ref": "#/definitions/codersdk.WorkloadSandbox"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
                 }
             }
         },
@@ -25454,7 +25723,8 @@ const docTemplate = `{
                     "type": "string",
                     "enum": [
                         "terraform",
-                        "echo"
+                        "echo",
+                        "sandbox"
                     ]
                 },
                 "storage_method": {
@@ -25745,6 +26015,10 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.WorkloadNetwork"
                         }
                     ]
+                },
+                "remove_workspace": {
+                    "description": "RemoveWorkspace deletes the workspace when the workload is over. It\nis for a workspace that was made for this one workload.",
+                    "type": "boolean"
                 },
                 "scopes": {
                     "description": "Scopes are the API key scopes the workload may use on the sponsor's\nbehalf. Without any, the workload can do nothing in Coder.",
@@ -31943,7 +32217,8 @@ const docTemplate = `{
                 "provisioner": {
                     "type": "string",
                     "enum": [
-                        "terraform"
+                        "terraform",
+                        "sandbox"
                     ]
                 },
                 "require_active_version": {
@@ -34757,6 +35032,10 @@ const docTemplate = `{
                 "network": {
                     "$ref": "#/definitions/codersdk.WorkloadNetwork"
                 },
+                "own_workspace": {
+                    "description": "OwnWorkspace means the workspace was made for this workload and is\ndeleted when the workload is over.",
+                    "type": "boolean"
+                },
                 "sandbox": {
                     "$ref": "#/definitions/codersdk.WorkloadSandbox"
                 },
@@ -34781,6 +35060,10 @@ const docTemplate = `{
                 "workspace_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "workspace_name": {
+                    "description": "WorkspaceName is set when workloads of several workspaces are\nlisted.",
+                    "type": "string"
                 }
             }
         },

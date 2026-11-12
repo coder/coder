@@ -15,6 +15,7 @@ import (
 
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -51,6 +52,7 @@ type DockerRuntime struct {
 	CLIPath string
 	// Execer runs the docker CLI. It defaults to agentexec.DefaultExecer.
 	Execer agentexec.Execer
+	Logger slog.Logger
 }
 
 var _ Runtime = (*DockerRuntime)(nil)
@@ -195,14 +197,15 @@ func (s *dockerSandbox) Logs(ctx context.Context, w io.Writer) error {
 	return cmd.Run()
 }
 
-func (s *dockerSandbox) AttachCommand() (string, []string) {
+func (s *dockerSandbox) Attach(ctx context.Context, conn net.Conn, height, width uint16) error {
 	bin := s.runtime.Docker
 	if bin == "" {
 		bin = "docker"
 	}
 	// Without detach keys, nothing typed into the workload's terminal can
 	// be taken for an instruction to Docker.
-	return bin, []string{"attach", "--detach-keys", "ctrl-@,ctrl-@,ctrl-@", s.containerID}
+	return AttachCommand(ctx, s.runtime.Logger, s.runtime.Execer, conn, height, width,
+		bin, "attach", "--detach-keys", "ctrl-@,ctrl-@,ctrl-@", s.containerID)
 }
 
 func (s *dockerSandbox) Wait(ctx context.Context) (int, error) {

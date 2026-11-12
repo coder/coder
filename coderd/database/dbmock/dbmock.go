@@ -4448,6 +4448,21 @@ func (mr *MockStoreMockRecorder) GetFilteredInboxNotificationsByUserID(ctx, arg 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFilteredInboxNotificationsByUserID", reflect.TypeOf((*MockStore)(nil).GetFilteredInboxNotificationsByUserID), ctx, arg)
 }
 
+// GetFinishedWorkloadIdentitiesBySponsorID mocks base method.
+func (m *MockStore) GetFinishedWorkloadIdentitiesBySponsorID(ctx context.Context, arg database.GetFinishedWorkloadIdentitiesBySponsorIDParams) ([]database.WorkloadIdentity, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetFinishedWorkloadIdentitiesBySponsorID", ctx, arg)
+	ret0, _ := ret[0].([]database.WorkloadIdentity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetFinishedWorkloadIdentitiesBySponsorID indicates an expected call of GetFinishedWorkloadIdentitiesBySponsorID.
+func (mr *MockStoreMockRecorder) GetFinishedWorkloadIdentitiesBySponsorID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFinishedWorkloadIdentitiesBySponsorID", reflect.TypeOf((*MockStore)(nil).GetFinishedWorkloadIdentitiesBySponsorID), ctx, arg)
+}
+
 // GetFinishedWorkloadIdentitiesByWorkspaceID mocks base method.
 func (m *MockStore) GetFinishedWorkloadIdentitiesByWorkspaceID(ctx context.Context, arg database.GetFinishedWorkloadIdentitiesByWorkspaceIDParams) ([]database.WorkloadIdentity, error) {
 	m.ctrl.T.Helper()
@@ -5526,6 +5541,21 @@ func (m *MockStore) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.U
 func (mr *MockStoreMockRecorder) GetParameterSchemasByJobID(ctx, jobID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetParameterSchemasByJobID", reflect.TypeOf((*MockStore)(nil).GetParameterSchemasByJobID), ctx, jobID)
+}
+
+// GetPendingWorkloadIdentitiesByWorkspaceAgentID mocks base method.
+func (m *MockStore) GetPendingWorkloadIdentitiesByWorkspaceAgentID(ctx context.Context, arg database.GetPendingWorkloadIdentitiesByWorkspaceAgentIDParams) ([]database.WorkloadIdentity, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPendingWorkloadIdentitiesByWorkspaceAgentID", ctx, arg)
+	ret0, _ := ret[0].([]database.WorkloadIdentity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPendingWorkloadIdentitiesByWorkspaceAgentID indicates an expected call of GetPendingWorkloadIdentitiesByWorkspaceAgentID.
+func (mr *MockStoreMockRecorder) GetPendingWorkloadIdentitiesByWorkspaceAgentID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPendingWorkloadIdentitiesByWorkspaceAgentID", reflect.TypeOf((*MockStore)(nil).GetPendingWorkloadIdentitiesByWorkspaceAgentID), ctx, arg)
 }
 
 // GetPrebuildMetrics mocks base method.
@@ -7191,6 +7221,21 @@ func (m *MockStore) GetWebpushVAPIDKeys(ctx context.Context) (database.GetWebpus
 func (mr *MockStoreMockRecorder) GetWebpushVAPIDKeys(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWebpushVAPIDKeys", reflect.TypeOf((*MockStore)(nil).GetWebpushVAPIDKeys), ctx)
+}
+
+// GetWorkloadIdentitiesBySponsorID mocks base method.
+func (m *MockStore) GetWorkloadIdentitiesBySponsorID(ctx context.Context, sponsorID uuid.UUID) ([]database.WorkloadIdentity, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkloadIdentitiesBySponsorID", ctx, sponsorID)
+	ret0, _ := ret[0].([]database.WorkloadIdentity)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkloadIdentitiesBySponsorID indicates an expected call of GetWorkloadIdentitiesBySponsorID.
+func (mr *MockStoreMockRecorder) GetWorkloadIdentitiesBySponsorID(ctx, sponsorID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkloadIdentitiesBySponsorID", reflect.TypeOf((*MockStore)(nil).GetWorkloadIdentitiesBySponsorID), ctx, sponsorID)
 }
 
 // GetWorkloadIdentitiesByWorkspaceID mocks base method.

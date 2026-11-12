@@ -2368,6 +2368,14 @@ func (m queryMetricsStore) GetFilteredInboxNotificationsByUserID(ctx context.Con
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetFinishedWorkloadIdentitiesBySponsorID(ctx context.Context, arg database.GetFinishedWorkloadIdentitiesBySponsorIDParams) ([]database.WorkloadIdentity, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetFinishedWorkloadIdentitiesBySponsorID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetFinishedWorkloadIdentitiesBySponsorID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetFinishedWorkloadIdentitiesBySponsorID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetFinishedWorkloadIdentitiesByWorkspaceID(ctx context.Context, arg database.GetFinishedWorkloadIdentitiesByWorkspaceIDParams) ([]database.WorkloadIdentity, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetFinishedWorkloadIdentitiesByWorkspaceID(ctx, arg)
@@ -2941,6 +2949,14 @@ func (m queryMetricsStore) GetParameterSchemasByJobID(ctx context.Context, jobID
 	r0, r1 := m.s.GetParameterSchemasByJobID(ctx, jobID)
 	m.queryLatencies.WithLabelValues("GetParameterSchemasByJobID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetParameterSchemasByJobID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetPendingWorkloadIdentitiesByWorkspaceAgentID(ctx context.Context, arg database.GetPendingWorkloadIdentitiesByWorkspaceAgentIDParams) ([]database.WorkloadIdentity, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetPendingWorkloadIdentitiesByWorkspaceAgentID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetPendingWorkloadIdentitiesByWorkspaceAgentID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetPendingWorkloadIdentitiesByWorkspaceAgentID").Inc()
 	return r0, r1
 }
 
@@ -3813,6 +3829,14 @@ func (m queryMetricsStore) GetWebpushVAPIDKeys(ctx context.Context) (database.Ge
 	r0, r1 := m.s.GetWebpushVAPIDKeys(ctx)
 	m.queryLatencies.WithLabelValues("GetWebpushVAPIDKeys").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWebpushVAPIDKeys").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkloadIdentitiesBySponsorID(ctx context.Context, sponsorID uuid.UUID) ([]database.WorkloadIdentity, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkloadIdentitiesBySponsorID(ctx, sponsorID)
+	m.queryLatencies.WithLabelValues("GetWorkloadIdentitiesBySponsorID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkloadIdentitiesBySponsorID").Inc()
 	return r0, r1
 }
 

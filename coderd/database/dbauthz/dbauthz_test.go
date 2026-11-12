@@ -7278,6 +7278,23 @@ func (s *MethodTestSuite) TestWorkloadIdentities() {
 		dbm.EXPECT().UpdateWorkloadIdentitySandbox(gomock.Any(), arg).Return(identity, nil).AnyTimes()
 		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(identity)
 	}))
+	s.Run("GetWorkloadIdentitiesBySponsorID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
+		dbm.EXPECT().GetWorkloadIdentitiesBySponsorID(gomock.Any(), identity.SponsorID).Return([]database.WorkloadIdentity{identity}, nil).AnyTimes()
+		check.Args(identity.SponsorID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.WorkloadIdentity{identity})
+	}))
+	s.Run("GetFinishedWorkloadIdentitiesBySponsorID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
+		arg := database.GetFinishedWorkloadIdentitiesBySponsorIDParams{SponsorID: identity.SponsorID, LimitOpt: 10}
+		dbm.EXPECT().GetFinishedWorkloadIdentitiesBySponsorID(gomock.Any(), arg).Return([]database.WorkloadIdentity{identity}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.WorkloadIdentity{identity})
+	}))
+	s.Run("GetPendingWorkloadIdentitiesByWorkspaceAgentID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
+		arg := database.GetPendingWorkloadIdentitiesByWorkspaceAgentIDParams{WorkspaceAgentID: identity.WorkspaceAgentID}
+		dbm.EXPECT().GetPendingWorkloadIdentitiesByWorkspaceAgentID(gomock.Any(), arg).Return([]database.WorkloadIdentity{identity}, nil).AnyTimes()
+		check.Args(arg).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.WorkloadIdentity{identity})
+	}))
 	s.Run("GetFinishedWorkloadIdentitiesByWorkspaceID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		identity := testutil.Fake(s.T(), faker, database.WorkloadIdentity{})
 		arg := database.GetFinishedWorkloadIdentitiesByWorkspaceIDParams{WorkspaceID: identity.WorkspaceID, LimitOpt: 10}

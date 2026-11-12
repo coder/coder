@@ -100,10 +100,12 @@ const (
 	envAgentToken = "CODER_AGENT_TOKEN"
 	//nolint:gosec
 	envAgentTokenFile = "CODER_AGENT_TOKEN_FILE"
-	envAgentURL       = "CODER_AGENT_URL"
-	envAgentAuth      = "CODER_AGENT_AUTH"
-	envAgentName      = "CODER_AGENT_NAME"
-	envURL            = "CODER_URL"
+	//nolint:gosec
+	envAgentPodTokenFile = "CODER_AGENT_POD_TOKEN_FILE"
+	envAgentURL          = "CODER_AGENT_URL"
+	envAgentAuth         = "CODER_AGENT_AUTH"
+	envAgentName         = "CODER_AGENT_NAME"
+	envURL               = "CODER_URL"
 )
 
 func (r *RootCmd) CoreSubcommands() []*serpent.Command {
@@ -1071,11 +1073,12 @@ func (r *RootCmd) UseKeyringWithGlobalConfig() {
 
 type AgentAuth struct {
 	// Agent Client config
-	agentToken     string
-	agentTokenFile string
-	agentURL       url.URL
-	agentAuth      string
-	agentName      string
+	agentToken        string
+	agentTokenFile    string
+	agentPodTokenFile string
+	agentURL          url.URL
+	agentAuth         string
+	agentName         string
 }
 
 func (a *AgentAuth) AttachOptions(cmd *serpent.Command, hidden bool) {
@@ -1093,6 +1096,14 @@ func (a *AgentAuth) AttachOptions(cmd *serpent.Command, hidden bool) {
 		Env:         envAgentTokenFile,
 		Value:       serpent.StringOf(&a.agentTokenFile),
 		Hidden:      hidden,
+	}, serpent.Option{
+		Name:        "Agent Pod Token File",
+		Description: "A file containing the Kubernetes token that identifies the agent's pod, for the \"kubernetes\" authentication type.",
+		Flag:        "agent-pod-token-file",
+		Env:         envAgentPodTokenFile,
+		Default:     agentsdk.DefaultKubernetesPodTokenPath,
+		Value:       serpent.StringOf(&a.agentPodTokenFile),
+		Hidden:      true,
 	}, serpent.Option{
 		Name:        "Agent URL",
 		Description: "URL for an agent to access your deployment.",
@@ -1154,6 +1165,8 @@ func (a *AgentAuth) CreateClient() (*agentsdk.Client, error) {
 		return agentsdk.New(&a.agentURL, agentsdk.WithAWSInstanceIdentity(iiOpts...)), nil
 	case "azure-instance-identity":
 		return agentsdk.New(&a.agentURL, agentsdk.WithAzureInstanceIdentity(iiOpts...)), nil
+	case "kubernetes":
+		return agentsdk.New(&a.agentURL, agentsdk.WithKubernetesPodIdentity(a.agentPodTokenFile, iiOpts...)), nil
 	default:
 		return nil, xerrors.Errorf("unknown agent auth type: %s", a.agentAuth)
 	}

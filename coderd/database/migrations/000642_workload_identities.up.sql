@@ -17,7 +17,9 @@ CREATE TABLE workload_identities (
     finished_at timestamp with time zone,
     end_reason text NOT NULL DEFAULT '',
     exit_code integer,
-    output_tail text NOT NULL DEFAULT ''
+    output_tail text NOT NULL DEFAULT '',
+    interactive boolean NOT NULL DEFAULT false,
+    remove_workspace boolean NOT NULL DEFAULT false
 );
 
 COMMENT ON TABLE workload_identities IS 'A workload identity is a principal for a workload that runs in a sandbox inside a workspace daemon. It acts with the permissions of its sponsor, narrowed to its scopes. The row outlives the workload as the record of what ran.';
@@ -26,13 +28,21 @@ COMMENT ON COLUMN workload_identities.workspace_agent_id IS 'The workspace daemo
 COMMENT ON COLUMN workload_identities.scopes IS 'API key scope names. An empty list grants nothing.';
 COMMENT ON COLUMN workload_identities.mounts IS 'Directories of the workspace that the sandbox can see, each followed by :rw when it can write to it.';
 COMMENT ON COLUMN workload_identities.sandbox_id IS 'The sandbox the daemon reported for the workload, as its runtime names it.';
-COMMENT ON COLUMN workload_identities.started_at IS 'When the daemon reported the sandbox. NULL while the workload is starting.';
+COMMENT ON COLUMN workload_identities.image IS 'The image asked for, and once the workload has started, the one the daemon''s policy settled on. The same holds for network and mounts.';
+COMMENT ON COLUMN workload_identities.started_at IS 'When the daemon reported the sandbox. NULL while the workload waits for its daemon to start it.';
 COMMENT ON COLUMN workload_identities.finished_at IS 'When the workload was over. From then on the identity authorizes nothing. NULL while the workload is live.';
 COMMENT ON COLUMN workload_identities.end_reason IS 'Why the workload is over: exited, removed, stopped, lost or failed.';
 COMMENT ON COLUMN workload_identities.exit_code IS 'The exit code of the command, when it is known.';
+COMMENT ON COLUMN workload_identities.interactive IS 'The command runs in a terminal that its sponsor attaches to.';
+COMMENT ON COLUMN workload_identities.remove_workspace IS 'The workspace was made for this workload and is deleted when the workload is over.';
 COMMENT ON COLUMN workload_identities.output_tail IS 'The end of the workload''s output, kept for the record.';
 
 CREATE INDEX workload_identities_workspace_id_idx ON workload_identities (workspace_id, created_at);
+CREATE INDEX workload_identities_sponsor_id_idx ON workload_identities (sponsor_id, finished_at);
 CREATE INDEX workload_identities_workspace_agent_id_idx ON workload_identities (workspace_agent_id) WHERE finished_at IS NULL;
 
 ALTER TYPE resource_type ADD VALUE IF NOT EXISTS 'workload_identity';
+
+-- A workspace of a sandbox template is a pod claimed from a warm pool. No
+-- Terraform runs.
+ALTER TYPE provisioner_type ADD VALUE IF NOT EXISTS 'sandbox';

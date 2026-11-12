@@ -679,6 +679,8 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"runtime":            ActionTrack,
 		"sandbox_id":         ActionTrack,
 		"end_reason":         ActionTrack,
+		"interactive":        ActionTrack,
+		"remove_workspace":   ActionTrack,
 		"exit_code":          ActionTrack,
 
 		// A workload's output can hold anything it printed.

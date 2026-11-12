@@ -697,6 +697,10 @@ type sqlcQuerier interface {
 	// param created_at_opt: The created_at timestamp to filter by. This parameter is usd for pagination - it fetches notifications created before the specified timestamp if it is not the zero value
 	// param limit_opt: The limit of notifications to fetch. If the limit is not specified, it defaults to 25
 	GetFilteredInboxNotificationsByUserID(ctx context.Context, arg GetFilteredInboxNotificationsByUserIDParams) ([]InboxNotification, error)
+	// GetFinishedWorkloadIdentitiesBySponsorID returns a sponsor's most recently
+	// finished workloads in every workspace, newest first. The workspaces may
+	// be gone.
+	GetFinishedWorkloadIdentitiesBySponsorID(ctx context.Context, arg GetFinishedWorkloadIdentitiesBySponsorIDParams) ([]WorkloadIdentity, error)
 	// GetFinishedWorkloadIdentitiesByWorkspaceID returns the most recently
 	// finished workloads of a workspace, newest first.
 	GetFinishedWorkloadIdentitiesByWorkspaceID(ctx context.Context, arg GetFinishedWorkloadIdentitiesByWorkspaceIDParams) ([]WorkloadIdentity, error)
@@ -833,6 +837,10 @@ type sqlcQuerier interface {
 	// TODO(AIGOV-527): unify effective group resolution in a single place.
 	GetOverBudgetUsersPerGroup(ctx context.Context, periodStart time.Time) ([]GetOverBudgetUsersPerGroupRow, error)
 	GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUID) ([]ParameterSchema, error)
+	// GetPendingWorkloadIdentitiesByWorkspaceAgentID returns the workloads a
+	// daemon has been given and has not started yet. A workload that was not
+	// started in time is no longer offered.
+	GetPendingWorkloadIdentitiesByWorkspaceAgentID(ctx context.Context, arg GetPendingWorkloadIdentitiesByWorkspaceAgentIDParams) ([]WorkloadIdentity, error)
 	GetPrebuildMetrics(ctx context.Context) ([]GetPrebuildMetricsRow, error)
 	GetPrebuildsSettings(ctx context.Context) (string, error)
 	GetPresetByID(ctx context.Context, presetID uuid.UUID) (GetPresetByIDRow, error)
@@ -1107,6 +1115,9 @@ type sqlcQuerier interface {
 	GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]User, error)
 	GetWebpushSubscriptionsByUserID(ctx context.Context, userID uuid.UUID) ([]WebpushSubscription, error)
 	GetWebpushVAPIDKeys(ctx context.Context) (GetWebpushVAPIDKeysRow, error)
+	// GetWorkloadIdentitiesBySponsorID returns a sponsor's live workloads in
+	// every workspace.
+	GetWorkloadIdentitiesBySponsorID(ctx context.Context, sponsorID uuid.UUID) ([]WorkloadIdentity, error)
 	// GetWorkloadIdentitiesByWorkspaceID returns the live workloads of a
 	// workspace.
 	GetWorkloadIdentitiesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]WorkloadIdentity, error)

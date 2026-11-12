@@ -191,6 +191,54 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Authenticate agent in a Kubernetes pod
+
+### Code samples
+
+```sh
+# Example request using curl
+curl -X POST http://coder-server:8080/api/v2/workspaceagents/kubernetes-pod-identity \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`POST /api/v2/workspaceagents/kubernetes-pod-identity`
+
+> Body parameter
+
+```json
+{
+  "agent_name": "string",
+  "token": "string",
+  "wait_seconds": 0
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                 | Required | Description        |
+|--------|------|--------------------------------------------------------------------------------------|----------|--------------------|
+| `body` | body | [agentsdk.KubernetesPodIdentityToken](schemas.md#agentsdkkubernetespodidentitytoken) | true     | Pod identity token |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "session_token": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                   |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Patch workspace agent app status
 
 ### Code samples

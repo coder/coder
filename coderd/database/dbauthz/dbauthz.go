@@ -4299,6 +4299,13 @@ func (q *querier) GetFilteredInboxNotificationsByUserID(ctx context.Context, arg
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetFilteredInboxNotificationsByUserID)(ctx, arg)
 }
 
+func (q *querier) GetFinishedWorkloadIdentitiesBySponsorID(ctx context.Context, arg database.GetFinishedWorkloadIdentitiesBySponsorIDParams) ([]database.WorkloadIdentity, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetFinishedWorkloadIdentitiesBySponsorID(ctx, arg)
+}
+
 func (q *querier) GetFinishedWorkloadIdentitiesByWorkspaceID(ctx context.Context, arg database.GetFinishedWorkloadIdentitiesByWorkspaceIDParams) ([]database.WorkloadIdentity, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -4807,6 +4814,13 @@ func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUI
 		return nil, err
 	}
 	return q.db.GetParameterSchemasByJobID(ctx, jobID)
+}
+
+func (q *querier) GetPendingWorkloadIdentitiesByWorkspaceAgentID(ctx context.Context, arg database.GetPendingWorkloadIdentitiesByWorkspaceAgentIDParams) ([]database.WorkloadIdentity, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetPendingWorkloadIdentitiesByWorkspaceAgentID(ctx, arg)
 }
 
 func (q *querier) GetPrebuildMetrics(ctx context.Context) ([]database.GetPrebuildMetricsRow, error) {
@@ -5814,6 +5828,13 @@ func (q *querier) GetWebpushVAPIDKeys(ctx context.Context) (database.GetWebpushV
 		return database.GetWebpushVAPIDKeysRow{}, err
 	}
 	return q.db.GetWebpushVAPIDKeys(ctx)
+}
+
+func (q *querier) GetWorkloadIdentitiesBySponsorID(ctx context.Context, sponsorID uuid.UUID) ([]database.WorkloadIdentity, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkloadIdentitiesBySponsorID(ctx, sponsorID)
 }
 
 func (q *querier) GetWorkloadIdentitiesByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) ([]database.WorkloadIdentity, error) {

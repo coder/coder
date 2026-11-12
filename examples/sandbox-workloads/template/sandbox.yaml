@@ -1,0 +1,4 @@
+# A sandbox template. A workspace of it is one pod, claimed from a warm pool of
+# the Kubernetes Agent Sandbox project. The pool decides what the pod is:
+# image, resources, network and isolation. See ../cluster/pool.yaml.
+warm_pool: coder-workload

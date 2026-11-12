@@ -40,7 +40,18 @@ func DirHasLockfile(dir string) (bool, error) {
 	return dirHasExt(dir, ".terraform.lock.hcl")
 }
 
-// Tar archives a Terraform directory.
+// SandboxTemplateFile is the file a template of the sandbox provisioner
+// consists of. Such a template has no Terraform files.
+const SandboxTemplateFile = "sandbox.yaml"
+
+// DirIsSandboxTemplate reports whether a directory holds a template of the
+// sandbox provisioner.
+func DirIsSandboxTemplate(dir string) bool {
+	info, err := os.Stat(filepath.Join(dir, SandboxTemplateFile))
+	return err == nil && !info.IsDir()
+}
+
+// Tar archives a template directory.
 func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 	// The total bytes written must be under the limit, so use -1
 	w = xio.NewLimitWriter(w, limit-1)
@@ -51,7 +62,7 @@ func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 	if err != nil {
 		return err
 	}
-	if !hasTf {
+	if !hasTf && !DirIsSandboxTemplate(directory) {
 		absPath, err := filepath.Abs(directory)
 		if err != nil {
 			return err

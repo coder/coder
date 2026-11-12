@@ -1,0 +1,9 @@
+# The namespace of the sandbox pods and of the Agent Sandbox controller that
+# keeps them. Everything in it meets the Restricted Pod Security Standard:
+# nothing is privileged, and nothing has added capabilities.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: coder-sandbox-workloads
+  labels:
+    pod-security.kubernetes.io/enforce: restricted

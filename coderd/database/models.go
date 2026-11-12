@@ -3812,6 +3812,7 @@ type ProvisionerType string
 const (
 	ProvisionerTypeEcho      ProvisionerType = "echo"
 	ProvisionerTypeTerraform ProvisionerType = "terraform"
+	ProvisionerTypeSandbox   ProvisionerType = "sandbox"
 )
 
 func (e *ProvisionerType) Scan(src interface{}) error {
@@ -3852,7 +3853,8 @@ func (ns NullProvisionerType) Value() (driver.Value, error) {
 func (e ProvisionerType) Valid() bool {
 	switch e {
 	case ProvisionerTypeEcho,
-		ProvisionerTypeTerraform:
+		ProvisionerTypeTerraform,
+		ProvisionerTypeSandbox:
 		return true
 	}
 	return false
@@ -3862,6 +3864,7 @@ func AllProvisionerTypeValues() []ProvisionerType {
 	return []ProvisionerType{
 		ProvisionerTypeEcho,
 		ProvisionerTypeTerraform,
+		ProvisionerTypeSandbox,
 	}
 }
 
@@ -6841,15 +6844,16 @@ type WorkloadIdentity struct {
 	Name             string    `db:"name" json:"name"`
 	Command          string    `db:"command" json:"command"`
 	// API key scope names. An empty list grants nothing.
-	Scopes  []string `db:"scopes" json:"scopes"`
-	Image   string   `db:"image" json:"image"`
-	Network string   `db:"network" json:"network"`
+	Scopes []string `db:"scopes" json:"scopes"`
+	// The image asked for, and once the workload has started, the one the daemon's policy settled on. The same holds for network and mounts.
+	Image   string `db:"image" json:"image"`
+	Network string `db:"network" json:"network"`
 	// Directories of the workspace that the sandbox can see, each followed by :rw when it can write to it.
 	Mounts  []string `db:"mounts" json:"mounts"`
 	Runtime string   `db:"runtime" json:"runtime"`
 	// The sandbox the daemon reported for the workload, as its runtime names it.
 	SandboxID string `db:"sandbox_id" json:"sandbox_id"`
-	// When the daemon reported the sandbox. NULL while the workload is starting.
+	// When the daemon reported the sandbox. NULL while the workload waits for its daemon to start it.
 	StartedAt sql.NullTime `db:"started_at" json:"started_at"`
 	// When the workload was over. From then on the identity authorizes nothing. NULL while the workload is live.
 	FinishedAt sql.NullTime `db:"finished_at" json:"finished_at"`
@@ -6859,6 +6863,10 @@ type WorkloadIdentity struct {
 	ExitCode sql.NullInt32 `db:"exit_code" json:"exit_code"`
 	// The end of the workload's output, kept for the record.
 	OutputTail string `db:"output_tail" json:"output_tail"`
+	// The command runs in a terminal that its sponsor attaches to.
+	Interactive bool `db:"interactive" json:"interactive"`
+	// The workspace was made for this workload and is deleted when the workload is over.
+	RemoveWorkspace bool `db:"remove_workspace" json:"remove_workspace"`
 }
 
 // Joins in the display name information such as username, avatar, and organization name.

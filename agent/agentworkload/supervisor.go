@@ -21,8 +21,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
-	"github.com/coder/coder/v2/agent/agentexec"
-	"github.com/coder/coder/v2/agent/reconnectingpty"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/websocket"
@@ -55,6 +53,10 @@ type Policy struct {
 	// with a workload, together with everything below them. Without any,
 	// a workload sees nothing of the workspace.
 	AllowedMounts []string
+	// Fixed means the sandbox exists before the workload does, as a pod
+	// from a pool does. Its image and network are what they are: the
+	// defaults describe them, and a workload cannot ask for others.
+	Fixed bool
 }
 
 // mounts checks the directories a workload asks to see. Symbolic links are
@@ -92,6 +94,12 @@ func (p Policy) mounts(requested []codersdk.WorkloadMount) ([]codersdk.WorkloadM
 }
 
 func (p Policy) image(requested string) (string, error) {
+	if p.Fixed {
+		if requested != "" && requested != p.DefaultImage {
+			return "", xerrors.Errorf("the sandbox of this workload exists already and its image is %q; choose another template for another image", p.DefaultImage)
+		}
+		return p.DefaultImage, nil
+	}
 	if requested == "" || requested == p.DefaultImage {
 		if p.DefaultImage == "" {
 			return "", xerrors.New("this workspace's template sets no image for workloads")
@@ -117,6 +125,9 @@ func (p Policy) network(requested codersdk.WorkloadNetwork) (codersdk.WorkloadNe
 	if requested == "" || requested == def {
 		return def, nil
 	}
+	if p.Fixed {
+		return "", xerrors.Errorf("the sandbox of this workload exists already and its network is %q; choose another template for another network", def)
+	}
 	if requested != codersdk.WorkloadNetworkNone && requested != codersdk.WorkloadNetworkOutbound {
 		return "", xerrors.Errorf("unknown workload network %q", requested)
 	}
@@ -137,9 +148,15 @@ type Options struct {
 	// SessionToken returns the daemon's own credential. It is added to
 	// forwarded requests and never reaches a sandbox.
 	SessionToken func() string
-	// Execer runs the terminal of an interactive workload. It defaults to
-	// agentexec.DefaultExecer.
-	Execer agentexec.Execer
+	// Pending returns the workloads coderd has given this daemon and that
+	// the daemon has not started, and waits for one when there is none.
+	// The daemon asks coderd, and not the other way around, so that a
+	// workload can start before coderd has a connection to the daemon,
+	// which takes a daemon that has just started a moment to set up. Nil
+	// leaves starting workloads to the daemon's own API.
+	Pending func(ctx context.Context) ([]codersdk.AgentWorkloadSpec, error)
+	// ReportStart tells coderd whether a workload from Pending runs.
+	ReportStart func(ctx context.Context, id uuid.UUID, start codersdk.AgentWorkloadStart) error
 	// ReportExit tells coderd that a workload is over. coderd records it
 	// and revokes the workload's identity. Nil reports nothing; coderd then
 	// finds out the next time it asks what runs.
@@ -152,6 +169,9 @@ type Supervisor struct {
 
 	mu        sync.Mutex
 	workloads map[uuid.UUID]*workload
+	// given holds the workloads from coderd that are being started, or
+	// that could not be, with the reason.
+	given map[uuid.UUID]string
 
 	// closed ends the goroutines that watch workloads.
 	closed    chan struct{}
@@ -166,6 +186,9 @@ type workload struct {
 	// done is closed when the command exits; exitCode is valid after that.
 	done     chan struct{}
 	exitCode int
+	// announced is closed once coderd knows that the workload runs. Its
+	// end is reported after that, so that coderd hears of things in order.
+	announced chan struct{}
 }
 
 // New returns a supervisor. It removes sandboxes an earlier daemon process
@@ -177,7 +200,140 @@ func New(ctx context.Context, opts Options) (*Supervisor, error) {
 	if err := opts.Runtime.Sweep(ctx); err != nil {
 		return nil, xerrors.Errorf("sweep %s sandboxes: %w", opts.Runtime.Name(), err)
 	}
-	return &Supervisor{opts: opts, workloads: make(map[uuid.UUID]*workload), closed: make(chan struct{})}, nil
+	s := &Supervisor{
+		opts:      opts,
+		workloads: make(map[uuid.UUID]*workload),
+		given:     make(map[uuid.UUID]string),
+		closed:    make(chan struct{}),
+	}
+	if opts.Pending != nil && opts.ReportStart != nil {
+		s.watchers.Add(1)
+		go s.pull()
+	}
+	return s, nil
+}
+
+// pull starts the workloads coderd gives this daemon.
+func (s *Supervisor) pull() {
+	defer s.watchers.Done()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		select {
+		case <-s.closed:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	pause := func(d time.Duration) {
+		select {
+		case <-ctx.Done():
+		case <-time.After(d):
+		}
+	}
+	for ctx.Err() == nil {
+		specs, err := s.opts.Pending(ctx)
+		if err != nil {
+			// A daemon that waits to be claimed is not somebody yet, and
+			// must notice at once when it becomes somebody. Asking again
+			// is that wait: its credential is not handed out before.
+			var refused *codersdk.Error
+			if xerrors.As(err, &refused) && refused.StatusCode() == http.StatusUnauthorized {
+				pause(50 * time.Millisecond)
+				continue
+			}
+			// coderd is away.
+			s.opts.Logger.Warn(ctx, "ask coderd for workloads", slog.Error(err))
+			pause(time.Second)
+			continue
+		}
+		if len(specs) > 0 {
+			s.opts.Logger.Info(ctx, "coderd gave this daemon workloads", slog.F("count", len(specs)))
+		}
+		var starting sync.WaitGroup
+		fresh := 0
+		for _, spec := range specs {
+			s.mu.Lock()
+			reason, known := s.given[spec.ID]
+			if !known {
+				s.given[spec.ID] = ""
+			}
+			s.mu.Unlock()
+			switch {
+			case !known:
+				fresh++
+				starting.Add(1)
+				go func() {
+					defer starting.Done()
+					s.startGiven(ctx, spec)
+				}()
+			case reason != "":
+				// coderd has not heard that it could not be started.
+				_ = s.opts.ReportStart(ctx, spec.ID, codersdk.AgentWorkloadStart{Error: reason})
+			default:
+			}
+		}
+		// A workload stays pending until coderd has heard of its start.
+		// Give that a moment before asking again, and do not spin while a
+		// slow start is under way.
+		started := make(chan struct{})
+		go func() {
+			starting.Wait()
+			close(started)
+		}()
+		select {
+		case <-started:
+		case <-time.After(500 * time.Millisecond):
+		case <-ctx.Done():
+		}
+		if len(specs) > 0 && fresh == 0 {
+			pause(time.Second)
+		}
+	}
+}
+
+// startGiven starts a workload from coderd and reports how that went.
+func (s *Supervisor) startGiven(ctx context.Context, spec codersdk.AgentWorkloadSpec) {
+	announced := make(chan struct{})
+	defer close(announced)
+	start := codersdk.AgentWorkloadStart{}
+	state, err := s.start(ctx, Spec{
+		ID: spec.ID, Name: spec.Name, Command: spec.Command,
+		Image: spec.Image, Network: spec.Network, Mounts: spec.Mounts, Interactive: spec.Interactive,
+	}, announced)
+	if err != nil {
+		start.Error = err.Error()
+		s.mu.Lock()
+		s.given[spec.ID] = start.Error
+		s.mu.Unlock()
+	} else {
+		start.State = &state
+	}
+	const attempts = 3
+	for attempt := 1; attempt <= attempts; attempt++ {
+		reportCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		err := s.opts.ReportStart(reportCtx, spec.ID, start)
+		cancel()
+		if err == nil {
+			break
+		}
+		s.opts.Logger.Warn(ctx, "report workload start",
+			slog.F("workload_id", spec.ID), slog.F("attempt", attempt), slog.Error(err))
+		if attempt == attempts {
+			break
+		}
+		select {
+		case <-time.After(time.Second):
+		case <-s.closed:
+		}
+	}
+	if start.State != nil {
+		// coderd no longer offers it. Should it be offered again, a start
+		// report was lost and it is started anew, which is refused.
+		s.mu.Lock()
+		delete(s.given, spec.ID)
+		s.mu.Unlock()
+	}
 }
 
 // channel returns the handler that is the workload's only way to Coder. It
@@ -207,6 +363,12 @@ func (s *Supervisor) channel(id uuid.UUID) http.Handler {
 
 // Start runs a workload in a new sandbox.
 func (s *Supervisor) Start(ctx context.Context, spec Spec) (codersdk.AgentWorkloadState, error) {
+	announced := make(chan struct{})
+	close(announced)
+	return s.start(ctx, spec, announced)
+}
+
+func (s *Supervisor) start(ctx context.Context, spec Spec, announced chan struct{}) (codersdk.AgentWorkloadState, error) {
 	if spec.ID == uuid.Nil || spec.Command == "" {
 		return codersdk.AgentWorkloadState{}, xerrors.New("a workload needs an identity and a command")
 	}
@@ -227,7 +389,7 @@ func (s *Supervisor) Start(ctx context.Context, spec Spec) (codersdk.AgentWorklo
 	}
 	// Reserve the identity so a concurrent request cannot start a second
 	// sandbox for it.
-	w := &workload{spec: spec, startedAt: time.Now(), done: make(chan struct{})}
+	w := &workload{spec: spec, startedAt: time.Now(), done: make(chan struct{}), announced: announced}
 	s.workloads[spec.ID] = w
 	s.mu.Unlock()
 
@@ -278,6 +440,11 @@ func (s *Supervisor) watch(w *workload) {
 		slog.F("workload_id", id), slog.F("reason", exit.Reason), slog.F("exit_code", code))
 
 	exit.OutputTail = s.outputTail(w.sandbox)
+	select {
+	case <-w.announced:
+	case <-time.After(30 * time.Second):
+	case <-s.closed:
+	}
 	s.report(id, exit)
 
 	select {
@@ -502,8 +669,7 @@ func (s *Supervisor) handleLogs(rw http.ResponseWriter, r *http.Request) {
 }
 
 // handleAttach connects the caller to the terminal of an interactive
-// workload. The daemon runs the runtime's attach command in a terminal of
-// its own and speaks the reconnecting PTY protocol over a websocket.
+// workload. It speaks the reconnecting PTY protocol over a websocket.
 func (s *Supervisor) handleAttach(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	w, ok := s.workloadParam(rw, r)
@@ -529,20 +695,8 @@ func (s *Supervisor) handleAttach(rw http.ResponseWriter, r *http.Request) {
 	conn := websocket.NetConn(ctx, ws, websocket.MessageBinary)
 	defer conn.Close()
 
-	execer := s.opts.Execer
-	if execer == nil {
-		execer = agentexec.DefaultExecer
-	}
-	name, args := w.sandbox.AttachCommand()
-	terminal := reconnectingpty.New(ctx, s.opts.Logger, execer, execer.PTYCommandContext(ctx, name, args...), &reconnectingpty.Options{
-		// The terminal belongs to this connection: the workload itself
-		// keeps running in its sandbox when the caller goes away.
-		Timeout:     time.Second,
-		BackendType: "buffered",
-	})
-	defer terminal.Close(nil)
 	//nolint:gosec // A terminal's size fits.
-	_ = terminal.Attach(ctx, uuid.NewString(), conn, uint16(height), uint16(width), s.opts.Logger)
+	_ = w.sandbox.Attach(ctx, conn, uint16(height), uint16(width))
 }
 
 func (s *Supervisor) handleRemove(rw http.ResponseWriter, r *http.Request) {

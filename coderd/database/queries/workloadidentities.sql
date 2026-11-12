@@ -8,7 +8,12 @@ INSERT INTO workload_identities (
 	workspace_agent_id,
 	name,
 	command,
-	scopes
+	scopes,
+	image,
+	network,
+	mounts,
+	interactive,
+	remove_workspace
 )
 VALUES (
 	@id,
@@ -19,7 +24,12 @@ VALUES (
 	@workspace_agent_id,
 	@name,
 	@command,
-	@scopes
+	@scopes,
+	@image,
+	@network,
+	@mounts,
+	@interactive,
+	@remove_workspace
 )
 RETURNING *;
 
@@ -43,6 +53,51 @@ FROM
 WHERE
 	workspace_id = @workspace_id
 	AND finished_at IS NULL
+ORDER BY
+	created_at ASC;
+
+-- GetWorkloadIdentitiesBySponsorID returns a sponsor's live workloads in
+-- every workspace.
+-- name: GetWorkloadIdentitiesBySponsorID :many
+SELECT
+	*
+FROM
+	workload_identities
+WHERE
+	sponsor_id = @sponsor_id
+	AND finished_at IS NULL
+ORDER BY
+	created_at ASC;
+
+-- GetFinishedWorkloadIdentitiesBySponsorID returns a sponsor's most recently
+-- finished workloads in every workspace, newest first. The workspaces may
+-- be gone.
+-- name: GetFinishedWorkloadIdentitiesBySponsorID :many
+SELECT
+	*
+FROM
+	workload_identities
+WHERE
+	sponsor_id = @sponsor_id
+	AND finished_at IS NOT NULL
+ORDER BY
+	finished_at DESC
+LIMIT
+	@limit_opt :: integer;
+
+-- GetPendingWorkloadIdentitiesByWorkspaceAgentID returns the workloads a
+-- daemon has been given and has not started yet. A workload that was not
+-- started in time is no longer offered.
+-- name: GetPendingWorkloadIdentitiesByWorkspaceAgentID :many
+SELECT
+	*
+FROM
+	workload_identities
+WHERE
+	workspace_agent_id = @workspace_agent_id
+	AND started_at IS NULL
+	AND finished_at IS NULL
+	AND created_at > @created_after
 ORDER BY
 	created_at ASC;
 

@@ -113,6 +113,24 @@ title: Schemas
 | `agent_name`     | string | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified. |
 | `json_web_token` | string | true     |              |                                                                                                                                                  |
 
+## agentsdk.KubernetesPodIdentityToken
+
+```json
+{
+  "agent_name": "string",
+  "token": "string",
+  "wait_seconds": 0
+}
+```
+
+### Properties
+
+| Name           | Type    | Required | Restrictions | Description                                                                                                                                                                      |
+|----------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent_name`   | string  | false    |              | Agent name optionally selects a specific agent when multiple agents share the same instance identity. An empty string is treated as unspecified.                                 |
+| `token`        | string  | true     |              | Token is the pod's projected service account token.                                                                                                                              |
+| `wait_seconds` | integer | false    |              | Wait seconds asks coderd to hold the request for up to this long when no workspace has claimed the pod yet. A pod from a warm pool runs its daemon before it belongs to anybody. |
+
 ## agentsdk.Log
 
 ```json
@@ -1714,6 +1732,109 @@ None
 | `exit_code`   | integer                                                  | false    |              | Exit code is nil when the daemon does not know it. |
 | `output_tail` | string                                                   | false    |              | Output tail is the end of the workload's output.   |
 | `reason`      | [codersdk.WorkloadEndReason](#codersdkworkloadendreason) | false    |              |                                                    |
+
+## codersdk.AgentWorkloadSpec
+
+```json
+{
+  "command": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "image": "string",
+  "interactive": true,
+  "mounts": [
+    {
+      "path": "string",
+      "writable": true
+    }
+  ],
+  "name": "string",
+  "network": "none"
+}
+```
+
+### Properties
+
+| Name          | Type                                                      | Required | Restrictions | Description                                                                                                          |
+|---------------|-----------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------|
+| `command`     | string                                                    | false    |              |                                                                                                                      |
+| `id`          | string                                                    | false    |              | ID is the workload identity the daemon vouches for when it forwards the sandbox's requests.                          |
+| `image`       | string                                                    | false    |              | Image, Network and Mounts are requests. The daemon's policy, which the template sets, decides whether to honor them. |
+| `interactive` | boolean                                                   | false    |              | Interactive gives the command a terminal.                                                                            |
+| `mounts`      | array of [codersdk.WorkloadMount](#codersdkworkloadmount) | false    |              |                                                                                                                      |
+| `name`        | string                                                    | false    |              |                                                                                                                      |
+| `network`     | [codersdk.WorkloadNetwork](#codersdkworkloadnetwork)      | false    |              |                                                                                                                      |
+
+## codersdk.AgentWorkloadStart
+
+```json
+{
+  "error": "string",
+  "state": {
+    "exit_code": 0,
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "image": "string",
+    "mounts": [
+      {
+        "path": "string",
+        "writable": true
+      }
+    ],
+    "name": "string",
+    "network": "none",
+    "running": true,
+    "sandbox": {
+      "id": "string",
+      "runtime": "string"
+    },
+    "started_at": "2019-08-24T14:15:22Z"
+  }
+}
+```
+
+### Properties
+
+| Name    | Type                                                       | Required | Restrictions | Description                          |
+|---------|------------------------------------------------------------|----------|--------------|--------------------------------------|
+| `error` | string                                                     | false    |              | Error says why it does not.          |
+| `state` | [codersdk.AgentWorkloadState](#codersdkagentworkloadstate) | false    |              | State is set when the workload runs. |
+
+## codersdk.AgentWorkloadState
+
+```json
+{
+  "exit_code": 0,
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "image": "string",
+  "mounts": [
+    {
+      "path": "string",
+      "writable": true
+    }
+  ],
+  "name": "string",
+  "network": "none",
+  "running": true,
+  "sandbox": {
+    "id": "string",
+    "runtime": "string"
+  },
+  "started_at": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name         | Type                                                      | Required | Restrictions | Description                                                        |
+|--------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------|
+| `exit_code`  | integer                                                   | false    |              |                                                                    |
+| `id`         | string                                                    | false    |              |                                                                    |
+| `image`      | string                                                    | false    |              | Image, Network and Mounts are what the daemon's policy settled on. |
+| `mounts`     | array of [codersdk.WorkloadMount](#codersdkworkloadmount) | false    |              |                                                                    |
+| `name`       | string                                                    | false    |              |                                                                    |
+| `network`    | [codersdk.WorkloadNetwork](#codersdkworkloadnetwork)      | false    |              |                                                                    |
+| `running`    | boolean                                                   | false    |              |                                                                    |
+| `sandbox`    | [codersdk.WorkloadSandbox](#codersdkworkloadsandbox)      | false    |              |                                                                    |
+| `started_at` | string                                                    | false    |              |                                                                    |
 
 ## codersdk.AppFamilyName
 
@@ -7544,10 +7665,10 @@ This is required on creation to enable a user-flow of validating a template work
 
 #### Enumerated Values
 
-| Property         | Value(s)            |
-|------------------|---------------------|
-| `provisioner`    | `echo`, `terraform` |
-| `storage_method` | `file`              |
+| Property         | Value(s)                       |
+|------------------|--------------------------------|
+| `provisioner`    | `echo`, `sandbox`, `terraform` |
+| `storage_method` | `file`                         |
 
 ## codersdk.CreateTestAuditLogRequest
 
@@ -7726,6 +7847,7 @@ This is required on creation to enable a user-flow of validating a template work
   ],
   "name": "string",
   "network": "none",
+  "remove_workspace": true,
   "scopes": [
     "all"
   ]
@@ -7734,16 +7856,17 @@ This is required on creation to enable a user-flow of validating a template work
 
 ### Properties
 
-| Name          | Type                                                      | Required | Restrictions | Description                                                                                                                      |
-|---------------|-----------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------|
-| `agent`       | string                                                    | false    |              | Agent selects the workspace daemon by name. It may be empty when the workspace has exactly one.                                  |
-| `command`     | string                                                    | false    |              | Command is run by a shell inside the sandbox.                                                                                    |
-| `image`       | string                                                    | false    |              | Image asks for another image than the daemon's default. The template decides which images are allowed.                           |
-| `interactive` | boolean                                                   | false    |              | Interactive gives the command a terminal that the sponsor can attach to.                                                         |
-| `mounts`      | array of [codersdk.WorkloadMount](#codersdkworkloadmount) | false    |              | Mounts asks for directories of the workspace to be visible in the sandbox. The template decides which directories may be shared. |
-| `name`        | string                                                    | false    |              | Name is optional. It must be a valid agent name.                                                                                 |
-| `network`     | [codersdk.WorkloadNetwork](#codersdkworkloadnetwork)      | false    |              | Network asks for another network than the daemon's default. Asking for none is always allowed.                                   |
-| `scopes`      | array of [codersdk.APIKeyScope](#codersdkapikeyscope)     | false    |              | Scopes are the API key scopes the workload may use on the sponsor's behalf. Without any, the workload can do nothing in Coder.   |
+| Name               | Type                                                      | Required | Restrictions | Description                                                                                                                      |
+|--------------------|-----------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------|
+| `agent`            | string                                                    | false    |              | Agent selects the workspace daemon by name. It may be empty when the workspace has exactly one.                                  |
+| `command`          | string                                                    | false    |              | Command is run by a shell inside the sandbox.                                                                                    |
+| `image`            | string                                                    | false    |              | Image asks for another image than the daemon's default. The template decides which images are allowed.                           |
+| `interactive`      | boolean                                                   | false    |              | Interactive gives the command a terminal that the sponsor can attach to.                                                         |
+| `mounts`           | array of [codersdk.WorkloadMount](#codersdkworkloadmount) | false    |              | Mounts asks for directories of the workspace to be visible in the sandbox. The template decides which directories may be shared. |
+| `name`             | string                                                    | false    |              | Name is optional. It must be a valid agent name.                                                                                 |
+| `network`          | [codersdk.WorkloadNetwork](#codersdkworkloadnetwork)      | false    |              | Network asks for another network than the daemon's default. Asking for none is always allowed.                                   |
+| `remove_workspace` | boolean                                                   | false    |              | Remove workspace deletes the workspace when the workload is over. It is for a workspace that was made for this one workload.     |
+| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope)     | false    |              | Scopes are the API key scopes the workload may use on the sponsor's behalf. Without any, the workload can do nothing in Coder.   |
 
 ## codersdk.CreateWorkspaceBuildOnSuccessRequest
 
@@ -15448,9 +15571,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 #### Enumerated Values
 
-| Property      | Value(s)    |
-|---------------|-------------|
-| `provisioner` | `terraform` |
+| Property      | Value(s)               |
+|---------------|------------------------|
+| `provisioner` | `sandbox`, `terraform` |
 
 ## codersdk.TemplateACL
 
@@ -18898,6 +19021,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   ],
   "name": "string",
   "network": "none",
+  "own_workspace": true,
   "sandbox": {
     "id": "string",
     "runtime": "string"
@@ -18908,32 +19032,35 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "sponsor_id": "32cfe838-2a19-497d-9bb7-2d262b6713b5",
   "sponsor_username": "string",
   "status": "starting",
-  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9"
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                      | Required | Restrictions | Description                                                                      |
-|--------------------|-----------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------|
-| `agent_id`         | string                                                    | false    |              |                                                                                  |
-| `agent_name`       | string                                                    | false    |              |                                                                                  |
-| `command`          | string                                                    | false    |              |                                                                                  |
-| `created_at`       | string                                                    | false    |              |                                                                                  |
-| `exit_code`        | integer                                                   | false    |              | Exit code is the command's exit code, when it is known.                          |
-| `finished_at`      | string                                                    | false    |              | Finished at is set once the workload is over.                                    |
-| `id`               | string                                                    | false    |              | ID is the workload's identity ID.                                                |
-| `identity`         | string                                                    | false    |              | Identity is the workload's identity as it is displayed.                          |
-| `image`            | string                                                    | false    |              | Image, Network and Mounts are what the daemon's policy settled on.               |
-| `mounts`           | array of [codersdk.WorkloadMount](#codersdkworkloadmount) | false    |              |                                                                                  |
-| `name`             | string                                                    | false    |              |                                                                                  |
-| `network`          | [codersdk.WorkloadNetwork](#codersdkworkloadnetwork)      | false    |              |                                                                                  |
-| `sandbox`          | [codersdk.WorkloadSandbox](#codersdkworkloadsandbox)      | false    |              |                                                                                  |
-| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope)     | false    |              | Scopes narrow the sponsor's permissions. An empty list grants nothing.           |
-| `sponsor_id`       | string                                                    | false    |              | Sponsor ID is the user account whose permissions bound what the workload may do. |
-| `sponsor_username` | string                                                    | false    |              |                                                                                  |
-| `status`           | [codersdk.WorkloadStatus](#codersdkworkloadstatus)        | false    |              |                                                                                  |
-| `workspace_id`     | string                                                    | false    |              |                                                                                  |
+| Name               | Type                                                      | Required | Restrictions | Description                                                                                            |
+|--------------------|-----------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------|
+| `agent_id`         | string                                                    | false    |              |                                                                                                        |
+| `agent_name`       | string                                                    | false    |              |                                                                                                        |
+| `command`          | string                                                    | false    |              |                                                                                                        |
+| `created_at`       | string                                                    | false    |              |                                                                                                        |
+| `exit_code`        | integer                                                   | false    |              | Exit code is the command's exit code, when it is known.                                                |
+| `finished_at`      | string                                                    | false    |              | Finished at is set once the workload is over.                                                          |
+| `id`               | string                                                    | false    |              | ID is the workload's identity ID.                                                                      |
+| `identity`         | string                                                    | false    |              | Identity is the workload's identity as it is displayed.                                                |
+| `image`            | string                                                    | false    |              | Image, Network and Mounts are what the daemon's policy settled on.                                     |
+| `mounts`           | array of [codersdk.WorkloadMount](#codersdkworkloadmount) | false    |              |                                                                                                        |
+| `name`             | string                                                    | false    |              |                                                                                                        |
+| `network`          | [codersdk.WorkloadNetwork](#codersdkworkloadnetwork)      | false    |              |                                                                                                        |
+| `own_workspace`    | boolean                                                   | false    |              | Own workspace means the workspace was made for this workload and is deleted when the workload is over. |
+| `sandbox`          | [codersdk.WorkloadSandbox](#codersdkworkloadsandbox)      | false    |              |                                                                                                        |
+| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope)     | false    |              | Scopes narrow the sponsor's permissions. An empty list grants nothing.                                 |
+| `sponsor_id`       | string                                                    | false    |              | Sponsor ID is the user account whose permissions bound what the workload may do.                       |
+| `sponsor_username` | string                                                    | false    |              |                                                                                                        |
+| `status`           | [codersdk.WorkloadStatus](#codersdkworkloadstatus)        | false    |              |                                                                                                        |
+| `workspace_id`     | string                                                    | false    |              |                                                                                                        |
+| `workspace_name`   | string                                                    | false    |              | Workspace name is set when workloads of several workspaces are listed.                                 |
 
 ## codersdk.WorkloadAttestation
 

@@ -68,12 +68,115 @@ func (api *API) registerWorkspaceWorkloadRoutes(r chi.Router) {
 	})
 }
 
-// registerAgentWorkloadRoutes adds what a workspace daemon tells coderd
-// about the workloads it runs. The daemon authenticates as itself.
-func (api *API) registerAgentWorkloadRoutes(r chi.Router) {
+// registerWorkloadRoutes adds the workloads of the caller, whichever
+// workspace they run in.
+func (api *API) registerWorkloadRoutes(r chi.Router) {
 	r.With(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentRuntimeWorkloads)).
-		Post("/workloads/{workload}/exit", api.postWorkspaceAgentWorkloadExit)
+		Get("/workloads", api.sponsoredWorkloads)
 }
+
+// @Summary List the workloads you sponsor (experimental)
+// @ID list-sponsored-workloads
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Workspaces
+// @Param finished query bool false "Also list the most recent finished workloads"
+// @Success 200 {array} codersdk.Workload
+// @Router /api/v2/workloads [get]
+// @x-apidocgen {"skip": true}
+func (api *API) sponsoredWorkloads(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	// A workload learns nothing about its sponsor's other workloads.
+	if isWorkloadCaller(r) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{Message: "A workload cannot list workloads."})
+		return
+	}
+	sponsor := httpmw.APIKey(r).UserID
+	//nolint:gocritic // The caller's own workloads; identities have no permission of their own yet.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	identities, err := api.Database.GetWorkloadIdentitiesBySponsorID(sysCtx, sponsor)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	if r.URL.Query().Get("finished") == "true" {
+		finished, err := api.Database.GetFinishedWorkloadIdentitiesBySponsorID(sysCtx, database.GetFinishedWorkloadIdentitiesBySponsorIDParams{
+			SponsorID: sponsor,
+			LimitOpt:  finishedWorkloadsListed,
+		})
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		identities = append(identities, finished...)
+	}
+	username := ""
+	if user, err := api.Database.GetUserByID(sysCtx, sponsor); err == nil {
+		username = user.Username
+	}
+	workspaces := make(map[uuid.UUID]string)
+	agents := make(map[uuid.UUID]string)
+	workloads := make([]codersdk.Workload, 0, len(identities))
+	for _, identity := range identities {
+		if _, ok := workspaces[identity.WorkspaceID]; !ok {
+			// Workspaces that are gone still have their name.
+			name := ""
+			if workspace, err := api.Database.GetWorkspaceByID(sysCtx, identity.WorkspaceID); err == nil {
+				name = workspace.Name
+			}
+			workspaces[identity.WorkspaceID] = name
+		}
+		if _, ok := agents[identity.WorkspaceAgentID]; !ok {
+			name := ""
+			if agent, err := api.Database.GetWorkspaceAgentByID(sysCtx, identity.WorkspaceAgentID); err == nil {
+				name = agent.Name
+			}
+			agents[identity.WorkspaceAgentID] = name
+		}
+		// What coderd has on record. Whether a daemon still runs a live
+		// workload is found out when its workspace's workloads are listed.
+		status := codersdk.WorkloadStatusStarting
+		if identity.StartedAt.Valid {
+			status = codersdk.WorkloadStatusRunning
+		}
+		workload := workloadFromIdentity(identity, agents[identity.WorkspaceAgentID], username, status)
+		workload.WorkspaceName = workspaces[identity.WorkspaceID]
+		workloads = append(workloads, workload)
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, workloads)
+}
+
+// registerAgentWorkloadRoutes adds what a workspace daemon asks and tells
+// coderd about the workloads it runs. The daemon authenticates as itself.
+func (api *API) registerAgentWorkloadRoutes(r chi.Router) {
+	r.Route("/workloads", func(r chi.Router) {
+		r.Use(httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentRuntimeWorkloads))
+		r.Get("/pending", api.workspaceAgentPendingWorkloads)
+		r.Post("/{workload}/started", api.postWorkspaceAgentWorkloadStarted)
+		r.Post("/{workload}/exit", api.postWorkspaceAgentWorkloadExit)
+	})
+}
+
+// workloadPendingChannel is where a daemon is told that it has been given
+// a workload.
+func workloadPendingChannel(agentID uuid.UUID) string {
+	return "workload_pending:" + agentID.String()
+}
+
+// workloadStartedChannel is where it is announced whether a workload was
+// started. The message is empty, or the reason it was not.
+func workloadStartedChannel(workloadID uuid.UUID) string {
+	return "workload_started:" + workloadID.String()
+}
+
+// workloadFinishedChannel is where it is announced that a workload is over.
+func workloadFinishedChannel(workloadID uuid.UUID) string {
+	return "workload_finished:" + workloadID.String()
+}
+
+// maxPendingWorkloadsWait bounds how long a daemon's request for pending
+// workloads is held.
+const maxPendingWorkloadsWait = 30 * time.Second
 
 // workloadIdentityName is how a workload's identity is displayed.
 func workloadIdentityName(workspaceID, identityID uuid.UUID) string {
@@ -136,6 +239,7 @@ func workloadFromIdentity(identity database.WorkloadIdentity, agentName, sponsor
 		Scopes:          workloadScopes(identity.Scopes),
 		Image:           identity.Image,
 		Network:         codersdk.WorkloadNetwork(identity.Network),
+		OwnWorkspace:    identity.RemoveWorkspace,
 	}
 	for _, mount := range identity.Mounts {
 		workload.Mounts = append(workload.Mounts, codersdk.ParseWorkloadMount(mount))
@@ -329,7 +433,57 @@ func (api *API) finishWorkload(ctx context.Context, identity database.WorkloadId
 		Status:           http.StatusOK,
 		AdditionalFields: api.workloadAuditFields(ctx, identity, extra),
 	})
+	// Whoever follows the workload can stop waiting for its daemon.
+	if err := api.Pubsub.Publish(workloadFinishedChannel(identity.ID), []byte{}); err != nil {
+		api.Logger.Warn(ctx, "announce that a workload is over", slog.Error(err))
+	}
+	if finished.RemoveWorkspace {
+		go api.removeWorkloadWorkspace(finished)
+	}
 	return finished, true, nil
+}
+
+// workloadWorkspaceGrace is how long a workspace that was made for one
+// workload is kept after the workload is over, so that whoever follows the
+// workload can read the end of its output from the daemon.
+const workloadWorkspaceGrace = 3 * time.Second
+
+// removeWorkloadWorkspace deletes the workspace that was made for a
+// workload, as its sponsor.
+func (api *API) removeWorkloadWorkspace(identity database.WorkloadIdentity) {
+	ctx, cancel := context.WithTimeout(api.ctx, time.Minute)
+	defer cancel()
+	logger := api.Logger.With(slog.F("workload_id", identity.ID), slog.F("workspace_id", identity.WorkspaceID))
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(workloadWorkspaceGrace):
+	}
+	//nolint:gocritic // The sponsor's permissions are looked up to act as the sponsor.
+	sponsor, _, err := httpmw.UserRBACSubject(dbauthz.AsSystemRestricted(ctx), api.Database, identity.SponsorID, rbac.ScopeAll)
+	if err != nil {
+		logger.Warn(ctx, "delete the workspace of a finished workload: get sponsor", slog.Error(err))
+		return
+	}
+	ctx = dbauthz.As(ctx, sponsor)
+	workspace, err := api.Database.GetWorkspaceByID(ctx, identity.WorkspaceID)
+	if err != nil {
+		logger.Warn(ctx, "delete the workspace of a finished workload: get workspace", slog.Error(err))
+		return
+	}
+	if workspace.Deleted {
+		return
+	}
+	_, err = api.postWorkspaceBuildsInternal(ctx, database.APIKey{UserID: identity.SponsorID}, workspace,
+		codersdk.CreateWorkspaceBuildRequest{Transition: codersdk.WorkspaceTransitionDelete},
+		func(action policy.Action, object rbac.Objecter) bool {
+			return api.HTTPAuth.Authorizer.Authorize(ctx, sponsor, action, object.RBACObject()) == nil
+		},
+		audit.WorkspaceBuildBaggage{},
+	)
+	if err != nil {
+		logger.Warn(ctx, "delete the workspace of a finished workload", slog.Error(err))
+	}
 }
 
 // listWorkspaceWorkloads returns the workspace's live workloads, oldest
@@ -566,14 +720,22 @@ func (api *API) postWorkspaceWorkload(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	daemon := daemons[0]
-	if daemon.Status(dbtime.Now(), api.AgentInactiveDisconnectTimeout).Status != database.WorkspaceAgentStatusConnected {
+	// A daemon that has just been claimed for a new workspace may still be
+	// on its way. One that has gone away is not.
+	switch daemon.Status(dbtime.Now(), api.AgentInactiveDisconnectTimeout).Status {
+	case database.WorkspaceAgentStatusConnected, database.WorkspaceAgentStatusConnecting:
+	default:
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: fmt.Sprintf("The workspace daemon %q is not connected.", daemon.Name),
 		})
 		return
 	}
 
-	existing, err := api.listWorkspaceWorkloads(ctx, workspace.ID)
+	//nolint:gocritic // The caller is the workspace owner, checked above.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	// Only what coderd knows is looked at here. Asking the daemon would
+	// wait for a connection to it.
+	existing, err := api.Database.GetWorkloadIdentitiesByWorkspaceID(sysCtx, workspace.ID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
@@ -595,22 +757,24 @@ func (api *API) postWorkspaceWorkload(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if slices.ContainsFunc(existing, func(workload codersdk.Workload) bool { return workload.Name == name }) {
+	if slices.ContainsFunc(existing, func(identity database.WorkloadIdentity) bool { return identity.Name == name }) {
 		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 			Message: fmt.Sprintf("A workload named %q already runs in this workspace.", name),
 		})
 		return
 	}
 
-	//nolint:gocritic // The caller is the workspace owner, checked above.
-	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	sponsor, err := api.Database.GetUserByID(sysCtx, apiKey.UserID)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
+	mounts := make([]string, 0, len(req.Mounts))
+	for _, mount := range req.Mounts {
+		mounts = append(mounts, mount.String())
+	}
 	// The identity exists before anything runs. It is assigned to the one
-	// daemon that may vouch for it.
+	// daemon that may vouch for it, and says what was asked for.
 	identity, err := api.Database.InsertWorkloadIdentity(sysCtx, database.InsertWorkloadIdentityParams{
 		ID:               id,
 		CreatedAt:        dbtime.Now(),
@@ -621,6 +785,11 @@ func (api *API) postWorkspaceWorkload(rw http.ResponseWriter, r *http.Request) {
 		Name:             name,
 		Command:          req.Command,
 		Scopes:           scopes,
+		Image:            req.Image,
+		Network:          string(req.Network),
+		Mounts:           mounts,
+		Interactive:      req.Interactive,
+		RemoveWorkspace:  req.RemoveWorkspace,
 	})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
@@ -644,73 +813,92 @@ func (api *API) postWorkspaceWorkload(rw http.ResponseWriter, r *http.Request) {
 			AdditionalFields: api.workloadAuditFields(ctx, started, nil),
 		})
 	}
-
-	state, err := api.startAgentWorkload(ctx, daemon.ID, codersdk.AgentWorkloadSpec{
-		ID: identity.ID, Name: name, Command: req.Command,
-		Image: req.Image, Network: req.Network, Mounts: req.Mounts, Interactive: req.Interactive,
-	})
-	if err != nil {
+	failed := func(status int, message, detail string) {
 		auditStart(http.StatusBadGateway, identity)
-		if _, _, finishErr := api.finishWorkload(ctx, identity, workloadEnd{Reason: codersdk.WorkloadEndReasonFailed}); finishErr != nil {
+		//nolint:gocritic // The caller may be gone; the workload must still be ended.
+		if _, _, finishErr := api.finishWorkload(context.WithoutCancel(ctx), identity, workloadEnd{
+			Reason: codersdk.WorkloadEndReasonFailed, OutputTail: detail,
+		}); finishErr != nil {
 			api.Logger.Error(ctx, "end a workload that did not start", slog.Error(finishErr))
 		}
-		if xerrors.Is(err, errWorkloadsUnsupported) {
+		httpapi.Write(ctx, rw, status, codersdk.Response{Message: message, Detail: detail})
+	}
+
+	// The daemon fetches the workload: it asks coderd for what it has been
+	// given. coderd does not wait for a connection to the daemon, which a
+	// daemon that has just started takes a moment to offer.
+	outcome := make(chan string, 1)
+	unsubscribe, err := api.Pubsub.Subscribe(workloadStartedChannel(identity.ID), func(_ context.Context, message []byte) {
+		select {
+		case outcome <- string(message):
+		default:
+		}
+	})
+	if err != nil {
+		failed(http.StatusInternalServerError, "The workload could not be handed to the workspace daemon.", err.Error())
+		return
+	}
+	defer unsubscribe()
+	if err := api.Pubsub.Publish(workloadPendingChannel(daemon.ID), []byte{}); err != nil {
+		failed(http.StatusInternalServerError, "The workload could not be handed to the workspace daemon.", err.Error())
+		return
+	}
+	// A daemon without a runtime never fetches anything. Find that out
+	// meanwhile, over the connection coderd has to daemons.
+	unsupported := make(chan struct{}, 1)
+	probeCtx, cancelProbe := context.WithCancel(ctx)
+	defer cancelProbe()
+	go func() {
+		if _, err := api.agentWorkloadStates(probeCtx, daemon.ID); xerrors.Is(err, errWorkloadsUnsupported) {
+			unsupported <- struct{}{}
+		}
+	}()
+
+	timeout := time.NewTimer(workloadStartTimeout)
+	defer timeout.Stop()
+	// Look now and then as well, in case an announcement is lost.
+	look := time.NewTicker(2 * time.Second)
+	defer look.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			// The caller is gone. The daemon may still start the
+			// workload, which then runs unattended.
+			return
+		case <-timeout.C:
+			failed(http.StatusBadGateway, "The workspace daemon did not start the workload in time.", "")
+			return
+		case <-unsupported:
+			auditStart(http.StatusConflict, identity)
+			//nolint:gocritic // The caller may be gone; the workload must still be ended.
+			if _, _, finishErr := api.finishWorkload(context.WithoutCancel(ctx), identity, workloadEnd{Reason: codersdk.WorkloadEndReasonFailed}); finishErr != nil {
+				api.Logger.Error(ctx, "end a workload that did not start", slog.Error(finishErr))
+			}
 			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
 				Message: fmt.Sprintf("The workspace daemon %q cannot run workloads.", daemon.Name),
 				Detail:  "The template must start the agent with CODER_AGENT_WORKLOAD_RUNTIME set and give it a sandbox runtime such as Docker.",
 			})
 			return
+		case reason := <-outcome:
+			if reason != "" {
+				failed(http.StatusBadGateway, "The workspace daemon could not start the workload.", reason)
+				return
+			}
+		case <-look.C:
 		}
-		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
-			Message: "The workspace daemon could not start the workload.",
-			Detail:  err.Error(),
-		})
-		return
+		started, err := api.Database.GetWorkloadIdentityByID(sysCtx, identity.ID)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		// A command can be over before anybody has looked.
+		if started.StartedAt.Valid || started.FinishedAt.Valid {
+			auditStart(http.StatusCreated, started)
+			httpapi.Write(ctx, rw, http.StatusCreated,
+				workloadFromIdentity(started, daemon.Name, sponsor.Username, codersdk.WorkloadStatusRunning))
+			return
+		}
 	}
-	mounts := make([]string, 0, len(state.Mounts))
-	for _, mount := range state.Mounts {
-		mounts = append(mounts, mount.String())
-	}
-	started, err := api.Database.UpdateWorkloadIdentitySandbox(sysCtx, database.UpdateWorkloadIdentitySandboxParams{
-		ID:        identity.ID,
-		Runtime:   state.Sandbox.Runtime,
-		SandboxID: state.Sandbox.ID,
-		Image:     state.Image,
-		Network:   string(state.Network),
-		Mounts:    mounts,
-		StartedAt: sql.NullTime{Valid: true, Time: dbtime.Now()},
-	})
-	if errors.Is(err, sql.ErrNoRows) {
-		// The command was over before its sandbox could be recorded.
-		started, err = api.Database.GetWorkloadIdentityByID(sysCtx, identity.ID)
-	}
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-	identity = started
-	auditStart(http.StatusCreated, identity)
-	httpapi.Write(ctx, rw, http.StatusCreated,
-		workloadFromIdentity(identity, daemon.Name, sponsor.Username, codersdk.WorkloadStatusRunning))
-}
-
-func (api *API) startAgentWorkload(ctx context.Context, agentID uuid.UUID, spec codersdk.AgentWorkloadSpec) (codersdk.AgentWorkloadState, error) {
-	ctx, cancel := context.WithTimeout(ctx, workloadStartTimeout)
-	defer cancel()
-	res, release, err := api.workloadAgentRequest(ctx, agentID, http.MethodPost, "/", spec)
-	if err != nil {
-		return codersdk.AgentWorkloadState{}, err
-	}
-	defer release()
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusCreated {
-		return codersdk.AgentWorkloadState{}, readAgentWorkloadError(res)
-	}
-	var state codersdk.AgentWorkloadState
-	if err := json.NewDecoder(res.Body).Decode(&state); err != nil {
-		return codersdk.AgentWorkloadState{}, xerrors.Errorf("decode workload state: %w", err)
-	}
-	return state, nil
 }
 
 // @Summary List workloads (experimental)
@@ -821,25 +1009,90 @@ func (api *API) workspaceWorkloadLogs(rw http.ResponseWriter, r *http.Request) {
 		write(raw)
 	}
 
-	res, release, err := api.workloadAgentRequest(ctx, identity.WorkspaceAgentID, http.MethodGet, "/"+identity.ID.String()+"/logs", nil)
-	if err != nil {
-		if identity.FinishedAt.Valid {
-			recorded(identity)
+	//nolint:gocritic // The caller is authorized for the workspace.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	// The end of a finished workload's output is on record. That is all
+	// of it, unless there was more than is kept.
+	complete := func(identity database.WorkloadIdentity) bool {
+		return identity.FinishedAt.Valid && len(identity.OutputTail) < maxWorkloadOutputTailBytes
+	}
+	if complete(identity) {
+		recorded(identity)
+		return
+	}
+
+	// The daemon has the live output. A daemon that has just started
+	// takes a moment to be reachable, and a short command can be over
+	// before that. What the daemon reported is served then.
+	type daemonResponse struct {
+		res     *http.Response
+		release func()
+		err     error
+	}
+	dialCtx, cancelDial := context.WithCancel(ctx)
+	defer cancelDial()
+	dialed := make(chan daemonResponse, 1)
+	go func() {
+		res, release, err := api.workloadAgentRequest(dialCtx, identity.WorkspaceAgentID, http.MethodGet, "/"+identity.ID.String()+"/logs", nil)
+		dialed <- daemonResponse{res: res, release: release, err: err}
+	}()
+	abandon := func() {
+		cancelDial()
+		go func() {
+			if late := <-dialed; late.err == nil {
+				_ = late.res.Body.Close()
+				late.release()
+			}
+		}()
+	}
+	over := make(chan struct{}, 1)
+	if unsubscribe, err := api.Pubsub.Subscribe(workloadFinishedChannel(identity.ID), func(context.Context, []byte) {
+		select {
+		case over <- struct{}{}:
+		default:
+		}
+	}); err == nil {
+		defer unsubscribe()
+	}
+	// Look now and then as well, in case an announcement is lost.
+	look := time.NewTicker(2 * time.Second)
+	defer look.Stop()
+	var response daemonResponse
+waiting:
+	for {
+		if latest, err := api.Database.GetWorkloadIdentityByID(sysCtx, identity.ID); err == nil && complete(latest) {
+			abandon()
+			recorded(latest)
+			return
+		}
+		select {
+		case response = <-dialed:
+			break waiting
+		case <-over:
+		case <-look.C:
+		case <-ctx.Done():
+			abandon()
+			return
+		}
+	}
+	if response.err != nil {
+		if latest, err := api.Database.GetWorkloadIdentityByID(sysCtx, identity.ID); err == nil && latest.FinishedAt.Valid {
+			recorded(latest)
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusBadGateway, codersdk.Response{
 			Message: "The workspace daemon could not be reached.",
-			Detail:  err.Error(),
+			Detail:  response.err.Error(),
 		})
 		return
 	}
+	res, release := response.res, response.release
 	defer release()
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
 		// The daemon no longer has the sandbox. What it reported when the
 		// workload ended is on record.
-		//nolint:gocritic // The caller is authorized for the workspace.
-		if latest, err := api.Database.GetWorkloadIdentityByID(dbauthz.AsSystemRestricted(ctx), identity.ID); err == nil && latest.FinishedAt.Valid {
+		if latest, err := api.Database.GetWorkloadIdentityByID(sysCtx, identity.ID); err == nil && latest.FinishedAt.Valid {
 			recorded(latest)
 			return
 		}
@@ -1020,6 +1273,146 @@ func (api *API) deleteWorkspaceWorkload(rw http.ResponseWriter, r *http.Request)
 	} else {
 		_ = res.Body.Close()
 		release()
+	}
+	rw.WriteHeader(http.StatusNoContent)
+}
+
+// @Summary Get the workloads a daemon has been given (experimental)
+// @ID get-workspace-agent-pending-workloads
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Agents
+// @Param wait_seconds query int false "How long to hold the request when there is none"
+// @Success 200 {array} codersdk.AgentWorkloadSpec
+// @Router /api/v2/workspaceagents/me/workloads/pending [get]
+// @x-apidocgen {"skip": true}
+func (api *API) workspaceAgentPendingWorkloads(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	agent := httpmw.WorkspaceAgent(r)
+	seconds, _ := strconv.Atoi(r.URL.Query().Get("wait_seconds"))
+	wait := min(time.Duration(max(seconds, 0))*time.Second, maxPendingWorkloadsWait)
+
+	given := make(chan struct{}, 1)
+	// Listening comes before looking, so that nothing is missed in between.
+	unsubscribe, err := api.Pubsub.Subscribe(workloadPendingChannel(agent.ID), func(context.Context, []byte) {
+		select {
+		case given <- struct{}{}:
+		default:
+		}
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	defer unsubscribe()
+	deadline := time.NewTimer(wait)
+	defer deadline.Stop()
+	// Look now and then as well, in case an announcement is lost.
+	look := time.NewTicker(5 * time.Second)
+	defer look.Stop()
+	var identities []database.WorkloadIdentity
+waiting:
+	for {
+		//nolint:gocritic // The daemon is authenticated; identities have no permission of their own yet.
+		identities, err = api.Database.GetPendingWorkloadIdentitiesByWorkspaceAgentID(dbauthz.AsSystemRestricted(ctx),
+			database.GetPendingWorkloadIdentitiesByWorkspaceAgentIDParams{
+				WorkspaceAgentID: agent.ID,
+				CreatedAfter:     dbtime.Now().Add(-workloadStartTimeout),
+			})
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+		if len(identities) > 0 {
+			break
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-deadline.C:
+			break waiting
+		case <-given:
+		case <-look.C:
+		}
+	}
+	specs := make([]codersdk.AgentWorkloadSpec, 0, len(identities))
+	for _, identity := range identities {
+		spec := codersdk.AgentWorkloadSpec{
+			ID:          identity.ID,
+			Name:        identity.Name,
+			Command:     identity.Command,
+			Image:       identity.Image,
+			Network:     codersdk.WorkloadNetwork(identity.Network),
+			Interactive: identity.Interactive,
+		}
+		for _, mount := range identity.Mounts {
+			spec.Mounts = append(spec.Mounts, codersdk.ParseWorkloadMount(mount))
+		}
+		specs = append(specs, spec)
+	}
+	httpapi.Write(ctx, rw, http.StatusOK, specs)
+}
+
+// @Summary Report whether a workload was started (experimental)
+// @ID post-workspace-agent-workload-started
+// @Security CoderSessionToken
+// @Accept json
+// @Tags Agents
+// @Param workload path string true "Workload ID" format(uuid)
+// @Param request body codersdk.AgentWorkloadStart true "How starting the workload went"
+// @Success 204
+// @Router /api/v2/workspaceagents/me/workloads/{workload}/started [post]
+// @x-apidocgen {"skip": true}
+func (api *API) postWorkspaceAgentWorkloadStarted(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	agent := httpmw.WorkspaceAgent(r)
+	id, err := uuid.Parse(chi.URLParam(r, "workload"))
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "The workload ID must be a UUID."})
+		return
+	}
+	var req codersdk.AgentWorkloadStart
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+	//nolint:gocritic // The daemon is authenticated; identities have no permission of their own yet.
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	// A daemon reports only on workloads coderd gave it.
+	identity, err := api.Database.GetWorkloadIdentityByID(sysCtx, id)
+	if err != nil || identity.WorkspaceAgentID != agent.ID {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	reason := req.Error
+	switch {
+	case req.State != nil:
+		reason = ""
+		mounts := make([]string, 0, len(req.State.Mounts))
+		for _, mount := range req.State.Mounts {
+			mounts = append(mounts, mount.String())
+		}
+		// No row means the workload is over already, which is fine.
+		_, err = api.Database.UpdateWorkloadIdentitySandbox(sysCtx, database.UpdateWorkloadIdentitySandboxParams{
+			ID:        identity.ID,
+			Runtime:   req.State.Sandbox.Runtime,
+			SandboxID: req.State.Sandbox.ID,
+			Image:     req.State.Image,
+			Network:   string(req.State.Network),
+			Mounts:    mounts,
+			StartedAt: sql.NullTime{Valid: true, Time: dbtime.Now()},
+		})
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			httpapi.InternalServerError(rw, err)
+			return
+		}
+	case reason == "":
+		reason = "the workspace daemon did not say why"
+	}
+	// Whoever asked for the workload is waiting to hear, and records the
+	// outcome.
+	if err := api.Pubsub.Publish(workloadStartedChannel(identity.ID), []byte(reason)); err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
 	}
 	rw.WriteHeader(http.StatusNoContent)
 }

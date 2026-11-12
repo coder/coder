@@ -102,6 +102,7 @@ import (
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"github.com/coder/coder/v2/coderd/wsbuildorchestrator"
 	"github.com/coder/coder/v2/coderd/x/agenthooks/dispatch"
+	"github.com/coder/coder/v2/coderd/x/agentsandbox"
 	"github.com/coder/coder/v2/coderd/x/chatd"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/mcpclient"
@@ -186,6 +187,7 @@ type Options struct {
 	Authorizer                     rbac.Authorizer
 	AzureCertificates              azureidentity.Options
 	GoogleTokenValidator           *idtoken.Validator
+	SandboxCluster                 *agentsandbox.Cluster
 	GithubOAuth2Config             *GithubOAuth2Config
 	OIDCConfig                     *OIDCConfig
 	PrometheusRegistry             *prometheus.Registry
@@ -1837,6 +1839,7 @@ func New(options *Options) *API {
 			r.Post("/azure-instance-identity", api.postWorkspaceAuthAzureInstanceIdentity)
 			r.Post("/aws-instance-identity", api.postWorkspaceAuthAWSInstanceIdentity)
 			r.Post("/google-instance-identity", api.postWorkspaceAuthGoogleInstanceIdentity)
+			r.Post("/kubernetes-pod-identity", api.postWorkspaceAuthKubernetesPodIdentity)
 			r.With(
 				apiKeyMiddlewareOptional,
 				httpmw.ExtractWorkspaceProxy(httpmw.ExtractWorkspaceProxyConfig{
@@ -1895,6 +1898,10 @@ func New(options *Options) *API {
 
 				// PTY is part of workspaceAppServer.
 			})
+		})
+		r.Group(func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			api.registerWorkloadRoutes(r)
 		})
 		r.Route("/workspaces", func(r chi.Router) {
 			r.Use(
