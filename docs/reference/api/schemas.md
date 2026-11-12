@@ -413,6 +413,7 @@ title: Schemas
   "circuit_breaker_max_requests": 0,
   "circuit_breaker_timeout": 0,
   "disable_content_recording": true,
+  "embedded_enabled": true,
   "enabled": true,
   "inject_coder_mcp_tools": true,
   "max_concurrency": 0,
@@ -441,6 +442,7 @@ title: Schemas
 | `circuit_breaker_max_requests`      | integer | false    |              |                                                                                                                                                                                                                                                                        |
 | `circuit_breaker_timeout`           | integer | false    |              |                                                                                                                                                                                                                                                                        |
 | `disable_content_recording`         | boolean | false    |              | Disable content recording stops user prompts, tool calls and model reasoning from being recorded, including tool names and their arguments. Interceptions and token usage are still recorded, so cost controls, budget enforcement and spend reporting are unaffected. |
+| `embedded_enabled`                  | boolean | false    |              | Embedded enabled controls whether coderd starts the in-memory AI Gateway. It only takes effect when Enabled is true.                                                                                                                                                   |
 | `enabled`                           | boolean | false    |              |                                                                                                                                                                                                                                                                        |
 | `inject_coder_mcp_tools`            | boolean | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                                                                                                           |
 | `max_concurrency`                   | integer | false    |              |                                                                                                                                                                                                                                                                        |
@@ -1129,6 +1131,7 @@ title: Schemas
     "circuit_breaker_max_requests": 0,
     "circuit_breaker_timeout": 0,
     "disable_content_recording": true,
+    "embedded_enabled": true,
     "enabled": true,
     "inject_coder_mcp_tools": true,
     "max_concurrency": 0,
@@ -8271,6 +8274,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "circuit_breaker_max_requests": 0,
         "circuit_breaker_timeout": 0,
         "disable_content_recording": true,
+        "embedded_enabled": true,
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
@@ -8606,6 +8610,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "collect_agent_stats": true,
       "collect_db_metrics": true,
+      "collect_workspace_stats": true,
       "enable": true
     },
     "provisioner": {
@@ -8909,6 +8914,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "circuit_breaker_max_requests": 0,
       "circuit_breaker_timeout": 0,
       "disable_content_recording": true,
+      "embedded_enabled": true,
       "enabled": true,
       "inject_coder_mcp_tools": true,
       "max_concurrency": 0,
@@ -9244,6 +9250,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     ],
     "collect_agent_stats": true,
     "collect_db_metrics": true,
+    "collect_workspace_stats": true,
     "enable": true
   },
   "provisioner": {
@@ -9976,9 +9983,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                           |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                               |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-automations`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 
@@ -13922,6 +13929,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   ],
   "collect_agent_stats": true,
   "collect_db_metrics": true,
+  "collect_workspace_stats": true,
   "enable": true
 }
 ```
@@ -13934,6 +13942,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `aggregate_agent_stats_by` | array of string                      | false    |              |             |
 | `collect_agent_stats`      | boolean                              | false    |              |             |
 | `collect_db_metrics`       | boolean                              | false    |              |             |
+| `collect_workspace_stats`  | boolean                              | false    |              |             |
 | `enable`                   | boolean                              | false    |              |             |
 
 ## codersdk.ProposeChatTitleResponse
