@@ -613,36 +613,40 @@ export const MockAsyncQuestions: AskUserQuestion[] = [
 	},
 ];
 
+const MockTestingAsyncQuestion: AskUserQuestion = {
+	header: "Testing",
+	question: "How should the change be verified?",
+	options: [
+		{
+			label: "Cover the change with unit tests.",
+			description: "Check the changed behavior automatically.",
+		},
+		{
+			label: "Check it by hand in a dev deployment.",
+			description: "Try the workflow in a running deployment.",
+		},
+	],
+};
+
+const MockRolloutAsyncQuestion: AskUserQuestion = {
+	header: "Rollout",
+	question: "Who should get the change first?",
+	options: [
+		{
+			label: "Internal users",
+			description: "Start with the team before a wider release.",
+		},
+		{
+			label: "Small beta",
+			description: "Start with a limited set of workspaces.",
+		},
+	],
+};
+
 const MockSeveralAsyncQuestions: AskUserQuestion[] = [
 	...MockAsyncQuestions,
-	{
-		header: "Testing",
-		question: "How should the change be verified?",
-		options: [
-			{
-				label: "Cover the change with unit tests.",
-				description: "Check the changed behavior automatically.",
-			},
-			{
-				label: "Check it by hand in a dev deployment.",
-				description: "Try the workflow in a running deployment.",
-			},
-		],
-	},
-	{
-		header: "Rollout",
-		question: "Who should get the change first?",
-		options: [
-			{
-				label: "Internal users",
-				description: "Start with the team before a wider release.",
-			},
-			{
-				label: "Small beta",
-				description: "Start with a limited set of workspaces.",
-			},
-		],
-	},
+	MockTestingAsyncQuestion,
+	MockRolloutAsyncQuestion,
 ];
 
 const MockAsyncQuestionResult = {
@@ -713,7 +717,7 @@ export const MockNewerAsyncQuestionMessages: TypesGen.ChatMessage[] = [
 				type: "tool-call",
 				tool_call_id: "newer-async-question",
 				tool_name: "ask_user_question_async",
-				args: buildQuestionArgs(MockSeveralAsyncQuestions.slice(1, 2)),
+				args: buildQuestionArgs([MockTestingAsyncQuestion]),
 				created_at: workingFixtureTime(7),
 			},
 		],

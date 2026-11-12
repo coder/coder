@@ -49,7 +49,7 @@ const renderChatPageTimeline = (
 	});
 	queryClient.setQueryData(preferenceSettingsKey, MockUserPreferenceSettings);
 
-	const renderStage = (
+	const buildTimeline = (
 		props: Partial<React.ComponentProps<typeof ChatPageTimeline>>,
 	) => (
 		<QueryClientProvider client={queryClient}>
@@ -72,12 +72,12 @@ const renderChatPageTimeline = (
 			</MessageScroller.Provider>
 		</QueryClientProvider>
 	);
-	const result = renderComponent(renderStage({}));
+	const result = renderComponent(buildTimeline({}));
 
 	return {
 		rerenderTimeline: (
 			props: Partial<React.ComponentProps<typeof ChatPageTimeline>> = {},
-		) => result.rerender(renderStage(props)),
+		) => result.rerender(buildTimeline(props)),
 	};
 };
 
@@ -166,6 +166,7 @@ describe("ChatPageTimeline async questions", () => {
 			expect(onSendAskUserQuestionResponse).toHaveBeenCalledTimes(1);
 		});
 
+		// The answer reaches the queued messages, then the user deletes it.
 		act(() => {
 			store.setQueuedMessages([MockQueuedQuestionAnswer]);
 		});
@@ -174,6 +175,7 @@ describe("ChatPageTimeline async questions", () => {
 			store.setQueuedMessages([]);
 		});
 		rerenderTimeline();
+
 		await user.click(await screen.findByRole("button", { name: "Submit" }));
 
 		await waitFor(() => {

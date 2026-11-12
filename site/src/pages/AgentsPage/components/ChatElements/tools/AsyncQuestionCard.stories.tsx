@@ -52,11 +52,17 @@ const meta: Meta<typeof Tool> = {
 export default meta;
 type Story = StoryObj<typeof Tool>;
 
-const renderQuestion = (
-	status: AsyncQuestionStatus,
-	answerText: string | undefined,
+type QuestionState = {
+	status: AsyncQuestionStatus;
+	answerText?: string;
+	isInQuestionPanel?: boolean;
+};
+
+const renderQuestion = ({
+	status,
+	answerText,
 	isInQuestionPanel = false,
-): Story["render"] => {
+}: QuestionState): Story["render"] => {
 	return (args) => (
 		<AsyncQuestionsContext
 			value={{
@@ -74,19 +80,23 @@ export const Running: Story = {
 };
 
 export const Open: Story = {
-	render: renderQuestion("open", undefined, true),
+	render: renderQuestion({ status: "open", isInQuestionPanel: true }),
 };
 
 export const Pending: Story = {
-	render: renderQuestion("pending", "Redis", true),
+	render: renderQuestion({
+		status: "pending",
+		answerText: "Redis",
+		isInQuestionPanel: true,
+	}),
 };
 
 export const Answered: Story = {
-	render: renderQuestion("answered", "Redis"),
+	render: renderQuestion({ status: "answered", answerText: "Redis" }),
 };
 
 export const Closed: Story = {
-	render: renderQuestion("closed", undefined),
+	render: renderQuestion({ status: "closed" }),
 };
 
 export const Failed: Story = {
@@ -106,5 +116,8 @@ export const SeveralQuestionsAnswered: Story = {
 			],
 		},
 	},
-	render: renderQuestion("answered", "1. Cache: Redis\n2. Rollout: Small beta"),
+	render: renderQuestion({
+		status: "answered",
+		answerText: "1. Cache: Redis\n2. Rollout: Small beta",
+	}),
 };
