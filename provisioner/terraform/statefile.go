@@ -28,53 +28,50 @@ var minStateFileTerraformVersion = version.Must(version.NewVersion("1.4.0"))
 // reproduce.
 var errStateFileTerraformVersion = xerrors.New("unsupported terraform version")
 
-// The types below describe the subset of Terraform's state file format
-// (version 4, in use since Terraform 0.12) that Coder needs. Terraform
-// writes terraform.tfstate in this format at the end of apply, and
-// `terraform show -json` merely reshapes it, at the cost of starting
-// Terraform and every provider again to fetch schemas. Reading the file
-// directly is equivalent as long as the schema versions in the file match
-// the providers that just wrote it, which is always the case right after
-// apply.
-
-type rawState struct {
-	Version          int           `json:"version"`
-	TerraformVersion string        `json:"terraform_version"`
-	Resources        []rawResource `json:"resources"`
+// stateFile is the part of a Terraform state file that Coder reads. The
+// format is version 4, which Terraform has written since 0.12.
+type stateFile struct {
+	Version          int                 `json:"version"`
+	TerraformVersion string              `json:"terraform_version"`
+	Resources        []stateFileResource `json:"resources"`
 }
 
-type rawResource struct {
-	// Module is the module instance address, empty for the root module.
+type stateFileResource struct {
+	// Module is the address of the module instance that holds the resource,
+	// empty for the root module.
 	Module    string              `json:"module"`
 	Mode      tfjson.ResourceMode `json:"mode"`
 	Type      string              `json:"type"`
 	Name      string              `json:"name"`
-	Instances []rawInstance       `json:"instances"`
+	Instances []stateFileInstance `json:"instances"`
 }
 
-type rawInstance struct {
-	// IndexKey is a number for count, a string for for_each, or absent.
+type stateFileInstance struct {
+	// IndexKey is a number for count, a string for for_each, and absent
+	// otherwise.
 	IndexKey   any            `json:"index_key"`
 	Attributes map[string]any `json:"attributes"`
-	// AttributesFlat is the pre-0.12 flatmap encoding. Terraform rewrites it
-	// on the first apply, so it is not expected here, but its presence means
-	// the file needs Terraform itself to interpret.
+	// AttributesFlat is the encoding from before 0.12, which only Terraform
+	// can interpret. Terraform replaces it on the first apply.
 	AttributesFlat map[string]string `json:"attributes_flat"`
 	Dependencies   []string          `json:"dependencies"`
 	Status         string            `json:"status"`
 	Deposed        string            `json:"deposed"`
 }
 
-// readStateFile converts a Terraform state file into the structure
-// `terraform show -json` produces for it. It leaves out what Coder doesn't
-// read: provider names, schema versions, sensitive value markers, resource
-// identities, outputs, and checks.
+// readStateFile converts the state file at path into what `terraform show
+// -json` prints for it, without starting Terraform and the providers. The two
+// agree when the providers that wrote the file are the ones show would start,
+// as they are right after apply. Otherwise show would first upgrade the
+// resources to those providers' schemas.
 //
+// It leaves out what Coder doesn't read: provider names, schema versions,
+// sensitive value markers, resource identities, outputs, and checks.
 // Attributes with a dynamic schema type, such as terraform_data.input, keep
 // the {"type", "value"} wrapper the file stores them in, because only the
-// provider schema identifies them. Coder doesn't read such attributes: the
-// coder provider is built on plugin SDK v2, which has no dynamic types, and
-// the attributes read from other providers' resources are plain strings.
+// provider schema identifies them. Coder reads no such attribute: the coder
+// provider is built on plugin SDK v2, which has no dynamic types, and what
+// Coder reads from other providers' resources are plain strings.
 func readStateFile(path string) (*tfjson.State, error) {
 	content, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -87,105 +84,55 @@ func readStateFile(path string) (*tfjson.State, error) {
 	return parseStateFile(content)
 }
 
+// parseStateFile is readStateFile for the content of a state file.
 func parseStateFile(content []byte) (*tfjson.State, error) {
-	var raw rawState
-	if err := json.Unmarshal(content, &raw); err != nil {
+	var file stateFile
+	if err := json.Unmarshal(content, &file); err != nil {
 		return nil, xerrors.Errorf("decode state file: %w", err)
 	}
-	if raw.Version != 4 {
-		return nil, xerrors.Errorf("unsupported state file version %d", raw.Version)
+	if file.Version != 4 {
+		return nil, xerrors.Errorf("unsupported state file version %d", file.Version)
 	}
-	tfVersion, err := version.NewVersion(raw.TerraformVersion)
+	tfVersion, err := version.NewVersion(file.TerraformVersion)
 	if err != nil {
-		return nil, xerrors.Errorf("parse terraform version %q: %w", raw.TerraformVersion, err)
+		return nil, xerrors.Errorf("parse terraform version %q: %w", file.TerraformVersion, err)
 	}
 	if !stateFileTerraformVersionSupported(tfVersion) {
 		return nil, xerrors.Errorf("%w %s", errStateFileTerraformVersion, tfVersion)
 	}
-	if len(raw.Resources) == 0 {
-		// Terraform reports an empty state without a version or values.
-		// Root outputs alone would add an empty root module, which Graph
-		// treats the same.
+	if len(file.Resources) == 0 {
+		// `terraform show -json` prints no version or values for an empty
+		// state. For a state that only has outputs it prints an empty root
+		// module, which Graph treats the same.
 		return &tfjson.State{FormatVersion: "1.0"}, nil
 	}
 
 	root := &tfjson.StateModule{}
 	modules := map[string]*tfjson.StateModule{"": root}
-	// module returns the entry for a module address. Like `terraform show
-	// -json`, it gives every module on the path to one with resources an
-	// entry, even when that module holds none itself.
-	var module func(addr string) (*tfjson.StateModule, error)
-	module = func(addr string) (*tfjson.StateModule, error) {
-		if m, ok := modules[addr]; ok {
-			return m, nil
-		}
-		path, err := tfaddr.ParseModulePath(addr)
-		if err != nil {
-			return nil, xerrors.Errorf("parse module address %q: %w", addr, err)
-		}
-		parent, err := module(path.Parent().String())
+	// Within a module, the file lists resources in the order `terraform show
+	// -json` does.
+	for _, resource := range file.Resources {
+		module, err := stateModule(modules, resource.Module)
 		if err != nil {
 			return nil, err
 		}
-		m := &tfjson.StateModule{Address: addr}
-		modules[addr] = m
-		parent.ChildModules = append(parent.ChildModules, m)
-		return m, nil
-	}
-
-	// Terraform writes resources in the order `terraform show -json` lists
-	// them within a module, so they keep the file's order.
-	for _, r := range raw.Resources {
-		address := r.Type + "." + r.Name
-		switch r.Mode {
-		case tfjson.ManagedResourceMode:
-		case tfjson.DataResourceMode:
-			address = "data." + address
-		default:
-			return nil, xerrors.Errorf("resource %s: unsupported mode %q", address, r.Mode)
-		}
-		mod, err := module(r.Module)
+		resources, err := resource.stateResources()
 		if err != nil {
 			return nil, err
 		}
-		if r.Module != "" {
-			address = r.Module + "." + address
-		}
-		for _, inst := range r.Instances {
-			if inst.AttributesFlat != nil {
-				return nil, xerrors.Errorf("resource %s uses legacy flatmap attributes", address)
-			}
-			key, err := instanceKey(inst.IndexKey)
-			if err != nil {
-				return nil, xerrors.Errorf("resource %s: %w", address, err)
-			}
-			mod.Resources = append(mod.Resources, &tfjson.StateResource{
-				Address:         address + key,
-				Mode:            r.Mode,
-				Type:            r.Type,
-				Name:            r.Name,
-				Index:           inst.IndexKey,
-				AttributeValues: inst.Attributes,
-				DependsOn:       inst.Dependencies,
-				Tainted:         inst.Status == "tainted",
-				DeposedKey:      inst.Deposed,
-			})
-		}
+		module.Resources = append(module.Resources, resources...)
 	}
-
-	// `terraform show -json` orders child modules by address string, so [10]
-	// sorts before [2]. The file's order can differ: a module without
-	// resources of its own first appears with a descendant, and
-	// module.a.module.b follows module.a-c.
-	for _, m := range modules {
-		slices.SortFunc(m.ChildModules, func(a, b *tfjson.StateModule) int {
+	// Child modules are not in that order. `terraform show -json` sorts them
+	// by address, as strings, so [10] comes before [2].
+	for _, module := range modules {
+		slices.SortFunc(module.ChildModules, func(a, b *tfjson.StateModule) int {
 			return cmp.Compare(a.Address, b.Address)
 		})
 	}
 
 	return &tfjson.State{
 		FormatVersion:    "1.0",
-		TerraformVersion: raw.TerraformVersion,
+		TerraformVersion: file.TerraformVersion,
 		Values:           &tfjson.StateValues{RootModule: root},
 	}, nil
 }
@@ -196,6 +143,74 @@ func parseStateFile(content []byte) (*tfjson.State, error) {
 // compared their output with readStateFile's yet.
 func stateFileTerraformVersionSupported(v *version.Version) bool {
 	return v.GreaterThanOrEqual(minStateFileTerraformVersion) && v.LessThan(maxTerraformVersion)
+}
+
+// stateModule returns the module at address, adding it to modules if it is
+// missing. Like `terraform show -json`, it also adds every module on the way
+// there from the root, whether or not that module holds resources itself.
+func stateModule(modules map[string]*tfjson.StateModule, address string) (*tfjson.StateModule, error) {
+	if module, ok := modules[address]; ok {
+		return module, nil
+	}
+	path, err := tfaddr.ParseModulePath(address)
+	if err != nil {
+		return nil, xerrors.Errorf("parse module address %q: %w", address, err)
+	}
+	parent, err := stateModule(modules, path.Parent().String())
+	if err != nil {
+		return nil, err
+	}
+	module := &tfjson.StateModule{Address: address}
+	modules[address] = module
+	parent.ChildModules = append(parent.ChildModules, module)
+	return module, nil
+}
+
+// address returns the resource's absolute address, without an instance key.
+func (r stateFileResource) address() (string, error) {
+	address := r.Type + "." + r.Name
+	switch r.Mode {
+	case tfjson.ManagedResourceMode:
+	case tfjson.DataResourceMode:
+		address = "data." + address
+	default:
+		return "", xerrors.Errorf("resource %s: unsupported mode %q", address, r.Mode)
+	}
+	if r.Module != "" {
+		address = r.Module + "." + address
+	}
+	return address, nil
+}
+
+// stateResources returns what `terraform show -json` lists for the resource:
+// one entry for each of its instances, including deposed ones.
+func (r stateFileResource) stateResources() ([]*tfjson.StateResource, error) {
+	address, err := r.address()
+	if err != nil {
+		return nil, err
+	}
+	resources := make([]*tfjson.StateResource, 0, len(r.Instances))
+	for _, instance := range r.Instances {
+		if instance.AttributesFlat != nil {
+			return nil, xerrors.Errorf("resource %s uses legacy flatmap attributes", address)
+		}
+		key, err := instanceKey(instance.IndexKey)
+		if err != nil {
+			return nil, xerrors.Errorf("resource %s: %w", address, err)
+		}
+		resources = append(resources, &tfjson.StateResource{
+			Address:         address + key,
+			Mode:            r.Mode,
+			Type:            r.Type,
+			Name:            r.Name,
+			Index:           instance.IndexKey,
+			AttributeValues: instance.Attributes,
+			DependsOn:       instance.Dependencies,
+			Tainted:         instance.Status == "tainted",
+			DeposedKey:      instance.Deposed,
+		})
+	}
+	return resources, nil
 }
 
 // instanceKey returns the suffix that an instance's index key adds to its
