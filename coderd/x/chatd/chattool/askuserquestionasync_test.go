@@ -40,7 +40,7 @@ func TestAskUserQuestionAsync(t *testing.T) {
 		return response
 	}
 
-	t.Run("Async", func(t *testing.T) {
+	t.Run("ReturnsQuestionIDAndStatus", func(t *testing.T) {
 		t.Parallel()
 
 		tool := chattool.NewAskUserQuestionAsyncTool()
@@ -65,7 +65,7 @@ func TestAskUserQuestionAsync(t *testing.T) {
 		require.Contains(t, status, fmt.Sprintf("Answer to ask_user_question_async %s:", questionID))
 	})
 
-	t.Run("AsyncMintsNewID", func(t *testing.T) {
+	t.Run("MintsNewID", func(t *testing.T) {
 		t.Parallel()
 
 		tool := chattool.NewAskUserQuestionAsyncTool()
@@ -183,7 +183,7 @@ func TestFirstAskedQuestion(t *testing.T) {
 			question, err := chattool.FirstAskedQuestion(testCase.input)
 
 			if testCase.wantErr {
-				require.ErrorContains(t, err, "decode ask_user_question input: ")
+				require.ErrorContains(t, err, "decode ask_user_question_async input: ")
 			} else {
 				require.NoError(t, err)
 			}

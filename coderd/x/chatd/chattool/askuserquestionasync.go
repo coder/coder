@@ -85,25 +85,10 @@ func asyncQuestionResponse() fantasy.ToolResponse {
 	}
 	data, err := json.Marshal(result)
 	if err != nil {
-		return fantasy.NewTextErrorResponse("failed to marshal questions: " + err.Error())
+		return fantasy.NewTextErrorResponse("failed to marshal result: " + err.Error())
 	}
 
 	return fantasy.NewTextResponse(string(data))
-}
-
-// FirstAskedQuestion returns the text of the first question in the
-// input of an ask_user_question call.
-func FirstAskedQuestion(input string) (string, error) {
-	var args askUserQuestionArgs
-	if err := json.Unmarshal([]byte(input), &args); err != nil {
-		return "", xerrors.Errorf("decode ask_user_question input: %w", err)
-	}
-
-	if len(args.Questions) == 0 {
-		return "", nil
-	}
-
-	return args.Questions[0].Question, nil
 }
 
 func (t *askUserQuestionAsyncTool) ProviderOptions() fantasy.ProviderOptions {
@@ -112,4 +97,19 @@ func (t *askUserQuestionAsyncTool) ProviderOptions() fantasy.ProviderOptions {
 
 func (t *askUserQuestionAsyncTool) SetProviderOptions(opts fantasy.ProviderOptions) {
 	t.providerOptions = opts
+}
+
+// FirstAskedQuestion returns the text of the first question in the
+// input of an ask_user_question_async call.
+func FirstAskedQuestion(input string) (string, error) {
+	var args askUserQuestionArgs
+	if err := json.Unmarshal([]byte(input), &args); err != nil {
+		return "", xerrors.Errorf("decode ask_user_question_async input: %w", err)
+	}
+
+	if len(args.Questions) == 0 {
+		return "", nil
+	}
+
+	return args.Questions[0].Question, nil
 }
