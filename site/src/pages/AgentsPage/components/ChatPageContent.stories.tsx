@@ -101,12 +101,9 @@ const buildAsyncQuestionStore = (
 	messages: readonly TypesGen.ChatMessage[] = MockAsyncQuestionMessages,
 ) => {
 	const store = createChatStore();
-	store.replaceMessages(messages);
+	// The opening prompt is not needed to show the question state.
+	store.replaceMessages(messages.slice(1));
 	store.setChatStatus("running");
-	store.applyMessagePart({
-		type: "reasoning",
-		text: "Reading the current implementation while the question is open.",
-	});
 	return store;
 };
 
@@ -119,7 +116,7 @@ const AsyncQuestionChatPage: React.FC<AsyncQuestionChatPageProps> = ({
 	store,
 	isReadOnly = false,
 }) => (
-	<div className="flex h-160 flex-col">
+	<div className="flex h-svh flex-col">
 		<StoryChatPageTimeline
 			store={store}
 			onSendAskUserQuestionResponse={fn()}
@@ -170,6 +167,40 @@ export const AsyncQuestionCollapsed: Story = {
 };
 
 export const AsyncQuestionPending: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
+			{
+				key: getAuthorizationKey({
+					checks: {
+						canUpdateChat: {
+							object: {
+								resource_type: "chat",
+								owner_id: MockChat.owner_id,
+								organization_id: "",
+							},
+							action: "update",
+						},
+					},
+				}),
+				data: { canUpdateChat: true },
+			},
+		],
+	},
 	render: () => {
 		const store = buildAsyncQuestionStore();
 		store.setQueuedMessages([MockQueuedQuestionAnswer]);
