@@ -406,6 +406,34 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 	return msg, plan, nil
 }
 
+// planWithGraph runs `terraform graph` beside `terraform plan`: graph only
+// reads the configuration and the state, and takes no state lock. Each
+// starts every provider, so memory peaks higher than running them in turn.
+// The graph reflects the state before apply, and is empty if it wasn't built.
+func (e *executor) planWithGraph(ctx, killCtx context.Context, env, vars []string, logr logSink, req *proto.PlanRequest) (*proto.PlanComplete, *tfjson.Plan, string, error) {
+	var (
+		wg       sync.WaitGroup
+		rawGraph string
+		graphErr error
+	)
+	// On Windows the state lock that plan holds stops other processes from
+	// reading the state file, so the graph is left to Graph there.
+	if runtime.GOOS != "windows" {
+		wg.Go(func() {
+			rawGraph, graphErr = e.graph(ctx, killCtx)
+		})
+	}
+	resp, plan, err := e.plan(ctx, killCtx, env, vars, logr, req)
+	wg.Wait()
+	if err != nil {
+		return nil, nil, "", err
+	}
+	if graphErr != nil {
+		e.logger.Warn(ctx, "terraform graph failed during plan, the graph stage will retry it", slog.Error(graphErr))
+	}
+	return resp, plan, rawGraph, nil
+}
+
 func onlyDataResources(sm tfjson.StateModule) tfjson.StateModule {
 	filtered := sm
 	filtered.Resources = []*tfjson.StateResource{}

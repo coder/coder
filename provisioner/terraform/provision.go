@@ -10,9 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
-	"sync"
 	"time"
 
 	tfjson "github.com/hashicorp/terraform-json"
@@ -274,43 +272,20 @@ func (s *server) Plan(
 	}
 
 	sessState := s.loadSessionState(sess)
-	// `terraform graph` only reads the configuration and the state, and
-	// takes no state lock, so it runs beside the plan. Each of the two
-	// starts every provider, so Plan's memory peaks higher than it would
-	// running them in turn. The graph reflects the state before apply; Graph
-	// builds it again when that matters.
-	var (
-		rawGraph string
-		graphErr error
-	)
-	planWithGraph := func(sink logSink) (*proto.PlanComplete, *tfjson.Plan, error) {
-		var wg sync.WaitGroup
-		// On Windows the state lock that plan holds stops other processes
-		// from reading the state file, so the graph is left to Graph there.
-		if runtime.GOOS != "windows" {
-			wg.Go(func() {
-				rawGraph, graphErr = e.graph(ctx, killCtx)
-			})
-		}
-		defer wg.Wait()
-		return e.plan(ctx, killCtx, env, vars, sink, request)
-	}
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
 	var (
-		resp *proto.PlanComplete
-		plan *tfjson.Plan
+		resp     *proto.PlanComplete
+		plan     *tfjson.Plan
+		rawGraph string
 	)
 	if sessState.initSkipped {
-		resp, plan, err = s.planAfterManualInit(ctx, killCtx, e, sess, &sessState, planWithGraph)
+		resp, plan, rawGraph, err = s.planAfterManualInit(ctx, killCtx, e, sess, &sessState, env, vars, request)
 	} else {
-		resp, plan, err = planWithGraph(sess)
+		resp, plan, rawGraph, err = e.planWithGraph(ctx, killCtx, env, vars, sess, request)
 	}
 	endStage(err)
 	if err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
-	}
-	if graphErr != nil {
-		s.logger.Warn(ctx, "terraform graph failed during plan, the graph stage will retry it", slog.Error(graphErr))
 	}
 
 	sessState.plan, sessState.graph = plan, rawGraph

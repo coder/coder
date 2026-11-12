@@ -85,13 +85,13 @@ func providerPackageDir(root string, p lockedProvider) string {
 
 // linkCachedProviders symlinks each provider from the plugin cache into
 // .terraform/providers, as `terraform init` does on a cache hit. If a
-// provider can't be linked, it links nothing and returns the reason.
-func linkCachedProviders(files tfpath.Layout, cachePath string, providers []lockedProvider) (reason string, err error) {
+// provider can't be linked, it links nothing.
+func linkCachedProviders(files tfpath.Layout, cachePath string, providers []lockedProvider) error {
 	if cachePath == "" {
-		return "there is no plugin cache", nil
+		return xerrors.New("there is no plugin cache")
 	}
 	if len(providers) == 0 {
-		return "the lock file pins no providers", nil
+		return xerrors.New("the lock file pins no providers")
 	}
 	for _, p := range providers {
 		entries, err := os.ReadDir(providerPackageDir(cachePath, p))
@@ -99,35 +99,38 @@ func linkCachedProviders(files tfpath.Layout, cachePath string, providers []lock
 			return strings.HasPrefix(entry.Name(), "terraform-provider-")
 		})
 		if err != nil || !hasBinary {
-			return fmt.Sprintf("provider %s@%s is not in the plugin cache", p.Source, p.Version), nil
+			return xerrors.Errorf("provider %s@%s is not in the plugin cache", p.Source, p.Version)
 		}
 		// The template's source archive could have put something there.
 		if _, err := os.Lstat(providerPackageDir(files.ProvidersDirectory(), p)); !errors.Is(err, fs.ErrNotExist) {
-			return fmt.Sprintf("the working directory already holds provider %s@%s", p.Source, p.Version), nil
+			return xerrors.Errorf("the working directory already holds provider %s@%s", p.Source, p.Version)
 		}
 	}
 	for _, p := range providers {
 		src := providerPackageDir(cachePath, p)
 		dst := providerPackageDir(files.ProvidersDirectory(), p)
-		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-			return "", xerrors.Errorf("create provider directory: %w", err)
+		err := os.MkdirAll(filepath.Dir(dst), 0o755)
+		if err == nil {
+			err = os.Symlink(src, dst)
 		}
-		if err := os.Symlink(src, dst); err != nil {
-			return "", xerrors.Errorf("link provider %s: %w", p.Source, err)
+		if err != nil {
+			// Leave nothing half-linked for the real init.
+			_ = os.RemoveAll(files.ProvidersDirectory())
+			return xerrors.Errorf("link provider %s: %w", p.Source, err)
 		}
 	}
-	return "", nil
+	return nil
 }
 
-// missingModules returns why the working directory lacks a module that
-// `terraform init` would install, or "" if it lacks none.
-func missingModules(files tfpath.Layout) (reason string, err error) {
+// missingModules returns an error if the working directory lacks a module
+// that `terraform init` would install.
+func missingModules(files tfpath.Layout) error {
 	content, err := os.ReadFile(files.ModulesFilePath())
 	switch {
 	case err == nil:
 		var manifest modulesFile
 		if err := json.Unmarshal(content, &manifest); err != nil {
-			return "", xerrors.Errorf("parse module manifest: %w", err)
+			return xerrors.Errorf("parse module manifest: %w", err)
 		}
 		// The manifest also lists modules the archive left out for size.
 		for _, m := range manifest.Modules {
@@ -136,22 +139,22 @@ func missingModules(files tfpath.Layout) (reason string, err error) {
 				continue
 			}
 			if _, err := os.Stat(filepath.Join(files.WorkDirectory(), filepath.FromSlash(m.Dir))); err != nil {
-				return fmt.Sprintf("module %s is not in the working directory", m.Key), nil
+				return xerrors.Errorf("module %s is not in the working directory: %w", m.Key, err)
 			}
 		}
-		return "", nil
+		return nil
 	case !errors.Is(err, fs.ErrNotExist):
-		return "", xerrors.Errorf("read module manifest: %w", err)
+		return xerrors.Errorf("read module manifest: %w", err)
 	}
 	// Without a manifest, the template must not call any module.
 	module, diags := tfconfig.LoadModule(files.WorkDirectory())
 	if diags.HasErrors() {
-		return "", xerrors.Errorf("load module: %w", diags.Err())
+		return xerrors.Errorf("load module: %w", diags.Err())
 	}
 	if len(module.ModuleCalls) > 0 {
-		return "the template calls modules but has no saved module manifest", nil
+		return xerrors.New("the template calls modules but has no saved module manifest")
 	}
-	return "", nil
+	return nil
 }
 
 // These schemas find the blocks of a terraform block that only `terraform
@@ -244,24 +247,12 @@ func manualInit(ctx context.Context, logger slog.Logger, files tfpath.Layout, ca
 		logger.Debug(ctx, "cannot skip terraform init: the template configures a backend")
 		return false
 	}
-	reason, err := missingModules(files)
-	if err != nil {
+	if err := missingModules(files); err != nil {
 		logger.Debug(ctx, "cannot skip terraform init: module check failed", slog.Error(err))
 		return false
 	}
-	if reason != "" {
-		logger.Debug(ctx, "cannot skip terraform init", slog.F("reason", reason))
-		return false
-	}
-	reason, err = linkCachedProviders(files, cachePath, providers)
-	if err != nil {
-		logger.Warn(ctx, "cannot skip terraform init: linking cached providers failed", slog.Error(err))
-		// Leave nothing half-linked for the real init.
-		_ = os.RemoveAll(files.ProvidersDirectory())
-		return false
-	}
-	if reason != "" {
-		logger.Debug(ctx, "cannot skip terraform init", slog.F("reason", reason))
+	if err := linkCachedProviders(files, cachePath, providers); err != nil {
+		logger.Debug(ctx, "cannot skip terraform init: linking cached providers failed", slog.Error(err))
 		return false
 	}
 	names := make([]string, 0, len(providers))
@@ -277,14 +268,14 @@ func manualInit(ctx context.Context, logger slog.Logger, files tfpath.Layout, ca
 // init and plans once more.
 func (s *server) planAfterManualInit(
 	ctx, killCtx context.Context, e *executor, sess *provisionersdk.Session, sessState *sessionState,
-	plan func(logSink) (*proto.PlanComplete, *tfjson.Plan, error),
-) (*proto.PlanComplete, *tfjson.Plan, error) {
+	env, vars []string, request *proto.PlanRequest,
+) (*proto.PlanComplete, *tfjson.Plan, string, error) {
 	logs := &initDiagnosticsSink{logSink: sess}
-	resp, parsed, err := plan(logs)
+	resp, plan, rawGraph, err := e.planWithGraph(ctx, killCtx, env, vars, logs, request)
 	held := logs.heldLines()
 	if err == nil || len(held) == 0 || ctx.Err() != nil {
 		logs.release()
-		return resp, parsed, err
+		return resp, plan, rawGraph, err
 	}
 
 	s.logger.Warn(ctx, "plan failed after skipping terraform init, retrying with a full init",
@@ -296,9 +287,9 @@ func (s *server) planAfterManualInit(
 	if err := s.initWorkingDirectory(ctx, killCtx, e, sess, sessState); err != nil {
 		// The plan won't run again, so log why it failed.
 		logs.release()
-		return nil, nil, xerrors.Errorf("initialize terraform: %w", err)
+		return nil, nil, "", xerrors.Errorf("initialize terraform: %w", err)
 	}
-	return plan(sess)
+	return e.planWithGraph(ctx, killCtx, env, vars, sess, request)
 }
 
 // needsInitSummaryPrefixes are how the summaries of Terraform's "run
