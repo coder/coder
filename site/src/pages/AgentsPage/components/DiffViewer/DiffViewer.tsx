@@ -79,10 +79,13 @@ const diffViewerStyle = {
 
 /**
  * Renders each file as a card: the header and a frame around the inset code
- * use the secondary surface.
+ * use the secondary surface, and the code sits on the page surface. The code
+ * background is set here because the app's worker pool theme replaces the
+ * `theme` option, and its editor background matches the card.
  */
 const DIFF_CARD_CSS = [
 	":host {",
+	"  --diffs-bg: hsl(var(--surface-primary));",
 	"  display: flow-root;",
 	"  overflow: clip;",
 	"  border-radius: 8px;",
