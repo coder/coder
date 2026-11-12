@@ -2,5 +2,21 @@
   {
     "source": "/docs/admin/templates/extending-templates/dynamic-parameters",
     "destination": "/docs/admin/templates/extending-templates/parameters"
+  },
+  {
+    "source": "/docs/templates",
+    "destination": "/docs/admin/templates"
+  },
+  {
+    "source": "/docs/templates/open-in-coder",
+    "destination": "/docs/admin/templates/open-in-coder"
+  },
+  {
+    "source": "/docs/templates/troubleshooting",
+    "destination": "/docs/admin/templates/troubleshooting"
+  },
+  {
+    "source": "/docs/workspaces",
+    "destination": "/docs/user-guides/workspace-management"
   }
 ]
