@@ -2493,6 +2493,34 @@ func TestChatAutomations(t *testing.T) {
 		}
 	})
 
+	// A replica that was already running without keys when the first key
+	// appeared stores a secret in plaintext. It cannot read the secrets that a
+	// keyed replica stores.
+	t.Run("KeylessReplica", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		keyless, err := New(ctx, db)
+		require.NoError(t, err)
+		keyed, err := New(ctx, db, initCipher(t))
+		require.NoError(t, err)
+		in := newSeed(t, db)
+		in.WebhookSecret = sql.NullString{String: secret, Valid: true}
+
+		plain := dbgen.ChatAutomation(t, keyless, in)
+		raw, err := db.GetChatAutomationByID(ctx, plain.ID)
+		require.NoError(t, err)
+		require.Equal(t, in.WebhookSecret, raw.WebhookSecret)
+		require.False(t, raw.WebhookSecretKeyID.Valid)
+		got, err := keyed.GetChatAutomationByID(ctx, plain.ID)
+		require.NoError(t, err)
+		require.Equal(t, in.WebhookSecret, got.WebhookSecret)
+
+		sealed := dbgen.ChatAutomation(t, keyed, in)
+		_, err = keyless.GetChatAutomationByID(ctx, sealed.ID)
+		var derr *DecryptFailedError
+		require.ErrorAs(t, err, &derr)
+	})
+
 	t.Run("DecryptErr", func(t *testing.T) {
 		t.Parallel()
 		db, crypt, ciphers := setup(t)

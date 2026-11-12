@@ -476,6 +476,34 @@ func TestChatAutomationCascadesAndProvenance(t *testing.T) {
 		requireGone(ctx, t, automation.ID)
 	})
 
+	// A queued message names its automation and its input together.
+	t.Run("QueuedMessageProvenancePair", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		o := newChatAutomationOrg(t, db, dbgen.User(t, db, database.User{}))
+		for _, tc := range []struct {
+			name         string
+			automationID uuid.NullUUID
+			inputID      uuid.NullUUID
+			wantErr      bool
+		}{
+			{name: "neither"},
+			{name: "both", automationID: nullUUID(uuid.New()), inputID: nullUUID(uuid.New())},
+			{name: "automation only", automationID: nullUUID(uuid.New()), wantErr: true},
+			{name: "input only", inputID: nullUUID(uuid.New()), wantErr: true},
+		} {
+			_, err := sqlDB.ExecContext(ctx, `
+				INSERT INTO chat_queued_messages (chat_id, content, created_by, automation_id, input_id)
+				SELECT id, '[]', owner_id, $2::uuid, $3::uuid FROM chats WHERE id = $1`,
+				o.chat.ID, tc.automationID, tc.inputID)
+			if tc.wantErr {
+				requireCheckViolation(t, err, "chat_queued_messages_automation_input_check")
+				continue
+			}
+			require.NoError(t, err, tc.name)
+		}
+	})
+
 	t.Run("Provenance", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitLong)
