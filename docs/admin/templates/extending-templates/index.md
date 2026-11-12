@@ -128,7 +128,7 @@ When a link with the placeholder doesn't meet these conditions, Coder doesn't ad
 The dashboard shows the app as disabled, except for `http` and `https` links, which open with the placeholder left in place.
 Links without the placeholder open as written.
 Dev container apps never receive a session token.
-Refer to [Customizing dev containers](../../workspaces/devcontainers/customizing-dev-containers.md) for details.
+Refer to [Customizing dev containers](../../../user-guides/devcontainers/customizing-dev-containers.md) for details.
 
 ## Environment variables
 
