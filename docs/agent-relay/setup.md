@@ -420,7 +420,7 @@ The reaper can act 30&nbsp;seconds or more after a workspace reaches one of thes
 
 The startup grace is 15&nbsp;minutes by default and starts when the latest build is created.
 For failed or timed-out startup scripts, Agent Relay v0.16.0 and later don't wait for the startup grace.
-The reaper acts on the second sweep in a row that reads `pending` from a new status sample after the agent reports `start_error` or `start_timeout`.
+After the agent reports `start_error` or `start_timeout`, the reaper waits for two `pending` reads of the worker status, the second from a newer status sample than the first.
 Refer to [Start the worker after workspace setup](#start-the-worker-after-workspace-setup).
 If you set a [reap delay](./configuration.md#--reap-delay), the reaper waits for it before it deletes a workspace or reports a failure, except in the cases that the option's reference lists.
 If a delete fails three times in a row, the reaper stops and leaves the workspace for you to remove.
