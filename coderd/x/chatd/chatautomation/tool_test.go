@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"charm.land/fantasy"
 	"github.com/google/uuid"
@@ -57,20 +58,30 @@ func (e toolEnv) automation(t *testing.T, owner database.User, prompt string) da
 	})
 }
 
-// run calls the tool as the owner of a chat in the organization. Every result
-// must be free of the webhook secret.
-func (e toolEnv) run(t *testing.T, owner database.User, input string) fantasy.ToolResponse {
+// tool builds the tool of a chat in the organization that the given user owns.
+func (e toolEnv) tool(t *testing.T, owner database.User) fantasy.AgentTool {
 	t.Helper()
-	tool := chatautomation.Tool(chatautomation.ToolOptions{
+	return chatautomation.Tool(chatautomation.ToolOptions{
 		DB:             authorized(t, e.db),
 		OwnerID:        owner.ID,
 		OrganizationID: e.org.ID,
 		Logger:         testutil.Logger(t),
 	})
+}
+
+// call runs one tool call. Every result must be free of the webhook secret.
+func (e toolEnv) call(t *testing.T, tool fantasy.AgentTool, input string) fantasy.ToolResponse {
+	t.Helper()
 	resp, err := tool.Run(testutil.Context(t, testutil.WaitLong), fantasy.ToolCall{ID: "call", Name: chatautomation.ToolName, Input: input})
 	require.NoError(t, err)
 	require.Zero(t, strings.Count(resp.Content, e.canary), "the webhook secret is in a tool result")
 	return resp
+}
+
+// run calls the tool as the owner of a chat in the organization.
+func (e toolEnv) run(t *testing.T, owner database.User, input string) fantasy.ToolResponse {
+	t.Helper()
+	return e.call(t, e.tool(t, owner), input)
 }
 
 type toolItem struct {
@@ -132,17 +143,26 @@ func TestToolList(t *testing.T) {
 }
 
 // TestToolListBound lists more automations than a result holds, with prompts
-// longer than a list shows.
+// longer than a list shows. The result holds the newest ones, newest first.
 func TestToolListBound(t *testing.T) {
 	t.Parallel()
 	e := newToolEnv(t)
 	long := strings.Repeat("é", 300)
-	for i := range 25 {
+	start := time.Now().Add(-time.Hour)
+	created := make([]uuid.UUID, 25)
+	for i := range created {
 		prompt := fmt.Sprintf("short %d", i)
 		if i%2 == 0 {
 			prompt = long
 		}
-		e.automation(t, e.member, prompt)
+		created[i] = e.automation(t, e.member, prompt).ID
+		_, err := e.sqlDB.ExecContext(testutil.Context(t, testutil.WaitLong),
+			`UPDATE chat_automations SET created_at = $1 WHERE id = $2`, start.Add(time.Duration(i)*time.Minute), created[i])
+		require.NoError(t, err)
+	}
+	wantIDs := make([]uuid.UUID, 0, 20)
+	for i := len(created) - 1; i >= len(created)-20; i-- {
+		wantIDs = append(wantIDs, created[i])
 	}
 
 	resp := e.run(t, e.member, `{"action":"list"}`)
@@ -150,7 +170,7 @@ func TestToolListBound(t *testing.T) {
 	require.False(t, resp.IsError, resp.Content)
 	var got toolList
 	require.NoError(t, json.Unmarshal([]byte(resp.Content), &got))
-	require.Len(t, got.Automations, 20)
+	require.Equal(t, wantIDs, ids(got.Automations))
 	require.Equal(t, 25, got.Total)
 	require.Contains(t, got.Note, "newest 20 of 25")
 	require.Contains(t, got.Note, "prompt_truncated")
@@ -208,6 +228,9 @@ func TestToolGet(t *testing.T) {
 	otherOrg := dbgen.Organization(t, e.db, database.Organization{})
 	dbgen.OrganizationMember(t, e.db, database.OrganizationMember{UserID: e.member.ID, OrganizationID: otherOrg.ID})
 	otherOrgAutomation := dbgen.ChatAutomation(t, e.db, database.ChatAutomation{OrganizationID: otherOrg.ID, OwnerID: e.member.ID})
+	// A list cuts a prompt of this length. get returns it whole.
+	long := strings.Repeat("é", 300)
+	longAutomation := e.automation(t, e.member, long)
 	//nolint:gocritic // The soft delete trigger removes the user's automations.
 	require.NoError(t, e.db.UpdateUserDeletedByID(dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong)), gone.ID))
 
@@ -217,6 +240,7 @@ func TestToolGet(t *testing.T) {
 		prompt string
 	}{
 		"Own":               {owner: e.member, id: own.ID.String(), prompt: "own prompt"},
+		"LongPrompt":        {owner: e.member, id: longAutomation.ID.String(), prompt: long},
 		"AdministratorChat": {owner: e.admin, id: other.ID.String(), prompt: "other prompt"},
 		"MemberChat":        {owner: e.member, id: other.ID.String()},
 		"Unknown":           {owner: e.admin, id: uuid.NewString()},
@@ -242,6 +266,42 @@ func TestToolGet(t *testing.T) {
 			require.Equal(t, tc.prompt, got.Prompt)
 		})
 	}
+}
+
+// TestToolSubjectLoadedPerCall changes the roles of the chat owner between
+// calls of one tool. Each call reads the roles anew: an administrator who
+// becomes a member loses the read access on the next call, and the reverse.
+func TestToolSubjectLoadedPerCall(t *testing.T) {
+	t.Parallel()
+	e := newToolEnv(t)
+	theirs := e.automation(t, e.other, "other prompt")
+	tool := e.tool(t, e.member)
+	input, err := json.Marshal(map[string]string{"action": "get", "id": theirs.ID.String()})
+	require.NoError(t, err)
+	setRoles := func(query string) {
+		t.Helper()
+		_, err := e.sqlDB.ExecContext(testutil.Context(t, testutil.WaitLong), query, rbac.RoleOrgAdmin(), e.member.ID, e.org.ID)
+		require.NoError(t, err)
+	}
+	requireGet := func(found bool) {
+		t.Helper()
+		resp := e.call(t, tool, string(input))
+		if !found {
+			require.True(t, resp.IsError)
+			require.Equal(t, "automation not found", resp.Content)
+			return
+		}
+		require.False(t, resp.IsError, resp.Content)
+		var got toolItem
+		require.NoError(t, json.Unmarshal([]byte(resp.Content), &got))
+		require.Equal(t, theirs.ID, got.ID)
+	}
+
+	requireGet(false)
+	setRoles(`UPDATE organization_members SET roles = array_append(roles, $1) WHERE user_id = $2 AND organization_id = $3`)
+	requireGet(true)
+	setRoles(`UPDATE organization_members SET roles = array_remove(roles, $1) WHERE user_id = $2 AND organization_id = $3`)
+	requireGet(false)
 }
 
 // TestToolUnknownAction answers every action but list and get with an error
