@@ -78,8 +78,8 @@ These were attacked and held.
   `G5`), and the record remains (`G6`).
 - **Accountability for changes.** Starts, refusals, ends and terminal
   sessions are audit entries. A change made through the API by a workload
-  is audited under the sponsor and marked with the workload's identity (Go
-  test).
+  is audited under the sponsor and marked with the workload's identity
+  (`I1` to `I5`).
 - **Small footprint.** No operator, service account, role or secret (`H1`,
   `H2`). There is no new component to patch or to trust.
 
@@ -173,9 +173,10 @@ These were attacked and held.
 - **Writable shares are a way back to the human.** A workload that can
   write to a shared checkout can plant a hook or a build script that the
   human later runs. Shares are read-only by default for that reason.
-- **The audit log was not seen running.** It needs a license. The entries
-  are asserted in a Go test against the audit interface. How the audit page
-  displays them was not checked.
+- **The audit entries are plain.** They are in the audit log and on the
+  audit page, and link to the workspace. The page has no view of its own
+  for a workload, the filter calls the resource `Workload_identity`, and an
+  exit code appears in the entry's fields and not as a readable sentence.
 - **Output that was kept may hold secrets.** The 16 KB tail is stored in
   the database and shown to anyone who may read the workspace.
 - **Multiple coderd replicas** should work, since all state is in the
@@ -227,12 +228,12 @@ In the order that buys the most trust.
    goes to a workload activity log that can be exported. Full output goes
    to object storage. Terminal sessions can be recorded. Records expire by
    policy.
-5. **Assurance tiers under one identity model.** A microVM runtime for
-   untrusted code. A workload host the owner cannot enter, so that vouching
-   is the platform's word and not the owner's. For the highest tier, the
-   pod-per-workload design from the first rounds of this work, where the
-   cluster attests each workload, behind the same `coder run` and the same
-   identities.
+5. **Assurance tiers under one identity model.** A stronger runtime for
+   untrusted code, and a voucher the owner cannot enter, so that vouching
+   is the platform's word and not the owner's. On Kubernetes the candidate
+   for both is Agent Sandbox: a pod per workload from a warm pool, under
+   gVisor or Kata, attested by the cluster, behind the same `coder run` and
+   the same identities. See [DESIGN.md](DESIGN.md#agent-sandbox).
 6. **Durable agents.** Sandboxes are re-adopted after a daemon restart, a
    running workload holds off autostop, and a workload's disk can be kept
    and attached to a later one. Design in

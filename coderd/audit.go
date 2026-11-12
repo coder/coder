@@ -550,6 +550,13 @@ func (api *API) auditLogResourceLink(ctx context.Context, alog database.GetAudit
 		return fmt.Sprintf("/@%s/%s",
 			workspaceOwner.Username, alog.AuditLog.ResourceTarget)
 
+	case database.ResourceTypeWorkloadIdentity:
+		// A workload has no page of its own. Its workspace lists it.
+		if additionalFields.WorkspaceName == "" || additionalFields.WorkspaceOwner == "" {
+			return ""
+		}
+		return fmt.Sprintf("/@%s/%s", additionalFields.WorkspaceOwner, additionalFields.WorkspaceName)
+
 	case database.ResourceTypeWorkspaceBuild:
 		if len(additionalFields.WorkspaceName) == 0 || len(additionalFields.BuildNumber) == 0 {
 			return ""

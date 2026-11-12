@@ -121,6 +121,78 @@ What is left of the trust question from that branch is the same as for any
 workload: the daemon vouches, and the template decides what a sandbox may
 be.
 
+## Agent Sandbox
+
+[Agent Sandbox](https://agent-sandbox.sigs.k8s.io) is a Kubernetes SIG Apps
+project. Its `Sandbox` resource is one pod with a stable name, optional
+persistent volumes, suspend and resume, and a scheduled end. Templates
+describe sandboxes, and a warm pool keeps ready ones that a claim adopts.
+Isolation is the pod's runtime class, such as gVisor or Kata Containers. The
+API has been `v1beta1` since version 1.0 in August 2026.
+
+It was not considered when this proof of concept moved workloads into the
+workspace daemon. It should have been: the reason for that move was the cost
+of starting a pod, and a warm pool is an answer to that cost.
+
+It does not replace what is built here. Agent Sandbox manages sandboxes and
+has no notion of whom a sandbox acts for. Its documentation calls the claim
+labels it puts on a pod "informational, not proof of identity", and lists
+identity among the things it is exploring. The identity, the sponsor, the
+scopes, the channel, the record and the audit trail are Coder's, and stay
+as they are. Agent Sandbox would be a second runtime under them.
+
+|                       | Docker inside the workspace daemon (built)      | Agent Sandbox (not built)                                           |
+|-----------------------|-------------------------------------------------|---------------------------------------------------------------------|
+| Start                 | About 1.5 s, nothing scheduled                  | Fast from a warm pool; a pod start, or a node, when it is empty     |
+| Isolation             | A container on the workspace pod's kernel       | A pod, and a sandbox runtime such as gVisor or Kata where installed |
+| Resource limits       | None per workload                               | The pod's own                                                       |
+| In the cluster        | Nothing                                         | A controller, four resource types, and idle pods in the pools       |
+| Outside Kubernetes    | Works wherever the workspace has Docker         | Does not apply                                                      |
+| The workspace's files | A bind mount, decided per run                   | A volume fixed when the pod is created, so not for a warm pod       |
+| Who vouches           | A daemon the workspace owner can enter          | The cluster can, through a token bound to the pod                   |
+| Keeping a disk        | Designed below                                  | Built in: volume templates, suspend and resume                      |
+| Pod security          | Needs added capabilities and no seccomp profile | An ordinary pod                                                     |
+| Maintained by         | Coder                                           | The Kubernetes community                                            |
+
+How it would fit:
+
+- **Creating the sandbox.** `coder run` ends in a claim against a pool that
+  the platform team defines. Whatever creates the claim needs a Kubernetes
+  permission to do so. That should not be a container the workspace owner
+  can enter.
+- **The channel.** A small Coder container in the sandbox pod serves the
+  same unix socket to the workload's container through a shared directory,
+  so the workload still holds no credential. It authenticates to coderd
+  with the pod's own service account token, and coderd asks the cluster
+  whether the token belongs to the pod that the claim adopted. The cluster
+  then vouches, not a daemon in the owner's reach. A stolen token is worth
+  one workload, not all the workloads of a workspace. This is the
+  attestation the first rounds of this work used, without the operator
+  written for them.
+- **Policy.** Image, resources, runtime class and network policy move from
+  daemon settings to sandbox templates. The Coder template names the
+  templates its workspaces may claim from.
+- **Files.** A warm pod cannot be given the workspace's checkout after the
+  fact. Workloads that need it either start cold with the volume, or get
+  the code another way, such as Git through the channel.
+
+What it would give the review in [EVALUATION.md](EVALUATION.md): a stronger
+isolation tier, per-workload limits, and a voucher out of the owner's reach,
+which are three of the things an agency would ask for. What it would cost:
+the property that nothing is installed in the cluster, and with an empty
+pool the latency this design was built to avoid.
+
+The two belong together as tiers behind one `coder run` and one identity
+model: Docker in the daemon as the default that works everywhere, Agent
+Sandbox where the cluster has it and the code must not share the
+workspace's kernel.
+
+Not tried here. The cluster has an Agent Sandbox controller that belongs to
+another experiment and serves only its own namespace, and a second
+controller would compete with it. It has no sandbox runtime class either.
+That experiment's objects show a cold sandbox pod ready about 4 s after it
+was created, and a claim bound to a warm one within the same second.
+
 ## Disk snapshots
 
 A workload's disk should be able to outlive it, so that a later workload

@@ -256,12 +256,14 @@ python3 validate.py
 
 The script runs shell scripts as workloads to probe a sandbox from the
 inside, and sends requests straight to coderd to play an attacker outside
-it. It takes about 90 seconds. Its docstring lists the settings, including
+it. It takes about two minutes. Its docstring lists the settings, including
 an optional second workspace that another user owns. It stops and starts the
-workspace, so run it against a throwaway setup.
+workspace and removes its running workloads, so run it against a workspace
+nobody is using.
 
-The audit log entries are checked by the Go test `TestWorkloads` in
-`coderd`, because the audit log needs a license to run.
+The audit log needs the enterprise build and a license. With both, the
+script also checks the audit entries of its run. Without, it skips that
+part, and the Go test `TestWorkloads` in `coderd` checks the same entries.
 
 ## Clean up
 

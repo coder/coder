@@ -7,15 +7,17 @@ pod that runs in a user namespace and has no privileged container.
 
 ## Outcome
 
-Every check in [validate.py](validate.py) passed: 50 of 50, in 87 seconds
-including a workspace stop and start.
+Every check in [validate.py](validate.py) passed: 55 of 55, in 104 seconds
+including a workspace stop and start. Five of the checks read the audit log,
+which needs the enterprise build and a license. Without them the script runs
+the other 50.
 
 Go tests on the branch pass: `agent/agentworkload` (the Docker runtime's
 container and channel), and `coderd` `TestWorkloads` and
 `TestWorkloadsDisabled` (the whole flow against a test coderd and a real
 workspace daemon, with a fake runtime whose sandboxes the test plays).
-`TestWorkloads` also covers what the cluster could not show: the audit log
-entries, a terminal session, and a suspended sponsor.
+`TestWorkloads` also covers a suspended sponsor, and asserts the audit
+entries for deployments without a license.
 
 [EVALUATION.md](EVALUATION.md) is the review of what this means and what is
 missing.
@@ -23,11 +25,12 @@ missing.
 ## Speed
 
 `coder run dev -- true`, from the command line to the exit code, five runs:
-median 1.51 s, range 1.45 s to 1.65 s. The first run in a new workspace
+median 1.58 s, range 1.45 s to 2.17 s. The medians of the four runs before
+were 1.40 s, 1.55 s, 1.48 s and 1.51 s. The first run in a new workspace
 took 3.0 s.
 
-Hardening cost nothing measurable. The previous version of this branch ran
-Docker in a privileged pod and measured a median of 1.43 s.
+Hardening cost little. The previous version of this branch ran Docker in a
+privileged pod and measured a median of 1.43 s.
 
 The earlier design on this branch's parent ran each workload in its own pod
 with its own workspace daemon. On the same cluster, on the same day, the
@@ -120,8 +123,8 @@ does not own a workspace cannot run a workload in it.
 - A sandbox killed behind Coder's back ends the workload and its identity.
   It is recorded as `exited (137)`.
 - Stopping the workspace ends every workload, recorded as `stopped`.
-- After the stop, the 27 workloads of the run are still on record, each
-  with how it ended.
+- After the stop, the workloads of the run are still on record, each with
+  how it ended.
 - Starting the workspace again brings back the daemons and no workloads.
   The new daemon cannot vouch for an old identity.
 
@@ -129,16 +132,29 @@ does not own a workspace cannot run a workload in it.
 operator, no extra service account, role or secret, and nothing bound to a
 cluster-wide role.
 
+**I. The audit log (5 checks).**
+
+- Each of the 29 workloads of the run that are over has a start entry and
+  an end entry.
+- A start entry names the user, the workload, the time, the workspace and
+  its daemon, the command, the scopes, the image and the network, and links
+  to the workspace.
+- An end entry says how it ended: `exited` with code 5, `removed` by a
+  user, `stopped` with the workspace, or `failed` for a refused image,
+  whose start entry carries the status 502.
+- A terminal attached to a workload is a `connect` entry under the person
+  who attached.
+- A workspace change made by a workload is audited under its sponsor and
+  marked with the workload's identity.
+
+The entries were also looked at on the audit page, where they read
+"admin started workload survivor" and link to the workspace.
+
 ## What was checked another way
 
-- **The audit log** needs a license, so it did not run on this deployment.
-  `TestWorkloads` asserts the entries against the audit interface: a start
-  for every workload, also for a refused one, with the workspace, daemon
-  and identity; an end with the reason and exit code; a terminal attach
-  under the person who attached; and a workspace change made by a workload,
-  audited under its sponsor and marked with the workload's identity, next
-  to the same change by the sponsor in person, which is not marked. How the
-  audit page displays these entries was not looked at.
+- **The sponsor in person.** `TestWorkloads` makes the same workspace
+  change as a workload and as its sponsor, and asserts that only the first
+  is marked with a workload identity.
 - **A suspended sponsor.** The same test suspends the sponsor, sees the
   workload refused, reactivates the sponsor, and sees it work again.
 - **Disk snapshots** are not built. `docker commit` of an exited sandbox and
@@ -183,6 +199,8 @@ short:
   after `coder run`.
 - **No Git credentials and no secrets** for a workload.
 - **Reads are not audited**, only logged at debug level.
+- **Agent Sandbox was not tried** as a runtime. See
+  [DESIGN.md](DESIGN.md#agent-sandbox).
 - **Records are never purged**, and only the last 16 KB of output is kept.
 - **One cluster, one coderd replica.** Kubernetes user namespaces are
   required for the example template.

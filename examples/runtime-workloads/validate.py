@@ -784,7 +784,71 @@ echo "@@ end"
     bindings = json.loads(kubectl("get", "clusterrolebindings", "-o", "json", namespaced=False).stdout)["items"]
     mine = [b["metadata"]["name"] for b in bindings if any(s.get("namespace") == NAMESPACE for s in (b.get("subjects") or []))]
     report.check("H2", "nothing in the namespace is bound to a cluster-wide role", mine == [], mine)
-    report.info("The audit log entries for workloads are checked by the Go test TestWorkloads: the audit log needs a license to run.")
+
+    # ------------------------------------------------------------------
+    report.section("I. The audit log")
+    status, page = http("GET", "/api/v2/audit?limit=200&q=resource_type%3Aworkload_identity", token=token)
+    if status != 200:
+        report.info(f"skipped: the audit log is not available here (GET /api/v2/audit -> {status}). It needs the "
+                    "enterprise build and a license. The Go test TestWorkloads checks the same entries.")
+    else:
+        mine = {w["id"]: w for w in workloads(finished=True)}
+        entries = {}
+        for entry in page["audit_logs"]:
+            identity = (entry.get("additional_fields") or {}).get("workload_identity_id")
+            if identity in mine:
+                entries.setdefault(mine[identity]["name"], []).append(entry)
+
+        def actions(name):
+            # The API lists the newest entry first.
+            return [(e["action"], e["status_code"]) for e in reversed(entries.get(name, []))]
+
+        def fields(name, action):
+            return next((e["additional_fields"] for e in entries.get(name, []) if e["action"] == action), {})
+
+        started = entries.get("survivor", [{}])[-1]
+        diff = {key: change.get("new") for key, change in (started.get("diff") or {}).items()}
+        over = [w["name"] for w in mine.values() if w.get("finished_at")]
+        report.check(
+            "I1", "every workload of this run has a start entry, and every one that is over an end entry",
+            len(over) >= 20 and all(any(a == "start" for a, _ in actions(name)) and any(a == "stop" for a, _ in actions(name)) for name in over),
+            f"{len(over)} workloads that are over; entries for survivor: {actions('survivor')}",
+        )
+        report.check(
+            "I2", "a start entry says who ran what, where, and with which permissions",
+            (started.get("user") or {}).get("username") == user and started.get("resource_target") == "survivor"
+            and diff.get("command") == "sleep 900" and diff.get("scopes") == [] and diff.get("network") == "none"
+            and diff.get("image") and started["additional_fields"].get("workspace_name") == WORKSPACE.split("/")[-1]
+            and started["additional_fields"].get("workspace_agent") == "sandbox" and started.get("resource_link", "").endswith("/" + WORKSPACE.split("/")[-1]),
+            {"user": (started.get("user") or {}).get("username"), "target": started.get("resource_target"), "time": started.get("time"),
+             "command": diff.get("command"), "scopes": diff.get("scopes"), "image": diff.get("image"), "network": diff.get("network"),
+             "fields": started.get("additional_fields")},
+        )
+        ends = {name: (fields(name, "stop").get("reason"), fields(name, "stop").get("exit_code"), fields(name, "stop").get("ended_by_user"))
+                for name in ("shortlived", "alpha", "survivor", "other-image")}
+        report.check(
+            "I3", "an end entry says how the workload ended: by itself, by a user, with the workspace, or before it started",
+            ends == {"shortlived": ("exited", 5, False), "alpha": ("removed", None, True),
+                     "survivor": ("stopped", None, False), "other-image": ("failed", None, False)}
+            and actions("other-image")[:1] == [("start", 502)],
+            f"{ends}; the refused one: {actions('other-image')}",
+        )
+        report.check(
+            "I4", "a terminal session in a workload is on record, under the person who attached",
+            ("connect", 101) in actions("terminal")
+            and all((e.get("user") or {}).get("username") == user for e in entries.get("terminal", []) if e["action"] == "connect"),
+            actions("terminal"),
+        )
+        _, page = http("GET", "/api/v2/audit?limit=200&q=resource_type%3Aworkspace%20action%3Awrite", token=token)
+        by_workloads = [(e["additional_fields"].get("workload_identity_id"), (e.get("user") or {}).get("username"), e["status_code"])
+                        for e in page["audit_logs"] if (e.get("additional_fields") or {}).get("workload_identity_id") in mine]
+        writers = {mine[identity]["name"]: mine[identity]["scopes"] for identity, _, _ in by_workloads}
+        report.check(
+            "I5", "a change a workload makes through the API is audited under its sponsor and marked as the workload's",
+            len(by_workloads) >= 1 and all(username == user for _, username, _ in by_workloads)
+            and all("workspace:update" in scopes for scopes in writers.values()),
+            f"{len(by_workloads)} workspace change(s) marked with a workload identity, by: {writers}",
+        )
 
     ok = report.finish()
     return 0 if ok else 1
