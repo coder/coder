@@ -333,6 +333,22 @@ Cursor calls this a repo-backed pool.
 A pool without `repo_url` is an any-repo pool, which serves sessions for any repository, so its workspaces get the repository in one of the ways described earlier in this section.
 For how Cursor routes sessions to each kind of pool, refer to [Cursor's any-repo pools documentation](https://cursor.com/docs/cloud-agent/self-hosted/pool#any-repo-pools).
 
+In a repo-backed pool, start the worker in the clone.
+The worker runs sessions in the directory it starts in, and the module doesn't pass `--worker-dir`, so the worker starts in the agent's directory, which is usually the home directory.
+Set `dir` on `coder_agent` to the clone's path:
+
+```tf
+resource "coder_agent" "main" {
+  os   = "linux"
+  arch = "amd64"
+  # The path the template or image clones the repository into.
+  dir  = "/home/coder/repo"
+}
+```
+
+The directory must exist before the worker starts, so clone into it in the image or in a [script that runs before the module](./setup.md#start-the-worker-after-workspace-setup).
+To start the worker in a different directory than the agent, pass `additional_args = ["--worker-dir", "/home/coder/repo"]` to the module instead.
+
 For example, these two pools share one API key:
 
 ```yaml
