@@ -199,6 +199,14 @@ func TestServerDBCrypt(t *testing.T) {
 		chatMCPServers, err := db.GetChatMCPServersByChatOwnerID(ctx, usr.ID)
 		require.NoError(t, err, "failed to get chat MCP servers for user %s", usr.ID)
 		require.Empty(t, chatMCPServers)
+
+		// Chat automation rows are preserved, since a webhook row must hold
+		// a secret. Only the ciphertext is blanked.
+		automations, err := db.GetChatAutomationsWithWebhookSecretByOwnerID(ctx, usr.ID)
+		require.NoError(t, err, "failed to get chat automations for user %s", usr.ID)
+		require.Len(t, automations, 1)
+		require.Equal(t, sql.NullString{Valid: true}, automations[0].WebhookSecret)
+		require.False(t, automations[0].WebhookSecretKeyID.Valid)
 	}
 
 	// Validate that the key has been revoked in the database.
@@ -258,6 +266,11 @@ func genData(t *testing.T, db database.Store) []database.User {
 				_ = dbgen.ChatMCPServer(t, db, database.ChatMCPServer{
 					ChatID:  chat.ID,
 					Headers: "headers-" + usr.ID.String(),
+				})
+				_ = dbgen.ChatAutomation(t, db, database.ChatAutomation{
+					OrganizationID: chatModel.OrganizationID,
+					OwnerID:        usr.ID,
+					WebhookSecret:  sql.NullString{String: "webhook-" + usr.ID.String(), Valid: true},
 				})
 				now := time.Now()
 				_, err := db.UpsertUserAIProviderKey(context.Background(), database.UpsertUserAIProviderKeyParams{
@@ -351,6 +364,12 @@ func requireEncryptedWithCipher(ctx context.Context, t *testing.T, db database.S
 	require.Len(t, chatMCPServers, 1)
 	requireEncryptedEquals(t, c, "headers-"+userID.String(), chatMCPServers[0].Headers)
 	require.Equal(t, c.HexDigest(), chatMCPServers[0].HeadersKeyID.String)
+
+	automations, err := db.GetChatAutomationsWithWebhookSecretByOwnerID(ctx, userID)
+	require.NoError(t, err, "failed to get chat automations for user %s", userID)
+	require.Len(t, automations, 1)
+	requireEncryptedEquals(t, c, "webhook-"+userID.String(), automations[0].WebhookSecret.String)
+	require.Equal(t, c.HexDigest(), automations[0].WebhookSecretKeyID.String)
 
 	providers, err := db.GetAIProviders(ctx, database.GetAIProvidersParams{
 		IncludeDeleted:  true,
