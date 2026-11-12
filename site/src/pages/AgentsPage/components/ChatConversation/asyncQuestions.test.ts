@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
-import { deriveAsyncQuestions } from "./asyncQuestions";
+import {
+	type AsyncQuestionStatus,
+	deriveAsyncQuestions,
+} from "./asyncQuestions";
 import { parseMessageContent } from "./messageParsing";
 import type { MergedTool, ParsedMessageEntry } from "./types";
 
@@ -179,16 +182,28 @@ describe("deriveAsyncQuestions", () => {
 		},
 	);
 
-	it.each(["answered", "pending"] as const)(
-		"marks an older question %s without replacing the newer panel question",
-		(status) => {
-			const messages = [toolMessage(makeTool("one"), makeTool("two"))];
-			const queuedMessages: TypesGen.ChatQueuedMessage[] = [];
-			if (status === "answered") {
-				messages.push(userMessage("Redis", "one"));
-			} else {
-				queuedMessages.push(queuedMessage("one"));
-			}
+	it.each([
+		{
+			status: "answered",
+			answerMessages: [userMessage("Redis", "one")],
+			queuedMessages: [],
+		},
+		{
+			status: "pending",
+			answerMessages: [],
+			queuedMessages: [queuedMessage("one")],
+		},
+	] satisfies {
+		status: AsyncQuestionStatus;
+		answerMessages: ParsedMessageEntry[];
+		queuedMessages: TypesGen.ChatQueuedMessage[];
+	}[])(
+		"marks an older question $status without replacing the newer panel question",
+		({ status, answerMessages, queuedMessages }) => {
+			const messages = [
+				toolMessage(makeTool("one"), makeTool("two")),
+				...answerMessages,
+			];
 
 			const result = deriveAsyncQuestions(messages, [], queuedMessages);
 

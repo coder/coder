@@ -96,6 +96,30 @@ const setQuestionStatus = (
 	question.status = "open";
 };
 
+const selectPanelQuestion = (
+	byId: ReadonlyMap<string, AsyncQuestion>,
+	newestQuestionId: string | undefined,
+): AsyncQuestion | undefined => {
+	if (!newestQuestionId) {
+		return undefined;
+	}
+
+	const newestQuestion = byId.get(newestQuestionId);
+	if (
+		newestQuestion?.status === "open" ||
+		newestQuestion?.status === "pending"
+	) {
+		return newestQuestion;
+	}
+
+	return undefined;
+};
+
+/**
+ * Collects the async questions from the timeline and the live tools, and
+ * sets each one's status from the answers in the timeline and the queued
+ * messages.
+ */
 export const deriveAsyncQuestions = (
 	parsedMessages: readonly ParsedMessageEntry[],
 	liveTools: readonly MergedTool[],
@@ -142,15 +166,7 @@ export const deriveAsyncQuestions = (
 			pendingAnswers,
 		);
 	}
-	const newestQuestion = newestQuestionId
-		? byId.get(newestQuestionId)
-		: undefined;
-	let panelQuestion: AsyncQuestion | undefined;
-	if (
-		newestQuestion?.status === "open" ||
-		newestQuestion?.status === "pending"
-	) {
-		panelQuestion = newestQuestion;
-	}
+	const panelQuestion = selectPanelQuestion(byId, newestQuestionId);
+
 	return { byId, panelQuestion };
 };
