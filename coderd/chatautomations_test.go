@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -18,6 +19,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/v3"
+
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -28,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/serpent"
 )
 
 // chatAutomationEnv is a deployment with chat-automations on for everyone.
@@ -41,7 +45,7 @@ type chatAutomationEnv struct {
 	model   database.ChatModelConfig
 }
 
-func newChatAutomationEnv(t *testing.T, wrap func(database.Store) database.Store) chatAutomationEnv {
+func newChatAutomationEnv(t *testing.T, wrap func(database.Store) database.Store, opts ...func(*coderdtest.Options)) chatAutomationEnv {
 	t.Helper()
 	db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
 	store := db
@@ -51,13 +55,17 @@ func newChatAutomationEnv(t *testing.T, wrap func(database.Store) database.Store
 	values := coderdtest.DeploymentValues(t)
 	values.Experiments = []string{string(codersdk.ExperimentChatAutomations)}
 	auditor := audit.NewMock()
-	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
+	options := &coderdtest.Options{
 		DeploymentValues:   values,
 		Database:           store,
 		Pubsub:             ps,
 		Auditor:            auditor,
 		ChatWorkerDisabled: true,
-	})
+	}
+	for _, opt := range opts {
+		opt(options)
+	}
+	client, _, api := coderdtest.NewWithAPI(t, options)
 	first := coderdtest.CreateFirstUser(t, client)
 	return chatAutomationEnv{
 		owner: client, first: first, api: api, db: db, sqlDB: sqlDB, auditor: auditor,
@@ -136,6 +144,7 @@ func TestChatAutomationsExperimentGate(t *testing.T) {
 
 	for _, req := range []struct{ method, suffix string }{
 		{http.MethodGet, ""},
+		{http.MethodPost, ""},
 		{http.MethodGet, "/" + id.String()},
 		{http.MethodDelete, "/" + id.String()},
 	} {
@@ -161,6 +170,7 @@ func TestChatAutomationsExperimentEvaluationError(t *testing.T) {
 
 	for _, req := range []struct{ method, suffix string }{
 		{http.MethodGet, ""},
+		{http.MethodPost, ""},
 		{http.MethodGet, "/" + id.String()},
 		{http.MethodDelete, "/" + id.String()},
 	} {
@@ -494,4 +504,296 @@ func TestChatAutomationsDeleteQueuedMessage(t *testing.T) {
 	require.Empty(t, res.Detail)
 	require.True(t, env.exists(t, automation.ID))
 	require.Empty(t, env.auditor.AuditLogs())
+}
+
+// chatAutomationActor is a user of the deployment and a client for it.
+type chatAutomationActor struct {
+	client *codersdk.Client
+	id     uuid.UUID
+}
+
+func (e chatAutomationEnv) actor(t *testing.T, roles ...rbac.RoleIdentifier) chatAutomationActor {
+	t.Helper()
+	client, user := coderdtest.CreateAnotherUser(t, e.owner, e.first.OrganizationID, roles...)
+	return chatAutomationActor{client: client, id: user.ID}
+}
+
+// automationAudit returns the entries that the requests of one user wrote for
+// chat automations. Every row of a table owns its user, so rows that run in
+// parallel do not see each other's entries.
+func (e chatAutomationEnv) automationAudit(userID uuid.UUID) []database.AuditLog {
+	var logs []database.AuditLog
+	for _, log := range e.auditor.AuditLogs() {
+		if log.UserID == userID && log.ResourceType == database.ResourceTypeChatAutomation {
+			logs = append(logs, log)
+		}
+	}
+	return logs
+}
+
+// postChatAutomation sends a create as a raw request, so that a test can read
+// the headers and the bytes that the server wrote. A []byte body is sent as it
+// is.
+func postChatAutomation(t *testing.T, client *codersdk.Client, orgID uuid.UUID, body any) (*http.Response, []byte) {
+	t.Helper()
+	res, err := client.Request(testutil.Context(t, testutil.WaitMedium), http.MethodPost, chatAutomationPath(orgID, ""), body)
+	require.NoError(t, err)
+	defer res.Body.Close()
+	raw, err := io.ReadAll(res.Body)
+	require.NoError(t, err)
+	return res, raw
+}
+
+func TestCreateChatAutomation(t *testing.T) {
+	t.Parallel()
+	env := newChatAutomationEnv(t, nil)
+	org := env.first.OrganizationID
+
+	for _, tc := range []struct {
+		name string
+		req  codersdk.CreateChatAutomationRequest
+		// generated is true when Coder creates the secret.
+		generated bool
+	}{
+		{"BearerExistingChat", codersdk.CreateChatAutomationRequest{Kind: codersdk.ChatAutomationKindWebhook, TargetMode: codersdk.ChatAutomationTargetModeExistingChat, WebhookAuth: codersdk.ChatAutomationWebhookAuthBearer}, true},
+		{"GitHubNewChat", codersdk.CreateChatAutomationRequest{Kind: codersdk.ChatAutomationKindWebhook, TargetMode: codersdk.ChatAutomationTargetModeNewChat, WebhookAuth: codersdk.ChatAutomationWebhookAuthGitHub}, true},
+		{"StandardWebhooks", codersdk.CreateChatAutomationRequest{Kind: codersdk.ChatAutomationKindWebhook, TargetMode: codersdk.ChatAutomationTargetModeExistingChat, WebhookAuth: codersdk.ChatAutomationWebhookAuthStandardWebhooks}, false},
+		{"ScheduleNewChat", codersdk.CreateChatAutomationRequest{Kind: codersdk.ChatAutomationKindSchedule, TargetMode: codersdk.ChatAutomationTargetModeNewChat, ScheduleCron: "0 9 * * *", ScheduleTimeZone: "America/New_York"}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			member := env.actor(t, rbac.ScopedRoleAgentsAccess(org))
+			req := tc.req
+			req.Name = "automation-" + uuid.NewString()
+			req.Prompt = "canary-prompt-" + uuid.NewString()
+			var target database.Chat
+			if req.TargetMode == codersdk.ChatAutomationTargetModeExistingChat {
+				target = env.chat(t, member.id, "Target "+uuid.NewString())
+				req.TargetChatID = &target.ID
+			} else {
+				req.NewChatModelConfigID = &env.model.ID
+			}
+			var supplied string
+			if req.WebhookAuth == codersdk.ChatAutomationWebhookAuthStandardWebhooks {
+				supplied = "whsec_" + base64.StdEncoding.EncodeToString([]byte("canary-"+uuid.NewString()))
+				req.WebhookSecret = supplied
+			}
+
+			res, body := postChatAutomation(t, member.client, org, req)
+
+			require.Equal(t, http.StatusCreated, res.StatusCode, string(body))
+			require.Equal(t, "no-store", res.Header.Get("Cache-Control"))
+			var created codersdk.CreateChatAutomationResponse
+			require.NoError(t, json.Unmarshal(body, &created))
+			require.Equal(t, tc.generated, created.WebhookSecret != "")
+			require.NotNil(t, created.Automation.Owner)
+			require.Equal(t, member.id, created.Automation.Owner.ID)
+			if req.TargetChatID != nil {
+				require.Equal(t, &codersdk.ChatAutomationChat{ID: target.ID, Title: target.Title}, created.Automation.TargetChat)
+			}
+			// The response carries a generated secret once, and never carries
+			// a secret that the caller supplied.
+			secrets := []string{created.WebhookSecret, supplied}
+			if tc.generated {
+				require.Equal(t, 1, strings.Count(string(body), created.WebhookSecret))
+			}
+			if supplied != "" {
+				require.Zero(t, strings.Count(string(body), supplied))
+			}
+
+			for _, path := range []string{"/" + created.Automation.ID.String(), "?owner=me"} {
+				status, got := doChatAutomation(t, member.client, http.MethodGet, chatAutomationPath(org, path))
+				require.Equal(t, http.StatusOK, status, string(got))
+				require.Contains(t, string(got), created.Automation.ID.String())
+				for _, secret := range secrets {
+					if secret != "" {
+						require.Zero(t, strings.Count(string(got), secret), path)
+					}
+				}
+			}
+			logs := env.automationAudit(member.id)
+			require.Len(t, logs, 1)
+			require.Equal(t, database.AuditActionCreate, logs[0].Action)
+			require.Equal(t, org, logs[0].OrganizationID)
+			require.Equal(t, created.Automation.ID, logs[0].ResourceID)
+		})
+	}
+}
+
+func TestCreateChatAutomationRejected(t *testing.T) {
+	t.Parallel()
+	// The limit of one lets a row hit it with a single seeded automation.
+	env := newChatAutomationEnv(t, nil, func(o *coderdtest.Options) {
+		o.DeploymentValues.AI.Chat.MaxAutomationsPerOwner = serpent.Int64(1)
+	})
+	org := env.first.OrganizationID
+	// Without the default, agents-access reaches only the members that hold it
+	// explicitly, so one member of the organization can lack it.
+	env.exec(t, "UPDATE organizations SET default_org_member_roles = '{organization-workspace-access}' WHERE id = $1", org)
+	agentsAccess := rbac.ScopedRoleAgentsAccess(org)
+	member := env.actor(t, agentsAccess)
+	atLimit := env.actor(t, agentsAccess)
+	env.automation(t, database.ChatAutomation{OwnerID: atLimit.id})
+	// The key reads the organization, so that its request reaches the handler.
+	token, err := member.client.CreateToken(testutil.Context(t, testutil.WaitMedium), codersdk.Me, codersdk.CreateTokenRequest{
+		Scopes: []codersdk.APIKeyScope{codersdk.APIKeyScopeWorkspaceRead, codersdk.APIKeyScopeOrganizationRead},
+	})
+	require.NoError(t, err)
+	scoped := chatAutomationActor{client: codersdk.New(env.owner.URL, codersdk.WithSessionToken(token.Key)), id: member.id}
+	otherOrg := dbgen.Organization(t, env.db, database.Organization{})
+	otherAdminClient, otherAdmin := coderdtest.CreateAnotherUser(t, env.owner, otherOrg.ID, rbac.ScopedRoleOrgAdmin(otherOrg.ID))
+
+	// valid is a request that only the caller or the limit can make fail.
+	valid := func(canary string) codersdk.CreateChatAutomationRequest {
+		return codersdk.CreateChatAutomationRequest{
+			Name: "rejected-" + canary, Kind: codersdk.ChatAutomationKindWebhook, Prompt: canary,
+			TargetMode: codersdk.ChatAutomationTargetModeNewChat, NewChatModelConfigID: &env.model.ID,
+			WebhookAuth: codersdk.ChatAutomationWebhookAuthBearer,
+		}
+	}
+	type rejection struct {
+		who     chatAutomationActor
+		body    func(canary string) any
+		status  int
+		message string
+		fields  []string
+	}
+	validBody := func(canary string) any { return valid(canary) }
+	forbidden := func(who chatAutomationActor) rejection {
+		return rejection{who, validBody, http.StatusForbidden, "Forbidden.", nil}
+	}
+	for name, tc := range map[string]rejection{
+		"InvalidJSON": {member, func(canary string) any { return []byte(fmt.Sprintf(`{"enabled": %q}`, canary)) },
+			http.StatusBadRequest, "Request body must be valid JSON.", nil},
+		"EmptyObject": {member, func(string) any { return []byte(`{}`) },
+			http.StatusBadRequest, "Validation failed.", []string{"name", "kind", "target_mode", "prompt"}},
+		"SecretForBearer": {member, func(canary string) any {
+			req := valid(canary)
+			req.WebhookSecret = canary
+			return req
+		}, http.StatusBadRequest, "Validation failed.", []string{"webhook_secret"}},
+		"BodyTooLarge": {member, func(canary string) any {
+			req := valid(canary)
+			// The limit is twice the prompt limit, and the prompt is most of the body.
+			req.Prompt = canary + strings.Repeat("a", 2*codersdk.DefaultChatMaxPromptBytes)
+			return req
+		}, http.StatusRequestEntityTooLarge, "Request body too large.", nil},
+		"AtLimit": {atLimit, validBody, http.StatusConflict,
+			"You can have at most 1 chat automations across all organizations. Delete one to create another.", nil},
+		"OrganizationAdmin":      forbidden(env.actor(t, rbac.ScopedRoleOrgAdmin(org))),
+		"TemplateAdmin":          forbidden(env.actor(t, rbac.RoleTemplateAdmin())),
+		"UserAdmin":              forbidden(env.actor(t, rbac.RoleUserAdmin())),
+		"Auditor":                forbidden(env.actor(t, rbac.RoleAuditor())),
+		"NoAgentsAccess":         forbidden(env.actor(t)),
+		"DeploymentOwner":        forbidden(chatAutomationActor{client: env.owner, id: env.first.UserID}),
+		"ScopedToken":            forbidden(scoped),
+		"OtherOrganizationAdmin": {chatAutomationActor{client: otherAdminClient, id: otherAdmin.ID}, validBody, http.StatusNotFound, "", nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			canary := "canary-" + uuid.NewString()
+
+			res, body := postChatAutomation(t, tc.who.client, org, tc.body(canary))
+
+			require.Equal(t, tc.status, res.StatusCode, string(body))
+			require.Zero(t, bytes.Count(body, []byte(canary)), "the response echoes the request")
+			var got codersdk.Response
+			require.NoError(t, json.Unmarshal(body, &got))
+			if tc.message != "" {
+				require.Equal(t, tc.message, got.Message)
+			}
+			fields := []string{}
+			for _, v := range got.Validations {
+				fields = append(fields, v.Field)
+			}
+			require.ElementsMatch(t, tc.fields, fields)
+			require.Empty(t, env.automationAudit(tc.who.id))
+		})
+	}
+}
+
+// createStore fails what a create does after its checks. InTx hands the
+// wrapper to the callback so that the overrides reach the transaction.
+type createStore struct {
+	database.Store
+	insertErr error
+	usersErr  error
+}
+
+func (s createStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error {
+		return fn(createStore{Store: tx, insertErr: s.insertErr, usersErr: s.usersErr})
+	}, opts)
+}
+
+func (s createStore) InsertChatAutomation(ctx context.Context, arg database.InsertChatAutomationParams) (database.ChatAutomation, error) {
+	if s.insertErr != nil {
+		return database.ChatAutomation{}, s.insertErr
+	}
+	return s.Store.InsertChatAutomation(ctx, arg)
+}
+
+func (s createStore) GetUsersByIDs(ctx context.Context, ids []uuid.UUID) ([]database.User, error) {
+	if s.usersErr != nil {
+		return nil, s.usersErr
+	}
+	return s.Store.GetUsersByIDs(ctx, ids)
+}
+
+func bearerChatAutomation(env chatAutomationEnv) codersdk.CreateChatAutomationRequest {
+	return codersdk.CreateChatAutomationRequest{
+		Name: "automation-" + uuid.NewString(), Kind: codersdk.ChatAutomationKindWebhook, Prompt: "Review the alert.",
+		TargetMode: codersdk.ChatAutomationTargetModeNewChat, NewChatModelConfigID: &env.model.ID,
+		WebhookAuth: codersdk.ChatAutomationWebhookAuthBearer,
+	}
+}
+
+// TestChatAutomationsCreateInternalError checks that a failed insert answers a
+// 500 with no cause in the body and no audit entry, and that the cause goes to
+// the log: the request logger logs the body of a 5xx response.
+func TestChatAutomationsCreateInternalError(t *testing.T) {
+	t.Parallel()
+	canary := chatAutomationErrorCanary + "-" + uuid.NewString()
+	sink := testutil.NewFakeSink(t)
+	logger := sink.Logger()
+	env := newChatAutomationEnv(t,
+		func(db database.Store) database.Store { return createStore{Store: db, insertErr: xerrors.New(canary)} },
+		func(o *coderdtest.Options) { o.Logger = &logger })
+	member := env.actor(t, rbac.ScopedRoleAgentsAccess(env.first.OrganizationID))
+
+	res, body := postChatAutomation(t, member.client, env.first.OrganizationID, bearerChatAutomation(env))
+
+	require.Equal(t, http.StatusInternalServerError, res.StatusCode, string(body))
+	require.Zero(t, bytes.Count(body, []byte(canary)))
+	var got codersdk.Response
+	require.NoError(t, json.Unmarshal(body, &got))
+	require.Equal(t, "Internal error creating chat automation.", got.Message)
+	require.Empty(t, got.Detail)
+	require.Empty(t, env.automationAudit(member.id))
+	logged := sink.Entries(func(e slog.SinkEntry) bool { return e.Message == got.Message })
+	require.Len(t, logged, 1)
+	require.Contains(t, fmt.Sprint(logged[0].Fields), canary)
+}
+
+// TestChatAutomationsCreateResponseWithoutRefs checks that a failed read of
+// the owner after the commit does not fail the create: the generated secret
+// exists only in this response.
+func TestChatAutomationsCreateResponseWithoutRefs(t *testing.T) {
+	t.Parallel()
+	env := newChatAutomationEnv(t, func(db database.Store) database.Store {
+		return createStore{Store: db, usersErr: xerrors.New("owners are unavailable")}
+	})
+	member := env.actor(t, rbac.ScopedRoleAgentsAccess(env.first.OrganizationID))
+
+	created, err := codersdk.NewExperimentalClient(member.client).CreateChatAutomation(
+		testutil.Context(t, testutil.WaitMedium), env.first.OrganizationID, bearerChatAutomation(env))
+
+	require.NoError(t, err)
+	require.Equal(t, member.id, created.Automation.OwnerID)
+	require.Nil(t, created.Automation.Owner)
+	var stored string
+	require.NoError(t, env.sqlDB.QueryRowContext(testutil.Context(t, testutil.WaitShort),
+		"SELECT webhook_secret FROM chat_automations WHERE id = $1", created.Automation.ID).Scan(&stored))
+	require.NotEmpty(t, created.WebhookSecret)
+	require.Equal(t, stored, created.WebhookSecret)
 }
