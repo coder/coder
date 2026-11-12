@@ -107,6 +107,12 @@ are a licensed feature.
 What must be decided: how a template declares that a claim changes
 nothing, and what the daemon learns when its workspace changes owner.
 
+Tried, with today's claim: the template of idea 1 with a preset that keeps
+two prebuilt workspaces. Pod identity needed no change. A prebuilt
+workspace's daemon is vouched for by the cluster, and after the claim the
+same pod answers as the new owner's workspace. The claim was no faster
+than building, though. See [Measured](#measured).
+
 ### 3. Every developer's workspace carries its own small pool
 
 The template of an ordinary workspace declares, next to the developer's
@@ -166,6 +172,7 @@ whose pod comes from the same warm pool, three runs.
 | Terraform, with an agent and nothing else                                  | 0.84 s to 0.86 s | 0.6 s          |
 | Terraform, claiming with shell commands that stand in for a claim resource | 3.2 s to 4.0 s   | 1.2 s          |
 | Terraform, claiming with the Kubernetes provider's manifest resource       | 8.1 s to 13.8 s  | 5.8 s to 7.3 s |
+| Terraform, claiming a prebuilt workspace of that template                  | 6.2 s to 7.1 s   | 6.3 s to 7.9 s |
 
 - **Terraform itself is not slow.** A build that touches no cloud takes
   under a second.
@@ -173,6 +180,16 @@ whose pod comes from the same warm pool, three runs.
   schemas when it plans.
 - **The shell stand-in** runs `kubectl` four times, which is most of its
   three seconds. A resource in a provider would not.
+
+- **A prebuilt workspace's claim is a build that changes nothing here.**
+  Terraform planned "0 to add, 0 to change, 0 to destroy" and still took
+  six seconds, for the same reason as the line above it. With a warm pool
+  behind the template, a prebuilt workspace saves nothing: the pod was
+  running already.
+- **After a claim the daemon was slow to follow.** The first `coder run`
+  in a claimed workspace took 5.7 s to 8.4 s, because the daemon of this
+  spike is not told that its workspace has a new owner. It finds out when
+  its connection is dropped.
 
 After the build, `coder run` in such a workspace took 0.2 s to 0.3 s.
 
