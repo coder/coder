@@ -6,6 +6,7 @@ Terms, facts, and instructions agree within each page and across the docs.
 
 - The docs pages the change adds or edits, in full, not only the changed lines.
 - Rules: every page under `docs/.style/` whose front matter `review-personas` list includes `consistency`.
+  The `language` group loads each page once for all its personas, as `SKILL.md` step 5 describes. Do not load a page again.
   These include [One term per concept](../../../../docs/.style/style-guide/word-choice.md#one-term-per-concept).
 
 ## Method
@@ -26,7 +27,10 @@ Terms, facts, and instructions agree within each page and across the docs.
 
 ## Classes you return
 
-`rule` when the finding cites a rule or a contradicting line, otherwise `suggestion`.
+`rule` for a contradiction: two statements that give a different value, set of options, set of steps, or condition for the same thing.
+`rule` for two terms for one concept only when a reader could take them for two different things. Otherwise it is a `suggestion`.
+`wrong` for a UI label that does not match what the product renders, because the reader cannot find it.
+Everything else is a `suggestion`.
 A contradiction with a page the change does not touch is a finding only when the change made the other page wrong.
 If the other page was already wrong, it is `adjacent`.
 

@@ -5,7 +5,7 @@ Every run ends with a [run trace](#run-trace), whether or not it posts anything.
 
 ## Finding schema
 
-Every persona returns findings in this shape, one block per finding.
+Every group returns findings in this shape, one block per finding.
 The orchestrator keeps the same fields through verification and posting.
 
 ```yaml
@@ -41,7 +41,8 @@ Put it in the summary comment.
 
 ## Posting in CI
 
-Post nothing when no finding survives verification.
+Post nothing when no finding survives verification, unless your verdict differs from a sibling's posted verdict for the same surface (refer to [Sibling PRs](./SKILL.md#sibling-prs)).
+Then post or edit only the summary comment, with only the **Sibling PRs** section.
 The run trace still records the clean result.
 
 When findings survive, post two things.
@@ -83,6 +84,9 @@ Never post a second summary comment.
 
 ### Related open PRs
 - #31147 would change the last sentence of the new section.
+
+### Sibling PRs
+- #31849 got a blocking finding for the same log lines. This PR adds no log line, so it needs no docs.
 
 <details>
 <summary>Findings for agents</summary>
@@ -136,6 +140,13 @@ doc-check-trace:
   rejected_by_verifier: 2
   personas_run: [accuracy, coverage, learner, consistency, audience, structure, language, verifier]
   personas_skipped: []      # each with a reason
+  mode: groups              # inline | groups, from SKILL.md step 5
+  docs_relevant_lines: 412
+  groups_run: [facts, reader, language]
+  verifiers: 1              # 0, 1, or 2
+  subagents_started: 4      # every sub-agent this run spawned, groups and verifiers; 0 when it spawned none
+  siblings:
+    - {pr: 31849, verdict: blocking, same_surface: true, agrees: false}   # verdict: blocking | suggestions | none
   deterministic_checks:
     - {name: make lint/emdash, result: pass}
   pages_read:

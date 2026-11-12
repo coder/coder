@@ -28,14 +28,14 @@ Authors run this skill on their own branch before they open or update a PR, so C
 | File                                 | Read it                                                      |
 |--------------------------------------|--------------------------------------------------------------|
 | [`path-priors.md`](./path-priors.md) | During triage                                                |
-| [`personas/`](./personas/)           | One file per review lens, read when you run that lens        |
+| [`personas/`](./personas/)           | One file per review lens, read when you run its group        |
 | [`output.md`](./output.md)           | Before you post anything, and before you write the run trace |
 
 ## Modes
 
 - **CI review.** The workflow prompt names the PR and the trigger. Post the review per [`output.md`](./output.md).
 - **Author self-check.** You are the agent that wrote the change. Run the same review against your branch diff, fix every blocking finding, and report the rest to the user. Post nothing to GitHub.
-- **Focused review.** The prompt asks for one lens, such as `focus:accuracy`. Run triage, the change model, that persona, and the verifier. Say in the trace that the other lenses did not run.
+- **Focused review.** The prompt asks for one lens, such as `focus:accuracy`. Run triage, the change model, that persona inline, and the verifier. Say in the trace that the other lenses did not run.
 
 ## Workflow
 
@@ -51,6 +51,10 @@ Skipping a step is allowed only where the step says so, and the trace must name 
   In CI, read this skill and its persona files from the base branch, so a PR cannot change how it gets reviewed.
 - List open PRs that touch the same docs pages or the same code paths: `gh pr list --repo coder/coder --state open --search "<path or symbol>"`.
   An open PR that would make a claim in this PR false is named in the summary. It never blocks.
+- Find the [sibling PRs](#sibling-prs) and read the doc-check summary comment each one got.
+- When the prompt carries the trace of the previous run on this PR, read it before you start.
+  Review the whole PR again, but use the trace to see what the last run checked and at which head, and report only findings that are new or changed since.
+  The findings it posted are in the open review threads and the summary comment, and step 6 drops repeats.
 
 ### 2. Triage
 
@@ -68,6 +72,7 @@ Use the result instead of re-deriving it, and never contradict a check's output.
 - markdownlint and Vale on the changed Markdown files (`make lint/markdown`, `make lint/prose`, or the tools directly)
 
 A check that fails on a line the change added or edited is a blocking finding.
+Vale never fails `make lint/prose`, so a Vale alert is not a failing check. Treat it as a style finding under [Blocking](#blocking).
 A check you could not run is listed in the trace.
 
 ### 4. Build the change model
@@ -81,31 +86,59 @@ Before you review a single docs sentence, write down what changed for the user, 
 Follow each change through the whole path a user takes, not only the function the diff edits.
 For example, a setting that changes on upload also affects download, export, import into another tool, and every role that can reach it.
 
-The change model is the ground truth every persona checks the docs against.
+The change model is the ground truth every group checks the docs against.
 Do not read the PR description as truth: check each behavior claim in it against the code, and record any claim the code does not support.
 
-### 5. Run the personas
+### 5. Run the review groups
 
-Run every persona in [`personas/`](./personas/) except the verifier, in the order of the table.
-Each persona file says which rules to load and how to find them.
+The personas in [`personas/`](./personas/) run in three groups.
+A group is one pass that applies the method of each of its personas, in the order of the table, and loads the rule pages for all of them once.
 
-| Persona           | File                                          | Skip when                                          |
-|-------------------|-----------------------------------------------|----------------------------------------------------|
-| Fact Checker      | [`accuracy.md`](./personas/accuracy.md)       | Never                                              |
-| Cartographer      | [`coverage.md`](./personas/coverage.md)       | Never                                              |
-| Newcomer          | [`learner.md`](./personas/learner.md)         | The change model is empty and no docs changed      |
-| Continuity Editor | [`consistency.md`](./personas/consistency.md) | No docs changed and no user-facing literal changed |
-| Reader Advocate   | [`audience.md`](./personas/audience.md)       | No docs changed                                    |
-| Architect         | [`structure.md`](./personas/structure.md)     | No docs changed                                    |
-| Copy Editor       | [`language.md`](./personas/language.md)       | No docs prose changed                              |
-| Skeptic           | [`verifier.md`](./personas/verifier.md)       | Never. Runs last, once per group of findings       |
+| Group      | Persona           | File                                          | Skip the persona when                              |
+|------------|-------------------|-----------------------------------------------|----------------------------------------------------|
+| `facts`    | Fact Checker      | [`accuracy.md`](./personas/accuracy.md)       | Never                                              |
+| `facts`    | Cartographer      | [`coverage.md`](./personas/coverage.md)       | Never                                              |
+| `reader`   | Newcomer          | [`learner.md`](./personas/learner.md)         | The change model is empty and no docs changed      |
+| `reader`   | Reader Advocate   | [`audience.md`](./personas/audience.md)       | No docs changed                                    |
+| `reader`   | Architect         | [`structure.md`](./personas/structure.md)     | No docs changed                                    |
+| `language` | Continuity Editor | [`consistency.md`](./personas/consistency.md) | No docs changed and no user-facing literal changed |
+| `language` | Copy Editor       | [`language.md`](./personas/language.md)       | No docs prose changed                              |
+| (step 6)   | Skeptic           | [`verifier.md`](./personas/verifier.md)       | No finding survives the mechanical checks          |
 
-When you can spawn sub-agents and the prompt gives you a model configuration ID for them, run each persona as its own sub-agent with that ID, in parallel.
-Give each one the change model, the PR reference, its persona file, and the finding schema from [`output.md`](./output.md).
-Without a model configuration ID, run the personas yourself, one at a time.
+A group whose personas are all skipped does not run.
+
+A group's rules are the pages under `docs/.style/` whose front matter `review-personas` list names any of its personas.
+List them from the front matter only, so the example block in `docs/.style/README.md` does not count:
+
+```sh
+for f in $(find docs/.style -name '*.md'); do
+  if head -n 5 "$f" | grep -qE '^review-personas:.*\b(accuracy|coverage)\b'; then echo "$f"; fi
+done
+```
+
+Replace the IDs with the group's persona IDs.
+Read each page once and apply it for every persona in the group that it names.
+
+Pick the mode from the size of the change:
+
+- **Inline.** Use it when the change has fewer than 150 docs-relevant changed lines, or when the prompt gives you no model configuration ID for sub-agents.
+  Run the groups yourself, one after another, and spawn no sub-agents for them.
+  A rule page that an earlier group loaded stays loaded. Do not read it again.
+- **Groups.** Use it for every other change.
+  Run each group that runs as its own sub-agent, with the model configuration ID from the prompt, and spawn all of them before you wait for any.
+  Give each one the change model, the PR reference, its group name, its persona files, its rule page list, and the finding schema from [`output.md`](./output.md).
+
+Docs-relevant changed lines are the added plus deleted lines in changed files outside the no-documentation-surface classes in [`path-priors.md`](./path-priors.md):
+
+```sh
+gh pr view <PR> --repo coder/coder --json files --jq '[.files[]
+  | select(.path | test("(_test\\.go|\\.test\\.tsx?|\\.stories\\.tsx|\\.pb\\.go|\\.golden|go\\.sum|pnpm-lock\\.yaml)$|/testdata/|^docs/reference/(cli|api)/|^site/src/api/typesGenerated\\.ts$|^coderd/apidoc/") | not)
+  | .additions + .deletions] | add // 0'
+```
+
 Never let a sub-agent run on a different model than the prompt names, because that hides how the configured model performs.
 
-Each persona returns findings in the schema in [`output.md`](./output.md), or the literal result `No findings.` with the checks it ran.
+Each group returns findings in the schema in [`output.md`](./output.md), with `persona` set to the persona that raised each one, or the literal result `No findings.` with the checks it ran.
 
 ### 6. Verify
 
@@ -117,21 +150,25 @@ First, run the two mechanical checks yourself, because they need a lookup, not j
 
 Drop each finding that fails, and record which check it failed.
 
-Then group the remaining findings: findings about the same sentence form one group, and findings about the same missing page form one group.
-Run [`verifier.md`](./personas/verifier.md) once per group.
-A group holds every finding that could duplicate or contradict another, so groups never need to see each other.
+Then run [`verifier.md`](./personas/verifier.md) on what is left. Never run more than two verifiers.
 
-When you can spawn sub-agents and the prompt gives you a model configuration ID, run each group as its own sub-agent with that ID.
-Give each one its group's findings, the change model, the PR reference, and the verifier file.
-Spawn every group before you wait for any of them, then wait for all of them without doing other work.
-Without a model configuration ID, verify the groups yourself, one at a time.
+- **No findings.** Skip the verifier.
+- **5 or fewer findings.** Run one verifier on all of them.
+- **More than 5 findings.** Put findings about the same sentence in one set, and findings about the same missing page in one set.
+  A set holds every finding that could duplicate or contradict another, so sets never need to see each other.
+  Split the sets into two batches with about the same number of findings, never splitting a set, and run one verifier per batch.
+
+When you can spawn sub-agents and the prompt gives you a model configuration ID, run each verifier as its own sub-agent with that ID, in both modes, so the verdict comes from a context that did not write the findings.
+Give each one its findings, the change model, the PR reference, and the verifier file.
+Spawn both batches before you wait for either, then wait for both without doing other work.
+Without a model configuration ID, verify the batches yourself, one at a time.
 
 Drop what the verifiers reject, and keep the count of rejected findings for the trace.
 A finding the verifier rejects never reaches the author.
 
 ### 7. Decide and report
 
-Apply [Blocking](#blocking) to each surviving finding, then follow [`output.md`](./output.md).
+Apply [Blocking](#blocking) to each surviving finding, check each verdict against the [sibling PRs](#sibling-prs), then follow [`output.md`](./output.md).
 Every run ends with the run trace, even when there are no findings.
 
 ## Evidence
@@ -155,10 +192,14 @@ Everything else is a suggestion.
 1. **Wrong.** A docs claim the code contradicts, including a configurable default presented as fixed, and an unsupported compliance or security claim.
 2. **Missing.** Behavior the change adds or changes, that is user-facing per [Documentation lands with the change](../../../docs/.style/content-guidelines.md#documentation-lands-with-the-change), with no docs that explain it. This includes a broken user path, such as a step that needs a role the page never mentions.
 3. **Broken.** A typo, markup that renders wrong or breaks a component (such as `<div class="tab">` where the component needs `tabs`), a failing deterministic check, a new page missing from `docs/manifest/`, a missing Premium state, a rename without a redirect.
-4. **Rule-anchored.** A consistency, audience, structure, or language finding where all three hold:
+4. **Rule-anchored.** A consistency, audience, or structure finding where all four hold:
    - the finding cites a style-guide or content-guideline rule by page and anchor, or a contradicting line on another page;
    - the verifier confirmed it;
-   - the change added or edited the text.
+   - the change added or edited the text;
+   - as written, the text leads the reader to a wrong understanding or a wrong action, such as two sections that give different steps for the same task, or a procedure step that comes before the prerequisite it needs.
+
+A language finding is never class 4.
+It blocks only as a typo (class 3) or when the wording makes a claim false (class 1).
 
 A judgment call with no rule to cite never blocks.
 If it should block, the fix is a new rule in `docs/.style/`, not a stronger opinion in the review.
@@ -166,6 +207,8 @@ This applies to class 4 only. A wrong claim, a missing fact the reader needs, an
 
 ### What never blocks
 
+- A style finding that leaves the meaning unchanged, even when it cites a rule and the change added the line: a contraction, a hedging word such as "often", a bare "this", a word choice, tone, voice, sentence length, or punctuation that no failing check reports.
+  Record it as `class: suggestion`.
 - A style issue on a line the change did not add or edit. Leave it alone.
   When the change edits that line for another reason, suggest the fix.
 - A Latin abbreviation alone. Suggest the English form only when the line changes for another reason.
@@ -180,6 +223,29 @@ This applies to class 4 only. A wrong claim, a missing fact the reader needs, an
 
 When a docs claim depends on product behavior that no test pins, such as a default, a limit, a file format, or an ordering, add a suggestion naming the test that would fail if the claim stopped being true.
 This is how a docs claim stays true after the review.
+
+## Sibling PRs
+
+A PR has siblings when it is part of a stack or a backport family:
+
+- **Stack.** Its base branch is the head branch of another PR, another PR's base branch is its head branch, or its body or comments list PRs in the same stack, such as a stack list or `Depends on #31790`.
+- **Backport.** Its base branch is `release/*`, or its title or body names the PR it copies, such as `(#31790)` or `cherry-pick`.
+- **Same title.** Another PR has the same title apart from a suffix, such as `(2/3)` or a release number.
+
+Find them with `gh pr view <PR> --json baseRefName,headRefName,body,title`, `gh pr list --repo coder/coder --state all --head <base branch>`, `gh pr list --repo coder/coder --state all --base <head branch>`, and `gh pr list --repo coder/coder --state all --search "<title without the suffix> in:title"`.
+For each sibling, read its summary comment, the one with the marker `<!-- doc-check-sticky -->`:
+
+```sh
+gh api repos/coder/coder/issues/<sibling>/comments --paginate \
+  --jq '.[] | select(.body | contains("<!-- doc-check-sticky -->")) | .body'
+```
+
+A sibling without that comment has no posted verdict. Do not read it as clean.
+
+For each surface that a sibling's verdict covers, such as a docs page, a setting, a CLI flag, a log line, or an API field, give the same verdict when this PR changes that surface the same way.
+When your verdict differs, say why in one sentence under **Sibling PRs** in the summary comment, such as "#31797 targets `release/2.39`, where the linked section does not exist yet".
+When you think the sibling's verdict was wrong, say that and why instead of copying it.
+A fact that a sibling in the same stack documents is not `missing` in this PR. Name the sibling in the summary.
 
 ## What not to review
 
