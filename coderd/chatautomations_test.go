@@ -324,7 +324,7 @@ func TestChatAutomationsOwnerFilter(t *testing.T) {
 	t.Parallel()
 	env := newChatAutomationEnv(t, nil)
 	org := env.first.OrganizationID
-	_, member := coderdtest.CreateAnotherUser(t, env.owner, org)
+	memberClient, member := coderdtest.CreateAnotherUser(t, env.owner, org)
 	_, other := coderdtest.CreateAnotherUser(t, env.owner, org)
 	// The caller reads every owner's automations, so each row shows whether
 	// the filter applies.
@@ -340,23 +340,30 @@ func TestChatAutomationsOwnerFilter(t *testing.T) {
 
 	for name, tc := range map[string]struct {
 		owner string
-		want  []uuid.UUID
+		// asMember lists as a member, who cannot read the user that owner names.
+		asMember bool
+		want     []uuid.UUID
 	}{
-		"Me":              {codersdk.Me, nil},
-		"UserID":          {member.ID.String(), []uuid.UUID{mine.ID}},
-		"UsernameAnyCase": {strings.ToUpper(member.Username), []uuid.UUID{mine.ID}},
-		"UnknownUsername": {"no-such-user-" + uuid.NewString()[:8], nil},
-		"NilUUID":         {uuid.Nil.String(), nil},
-		"Email":           {member.Email, nil},
+		"Me":              {owner: codersdk.Me},
+		"UserID":          {owner: member.ID.String(), want: []uuid.UUID{mine.ID}},
+		"UsernameAnyCase": {owner: strings.ToUpper(member.Username), want: []uuid.UUID{mine.ID}},
+		"UnknownUsername": {owner: "no-such-user-" + uuid.NewString()[:8]},
+		"NilUUID":         {owner: uuid.Nil.String()},
+		"Email":           {owner: member.Email},
 		// Only the canonical form of an ID is an ID.
-		"HexUsername": {hexName, []uuid.UUID{hexMine.ID}},
-		"Braces":      {"{" + member.ID.String() + "}", nil},
-		"URN":         {"urn:uuid:" + member.ID.String(), nil},
+		"HexUsername":        {owner: hexName, want: []uuid.UUID{hexMine.ID}},
+		"Braces":             {owner: "{" + member.ID.String() + "}"},
+		"URN":                {owner: "urn:uuid:" + member.ID.String()},
+		"UnreadableUsername": {owner: other.Username, asMember: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			query := "?" + url.Values{"owner": {tc.owner}}.Encode()
-			require.ElementsMatch(t, tc.want, listChatAutomationIDs(t, adminClient, org, query))
+			client := adminClient
+			if tc.asMember {
+				client = memberClient
+			}
+			require.ElementsMatch(t, tc.want, listChatAutomationIDs(t, client, org, query))
 		})
 	}
 }
