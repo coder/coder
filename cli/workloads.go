@@ -46,7 +46,12 @@ func formatWorkloadIdentity(identity codersdk.WorkloadIdentity) string {
 	_, _ = fmt.Fprintf(&b, "Workload identity: %s\n", identity.ID)
 	switch identity.Kind {
 	case codersdk.WorkloadIdentityKindWorkload:
-		_, _ = fmt.Fprintf(&b, "  Kind:          workload, vouched for by its workspace daemon (holds no credential)\n")
+		if identity.Attestation == codersdk.WorkloadAttestationKubernetesPod {
+			_, _ = fmt.Fprintf(&b, "  Kind:          workload with a pod to itself, which its cluster vouches for\n")
+			_, _ = fmt.Fprintf(&b, "  Attested:      %s\n", identity.AttestationSubject)
+		} else {
+			_, _ = fmt.Fprintf(&b, "  Kind:          workload, vouched for by its workspace daemon (holds no credential)\n")
+		}
 		_, _ = fmt.Fprintf(&b, "  Name:          %s\n", identity.Name)
 		_, _ = fmt.Fprintf(&b, "  Workspace:     %s/%s (%s)\n", identity.OwnerUsername, identity.WorkspaceName, identity.WorkspaceID)
 		_, _ = fmt.Fprintf(&b, "  Runs in:       daemon %s (%s)\n", identity.AgentName, identity.AgentID)
@@ -56,7 +61,12 @@ func formatWorkloadIdentity(identity codersdk.WorkloadIdentity) string {
 		_, _ = fmt.Fprintf(&b, "  Sponsor:       %s (%s)\n", identity.SponsorUsername, identity.SponsorID)
 		_, _ = fmt.Fprintf(&b, "  Scopes:        %s\n", joinWorkloadScopes(identity.Scopes, ", "))
 	default:
-		_, _ = fmt.Fprintf(&b, "  Kind:          template-declared daemon, holds an agent token\n")
+		if identity.Attestation == codersdk.WorkloadAttestationKubernetesPod {
+			_, _ = fmt.Fprintf(&b, "  Kind:          daemon in a pod its cluster vouches for\n")
+			_, _ = fmt.Fprintf(&b, "  Attested:      %s\n", identity.AttestationSubject)
+		} else {
+			_, _ = fmt.Fprintf(&b, "  Kind:          template-declared daemon, holds an agent token\n")
+		}
 		_, _ = fmt.Fprintf(&b, "  Daemon:        %s (%s)\n", identity.AgentName, identity.AgentID)
 		_, _ = fmt.Fprintf(&b, "  Workspace:     %s/%s (%s)\n", identity.OwnerUsername, identity.WorkspaceName, identity.WorkspaceID)
 		_, _ = fmt.Fprintf(&b, "  Acts for user: %s (%s)\n", identity.OwnerUsername, identity.OwnerID)

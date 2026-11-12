@@ -2,7 +2,6 @@ package agentsdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -48,7 +47,7 @@ func (c *Client) PendingWorkloads(ctx context.Context) ([]codersdk.AgentWorkload
 		return nil, codersdk.ReadBodyAsError(res)
 	}
 	var specs []codersdk.AgentWorkloadSpec
-	return specs, json.NewDecoder(res.Body).Decode(&specs)
+	return specs, codersdk.ReadBodyAsJSON(res, &specs)
 }
 
 // ReportWorkloadStart tells coderd whether a workload it gave this daemon

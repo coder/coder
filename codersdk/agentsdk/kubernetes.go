@@ -16,7 +16,7 @@ import (
 // that identifies the pod to Coder: a projected service account token with
 // Coder as its audience. The kubelet obtains it for the pod and keeps it
 // fresh.
-const DefaultKubernetesPodTokenPath = "/var/run/secrets/coder.com/identity/token"
+const DefaultKubernetesPodTokenPath = "/var/run/secrets/coder.com/identity/token" //nolint:gosec // A path, not a credential.
 
 // kubernetesPodIdentityWait is how long coderd is asked to hold a request
 // from a pod that no workspace has claimed yet.
@@ -79,7 +79,8 @@ func (k *KubernetesSessionTokenExchanger) exchange(ctx context.Context) (Authent
 		// is waited out here: the daemon's own retry backs off to many
 		// seconds, which a pod that waits to be claimed cannot afford.
 		var refused *codersdk.Error
-		if err != nil && (ctx.Err() != nil || (xerrors.As(err, &refused) && refused.StatusCode() < http.StatusInternalServerError)) {
+		if err != nil && (ctx.Err() != nil || (xerrors.As(err, &refused) &&
+			(refused.StatusCode() < http.StatusInternalServerError || refused.StatusCode() == http.StatusNotImplemented))) {
 			return AuthenticateResponse{}, err
 		}
 		// Not claimed yet. coderd normally holds the request, so asking

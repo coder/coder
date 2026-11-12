@@ -158,7 +158,8 @@ const maxKubernetesPodIdentityWait = 30 * time.Second
 func (api *API) postWorkspaceAuthKubernetesPodIdentity(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if api.SandboxCluster == nil {
-		httpapi.Write(ctx, rw, http.StatusNotFound, codersdk.Response{
+		// Not found would tell a pod to wait to be claimed.
+		httpapi.Write(ctx, rw, http.StatusNotImplemented, codersdk.Response{
 			Message: "Kubernetes pod identity is not configured on this deployment.",
 		})
 		return

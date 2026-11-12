@@ -112,6 +112,11 @@ const (
 	// for the workload: it created the sandbox and it alone connects the
 	// sandbox to Coder. The workload holds no credential.
 	WorkloadAttestationWorkspaceDaemon WorkloadAttestation = "workspace-daemon"
+	// WorkloadAttestationKubernetesPod means a cluster confirmed which pod
+	// the identity's daemon runs in, from the token the kubelet obtained
+	// for that pod. A workload with this attestation has the pod to
+	// itself.
+	WorkloadAttestationKubernetesPod WorkloadAttestation = "kubernetes-pod"
 )
 
 // WorkloadSandbox is where a workload runs inside its workspace daemon.
@@ -129,6 +134,9 @@ type WorkloadIdentity struct {
 	ID          string               `json:"id"`
 	Kind        WorkloadIdentityKind `json:"kind"`
 	Attestation WorkloadAttestation  `json:"attestation"`
+	// AttestationSubject is what was attested, when that is not Coder's
+	// own credential: for a pod, the UID the cluster gave it.
+	AttestationSubject string `json:"attestation_subject,omitempty"`
 	// AgentID is the workspace daemon: the process itself, or the daemon
 	// that runs and vouches for the workload.
 	AgentID       uuid.UUID `json:"agent_id" format:"uuid"`
@@ -440,7 +448,7 @@ func (c *Client) Workloads(ctx context.Context, opts WorkspaceWorkloadsOptions) 
 		return nil, ReadBodyAsError(res)
 	}
 	var workloads []Workload
-	return workloads, json.NewDecoder(res.Body).Decode(&workloads)
+	return workloads, ReadBodyAsJSON(res, &workloads)
 }
 
 // WorkloadIdentity returns the identity coderd sees for the caller. It

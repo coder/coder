@@ -22,6 +22,7 @@ export const Navbar: React.FC = () => {
 		appearance,
 		canViewOrganizationSettings,
 		entitlements,
+		experiments,
 		organizations,
 	} = useDashboard();
 	const { user: me, permissions, signOut } = useAuthenticated();
@@ -87,6 +88,7 @@ export const Navbar: React.FC = () => {
 				canViewHealth,
 			}}
 			canCreateChat={canCreateChat}
+			showWorkloads={experiments.includes("runtime-workloads")}
 			canViewLicenses={permissions.viewAllLicenses}
 			proxyContextValue={proxyContextValue}
 		/>

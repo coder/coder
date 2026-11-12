@@ -26,6 +26,8 @@ type NavbarViewProps = {
 	onSignOut: () => void;
 	adminPermissions: AdminSettingsPermissions;
 	canCreateChat: boolean;
+	/** Whether to link to the viewer's workloads. */
+	showWorkloads?: boolean;
 	canViewLicenses: boolean;
 	proxyContextValue?: ProxyContextValue;
 };
@@ -44,6 +46,7 @@ export const NavbarView: React.FC<NavbarViewProps> = ({
 	onSignOut,
 	adminPermissions,
 	canCreateChat,
+	showWorkloads = false,
 	canViewLicenses,
 	proxyContextValue,
 }) => {
@@ -73,7 +76,11 @@ export const NavbarView: React.FC<NavbarViewProps> = ({
 				<ProductLogo className="h-7" />
 			</NavLink>
 
-			<NavItems className="ml-4 hidden md:flex" canCreateChat={canCreateChat} />
+			<NavItems
+				className="ml-4 hidden md:flex"
+				canCreateChat={canCreateChat}
+				showWorkloads={showWorkloads}
+			/>
 
 			{prerelease && buildInfo?.version && (
 				<a
@@ -153,9 +160,14 @@ export const NavbarView: React.FC<NavbarViewProps> = ({
 type NavItemsProps = {
 	className?: string;
 	canCreateChat: boolean;
+	showWorkloads: boolean;
 };
 
-const NavItems: React.FC<NavItemsProps> = ({ className, canCreateChat }) => {
+const NavItems: React.FC<NavItemsProps> = ({
+	className,
+	canCreateChat,
+	showWorkloads,
+}) => {
 	const location = useLocation();
 
 	return (
@@ -171,6 +183,16 @@ const NavItems: React.FC<NavItemsProps> = ({ className, canCreateChat }) => {
 			>
 				Workspaces
 			</NavLink>
+			{showWorkloads && (
+				<NavLink
+					className={({ isActive }) => {
+						return cn(linkStyles.default, { [linkStyles.active]: isActive });
+					}}
+					to="/workloads"
+				>
+					Workloads
+				</NavLink>
+			)}
 			<NavLink
 				className={({ isActive }) => {
 					return cn(linkStyles.default, { [linkStyles.active]: isActive });

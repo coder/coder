@@ -67,6 +67,21 @@ export const WithFinished: Story = {
 	},
 };
 
+export const EveryWorkspace: Story = {
+	args: {
+		workspaceName: undefined,
+		showFinished: true,
+		workloads: [
+			{ ...MockWorkload, workspace_name: "test-workspace" },
+			{
+				...MockFinishedWorkload,
+				workspace_name: "run-5d4c3b2a",
+				own_workspace: true,
+			},
+		],
+	},
+};
+
 export const Empty: Story = {
 	args: { workloads: [] },
 };

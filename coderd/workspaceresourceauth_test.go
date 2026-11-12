@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -16,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/x/agentsandbox/agentsandboxtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -527,4 +530,107 @@ func readAWSInstanceMetadata(
 func newTestInstanceID(t testing.TB) string {
 	t.Helper()
 	return fmt.Sprintf("instance-%d", time.Now().UnixNano())
+}
+
+func TestPostWorkspaceAuthKubernetesPodIdentity(t *testing.T) {
+	t.Parallel()
+
+	// tokenFile is a pod's token as the kubelet mounts it.
+	tokenFile := func(t *testing.T, token string) string {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "token")
+		require.NoError(t, os.WriteFile(path, []byte(token+"\n"), 0o600))
+		return path
+	}
+
+	t.Run("NotConfigured", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		agentClient := agentsdk.New(client.URL, agentsdk.WithKubernetesPodIdentity(tokenFile(t, "anything")))
+		err := agentClient.RefreshToken(ctx)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusNotImplemented, apiErr.StatusCode())
+	})
+
+	t.Run("Refused", func(t *testing.T) {
+		t.Parallel()
+		cluster := agentsandboxtest.NewCluster(t)
+		client := coderdtest.New(t, &coderdtest.Options{SandboxCluster: cluster.AsCluster()})
+		// Whatever the cluster does not confirm as a pod's token is refused,
+		// and refused at once: there is no pod to wait for.
+		for name, token := range map[string]string{
+			"forged":           "made-up",
+			"not bound to pod": cluster.NewServiceAccountToken(),
+		} {
+			ctx := testutil.Context(t, testutil.WaitShort)
+			agentClient := agentsdk.New(client.URL, agentsdk.WithKubernetesPodIdentity(tokenFile(t, token)))
+			err := agentClient.RefreshToken(ctx)
+			var apiErr *codersdk.Error
+			require.ErrorAs(t, err, &apiErr, name)
+			require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode(), name)
+		}
+	})
+
+	t.Run("WaitsToBeClaimed", func(t *testing.T) {
+		t.Parallel()
+		cluster := agentsandboxtest.NewCluster(t)
+		// The pod runs its daemon before any workspace has claimed it, as
+		// a pod of a warm pool does.
+		pod := cluster.NewPod("warm-1")
+		stranger := cluster.NewPod("warm-2")
+
+		client, store := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			SandboxCluster:           cluster.AsCluster(),
+			IncludeProvisionerDaemon: true,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		agentClient := agentsdk.New(client.URL, agentsdk.WithKubernetesPodIdentity(tokenFile(t, pod.Token)))
+		authenticated := make(chan error, 1)
+		go func() { authenticated <- agentClient.RefreshToken(ctx) }()
+		// Nobody has claimed the pod: its daemon is nobody, and waits.
+		select {
+		case err := <-authenticated:
+			t.Fatalf("a pod that no workspace has claimed was answered: %v", err)
+		case <-time.After(testutil.IntervalSlow):
+		}
+
+		// A workspace build registers the pod, as the sandbox provisioner
+		// does once it has claimed it.
+		instanceID := "k8s-pod:" + pod.UID
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse: echo.ParseComplete,
+			ProvisionGraph: []*proto.Response{{
+				Type: &proto.Response_Graph{
+					Graph: &proto.GraphComplete{
+						Resources: []*proto.Resource{{
+							Name:   "pod",
+							Type:   "agent_sandbox",
+							Agents: workspaceAgentsForInstanceID(instanceID, "main"),
+						}},
+					},
+				},
+			}},
+		})
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// The waiting daemon is told, and is the daemon of that workspace.
+		require.NoError(t, testutil.TryReceive(ctx, t, authenticated))
+		agent := requireWorkspaceAgentByInstanceIDAndName(t, store, instanceID, "main")
+		require.Equal(t, agent.AuthToken.String(), agentClient.GetSessionToken())
+
+		// Another pod of the same pool, with a token just as genuine, is
+		// still nobody.
+		res, err := client.RequestWithoutSessionToken(ctx, http.MethodPost, "/api/v2/workspaceagents/kubernetes-pod-identity",
+			agentsdk.KubernetesPodIdentityToken{Token: stranger.Token})
+		require.NoError(t, err)
+		defer res.Body.Close()
+		require.Equal(t, http.StatusNotFound, res.StatusCode)
+	})
 }

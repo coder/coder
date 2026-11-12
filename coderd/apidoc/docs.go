@@ -35071,11 +35071,13 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "agent-token",
-                "workspace-daemon"
+                "workspace-daemon",
+                "kubernetes-pod"
             ],
             "x-enum-varnames": [
                 "WorkloadAttestationAgentToken",
-                "WorkloadAttestationWorkspaceDaemon"
+                "WorkloadAttestationWorkspaceDaemon",
+                "WorkloadAttestationKubernetesPod"
             ]
         },
         "codersdk.WorkloadEndReason": {
@@ -35108,6 +35110,10 @@ const docTemplate = `{
                 },
                 "attestation": {
                     "$ref": "#/definitions/codersdk.WorkloadAttestation"
+                },
+                "attestation_subject": {
+                    "description": "AttestationSubject is what was attested, when that is not Coder's\nown credential: for a pod, the UID the cluster gave it.",
+                    "type": "string"
                 },
                 "id": {
                     "description": "ID is unique per principal: the workspace ID and the workload\nidentity ID, or for a daemon the workspace ID and the agent ID.",

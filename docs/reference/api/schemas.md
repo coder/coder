@@ -19072,9 +19072,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 #### Enumerated Values
 
-| Value(s)                          |
-|-----------------------------------|
-| `agent-token`, `workspace-daemon` |
+| Value(s)                                            |
+|-----------------------------------------------------|
+| `agent-token`, `kubernetes-pod`, `workspace-daemon` |
 
 ## codersdk.WorkloadEndReason
 
@@ -19097,6 +19097,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "agent_id": "2b1e3b65-2c04-4fa2-a2d7-467901e98978",
   "agent_name": "string",
   "attestation": "agent-token",
+  "attestation_subject": "string",
   "id": "string",
   "identity_id": "011a42b9-62d7-49eb-8328-c2e454af88a1",
   "kind": "daemon",
@@ -19119,23 +19120,24 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name               | Type                                                           | Required | Restrictions | Description                                                                                                                   |
-|--------------------|----------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------|
-| `agent_id`         | string                                                         | false    |              | Agent ID is the workspace daemon: the process itself, or the daemon that runs and vouches for the workload.                   |
-| `agent_name`       | string                                                         | false    |              |                                                                                                                               |
-| `attestation`      | [codersdk.WorkloadAttestation](#codersdkworkloadattestation)   | false    |              |                                                                                                                               |
-| `id`               | string                                                         | false    |              | ID is unique per principal: the workspace ID and the workload identity ID, or for a daemon the workspace ID and the agent ID. |
-| `identity_id`      | string                                                         | false    |              | Identity ID is the workload identity that permissions attach to. A daemon has none: it acts with its agent token.             |
-| `kind`             | [codersdk.WorkloadIdentityKind](#codersdkworkloadidentitykind) | false    |              |                                                                                                                               |
-| `name`             | string                                                         | false    |              | Name is the workload's name.                                                                                                  |
-| `owner_id`         | string                                                         | false    |              |                                                                                                                               |
-| `owner_username`   | string                                                         | false    |              |                                                                                                                               |
-| `sandbox`          | [codersdk.WorkloadSandbox](#codersdkworkloadsandbox)           | false    |              |                                                                                                                               |
-| `scopes`           | array of [codersdk.APIKeyScope](#codersdkapikeyscope)          | false    |              | Scopes narrow the sponsor's permissions. An empty list grants nothing.                                                        |
-| `sponsor_id`       | string                                                         | false    |              | Sponsor ID is the user account whose permissions bound what the workload may do.                                              |
-| `sponsor_username` | string                                                         | false    |              |                                                                                                                               |
-| `workspace_id`     | string                                                         | false    |              |                                                                                                                               |
-| `workspace_name`   | string                                                         | false    |              |                                                                                                                               |
+| Name                  | Type                                                           | Required | Restrictions | Description                                                                                                                   |
+|-----------------------|----------------------------------------------------------------|----------|--------------|-------------------------------------------------------------------------------------------------------------------------------|
+| `agent_id`            | string                                                         | false    |              | Agent ID is the workspace daemon: the process itself, or the daemon that runs and vouches for the workload.                   |
+| `agent_name`          | string                                                         | false    |              |                                                                                                                               |
+| `attestation`         | [codersdk.WorkloadAttestation](#codersdkworkloadattestation)   | false    |              |                                                                                                                               |
+| `attestation_subject` | string                                                         | false    |              | Attestation subject is what was attested, when that is not Coder's own credential: for a pod, the UID the cluster gave it.    |
+| `id`                  | string                                                         | false    |              | ID is unique per principal: the workspace ID and the workload identity ID, or for a daemon the workspace ID and the agent ID. |
+| `identity_id`         | string                                                         | false    |              | Identity ID is the workload identity that permissions attach to. A daemon has none: it acts with its agent token.             |
+| `kind`                | [codersdk.WorkloadIdentityKind](#codersdkworkloadidentitykind) | false    |              |                                                                                                                               |
+| `name`                | string                                                         | false    |              | Name is the workload's name.                                                                                                  |
+| `owner_id`            | string                                                         | false    |              |                                                                                                                               |
+| `owner_username`      | string                                                         | false    |              |                                                                                                                               |
+| `sandbox`             | [codersdk.WorkloadSandbox](#codersdkworkloadsandbox)           | false    |              |                                                                                                                               |
+| `scopes`              | array of [codersdk.APIKeyScope](#codersdkapikeyscope)          | false    |              | Scopes narrow the sponsor's permissions. An empty list grants nothing.                                                        |
+| `sponsor_id`          | string                                                         | false    |              | Sponsor ID is the user account whose permissions bound what the workload may do.                                              |
+| `sponsor_username`    | string                                                         | false    |              |                                                                                                                               |
+| `workspace_id`        | string                                                         | false    |              |                                                                                                                               |
+| `workspace_name`      | string                                                         | false    |              |                                                                                                                               |
 
 ## codersdk.WorkloadIdentityKind
 

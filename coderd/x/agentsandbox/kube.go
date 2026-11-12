@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	inClusterTokenFile = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+	inClusterTokenFile = "/var/run/secrets/kubernetes.io/serviceaccount/token" //nolint:gosec // A path, not a credential.
 	inClusterCAFile    = "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt"
 )
 

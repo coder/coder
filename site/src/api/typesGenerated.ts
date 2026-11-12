@@ -12465,10 +12465,14 @@ export interface Workload {
 }
 
 // From codersdk/workloads.go
-export type WorkloadAttestation = "agent-token" | "workspace-daemon";
+export type WorkloadAttestation =
+	| "agent-token"
+	| "kubernetes-pod"
+	| "workspace-daemon";
 
 export const WorkloadAttestations: WorkloadAttestation[] = [
 	"agent-token",
+	"kubernetes-pod",
 	"workspace-daemon",
 ];
 
@@ -12500,6 +12504,11 @@ export interface WorkloadIdentity {
 	readonly id: string;
 	readonly kind: WorkloadIdentityKind;
 	readonly attestation: WorkloadAttestation;
+	/**
+	 * AttestationSubject is what was attested, when that is not Coder's
+	 * own credential: for a pod, the UID the cluster gave it.
+	 */
+	readonly attestation_subject?: string;
 	/**
 	 * AgentID is the workspace daemon: the process itself, or the daemon
 	 * that runs and vouches for the workload.

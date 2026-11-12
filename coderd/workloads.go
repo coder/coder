@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
+	"github.com/coder/coder/v2/coderd/x/agentsandbox"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/provisioner"
@@ -1033,6 +1034,7 @@ func (api *API) workspaceWorkloadLogs(rw http.ResponseWriter, r *http.Request) {
 	defer cancelDial()
 	dialed := make(chan daemonResponse, 1)
 	go func() {
+		//nolint:bodyclose // Whoever takes the response from the channel closes it.
 		res, release, err := api.workloadAgentRequest(dialCtx, identity.WorkspaceAgentID, http.MethodGet, "/"+identity.ID.String()+"/logs", nil)
 		dialed <- daemonResponse{res: res, release: release, err: err}
 	}()
@@ -1585,6 +1587,13 @@ func (api *API) workspaceAgentIdentity(rw http.ResponseWriter, r *http.Request) 
 		OwnerID:       workspace.OwnerID,
 		OwnerUsername: workspace.OwnerUsername,
 	}
+	// A daemon in a pod from a pool was never given a token. It is the
+	// daemon of this workspace because the cluster said which pod it is.
+	attestedPod := strings.HasPrefix(agent.AuthInstanceID.String, agentsandbox.InstanceIDPrefix)
+	if attestedPod {
+		identity.Attestation = codersdk.WorkloadAttestationKubernetesPod
+		identity.AttestationSubject = agent.AuthInstanceID.String
+	}
 	// A daemon that forwards a workload's request names the workload. The
 	// answer must then describe the workload and never the daemon.
 	if vouched := r.Header.Get(codersdk.WorkloadIdentityHeader); vouched != "" {
@@ -1603,7 +1612,12 @@ func (api *API) workspaceAgentIdentity(rw http.ResponseWriter, r *http.Request) 
 		}
 		identity.ID = workloadIdentityName(workspace.ID, record.ID)
 		identity.Kind = codersdk.WorkloadIdentityKindWorkload
-		identity.Attestation = codersdk.WorkloadAttestationWorkspaceDaemon
+		// The daemon vouches for the workload. Where the cluster vouches
+		// for the daemon's pod, and the workload has that pod to itself,
+		// the workload's identity rests on the cluster's word too.
+		if !attestedPod {
+			identity.Attestation = codersdk.WorkloadAttestationWorkspaceDaemon
+		}
 		identity.IdentityID = record.ID
 		identity.Name = record.Name
 		identity.SponsorID = record.SponsorID

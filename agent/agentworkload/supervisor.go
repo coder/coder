@@ -297,7 +297,7 @@ func (s *Supervisor) startGiven(ctx context.Context, spec codersdk.AgentWorkload
 	announced := make(chan struct{})
 	defer close(announced)
 	start := codersdk.AgentWorkloadStart{}
-	state, err := s.start(ctx, Spec{
+	state, err := s.startWorkload(ctx, Spec{
 		ID: spec.ID, Name: spec.Name, Command: spec.Command,
 		Image: spec.Image, Network: spec.Network, Mounts: spec.Mounts, Interactive: spec.Interactive,
 	}, announced)
@@ -365,10 +365,10 @@ func (s *Supervisor) channel(id uuid.UUID) http.Handler {
 func (s *Supervisor) Start(ctx context.Context, spec Spec) (codersdk.AgentWorkloadState, error) {
 	announced := make(chan struct{})
 	close(announced)
-	return s.start(ctx, spec, announced)
+	return s.startWorkload(ctx, spec, announced)
 }
 
-func (s *Supervisor) start(ctx context.Context, spec Spec, announced chan struct{}) (codersdk.AgentWorkloadState, error) {
+func (s *Supervisor) startWorkload(ctx context.Context, spec Spec, announced chan struct{}) (codersdk.AgentWorkloadState, error) {
 	if spec.ID == uuid.Nil || spec.Command == "" {
 		return codersdk.AgentWorkloadState{}, xerrors.New("a workload needs an identity and a command")
 	}

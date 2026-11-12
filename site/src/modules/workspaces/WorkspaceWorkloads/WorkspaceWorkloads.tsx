@@ -48,7 +48,11 @@ const workloadStatus = (workload: Workload) => {
 };
 
 type WorkspaceWorkloadsProps = {
-	workspaceName: string;
+	/**
+	 * The workspace whose workloads are listed. Without it, the list covers
+	 * the viewer's workloads in every workspace, and says which.
+	 */
+	workspaceName?: string;
 	/** Undefined while the first request is in flight. */
 	workloads: readonly Workload[] | undefined;
 	error: unknown;
@@ -85,9 +89,11 @@ export const WorkspaceWorkloads: React.FC<WorkspaceWorkloadsProps> = ({
 						Workloads
 					</h3>
 					<p className="m-0 text-sm text-content-secondary">
-						Commands that run in sandboxes inside this workspace. Each one has
-						its own identity and can only use its sponsor's permissions within
-						its scopes.
+						{workspaceName
+							? "Commands that run in sandboxes inside this workspace."
+							: "Commands you run with coder run, in a sandbox inside a workspace or in a workspace of their own."}{" "}
+						Each one has its own identity and can only use its sponsor's
+						permissions within its scopes.
 					</p>
 				</div>
 				<div className="flex items-center gap-2 pt-1">
@@ -114,10 +120,11 @@ export const WorkspaceWorkloads: React.FC<WorkspaceWorkloadsProps> = ({
 			{workloads?.length === 0 && (
 				<p className="m-0 border-t border-border px-8 py-6 text-content-secondary">
 					{showFinished
-						? "No workloads have run in this workspace. Start one with "
+						? "No workloads have run here. Start one with "
 						: "No workloads are running. Start one with "}
 					<code className="font-mono text-content-primary">
-						coder run {workspaceName} -- &lt;command&gt;
+						coder run {workspaceName ?? "--template <template>"} --
+						&lt;command&gt;
 					</code>
 					.
 				</p>
@@ -128,6 +135,7 @@ export const WorkspaceWorkloads: React.FC<WorkspaceWorkloadsProps> = ({
 					<TableHeader>
 						<TableRow>
 							<TableHead className="pl-8">Name</TableHead>
+							{!workspaceName && <TableHead>Workspace</TableHead>}
 							<TableHead>Status</TableHead>
 							<TableHead>Command</TableHead>
 							<TableHead>Identity</TableHead>
@@ -144,6 +152,16 @@ export const WorkspaceWorkloads: React.FC<WorkspaceWorkloadsProps> = ({
 									<TableCell className="pl-8 font-semibold text-content-primary">
 										{workload.name}
 									</TableCell>
+									{!workspaceName && (
+										<TableCell className="whitespace-nowrap">
+											{workload.workspace_name}
+											{workload.own_workspace && (
+												<span className="block text-content-secondary">
+													its own
+												</span>
+											)}
+										</TableCell>
+									)}
 									<TableCell className="whitespace-nowrap">
 										<StatusIndicator size="sm" variant={status.variant}>
 											<StatusIndicatorDot />

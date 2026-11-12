@@ -1782,7 +1782,7 @@ func newProvisionerDaemon(
 
 			connector[string(database.ProvisionerTypeTerraform)] = sdkproto.NewDRPCProvisionerClient(terraformClient)
 		case codersdk.ProvisionerTypeSandbox:
-			cluster := coderAPI.Options.SandboxCluster
+			cluster := coderAPI.SandboxCluster
 			if cluster == nil {
 				return nil, xerrors.Errorf("the %q provisioner needs a cluster: set %s", provisionerType, agentsandbox.EnvNamespace)
 			}
