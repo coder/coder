@@ -28,4 +28,10 @@ export const DIFFS_GIT_COLOR_CSS = [
 	"  --mix-dark: 0%;",
 	"  --diffs-hover-mix-target: var(--diffs-mixer);",
 	"}",
+	// Line numbers keep a light blend so the gutter reads as its own column.
+	"[data-line-type='change-addition']:is([data-column-number], [data-gutter-buffer]),",
+	"[data-line-type='change-deletion']:is([data-column-number], [data-gutter-buffer]) {",
+	"  --mix-light: 25%;",
+	"  --mix-dark: 25%;",
+	"}",
 ].join(" ");
