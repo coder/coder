@@ -102,13 +102,12 @@ Fix the error in Coder, then delete the workspace.
 
 Agent Relay hands off the workspace when its build succeeds, and the module starts the worker without waiting for startup scripts.
 Order the module after your setup scripts, as described in [Start the worker after workspace setup](./setup.md#start-the-worker-after-workspace-setup).
-With the rule in place, Agent Relay newer than v0.15.0 notices a failed setup about a minute after the agent reports `start_error`, or `start_timeout` when a setup script reaches its `timeout`.
+With the rule in place, Agent Relay v0.16.0 or later notices a failed setup about a minute after the agent reports `start_error`, or `start_timeout` when a setup script reaches its `timeout`.
 Cursor fails the request then, and Claude Code retries once on a new workspace before failing the session.
+Claude Code skips the retry when the failure comes later than the pool's `dispatch_deadline` after the build was created.
 In the relay logs, the reaper's `session did not finish cleanly, reporting and deleting` line carries `agent_lifecycle=start_error` with `reason="the workspace agent's startup scripts failed"`, or `agent_lifecycle=start_timeout` with `reason="the workspace agent's startup scripts timed out"`.
 Only Claude Code sessions receive the reason in their error.
 Cursor users see a fixed message that the worker stopped before serving the request.
-Agent Relay v0.15.0 and older wait out the startup grace instead, 15&nbsp;minutes by default, and then fail a Cursor request because the worker never started.
-Those versions hand a Claude Code work order back as retryable every time, so each redelivery runs the same setup again.
 On a claimed prebuild, the status item keeps reporting the prebuild's `idle` after a failed setup, so Agent Relay neither fails the session nor deletes the workspace.
 
 ## Claude Code sessions
