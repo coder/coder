@@ -691,6 +691,23 @@ export const getAskUserQuestions = (
 	return questionsFromArgs ?? questionsFromResult ?? [];
 };
 
+const getQuestionErrorMessage = (
+	result: unknown,
+	isError: boolean,
+): string | undefined => {
+	const resultRecord = asRecord(result);
+	if (resultRecord) {
+		const errorValue = resultRecord.error || resultRecord.message;
+		return asString(errorValue) || undefined;
+	}
+
+	if (typeof result === "string" && isError) {
+		return result || undefined;
+	}
+
+	return undefined;
+};
+
 const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 	args,
 	status,
@@ -702,18 +719,14 @@ const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 	previousResponseText,
 }) => {
 	const questions = getAskUserQuestions(args, result);
-	const resultRecord = asRecord(result);
-	const errorMessage =
-		(resultRecord
-			? asString(resultRecord.error || resultRecord.message)
-			: "") || (typeof result === "string" && isError ? result : "");
+	const errorMessage = getQuestionErrorMessage(result, isError);
 
 	return (
 		<AskUserQuestionTool
 			questions={questions}
 			status={status}
 			isError={isError}
-			errorMessage={errorMessage || undefined}
+			errorMessage={errorMessage}
 			onSubmitAnswer={onSendAskUserQuestionResponse}
 			isChatCompleted={isChatCompleted}
 			isLatestAskUserQuestion={isLatestAskUserQuestion}
@@ -729,27 +742,23 @@ const AskUserQuestionAsyncRenderer: React.FC<ToolRendererProps> = ({
 	isError,
 }) => {
 	const questions = getAskUserQuestions(args, result);
-	const resultRecord = asRecord(result);
-	const errorMessage =
-		(resultRecord
-			? asString(resultRecord.error || resultRecord.message)
-			: "") || (typeof result === "string" && isError ? result : "");
+	const errorMessage = getQuestionErrorMessage(result, isError);
 	const questionId = getAsyncQuestionId(result);
 	const context = useContext(AsyncQuestionsContext);
 	const question =
 		questionId === undefined ? undefined : context.byId.get(questionId);
+	const isInQuestionPanel =
+		questionId !== undefined && context.panelQuestionId === questionId;
 
 	return (
 		<AsyncQuestionCard
 			questions={questions}
 			status={status}
 			isError={isError}
-			errorMessage={errorMessage || undefined}
+			errorMessage={errorMessage}
 			questionStatus={question?.status}
 			answerText={question?.answerText}
-			isInQuestionPanel={
-				questionId !== undefined && context.panelQuestionId === questionId
-			}
+			isInQuestionPanel={isInQuestionPanel}
 		/>
 	);
 };
