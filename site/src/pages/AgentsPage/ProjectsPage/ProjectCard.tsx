@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useId, useRef } from "react";
 import { Link, type To } from "react-router";
-import type { ChatProjectSummary } from "#/api/typesGenerated";
+import type { ChatProject, ChatProjectSummary } from "#/api/typesGenerated";
 import { Button } from "#/components/Button/Button";
 import {
 	DropdownMenu,
@@ -43,7 +43,6 @@ const compactNumber = new Intl.NumberFormat("en-US", {
 	notation: "compact",
 	maximumFractionDigits: 1,
 });
-const fullNumber = new Intl.NumberFormat("en-US");
 const runningStatus = getChatStatusDisplay("running");
 
 /**
@@ -61,10 +60,6 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 }) => {
 	const { project, pinned, member_count, last_activity_at } = summary;
 	const footerId = useId();
-	const actionsButtonRef = useRef<HTMLButtonElement>(null);
-	// The dialog that Edit or Delete opens takes focus, which the closing menu
-	// must not move back to its button.
-	const dialogPickedRef = useRef(false);
 	return (
 		<div className="group relative flex min-w-0 flex-col gap-3 rounded-lg border border-solid border-border bg-surface-primary p-4 hover:bg-surface-secondary has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-content-link">
 			<div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-solid border-border bg-surface-secondary">
@@ -99,7 +94,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 							{compactNumber.format(member_count).toLowerCase()}
 						</span>
 						<span className="sr-only">
-							{fullNumber.format(member_count)} members
+							{member_count.toLocaleString("en-US")} members
 						</span>
 					</span>
 				) : (
@@ -119,71 +114,103 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
 				)}
 			</div>
 			{/* After the link in DOM and tab order, above its overlay to take its own
-			    clicks. Unpinning removes the pin button, so focus moves to actions. */}
-			<div className="absolute top-4 right-4 z-10 flex h-8 items-center">
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
+			    clicks. */}
+			<ProjectCardActions
+				project={project}
+				pinned={pinned}
+				pinPending={pinPending}
+				onPin={onPin}
+				onUnpin={onUnpin}
+				onEdit={onEdit}
+				onDelete={onDelete}
+			/>
+		</div>
+	);
+};
+
+type ProjectCardActionsProps = Omit<ProjectCardProps, "summary" | "to"> & {
+	readonly project: ChatProject;
+	readonly pinned: boolean;
+};
+
+const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
+	project,
+	pinned,
+	pinPending,
+	onPin,
+	onUnpin,
+	onEdit,
+	onDelete,
+}) => {
+	const actionsButtonRef = useRef<HTMLButtonElement>(null);
+	// The dialog that Edit or Delete opens takes focus, which the closing menu
+	// must not move back to its button.
+	const dialogPickedRef = useRef(false);
+	return (
+		<div className="absolute top-4 right-4 z-10 flex h-8 items-center">
+			<DropdownMenu>
+				<DropdownMenuTrigger asChild>
+					<Button
+						ref={actionsButtonRef}
+						variant="subtle"
+						size="icon"
+						aria-label={`Open project actions for ${project.name}`}
+						className="size-7 max-w-0 overflow-hidden px-0 [@media(hover:none)]:max-w-7 group-hover:max-w-7 group-focus-within:max-w-7 data-[state=open]:max-w-7"
+					>
+						<EllipsisVerticalIcon />
+					</Button>
+				</DropdownMenuTrigger>
+				<DropdownMenuContent
+					align="end"
+					onCloseAutoFocus={(event) => {
+						if (dialogPickedRef.current) event.preventDefault();
+						dialogPickedRef.current = false;
+					}}
+				>
+					<ProjectActionsMenuItems
+						Item={DropdownMenuItem}
+						Separator={DropdownMenuSeparator}
+						onPin={pinned || pinPending ? undefined : onPin}
+						onUnpin={pinned ? onUnpin : undefined}
+						permissions={project.permissions}
+						onEdit={() => {
+							dialogPickedRef.current = true;
+							onEdit(actionsButtonRef.current);
+						}}
+						onDelete={() => {
+							dialogPickedRef.current = true;
+							onDelete(actionsButtonRef.current);
+						}}
+					/>
+				</DropdownMenuContent>
+			</DropdownMenu>
+			{pinned ? (
+				<Tooltip>
+					<TooltipTrigger asChild>
 						<Button
-							ref={actionsButtonRef}
 							variant="subtle"
 							size="icon"
-							aria-label={`Open project actions for ${project.name}`}
-							className="size-7 max-w-0 overflow-hidden px-0 [@media(hover:none)]:max-w-7 group-hover:max-w-7 group-focus-within:max-w-7 data-[state=open]:max-w-7"
+							aria-label={`Unpin ${project.name}`}
+							className="group/pin size-7"
+							onClick={() => {
+								onUnpin();
+								// Unpinning removes this button, so focus moves to actions.
+								actionsButtonRef.current?.focus();
+							}}
 						>
-							<EllipsisVerticalIcon />
+							<PinIcon className="group-hover/pin:hidden group-focus-visible/pin:hidden" />
+							<PinOffIcon className="hidden group-hover/pin:block group-focus-visible/pin:block" />
 						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent
-						align="end"
-						onCloseAutoFocus={(event) => {
-							if (dialogPickedRef.current) event.preventDefault();
-							dialogPickedRef.current = false;
-						}}
-					>
-						<ProjectActionsMenuItems
-							Item={DropdownMenuItem}
-							Separator={DropdownMenuSeparator}
-							onPin={pinned || pinPending ? undefined : onPin}
-							onUnpin={pinned ? onUnpin : undefined}
-							permissions={project.permissions}
-							onEdit={() => {
-								dialogPickedRef.current = true;
-								onEdit(actionsButtonRef.current);
-							}}
-							onDelete={() => {
-								dialogPickedRef.current = true;
-								onDelete(actionsButtonRef.current);
-							}}
-						/>
-					</DropdownMenuContent>
-				</DropdownMenu>
-				{pinned ? (
-					<Tooltip>
-						<TooltipTrigger asChild>
-							<Button
-								variant="subtle"
-								size="icon"
-								aria-label={`Unpin ${project.name}`}
-								className="group/pin size-7"
-								onClick={() => {
-									onUnpin();
-									actionsButtonRef.current?.focus();
-								}}
-							>
-								<PinIcon className="group-hover/pin:hidden group-focus-visible/pin:hidden" />
-								<PinOffIcon className="hidden group-hover/pin:block group-focus-visible/pin:block" />
-							</Button>
-						</TooltipTrigger>
-						<TooltipContent side="bottom">Unpin project</TooltipContent>
-					</Tooltip>
-				) : (
-					// Holds the pin's place, so a second click there after unpinning
-					// does not open the actions menu.
-					<span className="flex size-7 items-center justify-center">
-						<Spinner loading={pinPending} label={`Pinning ${project.name}`} />
-					</span>
-				)}
-			</div>
+					</TooltipTrigger>
+					<TooltipContent side="bottom">Unpin project</TooltipContent>
+				</Tooltip>
+			) : (
+				// Holds the pin's place, so a second click there after unpinning
+				// does not open the actions menu.
+				<span className="flex size-7 items-center justify-center">
+					<Spinner loading={pinPending} label={`Pinning ${project.name}`} />
+				</span>
+			)}
 		</div>
 	);
 };

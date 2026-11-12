@@ -31,22 +31,8 @@ const renderCard = (overrides: Partial<ChatProjectSummary> = {}) => {
 };
 
 describe("ProjectCard", () => {
-	// The card link's description is what a screen reader announces for the
-	// card's status.
+	// The card link's description carries the screen-reader-only member text.
 	it.each<[string, Partial<ChatProjectSummary>, RegExp]>([
-		[
-			"a chat needing attention over a running one",
-			{ own_chat_count: 3, own_needs_attention: true, own_running: true },
-			/^Needs attention/,
-		],
-		[
-			"a running chat over unread chats",
-			{ own_chat_count: 3, own_unread_count: 1, own_running: true },
-			/^Thinking/,
-		],
-		["unread chats", { own_chat_count: 3, own_unread_count: 1 }, /^1 unread/],
-		["read chats", { own_chat_count: 3 }, /^3 read/],
-		["no chats", { own_chat_count: 0 }, /^No chats/],
 		["a private project", { member_count: 1 }, /Only you$/],
 		["a shared project", { member_count: 1234 }, /1,234 members$/],
 	])("describes %s", (_, overrides, description) => {

@@ -38,6 +38,16 @@ const tabSearchParam = "tab";
 
 type DialogState = { readonly project?: ChatProject; readonly open: boolean };
 
+// Pins and unpins share a mutation key, and only a pin's variables wrap the
+// project.
+type PinChatProjectVariables = Parameters<
+	NonNullable<ReturnType<typeof pinChatProject>["mutationFn"]>
+>[0];
+const isPinVariables = (
+	variables: unknown,
+): variables is PinChatProjectVariables =>
+	typeof variables === "object" && variables !== null && "project" in variables;
+
 const compareNames = (a: ChatProjectSummary, b: ChatProjectSummary) =>
 	a.project.name.localeCompare(b.project.name, "en-US", {
 		sensitivity: "accent",
@@ -79,6 +89,7 @@ const ProjectsPage: React.FC = () => {
 	const queryClient = useQueryClient();
 	const tabState = useSearchParamsKey({ key: tabSearchParam, replace: false });
 	const summariesQuery = useQuery(chatProjectSummaries());
+
 	const createMutation = useMutation(createChatProject(queryClient));
 	const updateMutation = useMutation(updateChatProject(queryClient));
 	// Each dialog keeps its project after closing so the exit animation does
@@ -89,9 +100,11 @@ const ProjectsPage: React.FC = () => {
 	const [deleteDialog, setDeleteDialog] = useState<DialogState>({
 		open: false,
 	});
+
 	const newProjectButtonRef = useRef<HTMLButtonElement>(null);
 	// The dialogs have no trigger, so they return focus to their opener.
 	const returnFocusRef = useRef<HTMLElement | null>(null);
+
 	const deleteMutation = useMutation({
 		...deleteChatProject(queryClient),
 		onSuccess: (_data, project) => {
@@ -111,6 +124,7 @@ const ProjectsPage: React.FC = () => {
 			toast.error(getErrorMessage(error, "Failed to delete project."));
 		},
 	});
+
 	const pinOptions = pinChatProject(queryClient);
 	const pinMutation = useMutation({
 		...pinOptions,
@@ -119,9 +133,11 @@ const ProjectsPage: React.FC = () => {
 			toast.error(getErrorMessage(error, "Failed to pin project."));
 		},
 	});
+	const unpinOptions = unpinChatProject(queryClient);
 	const unpinMutation = useMutation({
-		...unpinChatProject(queryClient),
-		onError: (error) => {
+		...unpinOptions,
+		onError: (error, project, context) => {
+			unpinOptions.onError?.(error, project, context);
 			toast.error(getErrorMessage(error, "Failed to unpin project."));
 		},
 	});
@@ -130,12 +146,14 @@ const ProjectsPage: React.FC = () => {
 	const pendingPinIds = new Set(
 		useMutationState({
 			filters: { mutationKey: pinOptions.mutationKey, status: "pending" },
-			select: (mutation) =>
-				(mutation.state.variables as { project?: ChatProject } | undefined)
-					?.project?.id,
+			select: ({ state: { variables } }) =>
+				isPinVariables(variables) ? variables.project.id : undefined,
 		}).filter((id) => id !== undefined),
 	);
-	const unpinningId = unpinMutation.isPending && unpinMutation.variables.id;
+	const unpinningId = unpinMutation.isPending
+		? unpinMutation.variables.id
+		: undefined;
+
 	const restoreFocus = () => {
 		const target = returnFocusRef.current;
 		requestAnimationFrame(() => target?.focus());
@@ -167,7 +185,6 @@ const ProjectsPage: React.FC = () => {
 		setProjectDialog((current) => ({ ...current, open: false }));
 		restoreFocus();
 	};
-	// Returning the save's promise keeps Save disabled until it settles.
 	const handleProjectSubmit = async ({
 		organizationId,
 		...request
@@ -204,9 +221,9 @@ const ProjectsPage: React.FC = () => {
 				}
 				onPin={(project) => pinMutation.mutate({ project })}
 				pendingPinIds={pendingPinIds}
-				onUnpin={(project) =>
-					unpinningId !== project.id && unpinMutation.mutate(project)
-				}
+				onUnpin={(project) => {
+					if (unpinningId !== project.id) unpinMutation.mutate(project);
+				}}
 				onEdit={openProjectDialog}
 				onDelete={(project, returnFocusTo) => {
 					returnFocusRef.current = returnFocusTo;

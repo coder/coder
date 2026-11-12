@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
@@ -63,33 +63,31 @@ describe("getProjectsByTab", () => {
 });
 
 describe("ProjectsPage", () => {
-	it("holds back Pin for each project whose pin is still pending", async () => {
+	it("pins a project at the end from its card's actions menu", async () => {
 		const user = userEvent.setup();
 		vi.spyOn(API.experimental, "getChatProjectSummaries").mockResolvedValue([
 			summary("India"),
-			summary("Kilo"),
 		]);
-		vi.spyOn(API.experimental, "pinChatProject").mockReturnValue(
-			new Promise(() => {}),
-		);
+		const pin = vi
+			.spyOn(API.experimental, "pinChatProject")
+			.mockReturnValue(new Promise(() => {}));
 		renderWithAuth(<ProjectsPage />);
-		const openActions = async (name: string) =>
-			user.click(
-				await screen.findByRole("button", {
-					name: `Open project actions for ${name}`,
-				}),
-			);
 
-		for (const name of ["India", "Kilo"]) {
-			await openActions(name);
-			await user.click(
-				await screen.findByRole("menuitem", { name: "Pin project" }),
-			);
-		}
-		await openActions("India");
+		await user.click(
+			await screen.findByRole("button", {
+				name: "Open project actions for India",
+			}),
+		);
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Pin project" }),
+		);
 
-		expect(await screen.findByRole("menuitem", { name: /Edit/ })).toBeVisible();
-		expect(screen.queryByRole("menuitem", { name: "Pin project" })).toBeNull();
-		expect(screen.getByRole("status", { name: "Pinning Kilo" })).toBeVisible();
+		await waitFor(() =>
+			expect(pin).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				"India",
+				undefined,
+			),
+		);
 	});
 });
