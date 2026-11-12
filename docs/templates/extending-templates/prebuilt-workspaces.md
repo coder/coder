@@ -231,6 +231,9 @@ When a template's active version is updated:
    - Coder will automatically create new prebuilt workspaces with the updated dependencies.
 
 The system always maintains the desired number of prebuilt workspaces for the active template version.
+Until the new prebuilt workspaces are eligible, workspaces created from the new version's presets are built from scratch.
+Avoid publishing a new version shortly before a period of high demand.
+Refer to [Prepare for high-concurrency claims](#prepare-for-high-concurrency-claims).
 
 <a id="invalidating-prebuilds"></a>
 
@@ -491,6 +494,49 @@ Follow these steps:
 
    Whether the preset uses a prebuild pool or not, the resulting job should not include the `is_prebuild=true` tag.
    This confirms that only prebuild-related jobs are routed to the dedicated prebuild provisioner pool.
+
+### Prepare for high-concurrency claims
+
+Plan ahead when many developers will create workspaces from the same preset at the same time, for example during a training session, an onboarding day, or a hackathon.
+When a preset has no eligible prebuilt workspaces left, Coder builds a new workspace from scratch instead, so developers who arrive after the pool runs out wait for a full build.
+
+Before the event:
+
+1. Size the pool for peak demand.
+
+   Set `instances` for the preset above the number of developers you expect to create workspaces at the same time.
+   Headroom of 20 to 30 percent above the expected peak absorbs late arrivals and retries.
+   To scale up only for the event, add a [schedule](#scheduling) that raises `instances` ahead of the start time.
+
+1. Give the pool time to fill.
+
+   Each prebuilt workspace runs a full build before it can be claimed, and a large scale-up queues many provisioner jobs at once.
+   Raise `instances` hours before the event, and confirm that your provisioners can absorb the burst.
+   Refer to [Manage prebuild provisioning queues](#manage-prebuild-provisioning-queues).
+
+1. Confirm that the pool is ready.
+
+   A prebuilt workspace is eligible to be claimed only after its agent reports `ready`.
+   Before the event starts, check that `coderd_prebuilt_workspaces_eligible` matches `coderd_prebuilt_workspaces_desired` for the preset.
+   Both metrics carry `template_name` and `preset_name` labels.
+
+1. Increase the database connection pool.
+
+   A burst of claims can exhaust the default database connection pool.
+   Increase [`CODER_PG_CONN_MAX_OPEN`](../../reference/cli/server/index.md#--postgres-conn-max-open) (default `10`) on each Coder replica, and make sure that your PostgreSQL server's `max_connections` covers the total across all replicas.
+   Refer to [Scale Coder](../../install/validate/scale-coder.md) for related settings.
+
+During the event:
+
+- Don't publish a new template version, invalidate presets, or lower `instances`.
+
+  Each of these actions deletes unclaimed prebuilt workspaces, so developers get full builds until the replacements are eligible.
+  A claim that is in progress when its prebuilt workspace is deleted can also fail.
+
+- If you create workspaces through the [API](../../reference/api/workspaces.md#create-user-workspace) or other automation, retry requests that return `409 Conflict` after a short, randomized delay of 1 to 2 seconds.
+
+- Watch `coderd_prebuilt_workspaces_eligible` and `coderd_prebuilt_workspace_claim_duration_seconds` to see whether the pool is running low or claims are slowing down.
+  Refer to [Monitoring and observability](#monitoring-and-observability).
 
 ### Monitoring and observability
 
