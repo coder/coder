@@ -91,6 +91,31 @@ describe("ProjectsPage", () => {
 		);
 	});
 
+	it("unpins once when the pin button is double-clicked", async () => {
+		const user = userEvent.setup({ delay: null });
+		vi.spyOn(API.experimental, "getChatProjectSummaries").mockResolvedValue([
+			summary("Juliet", { pinned: true, pin_order: 1 }),
+			summary("Kilo"),
+		]);
+		const unpin = vi
+			.spyOn(API.experimental, "unpinChatProject")
+			.mockResolvedValue();
+		const pin = vi
+			.spyOn(API.experimental, "pinChatProject")
+			.mockReturnValue(new Promise(() => {}));
+		renderWithAuth(<ProjectsPage />);
+		await user.dblClick(
+			await screen.findByRole("button", { name: "Unpin Juliet" }),
+		);
+		// Pin changes run in order, so this pin is sent after any second unpin.
+		await user.click(
+			screen.getByRole("button", { name: "Open project actions for Kilo" }),
+		);
+		await user.click(screen.getByRole("menuitem", { name: "Pin project" }));
+		await waitFor(() => expect(pin).toHaveBeenCalled());
+		expect(unpin).toHaveBeenCalledOnce();
+	});
+
 	it("moves focus to New project when Retry loads the projects", async () => {
 		const user = userEvent.setup();
 		vi.spyOn(API.experimental, "getChatProjectSummaries")

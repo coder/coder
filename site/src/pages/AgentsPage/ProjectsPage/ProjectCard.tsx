@@ -146,7 +146,7 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 	const actionsButtonRef = useRef<HTMLButtonElement>(null);
 	// Edit and Delete open a dialog only once the menu has closed, so the
 	// closing menu cannot take focus back from the dialog.
-	const pickedDialogRef = useRef<typeof onEdit>(undefined);
+	const openPickedDialogRef = useRef<typeof onEdit>(undefined);
 	return (
 		<div className="absolute top-4 right-4 z-10 flex h-8 items-center">
 			<DropdownMenu>
@@ -164,8 +164,8 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 				<DropdownMenuContent
 					align="end"
 					onCloseAutoFocus={(event) => {
-						const openDialog = pickedDialogRef.current;
-						pickedDialogRef.current = undefined;
+						const openDialog = openPickedDialogRef.current;
+						openPickedDialogRef.current = undefined;
 						if (openDialog) {
 							event.preventDefault();
 							openDialog(actionsButtonRef.current);
@@ -179,10 +179,10 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 						onUnpin={pinned ? onUnpin : undefined}
 						permissions={project.permissions}
 						onEdit={() => {
-							pickedDialogRef.current = onEdit;
+							openPickedDialogRef.current = onEdit;
 						}}
 						onDelete={() => {
-							pickedDialogRef.current = onDelete;
+							openPickedDialogRef.current = onDelete;
 						}}
 					/>
 				</DropdownMenuContent>
