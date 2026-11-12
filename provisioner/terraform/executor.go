@@ -233,6 +233,7 @@ func versionFromBinaryPath(ctx context.Context, binaryPath string) (*version.Ver
 
 type textFileBusyError struct {
 	exitErr *exec.ExitError
+	stdout  string
 	stderr  string
 }
 
@@ -260,8 +261,10 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 		<-doneErr
 	}()
 
-	// As a special case, we want to look for the error "text file busy" in the stderr output of
-	// the init command, so we also take a copy of the stderr into an in memory buffer.
+	// As a special case, we want to look for the error "text file busy" in the output of the
+	// init command, so we also take a copy of stdout and stderr into in memory buffers. With
+	// -json, Terraform reports the error as a diagnostic on stdout instead of stderr.
+	outBuf := newBufferedWriteCloser(outWriter)
 	errBuf := newBufferedWriteCloser(errWriter)
 
 	args := []string{
@@ -279,11 +282,12 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 		args = append(args, "-json")
 	}
 
-	err = e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outWriter, errBuf)
+	err = e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outBuf, errBuf)
 	var exitErr *exec.ExitError
 	if xerrors.As(err, &exitErr) {
-		if bytes.Contains(errBuf.b.Bytes(), []byte("text file busy")) {
-			return &textFileBusyError{exitErr: exitErr, stderr: errBuf.b.String()}
+		textFileBusy := []byte("text file busy")
+		if bytes.Contains(outBuf.b.Bytes(), textFileBusy) || bytes.Contains(errBuf.b.Bytes(), textFileBusy) {
+			return &textFileBusyError{exitErr: exitErr, stdout: outBuf.b.String(), stderr: errBuf.b.String()}
 		}
 	}
 	if err != nil {
