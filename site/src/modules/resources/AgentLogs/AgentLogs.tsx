@@ -178,7 +178,7 @@ export const AgentLogs: React.FC<AgentLogsProps> = ({
 			</List>
 			{/* Drawn over the list so row backgrounds cannot hide the focus ring. */}
 			<div
-				aria-hidden="true"
+				aria-hidden
 				className="pointer-events-none absolute inset-0 peer-focus-visible:ring-2 peer-focus-visible:ring-inset peer-focus-visible:ring-content-link"
 			/>
 
