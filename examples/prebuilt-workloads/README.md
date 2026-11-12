@@ -33,31 +33,32 @@ scoped permissions. The parts that are new are listed under
 
 ## In sequence
 
-Before any run, the cluster registers itself with coderd, and the pool is
-built:
+From the cluster registering itself to the command being over:
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant Op as Operator (in the cluster)
+    actor S as Sponsor (coder run)
+    participant C as coderd
+    participant TF as Provisioner (Terraform)
+    participant Op as Operator (go-between, in the cluster)
     participant K as Kubernetes API
     participant Kl as Kubelet
     participant D as Daemon (in the pod)
-    participant TF as Provisioner (Terraform)
-    participant C as coderd
+    participant W as Workload (the command)
 
     rect rgb(240, 245, 255)
-    Note over Op,C: The cluster registers itself. coderd never calls the cluster.
+    Note over S,W: 1. The cluster registers itself. coderd never calls the cluster.
     loop every 30 seconds
         Op->>K: read the issuer and public signing keys
         K-->>Op: issuer, keys
         Op->>C: register the cluster (operator key)
     end
-    Note over C: Holds the cluster's public keys.<br/>Holds no credential for the cluster.<br/>Forgets a cluster after 2 minutes without renewal.
+    Note over C: Holds the cluster's public keys.<br/>Holds no credential for the cluster.<br/>Forgets a cluster 2 minutes<br/>after its last renewal.
     end
 
     rect rgb(245, 250, 240)
-    Note over Op,C: The pool: workspaces are built ahead of time.
+    Note over S,W: 2. The pool: workspaces are built ahead of time.
     C->>TF: build a prebuilt workspace (owner: prebuilds)
     TF->>K: create the pod
     K-->>TF: pod UID
@@ -66,25 +67,15 @@ sequenceDiagram
     K-->>Kl: signed token, bound to the pod
     Kl->>D: mount the token
     D->>C: here is my pod's token
-    Note over C: Checks the token against the registered keys:<br/>signature, audience, expiry, bound to a pod, namespace.
+    Note over C: Checks the token against the registered keys:<br/>signature, audience, expiry,<br/>bound to a pod, namespace.
     C-->>D: you are the agent of that prebuilt workspace
     D->>C: connected and ready, waiting for an owner
     end
-```
 
-A run:
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor S as Sponsor (coder run)
-    participant C as coderd
-    participant TF as Provisioner (Terraform)
-    participant D as Daemon (in the pod)
-    participant W as Workload (the command)
-
+    rect rgb(255, 248, 235)
+    Note over S,W: 3. A run.
     S->>C: run this command, template T, scopes X
-    Note over C: Checks that the sponsor may use T.<br/>Creates the identity: an account that cannot sign in.<br/>Claims a prebuilt workspace: owner prebuilds becomes the identity.<br/>Shares the workspace with the sponsor. Records the workload.
+    Note over C: Checks that the sponsor may use T.<br/>Creates the identity:<br/>an account that cannot sign in.<br/>Claims a prebuilt workspace:<br/>owner prebuilds becomes the identity.<br/>Shares the workspace with the sponsor.<br/>Records the workload.
     C->>TF: claim build
     TF-->>C: nothing to change. The agent is registered again for the same pod UID.
     C-->>D: your workspace has a new owner
@@ -106,13 +97,19 @@ sequenceDiagram
         Note over C: Allowed only within the identity's scopes.<br/>No scopes: nothing.
         C-->>W: answer
     end
+    end
+
+    rect rgb(248, 240, 250)
+    Note over S,W: 4. The command is over.
     W-->>D: exits
     D->>C: over, with exit code
     Note over C: Ends the workload. Its token is refused from now on.
     C-->>S: exit code
     C->>TF: delete build, as the identity
+    TF->>K: delete the pod
     TF-->>C: pod and workspace are gone
     Note over C: Retires the identity. The record of what ran stays.<br/>Builds a replacement for the pool.
+    end
 ```
 
 ## Files
