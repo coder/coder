@@ -844,7 +844,7 @@ func TestInsertChatAutomationRacesUserSoftDelete(t *testing.T) {
 		automationID = automation.ID
 		// The pool gives the soft delete another connection, outside
 		// this transaction.
-		go func() { softDelete <- db.UpdateUserDeletedByID(ctx, o.user.ID) }()
+		go func() { softDelete <- db.UpdateUserDeletedByID(ctx, o.user.ID) }() // intxcheck:ignore // the soft delete must run outside this transaction
 		// The shared lock on the owner row must block the soft delete
 		// until this transaction commits.
 		require.Eventually(t, func() bool {

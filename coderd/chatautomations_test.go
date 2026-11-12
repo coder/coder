@@ -532,16 +532,16 @@ func (e chatAutomationEnv) automationAudit(userID uuid.UUID) []database.AuditLog
 }
 
 // postChatAutomation sends a create as a raw request, so that a test can read
-// the headers and the bytes that the server wrote. A []byte body is sent as it
+// the header and the bytes that the server wrote. A []byte body is sent as it
 // is.
-func postChatAutomation(t *testing.T, client *codersdk.Client, orgID uuid.UUID, body any) (*http.Response, []byte) {
+func postChatAutomation(t *testing.T, client *codersdk.Client, orgID uuid.UUID, body any) (http.Header, int, []byte) {
 	t.Helper()
 	res, err := client.Request(testutil.Context(t, testutil.WaitMedium), http.MethodPost, chatAutomationPath(orgID, ""), body)
 	require.NoError(t, err)
 	defer res.Body.Close()
 	raw, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
-	return res, raw
+	return res.Header, res.StatusCode, raw
 }
 
 func TestCreateChatAutomation(t *testing.T) {
@@ -579,10 +579,10 @@ func TestCreateChatAutomation(t *testing.T) {
 				req.WebhookSecret = supplied
 			}
 
-			res, body := postChatAutomation(t, member.client, org, req)
+			header, status, body := postChatAutomation(t, member.client, org, req)
 
-			require.Equal(t, http.StatusCreated, res.StatusCode, string(body))
-			require.Equal(t, "no-store", res.Header.Get("Cache-Control"))
+			require.Equal(t, http.StatusCreated, status, string(body))
+			require.Equal(t, "no-store", header.Get("Cache-Control"))
 			var created codersdk.CreateChatAutomationResponse
 			require.NoError(t, json.Unmarshal(body, &created))
 			require.Equal(t, tc.generated, created.WebhookSecret != "")
@@ -693,9 +693,9 @@ func TestCreateChatAutomationRejected(t *testing.T) {
 			t.Parallel()
 			canary := "canary-" + uuid.NewString()
 
-			res, body := postChatAutomation(t, tc.who.client, org, tc.body(canary))
+			_, status, body := postChatAutomation(t, tc.who.client, org, tc.body(canary))
 
-			require.Equal(t, tc.status, res.StatusCode, string(body))
+			require.Equal(t, tc.status, status, string(body))
 			require.Zero(t, bytes.Count(body, []byte(canary)), "the response echoes the request")
 			var got codersdk.Response
 			require.NoError(t, json.Unmarshal(body, &got))
@@ -761,9 +761,9 @@ func TestChatAutomationsCreateInternalError(t *testing.T) {
 		func(o *coderdtest.Options) { o.Logger = &logger })
 	member := env.actor(t, rbac.ScopedRoleAgentsAccess(env.first.OrganizationID))
 
-	res, body := postChatAutomation(t, member.client, env.first.OrganizationID, bearerChatAutomation(env))
+	_, status, body := postChatAutomation(t, member.client, env.first.OrganizationID, bearerChatAutomation(env))
 
-	require.Equal(t, http.StatusInternalServerError, res.StatusCode, string(body))
+	require.Equal(t, http.StatusInternalServerError, status, string(body))
 	require.Zero(t, bytes.Count(body, []byte(canary)))
 	var got codersdk.Response
 	require.NoError(t, json.Unmarshal(body, &got))

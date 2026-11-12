@@ -43,6 +43,7 @@ func TestChatAutomationDeleteAuditEntry(t *testing.T) {
 		LicenseOptions: &coderdenttest.LicenseOptions{Features: license.Features{codersdk.FeatureAuditLog: 1}},
 	})
 	memberClient, member := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID)
+	auditorClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID, rbac.RoleAuditor())
 	secret := "canary-secret-" + strings.Repeat(uuid.NewString(), 2)
 	prompt := "canary-prompt-" + uuid.NewString()
 	automation := dbgen.ChatAutomation(t, db, database.ChatAutomation{
@@ -53,7 +54,7 @@ func TestChatAutomationDeleteAuditEntry(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitLong)
 	require.NoError(t, codersdk.NewExperimentalClient(memberClient).DeleteChatAutomation(ctx, first.OrganizationID, automation.ID))
 
-	res, err := ownerClient.Request(ctx, http.MethodGet, "/api/v2/audit?limit=50&q=resource_type:chat_automation", nil)
+	res, err := auditorClient.Request(ctx, http.MethodGet, "/api/v2/audit?limit=50&q=resource_type:chat_automation", nil)
 	require.NoError(t, err)
 	defer res.Body.Close()
 	require.Equal(t, http.StatusOK, res.StatusCode)
@@ -122,13 +123,14 @@ func TestChatAutomationCreateAuditEntry(t *testing.T) {
 		LicenseOptions: &coderdenttest.LicenseOptions{Features: license.Features{codersdk.FeatureAuditLog: 1}},
 	})
 	memberClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID, rbac.ScopedRoleAgentsAccess(first.OrganizationID))
+	auditorClient, _ := coderdtest.CreateAnotherUser(t, ownerClient, first.OrganizationID, rbac.RoleAuditor())
 	model := dbgen.ChatModelConfig(t, db, database.ChatModelConfig{OrganizationID: first.OrganizationID})
 	prompt := "canary-prompt-" + uuid.NewString()
 	supplied := canaryWhsec()
 	created := createChatAutomationSchemes(t, memberClient, first.OrganizationID, model.ID, prompt, supplied)
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	res, err := ownerClient.Request(ctx, http.MethodGet, "/api/v2/audit?limit=50&q=resource_type:chat_automation", nil)
+	res, err := auditorClient.Request(ctx, http.MethodGet, "/api/v2/audit?limit=50&q=resource_type:chat_automation", nil)
 	require.NoError(t, err)
 	defer res.Body.Close()
 	require.Equal(t, http.StatusOK, res.StatusCode)
