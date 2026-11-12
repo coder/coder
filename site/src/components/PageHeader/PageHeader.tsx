@@ -51,7 +51,7 @@ export const PageHeaderTitle: React.FC<PageHeaderTitleProps> = ({
 	);
 };
 
-type PageHeaderSubtitleProps = React.ComponentProps<"h2">;
+type PageHeaderSubtitleProps = React.ComponentProps<"p">;
 
 export const PageHeaderSubtitle: React.FC<PageHeaderSubtitleProps> = ({
 	children,
@@ -59,7 +59,7 @@ export const PageHeaderSubtitle: React.FC<PageHeaderSubtitleProps> = ({
 	...props
 }) => {
 	return (
-		<h2
+		<p
 			className={cn(
 				"text-sm text-content-secondary font-normal block m-0 leading-snug",
 				className,
@@ -67,7 +67,7 @@ export const PageHeaderSubtitle: React.FC<PageHeaderSubtitleProps> = ({
 			{...props}
 		>
 			{children}
-		</h2>
+		</p>
 	);
 };
 
