@@ -5,6 +5,7 @@
     {"spec": "0 9 * * 0", "accepted": true},
     {"spec": "30 8 1,15 JAN-MAR MON-FRI", "accepted": true},
     {"spec": "0 0 29 2 *", "accepted": true},
+    {"spec": "0 9 */2 * 1", "accepted": true},
     {"spec": "0 9 * * 7", "accepted": false, "reason": "7 is not a day of week, Sunday is 0"},
     {"spec": "0 9 L * *", "accepted": false, "reason": "L (last day of the month) is not supported"},
     {"spec": "0 9 * * 1#2", "accepted": false, "reason": "# (nth weekday of the month) is not supported"},
@@ -169,6 +170,32 @@
       "timeZone": "Pacific/Chatham",
       "after": "2026-04-04T12:00:00+13:45",
       "next": ["2026-04-05T03:15:00+13:45", "2026-04-06T03:15:00+12:45"]
+    },
+    {
+      "name": "DayFields/StarStepDayOfMonthOrMondayInUTC",
+      "spec": "0 9 */2 * 1",
+      "timeZone": "UTC",
+      "after": "2026-12-10T00:00:00Z",
+      "next": [
+        "2026-12-11T09:00:00Z",
+        "2026-12-13T09:00:00Z",
+        "2026-12-14T09:00:00Z",
+        "2026-12-15T09:00:00Z",
+        "2026-12-17T09:00:00Z"
+      ]
+    },
+    {
+      "name": "DayFields/StarStepDayOfMonthOrMondayInAuckland",
+      "spec": "0 9 */2 * 1",
+      "timeZone": "Pacific/Auckland",
+      "after": "2027-01-02T00:00:00+13:00",
+      "next": [
+        "2027-01-03T09:00:00+13:00",
+        "2027-01-04T09:00:00+13:00",
+        "2027-01-05T09:00:00+13:00",
+        "2027-01-07T09:00:00+13:00",
+        "2027-01-09T09:00:00+13:00"
+      ]
     }
   ]
 }
