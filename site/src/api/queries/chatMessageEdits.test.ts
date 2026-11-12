@@ -19,6 +19,22 @@ const makeUserMessage = (
 });
 
 describe("buildOptimisticEditedMessage", () => {
+	it("keeps the question-answer part first instead of producing a file part", () => {
+		const questionAnswerId = "11111111-1111-4111-8111-111111111111";
+		const message = buildOptimisticEditedMessage({
+			requestContent: [
+				{ type: "question-answer", question_id: questionAnswerId },
+				{ type: "text", text: "Postgres" },
+			],
+			originalMessage: makeUserMessage(),
+		});
+
+		expect(message.content).toEqual([
+			{ type: "question-answer", question_id: questionAnswerId },
+			{ type: "text", text: "Postgres" },
+		]);
+	});
+
 	it("preserves image MIME types for newly attached files", () => {
 		const message = buildOptimisticEditedMessage({
 			requestContent: [{ type: "file", file_id: "image-1" }],

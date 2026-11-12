@@ -15,7 +15,11 @@ import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
 import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatMessage,
+	MockChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
@@ -294,6 +298,80 @@ describe("AgentChatPage", () => {
 			expect(getChatProjectSkills).toHaveBeenCalledTimes(
 				listRequestsBeforeSend + 1,
 			),
+		);
+	});
+
+	describe("answers", () => {
+		it.each([
+			{ target: "queued", leadingSkill: false },
+			{ target: "timeline", leadingSkill: false },
+			{ target: "timeline", leadingSkill: true },
+		] as const)(
+			"saving an edited $target answer keeps its question part (leading skill: $leadingSkill)",
+			async ({ target, leadingSkill }) => {
+				const questionPart: TypesGen.ChatQuestionAnswerPart = {
+					type: "question-answer",
+					question_id: "11111111-1111-4111-8111-111111111111",
+				};
+				const content: TypesGen.ChatMessagePart[] = [questionPart];
+				const expectedContent: TypesGen.ChatMessagePart[] = [questionPart];
+				if (leadingSkill) {
+					const skillPart: TypesGen.ChatSkillInvocationPart = {
+						type: "skill-invocation",
+						skill_source: "project",
+						skill_name: "triage",
+					};
+					content.push(skillPart);
+					expectedContent.push(skillPart);
+				}
+				content.push({ type: "text", text: "Redis" });
+				expectedContent.push({ type: "text", text: "Redis edit" });
+
+				const mockAnswer: TypesGen.ChatMessage = {
+					...MockChatMessage,
+					id: 7,
+					content,
+				};
+				const messages: TypesGen.ChatMessage[] = [];
+				const queuedMessages: TypesGen.ChatQueuedMessage[] = [];
+				let editAction: string;
+				if (target === "queued") {
+					queuedMessages.push({
+						...MockChatQueuedMessage,
+						id: mockAnswer.id,
+						content,
+					});
+					editAction = "Edit";
+				} else {
+					messages.push(mockAnswer);
+					editAction = "Edit message";
+				}
+				const editChatMessage = vi
+					.spyOn(API.experimental, "editChatMessage")
+					.mockResolvedValue({
+						message: { ...mockAnswer, id: 8, content: expectedContent },
+					});
+				const page = renderQueuedChat({ queuedMessages, messages });
+
+				await page.rowAction(editAction);
+				await waitFor(() =>
+					expect(page.composer().textContent).toContain("Redis"),
+				);
+				await page.type(" edit");
+				await page.user.click(
+					page.view.getByRole("button", { name: "Save Edit" }),
+				);
+
+				const editRequest =
+					target === "queued" ? page.editChatQueuedMessage : editChatMessage;
+				await waitFor(() =>
+					expect(editRequest).toHaveBeenCalledWith(
+						MockChat.id,
+						mockAnswer.id,
+						expect.objectContaining({ content: expectedContent }),
+					),
+				);
+			},
 		);
 	});
 

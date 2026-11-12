@@ -275,10 +275,14 @@ describe("useConversationEditingState", () => {
 		// first, as a settled begin request does on the page.
 		const beginEdit = (
 			target: EditingTarget,
-			text: string,
+			content: string | readonly ChatMessagePart[],
 			fileBlocks?: readonly ChatMessagePart[],
 		) => {
-			contents.set(contentKey(target), textContent(text, fileBlocks));
+			const targetContent =
+				typeof content === "string"
+					? textContent(content, fileBlocks)
+					: content;
+			contents.set(contentKey(target), targetContent);
 			if (target.kind === "queued") {
 				hook.rerender({ serverMarkedID: target.id, marker: mockIdleMarker });
 			}
@@ -1054,6 +1058,86 @@ describe("useConversationEditingState", () => {
 
 		expect(localStorage.getItem(expectedKey)).toBe("draft");
 		unmount();
+	});
+
+	describe("answers", () => {
+		const questionAnswerId = "11111111-1111-4111-8111-111111111111";
+		const answerContent: readonly ChatMessagePart[] = [
+			{ type: "question-answer", question_id: questionAnswerId },
+			{ type: "text", text: "Redis" },
+		];
+
+		describe.each([
+			["timeline", "history"],
+			["queued", "queued"],
+		] as const)("%s target", (_name, kind) => {
+			const target: EditingTarget = { kind, id: 7 };
+
+			it("loads only the answer text into the editor", () => {
+				const { result, beginEdit } = renderEditing();
+
+				act(() => beginEdit(target, answerContent));
+
+				expect(result.current.editorInitialValue).toBe("Redis");
+				expect(result.current.inputValueRef.current).toBe("Redis");
+			});
+
+			it("sends the edited answer with its question ID", async () => {
+				const { result, beginEdit, onSend } = renderEditing();
+				act(() => beginEdit(target, answerContent));
+
+				await act(async () => {
+					await result.current.handleSendFromInput({ message: "Postgres" });
+				});
+
+				expect(onSend).toHaveBeenCalledWith(
+					expect.objectContaining({
+						message: "Postgres",
+						editingTarget: target,
+						questionAnswerId,
+					}),
+				);
+			});
+
+			it("sends an ordinary message edit without a question ID", async () => {
+				const { result, beginEdit, onSend } = renderEditing();
+				act(() => beginEdit(target, "Redis"));
+
+				await act(async () => {
+					await result.current.handleSendFromInput({ message: "Postgres" });
+				});
+
+				expect(onSend).toHaveBeenCalledWith(
+					expect.objectContaining({
+						message: "Postgres",
+						editingTarget: target,
+					}),
+				);
+				expect(onSend).not.toHaveBeenCalledWith(
+					expect.objectContaining({ questionAnswerId: expect.anything() }),
+				);
+			});
+
+			it("sends a new message without an ID after ending an answer's edit", async () => {
+				const { result, beginEdit, onSend } = renderEditing();
+				act(() => beginEdit(target, answerContent));
+				act(() => result.current.handleCancelEdit());
+
+				await act(async () => {
+					await result.current.handleSendFromInput({ message: "Next task" });
+				});
+
+				expect(onSend).toHaveBeenCalledWith(
+					expect.objectContaining({
+						message: "Next task",
+						editingTarget: undefined,
+					}),
+				);
+				expect(onSend).not.toHaveBeenCalledWith(
+					expect.objectContaining({ questionAnswerId: expect.anything() }),
+				);
+			});
+		});
 	});
 
 	describe("queued message editing", () => {

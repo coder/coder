@@ -21,6 +21,9 @@ const buildOptimisticEditedContent = ({
 		if (part.type === "text") {
 			return { type: "text", text: part.text ?? "" };
 		}
+		if (part.type === "question-answer") {
+			return { type: "question-answer", question_id: part.question_id };
+		}
 		if (part.type === "file-reference") {
 			return {
 				type: "file-reference",

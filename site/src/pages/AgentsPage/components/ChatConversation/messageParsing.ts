@@ -408,6 +408,8 @@ export const getEditableContentPayload = (
 	fileBlocks: readonly TypesGen.ChatMessagePart[] | undefined;
 	/** Restores skill and file-reference chips in place; undefined without chips. */
 	editorState: string | undefined;
+	/** The question the message answers, kept so an edit still answers it. */
+	questionAnswerId: string | undefined;
 } => {
 	// Concatenate text parts verbatim to match the server-side string_agg in
 	// GetChatUserPromptsByChatID; parseMessageContent/appendText drops leading
@@ -427,6 +429,7 @@ export const getEditableContentPayload = (
 		)
 			? serializeMessageDraft(content ?? [])
 			: undefined,
+		questionAnswerId: parsed.questionAnswerId || undefined,
 	};
 };
 

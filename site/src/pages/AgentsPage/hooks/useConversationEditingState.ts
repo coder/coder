@@ -18,11 +18,13 @@ export class BuiltInCommandPendingError extends Error {}
 
 export type SendChatTurnOptions = SendChatMessageOptions & {
 	editingTarget?: EditingTarget;
+	questionAnswerId?: string;
 };
 
 /** The target whose text the editor holds, as loaded. */
 type LoadedTarget = {
 	target: EditingTarget;
+	questionAnswerId: string | undefined;
 	text: string;
 	fileBlocks: readonly ChatMessagePart[];
 	// The target's content as loaded, in the form SavedQueuedEdit.base uses.
@@ -240,7 +242,7 @@ export function useConversationEditingState(deps: {
 			return;
 		}
 
-		const { text, fileBlocks, editorState } =
+		const { text, fileBlocks, editorState, questionAnswerId } =
 			getEditableContentPayload(targetContent);
 		if (draftBeforeEdit === null) {
 			// localStorage holds the serialized state handleContentChange
@@ -270,6 +272,7 @@ export function useConversationEditingState(deps: {
 
 		setLoadedTarget({
 			target,
+			questionAnswerId,
 			text,
 			fileBlocks: fileBlocks ?? noFileBlocks,
 			base,
@@ -336,13 +339,17 @@ export function useConversationEditingState(deps: {
 		busyBehavior,
 	}: SendChatMessageOptions) => {
 		const sendTarget = target ?? undefined;
+		const questionAnswerId =
+			sendTarget !== undefined ? loadedTarget?.questionAnswerId : undefined;
 		const targetLoadCount = targetLoadCountRef.current;
+
 		const sendPromise = onSend({
 			message,
 			attachments,
 			workspaceUploads,
 			busyBehavior,
 			editingTarget: sendTarget,
+			questionAnswerId,
 		});
 
 		const rollback =
