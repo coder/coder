@@ -730,12 +730,20 @@ WITH paginated_threads AS (
 )
 SELECT
 	COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id) AS thread_id,
-	sqlc.embed(aibridge_interceptions)
+	sqlc.embed(aibridge_interceptions),
+	COALESCE(org.name, '')::text AS organization_name,
+	COALESCE(org.display_name, '')::text AS organization_display_name,
+	COALESCE(org.icon, '')::text AS organization_icon
 FROM
 	aibridge_interceptions
 JOIN
 	paginated_threads pt
 		ON pt.thread_id = COALESCE(aibridge_interceptions.thread_root_id, aibridge_interceptions.id)
+LEFT JOIN LATERAL (
+	SELECT o.name, o.display_name, o.icon
+	FROM organizations o
+	WHERE o.id = aibridge_interceptions.organization_id
+) org ON true
 WHERE
 	aibridge_interceptions.session_id = @session_id::text
 	AND aibridge_interceptions.ended_at IS NOT NULL
