@@ -79,7 +79,7 @@ func TestManageAutomationsAvailable(t *testing.T) {
 			if tc.chat != nil {
 				tc.chat(&chat)
 			}
-			require.Equal(t, tc.want, server.ManageAutomationsAvailable(testutil.Context(t, testutil.WaitLong), chat))
+			require.Equal(t, tc.want, chatd.ManageAutomationsAvailable(server, testutil.Context(t, testutil.WaitLong), chat))
 		})
 	}
 }

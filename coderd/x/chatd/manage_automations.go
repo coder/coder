@@ -28,7 +28,7 @@ func (p *Server) manageAutomationsAvailable(ctx context.Context, chat database.C
 	return chat.ManageAutomationsEnabled &&
 		!chat.ParentChatID.Valid &&
 		!chat.Archived &&
-		!(chat.PlanMode.Valid && chat.PlanMode.ChatPlanMode == database.ChatPlanModePlan) &&
+		(!chat.PlanMode.Valid || chat.PlanMode.ChatPlanMode != database.ChatPlanModePlan) &&
 		!isExploreSubagentMode(chat.Mode) &&
 		p.automationsExperimentEnabled(ctx, chat.OwnerID)
 }
