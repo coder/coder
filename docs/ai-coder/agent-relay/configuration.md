@@ -124,6 +124,7 @@ Refer to [Pool fields](#pool-fields) and [Agent Relay for Cursor](./cursor.md).
 | `template_parameters`  | No       | Fixed parameter values that Agent Relay sets on every build from this pool, as a map of parameter names to values. Use it for required or environment-specific parameters. Agent Relay doesn't log the values.                                                                                                                                                                                        |
 | `idle_release_timeout` | No       | How long a session can go without a new message after the agent finishes a turn before it's released and its workspace is deleted, as a duration such as `30m`. Defaults to `1h`. `0` turns off idle release. Claude Code needs whole minutes, up to `168h`. Cursor needs whole seconds and logs a warning at startup for values below `5m`. Agent Relay refuses to start on a number without a unit. |
 | `template_version`     | No       | A version name or UUID of `template` that every build from this pool uses, including rebuilds. Leave it unset to use the active version. Refer to [Pin a template version](#pin-a-template-version).                                                                                                                                                                                                  |
+| `reap_delay`           | No       | Overrides [`--reap-delay`](#--reap-delay) for this pool, as a duration that isn't negative, such as `10m`. Set `0s` to turn off the delay for this pool.                                                                                                                                                                                                                                              |
 
 Agent Relay also accepts an inline `secret` field in place of `secret_env`.
 Set exactly one of the two.
@@ -278,6 +279,73 @@ The Helm chart always binds to `0.0.0.0` on `prometheus.port`.
 
 ## Workspace reaper
 
+The reaper is the process that deletes relay workspaces when their sessions end or fail.
+Two options control when it deletes a workspace:
+
+- `--reap-startup-grace` applies while a workspace starts.
+  It sets how long a new workspace has to build and start its worker before the reaper deletes it.
+- `--reap-delay` applies after the reaper decides to delete a workspace.
+  It sets how long the reaper keeps the workspace first, so you can inspect it.
+
+The other options in this section limit how many workspaces the reaper handles at once and tune when it extends an attached workspace's autostop deadline.
+For how the reaper works and which setting to change, refer to [Workspace lifecycle](./setup.md#workspace-lifecycle).
+
+### `--reap-startup-grace`
+
+| Property    | Value                                              |
+|-------------|----------------------------------------------------|
+| Type        | <code>duration</code>                              |
+| Environment | <code>$CODER_AGENT_RELAY_REAP_STARTUP_GRACE</code> |
+| YAML        | <code>reapStartupGrace</code>                      |
+| Helm        | <code>reapStartupGrace</code>                      |
+| Default     | <code>15m0s</code>                                 |
+
+How long a new workspace has to build and start its worker before the reaper deletes it.
+The grace starts when the latest build is created, so it includes the time spent building.
+Must be positive.
+
+- If a build is still pending or starting after the longer of this grace and the pool's `dispatch_deadline`, the reaper deletes the workspace.
+- A workspace where the build succeeded but the worker still reports no status, or `pending`, fails after this grace.
+- A short grace can fail workspaces where the agent connects slowly or the worker starts slowly.
+  Unless you run an isolated test deployment, keep the default.
+- When the template orders the worker after setup scripts, this is the budget those scripts share with the build.
+  Refer to [Start the worker after workspace setup](./setup.md#start-the-worker-after-workspace-setup).
+
+The reaper acts on the first [sweep](./setup.md#workspace-lifecycle) after the grace passes, which can be 30&nbsp;seconds or more later.
+Raise the grace when a working template takes longer than 15&nbsp;minutes to build and start its worker.
+Refer to [Choose cleanup settings](./setup.md#choose-cleanup-settings).
+
+### `--reap-delay`
+
+| Property    | Value                                      |
+|-------------|--------------------------------------------|
+| Type        | <code>duration</code>                      |
+| Environment | <code>$CODER_AGENT_RELAY_REAP_DELAY</code> |
+| YAML        | <code>reapDelay</code>                     |
+| Default     | <code>0s</code>                            |
+
+How long the reaper keeps a workspace after it decides to delete it, so you can inspect the workspace first.
+The delay counts from when the latest build finished, whether that build succeeded, failed, or was canceled.
+It doesn't count from when the worker exits, so a session that runs longer than the delay gets no extra time.
+The delay applies when a worker exits cleanly, when a worker fails, and when a build fails or is canceled.
+For a failed worker, the reaper also waits before it reports the failure to the provider, which postpones provider retries and the failure messages that developers see.
+Must not be negative.
+A pool's `reap_delay` overrides this option.
+
+- If a build fails or is still running when the pool's `dispatch_deadline` passes, Agent Relay deletes the workspace immediately.
+- If autostop could stop the workspace before the delay ends, the reaper deletes it right away.
+- A worker that never starts fails after the startup grace, so its delay might already have passed.
+- If the provider sends the session again and Agent Relay rebuilds the workspace, the delay starts over from the new build.
+- While the reaper keeps a workspace, each sweep counts a `delayed` verdict instead of `delete` or `failed`.
+  When the delay passes, the next sweep counts `delete` or `failed` and acts.
+  With `--log-level` set to `debug`, each kept workspace logs `workspace awaiting reap` with `reap_at`, the time when the delay ends.
+
+Set a delay while you debug a worker that fails soon after it starts, so you can open the workspace and read its logs before Agent Relay deletes it.
+To keep a workspace where the worker fails later in a session, set a delay longer than the time between the build finishing and the worker failing.
+Refer to [Choose cleanup settings](./setup.md#choose-cleanup-settings).
+The Helm chart has no dedicated value for this option.
+Set it with [`extraEnv`](#helm-values).
+
 ### `--reap-workers`
 
 | Property    | Value                                        |
@@ -291,24 +359,6 @@ How many workspaces the reaper handles at the same time during each sweep.
 Workspace statuses and session attachment arrive with the workspace list, so this option limits only the delete, cancel, nack, and deadline extension calls that a sweep makes.
 The Helm chart has no dedicated value for this option.
 Set it with [`extraEnv`](#helm-values).
-
-### `--reap-startup-grace`
-
-| Property    | Value                                              |
-|-------------|----------------------------------------------------|
-| Type        | <code>duration</code>                              |
-| Environment | <code>$CODER_AGENT_RELAY_REAP_STARTUP_GRACE</code> |
-| YAML        | <code>reapStartupGrace</code>                      |
-| Helm        | <code>reapStartupGrace</code>                      |
-| Default     | <code>15m0s</code>                                 |
-
-How long the reaper waits, from the start of the latest build, for the build to finish and the worker to report in.
-Past it, Agent Relay deletes a workspace that's still building, and fails the session of a built workspace where the worker never started.
-A workspace that's still building also waits for its pool's `dispatch_deadline` when that's longer.
-Must be positive.
-A short grace might cut off slow agent connections and slow worker startups.
-When the template orders the worker after setup scripts, this is the budget those scripts share with the build.
-Refer to [Start the worker after workspace setup](./setup.md#start-the-worker-after-workspace-setup).
 
 ### `--reap-keepalive-refresh-before`
 
