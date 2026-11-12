@@ -246,8 +246,10 @@ func (e *textFileBusyError) Error() string {
 	return "text file busy: " + e.exitErr.String()
 }
 
-// init runs `terraform init`. If pluginDir is set, Terraform installs
-// providers only from that directory and doesn't contact a registry.
+// init runs `terraform init`. If pluginDir is set, Terraform installs only
+// the providers the lock file pins, and only from that directory, not from
+// the provider registry or a provider mirror. Modules and the backend are
+// initialized as usual.
 func (e *executor) init(ctx, killCtx context.Context, logr logSink, pluginDir string) error {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
@@ -291,7 +293,9 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink, pluginDir st
 
 	env := e.basicEnv()
 	if pluginDir != "" {
-		args = append(args, "-plugin-dir="+pluginDir)
+		// With a read-only lock file, init fails instead of installing a
+		// provider that the lock file doesn't pin and so can't verify.
+		args = append(args, "-plugin-dir="+pluginDir, "-lockfile=readonly")
 		// Setting the cache as well only slows init down.
 		env = slices.DeleteFunc(env, func(v string) bool {
 			return strings.HasPrefix(v, "TF_PLUGIN_CACHE_DIR=")
@@ -653,24 +657,32 @@ type logSink interface {
 	ProvisionLog(l proto.LogLevel, o string)
 }
 
-// bufferedLogSink holds log lines until flush passes them on.
-type bufferedLogSink struct {
+// heldErrorSink passes log lines on to sink as they arrive, except errors,
+// which it holds until flush.
+type heldErrorSink struct {
+	sink logSink
 	mu   sync.Mutex
-	logs []*proto.Log
+	held []string
 }
 
-func (b *bufferedLogSink) ProvisionLog(l proto.LogLevel, o string) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	b.logs = append(b.logs, &proto.Log{Level: l, Output: o})
-}
-
-func (b *bufferedLogSink) flush(sink logSink) {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	for _, log := range b.logs {
-		sink.ProvisionLog(log.Level, log.Output)
+func (h *heldErrorSink) ProvisionLog(l proto.LogLevel, o string) {
+	if l != proto.LogLevel_ERROR {
+		h.sink.ProvisionLog(l, o)
+		return
 	}
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.held = append(h.held, o)
+}
+
+// flush logs the held errors and forgets them.
+func (h *heldErrorSink) flush() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for _, line := range h.held {
+		h.sink.ProvisionLog(proto.LogLevel_ERROR, line)
+	}
+	h.held = nil
 }
 
 // logWriter creates a WriteCloser that will log each line of text at the given level.  The WriteCloser must be closed

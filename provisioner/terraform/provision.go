@@ -110,8 +110,13 @@ func (s *server) Init(
 	s.logger.Debug(ctx, "running terraform initialization")
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageInit)
 	// The captured lock file pins every provider version, so a warm plugin
-	// cache can supply them without the registry.
-	if !restored || !s.initFromPluginCache(ctx, killCtx, e, sess) {
+	// cache can supply them without the provider registry or a provider
+	// mirror.
+	done := false
+	if restored {
+		done, err = s.initFromPluginCache(ctx, killCtx, e, sess)
+	}
+	if !done {
 		err = e.init(ctx, killCtx, sess, "")
 		if err != nil && restored && ctx.Err() == nil {
 			err = s.initWithTemplateLockFile(ctx, killCtx, e, sess, err)
@@ -187,25 +192,30 @@ func (s *server) Init(
 }
 
 // initFromPluginCache runs `terraform init` with the plugin cache as the only
-// source of providers, and reports whether that worked. The build log only
-// gets the output of a run that worked, because a cold cache is no error.
-func (s *server) initFromPluginCache(ctx, killCtx context.Context, e *executor, sess *provisionersdk.Session) bool {
-	if !pluginCacheEnabled(s.cachePath) {
-		return false
+// source of providers. It reports false if a normal init has to run instead.
+// A cold cache makes this init fail, so its errors only reach the build log
+// when no normal init follows. Otherwise they go to the debug log.
+func (s *server) initFromPluginCache(ctx, killCtx context.Context, e *executor, sess *provisionersdk.Session) (bool, error) {
+	if !pluginCacheEnabled(e.cachePath) {
+		return false, nil
 	}
-	// An operator's init flags can need the registry, as -upgrade does.
+	// An operator's init flags can need the provider registry or a provider
+	// mirror, as -upgrade does.
 	env := e.basicEnv()
 	if safeEnvironValue(env, "TF_CLI_ARGS") != "" || safeEnvironValue(env, "TF_CLI_ARGS_init") != "" {
-		return false
+		return false, nil
 	}
-	logs := &bufferedLogSink{}
-	if err := e.init(ctx, killCtx, logs, s.cachePath); err != nil {
-		s.logger.Debug(ctx, "terraform init from the plugin cache failed, running a normal init",
-			slog.Error(err), slog.F("logs", logs.logs))
-		return false
+	errs := &heldErrorSink{sink: sess}
+	err := e.init(ctx, killCtx, errs, e.cachePath)
+	if err == nil || ctx.Err() != nil {
+		// A canceled init is not run again.
+		errs.flush()
+		return true, err
 	}
-	logs.flush(sess)
-	return true
+	s.logger.Debug(ctx, "terraform init from the plugin cache failed, running a normal init",
+		slog.Error(err), slog.F("errors", errs.held))
+	sess.ProvisionLog(proto.LogLevel_INFO, "Running terraform init again, this time not limited to the plugin cache.")
+	return false, nil
 }
 
 // initWithTemplateLockFile retries a failed init with the template's own lock
