@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -81,7 +82,7 @@ func (s *server) Init(
 	defer cancel()
 	defer kill()
 
-	e, unlock := s.executor(sess.Files, database.ProvisionerJobTimingStageInit)
+	e, unlock := s.lockExecutor(sess.Files, database.ProvisionerJobTimingStageInit)
 	defer unlock()
 	if err := e.checkMinVersion(ctx); err != nil {
 		return provisionersdk.InitErrorf("%s", err.Error())
@@ -214,7 +215,7 @@ func (s *server) Plan(
 	defer cancel()
 	defer kill()
 
-	e, unlock := s.executor(sess.Files, database.ProvisionerJobTimingStagePlan)
+	e, unlock := s.lockExecutor(sess.Files, database.ProvisionerJobTimingStagePlan)
 	defer unlock()
 	if err := e.checkMinVersion(ctx); err != nil {
 		return provisionersdk.PlanErrorf("%s", err.Error())
@@ -250,20 +251,24 @@ func (s *server) Plan(
 		return provisionersdk.PlanErrorf("plan vars: %s", err)
 	}
 
-	// Graph the configuration while Terraform plans it, so the Graph RPC
-	// doesn't have to run Terraform again. `terraform graph` only reads the
-	// configuration and the state, and takes no state lock. The graph
-	// reflects the state before apply; the Graph RPC builds it again after
-	// apply when that state added nodes for orphaned or deposed objects.
+	// `terraform graph` only reads the configuration and the state, and
+	// takes no state lock, so it runs beside the plan. Each of the two
+	// starts every provider, so Plan's memory peaks higher than it would
+	// running them in turn. The graph reflects the state before apply; Graph
+	// builds it again when that matters.
 	var (
 		wg       sync.WaitGroup
 		rawGraph string
 		graphErr error
 	)
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStagePlan)
-	wg.Go(func() {
-		rawGraph, graphErr = e.graph(ctx, killCtx)
-	})
+	// On Windows the state lock that plan holds stops other processes from
+	// reading the state file, so the graph is left to Graph there.
+	if runtime.GOOS != "windows" {
+		wg.Go(func() {
+			rawGraph, graphErr = e.graph(ctx, killCtx)
+		})
+	}
 	resp, plan, err := e.plan(ctx, killCtx, env, vars, sess, request)
 	wg.Wait()
 	endStage(err)
@@ -274,8 +279,6 @@ func (s *server) Plan(
 		s.logger.Warn(ctx, "terraform graph failed during plan, the graph stage will retry it", slog.Error(graphErr))
 	}
 
-	// Graph reuses the parsed plan and the graph instead of running
-	// Terraform again.
 	s.setSessionState(sess.Context(), sess, sessionState{plan: plan, graph: rawGraph})
 
 	resp.Timings = e.timings.aggregate()
@@ -291,16 +294,14 @@ func (s *server) Graph(
 	defer cancel()
 	defer kill()
 
-	e, unlock := s.executor(sess.Files, database.ProvisionerJobTimingStageGraph)
+	e, unlock := s.lockExecutor(sess.Files, database.ProvisionerJobTimingStageGraph)
 	defer unlock()
 	if err := e.checkMinVersion(ctx); err != nil {
 		return provisionersdk.GraphError("%s", err.Error())
 	}
 	logTerraformEnvVars(sess)
 
-	// Reuse the parsed plan (plan source) and the graph from this session's
-	// Plan when they are available, instead of running Terraform again.
-	sessState := s.sessionState(sess)
+	sessState := s.loadSessionState(sess)
 
 	modules := []*tfjson.StateModule{}
 	var planConfig *tfjson.Config
@@ -338,7 +339,7 @@ func (s *server) Graph(
 			// State JSON omits configuration, so script ordering takes it from
 			// this session's plan.
 			plan := sessState.plan
-			if plan == nil || !hasScriptOrderDataSource(planModules(plan)) {
+			if plan == nil {
 				return provisionersdk.GraphError(
 					"load plan configuration for script ordering: " +
 						"state graph requires a preceding successful plan",
@@ -353,12 +354,13 @@ func (s *server) Graph(
 	endStage := e.timings.startStage(database.ProvisionerJobTimingStageGraph)
 	rawGraph := sessState.graph
 	if request.Source == proto.GraphSource_SOURCE_STATE && graphHasPriorStateNodes(rawGraph) {
-		// The graph from Plan was built against the state before apply. Nodes
-		// for deposed objects in that state share labels with the
-		// configuration's nodes but have none of their edges, which can leave
-		// an agent without its resource, so build the graph again from the
-		// state apply left behind. Orphaned objects match no resource, but
-		// also no longer exist after apply.
+		// The graph from Plan was built against the state before apply, and
+		// its nodes for objects that only that state held mislead the
+		// conversion. A deposed object shares its resource's label but has
+		// none of its edges, which can leave an agent without its resource.
+		// An orphaned resource is gone after apply, but would still count
+		// where resources are found by label, as external agents are. Build
+		// the graph again from the state apply left behind.
 		rawGraph = ""
 	}
 	var err error
@@ -464,7 +466,7 @@ func (s *server) Apply(
 	defer cancel()
 	defer kill()
 
-	e, unlock := s.executor(sess.Files, database.ProvisionerJobTimingStageApply)
+	e, unlock := s.lockExecutor(sess.Files, database.ProvisionerJobTimingStageApply)
 	defer unlock()
 	if err := e.checkMinVersion(ctx); err != nil {
 		return provisionersdk.ApplyErrorf("%s", err.Error())

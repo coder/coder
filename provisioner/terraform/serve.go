@@ -148,7 +148,7 @@ func Serve(ctx context.Context, options *ServeOptions) error {
 }
 
 type server struct {
-	// execMut is held by one RPC at a time; see executor.
+	// execMut is held by one RPC at a time; see lockExecutor.
 	execMut       sync.Mutex
 	binaryPath    string
 	cachePath     string
@@ -162,29 +162,29 @@ type server struct {
 	versionMu     sync.Mutex
 	cachedVersion *version.Version
 
-	// sessionsMu guards sessions, which carries state between the RPCs of
-	// one provisioner session (Init, Plan, Apply, Graph).
+	// sessionsMu guards sessions, which carries Plan's results to the Graph
+	// of the same session.
 	sessionsMu sync.Mutex
 	sessions   map[*provisionersdk.Session]sessionState
 }
 
-// sessionState is what the RPCs of one session leave behind for the later
-// ones. It is stored and returned by value, so every read and write of it
-// holds sessionsMu.
+// sessionState is what Plan leaves for the Graph of the same session.
+// Callers get a copy; the plan it points to is shared and must not be
+// modified.
 type sessionState struct {
 	// plan is the parsed plan file and graph the `terraform graph` output
-	// from the most recent successful Plan, so Graph can reuse them instead
-	// of running Terraform again. Template import plans the start and stop
-	// transitions in one session, and each Plan replaces both. graph is
-	// empty when computing it during Plan failed. Nothing may modify the
-	// plan once it is stored.
+	// from the most recent successful Plan, so Graph doesn't have to run
+	// Terraform for them again. A plan-source Graph converts the whole plan,
+	// and a state-source Graph reads its configuration. Template import
+	// plans the start and stop transitions in one session, and each Plan
+	// replaces both. graph is empty when Plan didn't compute it.
 	plan  *tfjson.Plan
 	graph string
 }
 
-// sessionState returns a copy of the state stored for sess, which is empty
-// if none was stored.
-func (s *server) sessionState(sess *provisionersdk.Session) sessionState {
+// loadSessionState returns a copy of the state stored for sess, which is
+// empty if none was stored.
+func (s *server) loadSessionState(sess *provisionersdk.Session) sessionState {
 	s.sessionsMu.Lock()
 	defer s.sessionsMu.Unlock()
 	return s.sessions[sess]
@@ -193,7 +193,8 @@ func (s *server) sessionState(sess *provisionersdk.Session) sessionState {
 // setSessionState replaces the state stored for sess. ctx must be the
 // session's context: the state is removed when ctx is done, so it never
 // outlives its session, including sessions that end before Graph because a
-// later stage failed or was canceled.
+// later stage failed or was canceled. It is a parameter because a test can't
+// give a Session a context.
 func (s *server) setSessionState(ctx context.Context, sess *provisionersdk.Session, state sessionState) {
 	s.sessionsMu.Lock()
 	defer s.sessionsMu.Unlock()
@@ -232,11 +233,14 @@ func (s *server) startTrace(ctx context.Context, name string, opts ...trace.Span
 	))...)
 }
 
-// executor returns the executor for one RPC and the function that releases
-// it. Only one RPC runs Terraform at a time: sessions share the plugin cache
-// directory, and a job can be abandoned while its Terraform command is still
-// exiting. The commands of one RPC may run side by side.
-func (s *server) executor(files tfpath.Layout, stage database.ProvisionerJobTimingStage) (*executor, func()) {
+// lockExecutor waits until no other RPC is running Terraform, then returns
+// the executor for this RPC and the function that lets the next RPC run. The
+// caller must call that function when its RPC ends, and must not call
+// lockExecutor again before then, which would deadlock. Only one RPC runs
+// Terraform at a time: sessions share the plugin cache directory, and a job
+// can be abandoned while its Terraform command is still exiting. The
+// commands of one RPC may run side by side.
+func (s *server) lockExecutor(files tfpath.Layout, stage database.ProvisionerJobTimingStage) (*executor, func()) {
 	s.execMut.Lock()
 	return &executor{
 		server:        s,

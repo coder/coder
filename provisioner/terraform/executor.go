@@ -525,7 +525,10 @@ func (e *executor) graph(ctx, killCtx context.Context) (string, error) {
 
 	err = waitCommand(killCtx, cmd)
 	if err != nil {
-		return "", xerrors.Errorf("graph: %s: %w", strings.TrimSpace(stderr.String()), err)
+		if output := strings.TrimSpace(stderr.String()); output != "" {
+			return "", xerrors.Errorf("graph: %s: %w", output, err)
+		}
+		return "", xerrors.Errorf("graph: %w", err)
 	}
 	return out.String(), nil
 }

@@ -142,7 +142,7 @@ func Test_terraformVersion(t *testing.T) {
 		}
 
 		// Executors use the same cache.
-		e, unlock := srv.executor(tfpath.Layout(tempDir), database.ProvisionerJobTimingStageInit)
+		e, unlock := srv.lockExecutor(tfpath.Layout(tempDir), database.ProvisionerJobTimingStageInit)
 		defer unlock()
 		for range 3 {
 			again, err := e.version(ctx)
@@ -188,19 +188,19 @@ func Test_sessionState(t *testing.T) {
 	sess := &provisionersdk.Session{}
 	other := &provisionersdk.Session{}
 
-	require.Empty(t, s.sessionState(sess), "nothing is stored before the first Plan")
+	require.Empty(t, s.loadSessionState(sess), "nothing is stored before the first Plan")
 	// Template import plans twice in one session, and the second replaces
 	// what the first stored.
 	s.setSessionState(ctx, sess, sessionState{graph: "start"})
 	s.setSessionState(ctx, sess, sessionState{graph: "stop"})
 	s.setSessionState(t.Context(), other, sessionState{graph: "other"})
-	require.Equal(t, "stop", s.sessionState(sess).graph)
-	require.Equal(t, "other", s.sessionState(other).graph)
+	require.Equal(t, "stop", s.loadSessionState(sess).graph)
+	require.Equal(t, "other", s.loadSessionState(other).graph)
 
 	// The state goes away when its session ends, even if Graph never ran.
 	cancel()
 	require.Eventually(t, func() bool {
-		return s.sessionState(sess) == sessionState{}
+		return s.loadSessionState(sess) == sessionState{}
 	}, testutil.WaitShort, testutil.IntervalFast)
-	require.Equal(t, "other", s.sessionState(other).graph)
+	require.Equal(t, "other", s.loadSessionState(other).graph)
 }
