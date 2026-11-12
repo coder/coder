@@ -48,18 +48,7 @@ func (d *pgTxnDriver) Lock() error {
 	if err != nil {
 		return err
 	}
-	if d.reporter != nil {
-		return d.lockWithReporter()
-	}
-	const q = `
-SELECT pg_advisory_xact_lock($1)
-`
-
-	_, err = d.tx.ExecContext(d.ctx, q, lockID)
-	if err != nil {
-		return xerrors.Errorf("exec select: %w", err)
-	}
-	return nil
+	return d.lockWithReporter()
 }
 
 // lockWithReporter takes the same transaction-scoped advisory lock as Lock.

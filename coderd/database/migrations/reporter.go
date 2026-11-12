@@ -43,7 +43,8 @@ type migrationRef struct {
 // calls it at fixed moments (lock, version read, step start and end). It
 // never changes what the driver executes: its own queries run on a separate
 // pooled connection with a short timeout, against PostgreSQL system views.
-// All methods are safe to call on a nil *reporter, which reports nothing.
+// Without WithLogger it runs the same way with a zero slog.Logger, which
+// discards every line.
 type reporter struct {
 	logger     slog.Logger
 	appName    string
@@ -75,11 +76,12 @@ type reporter struct {
 	observerFailed bool
 }
 
-// newReporter returns nil, which reports nothing,
-// unless WithLogger was given.
+// newReporter returns a reporter for one run. Without WithLogger it logs to
+// a zero slog.Logger, which discards every line.
 func newReporter(db *sql.DB, o upOptions) *reporter {
-	if o.logger == nil {
-		return nil
+	var logger slog.Logger
+	if o.logger != nil {
+		logger = *o.logger
 	}
 	if o.appName == "" {
 		o.appName = "coder-migrate/" + buildinfo.Version()
@@ -94,7 +96,7 @@ func newReporter(db *sql.DB, o upOptions) *reporter {
 		o.observerDB = db
 	}
 	return &reporter{
-		logger:      *o.logger,
+		logger:      logger,
 		appName:     o.appName,
 		clock:       o.clock,
 		interval:    o.heartbeatInterval,
@@ -105,9 +107,6 @@ func newReporter(db *sql.DB, o upOptions) *reporter {
 
 // lockStarted is called at the start of every Lock, before any query.
 func (r *reporter) lockStarted() {
-	if r == nil {
-		return
-	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.closed {
@@ -120,9 +119,6 @@ func (r *reporter) lockStarted() {
 // setBackend records the migration connection's backend PID and the
 // migration transaction's ID.
 func (r *reporter) setBackend(pid int, xid string) {
-	if r == nil {
-		return
-	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.closed {
@@ -134,9 +130,6 @@ func (r *reporter) setBackend(pid int, xid string) {
 
 // lockWaitStarted is called when another session holds the migration lock.
 func (r *reporter) lockWaitStarted(phase string) {
-	if r == nil {
-		return
-	}
 	since := r.clock.Now()
 
 	r.mu.Lock()
@@ -169,10 +162,6 @@ func (r *reporter) lockWaitStarted(phase string) {
 // stopLockWaitHeartbeat stops the lock wait heartbeat, whether or not the
 // lock was acquired.
 func (r *reporter) stopLockWaitHeartbeat() {
-	if r == nil {
-		return
-	}
-
 	r.mu.Lock()
 	stop := r.stopLockWait
 	r.stopLockWait = nil
@@ -185,10 +174,6 @@ func (r *reporter) stopLockWaitHeartbeat() {
 
 // lockAcquired is called after a wait for the migration lock succeeded.
 func (r *reporter) lockAcquired(phase string) {
-	if r == nil {
-		return
-	}
-
 	r.mu.Lock()
 	waited := r.clock.Since(r.lockWaitStart)
 	closed := r.closed
@@ -207,9 +192,6 @@ func (r *reporter) lockAcquired(phase string) {
 // version has been read inside the migration transaction.
 // It's not called for a dirty schema.
 func (r *reporter) versionRead(version int) {
-	if r == nil {
-		return
-	}
 	ctx := context.Background()
 	if version != database.NilVersion && !r.inSource(version) {
 		// The database is newer than this binary.
@@ -245,7 +227,7 @@ func (r *reporter) versionRead(version int) {
 // stepStarted is called after golang-migrate marked version as in progress,
 // right before its SQL runs.
 func (r *reporter) stepStarted(version int) {
-	if r == nil || version < 0 {
+	if version < 0 {
 		return
 	}
 	now := r.clock.Now()
@@ -279,7 +261,7 @@ func (r *reporter) stepStarted(version int) {
 // stepApplied is called after golang-migrate marked version as clean. The
 // change is not durable until the batch transaction commits.
 func (r *reporter) stepApplied(version int) {
-	if r == nil || version < 0 {
+	if version < 0 {
 		return
 	}
 	r.stopStepHeartbeat()
@@ -299,19 +281,12 @@ func (r *reporter) stepApplied(version int) {
 // stopHeartbeats stops every running heartbeat.
 // Called before the migration transaction ends.
 func (r *reporter) stopHeartbeats() {
-	if r == nil {
-		return
-	}
 	r.stopLockWaitHeartbeat()
 	r.stopStepHeartbeat()
 }
 
 // close is called once the run has returned. It stops every heartbeat.
 func (r *reporter) close() {
-	if r == nil {
-		return
-	}
-
 	r.mu.Lock()
 	r.closed = true
 	r.mu.Unlock()
