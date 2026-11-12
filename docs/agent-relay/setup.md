@@ -248,9 +248,10 @@ The module READMEs for [`coder/agent-relay-claude-code`](https://registry.coder.
 - Coder can't order the `startup_script` attribute of `coder_agent`.
   Move setup steps that the worker depends on into `coder_script` resources.
 - If a prerequisite fails or times out, Coder skips the module's scripts and the worker never starts.
-  Agent Relay newer than v0.15.0 fails the session about a minute later.
+  Agent Relay v0.16.0 and later fail the session about a minute later.
   A Cursor request fails at that point.
   For Claude Code, Agent Relay hands the work order back to Anthropic once, rebuilds the workspace when Anthropic redelivers it, and fails the session if the second setup fails too.
+  Agent Relay skips that retry when the failure comes later than the pool's `dispatch_deadline` after the build was created.
   Agent Relay v0.15.0 and older wait out the [startup grace](./configuration.md#--reap-startup-grace) before failing a Cursor request, 15&nbsp;minutes by default, and hand a Claude Code work order back as retryable every time, so each redelivery runs the same setup again.
   On a claimed prebuild, the status item keeps reporting the prebuild's `idle`, so Agent Relay neither fails the session nor deletes the workspace.
   To start the worker even when setup fails, set `requires = "completion"` on the rule.
@@ -413,10 +414,14 @@ The reaper can act 30&nbsp;seconds or more after a workspace reaches one of thes
 | The worker exited normally                                                                          | Deletes the workspace.                                           |
 | The worker failed or disappeared                                                                    | Reports the failure to the provider, then deletes the workspace. |
 | The build succeeded, but the worker hasn't started within the startup grace                         | Reports the failure to the provider, then deletes the workspace. |
+| The worker hasn't started, and the agent reports that startup scripts failed or timed out           | Reports the failure to the provider, then deletes the workspace. |
 | The build failed or was canceled                                                                    | Deletes the workspace.                                           |
 | The build is still running after the longer of the startup grace and the pool's `dispatch_deadline` | Cancels the build, then deletes the workspace.                   |
 
 The startup grace is 15&nbsp;minutes by default and starts when the latest build is created.
+For failed or timed-out startup scripts, Agent Relay v0.16.0 and later don't wait for the startup grace.
+The reaper acts on the second sweep in a row that reads `pending` from a new status sample after the agent reports `start_error` or `start_timeout`.
+Refer to [Start the worker after workspace setup](#start-the-worker-after-workspace-setup).
 If you set a [reap delay](./configuration.md#--reap-delay), the reaper waits for it before it deletes a workspace or reports a failure, except in the cases that the option's reference lists.
 If a delete fails three times in a row, the reaper stops and leaves the workspace for you to remove.
 Refer to [A workspace is never deleted](./troubleshooting.md#a-workspace-is-never-deleted).
