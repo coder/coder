@@ -5747,6 +5747,24 @@ func (q *sqlQuerier) DeleteChatAutomationByID(ctx context.Context, id uuid.UUID)
 	return err
 }
 
+const deleteChatQueuedMessagesByAutomationID = `-- name: DeleteChatQueuedMessagesByAutomationID :exec
+DELETE FROM chat_queued_messages
+WHERE automation_id = $1::uuid
+  AND chat_id = $2::uuid
+`
+
+type DeleteChatQueuedMessagesByAutomationIDParams struct {
+	AutomationID uuid.UUID `db:"automation_id" json:"automation_id"`
+	ChatID       uuid.UUID `db:"chat_id" json:"chat_id"`
+}
+
+// Deletes the messages that the automation queued in one chat. The caller
+// holds the lock of the chat.
+func (q *sqlQuerier) DeleteChatQueuedMessagesByAutomationID(ctx context.Context, arg DeleteChatQueuedMessagesByAutomationIDParams) error {
+	_, err := q.db.ExecContext(ctx, deleteChatQueuedMessagesByAutomationID, arg.AutomationID, arg.ChatID)
+	return err
+}
+
 const getChatAutomationByID = `-- name: GetChatAutomationByID :one
 SELECT id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, prompt, target_mode, target_chat_id, when_busy, new_chat_model_config_id, reasoning_effort, project_id, webhook_auth, webhook_secret, webhook_secret_key_id, webhook_secret_version, schedule_cron, schedule_time_zone, schedule_next_run_at, schedule_revision, last_run_at, last_run_outcome, last_run_reason, last_run_chat_id, last_run_unaccepted_count, created_at, updated_at
 FROM chat_automations
@@ -5912,6 +5930,38 @@ func (q *sqlQuerier) GetChatAutomationsByOrganizationID(ctx context.Context, arg
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatIDsWithQueuedMessagesByAutomationID = `-- name: GetChatIDsWithQueuedMessagesByAutomationID :many
+SELECT DISTINCT chat_id
+FROM chat_queued_messages
+WHERE automation_id = $1::uuid
+ORDER BY chat_id
+`
+
+// Returns the chats that hold messages that the automation queued, in the
+// order in which a delete locks them.
+func (q *sqlQuerier) GetChatIDsWithQueuedMessagesByAutomationID(ctx context.Context, automationID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, getChatIDsWithQueuedMessagesByAutomationID, automationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var chat_id uuid.UUID
+		if err := rows.Scan(&chat_id); err != nil {
+			return nil, err
+		}
+		items = append(items, chat_id)
 	}
 	if err := rows.Close(); err != nil {
 		return nil, err
@@ -11906,6 +11956,88 @@ WHERE
 
 func (q *sqlQuerier) GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]Chat, error) {
 	rows, err := q.db.QueryContext(ctx, getChatsByChatFileID, fileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.LastReasoningEffort,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.DynamicTools,
+			&i.OrganizationID,
+			&i.ProjectID,
+			&i.PlanMode,
+			&i.ClientType,
+			&i.LastTurnSummary,
+			&i.Summary,
+			&i.SummaryGeneratedAt,
+			&i.SnapshotVersion,
+			&i.HistoryVersion,
+			&i.QueueVersion,
+			&i.GenerationAttempt,
+			&i.RetryState,
+			&i.RetryStateVersion,
+			&i.RunnerID,
+			&i.RequiresActionDeadlineAt,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.OwnerUsername,
+			&i.OwnerName,
+			&i.ContextAggregateHash,
+			&i.ContextDirtySince,
+			&i.ContextDirtyResources,
+			&i.ContextError,
+			&i.CompactionRequestedAt,
+			&i.TitleSource,
+			&i.TitleUpdatedAt,
+			&i.AutomationID,
+			&i.ManageAutomationsEnabled,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatsByIDs = `-- name: GetChatsByIDs :many
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at, automation_id, manage_automations_enabled
+FROM chats_expanded
+WHERE id = ANY($1::uuid[])
+`
+
+func (q *sqlQuerier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getChatsByIDs, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}

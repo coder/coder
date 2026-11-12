@@ -2433,6 +2433,14 @@ func (q *querier) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg
 	return q.db.DeleteChatQueuedMessageReturningCount(ctx, arg)
 }
 
+func (q *querier) DeleteChatQueuedMessagesByAutomationID(ctx context.Context, arg database.DeleteChatQueuedMessagesByAutomationIDParams) error {
+	// The delete of the automation covers its queued messages.
+	fetch := func(ctx context.Context, arg database.DeleteChatQueuedMessagesByAutomationIDParams) (database.ChatAutomation, error) {
+		return q.db.GetChatAutomationByID(ctx, arg.AutomationID)
+	}
+	return fetchAndExec(q.log, q.auth, policy.ActionDelete, fetch, q.db.DeleteChatQueuedMessagesByAutomationID)(ctx, arg)
+}
+
 func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -3625,6 +3633,18 @@ func (q *querier) GetChatHeartbeat(ctx context.Context, arg database.GetChatHear
 	return q.db.GetChatHeartbeat(ctx, arg)
 }
 
+func (q *querier) GetChatIDsWithQueuedMessagesByAutomationID(ctx context.Context, automationID uuid.UUID) ([]uuid.UUID, error) {
+	// The caller locks these chats to delete the automation.
+	automation, err := q.db.GetChatAutomationByID(ctx, automationID)
+	if err != nil {
+		return nil, err
+	}
+	if err := q.authorizeContext(ctx, policy.ActionDelete, automation); err != nil {
+		return nil, err
+	}
+	return q.db.GetChatIDsWithQueuedMessagesByAutomationID(ctx, automationID)
+}
+
 func (q *querier) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
 	// The include-default-system-prompt flag is a deployment-wide setting read
 	// during chat creation by every authenticated user, so no RBAC policy
@@ -4037,6 +4057,10 @@ func (q *querier) GetChats(ctx context.Context, arg database.GetChatsParams) ([]
 
 func (q *querier) GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]database.Chat, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByChatFileID)(ctx, fileID)
+}
+
+func (q *querier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetChatsByIDs)(ctx, ids)
 }
 
 func (q *querier) GetChatsByIDsForRunnerSync(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {

@@ -1079,6 +1079,20 @@ func (mr *MockStoreMockRecorder) DeleteChatQueuedMessageReturningCount(ctx, arg 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatQueuedMessageReturningCount", reflect.TypeOf((*MockStore)(nil).DeleteChatQueuedMessageReturningCount), ctx, arg)
 }
 
+// DeleteChatQueuedMessagesByAutomationID mocks base method.
+func (m *MockStore) DeleteChatQueuedMessagesByAutomationID(ctx context.Context, arg database.DeleteChatQueuedMessagesByAutomationIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteChatQueuedMessagesByAutomationID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteChatQueuedMessagesByAutomationID indicates an expected call of DeleteChatQueuedMessagesByAutomationID.
+func (mr *MockStoreMockRecorder) DeleteChatQueuedMessagesByAutomationID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatQueuedMessagesByAutomationID", reflect.TypeOf((*MockStore)(nil).DeleteChatQueuedMessagesByAutomationID), ctx, arg)
+}
+
 // DeleteCryptoKey mocks base method.
 func (m *MockStore) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
 	m.ctrl.T.Helper()
@@ -3292,6 +3306,21 @@ func (mr *MockStoreMockRecorder) GetChatHeartbeat(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatHeartbeat", reflect.TypeOf((*MockStore)(nil).GetChatHeartbeat), ctx, arg)
 }
 
+// GetChatIDsWithQueuedMessagesByAutomationID mocks base method.
+func (m *MockStore) GetChatIDsWithQueuedMessagesByAutomationID(ctx context.Context, automationID uuid.UUID) ([]uuid.UUID, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatIDsWithQueuedMessagesByAutomationID", ctx, automationID)
+	ret0, _ := ret[0].([]uuid.UUID)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatIDsWithQueuedMessagesByAutomationID indicates an expected call of GetChatIDsWithQueuedMessagesByAutomationID.
+func (mr *MockStoreMockRecorder) GetChatIDsWithQueuedMessagesByAutomationID(ctx, automationID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatIDsWithQueuedMessagesByAutomationID", reflect.TypeOf((*MockStore)(nil).GetChatIDsWithQueuedMessagesByAutomationID), ctx, automationID)
+}
+
 // GetChatIncludeDefaultSystemPrompt mocks base method.
 func (m *MockStore) GetChatIncludeDefaultSystemPrompt(ctx context.Context) (bool, error) {
 	m.ctrl.T.Helper()
@@ -3980,6 +4009,21 @@ func (m *MockStore) GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) 
 func (mr *MockStoreMockRecorder) GetChatsByChatFileID(ctx, fileID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsByChatFileID", reflect.TypeOf((*MockStore)(nil).GetChatsByChatFileID), ctx, fileID)
+}
+
+// GetChatsByIDs mocks base method.
+func (m *MockStore) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetChatsByIDs", ctx, ids)
+	ret0, _ := ret[0].([]database.Chat)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetChatsByIDs indicates an expected call of GetChatsByIDs.
+func (mr *MockStoreMockRecorder) GetChatsByIDs(ctx, ids any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetChatsByIDs", reflect.TypeOf((*MockStore)(nil).GetChatsByIDs), ctx, ids)
 }
 
 // GetChatsByIDsForRunnerSync mocks base method.

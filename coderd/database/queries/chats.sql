@@ -2484,6 +2484,11 @@ WHERE cm.created_at >= @start_time::timestamptz
   AND cm.created_at < @end_time::timestamptz
   AND cm.runtime_ms IS NOT NULL;
 
+-- name: GetChatsByIDs :many
+SELECT *
+FROM chats_expanded
+WHERE id = ANY(@ids::uuid[]);
+
 -- name: GetChatsByWorkspaceIDs :many
 SELECT *
 FROM chats_expanded

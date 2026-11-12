@@ -1437,6 +1437,27 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteChatAutomationByID(gomock.Any(), automation.ID).Return(nil).AnyTimes()
 		check.Args(automation.ID).Asserts(automation, policy.ActionDelete)
 	}))
+	s.Run("DeleteChatQueuedMessagesByAutomationID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		arg := database.DeleteChatQueuedMessagesByAutomationIDParams{AutomationID: automation.ID, ChatID: uuid.New()}
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().DeleteChatQueuedMessagesByAutomationID(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(automation, policy.ActionDelete)
+	}))
+	s.Run("GetChatIDsWithQueuedMessagesByAutomationID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+		chatIDs := []uuid.UUID{uuid.New(), uuid.New()}
+		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
+		dbm.EXPECT().GetChatIDsWithQueuedMessagesByAutomationID(gomock.Any(), automation.ID).Return(chatIDs, nil).AnyTimes()
+		check.Args(automation.ID).Asserts(automation, policy.ActionDelete).Returns(chatIDs)
+	}))
+	s.Run("GetChatsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chatA := testutil.Fake(s.T(), faker, database.Chat{})
+		chatB := testutil.Fake(s.T(), faker, database.Chat{})
+		ids := []uuid.UUID{chatA.ID, chatB.ID}
+		dbm.EXPECT().GetChatsByIDs(gomock.Any(), ids).Return([]database.Chat{chatA, chatB}, nil).AnyTimes()
+		check.Args(ids).Asserts(chatA, policy.ActionRead, chatB, policy.ActionRead).Returns([]database.Chat{chatA, chatB})
+	}))
 	s.Run("CountChatProjectsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
 		ownerID := uuid.New()
 		dbm.EXPECT().CountChatProjectsByOwnerID(gomock.Any(), ownerID).Return(int64(3), nil).AnyTimes()
