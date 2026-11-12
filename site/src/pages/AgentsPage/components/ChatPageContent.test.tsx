@@ -1,16 +1,265 @@
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
+import { QueryClientProvider } from "react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { API } from "#/api/api";
 import { authorizationKey, getAuthorizationKey } from "#/api/queries/authCheck";
+import { preferenceSettingsKey } from "#/api/queries/users";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
-import { renderWithAuth } from "#/testHelpers/renderHelpers";
+import {
+	MockUserChatCompactionThresholds,
+	MockUserPreferenceSettings,
+} from "#/testHelpers/entities";
+import {
+	createTestQueryClient,
+	renderComponent,
+	renderWithAuth,
+} from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
+import { MessageScroller } from "#/vendor/message-scroller";
 import type { ChatMessageInputRef } from "./AgentChatInput";
 import { createChatStore } from "./ChatConversation/chatStore";
-import { ChatPageInput, workspaceSkillsFromChat } from "./ChatPageContent";
+import {
+	buildQuestionArgs,
+	MockAsyncQuestionAnswerMessage,
+	MockAsyncQuestionCallMessage,
+	MockAsyncQuestionId,
+	MockAsyncQuestionMessages,
+	MockAsyncQuestionResultMessage,
+	MockAsyncQuestions,
+	MockNewerAsyncQuestionId,
+	MockNewerAsyncQuestionMessages,
+	MockQueuedQuestionAnswer,
+} from "./ChatConversation/storyFixtures";
+import {
+	ChatPageInput,
+	ChatPageTimeline,
+	workspaceSkillsFromChat,
+} from "./ChatPageContent";
+
+const renderChatPageTimeline = (
+	store: ReturnType<typeof createChatStore>,
+	initialProps: Partial<React.ComponentProps<typeof ChatPageTimeline>> = {},
+) => {
+	const queryClient = createTestQueryClient();
+	queryClient.setQueryDefaults(preferenceSettingsKey, {
+		staleTime: Number.POSITIVE_INFINITY,
+	});
+	queryClient.setQueryData(preferenceSettingsKey, MockUserPreferenceSettings);
+
+	const renderStage = (
+		props: Partial<React.ComponentProps<typeof ChatPageTimeline>>,
+	) => (
+		<QueryClientProvider client={queryClient}>
+			<MessageScroller.Provider autoScroll defaultScrollPosition="end">
+				<ChatPageTimeline
+					organizationId="organization-id"
+					store={store}
+					persistedError={undefined}
+					hasMoreMessages={false}
+					isFetchingMoreMessages={false}
+					isHydratingMessages={false}
+					hasFetchMoreError={false}
+					onFetchMoreMessages={vi.fn()}
+					isReadOnly={false}
+					urlTransform={(url) => url}
+					mcpServers={[]}
+					{...initialProps}
+					{...props}
+				/>
+			</MessageScroller.Provider>
+		</QueryClientProvider>
+	);
+	const result = renderComponent(renderStage({}));
+
+	return {
+		rerenderTimeline: (
+			props: Partial<React.ComponentProps<typeof ChatPageTimeline>> = {},
+		) => result.rerender(renderStage(props)),
+	};
+};
+
+describe("ChatPageTimeline async questions", () => {
+	it("submits the chosen answer with the question ID", async () => {
+		const user = userEvent.setup();
+		const onSendAskUserQuestionResponse = vi.fn();
+		const store = createChatStore();
+		store.replaceMessages(MockAsyncQuestionMessages);
+
+		renderChatPageTimeline(store, { onSendAskUserQuestionResponse });
+
+		await user.click(
+			await screen.findByRole("radio", { name: /^Frontend first/ }),
+		);
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+
+		await waitFor(() => {
+			expect(onSendAskUserQuestionResponse).toHaveBeenCalledTimes(1);
+		});
+		expect(onSendAskUserQuestionResponse).toHaveBeenCalledWith(
+			"Frontend first, then the API.",
+			MockAsyncQuestionId,
+		);
+	});
+
+	it("answers a blocking question from its card without a question ID", async () => {
+		const user = userEvent.setup();
+		const onSendAskUserQuestionResponse = vi.fn();
+		const store = createChatStore();
+		store.replaceMessages([
+			...MockAsyncQuestionMessages.slice(0, 1),
+			{
+				...MockAsyncQuestionCallMessage,
+				content: [
+					{
+						type: "tool-call",
+						tool_call_id: "blocking-question",
+						tool_name: "ask_user_question",
+						args: buildQuestionArgs(MockAsyncQuestions),
+					},
+				],
+			},
+			{
+				...MockAsyncQuestionResultMessage,
+				content: [
+					{
+						type: "tool-result",
+						tool_call_id: "blocking-question",
+						tool_name: "ask_user_question",
+						result: { questions: MockAsyncQuestions },
+					},
+				],
+			},
+		]);
+
+		renderChatPageTimeline(store, { onSendAskUserQuestionResponse });
+
+		await user.click(
+			await screen.findByRole("radio", { name: /^Frontend first/ }),
+		);
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+
+		await waitFor(() => {
+			expect(onSendAskUserQuestionResponse).toHaveBeenCalledTimes(1);
+		});
+		expect(onSendAskUserQuestionResponse).toHaveBeenCalledWith(
+			"Frontend first, then the API.",
+		);
+	});
+
+	it("keeps the selected answer when a queued answer is removed", async () => {
+		const user = userEvent.setup();
+		const onSendAskUserQuestionResponse = vi.fn().mockResolvedValue(undefined);
+		const store = createChatStore();
+		store.replaceMessages(MockAsyncQuestionMessages);
+		const { rerenderTimeline } = renderChatPageTimeline(store, {
+			onSendAskUserQuestionResponse,
+		});
+
+		await user.click(
+			await screen.findByRole("radio", { name: /^Frontend first/ }),
+		);
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+		await waitFor(() => {
+			expect(onSendAskUserQuestionResponse).toHaveBeenCalledTimes(1);
+		});
+
+		act(() => {
+			store.setQueuedMessages([MockQueuedQuestionAnswer]);
+		});
+		rerenderTimeline();
+		act(() => {
+			store.setQueuedMessages([]);
+		});
+		rerenderTimeline();
+		await user.click(await screen.findByRole("button", { name: "Submit" }));
+
+		await waitFor(() => {
+			expect(onSendAskUserQuestionResponse).toHaveBeenCalledTimes(2);
+		});
+		expect(onSendAskUserQuestionResponse).toHaveBeenNthCalledWith(
+			2,
+			"Frontend first, then the API.",
+			MockAsyncQuestionId,
+		);
+	});
+
+	it("keeps the selected answer while an earlier message is edited", async () => {
+		const user = userEvent.setup();
+		const onSendAskUserQuestionResponse = vi.fn();
+		const store = createChatStore();
+		store.replaceMessages(MockAsyncQuestionMessages);
+		const { rerenderTimeline } = renderChatPageTimeline(store, {
+			onSendAskUserQuestionResponse,
+		});
+
+		await user.click(
+			await screen.findByRole("radio", { name: /^Frontend first/ }),
+		);
+		rerenderTimeline({ editingMessageId: 1 });
+		rerenderTimeline({ editingMessageId: null });
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+
+		await waitFor(() => {
+			expect(onSendAskUserQuestionResponse).toHaveBeenCalledWith(
+				"Frontend first, then the API.",
+				MockAsyncQuestionId,
+			);
+		});
+	});
+
+	it("submits the newer question's answer without sending the earlier selection", async () => {
+		const user = userEvent.setup();
+		const onSendAskUserQuestionResponse = vi.fn();
+		const store = createChatStore();
+		store.replaceMessages(MockAsyncQuestionMessages);
+		const { rerenderTimeline } = renderChatPageTimeline(store, {
+			onSendAskUserQuestionResponse,
+		});
+
+		await user.click(
+			await screen.findByRole("radio", { name: /^Frontend first/ }),
+		);
+		act(() => {
+			store.replaceMessages(MockNewerAsyncQuestionMessages);
+		});
+		rerenderTimeline();
+		await user.click(
+			await screen.findByRole("radio", { name: /^Check it by hand/ }),
+		);
+		await user.click(screen.getByRole("button", { name: "Submit" }));
+
+		await waitFor(() => {
+			expect(onSendAskUserQuestionResponse).toHaveBeenCalledTimes(1);
+		});
+		expect(onSendAskUserQuestionResponse).toHaveBeenCalledWith(
+			"Check it by hand in a dev deployment.",
+			MockNewerAsyncQuestionId,
+		);
+	});
+
+	it("announces an open question and clears the announcement after its answer", () => {
+		const store = createChatStore();
+		store.replaceMessages(MockAsyncQuestionMessages);
+		const { rerenderTimeline } = renderChatPageTimeline(store);
+
+		expect(screen.getByRole("status")).toHaveTextContent(
+			"The agent asked a question: Which part should change first?",
+		);
+
+		act(() => {
+			store.replaceMessages([
+				...MockAsyncQuestionMessages,
+				MockAsyncQuestionAnswerMessage,
+			]);
+		});
+		rerenderTimeline();
+
+		expect(screen.getByRole("status")).toHaveTextContent(/^$/);
+	});
+});
 
 const skillResource = (
 	name: string,
@@ -393,17 +642,38 @@ describe("ChatPageInput", () => {
 		expect(screen.getByRole("textbox", { name: "Chat message" })).toHaveFocus();
 	});
 
-	it("routes Stop to onInterrupt while the chat requires action", async () => {
-		const user = userEvent.setup();
-		const onInterrupt = vi.fn();
-		const store = createChatStore();
-		store.setChatStatus("requires_action");
+	it.each([
+		{ status: "requires_action", interruptCalls: 1 },
+		{ status: "interrupting", interruptCalls: 0 },
+	] satisfies { status: TypesGen.ChatStatus; interruptCalls: number }[])(
+		"routes Stop while the chat is $status",
+		async ({ status, interruptCalls }) => {
+			vi.spyOn(API, "getUserPreferenceSettings").mockResolvedValue(
+				MockUserPreferenceSettings,
+			);
+			vi.spyOn(
+				API.experimental,
+				"getUserChatCompactionThresholds",
+			).mockResolvedValue(MockUserChatCompactionThresholds);
+			const user = userEvent.setup();
+			const onInterrupt = vi.fn();
+			const store = createChatStore();
+			store.setChatStatus(status);
 
-		renderChatPageInput(store, { onInterrupt });
+			renderChatPageInput(store, { onInterrupt });
 
-		await user.click(await screen.findByRole("button", { name: "Stop" }));
-		expect(onInterrupt).toHaveBeenCalledTimes(1);
-	});
+			await user.click(await screen.findByRole("button", { name: "Stop" }));
+			if (status === "interrupting") {
+				await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+				await user.keyboard("{Escape}");
+				expect(screen.getByRole("status")).toHaveTextContent(
+					"Interrupting. Waiting for the agent to stop.",
+				);
+			}
+
+			expect(onInterrupt).toHaveBeenCalledTimes(interruptCalls);
+		},
+	);
 
 	it("rehydrates edited workspace file references only from the bound workspace", async () => {
 		const user = userEvent.setup();

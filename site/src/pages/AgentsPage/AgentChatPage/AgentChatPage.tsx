@@ -83,6 +83,7 @@ import { isChatAgentBindingUnresolved } from "../components/ChatConversation/wat
 import { workspaceSkillsFromChat } from "../components/ChatPageContent";
 import { getModelSelectorHelp } from "../components/ModelSelectorHelp";
 import { useAgentChatPanelPreference } from "../components/RightPanel/useAgentChatPanelPreference";
+import { useChatInputFocusAfterSend } from "../hooks/useChatInputFocusAfterSend";
 import {
 	type SendChatTurnOptions,
 	useConversationEditingState,
@@ -834,10 +835,16 @@ const AgentChatPage: React.FC = () => {
 		});
 	}
 
-	const handleSendAskUserQuestionResponse = async (message: string) => {
+	const sendAnswer = useChatInputFocusAfterSend(chatInputRef, sendMessage);
+	const handleSendAskUserQuestionResponse = async (
+		message: string,
+		questionId?: string,
+	) => {
 		await submitChatTurn({
 			...chatTurnDeps,
 			message,
+			questionAnswerId: questionId,
+			sendMessage: questionId === undefined ? sendMessage : sendAnswer,
 		});
 	};
 

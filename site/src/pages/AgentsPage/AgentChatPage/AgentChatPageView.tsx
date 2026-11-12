@@ -150,7 +150,10 @@ type AgentChatPageViewProps = {
 	queuedMessageUnderEditID: number | null;
 
 	onImplementPlan: () => Promise<void> | void;
-	onSendAskUserQuestionResponse: (message: string) => Promise<void> | void;
+	onSendAskUserQuestionResponse: (
+		message: string,
+		questionId?: string,
+	) => Promise<void> | void;
 
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
@@ -621,6 +624,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 							}}
 						>
 							<ChatPageTimeline
+								isReadOnly={isArchived || isOtherUserReadOnly}
 								organizationId={organizationId}
 								store={store}
 								chatFiles={chat.files}

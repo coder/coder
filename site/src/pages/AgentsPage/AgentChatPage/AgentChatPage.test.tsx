@@ -21,17 +21,26 @@ import {
 	MockChatModelProviderDescriptor,
 } from "#/testHelpers/chatModels";
 import {
+	MockUserChatCompactionThresholds,
 	MockUserPreferenceSettings,
 	mockApiError,
 } from "#/testHelpers/entities";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
-import { MockSkill } from "#/testHelpers/skills";
+import {
+	MockOrganizationSkillPreferences,
+	MockSkill,
+} from "#/testHelpers/skills";
 import {
 	createMockWebSocket,
 	type MockWebSocketServer,
 } from "#/testHelpers/websockets";
 import { OneWayWebSocket } from "#/utils/OneWayWebSocket";
 import type { AgentsPageOutletContext } from "../AgentsPageLayout";
+import {
+	MockAsyncQuestionId,
+	MockAsyncQuestionMessages,
+	MockQueuedQuestionAnswer,
+} from "../components/ChatConversation/storyFixtures";
 import { parseStoredDraft } from "../utils/draftStorage";
 import AgentChatPage from "./AgentChatPage";
 
@@ -63,10 +72,12 @@ beforeAll(() => {
 // to this render, so a test can render the page twice as two tabs.
 const renderQueuedChat = ({
 	queuedMessages,
+	messages = [],
 	chat = MockChat,
 	models = [{ ...MockChatModel, id: chat.last_model_config_id }],
 }: {
 	queuedMessages: readonly TypesGen.ChatQueuedMessage[];
+	messages?: readonly TypesGen.ChatMessage[];
 	chat?: TypesGen.Chat;
 	models?: readonly TypesGen.ChatModel[];
 }) => {
@@ -84,7 +95,7 @@ const renderQueuedChat = ({
 	);
 	vi.spyOn(API.experimental, "getChat").mockResolvedValue(chat);
 	vi.spyOn(API.experimental, "getChatMessages").mockResolvedValue({
-		messages: [],
+		messages: [...messages],
 		queued_messages: [...queuedMessages],
 		has_more: false,
 	});
@@ -158,6 +169,67 @@ const renderQueuedChat = ({
 };
 
 describe("AgentChatPage", () => {
+	it("answers an async question with an answer part and default busy behavior", async () => {
+		vi.spyOn(API, "getAIProviders").mockResolvedValue([]);
+		vi.spyOn(API.experimental, "getUserChatDebugLogging").mockResolvedValue({
+			debug_logging_enabled: false,
+			user_toggle_allowed: false,
+			forced_by_deployment: false,
+		});
+		vi.spyOn(API.experimental, "getUserSkills").mockResolvedValue([]);
+		vi.spyOn(API.experimental, "getOrganizationSkills").mockResolvedValue([]);
+		vi.spyOn(
+			API.experimental,
+			"getOrganizationSkillPreferences",
+		).mockResolvedValue(MockOrganizationSkillPreferences);
+		vi.spyOn(
+			API.experimental,
+			"getUserChatCompactionThresholds",
+		).mockResolvedValue(MockUserChatCompactionThresholds);
+		vi.spyOn(
+			API.experimental,
+			"getOrganizationChatModelOverrides",
+		).mockResolvedValue({
+			overrides: [],
+		});
+		vi.spyOn(API.experimental, "getChatPrompts").mockResolvedValue({
+			prompts: [],
+		});
+
+		const createChatMessage = vi
+			.spyOn(API.experimental, "createChatMessage")
+			.mockResolvedValue({
+				queued: true,
+				queued_message: MockQueuedQuestionAnswer,
+			});
+		const page = renderQueuedChat({
+			messages: MockAsyncQuestionMessages,
+			queuedMessages: [],
+			chat: { ...MockChat, status: "running" },
+		});
+
+		const submitButton = await page.view.findByRole("button", {
+			name: "Submit",
+		});
+		await page.user.click(
+			page.view.getByRole("radio", { name: /^Frontend first/ }),
+		);
+		await act(async () => {
+			await page.user.click(submitButton);
+		});
+
+		await waitFor(() => {
+			expect(createChatMessage).toHaveBeenCalledTimes(1);
+		});
+		const [chatId, request] = createChatMessage.mock.calls[0];
+		expect(chatId).toBe(MockChat.id);
+		expect(request.content).toEqual([
+			{ type: "question-answer", question_id: MockAsyncQuestionId },
+			{ type: "text", text: "Frontend first, then the API." },
+		]);
+		expect(request.busy_behavior).toBeUndefined();
+	});
+
 	it("refreshes the project actions after a send fails", async () => {
 		vi.spyOn(apiModule, "watchChat").mockImplementation(
 			() =>

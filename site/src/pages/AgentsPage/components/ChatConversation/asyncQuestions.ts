@@ -17,7 +17,7 @@ export type AsyncQuestion = {
 	answerText: string | undefined;
 };
 
-export type AsyncQuestions = {
+type AsyncQuestions = {
 	byId: ReadonlyMap<string, AsyncQuestion>;
 	/**
 	 * The newest async question, when it is open or pending. The question
