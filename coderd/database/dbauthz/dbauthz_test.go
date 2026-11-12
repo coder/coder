@@ -924,6 +924,20 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().SoftDeleteChatMessageByID(gomock.Any(), msg.ID).Return(nil).AnyTimes()
 		check.Args(msg.ID).Asserts(chat, policy.ActionUpdate).Returns()
 	}))
+	s.Run("ResolveChatMessagePromptHooks", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		msg := database.ChatMessage{ID: 456, ChatID: chat.ID}
+		arg := database.ResolveChatMessagePromptHooksParams{ID: msg.ID, ChatID: chat.ID, Deleted: true}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().ResolveChatMessagePromptHooks(gomock.Any(), arg).Return(msg, nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(msg)
+	}))
+	s.Run("ClearChatMessagesPromptHooks", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().ClearChatMessagesPromptHooks(gomock.Any(), chat.ID).Return(nil).AnyTimes()
+		check.Args(chat.ID).Asserts(chat, policy.ActionUpdate).Returns()
+	}))
 	s.Run("DeleteChatModelConfigByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		config := testutil.Fake(s.T(), faker, database.ChatModelConfig{})
 		dbm.EXPECT().GetChatModelConfigByID(gomock.Any(), config.ID).Return(config, nil).AnyTimes()
