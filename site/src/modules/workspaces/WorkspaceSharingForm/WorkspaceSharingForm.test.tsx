@@ -28,7 +28,7 @@ describe("WorkspaceSharingForm", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("names each member's role select after the member", async () => {
+	it("names each member's role select after the member and role", async () => {
 		vi.spyOn(API, "getWorkspaceSharingSettings").mockResolvedValue({
 			sharing_disabled: false,
 			sharing_globally_disabled: false,
@@ -54,7 +54,7 @@ describe("WorkspaceSharingForm", () => {
 		const user = userEvent.setup();
 		await user.click(
 			await screen.findByRole("combobox", {
-				name: `Role for ${MockUserMember.username}`,
+				name: `Role for ${MockUserMember.username}: Use`,
 			}),
 		);
 		await user.click(await screen.findByRole("option", { name: /Admin/ }));
@@ -65,7 +65,7 @@ describe("WorkspaceSharingForm", () => {
 
 		await user.click(
 			screen.getByRole("combobox", {
-				name: `Role for ${MockGroup.display_name || MockGroup.name}`,
+				name: `Role for ${MockGroup.display_name || MockGroup.name}: Use`,
 			}),
 		);
 		await user.click(await screen.findByRole("option", { name: /Admin/ }));
@@ -175,12 +175,14 @@ describe("WorkspaceSharingForm", () => {
 });
 
 describe("RoleSelectField", () => {
-	it("has an accessible name", async () => {
+	it("has an accessible name that includes the selected role", async () => {
 		const onChange = vi.fn();
 		render(<RoleSelectField value="use" onChange={onChange} />);
 
 		const user = userEvent.setup();
-		await user.click(await screen.findByRole("combobox", { name: "Role" }));
+		await user.click(
+			await screen.findByRole("combobox", { name: "Role: Use" }),
+		);
 		await user.click(await screen.findByRole("option", { name: "Admin" }));
 		expect(onChange).toHaveBeenCalledWith("admin");
 	});
