@@ -40,6 +40,59 @@ describe("buildChatInputContent", () => {
 		});
 	});
 
+	it("puts the question-answer part before message text", () => {
+		const questionAnswerId = "11111111-1111-4111-8111-111111111111";
+
+		const result = buildChatInputContent({
+			message: "  Use Postgres.  ",
+			questionAnswerId,
+		});
+
+		expect(result).toEqual({
+			content: [
+				{ type: "question-answer", question_id: questionAnswerId },
+				{ type: "text", text: "  Use Postgres.  " },
+			],
+			hasContent: true,
+		});
+	});
+
+	it("puts the question-answer part before a skill invocation and text", () => {
+		const questionAnswerId = "11111111-1111-4111-8111-111111111111";
+
+		const result = buildChatInputContent({
+			message: "Use Postgres.",
+			questionAnswerId,
+			composerParts: [
+				{ type: "skill-invocation", source: "project", name: "triage" },
+				{ type: "text", text: "Use Postgres." },
+			],
+		});
+
+		expect(result).toEqual({
+			content: [
+				{ type: "question-answer", question_id: questionAnswerId },
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+				{ type: "text", text: "Use Postgres." },
+			],
+			hasContent: true,
+		});
+	});
+
+	it("does not add a question-answer part when there is no content", () => {
+		const result = buildChatInputContent({
+			message: "   ",
+			questionAnswerId: "11111111-1111-4111-8111-111111111111",
+			composerParts: [{ type: "text", text: "   " }],
+		});
+
+		expect(result).toEqual({ content: [], hasContent: false });
+	});
+
 	it("walks composer parts in document order and skips blank text", () => {
 		expect(
 			buildChatInputContent({

@@ -358,6 +358,7 @@ export const parseMessageContent = (
 				break;
 			}
 			case "question-answer": {
+				parsed.questionAnswerId = part.question_id;
 				break;
 			}
 			case "skill": {

@@ -152,6 +152,27 @@ describe("submitChatTurn", () => {
 		expect(sendMessage).not.toHaveBeenCalled();
 	});
 
+	it("sends the question-answer part before the answer text", async () => {
+		const questionAnswerId = "11111111-1111-4111-8111-111111111111";
+		const sendMessage = vi.fn().mockResolvedValue({ queued: false });
+		const params = buildParams({
+			message: "Use Postgres.",
+			questionAnswerId,
+			sendMessage,
+		});
+
+		await submitChatTurn(params);
+
+		expect(sendMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				content: [
+					{ type: "question-answer", question_id: questionAnswerId },
+					{ type: "text", text: "Use Postgres." },
+				],
+			}),
+		);
+	});
+
 	it.each([
 		["compact", "personalSkills"],
 		["clear", "organizationSkills"],

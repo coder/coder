@@ -223,8 +223,24 @@ describe("parseMessageContent", () => {
 
 	it("parses a single text block", () => {
 		const result = parseMessageContent([{ type: "text", text: "Hello" }]);
+		expect(result.questionAnswerId).toBeUndefined();
 		expect(result.markdown).toBe("Hello");
 		expect(result.blocks).toEqual([{ type: "response", text: "Hello" }]);
+	});
+
+	it("reads question-answer metadata without adding markdown or a block", () => {
+		const questionAnswerId = "11111111-1111-4111-8111-111111111111";
+
+		const result = parseMessageContent([
+			{ type: "question-answer", question_id: questionAnswerId },
+			{ type: "text", text: "Use Postgres." },
+		]);
+
+		expect(result.questionAnswerId).toBe(questionAnswerId);
+		expect(result.markdown).toBe("Use Postgres.");
+		expect(result.blocks).toEqual([
+			{ type: "response", text: "Use Postgres." },
+		]);
 	});
 
 	it("keeps skill invocations between the text around them", () => {
