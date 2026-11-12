@@ -109,6 +109,7 @@ const CONTEXT_BOUNDARY_TOOLS: ReadonlySet<string> = new Set([
 /** Tools that need the user's attention or record a transcript boundary. */
 const UNCOLLAPSIBLE_TOOLS: ReadonlySet<string> = new Set([
 	"ask_user_question",
+	"ask_user_question_async",
 	"propose_plan",
 	...CONTEXT_BOUNDARY_TOOLS,
 ]);

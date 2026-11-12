@@ -1,6 +1,6 @@
 import { File as FileViewer } from "@pierre/diffs/react";
 import { cn } from "cn";
-import { memo } from "react";
+import { memo, useContext } from "react";
 import type * as TypesGen from "#/api/typesGenerated";
 import { useTheme } from "#/theme/context";
 import type { SourceLink } from "../../ChatConversation/types";
@@ -11,6 +11,8 @@ import {
 	AskUserQuestionTool,
 } from "./AskUserQuestionTool";
 import { ACPToolNames, isACPToolName } from "./acpToolNames";
+import { AsyncQuestionCard } from "./AsyncQuestionCard";
+import { AsyncQuestionsContext } from "./AsyncQuestionsContext";
 import { ChatClearedTool } from "./ChatClearedTool";
 import { ChatSummarizedTool } from "./ChatSummarizedTool";
 import { ComputerTool } from "./ComputerTool";
@@ -49,6 +51,7 @@ import {
 	formatModelIntentLabel,
 	formatResultOutput,
 	formatToolInput,
+	getAsyncQuestionId,
 	getFileContentForViewer,
 	getFileViewerOptions,
 	getFileViewerOptionsNoHeader,
@@ -717,6 +720,37 @@ const AskUserQuestionRenderer: React.FC<ToolRendererProps> = ({
 	);
 };
 
+const AskUserQuestionAsyncRenderer: React.FC<ToolRendererProps> = ({
+	args,
+	status,
+	result,
+	isError,
+}) => {
+	const questions = getAskUserQuestions(args, result);
+	const resultRecord = asRecord(result);
+	const errorMessage =
+		(resultRecord
+			? asString(resultRecord.error || resultRecord.message)
+			: "") || (typeof result === "string" && isError ? result : "");
+	const questionId = getAsyncQuestionId(result);
+	const context = useContext(AsyncQuestionsContext);
+	const question = questionId === undefined ? undefined : context.byId.get(questionId);
+
+	return (
+		<AsyncQuestionCard
+			questions={questions}
+			status={status}
+			isError={isError}
+			errorMessage={errorMessage || undefined}
+			questionStatus={question?.status}
+			answerText={question?.answerText}
+			isInQuestionPanel={
+				questionId !== undefined && context.panelQuestionId === questionId
+			}
+		/>
+	);
+};
+
 const ProposePlanRenderer: React.FC<ToolRendererProps> = ({
 	args,
 	status,
@@ -1188,6 +1222,7 @@ export const toolRenderers: Record<string, React.FC<ToolRendererProps>> = {
 	chat_cleared: ChatClearedRenderer,
 	chat_summarized: ChatSummarizedRenderer,
 	ask_user_question: AskUserQuestionRenderer,
+	ask_user_question_async: AskUserQuestionAsyncRenderer,
 	propose_plan: ProposePlanRenderer,
 	advisor: AdvisorRenderer,
 	computer: ComputerRenderer,
