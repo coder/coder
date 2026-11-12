@@ -140,7 +140,7 @@ func (h *promptHooksTurn) messageText(ctx context.Context, t *testing.T, id int6
 	var text strings.Builder
 	for _, part := range parts {
 		if part.Type == codersdk.ChatMessagePartTypeText {
-			text.WriteString(part.Text)
+			_, _ = text.WriteString(part.Text)
 		}
 	}
 	return text.String(), message
