@@ -2537,6 +2537,16 @@ export interface ChatConfig {
 	 */
 	readonly max_concurrent_recording_uploads: number;
 	/**
+	 * MaxAutomationsPerOwner is the maximum number of chat automations
+	 * that one user can own across all organizations.
+	 */
+	readonly max_automations_per_owner: number;
+	/**
+	 * MinAutomationScheduleInterval is the minimum time between two runs of
+	 * a chat automation schedule.
+	 */
+	readonly min_automation_schedule_interval: number;
+	/**
 	 * @deprecated AI Gateway routing is now the only routing path. Setting this
 	 * value has no effect. This option will be removed in a future release.
 	 */
@@ -5495,6 +5505,14 @@ export const DefaultChatDebugRetentionDays = 30;
  * files linked to a chat.
  */
 export const DefaultChatMaxAttachmentsPerChat = 50;
+
+// From codersdk/chats.go
+/**
+ * Defaults for the chat limits in [ChatConfig].
+ * DefaultChatMaxAutomationsPerOwner is the default maximum number of
+ * chat automations that one user can own across all organizations.
+ */
+export const DefaultChatMaxAutomationsPerOwner = 50;
 
 // From codersdk/chats.go
 /**

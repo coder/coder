@@ -20265,6 +20265,10 @@
 					"description": "MaxAttachmentsPerChat is the maximum number of files linked to a\nchat.",
 					"type": "integer"
 				},
+				"max_automations_per_owner": {
+					"description": "MaxAutomationsPerOwner is the maximum number of chat automations\nthat one user can own across all organizations.",
+					"type": "integer"
+				},
 				"max_concurrent_recording_uploads": {
 					"description": "MaxConcurrentRecordingUploads is the maximum number of virtual\ndesktop recordings that each Coder server stores at the same time.",
 					"type": "integer"
@@ -20283,6 +20287,10 @@
 				},
 				"max_steps_per_turn": {
 					"description": "MaxStepsPerTurn is the maximum number of steps in a chat turn.",
+					"type": "integer"
+				},
+				"min_automation_schedule_interval": {
+					"description": "MinAutomationScheduleInterval is the minimum time between two runs of\na chat automation schedule.",
 					"type": "integer"
 				},
 				"stream_silence_timeout": {
