@@ -3369,6 +3369,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
   "end_line": 0,
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "file_name": "string",
+  "question_id": "827e810a-4b1a-40f6-8bc2-c3dd6fcedc25",
   "skill_name": "string",
   "skill_source": "personal",
   "start_line": 0,
@@ -3384,22 +3385,23 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 ### Properties
 
-| Name                          | Type                                                     | Required | Restrictions | Description                                                                                                                                                    |
-|-------------------------------|----------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `content`                     | string                                                   | false    |              | The code content from the diff that was commented on.                                                                                                          |
-| `end_line`                    | integer                                                  | false    |              |                                                                                                                                                                |
-| `file_id`                     | string                                                   | false    |              |                                                                                                                                                                |
-| `file_name`                   | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeFileReference.                                                                                 |
-| `skill_name`                  | string                                                   | false    |              |                                                                                                                                                                |
-| `skill_source`                | [codersdk.ChatSkillSource](#codersdkchatskillsource)     | false    |              | The following fields are only set when Type is ChatInputPartTypeSkillInvocation. The server loads the skill as the chat owner when the message is sent.        |
-| `start_line`                  | integer                                                  | false    |              |                                                                                                                                                                |
-| `text`                        | string                                                   | false    |              |                                                                                                                                                                |
-| `type`                        | [codersdk.ChatInputPartType](#codersdkchatinputparttype) | false    |              |                                                                                                                                                                |
-| `workspace_file_media_type`   | string                                                   | false    |              |                                                                                                                                                                |
-| `workspace_file_name`         | string                                                   | false    |              |                                                                                                                                                                |
-| `workspace_file_path`         | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeWorkspaceFileReference.                                                                        |
-| `workspace_file_size`         | integer                                                  | false    |              |                                                                                                                                                                |
-| `workspace_file_workspace_id` | string                                                   | false    |              | Workspace file workspace ID is the workspace the file was uploaded to, as returned by the upload endpoint. It must match the chat's currently bound workspace. |
+| Name                          | Type                                                     | Required | Restrictions | Description                                                                                                                                                               |
+|-------------------------------|----------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `content`                     | string                                                   | false    |              | The code content from the diff that was commented on.                                                                                                                     |
+| `end_line`                    | integer                                                  | false    |              |                                                                                                                                                                           |
+| `file_id`                     | string                                                   | false    |              |                                                                                                                                                                           |
+| `file_name`                   | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeFileReference.                                                                                            |
+| `question_id`                 | string                                                   | false    |              | Question ID is only set when Type is ChatInputPartTypeQuestionAnswer. It is the question_id from the result of the async ask_user_question call that the message answers. |
+| `skill_name`                  | string                                                   | false    |              |                                                                                                                                                                           |
+| `skill_source`                | [codersdk.ChatSkillSource](#codersdkchatskillsource)     | false    |              | The following fields are only set when Type is ChatInputPartTypeSkillInvocation. The server loads the skill as the chat owner when the message is sent.                   |
+| `start_line`                  | integer                                                  | false    |              |                                                                                                                                                                           |
+| `text`                        | string                                                   | false    |              |                                                                                                                                                                           |
+| `type`                        | [codersdk.ChatInputPartType](#codersdkchatinputparttype) | false    |              |                                                                                                                                                                           |
+| `workspace_file_media_type`   | string                                                   | false    |              |                                                                                                                                                                           |
+| `workspace_file_name`         | string                                                   | false    |              |                                                                                                                                                                           |
+| `workspace_file_path`         | string                                                   | false    |              | The following fields are only set when Type is ChatInputPartTypeWorkspaceFileReference.                                                                                   |
+| `workspace_file_size`         | integer                                                  | false    |              |                                                                                                                                                                           |
+| `workspace_file_workspace_id` | string                                                   | false    |              | Workspace file workspace ID is the workspace the file was uploaded to, as returned by the upload endpoint. It must match the chat's currently bound workspace.            |
 
 ## codersdk.ChatInputPartType
 
@@ -3411,9 +3413,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                         |
-|----------------------------------------------------------------------------------|
-| `file`, `file-reference`, `skill-invocation`, `text`, `workspace-file-reference` |
+| Value(s)                                                                                            |
+|-----------------------------------------------------------------------------------------------------|
+| `file`, `file-reference`, `question-answer`, `skill-invocation`, `text`, `workspace-file-reference` |
 
 ## codersdk.ChatMessage
 
@@ -3451,6 +3453,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ]
       ],
       "provider_executed": true,
+      "question_id": "string",
       "reasoning_delta": "string",
       "result": {},
       "result_delta": "string",
@@ -3539,6 +3542,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
     ]
   ],
   "provider_executed": true,
+  "question_id": "string",
   "reasoning_delta": "string",
   "result": {},
   "result_delta": "string",
@@ -3592,6 +3596,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | `narration`                    | boolean                                                      | false    |              | Narration marks assistant text that the model labeled as commentary on its work rather than its answer. Only providers that label their output set it.                                                                                                                                                                                                                                                     |
 | `parsed_commands`              | array of array                                               | false    |              | Parsed commands holds parsed programs from an execute tool call's shell command, one entry per simple command in source order. Each entry is [program] or [program, arg] where arg is the first non-flag positional argument. Program names are normalized to their base name (e.g. /usr/bin/go becomes go). Only populated when ToolName is "execute" and the command parses successfully; nil otherwise. |
 | `provider_executed`            | boolean                                                      | false    |              | Provider executed indicates the tool call was executed by the provider (e.g. Anthropic computer use).                                                                                                                                                                                                                                                                                                      |
+| `question_id`                  | string                                                       | false    |              | Question ID is the question_id from the result of the async ask_user_question call that the message answers.                                                                                                                                                                                                                                                                                               |
 | `reasoning_delta`              | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `result`                       | object                                                       | false    |              | Result is the tool output, which can be any JSON value.                                                                                                                                                                                                                                                                                                                                                    |
 | `result_delta`                 | string                                                       | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
@@ -3624,9 +3629,9 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                    |
-|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `reasoning`, `skill`, `skill-invocation`, `source`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
+| Value(s)                                                                                                                                                                                                       |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `context-file`, `file`, `file-reference`, `hook-context`, `hook-notice`, `question-answer`, `reasoning`, `skill`, `skill-invocation`, `source`, `text`, `tool-call`, `tool-result`, `workspace-file-reference` |
 
 ## codersdk.ChatMessageRole
 
@@ -3707,6 +3712,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             ]
           ],
           "provider_executed": true,
+          "question_id": "string",
           "reasoning_delta": "string",
           "result": {},
           "result_delta": "string",
@@ -3782,6 +3788,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             ]
           ],
           "provider_executed": true,
+          "question_id": "string",
           "reasoning_delta": "string",
           "result": {},
           "result_delta": "string",
@@ -5370,6 +5377,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ]
       ],
       "provider_executed": true,
+      "question_id": "string",
       "reasoning_delta": "string",
       "result": {},
       "result_delta": "string",
@@ -5551,6 +5559,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ]
         ],
         "provider_executed": true,
+        "question_id": "string",
         "reasoning_delta": "string",
         "result": {},
         "result_delta": "string",
@@ -5623,6 +5632,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
         ]
       ],
       "provider_executed": true,
+      "question_id": "string",
       "reasoning_delta": "string",
       "result": {},
       "result_delta": "string",
@@ -5683,6 +5693,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             ]
           ],
           "provider_executed": true,
+          "question_id": "string",
           "reasoning_delta": "string",
           "result": {},
           "result_delta": "string",
@@ -5793,6 +5804,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       ]
     ],
     "provider_executed": true,
+    "question_id": "string",
     "reasoning_delta": "string",
     "result": {},
     "result_delta": "string",
@@ -6557,6 +6569,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "question_id": "827e810a-4b1a-40f6-8bc2-c3dd6fcedc25",
       "skill_name": "string",
       "skill_source": "personal",
       "start_line": 0,
@@ -6645,6 +6658,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ]
         ],
         "provider_executed": true,
+        "question_id": "string",
         "reasoning_delta": "string",
         "result": {},
         "result_delta": "string",
@@ -6718,6 +6732,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
             ]
           ],
           "provider_executed": true,
+          "question_id": "string",
           "reasoning_delta": "string",
           "result": {},
           "result_delta": "string",
@@ -6793,6 +6808,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
           ]
         ],
         "provider_executed": true,
+        "question_id": "string",
         "reasoning_delta": "string",
         "result": {},
         "result_delta": "string",
@@ -7067,6 +7083,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "question_id": "827e810a-4b1a-40f6-8bc2-c3dd6fcedc25",
       "skill_name": "string",
       "skill_source": "personal",
       "start_line": 0,
@@ -9665,6 +9682,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "question_id": "827e810a-4b1a-40f6-8bc2-c3dd6fcedc25",
       "skill_name": "string",
       "skill_source": "personal",
       "start_line": 0,
@@ -9734,6 +9752,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
           ]
         ],
         "provider_executed": true,
+        "question_id": "string",
         "reasoning_delta": "string",
         "result": {},
         "result_delta": "string",
@@ -9807,6 +9826,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
             ]
           ],
           "provider_executed": true,
+          "question_id": "string",
           "reasoning_delta": "string",
           "result": {},
           "result_delta": "string",
@@ -9872,6 +9892,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "end_line": 0,
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "file_name": "string",
+      "question_id": "827e810a-4b1a-40f6-8bc2-c3dd6fcedc25",
       "skill_name": "string",
       "skill_source": "personal",
       "start_line": 0,

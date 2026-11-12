@@ -20355,6 +20355,11 @@
 					"description": "The following fields are only set when Type is\nChatInputPartTypeFileReference.",
 					"type": "string"
 				},
+				"question_id": {
+					"description": "QuestionID is only set when Type is ChatInputPartTypeQuestionAnswer.\nIt is the question_id from the result of the async ask_user_question\ncall that the message answers.",
+					"type": "string",
+					"format": "uuid"
+				},
 				"skill_name": {
 					"type": "string"
 				},
@@ -20402,14 +20407,16 @@
 				"file",
 				"file-reference",
 				"workspace-file-reference",
-				"skill-invocation"
+				"skill-invocation",
+				"question-answer"
 			],
 			"x-enum-varnames": [
 				"ChatInputPartTypeText",
 				"ChatInputPartTypeFile",
 				"ChatInputPartTypeFileReference",
 				"ChatInputPartTypeWorkspaceFileReference",
-				"ChatInputPartTypeSkillInvocation"
+				"ChatInputPartTypeSkillInvocation",
+				"ChatInputPartTypeQuestionAnswer"
 			]
 		},
 		"codersdk.ChatMessage": {
@@ -20557,6 +20564,10 @@
 					"description": "ProviderExecuted indicates the tool call was executed by\nthe provider (e.g. Anthropic computer use).",
 					"type": "boolean"
 				},
+				"question_id": {
+					"description": "QuestionID is the question_id from the result of the async\nask_user_question call that the message answers.",
+					"type": "string"
+				},
 				"reasoning_delta": {
 					"type": "string"
 				},
@@ -20652,7 +20663,8 @@
 				"workspace-file-reference",
 				"skill-invocation",
 				"hook-context",
-				"hook-notice"
+				"hook-notice",
+				"question-answer"
 			],
 			"x-enum-varnames": [
 				"ChatMessagePartTypeText",
@@ -20667,7 +20679,8 @@
 				"ChatMessagePartTypeWorkspaceFileReference",
 				"ChatMessagePartTypeSkillInvocation",
 				"ChatMessagePartTypeHookContext",
-				"ChatMessagePartTypeHookNotice"
+				"ChatMessagePartTypeHookNotice",
+				"ChatMessagePartTypeQuestionAnswer"
 			]
 		},
 		"codersdk.ChatMessageRole": {

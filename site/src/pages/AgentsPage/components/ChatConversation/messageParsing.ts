@@ -357,6 +357,9 @@ export const parseMessageContent = (
 				// they are not rendered in the conversation timeline.
 				break;
 			}
+			case "question-answer": {
+				break;
+			}
 			case "skill": {
 				// Skill parts are metadata for the context indicator;
 				// they are not rendered in the conversation timeline.

@@ -2949,12 +2949,19 @@ export interface ChatInputPart {
 	 */
 	readonly skill_source?: ChatSkillSource;
 	readonly skill_name?: string;
+	/**
+	 * QuestionID is only set when Type is ChatInputPartTypeQuestionAnswer.
+	 * It is the question_id from the result of the async ask_user_question
+	 * call that the message answers.
+	 */
+	readonly question_id?: string;
 }
 
 // From codersdk/chats.go
 export type ChatInputPartType =
 	| "file"
 	| "file-reference"
+	| "question-answer"
 	| "skill-invocation"
 	| "text"
 	| "workspace-file-reference";
@@ -2962,6 +2969,7 @@ export type ChatInputPartType =
 export const ChatInputPartTypes: ChatInputPartType[] = [
 	"file",
 	"file-reference",
+	"question-answer",
 	"skill-invocation",
 	"text",
 	"workspace-file-reference",
@@ -3036,7 +3044,8 @@ export type ChatMessagePart =
 	| ChatSkillPart
 	| ChatWorkspaceFileReferencePart
 	| ChatSkillInvocationPart
-	| ChatHookNoticePart;
+	| ChatHookNoticePart
+	| ChatQuestionAnswerPart;
 
 // From codersdk/chats.go
 export type ChatMessagePartType =
@@ -3045,6 +3054,7 @@ export type ChatMessagePartType =
 	| "file-reference"
 	| "hook-context"
 	| "hook-notice"
+	| "question-answer"
 	| "reasoning"
 	| "skill"
 	| "skill-invocation"
@@ -3060,6 +3070,7 @@ export const ChatMessagePartTypes: ChatMessagePartType[] = [
 	"file-reference",
 	"hook-context",
 	"hook-notice",
+	"question-answer",
 	"reasoning",
 	"skill",
 	"skill-invocation",
@@ -3724,6 +3735,16 @@ export const ChatProviderConfigSources: ChatProviderConfigSource[] = [
 	"env_preset",
 	"supported",
 ];
+
+// From codersdk/chats.go
+export interface ChatQuestionAnswerPart {
+	readonly type: "question-answer";
+	/**
+	 * QuestionID is the question_id from the result of the async
+	 * ask_user_question call that the message answers.
+	 */
+	readonly question_id: string;
+}
 
 // From codersdk/chats.go
 /**
