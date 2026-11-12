@@ -54,7 +54,7 @@ describe(Filter.name, () => {
 		);
 
 		expect(
-			screen.getByRole("textbox", { name: "Filter" }),
+			screen.getByRole("textbox", { name: "Search" }),
 		).toHaveAccessibleDescription(detail);
 	});
 });
