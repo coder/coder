@@ -1079,20 +1079,6 @@ func (mr *MockStoreMockRecorder) DeleteChatQueuedMessageReturningCount(ctx, arg 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatQueuedMessageReturningCount", reflect.TypeOf((*MockStore)(nil).DeleteChatQueuedMessageReturningCount), ctx, arg)
 }
 
-// DeleteChatQueuedMessagesByAutomationID mocks base method.
-func (m *MockStore) DeleteChatQueuedMessagesByAutomationID(ctx context.Context, arg database.DeleteChatQueuedMessagesByAutomationIDParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteChatQueuedMessagesByAutomationID", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteChatQueuedMessagesByAutomationID indicates an expected call of DeleteChatQueuedMessagesByAutomationID.
-func (mr *MockStoreMockRecorder) DeleteChatQueuedMessagesByAutomationID(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteChatQueuedMessagesByAutomationID", reflect.TypeOf((*MockStore)(nil).DeleteChatQueuedMessagesByAutomationID), ctx, arg)
-}
-
 // DeleteCryptoKey mocks base method.
 func (m *MockStore) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
 	m.ctrl.T.Helper()

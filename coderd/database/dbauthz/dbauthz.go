@@ -2433,14 +2433,6 @@ func (q *querier) DeleteChatQueuedMessageReturningCount(ctx context.Context, arg
 	return q.db.DeleteChatQueuedMessageReturningCount(ctx, arg)
 }
 
-func (q *querier) DeleteChatQueuedMessagesByAutomationID(ctx context.Context, arg database.DeleteChatQueuedMessagesByAutomationIDParams) error {
-	// The delete of the automation covers its queued messages.
-	fetch := func(ctx context.Context, arg database.DeleteChatQueuedMessagesByAutomationIDParams) (database.ChatAutomation, error) {
-		return q.db.GetChatAutomationByID(ctx, arg.AutomationID)
-	}
-	return fetchAndExec(q.log, q.auth, policy.ActionDelete, fetch, q.db.DeleteChatQueuedMessagesByAutomationID)(ctx, arg)
-}
-
 func (q *querier) DeleteCryptoKey(ctx context.Context, arg database.DeleteCryptoKeyParams) (database.CryptoKey, error) {
 	if err := q.authorizeContext(ctx, policy.ActionDelete, rbac.ResourceCryptoKey); err != nil {
 		return database.CryptoKey{}, err
@@ -3634,7 +3626,7 @@ func (q *querier) GetChatHeartbeat(ctx context.Context, arg database.GetChatHear
 }
 
 func (q *querier) GetChatIDsWithQueuedMessagesByAutomationID(ctx context.Context, automationID uuid.UUID) ([]uuid.UUID, error) {
-	// The caller locks these chats to delete the automation.
+	// The read is part of deleting the automation.
 	automation, err := q.db.GetChatAutomationByID(ctx, automationID)
 	if err != nil {
 		return nil, err

@@ -182,9 +182,6 @@ type sqlcQuerier interface {
 	// number of affected rows so callers can detect missing rows without
 	// a follow-up read.
 	DeleteChatQueuedMessageReturningCount(ctx context.Context, arg DeleteChatQueuedMessageReturningCountParams) (int64, error)
-	// Deletes the messages that the automation queued in one chat. The caller
-	// holds the lock of the chat.
-	DeleteChatQueuedMessagesByAutomationID(ctx context.Context, arg DeleteChatQueuedMessagesByAutomationIDParams) error
 	DeleteCryptoKey(ctx context.Context, arg DeleteCryptoKeyParams) (CryptoKey, error)
 	DeleteCustomRole(ctx context.Context, arg DeleteCustomRoleParams) error
 	DeleteExpiredAPIKeys(ctx context.Context, arg DeleteExpiredAPIKeysParams) (int64, error)
@@ -514,8 +511,8 @@ type sqlcQuerier interface {
 	GetChatFilesByIDs(ctx context.Context, ids []uuid.UUID) ([]ChatFile, error)
 	GetChatGatewayAPIKey(ctx context.Context, arg GetChatGatewayAPIKeyParams) (APIKey, error)
 	GetChatHeartbeat(ctx context.Context, arg GetChatHeartbeatParams) (ChatHeartbeat, error)
-	// Returns the chats that hold messages that the automation queued, in the
-	// order in which a delete locks them.
+	// Returns the chats that hold messages that the automation queued, in chat ID
+	// order, which is the order in which chat rows are locked.
 	GetChatIDsWithQueuedMessagesByAutomationID(ctx context.Context, automationID uuid.UUID) ([]uuid.UUID, error)
 	// GetChatIncludeDefaultSystemPrompt preserves the legacy default
 	// for deployments created before the explicit include-default toggle.

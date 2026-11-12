@@ -5747,24 +5747,6 @@ func (q *sqlQuerier) DeleteChatAutomationByID(ctx context.Context, id uuid.UUID)
 	return err
 }
 
-const deleteChatQueuedMessagesByAutomationID = `-- name: DeleteChatQueuedMessagesByAutomationID :exec
-DELETE FROM chat_queued_messages
-WHERE automation_id = $1::uuid
-  AND chat_id = $2::uuid
-`
-
-type DeleteChatQueuedMessagesByAutomationIDParams struct {
-	AutomationID uuid.UUID `db:"automation_id" json:"automation_id"`
-	ChatID       uuid.UUID `db:"chat_id" json:"chat_id"`
-}
-
-// Deletes the messages that the automation queued in one chat. The caller
-// holds the lock of the chat.
-func (q *sqlQuerier) DeleteChatQueuedMessagesByAutomationID(ctx context.Context, arg DeleteChatQueuedMessagesByAutomationIDParams) error {
-	_, err := q.db.ExecContext(ctx, deleteChatQueuedMessagesByAutomationID, arg.AutomationID, arg.ChatID)
-	return err
-}
-
 const getChatAutomationByID = `-- name: GetChatAutomationByID :one
 SELECT id, organization_id, owner_id, name, created_by_chat_id, kind, enabled, prompt, target_mode, target_chat_id, when_busy, new_chat_model_config_id, reasoning_effort, project_id, webhook_auth, webhook_secret, webhook_secret_key_id, webhook_secret_version, schedule_cron, schedule_time_zone, schedule_next_run_at, schedule_revision, last_run_at, last_run_outcome, last_run_reason, last_run_chat_id, last_run_unaccepted_count, created_at, updated_at
 FROM chat_automations
@@ -5947,8 +5929,8 @@ WHERE automation_id = $1::uuid
 ORDER BY chat_id
 `
 
-// Returns the chats that hold messages that the automation queued, in the
-// order in which a delete locks them.
+// Returns the chats that hold messages that the automation queued, in chat ID
+// order, which is the order in which chat rows are locked.
 func (q *sqlQuerier) GetChatIDsWithQueuedMessagesByAutomationID(ctx context.Context, automationID uuid.UUID) ([]uuid.UUID, error) {
 	rows, err := q.db.QueryContext(ctx, getChatIDsWithQueuedMessagesByAutomationID, automationID)
 	if err != nil {

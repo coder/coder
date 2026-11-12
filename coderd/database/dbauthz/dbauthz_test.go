@@ -1437,13 +1437,6 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().DeleteChatAutomationByID(gomock.Any(), automation.ID).Return(nil).AnyTimes()
 		check.Args(automation.ID).Asserts(automation, policy.ActionDelete)
 	}))
-	s.Run("DeleteChatQueuedMessagesByAutomationID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
-		arg := database.DeleteChatQueuedMessagesByAutomationIDParams{AutomationID: automation.ID, ChatID: uuid.New()}
-		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
-		dbm.EXPECT().DeleteChatQueuedMessagesByAutomationID(gomock.Any(), arg).Return(nil).AnyTimes()
-		check.Args(arg).Asserts(automation, policy.ActionDelete)
-	}))
 	s.Run("GetChatIDsWithQueuedMessagesByAutomationID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
 		chatIDs := []uuid.UUID{uuid.New(), uuid.New()}

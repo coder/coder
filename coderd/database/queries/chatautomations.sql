@@ -106,16 +106,9 @@ DELETE FROM chat_automations
 WHERE id = @id::uuid;
 
 -- name: GetChatIDsWithQueuedMessagesByAutomationID :many
--- Returns the chats that hold messages that the automation queued, in the
--- order in which a delete locks them.
+-- Returns the chats that hold messages that the automation queued, in chat ID
+-- order, which is the order in which chat rows are locked.
 SELECT DISTINCT chat_id
 FROM chat_queued_messages
 WHERE automation_id = @automation_id::uuid
 ORDER BY chat_id;
-
--- name: DeleteChatQueuedMessagesByAutomationID :exec
--- Deletes the messages that the automation queued in one chat. The caller
--- holds the lock of the chat.
-DELETE FROM chat_queued_messages
-WHERE automation_id = @automation_id::uuid
-  AND chat_id = @chat_id::uuid;
