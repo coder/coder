@@ -740,8 +740,8 @@ export const CostEstimateTwoColumns: Story = {
 		onDeleteModel: fn(async () => undefined),
 	},
 	parameters: {
-		viewport: { defaultViewport: "tablet" },
-		pixel: { matrix: { viewports: ["tablet"] } },
+		viewport: { defaultViewport: "mobile1" },
+		pixel: { matrix: { viewports: ["phone"] } },
 		queries: [
 			{
 				key: aiModelPrices("openai", "gpt-5").queryKey,
