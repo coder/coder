@@ -133,6 +133,17 @@ export const AsyncQuestionOpen: Story = {
 	render: () => <AsyncQuestionChatPage store={buildAsyncQuestionStore()} />,
 };
 
+export const AsyncQuestionAwaitingDelivery: Story = {
+	render: () => <AsyncQuestionChatPage store={buildAsyncQuestionStore()} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("radio", { name: /^Frontend first/ }),
+		);
+		await userEvent.click(canvas.getByRole("button", { name: "Submit" }));
+	},
+};
+
 export const AsyncQuestionSeveral: Story = {
 	render: () => (
 		<AsyncQuestionChatPage
