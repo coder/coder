@@ -133,7 +133,7 @@ const ProjectsPage: React.FC = () => {
 			select: (mutation) =>
 				(mutation.state.variables as { project?: ChatProject } | undefined)
 					?.project?.id,
-		}),
+		}).filter((id) => id !== undefined),
 	);
 	const unpinningId = unpinMutation.isPending && unpinMutation.variables.id;
 	const restoreFocus = () => {
