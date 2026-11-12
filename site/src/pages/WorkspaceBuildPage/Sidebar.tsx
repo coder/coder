@@ -46,20 +46,20 @@ export const SidebarItemSkeleton: React.FC<React.PropsWithChildren> = ({
 	return <div className="py-2.5 px-6 text-sm">{children}</div>;
 };
 
-export const SidebarCaption: React.FC<React.ComponentProps<"div">> = ({
+export const SidebarCaption: React.FC<React.ComponentProps<"h2">> = ({
 	children,
 	className,
 	...attrs
 }) => {
 	return (
-		<div
+		<h2
 			className={cn(
-				"text-[10px] uppercase font-medium text-content-secondary",
+				"m-0 text-[10px] uppercase font-medium text-content-secondary",
 				"px-6 py-3 tracking-[0.5px]",
 			)}
 			{...attrs}
 		>
 			{children}
-		</div>
+		</h2>
 	);
 };
