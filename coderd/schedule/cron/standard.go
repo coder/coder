@@ -1,6 +1,7 @@
 package cron
 
 import (
+	"slices"
 	"strings"
 	"time"
 
@@ -15,9 +16,12 @@ import (
 // matches.
 //
 // The spec must not start with CRON_TZ= or TZ=, and descriptors such as
-// @daily are not supported. timeZone is an IANA time zone name. Names that
-// zone data files hold but that are not zones, such as "Local", are errors. A
-// spec that never runs, such as "0 0 30 2 *", is an error.
+// @daily are not supported. timeZone is an IANA time zone name such as
+// "America/New_York". A name with an empty, "." or ".." segment, such as
+// "./localtime", is an error. So are "Local", which is a Go name for the zone of
+// the host, and "localtime", "posixrules" and "Factory", which are files in the
+// zone data of a host and are not zones. A spec that never runs, such as
+// "0 0 30 2 *", is an error.
 //
 // The schedule follows local time across daylight saving changes. A repeated
 // local time runs at its first instance only. A nonexistent local time runs at
@@ -41,12 +45,14 @@ func Standard(spec, timeZone string) (*Schedule, error) {
 		return nil, xerrors.Errorf("expected 5 fields, got %d (minute, hour, day of month, month, day of week)", len(fields))
 	}
 
-	switch timeZone {
-	case "":
+	switch {
+	case timeZone == "":
 		return nil, xerrors.New("time zone is empty")
-	case "Local", "localtime", "posixrules", "Factory":
-		// Files that sit next to the zones in the zone data: they are not zones,
-		// and what they hold depends on the host.
+	case !plainSegments(timeZone):
+		// time.LoadLocation cleans the path, so "./localtime" reaches the file
+		// that "localtime" names, and "America//New_York" a zone under another name.
+		return nil, xerrors.Errorf("time zone %q is not a zone name, use an IANA time zone name such as America/New_York", timeZone)
+	case slices.Contains(notZones, timeZone):
 		return nil, xerrors.Errorf("time zone %q is not supported, use an IANA time zone name", timeZone)
 	}
 	loc, err := time.LoadLocation(timeZone)
@@ -54,6 +60,22 @@ func Standard(spec, timeZone string) (*Schedule, error) {
 		return nil, xerrors.Errorf("load time zone %q: %w", timeZone, err)
 	}
 	return standardIn(fields, loc)
+}
+
+// notZones are names that time.LoadLocation accepts and that are not IANA time
+// zones: a Go name for the zone of the host, and files that zone data holds. What
+// they give depends on the host.
+var notZones = []string{"Local", "localtime", "posixrules", "Factory"}
+
+// plainSegments reports whether name has no empty, "." or ".." segment, which
+// also means that it does not start or end with a slash.
+func plainSegments(name string) bool {
+	for _, segment := range strings.Split(name, "/") {
+		if segment == "" || segment == "." || segment == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 // standardIn is Standard for fields that have passed its checks and a zone
@@ -119,9 +141,10 @@ func (s Schedule) nextWallClock(t time.Time) time.Time {
 }
 
 // nextReading returns the first reading after w that naive matches, or the
-// zero time when there is none. robfig/cron gives up after five years, but two
-// leap days are eight years apart across 2100, so it searches again from the
-// years it did not cover. Three searches reach 18 years, past any gap.
+// zero time when there is none. robfig/cron gives up after the fifth year after
+// the year of its start, but two leap days are eight years apart across 2100, so
+// it searches again from the years it did not cover. Three searches reach the
+// end of the sixteenth year after the year of w, at least 16 years, past any gap.
 func nextReading(naive *rbcron.SpecSchedule, w time.Time) time.Time {
 	for range 3 {
 		if next := naive.Next(w); !next.IsZero() {

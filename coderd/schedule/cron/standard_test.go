@@ -59,6 +59,13 @@ func TestStandard(t *testing.T) {
 				wantString: "CRON_TZ=Asia/Kolkata 0 9 * * *",
 			},
 			{
+				name:       "ZoneUnderEtc",
+				spec:       "0 9 * * *",
+				zone:       "Etc/UTC",
+				wantCron:   "0 9 * * *",
+				wantString: "CRON_TZ=Etc/UTC 0 9 * * *",
+			},
+			{
 				name:       "LeapDay",
 				spec:       "0 0 29 2 *",
 				zone:       "UTC",
@@ -105,6 +112,22 @@ func TestStandard(t *testing.T) {
 			{name: "LocaltimeFile", spec: "0 9 * * *", zone: "localtime", wantErr: `"localtime" is not supported`},
 			{name: "PosixrulesFile", spec: "0 9 * * *", zone: "posixrules", wantErr: `"posixrules" is not supported`},
 			{name: "FactoryZone", spec: "0 9 * * *", zone: "Factory", wantErr: `"Factory" is not supported`},
+			// time.LoadLocation cleans a path, so these reach the same files and
+			// zones as the names above and below, under other names.
+			{name: "PathToLocaltime", spec: "0 9 * * *", zone: "./localtime", wantErr: "is not a zone name"},
+			{name: "PathToLocaltimeDoubleSlash", spec: "0 9 * * *", zone: ".//localtime", wantErr: "is not a zone name"},
+			{name: "PathToLocaltimeTwoDots", spec: "0 9 * * *", zone: "././localtime", wantErr: "is not a zone name"},
+			{name: "PathToPosixrules", spec: "0 9 * * *", zone: "./posixrules", wantErr: "is not a zone name"},
+			{name: "PathToFactory", spec: "0 9 * * *", zone: "./Factory", wantErr: "is not a zone name"},
+			{name: "PathThroughParent", spec: "0 9 * * *", zone: "Etc/./../localtime", wantErr: "is not a zone name"},
+			{name: "PathToZone", spec: "0 9 * * *", zone: "./America/New_York", wantErr: "is not a zone name"},
+			{name: "DoubleSlashInZone", spec: "0 9 * * *", zone: "America//New_York", wantErr: "is not a zone name"},
+			{name: "DotInZone", spec: "0 9 * * *", zone: "America/./New_York", wantErr: "is not a zone name"},
+			{name: "TrailingSlash", spec: "0 9 * * *", zone: "America/New_York/", wantErr: "is not a zone name"},
+			{name: "TrailingSlashOnLocal", spec: "0 9 * * *", zone: "Local/", wantErr: "is not a zone name"},
+			{name: "AbsolutePath", spec: "0 9 * * *", zone: "/etc/localtime", wantErr: "is not a zone name"},
+			{name: "ParentPath", spec: "0 9 * * *", zone: "../zoneinfo/UTC", wantErr: "is not a zone name"},
+			{name: "OnlyADot", spec: "0 9 * * *", zone: ".", wantErr: "is not a zone name"},
 		}
 		for _, tc := range testCases {
 			t.Run(tc.name, func(t *testing.T) {
@@ -171,6 +194,17 @@ func TestStandard_Next(t *testing.T) {
 				"1867-10-16T23:46:18Z", "1867-10-17T23:46:18Z",
 				"1867-10-18T23:46:18Z", "1867-10-20T23:46:18Z",
 			},
+		},
+		{
+			// The old offset of Metlakatla is more than 15 hours, so a search that
+			// looks 15 hours around a reading misses it for the last 14 minutes
+			// of the repeated day: the first instance of 15:35 on October 19 is
+			// 00:21:18Z that day, before the change at 00:31:13Z.
+			name: "RepeatedTimeInTheLastMinutesBeforeTheChange",
+			spec: "35 15 * * *",
+			zone: "America/Metlakatla",
+			from: "1867-10-18T00:00:00Z",
+			want: []string{"1867-10-18T00:21:18Z", "1867-10-19T00:21:18Z", "1867-10-21T00:21:18Z"},
 		},
 		{
 			name: "ZoneWithoutDST",
@@ -370,6 +404,44 @@ func TestStandard_Next_DST(t *testing.T) {
 			require.NoError(t, err)
 			from := mustParseTime(t, time.RFC3339, tc.from).In(mustLocation(t, tc.zone))
 			require.Equal(t, tc.want, nextN(t, sched, from, len(tc.want)))
+		})
+	}
+}
+
+// TestStandard_Next_InsideRepeatedPeriod calls Next from the second pass of a
+// repeated period. Each reading that follows resolves to an instant of the first
+// pass, which is before the call, so Next walks all of them before it finds the
+// answer. That pins the bound on the readings that Next walks: Kwajalein
+// repeated 23 hours and Sitka a whole day, the longest repeat in the zone data,
+// which is 1,440 readings of a schedule that runs every minute.
+func TestStandard_Next_InsideRepeatedPeriod(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		spec string
+		zone string
+		from string
+		want string
+	}{
+		// 01:02 EST, in the second pass of 01:00 to 01:59 on 2026-11-01.
+		{"NewYorkEveryMinute", "* * * * *", "America/New_York", "2026-11-01T06:02:00Z", "2026-11-01T07:00:00Z"},
+		{"NewYorkEveryFiveMinutes", "*/5 * * * *", "America/New_York", "2026-11-01T06:02:00Z", "2026-11-01T07:00:00Z"},
+		{"BerlinEveryFiveMinutes", "*/5 * * * *", "Europe/Berlin", "2026-10-25T01:02:00Z", "2026-10-25T02:00:00Z"},
+		{"LordHoweEveryMinute", "* * * * *", "Australia/Lord_Howe", "2026-04-04T15:01:00Z", "2026-04-04T15:30:00Z"},
+		// Clocks went from UTC+11 to UTC-12 and repeated 23 hours: 1,380 readings.
+		{"KwajaleinEveryMinute", "* * * * *", "Pacific/Kwajalein", "1969-09-30T13:00:00Z", "1969-10-01T12:00:00Z"},
+		// From the instant of the change, the whole repeated day of 1867-10-19
+		// follows: 1,440 readings.
+		{"SitkaEveryMinute", "* * * * *", "America/Sitka", "1867-10-19T00:31:13Z", "1867-10-20T00:31:13Z"},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			sched, err := cron.Standard(tc.spec, tc.zone)
+			require.NoError(t, err)
+			got := nextWithin(t, sched, mustParseTime(t, time.RFC3339, tc.from))
+			require.Equal(t, tc.want, got.UTC().Format(time.RFC3339))
 		})
 	}
 }

@@ -178,11 +178,12 @@ func (s Schedule) Cron() string {
 
 // Next returns the next time in the schedule after t. The zero time means that
 // Next found no run, which does not happen for a schedule from Standard: it
-// always has a later run, because Standard rejects a spec that never runs and
-// Next searches past the longest gap between runs (eight years, between two
-// leap days across 2100). A caller treats the zero time from such a schedule as
-// an error and not as the end of the schedule. For a schedule from Standard,
-// Next follows the daylight saving rules that Standard documents.
+// always has a later run, because Standard rejects a spec that never runs, and
+// Next searches at least 16 years ahead, past the longest gap between runs
+// (eight years, between two leap days across 2100). A caller treats the zero
+// time from such a schedule as an error and not as the end of the schedule. For
+// a schedule from Standard, Next follows the daylight saving rules that
+// Standard documents.
 func (s Schedule) Next(t time.Time) time.Time {
 	if s.wallClock {
 		return s.nextWallClock(t)
