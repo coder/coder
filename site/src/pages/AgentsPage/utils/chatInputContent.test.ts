@@ -93,6 +93,18 @@ describe("buildChatInputContent", () => {
 		expect(result).toEqual({ content: [], hasContent: false });
 	});
 
+	it("does not add a question-answer part for an empty ID", () => {
+		const result = buildChatInputContent({
+			message: "Use Postgres.",
+			questionAnswerId: "",
+		});
+
+		expect(result).toEqual({
+			content: [{ type: "text", text: "Use Postgres." }],
+			hasContent: true,
+		});
+	});
+
 	it("walks composer parts in document order and skips blank text", () => {
 		expect(
 			buildChatInputContent({

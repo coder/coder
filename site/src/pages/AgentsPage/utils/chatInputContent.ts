@@ -107,7 +107,7 @@ export const buildChatInputContent = ({
 		}
 	}
 
-	if (questionAnswerId !== undefined && content.length > 0) {
+	if (questionAnswerId && content.length > 0) {
 		content.unshift({ type: "question-answer", question_id: questionAnswerId });
 	}
 
