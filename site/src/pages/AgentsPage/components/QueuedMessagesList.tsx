@@ -43,6 +43,7 @@ type QueuedMessagesListProps = {
 type QueuedMessagePreviewPart = ChatTextPart | ChatSkillInvocationPart;
 
 type QueuedMessageInfo = {
+	isQuestionAnswer: boolean;
 	previewParts: QueuedMessagePreviewPart[];
 	attachmentCount: number;
 	hookNotices: string[];
@@ -51,11 +52,17 @@ type QueuedMessageInfo = {
 export const getQueuedMessageInfo = (
 	message: ChatQueuedMessage,
 ): QueuedMessageInfo => {
+	let isQuestionAnswer = false;
 	let attachmentCount = 0;
 	const previewParts: QueuedMessagePreviewPart[] = [];
 	const hookNotices: string[] = [];
 	for (const part of message.content) {
-		if (part.type === "file" || part.type === "workspace-file-reference") {
+		if (part.type === "question-answer") {
+			isQuestionAnswer = Boolean(part.question_id);
+		} else if (
+			part.type === "file" ||
+			part.type === "workspace-file-reference"
+		) {
 			attachmentCount++;
 		} else if (
 			part.type === "text" &&
@@ -71,7 +78,7 @@ export const getQueuedMessageInfo = (
 		}
 	}
 
-	return { previewParts, attachmentCount, hookNotices };
+	return { isQuestionAnswer, previewParts, attachmentCount, hookNotices };
 };
 
 /** Cuts preview parts at the first line break, trimming text only after the cut. */
@@ -481,6 +488,9 @@ const QueuedMessageRow: React.FC<QueuedMessageRowProps> = ({
 	>
 		<div className="flex items-center gap-2 rounded-lg border bg-surface-secondary px-3 py-2 font-sans text-sm leading-relaxed text-content-primary shadow-xs">
 			<span className="min-w-0 flex-1 truncate">
+				{item.isQuestionAnswer && (
+					<span className="text-content-secondary">Answer: </span>
+				)}
 				<QueuedMessagePreview parts={item.previewParts} />
 			</span>
 			{item.badge && (

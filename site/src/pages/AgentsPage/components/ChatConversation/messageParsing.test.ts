@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ChatMessage, ChatMessagePart } from "#/api/typesGenerated";
 import { MockChatMessage } from "#/testHelpers/chatEntities";
 import { getSubagentDescriptor } from "../ChatElements/tools/subagentDescriptor";
+import { serializeMessageDraft } from "../ChatMessageInput/SkillInvocationNode";
 import {
 	buildSubagentMaps,
 	getEditableContentPayload,
@@ -77,6 +78,54 @@ describe("parseToolResultIsError", () => {
 });
 
 describe("getEditableContentPayload", () => {
+	it.each([
+		{
+			name: "set",
+			questionId: "11111111-1111-4111-8111-111111111111",
+			expectedQuestionId: "11111111-1111-4111-8111-111111111111",
+		},
+		{ name: "empty", questionId: "", expectedQuestionId: undefined },
+		{ name: "missing", questionId: undefined, expectedQuestionId: undefined },
+	] as const)(
+		"keeps only a non-empty question ID when editing: $name",
+		({ questionId, expectedQuestionId }) => {
+			const payload = getEditableContentPayload([
+				{ type: "question-answer", question_id: questionId },
+				{ type: "text", text: "Redis" },
+			]);
+
+			expect(payload.questionAnswerId).toBe(expectedQuestionId);
+			expect(payload.text).toBe("Redis");
+			expect(payload.fileBlocks).toBeUndefined();
+		},
+	);
+
+	it("serializes an answer's chip draft without question metadata", () => {
+		const content: ChatMessagePart[] = [
+			{
+				type: "skill-invocation",
+				skill_source: "project",
+				skill_name: "triage",
+			},
+			{ type: "text", text: "Redis" },
+		];
+		const answerContent: ChatMessagePart[] = [
+			{
+				type: "question-answer",
+				question_id: "11111111-1111-4111-8111-111111111111",
+			},
+			...content,
+		];
+
+		const draft = serializeMessageDraft(content);
+		const answerDraft = serializeMessageDraft(answerContent);
+		const payload = getEditableContentPayload(answerContent);
+
+		expect(answerDraft).toBe(draft);
+		expect(payload.editorState).toBe(draft);
+		expect(payload.text).toBe("Redis");
+	});
+
 	it("keeps only editable stored attachments", () => {
 		const cases = [
 			{

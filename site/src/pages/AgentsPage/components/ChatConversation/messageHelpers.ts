@@ -26,6 +26,8 @@ export type MessageDisplayState = {
 	userFileBlocks: FileRenderBlock[];
 	workspaceFileBlocks: WorkspaceFileReferenceBlock[];
 	workspaceFileReferenceCount: number;
+	/** The message answers an async question. */
+	isQuestionAnswer: boolean;
 	hasUserMessageBody: boolean;
 	hasFileBlocks: boolean;
 	hasWorkspaceFileReferences: boolean;
@@ -187,6 +189,7 @@ export const deriveMessageDisplayState = ({
 	const hasUserMessageBody =
 		userInlineContent.length > 0 || Boolean(parsed.markdown.trim());
 	const hasFileBlocks = userFileBlocks.length > 0;
+	const isQuestionAnswer = isUser && Boolean(parsed.questionAnswerId);
 	const { hasThinkingOnlyContent, endsWithResponseBlock } =
 		getRenderableContentState(parsed);
 	// The copy action row renders below the whole message, so assistant
@@ -211,6 +214,7 @@ export const deriveMessageDisplayState = ({
 		userFileBlocks,
 		workspaceFileBlocks,
 		workspaceFileReferenceCount,
+		isQuestionAnswer,
 		hasUserMessageBody,
 		hasFileBlocks,
 		hasWorkspaceFileReferences,

@@ -823,6 +823,7 @@ const AgentChatPage: React.FC = () => {
 		workspaceUploads,
 		busyBehavior,
 		editingTarget,
+		questionAnswerId,
 	}: SendChatTurnOptions) {
 		await submitChatTurn({
 			...chatTurnDeps,
@@ -832,6 +833,7 @@ const AgentChatPage: React.FC = () => {
 			busyBehavior,
 			composerParts: editing.chatInputRef.current?.getContentParts() ?? [],
 			editingTarget,
+			questionAnswerId,
 		});
 	}
 

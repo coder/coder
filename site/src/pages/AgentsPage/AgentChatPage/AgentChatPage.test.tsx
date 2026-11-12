@@ -15,7 +15,11 @@ import * as apiModule from "#/api/api";
 import { API } from "#/api/api";
 import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import type * as TypesGen from "#/api/typesGenerated";
-import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import {
+	MockChat,
+	MockChatMessage,
+	MockChatQueuedMessage,
+} from "#/testHelpers/chatEntities";
 import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
@@ -295,6 +299,146 @@ describe("AgentChatPage", () => {
 				listRequestsBeforeSend + 1,
 			),
 		);
+	});
+
+	describe("answers", () => {
+		const questionId = "11111111-1111-4111-8111-111111111111";
+
+		const editAndSave = async ({
+			seed,
+			editAction,
+			loadedText,
+			typedText,
+		}: {
+			seed: Parameters<typeof renderQueuedChat>[0];
+			editAction: "Edit" | "Edit message";
+			loadedText: string;
+			typedText: string;
+		}) => {
+			const page = renderQueuedChat(seed);
+
+			await page.rowAction(editAction);
+			await waitFor(() =>
+				expect(page.composer().textContent).toContain(loadedText),
+			);
+			await page.type(typedText);
+			await page.user.click(
+				page.view.getByRole("button", { name: "Save Edit" }),
+			);
+
+			return page;
+		};
+
+		it("saving an edited queued answer keeps its question", async () => {
+			const mockAnswer: TypesGen.ChatQueuedMessage = {
+				...MockChatQueuedMessage,
+				id: 7,
+				content: [
+					{ type: "question-answer", question_id: questionId },
+					{ type: "text", text: "Redis" },
+				],
+			};
+
+			const page = await editAndSave({
+				seed: { queuedMessages: [mockAnswer] },
+				editAction: "Edit",
+				loadedText: "Redis",
+				typedText: " edit",
+			});
+
+			await waitFor(() =>
+				expect(page.editChatQueuedMessage).toHaveBeenCalledWith(
+					MockChat.id,
+					mockAnswer.id,
+					expect.objectContaining({
+						content: [
+							{ type: "question-answer", question_id: questionId },
+							{ type: "text", text: "Redis edit" },
+						],
+					}),
+				),
+			);
+		});
+
+		it("saving an edited timeline answer keeps its question", async () => {
+			const mockAnswer: TypesGen.ChatMessage = {
+				...MockChatMessage,
+				id: 7,
+				content: [
+					{ type: "question-answer", question_id: questionId },
+					{ type: "text", text: "Redis" },
+				],
+			};
+			const expectedContent: TypesGen.ChatMessagePart[] = [
+				{ type: "question-answer", question_id: questionId },
+				{ type: "text", text: "Redis edit" },
+			];
+			const editChatMessage = vi
+				.spyOn(API.experimental, "editChatMessage")
+				.mockResolvedValue({
+					message: { ...mockAnswer, id: 8, content: expectedContent },
+				});
+
+			await editAndSave({
+				seed: { queuedMessages: [], messages: [mockAnswer] },
+				editAction: "Edit message",
+				loadedText: "Redis",
+				typedText: " edit",
+			});
+
+			await waitFor(() =>
+				expect(editChatMessage).toHaveBeenCalledWith(
+					MockChat.id,
+					mockAnswer.id,
+					expect.objectContaining({ content: expectedContent }),
+				),
+			);
+		});
+
+		it("saving an edited answer that starts with a skill chip keeps the chip and its question", async () => {
+			const mockAnswer: TypesGen.ChatMessage = {
+				...MockChatMessage,
+				id: 7,
+				content: [
+					{ type: "question-answer", question_id: questionId },
+					{
+						type: "skill-invocation",
+						skill_source: "project",
+						skill_name: "triage",
+					},
+					{ type: "text", text: "Redis" },
+				],
+			};
+			const expectedContent: TypesGen.ChatMessagePart[] = [
+				{ type: "question-answer", question_id: questionId },
+				{
+					type: "skill-invocation",
+					skill_source: "project",
+					skill_name: "triage",
+				},
+				{ type: "text", text: "Redis edit" },
+			];
+			const editChatMessage = vi
+				.spyOn(API.experimental, "editChatMessage")
+				.mockResolvedValue({
+					message: { ...mockAnswer, id: 8, content: expectedContent },
+				});
+
+			await editAndSave({
+				seed: { queuedMessages: [], messages: [mockAnswer] },
+				editAction: "Edit message",
+				loadedText: "Redis",
+				typedText: " edit",
+			});
+
+			await waitFor(() =>
+				expect(editChatMessage).toHaveBeenCalledWith(
+					MockChat.id,
+					mockAnswer.id,
+					expect.objectContaining({ content: expectedContent }),
+				),
+			);
+		});
 	});
 
 	describe("queued message editing", () => {

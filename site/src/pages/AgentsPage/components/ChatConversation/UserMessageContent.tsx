@@ -120,6 +120,9 @@ export const UserMessageContent: React.FC<{
 				)}
 			>
 				<div className="flex flex-col gap-2">
+					{displayState.isQuestionAnswer && (
+						<span className="text-xs text-content-secondary">Answer</span>
+					)}
 					{displayState.hasUserMessageBody && (
 						<Response
 							className="whitespace-normal"

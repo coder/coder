@@ -169,6 +169,33 @@ const focusCopyCommand = (messageId: number) => {
 	return button;
 };
 
+describe("ConversationTimeline answers", () => {
+	it("copies an answer as its text only", async () => {
+		const user = userEvent.setup();
+		const writeText = vi
+			.spyOn(navigator.clipboard, "writeText")
+			.mockResolvedValue();
+		renderTimeline({
+			messages: [
+				{
+					...MockChatMessage,
+					id: 1,
+					role: "user",
+					content: [
+						{ type: "question-answer", question_id: "question-1" },
+						{ type: "text", text: "Redis" },
+					],
+				},
+			],
+		});
+		const answerRow = within(screen.getByTestId("chat-message-message:1"));
+
+		await user.click(answerRow.getByRole("button", { name: "Copy message" }));
+
+		expect(writeText).toHaveBeenCalledWith("Redis");
+	});
+});
+
 describe("ConversationTimeline working blocks", () => {
 	it("copies the whole message from the answer that ends a row folded by its work", async () => {
 		const user = userEvent.setup();
