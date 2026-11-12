@@ -228,8 +228,9 @@ export const useChatStore = (
 				return;
 			}
 			if (payload.parseError || !payload.parsedMessage) {
-				// A lost frame can hold events that a later event's version would
-				// skip on reconnect, so resync from the last applied version.
+				// The WebSocket message can hold events that a later event's
+				// version would skip on reconnect, so open the stream again
+				// with the last applied version.
 				discardBufferedParts();
 				store.setClientError({
 					kind: "generic",
