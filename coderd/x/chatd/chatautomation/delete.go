@@ -71,9 +71,6 @@ func DeleteQueuedMessages(
 	ps chatstate.Publisher,
 	automationIDs []uuid.UUID,
 ) (publish func(), err error) {
-	if len(automationIDs) == 0 {
-		return func() {}, nil
-	}
 	// The removal follows from the change to the automation. It must not
 	// depend on what the actor can do to a chat, so it runs as chatd.
 	//nolint:gocritic // See above.

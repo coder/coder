@@ -667,9 +667,16 @@ func TestDeleteUserChatAutomations(t *testing.T) {
 		second := env.automation(t, database.ChatAutomation{OwnerID: user.ID})
 		running := env.queuedChat(t, user.ID, database.ChatStatusRunning, first.ID, uuid.Nil, second.ID)
 		paused := env.queuedChat(t, user.ID, database.ChatStatusPaused, second.ID)
+		updates := make(chan struct{}, 4)
+		cancel, err := env.api.Pubsub.Subscribe(coderdpubsub.ChatStateUpdateChannel(paused.ID), func(context.Context, []byte) {
+			updates <- struct{}{}
+		})
+		require.NoError(t, err)
+		defer cancel()
 
 		require.NoError(t, env.owner.DeleteUser(ctx, user.ID))
 
+		testutil.RequireReceive(ctx, t, updates)
 		require.False(t, env.exists(t, first.ID))
 		require.False(t, env.exists(t, second.ID))
 		left, status := env.queued(t, running.ID)
@@ -678,6 +685,30 @@ func TestDeleteUserChatAutomations(t *testing.T) {
 		left, status = env.queued(t, paused.ID)
 		require.Zero(t, left)
 		require.Equal(t, database.ChatStatusWaiting, status)
+	})
+
+	// A caller who cannot delete the user is refused before the delete
+	// takes an automation lock: it does not wait for a lock that is held.
+	t.Run("NoPermission", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitLong)
+		env := newChatAutomationEnv(t, nil)
+		// An auditor can read the user and cannot delete it.
+		auditor, _ := coderdtest.CreateAnotherUser(t, env.owner, env.first.OrganizationID, rbac.RoleAuditor())
+		_, user := coderdtest.CreateAnotherUser(t, env.owner, env.first.OrganizationID)
+		automation := env.automation(t, database.ChatAutomation{OwnerID: user.ID})
+		holder, err := env.sqlDB.BeginTx(ctx, nil)
+		require.NoError(t, err)
+		defer func() { _ = holder.Rollback() }()
+		_, err = holder.ExecContext(ctx, `SELECT pg_advisory_xact_lock($1)`, chatautomation.LockID(automation.ID))
+		require.NoError(t, err)
+
+		err = auditor.DeleteUser(testutil.Context(t, testutil.WaitShort), user.ID)
+
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.True(t, env.exists(t, automation.ID))
 	})
 
 	t.Run("InvalidChat", func(t *testing.T) {

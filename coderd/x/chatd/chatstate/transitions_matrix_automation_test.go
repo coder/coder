@@ -169,3 +169,37 @@ func automationQueueMatrixCases() []transitionCaseSpec {
 		automationQueueCase(chatstate.StateP, chatstate.StateR1, "Aho"),
 	)
 }
+
+// TestDeleteQueuedMessagesByAutomationKeepsOtherChats runs the transition on
+// one chat. A message of the same automation in another chat stays, because
+// that chat is not locked.
+func TestDeleteQueuedMessagesByAutomationKeepsOtherChats(t *testing.T) {
+	t.Parallel()
+	f := newTestFixture(t)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	automationID := uuid.New()
+	message := userTextMessage("queued", f.User.ID, f.Model.ID)
+	var chatIDs [2]uuid.UUID
+	for i := range chatIDs {
+		chatIDs[i] = seedState(t, f, chatstate.StateR0).chatID
+		_, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
+			ChatID:        chatIDs[i],
+			Content:       message.Content.RawMessage,
+			CreatedBy:     f.User.ID,
+			BusyBehavior:  database.ChatBusyBehaviorQueue,
+			AutomationID:  uuid.NullUUID{UUID: automationID, Valid: true},
+			InputID:       uuid.NullUUID{UUID: uuid.New(), Valid: true},
+			ModelConfigID: message.ModelConfigID,
+		})
+		require.NoError(t, err)
+	}
+
+	var result transitionCaseResult
+	require.NoError(t, chatstate.NewChatMachine(f.DB, f.Pub, chatIDs[0]).Update(ctx, func(tx *chatstate.Tx, _ database.Store) error {
+		return applyDeleteQueuedMessagesByAutomation(automationID)(t, f, tx, seededChat{}, chatstate.StateR1, &result)
+	}))
+
+	require.EqualValues(t, 1, result.deleteQueuedMessagesByAutomation.Deleted)
+	require.Empty(t, queuedIDsByPosition(ctx, t, f, chatIDs[0]))
+	require.Len(t, queuedIDsByPosition(ctx, t, f, chatIDs[1]), 1)
+}

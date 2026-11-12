@@ -270,6 +270,14 @@ func TestDelete(t *testing.T) {
 					resumed = append(resumed, chat.ID)
 				}
 			}
+			// The chats are locked, and so updated, in chat ID order.
+			var updated []string
+			for _, channel := range ps.channels {
+				if strings.HasPrefix(channel, "chat:update:") {
+					updated = append(updated, channel)
+				}
+			}
+			require.True(t, slices.IsSorted(updated), "chat updates in chat ID order: %v", updated)
 			// The chat list hears of each chat that left paused.
 			var watched []uuid.UUID
 			for _, payload := range ps.on(coderdpubsub.ChatWatchEventChannel(f.owner.ID)) {
@@ -323,6 +331,8 @@ func TestDeleteQueuedMessagesAfterOwnerDelete(t *testing.T) {
 		OrganizationID: f.org.ID, OwnerID: f.owner.ID, LastModelConfigID: f.model.ID, Status: database.ChatStatusPaused,
 	})
 	first, second := f.automation(t, running), f.automation(t, running)
+	want := []uuid.UUID{first.ID, second.ID, f.automation(t, running).ID, f.automation(t, running).ID}
+	slices.SortFunc(want, func(a, b uuid.UUID) int { return strings.Compare(a.String(), b.String()) })
 	queue(ctx, t, sqlDB, running.ID, first.ID)
 	queue(ctx, t, sqlDB, running.ID, uuid.Nil)
 	queue(ctx, t, sqlDB, running.ID, second.ID)
@@ -335,8 +345,6 @@ func TestDeleteQueuedMessagesAfterOwnerDelete(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		want := []uuid.UUID{first.ID, second.ID}
-		slices.SortFunc(want, func(a, b uuid.UUID) int { return strings.Compare(a.String(), b.String()) })
 		require.Equal(t, want, ids, "the locks are taken in automation ID order")
 		if err := tx.UpdateUserDeletedByID(ctx, f.owner.ID); err != nil {
 			return err
@@ -403,6 +411,39 @@ func TestDeleteRowAlreadyGone(t *testing.T) {
 	require.True(t, httpapi.Is404Error(err), "want a not found error, got %v", err)
 	require.Equal(t, []uuid.UUID{automation.ID}, f.queued(ctx, t, chat.ID))
 	require.Empty(t, ps.channels)
+}
+
+// missingChatStore reports one more chat than those that hold queued
+// messages: a chat that was deleted after the read.
+type missingChatStore struct{ database.Store }
+
+func (s missingChatStore) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
+	return s.Store.InTx(func(tx database.Store) error { return fn(missingChatStore{Store: tx}) }, opts)
+}
+
+func (s missingChatStore) GetChatIDsWithQueuedMessagesByAutomationIDs(ctx context.Context, automationIDs []uuid.UUID) ([]uuid.UUID, error) {
+	chatIDs, err := s.Store.GetChatIDsWithQueuedMessagesByAutomationIDs(ctx, automationIDs)
+	return append([]uuid.UUID{uuid.New()}, chatIDs...), err
+}
+
+// TestDeleteSkipsMissingChat deletes an automation while a chat that held one
+// of its queued messages goes away: the other chats are still cleaned up.
+func TestDeleteSkipsMissingChat(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitLong)
+	db, _, sqlDB := dbtestutil.NewDBWithSQLDB(t)
+	f := newFixture(t, db, sqlDB)
+	chat := f.chat(t)
+	automation := f.automation(t, chat)
+	queue(ctx, t, sqlDB, chat.ID, automation.ID)
+	actor, _, err := httpmw.UserRBACSubject(ctx, db, f.owner.ID, rbac.ScopeAll)
+	require.NoError(t, err)
+
+	_, err = chatautomation.Delete(ctx, testutil.Logger(t), missingChatStore{Store: db}, &published{}, actor, f.org.ID, automation.ID)
+
+	require.NoError(t, err)
+	require.False(t, f.automationExists(ctx, t, automation.ID))
+	require.Empty(t, f.queued(ctx, t, chat.ID))
 }
 
 // TestDeleteForbidden deletes as a role that can read the automation and not
