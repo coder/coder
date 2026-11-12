@@ -75,7 +75,7 @@ Coder ships in four primary release channels:
 
 Coder will occasionally ship release candidates, which are ad-hoc builds meant to validate in-development features.
 
-The Coder Team fields each mainline release publicly for one month before promoting it to stable.
+The Coder Team launches each new minor version as mainline at release time and promotes it to stable after one month.
 The security support version receives patches only for security issues or Common Vulnerabilities and Exposures (CVEs).
 
 ### Mainline releases
