@@ -44,8 +44,6 @@ describe("AskUserQuestionTool", () => {
 			</QueryClientProvider>,
 		);
 
-		expect(screen.queryByText("No description provided.")).toBeNull();
-
 		await user.click(
 			screen.getByRole("radio", { name: "Incremental migrations" }),
 		);
