@@ -3033,6 +3033,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
           "hook_rewritten": true,
+          "invalid_args": "string",
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
@@ -3108,6 +3109,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/messages \
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
           "hook_rewritten": true,
+          "invalid_args": "string",
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
@@ -3260,6 +3262,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
         "hook_rewritten": true,
+        "invalid_args": "string",
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
@@ -3333,6 +3336,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
           "hook_rewritten": true,
+          "invalid_args": "string",
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
@@ -3408,6 +3412,7 @@ curl -X POST http://coder-server:8080/api/v2/chats/{chat}/messages \
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
         "hook_rewritten": true,
+        "invalid_args": "string",
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
@@ -3545,6 +3550,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
         "hook_rewritten": true,
+        "invalid_args": "string",
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
@@ -3618,6 +3624,7 @@ curl -X PATCH http://coder-server:8080/api/v2/chats/{chat}/messages/{message} \
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
           "hook_rewritten": true,
+          "invalid_args": "string",
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
@@ -4261,6 +4268,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "file_name": "string",
           "hook_rewritten": true,
+          "invalid_args": "string",
           "is_error": true,
           "is_media": true,
           "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
@@ -4333,6 +4341,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
         "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
         "file_name": "string",
         "hook_rewritten": true,
+        "invalid_args": "string",
         "is_error": true,
         "is_media": true,
         "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
@@ -4393,6 +4402,7 @@ curl -X GET http://coder-server:8080/api/v2/chats/{chat}/stream \
             "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
             "file_name": "string",
             "hook_rewritten": true,
+            "invalid_args": "string",
             "is_error": true,
             "is_media": true,
             "mcp_server_config_id": "a9f436ed-69e7-459c-8308-a67ff5387e3e",
@@ -4498,6 +4508,7 @@ Status Code **200**
 | `»»» file_id`                      | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» file_name`                    | string                                                                           | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» hook_rewritten`               | boolean                                                                          | false    |              | Hook rewritten indicates that a lifecycle hook replaced model-proposed tool input.                                                                                                                                                                                                                                                                                                                         |
+| `»»» invalid_args`                 | string                                                                           | false    |              | Invalid args holds the model's raw tool input when it is not blank and not valid JSON; Args is then empty. Internal only: kept for analysis, never sent back to the model, and cleared by StripInternal.                                                                                                                                                                                                   |
 | `»»» is_error`                     | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» is_media`                     | boolean                                                                          | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `»»» mcp_server_config_id`         | string(uuid)                                                                     | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                            |
