@@ -226,7 +226,7 @@ module "remote" { source = "example.com/x/y/z" }`), 0o600))
 	})
 }
 
-func Test_prepareWithoutInit(t *testing.T) {
+func Test_manualInit(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS != "linux" {
 		t.Skip("init is only skipped on Linux, where the plugin cache is used")
@@ -245,7 +245,7 @@ func Test_prepareWithoutInit(t *testing.T) {
 	t.Run("Skips", func(t *testing.T) {
 		t.Parallel()
 		files := newWorkDir(t)
-		require.True(t, prepareWithoutInit(t.Context(), logger, files, fakeCache(t, coder, docker), nil))
+		require.True(t, manualInit(t.Context(), logger, files, fakeCache(t, coder, docker), nil))
 		require.DirExists(t, files.ProvidersDirectory())
 	})
 
@@ -254,7 +254,7 @@ func Test_prepareWithoutInit(t *testing.T) {
 		t.Parallel()
 		files := newWorkDir(t)
 		env := []string{"PATH=/usr/bin", "TF_DATA_DIR=.tfdata"}
-		require.False(t, prepareWithoutInit(t.Context(), logger, files, fakeCache(t, coder, docker), env))
+		require.False(t, manualInit(t.Context(), logger, files, fakeCache(t, coder, docker), env))
 		require.NoDirExists(t, files.ProvidersDirectory())
 	})
 }

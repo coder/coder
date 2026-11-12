@@ -116,7 +116,7 @@ func (s *server) Init(
 	// needs. Any other lock file, such as one committed from another OS, may
 	// not, and template import and dry runs never have a captured one, so they
 	// always run a real init and the lock file they capture is complete.
-	if restored && prepareWithoutInit(ctx, s.logger, sess.Files, s.cachePath, e.basicEnv()) {
+	if restored && manualInit(ctx, s.logger, sess.Files, s.cachePath, e.basicEnv()) {
 		sessState.initSkipped = true
 		sess.ProvisionLog(proto.LogLevel_INFO, "Skipping terraform init: using cached providers pinned by the dependency lock file")
 		endStage(nil)

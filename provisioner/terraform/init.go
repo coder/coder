@@ -170,7 +170,7 @@ func modulesReady(files tfpath.Layout) (bool, error) {
 // providers into .terraform can't honor them.
 var initCustomizingEnv = []string{"TF_DATA_DIR", "TF_CLI_ARGS", "TF_CLI_ARGS_init"}
 
-// prepareWithoutInit tries to make the working directory ready for plan and
+// manualInit tries to make the working directory ready for plan and
 // apply without running `terraform init`. That command costs a few hundred
 // milliseconds even when it has nothing to download, because it contacts the
 // registry for every pinned provider and re-verifies package checksums. When
@@ -186,7 +186,7 @@ var initCustomizingEnv = []string{"TF_DATA_DIR", "TF_CLI_ARGS", "TF_CLI_ARGS_ini
 // It returns true when init was skipped. Any problem is reported as false so
 // the caller falls back to a real init. env is the environment Terraform
 // runs with.
-func prepareWithoutInit(ctx context.Context, logger slog.Logger, files tfpath.Layout, cachePath string, env []string) bool {
+func manualInit(ctx context.Context, logger slog.Logger, files tfpath.Layout, cachePath string, env []string) bool {
 	// Terraform only fills the plugin cache when basicEnv hands it one.
 	if !pluginCacheEnabled(cachePath) {
 		return false
