@@ -9,41 +9,26 @@ import (
 	"time"
 )
 
-// Defaults for the conditional-request response cache. These bound
-// the memory used by cached GitHub responses while still covering a
-// realistic working set of actively-polled pull requests.
+// Defaults bound retained entries and individual response bodies.
 const (
-	// defaultResponseCacheEntries is the maximum number of cached
-	// entries retained. Once exceeded, the least-recently-used
-	// entry is evicted. Sized above the gitsync worker's steady-state
-	// working set: defaultBatchSize (50) rows re-acquired every
-	// DiffStatusTTL (120s) over defaultInterval (10s) ticks, at 2-3
-	// cache keys per row. See coderd/x/gitsync.
+	// defaultResponseCacheEntries bounds retained entries. Inserts beyond the
+	// limit evict the least-recently-used entry.
 	defaultResponseCacheEntries = 2048
 
-	// maxCachedBodyBytes is the largest response body that will be
-	// cached. Larger bodies are still returned to the caller but are
-	// not stored, so a single oversized response cannot blow up the
-	// cache's memory footprint.
+	// maxCachedBodyBytes bounds one retained body. Oversized entries are ignored.
 	maxCachedBodyBytes = 1 << 20 // 1 MiB
 )
 
-// cachedResponse holds a conditional response or a pull-request snapshot.
-// Repository issue-access rejection markers use only key and issueRejectedUntil.
+// cachedResponse holds a validator, an immutable body, and optional expiry.
+// Expiry metadata does not prevent conditional validation of a stored response.
 type cachedResponse struct {
-	key                string
-	etag               string
-	body               []byte
-	issueRejectedUntil time.Time
+	key       string
+	etag      string
+	body      []byte
+	expiresAt time.Time
 }
 
-// responseCache is a small, concurrency-safe LRU cache of GitHub
-// responses and issue-access rejection markers keyed by URL and token hash.
-// It enables conditional requests (ETag / If-None-Match): when GitHub replies
-// 304 Not Modified the cached body is reused, avoiding a full
-// re-download. Conditional requests that return 304 also do not
-// count against the primary REST rate limit, which matters for the
-// diff-status worker that polls open PRs on a short interval.
+// responseCache is a concurrency-safe LRU cache keyed by URL and token hash.
 type responseCache struct {
 	mu      sync.Mutex
 	maxSize int
@@ -68,16 +53,22 @@ func newResponseCache(maxSize int) *responseCache {
 // marks the entry as most-recently-used. The returned body aliases
 // the cache's copy and must not be mutated.
 func (c *responseCache) load(key string) (etag string, body []byte, ok bool) {
+	entry, ok := c.loadEntry(key)
+	return entry.etag, entry.body, ok
+}
+
+// loadEntry returns a copy and marks it as most-recently-used. The body aliases
+// the cache's copy and must not be mutated.
+func (c *responseCache) loadEntry(key string) (cachedResponse, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	elem, found := c.entries[key]
 	if !found {
-		return "", nil, false
+		return cachedResponse{}, false
 	}
 	c.ll.MoveToFront(elem)
-	cr := cachedEntry(elem)
-	return cr.etag, cr.body, true
+	return *cachedEntry(elem), true
 }
 
 // store records the ETag and body for key, evicting the
@@ -90,8 +81,8 @@ func (c *responseCache) store(key, etag string, body []byte) {
 	c.storeEntry(cachedResponse{key: key, etag: etag, body: body})
 }
 
-// storeEntry also accepts snapshots without an issue ETag and rejection markers.
-// They share the response cache's entry limit and LRU eviction.
+// storeEntry records an entry regardless of ETag, subject to the body limit and
+// LRU eviction.
 func (c *responseCache) storeEntry(entry cachedResponse) {
 	if len(entry.body) > maxCachedBodyBytes {
 		return
@@ -119,7 +110,8 @@ func (c *responseCache) storeEntry(entry cachedResponse) {
 	}
 }
 
-func (c *responseCache) issueRejected(key string, now time.Time) bool {
+// active reports whether key is unexpired, deleting expired entries.
+func (c *responseCache) active(key string, now time.Time) bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -127,7 +119,7 @@ func (c *responseCache) issueRejected(key string, now time.Time) bool {
 	if !found {
 		return false
 	}
-	if !now.Before(cachedEntry(elem).issueRejectedUntil) {
+	if !now.Before(cachedEntry(elem).expiresAt) {
 		c.ll.Remove(elem)
 		delete(c.entries, key)
 		return false
@@ -153,7 +145,7 @@ func cachedEntry(elem *list.Element) *cachedResponse {
 }
 
 // responseCacheKey derives a cache key that isolates responses by
-// request URL and auth scope. The token is hashed rather than stored
+// request URL and token hash. The token is hashed rather than stored
 // so that a cached entry for one user's token is never served to
 // another, without keeping raw credentials in memory.
 func responseCacheKey(requestURL, token string) string {

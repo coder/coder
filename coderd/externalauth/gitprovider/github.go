@@ -29,9 +29,7 @@ type githubProvider struct {
 	clock          quartz.Clock
 	requestMetrics promoauth.InstrumentedOAuth2Config
 
-	// cache stores ETags and response bodies so JSON reads can be
-	// issued as conditional requests, letting unchanged pull
-	// requests return 304 Not Modified instead of a full body.
+	// cache retains validators, projections, and expiry metadata.
 	cache *responseCache
 
 	// Compiled per-instance to support GitHub Enterprise hosts.
@@ -397,8 +395,8 @@ func (g *githubProvider) decodeJSON(
 		return nil
 	}
 
-	if resp.StatusCode != http.StatusOK {
-		return xerrors.Errorf("github request failed with status %d", resp.StatusCode)
+	if resp.StatusCode == http.StatusNotModified {
+		return xerrors.New("github response returned 304 without a cached response")
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -446,20 +444,31 @@ func (g *githubProvider) requestJSON(
 	}
 	defer resp.Body.Close()
 
-	if rlErr := checkRateLimitError(resp, g.clock, "X-Ratelimit-Reset"); rlErr != nil {
-		return nil, rlErr
+	rateLimited := false
+	if source == promoauth.SourceGitProviderIssue {
+		rateLimited = issueRateLimited(resp)
+	}
+	if source != promoauth.SourceGitProviderIssue || rateLimited {
+		if rlErr := checkRateLimitError(resp, g.clock, "X-Ratelimit-Reset"); rlErr != nil {
+			return nil, rlErr
+		}
 	}
 	body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 	if readErr != nil {
 		return nil, xerrors.Errorf("github request failed with status %d", resp.StatusCode)
 	}
 	message := fmt.Sprintf("github request failed with status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
-	return nil, &githubRequestError{statusCode: resp.StatusCode, message: message}
+	return nil, &githubRequestError{
+		statusCode:  resp.StatusCode,
+		message:     message,
+		rateLimited: rateLimited,
+	}
 }
 
 type githubRequestError struct {
-	statusCode int
-	message    string
+	statusCode  int
+	message     string
+	rateLimited bool
 }
 
 func (e *githubRequestError) Error() string {
@@ -470,6 +479,7 @@ func (g *githubProvider) do(ctx context.Context, req *http.Request, source promo
 	if g.requestMetrics == nil {
 		return g.httpClient.Do(req)
 	}
+	// promoauth.Config.Do reads oauth2.HTTPClient from ctx to preserve this client.
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, g.httpClient)
 	return g.requestMetrics.Do(ctx, source, req)
 }

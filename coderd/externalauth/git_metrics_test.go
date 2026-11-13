@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -28,6 +29,12 @@ func TestConfigGitRequestMetrics(t *testing.T) {
 
 	var mode atomic.Int32
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resetAt := time.Now().Add(30 * time.Minute)
+		resetTimestamp := strconv.FormatInt(resetAt.Unix(), 10)
+		w.Header().Set("X-Ratelimit-Limit", "15000")
+		w.Header().Set("X-Ratelimit-Remaining", "14999")
+		w.Header().Set("X-Ratelimit-Reset", resetTimestamp)
+
 		assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
 		etag := `"unchanged"`
 		var body string
@@ -79,9 +86,16 @@ func TestConfigGitRequestMetrics(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	accessURL, err := url.Parse("https://coder.example.com")
 	require.NoError(t, err)
-	configs, err := externalauth.ConvertConfig(t.Context(), slog.Logger{}, promoauth.NewFactory(reg), []codersdk.ExternalAuthConfig{{
-		ID: "github-test", Type: "github", ClientID: "test-client", APIBaseURL: srv.URL + "/api/v3",
-	}}, accessURL, srv.Client())
+	factory := promoauth.NewFactory(reg)
+	entries := []codersdk.ExternalAuthConfig{
+		{
+			ID:         "github-test",
+			Type:       "github",
+			ClientID:   "test-client",
+			APIBaseURL: srv.URL + "/api/v3",
+		},
+	}
+	configs, err := externalauth.ConvertConfig(t.Context(), slog.Logger{}, factory, entries, accessURL, srv.Client())
 	require.NoError(t, err)
 	require.Len(t, configs, 1)
 	provider, err := configs[0].Git()
@@ -98,7 +112,9 @@ func TestConfigGitRequestMetrics(t *testing.T) {
 	count := func(source string, status int) int {
 		t.Helper()
 		return promhelp.CounterValue(t, reg, "coderd_oauth2_external_requests_total", prometheus.Labels{
-			"name": "github-test", "source": source, "status_code": strconv.Itoa(status),
+			"name":        "github-test",
+			"source":      source,
+			"status_code": strconv.Itoa(status),
 		})
 	}
 	assert.Equal(t, 1, count("GitProviderIssue", http.StatusOK))
