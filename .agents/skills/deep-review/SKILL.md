@@ -87,7 +87,7 @@ Match reviewer roles to layers touched. The Test Auditor, Edge Case Analyst, and
 
 | Role                 | Focus                                                       | When                                                        |
 | -------------------- | ----------------------------------------------------------- | ----------------------------------------------------------- |
-| Test Auditor         | Test authenticity, missing cases, readability               | Always                                                      |
+| Test Auditor         | Test authenticity, redundancy, missing cases, readability   | Always                                                      |
 | Edge Case Analyst    | Chaos testing, edge cases, hidden connections               | Always                                                      |
 | Contract Auditor     | Contract fidelity, lifecycle completeness, semantic honesty | Always                                                      |
 | Structural Analyst   | Implicit assumptions, class-of-bug elimination              | API design, type design, test structure, resource lifecycle |
