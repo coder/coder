@@ -577,6 +577,55 @@ describe("ChatsSidebar projects", () => {
 		).toBeInTheDocument();
 	});
 
+	it("names a pinned chat's project from the summaries, with its organization when its name is shared", async () => {
+		const mockOtherProject = {
+			...MockChatProject,
+			id: "other-project",
+			organization_id: MockOrganization2.id,
+		};
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json({ message: "boom" }, { status: 500 }),
+			),
+			http.get("/api/experimental/chats/projects/summaries", () =>
+				HttpResponse.json(
+					[MockChatProject, mockOtherProject].map((project) => ({
+						...MockChatProjectSummary,
+						project,
+					})),
+				),
+			),
+		);
+		const label = `${MockChatProject.name} (${MockOrganization2.display_name})`;
+
+		render(
+			<Wrapper organizations={[MockDefaultOrganization, MockOrganization2]}>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "pinned-chat",
+							title: "Pinned chat",
+							project_id: mockOtherProject.id,
+							pin_order: 1,
+						}),
+						buildChat({
+							id: "shared-chat",
+							owner_id: "another-user",
+							project_id: MockChatProject.id,
+							pin_order: 1,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+
+		expect(
+			await screen.findByRole("img", { name: label }),
+		).toHaveAccessibleName(label);
+		expect(screen.getAllByRole("img", { name: /^Launch/ })).toHaveLength(1);
+	});
+
 	it("opens the folder of the project being viewed until the user collapses it", async () => {
 		const user = userEvent.setup();
 		server.use(
@@ -666,6 +715,116 @@ describe("ChatsSidebar projects", () => {
 		expect(
 			screen.getByRole("button", { name: `Collapse ${mockOtherProject.name}` }),
 		).toBeInTheDocument();
+	});
+});
+
+describe("ChatsSidebar unpin focus", () => {
+	const mockOpsProject = { ...MockChatProject, id: "ops", name: "Ops" };
+	const renderPinnedProjects = (projects: TypesGen.ChatProject[]) => {
+		let pinnedProjects = projects;
+		server.use(
+			http.get("/api/v2/chats", () => HttpResponse.json([])),
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json(projects),
+			),
+			http.get("/api/experimental/chats/projects/summaries", () =>
+				HttpResponse.json(
+					pinnedProjects.map((project, index) => ({
+						...MockChatProjectSummary,
+						project,
+						pin_order: index + 1,
+					})),
+				),
+			),
+			http.delete(
+				"/api/experimental/organizations/:organization/chats/projects/:project/pin",
+				({ params }) => {
+					pinnedProjects = pinnedProjects.filter(
+						(project) => project.id !== params.project,
+					);
+					return new HttpResponse(null, { status: 204 });
+				},
+			),
+		);
+		render(
+			<Wrapper>
+				<ChatsSidebar {...defaultProps} />
+			</Wrapper>,
+		);
+	};
+	const unpinWithKeyboard = async (projectName: string) => {
+		const user = userEvent.setup();
+		const link = await screen.findByRole("link", { name: projectName });
+		act(() => {
+			link.focus();
+		});
+		await user.tab();
+		await user.keyboard("{Enter}");
+		await user.click(
+			await screen.findByRole("menuitem", { name: "Unpin project" }),
+		);
+	};
+
+	it("removes the folder before the unpin request settles", async () => {
+		renderPinnedProjects([MockChatProject]);
+		server.use(
+			http.delete(
+				"/api/experimental/organizations/:organization/chats/projects/:project/pin",
+				() => new Promise<never>(() => {}),
+			),
+		);
+		await unpinWithKeyboard(MockChatProject.name);
+
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("link", { name: MockChatProject.name }),
+			).toBeNull(),
+		);
+	});
+
+	it.each([
+		{ unpinned: MockChatProject.name, next: mockOpsProject.name },
+		{ unpinned: mockOpsProject.name, next: MockChatProject.name },
+	])(
+		"moves focus from unpinned $unpinned to the folder of $next",
+		async ({ unpinned, next }) => {
+			renderPinnedProjects([MockChatProject, mockOpsProject]);
+			await unpinWithKeyboard(unpinned);
+
+			await waitFor(() =>
+				expect(
+					screen.getByRole("button", { name: `Expand ${next}` }),
+				).toHaveFocus(),
+			);
+		},
+	);
+
+	it("moves focus to the Projects nav item after unpinning the last project", async () => {
+		renderPinnedProjects([MockChatProject]);
+		await unpinWithKeyboard(MockChatProject.name);
+
+		await waitFor(() =>
+			expect(screen.getByRole("link", { name: "Projects" })).toHaveFocus(),
+		);
+	});
+
+	it("moves focus to the chat filters after unpinning the last project on a small screen", async () => {
+		// jsdom has no layout, so this stands in for the CSS that hides the nav
+		// on a small screen.
+		Element.prototype.checkVisibility = function () {
+			return !this.closest("nav");
+		};
+		onTestFinished(() => {
+			Reflect.deleteProperty(Element.prototype, "checkVisibility");
+		});
+		renderPinnedProjects([MockChatProject]);
+		await unpinWithKeyboard(MockChatProject.name);
+
+		await waitFor(() =>
+			expect(
+				screen.getByRole("button", { name: "Filter agents" }),
+			).toHaveFocus(),
+		);
 	});
 });
 
@@ -1273,6 +1432,40 @@ describe("ChatsSidebar project drops", () => {
 		);
 	});
 
+	// The folder sits inside Chats, which would remove the chat from its
+	// project if it took the drop.
+	it("moves nothing on a mouse drag of a project chat onto its own folder", async () => {
+		server.use(http.get("/api/v2/chats", () => HttpResponse.json([])));
+		const update = vi
+			.spyOn(API.experimental, "updateChat")
+			.mockResolvedValue(undefined);
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([mockBillingProject, mockOpsProject]),
+			),
+		);
+		render(
+			<Wrapper initialEntry={`/agents/projects/${mockBillingProject.id}`}>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[
+						buildChat({
+							id: "c1",
+							title: "Fix invoice dates",
+							organization_id: mockBillingProject.organization_id,
+							project_id: mockBillingProject.id,
+						}),
+					]}
+				/>
+			</Wrapper>,
+		);
+		await screen.findByRole("link", { name: /Fix invoice dates/ });
+		layoutDropTargets("Fix invoice dates", 240);
+
+		await mouseDragRow("Fix invoice dates", 40);
+		expect(update).not.toHaveBeenCalled();
+	});
+
 	// A failed projects request shows project chats under Chats, where a drop
 	// would remove them from their project.
 	it("moves nothing on a mouse drag into Chats of a chat whose project did not load", async () => {
@@ -1449,7 +1642,12 @@ describe("ChatsSidebar project drops", () => {
 		);
 		layoutDropTargets("Fix invoice dates", rowTop);
 
-		screen.getByRole("link", { description: DRAG_INSTRUCTIONS }).focus();
+		screen
+			.getByRole("link", {
+				name: /Fix invoice dates/,
+				description: DRAG_INSTRUCTIONS,
+			})
+			.focus();
 		await user.keyboard("[Space]");
 		await user.keyboard(key);
 		await waitFor(() =>
@@ -1496,7 +1694,12 @@ describe("ChatsSidebar project drops", () => {
 			scrollTop = -150;
 		});
 
-		screen.getByRole("link", { description: DRAG_INSTRUCTIONS }).focus();
+		screen
+			.getByRole("link", {
+				name: /Fix invoice dates/,
+				description: DRAG_INSTRUCTIONS,
+			})
+			.focus();
 		await user.keyboard("[Space]");
 		await user.keyboard("[ArrowUp]");
 		await waitFor(() =>
@@ -1592,10 +1795,9 @@ describe("ChatsSidebar pinned reordering", () => {
 
 	// dnd-kit's keyboard sensor picks the drop target from measured rects, so
 	// the rows stack in document order and ArrowDown reaches the next row.
-	const layoutSortableRows = () => {
-		const rows = screen.getAllByRole("link", {
-			description: DRAG_INSTRUCTIONS,
-		});
+	const layoutSortableRows = (
+		rows = screen.getAllByRole("link", { description: DRAG_INSTRUCTIONS }),
+	) => {
 		mockLayout((element) => {
 			const held = rows.filter((row) => element.contains(row));
 			if (held.length > 1) {
@@ -1676,6 +1878,57 @@ describe("ChatsSidebar pinned reordering", () => {
 			}
 		},
 	);
+
+	it("reorders pinned projects apart from pinned chats, by their full names", async () => {
+		const user = userEvent.setup();
+		const mockOpsProject = {
+			...MockChatProject,
+			id: "ops",
+			organization_id: MockOrganization2.id,
+		};
+		const launchName = `Launch (${MockDefaultOrganization.display_name})`;
+		const pins: unknown[] = [];
+		server.use(
+			http.get("/api/experimental/chats/projects", () =>
+				HttpResponse.json([MockChatProject, mockOpsProject]),
+			),
+			http.put(
+				"/api/experimental/organizations/:organization/chats/projects/:project/pin",
+				async ({ params, request }) => {
+					pins.push([params.project, await request.json()]);
+					return new HttpResponse(null, { status: 204 });
+				},
+			),
+		);
+		render(
+			<Wrapper organizations={[MockDefaultOrganization, MockOrganization2]}>
+				<ChatsSidebar
+					{...defaultProps}
+					chats={[buildChat({ id: "pinned", title: "Pinned", pin_order: 1 })]}
+				/>
+			</Wrapper>,
+		);
+
+		const launch = await screen.findByRole("link", { name: launchName });
+		layoutSortableRows([
+			launch,
+			screen.getByRole("link", { name: /My Organization 2/ }),
+		]);
+		launch.focus();
+		await user.keyboard("[Space]");
+		await user.keyboard("[ArrowDown]");
+		await waitFor(() =>
+			expect(screen.getByRole("status")).toHaveTextContent(
+				`Project ${launchName} is at position 2 of 2.`,
+			),
+		);
+		await waitFor(() => expect(launch).toHaveFocus());
+		await user.keyboard("[Space]");
+
+		await waitFor(() =>
+			expect(pins).toEqual([[MockChatProject.id, { pin_order: 2 }]]),
+		);
+	});
 });
 
 type MenuUser = ReturnType<typeof userEvent.setup>;

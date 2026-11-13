@@ -8,7 +8,7 @@ import type {
 	DragStartEvent,
 } from "@dnd-kit/react";
 import { isSortable } from "@dnd-kit/react/sortable";
-import type { Chat } from "#/api/typesGenerated";
+import type { Chat, ChatProject } from "#/api/typesGenerated";
 import {
 	canManageChat,
 	getArchiveBlockedReason,
@@ -38,6 +38,31 @@ export type ChatDragData = { readonly chat: Chat };
 
 /** The dnd-kit data of a chat drop target. */
 export type DropTargetData = { readonly dropTarget: DropTarget };
+
+/** The dnd-kit type of a pinned project drag, which only reorders the pins. */
+export const PROJECT_PIN_DRAG_TYPE = "project-pin";
+
+/**
+ * Carries the whole project, not its ID: the drop sends the pin request with
+ * its organization and the announcements read the folder's label, even if the
+ * summaries change during the drag.
+ */
+export type ProjectPinDragData = {
+	readonly project: ChatProject;
+	readonly label: string;
+};
+
+const isProjectPinDragData = (
+	data: Record<string, unknown>,
+): data is ProjectPinDragData => "project" in data;
+
+/** The data of a pinned project drag, or undefined for any other drag. */
+export const pinnedProjectOf = (
+	source: Draggable | null,
+): ProjectPinDragData | undefined =>
+	source?.type === PROJECT_PIN_DRAG_TYPE && isProjectPinDragData(source.data)
+		? source.data
+		: undefined;
 
 const isChatDragData = (data: Record<string, unknown>): data is ChatDragData =>
 	"chat" in data;
@@ -109,24 +134,35 @@ const announcedTarget = (target: Droppable | null): string | undefined => {
 
 /**
  * Screen reader announcements of a drag, by dnd-kit event. They name the
- * dragged chat and, for a row drag, the folder under it, or for a pin drag,
- * its place among the pins.
+ * dragged chat or pinned project and, for a row drag, the folder under it, or
+ * for a pin drag, its place among the pins.
  */
 export const chatDragAnnouncements = {
 	dragstart: ({ operation: { source } }: DragStartEvent) => {
+		const projectLabel = pinnedProjectOf(source)?.label;
+		if (projectLabel) {
+			return `Picked up project ${projectLabel}.`;
+		}
 		const chat = draggedChatOf(source);
 		return chat && `Picked up chat ${chat.title}.`;
 	},
 	dragover: (
 		{ operation: { source, target } }: DragOverEvent,
-		pinCount: number,
+		chatPinCount: number,
+		projectPinCount: number,
 	) => {
+		const projectLabel = pinnedProjectOf(source)?.label;
+		if (projectLabel) {
+			return isSortable(target)
+				? `Project ${projectLabel} is at position ${target.index + 1} of ${projectPinCount}.`
+				: undefined;
+		}
 		const chat = movedChatOf(source);
 		if (!chat) {
 			const pin = draggedChatOf(source);
 			// The dragged pin takes the index of the pin under it.
 			return pin && isSortable(target)
-				? `Chat ${pin.title} is at position ${target.index + 1} of ${pinCount}.`
+				? `Chat ${pin.title} is at position ${target.index + 1} of ${chatPinCount}.`
 				: undefined;
 		}
 		const over =
@@ -138,6 +174,12 @@ export const chatDragAnnouncements = {
 			: `Chat ${chat.title} is not over a project or Chats.`;
 	},
 	dragend: ({ operation: { source, target }, canceled }: DragEndEvent) => {
+		const projectLabel = pinnedProjectOf(source)?.label;
+		if (projectLabel) {
+			return canceled
+				? `Moving project ${projectLabel} was canceled.`
+				: `Project ${projectLabel} was dropped.`;
+		}
 		const chat = draggedChatOf(source);
 		if (!chat) {
 			return undefined;
@@ -300,4 +342,34 @@ export const refocusKeyboardPinDrag = (manager: DragDropManager): void => {
 		return;
 	}
 	void manager.renderer.rendering.then(() => setTimeout(() => handle.focus()));
+};
+
+/**
+ * Orders pins by the order a drop set until the server's order arrives, or
+ * keeps the given order when no drop is waiting on the server.
+ */
+export const applyLocalPinOrder = <T>(
+	pins: readonly T[],
+	localOrder: readonly string[] | null,
+	idOf: (pin: T) => string,
+): readonly T[] =>
+	localOrder
+		? localOrder
+				.map((id) => pins.find((pin) => idOf(pin) === id))
+				.filter((pin): pin is T => pin !== undefined)
+		: pins;
+
+/**
+ * The pin IDs after a drop moved id to index `to`, or undefined when the drop
+ * changed nothing.
+ */
+export const movePinnedId = (
+	ids: readonly string[],
+	id: string,
+	to: number,
+): string[] | undefined => {
+	const from = ids.indexOf(id);
+	return from === -1 || from === to
+		? undefined
+		: ids.toSpliced(from, 1).toSpliced(to, 0, id);
 };

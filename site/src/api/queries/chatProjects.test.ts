@@ -16,6 +16,7 @@ import {
 	chatProjectsKey,
 	createChatProject,
 	deleteChatProject,
+	pinChatProject,
 	setChatProjectRole,
 	unpinChatProject,
 	updateChatProject,
@@ -82,14 +83,164 @@ describe("chat project mutations", () => {
 		expect(isInvalidated(queryClient, messagesKey)).toBe(false);
 	});
 
-	it("refreshes the summaries and chat lists, not searches, after an unpin", async () => {
-		const queryClient = seed();
-		queryClient.setQueryData(chatProjectSummariesKey, []);
-		await settle(unpinChatProject(queryClient));
-		expect(isInvalidated(queryClient, chatProjectSummariesKey)).toBe(true);
-		expect(isInvalidated(queryClient, chatKeys[0])).toBe(true);
-		expect(isInvalidated(queryClient, chatProjectsKey)).toBe(false);
-		expect(isInvalidated(queryClient, chatKeys[1])).toBe(false);
+	it("refreshes the summaries and chat lists, not searches, after a pin change", async () => {
+		for (const factory of [pinChatProject, unpinChatProject]) {
+			const queryClient = seed();
+			queryClient.setQueryData(chatProjectSummariesKey, []);
+			await settle(factory(queryClient));
+			expect(isInvalidated(queryClient, chatProjectSummariesKey)).toBe(true);
+			expect(isInvalidated(queryClient, chatKeys[0])).toBe(true);
+			expect(isInvalidated(queryClient, chatProjectsKey)).toBe(false);
+			expect(isInvalidated(queryClient, chatKeys[1])).toBe(false);
+		}
+	});
+
+	it("moves a pinned project in the cached order and restores it when the move fails", async () => {
+		const mockBillingSummary = {
+			...MockChatProjectSummary,
+			project: { ...MockChatProject, id: "billing-project" },
+			pin_order: 2,
+		};
+		const queryClient = createTestQueryClient();
+		// Keeps the summaries cached without an observer.
+		queryClient.setQueryDefaults(chatProjectSummariesKey, {
+			gcTime: Number.POSITIVE_INFINITY,
+		});
+		queryClient.setQueryData(chatProjectSummariesKey, [
+			MockChatProjectSummary,
+			mockBillingSummary,
+		]);
+		const pinOrderById = () =>
+			Object.fromEntries(
+				(
+					queryClient.getQueryData<ChatProjectSummary[]>(
+						chatProjectSummariesKey,
+					) ?? []
+				).map((s) => [s.project.id, s.pin_order]),
+			);
+		let rejectPin: (error: unknown) => void = () => {};
+		vi.spyOn(API.experimental, "pinChatProject").mockReturnValue(
+			new Promise((_resolve, reject) => {
+				rejectPin = reject;
+			}),
+		);
+		onTestFinished(() => {
+			vi.restoreAllMocks();
+		});
+
+		const move = new MutationObserver(
+			queryClient,
+			pinChatProject(queryClient),
+		).mutate({ project: mockBillingSummary.project, pinOrder: 1 });
+		await vi.waitFor(() =>
+			expect(pinOrderById()).toEqual({
+				[mockBillingSummary.project.id]: 1,
+				[MockChatProject.id]: 2,
+			}),
+		);
+
+		rejectPin(mockApiError({}));
+		await expect(move).rejects.toBeDefined();
+		expect(pinOrderById()).toEqual({
+			[MockChatProject.id]: 1,
+			[mockBillingSummary.project.id]: 2,
+		});
+	});
+});
+
+describe("pinChatProject ordering", () => {
+	const [mockLaunch, mockBilling, mockOps] = ["launch", "billing", "ops"].map(
+		(id, index) => ({
+			...MockChatProjectSummary,
+			project: { ...MockChatProject, id },
+			pin_order: index + 1,
+		}),
+	);
+	const setup = () => {
+		const queryClient = createTestQueryClient();
+		// Keeps the queries cached without an observer.
+		for (const key of [chatProjectSummariesKey, chatListFamilyKey]) {
+			queryClient.setQueryDefaults(key, { gcTime: Number.POSITIVE_INFINITY });
+		}
+		queryClient.setQueryData(chatProjectSummariesKey, [
+			mockLaunch,
+			mockBilling,
+			mockOps,
+		]);
+		const chatListKey = [...chatListFamilyKey, { q: "" }];
+		queryClient.setQueryData(chatListKey, {});
+		const requests: { id: string; settle: (error?: unknown) => void }[] = [];
+		const pin = vi.spyOn(API.experimental, "pinChatProject").mockImplementation(
+			(_organizationId, id) =>
+				new Promise((resolve, reject) => {
+					requests.push({
+						id,
+						settle: (error) => (error ? reject(error) : resolve()),
+					});
+				}),
+		);
+		onTestFinished(() => {
+			vi.restoreAllMocks();
+		});
+		const move = (summary: ChatProjectSummary, pinOrder: number) =>
+			new MutationObserver(queryClient, pinChatProject(queryClient)).mutate({
+				project: summary.project,
+				pinOrder,
+			});
+		const pinnedIds = () =>
+			(
+				queryClient.getQueryData<ChatProjectSummary[]>(
+					chatProjectSummariesKey,
+				) ?? []
+			)
+				.toSorted((a, b) => a.pin_order - b.pin_order)
+				.map((s) => s.project.id);
+		return { queryClient, chatListKey, requests, pin, move, pinnedIds };
+	};
+
+	it("sends queued moves one at a time, in order", async () => {
+		const { requests, pin, move } = setup();
+		const first = move(mockOps, 1);
+		const second = move(mockBilling, 1);
+		await vi.waitFor(() => expect(requests).toHaveLength(1));
+		expect(pin).toHaveBeenCalledTimes(1);
+		expect(requests[0].id).toBe(mockOps.project.id);
+
+		requests[0].settle();
+		await first;
+		await vi.waitFor(() => expect(requests).toHaveLength(2));
+		expect(requests[1].id).toBe(mockBilling.project.id);
+		requests[1].settle();
+		await second;
+	});
+
+	it("keeps a later queued move when an earlier one fails", async () => {
+		const { requests, move, pinnedIds } = setup();
+		const first = move(mockOps, 1);
+		const second = move(mockBilling, 1);
+		await vi.waitFor(() =>
+			expect(pinnedIds()).toEqual(["billing", "ops", "launch"]),
+		);
+
+		await vi.waitFor(() => expect(requests.length).toBeGreaterThan(0));
+		requests[0].settle(mockApiError({}));
+		await expect(first).rejects.toBeDefined();
+		expect(pinnedIds()).toEqual(["billing", "ops", "launch"]);
+		await vi.waitFor(() => expect(requests).toHaveLength(2));
+		requests[1].settle();
+		await second;
+	});
+
+	it("refreshes only the summaries after a move, since no chat changes lists", async () => {
+		const { queryClient, chatListKey, requests, move } = setup();
+		const moved = move(mockOps, 1);
+		await vi.waitFor(() => expect(requests).toHaveLength(1));
+		requests[0].settle();
+		await moved;
+		expect(
+			queryClient.getQueryState(chatProjectSummariesKey)?.isInvalidated,
+		).toBe(true);
+		expect(queryClient.getQueryState(chatListKey)?.isInvalidated).toBe(false);
 	});
 });
 
