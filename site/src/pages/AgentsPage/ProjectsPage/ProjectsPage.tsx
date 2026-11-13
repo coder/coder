@@ -1,11 +1,12 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+	type UseQueryResult,
 	useMutation,
 	useMutationState,
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { useLocation } from "react-router";
+import { useLocation, useSearchParams } from "react-router";
 import { getErrorMessage } from "#/api/errors";
 import {
 	archivedChatProjects,
@@ -20,7 +21,6 @@ import type { ChatProject, ChatProjectSummary } from "#/api/typesGenerated";
 import { DeleteDialog } from "#/components/Dialog/DeleteDialog/DeleteDialog";
 import { toast } from "#/components/Toaster/toast";
 import { useAuthenticated } from "#/hooks/useAuthenticated";
-import { useSearchParamsKey } from "#/hooks/useSearchParamsKey";
 import {
 	getDefaultOrganizationId,
 	useDashboard,
@@ -85,37 +85,61 @@ const getProjectsByTab = (
 	};
 };
 
+/**
+ * Keeps the selected tab in the URL. The Archived tab shows while there are
+ * archived projects, while a link to it waits for them, or when they fail
+ * to load.
+ */
+const useProjectsTab = (archivedQuery: UseQueryResult<ChatProject[]>) => {
+	const [searchParams, setSearchParams] = useSearchParams();
+	const value = searchParams.get(tabSearchParam);
+	const archivedCount = archivedQuery.data?.length;
+	// Once the Archived tab's last project is gone, its link is replaced, so
+	// archiving another project, going back, or reloading does not reopen it.
+	useEffect(() => {
+		if (value === "archived" && archivedCount === 0) {
+			setSearchParams(
+				(params) => {
+					params.delete(tabSearchParam);
+					return params;
+				},
+				{ replace: true },
+			);
+		}
+	}, [value, archivedCount, setSearchParams]);
+
+	let tab: ProjectsTab = "yours";
+	if (value === "shared") {
+		tab = "shared";
+	} else if (value === "archived" && archivedCount !== 0) {
+		tab = "archived";
+	}
+	return {
+		tab,
+		showArchivedTab:
+			(archivedCount ?? 0) > 0 ||
+			tab === "archived" ||
+			(archivedQuery.isError && archivedCount === undefined),
+		changeTab: (next: ProjectsTab) =>
+			setSearchParams((params) => {
+				if (next === "yours") {
+					params.delete(tabSearchParam);
+				} else {
+					params.set(tabSearchParam, next);
+				}
+				return params;
+			}),
+	};
+};
+
 const ProjectsPage: React.FC = () => {
 	const { user } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const location = useLocation();
 	const queryClient = useQueryClient();
-	const tabState = useSearchParamsKey({ key: tabSearchParam, replace: false });
 	const summariesQuery = useQuery(chatProjectSummaries());
 	const archivedQuery = useQuery(archivedChatProjects());
-	// The Archived tab shows while there are archived projects, or while a
-	// link to it waits for them to load or shows why they failed to.
-	const hasArchivedProjects = (archivedQuery.data?.length ?? 0) > 0;
-	// Once the tab's last project is gone, a stale ?tab=archived no longer
-	// selects it, so archiving another project later does not switch to it.
-	const [isArchivedTabDropped, setIsArchivedTabDropped] = useState(false);
-	if (
-		tabState.value === "archived" &&
-		!isArchivedTabDropped &&
-		archivedQuery.data?.length === 0
-	) {
-		setIsArchivedTabDropped(true);
-	}
-	let tab: ProjectsTab = "yours";
-	if (tabState.value === "shared") {
-		tab = "shared";
-	} else if (
-		tabState.value === "archived" &&
-		!isArchivedTabDropped &&
-		archivedQuery.data?.length !== 0
-	) {
-		tab = "archived";
-	}
+	const { tab, showArchivedTab, changeTab } = useProjectsTab(archivedQuery);
 
 	const createMutation = useMutation(createChatProject(queryClient));
 	const updateMutation = useMutation(updateChatProject(queryClient));
@@ -240,14 +264,7 @@ const ProjectsPage: React.FC = () => {
 			<AgentPageHeader />
 			<ProjectsPageView
 				tab={tab}
-				onTabChange={(tab) => {
-					setIsArchivedTabDropped(false);
-					if (tab === "yours") {
-						tabState.deleteValue();
-					} else {
-						tabState.setValue(tab);
-					}
-				}}
+				onTabChange={changeTab}
 				projects={projectsByTab}
 				error={summariesQuery.error}
 				onRetry={async () => {
@@ -282,11 +299,7 @@ const ProjectsPage: React.FC = () => {
 					returnFocusRef.current = returnFocusTo;
 					setDeleteDialog({ project, open: true });
 				}}
-				showArchivedTab={
-					hasArchivedProjects ||
-					tab === "archived" ||
-					(archivedQuery.isError && !archivedQuery.data)
-				}
+				showArchivedTab={showArchivedTab}
 				archivedProjects={archivedQuery.data}
 				archivedError={archivedQuery.error}
 				onRetryArchived={async () => {
