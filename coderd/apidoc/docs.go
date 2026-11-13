@@ -36255,7 +36255,9 @@ const docTemplate = `{
                 "EDERP03",
                 "EPD01",
                 "EPD02",
-                "EPD03"
+                "EPD03",
+                "EPS01",
+                "EPS02"
             ],
             "x-enum-varnames": [
                 "CodeUnknown",
@@ -36276,7 +36278,9 @@ const docTemplate = `{
                 "CodeDERPNoNodes",
                 "CodeProvisionerDaemonsNoProvisionerDaemons",
                 "CodeProvisionerDaemonVersionMismatch",
-                "CodeProvisionerDaemonAPIMajorVersionDeprecated"
+                "CodeProvisionerDaemonAPIMajorVersionDeprecated",
+                "CodePubsubNotConnected",
+                "CodePubsubServerNotRunning"
             ]
         },
         "health.Message": {
