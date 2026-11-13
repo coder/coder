@@ -2663,9 +2663,39 @@ func (p *Server) dispatchPush(
 		Data:  map[string]string{"url": fmt.Sprintf("/agents/%s", chat.ID)},
 	}
 	if err := p.webpushDispatcher.Dispatch(ctx, chat.OwnerID, pushMsg); err != nil {
-		logger.Warn(ctx, "failed to send chat completion web push",
+		logger.Warn(ctx, "failed to send chat web push",
 			slog.F("chat_id", chat.ID),
 			slog.F("status", status),
+			slog.Error(err),
+		)
+	}
+}
+
+const maxQuestionPushRunes = 200
+
+// dispatchQuestionPush schedules delivery in the background so question
+// web pushes do not delay generation.
+func (p *Server) dispatchQuestionPush(
+	ctx context.Context,
+	chat database.Chat,
+	question string,
+	logger slog.Logger,
+) {
+	if !p.webpushConfigured() {
+		return
+	}
+
+	trimmedQuestion := strings.TrimSpace(question)
+	body := "Question: " + truncateRunes(trimmedQuestion, maxQuestionPushRunes)
+
+	pushCtx, stopPushCtx := p.inflightChatContext(ctx, chat)
+	if err := p.goInflight(func() {
+		defer stopPushCtx()
+		p.dispatchPush(pushCtx, chat, body, chat.Status, logger)
+	}); err != nil {
+		stopPushCtx()
+		logger.Error(context.WithoutCancel(ctx), "failed to schedule chat question web push",
+			slog.F("chat_id", chat.ID),
 			slog.Error(err),
 		)
 	}

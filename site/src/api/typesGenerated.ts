@@ -5790,6 +5790,7 @@ export type Experiment =
 	| "ai-gateway-seat-exclusion"
 	| "agent-lifecycle-hooks"
 	| "chat-acp-subagents"
+	| "chat-async-questions"
 	| "chat-automations"
 	| "chat-inline-mcp-servers"
 	| "chat-project-sharing"
@@ -5870,6 +5871,7 @@ export const Experiments: Experiment[] = [
 	"ai-gateway-seat-exclusion",
 	"agent-lifecycle-hooks",
 	"chat-acp-subagents",
+	"chat-async-questions",
 	"chat-automations",
 	"chat-inline-mcp-servers",
 	"chat-project-sharing",

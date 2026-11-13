@@ -86,9 +86,10 @@ type generationDebug struct {
 
 // generationOutcome describes a completed generation outcome.
 type generationOutcome struct {
-	Chat      database.Chat
-	Kind      runnerActionKind
-	LastError string
+	Chat          database.Chat
+	Kind          runnerActionKind
+	LastError     string
+	AsyncQuestion string
 }
 
 type generationActionKind string
@@ -1202,6 +1203,12 @@ func (s *taskStarter) executeLocalTools(
 		outcome.Content = append(outcome.Content, result)
 	}
 	chathooks.RestoreToolCallOrder(outcome.Content, decision.localToolCalls)
+
+	var asyncQuestion string
+	if prepared.BuiltinToolNames[chattool.AskUserQuestionAsyncName] {
+		asyncQuestion = s.lastAsyncQuestion(ctx, input, decision.localToolCalls, outcome.Content)
+	}
+
 	step := stepDataFromPersisted(outcome)
 	messages, err := buildCommitStepMessages(buildCommitStepMessagesInput{
 		modelConfigID:       prepared.ModelConfigID,
@@ -1236,7 +1243,53 @@ func (s *taskStarter) executeLocalTools(
 	}
 	return s.commitGenerationStep(ctx, machine, input, attempt.number, generationActionExecuteLocalTools, messages, generationCommitHooks{
 		PostCommitError: postCommitErr,
+		AsyncQuestion:   asyncQuestion,
 	})
+}
+
+// lastAsyncQuestion returns the first question of the last
+// ask_user_question_async call in calls whose result in content is not an
+// error, or "" when there is none.
+func (s *taskStarter) lastAsyncQuestion(
+	ctx context.Context,
+	input chatWorkerTaskStartInput,
+	calls []fantasy.ToolCallContent,
+	content []fantasy.Content,
+) string {
+	successfulCalls := make(map[string]bool)
+	for _, block := range content {
+		toolResult, ok := asToolResultContent(block)
+		if !ok || toolResult.ToolName != chattool.AskUserQuestionAsyncName {
+			continue
+		}
+		// A failed call, such as one with invalid input, has an error
+		// result instead of text.
+		_, isText := fantasy.AsToolResultOutputType[fantasy.ToolResultOutputContentText](toolResult.Result)
+		if !isText {
+			continue
+		}
+		successfulCalls[toolResult.ToolCallID] = true
+	}
+
+	var question string
+	for _, call := range calls {
+		if call.ToolName != chattool.AskUserQuestionAsyncName || !successfulCalls[call.ToolCallID] {
+			continue
+		}
+		asked, err := chattool.FirstAskedQuestion(call.Input)
+		if err != nil {
+			s.opts.Logger.Warn(ctx, "skip question web push for unreadable tool call",
+				slog.F("chat_id", input.ChatID),
+				slog.F("tool_call_id", call.ToolCallID),
+				slog.Error(err),
+			)
+			continue
+		}
+		if asked != "" {
+			question = asked
+		}
+	}
+	return question
 }
 
 // compactionSourceForDecision maps a compact decision to the
@@ -1548,6 +1601,12 @@ func (s *taskStarter) openGenerationAttempt(
 
 type generationCommitHooks struct {
 	PostCommitError error
+	// AsyncQuestion is the text of the async question asked in this step,
+	// or "". It is pushed to the chat owner only after the step commits
+	// without a fail-closed hook error: a step that did not commit shows
+	// no question, and a fail-closed step ends the turn with an error push
+	// instead.
+	AsyncQuestion string
 }
 
 func (s *taskStarter) commitGenerationStep(
@@ -1632,8 +1691,9 @@ func (s *taskStarter) commitGenerationStep(
 	}
 	s.routeStateHint(ctx, stateUpdateFromChat(committed))
 	return s.afterGenerationOutcome(ctx, generationOutcome{
-		Chat: committed,
-		Kind: runnerActionKind(kind),
+		Chat:          committed,
+		Kind:          runnerActionKind(kind),
+		AsyncQuestion: commitHooks.AsyncQuestion,
 	})
 }
 

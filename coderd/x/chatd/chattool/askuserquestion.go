@@ -56,48 +56,52 @@ func (*askUserQuestionTool) Info() fantasy.ToolInfo {
 	return fantasy.ToolInfo{
 		Name:        askUserQuestionToolName,
 		Description: askUserQuestionToolDesc,
-		Parameters: map[string]any{
-			"questions": map[string]any{
-				"type":        "array",
-				"description": "The structured clarification questions to present to the user.",
-				"minItems":    1,
-				"items": map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"header": map[string]any{
-							"type":        "string",
-							"description": "A short label for the question.",
-						},
-						"question": map[string]any{
-							"type":        "string",
-							"description": "The detailed question text.",
-						},
-						"options": map[string]any{
-							"type":        "array",
-							"description": "The answer options the user can choose from. Do not include an 'Other' or freeform option; one is provided automatically by the UI.",
-							"minItems":    2,
-							"maxItems":    4,
-							"items": map[string]any{
-								"type": "object",
-								"properties": map[string]any{
-									"label": map[string]any{
-										"type":        "string",
-										"description": "A short answer label.",
-									},
-									"description": map[string]any{
-										"type":        "string",
-										"description": "More detail about what this option means.",
-									},
+		Parameters:  askUserQuestionParameters(),
+		Required:    []string{"questions"},
+	}
+}
+
+func askUserQuestionParameters() map[string]any {
+	return map[string]any{
+		"questions": map[string]any{
+			"type":        "array",
+			"description": "The structured clarification questions to present to the user.",
+			"minItems":    1,
+			"items": map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"header": map[string]any{
+						"type":        "string",
+						"description": "A short label for the question.",
+					},
+					"question": map[string]any{
+						"type":        "string",
+						"description": "The detailed question text.",
+					},
+					"options": map[string]any{
+						"type":        "array",
+						"description": "The answer options the user can choose from. Do not include an 'Other' or freeform option; one is provided automatically by the UI.",
+						"minItems":    2,
+						"maxItems":    4,
+						"items": map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"label": map[string]any{
+									"type":        "string",
+									"description": "A short answer label.",
 								},
-								"required": []string{"label", "description"},
+								"description": map[string]any{
+									"type":        "string",
+									"description": "More detail about what this option means.",
+								},
 							},
+							"required": []string{"label", "description"},
 						},
 					},
-					"required": []string{"header", "question", "options"},
 				},
+				"required": []string{"header", "question", "options"},
 			},
 		},
-		Required: []string{"questions"},
 	}
 }
 
