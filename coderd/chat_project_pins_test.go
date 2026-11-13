@@ -377,6 +377,74 @@ func TestListChatsPinnedProjectsOnly(t *testing.T) {
 	require.Contains(t, chatIDs(all), hidden.ID)
 }
 
+// A chat pin belongs to the chat's owner, so pinning a shared chat must not
+// change how the chat is listed for anyone it is shared with, and project
+// pins never hide a shared chat.
+func TestListChatsIgnoresOtherUsersChatPins(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	client, _ := newChatProjectClient(t)
+	firstUser := coderdtest.CreateFirstUser(t, client.Client)
+	orgID := firstUser.OrganizationID
+	_ = createChatModel(t, client)
+	member, memberUser := newChatProjectMember(t, client, orgID)
+	project := createChatProject(t, client, orgID, "Shared Project")
+	require.NoError(t, client.UpdateChatProjectACL(ctx, orgID, project.ID, codersdk.UpdateChatProjectACL{
+		UserRoles: map[string]codersdk.ChatProjectRole{memberUser.ID.String(): codersdk.ChatProjectRoleUse},
+	}))
+
+	memberPinned := createChatInProject(t, member, orgID, nil)
+	require.NoError(t, member.UpdateChat(ctx, memberPinned.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))}))
+	ownerPinned := createChatInProject(t, client, orgID, &project.ID)
+	newer := createChatInProject(t, client, orgID, nil)
+	// Shared in creation order so the newer chat stays the most recently
+	// updated even if sharing bumps updated_at.
+	for _, chat := range []codersdk.Chat{ownerPinned, newer} {
+		require.NoError(t, client.UpdateChatACL(ctx, chat.ID, codersdk.UpdateChatACL{
+			UserRoles: map[string]codersdk.ChatRole{memberUser.ID.String(): codersdk.ChatRoleRead},
+		}))
+	}
+	require.NoError(t, client.UpdateChat(ctx, ownerPinned.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(1))}))
+
+	// The sidebar lists owned and shared chats together. Only the member's
+	// own pin sorts first. Paging one chat at a time checks that the cursor
+	// uses the same order.
+	const ownedAndShared = "source:created_by_me,shared_with_me"
+	var listed []uuid.UUID
+	opts := &codersdk.ListChatsOptions{Query: ownedAndShared, Pagination: codersdk.Pagination{Limit: 1}}
+	for {
+		page, err := member.ListChats(ctx, opts)
+		require.NoError(t, err)
+		if len(page) == 0 {
+			break
+		}
+		listed = append(listed, chatIDs(page)...)
+		opts.AfterID = page[len(page)-1].ID
+	}
+	require.Equal(t, []uuid.UUID{memberPinned.ID, newer.ID, ownerPinned.ID}, listed)
+
+	// The owner's own list still honors the pin with the project unpinned.
+	require.NoError(t, client.UnpinChatProject(ctx, orgID, project.ID))
+	ownerChats, err := client.ListChats(ctx, &codersdk.ListChatsOptions{PinnedProjectsOnly: true})
+	require.NoError(t, err)
+	require.NotEmpty(t, ownerChats)
+	require.Equal(t, ownerPinned.ID, ownerChats[0].ID)
+
+	// Chats shared with the member are listed whether or not anyone pinned
+	// the chat or its project. The member can use the project but has not
+	// pinned it.
+	pinnedOpts := &codersdk.ListChatsOptions{Query: ownedAndShared, PinnedProjectsOnly: true}
+	want := []uuid.UUID{memberPinned.ID, newer.ID, ownerPinned.ID}
+	memberChats, err := member.ListChats(ctx, pinnedOpts)
+	require.NoError(t, err)
+	require.ElementsMatch(t, want, chatIDs(memberChats))
+	require.NoError(t, client.UpdateChat(ctx, ownerPinned.ID, codersdk.UpdateChatRequest{PinOrder: ptr.Ref(int32(0))}))
+	memberChats, err = member.ListChats(ctx, pinnedOpts)
+	require.NoError(t, err)
+	require.ElementsMatch(t, want, chatIDs(memberChats))
+}
+
 func chatProjectSummariesByID(ctx context.Context, t testing.TB, client *codersdk.ExperimentalClient) map[uuid.UUID]codersdk.ChatProjectSummary {
 	t.Helper()
 	summaries, err := client.ListChatProjectSummaries(ctx)

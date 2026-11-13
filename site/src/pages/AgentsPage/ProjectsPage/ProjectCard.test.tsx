@@ -58,8 +58,8 @@ describe("ProjectCard", () => {
 	// In a browser, a dialog that opens before the menu has finished closing
 	// loses focus to the menu.
 	it.each([
-		["Edit project", "onEdit"],
-		["Delete project", "onDelete"],
+		["Edit", "onEdit"],
+		["Delete", "onDelete"],
 	] as const)("opens %s once the menu has closed", async (item, callback) => {
 		vi.useFakeTimers();
 		onTestFinished(() => {
@@ -83,7 +83,7 @@ describe("ProjectCard", () => {
 		await user.tab();
 		await user.tab();
 		await user.keyboard("{Enter}");
-		await screen.findByRole("menuitem", { name: "Pin project" });
+		await screen.findByRole("menuitem", { name: "Pin" });
 		await user.keyboard("{Enter}");
 		expect(onPin).toHaveBeenCalledOnce();
 	});
