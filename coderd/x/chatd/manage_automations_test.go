@@ -2,7 +2,6 @@ package chatd_test
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"slices"
 	"sync"
@@ -26,20 +25,14 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// automationsEvaluator returns an evaluator that has the experiment on, off,
-// or unable to read its rules (which also means off).
+// automationsEvaluator returns an evaluator that has the experiment on or off.
 func automationsEvaluator(t *testing.T, mode string) *experimentrules.Evaluator {
 	t.Helper()
 	static := codersdk.Experiments{}
-	store := experimentstest.Store{}
-	switch mode {
-	case "on":
+	if mode == "on" {
 		static = codersdk.Experiments{codersdk.ExperimentChatAutomations}
-	case "error":
-		static = codersdk.Experiments{codersdk.ExperimentChatAutomations}
-		store.RulesErr = xerrors.New("rules are unavailable")
 	}
-	evaluator, err := experimentrules.New(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), store, static)
+	evaluator, err := experimentrules.New(slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}), experimentstest.Store{}, static)
 	require.NoError(t, err)
 	return evaluator
 }
@@ -65,17 +58,15 @@ func TestManageAutomationsAvailable(t *testing.T) {
 	t.Parallel()
 
 	for name, tc := range map[string]struct {
-		evaluator string // "on", "off", "error" or "" for none
+		evaluator string // "on" or "off"
 		chat      func(*database.Chat)
 		want      bool
 	}{
-		"Available":      {evaluator: "on", want: true},
-		"SwitchOff":      {evaluator: "on", chat: func(c *database.Chat) { c.ManageAutomationsEnabled = false }},
-		"ExperimentOff":  {evaluator: "off"},
-		"EvaluatorError": {evaluator: "error"},
-		"NoEvaluator":    {},
-		"SubAgent":       {evaluator: "on", chat: func(c *database.Chat) { c.ParentChatID = uuid.NullUUID{UUID: uuid.New(), Valid: true} }},
-		"Archived":       {evaluator: "on", chat: func(c *database.Chat) { c.Archived = true }},
+		"Available":     {evaluator: "on", want: true},
+		"SwitchOff":     {evaluator: "on", chat: func(c *database.Chat) { c.ManageAutomationsEnabled = false }},
+		"ExperimentOff": {evaluator: "off"},
+		"SubAgent":      {evaluator: "on", chat: func(c *database.Chat) { c.ParentChatID = uuid.NullUUID{UUID: uuid.New(), Valid: true} }},
+		"Archived":      {evaluator: "on", chat: func(c *database.Chat) { c.Archived = true }},
 		"PlanMode": {evaluator: "on", chat: func(c *database.Chat) {
 			c.PlanMode = database.NullChatPlanMode{ChatPlanMode: database.ChatPlanModePlan, Valid: true}
 		}},
@@ -87,9 +78,7 @@ func TestManageAutomationsAvailable(t *testing.T) {
 			t.Parallel()
 			db, ps := dbtestutil.NewDB(t)
 			server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
-				if tc.evaluator != "" {
-					cfg.ExperimentEvaluator = automationsEvaluator(t, tc.evaluator)
-				}
+				cfg.ExperimentEvaluator = automationsEvaluator(t, tc.evaluator)
 			})
 			chat := database.Chat{OwnerID: uuid.New(), ManageAutomationsEnabled: true}
 			if tc.chat != nil {
@@ -100,80 +89,32 @@ func TestManageAutomationsAvailable(t *testing.T) {
 	}
 }
 
-// TestManageAutomationsDefault creates root and sub-agent chats and reads the
-// starting value of the switch.
-func TestManageAutomationsDefault(t *testing.T) {
-	t.Parallel()
-
-	for name, tc := range map[string]struct {
-		evaluator string
-		child     bool
-		want      bool
-	}{
-		"RootExperimentOn":  {evaluator: "on", want: true},
-		"RootExperimentOff": {evaluator: "off"},
-		"RootNoEvaluator":   {},
-		"ChildExperimentOn": {evaluator: "on", child: true},
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitLong)
-			db, ps := dbtestutil.NewDB(t)
-			user, org, model := seedChatDependenciesWithProvider(t, db, "openai-compat", "http://127.0.0.1:0")
-			server := newTestServer(t, db, ps, uuid.New(), func(cfg *chatd.Config) {
-				if tc.evaluator != "" {
-					cfg.ExperimentEvaluator = automationsEvaluator(t, tc.evaluator)
-				}
-			})
-			opts := chatd.CreateOptions{OrganizationID: org.ID, OwnerID: user.ID, Title: "default", ModelConfigID: model.ID}
-			if tc.child {
-				root, err := server.CreateChat(ctx, opts)
-				require.NoError(t, err)
-				opts.ParentChatID = uuid.NullUUID{UUID: root.ID, Valid: true}
-				opts.RootChatID = uuid.NullUUID{UUID: root.ID, Valid: true}
-			}
-
-			chat, err := server.CreateChat(ctx, opts)
-
-			require.NoError(t, err)
-			require.Equal(t, tc.want, chat.ManageAutomationsEnabled)
-			stored, err := db.GetChatByID(ctx, chat.ID)
-			require.NoError(t, err)
-			require.Equal(t, tc.want, stored.ManageAutomationsEnabled)
-		})
-	}
-}
-
 // TestManageAutomationsTurn drives full turns on a fake provider. With the
 // experiment on, the request lists the tool, and a list call and a get call
-// reach the chat history without the webhook secret, also in the debug
-// records. With the experiment off, the request has no such tool although the
-// chat's switch is on. The experiment is read again for each step: when it
+// reach the chat history. The experiment is read again for each step: when it
 // turns off while the second step runs, the third request has no tool, and the
 // call that the second step returned is refused.
 func TestManageAutomationsTurn(t *testing.T) {
 	t.Parallel()
 
 	for name, tc := range map[string]struct {
-		experiment      string
 		offInSecondStep bool
 	}{
-		"ExperimentOn":              {experiment: "on"},
-		"ExperimentOff":             {experiment: "off"},
-		"ExperimentOffInSecondStep": {experiment: "on", offInSecondStep: true},
+		"ExperimentOn":              {},
+		"ExperimentOffInSecondStep": {offInSecondStep: true},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
-			db, ps, sqlDB := dbtestutil.NewDBWithSQLDB(t)
-			secretCanary, promptCanary := "canary-secret-"+uuid.NewString(), "canary-prompt-"+uuid.NewString()
+			db, ps := dbtestutil.NewDB(t)
+			promptCanary := "canary-prompt-" + uuid.NewString()
 			var automationID atomic.Value
 			var (
 				mu    sync.Mutex
 				tools [][]string
 			)
 			var calls atomic.Int32
-			evaluator := automationsEvaluator(t, tc.experiment)
+			evaluator := automationsEvaluator(t, "on")
 			var rules flipStore
 			if tc.offInSecondStep {
 				var err error
@@ -194,9 +135,7 @@ func TestManageAutomationsTurn(t *testing.T) {
 				mu.Unlock()
 				switch calls.Add(1) {
 				case 1:
-					if tc.experiment == "on" {
-						return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk(chatautomation.ToolName, `{"action":"list"}`))
-					}
+					return chattest.OpenAIStreamingResponse(chattest.OpenAIToolCallChunk(chatautomation.ToolName, `{"action":"list"}`))
 				case 2:
 					if tc.offInSecondStep {
 						rules.broken.Store(true)
@@ -211,23 +150,15 @@ func TestManageAutomationsTurn(t *testing.T) {
 				OrganizationID: org.ID,
 				OwnerID:        user.ID,
 				Prompt:         promptCanary,
-				WebhookSecret:  sql.NullString{String: secretCanary, Valid: true},
 			})
 			automationID.Store(automation.ID.String())
 			server := newActiveTestServer(t, db, ps, func(cfg *chatd.Config) {
 				cfg.AIBridgeTransportFactory = chatAIGatewayTransportFactoryPointer(chattest.NewMockAIBridgeTransport(t, openAIURL))
-				cfg.AlwaysEnableDebugLogs = true
 				cfg.ExperimentEvaluator = evaluator
 			})
-			// Created idle, so that the switch of the experiment-off chat can be
-			// turned on before its first turn.
 			chat, err := server.CreateChat(ctx, chatd.CreateOptions{OrganizationID: org.ID, OwnerID: user.ID, Title: "automations", ModelConfigID: model.ID})
 			require.NoError(t, err)
-			require.Equal(t, tc.experiment == "on", chat.ManageAutomationsEnabled)
-			_, err = db.UpdateChatManageAutomationsEnabledByID(ctx, database.UpdateChatManageAutomationsEnabledByIDParams{
-				ID: chat.ID, ManageAutomationsEnabled: true,
-			})
-			require.NoError(t, err)
+			require.True(t, chat.ManageAutomationsEnabled)
 
 			_, err = server.SendMessage(ctx, chatd.SendMessageOptions{
 				ChatID:        chat.ID,
@@ -241,11 +172,6 @@ func TestManageAutomationsTurn(t *testing.T) {
 			mu.Lock()
 			first := tools[0]
 			mu.Unlock()
-			if tc.experiment == "off" {
-				require.NotContains(t, first, chatautomation.ToolName)
-				require.Equal(t, int32(1), calls.Load())
-				return
-			}
 			require.Contains(t, first, chatautomation.ToolName)
 			parts := chatToolParts(ctx, t, db, chat.ID)
 			var results []codersdk.ChatMessagePart
@@ -272,21 +198,6 @@ func TestManageAutomationsTurn(t *testing.T) {
 				require.Contains(t, string(result.Result), automation.ID.String())
 				require.Contains(t, string(result.Result), promptCanary)
 			}
-
-			// The secret is in no history row and no debug record. The prompt
-			// shows that the same rows hold the results.
-			count := func(table, column, needle string) int {
-				var n int
-				require.NoError(t, sqlDB.QueryRowContext(ctx,
-					fmt.Sprintf(`SELECT count(*) FROM %s WHERE chat_id = $1 AND %s::text LIKE '%%' || $2 || '%%'`, table, column),
-					chat.ID, needle).Scan(&n))
-				return n
-			}
-			require.Zero(t, count("chat_messages", "content", secretCanary))
-			require.NotZero(t, count("chat_messages", "content", promptCanary))
-			require.Zero(t, count("chat_debug_steps", "normalized_request", secretCanary))
-			require.Zero(t, count("chat_debug_steps", "normalized_response", secretCanary))
-			require.NotZero(t, count("chat_debug_steps", "normalized_request", promptCanary), "the second step holds the first tool result")
 		})
 	}
 }

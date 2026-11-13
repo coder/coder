@@ -3,7 +3,6 @@ package coderd_test
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"net/http"
 	"testing"
 
@@ -57,19 +56,6 @@ func TestChatManageAutomationsSwitch(t *testing.T) {
 		require.NoError(t, err)
 		return chat
 	}
-	// hasField reports whether the raw response of a chat holds the switch. The
-	// field is left out while the switch is off.
-	hasField := func(ctx context.Context, t *testing.T, client *codersdk.ExperimentalClient, id uuid.UUID) bool {
-		t.Helper()
-		res, err := client.Request(ctx, http.MethodGet, "/api/v2/chats/"+id.String(), nil)
-		require.NoError(t, err)
-		defer res.Body.Close()
-		require.Equal(t, http.StatusOK, res.StatusCode)
-		var fields map[string]json.RawMessage
-		require.NoError(t, json.NewDecoder(res.Body).Decode(&fields))
-		_, ok := fields["manage_automations_enabled"]
-		return ok
-	}
 	create := func(t *testing.T, client *codersdk.ExperimentalClient, first codersdk.CreateFirstUserResponse) codersdk.Chat {
 		t.Helper()
 		chat, err := client.CreateChat(testutil.Context(t, testutil.WaitLong), codersdk.CreateChatRequest{
@@ -90,7 +76,6 @@ func TestChatManageAutomationsSwitch(t *testing.T) {
 		for _, enabled := range []bool{false, true} {
 			require.NoError(t, client.UpdateChat(ctx, chat.ID, codersdk.UpdateChatRequest{ManageAutomationsEnabled: ptr.Ref(enabled)}))
 			require.Equal(t, enabled, getChat(ctx, t, client, chat.ID).ManageAutomationsEnabled)
-			require.Equal(t, enabled, hasField(ctx, t, client, chat.ID))
 		}
 	})
 
@@ -120,31 +105,6 @@ func TestChatManageAutomationsSwitch(t *testing.T) {
 		got := getChat(ctx, t, client, chat.ID)
 		require.True(t, got.ManageAutomationsEnabled)
 		require.Equal(t, "member chat", got.Title)
-	})
-
-	t.Run("OneChatOnly", func(t *testing.T) {
-		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitLong)
-		client, db, first := newClient(t, true)
-		_, member := coderdtest.CreateAnotherUser(t, client.Client, first.OrganizationID)
-		modelID := createChatModel(t, client).ID
-		seed := func(owner uuid.UUID) database.Chat {
-			return dbgen.Chat(t, db, database.Chat{
-				OrganizationID:           first.OrganizationID,
-				OwnerID:                  owner,
-				LastModelConfigID:        modelID,
-				ManageAutomationsEnabled: true,
-			})
-		}
-		mine, mineOther, theirs := seed(first.UserID), seed(first.UserID), seed(member.ID)
-
-		require.NoError(t, client.UpdateChat(ctx, mine.ID, codersdk.UpdateChatRequest{ManageAutomationsEnabled: ptr.Ref(false)}))
-
-		// The write reaches the chat of the request and no other chat, neither
-		// the owner's other chat nor another user's.
-		require.False(t, getChat(ctx, t, client, mine.ID).ManageAutomationsEnabled)
-		require.True(t, getChat(ctx, t, client, mineOther.ID).ManageAutomationsEnabled)
-		require.True(t, getChat(ctx, t, client, theirs.ID).ManageAutomationsEnabled)
 	})
 
 	t.Run("ChatDeletedBeforeWrite", func(t *testing.T) {

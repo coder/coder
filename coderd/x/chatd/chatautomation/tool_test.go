@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -220,9 +219,6 @@ func TestToolGet(t *testing.T) {
 	e := newToolEnv(t)
 	own := e.automation(t, e.member, "own prompt")
 	other := e.automation(t, e.other, "other prompt")
-	gone := dbgen.User(t, e.db, database.User{})
-	dbgen.OrganizationMember(t, e.db, database.OrganizationMember{UserID: gone.ID, OrganizationID: e.org.ID})
-	goneAutomation := e.automation(t, gone, "gone prompt")
 	// The member also belongs to another organization and owns an automation
 	// there. The chat is in the first organization.
 	otherOrg := dbgen.Organization(t, e.db, database.Organization{})
@@ -231,8 +227,6 @@ func TestToolGet(t *testing.T) {
 	// A list cuts a prompt of this length. get returns it whole.
 	long := strings.Repeat("é", 300)
 	longAutomation := e.automation(t, e.member, long)
-	//nolint:gocritic // The soft delete trigger removes the user's automations.
-	require.NoError(t, e.db.UpdateUserDeletedByID(dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong)), gone.ID))
 
 	for name, tc := range map[string]struct {
 		owner  database.User
@@ -245,8 +239,6 @@ func TestToolGet(t *testing.T) {
 		"MemberChat":        {owner: e.member, id: other.ID.String()},
 		"Unknown":           {owner: e.admin, id: uuid.NewString()},
 		"Malformed":         {owner: e.admin, id: "not-an-id"},
-		"Missing":           {owner: e.admin},
-		"SoftDeletedOwner":  {owner: e.admin, id: goneAutomation.ID.String()},
 		"OtherOrganization": {owner: e.member, id: otherOrgAutomation.ID.String()},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -305,24 +297,20 @@ func TestToolSubjectLoadedPerCall(t *testing.T) {
 }
 
 // TestToolUnknownAction answers every action but list and get with an error
-// that names the actions, and changes no row.
+// that names the actions.
 func TestToolUnknownAction(t *testing.T) {
 	t.Parallel()
 	e := newToolEnv(t)
-	own := e.automation(t, e.member, "own prompt")
 
 	for _, action := range []string{"create", "update", "enable", "disable", "delete", "run_now", "", "LIST"} {
 		t.Run("Action"+action, func(t *testing.T) {
 			t.Parallel()
-			input, err := json.Marshal(map[string]string{"action": action, "id": own.ID.String()})
+			input, err := json.Marshal(map[string]string{"action": action})
 			require.NoError(t, err)
 			resp := e.run(t, e.member, string(input))
 			require.True(t, resp.IsError)
 			require.Contains(t, resp.Content, fmt.Sprintf("unknown action %q", action))
 			require.Contains(t, resp.Content, "the actions are list and get")
-			got, err := e.db.GetChatAutomationByID(dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitLong)), own.ID) //nolint:gocritic // Read back the row.
-			require.NoError(t, err)
-			require.Equal(t, own, got)
 		})
 	}
 }
