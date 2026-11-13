@@ -62,7 +62,7 @@ The project owner, organization admins, and site Owners can archive and unarchiv
 A project that isn't shared with you doesn't appear on the **Projects** page, so admins open it from its link and use the menu or banner on its page.
 Admins can't start chats in a project that isn't shared with them.
 
-To archive a project, open the project's menu on its page, on its card, or in the sidebar and select **Archive project**.
+To archive a project, open the project's menu on its page, on its card, or in the sidebar and select **Archive**.
 The dialog shows how many top-level chats will be archived, along with their subagent chats, and what happens next:
 
 - Every chat in the project is archived, including chats that other users started in it.
@@ -81,7 +81,7 @@ When retention is turned off, archived chats are kept until you unarchive the pr
 An archived project leaves the sidebar, the **Your projects** and **Shared with you** tabs, the new-chat project picker, and **Move to project**, and you can't pin it.
 Its page stays available to read its archived chats, but you can't start chats in it, move chats into it, or edit its details, instructions, skills, sharing, or memory.
 
-To unarchive a project, open its card's menu on the **Archived** tab of the **Projects** page and select **Unarchive project**, or select **Unarchive** on the project's page.
+To unarchive a project, open its card's menu on the **Archived** tab of the **Projects** page and select **Unarchive**, or select **Unarchive** on the project's page.
 Unarchiving restores the chats that were archived with the project, and a project you had pinned returns to the **Pinned** area.
 You can't unarchive a single chat while its project is archived.
 Unarchive the project instead.
