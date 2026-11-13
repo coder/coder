@@ -38,6 +38,14 @@ var testCases = []testCase{
 		expectedError: `You must specify the coder.image.tag value if you're installing the Helm chart directly from Git.`,
 	},
 	{
+		name:          "network_policy",
+		expectedError: "",
+	},
+	{
+		name:          "network_policy_open_egress",
+		expectedError: "",
+	},
+	{
 		name:          "sa",
 		expectedError: "",
 	},

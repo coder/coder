@@ -1,0 +1,37 @@
+coder:
+  image:
+    tag: latest
+  env:
+    - name: CODER_PROMETHEUS_ENABLE
+      value: "true"
+    - name: CODER_PROMETHEUS_ADDRESS
+      value: "0.0.0.0:2113"
+  tls:
+    secretNames:
+      - coder-tls
+  networkPolicy:
+    enable: true
+    ingress:
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+    prometheus:
+      from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+    extraIngress:
+      - ports:
+          - port: 6060
+            protocol: TCP
+    egress:
+      enable: true
+      postgres:
+        to:
+          - ipBlock:
+              cidr: 10.0.0.5/32
+    extraEgress:
+      - ports:
+          - port: 443
+            protocol: TCP

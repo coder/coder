@@ -1,0 +1,7 @@
+coder:
+  image:
+    tag: latest
+  networkPolicy:
+    enable: true
+    egress:
+      enable: false
