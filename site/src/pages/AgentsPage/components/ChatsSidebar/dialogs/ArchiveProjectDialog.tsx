@@ -180,8 +180,8 @@ const ArchiveProjectForm: React.FC<ArchiveProjectFormProps> = ({
 							<>&ldquo;{project.name}&rdquo; has no chats to archive.</>
 						) : (
 							<>
-								Every chat in &ldquo;{project.name}&rdquo; is archived,
-								including chats started by people it is shared with.
+								Archiving it archives every chat in &ldquo;{project.name}
+								&rdquo;, including chats started by people it is shared with.
 							</>
 						)}
 					</div>

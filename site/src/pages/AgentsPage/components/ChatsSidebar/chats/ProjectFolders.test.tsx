@@ -15,7 +15,7 @@ import {
 import { createTestQueryClient } from "#/testHelpers/renderHelpers";
 import { hasHighlightComposerState } from "../../../utils/composerHighlight";
 import { buildAgentProjectPath } from "../../../utils/navigation";
-import { ProjectFolders } from "./ProjectFolders";
+import { type ArchiveProjectAction, ProjectFolders } from "./ProjectFolders";
 
 type ProjectFoldersOptions = {
 	readonly error?: unknown;
@@ -23,6 +23,7 @@ type ProjectFoldersOptions = {
 	readonly withComposer?: boolean;
 	readonly onToggle?: (projectId: string) => void;
 	readonly onRetry?: () => void;
+	readonly onArchive?: ArchiveProjectAction;
 };
 
 // Stands in for the project page's composer, which takes focus when a New
@@ -49,6 +50,7 @@ const renderProjectFolders = (
 		withComposer = false,
 		onToggle = vi.fn(),
 		onRetry = vi.fn(),
+		onArchive = vi.fn(),
 	}: ProjectFoldersOptions = {},
 ) =>
 	render(
@@ -67,7 +69,7 @@ const renderProjectFolders = (
 					expandedProjectIds={{}}
 					onToggle={onToggle}
 					onEdit={vi.fn()}
-					onArchive={vi.fn()}
+					onArchive={onArchive}
 					onDelete={vi.fn()}
 					emptyMessage="No chats yet"
 					isLoading={false}
@@ -179,5 +181,29 @@ describe("ProjectFolders", () => {
 			screen.getByRole("button", { name: `Expand ${otherLabel}` }),
 		);
 		expect(onToggle).toHaveBeenCalledWith(otherProject.id);
+	});
+
+	// In a browser, a dialog that opens before the menu has finished closing
+	// loses focus to the menu.
+	it("opens the archive dialog once the folder menu has closed", async () => {
+		vi.useFakeTimers();
+		onTestFinished(() => {
+			vi.useRealTimers();
+		});
+		const user = userEvent.setup({ delay: null });
+		const onArchive = vi.fn();
+		renderProjectFolders([MockChatProject], { onArchive });
+		const actions = screen.getByRole("button", {
+			name: `Open project actions for ${MockChatProject.name}`,
+		});
+		await user.click(actions);
+		await user.click(screen.getByRole("menuitem", { name: "Archive project" }));
+		expect(onArchive).not.toHaveBeenCalled();
+		act(() => vi.runOnlyPendingTimers());
+		expect(onArchive).toHaveBeenCalledExactlyOnceWith(
+			MockChatProject,
+			actions,
+			expect.any(Function),
+		);
 	});
 });

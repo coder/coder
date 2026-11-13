@@ -87,7 +87,6 @@ export const Loading: Story = {
 	},
 };
 
-/** Without the preview, the dialog can't tell whether chats are running. */
 /** The chat count loaded, but the retention period did not. */
 export const RetentionError: Story = {
 	parameters: {
