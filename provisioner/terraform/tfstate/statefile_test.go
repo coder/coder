@@ -25,7 +25,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-// templateDir holds the template that TestReadMatchesTerraformShow applies.
+// templateDir holds the template that TestRead applies.
 const templateDir = "testdata/ordering"
 
 // readTemplateDir returns the files of the template in dir, keyed by their
@@ -116,92 +116,146 @@ func resources(modules []*tfjson.StateModule) []*tfjson.StateResource {
 	return all
 }
 
-// TestReadMatchesTerraformShow applies the template in templateDir with real
-// Terraform and checks that Read returns what `terraform show -json` shows,
-// and that both convert to the same resources.
-func TestReadMatchesTerraformShow(t *testing.T) {
+func TestRead(t *testing.T) {
 	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitSuperLong)
-	logger := slogtest.Make(t, nil)
 
-	binaryPath, err := installedTerraform(ctx)
-	if err != nil {
-		// Read leaves other versions to `terraform show`.
-		binaryPath, err = terraform.Install(ctx, logger, false, t.TempDir(), terraform.TerraformVersion, "")
+	t.Run("MissingFile", func(t *testing.T) {
+		t.Parallel()
+		modules, err := tfstate.Read(filepath.Join(t.TempDir(), "terraform.tfstate"), terraform.MaxTerraformVersion)
 		require.NoError(t, err)
+		require.Empty(t, modules)
+	})
+
+	t.Run("NoResources", func(t *testing.T) {
+		t.Parallel()
+		path := filepath.Join(t.TempDir(), "terraform.tfstate")
+		require.NoError(t, os.WriteFile(path, []byte(`{"version":4,"terraform_version":"1.16.2","resources":[]}`), 0o600))
+		modules, err := tfstate.Read(path, terraform.MaxTerraformVersion)
+		require.NoError(t, err)
+		require.Empty(t, modules)
+	})
+
+	// State files that Read leaves to `terraform show`.
+	withResource := func(resource string) string {
+		return `{"version":4,"terraform_version":"1.16.2","resources":[` + resource + `]}`
+	}
+	rejected := []struct {
+		name    string
+		content string
+		wantErr string
+	}{
+		{"NotJSON", `{"version":4,`, "decode state file"},
+		{"OldFormat", `{"version":3,"modules":[]}`, "unsupported state file version 3"},
+		{"NewFormat", `{"version":5,"terraform_version":"2.0.0"}`, "unsupported state file version 5"},
+		{"NoTerraformVersion", `{"version":4,"resources":[]}`, "parse terraform version"},
+		{"UnknownMode", withResource(`{"mode":"ephemeral","type":"a","name":"b","instances":[]}`), "unsupported mode"},
+		{"BoolIndexKey", withResource(`{"mode":"managed","type":"a","name":"b","instances":[{"index_key":true,"attributes":{}}]}`), "unsupported index key"},
+		{"FlatmapAttributes", withResource(`{"mode":"managed","type":"a","name":"b","instances":[{"attributes_flat":{"id":"1"}}]}`), "legacy flatmap"},
+		{"InvalidModule", withResource(`{"module":"module.a.b","mode":"managed","type":"a","name":"b","instances":[{"attributes":{}}]}`), "parse module address"},
+	}
+	for _, test := range rejected {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), "terraform.tfstate")
+			require.NoError(t, os.WriteFile(path, []byte(test.content), 0o600))
+			_, err := tfstate.Read(path, terraform.MaxTerraformVersion)
+			require.ErrorContains(t, err, test.wantErr)
+		})
 	}
 
-	files := readTemplateDir(t, templateDir)
-	dir := t.TempDir()
-	for name, content := range files {
-		path := filepath.Join(dir, filepath.FromSlash(name))
-		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
-		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
-	}
+	t.Run("Unreadable", func(t *testing.T) {
+		t.Parallel()
+		_, err := tfstate.Read(t.TempDir(), terraform.MaxTerraformVersion)
+		require.ErrorContains(t, err, "read state file")
+	})
 
-	// Install providers from a local mirror, and keep the CODER_* variables
-	// of a surrounding workspace away from the coder provider.
-	cacheRootDir := filepath.Join(testutil.PersistentCacheDir(t), "terraform_statefile_test")
-	env := []string{"TF_CLI_CONFIG_FILE=" + testutil.CacheTFProviders(t, cacheRootDir, t.Name(), files)}
-	for _, variable := range os.Environ() {
-		if !strings.HasPrefix(variable, "CODER_") {
-			env = append(env, variable)
+	// MatchesTerraformShow applies the template in templateDir with real
+	// Terraform and checks that Read returns what `terraform show -json`
+	// shows, and that both convert to the same resources.
+	t.Run("MatchesTerraformShow", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitSuperLong)
+		logger := slogtest.Make(t, nil)
+
+		binaryPath, err := installedTerraform(ctx)
+		if err != nil {
+			// Read leaves other versions to `terraform show`.
+			binaryPath, err = terraform.Install(ctx, logger, false, t.TempDir(), terraform.TerraformVersion, "")
+			require.NoError(t, err)
 		}
-	}
-	w := workDir{files: tfpath.Layout(dir), binaryPath: binaryPath, env: env}
 
-	_, err = w.run(ctx, "init", "-no-color", "-input=false")
-	require.NoError(t, err)
-	_, err = w.run(ctx, "apply", "-no-color", "-input=false", "-auto-approve")
-	require.NoError(t, err)
-	_, converted := requireReadMatchesShow(ctx, t, w)
-	// Make sure the conversion compared above is not trivially empty.
-	require.Len(t, converted.Parameters, 2)
-	require.Len(t, converted.ExternalAuthProviders, 1)
-	var agent *proto.Agent
-	for _, resource := range converted.Resources {
-		if resource.Name == "host" && resource.Type == "terraform_data" {
-			require.Len(t, resource.Agents, 1)
-			agent = resource.Agents[0]
-			require.Len(t, resource.Metadata, 2)
+		files := readTemplateDir(t, templateDir)
+		dir := t.TempDir()
+		for name, content := range files {
+			path := filepath.Join(dir, filepath.FromSlash(name))
+			require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o755))
+			require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
 		}
-	}
-	require.NotNil(t, agent, "terraform_data.host has the agent")
-	require.Len(t, agent.Apps, 2)
-	require.Len(t, agent.ExtraEnvs, 11+18)   // coder_env.counted and coder_env.keys
-	require.Len(t, agent.Scripts, 21+11+2+1) // module.child, module.counted, the two wrap modules, and module.deep
 
-	// A failed replacement leaves a tainted and a deposed object.
-	_, err = w.run(ctx, "apply", "-no-color", "-input=false", "-auto-approve",
-		"-replace=coder_agent.replaced", "-replace=terraform_data.replaced[0]", "-var=fail_provisioner=true")
-	require.Error(t, err)
-	modules, _ := requireReadMatchesShow(ctx, t, w)
-	replaced := map[string][]*tfjson.StateResource{}
-	for _, resource := range resources(modules) {
-		if resource.Name == "replaced" {
-			replaced[resource.Type] = append(replaced[resource.Type], resource)
+		// Install providers from a local mirror, and keep the CODER_* variables
+		// of a surrounding workspace away from the coder provider.
+		cacheRootDir := filepath.Join(testutil.PersistentCacheDir(t), "terraform_statefile_test")
+		env := []string{"TF_CLI_CONFIG_FILE=" + testutil.CacheTFProviders(t, cacheRootDir, t.Name(), files)}
+		for _, variable := range os.Environ() {
+			if !strings.HasPrefix(variable, "CODER_") {
+				env = append(env, variable)
+			}
 		}
-	}
-	agents := replaced["coder_agent"]
-	require.Len(t, agents, 2)
-	require.True(t, agents[0].Tainted)
-	require.Empty(t, agents[0].DeposedKey)
-	require.False(t, agents[1].Tainted)
-	require.NotEmpty(t, agents[1].DeposedKey)
-	// Both objects of the first instance come before the second instance.
-	counted := replaced["terraform_data"]
-	require.Len(t, counted, 3)
-	require.True(t, counted[0].Tainted)
-	require.NotEmpty(t, counted[1].DeposedKey)
-	require.Equal(t, "terraform_data.replaced[1]", counted[2].Address)
+		w := workDir{files: tfpath.Layout(dir), binaryPath: binaryPath, env: env}
 
-	// A delete build leaves an empty state.
-	_, err = w.run(ctx, "destroy", "-no-color", "-input=false", "-auto-approve")
-	require.NoError(t, err)
-	require.Empty(t, w.show(ctx, t))
-	read, err := tfstate.Read(w.files.StateFilePath(), terraform.MaxTerraformVersion)
-	require.NoError(t, err)
-	require.Empty(t, read)
+		_, err = w.run(ctx, "init", "-no-color", "-input=false")
+		require.NoError(t, err)
+		_, err = w.run(ctx, "apply", "-no-color", "-input=false", "-auto-approve")
+		require.NoError(t, err)
+		_, converted := requireReadMatchesShow(ctx, t, w)
+		// Make sure the conversion compared above is not trivially empty.
+		require.Len(t, converted.Parameters, 2)
+		require.Len(t, converted.ExternalAuthProviders, 1)
+		var agent *proto.Agent
+		for _, resource := range converted.Resources {
+			if resource.Name == "host" && resource.Type == "terraform_data" {
+				require.Len(t, resource.Agents, 1)
+				agent = resource.Agents[0]
+				require.Len(t, resource.Metadata, 2)
+			}
+		}
+		require.NotNil(t, agent, "terraform_data.host has the agent")
+		require.Len(t, agent.Apps, 2)
+		require.Len(t, agent.ExtraEnvs, 11+18)   // coder_env.counted and coder_env.keys
+		require.Len(t, agent.Scripts, 21+11+2+1) // module.child, module.counted, the two wrap modules, and module.deep
+
+		// A failed replacement leaves a tainted and a deposed object.
+		_, err = w.run(ctx, "apply", "-no-color", "-input=false", "-auto-approve",
+			"-replace=coder_agent.replaced", "-replace=terraform_data.replaced[0]", "-var=fail_provisioner=true")
+		require.Error(t, err)
+		modules, _ := requireReadMatchesShow(ctx, t, w)
+		replaced := map[string][]*tfjson.StateResource{}
+		for _, resource := range resources(modules) {
+			if resource.Name == "replaced" {
+				replaced[resource.Type] = append(replaced[resource.Type], resource)
+			}
+		}
+		agents := replaced["coder_agent"]
+		require.Len(t, agents, 2)
+		require.True(t, agents[0].Tainted)
+		require.Empty(t, agents[0].DeposedKey)
+		require.False(t, agents[1].Tainted)
+		require.NotEmpty(t, agents[1].DeposedKey)
+		// Both objects of the first instance come before the second instance.
+		counted := replaced["terraform_data"]
+		require.Len(t, counted, 3)
+		require.True(t, counted[0].Tainted)
+		require.NotEmpty(t, counted[1].DeposedKey)
+		require.Equal(t, "terraform_data.replaced[1]", counted[2].Address)
+
+		// A delete build leaves an empty state.
+		_, err = w.run(ctx, "destroy", "-no-color", "-input=false", "-auto-approve")
+		require.NoError(t, err)
+		require.Empty(t, w.show(ctx, t))
+		read, err := tfstate.Read(w.files.StateFilePath(), terraform.MaxTerraformVersion)
+		require.NoError(t, err)
+		require.Empty(t, read)
+	})
 }
 
 // requireReadMatchesShow checks that the state file in w reads the same as
