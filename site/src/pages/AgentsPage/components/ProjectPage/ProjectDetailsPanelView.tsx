@@ -113,7 +113,7 @@ export const ProjectDetailsPanelView: React.FC<
 				Details
 			</h2>
 			<div className="rounded-lg border">
-				<dl className="m-0 flex flex-col gap-2 border-0 border-b border-solid p-4 text-sm">
+				<dl className="m-0 flex flex-col gap-2 border-b p-4 text-sm">
 					<DetailRow label="Project owner">
 						{ownerLabel !== undefined ? (
 							<AvatarValue
@@ -133,7 +133,7 @@ export const ProjectDetailsPanelView: React.FC<
 							{/* A button so keyboard users can focus it to read the full time. */}
 							<TooltipTrigger
 								type="button"
-								className="cursor-default rounded-sm border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+								className="cursor-default rounded-sm bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link"
 							>
 								<time dateTime={createdAt}>
 									{formatDateTime(createdAt, DATE_FORMAT.MEDIUM_DATE)}
@@ -282,7 +282,7 @@ const MembersSection: React.FC<MembersSectionProps> = ({
 		<section
 			ref={observeRowWidth}
 			aria-labelledby={headingId}
-			className="flex flex-col gap-3 border-0 border-t border-solid p-4"
+			className="flex flex-col gap-3 border-t p-4"
 		>
 			<div className="flex items-center justify-between gap-4">
 				<h3
@@ -364,7 +364,7 @@ const MemberTile: React.FC<MemberTileProps> = ({
 			<TooltipTrigger
 				type="button"
 				aria-label={label}
-				className="relative flex cursor-default rounded-[6px] border-0 bg-transparent p-0 focus-visible:z-10 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+				className="relative flex cursor-default rounded-[6px] bg-transparent p-0 focus-visible:z-10 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 			>
 				{children}
 			</TooltipTrigger>

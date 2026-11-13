@@ -45,6 +45,11 @@ export type AIBridgeAttribution = Record<string, string>;
 export interface AIBridgeConfig {
 	readonly enabled: boolean;
 	/**
+	 * EmbeddedEnabled controls whether coderd starts the in-memory AI
+	 * Gateway. It only takes effect when Enabled is true.
+	 */
+	readonly embedded_enabled: boolean;
+	/**
 	 * @deprecated Injected MCP in AI Bridge is deprecated and will be removed in a future release.
 	 */
 	readonly inject_coder_mcp_tools: boolean;
@@ -3692,6 +3697,37 @@ export type ChatProjectRole = "admin" | "" | "use";
 export const ChatProjectRoles: ChatProjectRole[] = ["admin", "", "use"];
 
 // From codersdk/chats.go
+/**
+ * ChatProjectSummary is a project with the caller's pin and aggregates over
+ * the caller's own top-level, non-archived chats in it.
+ */
+export interface ChatProjectSummary {
+	readonly project: ChatProject;
+	readonly pinned: boolean;
+	/**
+	 * PinOrder is the 1-based position among pinned projects, or 0.
+	 */
+	readonly pin_order: number;
+	readonly own_chat_count: number;
+	readonly own_unread_count: number;
+	readonly own_running: boolean;
+	/**
+	 * OwnNeedsAttention reports a chat that requires action, failed, or is paused.
+	 */
+	readonly own_needs_attention: boolean;
+	/**
+	 * LastActivityAt is the latest update to one of the caller's chats.
+	 */
+	readonly last_activity_at?: string;
+	/**
+	 * MemberCount counts users who can use the project, including the owner.
+	 * Suspended users are not counted. It is 1 when chat sharing is
+	 * unavailable.
+	 */
+	readonly member_count: number;
+}
+
+// From codersdk/chats.go
 export interface ChatProjectUser extends MinimalUser {
 	readonly role: ChatProjectRole;
 }
@@ -5826,6 +5862,7 @@ export type Experiment =
 	| "ai-gateway-seat-exclusion"
 	| "agent-lifecycle-hooks"
 	| "chat-acp-subagents"
+	| "chat-automations"
 	| "chat-inline-mcp-servers"
 	| "chat-project-sharing"
 	| "chat-stage-metrics"
@@ -5905,6 +5942,7 @@ export const Experiments: Experiment[] = [
 	"ai-gateway-seat-exclusion",
 	"agent-lifecycle-hooks",
 	"chat-acp-subagents",
+	"chat-automations",
 	"chat-inline-mcp-servers",
 	"chat-project-sharing",
 	"chat-stage-metrics",
@@ -6812,6 +6850,11 @@ export interface ListChatsOptions extends Pagination {
 	readonly Source: ChatListSource;
 	readonly Labels: Record<string, string>;
 	readonly ProjectID: string | null;
+	/**
+	 * PinnedProjectsOnly leaves out chats in projects the caller has not
+	 * pinned, unless the chat itself is pinned.
+	 */
+	readonly PinnedProjectsOnly: boolean;
 }
 
 // From codersdk/inboxnotification.go
@@ -8579,6 +8622,19 @@ export interface Permission {
 	readonly action: RBACAction;
 }
 
+// From codersdk/chats.go
+/**
+ * PinChatProjectRequest pins a chat project for the caller, or moves an
+ * already pinned project.
+ */
+export interface PinChatProjectRequest {
+	/**
+	 * PinOrder is the 1-based position to pin at. When omitted, a new pin
+	 * goes to the end and an existing pin keeps its position.
+	 */
+	readonly pin_order?: number;
+}
+
 // From codersdk/oauth2.go
 export interface PostOAuth2ProviderAppRequest {
 	readonly name: string;
@@ -8819,6 +8875,7 @@ export interface PrometheusConfig {
 	readonly collect_agent_stats: boolean;
 	readonly collect_db_metrics: boolean;
 	readonly aggregate_agent_stats_by: string;
+	readonly collect_workspace_stats: boolean;
 }
 
 // From codersdk/chats.go
@@ -12416,6 +12473,10 @@ export interface WorkspaceAgent {
 	readonly resource_id: string;
 	readonly instance_id?: string;
 	readonly architecture: string;
+	/**
+	 * EnvironmentVariables lists the variables set on the agent. Non-empty
+	 * values are redacted as "***REDACTED***" because they often hold credentials.
+	 */
 	readonly environment_variables: Record<string, string>;
 	readonly operating_system: string;
 	readonly logs_length: number;

@@ -7996,6 +7996,451 @@ func (q *sqlQuerier) InsertChatProjectMemory(ctx context.Context, arg InsertChat
 	return i, err
 }
 
+const getChatProjectPinTelemetry = `-- name: GetChatProjectPinTelemetry :one
+WITH project_users AS (
+    SELECT id AS project_id, owner_id AS user_id FROM chat_projects
+    UNION
+    SELECT granted.project_id, organization_members.user_id
+    FROM (
+        SELECT id AS project_id, organization_id, jsonb_object_keys(user_acl)::uuid AS user_id FROM chat_projects
+    ) granted
+    JOIN organization_members
+        ON organization_members.user_id = granted.user_id
+        AND organization_members.organization_id = granted.organization_id
+    WHERE $1::boolean
+    UNION
+    SELECT granted.project_id, group_members_expanded.user_id
+    FROM (
+        SELECT id AS project_id, organization_id, jsonb_object_keys(group_acl)::uuid AS group_id FROM chat_projects
+    ) granted
+    JOIN group_members_expanded ON group_members_expanded.group_id = granted.group_id
+    JOIN organization_members
+        ON organization_members.user_id = group_members_expanded.user_id
+        AND organization_members.organization_id = granted.organization_id
+    WHERE $1::boolean
+),
+per_user AS (
+    SELECT
+        COUNT(*) AS projects,
+        COUNT(*) FILTER (WHERE pins.pin_order > 0) AS pinned,
+        COUNT(*) FILTER (WHERE pins.pin_order > 0 AND pins.source = 'migration') AS pinned_migration,
+        COUNT(*) FILTER (WHERE pins.pin_order > 0 AND pins.source = 'default') AS pinned_default,
+        COUNT(*) FILTER (WHERE pins.pin_order > 0 AND pins.source = 'user') AS pinned_user,
+        COUNT(*) FILTER (WHERE pins.unpinned_at IS NOT NULL AND pins.source = 'migration') AS tombstones_migration,
+        COUNT(*) FILTER (WHERE pins.unpinned_at IS NOT NULL AND pins.source = 'default') AS tombstones_default,
+        COUNT(*) FILTER (WHERE pins.unpinned_at IS NOT NULL AND pins.source = 'user') AS tombstones_user,
+        COUNT(*) FILTER (WHERE pins.unpinned_at IS NOT NULL) AS tombstones
+    FROM project_users
+    JOIN users ON users.id = project_users.user_id
+        AND users.status = 'active'::user_status AND users.deleted = false AND users.is_system = false
+    LEFT JOIN chat_project_pins pins
+        ON pins.user_id = project_users.user_id AND pins.project_id = project_users.project_id
+    GROUP BY project_users.user_id
+),
+bucketed AS (
+    SELECT
+        projects, pinned, pinned_migration, pinned_default, pinned_user, tombstones_migration, tombstones_default, tombstones_user, tombstones,
+        tombstones > 0 OR pinned_user > 0 AS acted,
+        CASE
+            WHEN pinned = 0 THEN 0
+            WHEN pinned = projects THEN 100
+            WHEN pinned * 4 <= projects THEN 25
+            WHEN pinned * 2 <= projects THEN 50
+            WHEN pinned * 4 <= projects * 3 THEN 75
+            ELSE 99
+        END AS bucket
+    FROM per_user
+)
+SELECT
+    COUNT(*)::bigint AS users_with_projects,
+    COUNT(*) FILTER (WHERE tombstones > 0)::bigint AS users_with_tombstones,
+    COALESCE(SUM(pinned_migration), 0)::bigint AS pinned_migration,
+    COALESCE(SUM(pinned_default), 0)::bigint AS pinned_default,
+    COALESCE(SUM(pinned_user), 0)::bigint AS pinned_user,
+    COALESCE(SUM(tombstones_migration), 0)::bigint AS tombstones_migration,
+    COALESCE(SUM(tombstones_default), 0)::bigint AS tombstones_default,
+    COALESCE(SUM(tombstones_user), 0)::bigint AS tombstones_user,
+    COUNT(*) FILTER (WHERE bucket = 0)::bigint AS all_share_0,
+    COUNT(*) FILTER (WHERE bucket = 25)::bigint AS all_share_1_25,
+    COUNT(*) FILTER (WHERE bucket = 50)::bigint AS all_share_26_50,
+    COUNT(*) FILTER (WHERE bucket = 75)::bigint AS all_share_51_75,
+    COUNT(*) FILTER (WHERE bucket = 99)::bigint AS all_share_76_99,
+    COUNT(*) FILTER (WHERE bucket = 100)::bigint AS all_share_100,
+    COUNT(*) FILTER (WHERE acted AND bucket = 0)::bigint AS acted_share_0,
+    COUNT(*) FILTER (WHERE acted AND bucket = 25)::bigint AS acted_share_1_25,
+    COUNT(*) FILTER (WHERE acted AND bucket = 50)::bigint AS acted_share_26_50,
+    COUNT(*) FILTER (WHERE acted AND bucket = 75)::bigint AS acted_share_51_75,
+    COUNT(*) FILTER (WHERE acted AND bucket = 99)::bigint AS acted_share_76_99,
+    COUNT(*) FILTER (WHERE acted AND bucket = 100)::bigint AS acted_share_100
+FROM bucketed
+`
+
+type GetChatProjectPinTelemetryRow struct {
+	UsersWithProjects   int64 `db:"users_with_projects" json:"users_with_projects"`
+	UsersWithTombstones int64 `db:"users_with_tombstones" json:"users_with_tombstones"`
+	PinnedMigration     int64 `db:"pinned_migration" json:"pinned_migration"`
+	PinnedDefault       int64 `db:"pinned_default" json:"pinned_default"`
+	PinnedUser          int64 `db:"pinned_user" json:"pinned_user"`
+	TombstonesMigration int64 `db:"tombstones_migration" json:"tombstones_migration"`
+	TombstonesDefault   int64 `db:"tombstones_default" json:"tombstones_default"`
+	TombstonesUser      int64 `db:"tombstones_user" json:"tombstones_user"`
+	AllShare0           int64 `db:"all_share_0" json:"all_share_0"`
+	AllShare125         int64 `db:"all_share_1_25" json:"all_share_1_25"`
+	AllShare2650        int64 `db:"all_share_26_50" json:"all_share_26_50"`
+	AllShare5175        int64 `db:"all_share_51_75" json:"all_share_51_75"`
+	AllShare7699        int64 `db:"all_share_76_99" json:"all_share_76_99"`
+	AllShare100         int64 `db:"all_share_100" json:"all_share_100"`
+	ActedShare0         int64 `db:"acted_share_0" json:"acted_share_0"`
+	ActedShare125       int64 `db:"acted_share_1_25" json:"acted_share_1_25"`
+	ActedShare2650      int64 `db:"acted_share_26_50" json:"acted_share_26_50"`
+	ActedShare5175      int64 `db:"acted_share_51_75" json:"acted_share_51_75"`
+	ActedShare7699      int64 `db:"acted_share_76_99" json:"acted_share_76_99"`
+	ActedShare100       int64 `db:"acted_share_100" json:"acted_share_100"`
+}
+
+// Aggregates pin usage over each active, non-system user's accessible
+// projects. Grants count only when @acl_enabled, matching the summaries.
+// No identifiers leave this query.
+// Users act on pins by pinning, reordering, or unpinning a project.
+func (q *sqlQuerier) GetChatProjectPinTelemetry(ctx context.Context, aclEnabled bool) (GetChatProjectPinTelemetryRow, error) {
+	row := q.db.QueryRowContext(ctx, getChatProjectPinTelemetry, aclEnabled)
+	var i GetChatProjectPinTelemetryRow
+	err := row.Scan(
+		&i.UsersWithProjects,
+		&i.UsersWithTombstones,
+		&i.PinnedMigration,
+		&i.PinnedDefault,
+		&i.PinnedUser,
+		&i.TombstonesMigration,
+		&i.TombstonesDefault,
+		&i.TombstonesUser,
+		&i.AllShare0,
+		&i.AllShare125,
+		&i.AllShare2650,
+		&i.AllShare5175,
+		&i.AllShare7699,
+		&i.AllShare100,
+		&i.ActedShare0,
+		&i.ActedShare125,
+		&i.ActedShare2650,
+		&i.ActedShare5175,
+		&i.ActedShare7699,
+		&i.ActedShare100,
+	)
+	return i, err
+}
+
+const getChatProjectSummariesByUserID = `-- name: GetChatProjectSummariesByUserID :many
+WITH accessible AS (
+    SELECT id, organization_id, owner_id, user_acl, group_acl
+    FROM chat_projects
+    WHERE owner_id = $2::uuid
+        OR (
+            -- Grants count only while RBAC honors them, as in
+            -- GetChatProjectsOwnedOrSharedWithUserID after authorization.
+            $3::boolean
+            AND (user_acl ? ($2::uuid)::text OR group_acl ?| ARRAY(
+                SELECT group_id::text FROM group_members WHERE user_id = $2::uuid
+                UNION ALL
+                SELECT organization_id::text FROM organization_members WHERE user_id = $2::uuid
+            ))
+            AND EXISTS (
+                SELECT 1 FROM organization_members
+                WHERE organization_members.user_id = $2::uuid
+                    AND organization_members.organization_id = chat_projects.organization_id
+            )
+        )
+),
+project_members AS (
+    SELECT id AS project_id, owner_id AS user_id FROM accessible
+    UNION
+    SELECT granted.project_id, organization_members.user_id
+    FROM (
+        SELECT id AS project_id, organization_id, jsonb_object_keys(user_acl)::uuid AS user_id
+        FROM accessible WHERE $1::boolean
+    ) granted
+    JOIN organization_members
+        ON organization_members.user_id = granted.user_id
+        AND organization_members.organization_id = granted.organization_id
+    UNION
+    SELECT granted.project_id, group_members_expanded.user_id
+    FROM (
+        SELECT id AS project_id, organization_id, jsonb_object_keys(group_acl)::uuid AS group_id
+        FROM accessible WHERE $1::boolean
+    ) granted
+    JOIN group_members_expanded ON group_members_expanded.group_id = granted.group_id
+    -- A granted group from another organization only reaches its members
+    -- who also belong to the project's organization.
+    JOIN organization_members
+        ON organization_members.user_id = group_members_expanded.user_id
+        AND organization_members.organization_id = granted.organization_id
+),
+member_counts AS (
+    SELECT project_members.project_id, COUNT(*) AS member_count
+    FROM project_members
+    JOIN users ON users.id = project_members.user_id
+    WHERE users.deleted = false AND users.is_system = false AND users.status <> 'suspended'
+    GROUP BY project_members.project_id
+),
+own_chats AS (
+    SELECT
+        c.project_id,
+        COUNT(*) AS chat_count,
+        -- Same rule as has_unread in GetChats.
+        COUNT(*) FILTER (WHERE EXISTS (
+            SELECT 1 FROM chat_messages cm
+            WHERE cm.chat_id = c.id AND cm.role = 'assistant' AND cm.deleted = false
+                AND cm.id > COALESCE(c.last_read_message_id, 0)
+        )) AS unread_count,
+        bool_or(c.status IN ('running', 'interrupting')) AS running,
+        bool_or(c.status IN ('requires_action', 'error', 'paused')) AS needs_attention,
+        MAX(c.updated_at)::timestamptz AS last_activity_at
+    FROM chats c
+    WHERE c.owner_id = $2::uuid AND c.project_id IS NOT NULL AND c.parent_chat_id IS NULL AND c.archived = false
+    GROUP BY c.project_id
+)
+SELECT
+    chat_projects.id, chat_projects.organization_id, chat_projects.owner_id, chat_projects.name, chat_projects.description, chat_projects.icon, chat_projects.created_at, chat_projects.updated_at, chat_projects.user_acl, chat_projects.group_acl, chat_projects.archived_at,
+    (pins.project_id IS NOT NULL)::boolean AS pinned,
+    -- Numbered over the returned pins, so pins the user can no longer see
+    -- leave no gaps.
+    (CASE WHEN pins.project_id IS NULL THEN 0
+        ELSE ROW_NUMBER() OVER (PARTITION BY pins.project_id IS NULL ORDER BY pins.pin_order, chat_projects.id) END)::integer AS pin_order,
+    COALESCE(own_chats.chat_count, 0)::bigint AS own_chat_count,
+    COALESCE(own_chats.unread_count, 0)::bigint AS own_unread_count,
+    COALESCE(own_chats.running, false)::boolean AS own_running,
+    COALESCE(own_chats.needs_attention, false)::boolean AS own_needs_attention,
+    own_chats.last_activity_at,
+    (CASE WHEN $1::boolean THEN COALESCE(member_counts.member_count, 0) ELSE 1 END)::bigint AS member_count
+FROM chat_projects
+JOIN accessible ON accessible.id = chat_projects.id
+LEFT JOIN member_counts ON member_counts.project_id = chat_projects.id
+LEFT JOIN chat_project_pins pins
+    ON pins.user_id = $2::uuid AND pins.project_id = chat_projects.id AND pins.unpinned_at IS NULL
+LEFT JOIN own_chats ON own_chats.project_id = chat_projects.id
+ORDER BY lower(chat_projects.name), chat_projects.id
+`
+
+type GetChatProjectSummariesByUserIDParams struct {
+	CountSharedMembers bool      `db:"count_shared_members" json:"count_shared_members"`
+	UserID             uuid.UUID `db:"user_id" json:"user_id"`
+	ACLEnabled         bool      `db:"acl_enabled" json:"acl_enabled"`
+}
+
+type GetChatProjectSummariesByUserIDRow struct {
+	ChatProject       ChatProject  `db:"chat_project" json:"chat_project"`
+	Pinned            bool         `db:"pinned" json:"pinned"`
+	PinOrder          int32        `db:"pin_order" json:"pin_order"`
+	OwnChatCount      int64        `db:"own_chat_count" json:"own_chat_count"`
+	OwnUnreadCount    int64        `db:"own_unread_count" json:"own_unread_count"`
+	OwnRunning        bool         `db:"own_running" json:"own_running"`
+	OwnNeedsAttention bool         `db:"own_needs_attention" json:"own_needs_attention"`
+	LastActivityAt    sql.NullTime `db:"last_activity_at" json:"last_activity_at"`
+	MemberCount       int64        `db:"member_count" json:"member_count"`
+}
+
+// Returns the projects from GetChatProjectsOwnedOrSharedWithUserID with the
+// user's active pin and aggregates over the user's own top-level,
+// non-archived chats. Entries match regardless of the actions they grant,
+// so callers must authorize each row; pins on projects the user can no
+// longer see are never returned.
+// Users who can use each project: the owner, granted users who are
+// organization members, and members of granted groups (including the
+// Everyone group). Counted only while project sharing is available;
+// otherwise every project counts its owner alone. Suspended users cannot
+// sign in, so they are not counted.
+// Read through idx_chats_owner.
+func (q *sqlQuerier) GetChatProjectSummariesByUserID(ctx context.Context, arg GetChatProjectSummariesByUserIDParams) ([]GetChatProjectSummariesByUserIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getChatProjectSummariesByUserID, arg.CountSharedMembers, arg.UserID, arg.ACLEnabled)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetChatProjectSummariesByUserIDRow
+	for rows.Next() {
+		var i GetChatProjectSummariesByUserIDRow
+		if err := rows.Scan(
+			&i.ChatProject.ID,
+			&i.ChatProject.OrganizationID,
+			&i.ChatProject.OwnerID,
+			&i.ChatProject.Name,
+			&i.ChatProject.Description,
+			&i.ChatProject.Icon,
+			&i.ChatProject.CreatedAt,
+			&i.ChatProject.UpdatedAt,
+			&i.ChatProject.UserACL,
+			&i.ChatProject.GroupACL,
+			&i.ChatProject.ArchivedAt,
+			&i.Pinned,
+			&i.PinOrder,
+			&i.OwnChatCount,
+			&i.OwnUnreadCount,
+			&i.OwnRunning,
+			&i.OwnNeedsAttention,
+			&i.LastActivityAt,
+			&i.MemberCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertChatProjectPin = `-- name: InsertChatProjectPin :exec
+INSERT INTO chat_project_pins (user_id, project_id, pin_order, source)
+SELECT $1::uuid, $2::uuid, COALESCE(MAX(pin_order), 0) + 1, 'default'
+FROM chat_project_pins
+WHERE user_id = $1::uuid AND unpinned_at IS NULL
+`
+
+type InsertChatProjectPinParams struct {
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	ProjectID uuid.UUID `db:"project_id" json:"project_id"`
+}
+
+// Pins a newly created project for its creator at the end of their list.
+func (q *sqlQuerier) InsertChatProjectPin(ctx context.Context, arg InsertChatProjectPinParams) error {
+	_, err := q.db.ExecContext(ctx, insertChatProjectPin, arg.UserID, arg.ProjectID)
+	return err
+}
+
+const pinChatProject = `-- name: PinChatProject :exec
+WITH current_pins AS (
+    SELECT project_id, stale, ROW_NUMBER() OVER (ORDER BY stale ASC, pin_order ASC, project_id ASC) :: integer AS position
+    FROM (
+        SELECT p.project_id, p.pin_order, NOT (
+            -- Same access predicate as GetChatProjectSummariesByUserID.
+            cp.owner_id = $1::uuid
+            OR (
+                $3::boolean
+                AND (cp.user_acl ? ($1::uuid)::text OR cp.group_acl ?| ARRAY(
+                    SELECT group_id::text FROM group_members WHERE user_id = $1::uuid
+                    UNION ALL
+                    SELECT organization_id::text FROM organization_members WHERE user_id = $1::uuid
+                ))
+                AND EXISTS (
+                    SELECT 1 FROM organization_members
+                    WHERE organization_members.user_id = $1::uuid
+                        AND organization_members.organization_id = cp.organization_id
+                )
+            )
+        ) AS stale
+        FROM chat_project_pins p
+        JOIN chat_projects cp ON cp.id = p.project_id
+        WHERE p.user_id = $1::uuid AND p.unpinned_at IS NULL
+    ) pins
+),
+ranked AS (
+    SELECT project_id, stale, ROW_NUMBER() OVER (ORDER BY position ASC) :: integer AS position
+    FROM current_pins
+    WHERE project_id <> $2::uuid
+),
+target AS (
+    SELECT LEAST(GREATEST(COALESCE(
+        $4::integer,
+        (SELECT position FROM current_pins WHERE project_id = $2::uuid),
+        pinned_count + 1
+    ), 1), pinned_count + 1) :: integer AS position
+    FROM (SELECT COUNT(*) FILTER (WHERE NOT stale) :: integer AS pinned_count FROM ranked) counts
+),
+shifted AS (
+    UPDATE chat_project_pins p
+    SET pin_order = CASE WHEN ranked.position >= target.position THEN ranked.position + 1 ELSE ranked.position END
+    FROM ranked CROSS JOIN target
+    WHERE p.user_id = $1::uuid AND p.project_id = ranked.project_id AND p.unpinned_at IS NULL
+)
+INSERT INTO chat_project_pins (user_id, project_id, pin_order, source)
+SELECT $1::uuid, $2::uuid, target.position, 'user'
+FROM target
+ON CONFLICT (user_id, project_id) DO UPDATE SET
+    pin_order = EXCLUDED.pin_order,
+    source = 'user',
+    unpinned_at = NULL
+`
+
+type PinChatProjectParams struct {
+	UserID     uuid.UUID     `db:"user_id" json:"user_id"`
+	ProjectID  uuid.UUID     `db:"project_id" json:"project_id"`
+	ACLEnabled bool          `db:"acl_enabled" json:"acl_enabled"`
+	PinOrder   sql.NullInt32 `db:"pin_order" json:"pin_order"`
+}
+
+// Pins a project, or moves an already pinned project, to pin_order. Without
+// pin_order a new pin goes to the end and an existing pin keeps its place.
+// Positions count only pins the user can still see, as the summaries do, and
+// are clamped to [1, count]. Pins on projects the user can no longer see move
+// after the visible ones. Callers must hold the per-user pin lock so
+// concurrent writes cannot interleave.
+func (q *sqlQuerier) PinChatProject(ctx context.Context, arg PinChatProjectParams) error {
+	_, err := q.db.ExecContext(ctx, pinChatProject,
+		arg.UserID,
+		arg.ProjectID,
+		arg.ACLEnabled,
+		arg.PinOrder,
+	)
+	return err
+}
+
+const unpinChatProject = `-- name: UnpinChatProject :exec
+WITH target AS (
+    SELECT project_id
+    FROM chat_project_pins
+    WHERE user_id = $1::uuid AND project_id = $2::uuid AND unpinned_at IS NULL
+),
+updates AS (
+    SELECT p.project_id, ROW_NUMBER() OVER (ORDER BY NOT (
+        -- Same access predicate as GetChatProjectSummariesByUserID.
+        cp.owner_id = $1::uuid
+        OR (
+            $3::boolean
+            AND (cp.user_acl ? ($1::uuid)::text OR cp.group_acl ?| ARRAY(
+                SELECT group_id::text FROM group_members WHERE user_id = $1::uuid
+                UNION ALL
+                SELECT organization_id::text FROM organization_members WHERE user_id = $1::uuid
+            ))
+            AND EXISTS (
+                SELECT 1 FROM organization_members
+                WHERE organization_members.user_id = $1::uuid
+                    AND organization_members.organization_id = cp.organization_id
+            )
+        )
+    ) ASC, p.pin_order ASC, p.project_id ASC) :: integer AS pin_order, NULL::timestamptz AS unpinned_at
+    FROM chat_project_pins p
+    JOIN chat_projects cp ON cp.id = p.project_id
+    WHERE p.user_id = $1::uuid AND p.unpinned_at IS NULL AND p.project_id <> $2::uuid
+    UNION ALL
+    SELECT project_id, 0, NOW() FROM target
+)
+UPDATE chat_project_pins p
+SET pin_order = updates.pin_order, unpinned_at = updates.unpinned_at
+FROM updates
+WHERE p.user_id = $1::uuid AND p.project_id = updates.project_id AND p.unpinned_at IS NULL
+    AND EXISTS (SELECT 1 FROM target)
+`
+
+type UnpinChatProjectParams struct {
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+	ProjectID  uuid.UUID `db:"project_id" json:"project_id"`
+	ACLEnabled bool      `db:"acl_enabled" json:"acl_enabled"`
+}
+
+// Turns a pin into a tombstone and compacts the remaining pins to 1..N.
+// The source is kept so telemetry can tell which pins users removed.
+// Unpinning a project that is not pinned changes nothing. Like
+// PinChatProject, pins the user can still see come first, and callers must
+// hold the per-user pin lock.
+func (q *sqlQuerier) UnpinChatProject(ctx context.Context, arg UnpinChatProjectParams) error {
+	_, err := q.db.ExecContext(ctx, unpinChatProject, arg.UserID, arg.ProjectID, arg.ACLEnabled)
+	return err
+}
+
 const archiveChatsOfChatProject = `-- name: ArchiveChatsOfChatProject :many
 WITH roots AS (
     SELECT chats.id
@@ -11452,7 +11897,7 @@ WITH cursor_chat AS (
         updated_at,
         id
     FROM chats
-    WHERE id = $8
+    WHERE id = $10
 )
 SELECT
     chats_expanded.id, chats_expanded.owner_id, chats_expanded.workspace_id, chats_expanded.title, chats_expanded.status, chats_expanded.worker_id, chats_expanded.started_at, chats_expanded.heartbeat_at, chats_expanded.created_at, chats_expanded.updated_at, chats_expanded.parent_chat_id, chats_expanded.root_chat_id, chats_expanded.last_model_config_id, chats_expanded.last_reasoning_effort, chats_expanded.archived, chats_expanded.last_error, chats_expanded.mode, chats_expanded.mcp_server_ids, chats_expanded.labels, chats_expanded.build_id, chats_expanded.agent_id, chats_expanded.pin_order, chats_expanded.last_read_message_id, chats_expanded.dynamic_tools, chats_expanded.organization_id, chats_expanded.project_id, chats_expanded.plan_mode, chats_expanded.client_type, chats_expanded.last_turn_summary, chats_expanded.summary, chats_expanded.summary_generated_at, chats_expanded.snapshot_version, chats_expanded.history_version, chats_expanded.queue_version, chats_expanded.generation_attempt, chats_expanded.retry_state, chats_expanded.retry_state_version, chats_expanded.runner_id, chats_expanded.requires_action_deadline_at, chats_expanded.user_acl, chats_expanded.group_acl, chats_expanded.owner_username, chats_expanded.owner_name, chats_expanded.context_aggregate_hash, chats_expanded.context_dirty_since, chats_expanded.context_dirty_resources, chats_expanded.context_error, chats_expanded.compaction_requested_at, chats_expanded.title_source, chats_expanded.title_updated_at, chats_expanded.archived_with_project,
@@ -11486,12 +11931,54 @@ WHERE
         WHEN $7::uuid IS NOT NULL THEN chats_expanded.project_id = $7::uuid
         ELSE true
     END
+    -- The sidebar lists a chat in a project only when the viewer pinned
+    -- the project or the chat itself. Filtering here, not after the
+    -- query, keeps cursor pages full.
+    AND CASE
+        WHEN $8::boolean THEN (
+            chats_expanded.project_id IS NULL
+            OR chats_expanded.pin_order > 0
+            OR EXISTS (
+                SELECT 1
+                FROM chat_project_pins
+                WHERE chat_project_pins.user_id = $3::uuid
+                    AND chat_project_pins.project_id = chats_expanded.project_id
+                    AND chat_project_pins.unpinned_at IS NULL
+            )
+            -- A chat in a project the viewer can no longer use stays
+            -- listed: the project is missing from the viewer's projects, so
+            -- the sidebar is the only place left to find the chat. Same
+            -- access predicate as GetChatProjectSummariesByUserID.
+            OR NOT EXISTS (
+                SELECT 1
+                FROM chat_projects cp
+                WHERE cp.id = chats_expanded.project_id
+                    AND (
+                        cp.owner_id = $3::uuid
+                        OR (
+                            $9::boolean
+                            AND (cp.user_acl ? ($3::uuid)::text OR cp.group_acl ?| ARRAY(
+                                SELECT group_id::text FROM group_members WHERE user_id = $3::uuid
+                                UNION ALL
+                                SELECT organization_id::text FROM organization_members WHERE user_id = $3::uuid
+                            ))
+                            AND EXISTS (
+                                SELECT 1 FROM organization_members
+                                WHERE organization_members.user_id = $3::uuid
+                                    AND organization_members.organization_id = cp.organization_id
+                            )
+                        )
+                    )
+            )
+        )
+        ELSE true
+    END
     AND CASE
         -- Cursor pagination: the last element on a page acts as the cursor.
         -- The 4-tuple matches the ORDER BY below. All columns sort DESC
         -- (pin_order is negated so lower values sort first in DESC order),
         -- which lets us use a single tuple < comparison.
-        WHEN $8 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
+        WHEN $10 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid THEN (
             (CASE WHEN chats_expanded.pin_order > 0 THEN 1 ELSE 0 END, -chats_expanded.pin_order, chats_expanded.updated_at, chats_expanded.id) < (
                 SELECT
                     CASE WHEN cursor_chat.pin_order > 0 THEN 1 ELSE 0 END,
@@ -11505,7 +11992,7 @@ WHERE
         ELSE true
     END
     AND CASE
-        WHEN $9::jsonb IS NOT NULL THEN chats_expanded.labels @> $9::jsonb
+        WHEN $11::jsonb IS NOT NULL THEN chats_expanded.labels @> $11::jsonb
         ELSE true
     END
     -- Match chats whose linked diff URL (e.g. a pull request URL)
@@ -11513,13 +12000,13 @@ WHERE
     -- a delegated sub-agent's diff status, so we surface the root chat
     -- when any descendant matches.
     AND CASE
-        WHEN $10::text IS NOT NULL THEN EXISTS (
+        WHEN $12::text IS NOT NULL THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             JOIN chats c2 ON c2.id = cds.chat_id
             WHERE cds.url IS NOT NULL
               AND cds.url <> ''
-              AND LOWER(cds.url) = LOWER($10::text)
+              AND LOWER(cds.url) = LOWER($12::text)
               AND (c2.id = chats_expanded.id OR c2.root_chat_id = chats_expanded.id)
         )
         ELSE true
@@ -11527,11 +12014,11 @@ WHERE
     -- Filter by title substring (case-insensitive). Applied when the
     -- caller provides a non-empty title_query.
     AND CASE
-        WHEN $11 :: text != '' THEN chats_expanded.title ILIKE '%' || $11 || '%'
+        WHEN $13 :: text != '' THEN chats_expanded.title ILIKE '%' || $13 || '%'
         ELSE true
     END
     AND CASE
-        WHEN $12::boolean IS NOT NULL THEN (
+        WHEN $14::boolean IS NOT NULL THEN (
             EXISTS (
                 SELECT 1 FROM chat_messages cm
                 WHERE cm.chat_id = chats_expanded.id
@@ -11539,14 +12026,14 @@ WHERE
                     AND cm.deleted = false
                     AND cm.id > COALESCE(chats_expanded.last_read_message_id, 0)
             )
-        ) = $12::boolean
+        ) = $14::boolean
         ELSE true
     END
     -- Filter by the stored chat_status enum, the same value the sidebar
     -- row icon uses.
     AND CASE
-        WHEN COALESCE(array_length($13::text[], 1), 0) > 0 THEN
-            chats_expanded.status::text = ANY($13::text[])
+        WHEN COALESCE(array_length($15::text[], 1), 0) > 0 THEN
+            chats_expanded.status::text = ANY($15::text[])
         ELSE true
     END
     -- Filter by pull request status. Unlike the diff_url filter above,
@@ -11557,9 +12044,9 @@ WHERE
     -- "none" matches chats with no pull request: no diff-status row, or a
     -- row whose pull_request_state is null or empty.
     AND CASE
-        WHEN COALESCE(array_length($14::text[], 1), 0) > 0 THEN (
+        WHEN COALESCE(array_length($16::text[], 1), 0) > 0 THEN (
             (
-                'none' = ANY($14::text[])
+                'none' = ANY($16::text[])
                 AND NOT EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
@@ -11577,56 +12064,56 @@ WHERE
                             WHEN cds.pull_request_state = 'open' THEN 'open'
                             ELSE cds.pull_request_state
                         END
-                    ) = ANY($14::text[])
+                    ) = ANY($16::text[])
             )
         )
         ELSE true
     END
     -- Filter by PR number (exact match on chat's diff status).
     AND CASE
-        WHEN $15::int != 0 THEN EXISTS (
+        WHEN $17::int != 0 THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pr_number = $15
+                AND cds.pr_number = $17
         )
         ELSE true
     END
     -- Filter by repository (substring match on remote origin or PR URL).
     AND CASE
-        WHEN $16::text != '' THEN EXISTS (
+        WHEN $18::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
                 AND (
-                    cds.git_remote_origin ILIKE '%' || $16 || '%'
-                    OR cds.url ILIKE '%' || $16 || '%'
+                    cds.git_remote_origin ILIKE '%' || $18 || '%'
+                    OR cds.url ILIKE '%' || $18 || '%'
                 )
         )
         ELSE true
     END
     -- Filter by pull request title (case-insensitive substring).
     AND CASE
-        WHEN $17::text != '' THEN EXISTS (
+        WHEN $19::text != '' THEN EXISTS (
             SELECT 1
             FROM chat_diff_statuses cds
             WHERE cds.chat_id = chats_expanded.id
-                AND cds.pull_request_title ILIKE '%' || $17 || '%'
+                AND cds.pull_request_title ILIKE '%' || $19 || '%'
         )
         ELSE true
     END
     -- websearch_to_tsquery accepts quoted phrases, OR, and -negation;
     -- the 'simple' config folds case and skips stemming.
     AND CASE
-        WHEN $18::text != '' THEN (
+        WHEN $20::text != '' THEN (
             -- Served by idx_chats_title_fts.
-            to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', $18)
+            to_tsvector('simple', chats_expanded.title) @@ websearch_to_tsquery('simple', $20)
             -- Served by idx_chat_diff_statuses_pr_title_fts.
             OR EXISTS (
                 SELECT 1
                 FROM chat_diff_statuses cds
                 WHERE cds.chat_id = chats_expanded.id
-                    AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', $18)
+                    AND to_tsvector('simple', cds.pull_request_title) @@ websearch_to_tsquery('simple', $20)
             )
             -- The WHERE clause must repeat the predicate of the partial index
             -- idx_chat_messages_search_tsv so the planner can use it. Additional
@@ -11640,18 +12127,18 @@ WHERE
                     AND cm.visibility IN ('user', 'both')
                     AND cm.role IN ('user', 'assistant')
                     AND (
-                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $18))
-                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $18))
+                        (cm.search_tsv_config = 'english' AND cm.search_tsv @@ websearch_to_tsquery('english', $20))
+                        OR (cm.search_tsv_config IS NULL AND cm.search_tsv @@ websearch_to_tsquery('simple', $20))
                     )
             )
             -- Digits only, so LIKE sees no metacharacters; a per-chat PK probe.
             OR CASE
-                WHEN $18 ~ '^[0-9]+$' THEN EXISTS (
+                WHEN $20 ~ '^[0-9]+$' THEN EXISTS (
                     SELECT 1
                     FROM chat_diff_statuses cds
                     WHERE cds.chat_id = chats_expanded.id
                         AND cds.pr_number IS NOT NULL
-                        AND cds.pr_number::text LIKE $18 || '%'
+                        AND cds.pr_number::text LIKE $20 || '%'
                 )
                 ELSE false
             END
@@ -11674,11 +12161,11 @@ ORDER BY
     -chats_expanded.pin_order DESC,
     chats_expanded.updated_at DESC,
     chats_expanded.id DESC
-OFFSET $19
+OFFSET $21
 LIMIT
     -- The chat list is unbounded and expected to grow large.
     -- Default to 50 to prevent accidental excessively large queries.
-    COALESCE(NULLIF($20 :: int, 0), 50)
+    COALESCE(NULLIF($22 :: int, 0), 50)
 `
 
 type GetChatsParams struct {
@@ -11689,6 +12176,8 @@ type GetChatsParams struct {
 	SharedWithGroupIds  []string              `db:"shared_with_group_ids" json:"shared_with_group_ids"`
 	Archived            sql.NullBool          `db:"archived" json:"archived"`
 	ProjectID           uuid.NullUUID         `db:"project_id" json:"project_id"`
+	PinnedProjectsOnly  sql.NullBool          `db:"pinned_projects_only" json:"pinned_projects_only"`
+	ACLEnabled          bool                  `db:"acl_enabled" json:"acl_enabled"`
 	AfterID             uuid.UUID             `db:"after_id" json:"after_id"`
 	LabelFilter         pqtype.NullRawMessage `db:"label_filter" json:"label_filter"`
 	DiffURL             sql.NullString        `db:"diff_url" json:"diff_url"`
@@ -11718,6 +12207,8 @@ func (q *sqlQuerier) GetChats(ctx context.Context, arg GetChatsParams) ([]GetCha
 		pq.Array(arg.SharedWithGroupIds),
 		arg.Archived,
 		arg.ProjectID,
+		arg.PinnedProjectsOnly,
+		arg.ACLEnabled,
 		arg.AfterID,
 		arg.LabelFilter,
 		arg.DiffURL,
@@ -11823,6 +12314,87 @@ WHERE
 
 func (q *sqlQuerier) GetChatsByChatFileID(ctx context.Context, fileID uuid.UUID) ([]Chat, error) {
 	rows, err := q.db.QueryContext(ctx, getChatsByChatFileID, fileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Chat
+	for rows.Next() {
+		var i Chat
+		if err := rows.Scan(
+			&i.ID,
+			&i.OwnerID,
+			&i.WorkspaceID,
+			&i.Title,
+			&i.Status,
+			&i.WorkerID,
+			&i.StartedAt,
+			&i.HeartbeatAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ParentChatID,
+			&i.RootChatID,
+			&i.LastModelConfigID,
+			&i.LastReasoningEffort,
+			&i.Archived,
+			&i.LastError,
+			&i.Mode,
+			pq.Array(&i.MCPServerIDs),
+			&i.Labels,
+			&i.BuildID,
+			&i.AgentID,
+			&i.PinOrder,
+			&i.LastReadMessageID,
+			&i.DynamicTools,
+			&i.OrganizationID,
+			&i.ProjectID,
+			&i.PlanMode,
+			&i.ClientType,
+			&i.LastTurnSummary,
+			&i.Summary,
+			&i.SummaryGeneratedAt,
+			&i.SnapshotVersion,
+			&i.HistoryVersion,
+			&i.QueueVersion,
+			&i.GenerationAttempt,
+			&i.RetryState,
+			&i.RetryStateVersion,
+			&i.RunnerID,
+			&i.RequiresActionDeadlineAt,
+			&i.UserACL,
+			&i.GroupACL,
+			&i.OwnerUsername,
+			&i.OwnerName,
+			&i.ContextAggregateHash,
+			&i.ContextDirtySince,
+			&i.ContextDirtyResources,
+			&i.ContextError,
+			&i.CompactionRequestedAt,
+			&i.TitleSource,
+			&i.TitleUpdatedAt,
+			&i.ArchivedWithProject,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getChatsByIDs = `-- name: GetChatsByIDs :many
+SELECT id, owner_id, workspace_id, title, status, worker_id, started_at, heartbeat_at, created_at, updated_at, parent_chat_id, root_chat_id, last_model_config_id, last_reasoning_effort, archived, last_error, mode, mcp_server_ids, labels, build_id, agent_id, pin_order, last_read_message_id, dynamic_tools, organization_id, project_id, plan_mode, client_type, last_turn_summary, summary, summary_generated_at, snapshot_version, history_version, queue_version, generation_attempt, retry_state, retry_state_version, runner_id, requires_action_deadline_at, user_acl, group_acl, owner_username, owner_name, context_aggregate_hash, context_dirty_since, context_dirty_resources, context_error, compaction_requested_at, title_source, title_updated_at, archived_with_project
+FROM chats_expanded
+WHERE id = ANY($1::uuid[])
+`
+
+func (q *sqlQuerier) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error) {
+	rows, err := q.db.QueryContext(ctx, getChatsByIDs, pq.Array(ids))
 	if err != nil {
 		return nil, err
 	}
@@ -43022,6 +43594,61 @@ func (q *sqlQuerier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspace
 		&i.UserACLDisplayInfo,
 	)
 	return i, err
+}
+
+const getWorkspaceLastUsedForMetrics = `-- name: GetWorkspaceLastUsedForMetrics :many
+SELECT
+    w.id AS workspace_id,
+    o.name AS organization_name,
+    t.name AS template_name,
+    u.username AS owner_username,
+    w.name AS workspace_name,
+    w.last_used_at
+FROM workspaces w
+JOIN users u ON w.owner_id = u.id
+JOIN templates t ON w.template_id = t.id
+JOIN organizations o ON w.organization_id = o.id
+WHERE w.deleted = false
+AND u.deleted = false
+`
+
+type GetWorkspaceLastUsedForMetricsRow struct {
+	WorkspaceID      uuid.UUID `db:"workspace_id" json:"workspace_id"`
+	OrganizationName string    `db:"organization_name" json:"organization_name"`
+	TemplateName     string    `db:"template_name" json:"template_name"`
+	OwnerUsername    string    `db:"owner_username" json:"owner_username"`
+	WorkspaceName    string    `db:"workspace_name" json:"workspace_name"`
+	LastUsedAt       time.Time `db:"last_used_at" json:"last_used_at"`
+}
+
+func (q *sqlQuerier) GetWorkspaceLastUsedForMetrics(ctx context.Context) ([]GetWorkspaceLastUsedForMetricsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceLastUsedForMetrics)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspaceLastUsedForMetricsRow
+	for rows.Next() {
+		var i GetWorkspaceLastUsedForMetricsRow
+		if err := rows.Scan(
+			&i.WorkspaceID,
+			&i.OrganizationName,
+			&i.TemplateName,
+			&i.OwnerUsername,
+			&i.WorkspaceName,
+			&i.LastUsedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getWorkspaceUniqueOwnerCountByTemplateIDs = `-- name: GetWorkspaceUniqueOwnerCountByTemplateIDs :many
