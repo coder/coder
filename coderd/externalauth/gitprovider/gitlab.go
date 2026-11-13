@@ -253,20 +253,22 @@ func (g *gitlabProvider) FetchPullRequestDiff(
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		if rlErr := checkRateLimitError(resp, g.clock, "RateLimit-Reset"); rlErr != nil {
+		if rlErr := checkRateLimitError(resp, g.clock, "RateLimit-Reset", "RateLimit-Remaining"); rlErr != nil {
 			return "", rlErr
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		if readErr != nil {
-			return "", g.wrapError(
+			err := g.wrapError(
 				xerrors.Errorf("unexpected status %d", resp.StatusCode),
 				"get merge request raw diffs",
 			)
+			return "", rejectedOrOriginal(resp, err)
 		}
-		return "", g.wrapError(
+		err := g.wrapError(
 			xerrors.Errorf("unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(string(body))),
 			"get merge request raw diffs",
 		)
+		return "", rejectedOrOriginal(resp, err)
 	}
 
 	buf, err := io.ReadAll(io.LimitReader(resp.Body, MaxDiffSize+1))
@@ -342,20 +344,22 @@ func (g *gitlabProvider) FetchBranchDiff(
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		if rlErr := checkRateLimitError(resp, g.clock, "RateLimit-Reset"); rlErr != nil {
+		if rlErr := checkRateLimitError(resp, g.clock, "RateLimit-Reset", "RateLimit-Remaining"); rlErr != nil {
 			return "", rlErr
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		if readErr != nil {
-			return "", g.wrapError(
+			err := g.wrapError(
 				xerrors.Errorf("unexpected status %d", resp.StatusCode),
 				"compare branches",
 			)
+			return "", rejectedOrOriginal(resp, err)
 		}
-		return "", g.wrapError(
+		err := g.wrapError(
 			xerrors.Errorf("unexpected status %d: %s", resp.StatusCode, strings.TrimSpace(string(body))),
 			"compare branches",
 		)
+		return "", rejectedOrOriginal(resp, err)
 	}
 
 	// Bound the read to MaxDiffSize + overhead for JSON structure.
@@ -583,14 +587,21 @@ func (g *gitlabProvider) BuildPullRequestURL(ref PRRef) string {
 	return fmt.Sprintf("%s/%s/%s/-/merge_requests/%d", g.webBaseURL, ref.Owner, ref.Repo, ref.Number)
 }
 
-// wrapError converts library errors to our domain errors (e.g. rate limits).
+// wrapError returns a RateLimitError for an SDK 403 or 429 with a usable
+// retry time, and a RejectedError, which wraps no error, for one without.
+// Otherwise it wraps err with the GitLab action.
 func (g *gitlabProvider) wrapError(err error, action string) error {
-	if errResp, ok := errors.AsType[*gitlab.ErrorResponse](err); ok {
-		if rlErr := checkRateLimitError(errResp.Response, g.clock, "RateLimit-Reset"); rlErr != nil {
+	errResp, isSDKError := errors.AsType[*gitlab.ErrorResponse](err)
+	if isSDKError {
+		if rlErr := checkRateLimitError(errResp.Response, g.clock, "RateLimit-Reset", "RateLimit-Remaining"); rlErr != nil {
 			return rlErr
 		}
 	}
-	return xerrors.Errorf("gitlab %s: %w", action, err)
+	wrapped := xerrors.Errorf("gitlab %s: %w", action, err)
+	if isSDKError {
+		return rejectedOrOriginal(errResp.Response, wrapped)
+	}
+	return wrapped
 }
 
 // mapGitLabState maps a GitLab merge request state string to a normalized PRState.

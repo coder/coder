@@ -213,17 +213,23 @@ func New(providerType string, apiBaseURL string, httpClient *http.Client, opts .
 	}
 }
 
-// parseRetryAfter extracts a retry duration from rate-limit response
-// headers. It checks Retry-After (seconds) first, then the named
-// resetHeader (unix timestamp). Returns zero if no recognizable header
-// is present.
-func parseRetryAfter(h http.Header, resetHeader string, clk quartz.Clock) time.Duration {
+// parseRetryAfter returns Retry-After seconds, falling back to resetHeader
+// when remainingHeader is "0". Returns zero if neither supplies a delay.
+// Parsed delays can be negative.
+func parseRetryAfter(h http.Header, resetHeader, remainingHeader string, clk quartz.Clock) time.Duration {
 	// Retry-After header: seconds until retry.
 	if ra := h.Get("Retry-After"); ra != "" {
 		if secs, err := strconv.Atoi(ra); err == nil {
 			return time.Duration(secs) * time.Second
 		}
 	}
+
+	// A reset header alone does not show that the provider's API rate limit
+	// is exhausted.
+	if h.Get(remainingHeader) != "0" {
+		return 0
+	}
+
 	// Reset header: unix timestamp. We compute the duration from now
 	// according to the caller's clock.
 	if reset := h.Get(resetHeader); reset != "" {
@@ -234,21 +240,27 @@ func parseRetryAfter(h http.Header, resetHeader string, clk quartz.Clock) time.D
 	return 0
 }
 
-// checkRateLimitError returns a *RateLimitError when resp indicates a
-// rate limit (HTTP 403 or 429) with recognizable retry headers;
-// otherwise nil. A nil resp returns nil.
-func checkRateLimitError(resp *http.Response, clk quartz.Clock, resetHeader string) error {
+// isRateLimitStatus reports whether status can indicate
+// the provider's API rate limit.
+func isRateLimitStatus(status int) bool {
+	return status == http.StatusForbidden || status == http.StatusTooManyRequests
+}
+
+// checkRateLimitError returns a *RateLimitError for 403 or 429 when
+// parseRetryAfter finds a positive delay. A nil resp returns nil.
+func checkRateLimitError(resp *http.Response, clk quartz.Clock, resetHeader, remainingHeader string) error {
 	if resp == nil {
 		return nil
 	}
-	if resp.StatusCode != http.StatusForbidden && resp.StatusCode != http.StatusTooManyRequests {
+	if !isRateLimitStatus(resp.StatusCode) {
 		return nil
 	}
-	retryAfter := parseRetryAfter(resp.Header, resetHeader, clk)
+	retryAfter := parseRetryAfter(resp.Header, resetHeader, remainingHeader, clk)
 	if retryAfter <= 0 {
 		return nil
 	}
-	return &RateLimitError{RetryAfter: clk.Now().Add(retryAfter + RateLimitPadding)}
+	// Add padding to the time to avoid overflowing the duration sum.
+	return &RateLimitError{RetryAfter: clk.Now().Add(retryAfter).Add(RateLimitPadding)}
 }
 
 // clampToInt32 saturates n to the int32 range used by the
@@ -274,6 +286,23 @@ func countDiffLines(diff string) (additions, deletions int32) {
 		}
 	}
 	return additions, deletions
+}
+
+// RejectedError indicates an HTTP 403 or 429 without a usable retry time.
+// It keeps only diagnostic text so it can never wrap a RateLimitError.
+type RejectedError string
+
+func (e RejectedError) Error() string {
+	return string(e)
+}
+
+// rejectedOrOriginal returns err's text as a RejectedError for a rate-limit
+// status, or err otherwise. Call it after checkRateLimitError returns nil.
+func rejectedOrOriginal(resp *http.Response, err error) error {
+	if resp != nil && isRateLimitStatus(resp.StatusCode) {
+		return RejectedError(err.Error())
+	}
+	return err
 }
 
 // RateLimitError indicates the git provider's API rate limit was hit.

@@ -436,21 +436,23 @@ func (g *githubProvider) decodeJSON(
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		if rlErr := checkRateLimitError(resp, g.clock, "X-Ratelimit-Reset"); rlErr != nil {
+		if rlErr := checkRateLimitError(resp, g.clock, "X-Ratelimit-Reset", "X-Ratelimit-Remaining"); rlErr != nil {
 			return rlErr
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		if readErr != nil {
-			return xerrors.Errorf(
+			err := xerrors.Errorf(
 				"github request failed with status %d",
 				resp.StatusCode,
 			)
+			return rejectedOrOriginal(resp, err)
 		}
-		return xerrors.Errorf(
+		err := xerrors.Errorf(
 			"github request failed with status %d: %s",
 			resp.StatusCode,
 			strings.TrimSpace(string(body)),
 		)
+		return rejectedOrOriginal(resp, err)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -491,18 +493,20 @@ func (g *githubProvider) fetchDiff(
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		if rlErr := checkRateLimitError(resp, g.clock, "X-Ratelimit-Reset"); rlErr != nil {
+		if rlErr := checkRateLimitError(resp, g.clock, "X-Ratelimit-Reset", "X-Ratelimit-Remaining"); rlErr != nil {
 			return "", rlErr
 		}
 		body, readErr := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		if readErr != nil {
-			return "", xerrors.Errorf("github diff request failed with status %d", resp.StatusCode)
+			err := xerrors.Errorf("github diff request failed with status %d", resp.StatusCode)
+			return "", rejectedOrOriginal(resp, err)
 		}
-		return "", xerrors.Errorf(
+		err := xerrors.Errorf(
 			"github diff request failed with status %d: %s",
 			resp.StatusCode,
 			strings.TrimSpace(string(body)),
 		)
+		return "", rejectedOrOriginal(resp, err)
 	}
 
 	// Read one extra byte beyond MaxDiffSize so we can detect
