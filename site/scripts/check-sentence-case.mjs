@@ -649,9 +649,10 @@ function skipTransparent(node) {
 /**
  * Returns what an inline JSX expression may render: a JSX node, string,
  * template literal, string concatenation, or array to read as text, null
- * for nothing, or "substitution" for an unknown value. `cond && <b>Text</b>` renders the element or nothing,
- * `value || "Text"` and `value ?? "Text"` render the value or the
- * fallback, and a conditional renders either branch.
+ * for nothing, or "substitution" for an unknown value.
+ * `cond && <b>Text</b>` renders the element or nothing, `value || "Text"`
+ * and `value ?? "Text"` render the value or the fallback, and a
+ * conditional renders either branch.
  */
 function renderedOptions(expression) {
 	const node = skipTransparent(expression);
