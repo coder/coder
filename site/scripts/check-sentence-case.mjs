@@ -253,6 +253,78 @@ function isNonDisplayLiteral(node) {
 // end a sentence.
 const SUBSTITUTION = "\uE000";
 
+// Named HTML entities seen in UI text. JSX renders entities in text and
+// attribute strings, so they are decoded before words are classified:
+// "Validate&hellip;" reads as "Validate…". Other named entities are left
+// as written.
+const NAMED_ENTITIES = {
+	amp: "&",
+	apos: "'",
+	copy: "©",
+	gt: ">",
+	hellip: "…",
+	ldquo: "“",
+	lsquo: "‘",
+	lt: "<",
+	mdash: "—",
+	minus: "−",
+	nbsp: "\u00A0",
+	ndash: "–",
+	quot: '"',
+	rarr: "→",
+	rdquo: "”",
+	rsquo: "’",
+};
+
+const ENTITY = /&(?:#(\d+)|#[xX]([\da-fA-F]+)|([A-Za-z][\dA-Za-z]*));/y;
+
+/** Returns the character an HTML entity renders, or null if unknown. */
+function decodeEntity(match) {
+	const [, decimal, hex, name] = match;
+	const codePoint = decimal
+		? Number.parseInt(decimal, 10)
+		: hex
+			? Number.parseInt(hex, 16)
+			: null;
+	if (codePoint === null) {
+		return NAMED_ENTITIES[name] ?? null;
+	}
+	if (codePoint > 0x10ffff) {
+		return null;
+	}
+	const char = String.fromCodePoint(codePoint);
+	// Never let source text pose as a substitution.
+	return char === SUBSTITUTION ? "\uFFFD" : char;
+}
+
+/**
+ * Appends the source text in [start, end) to `target`, recording the
+ * source position of each character. With `decodeEntities`, HTML
+ * entities are replaced by the characters they render, each mapped to
+ * the position of its "&".
+ */
+function appendSource(target, sourceText, start, end, decodeEntities) {
+	let position = start;
+	while (position < end) {
+		if (decodeEntities && sourceText[position] === "&") {
+			ENTITY.lastIndex = position;
+			const match = ENTITY.exec(sourceText);
+			const decoded = match && decodeEntity(match);
+			if (decoded !== null && position + match[0].length <= end) {
+				target.text += decoded;
+				for (let i = 0; i < decoded.length; i++) {
+					target.positions.push(position);
+				}
+				position += match[0].length;
+				continue;
+			}
+		}
+		target.text += sourceText[position];
+		target.positions.push(position);
+		position++;
+	}
+}
+
 /**
  * Returns true when JSX renders the whitespace at one edge of a text
  * piece. JSX drops leading and trailing whitespace that contains a line
@@ -268,8 +340,8 @@ function rendersSpace(whitespace) {
 const MAX_JSX_VARIANTS = 64;
 
 /**
- * Returns what an inline JSX expression may render: a JSX node or string
- * literal to read as text, null for nothing, or "substitution" for an
+ * Returns what an inline JSX expression may render: a JSX node, string
+ * literal, or template literal to read as text, null for nothing, or "substitution" for an
  * unknown value. `cond && <b>Text</b>` renders the element or nothing,
  * and a conditional renders either branch.
  */
@@ -283,7 +355,8 @@ function renderedOptions(expression) {
 		ts.isJsxFragment(node) ||
 		ts.isJsxSelfClosingElement(node) ||
 		ts.isStringLiteral(node) ||
-		ts.isNoSubstitutionTemplateLiteral(node)
+		ts.isNoSubstitutionTemplateLiteral(node) ||
+		ts.isTemplateExpression(node)
 	) {
 		return [node];
 	}
@@ -307,6 +380,28 @@ function renderedOptions(expression) {
 		return [null];
 	}
 	return ["substitution"];
+}
+
+/**
+ * Returns the parts of a template expression in order: the source range
+ * of each literal part, without its `, ${, and } delimiters, and a
+ * substitution between each pair of parts.
+ */
+function templateParts(node, sourceFile) {
+	const head = node.head;
+	const parts = [
+		{ start: head.getStart(sourceFile) + 1, end: head.end - 2 },
+	];
+	for (const span of node.templateSpans) {
+		parts.push({ substitution: true });
+		const literal = span.literal;
+		const isTail = literal.kind === ts.SyntaxKind.TemplateTail;
+		parts.push({
+			start: literal.getStart(sourceFile) + 1,
+			end: literal.end - (isTail ? 1 : 2),
+		});
+	}
+	return parts;
 }
 
 /**
@@ -343,7 +438,12 @@ function collectJsxTexts(container, sourceFile, consumed) {
 			const text = sourceText.slice(node.pos, node.end);
 			// Whitespace with a line break between tags renders nothing.
 			if (!/^\s*$/.test(text) || rendersSpace(text)) {
-				pieces.push({ kind: "text", start: node.pos, end: node.end });
+				pieces.push({
+					kind: "text",
+					start: node.pos,
+					end: node.end,
+					decodeEntities: true,
+				});
 			}
 		} else if (
 			ts.isStringLiteral(node) ||
@@ -355,6 +455,18 @@ function collectJsxTexts(container, sourceFile, consumed) {
 				start: node.getStart(sourceFile) + 1,
 				end: node.end - 1,
 			});
+		} else if (ts.isTemplateExpression(node)) {
+			consumed.add(node);
+			for (const { start, end, substitution } of templateParts(
+				node,
+				sourceFile,
+			)) {
+				pieces.push(
+					substitution
+						? { kind: "substitution", inline: true }
+						: { kind: "text", start, end },
+				);
+			}
 		} else if (ts.isJsxExpression(node)) {
 			// An empty expression, such as {/* note */}, renders nothing.
 			if (node.expression) {
@@ -480,15 +592,23 @@ function joinJsxPieces(pieces, sourceText) {
 			}
 		} else if (piece.kind === "break") {
 			endPhrase();
+		} else if (piece.kind === "substitution" && piece.inline) {
+			// A template substitution joins the literal text around it,
+			// as in `${count}s`.
+			current.text += SUBSTITUTION;
+			current.positions.push(-1);
 		} else if (piece.kind === "substitution") {
 			// Pad with spaces so the substitution is a token of its own.
 			current.text += ` ${SUBSTITUTION} `;
 			current.positions.push(-1, -1, -1);
 		} else {
-			current.text += sourceText.slice(piece.start, piece.end);
-			for (let position = piece.start; position < piece.end; position++) {
-				current.positions.push(position);
-			}
+			appendSource(
+				current,
+				sourceText,
+				piece.start,
+				piece.end,
+				piece.decodeEntities,
+			);
 		}
 	}
 	endPhrase();
@@ -504,11 +624,10 @@ function collectTexts(sourceFile) {
 	const texts = [];
 	// JSX nodes already read as part of an enclosing element's text.
 	const consumed = new Set();
-	const addRange = (start, end) => {
-		texts.push({
-			text: sourceText.slice(start, end),
-			positions: Array.from({ length: end - start }, (_, i) => start + i),
-		});
+	const addRange = (start, end, decodeEntities) => {
+		const text = { text: "", positions: [] };
+		appendSource(text, sourceText, start, end, decodeEntities);
+		texts.push(text);
 	};
 	const visit = (node) => {
 		switch (node.kind) {
@@ -521,35 +640,31 @@ function collectTexts(sourceFile) {
 			case ts.SyntaxKind.StringLiteral:
 			case ts.SyntaxKind.NoSubstitutionTemplateLiteral:
 				if (!consumed.has(node) && !isNonDisplayLiteral(node)) {
-					addRange(node.getStart(sourceFile), node.end);
+					// JSX renders entities in attribute strings only.
+					addRange(
+						node.getStart(sourceFile),
+						node.end,
+						ts.isJsxAttribute(node.parent),
+					);
 				}
 				break;
 			case ts.SyntaxKind.TemplateExpression: {
-				if (isNonDisplayLiteral(node)) {
+				if (consumed.has(node) || isNonDisplayLiteral(node)) {
 					break;
 				}
-				// Join the literal parts without their `, ${, and } delimiters.
-				let text = "";
-				const positions = [];
-				const addPart = (start, end) => {
-					text += sourceText.slice(start, end);
-					for (let i = start; i < end; i++) {
-						positions.push(i);
+				const text = { text: "", positions: [] };
+				for (const { start, end, substitution } of templateParts(
+					node,
+					sourceFile,
+				)) {
+					if (substitution) {
+						text.text += SUBSTITUTION;
+						text.positions.push(-1);
+					} else {
+						appendSource(text, sourceText, start, end, false);
 					}
-				};
-				const head = node.head;
-				addPart(head.getStart(sourceFile) + 1, head.end - 2);
-				for (const span of node.templateSpans) {
-					text += SUBSTITUTION;
-					positions.push(-1);
-					const literal = span.literal;
-					const isTail = literal.kind === ts.SyntaxKind.TemplateTail;
-					addPart(
-						literal.getStart(sourceFile) + 1,
-						literal.end - (isTail ? 1 : 2),
-					);
 				}
-				texts.push({ text, positions });
+				texts.push(text);
 				break;
 			}
 		}

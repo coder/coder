@@ -135,6 +135,40 @@ describe("checkSource", () => {
 		);
 	});
 
+	it("checks template literals rendered in JSX in place", () => {
+		const source = [
+			"const a = <p>Create {`New ${kind} Workspace`}</p>;",
+			"const b = <p>Create {show ? `New ${kind}` : null}</p>;",
+			"const c = <p>Retry {`${count}s`}</p>;",
+		].join("\n");
+		const { issues, fixedText } = checkSource("file.tsx", source);
+		expect(issues.map(({ line, word }) => [line, word])).toEqual([
+			[1, "New"],
+			[1, "Workspace"],
+			[2, "New"],
+		]);
+		expect(fixedText.split("\n")[0]).toBe(
+			"const a = <p>Create {`new ${kind} workspace`}</p>;",
+		);
+	});
+
+	it("decodes HTML entities in JSX text and attributes", () => {
+		const source = [
+			"const a = <p>Test Validate&hellip;</p>;",
+			'const b = <Button title="Delete&nbsp;File" />;',
+			"const c = <p>Click Don&apos;t</p>;",
+		].join("\n");
+		const { issues, fixedText } = checkSource("file.tsx", source);
+		expect(issues.map(({ line, word }) => [line, word])).toEqual([
+			[1, "Validate"],
+			[2, "File"],
+			[3, "Don't"],
+		]);
+		expect(fixedText.split("\n")[0]).toBe(
+			"const a = <p>Test validate&hellip;</p>;",
+		);
+	});
+
 	it("starts a new phrase at elements without a rendered space", () => {
 		const source = [
 			"const a = (",
