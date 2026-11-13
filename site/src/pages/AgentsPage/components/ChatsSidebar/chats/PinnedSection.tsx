@@ -49,7 +49,7 @@ export const PinnedSection: React.FC<PinnedSectionProps> = ({
 						)}
 					</div>
 					{pinnedChats.length > 0 && pinnedProjectCount > 0 && (
-						<div className="flex items-center gap-2 py-1.5 text-xs text-content-secondary">
+						<div className="ml-2 mr-4 flex items-center gap-4 py-1.5 text-xs text-content-disabled">
 							<Separator
 								decorative={false}
 								aria-label="Projects"
