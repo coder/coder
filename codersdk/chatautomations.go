@@ -133,8 +133,57 @@ type ChatAutomation struct {
 	UpdatedAt time.Time              `json:"updated_at" format:"date-time"`
 }
 
+// CreateChatAutomationRequest creates a chat automation owned by the caller.
+// An empty optional field, or JSON null, means that the field is not set. The
+// API rejects a field that does not apply to the kind or the target mode. The
+// type has no validate tags, because the request reader echoes the value of a
+// field that fails one.
+type CreateChatAutomationRequest struct {
+	Name string             `json:"name"`
+	Kind ChatAutomationKind `json:"kind" enums:"webhook,schedule"`
+	// Enabled defaults to true.
+	Enabled    *bool                    `json:"enabled,omitempty"`
+	TargetMode ChatAutomationTargetMode `json:"target_mode" enums:"existing_chat,new_chat"`
+	// TargetChatID is the root chat of an existing_chat automation.
+	TargetChatID *uuid.UUID `json:"target_chat_id,omitempty" format:"uuid"`
+	// WhenBusy applies to existing_chat. It defaults to skip for a schedule
+	// and to queue for a webhook.
+	WhenBusy ChatAutomationWhenBusy `json:"when_busy,omitempty" enums:"queue,skip"`
+	// NewChatModelConfigID, ProjectID and ReasoningEffort apply to new_chat.
+	// An existing_chat automation keeps the model and reasoning effort of its
+	// chat.
+	NewChatModelConfigID *uuid.UUID `json:"new_chat_model_config_id,omitempty" format:"uuid"`
+	ProjectID            *uuid.UUID `json:"project_id,omitempty" format:"uuid"`
+	ReasoningEffort      string     `json:"reasoning_effort,omitempty"`
+	// ScheduleCron is a five-field cron expression and ScheduleTimeZone is an
+	// IANA time zone name.
+	ScheduleCron     string `json:"schedule_cron,omitempty"`
+	ScheduleTimeZone string `json:"schedule_time_zone,omitempty"`
+	// WebhookAuth is required for a webhook.
+	WebhookAuth ChatAutomationWebhookAuth `json:"webhook_auth,omitempty" enums:"bearer,github,standard_webhooks"`
+	// WebhookSecret is the whsec_ secret that the sender created. Set it for
+	// standard_webhooks only: Coder creates the secret of the other schemes.
+	WebhookSecret string `json:"webhook_secret,omitempty"`
+	Prompt        string `json:"prompt"`
+}
+
+// CreateChatAutomationResponse is the response to a create. WebhookSecret is
+// the one and only time that the API returns a secret. It is set for bearer
+// and github, and empty for standard_webhooks, where the caller supplied it.
+type CreateChatAutomationResponse struct {
+	Automation    ChatAutomation `json:"automation"`
+	WebhookSecret string         `json:"webhook_secret,omitempty"`
+}
+
 func chatAutomationsPath(organizationID uuid.UUID) string {
 	return fmt.Sprintf("/api/experimental/organizations/%s/chats/automations", organizationID)
+}
+
+// CreateChatAutomation creates a chat automation owned by the caller. The
+// response holds the webhook secret of a bearer or github webhook, and no
+// later call returns it.
+func (c *ExperimentalClient) CreateChatAutomation(ctx context.Context, organizationID uuid.UUID, req CreateChatAutomationRequest) (CreateChatAutomationResponse, error) {
+	return requestJSON[CreateChatAutomationResponse](ctx, c.Client, http.MethodPost, chatAutomationsPath(organizationID), http.StatusCreated, req)
 }
 
 // ChatAutomation gets a chat automation.

@@ -1205,6 +1205,10 @@ func mergeManualTitleMessages(
 	merged := make([]database.ChatMessage, 0, len(headMessages)+len(tailMessagesDesc))
 	seen := make(map[int64]struct{}, len(headMessages)+len(tailMessagesDesc))
 	appendUnique := func(message database.ChatMessage) {
+		// A message that still waits for its hooks must not reach a model.
+		if message.PromptHooksPending {
+			return
+		}
 		if _, ok := seen[message.ID]; ok {
 			return
 		}

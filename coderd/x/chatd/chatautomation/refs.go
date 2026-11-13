@@ -60,7 +60,7 @@ func LoadRefs(ctx context.Context, db database.Store, automations []database.Cha
 		}
 	}
 	if len(chatIDs) > 0 {
-		chats, err := db.GetChatsByIDs(ctx, slices.Collect(maps.Keys(chatIDs)))
+		chats, err := db.GetReadableChatsByIDs(ctx, slices.Collect(maps.Keys(chatIDs)))
 		if err != nil {
 			return refs, xerrors.Errorf("get chats: %w", err)
 		}

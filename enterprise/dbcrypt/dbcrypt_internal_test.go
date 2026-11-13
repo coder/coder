@@ -2392,70 +2392,169 @@ func TestWorkspaceSecrets(t *testing.T) {
 	})
 }
 
-// The store does not encrypt chat automation webhook secrets yet. With a
-// cipher loaded it must refuse one instead of storing it in plaintext.
-func TestChatAutomationWebhookSecret(t *testing.T) {
+func TestChatAutomations(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
-	//nolint:gosec // test credential
-	const secret = "canary-webhook-secret"
-	for _, tc := range []struct {
-		name       string
-		withCipher bool
-		withSecret bool
-		wantErr    bool
-	}{
-		{name: "CipherAndSecret", withCipher: true, withSecret: true, wantErr: true},
-		{name: "CipherAndNoSecret", withCipher: true},
-		{name: "NoCipherAndSecret", withSecret: true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-			ctx := context.Background()
-			var (
-				rawDB database.Store
-				crypt *dbCrypt
-			)
-			if tc.withCipher {
-				rawDB, crypt, _ = setup(t)
-			} else {
-				rawDB, crypt = setupNoCiphers(t)
-			}
-			org := dbgen.Organization(t, rawDB, database.Organization{})
-			user := dbgen.User(t, rawDB, database.User{})
-			model := dbgen.ChatModelConfig(t, rawDB, database.ChatModelConfig{OrganizationID: org.ID})
+	//nolint:gosec // test credentials
+	const secret = "whsec_webhook-secret-value"
 
-			params := database.InsertChatAutomationParams{
-				OrganizationID:       org.ID,
-				OwnerID:              user.ID,
-				Name:                 "schedule",
-				Kind:                 database.ChatAutomationKindSchedule,
-				Prompt:               "Post the daily report.",
-				TargetMode:           database.ChatAutomationTargetModeNewChat,
-				NewChatModelConfigID: uuid.NullUUID{UUID: model.ID, Valid: true},
-				ScheduleCron:         sql.NullString{String: "0 9 * * *", Valid: true},
-				ScheduleTimeZone:     sql.NullString{String: "UTC", Valid: true},
-			}
-			if tc.withSecret {
-				params.Name = "webhook"
-				params.Kind = database.ChatAutomationKindWebhook
-				params.ScheduleCron, params.ScheduleTimeZone = sql.NullString{}, sql.NullString{}
-				params.WebhookAuth = database.NullChatAutomationWebhookAuth{ChatAutomationWebhookAuth: database.ChatAutomationWebhookAuthBearer, Valid: true}
-				params.WebhookSecret = sql.NullString{String: secret, Valid: true}
-			}
-
-			automation, err := crypt.InsertChatAutomation(ctx, params)
-			stored, countErr := rawDB.CountChatAutomationsByOwnerID(ctx, user.ID)
-			require.NoError(t, countErr)
-			if tc.wantErr {
-				require.ErrorContains(t, err, "does not cover webhook secrets yet")
-				require.NotContains(t, err.Error(), secret)
-				require.Zero(t, stored, "a refused insert stores no row")
-				return
-			}
-			require.NoError(t, err)
-			require.EqualValues(t, 1, stored)
-			require.Equal(t, tc.withSecret, automation.WebhookSecret.Valid)
-		})
+	newSeed := func(t *testing.T, db database.Store) database.ChatAutomation {
+		t.Helper()
+		return database.ChatAutomation{
+			OrganizationID: dbgen.Organization(t, db, database.Organization{}).ID,
+			OwnerID:        dbgen.User(t, db, database.User{}).ID,
+		}
 	}
+
+	t.Run("KeysSet", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			name      string
+			seed      func(a *database.ChatAutomation, activeKeyID sql.NullString)
+			encrypted bool
+		}{
+			{"Secret", func(a *database.ChatAutomation, _ sql.NullString) {
+				a.WebhookSecret = sql.NullString{String: secret, Valid: true}
+			}, true},
+			{"EmptySecret", func(a *database.ChatAutomation, _ sql.NullString) {
+				a.WebhookSecret = sql.NullString{Valid: true}
+			}, false},
+			// A key ID cannot name an empty secret.
+			{"EmptySecretWithKeyID", func(a *database.ChatAutomation, activeKeyID sql.NullString) {
+				a.WebhookSecret = sql.NullString{Valid: true}
+				a.WebhookSecretKeyID = activeKeyID
+			}, false},
+			{"Schedule", func(a *database.ChatAutomation, _ sql.NullString) {
+				a.Kind = database.ChatAutomationKindSchedule
+			}, false},
+		}
+		for _, tc := range cases {
+			for _, viaTx := range []bool{false, true} {
+				name := tc.name
+				if viaTx {
+					name += "InTx"
+				}
+				t.Run(name, func(t *testing.T) {
+					t.Parallel()
+					db, crypt, ciphers := setup(t)
+					in := newSeed(t, db)
+					tc.seed(&in, sql.NullString{String: ciphers[0].HexDigest(), Valid: true})
+
+					var inserted, got database.ChatAutomation
+					write := func(store database.Store) error {
+						inserted = dbgen.ChatAutomation(t, store, in)
+						var err error
+						got, err = store.GetChatAutomationByID(ctx, inserted.ID)
+						return err
+					}
+					if viaTx {
+						require.NoError(t, crypt.InTx(write, nil))
+					} else {
+						require.NoError(t, write(crypt))
+					}
+					raw, err := db.GetChatAutomationByID(ctx, inserted.ID)
+					require.NoError(t, err)
+
+					wantKeyID := sql.NullString{}
+					if tc.encrypted {
+						wantKeyID = sql.NullString{String: ciphers[0].HexDigest(), Valid: true}
+					}
+					for _, row := range []database.ChatAutomation{inserted, got} {
+						require.Equal(t, in.WebhookSecret, row.WebhookSecret)
+						require.Equal(t, wantKeyID, row.WebhookSecretKeyID)
+					}
+					require.Equal(t, wantKeyID, raw.WebhookSecretKeyID)
+					if tc.encrypted {
+						require.NotEqual(t, in.WebhookSecret.String, raw.WebhookSecret.String)
+						requireEncryptedEquals(t, ciphers[0], raw.WebhookSecret.String, in.WebhookSecret.String)
+					} else {
+						require.Equal(t, in.WebhookSecret, raw.WebhookSecret)
+					}
+				})
+			}
+		}
+	})
+
+	t.Run("KeysUnset", func(t *testing.T) {
+		t.Parallel()
+		db, crypt := setupNoCiphers(t)
+		in := newSeed(t, db)
+		in.WebhookSecret = sql.NullString{String: secret, Valid: true}
+
+		inserted := dbgen.ChatAutomation(t, crypt, in)
+		raw, err := db.GetChatAutomationByID(ctx, inserted.ID)
+		require.NoError(t, err)
+		got, err := crypt.GetChatAutomationByID(ctx, inserted.ID)
+		require.NoError(t, err)
+		for _, row := range []database.ChatAutomation{inserted, raw, got} {
+			require.Equal(t, in.WebhookSecret, row.WebhookSecret)
+			require.False(t, row.WebhookSecretKeyID.Valid)
+		}
+	})
+
+	// A replica that was already running without keys when the first key
+	// appeared stores a secret in plaintext. It cannot read the secrets that a
+	// keyed replica stores.
+	t.Run("KeylessReplica", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		keyless, err := New(ctx, db)
+		require.NoError(t, err)
+		keyed, err := New(ctx, db, initCipher(t))
+		require.NoError(t, err)
+		in := newSeed(t, db)
+		in.WebhookSecret = sql.NullString{String: secret, Valid: true}
+
+		plain := dbgen.ChatAutomation(t, keyless, in)
+		raw, err := db.GetChatAutomationByID(ctx, plain.ID)
+		require.NoError(t, err)
+		require.Equal(t, in.WebhookSecret, raw.WebhookSecret)
+		require.False(t, raw.WebhookSecretKeyID.Valid)
+		got, err := keyed.GetChatAutomationByID(ctx, plain.ID)
+		require.NoError(t, err)
+		require.Equal(t, in.WebhookSecret, got.WebhookSecret)
+
+		sealed := dbgen.ChatAutomation(t, keyed, in)
+		_, err = keyless.GetChatAutomationByID(ctx, sealed.ID)
+		var derr *DecryptFailedError
+		require.ErrorAs(t, err, &derr)
+	})
+
+	t.Run("DecryptErr", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		other := initCipher(t)
+		otherCrypt, err := New(ctx, db, other, ciphers[0])
+		require.NoError(t, err)
+		digest := sql.NullString{String: ciphers[0].HexDigest(), Valid: true}
+
+		cases := []struct {
+			name   string
+			store  database.Store
+			secret string
+			keyID  sql.NullString
+		}{
+			{"CorruptData", db, fakeBase64RandomData(t, 32), digest},
+			// crypt does not hold the key that otherCrypt encrypts with.
+			{"MissingKey", otherCrypt, secret, sql.NullString{}},
+			// A plaintext secret that is not base64 under a key ID.
+			{"PlaintextUnderKeyID", db, secret, digest},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+				in := newSeed(t, db)
+				in.WebhookSecret = sql.NullString{String: tc.secret, Valid: true}
+				in.WebhookSecretKeyID = tc.keyID
+				inserted := dbgen.ChatAutomation(t, tc.store, in)
+
+				got, err := crypt.GetChatAutomationByID(ctx, inserted.ID)
+				var derr *DecryptFailedError
+				require.ErrorAs(t, err, &derr)
+				require.Equal(t, database.ChatAutomation{}, got, "a failed decrypt returns no row")
+				require.NotContains(t, err.Error(), tc.secret)
+			})
+		}
+	})
 }

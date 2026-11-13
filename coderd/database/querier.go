@@ -93,6 +93,9 @@ type sqlcQuerier interface {
 	CleanTailnetTunnels(ctx context.Context) error
 	CleanupDeletedMCPServerIDsFromChats(ctx context.Context) error
 	ClearChatDiffStatusPR(ctx context.Context, arg ClearChatDiffStatusPRParams) error
+	// Clears the flag of every message in the chat, for messages that a context
+	// reset hides from the model before their hooks ran.
+	ClearChatMessagesPromptHooks(ctx context.Context, chatID uuid.UUID) error
 	// Drops the values of every live row that belongs to an earlier build of the
 	// workspace (lower build number than the given build), keeping the rows so
 	// the history of which secrets earlier builds received stays inspectable.
@@ -105,7 +108,8 @@ type sqlcQuerier interface {
 	ClearWorkspaceSecretsByWorkspaceID(ctx context.Context, workspaceID uuid.UUID) error
 	CountAIBridgeSessions(ctx context.Context, arg CountAIBridgeSessionsParams) (int64, error)
 	CountAuditLogs(ctx context.Context, arg CountAuditLogsParams) (int64, error)
-	// Counts the automations of one owner across all organizations.
+	// Counts the automations of one owner across all organizations. A deleted
+	// organization counts too: its last member can still create there.
 	CountChatAutomationsByOwnerID(ctx context.Context, ownerID uuid.UUID) (int64, error)
 	// Excluding the candidate keeps ownership takeover capacity-neutral.
 	CountChatCapacityActiveByPool(ctx context.Context, arg CountChatCapacityActiveByPoolParams) (CountChatCapacityActiveByPoolRow, error)
@@ -471,6 +475,9 @@ type sqlcQuerier interface {
 	// The all-zero owner_id means every owner. The webhook secret and its key
 	// ID are left out, so a list never loads or decrypts a secret.
 	GetChatAutomationsByOrganizationID(ctx context.Context, arg GetChatAutomationsByOrganizationIDParams) ([]GetChatAutomationsByOrganizationIDRow, error)
+	// Returns the automations of one owner that hold a webhook secret, secret
+	// included. Used only by the dbcrypt key rotation utility.
+	GetChatAutomationsWithWebhookSecretByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]ChatAutomation, error)
 	GetChatByID(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForShare(ctx context.Context, id uuid.UUID) (Chat, error)
 	GetChatByIDForUpdate(ctx context.Context, id uuid.UUID) (Chat, error)
@@ -900,6 +907,9 @@ type sqlcQuerier interface {
 	GetProvisionerLogsAfterID(ctx context.Context, arg GetProvisionerLogsAfterIDParams) ([]ProvisionerJobLog, error)
 	GetQuotaAllowanceForUser(ctx context.Context, arg GetQuotaAllowanceForUserParams) (int64, error)
 	GetQuotaConsumedForUser(ctx context.Context, arg GetQuotaConsumedForUserParams) (int64, error)
+	// Returns the chats among ids that exist. dbauthz leaves out the chats that the
+	// caller cannot read, where GetChatsByIDs fails when one of them is unreadable.
+	GetReadableChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]Chat, error)
 	// Count regular workspaces: only those whose first successful 'start' build
 	// was not initiated by the prebuild system user.
 	GetRegularWorkspaceCreateMetrics(ctx context.Context) ([]GetRegularWorkspaceCreateMetricsRow, error)
@@ -1251,6 +1261,10 @@ type sqlcQuerier interface {
 	InsertBoundaryLogs(ctx context.Context, arg InsertBoundaryLogsParams) ([]BoundaryLog, error)
 	InsertBoundarySession(ctx context.Context, arg InsertBoundarySessionParams) (BoundarySession, error)
 	InsertChat(ctx context.Context, arg InsertChatParams) (Chat, error)
+	// Inserts only for an owner that is neither deleted nor a system user. The
+	// shared row lock makes a concurrent soft delete of the owner wait for this
+	// transaction, so its trigger then deletes the new row. Without it the
+	// insert could commit after the delete and leave the row behind.
 	InsertChatAutomation(ctx context.Context, arg InsertChatAutomationParams) (ChatAutomation, error)
 	// updated_at is the retention clock used by DeleteOldChatDebugRuns.
 	// Set it on every write to keep retention semantics correct.
@@ -1525,6 +1539,11 @@ type sqlcQuerier interface {
 	// Mutates only created_at on the target row; ids are unchanged so
 	// consumers can keep tracking queued messages by id.
 	ReorderChatQueuedMessageToFront(ctx context.Context, arg ReorderChatQueuedMessageToFrontParams) (int64, error)
+	// Settles a message that was saved with prompt_hooks_pending. It clears the
+	// flag and either replaces the content with the hooks' result (a NULL content
+	// keeps it) or soft-deletes the message when deleted is true. It matches no
+	// row once the flag is clear.
+	ResolveChatMessagePromptHooks(ctx context.Context, arg ResolveChatMessagePromptHooksParams) (ChatMessage, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
 	// Note that this selects from the CTE, not the original table. The CTE is named
 	// the same as the original table to trick sqlc into reusing the existing struct
@@ -1660,7 +1679,9 @@ type sqlcQuerier interface {
 	// Sets the project of one chat. A NULL project_id removes the chat from
 	// its project.
 	UpdateChatProjectIDByID(ctx context.Context, arg UpdateChatProjectIDByIDParams) error
-	// Replaces the content and per-message overrides of a queued message.
+	// Replaces the content and per-message overrides of a queued message. An edit
+	// is a new submission, so the flag is cleared: the caller runs the submit hooks
+	// on the new content when they are on.
 	UpdateChatQueuedMessageContent(ctx context.Context, arg UpdateChatQueuedMessageContentParams) (ChatQueuedMessage, error)
 	// Begins (@editing = true) or ends the row's edit. Beginning keeps an
 	// existing editing_since, so the timestamp marks the first begin.
@@ -1687,6 +1708,10 @@ type sqlcQuerier interface {
 	// Used by the dbcrypt key rotation utility to re-encrypt or decrypt
 	// rows in place.
 	UpdateEncryptedAIProviderSettings(ctx context.Context, arg UpdateEncryptedAIProviderSettingsParams) (AIProvider, error)
+	// Rewrites only the secret and its key ID. The version stays, because
+	// re-encrypting does not change the secret. Used only by the dbcrypt key
+	// rotation utility to re-encrypt or decrypt rows in place.
+	UpdateEncryptedChatAutomationWebhookSecret(ctx context.Context, arg UpdateEncryptedChatAutomationWebhookSecretParams) error
 	UpdateEncryptedChatMCPServerHeaders(ctx context.Context, arg UpdateEncryptedChatMCPServerHeadersParams) error
 	UpdateEncryptedUserAIProviderKey(ctx context.Context, arg UpdateEncryptedUserAIProviderKeyParams) (UserAIProviderKey, error)
 	// Updates only the encrypted columns on a row. Used by the dbcrypt key

@@ -311,7 +311,10 @@ WHERE
 UPDATE
     chat_messages
 SET
-    deleted = true
+    deleted = true,
+    -- A deleted message never starts a turn, and a stale flag would block the
+    -- down migration that refuses to run while a message waits for its hooks.
+    prompt_hooks_pending = false
 WHERE
     chat_id = @chat_id::uuid
     AND id > @after_id::bigint;
@@ -320,9 +323,43 @@ WHERE
 UPDATE
     chat_messages
 SET
-    deleted = true
+    deleted = true,
+    prompt_hooks_pending = false
 WHERE
     id = @id::bigint;
+
+-- name: ResolveChatMessagePromptHooks :one
+-- Settles a message that was saved with prompt_hooks_pending. It clears the
+-- flag and either replaces the content with the hooks' result (a NULL content
+-- keeps it) or soft-deletes the message when deleted is true. It matches no
+-- row once the flag is clear.
+UPDATE
+    chat_messages
+SET
+    prompt_hooks_pending = false,
+    content = COALESCE(sqlc.narg('content')::jsonb, content),
+    content_version = COALESCE(sqlc.narg('content_version')::smallint, content_version),
+    deleted = @deleted::boolean,
+    -- New content needs a new search vector; the background job writes it.
+    search_tsv = CASE WHEN sqlc.narg('content')::jsonb IS NULL THEN search_tsv END,
+    search_tsv_config = CASE WHEN sqlc.narg('content')::jsonb IS NULL THEN search_tsv_config END
+WHERE
+    id = @id::bigint
+    AND chat_id = @chat_id::uuid
+    AND prompt_hooks_pending
+    AND NOT deleted
+RETURNING *;
+
+-- name: ClearChatMessagesPromptHooks :exec
+-- Clears the flag of every message in the chat, for messages that a context
+-- reset hides from the model before their hooks ran.
+UPDATE
+    chat_messages
+SET
+    prompt_hooks_pending = false
+WHERE
+    chat_id = @chat_id::uuid
+    AND prompt_hooks_pending;
 
 -- name: BackfillChatMessagesSearchTsv :execrows
 -- Backfills chat_messages.search_tsv for pending rows, newest first.
@@ -596,6 +633,8 @@ WHERE
     chat_id = @chat_id::uuid
     AND visibility IN ('model', 'both')
     AND deleted = false
+    -- A message that waits for its hooks is not part of any prompt yet.
+    AND prompt_hooks_pending = false
     AND (
         (
             role = 'system'
@@ -1068,7 +1107,8 @@ inserted AS (
         compressed,
         runtime_ms,
         provider_response_id,
-        queued_message_id
+        queued_message_id,
+        prompt_hooks_pending
     )
     SELECT
         allocated.id,
@@ -1091,7 +1131,9 @@ inserted AS (
         NULLIF((@runtime_ms::bigint[])[allocated.ord], 0),
         NULLIF((@provider_response_id::text[])[allocated.ord], ''),
         -- Queue ids start at 1, so 0 is a safe "not promoted" sentinel.
-        NULLIF((@queued_message_id::bigint[])[allocated.ord], 0)
+        NULLIF((@queued_message_id::bigint[])[allocated.ord], 0),
+        -- A caller that sends no array inserts false.
+        COALESCE((@prompt_hooks_pending::boolean[])[allocated.ord], false)
     FROM allocated
     RETURNING *
 )
@@ -2497,7 +2539,9 @@ WHERE cm.created_at >= @start_time::timestamptz
   AND cm.created_at < @end_time::timestamptz
   AND cm.runtime_ms IS NOT NULL;
 
--- name: GetChatsByIDs :many
+-- name: GetReadableChatsByIDs :many
+-- Returns the chats among ids that exist. dbauthz leaves out the chats that the
+-- caller cannot read, where GetChatsByIDs fails when one of them is unreadable.
 SELECT *
 FROM chats_expanded
 WHERE id = ANY(@ids::uuid[]);
@@ -2656,6 +2700,11 @@ ORDER BY
     candidates.pool_priority ASC,
     chats.id ASC
 LIMIT @limit_count::int;
+
+-- name: GetChatsByIDs :many
+SELECT *
+FROM chats_expanded
+WHERE id = ANY(@ids::uuid[]);
 
 -- name: GetChatsByIDsForRunnerSync :many
 SELECT *
@@ -3039,14 +3088,15 @@ SELECT NOW()::timestamptz AS now;
 -- Inserts a queued message that carries a position (from the default
 -- sequence) and an explicit created_by reference. Use this when the
 -- queued-message creator differs from the chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, busy_behavior)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, busy_behavior, prompt_hooks_pending)
 VALUES (
     @chat_id::uuid,
     @content::jsonb,
     sqlc.narg('model_config_id')::uuid,
     sqlc.narg('reasoning_effort')::chat_reasoning_effort,
     @created_by::uuid,
-    @busy_behavior::chat_busy_behavior
+    @busy_behavior::chat_busy_behavior,
+    @prompt_hooks_pending::boolean
 )
 RETURNING *;
 
@@ -3088,11 +3138,14 @@ WHERE id = @id::bigint AND chat_id = @chat_id::uuid
 RETURNING *;
 
 -- name: UpdateChatQueuedMessageContent :one
--- Replaces the content and per-message overrides of a queued message.
+-- Replaces the content and per-message overrides of a queued message. An edit
+-- is a new submission, so the flag is cleared: the caller runs the submit hooks
+-- on the new content when they are on.
 UPDATE chat_queued_messages
 SET content = @content::jsonb,
     model_config_id = sqlc.narg('model_config_id')::uuid,
-    reasoning_effort = sqlc.narg('reasoning_effort')::chat_reasoning_effort
+    reasoning_effort = sqlc.narg('reasoning_effort')::chat_reasoning_effort,
+    prompt_hooks_pending = false
 WHERE id = @id::bigint AND chat_id = @chat_id::uuid
 RETURNING *;
 

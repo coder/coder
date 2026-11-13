@@ -154,6 +154,28 @@ func Rotate(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciphe
 				}
 			}
 
+			chatAutomations, err := cryptTx.GetChatAutomationsWithWebhookSecretByOwnerID(ctx, uid)
+			if err != nil {
+				return xerrors.Errorf("get chat automations for user %s: %w", uid, err)
+			}
+			for _, automation := range chatAutomations {
+				switch {
+				case automation.WebhookSecret.String == "":
+					log.Debug(ctx, "skipping empty chat automation webhook secret", slog.F("user_id", uid), slog.F("chat_automation_id", automation.ID), slog.F("current", idx+1))
+				case automation.WebhookSecretKeyID.Valid && automation.WebhookSecretKeyID.String == ciphers[0].HexDigest():
+					log.Debug(ctx, "skipping chat automation webhook secret", slog.F("user_id", uid), slog.F("chat_automation_id", automation.ID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+				default:
+					if err := cryptTx.UpdateEncryptedChatAutomationWebhookSecret(ctx, database.UpdateEncryptedChatAutomationWebhookSecretParams{
+						ID:                 automation.ID,
+						WebhookSecret:      automation.WebhookSecret,
+						WebhookSecretKeyID: sql.NullString{}, // dbcrypt will re-encrypt
+					}); err != nil {
+						return xerrors.Errorf("rotate chat automation webhook secret user_id=%s chat_automation_id=%s: %w", uid, automation.ID, err)
+					}
+					log.Debug(ctx, "rotated chat automation webhook secret", slog.F("user_id", uid), slog.F("chat_automation_id", automation.ID), slog.F("current", idx+1), slog.F("cipher", ciphers[0].HexDigest()))
+				}
+			}
+
 			return nil
 		}, &database.TxOptions{
 			Isolation: sql.LevelRepeatableRead,
@@ -407,6 +429,25 @@ func Decrypt(ctx context.Context, log slog.Logger, sqlDB *sql.DB, ciphers []Ciph
 				log.Debug(ctx, "decrypted chat MCP server headers", slog.F("user_id", uid), slog.F("chat_id", server.ChatID), slog.F("slug", server.Slug), slog.F("current", idx+1))
 			}
 
+			chatAutomations, err := tx.GetChatAutomationsWithWebhookSecretByOwnerID(ctx, uid)
+			if err != nil {
+				return xerrors.Errorf("get chat automations for user %s: %w", uid, err)
+			}
+			for _, automation := range chatAutomations {
+				if !automation.WebhookSecretKeyID.Valid {
+					log.Debug(ctx, "skipping chat automation webhook secret", slog.F("user_id", uid), slog.F("chat_automation_id", automation.ID), slog.F("current", idx+1))
+					continue
+				}
+				if err := tx.UpdateEncryptedChatAutomationWebhookSecret(ctx, database.UpdateEncryptedChatAutomationWebhookSecretParams{
+					ID:                 automation.ID,
+					WebhookSecret:      automation.WebhookSecret,
+					WebhookSecretKeyID: sql.NullString{}, // clear the key ID
+				}); err != nil {
+					return xerrors.Errorf("decrypt chat automation webhook secret user_id=%s chat_automation_id=%s: %w", uid, automation.ID, err)
+				}
+				log.Debug(ctx, "decrypted chat automation webhook secret", slog.F("user_id", uid), slog.F("chat_automation_id", automation.ID), slog.F("current", idx+1))
+			}
+
 			return nil
 		}, &database.TxOptions{
 			Isolation: sql.LevelRepeatableRead,
@@ -576,6 +617,11 @@ UPDATE ai_providers
 	WHERE settings_key_id IS NOT NULL;
 DELETE FROM ai_provider_keys
 	WHERE api_key_key_id IS NOT NULL;
+-- A webhook automation must hold a secret, so its row stays with a blank one.
+UPDATE chat_automations
+	SET webhook_secret = '',
+		webhook_secret_key_id = NULL
+	WHERE webhook_secret_key_id IS NOT NULL;
 COMMIT;
 `
 

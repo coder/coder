@@ -623,6 +623,9 @@ func (s *taskStarter) runGenerationStep(
 	)
 	defer func() { stepSpan.End(err) }()
 
+	if done, err := s.resolvePromptHooks(ctx, machine, input, chat, messages); done {
+		return input, false, err
+	}
 	if s.server.hooks.Enabled() {
 		result, dispatched, err := s.startGenerationSession(ctx, machine, input, chat, messages)
 		if err != nil {
@@ -1868,6 +1871,19 @@ func (s *taskStarter) finishGenerationError(
 	cause error,
 	fence generationAttemptFence,
 ) error {
+	return s.finishGenerationErrorWith(ctx, machine, input, cause, fence, nil)
+}
+
+// finishGenerationErrorWith is finishGenerationError with a step that runs in
+// the same transaction, after the fence check and before FinishError.
+func (s *taskStarter) finishGenerationErrorWith(
+	ctx context.Context,
+	machine *chatstate.ChatMachine,
+	input chatWorkerTaskStartInput,
+	cause error,
+	fence generationAttemptFence,
+	before func(*chatstate.Tx) error,
+) error {
 	classified := chaterror.Classify(cause)
 	// Log the unsanitized cause before persisting so administrators can
 	// diagnose the failure even when the classified user-facing message
@@ -1887,6 +1903,11 @@ func (s *taskStarter) finishGenerationError(
 	err := machine.Update(ctx, func(tx *chatstate.Tx, store database.Store) error {
 		if _, err := loadChatForGeneration(ctx, store, input, fence); err != nil {
 			return xerrors.Errorf("load chat for generation: %w", err)
+		}
+		if before != nil {
+			if err := before(tx); err != nil {
+				return err
+			}
 		}
 		if _, err := tx.FinishError(chatstate.FinishErrorInput{LastError: lastError}); err != nil {
 			return xerrors.Errorf("tx.FinishError: %w", err)

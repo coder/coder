@@ -485,6 +485,54 @@ const docTemplate = `{
                 "x-apidocgen": {
                     "skip": true
                 }
+            },
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Create chat automation",
+                "operationId": "create-chat-automation",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Create chat automation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatAutomationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.CreateChatAutomationResponse"
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
             }
         },
         "/api/experimental/organizations/{organization}/chats/automations/{automation}": {
@@ -22486,6 +22534,10 @@ const docTemplate = `{
                     "description": "MaxAttachmentsPerChat is the maximum number of files linked to a\nchat.",
                     "type": "integer"
                 },
+                "max_automations_per_owner": {
+                    "description": "MaxAutomationsPerOwner is the maximum number of chat automations\nthat one user can own across all organizations.",
+                    "type": "integer"
+                },
                 "max_concurrent_recording_uploads": {
                     "description": "MaxConcurrentRecordingUploads is the maximum number of virtual\ndesktop recordings that each Coder server stores at the same time.",
                     "type": "integer"
@@ -22504,6 +22556,10 @@ const docTemplate = `{
                 },
                 "max_steps_per_turn": {
                     "description": "MaxStepsPerTurn is the maximum number of steps in a chat turn.",
+                    "type": "integer"
+                },
+                "min_automation_schedule_interval": {
+                    "description": "MinAutomationScheduleInterval is the minimum time between two runs of\na chat automation schedule.",
                     "type": "integer"
                 },
                 "stream_silence_timeout": {
@@ -24897,6 +24953,107 @@ const docTemplate = `{
                 },
                 "type": {
                     "$ref": "#/definitions/codersdk.AIProviderType"
+                }
+            }
+        },
+        "codersdk.CreateChatAutomationRequest": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "description": "Enabled defaults to true.",
+                    "type": "boolean"
+                },
+                "kind": {
+                    "enum": [
+                        "webhook",
+                        "schedule"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationKind"
+                        }
+                    ]
+                },
+                "name": {
+                    "type": "string"
+                },
+                "new_chat_model_config_id": {
+                    "description": "NewChatModelConfigID, ProjectID and ReasoningEffort apply to new_chat.\nAn existing_chat automation keeps the model and reasoning effort of its\nchat.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "project_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "prompt": {
+                    "type": "string"
+                },
+                "reasoning_effort": {
+                    "type": "string"
+                },
+                "schedule_cron": {
+                    "description": "ScheduleCron is a five-field cron expression and ScheduleTimeZone is an\nIANA time zone name.",
+                    "type": "string"
+                },
+                "schedule_time_zone": {
+                    "type": "string"
+                },
+                "target_chat_id": {
+                    "description": "TargetChatID is the root chat of an existing_chat automation.",
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "target_mode": {
+                    "enum": [
+                        "existing_chat",
+                        "new_chat"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationTargetMode"
+                        }
+                    ]
+                },
+                "webhook_auth": {
+                    "description": "WebhookAuth is required for a webhook.",
+                    "enum": [
+                        "bearer",
+                        "github",
+                        "standard_webhooks"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationWebhookAuth"
+                        }
+                    ]
+                },
+                "webhook_secret": {
+                    "description": "WebhookSecret is the whsec_ secret that the sender created. Set it for\nstandard_webhooks only: Coder creates the secret of the other schemes.",
+                    "type": "string"
+                },
+                "when_busy": {
+                    "description": "WhenBusy applies to existing_chat. It defaults to skip for a schedule\nand to queue for a webhook.",
+                    "enum": [
+                        "queue",
+                        "skip"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ChatAutomationWhenBusy"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.CreateChatAutomationResponse": {
+            "type": "object",
+            "properties": {
+                "automation": {
+                    "$ref": "#/definitions/codersdk.ChatAutomation"
+                },
+                "webhook_secret": {
+                    "type": "string"
                 }
             }
         },

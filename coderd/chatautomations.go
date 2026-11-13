@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -40,6 +41,90 @@ func (api *API) requireChatAutomationsExperiment(next http.Handler) http.Handler
 func (api *API) writeChatAutomationError(ctx context.Context, rw http.ResponseWriter, message string, err error) {
 	api.Logger.Error(ctx, message, slog.Error(err))
 	httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{Message: message})
+}
+
+// @Summary Create chat automation
+// @ID create-chat-automation
+// @Security CoderSessionToken
+// @Tags Chats
+// @Accept json
+// @Produce json
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param request body codersdk.CreateChatAutomationRequest true "Create chat automation request"
+// @Success 201 {object} codersdk.CreateChatAutomationResponse
+// @Router /api/experimental/organizations/{organization}/chats/automations [post]
+// @x-apidocgen {"skip": true}
+func (api *API) postChatAutomation(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	organization := httpmw.OrganizationParam(r)
+
+	aReq, commitAudit := audit.InitRequest[database.ChatAutomation](rw, &audit.RequestParams{
+		Audit:          *api.Auditor.Load(),
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionCreate,
+		OrganizationID: organization.ID,
+	})
+	defer commitAudit()
+
+	// codersdk.CreateChatAutomationRequest has no validate tags, because the
+	// reader echoes the value of a field that fails one.
+	var req codersdk.CreateChatAutomationRequest
+	if !httpapi.ReadLimit(ctx, rw, r, api.maxPromptRequestBodyBytes(), &req) {
+		return
+	}
+
+	result, err := api.chatAutomationCreator.Create(ctx, httpmw.UserAuthorization(ctx), chatautomation.CreateParams{
+		OrganizationID: organization.ID,
+		Request:        req,
+		Now:            dbtime.Now(),
+	})
+	var invalid *chatautomation.InvalidRequestError
+	var limit *chatautomation.LimitError
+	switch {
+	case errors.As(err, &invalid):
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Validation failed.",
+			Validations: invalid.Validations,
+		})
+		return
+	case errors.As(err, &limit):
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: fmt.Sprintf("You can have at most %d chat automations across all organizations. Delete one to create another.", limit.Max),
+		})
+		return
+	case errors.Is(err, chatautomation.ErrOwnerUnavailable):
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "This user cannot own chat automations.",
+		})
+		return
+	case errors.Is(err, chatautomation.ErrReferenceUnavailable):
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "A chat, model configuration or project of this automation was deleted while it was created. Check them and try again.",
+		})
+		return
+	case errors.Is(err, chatautomation.ErrCreateForbidden):
+		httpapi.Forbidden(rw)
+		return
+	case err != nil:
+		api.writeChatAutomationError(ctx, rw, "Internal error creating chat automation.", err)
+		return
+	}
+	aReq.New = result.Automation
+
+	// The row is committed and the generated secret exists only in this
+	// response, so a failed read of the owner and chats must not fail it.
+	automations := []database.ChatAutomation{result.Automation}
+	refs, err := chatautomation.LoadRefs(ctx, api.Database, automations)
+	if err != nil {
+		api.Logger.Warn(ctx, "load chat automation references for the create response", slog.Error(err))
+		refs = db2sdk.ChatAutomationRefs{}
+	}
+	rw.Header().Set("Cache-Control", "no-store")
+	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.CreateChatAutomationResponse{
+		Automation:    db2sdk.ChatAutomation(result.Automation, refs, dbtime.Now()),
+		WebhookSecret: result.GeneratedSecret,
+	})
 }
 
 // @Summary List chat automations

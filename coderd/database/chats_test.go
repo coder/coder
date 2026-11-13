@@ -12,7 +12,7 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func TestGetChatsByIDs(t *testing.T) {
+func TestGetReadableChatsByIDs(t *testing.T) {
 	t.Parallel()
 
 	db, _ := dbtestutil.NewDB(t)
@@ -26,7 +26,7 @@ func TestGetChatsByIDs(t *testing.T) {
 	}
 	first, second, third := newChat(), newChat(), newChat()
 
-	chats, err := db.GetChatsByIDs(ctx, []uuid.UUID{first.ID, third.ID, uuid.New()})
+	chats, err := db.GetReadableChatsByIDs(ctx, []uuid.UUID{first.ID, third.ID, uuid.New()})
 	require.NoError(t, err)
 	gotIDs := make([]uuid.UUID, 0, len(chats))
 	for _, c := range chats {
@@ -35,7 +35,7 @@ func TestGetChatsByIDs(t *testing.T) {
 	require.ElementsMatch(t, []uuid.UUID{first.ID, third.ID}, gotIDs)
 	require.NotContains(t, gotIDs, second.ID)
 
-	chats, err = db.GetChatsByIDs(ctx, []uuid.UUID{})
+	chats, err = db.GetReadableChatsByIDs(ctx, []uuid.UUID{})
 	require.NoError(t, err)
 	require.Empty(t, chats)
 }

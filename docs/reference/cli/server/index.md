@@ -1877,6 +1877,28 @@ Maximum size in bytes of the deployment system prompt, the plan mode instruction
 
 Maximum number of virtual desktop recordings that each Coder server stores at the same time. Each upload holds the recording and its thumbnail in memory, up to 110 MB. Additional recordings wait for a free slot and are discarded if none frees up within 90 seconds. Must be at least 1.
 
+### --chat-max-automations-per-owner
+
+| Property    | Value                                              |
+|-------------|----------------------------------------------------|
+| Type        | <code>int</code>                                   |
+| Environment | <code>$CODER_CHAT_MAX_AUTOMATIONS_PER_OWNER</code> |
+| YAML        | <code>chat.maxAutomationsPerOwner</code>           |
+| Default     | <code>50</code>                                    |
+
+Maximum number of chat automations that one user can own across all organizations. Creating one more fails with HTTP 409. Lowering the limit does not delete existing automations. Must be at least 1.
+
+### --chat-min-automation-schedule-interval
+
+| Property    | Value                                                     |
+|-------------|-----------------------------------------------------------|
+| Type        | <code>duration</code>                                     |
+| Environment | <code>$CODER_CHAT_MIN_AUTOMATION_SCHEDULE_INTERVAL</code> |
+| YAML        | <code>chat.minAutomationScheduleInterval</code>           |
+| Default     | <code>5m0s</code>                                         |
+
+Minimum time between two runs of a chat automation schedule. Creating a schedule that runs more often fails with HTTP 400. The check compares only the times of day of a schedule, counted around the clock. It ignores the days, so it can refuse a schedule whose runs near midnight fall on different days. It ignores clock changes, so on the day that a time zone changes its clock a schedule can run closer than this. Existing schedules are not changed. Must be between 1m and 24h.
+
 ### --chat-stream-silence-timeout
 
 | Property    | Value                                           |

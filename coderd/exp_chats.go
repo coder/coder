@@ -4999,6 +4999,12 @@ func (api *API) resolveGitProvider(ctx context.Context, origin string) gitprovid
 	return gp
 }
 
+// resolveChatGitAccessToken returns userID's external-auth access token,
+// preferring the config matching origin and falling back to any config.
+// It skips provider validation for tokens passing OAuthToken().Valid(),
+// because provider validation would not change which token is returned.
+// When RefreshToken returns an error, the resolver returns the access token
+// read before that call.
 func (api *API) resolveChatGitAccessToken(
 	ctx context.Context,
 	userID uuid.UUID,
@@ -5025,11 +5031,14 @@ func (api *API) resolveChatGitAccessToken(
 			if err != nil {
 				continue
 			}
-			//nolint:gocritic // System context carried through for token refresh.
-			refreshed, refreshErr := config.RefreshToken(dbauthz.AsSystemRestricted(ctx), api.Database, link)
-			if refreshErr == nil {
-				link = refreshed
+			if !link.OAuthToken().Valid() {
+				//nolint:gocritic // System context carried through for token refresh.
+				refreshed, refreshErr := config.RefreshToken(dbauthz.AsSystemRestricted(ctx), api.Database, link)
+				if refreshErr == nil {
+					link = refreshed
+				}
 			}
+
 			token := strings.TrimSpace(link.OAuthAccessToken)
 			if token != "" {
 				return new(token), nil
@@ -5067,10 +5076,8 @@ func (api *API) resolveChatGitAccessToken(
 			continue
 		}
 
-		// Refresh the token if there is a matching config, mirroring
-		// the same code path used by provisionerdserver when handing
-		// tokens to provisioners.
-		if cfg, ok := configs[providerID]; ok {
+		cfg, hasConfig := configs[providerID]
+		if hasConfig && !link.OAuthToken().Valid() {
 			//nolint:gocritic // System context carried through for token refresh.
 			refreshed, refreshErr := cfg.RefreshToken(dbauthz.AsSystemRestricted(ctx), api.Database, link)
 			if refreshErr != nil {
@@ -5079,8 +5086,6 @@ func (api *API) resolveChatGitAccessToken(
 					slog.F("user_id", userID),
 					slog.Error(refreshErr),
 				)
-				// Fall through because the existing token may still work.
-				// (e.g. GitHub tokens with no expiry).
 			} else {
 				link = refreshed
 			}

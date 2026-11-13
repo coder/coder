@@ -312,6 +312,14 @@ func (m queryMetricsStore) ClearChatDiffStatusPR(ctx context.Context, arg databa
 	return r0
 }
 
+func (m queryMetricsStore) ClearChatMessagesPromptHooks(ctx context.Context, chatID uuid.UUID) error {
+	start := time.Now()
+	r0 := m.s.ClearChatMessagesPromptHooks(ctx, chatID)
+	m.queryLatencies.WithLabelValues("ClearChatMessagesPromptHooks").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ClearChatMessagesPromptHooks").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg database.ClearWorkspaceSecretsBeforeBuildParams) error {
 	start := time.Now()
 	r0 := m.s.ClearWorkspaceSecretsBeforeBuild(ctx, arg)
@@ -1589,6 +1597,14 @@ func (m queryMetricsStore) GetChatAutomationsByOrganizationID(ctx context.Contex
 	r0, r1 := m.s.GetChatAutomationsByOrganizationID(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetChatAutomationsByOrganizationID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatAutomationsByOrganizationID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatAutomationsWithWebhookSecretByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.ChatAutomation, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatAutomationsWithWebhookSecretByOwnerID(ctx, ownerID)
+	m.queryLatencies.WithLabelValues("GetChatAutomationsWithWebhookSecretByOwnerID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatAutomationsWithWebhookSecretByOwnerID").Inc()
 	return r0, r1
 }
 
@@ -3213,6 +3229,14 @@ func (m queryMetricsStore) GetQuotaConsumedForUser(ctx context.Context, arg data
 	r0, r1 := m.s.GetQuotaConsumedForUser(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetQuotaConsumedForUser").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetQuotaConsumedForUser").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetReadableChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetReadableChatsByIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetReadableChatsByIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetReadableChatsByIDs").Inc()
 	return r0, r1
 }
 
@@ -5520,6 +5544,14 @@ func (m queryMetricsStore) ReorderChatQueuedMessageToFront(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) ResolveChatMessagePromptHooks(ctx context.Context, arg database.ResolveChatMessagePromptHooksParams) (database.ChatMessage, error) {
+	start := time.Now()
+	r0, r1 := m.s.ResolveChatMessagePromptHooks(ctx, arg)
+	m.queryLatencies.WithLabelValues("ResolveChatMessagePromptHooks").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "ResolveChatMessagePromptHooks").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {
 	start := time.Now()
 	r0 := m.s.RevokeDBCryptKey(ctx, activeKeyDigest)
@@ -5943,6 +5975,14 @@ func (m queryMetricsStore) UpdateEncryptedAIProviderSettings(ctx context.Context
 	m.queryLatencies.WithLabelValues("UpdateEncryptedAIProviderSettings").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateEncryptedAIProviderSettings").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateEncryptedChatAutomationWebhookSecret(ctx context.Context, arg database.UpdateEncryptedChatAutomationWebhookSecretParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateEncryptedChatAutomationWebhookSecret(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateEncryptedChatAutomationWebhookSecret").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UpdateEncryptedChatAutomationWebhookSecret").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) UpdateEncryptedChatMCPServerHeaders(ctx context.Context, arg database.UpdateEncryptedChatMCPServerHeadersParams) error {
