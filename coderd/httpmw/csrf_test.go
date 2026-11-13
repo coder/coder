@@ -142,6 +142,16 @@ func TestCSRFExemptList(t *testing.T) {
 			URL:    "https://coder.com/api/v2/scim/v2/Users",
 			Exempt: false,
 		},
+		{
+			Name:   "APIRepeatedLeadingSlash",
+			URL:    "https://coder.com//api/v2/me",
+			Exempt: false,
+		},
+		{
+			Name:   "APIRepeatedInnerSlash",
+			URL:    "https://coder.com/api//v2/me",
+			Exempt: false,
+		},
 	}
 
 	mw := httpmw.CSRF(codersdk.HTTPCookieConfig{})
