@@ -256,7 +256,7 @@ describe("ChatPageInput", () => {
 						archived,
 					};
 					const store = createChatStore();
-					store.setQueuedMessages([MockChatQueuedMessage], 1);
+					store.setQueuedMessages([MockChatQueuedMessage]);
 					vi.spyOn(API, "checkAuthorization").mockImplementation(
 						async ({ checks }) =>
 							Object.fromEntries(
@@ -339,7 +339,7 @@ describe("ChatPageInput", () => {
 						: Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
 			);
 			const store = createChatStore();
-			store.setQueuedMessages([MockChatQueuedMessage], 1);
+			store.setQueuedMessages([MockChatQueuedMessage]);
 			const { queryClient } = renderChatPageInput(store, {
 				onDeleteQueuedMessage,
 			});

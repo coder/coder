@@ -161,16 +161,11 @@ export type ChatStore = {
 	loadOlderMessages: (
 		fetchPage: (beforeID: number) => Promise<TypesGen.ChatMessagesResponse>,
 	) => Promise<void>;
-	// userMessageVersion is the highest snapshot version of the user messages.
-	upsertDurableMessages: (
-		messages: readonly TypesGen.ChatMessage[],
-		userMessageVersion: number,
-	) => void;
+	upsertDurableMessages: (messages: readonly TypesGen.ChatMessage[]) => void;
 	applyMessagePart: (part: TypesGen.ChatMessagePart) => void;
 	applyMessageParts: (parts: readonly TypesGen.ChatMessagePart[]) => void;
 	setQueuedMessages: (
 		queuedMessages: readonly TypesGen.ChatQueuedMessage[],
-		snapshotVersion: number,
 	) => void;
 	// Applies a status event, and clears the turn error unless the status is
 	// error.

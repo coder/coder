@@ -150,7 +150,7 @@ describe("useQueuedMessageEdit", () => {
 		const t = setup();
 		expect(t.result().composerTarget).toBeNull();
 
-		act(() => t.store.setQueuedMessages([mockRow5Marked], 2));
+		act(() => t.store.setQueuedMessages([mockRow5Marked]));
 		expect(t.result().composerTarget).toEqual(queued(5));
 		expect(t.result().composerMode).toBe("follow");
 	});
@@ -166,7 +166,7 @@ describe("useQueuedMessageEdit", () => {
 			{ id: 5, req: { editing: true } },
 		]);
 
-		act(() => t.store.setQueuedMessages([mockRow5Marked], 2));
+		act(() => t.store.setQueuedMessages([mockRow5Marked]));
 		await t.settle(t.patches[0], "resolve");
 		await waitFor(() => expect(t.result().markerStatus).toBe("success"));
 		expect(t.result().composerTarget).toEqual(queued(5));
