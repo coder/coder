@@ -17,11 +17,11 @@ import {
 import { DEFAULT_AGENT_CHAT_SEND_SHORTCUT } from "../../utils/agentChatSendShortcut";
 import { COMPACT_SLASH_COMMAND } from "../../utils/slashCommands";
 import { ChatMessageInput } from "./ChatMessageInput";
-import type { SkillMetadata } from "./SkillsTriggerMenu";
+import type { SkillSummary } from "./SkillsTriggerMenu";
 import { expectNoVisibleText, findVisibleText } from "./storyHelpers";
 
 // Override props keep skill menu stories deterministic without network calls.
-const mockWorkspaceSkills: SkillMetadata[] = [
+const mockWorkspaceSkills: SkillSummary[] = [
 	{
 		name: "test-runner",
 		description: "Run the workspace test command.",

@@ -22,11 +22,10 @@ import type { ChatDetailError } from "../components/ChatConversation/chatError";
 import {
 	selectChatStatus,
 	useChatSelector,
-	type useChatStore,
 } from "../components/ChatConversation/chatStore";
-
 import { QueuedForCapacityCallout } from "../components/ChatConversation/QueuedForCapacityCallout";
 import type { EditingTarget } from "../components/ChatConversation/types";
+import type { useChatStore } from "../components/ChatConversation/useChatStore";
 import { DesktopPanelContext } from "../components/ChatElements/tools/DesktopPanelContext";
 import type { SendChatMessageOptions } from "../components/ChatPageContent";
 import { ChatPageInput, ChatPageTimeline } from "../components/ChatPageContent";

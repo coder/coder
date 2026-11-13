@@ -59,7 +59,6 @@ import {
 	selectSubagentStatusOverrides,
 	useChatMessages,
 	useChatSelector,
-	type useChatStore,
 } from "./ChatConversation/chatStore";
 import {
 	LiveStreamTailContent,
@@ -76,12 +75,13 @@ import {
 	excludeDurableCallResults,
 } from "./ChatConversation/streamState";
 import type { EditingTarget } from "./ChatConversation/types";
+import type { useChatStore } from "./ChatConversation/useChatStore";
 import { useOnRenderProfiler } from "./ChatConversation/useOnRenderProfiler";
 import {
 	ACPContext,
 	buildACPSessionDescriptors,
 } from "./ChatElements/tools/ACPContext";
-import type { SkillMetadata } from "./ChatMessageInput/SkillsTriggerMenu";
+import type { SkillSummary } from "./ChatMessageInput/SkillsTriggerMenu";
 import { ChatMessageScroller } from "./ChatMessageScroller";
 import { getWorkspaceOptionsWithLinkedWorkspace } from "./workspaceOptions";
 
@@ -93,11 +93,11 @@ type ChatStoreHandle = ReturnType<typeof useChatStore>["store"];
 // which also collapses duplicates first-wins in resource order.
 export const workspaceSkillsFromChat = (
 	chat: TypesGen.Chat | undefined,
-): SkillMetadata[] | undefined => {
+): SkillSummary[] | undefined => {
 	if (!chat) {
 		return undefined;
 	}
-	const skills = new Map<string, SkillMetadata>();
+	const skills = new Map<string, SkillSummary>();
 	for (const resource of chat.context?.resources ?? []) {
 		if (
 			resource.kind !== "skill" ||

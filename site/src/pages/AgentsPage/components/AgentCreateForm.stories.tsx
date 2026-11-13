@@ -281,7 +281,6 @@ const meta: Meta<typeof AgentCreateForm> = {
 		isCreating: false,
 		createError: undefined,
 		canCreateChat: true,
-		workspaceCount: 0,
 		workspaceOptions: [],
 		workspacesError: undefined,
 		isWorkspacesLoading: false,
@@ -945,7 +944,6 @@ const mockWorkspaces = [
 export const WithWorkspaces: Story = {
 	args: {
 		workspaceOptions: mockWorkspaces,
-		workspaceCount: mockWorkspaces.length,
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -969,7 +967,6 @@ export const WithWorkspaces: Story = {
 export const SearchWorkspaces: Story = {
 	args: {
 		workspaceOptions: mockWorkspaces,
-		workspaceCount: mockWorkspaces.length,
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -998,7 +995,6 @@ export const SelectWorkspaceViaSearch: Story = {
 	parameters: { pixel: { exclude: true } },
 	args: {
 		workspaceOptions: mockWorkspaces,
-		workspaceCount: mockWorkspaces.length,
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -1519,7 +1515,6 @@ export const RestrictedUserKeepsPersistedWorkspace: Story = {
 				organization_id: MockOrganization2.id,
 			},
 		],
-		workspaceCount: 1,
 	},
 	beforeEach: () => {
 		localStorage.setItem("agents.selected-workspace-id", "ws-permitted-org");
@@ -1837,7 +1832,6 @@ export const RevokedOrgChangeClearsStoredWorkspace: Story = {
 				organization_id: MockDefaultOrganization.id,
 			},
 		],
-		workspaceCount: 1,
 	},
 	beforeEach: () => {
 		localStorage.setItem("agents.selected-workspace-id", "ws-default-org");
@@ -2347,7 +2341,6 @@ const attachZipFile = async (canvasElement: HTMLElement) => {
 export const WorkspaceFileQueuedForDeferredUpload: Story = {
 	args: {
 		workspaceOptions: mockWorkspaces,
-		workspaceCount: mockWorkspaces.length,
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -2362,7 +2355,6 @@ export const WorkspaceFileQueuedForDeferredUpload: Story = {
 export const WorkspaceFileWithoutWorkspaceShowsSelectToast: Story = {
 	args: {
 		workspaceOptions: mockWorkspaces,
-		workspaceCount: mockWorkspaces.length,
 	},
 	decorators: [withToaster],
 	beforeEach: () => {
@@ -2391,7 +2383,6 @@ export const WorkspaceFileSubmissionLocksScopeControls: Story = {
 	args: {
 		onCreateChat: fn(() => new Promise<void>(() => {})),
 		workspaceOptions: mockWorkspaces,
-		workspaceCount: mockWorkspaces.length,
 	},
 	beforeEach: () => {
 		localStorage.clear();
@@ -2406,7 +2397,6 @@ export const WorkspaceFileSubmissionLocksScopeControls: Story = {
 export const DetachingWorkspaceDropsQueuedFiles: Story = {
 	args: {
 		workspaceOptions: mockWorkspaces,
-		workspaceCount: mockWorkspaces.length,
 	},
 	decorators: [withToaster],
 	beforeEach: () => {

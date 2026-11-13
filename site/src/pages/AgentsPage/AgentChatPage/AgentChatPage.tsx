@@ -74,9 +74,9 @@ import {
 import {
 	selectChatStatus,
 	useChatSelector,
-	useChatStore,
 } from "../components/ChatConversation/chatStore";
 import { submitChatTurn } from "../components/ChatConversation/submitChatTurn";
+import { useChatStore } from "../components/ChatConversation/useChatStore";
 import { useChatToolInvalidations } from "../components/ChatConversation/useChatToolInvalidations";
 import { useWorkspaceWatch } from "../components/ChatConversation/useWorkspaceWatch";
 import { isChatAgentBindingUnresolved } from "../components/ChatConversation/watchedWorkspace";
