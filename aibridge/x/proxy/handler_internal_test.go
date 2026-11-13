@@ -1,11 +1,14 @@
 package proxy
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -24,12 +27,15 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/intercept"
+	"github.com/coder/coder/v2/aibridge/intercept/apidump"
 	"github.com/coder/coder/v2/aibridge/internal/testutil"
 	"github.com/coder/coder/v2/aibridge/keypool"
+	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
 	"github.com/coder/coder/v2/aibridge/utils"
+	"github.com/coder/coder/v2/aibridge/x/proxy/replaybody"
 	codertestutil "github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -107,6 +113,36 @@ func requestWithAuth(t *testing.T, body io.Reader) *http.Request {
 	req := httptest.NewRequest(http.MethodPost, "/openai/v1/chat/completions", body).WithContext(ctx)
 	req.Header.Set("Authorization", "Bearer user-secret-key")
 	return req
+}
+
+// newTestForwardingHandler constructs a forwarding handler and shuts down its
+// inflight gate after the test.
+func newTestForwardingHandler(t *testing.T, prov provider.Provider, m *metrics.Metrics) *forwardingHandler {
+	t.Helper()
+	logger := slogtest.Make(t, nil)
+	gate := aibridge.NewInflightGate(logger)
+	t.Cleanup(func() {
+		defer gate.Close()
+		require.NoError(t, gate.Shutdown(codertestutil.Context(t, codertestutil.WaitLong)))
+	})
+	h, err := newForwardingHandler(prov, logger, m, noop.NewTracerProvider().Tracer(t.Name()), gate, &struct{ recorder.Recorder }{})
+	require.NoError(t, err)
+	return h
+}
+
+// prepareAndProxy validates r, captures its body for replay, and serves it
+// through a proxy bound to the resolved credential, without response
+// observation.
+func prepareAndProxy(t *testing.T, h *forwardingHandler, w http.ResponseWriter, r *http.Request) {
+	t.Helper()
+	_, record, cred := h.checkRequest(w, r)
+	require.NotNil(t, record, "request must pass validation")
+	outbound, body := replaybody.NewRequest(r)
+	t.Cleanup(func() { _ = body.Close() })
+	h.newProxy(cred).ServeHTTP(w, outbound)
+	require.NoError(t, body.Close())
+	_, err := body.Wait(codertestutil.Context(t, codertestutil.WaitLong))
+	require.NoError(t, err)
 }
 
 func TestCheckRequest(t *testing.T) {
@@ -409,6 +445,174 @@ func TestForwardingHandlerOpenCircuit(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Forwarding replaces the route prefix with the provider base URL and keeps the
+// client's escaped path and raw query bytes.
+func TestForwardingRewritesURL(t *testing.T) {
+	t.Parallel()
+	requestURI := make(chan string, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		requestURI <- r.RequestURI
+	}))
+	t.Cleanup(upstream.Close)
+	h := newTestForwardingHandler(t, provider.NewOpenAI(config.OpenAI{BaseURL: upstream.URL + "/base?configured=1"}), nil)
+	req := requestWithAuth(t, nil)
+	req.URL.Path = "/openai/v1/models/a/b"
+	req.URL.RawPath = "/openai/v1/models/a%2Fb"
+	req.URL.RawQuery = "raw=a;b"
+
+	response := httptest.NewRecorder()
+	prepareAndProxy(t, h, response, req)
+	require.Equal(t, http.StatusOK, response.Code)
+	require.Equal(t, "/base/models/a%2Fb?configured=1&raw=a;b", codertestutil.RequireReceive(codertestutil.Context(t, codertestutil.WaitShort), t, requestURI))
+}
+
+// The client's Accept-Encoding never reaches upstream. The transport negotiates
+// gzip and decodes it, so the client receives an uncompressed body.
+func TestForwardingDecodesResponses(t *testing.T) {
+	t.Parallel()
+	var compressed bytes.Buffer
+	gz := gzip.NewWriter(&compressed)
+	_, err := gz.Write([]byte("raw response"))
+	require.NoError(t, err)
+	require.NoError(t, gz.Close())
+
+	for _, tc := range []struct {
+		name     string
+		encoding string
+	}{
+		{name: "NoClientEncoding"}, // gzip is the default for Go clients
+		{name: "ClientBrotli", encoding: "br"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			encoding := make(chan string, 1)
+			upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				encoding <- r.Header.Get("Accept-Encoding")
+				w.Header().Set("Content-Encoding", "gzip")
+				_, _ = w.Write(compressed.Bytes())
+			}))
+			t.Cleanup(upstream.Close)
+			h := newTestForwardingHandler(t, provider.NewOpenAI(config.OpenAI{BaseURL: upstream.URL}), nil)
+			req := requestWithAuth(t, nil)
+			if tc.encoding != "" {
+				req.Header.Set("Accept-Encoding", tc.encoding)
+			}
+
+			response := httptest.NewRecorder()
+			prepareAndProxy(t, h, response, req)
+			require.Equal(t, http.StatusOK, response.Code)
+			require.Equal(t, "gzip", codertestutil.RequireReceive(codertestutil.Context(t, codertestutil.WaitShort), t, encoding))
+			require.Equal(t, "raw response", response.Body.String())
+			require.Empty(t, response.Header().Get("Content-Encoding"))
+		})
+	}
+}
+
+// Forwarding dumps each upstream exchange under the provider's API dump
+// directory. The apidump package owns the dump contents and redaction.
+func TestForwardingAPIDump(t *testing.T) {
+	t.Parallel()
+	upstream := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	t.Cleanup(upstream.Close)
+	dumpDir := t.TempDir()
+	h := newTestForwardingHandler(t, provider.NewOpenAI(config.OpenAI{BaseURL: upstream.URL, APIDumpDir: dumpDir}), nil)
+
+	response := httptest.NewRecorder()
+	prepareAndProxy(t, h, response, requestWithAuth(t, nil))
+	require.Equal(t, http.StatusOK, response.Code)
+	for _, suffix := range []string{apidump.SuffixRequest, apidump.SuffixResponse} {
+		files, err := filepath.Glob(filepath.Join(dumpDir, "openai", "passthrough", "*"+suffix))
+		require.NoError(t, err)
+		require.Len(t, files, 1, suffix)
+	}
+}
+
+// Forwarding sends the BYOK credential the provider resolved, in the header it
+// came from.
+func TestForwardingProviderCredentials(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name     string
+		provider func(t *testing.T, baseURL string) provider.Provider
+		// header is added to the request's BYOK Authorization header.
+		header   http.Header
+		wantAuth http.Header
+	}{
+		{
+			name: "OpenAIConnectionAuth",
+			provider: func(_ *testing.T, baseURL string) provider.Provider {
+				return provider.NewOpenAI(config.OpenAI{BaseURL: baseURL})
+			},
+			// ReverseProxy removes headers nominated by Connection.
+			// Handler must restore the BYOK credential.
+			header:   http.Header{"Connection": {"Authorization"}},
+			wantAuth: http.Header{"Authorization": {"Bearer user-secret-key"}},
+		},
+		{
+			name: "AnthropicAPIKey",
+			provider: func(t *testing.T, baseURL string) provider.Provider {
+				prov, err := provider.NewAnthropic(t.Context(), config.Anthropic{BaseURL: baseURL}, nil, nil)
+				require.NoError(t, err)
+				return prov
+			},
+			// Anthropic prefers X-Api-Key, Authorization header is dropped.
+			header:   http.Header{"X-Api-Key": {"anthropic-secret-key"}},
+			wantAuth: http.Header{"X-Api-Key": {"anthropic-secret-key"}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			received := make(chan http.Header, 1)
+			upstream := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+				received <- r.Header.Clone()
+			}))
+			t.Cleanup(upstream.Close)
+			prov := tc.provider(t, upstream.URL)
+			req := requestWithAuth(t, nil)
+			req.URL.Path = prov.RoutePrefix() + "/messages"
+			for name, values := range tc.header {
+				req.Header[name] = values
+			}
+			h := newTestForwardingHandler(t, prov, nil)
+
+			response := httptest.NewRecorder()
+			prepareAndProxy(t, h, response, req)
+			require.Equal(t, http.StatusOK, response.Code)
+			got := codertestutil.RequireReceive(codertestutil.Context(t, codertestutil.WaitShort), t, received)
+			for _, header := range []string{"Authorization", "X-Api-Key"} {
+				require.Equal(t, tc.wantAuth.Values(header), got.Values(header), header)
+			}
+		})
+	}
+}
+
+// Per-request proxies share the handler's transport.
+func TestForwardingReusesUpstreamConnection(t *testing.T) {
+	t.Parallel()
+	type upstreamRequest struct{ auth, remoteAddr string }
+	requests := make(chan upstreamRequest, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		requests <- upstreamRequest{auth: r.Header.Get("Authorization"), remoteAddr: r.RemoteAddr}
+	}))
+	t.Cleanup(upstream.Close)
+	h := newTestForwardingHandler(t, provider.NewOpenAI(config.OpenAI{BaseURL: upstream.URL}), nil)
+
+	ctx := codertestutil.Context(t, codertestutil.WaitShort)
+	send := func(key string) string {
+		t.Helper()
+		req := requestWithAuth(t, nil)
+		req.Header.Set("Authorization", "Bearer "+key)
+		response := httptest.NewRecorder()
+		prepareAndProxy(t, h, response, req)
+		require.Equal(t, http.StatusOK, response.Code)
+		got := codertestutil.RequireReceive(ctx, t, requests)
+		require.Equal(t, "Bearer "+key, got.auth, "each request must use its own credential")
+		return got.remoteAddr
+	}
+	first := send("first-key")
+	require.Equal(t, first, send("second-key"), "per-request proxies must reuse the upstream connection")
 }
 
 type unreadBody struct {
