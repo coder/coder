@@ -179,6 +179,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				}}
 				isSaving={updateTemplatesMutation.isPending}
 				error={updateTemplatesMutation.error}
+				onResetError={updateTemplatesMutation.reset}
 				onSave={(templates) => {
 					if (isTemplatesSaveInFlight.current) {
 						return;

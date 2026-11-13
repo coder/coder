@@ -3,7 +3,6 @@ import { useQuery } from "react-query";
 import { isApiValidationError } from "#/api/errors";
 import { agentTemplates } from "#/api/queries/templates";
 import type { ChatProject, ChatProjectTemplates } from "#/api/typesGenerated";
-import { Alert, AlertDescription } from "#/components/Alert/Alert";
 import { ErrorAlert } from "#/components/Alert/ErrorAlert";
 import { Button } from "#/components/Button/Button";
 import {
@@ -20,6 +19,7 @@ import {
 	chatProjectTemplatesValues,
 	templatesValidationDetail,
 } from "../ChatsSidebar/dialogs/ChatProjectTemplatesFields";
+import { ProjectEditConflictAlert } from "./ProjectEditConflictAlert";
 
 type ProjectTemplatesDialogProps = {
 	readonly project: ChatProject;
@@ -28,6 +28,8 @@ type ProjectTemplatesDialogProps = {
 	readonly isSaving: boolean;
 	readonly error: unknown;
 	readonly onSave: (templates: ChatProjectTemplates) => void;
+	/** Clears `error`, for when the draft is replaced by the latest save. */
+	readonly onResetError: () => void;
 	/**
 	 * Called when focus would return after closing. The dialog has no
 	 * trigger, so without this focus lands on the document body.
@@ -72,10 +74,10 @@ type ProjectTemplatesFormProps = Omit<
 };
 
 /**
- * Serializes templates for comparison. The server stores default parameters
- * as jsonb, which does not keep key order.
+ * Draft and server copies can list `default_parameters` keys in different
+ * orders, so keys are sorted before comparing.
  */
-const templatesKey = (templates: ChatProjectTemplates) =>
+const serializeTemplates = (templates: ChatProjectTemplates) =>
 	JSON.stringify([
 		templates.template_ids,
 		templates.default_template_id ?? "",
@@ -91,6 +93,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	isSaving,
 	error,
 	onSave,
+	onResetError,
 	onCancel,
 }) => {
 	// The dialog content mounts on open, so the draft starts from the
@@ -112,11 +115,11 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 	// Save replaces every template setting, so a change saved elsewhere must
 	// be resolved first. Templates that already match the draft, such as this
 	// dialog's own save arriving before it closes, are not a conflict.
-	const latestKey = templatesKey(project.templates);
+	const serializedLatest = serializeTemplates(project.templates);
 	const hasConflict =
 		open &&
-		latestKey !== templatesKey(baseTemplates) &&
-		(request === undefined || latestKey !== templatesKey(request));
+		serializedLatest !== serializeTemplates(baseTemplates) &&
+		(request === undefined || serializedLatest !== serializeTemplates(request));
 	const canSave =
 		request !== undefined && !isUnchanged && !hasConflict && !isSaving;
 
@@ -142,38 +145,18 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				disabled={isSaving}
 			/>
 			{hasConflict && (
-				<Alert
-					severity="warning"
-					actions={
-						<div className="flex gap-2">
-							<Button
-								type="button"
-								size="sm"
-								variant="outline"
-								disabled={isSaving}
-								onClick={() => setBaseTemplates(project.templates)}
-							>
-								Keep my draft
-							</Button>
-							<Button
-								type="button"
-								size="sm"
-								disabled={isSaving}
-								onClick={() => {
-									setBaseTemplates(project.templates);
-									setValue(chatProjectTemplatesValues(project.templates));
-								}}
-							>
-								Load latest
-							</Button>
-						</div>
-					}
+				<ProjectEditConflictAlert
+					disabled={isSaving}
+					onKeepDraft={() => setBaseTemplates(project.templates)}
+					onLoadLatest={() => {
+						setBaseTemplates(project.templates);
+						setValue(chatProjectTemplatesValues(project.templates));
+						onResetError();
+					}}
 				>
-					<AlertDescription>
-						Someone else changed these templates while you were editing. Load
-						the latest templates, or keep your draft to replace them.
-					</AlertDescription>
-				</Alert>
+					Someone else changed these templates while you were editing. Load the
+					latest templates, or keep your draft to replace them.
+				</ProjectEditConflictAlert>
 			)}
 			{Boolean(error) && !isApiValidationError(error) && (
 				<ErrorAlert error={error} showDebugDetail={false} />

@@ -94,6 +94,7 @@ const meta: Meta<typeof ProjectTemplatesDialog> = {
 		isSaving: false,
 		error: undefined,
 		onSave: fn(),
+		onResetError: fn(),
 	},
 	parameters: {
 		queries: [

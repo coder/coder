@@ -835,4 +835,24 @@ describe("ProjectDetailsPanel templates", () => {
 			),
 		);
 	});
+
+	it("does not block Save when the latest templates already match the draft", async () => {
+		const { user, updateProject, rerenderWithProject } = setup();
+		const draft = { template_ids: [dockerTemplate.id, kubernetesTemplate.id] };
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		rerenderWithProject({ ...MockChatProject, templates: draft });
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(updateProject).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				MockChatProject.id,
+				{ templates: draft },
+			),
+		);
+	});
 });
