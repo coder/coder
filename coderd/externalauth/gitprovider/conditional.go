@@ -8,58 +8,60 @@ import (
 	"sync"
 )
 
-// Defaults for the conditional-request response cache. These bound
-// the memory used by cached GitHub responses while still covering a
-// realistic working set of actively-polled pull requests.
 const (
-	// defaultResponseCacheEntries is the maximum number of cached
-	// responses retained. Once exceeded, the least-recently-used
-	// entry is evicted. Sized above the gitsync worker's steady-state
-	// working set: defaultBatchSize (50) rows re-acquired every
-	// DiffStatusTTL (120s) over defaultInterval (10s) ticks, at 2-3
-	// cache keys per row. See coderd/x/gitsync.
-	defaultResponseCacheEntries = 2048
+	// defaultResponseCacheEntries bounds entry count, map and LRU list overhead.
+	// It is about 24 times the 2,731 keys derived from the 2026-11-07
+	// dogfood snapshot (CODAGT-1543).
+	defaultResponseCacheEntries = 65536
 
-	// maxCachedBodyBytes is the largest response body that will be
-	// cached. Larger bodies are still returned to the caller but are
-	// not stored, so a single oversized response cannot blow up the
-	// cache's memory footprint.
+	// defaultResponseCacheBytes limits the sum of cachedResponse.sizeBytes.
+	// It is not an RSS limit.
+	defaultResponseCacheBytes = 128 << 20
+
+	// maxCachedBodyBytes is the largest encoded JSON projection retained.
 	maxCachedBodyBytes = 1 << 20 // 1 MiB
 )
 
-// cachedResponse holds the data needed to satisfy a future
-// conditional request: the validator (ETag) to echo back via
-// If-None-Match and the body to reuse on a 304 Not Modified.
+// cachedResponse holds the ETag sent as If-None-Match.
+// Its body field holds the JSON projection decoded after a 304.
 type cachedResponse struct {
 	key  string
 	etag string
 	body []byte
 }
 
-// responseCache is a small, concurrency-safe LRU cache of GitHub
-// responses keyed by request URL and auth scope. It enables
-// conditional requests (ETag / If-None-Match): when GitHub replies
-// 304 Not Modified the cached body is reused, avoiding a full
-// re-download. Conditional requests that return 304 also do not
-// count against the primary REST rate limit, which matters for the
-// diff-status worker that polls open PRs on a short interval.
-type responseCache struct {
-	mu      sync.Mutex
-	maxSize int
-	ll      *list.List
-	entries map[string]*list.Element
+// sizeBytes counts key and ETag lengths and projection buffer capacity.
+// It excludes entry, map, list and allocator overhead.
+func (r *cachedResponse) sizeBytes() int {
+	return len(r.key) + len(r.etag) + cap(r.body)
 }
 
-// newResponseCache constructs an empty cache retaining at most
-// maxSize entries. A non-positive maxSize falls back to the default.
-func newResponseCache(maxSize int) *responseCache {
-	if maxSize <= 0 {
-		maxSize = defaultResponseCacheEntries
+// responseCache is a concurrency-safe LRU of JSON projections for conditional
+// requests. Authenticated 304 responses do not count against GitHub's primary
+// rate limit.
+type responseCache struct {
+	mu         sync.Mutex
+	maxEntries int
+	maxBytes   int
+	usedBytes  int
+	ll         *list.List
+	entries    map[string]*list.Element
+}
+
+// newResponseCache returns an empty response cache with entry and byte limits.
+// Non-positive maxEntries or maxBytes select the defaults.
+func newResponseCache(maxEntries, maxBytes int) *responseCache {
+	if maxEntries <= 0 {
+		maxEntries = defaultResponseCacheEntries
+	}
+	if maxBytes <= 0 {
+		maxBytes = defaultResponseCacheBytes
 	}
 	return &responseCache{
-		maxSize: maxSize,
-		ll:      list.New(),
-		entries: make(map[string]*list.Element),
+		maxEntries: maxEntries,
+		maxBytes:   maxBytes,
+		ll:         list.New(),
+		entries:    make(map[string]*list.Element),
 	}
 }
 
@@ -79,36 +81,56 @@ func (c *responseCache) load(key string) (etag string, body []byte, ok bool) {
 	return cr.etag, cr.body, true
 }
 
-// store records the ETag and body for key, evicting the
-// least-recently-used entry when the cache is full. Empty ETags and
-// bodies larger than maxCachedBodyBytes are not stored.
+// store records the ETag and JSON projection for key and evicts the
+// least-recently-used entries until both limits are met. Empty ETags,
+// projections larger than maxCachedBodyBytes and entries exceeding the byte
+// limit are not stored.
 func (c *responseCache) store(key, etag string, body []byte) {
 	if etag == "" || len(body) > maxCachedBodyBytes {
 		return
 	}
 
 	stored := bytes.Clone(body)
+	entry := &cachedResponse{
+		key:  key,
+		etag: etag,
+		body: stored,
+	}
+	entryBytes := entry.sizeBytes()
+	if entryBytes > c.maxBytes {
+		return
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	if elem, found := c.entries[key]; found {
 		c.ll.MoveToFront(elem)
 		cr := cachedEntry(elem)
+
+		c.usedBytes -= cr.sizeBytes()
+
 		cr.etag = etag
 		// Replace the body slice entirely; never write into the
 		// existing slice in place. A concurrent reader may hold a
 		// reference to the old slice while json.Unmarshal is reading
 		// it.
 		cr.body = stored
-		return
+	} else {
+		c.entries[key] = c.ll.PushFront(entry)
 	}
 
-	elem := c.ll.PushFront(&cachedResponse{key: key, etag: etag, body: stored})
-	c.entries[key] = elem
+	c.usedBytes += entryBytes
 
-	if c.ll.Len() > c.maxSize {
+	for c.ll.Len() > 0 && c.overLimit() {
 		c.evictOldest()
 	}
+}
+
+// overLimit reports whether the response cache exceeds either limit.
+// The caller must hold c.mu.
+func (c *responseCache) overLimit() bool {
+	return c.ll.Len() > c.maxEntries || c.usedBytes > c.maxBytes
 }
 
 // evictOldest removes the least-recently-used entry. The caller must
@@ -119,7 +141,9 @@ func (c *responseCache) evictOldest() {
 		return
 	}
 	c.ll.Remove(elem)
-	delete(c.entries, cachedEntry(elem).key)
+	cr := cachedEntry(elem)
+	delete(c.entries, cr.key)
+	c.usedBytes -= cr.sizeBytes()
 }
 
 func cachedEntry(elem *list.Element) *cachedResponse {
@@ -127,10 +151,8 @@ func cachedEntry(elem *list.Element) *cachedResponse {
 	return elem.Value.(*cachedResponse)
 }
 
-// responseCacheKey derives a cache key that isolates responses by
-// request URL and auth scope. The token is hashed rather than stored
-// so that a cached entry for one user's token is never served to
-// another, without keeping raw credentials in memory.
+// responseCacheKey isolates JSON projections by request URL and token hash
+// without retaining the raw token.
 func responseCacheKey(requestURL, token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return requestURL + "\x00" + hex.EncodeToString(sum[:])

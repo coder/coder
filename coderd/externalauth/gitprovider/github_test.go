@@ -7,7 +7,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"path"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -15,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/externalauth/gitprovider"
+	"github.com/coder/quartz"
 )
 
 func TestGitHubParseRepositoryOrigin(t *testing.T) {
@@ -726,16 +730,35 @@ func TestFetchPullRequestStatus(t *testing.T) {
 			changesRequested: false,
 		},
 		{
-			name:             "MergedPR",
-			pullJSON:         `{"state":"closed","merged":true,"draft":false,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123","ref":"feature-branch"}}`,
-			reviews:          []review{},
+			name: "MergedPR",
+			pullJSON: `{
+				"title":"Merged PR",
+				"state":"closed","merged":true,"draft":false,
+				"additions":10,"deletions":5,"changed_files":3,
+				"number":42,"commits":3,
+				"head":{"sha":"abc123","ref":"feature-branch"},
+				"base":{"ref":"main"},
+				"user":{"login":"author","avatar_url":"https://example.com/avatar.png"}
+			}`,
+			reviews: []review{
+				makeReview(1, "APPROVED", "alice"),
+				makeReview(2, "CHANGES_REQUESTED", "bob"),
+			},
 			expectedState:    gitprovider.PRStateMerged,
-			changesRequested: false,
+			changesRequested: true,
 		},
 		{
-			name:             "DraftPR",
-			pullJSON:         `{"state":"open","merged":false,"draft":true,"additions":10,"deletions":5,"changed_files":3,"head":{"sha":"abc123","ref":"feature-branch"}}`,
-			reviews:          []review{},
+			name: "DraftPR",
+			pullJSON: `{
+				"title":"Draft PR",
+				"state":"open","merged":false,"draft":true,
+				"additions":10,"deletions":5,"changed_files":3,
+				"number":42,"commits":3,
+				"head":{"sha":"abc123","ref":"feature-branch"},
+				"base":{"ref":"main"},
+				"user":{"login":"author","avatar_url":null}
+			}`,
+			reviews:          []review{makeReview(1, "APPROVED", "alice")},
 			expectedState:    gitprovider.PRStateOpen,
 			expectedDraft:    true,
 			changesRequested: false,
@@ -750,25 +773,34 @@ func TestFetchPullRequestStatus(t *testing.T) {
 			reviewsJSON, err := json.Marshal(tc.reviews)
 			require.NoError(t, err)
 
+			var conditionalRequests atomic.Int64
+			serveJSON := func(etag string, body []byte) http.HandlerFunc {
+				return func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("ETag", etag)
+					if conditional := r.Header.Get("If-None-Match"); conditional != "" {
+						assert.Equal(t, etag, conditional)
+						conditionalRequests.Add(1)
+						w.WriteHeader(http.StatusNotModified)
+						return
+					}
+
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write(body)
+				}
+			}
 			mux := http.NewServeMux()
-			mux.HandleFunc("/api/v3/repos/owner/repo/pulls/1/reviews", func(w http.ResponseWriter, _ *http.Request) {
-				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write(reviewsJSON)
-			})
-			mux.HandleFunc("/api/v3/repos/owner/repo/pulls/1", func(w http.ResponseWriter, _ *http.Request) {
-				w.Header().Set("Content-Type", "application/json")
-				_, _ = w.Write([]byte(tc.pullJSON))
-			})
+			mux.HandleFunc("/api/v3/repos/owner/repo/pulls/1/reviews", serveJSON(`"reviews"`, reviewsJSON))
+			mux.HandleFunc("/api/v3/repos/owner/repo/pulls/1", serveJSON(`"pull"`, []byte(tc.pullJSON)))
 
 			srv := httptest.NewServer(mux)
 			defer srv.Close()
 
-			gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+			clock := quartz.NewMock(t)
+			gp, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client(), gitprovider.WithClock(clock))
 			require.NoError(t, err)
 
 			require.NotNil(t, gp)
 
-			before := time.Now().UTC()
 			status, err := gp.FetchPullRequestStatus(
 				context.Background(),
 				"test-token",
@@ -785,7 +817,20 @@ func TestFetchPullRequestStatus(t *testing.T) {
 			assert.Equal(t, int32(5), status.DiffStats.Deletions)
 			assert.Equal(t, int32(3), status.DiffStats.ChangedFiles)
 			assert.False(t, status.FetchedAt.IsZero())
-			assert.True(t, !status.FetchedAt.Before(before), "FetchedAt should be >= test start time")
+			assert.Equal(t, clock.Now().UTC(), status.FetchedAt)
+
+			require.Zero(t, conditionalRequests.Load(), "first fetch must not be conditional")
+
+			// With the clock fixed, both 304 responses must reproduce the fields
+			// populated by the PR and review fixtures.
+			warm, err := gp.FetchPullRequestStatus(
+				context.Background(),
+				"test-token",
+				gitprovider.PRRef{Owner: "owner", Repo: "repo", Number: 1},
+			)
+			require.NoError(t, err)
+			require.Equal(t, status, warm)
+			require.EqualValues(t, 2, conditionalRequests.Load())
 		})
 	}
 }
@@ -976,6 +1021,106 @@ func TestEscapePathPreserveSlashes(t *testing.T) {
 
 func TestConditionalRequestReuse(t *testing.T) {
 	t.Parallel()
+
+	t.Run("SecondPassReturnsNotModified", func(t *testing.T) {
+		t.Parallel()
+
+		// Dogfood on 2026-11-07 (CODAGT-1543): two keys per chat-owner/PR
+		// pair plus one per chat-owner/branch lookup.
+		const (
+			pullRequests = 1201
+			branches     = 329
+			cacheKeys    = 2*pullRequests + branches
+		)
+		// Padding approximates the snapshot's full-response sizes.
+		// Projections omit it; TestGitHubCachedProjection fails if raw
+		// bodies are cached.
+		const (
+			pullPaddingBytes   = 26 << 10
+			reviewPaddingBytes = 20 << 10
+			branchPaddingBytes = 38 << 10
+		)
+		pullPadding := strings.Repeat("p", pullPaddingBytes)
+		reviewPadding := strings.Repeat("r", reviewPaddingBytes)
+		branchPadding := strings.Repeat("b", branchPaddingBytes)
+		var fullResponses atomic.Int64
+		var notModifiedResponses atomic.Int64
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			etag := strconv.Quote(r.URL.RequestURI())
+			w.Header().Set("ETag", etag)
+			if conditional := r.Header.Get("If-None-Match"); conditional != "" {
+				assert.Equal(t, etag, conditional)
+				notModifiedResponses.Add(1)
+				w.WriteHeader(http.StatusNotModified)
+				return
+			}
+
+			fullResponses.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			switch {
+			case strings.HasSuffix(r.URL.Path, "/reviews"):
+				_, _ = fmt.Fprintf(w, `[{"id":1,"state":"APPROVED","user":{"login":"reviewer"},"body":%q}]`, reviewPadding)
+			case r.URL.Query().Get("head") != "":
+				htmlURL := fmt.Sprintf("https://%s/owner/repo/pull/42", r.Host)
+				_, _ = fmt.Fprintf(w, `[{"html_url":%q,"number":42,"body":%q}]`, htmlURL, branchPadding)
+			default:
+				number, err := strconv.Atoi(path.Base(r.URL.Path))
+				assert.NoError(t, err)
+				_, _ = fmt.Fprintf(w, `{"number":%d,"title":"PR %d","state":"open","body":%q}`, number, number, pullPadding)
+			}
+		}))
+		defer srv.Close()
+
+		provider, err := gitprovider.New("github", srv.URL+"/api/v3", srv.Client())
+		require.NoError(t, err)
+
+		pollWorkingSet := func() {
+			t.Helper()
+
+			for i := range pullRequests {
+				pullRef := gitprovider.PRRef{
+					Owner:  "owner",
+					Repo:   "repo",
+					Number: i + 1,
+				}
+
+				status, err := provider.FetchPullRequestStatus(t.Context(), "test-token", pullRef)
+				require.NoError(t, err)
+
+				require.Equal(t, fmt.Sprintf("PR %d", pullRef.Number), status.Title)
+				require.True(t, status.Approved)
+			}
+
+			for i := range branches {
+				branchRef := gitprovider.BranchRef{
+					Owner:  "owner",
+					Repo:   "repo",
+					Branch: fmt.Sprintf("branch-%d", i),
+				}
+
+				ref, err := provider.ResolveBranchPullRequest(t.Context(), "test-token", branchRef)
+				require.NoError(t, err)
+				require.NotNil(t, ref)
+
+				require.Equal(t, 42, ref.Number)
+			}
+		}
+
+		pollWorkingSet()
+		coldFullResponseCount := fullResponses.Swap(0)
+		coldNotModifiedResponseCount := notModifiedResponses.Swap(0)
+
+		require.EqualValues(t, cacheKeys, coldFullResponseCount, "first pass fetches every response body")
+		require.Zero(t, coldNotModifiedResponseCount)
+
+		pollWorkingSet()
+		warmFullResponseCount := fullResponses.Load()
+		warmNotModifiedResponseCount := notModifiedResponses.Load()
+
+		require.Zero(t, warmFullResponseCount, "second pass must use only conditional requests")
+		require.EqualValues(t, cacheKeys, warmNotModifiedResponseCount)
+	})
 
 	t.Run("NotModifiedReusesCachedBody", func(t *testing.T) {
 		t.Parallel()
