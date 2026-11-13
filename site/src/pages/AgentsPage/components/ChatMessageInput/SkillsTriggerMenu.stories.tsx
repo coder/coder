@@ -73,7 +73,7 @@ const MenuStoryHarness = (
 		<>
 			<div
 				ref={setAnchor}
-				className="mt-64 h-16 w-64 rounded-md border border-border border-solid p-2 text-content-secondary text-sm"
+				className="mt-64 h-16 w-64 rounded-md border p-2 text-content-secondary text-sm"
 			>
 				Mock composer
 			</div>

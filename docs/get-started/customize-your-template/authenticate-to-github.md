@@ -31,7 +31,7 @@ The `id` points at a provider configured on the Coder deployment, and the local 
 > [!NOTE]
 > External authentication lets a workspace sign in to an outside service, such as a Git provider, before it starts.
 > A default Coder install includes a built-in GitHub app, so `id = "github"` works without extra setup.
-> An admin can configure other providers (GitLab, Bitbucket, Azure DevOps, or generic OIDC) or replace the built-in GitHub app.
+> An admin can configure other providers (GitLab, Bitbucket, Azure DevOps, or generic OpenID Connect (OIDC)) or replace the built-in GitHub app.
 > To learn more, refer to [External authentication](../../admin/external-auth.md).
 
 ## Step 1: Require GitHub authentication
@@ -70,7 +70,8 @@ coder templates push -d ~/coder-quickstart -y quickstart
 ## Step 2: Connect your workspace to GitHub
 
 Update the workspace you built in [Launch your first workspace](../index.md) to the version you just published.
-Because the local control plane is already connected to GitHub, you don't configure an OAuth app; you only authorize the workspace.
+Because the local control plane is already connected to GitHub, you don't configure an OAuth app.
+You only authorize the workspace.
 
 <div class="tabs">
 
@@ -90,7 +91,8 @@ Update the workspace:
 coder update <your-workspace>
 ```
 
-If you aren't authenticated yet, Coder prints a URL to log in with GitHub; open it, authorize Coder, then run the command again.
+If you aren't authenticated yet, Coder prints a URL to log in with GitHub.
+Open it, authorize Coder, then run the command again.
 
 </div>
 
@@ -596,8 +598,8 @@ You finished the Customize your template series, and your workspaces can now clo
 This is the last guide in the series.
 To keep going, explore more of what Coder offers:
 
-- [Manage workspaces for your team](../../user-guides/workspace-management.md).
-- [Try Coder Agents](../../ai-coder/agents/getting-started.md), the chat interface and API for delegating work to coding agents.
+- [Manage workspaces for your team](../../workspaces/workspace-management.md).
+- [Try Coder Agents](../../coder-agents/getting-started.md), the chat interface and API for delegating work to coding agents.
 
 Or revisit the [Customize your template overview](./index.md) for the full list of guides.
 

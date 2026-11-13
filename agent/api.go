@@ -27,6 +27,8 @@ func (a *agent) apiHandler(upgradeListener *httpUpgrader) http.Handler {
 		tracing.Middleware(nil, []string{"/", "/api", "/api/**", "/debug/**"}, "agent"),
 		loggermw.Logger(a.logger, nil),
 		agentchat.Middleware,
+		// Install WriteDeadlineMiddleware before tool call deduplication so retries also get the deadline.
+		a.acpAPI.WriteDeadlineMiddleware,
 		a.toolCalls.Middleware,
 	)
 	r.Get("/", func(rw http.ResponseWriter, r *http.Request) {

@@ -16,6 +16,7 @@ import {
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import { API } from "#/api/api";
 import { aiProvidersListKey } from "#/api/queries/aiProviders";
+import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import {
 	mcpServerConfigsKey,
@@ -42,6 +43,7 @@ import {
 	MockWorkspace,
 	MockWorkspaceBuildLogs,
 } from "#/testHelpers/entities";
+import { MockSkills } from "#/testHelpers/skills";
 import { withDashboardProvider, withToaster } from "#/testHelpers/storybook";
 import { persistedAttachmentsStorageKey } from "../hooks/useFileAttachments";
 import {
@@ -2055,7 +2057,6 @@ const pickerProjects: TypesGen.ChatProject[] = [
 
 export const WithProjectPicker: Story = {
 	parameters: {
-		experiments: ["chat-projects"],
 		queries: [
 			...defaultQueries,
 			{ key: chatProjectsKey, data: pickerProjects },
@@ -2065,7 +2066,6 @@ export const WithProjectPicker: Story = {
 
 export const WithOrganizationAndProjectPickers: Story = {
 	parameters: {
-		experiments: ["chat-projects"],
 		showOrganizations: true,
 		organizations: [MockDefaultOrganization, MockOrganization2],
 		queries: [
@@ -2084,6 +2084,23 @@ export const WithOrganizationAndProjectPickers: Story = {
 		);
 		await screen.findByRole("button", { name: "New project" });
 	},
+};
+
+const mockProjectActionSkills: TypesGen.SkillMetadata[] = MockSkills.map(
+	(skill) => ({ ...skill, action: true }),
+);
+
+export const ProjectComposerWithActions: Story = {
+	parameters: {
+		queries: [
+			...defaultQueries,
+			{
+				key: chatProjectSkillsKey(MockChatProject.id),
+				data: mockProjectActionSkills,
+			},
+		],
+	},
+	args: { project: MockChatProject },
 };
 
 /**

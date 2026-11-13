@@ -8,7 +8,7 @@ import { getPRIconConfig } from "./ChatsSidebar/tree/statusConfig";
 
 /** Menu content for PR links. The height fits five rows before it scrolls. */
 export const prMenuContentClassName =
-	"max-h-50 w-72 overflow-auto [&_[role=menuitem]]:text-[13px]";
+	"max-h-50 w-72 overflow-auto **:[[role=menuitem]]:text-[13px]";
 
 type PRMenuLinksProps = {
 	readonly prStatuses: readonly ChatDiffStatus[];

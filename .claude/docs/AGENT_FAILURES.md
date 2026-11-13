@@ -144,3 +144,21 @@ shown below when adding new failures.
 - Proposed prevention: Add swagger annotations in the same change as stable
   endpoints. For experimental or unstable API paths, add
   `// @x-apidocgen {"skip": true}` after `@Router`.
+
+## Symptom: Test assertion on one value fails right after waiting on another
+
+- Likely cause: The test waited on one value, then asserted another that is
+  updated separately, about which the wait says nothing. Prometheus metrics
+  invite this, because each series is updated and read independently.
+- How to reproduce: Temporarily block the code under test between the two
+  updates until the assertion has run, for example with a sleep or with a
+  channel receive that the test releases.
+- How to diagnose: If the assertion reads a value the wait did not poll,
+  check whether the code under test can write it after the awaited one.
+- Existing docs or tools: [Wait for Full Completion before Asserting](TESTING.md#wait-for-full-completion-before-asserting)
+  and the doc comments on the `coderd/coderdtest/promhelp` read helpers.
+- Missing harness piece: No lint flags a wait on one value followed by an
+  assertion on another.
+- Proposed prevention: Make the wait cover every value the assertions depend
+  on, for example by checking all of them inside one `require.Eventually`
+  condition. Do not rely on the order in which the code under test writes.

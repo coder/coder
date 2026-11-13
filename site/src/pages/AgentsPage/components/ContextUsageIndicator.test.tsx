@@ -1,6 +1,11 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
+import {
+	MockChatContextDirty,
+	MockChatContextResourceFailures,
+} from "#/testHelpers/chatEntities";
 import {
 	buildContextPanelModel,
 	ContextUsageIndicator,
@@ -36,6 +41,8 @@ const otherPluginSkill = resource({
 	skill_name: "migrate",
 	plugin_name: "dbtools",
 });
+
+const noLabel = { kind: "directory", name: "" } as const;
 
 describe("buildContextPanelModel", () => {
 	it("groups plugin skills under the plugin and plain skills under their directory", () => {
@@ -98,26 +105,90 @@ describe("buildContextPanelModel", () => {
 		]);
 	});
 
-	it("strips the plugin prefix from plugin MCP server names and keeps order", () => {
+	it("groups plugin MCP servers by plugin under their server name, after standalone servers", () => {
 		const tools: TypesGen.ChatContextTool[] = [{ name: "fetch_url" }];
 		const model = buildContextPanelModel([
-			resource({ source: "github", kind: "mcp_server", tools: [] }),
 			resource({
 				source: "webtools/tools",
 				kind: "mcp_server",
 				plugin_name: "webtools",
 				tools,
 			}),
+			resource({ source: "github", kind: "mcp_server", tools: [] }),
+			resource({
+				source: "webtools/insecure",
+				kind: "mcp_server",
+				plugin_name: "webtools",
+				status: "unreadable",
+				error: "command not found",
+			}),
 		]);
 
-		expect(model.mcpServers).toEqual([
-			{ name: "github", source: "github", pluginName: undefined, tools: [] },
+		expect(model.mcpServerGroups).toEqual([
 			{
-				name: "tools",
-				source: "webtools/tools",
-				pluginName: "webtools",
-				tools,
+				key: "directory:",
+				label: noLabel,
+				items: [
+					{
+						name: "github",
+						source: "github",
+						label: noLabel,
+						connected: true,
+						tools: [],
+					},
+				],
 			},
+			{
+				key: "plugin:webtools",
+				label: { kind: "plugin", name: "webtools" },
+				items: [
+					{
+						name: "tools",
+						source: "webtools/tools",
+						label: { kind: "plugin", name: "webtools" },
+						connected: true,
+						tools,
+					},
+					{
+						name: "insecure",
+						source: "webtools/insecure",
+						label: { kind: "plugin", name: "webtools" },
+						connected: false,
+						tools: [],
+					},
+				],
+			},
+		]);
+	});
+
+	it("keeps warnings on running MCP servers out of the not-running list", () => {
+		const model = buildContextPanelModel([
+			resource({
+				source: "webtools/tools",
+				kind: "mcp_server",
+				plugin_name: "webtools",
+				error: "tool list truncated",
+			}),
+			resource({
+				source: "github",
+				kind: "mcp_server",
+				status: "unreadable",
+				error: "connection refused",
+			}),
+			resource({
+				source: "/workspace/.mcp.json",
+				kind: "mcp_config",
+				status: "invalid",
+				error: "bad JSON",
+			}),
+		]);
+
+		expect(model.mcpIssues.map((issue) => issue.name)).toEqual([
+			"webtools/tools",
+			".mcp.json",
+		]);
+		expect(model.mcpServerFailures.map((issue) => issue.name)).toEqual([
+			"github",
 		]);
 	});
 
@@ -144,6 +215,7 @@ describe("buildContextPanelModel", () => {
 		expect(model.plugins).toEqual([
 			{ name: "webtools", source: "/home/coder/.coder/plugins/webtools" },
 		]);
+		expect(model.pluginIssues.map((issue) => issue.name)).toEqual(["broken"]);
 	});
 
 	it("prefixes plugin-shipped issue names with the plugin and names plugin rows alone", () => {
@@ -249,6 +321,11 @@ describe("buildContextPanelModel", () => {
 			resource({ source: "/workspace/.mcp.json", kind: "mcp_config" }),
 			resource({ source: "github", kind: "mcp_server" }),
 			resource({
+				source: "claude",
+				kind: "acp_harness",
+				source_path: "/workspace/.coder/acp",
+			}),
+			resource({
 				source: "/workspace/.agents/skills/broken",
 				kind: "skill",
 				status: "invalid",
@@ -272,8 +349,20 @@ describe("buildContextPanelModel", () => {
 			{ kind: "directory", name: "/workspace/.agents/skills" },
 		]);
 		expect(model.mcpConfigs).toEqual([{ source: "/workspace/.mcp.json" }]);
-		expect(model.mcpServers).toEqual([
-			{ name: "github", source: "github", pluginName: undefined, tools: [] },
+		expect(model.mcpServerGroups.map((group) => group.label)).toEqual([
+			noLabel,
+		]);
+		expect(model.harnessGroups).toEqual([
+			{
+				key: "directory:/workspace/.coder/acp",
+				label: { kind: "directory", name: "/workspace/.coder/acp" },
+				items: [
+					{
+						slug: "claude",
+						label: { kind: "directory", name: "/workspace/.coder/acp" },
+					},
+				],
+			},
 		]);
 		expect(model.issues).toEqual([
 			{
@@ -285,8 +374,8 @@ describe("buildContextPanelModel", () => {
 				source: "/workspace/.agents/skills/broken",
 			},
 		]);
+		expect(model.skillIssues).toEqual(model.issues);
 		expect(model.plugins).toEqual([]);
-		expect(model.fileBytes).toBe(64);
 	});
 });
 
@@ -326,15 +415,18 @@ describe("getIndicatorState", () => {
 		).toEqual({ tone: "destructive", needsAttention: true });
 	});
 
-	it("tones by usage without marking the indicator", () => {
-		expect(getIndicatorState({ ...calm, percentUsed: 84 })).toEqual({
+	it("tones by usage relative to the compaction point without marking the indicator", () => {
+		expect(getIndicatorState({ ...calm, percentUsed: 89 })).toEqual({
 			tone: "default",
 			needsAttention: false,
 		});
-		expect(getIndicatorState({ ...calm, percentUsed: 85 })).toEqual({
+		expect(getIndicatorState({ ...calm, percentUsed: 90 })).toEqual({
 			tone: "warning",
 			needsAttention: false,
 		});
+		expect(
+			getIndicatorState({ ...calm, percentUsed: 63, compactionPercent: 70 }),
+		).toEqual({ tone: "warning", needsAttention: false });
 		expect(getIndicatorState({ ...calm, percentUsed: 95 })).toEqual({
 			tone: "destructive",
 			needsAttention: false,
@@ -347,6 +439,39 @@ describe("getIndicatorState", () => {
 });
 
 describe("ContextUsageIndicator", () => {
+	it("opens server management from an MCP server failure", async () => {
+		const user = userEvent.setup();
+		const onManageServers = vi.fn();
+		render(
+			<ContextUsageIndicator
+				usage={{ context: MockChatContextResourceFailures }}
+				onManageServers={onManageServers}
+			/>,
+		);
+		await user.click(screen.getByRole("button", { name: /Context usage/ }));
+		await user.click(screen.getByRole("button", { name: /MCP Servers/ }));
+		await user.click(screen.getByRole("button", { name: "Manage servers" }));
+		expect(onManageServers).toHaveBeenCalledTimes(1);
+	});
+
+	it("refreshes context after opening the popover with a click", async () => {
+		const user = userEvent.setup();
+		const onRefreshContext = vi.fn();
+		render(
+			<ContextUsageIndicator
+				usage={{
+					usedTokens: 12_000,
+					contextLimitTokens: 200_000,
+					context: MockChatContextDirty,
+				}}
+				onRefreshContext={onRefreshContext}
+			/>,
+		);
+		await user.click(screen.getByRole("button", { name: /Context usage/ }));
+		await user.click(screen.getByRole("button", { name: "Refresh context" }));
+		expect(onRefreshContext).toHaveBeenCalledTimes(1);
+	});
+
 	it("notes warnings in the accessible name when no resource failed", () => {
 		render(
 			<ContextUsageIndicator
@@ -398,5 +523,32 @@ describe("ContextUsageIndicator", () => {
 
 		const button = screen.getByRole("button");
 		expect(button).toHaveAccessibleName(/failed to load/);
+	});
+
+	it("shows plugin warnings in the Plugins section", async () => {
+		const user = userEvent.setup();
+		render(
+			<ContextUsageIndicator
+				usage={{
+					context: {
+						dirty: false,
+						resources: [
+							resource({
+								source: "/home/coder/.coder/plugins/webtools",
+								kind: "plugin",
+								plugin_name: "webtools",
+								error: 'unknown field "displayName" ignored',
+							}),
+						],
+					},
+				}}
+			/>,
+		);
+		await user.click(screen.getByRole("button", { name: /Context usage/ }));
+		await user.click(screen.getByRole("button", { name: /Plugins/ }));
+		expect(screen.getByText("(plugin manifest: warning)")).toBeVisible();
+		expect(
+			screen.getByText('unknown field "displayName" ignored'),
+		).toBeVisible();
 	});
 });

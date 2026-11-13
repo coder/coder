@@ -226,7 +226,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 	const headerContent = (
 		<>
 			<div className="flex items-start gap-1.5">
-				<ChevronDownIcon className="license-chevron mt-1 size-4 shrink-0 text-content-secondary transition-colors transition-transform group-hover:text-content-primary" />
+				<ChevronDownIcon className="license-chevron mt-1 size-4 shrink-0 text-content-secondary transition group-hover:text-content-primary" />
 				<span className="text-base font-medium text-content-secondary">
 					#{license.id}
 				</span>
@@ -238,7 +238,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 						<div
 							role="group"
 							aria-label={includedProductsLabel}
-							className="text-xs font-medium text-content-secondary"
+							className="text-xs text-content-secondary"
 						>
 							{includedProducts.map((product, index) => (
 								<span key={product}>
@@ -253,7 +253,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 				</div>
 			</div>
 
-			<div className="ml-auto flex items-center gap-12 text-xs font-medium">
+			<div className="ml-auto flex items-center gap-12 text-xs">
 				<div className="flex flex-col items-center">
 					<span className="text-content-secondary">Status</span>
 					<span className={statusClassName}>{statusText}</span>
@@ -317,7 +317,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 				}
 				confirmLoading={isRemoving}
 			/>
-			<div className="license-card group overflow-hidden rounded-md border border-solid border-border bg-surface-secondary text-sm shadow-xs">
+			<div className="license-card group overflow-hidden rounded-md border bg-surface-secondary text-sm shadow-xs">
 				<div className="flex items-center gap-6 p-3">
 					<CollapsibleTrigger
 						asChild
@@ -325,7 +325,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 					>
 						<button
 							type="button"
-							className="m-0 flex min-w-0 flex-1 appearance-none items-center gap-6 border-0 bg-transparent p-0 text-left"
+							className="m-0 flex min-w-0 flex-1 appearance-none items-center gap-6 bg-transparent p-0 text-left"
 						>
 							{headerContent}
 						</button>
@@ -337,7 +337,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 								size="icon"
 								variant="subtle"
 								onClick={(event) => event.stopPropagation()}
-								className="size-[30px]"
+								className="size-7.5"
 							>
 								<EllipsisVerticalIcon />
 								<span className="sr-only">Show license actions</span>
@@ -356,10 +356,8 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 				</div>
 
 				<CollapsibleContent>
-					<div className="border-0 border-t border-solid border-border bg-surface-primary px-4 py-4">
-						<div className="text-sm font-medium text-content-secondary">
-							Products
-						</div>
+					<div className="border-t bg-surface-primary px-4 py-4">
+						<div className="text-sm text-content-secondary">Products</div>
 						<div className="mt-3 flex flex-wrap gap-3">
 							<CoderWorkspacesProductCard
 								userLimitActual={userLimitActual}
@@ -377,7 +375,7 @@ export const LicenseCard: React.FC<LicenseCardProps> = ({
 						</div>
 						{hasExplicitAiGovernanceAddOn && (
 							<>
-								<div className="mt-4 text-sm font-medium text-content-secondary">
+								<div className="mt-4 text-sm text-content-secondary">
 									Add-ons
 								</div>
 								<div className="mt-3 flex flex-wrap gap-3">

@@ -29,7 +29,7 @@ export const PremiumPageView: React.FC<PremiumPageViewProps> = ({
 	// the two-column pitch into a single banner.
 	if (hasLicense) {
 		return (
-			<div className="relative isolate overflow-hidden rounded-lg py-12 mb-8 border border-solid bg-surface-secondary flex items-center justify-center">
+			<div className="relative isolate overflow-hidden rounded-lg py-12 mb-8 border bg-surface-secondary flex items-center justify-center">
 				<Supergraphic className="bg-position-[20%_20%]" />
 				{isTrial ? (
 					<TrialActivePanel daysRemaining={trialDaysRemaining} />
@@ -41,8 +41,8 @@ export const PremiumPageView: React.FC<PremiumPageViewProps> = ({
 	}
 
 	return (
-		<div className="rounded-lg border border-solid border-border bg-surface-primary overflow-hidden">
-			<div className="grid grid-cols-1 lg:grid-cols-2 min-h-[640px]">
+		<div className="rounded-lg border bg-surface-primary overflow-hidden">
+			<div className="grid grid-cols-1 lg:grid-cols-2 min-h-160">
 				<div className="relative isolate overflow-hidden hidden lg:flex flex-col p-12 bg-surface-secondary">
 					<Supergraphic className="bg-position-[20%_20%] bg-size-[110%_125%] -scale-x-100" />
 					<div className="self-center pt-24 max-w-sm">

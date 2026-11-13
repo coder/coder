@@ -56,7 +56,7 @@ const ExternalAuthPageView: React.FC<ExternalAuthPageViewProps> = ({
 				target="_blank"
 				rel="noreferrer"
 				showExternalIcon={false}
-				className="p-0 text-sm font-medium"
+				className="pl-0 text-sm font-medium"
 			>
 				{installTheApp}
 			</Link>
@@ -90,7 +90,7 @@ const ExternalAuthPageView: React.FC<ExternalAuthPageViewProps> = ({
 										target="_blank"
 										rel="noreferrer"
 										showExternalIcon={false}
-										className="p-0 hover:after:content-none"
+										className="pl-0 hover:after:content-none"
 									>
 										<Avatar
 											src={install.account.avatar_url}
@@ -126,7 +126,7 @@ const ExternalAuthPageView: React.FC<ExternalAuthPageViewProps> = ({
 							target="_blank"
 							rel="noreferrer"
 							showExternalIcon={false}
-							className="inline-flex items-center gap-2 p-0 text-base font-medium [&_svg]:size-icon-xs [&_svg]:p-0"
+							className="inline-flex items-center gap-2 pl-0 text-base font-medium [&_svg]:size-icon-xs [&_svg]:p-0"
 						>
 							<ExternalLinkIcon className="size-icon-xs" />
 							{externalAuth.installations.length > 0 ? "Configure" : "Install"}{" "}
@@ -134,7 +134,7 @@ const ExternalAuthPageView: React.FC<ExternalAuthPageViewProps> = ({
 						</Link>
 					)}
 				<Link
-					className="inline-flex items-center gap-2 p-0 text-base font-medium [&_svg]:size-icon-xs [&_svg]:p-0"
+					className="inline-flex items-center gap-2 pl-0 text-base font-medium [&_svg]:size-icon-xs [&_svg]:p-0"
 					href="#"
 					showExternalIcon={false}
 					onClick={() => {

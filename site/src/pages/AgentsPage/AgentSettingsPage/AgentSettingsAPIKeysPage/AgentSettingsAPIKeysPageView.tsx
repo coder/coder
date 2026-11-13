@@ -176,10 +176,7 @@ const ProviderKeyPanel: React.FC<ProviderKeyPanelProps> = ({
 	}
 
 	return (
-		<article
-			className="rounded-lg border border-solid border-border p-6"
-			aria-labelledby={headingId}
-		>
+		<article className="rounded-lg border p-6" aria-labelledby={headingId}>
 			<div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
 				<div className="space-y-2">
 					<h5
@@ -232,9 +229,7 @@ const ProviderKeyPanel: React.FC<ProviderKeyPanelProps> = ({
 			</form>
 
 			<div className="mt-6 flex flex-col gap-2">
-				<p className="m-0 text-sm font-medium text-content-primary">
-					Enabled models
-				</p>
+				<p className="m-0 text-sm text-content-primary">Enabled models</p>
 				{areModelsUnavailable && enabledModels.length > 0 && (
 					<p className="m-0 text-sm text-content-secondary">
 						Some enabled models are temporarily unavailable.

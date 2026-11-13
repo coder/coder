@@ -1,0 +1,31 @@
+---
+title: Advisor
+---
+
+## What it does
+
+Lets a root agent pause its current turn and request strategic guidance from a separate, single-step model call.
+The advisor sees recent conversation context, runs without any tools, and returns concise advice for the root agent rather than the end user.
+The root agent must call the advisor on its own, not alongside other tools in the same step.
+
+Useful for planning ambiguity, architectural tradeoffs, debugging strategy after repeated failures, or risk reduction before a destructive operation.
+
+## Configuration
+
+Configure the advisor's runtime limits under **Admin settings** > **AI** > **Coder Agents** > **Deployment settings**.
+Use the **Advisor** card.
+These limits apply deployment-wide.
+
+| Field             | Default              | Notes                                                                                                                   |
+|-------------------|----------------------|-------------------------------------------------------------------------------------------------------------------------|
+| Max uses per turn | `0` (unlimited)      | Caps how many times the root agent can call the advisor in a single chat turn. Must be a non-negative integer.          |
+| Max output tokens | `0` (server default) | Caps the advisor model's response length. `0` uses the server default of 16,384 tokens. Must be a non-negative integer. |
+
+The advisor model and its reasoning effort are organization-scoped [model overrides](../models.md#model-overrides).
+Configure them in the **Organization settings** section of **Admin settings** > **AI** > **Coder Agents** for the selected organization.
+When no override is set, the advisor reuses the root agent's model.
+
+The advisor is not available in plan mode or to subagents.
+Failed advisor invocations refund the per-turn budget.
+
+The same configuration is available through the API: runtime limits at `GET`/`PUT` `/api/v2/chats/config/advisor`, and the advisor model override at `PUT /api/v2/organizations/{organization}/chats/model-overrides/advisor`.

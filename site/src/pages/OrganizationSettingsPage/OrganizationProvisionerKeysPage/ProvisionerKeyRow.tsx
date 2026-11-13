@@ -74,7 +74,7 @@ export const ProvisionerKeyRow: React.FC<ProvisionerKeyRowProps> = ({
 							className={cn([
 								"text-xs text-content-secondary",
 								"m-0 grid grid-cols-[auto_1fr] gap-x-4 items-center",
-								"[&_dd]:text-content-primary [&_dd]:font-mono [&_dd]:leading-[22px] [&_dt]:font-medium",
+								"[&_dd]:text-content-primary [&_dd]:font-mono [&_dd]:leading-5.5 [&_dt]:font-medium",
 							])}
 						>
 							<dt>Creation time:</dt>
@@ -101,7 +101,7 @@ export const ProvisionerKeyRow: React.FC<ProvisionerKeyRowProps> = ({
 										</span>
 									)}
 									{provisioners.map((provisioner) => (
-										<Badge hover key={provisioner.id} size="sm" asChild>
+										<Badge hover key={provisioner.id} asChild>
 											<RouterLink
 												to={`../provisioners?${new URLSearchParams({ ids: provisioner.id })}`}
 											>
@@ -131,8 +131,8 @@ const TruncateProvisioners: React.FC<TruncateProvisionersProps> = ({
 
 	return (
 		<ProvisionerTags>
-			<Badge size="sm">{firstProvisioner.name}</Badge>
-			{remainderCount > 0 && <Badge size="sm">+{remainderCount}</Badge>}
+			<Badge>{firstProvisioner.name}</Badge>
+			{remainderCount > 0 && <Badge>+{remainderCount}</Badge>}
 		</ProvisionerTags>
 	);
 };

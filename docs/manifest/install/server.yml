@@ -25,3 +25,9 @@ children:
     description: Community-contributed methods for installing Coder on platforms Coder doesn't package itself.
     path: ./install/server/community.md
     icon_path: ./images/icons/generic.svg
+  - title: Use an external database
+    description: Configure Coder to use an external PostgreSQL database for production deployments.
+    path: ./install/server/external-database.md
+  - title: PostgreSQL SSL
+    description: Configure Coder to connect to a PostgreSQL database over an encrypted SSL connection.
+    path: ./install/server/postgres-ssl.md

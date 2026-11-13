@@ -16,6 +16,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
@@ -24,7 +25,17 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-const interruptedToolResultErrorMessage = "tool call was interrupted before it produced a result"
+const (
+	interruptedToolResultErrorMessage       = "tool call was interrupted before it produced a result"
+	interruptedToolResultReplacementMessage = "tool call was interrupted"
+)
+
+// For these tools, chatloop.ExecuteLocalTools can publish the
+// chattool.WithUserResult projection instead of the model result, so their
+// buffered output must not reach the model on interruption.
+var userOnlyResultToolNames = []string{
+	"acp_wait_agent",
+}
 
 type buildCommitStepMessagesInput struct {
 	modelConfigID          uuid.UUID
@@ -93,7 +104,22 @@ func buildCommitStepMessages(input buildCommitStepMessagesInput) (stepMessagesFo
 		if err != nil {
 			return stepMessagesForCommit{}, xerrors.Errorf("marshal tool result: %w", err)
 		}
-		messages = append(messages, baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, input.modelConfigID, contentVersion, content))
+		userResult, err := chattool.UserResultFromMetadata(toolResult.ClientMetadata)
+		if err != nil {
+			return stepMessagesForCommit{}, err
+		}
+		visibility := database.ChatMessageVisibilityBoth
+		if len(userResult) > 0 {
+			visibility = database.ChatMessageVisibilityModel
+			userPart := part
+			userPart.Result = userResult
+			userContent, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{userPart})
+			if err != nil {
+				return stepMessagesForCommit{}, xerrors.Errorf("marshal user tool result: %w", err)
+			}
+			messages = append(messages, baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityUser, input.modelConfigID, contentVersion, userContent))
+		}
+		messages = append(messages, baseMessage(database.ChatMessageRoleTool, visibility, input.modelConfigID, contentVersion, content))
 	}
 
 	// Usage sums runtime_ms across rows, so the batch window is billed
@@ -512,6 +538,43 @@ func currentTurnStepCount(messages []database.ChatMessage) int {
 	return count
 }
 
+// currentTurnAdvisorUses counts the advisor calls that consumed a use
+// since the latest user prompt. Error and limit results are excluded
+// because the runtime refunds or never acquires a use for them; any
+// other non-error result, including advice the tool-result byte budget
+// truncated into a wrapped output, counts as successful.
+func currentTurnAdvisorUses(ctx context.Context, logger slog.Logger, messages []database.ChatMessage) (int, error) {
+	count := 0
+	for _, msg := range messages[currentTurnStartIndex(messages):] {
+		if msg.Deleted || msg.Compressed || msg.Role != database.ChatMessageRoleTool {
+			continue
+		}
+		parts, err := chatprompt.ParseContent(msg)
+		if err != nil {
+			return 0, xerrors.Errorf("parse tool message %d: %w", msg.ID, err)
+		}
+		for _, part := range parts {
+			if part.Type != codersdk.ChatMessagePartTypeToolResult ||
+				part.IsError ||
+				part.ToolName != chatadvisor.ToolName {
+				continue
+			}
+			var result chatadvisor.AdvisorResult
+			if err := json.Unmarshal(part.Result, &result); err != nil {
+				logger.Warn(ctx, "advisor tool result is not an object, counting it as a used advisor call",
+					slog.F("message_id", msg.ID),
+					slog.F("tool_call_id", part.ToolCallID),
+					slog.Error(err),
+				)
+			}
+			if result.Type != chatadvisor.ResultTypeError && result.Type != chatadvisor.ResultTypeLimitReached {
+				count++
+			}
+		}
+	}
+	return count, nil
+}
+
 type compactionRequirement int
 
 const (
@@ -857,6 +920,13 @@ type partialMessageConversionState struct {
 	// modelStreamedAssistant distinguishes streamed content from tool
 	// attachment parts, which must not carry model runtime.
 	modelStreamedAssistant bool
+	// streamedRun accumulates the open text or reasoning run so that a delta
+	// does not copy the run. assistantParts[streamedRunIndex].Text is stale
+	// until closeStreamedRun, so append parts only through appendAssistantPart,
+	// which closes the run first.
+	streamedRun      strings.Builder
+	streamedRunIndex int
+	streamedRunOpen  bool
 }
 
 func (s *partialMessageConversionState) consume(buffered messagepartbuffer.Part) error {
@@ -891,7 +961,7 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 				part.CompletedAt = &interruptedAt
 			}
 		}
-		s.assistantParts = append(s.assistantParts, part)
+		s.appendAssistantPart(part)
 		return
 	}
 	if part.ToolCallID == "" {
@@ -936,6 +1006,49 @@ func (s *partialMessageConversionState) consumeAssistantPart(buffered messagepar
 	call.valid = true
 	call.durable = true
 	s.assistantParts[call.index] = durable
+}
+
+// appendAssistantPart appends part, or appends its text to the open run if part
+// continues it. Text deltas have no block identity, so a text run continues
+// across provider blocks until Narration changes; narration must stay a
+// separate part because the web client shows it in the working block. A
+// reasoning run continues while CreatedAt, which chatloop sets to the block's
+// start time rounded to the microsecond, stays the same, so two blocks that
+// start in the same microsecond merge.
+func (s *partialMessageConversionState) appendAssistantPart(part codersdk.ChatMessagePart) {
+	mergeable := part.Type == codersdk.ChatMessagePartTypeText || part.Type == codersdk.ChatMessagePartTypeReasoning
+	if mergeable && s.streamedRunOpen {
+		prev := s.assistantParts[s.streamedRunIndex]
+		if prev.Type == part.Type && prev.Narration == part.Narration &&
+			(part.Type == codersdk.ChatMessagePartTypeText || sameTime(prev.CreatedAt, part.CreatedAt)) {
+			_, _ = s.streamedRun.WriteString(part.Text)
+			return
+		}
+	}
+	s.closeStreamedRun()
+	s.assistantParts = append(s.assistantParts, part)
+	if !mergeable {
+		return
+	}
+	s.streamedRunIndex = len(s.assistantParts) - 1
+	s.streamedRunOpen = true
+	_, _ = s.streamedRun.WriteString(part.Text)
+}
+
+func (s *partialMessageConversionState) closeStreamedRun() {
+	if !s.streamedRunOpen {
+		return
+	}
+	s.assistantParts[s.streamedRunIndex].Text = s.streamedRun.String()
+	s.streamedRun.Reset()
+	s.streamedRunOpen = false
+}
+
+func sameTime(a, b *time.Time) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return a.Equal(*b)
 }
 
 func (s *partialMessageConversionState) consumeToolPart(buffered messagepartbuffer.Part) error {
@@ -993,7 +1106,21 @@ func (s *partialMessageConversionState) consumeToolPart(buffered messagepartbuff
 	if err := s.flushAssistant(); err != nil {
 		return err
 	}
-	if err := s.appendToolResult(part); err != nil {
+	visibility := database.ChatMessageVisibilityBoth
+	if slices.Contains(userOnlyResultToolNames, part.ToolName) {
+		if err := s.appendToolResult(part, database.ChatMessageVisibilityUser); err != nil {
+			return err
+		}
+		result, err := json.Marshal(map[string]string{"error": interruptedToolResultReplacementMessage})
+		if err != nil {
+			return xerrors.Errorf("marshal interrupted tool result replacement: %w", err)
+		}
+		part.Result = result
+		part.IsError = true
+		part.IsMedia = false
+		visibility = database.ChatMessageVisibilityModel
+	}
+	if err := s.appendToolResult(part, visibility); err != nil {
 		return err
 	}
 	s.answered[part.ToolCallID] = true
@@ -1008,7 +1135,7 @@ func (s *partialMessageConversionState) toolCall(id string) *partialToolCall {
 	call = &partialToolCall{index: len(s.assistantParts), valid: true}
 	s.toolCalls[id] = call
 	s.toolCallOrder = append(s.toolCallOrder, id)
-	s.assistantParts = append(s.assistantParts, codersdk.ChatMessagePart{})
+	s.appendAssistantPart(codersdk.ChatMessagePart{})
 	return call
 }
 
@@ -1048,6 +1175,7 @@ func (s *partialMessageConversionState) finalizeToolCallPlaceholders() error {
 }
 
 func (s *partialMessageConversionState) flushAssistant() error {
+	s.closeStreamedRun()
 	if len(s.assistantParts) == 0 {
 		return nil
 	}
@@ -1088,12 +1216,12 @@ func (s *partialMessageConversionState) flushAccumulatedToolResults() error {
 	return nil
 }
 
-func (s *partialMessageConversionState) appendToolResult(part codersdk.ChatMessagePart) error {
+func (s *partialMessageConversionState) appendToolResult(part codersdk.ChatMessagePart, visibility database.ChatMessageVisibility) error {
 	content, err := chatprompt.MarshalParts([]codersdk.ChatMessagePart{part})
 	if err != nil {
 		return xerrors.Errorf("marshal partial tool result: %w", err)
 	}
-	s.messages = append(s.messages, baseMessage(database.ChatMessageRoleTool, database.ChatMessageVisibilityBoth, s.input.modelConfigID, s.contentVersion, content))
+	s.messages = append(s.messages, baseMessage(database.ChatMessageRoleTool, visibility, s.input.modelConfigID, s.contentVersion, content))
 	return nil
 }
 
@@ -1115,7 +1243,7 @@ func (s *partialMessageConversionState) appendSyntheticInterruptionResults() err
 		if !s.input.interruptedAt.IsZero() {
 			part.CreatedAt = &s.input.interruptedAt
 		}
-		if err := s.appendToolResult(part); err != nil {
+		if err := s.appendToolResult(part, database.ChatMessageVisibilityBoth); err != nil {
 			return xerrors.Errorf("marshal synthetic interruption message: %w", err)
 		}
 		s.answered[id] = true
