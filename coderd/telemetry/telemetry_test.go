@@ -897,14 +897,14 @@ func waitForMessage(ctx context.Context, t *testing.T, messages <-chan string, w
 // net/http hands a response without a body, like the telemetry server's 202,
 // to its caller, the request fails although the server accepted it. The
 // deployment report then errors and no snapshot follows. The reporter must
-// keep its connection through such a close and release it on Close.
+// keep its connection through such a close, and Close must release every
+// connection the reporter opened, the one for its final report included.
 func TestTelemetry_ReporterOwnsConnectionPool(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
 	db, _ := dbtestutil.NewDB(t)
 
-	var newConns atomic.Int32
-	closedConns := make(chan struct{}, 1)
+	var newConns, closedConns atomic.Int32
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusAccepted)
 	}))
@@ -913,10 +913,7 @@ func TestTelemetry_ReporterOwnsConnectionPool(t *testing.T) {
 		case http.StateNew:
 			newConns.Add(1)
 		case http.StateClosed:
-			select {
-			case closedConns <- struct{}{}:
-			default:
-			}
+			closedConns.Add(1)
 		}
 	}
 	server.Start()
@@ -943,7 +940,9 @@ func TestTelemetry_ReporterOwnsConnectionPool(t *testing.T) {
 	require.EqualValues(t, 1, newConns.Load(), "the reporter must reuse its connection")
 
 	reporter.Close()
-	testutil.TryReceive(ctx, t, closedConns)
+	testutil.Eventually(ctx, t, func(context.Context) bool {
+		return closedConns.Load() == newConns.Load()
+	}, testutil.IntervalFast, "Close must leave no connection open")
 }
 
 func TestTelemetry_BoundaryUsageSummary(t *testing.T) {
