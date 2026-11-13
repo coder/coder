@@ -61,6 +61,14 @@ const FAILURE_CLEANUP_DEFAULT = 7 * MS_DAY_CONVERSION;
 const INACTIVITY_CLEANUP_DEFAULT = 180 * MS_DAY_CONVERSION;
 const DORMANT_AUTODELETION_DEFAULT = 30 * MS_DAY_CONVERSION;
 
+// The template settings sidebar already takes horizontal space from lg up, so
+// placing section info beside the fields at lg leaves the fields too narrow.
+// Keep sections stacked until xl.
+const formSectionClasses = {
+	root: "lg:flex-col lg:gap-6 xl:flex-row xl:gap-[120px]",
+	sectionInfo: "lg:static lg:max-w-none xl:sticky xl:max-w-[312px]",
+};
+
 type TemplateScheduleFormProps = {
 	template: Template;
 	onSubmit: (data: UpdateTemplateMeta) => void;
@@ -322,8 +330,9 @@ export const TemplateScheduleForm: React.FC<TemplateScheduleFormProps> = ({
 			<FormSection
 				title="Autostop"
 				description="Define when workspaces created from this template are stopped."
+				classes={formSectionClasses}
 			>
-				<FormFields>
+				<FormFields className="@container">
 					<FormField
 						field={getFieldHelpers("default_ttl_ms", {
 							helperText: (
@@ -380,7 +389,7 @@ export const TemplateScheduleForm: React.FC<TemplateScheduleFormProps> = ({
 						className="w-full"
 					/>
 
-					<div className="grid grid-cols-2 gap-4 w-full items-start">
+					<div className="grid grid-cols-1 @lg:grid-cols-2 gap-4 w-full items-start">
 						<div className="flex flex-col gap-2 min-w-0">
 							<Label htmlFor={autostopDaysField.id}>
 								Days with required stop
@@ -488,8 +497,9 @@ export const TemplateScheduleForm: React.FC<TemplateScheduleFormProps> = ({
 			<FormSection
 				title="Autostart"
 				description="Allow users to set custom autostart and autostop scheduling options for workspaces created from this template."
+				classes={formSectionClasses}
 			>
-				<div className="flex flex-col gap-4">
+				<FormFields className="min-w-0 gap-4">
 					<div className="flex items-start">
 						<Checkbox
 							id="allow_user_autostart"
@@ -525,13 +535,14 @@ export const TemplateScheduleForm: React.FC<TemplateScheduleFormProps> = ({
 							}}
 						/>
 					)}
-				</div>
+				</FormFields>
 			</FormSection>
 
 			{allowAdvancedScheduling && (
 				<FormSection
 					title="Dormancy"
 					description="When enabled, Coder will mark workspaces as dormant after a period of time with no connections. Dormant workspaces can be auto-deleted (see below) or manually reviewed by the workspace owner or admins."
+					classes={formSectionClasses}
 				>
 					<FormFields>
 						<div className="flex flex-col gap-8">
