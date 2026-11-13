@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/userpassword"
 	"github.com/coder/coder/v2/coderd/util/slice"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatautomation"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -709,7 +710,26 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = api.Database.UpdateUserDeletedByID(ctx, user.ID)
+	// The transaction below reads the automations of the user as the
+	// system, so the caller is checked first.
+	if !api.Authorize(r, policy.ActionDelete, user) {
+		httpapi.Forbidden(rw)
+		return
+	}
+	// The soft delete removes the automations of the user in a trigger. A
+	// run that holds an automation lock can queue a message until then, so
+	// the transaction takes the locks first. It locks no chat row: the
+	// purge of old chats holds chat rows and then waits for rows that the
+	// trigger deletes.
+	var automationIDs []uuid.UUID
+	err = api.Database.InTx(func(tx database.Store) error {
+		var err error
+		automationIDs, err = chatautomation.LockByOwner(ctx, tx, user.ID)
+		if err != nil {
+			return err
+		}
+		return tx.UpdateUserDeletedByID(ctx, user.ID)
+	}, nil)
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Forbidden(rw)
 		return
@@ -721,6 +741,12 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	// The user is deleted. The queued messages of the automations go last,
+	// one chat per transaction, when the notifications are sent and the
+	// response is written: the cleanup can wait for a chat lock, and a
+	// client that goes away meanwhile must change neither. A failure of the
+	// cleanup is logged and does not fail the request.
+	defer chatautomation.DeleteQueuedMessagesByChat(ctx, api.Logger, api.Database, api.Pubsub, automationIDs)
 	user.Deleted = true
 	aReq.New = user
 

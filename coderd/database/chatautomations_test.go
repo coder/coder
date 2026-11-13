@@ -524,7 +524,9 @@ func TestChatAutomationCascadesAndProvenance(t *testing.T) {
 			require.NoError(t, err, q)
 		}
 
-		require.NoError(t, db.DeleteChatAutomationByID(ctx, automation.ID))
+		rows, err := db.DeleteChatAutomationByID(ctx, automation.ID)
+		require.NoError(t, err)
+		require.EqualValues(t, 1, rows)
 		requireGone(ctx, t, automation.ID)
 
 		for _, table := range []string{"chat_messages", "chat_queued_messages"} {

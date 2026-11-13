@@ -1521,25 +1521,12 @@ func (p *Server) publishChatPubsubEvents(chats []database.Chat, kind codersdk.Ch
 	}
 }
 
-// chatWatchEventSDKChat builds the chat embedded in ChatWatchEvent
-// notifications. These payloads travel through PostgreSQL NOTIFY, so
-// omit fields that can grow large and that watch consumers already read
-// from the REST chat endpoint.
-func chatWatchEventSDKChat(chat database.Chat, diffStatus *codersdk.ChatDiffStatus) codersdk.Chat {
-	sdkChat := db2sdk.Chat(chat, nil, nil)
-	sdkChat.Files = nil
-	if diffStatus != nil {
-		sdkChat.DiffStatus = diffStatus
-	}
-	return sdkChat
-}
-
 // publishChatPubsubEvent broadcasts a chat lifecycle event via PostgreSQL
 // pubsub so that all replicas can push updates to watching clients.
 func (p *Server) publishChatPubsubEvent(chat database.Chat, kind codersdk.ChatWatchEventKind, diffStatus *codersdk.ChatDiffStatus) {
 	event := codersdk.ChatWatchEvent{
 		Kind: kind,
-		Chat: chatWatchEventSDKChat(chat, diffStatus),
+		Chat: db2sdk.ChatWatchEventChat(chat, diffStatus),
 	}
 	p.publishChatEvent(chat.OwnerID, chat.ID, event)
 }
@@ -1619,7 +1606,7 @@ func (p *Server) PublishDiffStatusChange(ctx context.Context, chatID uuid.UUID, 
 	}
 	event := codersdk.ChatWatchEvent{
 		Kind: codersdk.ChatWatchEventKindDiffStatusChange,
-		Chat: chatWatchEventSDKChat(chat, primary),
+		Chat: db2sdk.ChatWatchEventChat(chat, primary),
 		ChangedDiffStatus: &codersdk.ChangedDiffStatus{
 			Ref:    ref,
 			Status: changed,

@@ -313,6 +313,9 @@ func (tx *Tx) insertQueuedMessage(ownerFallback uuid.UUID, m Message, busyBehavi
 		ReasoningEffort: m.ReasoningEffort,
 		CreatedBy:       createdBy,
 		BusyBehavior:    busyBehavior,
+		// Only a message that an automation queues names one.
+		AutomationID: uuid.NullUUID{},
+		InputID:      uuid.NullUUID{},
 	})
 }
 
@@ -1069,6 +1072,70 @@ func (tx *Tx) DeleteQueuedMessage(input DeleteQueuedMessageInput) (DeleteQueuedM
 		}
 	}
 	return result, nil
+}
+
+// DeleteQueuedMessagesByAutomationInput configures
+// [Tx.DeleteQueuedMessagesByAutomation].
+type DeleteQueuedMessagesByAutomationInput struct {
+	AutomationIDs []uuid.UUID
+}
+
+// DeleteQueuedMessagesByAutomationResult is returned by
+// [Tx.DeleteQueuedMessagesByAutomation].
+type DeleteQueuedMessagesByAutomationResult struct {
+	// Chat is the updated chat when the transition left P, else nil.
+	Chat *database.Chat
+}
+
+// DeleteQueuedMessagesByAutomation removes every queued message that one
+// of the automations queued. It is the queue cleanup of a disabled or
+// deleted automation, so unlike DeleteQueuedMessage it also runs on an
+// archived chat, and on a chat without such a message it changes
+// nothing. From P it leaves paused once the head is ready or the queue
+// is empty (see leavePaused).
+//
+// A cleanup must not fail because the next message cannot run. When
+// the promotion from P finds no usable model config, the chat rests in
+// error with its queue (E1): paused is valid only with a blocked head.
+func (tx *Tx) DeleteQueuedMessagesByAutomation(input DeleteQueuedMessagesByAutomationInput) (DeleteQueuedMessagesByAutomationResult, error) {
+	chat, from, err := tx.requireFromAllowed(TransitionDeleteQueuedMessagesByAutomation)
+	if err != nil {
+		return DeleteQueuedMessagesByAutomationResult{}, err
+	}
+	err = tx.store.DeleteChatQueuedMessagesByAutomationIDs(tx.ctx, database.DeleteChatQueuedMessagesByAutomationIDsParams{
+		ChatID:        tx.chatID,
+		AutomationIDs: input.AutomationIDs,
+	})
+	if err != nil {
+		return DeleteQueuedMessagesByAutomationResult{}, xerrors.Errorf("delete queued messages of automations: %w", err)
+	}
+	if from != StateP {
+		return DeleteQueuedMessagesByAutomationResult{}, nil
+	}
+	updated, _, err := tx.leavePaused(chat)
+	if errors.Is(err, ErrNoDefaultChatModelConfig) {
+		// The model config is resolved before the promotion writes
+		// anything, so only the removal above is in the transaction.
+		failed, err := tx.applyExecutionState(executionStateUpdate{
+			Status:   database.ChatStatusError,
+			Archived: false,
+			WorkerID: chat.WorkerID,
+			RunnerID: chat.RunnerID,
+			LastError: pqtype.NullRawMessage{
+				RawMessage: json.RawMessage(`{"message":"the next queued message has no usable model; choose a model and send a message to continue"}`),
+				Valid:      true,
+			},
+			RequiresActionDeadlineAt: sql.NullTime{},
+		})
+		if err != nil {
+			return DeleteQueuedMessagesByAutomationResult{}, xerrors.Errorf("set error: %w", err)
+		}
+		return DeleteQueuedMessagesByAutomationResult{Chat: &failed}, nil
+	}
+	if err != nil {
+		return DeleteQueuedMessagesByAutomationResult{}, err
+	}
+	return DeleteQueuedMessagesByAutomationResult{Chat: updated}, nil
 }
 
 // EditQueuedMessageInput configures [Tx.EditQueuedMessage]. Nil fields

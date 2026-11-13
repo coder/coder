@@ -101,14 +101,25 @@ SELECT COUNT(*)::bigint
 FROM chat_automations
 WHERE owner_id = @owner_id::uuid;
 
--- name: DeleteChatAutomationByID :exec
+-- name: GetChatAutomationIDsByOwnerID :many
+-- Returns the automations of one owner across all organizations, in ID
+-- order, which is the order in which automation locks are taken.
+SELECT id
+FROM chat_automations
+WHERE owner_id = @owner_id::uuid
+ORDER BY id;
+
+-- name: DeleteChatAutomationByID :execrows
+-- Returns the number of deleted rows, so that the caller sees a row that
+-- was already gone.
 DELETE FROM chat_automations
 WHERE id = @id::uuid;
 
--- name: GetChatIDsWithQueuedMessagesByAutomationID :many
--- Returns the chats that hold messages that the automation queued, in chat ID
--- order, which is the order in which chat rows are locked.
+-- name: GetChatIDsWithQueuedMessagesByAutomationIDs :many
+-- Returns the chats that hold messages that the automations queued, in chat
+-- ID order, which is the order in which chat rows are locked. The automation
+-- rows can be gone already: a queued message keeps the ID of its automation.
 SELECT DISTINCT chat_id
 FROM chat_queued_messages
-WHERE automation_id = @automation_id::uuid
+WHERE automation_id = ANY(@automation_ids::uuid[])
 ORDER BY chat_id;

@@ -5737,14 +5737,19 @@ func (q *sqlQuerier) CountChatAutomationsByOwnerID(ctx context.Context, ownerID 
 	return column_1, err
 }
 
-const deleteChatAutomationByID = `-- name: DeleteChatAutomationByID :exec
+const deleteChatAutomationByID = `-- name: DeleteChatAutomationByID :execrows
 DELETE FROM chat_automations
 WHERE id = $1::uuid
 `
 
-func (q *sqlQuerier) DeleteChatAutomationByID(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deleteChatAutomationByID, id)
-	return err
+// Returns the number of deleted rows, so that the caller sees a row that
+// was already gone.
+func (q *sqlQuerier) DeleteChatAutomationByID(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteChatAutomationByID, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const getChatAutomationByID = `-- name: GetChatAutomationByID :one
@@ -5788,6 +5793,38 @@ func (q *sqlQuerier) GetChatAutomationByID(ctx context.Context, id uuid.UUID) (C
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getChatAutomationIDsByOwnerID = `-- name: GetChatAutomationIDsByOwnerID :many
+SELECT id
+FROM chat_automations
+WHERE owner_id = $1::uuid
+ORDER BY id
+`
+
+// Returns the automations of one owner across all organizations, in ID
+// order, which is the order in which automation locks are taken.
+func (q *sqlQuerier) GetChatAutomationIDsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, getChatAutomationIDsByOwnerID, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getChatAutomationsByOrganizationID = `-- name: GetChatAutomationsByOrganizationID :many
@@ -5922,17 +5959,18 @@ func (q *sqlQuerier) GetChatAutomationsByOrganizationID(ctx context.Context, arg
 	return items, nil
 }
 
-const getChatIDsWithQueuedMessagesByAutomationID = `-- name: GetChatIDsWithQueuedMessagesByAutomationID :many
+const getChatIDsWithQueuedMessagesByAutomationIDs = `-- name: GetChatIDsWithQueuedMessagesByAutomationIDs :many
 SELECT DISTINCT chat_id
 FROM chat_queued_messages
-WHERE automation_id = $1::uuid
+WHERE automation_id = ANY($1::uuid[])
 ORDER BY chat_id
 `
 
-// Returns the chats that hold messages that the automation queued, in chat ID
-// order, which is the order in which chat rows are locked.
-func (q *sqlQuerier) GetChatIDsWithQueuedMessagesByAutomationID(ctx context.Context, automationID uuid.UUID) ([]uuid.UUID, error) {
-	rows, err := q.db.QueryContext(ctx, getChatIDsWithQueuedMessagesByAutomationID, automationID)
+// Returns the chats that hold messages that the automations queued, in chat
+// ID order, which is the order in which chat rows are locked. The automation
+// rows can be gone already: a queued message keeps the ID of its automation.
+func (q *sqlQuerier) GetChatIDsWithQueuedMessagesByAutomationIDs(ctx context.Context, automationIds []uuid.UUID) ([]uuid.UUID, error) {
+	rows, err := q.db.QueryContext(ctx, getChatIDsWithQueuedMessagesByAutomationIDs, pq.Array(automationIds))
 	if err != nil {
 		return nil, err
 	}
@@ -9379,6 +9417,24 @@ func (q *sqlQuerier) DeleteChatQueuedMessageReturningCount(ctx context.Context, 
 		return 0, err
 	}
 	return result.RowsAffected()
+}
+
+const deleteChatQueuedMessagesByAutomationIDs = `-- name: DeleteChatQueuedMessagesByAutomationIDs :exec
+DELETE FROM chat_queued_messages
+WHERE chat_id = $1::uuid
+  AND automation_id = ANY($2::uuid[])
+`
+
+type DeleteChatQueuedMessagesByAutomationIDsParams struct {
+	ChatID        uuid.UUID   `db:"chat_id" json:"chat_id"`
+	AutomationIDs []uuid.UUID `db:"automation_ids" json:"automation_ids"`
+}
+
+// Deletes the queued messages of the chat that the given automations
+// queued.
+func (q *sqlQuerier) DeleteChatQueuedMessagesByAutomationIDs(ctx context.Context, arg DeleteChatQueuedMessagesByAutomationIDsParams) error {
+	_, err := q.db.ExecContext(ctx, deleteChatQueuedMessagesByAutomationIDs, arg.ChatID, pq.Array(arg.AutomationIDs))
+	return err
 }
 
 const deleteOldChats = `-- name: DeleteOldChats :execrows
@@ -13337,14 +13393,16 @@ func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChat
 }
 
 const insertChatQueuedMessageWithCreator = `-- name: InsertChatQueuedMessageWithCreator :one
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, busy_behavior)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, busy_behavior, automation_id, input_id)
 VALUES (
     $1::uuid,
     $2::jsonb,
     $3::uuid,
     $4::chat_reasoning_effort,
     $5::uuid,
-    $6::chat_busy_behavior
+    $6::chat_busy_behavior,
+    $7::uuid,
+    $8::uuid
 )
 RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior, automation_id, input_id, prompt_hooks_pending
 `
@@ -13356,11 +13414,14 @@ type InsertChatQueuedMessageWithCreatorParams struct {
 	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
 	CreatedBy       uuid.UUID               `db:"created_by" json:"created_by"`
 	BusyBehavior    ChatBusyBehavior        `db:"busy_behavior" json:"busy_behavior"`
+	AutomationID    uuid.NullUUID           `db:"automation_id" json:"automation_id"`
+	InputID         uuid.NullUUID           `db:"input_id" json:"input_id"`
 }
 
 // Inserts a queued message that carries a position (from the default
 // sequence) and an explicit created_by reference. Use this when the
-// queued-message creator differs from the chat owner.
+// queued-message creator differs from the chat owner. A message that an
+// automation queued carries automation_id and input_id, always together.
 func (q *sqlQuerier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg InsertChatQueuedMessageWithCreatorParams) (ChatQueuedMessage, error) {
 	row := q.db.QueryRowContext(ctx, insertChatQueuedMessageWithCreator,
 		arg.ChatID,
@@ -13369,6 +13430,8 @@ func (q *sqlQuerier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg
 		arg.ReasoningEffort,
 		arg.CreatedBy,
 		arg.BusyBehavior,
+		arg.AutomationID,
+		arg.InputID,
 	)
 	var i ChatQueuedMessage
 	err := row.Scan(

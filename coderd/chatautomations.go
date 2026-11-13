@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatautomation"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -179,9 +180,16 @@ func (api *API) deleteChatAutomation(rw http.ResponseWriter, r *http.Request) {
 	})
 	defer commitAudit()
 
-	deleted, err := chatautomation.Delete(ctx, api.Database, httpmw.UserAuthorization(ctx), organization.ID, id)
+	deleted, err := chatautomation.Delete(ctx, api.Logger, api.Database, api.Authorizer, api.Pubsub, httpmw.UserAuthorization(ctx), organization.ID, id)
 	if errors.Is(err, chatautomation.ErrDeleteForbidden) {
 		httpapi.Forbidden(rw)
+		return
+	}
+	if errors.Is(err, chatstate.ErrInvalidState) {
+		httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+			Message: "A chat that holds queued messages of this automation is in an invalid state. Reconcile the chat, then delete the automation again.",
+			Detail:  err.Error(),
+		})
 		return
 	}
 	if httpapi.Is404Error(err) {

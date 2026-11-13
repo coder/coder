@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog/v3"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	coderdpubsub "github.com/coder/coder/v2/coderd/pubsub"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatdebug"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
@@ -609,7 +610,7 @@ func (s *taskStarter) publishWatchWithRetry(
 func publishChatWatchEvent(pubsub chatWorkerPubsub, chat database.Chat, kind codersdk.ChatWatchEventKind) error {
 	event := codersdk.ChatWatchEvent{
 		Kind: kind,
-		Chat: chatWatchEventSDKChat(chat, nil),
+		Chat: db2sdk.ChatWatchEventChat(chat, nil),
 	}
 	payload, err := json.Marshal(event)
 	if err != nil {

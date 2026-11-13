@@ -3038,15 +3038,18 @@ SELECT NOW()::timestamptz AS now;
 -- name: InsertChatQueuedMessageWithCreator :one
 -- Inserts a queued message that carries a position (from the default
 -- sequence) and an explicit created_by reference. Use this when the
--- queued-message creator differs from the chat owner.
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, busy_behavior)
+-- queued-message creator differs from the chat owner. A message that an
+-- automation queued carries automation_id and input_id, always together.
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, busy_behavior, automation_id, input_id)
 VALUES (
     @chat_id::uuid,
     @content::jsonb,
     sqlc.narg('model_config_id')::uuid,
     sqlc.narg('reasoning_effort')::chat_reasoning_effort,
     @created_by::uuid,
-    @busy_behavior::chat_busy_behavior
+    @busy_behavior::chat_busy_behavior,
+    sqlc.narg('automation_id')::uuid,
+    sqlc.narg('input_id')::uuid
 )
 RETURNING *;
 
@@ -3078,6 +3081,13 @@ WHERE id = @id::bigint AND chat_id = @chat_id::uuid;
 -- name: DeleteAllChatQueuedMessagesReturningCount :execrows
 DELETE FROM chat_queued_messages
 WHERE chat_id = @chat_id::uuid;
+
+-- name: DeleteChatQueuedMessagesByAutomationIDs :exec
+-- Deletes the queued messages of the chat that the given automations
+-- queued.
+DELETE FROM chat_queued_messages
+WHERE chat_id = @chat_id::uuid
+  AND automation_id = ANY(@automation_ids::uuid[]);
 
 -- name: UpdateChatQueuedMessageEditing :one
 -- Begins (@editing = true) or ends the row's edit. Beginning keeps an

@@ -1434,15 +1434,20 @@ func (s *MethodTestSuite) TestChats() {
 	s.Run("DeleteChatAutomationByID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
 		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
-		dbm.EXPECT().DeleteChatAutomationByID(gomock.Any(), automation.ID).Return(nil).AnyTimes()
-		check.Args(automation.ID).Asserts(automation, policy.ActionDelete)
+		dbm.EXPECT().DeleteChatAutomationByID(gomock.Any(), automation.ID).Return(int64(1), nil).AnyTimes()
+		check.Args(automation.ID).Asserts(automation, policy.ActionDelete).Returns(int64(1))
 	}))
-	s.Run("GetChatIDsWithQueuedMessagesByAutomationID", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
-		automation := testutil.Fake(s.T(), faker, database.ChatAutomation{})
+	s.Run("GetChatAutomationIDsByOwnerID", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		ownerID := uuid.New()
+		ids := []uuid.UUID{uuid.New(), uuid.New()}
+		dbm.EXPECT().GetChatAutomationIDsByOwnerID(gomock.Any(), ownerID).Return(ids, nil).AnyTimes()
+		check.Args(ownerID).Asserts(rbac.ResourceChatAutomation.WithOwner(ownerID.String()), policy.ActionRead).Returns(ids)
+	}))
+	s.Run("GetChatIDsWithQueuedMessagesByAutomationIDs", s.Mocked(func(dbm *dbmock.MockStore, _ *gofakeit.Faker, check *expects) {
+		automationIDs := []uuid.UUID{uuid.New(), uuid.New()}
 		chatIDs := []uuid.UUID{uuid.New(), uuid.New()}
-		dbm.EXPECT().GetChatAutomationByID(gomock.Any(), automation.ID).Return(automation, nil).AnyTimes()
-		dbm.EXPECT().GetChatIDsWithQueuedMessagesByAutomationID(gomock.Any(), automation.ID).Return(chatIDs, nil).AnyTimes()
-		check.Args(automation.ID).Asserts(automation, policy.ActionDelete).Returns(chatIDs)
+		dbm.EXPECT().GetChatIDsWithQueuedMessagesByAutomationIDs(gomock.Any(), automationIDs).Return(chatIDs, nil).AnyTimes()
+		check.Args(automationIDs).Asserts(rbac.ResourceChat, policy.ActionRead).Returns(chatIDs)
 	}))
 	s.Run("GetChatsByIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chatA := testutil.Fake(s.T(), faker, database.Chat{})
@@ -1850,6 +1855,13 @@ func (s *MethodTestSuite) TestChats() {
 		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
 		dbm.EXPECT().DeleteChatQueuedMessageReturningCount(gomock.Any(), arg).Return(int64(1), nil).AnyTimes()
 		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns(int64(1))
+	}))
+	s.Run("DeleteChatQueuedMessagesByAutomationIDs", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
+		chat := testutil.Fake(s.T(), faker, database.Chat{})
+		arg := database.DeleteChatQueuedMessagesByAutomationIDsParams{ChatID: chat.ID, AutomationIDs: []uuid.UUID{uuid.New()}}
+		dbm.EXPECT().GetChatByID(gomock.Any(), chat.ID).Return(chat, nil).AnyTimes()
+		dbm.EXPECT().DeleteChatQueuedMessagesByAutomationIDs(gomock.Any(), arg).Return(nil).AnyTimes()
+		check.Args(arg).Asserts(chat, policy.ActionUpdate).Returns()
 	}))
 	s.Run("DeleteAllChatQueuedMessagesReturningCount", s.Mocked(func(dbm *dbmock.MockStore, faker *gofakeit.Faker, check *expects) {
 		chat := testutil.Fake(s.T(), faker, database.Chat{})
