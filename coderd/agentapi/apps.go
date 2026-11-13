@@ -1,6 +1,7 @@
 package agentapi
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"fmt"
@@ -226,7 +227,12 @@ func (a *AppsAPI) UpdateAppStatus(ctx context.Context, req *agentproto.UpdateApp
 		// We pass time.Time{} for nextAutostart since we don't have access to
 		// TemplateScheduleStore here. The activity bump logic handles this by
 		// defaulting to the template's activity_bump duration (typically 1 hour).
-		workspacestats.ActivityBumpWorkspace(ctx, a.Log, a.Database, ws.ID, time.Time{}, workspacestats.ActivityBumpReasonAppActivity)
+		workspacestats.ActivityBumpWorkspace(ctx, a.Log, a.Database, ws.ID, time.Time{}, database.WorkspaceBuildDeadlineSource{
+			Type:        codersdk.WorkspaceBuildDeadlineSourceTypeWorkspaceApp,
+			AppID:       app.ID,
+			AgentID:     app.AgentID,
+			DisplayName: cmp.Or(app.DisplayName, app.Slug),
+		})
 	}
 	// just return a blank response because it doesn't contain any settable fields at present.
 	return new(agentproto.UpdateAppStatusResponse), nil

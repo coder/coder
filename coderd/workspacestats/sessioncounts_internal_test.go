@@ -1,11 +1,15 @@
 package workspacestats
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 func TestSessionCountsFromProto(t *testing.T) {
@@ -73,6 +77,46 @@ func TestHasSessionCounts(t *testing.T) {
 			require.Equal(t, tc.want, HasSessionCounts(tc.stats))
 		})
 	}
+}
+
+func TestActivitySources(t *testing.T) {
+	t.Parallel()
+
+	agentID := uuid.New()
+	for _, tc := range []struct {
+		name  string
+		stats *agentproto.Stats
+		want  []database.WorkspaceBuildDeadlineSource
+	}{
+		{"ConnectionsWithoutSessions", &agentproto.Stats{ConnectionCount: 1}, []database.WorkspaceBuildDeadlineSource{{Type: codersdk.WorkspaceBuildDeadlineSourceTypeConnection, AgentID: agentID}}},
+		{
+			"BusiestFirstThenByName",
+			&agentproto.Stats{SessionCounts: map[string]int64{"ssh": 1, "Cursor": 2, "jetbrains": 1}},
+			[]database.WorkspaceBuildDeadlineSource{
+				{Type: codersdk.WorkspaceBuildDeadlineSourceTypeSessionApp, AppName: "cursor", AgentID: agentID},
+				{Type: codersdk.WorkspaceBuildDeadlineSourceTypeSessionApp, AppName: "jetbrains", AgentID: agentID},
+				{Type: codersdk.WorkspaceBuildDeadlineSourceTypeSessionApp, AppName: "ssh", AgentID: agentID},
+			},
+		},
+		{"UnknownApp", &agentproto.Stats{SessionCounts: map[string]int64{"my-ide": 1}}, []database.WorkspaceBuildDeadlineSource{{Type: codersdk.WorkspaceBuildDeadlineSourceTypeSessionApp, AppName: "my_ide", AgentID: agentID}}},
+		{"UnknownKey", &agentproto.Stats{SessionCounts: map[string]int64{"\x00 ": 1}}, []database.WorkspaceBuildDeadlineSource{{Type: codersdk.WorkspaceBuildDeadlineSourceTypeSessionApp, AppName: "unknown", AgentID: agentID}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tc.want, activitySources(tc.stats, agentID))
+		})
+	}
+
+	counts := map[string]int64{}
+	for i := range int(codersdk.TemplateInsightsMaxUnregisteredApps) + 2 {
+		counts[fmt.Sprintf("app_%02d", i)] = int64(i + 1)
+	}
+	sources := activitySources(&agentproto.Stats{SessionCounts: counts}, agentID)
+	require.Len(t, sources, int(codersdk.TemplateInsightsMaxUnregisteredApps)+1)
+	require.Equal(t, fmt.Sprintf("app_%02d", codersdk.TemplateInsightsMaxUnregisteredApps+1), sources[0].AppName)
+	require.Equal(t, database.WorkspaceBuildDeadlineSource{
+		Type: codersdk.WorkspaceBuildDeadlineSourceTypeSessionApp, AppName: codersdk.AppNameOverflow, AgentID: agentID,
+	}, sources[len(sources)-1])
 }
 
 func TestClearSessionCounts(t *testing.T) {

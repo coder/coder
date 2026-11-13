@@ -208,25 +208,32 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"user_acl":           ActionTrack,
 	},
 	&database.WorkspaceBuild{}: {
-		"id":                         ActionIgnore,
-		"created_at":                 ActionIgnore,
-		"updated_at":                 ActionIgnore,
-		"workspace_id":               ActionIgnore,
-		"template_version_id":        ActionTrack,
-		"build_number":               ActionIgnore,
-		"transition":                 ActionIgnore,
-		"initiator_id":               ActionIgnore,
-		"job_id":                     ActionIgnore,
-		"deadline":                   ActionIgnore,
-		"reason":                     ActionIgnore,
-		"daily_cost":                 ActionIgnore,
-		"max_deadline":               ActionIgnore,
-		"initiator_by_avatar_url":    ActionIgnore,
-		"initiator_by_username":      ActionIgnore,
-		"initiator_by_name":          ActionIgnore,
-		"template_version_preset_id": ActionIgnore, // Never changes.
-		"has_external_agent":         ActionIgnore, // Never changes.
-		"notified_autostop_deadline": ActionIgnore, // Updated by the notification system, not by user action.
+		"id":                             ActionIgnore,
+		"created_at":                     ActionIgnore,
+		"updated_at":                     ActionIgnore,
+		"workspace_id":                   ActionIgnore,
+		"template_version_id":            ActionTrack,
+		"build_number":                   ActionIgnore,
+		"transition":                     ActionIgnore,
+		"initiator_id":                   ActionIgnore,
+		"job_id":                         ActionIgnore,
+		"deadline":                       ActionIgnore,
+		"reason":                         ActionIgnore,
+		"daily_cost":                     ActionIgnore,
+		"max_deadline":                   ActionIgnore,
+		"initiator_by_avatar_url":        ActionIgnore,
+		"initiator_by_username":          ActionIgnore,
+		"initiator_by_name":              ActionIgnore,
+		"template_version_preset_id":     ActionIgnore, // Never changes.
+		"has_external_agent":             ActionIgnore, // Never changes.
+		"notified_autostop_deadline":     ActionIgnore, // Updated by the notification system, not by user action.
+		"deadline_reason":                ActionIgnore, // Updated alongside deadline.
+		"deadline_changed_at":            ActionIgnore, // Updated alongside deadline.
+		"deadline_changed_by":            ActionIgnore,
+		"deadline_sources":               ActionIgnore,
+		"deadline_changed_by_avatar_url": ActionIgnore,
+		"deadline_changed_by_username":   ActionIgnore,
+		"deadline_changed_by_name":       ActionIgnore,
 	},
 	&database.AuditableGroup{}: {
 		"id":                      ActionTrack,
