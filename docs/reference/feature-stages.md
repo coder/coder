@@ -55,6 +55,7 @@ The `*` value does not enable every experiment.
 It enables only the experiments that Coder marks as safe to opt in to.
 To enable any other experiment, name it in the `--experiments` value.
 To list the experiments that `*` enables, call the [Get safe experiments](./api/general.md#get-safe-experiments) endpoint.
+The response is an object that holds the names in its `safe` array.
 
 You can also use the `CODER_EXPERIMENTS` [environment variable](../admin/setup/index.md).
 

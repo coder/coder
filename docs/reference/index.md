@@ -80,7 +80,8 @@ Workspace agents have a special token that can send logs, metrics, and workspace
   Create one with `coder tokens create`, and set it as `CODER_SESSION_TOKEN`.
   The script needs `jq`.
   It leaves the deadline alone when the workspace already has a later one.
-  If the API returns the deadline with a UTC offset other than `Z`, the script cannot compare the two values, and it sets the deadline to one hour from now on every pass.
+  This check needs the Coder database to use the UTC time zone, so that the API returns the deadline as a UTC timestamp that ends in `Z`.
+  If the database uses another time zone, the script sets the deadline to one hour from now on every pass, which can shorten a later deadline.
 
   ```sh
   #!/bin/bash

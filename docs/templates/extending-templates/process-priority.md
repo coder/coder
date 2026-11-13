@@ -90,8 +90,6 @@ Make sure the process is dumpable (the agent handles this automatically, but it 
 ### Nice value is not applied
 
 If you see `failed to adjust niceness` in stderr, the most likely cause is a `CODER_PROC_NICE_SCORE` that is lower than the agent's current nice value.
-By default, Linux does not let the agent give a child process a nice value below its own, so the process starts with the agent's nice value.
-Adding `CAP_SYS_NICE` does not change this.
 Set `CODER_PROC_NICE_SCORE` to a value at or above the agent's nice value, or remove it to use the default.
 For details, refer to [Nice score defaults](#nice-score-defaults).
 
