@@ -62,6 +62,7 @@ describe("findTitleCaseWords", () => {
 		expect(words('Pick "admin" Access')).toEqual(["Access"]);
 		expect(words("Default (Recommended) Option")).toEqual(["Option"]);
 		expect(words("Saved (see logs.) Next steps")).toEqual([]);
+		expect(words("Create a ‘temporary’ Workspace")).toEqual(["Workspace"]);
 	});
 
 	it("starts a new phrase after an opening bracket or quote", () => {
@@ -121,6 +122,8 @@ describe("checkSource", () => {
 			'switch (group) { case "User Events": break; }',
 			'const value = lookup["Other Key"];',
 			'if (event === ("Task Events" as const)) {}',
+			'if (event === "Task Events" + suffix) {}',
+			"if (event === `Task Events ${suffix}`) {}",
 			'switch (group) { case "User Events"!: break; }',
 		].join("\n");
 		expect(checkSource("file.tsx", source).issues).toEqual([]);

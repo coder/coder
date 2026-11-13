@@ -184,8 +184,8 @@ function capitalizedSegments(word, start = 0) {
 
 // Brackets and quotes that open or close an aside. The phrase around an
 // aside resumes after it closes: "Create a (temporary) workspace".
-const OPENING_MARK = /[([{“"]/;
-const CLOSING_MARK = /[)\]}”"]/;
+const OPENING_MARK = /[([{“‘"]/;
+const CLOSING_MARK = /[)\]}”’"]/;
 
 // Punctuation that ends a sentence or label, so the next word starts a
 // new phrase and may be capitalized. A comma continues the phrase
@@ -1083,13 +1083,14 @@ function collectTexts(sourceFile) {
 				break;
 			case ts.SyntaxKind.BinaryExpression:
 			case ts.SyntaxKind.TemplateExpression: {
-				if (
-					consumed.has(node) ||
-					isNonDisplayLiteral(node) ||
-					(isPlus(node) && !isOutermostConcatenation(node)) ||
-					(ts.isBinaryExpression(node) && !isPlus(node))
-				) {
+				const isString =
+					ts.isTemplateExpression(node) || isOutermostConcatenation(node);
+				if (!isString || consumed.has(node)) {
 					break;
+				}
+				if (isNonDisplayLiteral(node)) {
+					// Skip the whole value, including the strings inside it.
+					return;
 				}
 				texts.push(...collectStringTexts(node, sourceFile, consumed));
 				break;
