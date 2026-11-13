@@ -40,6 +40,7 @@ func (a *agent) apiHandler(upgradeListener *httpUpgrader) http.Handler {
 	r.Mount("/api/v0", a.filesAPI.Routes())
 	r.Mount("/api/v0/git", a.gitAPI.Routes())
 	r.Mount("/api/v0/processes", a.processAPI.Routes())
+	r.Mount("/api/v0/previews", a.previewAPI.Routes())
 	r.Mount("/api/v0/tool-calls", a.toolCalls.Routes())
 	r.Mount("/api/v0/desktop", a.desktopAPI.Routes())
 	r.Mount("/api/v0/mcp", a.mcpAPI.Routes())
