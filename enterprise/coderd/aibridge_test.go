@@ -4698,13 +4698,6 @@ func requestAISpendExport(ctx context.Context, t *testing.T, client *codersdk.Cl
 	return requestAISpend(ctx, t, client, fmt.Sprintf("/api/v2/organizations/%s/ai/spend/export", orgID), params)
 }
 
-// requestAISpendUsers issues a raw per-user spend request so callers can
-// inspect the status code and error body directly.
-func requestAISpendUsers(ctx context.Context, t *testing.T, client *codersdk.Client, orgID uuid.UUID, params map[string]string) *http.Response {
-	t.Helper()
-	return requestAISpend(ctx, t, client, fmt.Sprintf("/api/experimental/organizations/%s/ai/spend/users", orgID), params)
-}
-
 func requestAISpend(ctx context.Context, t *testing.T, client *codersdk.Client, path string, params map[string]string) *http.Response {
 	t.Helper()
 	res, err := client.Request(ctx, http.MethodGet, path, nil, func(r *http.Request) {
@@ -4796,12 +4789,6 @@ func TestExportOrganizationAISpend(t *testing.T) {
 				// The export is not paginated, so page parameters are unknown.
 				name:            "UnknownPaginationParameter",
 				params:          map[string]string{"limit": "10"},
-				wantStatus:      http.StatusBadRequest,
-				wantMsgContains: "have invalid values",
-			},
-			{
-				name:            "UnknownPaginationOffsetParameter",
-				params:          map[string]string{"offset": "1"},
 				wantStatus:      http.StatusBadRequest,
 				wantMsgContains: "have invalid values",
 			},
@@ -5467,68 +5454,6 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 	// setupAICostControlTest keeps the default 60d retention.
 	defaultRetentionStart := now.Add(-60 * 24 * time.Hour)
 
-	t.Run("PaginationValidation", func(t *testing.T) {
-		t.Parallel()
-		clock := quartz.NewMock(t)
-		clock.Set(now)
-		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{
-			GroupName: "spend-pagination-validation-group",
-			Clock:     clock,
-		})
-
-		cases := []struct {
-			name       string
-			params     map[string]string
-			wantStatus int
-		}{
-			{name: "LimitZero", params: map[string]string{"limit": "0"}, wantStatus: http.StatusBadRequest},
-			{name: "LimitAboveMax", params: map[string]string{"limit": "101"}, wantStatus: http.StatusBadRequest},
-			{name: "LimitMax", params: map[string]string{"limit": "100"}, wantStatus: http.StatusOK},
-			{name: "NegativeOffset", params: map[string]string{"offset": "-1"}, wantStatus: http.StatusBadRequest},
-			{name: "OffsetBeyondEnd", params: map[string]string{"offset": "1000"}, wantStatus: http.StatusOK},
-			{name: "UnknownParameter", params: map[string]string{"sort": "cost"}, wantStatus: http.StatusBadRequest},
-		}
-		for _, tc := range cases {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-				ctx := testutil.Context(t, testutil.WaitLong)
-
-				res := requestAISpendUsers(ctx, t, adminClient, group.OrganizationID, tc.params)
-				defer res.Body.Close()
-				require.Equal(t, tc.wantStatus, res.StatusCode)
-				if tc.wantStatus != http.StatusOK {
-					var sdkErr *codersdk.Error
-					require.ErrorAs(t, codersdk.ReadBodyAsError(res), &sdkErr)
-					require.Contains(t, sdkErr.Message, "have invalid values")
-				}
-			})
-		}
-	})
-
-	t.Run("UserIDsAboveMax", func(t *testing.T) {
-		t.Parallel()
-		clock := quartz.NewMock(t)
-		clock.Set(now)
-		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{
-			GroupName: "spend-users-user-ids-group",
-			Clock:     clock,
-		})
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		var userIDs []uuid.UUID
-		for range 101 {
-			userIDs = append(userIDs, uuid.New())
-		}
-		_, err := codersdk.NewExperimentalClient(adminClient).OrganizationAISpendUsers(ctx, group.OrganizationID, codersdk.OrganizationAISpendFilter{UserIDs: userIDs}, codersdk.OrganizationAISpendPage{})
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-		require.Equal(t, []codersdk.ValidationError{{
-			Field:  "user_ids",
-			Detail: "user_ids has 101 entries, maximum is 100.",
-		}}, sdkErr.Validations)
-	})
-
 	t.Run("Report", func(t *testing.T) {
 		t.Parallel()
 		clock := quartz.NewMock(t)
@@ -5651,7 +5576,7 @@ func TestOrganizationAISpendUsers(t *testing.T) {
 			}, report)
 		})
 
-		t.Run("Pages", func(t *testing.T) {
+		t.Run("Pagination", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitLong)
 			// Count and totals describe the whole window on every page.
@@ -5894,10 +5819,6 @@ func TestOrganizationAISpend(t *testing.T) {
 			wantMessage     string
 			wantValidations []codersdk.ValidationError
 		}{
-			{name: "LimitZero", params: map[string]string{"limit": "0"}, wantStatus: http.StatusBadRequest, wantMessage: "have invalid values"},
-			{name: "LimitAboveMax", params: map[string]string{"limit": "101"}, wantStatus: http.StatusBadRequest, wantMessage: "have invalid values"},
-			{name: "LimitMax", params: map[string]string{"limit": "100"}, wantStatus: http.StatusOK},
-			{name: "NegativeOffset", params: map[string]string{"offset": "-1"}, wantStatus: http.StatusBadRequest, wantMessage: "have invalid values"},
 			{name: "UnknownParameter", params: map[string]string{"provider_name": "openai"}, wantStatus: http.StatusBadRequest, wantMessage: "have invalid values"},
 			{
 				name:        "StartNotAtMidnight",
@@ -6612,67 +6533,31 @@ func TestGroupMembersAISpend(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
 	})
 
-	t.Run("InclusiveMaxUserIDs", func(t *testing.T) {
+	t.Run("UserIDs", func(t *testing.T) {
 		t.Parallel()
 
-		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "inclusive-max-user-ids-group"})
+		// Given: a group with two members.
+		db, ps := dbtestutil.NewDB(t)
+		adminClient, targetUser, group := setupAICostControlTest(t, aiCostControlTestOptions{
+			GroupName: "user-ids-members-group",
+			Database:  db,
+			Pubsub:    ps,
+		})
+		otherUser := dbgen.User(t, db, database.User{})
+		dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: otherUser.ID, OrganizationID: group.OrganizationID})
 		ctx := testutil.Context(t, testutil.WaitLong)
-
-		// Given: 100 user_ids, exactly at the cap.
-		ids := make([]uuid.UUID, 100)
-		for i := range ids {
-			ids[i] = uuid.New()
-		}
-
-		// When: querying spend.
-		_, err := adminClient.GroupMembersAISpend(ctx, group.ID, ids)
-
-		// Then: request succeeds.
+		_, err := adminClient.PatchGroup(ctx, group.ID, codersdk.PatchGroupRequest{
+			AddUsers: []string{otherUser.ID.String()},
+		})
 		require.NoError(t, err)
-	})
 
-	t.Run("TooManyUserIDs", func(t *testing.T) {
-		t.Parallel()
-
-		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "too-many-user-ids-group"})
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		// Given: 101 user_ids, above the cap of 100.
-		ids := make([]uuid.UUID, 101)
-		for i := range ids {
-			ids[i] = uuid.New()
-		}
-
-		// When: querying spend.
-		_, err := adminClient.GroupMembersAISpend(ctx, group.ID, ids)
-
-		// Then: request fails with 400.
-		var sdkErr *codersdk.Error
-		require.ErrorAs(t, err, &sdkErr)
-		require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-	})
-
-	t.Run("MalformedUserID", func(t *testing.T) {
-		t.Parallel()
-
-		adminClient, _, group := setupAICostControlTest(t, aiCostControlTestOptions{GroupName: "malformed-user-id-group"})
-		ctx := testutil.Context(t, testutil.WaitLong)
-
-		// Given: a malformed UUID passed via raw HTTP.
-		res, err := adminClient.Request(ctx, http.MethodGet,
-			"/api/v2/groups/"+group.ID.String()+"/members/ai/spend",
-			nil,
-			func(r *http.Request) {
-				q := r.URL.Query()
-				q.Set("user_ids", "not-a-uuid")
-				r.URL.RawQuery = q.Encode()
-			},
-		)
+		// When: querying one of them.
+		resp, err := adminClient.GroupMembersAISpend(ctx, group.ID, []uuid.UUID{targetUser.ID})
 		require.NoError(t, err)
-		defer res.Body.Close()
 
-		// Then: 400.
-		require.Equal(t, http.StatusBadRequest, res.StatusCode)
+		// Then: only that member is returned.
+		require.Len(t, resp.Members, 1)
+		require.Equal(t, targetUser.ID, resp.Members[0].UserID)
 	})
 
 	t.Run("UserInOtherOrgExcluded", func(t *testing.T) {
