@@ -29,12 +29,12 @@ const WorkspaceProxyPage: React.FC = () => {
 
 	return (
 		<>
-			<title>{pageTitle("Workspace proxy - Health")}</title>
+			<title>{pageTitle("Workspace Proxy - Health")}</title>
 
 			<Header>
 				<HeaderTitle>
 					<HealthyDot severity={workspace_proxy.severity} />
-					Workspace proxy
+					Workspace Proxy
 				</HeaderTitle>
 				<MuteWarningsButton healthcheck="WorkspaceProxy" />
 			</Header>
