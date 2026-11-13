@@ -37,7 +37,12 @@ import { WorkspaceBuildLogs } from "#/modules/workspaces/WorkspaceBuildLogs/Work
 import { formatDate } from "#/utils/time";
 import { displayWorkspaceBuildDuration } from "#/utils/workspace";
 import { WorkspaceDeletedBanner } from "../WorkspacePage/WorkspaceDeletedBanner";
-import { Sidebar, SidebarCaption, SidebarItem } from "./Sidebar";
+import {
+	Sidebar,
+	SidebarCaption,
+	SidebarItemSkeleton,
+	SidebarLink,
+} from "./Sidebar";
 
 export const LOGS_TAB_KEY = "logs";
 
@@ -150,25 +155,24 @@ export const WorkspaceBuildPageView: React.FC<WorkspaceBuildPageViewProps> = ({
 					<SidebarCaption>Builds</SidebarCaption>
 					{!builds &&
 						Array.from({ length: 15 }, (_, i) => (
-							<SidebarItem key={i}>
+							<SidebarItemSkeleton key={i}>
 								<WorkspaceBuildDataSkeleton />
-							</SidebarItem>
+							</SidebarItemSkeleton>
 						))}
 
 					{builds?.map((build) => (
-						<Link
+						<SidebarLink
 							key={build.id}
 							to={`/@${build.workspace_owner_name}/${build.workspace_name}/builds/${build.build_number}`}
+							active={build.build_number === activeBuildNumber}
 						>
-							<SidebarItem active={build.build_number === activeBuildNumber}>
-								<WorkspaceBuildData build={build} />
-							</SidebarItem>
-						</Link>
+							<WorkspaceBuildData build={build} />
+						</SidebarLink>
 					))}
 				</Sidebar>
 
 				<ScrollArea>
-					<div className="flex items-center justify-between border-0 border-b border-solid border-border relative">
+					<div className="flex items-center justify-between border-b relative">
 						<Tabs
 							value={selectedTab}
 							onValueChange={(value: string) => {
@@ -210,7 +214,7 @@ export const WorkspaceBuildPageView: React.FC<WorkspaceBuildPageViewProps> = ({
 										<Alert
 											severity="error"
 											prominent
-											className="rounded-none border-0 border-b border-solid border-border"
+											className="rounded-none border-0 border-b border-border"
 										>
 											<div>
 												The workspace may have failed to delete due to a
@@ -226,7 +230,7 @@ export const WorkspaceBuildPageView: React.FC<WorkspaceBuildPageViewProps> = ({
 									<Alert
 										severity="warning"
 										prominent
-										className="rounded-none border-0 border-b border-solid border-border"
+										className="rounded-none border-0 border-b border-border"
 									>
 										Provisioner logs exceeded the max size of 1MB. Will not
 										continue to write provisioner logs for workspace build.

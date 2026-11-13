@@ -29,7 +29,7 @@ const SessionSummaryTooltip: React.FC<React.PropsWithChildren> = ({
 			<button
 				type="button"
 				aria-label="About sessions"
-				className="m-0 ml-2 shrink-0 flex items-center border-0 bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
+				className="m-0 ml-2 shrink-0 flex items-center bg-transparent p-0 text-inherit rounded-sm focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-content-link"
 			>
 				{children}
 			</button>
@@ -154,7 +154,7 @@ export const SessionThreadsPageView: React.FC<SessionThreadsPageViewProps> = ({
 				)}
 			</nav>
 			<div className="flex flex-col md:flex-row md:items-start gap-6">
-				<aside className="md:w-80 md:shrink-0 px-3 py-2.5 border border-solid rounded-md flex flex-col gap-1">
+				<aside className="md:w-80 md:shrink-0 px-3 py-2.5 border rounded-md flex flex-col gap-1">
 					<h2 className="text-sm font-semibold flex items-center m-0">
 						Session summary
 						<SessionSummaryTooltip>
