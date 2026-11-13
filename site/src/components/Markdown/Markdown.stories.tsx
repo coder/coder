@@ -66,6 +66,43 @@ export const WithCode: Story = {
 	},
 };
 
+export const WithHeadings: Story = {
+	args: {
+		children: `
+# Heading 1
+
+This template provisions a Docker container with a persistent home volume.
+
+## Heading 2
+
+The container runs the Coder agent and exposes code-server on port 8080.
+
+### Heading 3
+
+Set the CPU and memory parameters when you create the workspace.
+
+#### Heading 4
+
+The home volume survives workspace restarts.
+
+##### Heading 5
+
+Delete the workspace to remove the volume.
+
+###### Heading 6
+
+See the Docker provider documentation for more options.
+`,
+	},
+};
+
+export const WithHeadingsCompact: Story = {
+	args: {
+		...WithHeadings.args,
+		className: "text-xs",
+	},
+};
+
 export const WithTable: Story = {
 	args: {
 		children: `
