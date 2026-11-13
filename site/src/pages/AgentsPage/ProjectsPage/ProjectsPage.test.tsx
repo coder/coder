@@ -82,9 +82,7 @@ describe("ProjectsPage", () => {
 		// Pins run in order, so Kilo's pin waits behind India's.
 		for (const name of ["India", "Kilo"]) {
 			await openActions(name);
-			await user.click(
-				await screen.findByRole("menuitem", { name: "Pin project" }),
-			);
+			await user.click(await screen.findByRole("menuitem", { name: "Pin" }));
 		}
 		await waitFor(() =>
 			expect(pin).toHaveBeenCalledWith(
@@ -94,8 +92,8 @@ describe("ProjectsPage", () => {
 			),
 		);
 		await openActions("India");
-		await screen.findByRole("menuitem", { name: "Edit project" });
-		expect(screen.queryByRole("menuitem", { name: "Pin project" })).toBeNull();
+		await screen.findByRole("menuitem", { name: "Edit" });
+		expect(screen.queryByRole("menuitem", { name: "Pin" })).toBeNull();
 	});
 
 	it("unpins once when the pin button is double-clicked", async () => {
@@ -118,7 +116,7 @@ describe("ProjectsPage", () => {
 		await user.click(
 			screen.getByRole("button", { name: "Open project actions for Kilo" }),
 		);
-		await user.click(screen.getByRole("menuitem", { name: "Pin project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Pin" }));
 		await waitFor(() => expect(pin).toHaveBeenCalled());
 		expect(unpin).toHaveBeenCalledOnce();
 	});

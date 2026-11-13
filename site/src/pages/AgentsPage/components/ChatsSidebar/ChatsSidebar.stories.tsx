@@ -43,6 +43,7 @@ import {
 } from "#/testHelpers/storybook";
 import { useAgentsPageKeybindings } from "../../hooks/useAgentsPageKeybindings";
 import {
+	type AgentSidebarFilters,
 	DEFAULT_AGENT_SIDEBAR_FILTERS as defaultSidebarFilters,
 	getSidebarChatListInput,
 } from "../../utils/agentSidebarFilters";
@@ -3217,6 +3218,80 @@ export const ProjectFolderWithPinnedChat: Story = {
 	},
 };
 
+const ownAndSharedSidebarFilters = {
+	...defaultSidebarFilters,
+	sources: ["created_by_me", "shared_with_me"],
+} satisfies AgentSidebarFilters;
+const mockUnpinnedProject = {
+	...MockChatProject,
+	id: "unpinned-project",
+	name: "Unpinned project",
+};
+
+const mockSharedPinnedProjectChat = buildChat({
+	id: "shared-pinned-project-chat",
+	title: "Shared chat in a pinned project",
+	owner_id: "sharing-user",
+	owner_name: "Sharing User",
+	owner_username: "sharing-user",
+	shared: true,
+	organization_id: MockChatProject.organization_id,
+	project_id: MockChatProject.id,
+	pin_order: 1,
+});
+
+/**
+ * A shared chat in a pinned project lists in its folder, even when its owner
+ * pinned it; a shared chat in an unpinned project lists under Shared with you.
+ */
+export const SharedChatsInProjects: Story = {
+	args: {
+		sidebarFilters: ownAndSharedSidebarFilters,
+		chats: [
+			mockLooseChat,
+			mockSharedPinnedProjectChat,
+			buildChat({
+				...mockSharedPinnedProjectChat,
+				id: "shared-unpinned-project-chat",
+				title: "Shared chat in an unpinned project",
+				organization_id: mockUnpinnedProject.organization_id,
+				project_id: mockUnpinnedProject.id,
+				pin_order: 0,
+			}),
+		],
+	},
+	parameters: {
+		queries: [
+			{
+				key: chatProjectSummariesKey,
+				data: [
+					MockChatProjectSummary,
+					{
+						...MockChatProjectSummary,
+						project: mockUnpinnedProject,
+						pinned: false,
+						pin_order: 0,
+					},
+				],
+			},
+			{
+				key: projectFolderChatsKey(
+					MockChatProject.id,
+					toChatListParams(getSidebarChatListInput(ownAndSharedSidebarFilters)),
+				),
+				data: { pages: [[]], pageParams: [0] },
+			},
+		],
+		reactRouter: reactRouterParameters({
+			location: {
+				path: `/agents/projects/${MockChatProject.id}`,
+				pathParams: { projectId: MockChatProject.id },
+			},
+			routing: agentsRouting,
+		}),
+	},
+};
+
 /** A folder whose chats are all pinned shows their count, not its empty state. */
 export const ProjectFolderWithOnlyPinnedChats: Story = {
 	args: {
@@ -3526,6 +3601,29 @@ export const UnloadedProjectChatDragMutesChats: Story = {
 
 export const ProjectsLoading: Story = {
 	args: { chats: mockProjectChats },
+	beforeEach: () => {
+		spyOn(API.experimental, "getChatProjectSummaries").mockReturnValue(
+			new Promise(() => {}),
+		);
+	},
+};
+
+/** Shared chats with a project wait for the summaries, like the user's own. */
+export const ProjectsLoadingWithSharedChats: Story = {
+	args: {
+		sidebarFilters: ownAndSharedSidebarFilters,
+		chats: [
+			mockLooseChat,
+			mockSharedPinnedProjectChat,
+			buildChat({
+				...mockSharedPinnedProjectChat,
+				id: "shared-loose-chat",
+				title: "Shared chat",
+				project_id: undefined,
+				pin_order: 0,
+			}),
+		],
+	},
 	beforeEach: () => {
 		spyOn(API.experimental, "getChatProjectSummaries").mockReturnValue(
 			new Promise(() => {}),
