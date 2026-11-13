@@ -104,22 +104,17 @@ func New(options Options) (Reporter, error) {
 		deploymentURL: deploymentURL,
 		snapshotURL:   snapshotURL,
 		startedAt:     dbtime.Time(options.Clock.Now()).UTC(),
-		client:        newHTTPClient(),
+		client:        &http.Client{},
+	}
+	// Give the client its own connection pool. On http.DefaultTransport the pool
+	// is shared with the whole process, and any call to its CloseIdleConnections
+	// (httptest.Server.Close makes one) can fail a request while net/http hands
+	// it a response that has no body.
+	if transport, ok := http.DefaultTransport.(*http.Transport); ok {
+		reporter.client.Transport = transport.Clone()
 	}
 	go reporter.runSnapshotter()
 	return reporter, nil
-}
-
-// newHTTPClient returns a client with its own connection pool. A client on
-// http.DefaultTransport shares its pool with the whole process, and any call to
-// its CloseIdleConnections (httptest.Server.Close makes one) can fail a request
-// while net/http hands it a response that has no body.
-func newHTTPClient() *http.Client {
-	transport := &http.Transport{Proxy: http.ProxyFromEnvironment}
-	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
-		transport = defaultTransport.Clone()
-	}
-	return &http.Client{Transport: transport}
 }
 
 // NewNoop creates a new telemetry reporter that entirely discards all requests.
