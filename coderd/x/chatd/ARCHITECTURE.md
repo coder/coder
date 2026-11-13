@@ -1099,6 +1099,8 @@ The runner maintains the following local state:
 - a list of goroutines it has spawned to perform side effects, each identified by a unique ID, together with cancellation handles and go channels that the goroutines use to notify they have finished.
 - the ID of the currently active goroutine, if there is one.
 
+TODO: document the runner's workspace agent connection (`runnerAgentConn`). Each step still resolves its workspace agent from its own chat snapshot, and dials through the runner: the runner returns the connection it holds if it is to that workspace agent and the workspace agent is not disconnected, and otherwise acquires a new one. Concurrent dials share one acquisition. It also keeps that workspace agent's home directory for the plan path. A root chat's plan path lookup makes the runner forget a connection to a workspace agent other than the latest build's chat agent. The runner releases every connection it acquired when it exits, after its steps have ended, so queued turns share the connection.
+
 ### Event processing
 
 The main idea behind the event processing logic is that a chat's status and its history version determine the work that the runner should be performing at any given time. Let's go through an example:
