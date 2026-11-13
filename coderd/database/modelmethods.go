@@ -212,6 +212,10 @@ func (p ChatProject) RBACObject() rbac.Object {
 		WithGroupACL(p.GroupACL.RBACACL())
 }
 
+func (r GetChatProjectSummariesByUserIDRow) RBACObject() rbac.Object {
+	return r.ChatProject.RBACObject()
+}
+
 // Project read grants memory read and write, matching what agent memory
 // tools can do in the sharee's chats. Those tools run as chatd and bypass
 // this ACL, so chatd checks IsChatProjectUsableByUserID first.

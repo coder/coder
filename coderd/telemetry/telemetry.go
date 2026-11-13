@@ -33,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprovider"
 	"github.com/coder/coder/v2/codersdk"
@@ -848,6 +849,18 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
+		// Grants count only where RBAC honors them, as in the summaries.
+		sharingDisabled := rbac.ChatACLDisabled() ||
+			(r.options.DeploymentConfig != nil && bool(r.options.DeploymentConfig.DisableChatSharing))
+		row, err := r.options.Database.GetChatProjectPinTelemetry(ctx, !sharingDisabled)
+		if err != nil {
+			return xerrors.Errorf("get chat project pin telemetry: %w", err)
+		}
+		summary := ChatProjectPinSummary(row)
+		snapshot.ChatProjectPins = &summary
+		return nil
+	})
+	eg.Go(func() error {
 		summary, err := r.collectUserSecretsSummary(ctx)
 		if err != nil {
 			return xerrors.Errorf("collect user secrets summary: %w", err)
@@ -1555,6 +1568,7 @@ type Snapshot struct {
 	ChatMessageSummaries                 []ChatMessageSummary                  `json:"chat_message_summaries"`
 	ChatModelConfigs                     []ChatModelConfig                     `json:"chat_model_configs"`
 	ChatDiffStatusSummary                *ChatDiffStatusSummary                `json:"chat_diff_status_summary"`
+	ChatProjectPins                      *ChatProjectPinSummary                `json:"chat_project_pins"`
 	UserSecretsSummary                   *UserSecretsSummary                   `json:"user_secrets_summary"`
 	TemplateBuilderSessions              []TemplateBuilderSession              `json:"template_builder_sessions"`
 	PremiumFunnelEvents                  []PremiumFunnelEvent                  `json:"premium_funnel_events"`
@@ -2524,6 +2538,34 @@ type ChatDiffStatusSummary struct {
 	Open   int64 `json:"open"`
 	Merged int64 `json:"merged"`
 	Closed int64 `json:"closed"`
+}
+
+// ChatProjectPinSummary measures whether active users pin a subset of the
+// projects they own or that are shared with them. Pin and tombstone counts
+// are split by pin source. Share histograms bucket users by the percentage
+// of their projects they pinned, for all users and for users who acted on
+// pins themselves.
+type ChatProjectPinSummary struct {
+	UsersWithProjects   int64 `json:"users_with_projects"`
+	UsersWithTombstones int64 `json:"users_with_tombstones"`
+	PinnedMigration     int64 `json:"pinned_migration"`
+	PinnedDefault       int64 `json:"pinned_default"`
+	PinnedUser          int64 `json:"pinned_user"`
+	TombstonesMigration int64 `json:"tombstones_migration"`
+	TombstonesDefault   int64 `json:"tombstones_default"`
+	TombstonesUser      int64 `json:"tombstones_user"`
+	AllShare0           int64 `json:"all_share_0"`
+	AllShare125         int64 `json:"all_share_1_25"`
+	AllShare2650        int64 `json:"all_share_26_50"`
+	AllShare5175        int64 `json:"all_share_51_75"`
+	AllShare7699        int64 `json:"all_share_76_99"`
+	AllShare100         int64 `json:"all_share_100"`
+	ActedShare0         int64 `json:"acted_share_0"`
+	ActedShare125       int64 `json:"acted_share_1_25"`
+	ActedShare2650      int64 `json:"acted_share_26_50"`
+	ActedShare5175      int64 `json:"acted_share_51_75"`
+	ActedShare7699      int64 `json:"acted_share_76_99"`
+	ActedShare100       int64 `json:"acted_share_100"`
 }
 
 // UserSecretsSummary contains deployment-wide aggregates about user

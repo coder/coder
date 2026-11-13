@@ -1946,6 +1946,22 @@ func ChatProject(project database.ChatProject, permissions codersdk.ChatProjectP
 	}
 }
 
+// ChatProjectSummary converts a project summary row; project is the row's
+// project converted with the caller's permissions.
+func ChatProjectSummary(row database.GetChatProjectSummariesByUserIDRow, project codersdk.ChatProject) codersdk.ChatProjectSummary {
+	return codersdk.ChatProjectSummary{
+		Project:           project,
+		Pinned:            row.Pinned,
+		PinOrder:          row.PinOrder,
+		OwnChatCount:      row.OwnChatCount,
+		OwnUnreadCount:    row.OwnUnreadCount,
+		OwnRunning:        row.OwnRunning,
+		OwnNeedsAttention: row.OwnNeedsAttention,
+		LastActivityAt:    nullTimePtr(row.LastActivityAt),
+		MemberCount:       row.MemberCount,
+	}
+}
+
 // ChatProjectInstructions converts a project's stored instructions.
 func ChatProjectInstructions(row database.GetChatProjectInstructionsByProjectIDRow) codersdk.ChatProjectInstructions {
 	updatedAt := row.ChatProjectInstruction.UpdatedAt

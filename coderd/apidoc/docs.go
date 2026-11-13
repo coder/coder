@@ -185,6 +185,37 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/experimental/chats/projects/summaries": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "List chat project summaries",
+                "operationId": "list-chat-project-summaries",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ChatProjectSummary"
+                            }
+                        }
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
         "/api/experimental/chats/{chat}/stream/desktop": {
             "get": {
                 "description": "Raw binary WebSocket stream of the chat workspace desktop.\nExperimental: this endpoint is subject to change.",
@@ -1155,6 +1186,95 @@ const docTemplate = `{
                         "format": "uuid",
                         "description": "Chat project memory ID",
                         "name": "memory",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/api/experimental/organizations/{organization}/chats/projects/{project}/pin": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Pin chat project",
+                "operationId": "pin-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Pin chat project request",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PinChatProjectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                },
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "x-apidocgen": {
+                    "skip": true
+                }
+            },
+            "delete": {
+                "tags": [
+                    "Chats"
+                ],
+                "summary": "Unpin chat project",
+                "operationId": "unpin-chat-project",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Chat project ID",
+                        "name": "project",
                         "in": "path",
                         "required": true
                     }
@@ -3296,6 +3416,12 @@ const docTemplate = `{
                         "format": "uuid",
                         "description": "Only chats in this project.",
                         "name": "project_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Leave out chats in projects the caller has not pinned, unless the chat is pinned. Chats in projects the caller can no longer use are still returned.",
+                        "name": "pinned_projects_only",
                         "in": "query"
                     }
                 ],
@@ -23960,6 +24086,43 @@ const docTemplate = `{
                 "ChatProjectRoleDeleted"
             ]
         },
+        "codersdk.ChatProjectSummary": {
+            "type": "object",
+            "properties": {
+                "last_activity_at": {
+                    "description": "LastActivityAt is the latest update to one of the caller's chats.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "member_count": {
+                    "description": "MemberCount counts users who can use the project, including the owner.\nSuspended users are not counted. It is 1 when chat sharing is\nunavailable.",
+                    "type": "integer"
+                },
+                "own_chat_count": {
+                    "type": "integer"
+                },
+                "own_needs_attention": {
+                    "description": "OwnNeedsAttention reports a chat that requires action, failed, or is paused.",
+                    "type": "boolean"
+                },
+                "own_running": {
+                    "type": "boolean"
+                },
+                "own_unread_count": {
+                    "type": "integer"
+                },
+                "pin_order": {
+                    "description": "PinOrder is the 1-based position among pinned projects, or 0.",
+                    "type": "integer"
+                },
+                "pinned": {
+                    "type": "boolean"
+                },
+                "project": {
+                    "$ref": "#/definitions/codersdk.ChatProject"
+                }
+            }
+        },
         "codersdk.ChatProjectUser": {
             "type": "object",
             "required": [
@@ -29856,6 +30019,15 @@ const docTemplate = `{
                 },
                 "resource_type": {
                     "$ref": "#/definitions/codersdk.RBACResource"
+                }
+            }
+        },
+        "codersdk.PinChatProjectRequest": {
+            "type": "object",
+            "properties": {
+                "pin_order": {
+                    "description": "PinOrder is the 1-based position to pin at. When omitted, a new pin\ngoes to the end and an existing pin keeps its position.",
+                    "type": "integer"
                 }
             }
         },
