@@ -141,7 +141,12 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				templatesError={templatesQuery.error}
 				saveError={templatesValidationDetail(error)}
 				value={value}
-				onChange={setValue}
+				onChange={(next) => {
+					setValue(next);
+					if (error) {
+						onResetError();
+					}
+				}}
 				disabled={isSaving}
 			/>
 			{hasConflict && (
