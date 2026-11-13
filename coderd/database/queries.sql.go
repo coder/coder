@@ -9274,23 +9274,6 @@ func (q *sqlQuerier) ClearChatDiffStatusPR(ctx context.Context, arg ClearChatDif
 	return err
 }
 
-const clearChatMessagesPromptHooks = `-- name: ClearChatMessagesPromptHooks :exec
-UPDATE
-    chat_messages
-SET
-    prompt_hooks_pending = false
-WHERE
-    chat_id = $1::uuid
-    AND prompt_hooks_pending
-`
-
-// Clears the flag of every message in the chat, for messages that a context
-// reset hides from the model before their hooks ran.
-func (q *sqlQuerier) ClearChatMessagesPromptHooks(ctx context.Context, chatID uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, clearChatMessagesPromptHooks, chatID)
-	return err
-}
-
 const countChatCapacityActiveByPool = `-- name: CountChatCapacityActiveByPool :one
 SELECT
     COUNT(*) FILTER (WHERE c.parent_chat_id IS NULL)::bigint AS active_root_count,
@@ -11002,8 +10985,6 @@ WHERE
     chat_id = $1::uuid
     AND visibility IN ('model', 'both')
     AND deleted = false
-    -- A message that waits for its hooks is not part of any prompt yet.
-    AND prompt_hooks_pending = false
     AND (
         (
             role = 'system'
@@ -13193,8 +13174,7 @@ inserted AS (
         compressed,
         runtime_ms,
         provider_response_id,
-        queued_message_id,
-        prompt_hooks_pending
+        queued_message_id
     )
     SELECT
         allocated.id,
@@ -13217,9 +13197,7 @@ inserted AS (
         NULLIF(($17::bigint[])[allocated.ord], 0),
         NULLIF(($18::text[])[allocated.ord], ''),
         -- Queue ids start at 1, so 0 is a safe "not promoted" sentinel.
-        NULLIF(($19::bigint[])[allocated.ord], 0),
-        -- A caller that sends no array inserts false.
-        COALESCE(($20::boolean[])[allocated.ord], false)
+        NULLIF(($19::bigint[])[allocated.ord], 0)
     FROM allocated
     RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id, prompt_hooks_pending
 )
@@ -13248,7 +13226,6 @@ type InsertChatMessagesParams struct {
 	RuntimeMs           []int64                 `db:"runtime_ms" json:"runtime_ms"`
 	ProviderResponseID  []string                `db:"provider_response_id" json:"provider_response_id"`
 	QueuedMessageID     []int64                 `db:"queued_message_id" json:"queued_message_id"`
-	PromptHooksPending  []bool                  `db:"prompt_hooks_pending" json:"prompt_hooks_pending"`
 }
 
 type InsertChatMessagesRow struct {
@@ -13307,7 +13284,6 @@ func (q *sqlQuerier) InsertChatMessages(ctx context.Context, arg InsertChatMessa
 		pq.Array(arg.RuntimeMs),
 		pq.Array(arg.ProviderResponseID),
 		pq.Array(arg.QueuedMessageID),
-		pq.Array(arg.PromptHooksPending),
 	)
 	if err != nil {
 		return nil, err
@@ -13410,27 +13386,25 @@ func (q *sqlQuerier) InsertChatQueuedMessage(ctx context.Context, arg InsertChat
 }
 
 const insertChatQueuedMessageWithCreator = `-- name: InsertChatQueuedMessageWithCreator :one
-INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, busy_behavior, prompt_hooks_pending)
+INSERT INTO chat_queued_messages (chat_id, content, model_config_id, reasoning_effort, created_by, busy_behavior)
 VALUES (
     $1::uuid,
     $2::jsonb,
     $3::uuid,
     $4::chat_reasoning_effort,
     $5::uuid,
-    $6::chat_busy_behavior,
-    $7::boolean
+    $6::chat_busy_behavior
 )
 RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior, automation_id, input_id, prompt_hooks_pending
 `
 
 type InsertChatQueuedMessageWithCreatorParams struct {
-	ChatID             uuid.UUID               `db:"chat_id" json:"chat_id"`
-	Content            json.RawMessage         `db:"content" json:"content"`
-	ModelConfigID      uuid.NullUUID           `db:"model_config_id" json:"model_config_id"`
-	ReasoningEffort    NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
-	CreatedBy          uuid.UUID               `db:"created_by" json:"created_by"`
-	BusyBehavior       ChatBusyBehavior        `db:"busy_behavior" json:"busy_behavior"`
-	PromptHooksPending bool                    `db:"prompt_hooks_pending" json:"prompt_hooks_pending"`
+	ChatID          uuid.UUID               `db:"chat_id" json:"chat_id"`
+	Content         json.RawMessage         `db:"content" json:"content"`
+	ModelConfigID   uuid.NullUUID           `db:"model_config_id" json:"model_config_id"`
+	ReasoningEffort NullChatReasoningEffort `db:"reasoning_effort" json:"reasoning_effort"`
+	CreatedBy       uuid.UUID               `db:"created_by" json:"created_by"`
+	BusyBehavior    ChatBusyBehavior        `db:"busy_behavior" json:"busy_behavior"`
 }
 
 // Inserts a queued message that carries a position (from the default
@@ -13444,7 +13418,6 @@ func (q *sqlQuerier) InsertChatQueuedMessageWithCreator(ctx context.Context, arg
 		arg.ReasoningEffort,
 		arg.CreatedBy,
 		arg.BusyBehavior,
-		arg.PromptHooksPending,
 	)
 	var i ChatQueuedMessage
 	err := row.Scan(
@@ -14001,80 +13974,6 @@ func (q *sqlQuerier) ReorderChatQueuedMessageToFront(ctx context.Context, arg Re
 	return result.RowsAffected()
 }
 
-const resolveChatMessagePromptHooks = `-- name: ResolveChatMessagePromptHooks :one
-UPDATE
-    chat_messages
-SET
-    prompt_hooks_pending = false,
-    content = COALESCE($1::jsonb, content),
-    content_version = COALESCE($2::smallint, content_version),
-    deleted = $3::boolean,
-    -- New content needs a new search vector; the background job writes it.
-    search_tsv = CASE WHEN $1::jsonb IS NULL THEN search_tsv END,
-    search_tsv_config = CASE WHEN $1::jsonb IS NULL THEN search_tsv_config END
-WHERE
-    id = $4::bigint
-    AND chat_id = $5::uuid
-    AND prompt_hooks_pending
-    AND NOT deleted
-RETURNING id, chat_id, model_config_id, created_at, role, content, visibility, input_tokens, output_tokens, total_tokens, reasoning_tokens, cache_creation_tokens, cache_read_tokens, context_limit, compressed, created_by, content_version, total_cost_micros, runtime_ms, deleted, provider_response_id, revision, reasoning_effort, search_tsv, search_tsv_config, queued_message_id, automation_id, input_id, prompt_hooks_pending
-`
-
-type ResolveChatMessagePromptHooksParams struct {
-	Content        pqtype.NullRawMessage `db:"content" json:"content"`
-	ContentVersion sql.NullInt16         `db:"content_version" json:"content_version"`
-	Deleted        bool                  `db:"deleted" json:"deleted"`
-	ID             int64                 `db:"id" json:"id"`
-	ChatID         uuid.UUID             `db:"chat_id" json:"chat_id"`
-}
-
-// Settles a message that was saved with prompt_hooks_pending. It clears the
-// flag and either replaces the content with the hooks' result (a NULL content
-// keeps it) or soft-deletes the message when deleted is true. It matches no
-// row once the flag is clear.
-func (q *sqlQuerier) ResolveChatMessagePromptHooks(ctx context.Context, arg ResolveChatMessagePromptHooksParams) (ChatMessage, error) {
-	row := q.db.QueryRowContext(ctx, resolveChatMessagePromptHooks,
-		arg.Content,
-		arg.ContentVersion,
-		arg.Deleted,
-		arg.ID,
-		arg.ChatID,
-	)
-	var i ChatMessage
-	err := row.Scan(
-		&i.ID,
-		&i.ChatID,
-		&i.ModelConfigID,
-		&i.CreatedAt,
-		&i.Role,
-		&i.Content,
-		&i.Visibility,
-		&i.InputTokens,
-		&i.OutputTokens,
-		&i.TotalTokens,
-		&i.ReasoningTokens,
-		&i.CacheCreationTokens,
-		&i.CacheReadTokens,
-		&i.ContextLimit,
-		&i.Compressed,
-		&i.CreatedBy,
-		&i.ContentVersion,
-		&i.TotalCostMicros,
-		&i.RuntimeMs,
-		&i.Deleted,
-		&i.ProviderResponseID,
-		&i.Revision,
-		&i.ReasoningEffort,
-		&i.SearchTsv,
-		&i.SearchTsvConfig,
-		&i.QueuedMessageID,
-		&i.AutomationID,
-		&i.InputID,
-		&i.PromptHooksPending,
-	)
-	return i, err
-}
-
 const setChatContextSnapshot = `-- name: SetChatContextSnapshot :exec
 UPDATE chats
 SET
@@ -14103,8 +14002,7 @@ const softDeleteChatMessageByID = `-- name: SoftDeleteChatMessageByID :exec
 UPDATE
     chat_messages
 SET
-    deleted = true,
-    prompt_hooks_pending = false
+    deleted = true
 WHERE
     id = $1::bigint
 `
@@ -14118,10 +14016,7 @@ const softDeleteChatMessagesAfterID = `-- name: SoftDeleteChatMessagesAfterID :e
 UPDATE
     chat_messages
 SET
-    deleted = true,
-    -- A deleted message never starts a turn, and a stale flag would block the
-    -- down migration that refuses to run while a message waits for its hooks.
-    prompt_hooks_pending = false
+    deleted = true
 WHERE
     chat_id = $1::uuid
     AND id > $2::bigint
@@ -15598,8 +15493,7 @@ const updateChatQueuedMessageContent = `-- name: UpdateChatQueuedMessageContent 
 UPDATE chat_queued_messages
 SET content = $1::jsonb,
     model_config_id = $2::uuid,
-    reasoning_effort = $3::chat_reasoning_effort,
-    prompt_hooks_pending = false
+    reasoning_effort = $3::chat_reasoning_effort
 WHERE id = $4::bigint AND chat_id = $5::uuid
 RETURNING id, chat_id, content, created_at, model_config_id, position, created_by, reasoning_effort, editing_since, busy_behavior, automation_id, input_id, prompt_hooks_pending
 `
@@ -15612,9 +15506,7 @@ type UpdateChatQueuedMessageContentParams struct {
 	ChatID          uuid.UUID               `db:"chat_id" json:"chat_id"`
 }
 
-// Replaces the content and per-message overrides of a queued message. An edit
-// is a new submission, so the flag is cleared: the caller runs the submit hooks
-// on the new content when they are on.
+// Replaces the content and per-message overrides of a queued message.
 func (q *sqlQuerier) UpdateChatQueuedMessageContent(ctx context.Context, arg UpdateChatQueuedMessageContentParams) (ChatQueuedMessage, error) {
 	row := q.db.QueryRowContext(ctx, updateChatQueuedMessageContent,
 		arg.Content,

@@ -2051,17 +2051,6 @@ func (q *querier) ClearChatDiffStatusPR(ctx context.Context, arg database.ClearC
 	return q.db.ClearChatDiffStatusPR(ctx, arg)
 }
 
-func (q *querier) ClearChatMessagesPromptHooks(ctx context.Context, chatID uuid.UUID) error {
-	chat, err := q.db.GetChatByID(ctx, chatID)
-	if err != nil {
-		return err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return err
-	}
-	return q.db.ClearChatMessagesPromptHooks(ctx, chatID)
-}
-
 func (q *querier) ClearWorkspaceSecretsBeforeBuild(ctx context.Context, arg database.ClearWorkspaceSecretsBeforeBuildParams) error {
 	workspace, err := q.db.GetWorkspaceByID(ctx, arg.WorkspaceID)
 	if err != nil {
@@ -7787,17 +7776,6 @@ func (q *querier) ReorderChatQueuedMessageToFront(ctx context.Context, arg datab
 		return 0, err
 	}
 	return q.db.ReorderChatQueuedMessageToFront(ctx, arg)
-}
-
-func (q *querier) ResolveChatMessagePromptHooks(ctx context.Context, arg database.ResolveChatMessagePromptHooksParams) (database.ChatMessage, error) {
-	chat, err := q.db.GetChatByID(ctx, arg.ChatID)
-	if err != nil {
-		return database.ChatMessage{}, err
-	}
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, chat); err != nil {
-		return database.ChatMessage{}, err
-	}
-	return q.db.ResolveChatMessagePromptHooks(ctx, arg)
 }
 
 func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error {

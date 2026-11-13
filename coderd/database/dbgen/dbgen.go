@@ -230,7 +230,6 @@ func ChatMessage(t testing.TB, db database.Store, seed database.ChatMessage) dat
 		RuntimeMs:           []int64{seed.RuntimeMs.Int64},
 		ProviderResponseID:  []string{seed.ProviderResponseID.String},
 		QueuedMessageID:     []int64{seed.QueuedMessageID.Int64},
-		PromptHooksPending:  []bool{seed.PromptHooksPending},
 	})
 	require.NoError(t, err, "insert chat message")
 	require.Len(t, msgs, 1)

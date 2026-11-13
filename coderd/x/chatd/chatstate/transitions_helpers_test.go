@@ -41,9 +41,6 @@ type seededChat struct {
 	editingQueuedID   int64
 	dynamicToolName   string
 	pendingToolCallID string
-	// promptHooksMessageID is a history message that waits for its
-	// prompt hooks, or zero when no message does.
-	promptHooksMessageID int64
 }
 
 // readyHeadOf maps each blocked-head state to the sibling state with
