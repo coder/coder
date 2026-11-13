@@ -134,6 +134,53 @@ func TestExternalWorkspaces(t *testing.T) {
 		assert.Equal(t, template.Name, ws.TemplateName)
 	})
 
+	t.Run("CreateForAnotherUser", func(t *testing.T) {
+		t.Parallel()
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureWorkspaceExternalAgent: 1,
+				},
+			},
+		})
+		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithExternalAgent())
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+
+		args := []string{
+			"external-workspaces",
+			"create",
+			memberUser.Username + "/their-external-workspace",
+			"--template", template.Name,
+			"-y",
+		}
+		inv, root := newCLI(t, args...)
+		// Reading another user's external agent credentials requires SSH access
+		// to their workspace, which org admins lack by default.
+		clitest.SetupConfig(t, client, root) //nolint:gocritic // requires owner
+		doneChan := make(chan struct{})
+		stdout := expecter.NewAttachedToInvocation(t, inv)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		go func() {
+			defer close(doneChan)
+			err := inv.Run()
+			assert.NoError(t, err)
+		}()
+
+		stdout.ExpectMatch(ctx, "Please run the following command to attach external agent")
+		stdout.ExpectRegexMatch(ctx, "curl -fsSL .* | CODER_AGENT_TOKEN=.* sh")
+
+		testutil.TryReceive(ctx, t, doneChan)
+
+		ws, err := member.WorkspaceByOwnerAndName(ctx, codersdk.Me, "their-external-workspace", codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		assert.Equal(t, memberUser.ID, ws.OwnerID)
+	})
+
 	t.Run("CreateWithoutTemplate", func(t *testing.T) {
 		t.Parallel()
 		client, owner := coderdenttest.New(t, &coderdenttest.Options{
