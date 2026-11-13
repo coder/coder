@@ -514,6 +514,77 @@ func TestStandaloneGatewayServe_ProviderReloadShutdownTimeout(t *testing.T) {
 	require.False(t, gateway.drpcClosed.Load(), "DRPC connection must remain open until its runtime owner shuts it down")
 }
 
+func TestStandaloneGatewayServe_HTTPShutdownTimeout(t *testing.T) {
+	t.Parallel()
+
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	mClock := quartz.NewMock(t)
+
+	// The in-flight request blocks until the test ends, so HTTP draining
+	// cannot finish before its shutdown timeout.
+	const inFlightPath = "/in-flight"
+	handlerStarted := make(chan struct{}, 1)
+	releaseHandler := make(chan struct{})
+	defer close(releaseHandler)
+	gateway, _ := newTestStandaloneGateway(t, withClock(mClock))
+	gateway.reloader = &mockReloader{}
+	gateway.httpServer.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != inFlightPath {
+			http.NotFound(w, r)
+			return
+		}
+		select {
+		case handlerStarted <- struct{}{}:
+		default:
+		}
+		<-releaseHandler
+	})
+
+	httpShutdownTrap := mClock.Trap().AfterFunc("aigateway", "http_shutdown")
+	defer httpShutdownTrap.Close()
+
+	serveCtx, cancelServe := context.WithCancel(testCtx)
+	serveDone := make(chan error, 1)
+	go func() {
+		serveDone <- gateway.serve(serveCtx)
+	}()
+	listenAddress := requireListening(testCtx, t, gateway, serveDone)
+	require.Eventually(t, gateway.providersLoaded.Load, testutil.WaitShort, testutil.IntervalFast)
+
+	requestDone := make(chan error, 1)
+	go func() {
+		req, err := http.NewRequestWithContext(testCtx, http.MethodGet, "http://"+listenAddress+inFlightPath, nil)
+		if err != nil {
+			requestDone <- err
+			return
+		}
+		resp, err := http.DefaultClient.Do(req)
+		if err == nil {
+			_ = resp.Body.Close()
+		}
+		requestDone <- err
+	}()
+	testutil.RequireReceive(testCtx, t, handlerStarted)
+
+	cancelServe()
+
+	httpShutdownTrap.MustWait(testCtx).MustRelease(testCtx)
+	require.Empty(t, serveDone, "serve is still draining")
+
+	// The provider reload timer is still pending until serve returns, and the
+	// mock clock cannot advance past it, so fire it first.
+	mClock.Advance(providerReloadShutdownTimeout).MustWait(testCtx)
+	require.Empty(t, serveDone, "serve is still draining after provider reload shutdown")
+	mClock.Advance(httpShutdownTimeout - providerReloadShutdownTimeout).MustWait(testCtx)
+
+	err := testutil.RequireReceive(testCtx, t, serveDone)
+	require.ErrorContains(t, err, "shutdown http server:")
+	require.Error(t, testutil.RequireReceive(testCtx, t, requestDone), "the in-flight request must be cut off by the forced close")
+	require.True(t, gateway.providerRefreshStopped.Load(), "provider refresh must stop before HTTP draining")
+	require.True(t, gateway.listenerClosed.Load(), "HTTP listener must be closed after the HTTP shutdown timeout")
+	require.False(t, gateway.drpcClosed.Load(), "DRPC connection must remain open until its runtime owner shuts it down")
+}
+
 // requireListening waits until the gateway's HTTP listener is bound and returns
 // its resolved address. It reports the serve error, such as a port clash, rather
 // than leaving callers to time out on an unrelated assertion.
