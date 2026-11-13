@@ -59,6 +59,7 @@ const PROPER_NOUNS = [
 	"Premium",
 	"Template Admin",
 	"Terms of Service",
+	"Web Terminal",
 	"Workspace Proxy",
 
 	// Keyboard keys, named in keyboard instructions.
@@ -1014,11 +1015,16 @@ function createPieceBuilder(sourceFile, consumed) {
 			const tagName = intrinsicTagName(node);
 			const inlineElement =
 				ts.isJsxFragment(node) || INLINE_ELEMENTS.has(tagName);
-			pieces.push({ kind: "boundary", edge: "open", inlineElement });
+			// An intrinsic element that is not inline, such as a heading or
+			// paragraph, renders as its own block. Components may render
+			// either, so the space at their edges decides.
+			const blockElement = tagName !== null && !inlineElement;
+			const boundary = { kind: "boundary", inlineElement, blockElement };
+			pieces.push({ ...boundary, edge: "open" });
 			for (const child of node.children) {
 				addNode(child, pieces);
 			}
-			pieces.push({ kind: "boundary", edge: "close", inlineElement });
+			pieces.push({ ...boundary, edge: "close" });
 		} else {
 			// A self-closing element, such as an icon, sits between
 			// separate labels more often than inside a phrase.
@@ -1166,6 +1172,8 @@ function joinJsxPieces(pieces, sourceText) {
 			// Sibling elements with nothing rendered between them are
 			// separate labels, whatever whitespace they hold inside,
 			// unless both are inline elements in one run of text.
+			endPhrase();
+		} else if (piece.kind === "boundary" && piece.blockElement) {
 			endPhrase();
 		} else if (piece.kind === "boundary") {
 			let before = i - 1;

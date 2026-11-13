@@ -41,6 +41,7 @@ describe("findTitleCaseWords", () => {
 		expect(words("Use Coder Desktop")).toEqual([]);
 		expect(words("Configure AI Gateway keys")).toEqual([]);
 		expect(words("Check Workspace Proxy health")).toEqual([]);
+		expect(words("Open the Web Terminal")).toEqual([]);
 		expect(words("Newer Anthropic-compatible endpoint")).toEqual([]);
 		expect(words("Enhances Coder's parameters")).toEqual([]);
 	});
@@ -377,6 +378,18 @@ describe("checkSource", () => {
 			[4, "File"],
 			[5, "Template"],
 			[13, "Workspace"],
+		]);
+	});
+
+	it("ends the phrase at block elements", () => {
+		const source = [
+			"const a = <div>Configure <h2>Workspace Settings</h2></div>;",
+			"const b = <div><p>Saved </p> <p>Next Steps</p></div>;",
+		].join("\n");
+		const { issues } = checkSource("file.tsx", source);
+		expect(issues.map(({ line, word }) => [line, word])).toEqual([
+			[1, "Settings"],
+			[2, "Steps"],
 		]);
 	});
 
