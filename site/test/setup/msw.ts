@@ -1,10 +1,14 @@
 import { cleanup } from "@testing-library/react";
+import { toast } from "#/components/Toaster/toast";
 import { server } from "#/testHelpers/server";
 
 // MSW server lifecycle
 beforeAll(() => server.listen({ onUnhandledRequest: "warn" }));
 afterEach(() => {
 	cleanup();
+	// Sonner's toast store is module state, and a newly mounted Toaster
+	// replays every active toast, so clear them before the next test.
+	toast.dismiss();
 	server.resetHandlers();
 	vi.clearAllMocks();
 });
