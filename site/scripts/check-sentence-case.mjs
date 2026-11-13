@@ -82,7 +82,9 @@ const PROPER_NOUNS = [
 	"Bedrock",
 	"Claude",
 	"Claude Platform",
+	"Bitbucket",
 	"Copilot",
+	"Datadog",
 	"Discord",
 	"Git",
 	"Google Cloud",
@@ -111,6 +113,8 @@ const PROPER_NOUNS = [
 	"Universal Plug and Play",
 
 	// Font names, shown in the terminal font picker.
+	"Consolas",
+	"Courier",
 	"Courier New",
 	"Fira Code",
 	"Geist Mono",
@@ -121,6 +125,8 @@ const PROPER_NOUNS = [
 	"Liberation Mono",
 	"Lucida Console",
 	"Lucida Sans Typewriter",
+	"Menlo",
+	"Monaco",
 	"Source Code Pro",
 	"Terminal Symbols",
 ];
@@ -177,13 +183,10 @@ function capitalizedSegments(word, start = 0) {
 }
 
 // Punctuation that ends a sentence or label, so the next word starts a
-// new phrase and may be capitalized.
+// new phrase and may be capitalized. A comma continues the phrase
+// ("Create a workspace, then open settings"); lists of names such as
+// "Menlo, Monaco" rely on PROPER_NOUNS.
 const PHRASE_END = /[.!?:;…]["'’)\]]*$/;
-
-// A comma ends a list item ("Menlo, Monaco") when the next word is
-// capitalized, and otherwise continues the sentence ("Create a
-// workspace, then open settings").
-const COMMA_END = /,["'’)\]]*$/;
 
 /**
  * Returns the title case words in `text`. Each result has the word's
@@ -246,15 +249,12 @@ export function findTitleCaseWords(text) {
 		}
 	};
 	let inPhrase = false;
-	let afterComma = false;
 	for (let i = 0; i < tokens.length; i++) {
 		const token = tokens[i];
 		const capitalized = /^\p{Lu}/u.test(token.word);
-		const startsListItem = afterComma && capitalized;
-		afterComma = false;
 		if (token.raw.includes(SUBSTITUTION)) {
 			// Unknown text; keep the current phrase, if any, going.
-		} else if (!inPhrase || token.startsPhrase || startsListItem) {
+		} else if (!inPhrase || token.startsPhrase) {
 			// A lowercase word outside a phrase may continue text from
 			// elsewhere, so only a capitalized word starts a phrase.
 			inPhrase = capitalized;
@@ -283,8 +283,6 @@ export function findTitleCaseWords(text) {
 		}
 		if (PHRASE_END.test(token.raw)) {
 			inPhrase = false;
-		} else if (COMMA_END.test(token.raw)) {
-			afterComma = inPhrase;
 		}
 	}
 	return results;
@@ -298,6 +296,7 @@ const CODE_ATTRIBUTES = new Set([
 	"action",
 	"autoComplete",
 	"className",
+	"defaultValue",
 	"dir",
 	"form",
 	"href",
@@ -315,6 +314,7 @@ const CODE_ATTRIBUTES = new Set([
 	"target",
 	"to",
 	"type",
+	"value",
 ]);
 
 const ARIA_TEXT_ATTRIBUTES = new Set([

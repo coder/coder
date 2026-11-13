@@ -52,9 +52,9 @@ describe("findTitleCaseWords", () => {
 		expect(words("Saved… Next step")).toEqual([]);
 	});
 
-	it("continues a sentence after a comma and a lowercase word", () => {
+	it("continues a sentence after a comma", () => {
 		expect(words("Create a workspace, then Open settings")).toEqual(["Open"]);
-		expect(words("Saved, Open settings")).toEqual([]);
+		expect(words("Create a workspace, Then open settings")).toEqual(["Then"]);
 	});
 
 	it("starts a new phrase after an opening bracket or quote", () => {
@@ -316,11 +316,13 @@ describe("checkSource", () => {
 			'const b = <div aria-controls="Some Id" id="Main Panel" />;',
 			'const c = <div data-state={open ? "Is Open" : "Is Closed"} />;',
 			'const d = <input aria-label="Search Workspaces" title="Delete File" />;',
+			'const e = <option value="New Workspace">New Template</option>;',
 		].join("\n");
 		const { issues } = checkSource("file.tsx", source);
 		expect(issues.map(({ line, word }) => [line, word])).toEqual([
 			[4, "Workspaces"],
 			[4, "File"],
+			[5, "Template"],
 		]);
 	});
 
