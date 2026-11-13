@@ -49,7 +49,8 @@ When findings survive, post two things.
 ### 1. One review with inline comments
 
 Post one PR review per round with the event `COMMENT`, never `APPROVE` or `REQUEST_CHANGES`.
-Use `gh api -X POST repos/coder/coder/pulls/<PR>/reviews --input <file>` with the PR head SHA as `commit_id`.
+Write the request to `review.json` and post it with `gh api -X POST repos/coder/coder/pulls/<PR>/reviews --input review.json`, with the PR head SHA as `commit_id`.
+Leave the review's `body` empty: the summary goes in the [summary comment](#2-one-summary-comment), not in the review.
 
 - One comment per finding, anchored to the line on the right side of the diff.
 - Lead with the problem, then the evidence, then the fix.
@@ -66,6 +67,12 @@ Resolve a thread whose finding the new commits fixed, by replying `Fixed in <sho
 Search the PR for the marker `<!-- doc-check-sticky -->` and edit that comment if it exists.
 Search again right before you post, because overlapping reviews of one PR can race.
 Never post a second summary comment.
+
+The comment body is the Markdown below and nothing else, never JSON.
+Write it to its own file, `summary.md`, and never reuse `review.json` for it.
+Post a new comment with `gh api -X POST repos/coder/coder/issues/<PR>/comments -F body=@summary.md`.
+Edit an existing one with `gh api -X PATCH repos/coder/coder/issues/comments/<comment-id> -F body=@summary.md`.
+GitHub shows a JSON body verbatim, so passing `review.json` or any other request payload as the body posts the raw request.
 
 ````markdown
 ## Documentation Check
@@ -101,7 +108,10 @@ Never post a second summary comment.
 
 Include only the sections that apply.
 The marker is the last line, every time.
-Read the comment back after you post it, and add the marker if it is missing.
+
+Read the comment back after you post it with `gh api repos/coder/coder/issues/comments/<comment-id> --jq .body`.
+The body must start with `## Documentation Check` and end with the marker.
+If it starts with `{` or anything else, or the marker is missing, rewrite `summary.md` and edit the comment with the `PATCH` command above until it does.
 
 When a summary comment already exists, check off `[x]` items the new commits addressed, strike through items the change reverted, and add `[ ]` items for new blocking findings.
 If nothing changed, leave the comment alone.

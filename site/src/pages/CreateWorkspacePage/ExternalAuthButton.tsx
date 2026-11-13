@@ -32,7 +32,7 @@ export const ExternalAuthButton: React.FC<ExternalAuthButtonProps> = ({
 	canAuthenticate = true,
 }) => {
 	return (
-		<div className="flex items-center gap-2 border border-border border-solid rounded-md p-3 justify-between">
+		<div className="flex items-center gap-2 border rounded-md p-3 justify-between">
 			<span className="flex items-center gap-2">
 				{auth.display_icon && (
 					<ExternalImage

@@ -21,7 +21,7 @@ export const DeleteOrganizationSection: React.FC<
 					description="Delete your organization permanently."
 				>
 					<div className="flex flex-col gap-4 grow">
-						<div className="flex bg-surface-red items-center justify-between border border-solid border-border-destructive rounded-md p-3 pl-4 gap-2">
+						<div className="flex bg-surface-red items-center justify-between border border-border-destructive rounded-md p-3 pl-4 gap-2">
 							<span>Deleting an organization is irreversible.</span>
 							<Button
 								variant="destructive"

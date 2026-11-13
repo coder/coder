@@ -5,7 +5,7 @@ import { docs } from "#/utils/docs";
 
 export const RolesHelpPopover: React.FC = () => {
 	return (
-		<InfoTooltip size="small">
+		<InfoTooltip size="small" ariaLabel="More info about roles">
 			<TooltipTitle>What is a role?</TooltipTitle>
 			<TooltipMessage>
 				Coder role-based access control (RBAC) provides fine-grained access
@@ -26,7 +26,7 @@ export const RolesHelpPopover: React.FC = () => {
 
 export const GroupsHelpPopover: React.FC = () => {
 	return (
-		<InfoTooltip size="small">
+		<InfoTooltip size="small" ariaLabel="More info about groups">
 			<TooltipTitle>What is a group?</TooltipTitle>
 			<TooltipMessage>
 				Groups can be used with template RBAC to give groups of users access to

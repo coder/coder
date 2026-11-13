@@ -137,13 +137,15 @@ export const BaseTemplateParametersStep: React.FC<
 						<MemoizedMarkdown
 							className={cn(
 								"text-xs font-normal",
-								"[&_h2]:mt-6 [&_h2]:text-base [&_h2]:font-semibold",
-								"[&_h3]:mt-2 [&_h3]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold",
+								"[&_h4]:mt-6 [&_h4]:text-base [&_h4]:font-semibold",
+								"[&_h5]:mt-2 [&_h5]:mb-1 [&_h5]:text-sm [&_h5]:font-semibold",
 								"[&_p]:mb-3 [&_p]:text-content-secondary",
 								"[&_li]:text-content-secondary",
 								"[&_a]:font-normal",
 								"[&_code]:text-[length:inherit]",
 							)}
+							// README sections start at h2; nest them under the base template's h3.
+							components={{ h2: "h4", h3: "h5" }}
 						>
 							{prerequisites}
 						</MemoizedMarkdown>

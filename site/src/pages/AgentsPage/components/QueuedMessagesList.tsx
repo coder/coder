@@ -27,8 +27,8 @@ import { SkillChip } from "./ChatMessageInput/SkillChip";
 
 type QueuedMessagesListProps = {
 	messages: readonly ChatQueuedMessage[];
-	onDelete: (id: number) => Promise<void> | void;
-	onPromote: (id: number) => Promise<void> | void;
+	onDelete?: (id: number) => Promise<void> | void;
+	onPromote?: (id: number) => Promise<void> | void;
 	onEdit?: (id: number) => void;
 	onEndEdit?: (id: number) => Promise<void> | void;
 	isChatPaused?: boolean;
@@ -396,11 +396,15 @@ export const QueuedMessagesList: React.FC<QueuedMessagesListProps> = ({
 											: undefined
 									}
 									onPromote={
-										canSendQueuedMessageNow(item.busyBehavior)
+										onPromote && canSendQueuedMessageNow(item.busyBehavior)
 											? () => void runAction(item.id, "promote", onPromote)
 											: undefined
 									}
-									onDelete={() => void runAction(item.id, "delete", onDelete)}
+									onDelete={
+										onDelete
+											? () => void runAction(item.id, "delete", onDelete)
+											: undefined
+									}
 								/>
 							);
 						})}
@@ -447,7 +451,7 @@ type QueuedMessageRowProps = {
 	onEdit: (() => void) | undefined;
 	onEndEdit: (() => void) | undefined;
 	onPromote: (() => void) | undefined;
-	onDelete: () => void;
+	onDelete: (() => void) | undefined;
 };
 
 const QueuedMessageRow: React.FC<QueuedMessageRowProps> = ({
@@ -475,7 +479,7 @@ const QueuedMessageRow: React.FC<QueuedMessageRowProps> = ({
 		onMouseEnter={onMouseEnter}
 		onMouseLeave={onMouseLeave}
 	>
-		<div className="flex items-center gap-2 rounded-lg border border-solid border-border bg-surface-secondary px-3 py-2 font-sans text-sm leading-relaxed text-content-primary shadow-xs">
+		<div className="flex items-center gap-2 rounded-lg border bg-surface-secondary px-3 py-2 font-sans text-sm leading-relaxed text-content-primary shadow-xs">
 			<span className="min-w-0 flex-1 truncate">
 				<QueuedMessagePreview parts={item.previewParts} />
 			</span>
@@ -520,7 +524,7 @@ const QueuedMessageRow: React.FC<QueuedMessageRowProps> = ({
 					</TooltipContent>
 				</Tooltip>
 			)}
-			{showEnterToSendHint && (
+			{showEnterToSendHint && onPromote && (
 				<span
 					className={cn(
 						"hidden shrink-0 items-center gap-1 text-xs text-content-secondary transition-opacity sm:flex",
@@ -532,53 +536,57 @@ const QueuedMessageRow: React.FC<QueuedMessageRowProps> = ({
 					to send
 				</span>
 			)}
-			<div
-				className={cn(
-					"flex shrink-0 items-center gap-0.5 transition-opacity focus-within:opacity-100",
-					showActions ? "opacity-100" : "opacity-0",
-				)}
-			>
-				{onEndEdit && (
-					<QueuedMessageActionButton
-						label="Cancel edit"
-						tooltip={
-							isChatPaused ? "Cancel edit and send unchanged" : "Cancel edit"
-						}
-						icon={<XIcon className="size-3.5" />}
-						busy={pendingAction === "end_edit"}
-						disabled={disabled}
-						onClick={onEndEdit}
-					/>
-				)}
-				{onEdit && (
-					<QueuedMessageActionButton
-						label="Edit"
-						icon={<PencilIcon className="size-3.5" />}
-						busy={false}
-						disabled={disabled}
-						disabledReason={editDisabledReason}
-						onClick={onEdit}
-					/>
-				)}
-				{onPromote && (
-					<QueuedMessageActionButton
-						label="Send now"
-						icon={<ArrowUpIcon className="size-3.5" />}
-						busy={pendingAction === "promote"}
-						disabled={disabled}
-						onClick={onPromote}
-					/>
-				)}
-				<QueuedMessageActionButton
-					label="Remove from queue"
-					tooltip="Remove"
-					icon={<Trash2Icon className="size-3.5" />}
-					busy={pendingAction === "delete"}
-					disabled={disabled}
-					destructive
-					onClick={onDelete}
-				/>
-			</div>
+			{(onEndEdit || onEdit || onPromote || onDelete) && (
+				<div
+					className={cn(
+						"flex shrink-0 items-center gap-0.5 transition-opacity focus-within:opacity-100",
+						showActions ? "opacity-100" : "opacity-0",
+					)}
+				>
+					{onEndEdit && (
+						<QueuedMessageActionButton
+							label="Cancel edit"
+							tooltip={
+								isChatPaused ? "Cancel edit and send unchanged" : "Cancel edit"
+							}
+							icon={<XIcon className="size-3.5" />}
+							busy={pendingAction === "end_edit"}
+							disabled={disabled}
+							onClick={onEndEdit}
+						/>
+					)}
+					{onEdit && (
+						<QueuedMessageActionButton
+							label="Edit"
+							icon={<PencilIcon className="size-3.5" />}
+							busy={false}
+							disabled={disabled}
+							disabledReason={editDisabledReason}
+							onClick={onEdit}
+						/>
+					)}
+					{onPromote && (
+						<QueuedMessageActionButton
+							label="Send now"
+							icon={<ArrowUpIcon className="size-3.5" />}
+							busy={pendingAction === "promote"}
+							disabled={disabled}
+							onClick={onPromote}
+						/>
+					)}
+					{onDelete && (
+						<QueuedMessageActionButton
+							label="Remove from queue"
+							tooltip="Remove"
+							icon={<Trash2Icon className="size-3.5" />}
+							busy={pendingAction === "delete"}
+							disabled={disabled}
+							destructive
+							onClick={onDelete}
+						/>
+					)}
+				</div>
+			)}
 		</div>
 	</div>
 );

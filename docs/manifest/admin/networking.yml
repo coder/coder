@@ -9,6 +9,9 @@ children:
   - title: STUN and NAT
     description: Learn how Coder uses STUN and NAT traversal to establish direct peer-to-peer workspace connections.
     path: ./admin/networking/stun.md
+  - title: Self-host a STUN server
+    description: Run your own STUN server with coturn and configure Coder to use it for direct connections.
+    path: ./admin/networking/self-hosted-stun.md
   - title: Workspace proxies
     description: Run geo-distributed workspace proxies to give distributed teams low-latency workspace access.
     path: ./admin/networking/workspace-proxies.md
