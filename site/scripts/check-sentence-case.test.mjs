@@ -385,11 +385,16 @@ describe("checkSource", () => {
 		const source = [
 			"const a = <div>Configure <h2>Workspace Settings</h2></div>;",
 			"const b = <div><p>Saved </p> <p>Next Steps</p></div>;",
+			"const c = <p>Create <label>New Workspace</label></p>;",
+			"const d = <p>Click <button>Save Changes</button></p>;",
 		].join("\n");
 		const { issues } = checkSource("file.tsx", source);
 		expect(issues.map(({ line, word }) => [line, word])).toEqual([
 			[1, "Settings"],
 			[2, "Steps"],
+			[3, "New"],
+			[3, "Workspace"],
+			[4, "Changes"],
 		]);
 	});
 
@@ -409,8 +414,14 @@ describe("checkSource", () => {
 			"const a = <p>Send the header, for example <code>Bearer Token</code>.</p>;",
 			'const b = <code>{"New Workspace"}</code>;',
 			"const c = <kbd><span>Ctrl Shift</span></kbd>;",
+			'const d = <code aria-label="New Workspace">value</code>;',
+			'const e = <pre title="Delete File">{"Some Code"}</pre>;',
 		].join("\n");
-		expect(checkSource("file.tsx", source).issues).toEqual([]);
+		const { issues } = checkSource("file.tsx", source);
+		expect(issues.map(({ line, word }) => [line, word])).toEqual([
+			[4, "Workspace"],
+			[5, "File"],
+		]);
 	});
 
 	it("starts a new phrase at elements without a rendered space", () => {

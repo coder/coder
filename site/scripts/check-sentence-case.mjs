@@ -730,17 +730,30 @@ function rendersSpace(whitespace) {
 // are read as unknown text inside the surrounding phrase.
 const CODE_ELEMENTS = new Set(["code", "kbd", "pre", "samp"]);
 
-// Inline HTML elements. Adjacent inline siblings render as one run of
-// text, so a phrase continues across them when an edge renders a space.
+// Inline HTML elements: the phrasing content that renders text, except
+// form controls such as button, whose text is a label of its own.
+// Adjacent inline siblings render as one run of text, so a phrase
+// continues across them when an edge renders a space. Other intrinsic
+// elements render as blocks.
 const INLINE_ELEMENTS = new Set([
 	"a",
 	"abbr",
 	"b",
+	"bdi",
+	"bdo",
 	"cite",
+	"data",
+	"del",
+	"dfn",
 	"em",
 	"i",
+	"ins",
+	"label",
 	"mark",
 	"q",
+	"rp",
+	"rt",
+	"ruby",
 	"s",
 	"small",
 	"span",
@@ -749,6 +762,7 @@ const INLINE_ELEMENTS = new Set([
 	"sup",
 	"time",
 	"u",
+	"var",
 ]);
 
 /** Returns the tag name of an intrinsic element, such as "span". */
@@ -1002,13 +1016,17 @@ function createPieceBuilder(sourceFile, consumed) {
 				addExpression(node.expression, pieces);
 			}
 		} else if (CODE_ELEMENTS.has(intrinsicTagName(node))) {
-			// Skip everything inside, including text in expressions and
-			// nested elements.
+			// Skip the rendered content, including text in expressions and
+			// nested elements. Attributes such as aria-label are still
+			// checked on their own.
 			const consume = (child) => {
 				consumed.add(child);
 				ts.forEachChild(child, consume);
 			};
-			consume(node);
+			consumed.add(node);
+			for (const child of node.children) {
+				consume(child);
+			}
 			pieces.push({ kind: "substitution", inline });
 		} else if (ts.isJsxElement(node) || ts.isJsxFragment(node)) {
 			consumed.add(node);
