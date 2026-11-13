@@ -389,22 +389,86 @@ function entityAt(sourceText, position) {
 	return decoded ? { decoded, length: match[0].length } : null;
 }
 
+const ESCAPE =
+	/\\(?:u\{([\da-fA-F]+)\}|u([\da-fA-F]{4})|x([\da-fA-F]{2})|(\r\n|[\s\S]))/y;
+
+// Single-character escapes that do not stand for themselves.
+const SIMPLE_ESCAPES = {
+	0: "\0",
+	b: "\b",
+	f: "\f",
+	n: "\n",
+	r: "\r",
+	t: "\t",
+	v: "\v",
+};
+
+/**
+ * Returns the JavaScript string escape at `position` in `sourceText` as
+ * its decoded text and source length, or null.
+ */
+function escapeAt(sourceText, position) {
+	if (sourceText[position] !== "\\") {
+		return null;
+	}
+	ESCAPE.lastIndex = position;
+	const match = ESCAPE.exec(sourceText);
+	if (!match) {
+		return null;
+	}
+	const [escape, braced, unicode, hex, char] = match;
+	const codePoint = Number.parseInt(braced ?? unicode ?? hex ?? "", 16);
+	let decoded;
+	if (!Number.isNaN(codePoint)) {
+		if (codePoint > 0x10ffff) {
+			return null;
+		}
+		decoded = String.fromCodePoint(codePoint);
+	} else if (/^[\r\n\u2028\u2029]/.test(char)) {
+		// A line continuation renders nothing.
+		decoded = "";
+	} else {
+		decoded = SIMPLE_ESCAPES[char] ?? char;
+	}
+	// Never let source text pose as a substitution.
+	if (decoded === SUBSTITUTION) {
+		decoded = "\uFFFD";
+	}
+	return { decoded, length: escape.length };
+}
+
+/**
+ * Returns the encoded character at `position` as its decoded text and
+ * source length, or null. `encoding` is "jsx" for HTML entities, as JSX
+ * renders them in text and attribute strings, and "js" for JavaScript
+ * string escapes.
+ */
+function encodedAt(sourceText, position, encoding) {
+	if (encoding === "jsx") {
+		return entityAt(sourceText, position);
+	}
+	if (encoding === "js") {
+		return escapeAt(sourceText, position);
+	}
+	return null;
+}
+
 /**
  * Appends the source text in [start, end) to `target`, recording the
- * source position of each character. With `decodeEntities`, HTML
- * entities are replaced by the characters they render, each mapped to
- * the position of its "&".
+ * source position of each character. Characters encoded per `encoding`
+ * (see encodedAt) are replaced by the text they render, each mapped to
+ * the position where the encoding starts.
  */
-function appendSource(target, sourceText, start, end, decodeEntities) {
+function appendSource(target, sourceText, start, end, encoding) {
 	let position = start;
 	while (position < end) {
-		const entity = decodeEntities && entityAt(sourceText, position);
-		if (entity && position + entity.length <= end) {
-			target.text += entity.decoded;
-			for (let i = 0; i < entity.decoded.length; i++) {
+		const encoded = encodedAt(sourceText, position, encoding);
+		if (encoded && position + encoded.length <= end) {
+			target.text += encoded.decoded;
+			for (let i = 0; i < encoded.decoded.length; i++) {
 				target.positions.push(position);
 			}
-			position += entity.length;
+			position += encoded.length;
 			continue;
 		}
 		target.text += sourceText[position];
@@ -659,7 +723,7 @@ function createPieceBuilder(sourceFile, consumed) {
 					kind: "text",
 					start: node.pos,
 					end: node.end,
-					decodeEntities: true,
+					encoding: "jsx",
 				});
 			}
 		} else if (
@@ -671,6 +735,7 @@ function createPieceBuilder(sourceFile, consumed) {
 				kind: "text",
 				start: node.getStart(sourceFile) + 1,
 				end: node.end - 1,
+				encoding: "js",
 			});
 		} else if (ts.isTemplateExpression(node) || isPlus(node)) {
 			consumed.add(node);
@@ -681,7 +746,7 @@ function createPieceBuilder(sourceFile, consumed) {
 				if (substitution) {
 					addExpression(substitution, pieces, true);
 				} else {
-					pieces.push({ kind: "text", start, end });
+					pieces.push({ kind: "text", start, end, encoding: "js" });
 				}
 			}
 		} else if (ts.isJsxExpression(node)) {
@@ -859,13 +924,7 @@ function joinJsxPieces(pieces, sourceText) {
 			current.text += ` ${SUBSTITUTION} `;
 			current.positions.push(-1, -1, -1);
 		} else {
-			appendSource(
-				current,
-				sourceText,
-				piece.start,
-				piece.end,
-				piece.decodeEntities,
-			);
+			appendSource(current, sourceText, piece.start, piece.end, piece.encoding);
 		}
 	}
 	endPhrase();
@@ -881,9 +940,9 @@ function collectTexts(sourceFile) {
 	const texts = [];
 	// JSX nodes already read as part of an enclosing element's text.
 	const consumed = new Set();
-	const addRange = (start, end, decodeEntities) => {
+	const addRange = (start, end, encoding) => {
 		const text = { text: "", positions: [] };
-		appendSource(text, sourceText, start, end, decodeEntities);
+		appendSource(text, sourceText, start, end, encoding);
 		texts.push(text);
 	};
 	const visit = (node) => {
@@ -897,11 +956,11 @@ function collectTexts(sourceFile) {
 			case ts.SyntaxKind.StringLiteral:
 			case ts.SyntaxKind.NoSubstitutionTemplateLiteral:
 				if (!consumed.has(node) && !isNonDisplayLiteral(node)) {
-					// JSX renders entities in attribute strings only.
+					// JSX attribute strings decode HTML entities, not escapes.
 					addRange(
 						node.getStart(sourceFile),
 						node.end,
-						ts.isJsxAttribute(node.parent),
+						ts.isJsxAttribute(node.parent) ? "jsx" : "js",
 					);
 				}
 				break;
@@ -973,9 +1032,11 @@ export function checkSource(fileName, sourceText) {
 
 	let fixedText = sourceText;
 	for (const { position } of [...issues].reverse()) {
-		// A word that starts with an entity, such as "&#87;orkspace", maps
-		// to the "&"; replace the whole entity with the lowercase letter.
-		const entity = entityAt(sourceText, position);
+		// A word that starts with an entity or escape, such as
+		// "&#87;orkspace" or "\\u0057orkspace", maps to its first character;
+		// replace the whole encoding with the lowercase letter.
+		const entity =
+			entityAt(sourceText, position) ?? escapeAt(sourceText, position);
 		const length = entity ? entity.length : 1;
 		const initial = entity ? entity.decoded : sourceText[position];
 		fixedText =

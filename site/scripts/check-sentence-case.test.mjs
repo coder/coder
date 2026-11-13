@@ -269,6 +269,27 @@ describe("checkSource", () => {
 		);
 	});
 
+	it("decodes escapes in string and template literals", () => {
+		const source = [
+			'const a = "Create\\nNew Workspace";',
+			"const b = `Create\\tNew ${kind}`;",
+			'const c = "Create \\u0057orkspace";',
+			'const d = <Button title="Delete\\nFile" />;',
+		].join("\n");
+		const { issues, fixedText } = checkSource("file.tsx", source);
+		expect(issues.map(({ line, word }) => [line, word])).toEqual([
+			[1, "New"],
+			[1, "Workspace"],
+			[2, "New"],
+			[3, "Workspace"],
+		]);
+		expect(fixedText.split("\n").slice(0, 3)).toEqual([
+			'const a = "Create\\nnew workspace";',
+			"const b = `Create\\tnew ${kind}`;",
+			'const c = "Create workspace";',
+		]);
+	});
+
 	it("fixes words that start with an HTML entity", () => {
 		const source = "const a = <p>Create &#87;orkspace</p>;";
 		const { issues, fixedText } = checkSource("file.tsx", source);
