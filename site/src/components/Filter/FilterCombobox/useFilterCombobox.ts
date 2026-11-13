@@ -504,13 +504,21 @@ export const useFilterCombobox = ({
 		category.scopeToggle && isScopeWidened(category)
 			? category.scopeToggle.widenedKey
 			: category.key;
-	// An option whose value an applied chip holds, ignoring case, maps to that
-	// chip, so it shows as selected and toggles the chip off.
-	const scopeChipHolding = (category: FilterCategory, value: string) => {
+	// An option an applied chip holds, ignoring case as the backend's query
+	// parsing does, maps to that chip, so it shows as selected and toggles the
+	// chip off. A scope category matches the value under either of its keys.
+	const appliedChipHolding = (
+		category: FilterCategory,
+		option: Pick<FilterOption, "token" | "value">,
+	) => {
+		if (!category.scopeToggle) {
+			const folded = optionToken(category.key, option).toLowerCase();
+			return chipValues.find((chip) => chip.toLowerCase() === folded);
+		}
 		if (activeCategoryKey === category.key && typedScopeWidened !== null) {
 			return undefined;
 		}
-		const folded = value.toLowerCase();
+		const folded = option.value.toLowerCase();
 		return scopeChipsOf(category).find(
 			(chip) => parseChipToken(chip, chipKeys)?.value.toLowerCase() === folded,
 		);
@@ -519,7 +527,7 @@ export const useFilterCombobox = ({
 		category: FilterCategory,
 		option: Pick<FilterOption, "token" | "value">,
 	) =>
-		scopeChipHolding(category, option.value) ??
+		appliedChipHolding(category, option) ??
 		optionToken(optionChipKey(category), option);
 	const categoryForChip = (token: string) => {
 		const key = parseChipToken(token, chipKeys)?.key;
@@ -795,7 +803,7 @@ export const useFilterCombobox = ({
 			: typeaheadOptionsByKey;
 	const inlineOptionRowsFor = (category: FilterCategory) =>
 		(inlineOptionsSource.get(category.key) ?? []).map((option) => {
-			const token = optionToken(category.key, option);
+			const token = optionTokenFor(category, option);
 			return {
 				token,
 				selected: chipValues.includes(token),
@@ -1480,7 +1488,7 @@ export const useFilterCombobox = ({
 			// Unlisted values avoid the widened key, which a backend can
 			// reject (#29961 for Workspaces `user:`).
 			const candidate =
-				scopeChipHolding(activeCategory, typedOption.value) ??
+				appliedChipHolding(activeCategory, typedOption) ??
 				(listedOption
 					? optionToken(optionChipKey(activeCategory), listedOption)
 					: chipToken(

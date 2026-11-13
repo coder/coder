@@ -425,6 +425,21 @@ export const FocusShowsCategories: Story = {
 	},
 };
 
+// Opens the Template flyout, where `docker` shows checked for `template:Docker`.
+export const AppliedOptionIgnoringCase: Story = {
+	render: () => <FilterComboboxHarness initialQuery="template:Docker" />,
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(
+			within(canvasElement).getByRole("button", { name: "Filters" }),
+		);
+		await userEvent.hover(
+			await body.findByRole("option", { name: "Template" }),
+		);
+		await body.findByRole("button", { name: "docker" });
+	},
+};
+
 export const TypeFacetPrefix: Story = {
 	render: () => <FilterComboboxHarness initialQuery="" />,
 	play: async ({ canvasElement }) => {
