@@ -70,7 +70,8 @@ func NewTunnel(
 	if err != nil {
 		return nil, err
 	}
-	// The updater only sends to the manager, so it stops when sending does.
+	// The updater exists to send updates to the manager, so it stops when
+	// sending does.
 	uCtx, uCancel := context.WithCancel(s.sendCtx)
 	t := &Tunnel{
 		//nolint:govet // safe to copy the locks here because we haven't started the speaker
@@ -561,14 +562,12 @@ func (u *updater) setConn(conn Conn) bool {
 func (u *updater) stop() error {
 	u.mu.Lock()
 	defer u.mu.Unlock()
-	// Cancel even if Start has not succeeded, so later senders return. Cancel
-	// after closing conn so logs it emits while closing reach the manager.
-	defer u.cancel()
 
 	if u.conn == nil {
 		return nil
 	}
 	err := u.conn.Close()
+	u.cancel()
 	u.conn = nil
 	return err
 }
