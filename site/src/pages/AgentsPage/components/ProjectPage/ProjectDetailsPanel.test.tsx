@@ -884,7 +884,10 @@ describe("ProjectDetailsPanel templates", () => {
 			...MockChatProject,
 			templates: { template_ids: [kubernetesTemplate.id] },
 		});
-		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		await user.click(
+			await screen.findByRole("combobox", { name: "Templates" }),
+		);
+		await user.click(await screen.findByRole("option", { name: "Docker" }));
 		await user.click(screen.getByRole("button", { name: "Save" }));
 
 		await waitFor(() =>
@@ -893,7 +896,7 @@ describe("ProjectDetailsPanel templates", () => {
 				MockChatProject.id,
 				{
 					templates: {
-						template_ids: [dockerTemplate.id, kubernetesTemplate.id],
+						template_ids: [kubernetesTemplate.id, dockerTemplate.id],
 					},
 				},
 			),

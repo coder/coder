@@ -35,7 +35,6 @@ type ProjectTemplatesDialogProps = {
 	readonly isSaving: boolean;
 	readonly error: unknown;
 	readonly onSave: (templates: ChatProjectTemplates) => void;
-	/** Clears `error`, for when the draft is replaced by the latest save. */
 	readonly onResetError: () => void;
 	/**
 	 * Called when focus would return after closing. The dialog has no
@@ -239,6 +238,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		!isUnchanged &&
 		!hasConflict &&
 		!refreshFailed &&
+		!projectsQuery.isFetching &&
 		!isSaving;
 
 	return (
@@ -272,7 +272,7 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				staleParameterNames.length > 0) && (
 				<Alert severity="warning">
 					{droppedTemplateCount > 0 && (
-						<AlertDescription>
+						<AlertDescription className="block">
 							{droppedTemplateCount === 1
 								? "1 template is"
 								: `${droppedTemplateCount} templates are`}{" "}
@@ -282,14 +282,14 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 						</AlertDescription>
 					)}
 					{staleParameterNames.length > 0 && (
-						<AlertDescription>
+						<AlertDescription className="block">
 							The template's active version no longer has{" "}
 							{staleParameterNames.join(", ")}. Saving removes{" "}
 							{staleParameterNames.length === 1 ? "its value" : "their values"}.
 						</AlertDescription>
 					)}
 					{hasStalePreset && (
-						<AlertDescription>
+						<AlertDescription className="block">
 							The default preset is no longer in the template's active version,
 							so chats do not use it. Choose another preset, or save to clear
 							it.

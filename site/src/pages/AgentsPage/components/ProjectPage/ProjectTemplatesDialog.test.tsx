@@ -183,4 +183,16 @@ describe("ProjectTemplatesDialog", () => {
 		await user.click(save);
 		expect(props.onSave).toHaveBeenCalled();
 	});
+
+	it("pauses saving while the project refresh is in flight", async () => {
+		vi.spyOn(API.experimental, "getChatProjects").mockReturnValueOnce(
+			new Promise(() => {}),
+		);
+		const { user, props } = renderDialog();
+
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		expect(props.onSave).not.toHaveBeenCalled();
+	});
 });

@@ -170,7 +170,7 @@ export const ProjectDetailsPanelView: React.FC<
 								<button
 									ref={editTemplatesButtonRef}
 									type="button"
-									className="cursor-pointer border-0 bg-transparent p-0 font-sans"
+									className="cursor-pointer border-0 bg-transparent px-0 font-sans"
 									onClick={onEditTemplates}
 								>
 									<span className="sr-only">Edit templates:</span>{" "}
