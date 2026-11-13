@@ -2411,12 +2411,21 @@ export const createChat = (queryClient: QueryClient) => ({
 	},
 });
 
+// The mutations that change a chat's messages or queue share one scope, so
+// they run one at a time in call order, also across useMutation instances.
+// A mutation that waits is pending. The server then makes the changes in
+// click order, which the chat store's pending actions rely on.
+const chatMessagesScope = (chatId: string) => ({
+	id: `chat-messages-${chatId}`,
+});
+
 export const createChatMessage = (
 	queryClient: QueryClient,
 	chatId: string,
 ) => ({
 	mutationFn: (req: CreateChatMessageRequestWithClearablePlanMode) =>
 		API.experimental.createChatMessage(chatId, req),
+	scope: chatMessagesScope(chatId),
 	onSuccess: () => {
 		void invalidateChatDebugRuns(queryClient, chatId);
 		void invalidateChatEntity(queryClient, chatId);
@@ -2453,6 +2462,7 @@ type EditChatMessageMutationArgs = {
 export const editChatMessage = (queryClient: QueryClient, chatId: string) => ({
 	mutationFn: ({ messageId, req }: EditChatMessageMutationArgs) =>
 		API.experimental.editChatMessage(chatId, messageId, req),
+	scope: chatMessagesScope(chatId),
 	onSettled: () => {
 		void invalidateChatEntity(queryClient, chatId);
 		void invalidateChatPrompts(queryClient, chatId);
@@ -2532,6 +2542,7 @@ export const deleteChatQueuedMessage = (
 			}
 		}
 	},
+	scope: chatMessagesScope(chatId),
 	onSuccess: async () => {
 		await invalidateChatEntity(queryClient, chatId);
 	},
@@ -2543,6 +2554,7 @@ export const promoteChatQueuedMessage = (
 ) => ({
 	mutationFn: (queuedMessageId: number) =>
 		API.experimental.promoteChatQueuedMessage(chatId, queuedMessageId),
+	scope: chatMessagesScope(chatId),
 	onSuccess: () => {
 		void invalidateChatDebugRuns(queryClient, chatId);
 	},
@@ -2559,9 +2571,7 @@ export const editChatQueuedMessage = (
 ) => ({
 	mutationFn: ({ queuedMessageId, req }: EditChatQueuedMessageVariables) =>
 		API.experimental.editChatQueuedMessage(chatId, queuedMessageId, req),
-	// Same-scope mutations run serially, also across useMutation instances, so
-	// an end or save never runs before its begin.
-	scope: { id: `chat-queued-messages-${chatId}` },
+	scope: chatMessagesScope(chatId),
 	// Ending an edit can resume a paused chat. The queue itself arrives by
 	// queue_update.
 	onSettled: () => {

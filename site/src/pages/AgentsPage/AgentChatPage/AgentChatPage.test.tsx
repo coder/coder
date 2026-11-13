@@ -21,6 +21,7 @@ import {
 	MockChatModel,
 	MockChatModelProviderDescriptor,
 } from "#/testHelpers/chatModels";
+import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockUserPreferenceSettings,
 	mockApiError,
@@ -241,6 +242,37 @@ describe("AgentChatPage", () => {
 			),
 		);
 	});
+
+	it.each(["resolves", "rejects"] as const)(
+		"starts a send only after an earlier queue request %s",
+		async (outcome) => {
+			const page = renderQueuedChat({
+				queuedMessages: [{ ...MockChatQueuedMessage, chat_id: MockChat.id }],
+			});
+			const deleted = createDeferred<undefined>();
+			page.deleteChatQueuedMessage.mockReturnValue(deleted.promise);
+			const createChatMessage = vi
+				.spyOn(API.experimental, "createChatMessage")
+				.mockResolvedValue({ queued: false });
+
+			await page.rowAction("Remove from queue");
+			await page.type("hello");
+			await page.user.click(screen.getByRole("button", { name: "Send" }));
+			await waitFor(() =>
+				expect(page.deleteChatQueuedMessage).toHaveBeenCalledTimes(1),
+			);
+			expect(createChatMessage).not.toHaveBeenCalled();
+
+			act(() => {
+				if (outcome === "resolves") {
+					deleted.resolve(undefined);
+				} else {
+					deleted.reject(mockApiError({ message: "Internal error." }));
+				}
+			});
+			await waitFor(() => expect(createChatMessage).toHaveBeenCalledTimes(1));
+		},
+	);
 
 	describe("queued message editing", () => {
 		const row = {
