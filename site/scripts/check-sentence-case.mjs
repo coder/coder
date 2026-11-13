@@ -641,12 +641,16 @@ const CODE_ARGUMENT_CALLS = new Set([
 ]);
 
 /**
- * Returns true when `argument` of `call` is code: the first argument of
- * a CODE_ARGUMENT_CALLS function, or the value in
- * `setAttribute("class", value)` and other code attributes.
+ * Returns true when `argument` of `call` is code: any class token passed
+ * to a classList method, the first argument of a CODE_ARGUMENT_CALLS
+ * function, or the value in `setAttribute("class", value)` and other code
+ * attributes.
  */
 function isCodeArgument(call, argument) {
 	const name = calleeName(call.expression);
+	if (isClassListCall(call.expression)) {
+		return true;
+	}
 	const [first, second] = call.arguments ?? [];
 	if (argument === first) {
 		return CODE_ARGUMENT_CALLS.has(name);
@@ -662,6 +666,26 @@ function isCodeArgument(call, argument) {
 		);
 	}
 	return false;
+}
+
+/** Returns true for `x.classList.add(...)` and similar token methods. */
+function isClassListCall(expression) {
+	const callee = skipTransparent(expression);
+	if (!ts.isPropertyAccessExpression(callee)) {
+		return false;
+	}
+	const target = skipTransparent(callee.expression);
+	const targetName = ts.isIdentifier(target)
+		? target.text
+		: ts.isPropertyAccessExpression(target)
+			? target.name.text
+			: "";
+	return (
+		targetName === "classList" &&
+		["add", "contains", "remove", "replace", "toggle"].includes(
+			callee.name.text,
+		)
+	);
 }
 
 // HTML attribute names whose JSX names differ.

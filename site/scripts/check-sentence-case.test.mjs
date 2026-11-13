@@ -157,6 +157,8 @@ describe("checkSource", () => {
 			'window.addEventListener("Custom Event", handler);',
 			'node.setAttribute("Some Name", value);',
 			'node.setAttribute("class", "Foo Bar");',
+			'el.classList.add("Foo-Bar", "Baz Qux");',
+			'el.classList.replace("Old Class", "New Class");',
 			'const { "Task Events": handler } = handlers;',
 			'const r = value.replace("Task Events", x).startsWith("Some Prefix");',
 			'const v = Yup.string().matches(/^a$/, "Enter A Valid Name");',
