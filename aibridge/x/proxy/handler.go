@@ -4,7 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"strings"
 	"time"
 
@@ -20,36 +23,95 @@ import (
 	aibcontext "github.com/coder/coder/v2/aibridge/context"
 	"github.com/coder/coder/v2/aibridge/credential"
 	"github.com/coder/coder/v2/aibridge/headers"
+	"github.com/coder/coder/v2/aibridge/intercept/apidump"
+	"github.com/coder/coder/v2/aibridge/keypool"
 	"github.com/coder/coder/v2/aibridge/metrics"
 	"github.com/coder/coder/v2/aibridge/provider"
 	"github.com/coder/coder/v2/aibridge/recorder"
 	"github.com/coder/coder/v2/aibridge/routing"
+	"github.com/coder/coder/v2/aibridge/utils"
+	"github.com/coder/quartz"
 )
 
 type forwardingHandler struct {
 	provider provider.Provider
+	baseURL  *url.URL
 	logger   slog.Logger
 	tracer   trace.Tracer
-	inflight *aibridge.InflightGate
-	recorder recorder.Recorder
-	breaker  *circuitbreaker.ProviderCircuitBreakers
+	errorLog *log.Logger
+	// transport is shared by the per-request proxies so they reuse upstream
+	// connections.
+	transport http.RoundTripper
+	failover  keypool.KeyFailoverConfig
+	inflight  *aibridge.InflightGate
+	recorder  recorder.Recorder
+	breaker   *circuitbreaker.ProviderCircuitBreakers
 }
 
 var _ http.Handler = (*forwardingHandler)(nil)
 
-// newForwardingHandler constructs one bridged handler per provider snapshot.
+// newForwardingHandler constructs one handler per provider snapshot.
 func newForwardingHandler(prov provider.Provider, logger slog.Logger, m *metrics.Metrics, tracer trace.Tracer, inflight *aibridge.InflightGate, rec recorder.Recorder) (*forwardingHandler, error) {
 	if rec == nil {
 		return nil, xerrors.New("recorder is required")
 	}
-	return &forwardingHandler{
-		provider: prov,
-		logger:   logger.With(slog.F("provider", prov.Name())),
-		tracer:   tracer,
-		inflight: inflight,
-		recorder: rec,
-		breaker:  circuitbreaker.NewProviderCircuitBreakers(prov.Name(), prov.CircuitBreakerConfig(), logger, m),
-	}, nil
+	baseURL, err := url.Parse(prov.BaseURL())
+	if err != nil {
+		return nil, xerrors.Errorf("configure provider %q base URL: %w", prov.Name(), err)
+	}
+	transport := apidump.NewPassthroughMiddleware(utils.NewStreamingTransport(), prov.APIDumpDir(), prov.Name(), logger, quartz.NewReal())
+	// Providers that adjust upstream requests themselves, such as Claude
+	// Platform, wrap the transport beneath key failover.
+	if wrapper, ok := prov.(provider.PassthroughTransportWrapper); ok {
+		transport = wrapper.WrapPassthroughTransport(transport)
+	}
+	h := &forwardingHandler{
+		provider:  prov,
+		baseURL:   baseURL,
+		logger:    logger.With(slog.F("provider", prov.Name())),
+		tracer:    tracer,
+		transport: transport,
+		failover:  prov.KeyFailoverConfig(logger),
+		inflight:  inflight,
+		recorder:  rec,
+		breaker:   circuitbreaker.NewProviderCircuitBreakers(prov.Name(), prov.CircuitBreakerConfig(), logger, m),
+	}
+	h.errorLog = slog.Stdlib(context.Background(), h.logger, slog.LevelWarn)
+	return h, nil
+}
+
+func (h *forwardingHandler) newProxy(cred credential.Credential) *httputil.ReverseProxy {
+	return &httputil.ReverseProxy{
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			rewriteForwardingURL(pr, h.provider.RoutePrefix(), h.baseURL)
+			pr.Out.Header = prepareForwardingHeaders(pr.Out.Header, cred)
+		},
+		Transport:     keypool.NewKeyFailoverTransport(h.transport, h.failover),
+		FlushInterval: -1,
+		ErrorLog:      h.errorLog,
+	}
+}
+
+func rewriteForwardingURL(pr *httputil.ProxyRequest, routePrefix string, baseURL *url.URL) {
+	pr.Out.URL.Path = strings.TrimPrefix(pr.In.URL.Path, routePrefix)
+	if pr.In.URL.RawPath != "" {
+		pr.Out.URL.RawPath = strings.TrimPrefix(pr.In.URL.RawPath, routePrefix)
+	}
+	// Keep the client's query bytes. ReverseProxy rewrites queries it cannot parse.
+	pr.Out.URL.RawQuery = pr.In.URL.RawQuery
+	pr.SetURL(baseURL)
+}
+
+func prepareForwardingHeaders(clientHeaders http.Header, cred credential.Credential) http.Header {
+	prepared := headers.PrepareClientHeaders(clientHeaders)
+	if byok, ok := credential.AsBYOK(cred); ok {
+		value := byok.Secret
+		if byok.Header == headers.AuthHeaderAuthorization {
+			value = "Bearer " + value
+		}
+		prepared.Set(byok.Header, value)
+	}
+	return prepared
 }
 
 func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +126,7 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx, span := h.tracer.Start(ctx, "Proxy")
 	defer span.End()
 	r = r.WithContext(ctx)
-	logger, record, cred := h.checkRequest(w, r)
+	logger, record, _ := h.checkRequest(w, r)
 	if record == nil {
 		return
 	}
@@ -80,8 +142,8 @@ func (h *forwardingHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer func() { h.finishForwarding(ctx, record, logger, err) }()
 	route := strings.TrimPrefix(r.URL.Path, "/"+h.provider.Name())
 	err = h.breaker.Execute(route, "", w, func(rw http.ResponseWriter) error {
-		outbound := h.prepareForwarding(r, cred, logger)
-		return h.forward(rw, outbound, logger)
+		// Capture stays dormant until lifecycle recording activates forwarding.
+		return h.forward(rw, r, logger)
 	})
 }
 
@@ -171,12 +233,6 @@ func (h *forwardingHandler) checkRequest(w http.ResponseWriter, r *http.Request)
 	}
 
 	return logger, ir, cred
-}
-
-func (*forwardingHandler) prepareForwarding(r *http.Request, _ credential.Credential, _ slog.Logger) *http.Request {
-	// TODO: prepare provider headers and a replayable request body.
-	// https://linear.app/codercom/issue/AIGOV-615
-	return r.Clone(r.Context())
 }
 
 func (*forwardingHandler) forward(w http.ResponseWriter, _ *http.Request, _ slog.Logger) error {

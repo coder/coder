@@ -421,10 +421,12 @@ func steerQueuedMessageWithModel(
 	})
 	require.NoError(t, err)
 	message := userTextMessage("queued model resolution", f.User.ID, queuedModelConfigID)
-	queued, err := f.DB.InsertChatQueuedMessage(ctx, database.InsertChatQueuedMessageParams{
+	queued, err := f.DB.InsertChatQueuedMessageWithCreator(ctx, database.InsertChatQueuedMessageWithCreatorParams{
 		ChatID:        created.Chat.ID,
 		Content:       message.Content.RawMessage,
 		ModelConfigID: message.ModelConfigID,
+		CreatedBy:     created.Chat.OwnerID,
+		BusyBehavior:  database.ChatBusyBehaviorQueue,
 	})
 	require.NoError(t, err)
 	machine := chatstate.NewChatMachine(f.DB, f.Pub, created.Chat.ID)
