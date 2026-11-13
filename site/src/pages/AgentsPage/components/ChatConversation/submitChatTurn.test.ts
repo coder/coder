@@ -493,25 +493,28 @@ describe("submitChatTurn", () => {
 				editMessage,
 			}),
 		);
+		const queuedIDs = () =>
+			selectQueuedMessages(store.getSnapshot()).map((row) => row.id);
 		expect(visibleTexts(store)).toEqual(["first", "answer", "new"]);
-		expect(selectQueuedMessages(store.getSnapshot())).toEqual([]);
+		expect(queuedIDs()).toEqual([8]);
 		expect(selectStreamState(store.getSnapshot())).toBeNull();
 
 		edit.resolve(undefined);
 		await submitted;
-		// A status does not end the pending edit.
-		store.applyServerChatStatus("running");
+		// A status and a history reset do not end the pending edit.
+		store.batch(() => {
+			store.applyServerChatStatus("running");
+			store.resetHistoryFrom(3, 2);
+		});
 		expect(visibleTexts(store)).toEqual(["first", "answer", "new"]);
-		expect(selectQueuedMessages(store.getSnapshot())).toEqual([]);
 
 		store.batch(() => {
-			store.resetHistoryFrom(3, 2);
 			store.upsertDurableMessages([textMessage(9, "user", "new")], 2);
 			store.setQueuedMessages([], 2);
-			store.applyServerChatStatus("running");
 		});
 		expect(visibleTexts(store)).toEqual(["first", "answer", "new"]);
 		expect(selectOrderedMessageIDs(store.getSnapshot())).toEqual([1, 2, 9]);
+		expect(queuedIDs()).toEqual([]);
 	});
 
 	it("restores the transcript when an edit fails", async () => {
@@ -549,16 +552,16 @@ describe("submitChatTurn", () => {
 		const sendMessage = vi.fn(() => send.promise);
 
 		const submitted = submitChatTurn(buildParams({ store, sendMessage }));
+		expect(visibleTexts(store)).toEqual(["first", "hello"]);
+
+		send.resolve({ queued: false });
+		await submitted;
 		expect(sendMessage).toHaveBeenCalledWith(
 			expect.objectContaining({
 				model_config_id: pickerModel.id,
 				mcp_server_ids: ["mcp-1"],
 			}),
 		);
-		expect(visibleTexts(store)).toEqual(["first", "hello"]);
-
-		send.resolve({ queued: false });
-		await submitted;
 		expect(visibleTexts(store)).toEqual(["first", "hello"]);
 
 		store.batch(() => {
@@ -571,6 +574,8 @@ describe("submitChatTurn", () => {
 
 	it("shows a send once when the stream reports it before the response", async () => {
 		const store = seededStore([textMessage(1, "user", "first")]);
+		const shown: ReturnType<typeof visibleTexts>[] = [];
+		store.subscribe(() => shown.push(visibleTexts(store)));
 		const sendMessage = vi.fn(async () => {
 			store.batch(() => {
 				store.upsertDurableMessages([textMessage(9, "user", "hello")], 2);
@@ -581,7 +586,8 @@ describe("submitChatTurn", () => {
 
 		await submitChatTurn(buildParams({ store, sendMessage }));
 
-		expect(visibleTexts(store)).toEqual(["first", "hello"]);
+		expect(shown.length).toBeGreaterThan(1);
+		expect(shown).toEqual(shown.map(() => ["first", "hello"]));
 		expect(selectOrderedMessageIDs(store.getSnapshot())).toEqual([1, 9]);
 	});
 

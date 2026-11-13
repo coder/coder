@@ -4972,41 +4972,7 @@ describe("chat stream contract", () => {
 		},
 	);
 
-	it("ends a pending send at a newer queue update equal to the stored queue", async () => {
-		const sockets = mockWatchChatWithFreshSockets();
-		const { result } = renderChat(
-			page([buildMessage(chatID, 1, "user", "prompt")]),
-		);
-		await waitFor(() => expect(sockets).toHaveLength(1));
-		act(() => {
-			result.current.store.applyServerChatStatus("running");
-			void result.current.store.runPendingAction(
-				{
-					kind: "send",
-					busyBehavior: "steer",
-					chatID,
-					content: [{ type: "text", text: "second" }],
-				},
-				() => new Promise(() => {}),
-			);
-		});
-		expect(result.current.queuedIDs).toHaveLength(1);
-
-		// The send queued its row at version 5, and another tab deleted it at
-		// version 6 before this tab read the queue.
-		act(() => {
-			sockets[0].emitOpen();
-			sockets[0].emitData({
-				type: "queue_update",
-				chat_id: chatID,
-				queued_messages: [],
-				snapshot_version: 6,
-			});
-		});
-		expect(result.current.queuedIDs).toEqual([]);
-	});
-
-	it("ends a pending part at a resent event that the dropped connection never delivered", async () => {
+	it("keeps a delete's result through a reconnect that resends its events", async () => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 		const sockets = mockWatchChatWithFreshSockets();
 		const { result } = renderChat({
@@ -5027,7 +4993,7 @@ describe("chat stream contract", () => {
 				() => new Promise(() => {}),
 			);
 		});
-		expect(result.current.pendingRowCount).toBe(1);
+		expect(result.current.queuedIDs).toEqual([11]);
 
 		// The delete resumes the paused chat, which sends the next row. The
 		// connection drops after that row's message.
@@ -5044,7 +5010,10 @@ describe("chat stream contract", () => {
 			sockets[0].emitOpen();
 			sockets[0].emitData(sentNext);
 		});
-		expect(result.current.pendingRowCount).toBe(1);
+		expect(result.current).toMatchObject({
+			messageIDs: [1, 2],
+			queuedIDs: [],
+		});
 		act(() => {
 			sockets[0].emitError();
 		});
@@ -5140,7 +5109,7 @@ describe("chat stream contract", () => {
 		});
 		expect(result.current).toMatchObject({
 			messageIDs: [1, 2, 3],
-			queuedIDs: [10],
+			queuedIDs: [],
 		});
 
 		act(() => {
