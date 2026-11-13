@@ -217,7 +217,7 @@ var transitionMatrix = map[ExecutionState]map[Transition][]ExecutionState{
 		TransitionSteerQueuedMessage:               {StateP, StateR0, StateR1, StateR1P},
 		TransitionEditQueuedMessage:                {StateP, StateR0, StateR1},
 		TransitionInterrupt:                        {StateP},
-		TransitionDeleteQueuedMessagesByAutomation: {StateP, StateW, StateR0, StateR1},
+		TransitionDeleteQueuedMessagesByAutomation: {StateP, StateW, StateR0, StateR1, StateE1},
 	},
 	StateXW: {
 		TransitionSetArchived:                      {StateW},

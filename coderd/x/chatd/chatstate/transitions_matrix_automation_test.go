@@ -2,6 +2,7 @@ package chatstate_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"unicode"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatstate"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -17,7 +19,9 @@ import (
 // queue of a case, head first: 'a' and 'b' are messages of the two
 // automations that the transition removes, 'o' is a message of another
 // automation, and 'h' is a human message. An upper-case letter puts the
-// row under edit.
+// row under edit. 'x' is a human message that cannot be promoted: its
+// model config is deleted before the transition runs, and its
+// organization has no default one.
 
 // automationQueueBase maps each state with a queue to the empty-queue
 // state that its seed starts from.
@@ -59,6 +63,15 @@ func automationQueueCase(from, want chatstate.ExecutionState, layout string) tra
 		if !hasQueue {
 			base = from
 		}
+		unpromotable := strings.ContainsRune(layout, 'x')
+		if unpromotable {
+			// The shared organization has a default model config.
+			own := *f
+			own.Org = dbgen.Organization(t, f.DB, database.Organization{})
+			dbgen.OrganizationMember(t, f.DB, database.OrganizationMember{UserID: f.User.ID, OrganizationID: own.Org.ID})
+			own.Model = dbgen.ChatModelConfig(t, f.DB, database.ChatModelConfig{OrganizationID: own.Org.ID})
+			f = &own
+		}
 		seeded := seedState(t, f, base)
 		message := userTextMessage("queued", f.User.ID, f.Model.ID)
 		for _, kind := range layout {
@@ -97,6 +110,10 @@ func automationQueueCase(from, want chatstate.ExecutionState, layout string) tra
 				return err
 			}))
 		}
+		if unpromotable {
+			_, err := f.DB.DeleteChatModelConfigByID(ctx, f.Model.ID)
+			require.NoError(t, err)
+		}
 		return seeded
 	}
 
@@ -124,6 +141,9 @@ func automationQueueCase(from, want chatstate.ExecutionState, layout string) tra
 			if from == chatstate.StateP && want != chatstate.StateP {
 				require.NotNil(t, got.Chat, "leaving P returns the updated chat")
 				require.Equal(t, chat.Status, got.Chat.Status)
+				if want == chatstate.StateE1 {
+					require.Contains(t, string(chat.LastError.RawMessage), "no usable model")
+				}
 				return
 			}
 			require.Nil(t, got.Chat)
@@ -165,6 +185,8 @@ func automationQueueMatrixCases() []transitionCaseSpec {
 		automationQueueCase(chatstate.StateP, chatstate.StateW, "Aa"),
 		automationQueueCase(chatstate.StateP, chatstate.StateR0, "Ah"),
 		automationQueueCase(chatstate.StateP, chatstate.StateR1, "Aho"),
+		// A promotion that finds no model must not fail the cleanup.
+		automationQueueCase(chatstate.StateP, chatstate.StateE1, "Ax"),
 	)
 }
 
