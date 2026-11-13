@@ -80,3 +80,7 @@ Instead of maintaining an image for every combination, developers can layer thei
   Template administrators can also replace the base image itself with a NixOS flake.
 - [mise](https://mise.jdx.dev/): developers install and pin language runtimes and CLI tools at workspace startup without rebuilding the image.
   Visit the [install command-line tools guide](../../get-started/customize-your-template/install-command-line-tools.md).
+
+## Roll out a patched image
+
+To get a security fix in a rebuilt image into every new and existing workspace, refer to [Roll out a security update to every workspace](./roll-out-security-updates.md).
