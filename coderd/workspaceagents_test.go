@@ -97,6 +97,41 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.NoError(t, err)
 		require.False(t, workspace.LatestBuild.Resources[0].Agents[0].Health.Healthy)
 	})
+	t.Run("RedactsEnvironmentVariables", func(t *testing.T) {
+		t.Parallel()
+		client, db := coderdtest.NewWithDatabase(t, nil)
+		user := coderdtest.CreateFirstUser(t, client)
+
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: user.OrganizationID,
+			OwnerID:        user.UserID,
+		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+			agents[0].Env = map[string]string{
+				"GITHUB_TOKEN": "ghp_supersecret",
+				"EMPTY":        "",
+			}
+			return agents
+		}).Do()
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		want := map[string]string{
+			"GITHUB_TOKEN": db2sdk.RedactedEnvValue,
+			"EMPTY":        "",
+		}
+
+		workspace, err := client.Workspace(ctx, r.Workspace.ID)
+		require.NoError(t, err)
+		agentID := workspace.LatestBuild.Resources[0].Agents[0].ID
+		require.Equal(t, want, workspace.LatestBuild.Resources[0].Agents[0].EnvironmentVariables)
+
+		agent, err := client.WorkspaceAgent(ctx, agentID)
+		require.NoError(t, err)
+		require.Equal(t, want, agent.EnvironmentVariables)
+
+		build, err := client.WorkspaceBuild(ctx, r.Build.ID)
+		require.NoError(t, err)
+		require.Equal(t, want, build.Resources[0].Agents[0].EnvironmentVariables)
+	})
 	t.Run("ScriptDependencies", func(t *testing.T) {
 		t.Parallel()
 		client, db := coderdtest.NewWithDatabase(t, nil)

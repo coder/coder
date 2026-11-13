@@ -346,7 +346,7 @@ const ProjectFolder: React.FC<ProjectFolderProps> = ({
 				</ContextMenuContent>
 			</ContextMenu>
 			{expanded && (
-				<div className="ml-[15.5px] flex flex-col gap-0.5 border-0 border-l border-solid border-border pl-1.75 pr-2">
+				<div className="ml-[15.5px] flex flex-col gap-0.5 border-l pl-1.75 pr-2">
 					<ProjectFolderChats
 						projectId={project.id}
 						projectLabel={projectLabel}

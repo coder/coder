@@ -60,7 +60,7 @@ type ExperimentRuleEntry struct {
 
 // PutExperimentRuleRequest replaces the runtime rule of one experiment.
 type PutExperimentRuleRequest struct {
-	Mode ExperimentRuleMode `json:"mode" enums:"inherit,on,off,condition"`
+	Mode ExperimentRuleMode `json:"mode"`
 	// Condition is required for the condition mode and must be empty
 	// otherwise.
 	Condition string `json:"condition,omitempty"`

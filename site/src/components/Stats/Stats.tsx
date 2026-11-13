@@ -8,7 +8,7 @@ export const Stats: React.FC<React.ComponentProps<"div">> = ({
 	return (
 		<div
 			className={cn(
-				"p-4 rounded-[8px] block flex-wrap items-center m-0 text-content-secondary border border-solid border-border text-sm leading-relaxed font-normal md:py-0 md:flex",
+				"p-4 rounded-[8px] block flex-wrap items-center m-0 text-content-secondary border text-sm leading-relaxed font-normal md:py-0 md:flex",
 				className,
 			)}
 			{...attrs}

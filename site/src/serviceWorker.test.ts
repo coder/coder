@@ -1,10 +1,14 @@
 import type { WebpushMessage } from "#/api/typesGenerated";
+import { notificationLaunchParam } from "./pages/AgentsPage/utils/notificationWindow";
 
 // We need to mock the ServiceWorkerGlobalScope before importing the
 // module, since serviceWorker.ts registers event listeners at the
 // top level during module evaluation.
 
-const mockShowNotification = vi.fn(() => Promise.resolve());
+const mockShowNotification = vi.fn(
+	(_title: string, _options: NotificationOptions & { navigate?: string }) =>
+		Promise.resolve(),
+);
 const mockSubscribe = vi.fn();
 const mockRegistration = {
 	showNotification: mockShowNotification,
@@ -34,6 +38,7 @@ const mockSelf = {
 	skipWaiting: vi.fn(),
 	clients: mockClients,
 	registration: mockRegistration,
+	location: { origin: "https://example.com" },
 };
 
 // Assign our mock to the global `self` that serviceWorker.ts
@@ -90,6 +95,7 @@ describe("serviceWorker push handler", () => {
 			icon: testPayload.icon,
 			data: testPayload.data,
 			tag: undefined,
+			navigate: "https://example.com/agents/abc?notification=1",
 		});
 	});
 
@@ -127,6 +133,7 @@ describe("serviceWorker push handler", () => {
 			icon: testPayload.icon,
 			data: testPayload.data,
 			tag: undefined,
+			navigate: "https://example.com/agents/abc?notification=1",
 		});
 	});
 
@@ -154,6 +161,7 @@ describe("serviceWorker push handler", () => {
 			icon: "/icon.png",
 			data: undefined,
 			tag: undefined,
+			navigate: "https://example.com/agents?notification=1",
 		});
 	});
 
@@ -175,6 +183,7 @@ describe("serviceWorker push handler", () => {
 			icon: testPayload.icon,
 			data: testPayload.data,
 			tag: undefined,
+			navigate: "https://example.com/agents/abc?notification=1",
 		});
 	});
 
@@ -196,6 +205,7 @@ describe("serviceWorker push handler", () => {
 			icon: testPayload.icon,
 			data: testPayload.data,
 			tag: undefined,
+			navigate: "https://example.com/agents/abc?notification=1",
 		});
 	});
 
@@ -217,7 +227,21 @@ describe("serviceWorker push handler", () => {
 			icon: testPayload.icon,
 			data: testPayload.data,
 			tag: undefined,
+			navigate: "https://example.com/agents/abc?notification=1",
 		});
+	});
+
+	it("marks the navigate URL with the app's notification launch parameter", async () => {
+		mockMatchAll.mockResolvedValue([]);
+
+		const event = makePushEvent(testPayload);
+		handlers.push(event);
+		await event._waitUntilPromise;
+
+		const [, options] = mockShowNotification.mock.calls[0];
+		expect(
+			new URL(options.navigate ?? "").searchParams.get(notificationLaunchParam),
+		).toBe("1");
 	});
 
 	it("does not show notification when push event has no data", () => {
@@ -246,6 +270,7 @@ describe("serviceWorker push handler", () => {
 			icon: "/favicon.ico",
 			data: undefined,
 			tag: undefined,
+			navigate: "https://example.com/agents?notification=1",
 		});
 	});
 });
