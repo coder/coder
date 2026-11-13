@@ -326,23 +326,63 @@ WHERE
 	id = $1;
 
 -- name: GetProvisionerJobsToBeReaped :many
+WITH pending_requirements AS (
+	-- Requirement sets of pending jobs past the ordinary timeout that have
+	-- not reached the absolute age limit. Jobs that share an organization,
+	-- provisioner type, and tags have the same eligible daemons, and jobs
+	-- usually share a few template tag sets, so distinct sets are far fewer
+	-- than pending jobs. Checking daemon eligibility per set costs
+	-- sets x daemons calls to the plpgsql provisioner_tagset_contains
+	-- function, which Postgres cannot inline, instead of jobs x daemons.
+	SELECT DISTINCT organization_id, provisioner, tags
+	FROM provisioner_jobs
+	WHERE job_status = 'pending'::provisioner_job_status
+		AND updated_at < @pending_since
+		AND updated_at >= @max_pending_since
+),
+protected_requirements AS (
+	-- Requirement sets with an eligible daemon that was recently seen.
+	SELECT pr.organization_id, pr.provisioner, pr.tags
+	FROM pending_requirements pr
+	WHERE EXISTS (
+		SELECT 1
+		FROM provisioner_daemons pd
+		WHERE pd.organization_id = pr.organization_id
+			AND pr.provisioner = ANY(pd.provisioners)
+			AND provisioner_tagset_contains(pd.tags::tagset, pr.tags::tagset)
+			AND pd.last_seen_at >= @provisioner_seen_since::timestamptz
+	)
+)
 SELECT
-	*
+	pj.*
 FROM
-	provisioner_jobs
+	provisioner_jobs pj
 WHERE
 	(
 		-- If the job has not been started before @pending_since, reap it.
-		updated_at < @pending_since
-		AND started_at IS NULL
-		AND completed_at IS NULL
+		pj.updated_at < @pending_since
+		AND pj.started_at IS NULL
+		AND pj.completed_at IS NULL
+		-- Unless it is pending within the absolute age limit and an eligible
+		-- provisioner is online.
+		AND NOT (
+			pj.job_status = 'pending'::provisioner_job_status
+			AND pj.updated_at >= @max_pending_since
+			AND EXISTS (
+				SELECT 1
+				FROM protected_requirements pr
+				WHERE pr.organization_id = pj.organization_id
+					AND pr.provisioner = pj.provisioner
+					AND pr.tags = pj.tags
+			)
+		)
 	)
 	OR
 	(
 		-- If the job has been started but not completed before @hung_since, reap it.
-		updated_at < @hung_since
-		AND started_at IS NOT NULL
-		AND completed_at IS NULL
+		pj.updated_at < @hung_since
+		AND pj.started_at IS NOT NULL
+		AND pj.completed_at IS NULL
 	)
 -- To avoid repeatedly attempting to reap the same jobs, we randomly order and limit to @max_jobs.
 ORDER BY random()

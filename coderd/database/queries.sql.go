@@ -27038,37 +27038,85 @@ func (q *sqlQuerier) GetProvisionerJobsCreatedAfter(ctx context.Context, created
 }
 
 const getProvisionerJobsToBeReaped = `-- name: GetProvisionerJobsToBeReaped :many
+WITH pending_requirements AS (
+	-- Requirement sets of pending jobs past the ordinary timeout that have
+	-- not reached the absolute age limit. Jobs that share an organization,
+	-- provisioner type, and tags have the same eligible daemons, and jobs
+	-- usually share a few template tag sets, so distinct sets are far fewer
+	-- than pending jobs. Checking daemon eligibility per set costs
+	-- sets x daemons calls to the plpgsql provisioner_tagset_contains
+	-- function, which Postgres cannot inline, instead of jobs x daemons.
+	SELECT DISTINCT organization_id, provisioner, tags
+	FROM provisioner_jobs
+	WHERE job_status = 'pending'::provisioner_job_status
+		AND updated_at < $1
+		AND updated_at >= $2
+),
+protected_requirements AS (
+	-- Requirement sets with an eligible daemon that was recently seen.
+	SELECT pr.organization_id, pr.provisioner, pr.tags
+	FROM pending_requirements pr
+	WHERE EXISTS (
+		SELECT 1
+		FROM provisioner_daemons pd
+		WHERE pd.organization_id = pr.organization_id
+			AND pr.provisioner = ANY(pd.provisioners)
+			AND provisioner_tagset_contains(pd.tags::tagset, pr.tags::tagset)
+			AND pd.last_seen_at >= $5::timestamptz
+	)
+)
 SELECT
-	id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status, logs_length, logs_overflowed
+	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status, pj.logs_length, pj.logs_overflowed
 FROM
-	provisioner_jobs
+	provisioner_jobs pj
 WHERE
 	(
 		-- If the job has not been started before @pending_since, reap it.
-		updated_at < $1
-		AND started_at IS NULL
-		AND completed_at IS NULL
+		pj.updated_at < $1
+		AND pj.started_at IS NULL
+		AND pj.completed_at IS NULL
+		-- Unless it is pending within the absolute age limit and an eligible
+		-- provisioner is online.
+		AND NOT (
+			pj.job_status = 'pending'::provisioner_job_status
+			AND pj.updated_at >= $2
+			AND EXISTS (
+				SELECT 1
+				FROM protected_requirements pr
+				WHERE pr.organization_id = pj.organization_id
+					AND pr.provisioner = pj.provisioner
+					AND pr.tags = pj.tags
+			)
+		)
 	)
 	OR
 	(
 		-- If the job has been started but not completed before @hung_since, reap it.
-		updated_at < $2
-		AND started_at IS NOT NULL
-		AND completed_at IS NULL
+		pj.updated_at < $3
+		AND pj.started_at IS NOT NULL
+		AND pj.completed_at IS NULL
 	)
 ORDER BY random()
-LIMIT $3
+LIMIT $4
 `
 
 type GetProvisionerJobsToBeReapedParams struct {
-	PendingSince time.Time `db:"pending_since" json:"pending_since"`
-	HungSince    time.Time `db:"hung_since" json:"hung_since"`
-	MaxJobs      int32     `db:"max_jobs" json:"max_jobs"`
+	PendingSince         time.Time `db:"pending_since" json:"pending_since"`
+	MaxPendingSince      time.Time `db:"max_pending_since" json:"max_pending_since"`
+	HungSince            time.Time `db:"hung_since" json:"hung_since"`
+	MaxJobs              int32     `db:"max_jobs" json:"max_jobs"`
+	ProvisionerSeenSince time.Time `db:"provisioner_seen_since" json:"provisioner_seen_since"`
 }
 
 // To avoid repeatedly attempting to reap the same jobs, we randomly order and limit to @max_jobs.
 func (q *sqlQuerier) GetProvisionerJobsToBeReaped(ctx context.Context, arg GetProvisionerJobsToBeReapedParams) ([]ProvisionerJob, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerJobsToBeReaped, arg.PendingSince, arg.HungSince, arg.MaxJobs)
+	rows, err := q.db.QueryContext(ctx, getProvisionerJobsToBeReaped,
+		arg.PendingSince,
+		arg.MaxPendingSince,
+		arg.HungSince,
+		arg.MaxJobs,
+		arg.ProvisionerSeenSince,
+	)
 	if err != nil {
 		return nil, err
 	}
