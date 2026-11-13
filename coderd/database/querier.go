@@ -1007,10 +1007,13 @@ type sqlcQuerier interface {
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
 	// Returns, for each live provider, the requested models with unpriced token
 	// usage in the [period_start, period_end) window, most unpriced tokens first.
-	// Only models without a site-wide price now are returned. Usage priced through
-	// the model reported by the provider, or whose cost could not be computed from
-	// a found price, is not reported as unpriced. openai-compat providers cannot be
-	// priced, so they are excluded.
+	// Only models without a price now are returned. A model has a price if it has a
+	// site-wide price for the provider's type, or an organization price in the
+	// organization of the usage's effective group. Usage priced through the model
+	// reported by the provider, or whose cost could not be computed from a found
+	// price, is not reported as unpriced. openai-compat providers cannot be priced,
+	// so they are excluded. @organization_id limits the usage to one organization,
+	// and null includes all.
 	GetUnpricedAIModels(ctx context.Context, arg GetUnpricedAIModelsParams) ([]GetUnpricedAIModelsRow, error)
 	// Counts unpublished usage events in the last 60 days:
 	//   pending: created within the last 30 days (still eligible to publish)
