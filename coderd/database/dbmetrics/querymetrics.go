@@ -1960,6 +1960,22 @@ func (m queryMetricsStore) GetChatProjectMemoryByName(ctx context.Context, arg d
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetChatProjectPinTelemetry(ctx context.Context, aclEnabled bool) (database.GetChatProjectPinTelemetryRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectPinTelemetry(ctx, aclEnabled)
+	m.queryLatencies.WithLabelValues("GetChatProjectPinTelemetry").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectPinTelemetry").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatProjectSummariesByUserID(ctx context.Context, arg database.GetChatProjectSummariesByUserIDParams) ([]database.GetChatProjectSummariesByUserIDRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatProjectSummariesByUserID(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetChatProjectSummariesByUserID").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatProjectSummariesByUserID").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetChatProjectsOwnedOrSharedWithUserID(ctx context.Context, userID database.GetChatProjectsOwnedOrSharedWithUserIDParams) ([]database.ChatProject, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetChatProjectsOwnedOrSharedWithUserID(ctx, userID)
@@ -2101,6 +2117,14 @@ func (m queryMetricsStore) GetChatsByChatFileID(ctx context.Context, fileID uuid
 	r0, r1 := m.s.GetChatsByChatFileID(ctx, fileID)
 	m.queryLatencies.WithLabelValues("GetChatsByChatFileID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsByChatFileID").Inc()
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetChatsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.Chat, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetChatsByIDs(ctx, ids)
+	m.queryLatencies.WithLabelValues("GetChatsByIDs").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetChatsByIDs").Inc()
 	return r0, r1
 }
 
@@ -4176,6 +4200,14 @@ func (m queryMetricsStore) GetWorkspaceByWorkspaceAppID(ctx context.Context, wor
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceLastUsedForMetrics(ctx context.Context) ([]database.GetWorkspaceLastUsedForMetricsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceLastUsedForMetrics(ctx)
+	m.queryLatencies.WithLabelValues("GetWorkspaceLastUsedForMetrics").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "GetWorkspaceLastUsedForMetrics").Inc()
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceModule, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspaceModulesByJobID(ctx, jobID)
@@ -4542,6 +4574,14 @@ func (m queryMetricsStore) InsertChatProjectMemory(ctx context.Context, arg data
 	m.queryLatencies.WithLabelValues("InsertChatProjectMemory").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatProjectMemory").Inc()
 	return r0, r1
+}
+
+func (m queryMetricsStore) InsertChatProjectPin(ctx context.Context, arg database.InsertChatProjectPinParams) error {
+	start := time.Now()
+	r0 := m.s.InsertChatProjectPin(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertChatProjectPin").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "InsertChatProjectPin").Inc()
+	return r0
 }
 
 func (m queryMetricsStore) InsertChatQueuedMessage(ctx context.Context, arg database.InsertChatQueuedMessageParams) (database.ChatQueuedMessage, error) {
@@ -5432,6 +5472,14 @@ func (m queryMetricsStore) PinChatByID(ctx context.Context, id uuid.UUID) error 
 	return r0
 }
 
+func (m queryMetricsStore) PinChatProject(ctx context.Context, arg database.PinChatProjectParams) error {
+	start := time.Now()
+	r0 := m.s.PinChatProject(ctx, arg)
+	m.queryLatencies.WithLabelValues("PinChatProject").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "PinChatProject").Inc()
+	return r0
+}
+
 func (m queryMetricsStore) PopNextQueuedMessage(ctx context.Context, chatID uuid.UUID) (database.ChatQueuedMessage, error) {
 	start := time.Now()
 	r0, r1 := m.s.PopNextQueuedMessage(ctx, chatID)
@@ -5637,6 +5685,14 @@ func (m queryMetricsStore) UnpinChatByID(ctx context.Context, id uuid.UUID) erro
 	r0 := m.s.UnpinChatByID(ctx, id)
 	m.queryLatencies.WithLabelValues("UnpinChatByID").Observe(time.Since(start).Seconds())
 	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnpinChatByID").Inc()
+	return r0
+}
+
+func (m queryMetricsStore) UnpinChatProject(ctx context.Context, arg database.UnpinChatProjectParams) error {
+	start := time.Now()
+	r0 := m.s.UnpinChatProject(ctx, arg)
+	m.queryLatencies.WithLabelValues("UnpinChatProject").Observe(time.Since(start).Seconds())
+	m.queryCounts.WithLabelValues(httpmw.ExtractHTTPRoute(ctx), httpmw.ExtractHTTPMethod(ctx), "UnpinChatProject").Inc()
 	return r0
 }
 

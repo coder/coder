@@ -219,7 +219,7 @@ export const ModuleSelectStep: React.FC<ModuleSelectStepProps> = ({
 				onValueChange={setSelectedCategory}
 				orientation="horizontal"
 				aria-label="Filter modules by category"
-				className="my-4 flex flex-wrap items-center gap-6 border-solid border-0 border-b"
+				className="my-4 flex flex-wrap items-center gap-6 border-b"
 			>
 				{categoryFilters.map((filter) => (
 					<RadioGroup.Item
@@ -227,7 +227,7 @@ export const ModuleSelectStep: React.FC<ModuleSelectStepProps> = ({
 						value={filter.value}
 						className={cn(
 							"-mb-px inline-flex items-center gap-2 px-1 py-2.5 bg-transparent",
-							"border-0 border-y border-solid border-transparent",
+							"border-y border-transparent",
 							"text-sm font-normal text-content-secondary cursor-pointer",
 							"transition-colors duration-150 ease-linear hover:text-content-primary",
 							"data-[state=checked]:text-content-primary data-[state=checked]:border-b-content-primary",

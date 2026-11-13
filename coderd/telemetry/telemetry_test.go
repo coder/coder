@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -1315,6 +1316,65 @@ func TestChatsTelemetry(t *testing.T) {
 	assert.Equal(t, int64(128000), cfg2.ContextLimit)
 	assert.True(t, cfg2.Enabled)
 	assert.False(t, cfg2.IsDefault)
+}
+
+func TestChatProjectPinTelemetry(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+	org, err := db.GetDefaultOrganization(ctx)
+	require.NoError(t, err)
+	// A pins two of four projects, unpins one and reorders one; B pins its
+	// only project; C has a shared project and no pins; D has no projects;
+	// suspended E is not counted.
+	userA := dbgen.User(t, db, database.User{})
+	userB := dbgen.User(t, db, database.User{})
+	userC := dbgen.User(t, db, database.User{})
+	_ = dbgen.User(t, db, database.User{})
+	userE := dbgen.User(t, db, database.User{Status: database.UserStatusSuspended})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: userC.ID, OrganizationID: org.ID})
+	newProject := func(owner database.User) database.ChatProject {
+		return dbgen.ChatProject(t, db, database.ChatProject{OrganizationID: org.ID, OwnerID: owner.ID})
+	}
+	a1, a2, a3, _ := newProject(userA), newProject(userA), newProject(userA), newProject(userA)
+	b1 := newProject(userB)
+	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: userE.ID, ProjectID: newProject(userE).ID})
+	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: userA.ID, ProjectID: a1.ID})
+	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: userA.ID, ProjectID: a2.ID, Source: database.ChatProjectPinSourceUser})
+	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: userA.ID, ProjectID: a3.ID, UnpinnedAt: sql.NullTime{Time: dbtime.Now(), Valid: true}})
+	dbgen.ChatProjectPin(t, db, database.ChatProjectPin{UserID: userB.ID, ProjectID: b1.ID})
+	// A group from another organization does not give F, who is outside
+	// a1's organization, a project.
+	otherOrg := dbgen.Organization(t, db, database.Organization{})
+	userF := dbgen.User(t, db, database.User{})
+	dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: userF.ID, OrganizationID: otherOrg.ID})
+	foreignGroup := dbgen.Group(t, db, database.Group{OrganizationID: otherOrg.ID})
+	dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: foreignGroup.ID, UserID: userF.ID})
+	require.NoError(t, db.UpdateChatProjectACLByID(ctx, database.UpdateChatProjectACLByIDParams{
+		ID:       a1.ID,
+		UserACL:  database.ChatACL{userC.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+		GroupACL: database.ChatACL{foreignGroup.ID.String(): {Permissions: []policy.Action{policy.ActionRead}}},
+	}))
+
+	_, snapshot := collectSnapshot(ctx, t, db, nil)
+	require.Equal(t, &telemetry.ChatProjectPinSummary{
+		UsersWithProjects:   3,
+		UsersWithTombstones: 1,
+		PinnedDefault:       2,
+		PinnedUser:          1,
+		TombstonesDefault:   1,
+		AllShare0:           1,
+		AllShare2650:        1,
+		AllShare100:         1,
+		ActedShare2650:      1,
+	}, snapshot.ChatProjectPins)
+
+	// With sharing disabled, C's grant no longer gives C a project.
+	disabled, err := db.GetChatProjectPinTelemetry(ctx, false)
+	require.NoError(t, err)
+	require.EqualValues(t, 2, disabled.UsersWithProjects)
+	require.Zero(t, disabled.AllShare0)
 }
 
 func TestChatDiffStatusSummaryTelemetry(t *testing.T) {

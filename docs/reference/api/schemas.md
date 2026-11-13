@@ -413,6 +413,7 @@ title: Schemas
   "circuit_breaker_max_requests": 0,
   "circuit_breaker_timeout": 0,
   "disable_content_recording": true,
+  "embedded_enabled": true,
   "enabled": true,
   "inject_coder_mcp_tools": true,
   "max_concurrency": 0,
@@ -441,6 +442,7 @@ title: Schemas
 | `circuit_breaker_max_requests`      | integer | false    |              |                                                                                                                                                                                                                                                                        |
 | `circuit_breaker_timeout`           | integer | false    |              |                                                                                                                                                                                                                                                                        |
 | `disable_content_recording`         | boolean | false    |              | Disable content recording stops user prompts, tool calls and model reasoning from being recorded, including tool names and their arguments. Interceptions and token usage are still recorded, so cost controls, budget enforcement and spend reporting are unaffected. |
+| `embedded_enabled`                  | boolean | false    |              | Embedded enabled controls whether coderd starts the in-memory AI Gateway. It only takes effect when Enabled is true.                                                                                                                                                   |
 | `enabled`                           | boolean | false    |              |                                                                                                                                                                                                                                                                        |
 | `inject_coder_mcp_tools`            | boolean | false    |              | Deprecated: Injected MCP in AI Bridge is deprecated and will be removed in a future release.                                                                                                                                                                           |
 | `max_concurrency`                   | integer | false    |              |                                                                                                                                                                                                                                                                        |
@@ -1129,6 +1131,7 @@ title: Schemas
     "circuit_breaker_max_requests": 0,
     "circuit_breaker_timeout": 0,
     "disable_content_recording": true,
+    "embedded_enabled": true,
     "enabled": true,
     "inject_coder_mcp_tools": true,
     "max_concurrency": 0,
@@ -5302,6 +5305,52 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 |--------------------|
 | ``, `admin`, `use` |
 
+## codersdk.ChatProjectSummary
+
+```json
+{
+  "last_activity_at": "2019-08-24T14:15:22Z",
+  "member_count": 0,
+  "own_chat_count": 0,
+  "own_needs_attention": true,
+  "own_running": true,
+  "own_unread_count": 0,
+  "pin_order": 0,
+  "pinned": true,
+  "project": {
+    "archived_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
+    "description": "string",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "name": "string",
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "owner_id": "8826ee2e-7933-4665-aef2-2393f84a0d05",
+    "permissions": {
+      "archive": true,
+      "delete": true,
+      "share": true,
+      "update": true
+    },
+    "updated_at": "2019-08-24T14:15:22Z"
+  }
+}
+```
+
+### Properties
+
+| Name                  | Type                                         | Required | Restrictions | Description                                                                                                                                        |
+|-----------------------|----------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------|
+| `last_activity_at`    | string                                       | false    |              | Last activity at is the latest update to one of the caller's chats.                                                                                |
+| `member_count`        | integer                                      | false    |              | Member count counts users who can use the project, including the owner. Suspended users are not counted. It is 1 when chat sharing is unavailable. |
+| `own_chat_count`      | integer                                      | false    |              |                                                                                                                                                    |
+| `own_needs_attention` | boolean                                      | false    |              | Own needs attention reports a chat that requires action, failed, or is paused.                                                                     |
+| `own_running`         | boolean                                      | false    |              |                                                                                                                                                    |
+| `own_unread_count`    | integer                                      | false    |              |                                                                                                                                                    |
+| `pin_order`           | integer                                      | false    |              | Pin order is the 1-based position among pinned projects, or 0.                                                                                     |
+| `pinned`              | boolean                                      | false    |              |                                                                                                                                                    |
+| `project`             | [codersdk.ChatProject](#codersdkchatproject) | false    |              |                                                                                                                                                    |
+
 ## codersdk.ChatProjectUser
 
 ```json
@@ -8306,6 +8355,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
         "circuit_breaker_max_requests": 0,
         "circuit_breaker_timeout": 0,
         "disable_content_recording": true,
+        "embedded_enabled": true,
         "enabled": true,
         "inject_coder_mcp_tools": true,
         "max_concurrency": 0,
@@ -8641,6 +8691,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       ],
       "collect_agent_stats": true,
       "collect_db_metrics": true,
+      "collect_workspace_stats": true,
       "enable": true
     },
     "provisioner": {
@@ -8944,6 +8995,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
       "circuit_breaker_max_requests": 0,
       "circuit_breaker_timeout": 0,
       "disable_content_recording": true,
+      "embedded_enabled": true,
       "enabled": true,
       "inject_coder_mcp_tools": true,
       "max_concurrency": 0,
@@ -9279,6 +9331,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
     ],
     "collect_agent_stats": true,
     "collect_db_metrics": true,
+    "collect_workspace_stats": true,
     "enable": true
   },
   "provisioner": {
@@ -10011,9 +10064,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value(s)                                                                                                                                                                                                                                                                                                                                                                           |
-|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
+| Value(s)                                                                                                                                                                                                                                                                                                                                                                                               |
+|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `agent-lifecycle-hooks`, `ai-gateway-reverse-proxy`, `ai-gateway-seat-exclusion`, `chat-acp-subagents`, `chat-automations`, `chat-inline-mcp-servers`, `chat-project-sharing`, `chat-stage-metrics`, `chat-virtual-desktop`, `enable-ai-workspace-debug`, `example`, `mcp-server-http`, `no_nats_pubsub`, `notifications`, `workspace-build-updates`, `workspace-capable-licensing`, `workspace-usage` |
 
 ## codersdk.ExperimentRule
 
@@ -13611,6 +13664,20 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `negate`        | boolean                                        | false    |              | Negate makes this a negative permission |
 | `resource_type` | [codersdk.RBACResource](#codersdkrbacresource) | false    |              |                                         |
 
+## codersdk.PinChatProjectRequest
+
+```json
+{
+  "pin_order": 0
+}
+```
+
+### Properties
+
+| Name        | Type    | Required | Restrictions | Description                                                                                                                  |
+|-------------|---------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------|
+| `pin_order` | integer | false    |              | Pin order is the 1-based position to pin at. When omitted, a new pin goes to the end and an existing pin keeps its position. |
+
 ## codersdk.PostOAuth2ProviderAppRequest
 
 ```json
@@ -13957,6 +14024,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   ],
   "collect_agent_stats": true,
   "collect_db_metrics": true,
+  "collect_workspace_stats": true,
   "enable": true
 }
 ```
@@ -13969,6 +14037,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `aggregate_agent_stats_by` | array of string                      | false    |              |             |
 | `collect_agent_stats`      | boolean                              | false    |              |             |
 | `collect_db_metrics`       | boolean                              | false    |              |             |
+| `collect_workspace_stats`  | boolean                              | false    |              |             |
 | `enable`                   | boolean                              | false    |              |             |
 
 ## codersdk.ProposeChatTitleResponse
@@ -19398,7 +19467,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `directory`                  | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `disconnected_at`            | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `display_apps`               | array of [codersdk.DisplayApp](#codersdkdisplayapp)                                          | false    |              |                                                                                                                                                                                                                                                                        |
-| `environment_variables`      | object                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
+| `environment_variables`      | object                                                                                       | false    |              | Environment variables lists the variables set on the agent. Non-empty values are redacted as "***REDACTED***" because they often hold credentials.                                                                                                                     |
 | » `[any property]`           | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `expanded_directory`         | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |
 | `first_connected_at`         | string                                                                                       | false    |              |                                                                                                                                                                                                                                                                        |

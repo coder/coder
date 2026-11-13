@@ -1,4 +1,4 @@
-import { SquarePenIcon } from "lucide-react";
+import { PinIcon, PinOffIcon, SquarePenIcon } from "lucide-react";
 import { Link, type To } from "react-router";
 import type { ChatProject } from "#/api/typesGenerated";
 import type {
@@ -22,6 +22,10 @@ type ProjectActionsMenuItemsProps = {
 	/** Adds a "New chat" item linking here. Omit on the project page itself. */
 	readonly projectPath?: To;
 	readonly onNewChatInPlace?: () => void;
+	/** Adds a "Pin project" item. */
+	readonly onPin?: () => void;
+	/** Adds an "Unpin project" item. */
+	readonly onUnpin?: () => void;
 	readonly project: Pick<ChatProject, "permissions" | "archived_at">;
 	readonly onEdit: () => void;
 	readonly onArchive: () => void;
@@ -47,6 +51,8 @@ export const ProjectActionsMenuItems: React.FC<
 	Separator,
 	projectPath,
 	onNewChatInPlace,
+	onPin,
+	onUnpin,
 	project,
 	onEdit,
 	onArchive,
@@ -69,8 +75,22 @@ export const ProjectActionsMenuItems: React.FC<
 							New chat
 						</Link>
 					</Item>
-					{hasProjectManageAction(project) && <Separator />}
+					{(onPin || onUnpin || hasProjectManageAction(project)) && (
+						<Separator />
+					)}
 				</>
+			)}
+			{onPin && (
+				<Item onSelect={onPin}>
+					<PinIcon />
+					Pin project
+				</Item>
+			)}
+			{onUnpin && (
+				<Item onSelect={onUnpin}>
+					<PinOffIcon />
+					Unpin project
+				</Item>
 			)}
 			{permissions.update && !isArchived && (
 				<Item onSelect={onEdit}>Edit project</Item>

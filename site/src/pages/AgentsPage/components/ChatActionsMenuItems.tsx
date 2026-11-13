@@ -285,7 +285,12 @@ export const ChatActionsMenu: React.FC<ChatActionsMenuProps> = ({
 				</ContextMenu>
 			) : (
 				<DropdownMenu>
-					<DropdownMenuTrigger asChild disabled={disabled}>
+					{/* The move dialog finds this trigger to return focus to it. */}
+					<DropdownMenuTrigger
+						asChild
+						disabled={disabled}
+						data-chat-actions-for={chat.id}
+					>
 						{children}
 					</DropdownMenuTrigger>
 					<DropdownMenuContent
