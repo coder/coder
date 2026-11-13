@@ -11,6 +11,7 @@ import { chatProjectInstructionsKey } from "#/api/queries/chatProjects";
 import type {
 	ChatProject,
 	ChatProjectInstructions,
+	Template,
 } from "#/api/typesGenerated";
 import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import { ThemeOverride } from "#/contexts/ThemeProvider";
@@ -20,6 +21,7 @@ import {
 	MockChatProjectInstructions,
 	MockOrganizationMember,
 	MockOrganizationMember2,
+	MockTemplate,
 	MockUnsetChatProjectInstructions,
 	MockUserMember,
 	mockApiError,
@@ -645,5 +647,290 @@ describe("ProjectDetailsPanel", () => {
 				{ user_roles: { [MockUserMember.id]: "admin" } },
 			),
 		);
+	});
+});
+
+const mockDockerTemplate: Template = {
+	...MockTemplate,
+	id: "template-docker",
+	name: "docker",
+	display_name: "Docker",
+};
+const mockKubernetesTemplate: Template = {
+	...MockTemplate,
+	id: "template-kubernetes",
+	name: "kubernetes",
+	display_name: "Kubernetes",
+};
+
+describe("ProjectDetailsPanel templates", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+		focusManager.setFocused(undefined);
+	});
+
+	const setup = () => {
+		mockInstructions(MockUnsetChatProjectInstructions);
+		vi.spyOn(API, "getTemplates").mockResolvedValue([
+			mockDockerTemplate,
+			mockKubernetesTemplate,
+		]);
+		const updateProject = vi
+			.spyOn(API.experimental, "updateChatProject")
+			.mockResolvedValue(MockChatProject);
+		const getProjects = vi
+			.spyOn(API.experimental, "getChatProjects")
+			.mockResolvedValue([MockChatProject]);
+		const panel = renderPanel();
+		return {
+			updateProject,
+			getProjects,
+			...panel,
+			// The dialog checks the project list before saving, so it serves
+			// the rerendered project too.
+			rerenderWithProject: (project: ChatProject) => {
+				getProjects.mockResolvedValue([project]);
+				panel.rerenderWithProject(project);
+			},
+		};
+	};
+
+	it("saves the templates picked in the editor", async () => {
+		const { user, updateProject } = setup();
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(updateProject).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				MockChatProject.id,
+				{
+					templates: {
+						template_ids: [mockDockerTemplate.id, mockKubernetesTemplate.id],
+					},
+				},
+			),
+		);
+	});
+
+	it("sends one templates update when Save is double clicked", async () => {
+		const { user, updateProject } = setup();
+		updateProject.mockReturnValue(new Promise(() => {}));
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		await userEvent
+			.setup({ delay: null })
+			.dblClick(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() => expect(updateProject).toHaveBeenCalled());
+		expect(updateProject).toHaveBeenCalledTimes(1);
+	});
+
+	it("starts the editor from the saved templates", async () => {
+		const { user, updateProject, rerenderWithProject } = setup();
+		rerenderWithProject({
+			...MockChatProject,
+			templates: {
+				template_ids: [mockDockerTemplate.id, mockKubernetesTemplate.id],
+			},
+		});
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 2 templates" }),
+		);
+		await user.click(
+			await screen.findByRole("combobox", { name: "Templates" }),
+		);
+		await user.keyboard("{Backspace}");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(updateProject).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				MockChatProject.id,
+				{ templates: { template_ids: [mockDockerTemplate.id] } },
+			),
+		);
+	});
+
+	it("saves the removal of templates that are no longer eligible", async () => {
+		const { user, updateProject, rerenderWithProject } = setup();
+		vi.spyOn(API, "getTemplates").mockResolvedValue([]);
+		rerenderWithProject({
+			...MockChatProject,
+			templates: { template_ids: [mockDockerTemplate.id] },
+		});
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 1 template" }),
+		);
+		const save = await screen.findByRole("button", { name: "Save" });
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
+		await user.click(save);
+
+		await waitFor(() =>
+			expect(updateProject).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				MockChatProject.id,
+				{ templates: { template_ids: [] } },
+			),
+		);
+	});
+
+	it("returns focus to the edit button when the editor closes", async () => {
+		const { user } = setup();
+		const editButton = screen.getByRole("button", {
+			name: "Edit templates: 0 templates",
+		});
+
+		await user.click(editButton);
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		await waitFor(() => expect(editButton).toHaveFocus());
+	});
+
+	it("blocks Save when the templates change while editing, until the user keeps the draft", async () => {
+		const { user, updateProject, rerenderWithProject } = setup();
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		rerenderWithProject({
+			...MockChatProject,
+			templates: { template_ids: [mockKubernetesTemplate.id] },
+		});
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		expect(updateProject).not.toHaveBeenCalled();
+
+		await user.click(screen.getByRole("button", { name: "Keep my draft" }));
+		expect(screen.getByRole("button", { name: /Save/ })).toHaveFocus();
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		await waitFor(() =>
+			expect(updateProject).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				MockChatProject.id,
+				{
+					templates: {
+						template_ids: [mockDockerTemplate.id, mockKubernetesTemplate.id],
+					},
+				},
+			),
+		);
+	});
+
+	it("replaces the draft with templates saved elsewhere on Load latest", async () => {
+		const { user, updateProject, rerenderWithProject } = setup();
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		rerenderWithProject({
+			...MockChatProject,
+			templates: { template_ids: [mockKubernetesTemplate.id] },
+		});
+		await user.click(screen.getByRole("button", { name: "Load latest" }));
+		await user.click(screen.getByRole("combobox", { name: "Templates" }));
+		await user.keyboard("{Backspace}");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(updateProject).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				MockChatProject.id,
+				{ templates: { template_ids: [] } },
+			),
+		);
+	});
+
+	it("does not block Save when the latest templates already match the draft", async () => {
+		const { user, updateProject, rerenderWithProject } = setup();
+		const draft = {
+			template_ids: [mockDockerTemplate.id, mockKubernetesTemplate.id],
+		};
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		rerenderWithProject({ ...MockChatProject, templates: draft });
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(updateProject).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				MockChatProject.id,
+				{ templates: draft },
+			),
+		);
+	});
+
+	it("refetches the project's templates on open and when the window regains focus", async () => {
+		const { user, getProjects } = setup();
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		await waitFor(() => expect(getProjects).toHaveBeenCalledTimes(1));
+
+		act(() => {
+			focusManager.setFocused(false);
+			focusManager.setFocused(true);
+		});
+		await waitFor(() => expect(getProjects).toHaveBeenCalledTimes(2));
+		// Saving drops templates missing from this list, so it refreshes too.
+		await waitFor(() => expect(API.getTemplates).toHaveBeenCalledTimes(2));
+	});
+
+	it("starts an untouched draft from templates saved while the editor is open", async () => {
+		const { user, updateProject, rerenderWithProject } = setup();
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		rerenderWithProject({
+			...MockChatProject,
+			templates: { template_ids: [mockKubernetesTemplate.id] },
+		});
+		await user.click(
+			await screen.findByRole("combobox", { name: "Templates" }),
+		);
+		await user.click(await screen.findByRole("option", { name: "Docker" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(updateProject).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				MockChatProject.id,
+				{
+					templates: {
+						template_ids: [mockKubernetesTemplate.id, mockDockerTemplate.id],
+					},
+				},
+			),
+		);
+	});
+
+	it("returns focus to the template count when edit permission is lost while editing", async () => {
+		const { user, rerenderWithProject } = setup();
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		rerenderWithProject({
+			...MockChatProject,
+			permissions: { ...MockChatProject.permissions, update: false },
+		});
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		await waitFor(() => expect(screen.getByText("0 templates")).toHaveFocus());
 	});
 });

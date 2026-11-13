@@ -1,6 +1,6 @@
 import { useId, useRef } from "react";
 import { useQuery } from "react-query";
-import { getErrorMessage } from "#/api/errors";
+import { getErrorMessage, isApiValidationError } from "#/api/errors";
 import {
 	richParameters,
 	templateVersionPresets,
@@ -81,6 +81,18 @@ export const chatProjectTemplatesRequest = (
 			Object.keys(parameters).length > 0 ? parameters : undefined,
 	};
 };
+
+/**
+ * Returns the server's rejection of the templates in a save error. Forms
+ * have no field named after these validations, so the templates fields show
+ * it through `saveError`.
+ */
+export const templatesValidationDetail = (error: unknown) =>
+	isApiValidationError(error)
+		? error.response.data.validations?.find((validation) =>
+				validation.field.startsWith("templates."),
+			)?.detail
+		: undefined;
 
 const templateLabel = (template: Template) =>
 	template.display_name || template.name;
@@ -257,6 +269,12 @@ const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
 	// The server returns null rather than [] for a version without presets.
 	const presets =
 		presetsQuery.data === undefined ? undefined : (presetsQuery.data ?? []);
+	const defaultsError =
+		value.defaultsKind === "preset"
+			? presetsQuery.error &&
+				getErrorMessage(presetsQuery.error, "Failed to load presets.")
+			: parametersQuery.error &&
+				getErrorMessage(parametersQuery.error, "Failed to load parameters.");
 
 	return (
 		<div className="flex flex-col gap-3">
@@ -316,12 +334,8 @@ const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
 							</Select>
 						</div>
 					)
-				) : presetsQuery.error ? (
-					<p role="alert" className="m-0 text-sm text-content-destructive">
-						{getErrorMessage(presetsQuery.error, "Failed to load presets.")}
-					</p>
 				) : (
-					<Skeleton className="h-10 w-full" />
+					!presetsQuery.error && <Skeleton className="h-10 w-full" />
 				)
 			) : parametersQuery.data ? (
 				parametersQuery.data.length === 0 ? (
@@ -396,12 +410,15 @@ const ChatProjectDefaultsFields: React.FC<ChatProjectDefaultsFieldsProps> = ({
 						);
 					})
 				)
-			) : parametersQuery.error ? (
-				<p role="alert" className="m-0 text-sm text-content-destructive">
-					{getErrorMessage(parametersQuery.error, "Failed to load parameters.")}
-				</p>
 			) : (
-				<Skeleton className="h-10 w-full" />
+				!parametersQuery.error && <Skeleton className="h-10 w-full" />
+			)}
+			{/* Shown with cached values too, since a failed refetch means they
+			    may be out of date. */}
+			{defaultsError && (
+				<p role="alert" className="m-0 text-sm text-content-destructive">
+					{defaultsError}
+				</p>
 			)}
 		</div>
 	);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { getErrorStatus } from "#/api/errors";
 import { chatProjectSkills } from "#/api/queries/chatProjectSkills";
@@ -7,6 +7,7 @@ import {
 	chatProjectInstructions,
 	deleteChatProjectInstructions,
 	setChatProjectRole,
+	updateChatProject,
 	updateChatProjectInstructions,
 } from "#/api/queries/chatProjects";
 import type { ChatProject, ChatProjectRole } from "#/api/typesGenerated";
@@ -17,6 +18,7 @@ import { ProjectAccessDialog } from "./ProjectAccessDialog";
 import { ProjectDetailsPanelView } from "./ProjectDetailsPanelView";
 import { ProjectInstructionsDialog } from "./ProjectInstructionsDialog";
 import { ProjectSkillsDialog } from "./ProjectSkillsDialog";
+import { ProjectTemplatesDialog } from "./ProjectTemplatesDialog";
 import {
 	type AccessChangeCallbacks,
 	buildAccessEntries,
@@ -27,7 +29,7 @@ type ProjectDetailsPanelProps = {
 	readonly project: ChatProject;
 };
 
-/** Loads a project's details and members, and edits its instructions, skills, and access. */
+/** Loads a project's details and members, and edits its templates, instructions, skills, and access. */
 export const ProjectDetailsPanel: React.FC<ProjectDetailsPanelProps> = ({
 	project,
 }) => (
@@ -90,11 +92,19 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	const deleteMutation = useMutation(
 		deleteChatProjectInstructions(queryClient, project),
 	);
+	const updateTemplatesMutation = useMutation(updateChatProject(queryClient));
 	const [isEditorOpen, setIsEditorOpen] = useState(false);
+	const [isTemplatesEditorOpen, setIsTemplatesEditorOpen] = useState(false);
+	const editTemplatesButtonRef = useRef<HTMLButtonElement>(null);
+	const templateCountRef = useRef<HTMLSpanElement>(null);
+	// isPending reaches the dialog only after a render, so a fast double
+	// click could otherwise submit the same change twice.
+	const isTemplatesSaveInFlight = useRef(false);
 
 	const resetErrors = () => {
 		updateMutation.reset();
 		deleteMutation.reset();
+		updateTemplatesMutation.reset();
 	};
 
 	const openEditor = () => {
@@ -116,6 +126,17 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				createdAt={project.created_at}
 				organizationLabel={organizationLabel}
 				organizationIconUrl={showOrganizations ? organization?.icon : undefined}
+				templateCount={project.templates.template_ids.length}
+				onEditTemplates={
+					project.permissions.update
+						? () => {
+								updateTemplatesMutation.reset();
+								setIsTemplatesEditorOpen(true);
+							}
+						: undefined
+				}
+				editTemplatesButtonRef={editTemplatesButtonRef}
+				templateCountRef={templateCountRef}
 				skillCount={skillsQuery.data?.length}
 				disabledSkillCount={
 					skillsQuery.data?.filter((skill) => !skill.enabled).length
@@ -149,6 +170,42 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 								},
 							}
 				}
+			/>
+			<ProjectTemplatesDialog
+				project={project}
+				open={isTemplatesEditorOpen}
+				onOpenChange={setIsTemplatesEditorOpen}
+				onCloseAutoFocus={(event) => {
+					// The button is gone if a refresh removed edit permission, so
+					// focus then goes to the template count that replaced it.
+					const button = editTemplatesButtonRef.current;
+					const target =
+						button?.isConnected && !button.disabled
+							? button
+							: templateCountRef.current;
+					if (target?.isConnected) {
+						event.preventDefault();
+						target.focus();
+					}
+				}}
+				isSaving={updateTemplatesMutation.isPending}
+				error={updateTemplatesMutation.error}
+				onResetError={updateTemplatesMutation.reset}
+				onSave={(templates) => {
+					if (isTemplatesSaveInFlight.current) {
+						return;
+					}
+					isTemplatesSaveInFlight.current = true;
+					updateTemplatesMutation.mutate(
+						{ project, request: { templates } },
+						{
+							onSuccess: () => setIsTemplatesEditorOpen(false),
+							onSettled: () => {
+								isTemplatesSaveInFlight.current = false;
+							},
+						},
+					);
+				}}
 			/>
 			<ProjectInstructionsDialog
 				open={isEditorOpen}
