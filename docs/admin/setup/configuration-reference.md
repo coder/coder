@@ -147,7 +147,7 @@ Expose the swagger endpoint via /swagger.
 
 Enable one or more experiments.
 These are not ready for production.
-Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.
+Separate multiple experiments with commas, or enter '*' to opt-in to the experiments that are marked safe.
 
 - Type: `string-array`
 - Environment variable: `CODER_EXPERIMENTS`
@@ -2354,7 +2354,7 @@ If false, users can't change their quiet hours schedule and the site default is 
 ### Default quiet hours schedule
 
 The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves.
-The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will set the max deadline to the start of the user's next quiet hours window (or default).
+The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will set the max deadline to the start of the user's quiet hours window on the next day that the template's autostop requirement applies (or default).
 The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *.
 Only one hour and minute can be specified (ranges or comma separated values are not supported).
 

@@ -79,7 +79,7 @@ OPTIONS:
       --experiments string-array, $CODER_EXPERIMENTS
           Enable one or more experiments. These are not ready for production.
           Separate multiple experiments with commas, or enter '*' to opt-in to
-          all available experiments.
+          the experiments that are marked safe.
 
       --external-auth-github-default-provider-enable bool, $CODER_EXTERNAL_AUTH_GITHUB_DEFAULT_PROVIDER_ENABLE (default: true)
           Enable the default GitHub external auth provider managed by Coder.
@@ -994,10 +994,11 @@ workspaces stopping during the day due to template scheduling.
           custom quiet hours schedule themselves. The quiet hours schedule
           determines when workspaces will be force stopped due to the template's
           autostop requirement, and will set the max deadline to the start of
-          the user's next quiet hours window (or default). The format is the
-          same as the standard cron format, but the day-of-month, month and
-          day-of-week must be *. Only one hour and minute can be specified
-          (ranges or comma separated values are not supported).
+          the user's quiet hours window on the next day that the template's
+          autostop requirement applies (or default). The format is the same as
+          the standard cron format, but the day-of-month, month and day-of-week
+          must be *. Only one hour and minute can be specified (ranges or comma
+          separated values are not supported).
 
 WORKSPACE PREBUILDS OPTIONS: 
 Configure how workspace prebuilds behave.
