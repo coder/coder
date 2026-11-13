@@ -781,7 +781,7 @@ describe("ProjectDetailsPanel templates", () => {
 		await waitFor(() => expect(editButton).toHaveFocus());
 	});
 
-	it("keeps the draft when the project refetches while editing", async () => {
+	it("blocks Save when the templates change while editing, until the user keeps the draft", async () => {
 		const { user, updateProject, rerenderWithProject } = setup();
 
 		await user.click(
@@ -793,7 +793,10 @@ describe("ProjectDetailsPanel templates", () => {
 			templates: { template_ids: [kubernetesTemplate.id] },
 		});
 		await user.click(screen.getByRole("button", { name: "Save" }));
+		expect(updateProject).not.toHaveBeenCalled();
 
+		await user.click(screen.getByRole("button", { name: "Keep my draft" }));
+		await user.click(screen.getByRole("button", { name: "Save" }));
 		await waitFor(() =>
 			expect(updateProject).toHaveBeenCalledWith(
 				MockChatProject.organization_id,
@@ -803,6 +806,32 @@ describe("ProjectDetailsPanel templates", () => {
 						template_ids: [dockerTemplate.id, kubernetesTemplate.id],
 					},
 				},
+			),
+		);
+	});
+
+	it("replaces the draft with templates saved elsewhere on Load latest", async () => {
+		const { user, updateProject, rerenderWithProject } = setup();
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		await user.click(await screen.findByRole("button", { name: "Select all" }));
+		rerenderWithProject({
+			...MockChatProject,
+			templates: { template_ids: [kubernetesTemplate.id] },
+		});
+		await user.click(screen.getByRole("button", { name: "Load latest" }));
+		// Removes Kubernetes, the only template in the latest save.
+		await user.click(screen.getByRole("combobox", { name: "Templates" }));
+		await user.keyboard("{Backspace}");
+		await user.click(screen.getByRole("button", { name: "Save" }));
+
+		await waitFor(() =>
+			expect(updateProject).toHaveBeenCalledWith(
+				MockChatProject.organization_id,
+				MockChatProject.id,
+				{ templates: { template_ids: [] } },
 			),
 		);
 	});

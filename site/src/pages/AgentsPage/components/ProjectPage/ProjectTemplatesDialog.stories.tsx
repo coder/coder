@@ -1,4 +1,5 @@
 import type { Decorator, Meta, StoryObj } from "@storybook/react-vite";
+import { useSyncExternalStore } from "react";
 import { useQuery } from "react-query";
 import { fn, screen, spyOn } from "storybook/test";
 import { API } from "#/api/api";
@@ -223,4 +224,48 @@ export const RequestError: Story = {
 		error: mockApiError({ message: "Failed to update chat project." }),
 	},
 	parameters: DefaultPreset.parameters,
+};
+
+/**
+ * Stands in for the server's copy of the project, so the Conflict story's
+ * play function can save a change from "another user" while the dialog is
+ * open.
+ */
+const serverProject = (() => {
+	let value = projectWithDefaultPreset;
+	const listeners = new Set<() => void>();
+	return {
+		get: () => value,
+		set: (next: ChatProject) => {
+			value = next;
+			for (const listener of listeners) {
+				listener();
+			}
+		},
+		subscribe: (listener: () => void) => {
+			listeners.add(listener);
+			return () => listeners.delete(listener);
+		},
+	};
+})();
+
+/** Another user saved different templates while this editor was open. */
+export const Conflict: Story = {
+	parameters: DefaultPreset.parameters,
+	beforeEach: () => {
+		serverProject.set(projectWithDefaultPreset);
+	},
+	render: function ConflictStory(args) {
+		const project = useSyncExternalStore(
+			serverProject.subscribe,
+			serverProject.get,
+		);
+		return <ProjectTemplatesDialog {...args} project={project} />;
+	},
+	play: () => {
+		serverProject.set({
+			...projectWithDefaultPreset,
+			templates: { template_ids: [kubernetesTemplate.id] },
+		});
+	},
 };
