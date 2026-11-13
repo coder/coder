@@ -149,7 +149,7 @@ describe("ProjectFolders", () => {
 			}),
 		).toHaveFocus();
 		await user.keyboard("{Enter}");
-		await user.click(screen.getByRole("menuitem", { name: "Unpin project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Unpin" }));
 		expect(unpin).toHaveBeenCalledWith(
 			MockChatProject.organization_id,
 			MockChatProject.id,
@@ -197,7 +197,7 @@ describe("ProjectFolders", () => {
 			name: `Open project actions for ${MockChatProject.name}`,
 		});
 		await user.click(actions);
-		await user.click(screen.getByRole("menuitem", { name: "Archive project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Archive" }));
 		expect(onArchive).not.toHaveBeenCalled();
 		act(() => vi.runOnlyPendingTimers());
 		expect(onArchive).toHaveBeenCalledExactlyOnceWith(

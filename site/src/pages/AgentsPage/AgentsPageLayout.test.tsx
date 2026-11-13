@@ -33,6 +33,7 @@ import { createDeferred } from "#/testHelpers/deferred";
 import {
 	MockChatProject,
 	MockChatProjectSummary,
+	MockUserMember,
 	MockWorkspace,
 	MockWorkspaceBuildDelete,
 	MockWorkspaceQuota,
@@ -1089,7 +1090,7 @@ describe("AgentsPageLayout pinned projects", () => {
 		});
 	});
 
-	it("leaves a new chat in an unpinned project out of the sidebar's chat list", async () => {
+	it("leaves the user's new chat in an unpinned project out of the sidebar's chat list, but not a shared one", async () => {
 		// The refetch after the event stays pending, so the list shows what the
 		// watch handler wrote.
 		vi.spyOn(API.experimental, "getChats")
@@ -1129,7 +1130,20 @@ describe("AgentsPageLayout pinned projects", () => {
 			chat: { ...MockChat, id: "loose-chat", project_id: undefined },
 		});
 
+		publishChatWatchEvent({
+			kind: "created",
+			chat: {
+				...MockChat,
+				id: "shared-unpinned-project-chat",
+				owner_id: MockUserMember.id,
+				project_id: MockChatProject.id,
+			},
+		});
+
 		await waitFor(() => expect(sidebarChatIds()).toContain("loose-chat"));
+		await waitFor(() =>
+			expect(sidebarChatIds()).toContain("shared-unpinned-project-chat"),
+		);
 		expect(sidebarChatIds()).not.toContain("unpinned-project-chat");
 	});
 

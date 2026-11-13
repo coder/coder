@@ -151,7 +151,7 @@ const renderAgentsRoutes = (route = projectPath(MockChatProject.id)) =>
 
 const openProjectAction = async (
 	user: ReturnType<typeof userEvent.setup>,
-	action: "Edit project" | "Archive project" | "Delete project",
+	action: "Edit" | "Archive" | "Delete",
 ) => {
 	await user.click(
 		await screen.findByRole("button", { name: "Project actions" }),
@@ -555,10 +555,10 @@ describe("AgentCreatePage project frame", () => {
 		const { router } = renderAgentsRoutes(projectPath(projectB.id));
 		await screen.findByRole("heading", { name: "Beta" });
 		await act(() => router.navigate(projectPath(projectA.id)));
-		await openProjectAction(user, "Edit project");
+		await openProjectAction(user, "Edit");
 		await act(() => router.navigate(-1));
 		await screen.findByRole("heading", { name: "Beta" });
-		await openProjectAction(user, "Edit project");
+		await openProjectAction(user, "Edit");
 		const dialog = await screen.findByRole("dialog", { name: "Edit project" });
 		const nameInput = within(dialog).getByRole("textbox", { name: /Name/ });
 		await user.type(nameInput, "!");
@@ -577,7 +577,7 @@ describe("AgentCreatePage project frame", () => {
 
 		renderAgentsRoutes();
 		await screen.findByRole("heading", { name: MockChatProject.name });
-		await openProjectAction(user, "Archive project");
+		await openProjectAction(user, "Archive");
 		await user.click(await screen.findByRole("button", { name: "Cancel" }));
 
 		await waitFor(() =>
@@ -608,7 +608,7 @@ describe("AgentCreatePage project frame", () => {
 		renderAgentsRoutes();
 
 		await screen.findByRole("heading", { name: MockChatProject.name });
-		await openProjectAction(user, "Edit project");
+		await openProjectAction(user, "Edit");
 		const dialog = await screen.findByRole("dialog", { name: "Edit project" });
 		const nameInput = within(dialog).getByRole("textbox", { name: /Name/ });
 		await user.clear(nameInput);
@@ -622,7 +622,7 @@ describe("AgentCreatePage project frame", () => {
 		await waitFor(() => {
 			expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 		});
-		await openProjectAction(user, "Edit project");
+		await openProjectAction(user, "Edit");
 		const reopened = await screen.findByRole("dialog", {
 			name: "Edit project",
 		});
@@ -648,7 +648,7 @@ describe("AgentCreatePage project frame", () => {
 
 		renderAgentsRoutes();
 
-		await openProjectAction(user, "Edit project");
+		await openProjectAction(user, "Edit");
 		let dialog = await screen.findByRole("dialog", { name: "Edit project" });
 		await user.type(within(dialog).getByRole("textbox", { name: /Name/ }), "!");
 		await user.click(within(dialog).getByRole("button", { name: "Save" }));
@@ -658,7 +658,7 @@ describe("AgentCreatePage project frame", () => {
 			expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 		});
 
-		await openProjectAction(user, "Edit project");
+		await openProjectAction(user, "Edit");
 		dialog = await screen.findByRole("dialog", { name: "Edit project" });
 		expect(within(dialog).queryByText("Save failed")).not.toBeInTheDocument();
 	});
@@ -685,7 +685,7 @@ describe("AgentCreatePage project frame", () => {
 			`${projectPath(MockChatProject.id)}?archived=archived`,
 		);
 
-		await openProjectAction(user, "Delete project");
+		await openProjectAction(user, "Delete");
 		const dialog = await screen.findByRole("dialog", {
 			name: "Delete project",
 		});

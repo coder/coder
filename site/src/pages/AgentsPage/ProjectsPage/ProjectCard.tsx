@@ -172,7 +172,7 @@ const ProjectCardFrame: React.FC<ProjectCardFrameProps> = ({
 }) => {
 	const footerId = useId();
 	return (
-		<div className="group relative flex min-w-0 flex-col gap-3 rounded-lg border border-solid border-border bg-surface-primary p-4 hover:bg-surface-secondary has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-content-link">
+		<div className="group relative flex min-w-0 flex-col gap-3 rounded-lg border border-solid border-border bg-surface-secondary p-4 hover:bg-surface-tertiary has-[a:focus-visible]:ring-2 has-[a:focus-visible]:ring-content-link">
 			<div className="flex size-8 shrink-0 items-center justify-center rounded-md border border-solid border-border bg-surface-secondary">
 				<ChatProjectIcon project={project} className="size-4" />
 			</div>
@@ -256,6 +256,41 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 	};
 	return (
 		<div className="absolute top-4 right-4 z-10 flex h-8 items-center">
+			{pin?.pinned && (
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant="subtle"
+							size="icon"
+							aria-label={`Unpin ${project.name}`}
+							className="group/pin h-7 w-6 px-0"
+							onClick={() => {
+								pin.onUnpin();
+								// Unpinning removes this button, so focus moves to actions.
+								actionsButtonRef.current?.focus();
+							}}
+						>
+							<PinIcon className="group-hover/pin:hidden group-focus-visible/pin:hidden" />
+							<PinOffIcon className="hidden group-hover/pin:block group-focus-visible/pin:block" />
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent side="bottom" align="end">
+						Unpin project
+					</TooltipContent>
+				</Tooltip>
+			)}
+			{pin && !pin.pinned && (
+				// Holds the pin's place, so a second click there after unpinning
+				// does not land on the card link.
+				<span className="flex h-7 w-6 items-center justify-center">
+					<Spinner loading={pin.pinPending} label={`Pinning ${project.name}`} />
+				</span>
+			)}
+			{pendingLabel && (
+				<span className="flex h-7 w-6 items-center justify-center">
+					<Spinner loading label={pendingLabel} />
+				</span>
+			)}
 			<DropdownMenu>
 				<DropdownMenuTrigger asChild>
 					<Button
@@ -263,7 +298,7 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 						variant="subtle"
 						size="icon"
 						aria-label={`Open project actions for ${project.name}`}
-						className="size-7 max-w-0 overflow-hidden px-0 [@media(hover:none)]:max-w-7 group-hover:max-w-7 group-focus-within:max-w-7 data-[state=open]:max-w-7"
+						className="h-7 w-5 px-0"
 					>
 						<EllipsisVerticalIcon />
 					</Button>
@@ -294,41 +329,6 @@ const ProjectCardActions: React.FC<ProjectCardActionsProps> = ({
 					/>
 				</DropdownMenuContent>
 			</DropdownMenu>
-			{pin?.pinned && (
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<Button
-							variant="subtle"
-							size="icon"
-							aria-label={`Unpin ${project.name}`}
-							className="group/pin size-7"
-							onClick={() => {
-								pin.onUnpin();
-								// Unpinning removes this button, so focus moves to actions.
-								actionsButtonRef.current?.focus();
-							}}
-						>
-							<PinIcon className="group-hover/pin:hidden group-focus-visible/pin:hidden" />
-							<PinOffIcon className="hidden group-hover/pin:block group-focus-visible/pin:block" />
-						</Button>
-					</TooltipTrigger>
-					<TooltipContent side="bottom" align="end">
-						Unpin project
-					</TooltipContent>
-				</Tooltip>
-			)}
-			{pin && !pin.pinned && (
-				// Holds the pin's place, so a second click there after unpinning
-				// does not open the actions menu.
-				<span className="flex size-7 items-center justify-center">
-					<Spinner loading={pin.pinPending} label={`Pinning ${project.name}`} />
-				</span>
-			)}
-			{pendingLabel && (
-				<span className="flex size-7 items-center justify-center">
-					<Spinner loading label={pendingLabel} />
-				</span>
-			)}
 		</div>
 	);
 };

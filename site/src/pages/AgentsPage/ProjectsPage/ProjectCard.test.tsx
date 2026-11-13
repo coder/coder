@@ -60,9 +60,9 @@ describe("ProjectCard", () => {
 	// In a browser, a dialog that opens before the menu has finished closing
 	// loses focus to the menu.
 	it.each([
-		["Edit project", "onEdit"],
-		["Archive project", "onArchive"],
-		["Delete project", "onDelete"],
+		["Edit", "onEdit"],
+		["Archive", "onArchive"],
+		["Delete", "onDelete"],
 	] as const)("opens %s once the menu has closed", async (item, callback) => {
 		vi.useFakeTimers();
 		onTestFinished(() => {
@@ -86,7 +86,7 @@ describe("ProjectCard", () => {
 		await user.tab();
 		await user.tab();
 		await user.keyboard("{Enter}");
-		await screen.findByRole("menuitem", { name: "Pin project" });
+		await screen.findByRole("menuitem", { name: "Pin" });
 		await user.keyboard("{Enter}");
 		expect(onPin).toHaveBeenCalledOnce();
 	});
@@ -112,7 +112,7 @@ describe("ArchivedProjectCard", () => {
 		);
 		const actions = screen.getByRole("button", { name: /^Open project/ });
 		await user.click(actions);
-		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Delete" }));
 		expect(onDelete).not.toHaveBeenCalled();
 		act(() => vi.runOnlyPendingTimers());
 		expect(onDelete).toHaveBeenCalledExactlyOnceWith(actions);
