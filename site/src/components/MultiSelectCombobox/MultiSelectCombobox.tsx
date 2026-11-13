@@ -200,6 +200,9 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 	ref,
 }) => {
 	const inputRef = useRef<HTMLInputElement>(null);
+	// Removing an option from a button moves focus back to the input. Opening
+	// the list there would let a repeated Enter select an option.
+	const keepListClosedOnFocusRef = useRef(false);
 	const [open, setOpen] = useState(false);
 	const [onScrollbar, setOnScrollbar] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
@@ -238,6 +241,13 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 		},
 		[onChange, selected],
 	);
+
+	const focusInputWithListClosed = () => {
+		setOpen(false);
+		keepListClosedOnFocusRef.current = true;
+		inputRef.current?.focus();
+		keepListClosedOnFocusRef.current = false;
+	};
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
 		const input = inputRef.current;
@@ -536,7 +546,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 												e.preventDefault();
 												e.stopPropagation();
 												handleUnselect(option);
-												inputRef.current?.focus();
+												focusInputWithListClosed();
 											}
 										}}
 										onMouseDown={(e) => {
@@ -547,7 +557,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 											handleUnselect(option);
 											// detail is 0 for a click from the keyboard (Space).
 											if (e.detail === 0) {
-												inputRef.current?.focus();
+												focusInputWithListClosed();
 											}
 										}}
 									>
@@ -581,7 +591,9 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 								inputProps?.onBlur?.(event);
 							}}
 							onFocus={(event) => {
-								setOpen(true);
+								if (!keepListClosedOnFocusRef.current) {
+									setOpen(true);
+								}
 								if (triggerSearchOnFocus) {
 									onSearch?.(debouncedSearchTerm);
 								}
@@ -613,7 +625,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 								onChange?.(fixedOptions);
 								// detail is 0 for a click from the keyboard (Space).
 								if (e.detail === 0) {
-									inputRef.current?.focus();
+									focusInputWithListClosed();
 								}
 							}}
 							onKeyDown={(e) => {
@@ -624,7 +636,7 @@ export const MultiSelectCombobox: React.FC<MultiSelectComboboxProps> = ({
 									e.stopPropagation();
 									setSelected(fixedOptions);
 									onChange?.(fixedOptions);
-									inputRef.current?.focus();
+									focusInputWithListClosed();
 								}
 							}}
 							className={cn(

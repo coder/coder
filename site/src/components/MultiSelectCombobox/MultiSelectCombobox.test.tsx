@@ -70,7 +70,7 @@ describe("MultiSelectCombobox", () => {
 		await user.click(screen.getByRole("option", { name: "Kubernetes" }));
 
 		screen.getByRole("button", { name: "Remove Docker" }).focus();
-		await user.keyboard("{ArrowDown}{Enter}");
+		await user.keyboard("{ArrowDown}{Enter}{Enter}");
 
 		expect(onChange).toHaveBeenLastCalledWith([options[1]]);
 		expect(input).toHaveFocus();
