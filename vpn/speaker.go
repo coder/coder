@@ -196,6 +196,8 @@ func (s *speaker[_, _, _]) Close() error {
 func (s *speaker[S, R, _]) unaryRPC(ctx context.Context, req S) (resp R, err error) {
 	rpc := req.EnsureRPC()
 	msgID, respCh := s.newRPC()
+	// No response is received for msgID after this returns.
+	defer s.rmResponseChan(msgID)
 	rpc.MsgId = msgID
 	logger := s.logger.With(slog.F("msg_id", msgID))
 	select {
@@ -211,10 +213,8 @@ func (s *speaker[S, R, _]) unaryRPC(ctx context.Context, req S) (resp R, err err
 	}
 	select {
 	case <-ctx.Done():
-		s.rmResponseChan(msgID)
 		return resp, ctx.Err()
 	case <-s.sendCtx.Done():
-		s.rmResponseChan(msgID)
 		err = s.sendClosedErr()
 	case <-s.recvLoopDone:
 		logger.Debug(s.ctx, "recvLoopDone while waiting for response")

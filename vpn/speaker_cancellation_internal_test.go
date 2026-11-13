@@ -139,6 +139,9 @@ func TestSpeaker_RPCAfterWriterExits(t *testing.T) {
 				t.Fatal("RPC still blocked after the writer exited")
 			}
 		}
+		tun.mu.Lock()
+		defer tun.mu.Unlock()
+		require.Empty(t, tun.responseChans, "returned RPCs must not leave response channels")
 	})
 }
 
