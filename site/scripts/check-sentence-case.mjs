@@ -149,16 +149,19 @@ const properNounWords = PROPER_NOUNS.map((noun) => noun.split(" "));
 
 // Surrounding punctuation that is not part of a word, such as quotes,
 // brackets, and sentence punctuation.
-const LEADING_PUNCTUATION = /^[^\p{L}\p{N}]+/u;
-const TRAILING_PUNCTUATION = /[^\p{L}\p{N}]+$/u;
+const LEADING_PUNCTUATION = /^[^\p{L}\p{N}\p{M}]+/u;
+const TRAILING_PUNCTUATION = /[^\p{L}\p{N}\p{M}]+$/u;
 
 // A regular capitalized word, like "Workspace" or "Don't".
-const CAPITALIZED_WORD = /^\p{Lu}\p{Ll}+(?:['’-]\p{Ll}+)*$/u;
+// Letters may carry combining marks, as in decomposed "Re\u0301sume\u0301".
+const CAPITALIZED_WORD =
+	/^\p{Lu}\p{M}*(?:\p{Ll}\p{M}*)+(?:['’-](?:\p{Ll}\p{M}*)+)*$/u;
 
 // One segment of a hyphenated word: a regular capitalized word or a
 // lowercase word. Words with a segment like "X" in "X-Forwarded-For" are
 // left alone, since they are usually names.
-const HYPHEN_SEGMENT = /^(?:\p{Lu}\p{Ll}+|\p{Ll}+)(?:['’]\p{Ll}+)*$/u;
+const HYPHEN_SEGMENT =
+	/^(?:\p{Lu}\p{M}*(?:\p{Ll}\p{M}*)+|(?:\p{Ll}\p{M}*)+)(?:['’](?:\p{Ll}\p{M}*)+)*$/u;
 
 /**
  * Returns the capitalized segments of a hyphenated word, such as "Based"
@@ -218,6 +221,11 @@ function isArticleA(token, next) {
 		!AFTER_LETTER_NAME.has(next.word)
 	);
 }
+
+// Punctuation that joins the words around it into one phrase. Other
+// standalone punctuation, such as the "-" in "Workspace - Health",
+// separates labels.
+const CONNECTOR = /^[&/+]$/;
 
 // Brackets and quotes that open or close an aside. The phrase around an
 // aside resumes after it closes: "Create a (temporary) workspace".
@@ -304,6 +312,8 @@ export function findTitleCaseWords(text) {
 		const capitalized = /^\p{Lu}/u.test(token.word);
 		if (token.raw.includes(SUBSTITUTION)) {
 			// Unknown text; keep the current phrase, if any, going.
+		} else if (CONNECTOR.test(token.raw)) {
+			// "Create & manage" and "Create / manage" are one phrase.
 		} else if (!inPhrase || token.startsPhrase) {
 			// A lowercase word outside a phrase may continue text from
 			// elsewhere, so only a capitalized word starts a phrase.

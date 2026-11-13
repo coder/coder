@@ -30,6 +30,10 @@ describe("findTitleCaseWords", () => {
 
 	it("handles accented capitals and lowercase letters", () => {
 		expect(words("Open Résumé Builder")).toEqual(["Résumé", "Builder"]);
+		expect(words("Open Re\u0301sume\u0301 Builder")).toEqual([
+			"Re\u0301sume\u0301",
+			"Builder",
+		]);
 		expect(words("Édit café settings")).toEqual([]);
 	});
 
@@ -61,6 +65,13 @@ describe("findTitleCaseWords", () => {
 		expect(words("Saved… Next step")).toEqual([]);
 		expect(words("Saved “done.” Next step")).toEqual([]);
 		expect(words("Saved {done.} Next step")).toEqual([]);
+	});
+
+	it("continues a phrase across connectors but not separators", () => {
+		expect(words("Create & Manage workspaces")).toEqual(["Manage"]);
+		expect(words("Create / Manage workspaces")).toEqual(["Manage"]);
+		expect(words("Workspace proxy - Health")).toEqual([]);
+		expect(words("Settings | Coder")).toEqual([]);
 	});
 
 	it("continues a sentence after a comma", () => {
