@@ -759,8 +759,11 @@ func TestFetchPullRequestStatus(t *testing.T) {
 			pullJSON, err := json.Marshal(pull)
 			require.NoError(t, err)
 
+			merged, ok := pull["merged"].(bool)
+			require.True(t, ok)
+
 			var mergedAt any
-			if pull["merged"] == true {
+			if merged {
 				mergedAt = updatedAt
 			}
 			issue := map[string]any{
