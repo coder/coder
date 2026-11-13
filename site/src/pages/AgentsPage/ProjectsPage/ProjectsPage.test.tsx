@@ -201,9 +201,16 @@ describe("ProjectsPage", () => {
 			);
 		};
 
-		// The card stays until the request succeeds, so it can be picked twice.
+		// The card stays until the request succeeds, but its menu leaves
+		// Unarchive out meanwhile.
 		await pickUnarchive();
-		await pickUnarchive();
+		await user.click(
+			screen.getByRole("button", { name: "Open project actions for Lima" }),
+		);
+		expect(
+			screen.queryByRole("menuitem", { name: "Unarchive project" }),
+		).toBeNull();
+		await user.keyboard("{Escape}");
 		archived = [];
 		unarchived.resolve({ ...mockArchivedLima, archived_at: undefined });
 
