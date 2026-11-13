@@ -9445,17 +9445,10 @@ WITH deletable AS (
       AND updated_at < $1::timestamptz
     ORDER BY updated_at ASC
     LIMIT $2
-),
-locked AS (
-    SELECT chats.id
-    FROM chats
-    WHERE chats.id IN (SELECT id FROM deletable)
-    ORDER BY chats.id
-    FOR UPDATE
 )
 DELETE FROM chats
-USING locked
-WHERE chats.id = locked.id
+USING deletable
+WHERE chats.id = deletable.id
   AND chats.archived = true
 `
 
@@ -9468,8 +9461,6 @@ type DeleteOldChatsParams struct {
 // threshold. Active (non-archived) chats are never deleted.
 // All chat-scoped child tables are removed via ON DELETE CASCADE.
 // Parent/root references on child chats are SET NULL.
-// Lock the batch in chat ID order, as every transaction that locks more
-// than one chat does. The delete alone locks the rows in plan order.
 func (q *sqlQuerier) DeleteOldChats(ctx context.Context, arg DeleteOldChatsParams) (int64, error) {
 	result, err := q.db.ExecContext(ctx, deleteOldChats, arg.BeforeTime, arg.LimitCount)
 	if err != nil {
