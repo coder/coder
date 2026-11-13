@@ -982,6 +982,16 @@ func TestSearchUsers(t *testing.T) {
 				LoginType: []database.LoginType{},
 			},
 		},
+		{
+			Name:  "IncludeSystem",
+			Query: "include_system:true",
+			Expected: database.GetUsersParams{
+				IncludeSystem: true,
+				Status:        []database.UserStatus{},
+				RbacRole:      []string{},
+				LoginType:     []database.LoginType{},
+			},
+		},
 
 		// Failures
 		{
@@ -1201,6 +1211,7 @@ func TestSearchChatsFrontendEmitted(t *testing.T) {
 		{name: "Archived", query: "archived:true"},
 		{name: "PRStatuses", query: "pr_status:open,merged"},
 		{name: "ChatStatuses", query: "status:error,running"},
+		{name: "ChatStatusesPaused", query: "status:waiting,paused"},
 		{name: "PRStatusNone", query: "pr_status:none"},
 		{name: "DiffURL", query: `diff_url:"https://github.com/coder/coder/pull/1"`},
 		{name: "FilterAndSearch", query: `has_unread:true search:"fix auth"`},
@@ -1319,6 +1330,15 @@ func TestSearchChats(t *testing.T) {
 				Archived:     sql.NullBool{Bool: false, Valid: true},
 				OwnedOnly:    true,
 				ChatStatuses: []string{"waiting", "error"},
+			},
+		},
+		{
+			Name:  "ChatStatusPaused",
+			Query: "status:waiting,paused",
+			Expected: database.GetChatsParams{
+				Archived:     sql.NullBool{Bool: false, Valid: true},
+				OwnedOnly:    true,
+				ChatStatuses: []string{"waiting", "paused"},
 			},
 		},
 		{

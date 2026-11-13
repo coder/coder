@@ -11,9 +11,9 @@ To learn how, read our [installation guides](../../install/index.md).
 
 <children></children>
 
-The following resources may help as you're deploying Coder.
+The following resources can help as you're deploying Coder.
 
 - [Coder packages: one-click install on cloud providers](https://github.com/coder/packages)
 - [Deploy Coder Air-gapped](../../install/prepare/airgap.md)
 - [Supported resources (Terraform registry)](https://registry.terraform.io)
-- [Writing custom templates](../templates/index.md)
+- [Writing custom templates](../../templates/index.md)

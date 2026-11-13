@@ -839,8 +839,7 @@ const (
 	// populated from the MCP runner's snapshot after the server
 	// has been connected.
 	KindMCPServer
-	// KindPlugin is reserved for Claude Code plugin manifests.
-	// Not emitted by v1.
+	// KindPlugin is an Agent Plugins manifest. Not emitted by v1.
 	KindPlugin
 	// KindHook is reserved for plugin hooks. Not emitted by v1.
 	KindHook
@@ -1014,7 +1013,7 @@ type Snapshot struct {
 
 // driftResources excludes MCP and ACP resources because agents discover them
 // asynchronously. Instructions and skills remain drift-relevant because their
-// content is pinned. Coderd live-syncs MCP resources onto bound chats.
+// content is pinned. Coderd live-syncs MCP and ACP resources onto bound chats.
 func driftResources(resources []Resource) []Resource {
 	out := make([]Resource, 0, len(resources))
 	for _, r := range resources {

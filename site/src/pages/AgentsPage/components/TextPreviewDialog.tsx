@@ -1,6 +1,7 @@
 import { Dialog, DialogContent, DialogTitle } from "#/components/Dialog/Dialog";
 import { Loader } from "#/components/Loader/Loader";
 import { Response } from "./ChatElements/Response";
+import { LightboxHost } from "./LightboxHost";
 
 type TextPreviewDialogProps = {
 	/** Undefined while the text loads. */
@@ -49,11 +50,11 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 	return (
 		<Dialog open onOpenChange={(open) => !open && onClose()}>
 			<DialogContent
-				className="max-h-[85vh] max-w-[90vw] w-full sm:w-fit sm:min-w-[400px] flex flex-col gap-0 p-0"
+				className="max-h-[85vh] max-w-[90vw] w-full sm:w-fit sm:min-w-100 flex flex-col gap-0 p-0"
 				aria-describedby={undefined}
 				onCloseAutoFocus={onCloseAutoFocus}
 			>
-				<DialogTitle className="px-4 py-3 border-b border-border text-sm font-medium">
+				<DialogTitle className="px-4 py-3 border-b text-sm font-medium">
 					{fileName ?? "Pasted text"}
 				</DialogTitle>
 				<div className="overflow-auto p-4 max-h-[calc(85vh-3rem)]">
@@ -63,7 +64,10 @@ export const TextPreviewDialog: React.FC<TextPreviewDialogProps> = ({
 						// Reuse the same Markdown renderer used for chat messages
 						// so attached markdown previews look consistent with the
 						// rest of the conversation.
-						<Response className="max-w-3xl">{content}</Response>
+						<LightboxHost>
+							{/* This dialog may fill its opener's one lightbox slot. */}
+							<Response className="max-w-3xl">{content}</Response>
+						</LightboxHost>
 					) : (
 						<pre className="whitespace-pre-wrap wrap-break-word text-sm text-content-primary font-mono m-0">
 							{content}

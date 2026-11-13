@@ -45,17 +45,24 @@ type OpenAIReasoningItem struct {
 // Responses API test server.
 type OpenAIWebSearchCall struct {
 	ID string `json:"id,omitempty"`
+	// ActionType is action.type. It defaults to "search".
+	ActionType string `json:"action_type,omitempty"`
+	// URL is action.url for open_page and find_in_page.
+	URL string `json:"url,omitempty"`
+	// Pattern is action.pattern for find_in_page.
+	Pattern string `json:"pattern,omitempty"`
 	// Queries is action.queries.
 	Queries []string `json:"queries,omitempty"`
 	// Query is the deprecated action.query; OpenAI sends both.
 	Query string `json:"query,omitempty"`
 	// Sources are the pages the search found, reported in action.sources
 	// on the item's output_item.done. Like OpenAI, the server returns them
-	// only when the request includes web_search_call.action.sources.
+	// only for search actions and when the request includes
+	// web_search_call.action.sources.
 	Sources []string `json:"sources,omitempty"`
-	// SummaryOnlySources are added to the search's action.sources only in
-	// the response.completed output, as OpenAI does for pages the answer
-	// cited.
+	// SummaryOnlySources are added to a search action's action.sources
+	// only in the response.completed output, as OpenAI does for pages the
+	// answer cited.
 	SummaryOnlySources []string `json:"summary_only_sources,omitempty"`
 	// Status is the finished item's status. It defaults to "completed".
 	Status string `json:"status,omitempty"`
@@ -72,7 +79,7 @@ type OpenAIRequest struct {
 	Store    *bool           `json:"store,omitempty"`
 	// RawBody holds the original request body so callers can inspect
 	// fields the typed struct does not expose, such as the Responses
-	// API "input" payload. It is populated before JSON decoding.
+	// API "input" payload.
 	RawBody []byte `json:"-"`
 }
 
@@ -213,11 +220,13 @@ type OpenAICompletion struct {
 
 // openAIServer is a test server that mocks the OpenAI API.
 type openAIServer struct {
-	mu      sync.Mutex
 	t       testing.TB
-	server  *httptest.Server
 	handler OpenAIHandler
-	request *OpenAIRequest
+
+	mu sync.Mutex
+	// unstoredItems holds the ids of streamed output items served for
+	// store: false requests, which OpenAI cannot resolve as item references.
+	unstoredItems map[string]struct{}
 }
 
 // OpenAI creates a fake OpenAI-compatible test server with a
@@ -248,72 +257,101 @@ func NewOpenAI(t testing.TB, handler OpenAIHandler) string {
 	t.Helper()
 
 	s := &openAIServer{
-		t:       t,
-		handler: handler,
+		t:             t,
+		handler:       handler,
+		unstoredItems: make(map[string]struct{}),
 	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /chat/completions", s.handleChatCompletions)
 	mux.HandleFunc("POST /responses", s.handleResponses)
 
-	s.server = httptest.NewServer(mux)
+	server := httptest.NewServer(mux)
+	t.Cleanup(server.Close)
+	return server.URL
+}
 
-	t.Cleanup(func() {
-		s.server.Close()
-	})
-
-	return s.server.URL
+func decodeOpenAIRequest(r *http.Request) (*OpenAIRequest, error) {
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		return nil, err
+	}
+	var req OpenAIRequest
+	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&req); err != nil {
+		return nil, err
+	}
+	req.Request = r
+	req.RawBody = body
+	return &req, nil
 }
 
 func (s *openAIServer) handleChatCompletions(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
+	req, err := decodeOpenAIRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	var req OpenAIRequest
-	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	req.Request = r
-	req.RawBody = body
 
-	s.mu.Lock()
-	s.request = &req
-	s.mu.Unlock()
-
-	resp := s.handler(&req)
-	s.writeChatCompletionsResponse(w, &req, resp)
+	resp := s.handler(req)
+	s.writeChatCompletionsResponse(w, req, resp)
 }
 
 func (s *openAIServer) handleResponses(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
+	req, err := decodeOpenAIRequest(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	var req OpenAIRequest
-	if err := json.NewDecoder(bytes.NewReader(body)).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	req.Request = r
-	req.RawBody = body
-
-	s.mu.Lock()
-	s.request = &req
-	s.mu.Unlock()
 
 	if req.Prompt != nil {
+		if errResp := s.rejectUnstoredItemReference(req); errResp != nil {
+			writeErrorResponse(s.t, w, errResp)
+			return
+		}
 		if errResp := ValidateResponsesAPIInput(req.Prompt); errResp != nil {
 			writeErrorResponse(s.t, w, errResp)
 			return
 		}
 	}
 
-	resp := s.handler(&req)
-	s.writeResponsesAPIResponse(w, &req, resp)
+	resp := s.handler(req)
+	s.writeResponsesAPIResponse(w, req, resp)
+}
+
+// rejectUnstoredItemReference returns the 404 OpenAI sends for an
+// item_reference to an item from a store: false response. Like OpenAI, it
+// adds the store hint only when the referencing request is unstored too.
+func (s *openAIServer) rejectUnstoredItemReference(req *OpenAIRequest) *ErrorResponse {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, raw := range req.Prompt {
+		item, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		id := ResponsesItemReferenceID(item)
+		if _, unstored := s.unstoredItems[id]; id != "" && unstored {
+			message := fmt.Sprintf("Item with id '%s' not found.", id)
+			if req.Store != nil && !*req.Store {
+				message += " Items are not persisted when `store` is set to false. Try again with `store` set to true, or remove this item from your input."
+			}
+			return &ErrorResponse{
+				StatusCode: http.StatusNotFound,
+				Type:       "invalid_request_error",
+				Message:    message,
+			}
+		}
+	}
+	return nil
+}
+
+func (s *openAIServer) recordUnstoredItem(req *OpenAIRequest, id string) {
+	if req.Store == nil || *req.Store || id == "" {
+		return
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.unstoredItems[id] = struct{}{}
 }
 
 func (s *openAIServer) writeChatCompletionsResponse(w http.ResponseWriter, req *OpenAIRequest, resp OpenAIResponse) {
@@ -325,19 +363,9 @@ func (s *openAIServer) writeChatCompletionsResponse(w http.ResponseWriter, req *
 	hasStreaming := resp.StreamingChunks != nil
 	hasNonStreaming := resp.Response != nil
 
-	switch {
-	case hasStreaming && hasNonStreaming:
-		http.Error(w, "handler returned both streaming and non-streaming responses", http.StatusInternalServerError)
-		return
-	case !hasStreaming && !hasNonStreaming:
-		http.Error(w, "handler returned empty response", http.StatusInternalServerError)
-		return
-	case req.Stream && !hasStreaming:
-		http.Error(w, "handler returned non-streaming response for streaming request", http.StatusInternalServerError)
-		return
-	case !req.Stream && !hasNonStreaming:
-		http.Error(w, "handler returned streaming response for non-streaming request", http.StatusInternalServerError)
-		return
+	switch msg := responseShapeError(req.Stream, hasStreaming, hasNonStreaming); {
+	case msg != "":
+		http.Error(w, msg, http.StatusInternalServerError)
 	case hasStreaming:
 		writeChatCompletionsStreaming(w, req.Request, resp.StreamingChunks)
 	default:
@@ -354,21 +382,11 @@ func (s *openAIServer) writeResponsesAPIResponse(w http.ResponseWriter, req *Ope
 	hasStreaming := resp.StreamingChunks != nil
 	hasNonStreaming := resp.Response != nil
 
-	switch {
-	case hasStreaming && hasNonStreaming:
-		http.Error(w, "handler returned both streaming and non-streaming responses", http.StatusInternalServerError)
-		return
-	case !hasStreaming && !hasNonStreaming:
-		http.Error(w, "handler returned empty response", http.StatusInternalServerError)
-		return
-	case req.Stream && !hasStreaming:
-		http.Error(w, "handler returned non-streaming response for streaming request", http.StatusInternalServerError)
-		return
-	case !req.Stream && !hasNonStreaming:
-		http.Error(w, "handler returned streaming response for non-streaming request", http.StatusInternalServerError)
-		return
+	switch msg := responseShapeError(req.Stream, hasStreaming, hasNonStreaming); {
+	case msg != "":
+		http.Error(w, msg, http.StatusInternalServerError)
 	case hasStreaming:
-		writeResponsesAPIStreaming(s.t, w, req, resp)
+		writeResponsesAPIStreaming(s.t, w, req, resp, func(id string) { s.recordUnstoredItem(req, id) })
 	default:
 		s.writeResponsesAPINonStreaming(w, resp.Response)
 	}
@@ -523,7 +541,7 @@ func writeNamedSSEEvent(w http.ResponseWriter, eventType string, v interface{}) 
 	return err
 }
 
-func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, req *OpenAIRequest, resp OpenAIResponse) {
+func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, req *OpenAIRequest, resp OpenAIResponse, servedItem func(id string)) {
 	r := req.Request
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -561,6 +579,9 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, req *OpenAI
 	outputs := make(map[int]*outputItemState)
 
 	writeEvent := func(eventType string, payload map[string]interface{}) bool {
+		if item, ok := payload["item"].(map[string]any); ok && eventType == "response.output_item.done" {
+			servedItem(StringResponseField(item, "id"))
+		}
 		payload["type"] = eventType
 		payload["sequence_number"] = sequenceNumber
 		sequenceNumber++
@@ -689,14 +710,25 @@ func writeResponsesAPIStreaming(t testing.TB, w http.ResponseWriter, req *OpenAI
 		}
 		includeSources := requestIncludes(req.RawBody, "web_search_call.action.sources")
 		newAction := func(sourceURLs []string) map[string]interface{} {
-			action := map[string]interface{}{"type": "search"}
+			actionType := resp.WebSearch.ActionType
+			if actionType == "" {
+				actionType = "search"
+			}
+			action := map[string]any{"type": actionType}
+			if resp.WebSearch.URL != "" {
+				action["url"] = resp.WebSearch.URL
+			}
+			if resp.WebSearch.Pattern != "" {
+				action["pattern"] = resp.WebSearch.Pattern
+			}
 			if len(resp.WebSearch.Queries) > 0 {
 				action["queries"] = resp.WebSearch.Queries
 			}
 			if resp.WebSearch.Query != "" {
 				action["query"] = resp.WebSearch.Query
 			}
-			if includeSources && len(sourceURLs) > 0 {
+			// OpenAI returns sources only on search actions.
+			if actionType == "search" && includeSources && len(sourceURLs) > 0 {
 				sources := make([]interface{}, 0, len(sourceURLs))
 				for _, source := range sourceURLs {
 					sources = append(sources, map[string]interface{}{"type": "url", "url": source})

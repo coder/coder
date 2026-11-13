@@ -63,7 +63,7 @@
 
         mise = pkgs.stdenvNoCC.mkDerivation rec {
           pname = "mise";
-          version = "2026.5.12";
+          version = "2026.10.25";
           target = {
             x86_64-linux = "linux-x64";
             aarch64-linux = "linux-arm64";
@@ -73,10 +73,10 @@
           src = pkgs.fetchurl {
             url = "https://github.com/jdx/mise/releases/download/v${version}/mise-v${version}-${target}";
             hash = {
-              x86_64-linux = "sha256-ojiXKjFi1xC4WyjDJDculspOS0hsgf54aVAA2fvHfEg=";
-              aarch64-linux = "sha256-/S1SJ6itCx41nHBSeoNFqa2nIHf43LtVk3FlPD2VRk8=";
-              x86_64-darwin = "sha256-3lfo3IK72ICmnJvIruBrncxXgYSz5c+G/O+AY11qkLQ=";
-              aarch64-darwin = "sha256-53cHBUD/4iz4srn4iu2ItGHQiH2UDE8cGpc1lGPN5uE=";
+              x86_64-linux = "sha256-XTYuzFeNx8FGZ5uEHdqUnWRyy/hv9WNdt6/cobaz/Yc=";
+              aarch64-linux = "sha256-uwnoixMWTKkGkaXMBCcm0HnwuiarVVJzRMsXPC6DyZg=";
+              x86_64-darwin = "sha256-4G6z8DEd7b9llS7CwCRzmISGU7MC5qrZnXNxrZujMwE=";
+              aarch64-darwin = "sha256-ij7wB2WwCSeBl6umJ6wA1unGP2rrBNT0ss/g5Z3cL9Y=";
             }.${system};
           };
           dontUnpack = true;
@@ -195,28 +195,28 @@
             releases = {
               x86_64-linux = {
                 platform = "linux_amd64";
-                hash = "sha256-VFTvz3/IfwwhExEbmlxxgvDKHG8PI6HhEKUHcKj+Rzs=";
+                hash = "sha256-5vFrLwsTfuVynKqMTnmjuuTuJhrNGYofz6hYSmKWYFs=";
               };
               aarch64-linux = {
                 platform = "linux_arm64";
-                hash = "sha256-LWo/EJjelPFnKqpOaHPvka3p6sOIUdOkA+IAkZMgjeQ=";
+                hash = "sha256-hY4IwYGna2siPox2eo6YOSLuvi0GLblJot5mzgQMNow=";
               };
               aarch64-darwin = {
                 platform = "darwin_arm64";
-                hash = "sha256-gemNkYbgzRvIjK6yQDRT/dS97t1XTKTb6PtqKIDJxRo=";
+                hash = "sha256-2gx+8nipETR4YnWOdXOlkHNl5mSFwmN89cIXxeInmS4=";
               };
               x86_64-darwin = {
                 platform = "darwin_amd64";
-                hash = "sha256-0X0QU7y95lCoqRm3IY7yiG6sdsR0MG6ezYvWRCdAh0E=";
+                hash = "sha256-ZrRy3MNs93DYN1ftTQAsR2F0hCwFxoY3tAp+mVGc8+E=";
               };
             };
             target = releases.${system} or null;
           in
           if target != null then
-            pkgs.runCommand "terraform-1.16.7" {
+            pkgs.runCommand "terraform-1.17.2" {
               nativeBuildInputs = [ pkgs.unzip ];
               src = pkgs.fetchurl {
-                url = "https://releases.hashicorp.com/terraform/1.16.7/terraform_1.16.7_${target.platform}.zip";
+                url = "https://releases.hashicorp.com/terraform/1.17.2/terraform_1.17.2_${target.platform}.zip";
                 hash = target.hash;
               };
             } ''

@@ -4,7 +4,7 @@ title: Notifications
 
 Notifications are sent by Coder in response to specific internal events, such as a workspace being deleted or a user being created.
 
-Available events may differ between versions.
+Available events might differ between versions.
 For a list of all events, visit your Coder deployment's `https://coder.example.com/deployment/notifications`.
 
 ## Event Types
@@ -57,7 +57,7 @@ These notifications are sent to the workspace owner:
 
 ## Delivery Methods
 
-Notifications can be delivered through the Coder dashboard Inbox and by SMTP or webhook.
+Notifications can be delivered through the Coder dashboard Inbox and by Simple Mail Transfer Protocol (SMTP) or webhook.
 OOM/OOD notifications can be delivered to users in VS Code.
 
 You can configure:
@@ -85,7 +85,7 @@ You can monitor out of memory (OOM) and out of disk (OOD) errors and alert users
 
 This can help prevent agent disconnects due to OOM/OOD issues.
 
-To enable OOM/OOD notifications on a template, follow the steps in the [resource monitoring guide](../../templates/extending-templates/resource-monitoring.md).
+To enable OOM/OOD notifications on a template, follow the steps in the [resource monitoring guide](../../../templates/extending-templates/resource-monitoring.md).
 
 ## SMTP (Email)
 
@@ -205,22 +205,24 @@ Here is an example payload for Coder's webhook notification:
 
 The top-level object has these keys:
 
-- `_version`: describes the version of this schema; follows semantic versioning
-- `msg_id`: the UUID of the notification (matches the ID in the `notification_messages` table)
-- `payload`: contains the specific details of the notification; described below
+- `_version`: describes the version of this schema and follows semantic versioning
+- `msg_id`: the universally unique identifier (UUID) of the notification (matches the ID in the `notification_messages` table)
+- `payload`: contains the specific details of the notification (described below)
 - `title`: the title of the notification message (equivalent to a subject in SMTP delivery)
 - `body`: the body of the notification message (equivalent to the message body in SMTP delivery)
 
 The `payload` object has these keys:
 
-- `_version`: describes the version of this inner schema; follows semantic versioning
+- `_version`: describes the version of this inner schema and follows semantic versioning
 - `notification_name`: name of the event which triggered the notification
 - `user_id`: Coder internal user identifier of the target user (UUID)
 - `user_email`: email address of the target user
 - `user_name`: name of the target user
 - `user_username`: username of the target user
-- `actions`: a list of CTAs (Call-To-Action); these are mainly relevant for SMTP delivery in which they're shown as buttons
-- `labels`: dynamic map of zero or more string key-value pairs; these vary from event to event
+- `actions`: a list of calls to action (CTAs).
+  These are mainly relevant for SMTP delivery in which they're shown as buttons
+- `labels`: dynamic map of zero or more string key-value pairs.
+  These vary from event to event
 
 ## User Preferences
 
@@ -282,7 +284,7 @@ fi
 
 ## Stop sending notifications
 
-Administrators may wish to stop _all_ notifications across the deployment.
+Administrators might wish to stop _all_ notifications across the deployment.
 We support a killswitch in the CLI for these cases.
 
 To pause sending notifications, execute [`coder notifications pause`](../../../reference/cli/notifications/pause.md).
@@ -293,7 +295,7 @@ To resume sending notifications, execute [`coder notifications resume`](../../..
 
 If notifications are not being delivered, use the following methods to troubleshoot:
 
-1. Ensure notifications are being added to the `notification_messages` table.
+1. Make sure notifications are being added to the `notification_messages` table.
 1. Review any available error messages in the `status_reason` column
 1. Review the logs.
    Search for the term `notifications` for diagnostic information.

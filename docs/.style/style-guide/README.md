@@ -22,9 +22,9 @@ The doctrine for adding Vale rules lives in the [Vale doctrine README](../README
 ## What the tooling checks, and what it doesn't
 
 A clean `make lint/prose` run is not evidence that a page follows this guide.
-The guide documents 90 rules.
-Automated tooling checks 22 of them, and 1 of those 22 doesn't run on published pages.
-The other 68 are yours to apply by reading, 69 on published pages, where the one-sentence-per-line rule is off.
+The guide documents 91 rules.
+Automated tooling checks 24 of them, and 1 of those 24 doesn't run on published pages.
+The other 67 are yours to apply by reading, 68 on published pages, where the one-sentence-per-line rule is off.
 
 Open the section that matches what you're writing and work through it.
 The linters catch a narrow band of mechanical errors; they can't tell you that a page serves 2 audiences, buries a required step in a `NOTE`, or wraps every paragraph at 80 columns.
@@ -40,7 +40,7 @@ The linters catch a narrow band of mechanical errors; they can't tell you that a
 | `Coder.InclusiveLanguage`                    | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**` and `docs/reference/cli/agent-firewall.md`                                                                                        | Whitelist, blacklist, slave, master branch, dummy, sanity check, grandfathered                                     |
 | `Coder.LGBTQ`                                | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Outdated LGBTQ terms, such as `preferred pronouns` and `transgendered`                                             |
 | `Coder.Please`                               | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | The word `please`, in any case, outside code                                                                       |
-| `Coder.SelectClick`                          | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | `click` and its inflections                                                                                        |
+| `Coder.SelectClick`                | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**` and `docs/reference/{api,cli}/*.md`                                                                                               | `click` and its inflections                                                    |
 | `Coder.OneSentencePerLine`                   | Vale                      | `warning`    | `docs/.style/*.md` and `docs/.style/styles/Coder/*.md` only                                                                                                                     | Sentence boundaries mid-line, on contributor docs only                                                             |
 | `Coder.UnitSpacing`                          | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/integrations/prometheus.md` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md` | A regular space, or no space, between a number and its unit                                                        |
 | `Coder.StepLength`                           | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | The instruction paragraph of an ordered-list step longer than 20 words                                             |
@@ -48,6 +48,8 @@ The linters catch a narrow band of mechanical errors; they can't tell you that a
 | `Coder.AmbiguousWords`                       | Vale                      | `suggestion` | `docs/**` except `docs/.style/style-guide/**` and `docs/reference/{api,cli}/*.md`                                                                                               | `ensure`, `should`, `since`, and `may` (not the month `May`)                                                       |
 | `Coder.USSpelling`                           | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**` and `docs/reference/{api,cli}/*.md`                                                                                               | The `-ise` family and a list of British spellings                                                                  |
 | `Coder.LatinAbbreviations`                   | Vale                      | `suggestion` | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md`                                             | `e.g.`, `i.e.`, and `etc.` in prose, not tables or code                                                            |
+| `Coder.Semicolons`                 | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md`                                             | A semicolon in a paragraph, list item, heading, or blockquote                  |
+| `Coder.AbbreviationFirstUse`       | Vale                      | `warning`    | `docs/**` except `docs/.style/style-guide/**` and `docs/admin/integrations/prometheus.md` and `docs/admin/setup/configuration-reference.md` and `docs/reference/{api,cli}/*.md` | Abbreviations with no earlier "Expanded Form (ABBR)" on the page               |
 | `Coder.HeadingOrder`                         | Vale                      | `error`      | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Heading level skips, counting raw HTML headings that `MD001` doesn't see                                           |
 | `Coder.EmptyHeading`                         | Vale                      | `error`      | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Headings with no text, in Markdown and raw HTML                                                                    |
 | `Coder.LinkName`                             | Vale                      | `error`      | `docs/**` except `docs/.style/style-guide/**`                                                                                                                                   | Links with no text, including links around an image with empty alt text                                            |
@@ -73,11 +75,11 @@ The markdownlint, emdash, docs HTML, and docs-manifest checks do fail the build.
 | [Voice and tone](./voice-and-tone.md)                                 | 13    | 2            | 2       | 9                  |
 | [Procedural writing](./procedural-writing.md)                         | 6     | 1            | 0       | 5                  |
 | [Word choice](./word-choice.md)                                       | 20    | 5            | 9       | 6                  |
-| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 14    | 7            | 1       | 6                  |
-| [Capitalization and punctuation](./capitalization-and-punctuation.md) | 12    | 3            | 7       | 2                  |
+| [Accessibility and inclusion](./accessibility-and-inclusion.md)       | 15    | 8            | 1       | 6                  |
+| [Capitalization and punctuation](./capitalization-and-punctuation.md) | 12    | 4            | 6       | 2                  |
 | [Formatting](./formatting.md)                                         | 13    | 3            | 0       | 10                 |
 | [Numbers, units, and dates](./numbers-units-and-dates.md)             | 5     | 1            | 4       | 0                  |
-| **Total**                                                             | 90    | 22           | 23      | 45                 |
+| **Total**                                                             | 91    | 24           | 22      | 45                 |
 
 Every column counts rule sections, not linter rule names.
 A rule section is a heading that carries an enforcement footer, the italic line that names the section's enforcement status.
@@ -104,8 +106,8 @@ Classify a counted section from its footer, in this order:
    A section that names several checks still counts once.
 3. Anything else: the section is planned.
 
-So the 23 rows in the table above name 27 checks, because the markdownlint row bundles 4 and the disallowed-markup row bundles 2.
-The disallowed-markup checks guard against markup no rule section covers, and the other 25 checks cover 22 sections: each check counts under the section that owns it rather than under every section that mentions it.
+So the 25 rows in the table above name 29 checks, because the markdownlint row bundles 4 and the disallowed-markup row bundles 2.
+The disallowed-markup checks guard against markup no rule section covers, and the other 27 checks cover 24 sections: each check counts under the section that owns it rather than under every section that mentions it.
 
 A rule marked `(planned)` in a section footer names the rule that would enforce it if it existed.
 It isn't running today.

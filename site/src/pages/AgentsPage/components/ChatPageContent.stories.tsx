@@ -1,5 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, within } from "storybook/test";
+import { type QueryClient, useQueryClient } from "react-query";
+import { expect, fn, spyOn, userEvent, within } from "storybook/test";
+import { API } from "#/api/api";
+import { authorizationKey, getAuthorizationKey } from "#/api/queries/authCheck";
 import {
 	chatPromptsKey,
 	organizationChatModelOverridesKey,
@@ -133,8 +136,8 @@ const StoryChatPageInput: React.FC<{
 			]}
 			modelSelectorPlaceholder="Select model"
 			canConfigureAgentSetup={false}
-			isEditing={false}
-			onCancelHistoryEdit={fn()}
+			editingTarget={null}
+			onCancelEdit={fn()}
 			isReadOnly={false}
 			onReasoningEffortChange={fn()}
 			unsupportedProviderNames={[]}
@@ -148,8 +151,8 @@ const StoryChatPageInput: React.FC<{
 			mcpServers={[]}
 			selectedMCPServerIds={[]}
 			onMCPSelectionChange={fn()}
-			onMCPAuthComplete={fn()}
 			isWorkspaceLoading={false}
+			queuedMessageUnderEditID={null}
 		/>
 	</div>
 );
@@ -391,6 +394,40 @@ export const MergedMessagesRenderInIDOrder: Story = {
 // rejected by the backend, so Stop stays present but disabled.
 const interruptingOnInterrupt = fn();
 export const InterruptingShowsBusyComposer: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
+			{
+				key: getAuthorizationKey({
+					checks: {
+						canUpdateChat: {
+							object: {
+								resource_type: "chat",
+								owner_id: MockChat.owner_id,
+								organization_id: "",
+							},
+							action: "update",
+						},
+					},
+				}),
+				data: { canUpdateChat: true },
+			},
+		],
+	},
 	render: () => {
 		const store = buildInterruptingStore();
 		return (
@@ -423,7 +460,9 @@ export const InterruptingShowsBusyComposer: Story = {
 		expect(canvas.getByRole("status")).toHaveTextContent(
 			"Interrupting. Waiting for the agent to stop.",
 		);
-		expect(canvas.queryByRole("button", { name: "Queue" })).toBeNull();
+		expect(
+			canvas.queryByRole("button", { name: "Send during turn" }),
+		).toBeNull();
 		expect(canvas.getByText("Interrupting")).toBeInTheDocument();
 		expect(canvas.queryByText("Thinking")).toBeNull();
 
@@ -436,10 +475,96 @@ export const InterruptingShowsBusyComposer: Story = {
 };
 
 export const RunningShowsBusyComposer: Story = {
+	parameters: {
+		queries: [
+			{
+				key: preferenceSettingsKey,
+				data: MockUserPreferenceSettings,
+			},
+			{
+				key: userCompactionThresholdsKey,
+				data: MockUserChatCompactionThresholds,
+			},
+			{
+				key: workspacesKey({ q: "owner:me", limit: 0 }),
+				data: {
+					workspaces: [],
+					count: 0,
+				} satisfies TypesGen.WorkspacesResponse,
+			},
+			{
+				key: getAuthorizationKey({
+					checks: {
+						canUpdateChat: {
+							object: {
+								resource_type: "chat",
+								owner_id: MockChat.owner_id,
+								organization_id: "",
+							},
+							action: "update",
+						},
+					},
+				}),
+				data: { canUpdateChat: true },
+			},
+		],
+	},
 	render: () => {
 		const store = buildInterruptingStore();
 		store.setChatStatus("running");
 		return <StoryChatPageInput store={store} />;
+	},
+};
+
+export const QueuePermissionError: Story = {
+	beforeEach: () => {
+		spyOn(API, "checkAuthorization").mockRejectedValue(
+			new Error("Unable to check queue permissions."),
+		);
+	},
+	render: () => {
+		const store = createChatStore();
+		store.setQueuedMessages([MockChatQueuedMessage]);
+		return <StoryChatPageInput store={store} />;
+	},
+	play: async ({ canvasElement }) => {
+		await within(canvasElement).findByRole("button", {
+			name: "Retry queue permissions",
+		});
+	},
+};
+
+let queuePermissionQueryClient: QueryClient | undefined;
+
+export const QueuePermissionRefetchError: Story = {
+	decorators: [
+		(Story) => {
+			queuePermissionQueryClient = useQueryClient();
+			return <Story />;
+		},
+	],
+	beforeEach: () => {
+		const checkQueuePermissions = fn()
+			.mockResolvedValueOnce({ canUpdateChat: true })
+			.mockRejectedValue(new Error("Unable to check queue permissions."));
+		spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+			"canUpdateChat" in checks
+				? checkQueuePermissions()
+				: Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+		);
+	},
+	render: () => {
+		const store = createChatStore();
+		store.setQueuedMessages([MockChatQueuedMessage]);
+		return <StoryChatPageInput store={store} />;
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await canvas.findByRole("button", { name: "Remove from queue" });
+		await queuePermissionQueryClient?.refetchQueries({
+			queryKey: authorizationKey,
+		});
+		await canvas.findByRole("button", { name: "Retry queue permissions" });
 	},
 };
 
@@ -478,8 +603,8 @@ const CompactionChatPageInput: React.FC = () => {
 				modelOptions={[]}
 				modelSelectorPlaceholder="Select model"
 				canConfigureAgentSetup={false}
-				isEditing={false}
-				onCancelHistoryEdit={fn()}
+				editingTarget={null}
+				onCancelEdit={fn()}
 				isReadOnly={false}
 				onReasoningEffortChange={fn()}
 				unsupportedProviderNames={[]}
@@ -493,8 +618,8 @@ const CompactionChatPageInput: React.FC = () => {
 				mcpServers={[]}
 				selectedMCPServerIds={[]}
 				onMCPSelectionChange={fn()}
-				onMCPAuthComplete={fn()}
 				isWorkspaceLoading={false}
+				queuedMessageUnderEditID={null}
 			/>
 		</div>
 	);

@@ -281,10 +281,10 @@ func TestHealthSettings(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, adminClient)
 
 		expected := healthsdk.HealthSettings{
-			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP, healthsdk.HealthSectionWebsocket},
+			DismissedHealthchecks: []healthsdk.HealthSection{healthsdk.HealthSectionDERP, healthsdk.HealthSectionWebsocket, healthsdk.HealthSectionPubsub},
 		}
 
-		// when: dismiss "derp" and "websocket"
+		// when: dismiss "derp", "websocket" and "pubsub"
 		err := healthsdk.New(adminClient).PutHealthSettings(ctx, expected)
 		require.NoError(t, err)
 
@@ -303,6 +303,7 @@ func TestHealthSettings(t *testing.T) {
 		require.NoError(t, json.Unmarshal(bs, &hc))
 		require.True(t, hc.DERP.Dismissed)
 		require.True(t, hc.Websocket.Dismissed)
+		require.True(t, hc.Pubsub.Dismissed)
 	})
 
 	t.Run("UnDismissSection", func(t *testing.T) {

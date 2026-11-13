@@ -33,7 +33,7 @@ export const ConnectionLogDetailsPopover: React.FC<
 			<PopoverContent
 				ref={contentRef}
 				align="end"
-				className="w-auto max-w-72 px-3 py-2 flex flex-col gap-4 text-xs font-normal"
+				className="w-auto max-w-72 p-3 flex flex-col gap-4 text-xs font-normal"
 				// Focus the panel so the copy button's tooltip doesn't open.
 				onOpenAutoFocus={(event) => {
 					event.preventDefault();
@@ -52,7 +52,12 @@ export const ConnectionLogDetailsPopover: React.FC<
 					)}
 					{organization && (
 						<Detail title="Organization">
-							<Link asChild size="sm" showExternalIcon={false} className="px-0">
+							<Link
+								asChild
+								size="sm"
+								showExternalIcon={false}
+								className="px-0 leading-4"
+							>
 								<RouterLink to={`/organizations/${organization.name}`}>
 									{organization.display_name || organization.name}
 								</RouterLink>
@@ -64,19 +69,24 @@ export const ConnectionLogDetailsPopover: React.FC<
 					)}
 					{clientSessionId && (
 						<Detail title="Client session ID">
-							<div className="flex flex-row items-center gap-1">
+							<div className="flex items-center gap-1">
 								<span className="min-w-0 truncate">{clientSessionId}</span>
 								<CopyButton
 									text={clientSessionId}
 									label="Copy client session ID"
-									className="size-6 shrink-0"
+									className="size-6 shrink-0 -my-1"
 								/>
 							</div>
 						</Detail>
 					)}
 				</dl>
 				{clientSessionId && (
-					<Link asChild size="sm" showExternalIcon={false} className="px-0">
+					<Link
+						asChild
+						size="sm"
+						showExternalIcon={false}
+						className="px-0 mr-auto"
+					>
 						<RouterLink
 							to={`/connectionlog?${new URLSearchParams({
 								[useFilterParamsKey]: `client_session_id:${clientSessionId} workspace_id:${connectionLog.workspace_id}`,

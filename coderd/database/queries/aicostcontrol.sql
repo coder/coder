@@ -198,6 +198,20 @@ SELECT *
 FROM user_ai_budget_overrides
 WHERE user_id = @user_id;
 
+-- name: GetUserAIBudgetOverrideWithOrganization :one
+-- Returns the user's AI budget override with the organization of its group, for
+-- budget resolution. An override whose group is in a deleted organization is
+-- never returned. When organization_id is set, returns the override only if its
+-- group belongs to that organization.
+SELECT override.user_id, override.group_id, override.spend_limit_micros,
+	groups.organization_id
+FROM user_ai_budget_overrides override
+JOIN groups ON groups.id = override.group_id
+JOIN organizations ON organizations.id = groups.organization_id
+WHERE override.user_id = @user_id
+	AND organizations.deleted = false
+	AND (sqlc.narg('organization_id')::uuid IS NULL OR groups.organization_id = sqlc.narg('organization_id')::uuid);
+
 -- name: UpsertUserAIBudgetOverride :one
 INSERT INTO user_ai_budget_overrides (user_id, group_id, spend_limit_micros)
 VALUES (@user_id, @group_id, @spend_limit_micros)
@@ -217,9 +231,11 @@ DELETE FROM user_ai_budget_overrides WHERE user_id = @user_id RETURNING *;
 -- and organization_members, so the implicit "Everyone" group
 -- (group_id == organization_id) is included. Returns no rows when the user has
 -- no budgeted groups. Callers should treat sql.ErrNoRows as "no group budget".
+-- When organization_id is set, only groups in that organization count.
 SELECT
 	budget.group_id,
-	budget.spend_limit_micros
+	budget.spend_limit_micros,
+	member.organization_id
 FROM group_ai_budgets budget
 JOIN group_members_expanded member ON member.group_id = budget.group_id
 JOIN organizations ON organizations.id = member.organization_id
@@ -228,6 +244,7 @@ JOIN organization_members
 	AND organization_members.organization_id = member.organization_id
 WHERE member.user_id = @user_id
 	AND organizations.deleted = false
+	AND (sqlc.narg('organization_id')::uuid IS NULL OR member.organization_id = sqlc.narg('organization_id')::uuid)
 ORDER BY
 	budget.spend_limit_micros DESC,       -- highest wins
 	organization_members.created_at ASC,  -- earliest organization membership
@@ -238,12 +255,14 @@ LIMIT 1;
 -- Returns the "Everyone" group (id == organization_id) to attribute a user's
 -- spend to when no override or budgeted group applies. Prefers the default org,
 -- then the earliest organization membership. Returns no rows when the user has
--- no organization membership.
+-- no organization membership. When organization_id is set, returns that
+-- organization's Everyone group only if the user is a member of it.
 SELECT organizations.id AS group_id
 FROM organization_members
 JOIN organizations ON organizations.id = organization_members.organization_id
 WHERE organization_members.user_id = @user_id
 	AND organizations.deleted = false
+	AND (sqlc.narg('organization_id')::uuid IS NULL OR organizations.id = sqlc.narg('organization_id')::uuid)
 ORDER BY
 	organizations.is_default DESC,        -- prefer the default org
 	organization_members.created_at ASC,  -- earliest organization membership
@@ -644,32 +663,180 @@ ORDER BY cost_micros DESC, LOWER(users.username), spend.user_id
 LIMIT NULLIF(@limit_opt::int, 0)
 OFFSET @offset_opt::int;
 
--- name: GetUnpricedAIModelsSince :many
--- Returns the models used since the given time that hold no price, most used
--- first. openai-compat providers cannot be priced, so their models are excluded.
+-- name: GetOrganizationAISpendPerDay :many
+-- Returns the AI spend in @organization_id for every UTC day in the
+-- [period_start, period_end) window, including days without spend. Both
+-- bounds are normalized to their UTC calendar day, matching
+-- ai_user_daily_spend, so a period_end after midnight excludes that day.
 SELECT
+	period_days.day::date AS day,
+	COALESCE(org_spend.spend_micros, 0)::BIGINT AS spend_micros
+FROM generate_series(
+	((@period_start::timestamptz) AT TIME ZONE 'UTC')::date,
+	((@period_end::timestamptz) AT TIME ZONE 'UTC')::date - 1,
+	'1 day'::interval
+) AS period_days(day)
+LEFT JOIN (
+	SELECT
+		spend.day,
+		SUM(spend.spend_micros) AS spend_micros
+	FROM ai_user_daily_spend spend
+	JOIN groups ON groups.id = spend.effective_group_id
+	WHERE groups.organization_id = @organization_id
+		AND spend.day >= ((@period_start::timestamptz) AT TIME ZONE 'UTC')::date
+		AND spend.day < ((@period_end::timestamptz) AT TIME ZONE 'UTC')::date
+	GROUP BY spend.day
+) org_spend ON org_spend.day = period_days.day::date
+ORDER BY period_days.day;
+
+-- name: GetOrganizationAISpendTotals :one
+-- Returns the number of users with AI spend in @organization_id over the
+-- [period_start, period_end) window, their total spend, and the median of
+-- their per-user totals. Both bounds are normalized to their UTC calendar day,
+-- matching ai_user_daily_spend, so a period_end after midnight excludes that
+-- day.
+WITH user_spend AS (
+	SELECT
+		spend.user_id,
+		SUM(spend.spend_micros) AS spend_micros
+	FROM ai_user_daily_spend spend
+	JOIN groups ON groups.id = spend.effective_group_id
+	WHERE groups.organization_id = @organization_id
+		AND spend.day >= ((@period_start::timestamptz) AT TIME ZONE 'UTC')::date
+		AND spend.day < ((@period_end::timestamptz) AT TIME ZONE 'UTC')::date
+	GROUP BY spend.user_id
+	HAVING SUM(spend.spend_micros) > 0
+)
+SELECT
+	COUNT(*)::BIGINT AS user_count,
+	COALESCE(SUM(spend_micros), 0)::BIGINT AS spend_micros,
+	COALESCE(ROUND(percentile_cont(0.5) WITHIN GROUP (ORDER BY spend_micros::double precision)), 0)::BIGINT AS median_spend_micros
+FROM user_spend;
+
+-- name: ListOrganizationAISpendPerUser :many
+-- Returns one page of users with AI spend in @organization_id over the
+-- [period_start, period_end) window, most spend first, with one row for each
+-- group their spend was attributed to. A user's rows are adjacent and ordered
+-- by group spend. Both bounds are normalized to their UTC calendar day,
+-- matching ai_user_daily_spend, so a period_end after midnight excludes that
+-- day. Users match GetOrganizationAISpendTotals.
+WITH group_spend AS (
+	SELECT
+		spend.user_id,
+		spend.effective_group_id AS group_id,
+		SUM(spend.spend_micros)::BIGINT AS spend_micros
+	FROM ai_user_daily_spend spend
+	JOIN groups ON groups.id = spend.effective_group_id
+	WHERE groups.organization_id = @organization_id
+		AND spend.day >= ((@period_start::timestamptz) AT TIME ZONE 'UTC')::date
+		AND spend.day < ((@period_end::timestamptz) AT TIME ZONE 'UTC')::date
+	GROUP BY spend.user_id, spend.effective_group_id
+	HAVING SUM(spend.spend_micros) > 0
+),
+user_page AS (
+	SELECT
+		group_spend.user_id,
+		SUM(group_spend.spend_micros)::BIGINT AS spend_micros
+	FROM group_spend
+	JOIN users ON users.id = group_spend.user_id
+	GROUP BY group_spend.user_id, users.username
+	ORDER BY spend_micros DESC, LOWER(users.username), group_spend.user_id
+	LIMIT NULLIF(@limit_opt::int, 0)
+	OFFSET @offset_opt::int
+)
+SELECT
+	user_page.user_id,
+	users.username,
+	users.name,
+	users.avatar_url,
+	user_page.spend_micros,
+	groups.id AS group_id,
+	groups.name AS group_name,
+	groups.display_name AS group_display_name,
+	group_spend.spend_micros AS group_spend_micros
+FROM user_page
+JOIN users ON users.id = user_page.user_id
+JOIN group_spend ON group_spend.user_id = user_page.user_id
+JOIN groups ON groups.id = group_spend.group_id
+ORDER BY
+	user_page.spend_micros DESC,
+	LOWER(users.username),
+	user_page.user_id,
+	group_spend.spend_micros DESC,
+	LOWER(groups.name),
+	groups.id;
+
+-- name: GetUnpricedAIModels :many
+-- Returns, for each live provider, the requested models with unpriced token
+-- usage in the [period_start, period_end) window, most unpriced tokens first.
+-- Only models without a price now are returned. A model has a price if it has a
+-- site-wide price for the provider's type, or an organization price in the
+-- organization of the usage's effective group. Usage priced through the model
+-- reported by the provider, or whose cost could not be computed from a found
+-- price, is not reported as unpriced. openai-compat providers cannot be priced,
+-- so they are excluded. @organization_id limits the usage to one organization,
+-- and null includes all.
+WITH unpriced_usage AS (
+	SELECT
+		groups.organization_id,
+		interceptions.provider_name,
+		interceptions.model,
+		SUM(
+			token_usages.input_tokens
+			+ token_usages.output_tokens
+			+ token_usages.cache_read_input_tokens
+			+ token_usages.cache_write_input_tokens
+		)::bigint AS token_count
+	FROM aibridge_token_usages AS token_usages
+	JOIN aibridge_interceptions AS interceptions
+		ON interceptions.id = token_usages.interception_id
+	LEFT JOIN groups
+		ON groups.id = token_usages.effective_group_id
+	WHERE token_usages.created_at >= @period_start::timestamptz
+		AND token_usages.created_at < @period_end::timestamptz
+		AND token_usages.cost_micros IS NULL
+		AND token_usages.priced_model IS NULL
+		AND (
+			sqlc.narg('organization_id')::uuid IS NULL
+			OR groups.organization_id = sqlc.narg('organization_id')::uuid
+		)
+	GROUP BY groups.organization_id, interceptions.provider_name, interceptions.model
+)
+SELECT
+	providers.name AS provider_name,
+	providers.display_name AS provider_display_name,
+	providers.icon AS provider_icon,
 	providers.type::text AS provider_type,
-	interceptions.model AS model,
-	SUM(
-		token_usages.input_tokens
-		+ token_usages.output_tokens
-		+ token_usages.cache_read_input_tokens
-		+ token_usages.cache_write_input_tokens
-	)::bigint AS token_count
-FROM aibridge_interceptions AS interceptions
-JOIN aibridge_token_usages AS token_usages
-	ON token_usages.interception_id = interceptions.id
+	unpriced_usage.model,
+	SUM(unpriced_usage.token_count)::bigint AS token_count
+FROM unpriced_usage
 JOIN ai_providers AS providers
-	ON providers.name = interceptions.provider_name
+	ON providers.name = unpriced_usage.provider_name
 	AND providers.deleted = false
-WHERE interceptions.started_at >= @since::timestamptz
-	AND token_usages.cost_micros IS NULL
-	AND providers.type::text = ANY(@priceable_providers::text[])
+WHERE providers.type::text = ANY(@priceable_providers::text[])
 	AND NOT EXISTS (
 		SELECT 1
 		FROM ai_model_prices AS prices
 		WHERE prices.provider = providers.type::text
-			AND prices.model = interceptions.model
+			AND prices.model = unpriced_usage.model
 	)
-GROUP BY providers.type, interceptions.model
-ORDER BY token_count DESC, provider_type ASC, model ASC;
+	AND NOT EXISTS (
+		SELECT 1
+		FROM ai_model_configs AS configs
+		WHERE configs.organization_id = unpriced_usage.organization_id
+			AND configs.provider_id = providers.id
+			AND configs.model = unpriced_usage.model
+			AND configs.deleted = false
+			AND COALESCE(
+				configs.input_price,
+				configs.output_price,
+				configs.cache_read_price,
+				configs.cache_write_price
+			) IS NOT NULL
+	)
+GROUP BY providers.name, providers.display_name, providers.icon, providers.type, unpriced_usage.model
+ORDER BY
+	token_count DESC,
+	provider_name ASC,
+	LOWER(unpriced_usage.model) ASC,
+	unpriced_usage.model ASC;

@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -43,6 +44,7 @@ import (
 	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -3338,6 +3340,18 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			ttlMillis:     ptr.Ref((24*30*time.Hour + time.Minute).Milliseconds()),
 			expectedError: "time until shutdown must be less than 30 days",
 		},
+		{
+			// Converted to a time.Duration, this wraps to about one minute.
+			name:          "overflowing ttl",
+			ttlMillis:     ptr.Ref(int64(18_446_744_133_710)),
+			expectedError: "time until shutdown must be less than 30 days",
+		},
+		{
+			// Converted to a time.Duration, this wraps to about one minute.
+			name:          "negative overflowing ttl",
+			ttlMillis:     ptr.Ref(int64(-18_446_744_013_709)),
+			expectedError: "time until shutdown must be at least one minute",
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -4570,6 +4584,64 @@ func TestWorkspaceWithOptionalRichParameters(t *testing.T) {
 		{Name: secondParameterName, Value: secondParameterValue},
 	}
 	require.ElementsMatch(t, expectedBuildParameters, workspaceBuildParameters)
+}
+
+func TestCreateWorkspaceTelemetryAgentRelay(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+	reporter := newFakeTelemetryReporter(ctx, t, 100)
+	client := coderdtest.New(t, &coderdtest.Options{
+		IncludeProvisionerDaemon: true,
+		TelemetryReporter:        reporter,
+	})
+	user := coderdtest.CreateFirstUser(t, client)
+
+	createTemplate := func(parameterNames ...string) codersdk.Template {
+		parameters := make([]*proto.RichParameter, 0, len(parameterNames))
+		for _, name := range parameterNames {
+			parameters = append(parameters, &proto.RichParameter{Name: name, Type: "string", Mutable: true, DefaultValue: "default"})
+		}
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionGraph: []*proto.Response{{Type: &proto.Response_Graph{Graph: &proto.GraphComplete{Parameters: parameters}}}},
+			ProvisionApply: echo.ApplyComplete,
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		return coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+	}
+	relayParameters := []codersdk.WorkspaceBuildParameter{
+		{Name: "agent_relay_session_id", Value: "session-1"},
+		{Name: "agent_relay_client_platform", Value: "claude_in_slack"},
+		{Name: "agent_relay_claude_code_lock_to_account", Value: "true"},
+	}
+	// The create event reports the build from the parameters coderd stored,
+	// so the result depends on what the template declares.
+	createBuild := func(template codersdk.Template) *telemetry.WorkspaceBuild {
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID, func(req *codersdk.CreateWorkspaceRequest) {
+			req.RichParameterValues = relayParameters
+		})
+		for {
+			snapshot := testutil.RequireReceive(ctx, t, reporter.snapshots)
+			for _, build := range snapshot.WorkspaceBuilds {
+				if build.ID == workspace.LatestBuild.ID {
+					return &build
+				}
+			}
+		}
+	}
+
+	relay := createBuild(createTemplate("agent_relay_session_id", "agent_relay_client_platform", "agent_relay_claude_code_lock_to_account"))
+	require.Equal(t, &telemetry.WorkspaceBuildAgentRelay{
+		Provider:       telemetry.AgentRelayProviderClaudeCode,
+		ClientPlatform: "claude_in_slack",
+		SessionIDHash:  fmt.Sprintf("%x", sha256.Sum256([]byte("session-1"))),
+	}, relay.AgentRelay)
+
+	// Values for parameters the template does not declare are not stored, so
+	// they cannot mark the build as a relay build.
+	plain := createBuild(createTemplate("region"))
+	require.Nil(t, plain.AgentRelay)
 }
 
 func TestWorkspaceWithEphemeralRichParameters(t *testing.T) {

@@ -32,6 +32,7 @@ type ManifestAPI struct {
 	DisableDirectConnections  bool
 	DerpForceWebSockets       bool
 	DisableUserSecretFilePath bool
+	AgentPluginsEnabled       bool
 	WorkspaceID               uuid.UUID
 	// WorkspaceBuildID is the build that created the agent. Its live secrets
 	// are delivered in the manifest.
@@ -156,6 +157,8 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		WorkspaceId:              workspace.ID[:],
 		WorkspaceBuildId:         a.WorkspaceBuildID[:],
 		WorkspaceName:            workspace.Name,
+		TemplateId:               workspace.TemplateID[:],
+		TemplateName:             workspace.TemplateName,
 		GitAuthConfigs:           gitAuthConfigs,
 		EnvironmentVariables:     envs,
 		Directory:                workspaceAgent.Directory,
@@ -163,6 +166,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		MotdPath:                 workspaceAgent.MOTDFile,
 		DisableDirectConnections: a.DisableDirectConnections,
 		DerpForceWebsockets:      a.DerpForceWebSockets,
+		AgentPluginsEnabled:      a.AgentPluginsEnabled,
 		ParentId:                 parentID,
 
 		DerpMap:       tailnet.DERPMapToProto(a.DerpMapFn()),

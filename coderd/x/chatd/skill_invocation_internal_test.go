@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
@@ -42,9 +43,8 @@ func TestResolveSkillInvocations(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 		authzDB := dbauthz.New(db, rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry()), slogtest.Make(t, nil), nil)
 		server := &Server{
-			db:          authzDB,
-			logger:      slogtest.Make(t, nil),
-			experiments: codersdk.Experiments{codersdk.ExperimentChatProjects},
+			db:     authzDB,
+			logger: slogtest.Make(t, nil),
 			modelConfigContext: func(ctx context.Context, ownerID uuid.UUID) (context.Context, error) {
 				return callerModelConfigContext(ctx, authzDB, ownerID)
 			},
@@ -71,7 +71,7 @@ func TestResolveSkillInvocations(t *testing.T) {
 			})
 			require.NoError(t, err)
 		}
-		dbgen.OrganizationSkill(t, db, database.Skill{
+		teamReview := dbgen.OrganizationSkill(t, db, database.Skill{
 			OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
 			Name:           "team-review",
 			Content:        skillMarkdown("team-review"),
@@ -118,6 +118,21 @@ func TestResolveSkillInvocations(t *testing.T) {
 		plainChat.ProjectID = uuid.NullUUID{}
 		_, err = server.resolveSkillInvocations(ctx, plainChat, parts[3:])
 		requireUnavailable(t, err, "Skill project/triage is not available.")
+
+		// An organization skill the owner turned off is not available.
+		require.NoError(t, db.InsertOrganizationMemberDisabledSkill(ctx, database.InsertOrganizationMemberDisabledSkillParams{
+			OrganizationID: org.ID,
+			UserID:         owner.ID,
+			SkillID:        teamReview.ID,
+		}))
+		_, err = db.UpdateOrganizationMembersCanDisableSkills(ctx, database.UpdateOrganizationMembersCanDisableSkillsParams{
+			ID:                      org.ID,
+			MembersCanDisableSkills: true,
+			UpdatedAt:               dbtime.Now(),
+		})
+		require.NoError(t, err)
+		_, err = server.resolveSkillInvocations(ctx, projectChat, parts[2:3])
+		requireUnavailable(t, err, "Skill org/team-review is not available.")
 	})
 
 	t.Run("WorkspaceFromPinnedContext", func(t *testing.T) {

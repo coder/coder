@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -14,10 +15,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"cdr.dev/slog/v3"
 	"cdr.dev/slog/v3/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/x/chatd/chatadvisor"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatloop"
 	"github.com/coder/coder/v2/coderd/x/chatd/chatprompt"
 	"github.com/coder/coder/v2/coderd/x/chatd/messagepartbuffer"
@@ -954,6 +957,38 @@ func TestDecisionDetectsStopAfterToolAcrossHookContext(t *testing.T) {
 	require.True(t, got)
 }
 
+func TestCurrentTurnAdvisorUses(t *testing.T) {
+	t.Parallel()
+
+	advice, err := json.Marshal(chatadvisor.AdvisorResult{
+		Type:   chatadvisor.ResultTypeAdvice,
+		Advice: strings.Repeat("long advice ", 1000),
+	})
+	require.NoError(t, err)
+	truncatedAdvice, truncated := chatloop.TruncateToolResultText(string(advice), 1024)
+	require.True(t, truncated)
+	truncatedPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "advisor-truncated",
+		ToolName:   chatadvisor.ToolName,
+		Result:     fantasy.ToolResultOutputContentText{Text: truncatedAdvice},
+	})
+	interruptedPart := chatprompt.PartFromContent(fantasy.ToolResultContent{
+		ToolCallID: "advisor-interrupted",
+		ToolName:   chatadvisor.ToolName,
+		Result:     fantasy.ToolResultOutputContentError{Error: xerrors.New(interruptedToolResultErrorMessage)},
+	})
+
+	messages := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("plan")),
+		dbMessage(t, 2, database.ChatMessageRoleTool, false, truncatedPart),
+		dbMessage(t, 3, database.ChatMessageRoleTool, false, interruptedPart),
+	}
+	logger := slogtest.Make(t, nil)
+	got, err := currentTurnAdvisorUses(context.Background(), logger, messages)
+	require.NoError(t, err)
+	require.Equal(t, 1, got, "truncated advice consumed a use; an interrupted call did not")
+}
+
 func TestDecisionDetectsCurrentHistoryCompletion(t *testing.T) {
 	t.Parallel()
 
@@ -978,6 +1013,42 @@ func TestDecisionDetectsCurrentHistoryCompletion(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.False(t, complete)
+}
+
+func TestDecisionObservesToolCallsAnsweredBeforeExecution(t *testing.T) {
+	t.Parallel()
+
+	// A pre_tool_use hook denied the first computer call at admission, so
+	// its result committed with the assistant step and only the last call is
+	// left to run. The chat loop still sees the denied call in its place,
+	// so it can halt the later computer call, while the pending client call
+	// stays out.
+	messages := []database.ChatMessage{
+		dbMessage(t, 1, database.ChatMessageRoleUser, false, codersdk.ChatMessageText("fill in the form")),
+		dbMessage(t, 2, database.ChatMessageRoleAssistant, false,
+			codersdk.ChatMessageToolCall("call-denied", "computer", json.RawMessage(`{"action":"left_click"}`)),
+			codersdk.ChatMessageToolCall("call-client", "client_tool", json.RawMessage(`{}`)),
+			codersdk.ChatMessageToolCall("call-allowed", "computer", json.RawMessage(`{"action":"type","text":"hi"}`)),
+		),
+		dbMessage(t, 3, database.ChatMessageRoleTool, false,
+			codersdk.ChatMessageToolResult("call-denied", "computer", json.RawMessage(`{"error":"denied"}`), true, false)),
+	}
+	decision, err := decideGenerationAction(generationDecisionInput{
+		maxSteps:         codersdk.DefaultChatMaxStepsPerTurn,
+		messages:         messages,
+		dynamicToolNames: map[string]bool{"client_tool": true},
+	})
+	require.NoError(t, err)
+	require.Equal(t, generationActionExecuteLocalTools, decision.kind)
+	callIDs := func(calls []fantasy.ToolCallContent) []string {
+		ids := make([]string, 0, len(calls))
+		for _, call := range calls {
+			ids = append(ids, call.ToolCallID)
+		}
+		return ids
+	}
+	require.Equal(t, []string{"call-allowed"}, callIDs(decision.localToolCalls))
+	require.Equal(t, []string{"call-denied", "call-allowed"}, callIDs(decision.observedToolCalls))
 }
 
 func TestBufferedPartsToPartialMessages_NormalizesToolCallDeltasBeforeFinal(t *testing.T) {
@@ -1390,8 +1461,10 @@ func TestBufferedPartsToPartialMessages_SynthesizesMissingToolResults(t *testing
 	require.Equal(t, codersdk.ChatMessagePartTypeToolCall, assistantParts[3].Type)
 
 	require.Equal(t, database.ChatMessageRoleTool, got[1].Role)
+	require.Equal(t, database.ChatMessageVisibilityBoth, got[1].Visibility)
 	toolParts := parseMessageParts(t, got[1].Role, got[1].Content)
 	require.Equal(t, "call-2", toolParts[0].ToolCallID)
+	require.JSONEq(t, `{"ok":true}`, string(toolParts[0].Result))
 	require.Equal(t, createdAt, requireNotNilTime(t, toolParts[0].CreatedAt))
 
 	require.Equal(t, database.ChatMessageRoleTool, got[2].Role)
@@ -1408,8 +1481,9 @@ func TestBufferedPartsToPartialMessages_SynthesizesMissingToolResults(t *testing
 func parseMessageParts(t *testing.T, role database.ChatMessageRole, raw pqtype.NullRawMessage) []codersdk.ChatMessagePart {
 	t.Helper()
 	parts, err := chatprompt.ParseContent(database.ChatMessage{
-		Role:    role,
-		Content: raw,
+		Role:           role,
+		Content:        raw,
+		ContentVersion: chatprompt.CurrentContentVersion,
 	})
 	require.NoError(t, err)
 	return parts

@@ -84,6 +84,11 @@ export type ParsedMessageContent = {
 	toolResults: ParsedToolResult[];
 	tools: MergedTool[];
 	blocks: RenderBlock[];
+	/**
+	 * After each content part, the index of the newest block, or -1 while there
+	 * is none, so a part that renders nothing maps to the block before it.
+	 */
+	partBlockIndices: number[];
 	sources: Array<{ url: string; title: string }>;
 	hookNotices: string[];
 };
@@ -105,6 +110,12 @@ export type RetryState = {
 	provider?: string;
 	retryingAt?: string;
 };
+
+/**
+ * The message the composer is editing. History rows and queued rows have
+ * independent ID spaces, so the kind is required to interpret the ID.
+ */
+export type EditingTarget = { kind: "history" | "queued"; id: number };
 
 type StreamToolCall = {
 	id: string;

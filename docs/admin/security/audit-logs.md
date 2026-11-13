@@ -369,7 +369,6 @@ Actions: `write`
 <tr><td><code>chat_auto_archive_days</code></td><td>Yes</td></tr>
 <tr><td><code>chat_debug_retention_days</code></td><td>Yes</td></tr>
 <tr><td><code>chat_retention_days</code></td><td>Yes</td></tr>
-<tr><td><code>computer_use_provider</code></td><td>Yes</td></tr>
 <tr><td><code>debug_logging_allow_users</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>No</td></tr>
 <tr><td><code>personal_model_overrides_enabled</code></td><td>Yes</td></tr>
@@ -544,6 +543,7 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>model_intent</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_auth_url</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_client_id</code></td><td>Yes</td></tr>
+<tr><td><code>oauth2_client_registration</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_client_secret</code></td><td>Yes</td></tr>
 <tr><td><code>oauth2_client_secret_key_id</code></td><td>No</td></tr>
 <tr><td><code>oauth2_resource</code></td><td>Yes</td></tr>
@@ -663,6 +663,7 @@ Actions: `create`, `write`, `delete`
 <tr><td><code>icon</code></td><td>Yes</td></tr>
 <tr><td><code>id</code></td><td>No</td></tr>
 <tr><td><code>is_default</code></td><td>Yes</td></tr>
+<tr><td><code>members_can_disable_skills</code></td><td>Yes</td></tr>
 <tr><td><code>name</code></td><td>Yes</td></tr>
 <tr><td><code>shareable_workspace_owners</code></td><td>Yes</td></tr>
 <tr><td><code>updated_at</code></td><td>Yes</td></tr>
@@ -1024,7 +1025,7 @@ log entry:
 ## Purge old audit logs
 
 > [!WARNING]
-> Audit Logs provide critical security and compliance information. Purging Audit Logs may impact your organization's ability
+> Audit Logs provide critical security and compliance information. Purging Audit Logs might impact your organization's ability
 > to investigate security incidents or meet compliance requirements. Consult your security and compliance teams before purging any audit data.
 
 ### Data Retention
@@ -1064,16 +1065,16 @@ and in accordance with your compliance requirements.
 > [!NOTE]
 > `VACUUM FULL` acquires an exclusive lock on the table, blocking all reads and writes. For more information, see the [PostgreSQL VACUUM documentation](https://www.postgresql.org/docs/current/sql-vacuum.html).
 
-You may choose to run a `VACUUM` or `VACUUM FULL` operation on the audit logs table to reclaim disk space. If you choose to run the `FULL` operation, consider the following when doing so:
+You can choose to run a `VACUUM` or `VACUUM FULL` operation on the audit logs table to reclaim disk space. If you choose to run the `FULL` operation, consider the following when doing so:
 
-- **Run during a planned maintenance window** to ensure ample time for the operation to complete and minimize impact to users
+- **Run during a planned maintenance window** to allow ample time for the operation to complete and minimize impact to users
 - **Stop all running instances of `coderd`** to prevent connection errors while the table is locked. The actual steps for this will depend on your particular deployment setup. For example, if your `coderd` deployment is running on Kubernetes:
 
   ```sh
   kubectl scale deployment coder --replicas=0 -n coder
   ```
 
-- **Terminate lingering connections** before running the `VACUUM` operation to ensure it starts immediately
+- **Terminate lingering connections** before running the `VACUUM` operation to make sure it starts immediately
 
   ```sql
   SELECT pg_terminate_backend(pg_stat_activity.pid)
@@ -1106,7 +1107,7 @@ SELECT * FROM audit_logs WHERE time < CURRENT_TIMESTAMP - INTERVAL '1 year';
 ### Permanent Deletion
 
 > [!NOTE]
-> For large `audit_logs` tables, consider running the `DELETE` operation during maintenance windows as it may impact
+> For large `audit_logs` tables, consider running the `DELETE` operation during maintenance windows as it might impact
 > database performance. You can also batch the deletions to reduce lock time.
 
 ```sql

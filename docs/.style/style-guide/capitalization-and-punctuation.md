@@ -237,7 +237,8 @@ Code, configuration values, and table cells, where space is limited, keep their 
 > The proxy is in another region; connections through it are slower.
 
 *Adapted from ASD-STE100 Issue 9, rule 8.1.
-Enforced by `Coder.Semicolons` (planned).*
+Enforced by `Coder.Semicolons` (`warning`).
+The rule skips table cells and code, and it skips the pages generated from Go source.*
 
 ## No periods in acronyms
 

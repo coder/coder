@@ -44,7 +44,8 @@ module "nix" {
 ```
 
 > [!WARNING]
-> The module does not install Nix and assumes it is available in the `PATH`; if you aren't running NixOS, include it in your image.
+> The module does not install Nix and assumes it is available in the `PATH`.
+> If you aren't running NixOS, include it in your image.
 >
 > To install the `nix` CLI, you can use the official [Nix](https://nixos.org/download/) installer, or the installer for the [Lix](https://lix.systems/install/) Nix fork, for a more modern experience.
 
@@ -95,7 +96,7 @@ The Coder team is actively working on adding new templates to the registry, but 
 
 #### AWS EC2
 
-The [AWS EC2 (NixOS)](https://registry.coder.com/templates/coder-labs/aws-nixos) template runs each workspace as a NixOS virtual machine on EC2.
+The [AWS Elastic Compute Cloud (EC2) NixOS](https://registry.coder.com/templates/coder-labs/aws-nixos) template runs each workspace as a NixOS virtual machine on EC2.
 Rebuild progress streams to the **NixOS** log in the workspace dashboard.
 Its `flake_attr` supports `$ARCH`, which the template replaces with `x86_64` or `aarch64` to match the instance type.
 
@@ -111,7 +112,7 @@ See the template README for prerequisites and limitations.
 
 Nix downloads prebuilt packages from binary caches (`cache.nixos.org` by default) instead of building them in the workspace.
 Public caches are shared infrastructure and don't have every package, so some packages still build locally.
-We recommend setting up your own cache server in each region where you are deploying workspaces to ensure the fastest download speeds possible.
+We recommend setting up your own cache server in each region where you are deploying workspaces to make sure you get the fastest download speeds possible.
 
 To add your own cache, set `extra-substituters` and `extra-trusted-public-keys` in the module's [Nix settings](https://registry.coder.com/modules/coder-labs/nix#nix-settings).
 To replace the default caches instead, set `substituters` and `trusted-public-keys`.
@@ -123,7 +124,7 @@ Its [Alternatives](https://nix.dev/tutorials/nixos/binary-cache-setup.html#alter
 
 ### Other
 
-Other caching methods are available, such as prebuilding your Nix image in CI (if you use containers) or using a base disk that you refresh frequently.
+Other caching methods are available, such as prebuilding your Nix image in continuous integration (CI) (if you use containers) or using a base disk that you refresh frequently.
 
 If you are looking for the most time-efficient way to improve startup times, set up a local binary cache server first, then combine it with other improvements later.
 

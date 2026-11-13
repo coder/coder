@@ -16,7 +16,6 @@ import { chatProjectSkillsKey } from "#/api/queries/chatProjectSkills";
 import { chatProjectsKey } from "#/api/queries/chatProjects";
 import type * as TypesGen from "#/api/typesGenerated";
 import { toast } from "#/components/Toaster/toast";
-import { TooltipProvider } from "#/components/Tooltip/Tooltip";
 import {
 	buildDebugWorkspaceBuildPath,
 	debugWorkspaceBuildSearchParam,
@@ -47,6 +46,7 @@ import {
 	emptyInputStorageKey,
 } from "../components/AgentCreateForm";
 import type { WorkspaceFileUpload } from "../hooks/useWorkspaceFileUploads";
+import { highlightComposerState } from "../utils/composerHighlight";
 import { readAgentAttachmentText } from "../utils/fileAttachmentLimits";
 import {
 	debugWorkspaceBuildPrompt,
@@ -66,6 +66,7 @@ const { renderedProjects, realForm, formProps } = vi.hoisted(() => ({
 			| undefined,
 		createError: undefined as unknown,
 		prefill: undefined as AgentCreateFormProps["prefill"],
+		highlightKey: undefined as string | undefined,
 	},
 }));
 
@@ -107,6 +108,7 @@ vi.mock("../components/AgentCreateForm", async (importOriginal) => {
 			formProps.onCreateChat = props.onCreateChat;
 			formProps.createError = props.createError;
 			formProps.prefill = props.prefill;
+			formProps.highlightKey = props.highlightKey;
 			return realForm.enabled ? (
 				<actual.AgentCreateForm {...props} />
 			) : (
@@ -137,21 +139,15 @@ const serveProjects = (...projects: TypesGen.ChatProject[]) => {
 	);
 };
 
-// The project page header shows tooltips, which need a provider.
 const renderAgentsRoutes = (route = projectPath(MockChatProject.id)) =>
-	renderWithAuth(
-		<TooltipProvider>
-			<AgentCreatePage />
-		</TooltipProvider>,
-		{
-			path: "/agents/projects/:projectId",
-			route,
-			extraRoutes: [
-				{ path: "/agents", element: <AgentCreatePage /> },
-				{ path: "/agents/:agentId", element: null },
-			],
-		},
-	);
+	renderWithAuth(<AgentCreatePage />, {
+		path: "/agents/projects/:projectId",
+		route,
+		extraRoutes: [
+			{ path: "/agents", element: <AgentCreatePage /> },
+			{ path: "/agents/:agentId", element: null },
+		],
+	});
 
 const openProjectAction = async (
 	user: ReturnType<typeof userEvent.setup>,
@@ -229,13 +225,13 @@ afterEach(() => {
 	renderedProjects.length = 0;
 	realForm.enabled = false;
 	formProps.prefill = undefined;
+	formProps.highlightKey = undefined;
 	vi.restoreAllMocks();
 	localStorage.clear();
 });
 
 describe("AgentCreatePage project assignment", () => {
 	it("passes the route's project to the composer once it loads", async () => {
-		enableExperiments("chat-projects");
 		serveProjects({
 			...MockChatProject,
 			organization_id: MockOrganization2.id,
@@ -253,7 +249,6 @@ describe("AgentCreatePage project assignment", () => {
 
 	it("creates the chat in the route's project", async () => {
 		realForm.enabled = true;
-		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 		const { createChat } = mockPageQueries();
 		const user = userEvent.setup();
@@ -273,7 +268,6 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("refreshes the project's skills when creating a chat fails", async () => {
-		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 		const { createChat } = mockPageQueries();
 		createChat.mockRejectedValue(
@@ -298,7 +292,6 @@ describe("AgentCreatePage project assignment", () => {
 
 	it("omits the project ID on the plain new-chat route", async () => {
 		realForm.enabled = true;
-		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 		const { createChat } = mockPageQueries();
 		const user = userEvent.setup();
@@ -316,7 +309,6 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("retries a failed project lookup before offering the composer", async () => {
-		enableExperiments("chat-projects");
 		let lookupCount = 0;
 		server.use(
 			http.get("/api/experimental/chats/projects", () => {
@@ -338,7 +330,6 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("keeps a loaded project usable when a background refetch fails", async () => {
-		enableExperiments("chat-projects");
 		let lookupCount = 0;
 		server.use(
 			http.get("/api/experimental/chats/projects", () => {
@@ -367,7 +358,6 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("shows a not-found message when the project is missing", async () => {
-		enableExperiments("chat-projects");
 		serveProjects();
 		const user = userEvent.setup();
 
@@ -382,7 +372,6 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("waits for the refetch before treating a cached list as final", async () => {
-		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 
 		const { router, queryClient } = renderAgentsRoutes("/agents");
@@ -399,7 +388,6 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("keeps loading while the refetch of a cached list is paused offline", async () => {
-		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 
 		const { router, queryClient } = renderAgentsRoutes("/agents");
@@ -421,7 +409,6 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("shows the plain composer on /agents after a project list is cached", async () => {
-		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 
 		const { router } = renderAgentsRoutes();
@@ -433,7 +420,6 @@ describe("AgentCreatePage project assignment", () => {
 	});
 
 	it("offers a retry when refreshing a stale list fails", async () => {
-		enableExperiments("chat-projects");
 		server.use(
 			http.get("/api/experimental/chats/projects", () =>
 				HttpResponse.json({ message: "List failed" }, { status: 500 }),
@@ -473,19 +459,11 @@ describe("AgentCreatePage project assignment", () => {
 		await user.click(screen.getByRole("button", { name: /Retry/ }));
 		expect(getChatProjects).toHaveBeenCalledTimes(2);
 	});
-
-	it("redirects to the new chat page when chat projects are disabled", async () => {
-		const { router } = renderAgentsRoutes();
-
-		await waitFor(() => {
-			expect(router.state.location.pathname).toBe("/agents");
-		});
-	});
 });
 
 describe("AgentCreatePage project frame", () => {
 	it("keeps the project route and organization after the debug prefill loads", async () => {
-		enableExperiments("chat-projects", "enable-ai-workspace-debug");
+		enableExperiments("enable-ai-workspace-debug");
 		serveProjects(MockChatProject);
 		const logs = Promise.withResolvers<TypesGen.ProvisionerJobLog[]>();
 		vi.spyOn(API, "getWorkspaceBuild").mockResolvedValue(failedBuild);
@@ -514,7 +492,6 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("prefills the project composer from a prompt link", async () => {
-		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 
 		renderAgentsRoutes(`${projectPath(MockChatProject.id)}?prompt=hi`);
@@ -527,7 +504,6 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("shows a create error only under the project it was attempted for", async () => {
-		enableExperiments("chat-projects");
 		const projectB = { ...MockChatProject, id: "project-b", name: "Beta" };
 		serveProjects(MockChatProject, projectB);
 		server.use(
@@ -549,7 +525,6 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("keeps the edit target aligned after browser history navigation", async () => {
-		enableExperiments("chat-projects");
 		const projectA = {
 			...MockChatProject,
 			id: "project-a",
@@ -597,7 +572,6 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("edits the project from the actions menu and shows the saved name", async () => {
-		enableExperiments("chat-projects");
 		let project = MockChatProject;
 		let requestBody: unknown;
 		server.use(
@@ -647,7 +621,6 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("clears a failed save when the edit dialog is reopened", async () => {
-		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 		server.use(
 			http.patch(
@@ -675,7 +648,6 @@ describe("AgentCreatePage project frame", () => {
 	});
 
 	it("deletes the project, clears its drafts, and returns to /agents with the sidebar filters", async () => {
-		enableExperiments("chat-projects");
 		serveProjects(MockChatProject);
 		let deletedProjectId: string | undefined;
 		server.use(
@@ -719,27 +691,72 @@ describe("AgentCreatePage project frame", () => {
 		expect(localStorage.getItem(draftKeys.attachments)).toBeNull();
 	});
 
-	it("looks up the owner of a project owned by someone else", async () => {
-		enableExperiments("chat-projects");
-		serveProjects({ ...MockChatProject, owner_id: MockUserMember.id });
-		const getUser = vi.spyOn(API, "getUser").mockResolvedValue(MockUserMember);
-
-		renderAgentsRoutes();
-
-		await waitFor(() => {
-			expect(getUser).toHaveBeenCalledWith(MockUserMember.id);
-		});
-	});
-
-	it("does not look up the owner of the user's own project", async () => {
-		enableExperiments("chat-projects");
-		serveProjects(MockChatProject);
+	it("shows the owner of a project owned by someone else from its ACL", async () => {
+		const owner = { ...MockUserMember, name: "Jane Doe" };
+		serveProjects({ ...MockChatProject, owner_id: owner.id });
+		const getACL = vi
+			.spyOn(API.experimental, "getChatProjectACL")
+			.mockResolvedValue({ owner, users: [], groups: [] });
 		const getUser = vi.spyOn(API, "getUser");
 
 		renderAgentsRoutes();
 
-		await screen.findByRole("button", { name: "Project actions" });
+		const details = await screen.findByRole("region", { name: "Details" });
+		await within(details).findByText(owner.name);
+		expect(getACL).toHaveBeenCalledWith(
+			MockChatProject.organization_id,
+			MockChatProject.id,
+		);
 		expect(getUser).not.toHaveBeenCalled();
+	});
+});
+
+describe("AgentCreatePage composer highlight", () => {
+	// Mirrors the sidebar's New chat link, which replaces the current entry
+	// when it already points at the project.
+	const pickNewChat = (
+		router: ReturnType<typeof renderAgentsRoutes>["router"],
+	) =>
+		act(() =>
+			router.navigate(projectPath(MockChatProject.id), {
+				replace: true,
+				state: highlightComposerState,
+			}),
+		);
+
+	it("highlights the composer again for each New chat picked on the page", async () => {
+		serveProjects(MockChatProject);
+
+		const { router } = renderAgentsRoutes();
+		await screen.findByRole("heading", { name: MockChatProject.name });
+		expect(formProps.highlightKey).toBeUndefined();
+
+		await pickNewChat(router);
+		const firstKey = formProps.highlightKey;
+		expect(firstKey).toBeDefined();
+		await pickNewChat(router);
+		expect(formProps.highlightKey).toBeDefined();
+		expect(formProps.highlightKey).not.toBe(firstKey);
+	});
+
+	it("does not replay the highlight when returning to its history entry", async () => {
+		serveProjects(MockChatProject);
+
+		const { router } = renderAgentsRoutes();
+		await screen.findByRole("heading", { name: MockChatProject.name });
+		await pickNewChat(router);
+		expect(formProps.highlightKey).toBeDefined();
+		await act(() => router.navigate("/agents"));
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("heading", { name: MockChatProject.name }),
+			).toBeNull(),
+		);
+		await act(() => router.navigate(-1));
+
+		await screen.findByRole("heading", { name: MockChatProject.name });
+		expect(router.state.location.state).toEqual(highlightComposerState);
+		expect(formProps.highlightKey).toBeUndefined();
 	});
 });
 

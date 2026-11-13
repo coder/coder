@@ -416,7 +416,7 @@ In a list of outcomes, "learn why the build fails" or "find out why the build fa
 
 > For the full command list, refer to the [Coder CLI reference](../../reference/cli/index.md).
 >
-> Visit the [Quickstart](../../tutorials/index.md) before you configure the production deployment.
+> Visit the [Quickstart](../../get-started/index.md) before you configure the production deployment.
 >
 > Visit the [Terraform Registry](https://registry.terraform.io/) for the latest provider versions.
 >
@@ -426,7 +426,7 @@ In a list of outcomes, "learn why the build fails" or "find out why the build fa
 
 > For the full command list, see the [Coder CLI reference](../../reference/cli/index.md).
 >
-> Check out the [Quickstart](../../tutorials/index.md) before you configure the production deployment.
+> Check out the [Quickstart](../../get-started/index.md) before you configure the production deployment.
 >
 > See the [Terraform Registry](https://registry.terraform.io/) for the latest provider versions.
 >
@@ -716,7 +716,7 @@ A pull request description, a commit message, or a code-review comment is the ri
 The published page stays the same for everyone.
 
 Implementation identifiers, such as enum values, database column names, and internal symbols, follow a related but conditional rule.
-Whether one belongs on a published page, and where a stripped identifier's pointer goes, is governed by [Evidence justifies a claim; it does not belong in the claim](../content-guidelines.md#evidence-justifies-a-claim-it-does-not-belong-in-the-claim) in the content guidelines.
+Whether one belongs on a published page, and where a stripped identifier's pointer goes, is governed by [Evidence justifies a claim and does not belong in the claim](../content-guidelines.md#evidence-justifies-a-claim-and-does-not-belong-in-the-claim) in the content guidelines.
 
 **Do**:
 

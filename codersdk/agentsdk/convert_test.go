@@ -25,6 +25,8 @@ func TestManifest(t *testing.T) {
 		OwnerName:          "test-owner",
 		WorkspaceID:        uuid.New(),
 		WorkspaceName:      "test-workspace",
+		TemplateID:         uuid.New(),
+		TemplateName:       "test-template",
 		GitAuthConfigs:     3,
 		VSCodePortProxyURI: "http://proxy.example.com/stuff",
 		Apps: []codersdk.WorkspaceApp{
@@ -89,6 +91,7 @@ func TestManifest(t *testing.T) {
 		Directory:                "/home/coder",
 		MOTDFile:                 "/etc/motd",
 		DisableDirectConnections: true,
+		AgentPluginsEnabled:      true,
 		Metadata: []codersdk.WorkspaceAgentMetadataDescription{
 			{
 				DisplayName: "CPU",
@@ -162,6 +165,8 @@ func TestManifest(t *testing.T) {
 	require.Equal(t, manifest.OwnerName, back.OwnerName)
 	require.Equal(t, manifest.WorkspaceID, back.WorkspaceID)
 	require.Equal(t, manifest.WorkspaceName, back.WorkspaceName)
+	require.Equal(t, manifest.TemplateID, back.TemplateID)
+	require.Equal(t, manifest.TemplateName, back.TemplateName)
 	require.Equal(t, manifest.GitAuthConfigs, back.GitAuthConfigs)
 	require.Equal(t, manifest.VSCodePortProxyURI, back.VSCodePortProxyURI)
 	require.Equal(t, manifest.Apps, back.Apps)
@@ -175,6 +180,7 @@ func TestManifest(t *testing.T) {
 	require.Equal(t, manifest.Metadata, back.Metadata)
 	require.Equal(t, manifest.Scripts, back.Scripts)
 	require.Equal(t, manifest.Devcontainers, back.Devcontainers)
+	require.Equal(t, manifest.AgentPluginsEnabled, back.AgentPluginsEnabled)
 }
 
 func TestScriptDependencyConversionRejectsInvalidRequirements(t *testing.T) {

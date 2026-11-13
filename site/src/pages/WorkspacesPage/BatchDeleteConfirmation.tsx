@@ -140,14 +140,11 @@ const Workspaces: React.FC<StageProps> = ({ workspaces }) => {
 
 	return (
 		<>
-			<ul className="list-none p-0 border border-solid border-border rounded-lg overflow-x-hidden overflow-y-auto max-h-48">
+			<ul className="list-none p-0 border rounded-lg overflow-x-hidden overflow-y-auto max-h-48">
 				{workspaces.map((workspace) => (
-					<li
-						key={workspace.id}
-						className="py-2 px-4 border-solid border-0 border-b border-border last:border-b-0"
-					>
+					<li key={workspace.id} className="py-2 px-4 border-b last:border-b-0">
 						<div className="flex items-center justify-between gap-6">
-							<span className="font-medium text-content-primary max-w-[400px] overflow-hidden text-ellipsis whitespace-nowrap">
+							<span className="font-medium text-content-primary max-w-100 truncate">
 								{workspace.name}
 							</span>
 
