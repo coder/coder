@@ -214,10 +214,6 @@ export const Empty: Story = {
 	args: { attachments: [] },
 };
 
-export const LoadingAttachments: Story = {
-	args: { attachments: undefined },
-};
-
 export const LoadingEarlierAttachments: Story = {
 	args: { isLoadingEarlierAttachments: true },
 };

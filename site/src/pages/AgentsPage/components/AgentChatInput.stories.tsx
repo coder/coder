@@ -301,6 +301,16 @@ export const LoadingDisablesSend: Story = {
 	},
 };
 
+// The create form locks the editor while its request runs.
+export const LockedWhileLoading: Story = {
+	args: {
+		isDisabled: false,
+		isLoading: true,
+		lockWhileLoading: true,
+		initialValue: "Create a chat",
+	},
+};
+
 export const Streaming: Story = {
 	args: {
 		isStreaming: true,

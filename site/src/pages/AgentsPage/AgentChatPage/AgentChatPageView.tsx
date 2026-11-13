@@ -95,8 +95,6 @@ type AgentChatPageViewProps = {
 
 	// Store handle.
 	store: ChatStoreHandle;
-	/** Messages as first loaded; read once at mount for the initial anchor. */
-	initialMessages: readonly TypesGen.ChatMessage[];
 
 	// Editing state.
 	editing: EditingState;
@@ -155,9 +153,8 @@ type AgentChatPageViewProps = {
 	// Pagination for loading older messages.
 	hasMoreMessages: boolean;
 	isFetchingMoreMessages: boolean;
-	isHydratingMessages: boolean;
 	hasFetchMoreError: boolean;
-	onFetchMoreMessages: () => Promise<unknown>;
+	onFetchMoreMessages: () => void;
 
 	urlTransform: UrlTransform;
 
@@ -176,7 +173,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	workspaceAgent,
 	workspace,
 	store,
-	initialMessages,
 	editing,
 	effectiveSelectedModel,
 	setSelectedModel,
@@ -215,7 +211,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	onSendAskUserQuestionResponse,
 	hasMoreMessages,
 	isFetchingMoreMessages,
-	isHydratingMessages,
 	hasFetchMoreError,
 	onFetchMoreMessages,
 	urlTransform,
@@ -243,7 +238,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 	// promotions, edit re-sends) has an id above the initial maximum.
 	const [initialActiveTurnMaxMessageId] = useState<number | undefined>(() =>
 		chat.status === "running" || chat.status === "interrupting"
-			? (initialMessages.at(-1)?.id ?? -1)
+			? (store.getSnapshot().orderedMessageIDs.at(-1) ?? -1)
 			: undefined,
 	);
 	const [dragVisualExpanded, setDragVisualExpanded] = useState<boolean | null>(
@@ -557,6 +552,8 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 		chat.owner_name?.trim() ||
 		(chatOwnerUsername ? `@${chatOwnerUsername}` : "another user");
 	const isOtherUserReadOnly = !isArchived && currentUser.id !== chat.owner_id;
+	// A request's rollback would overwrite an edit opened during the request.
+	const canBeginEdit = !isOtherUserReadOnly && !isSubmissionPending;
 	const readOnlyNotice = isOtherUserReadOnly
 		? `This chat is owned by ${chatOwnerLabel}. It is read-only.`
 		: undefined;
@@ -628,13 +625,10 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 								persistedError={persistedError}
 								hasMoreMessages={hasMoreMessages}
 								isFetchingMoreMessages={isFetchingMoreMessages}
-								isHydratingMessages={isHydratingMessages}
 								hasFetchMoreError={hasFetchMoreError}
 								onFetchMoreMessages={onFetchMoreMessages}
 								onEditUserMessage={
-									isOtherUserReadOnly
-										? undefined
-										: editing.handleBeginHistoryEdit
+									canBeginEdit ? editing.handleBeginHistoryEdit : undefined
 								}
 								editingMessageId={
 									editing.editingTarget?.kind === "history"
@@ -666,7 +660,7 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									onDeleteQueuedMessage={handleDeleteQueuedMessage}
 									onPromoteQueuedMessage={handlePromoteQueuedMessage}
 									onEditQueuedMessage={
-										isOtherUserReadOnly ? undefined : handleEditQueuedMessage
+										canBeginEdit ? handleEditQueuedMessage : undefined
 									}
 									onEndQueuedMessageEdit={
 										isOtherUserReadOnly ? undefined : handleEndQueuedMessageEdit
@@ -754,7 +748,6 @@ export const AgentChatPageView: React.FC<AgentChatPageViewProps> = ({
 									chatId={agentId}
 									store={store}
 									hasMoreMessages={hasMoreMessages}
-									isHydratingMessages={isHydratingMessages}
 								/>
 							</SidebarTab>
 

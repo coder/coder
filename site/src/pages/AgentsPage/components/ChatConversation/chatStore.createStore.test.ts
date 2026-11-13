@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type * as TypesGen from "#/api/typesGenerated";
-import { createChatStore, selectIsAwaitingFirstStreamChunk } from "./chatStore";
+import { createDeferred } from "#/testHelpers/deferred";
+import {
+	type ChatStore,
+	createChatStore,
+	isPendingRowID,
+	type PendingAction,
+	selectIsAwaitingFirstStreamChunk,
+	selectMessagesByID,
+	selectOrderedMessageIDs,
+	selectQueuedMessages,
+	selectShownError,
+} from "./chatStore";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -33,19 +44,13 @@ const makeQueuedMessage = (
 		content: [{ type: "text", text }],
 	}) as TypesGen.ChatQueuedMessage;
 
-const testChatID = "chat-1";
-
-// ---------------------------------------------------------------------------
-// replaceMessages
-// ---------------------------------------------------------------------------
-
-describe("replaceMessages", () => {
+describe("upsertDurableMessages", () => {
 	it("populates messagesByID and orderedMessageIDs", () => {
 		const store = createChatStore();
 		const msg1 = makeMessage(1, "user", "first");
 		const msg2 = makeMessage(2, "assistant", "second");
 
-		store.replaceMessages([msg1, msg2]);
+		store.upsertDurableMessages([msg1, msg2]);
 
 		const state = store.getSnapshot();
 		expect(state.messagesByID.size).toBe(2);
@@ -65,30 +70,25 @@ describe("replaceMessages", () => {
 			created_at: "2025-01-01T00:00:01.000Z",
 		} as TypesGen.ChatMessage;
 
-		// Insert in reverse order.
-		store.replaceMessages([second, first]);
+		store.upsertDurableMessages([second, first]);
 
 		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2]);
 	});
 
 	it("does not notify subscribers when content is unchanged", () => {
 		const store = createChatStore();
-		const msg = makeMessage(1, "user", "hello");
-		store.replaceMessages([msg]);
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
 
 		let notified = false;
 		store.subscribe(() => {
 			notified = true;
 		});
 
-		// Same object reference — maps compare equal by ref.
-		store.replaceMessages([msg]);
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
 
 		expect(notified).toBe(false);
 	});
-});
 
-describe("upsertDurableMessages", () => {
 	it("orders merged messages by id rather than by arrival", () => {
 		const store = createChatStore();
 		const sharedCreatedAt = "2025-01-01T00:00:00.000Z";
@@ -100,7 +100,7 @@ describe("upsertDurableMessages", () => {
 			created_at: sharedCreatedAt,
 		});
 
-		store.replaceMessages([
+		store.upsertDurableMessages([
 			withSharedCreatedAt(3, "assistant"),
 			withSharedCreatedAt(4, "tool"),
 		]);
@@ -111,145 +111,124 @@ describe("upsertDurableMessages", () => {
 
 		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2, 3, 4]);
 	});
-});
-
-// ---------------------------------------------------------------------------
-// upsertDurableMessage
-// ---------------------------------------------------------------------------
-
-describe("upsertDurableMessage", () => {
-	it("inserts a new message and reports isDuplicate=false, changed=true", () => {
-		const store = createChatStore();
-		const msg = makeMessage(1, "user", "hello");
-
-		const result = store.upsertDurableMessage(msg);
-
-		expect(result).toEqual({ isDuplicate: false, changed: true });
-		expect(store.getSnapshot().messagesByID.get(1)).toBe(msg);
-		expect(store.getSnapshot().orderedMessageIDs).toEqual([1]);
-	});
-
-	it("reports isDuplicate=true, changed=false for value-equal duplicate", () => {
-		const store = createChatStore();
-		const msg = makeMessage(1, "user", "hello");
-		store.upsertDurableMessage(msg);
-
-		// Different object reference, same field values.
-		const dup = makeMessage(1, "user", "hello");
-		const result = store.upsertDurableMessage(dup);
-
-		expect(result).toEqual({ isDuplicate: true, changed: false });
-	});
-
-	it("reports isDuplicate=true, changed=true when content differs", () => {
-		const store = createChatStore();
-		store.upsertDurableMessage(makeMessage(1, "assistant", "draft"));
-
-		const updated = makeMessage(1, "assistant", "final");
-		const result = store.upsertDurableMessage(updated);
-
-		expect(result).toEqual({ isDuplicate: true, changed: true });
-		expect(store.getSnapshot().messagesByID.get(1)?.content).toEqual(
-			updated.content,
-		);
-	});
 
 	it("does not reorder when updating an existing message in place", () => {
 		const store = createChatStore();
-		store.upsertDurableMessage(makeMessage(1, "user", "first"));
-		store.upsertDurableMessage(makeMessage(2, "assistant", "second"));
+		store.upsertDurableMessages([
+			makeMessage(1, "user", "first"),
+			makeMessage(2, "assistant", "second"),
+		]);
 		const orderBefore = store.getSnapshot().orderedMessageIDs;
 
-		// Update content of existing message (same ID, same map size).
-		store.upsertDurableMessage(makeMessage(2, "assistant", "edited"));
+		store.upsertDurableMessages([makeMessage(2, "assistant", "edited")]);
 
-		// Same reference — no reorder needed because the map size
-		// didn't change and the ID already existed.
+		expect(store.getSnapshot().messagesByID.get(2)?.content).toEqual([
+			{ type: "text", text: "edited" },
+		]);
 		expect(store.getSnapshot().orderedMessageIDs).toBe(orderBefore);
+	});
+
+	it("keeps one ID for a message that appears twice", () => {
+		const store = createChatStore();
+
+		store.upsertDurableMessages([
+			makeMessage(1, "user", "hello"),
+			makeMessage(2, "assistant", "hi"),
+			makeMessage(2, "assistant", "hi"),
+		]);
+
+		const state = store.getSnapshot();
+		expect(state.messagesByID.size).toBe(2);
+		expect(state.orderedMessageIDs).toEqual([1, 2]);
 	});
 });
 
 // ---------------------------------------------------------------------------
-// setChatStatus
+// applyServerChatStatus
 // ---------------------------------------------------------------------------
 
-describe("setChatStatus", () => {
-	it("updates chatStatus", () => {
+describe("applyServerChatStatus", () => {
+	it("keeps the turn error while the status is error", () => {
 		const store = createChatStore();
+		store.applyServerChatStatus("error");
+		store.setTurnError({ kind: "generic", message: "provider down" });
 
-		store.setChatStatus("running");
+		store.applyServerChatStatus("error");
+		expect(selectShownError(store.getSnapshot())?.message).toBe(
+			"provider down",
+		);
 
-		expect(store.getSnapshot().chatStatus).toBe("running");
-	});
-
-	it("accepts null to clear the status", () => {
-		const store = createChatStore();
-		store.setChatStatus("running");
-
-		store.setChatStatus(null);
-
-		expect(store.getSnapshot().chatStatus).toBeNull();
+		store.applyServerChatStatus("running");
+		expect(selectShownError(store.getSnapshot())).toBeNull();
 	});
 
 	it("does not notify when setting the same status", () => {
 		const store = createChatStore();
-		store.setChatStatus("running");
+		store.applyServerChatStatus("running");
 
 		let notified = false;
 		store.subscribe(() => {
 			notified = true;
 		});
-		store.setChatStatus("running");
+		store.applyServerChatStatus("running");
 
 		expect(notified).toBe(false);
 	});
-});
 
-// ---------------------------------------------------------------------------
-// setStreamState
-// ---------------------------------------------------------------------------
-
-describe("setStreamState", () => {
-	it("does not notify when setting the same stream state reference", () => {
+	it("keeps a client error that the turn does not report", () => {
 		const store = createChatStore();
-		store.applyMessagePart({ type: "text", text: "hello" });
-		const streamState = store.getSnapshot().streamState;
-		expect(streamState).not.toBeNull();
+		store.setClientError({ kind: "generic", message: "request failed" });
 
-		let notified = false;
-		store.subscribe(() => {
-			notified = true;
+		store.applyServerChatStatus("running");
+
+		expect(selectShownError(store.getSnapshot())).toMatchObject({
+			message: "request failed",
+		});
+	});
+});
+
+describe("advanceSnapshotVersion", () => {
+	it("keeps the highest version", () => {
+		const store = createChatStore();
+		store.seed({
+			messages: [],
+			queued_messages: [],
+			has_more: false,
+			snapshot_version: 5,
 		});
 
-		store.setStreamState(streamState);
-		expect(notified).toBe(false);
+		store.advanceSnapshotVersion(4);
+		expect(store.getSyncedSnapshotVersion()).toBe(5);
+		store.advanceSnapshotVersion(7);
+		store.advanceSnapshotVersion(6);
+		expect(store.getSyncedSnapshotVersion()).toBe(7);
 	});
 });
 
 // ---------------------------------------------------------------------------
-// setStreamError / clearStreamError
+// setClientError / clearClientError
 // ---------------------------------------------------------------------------
 
-describe("setStreamError / clearStreamError", () => {
+describe("setClientError / clearClientError", () => {
 	it("stores and clears a stream error", () => {
 		const store = createChatStore();
 
-		store.setStreamError({
+		store.setClientError({
 			kind: "generic",
 			message: "connection lost",
 		});
-		expect(store.getSnapshot().streamError).toEqual({
+		expect(store.getSnapshot().clientError).toEqual({
 			kind: "generic",
 			message: "connection lost",
 		});
 
-		store.clearStreamError();
-		expect(store.getSnapshot().streamError).toBeNull();
+		store.clearClientError();
+		expect(store.getSnapshot().clientError).toBeNull();
 	});
 
 	it("does not notify when setting the same error", () => {
 		const store = createChatStore();
-		store.setStreamError({
+		store.setClientError({
 			kind: "generic",
 			message: "oops",
 			detail: "Image exceeds 5 MB maximum.",
@@ -259,7 +238,7 @@ describe("setStreamError / clearStreamError", () => {
 		store.subscribe(() => {
 			notified = true;
 		});
-		store.setStreamError({
+		store.setClientError({
 			kind: "generic",
 			message: "oops",
 			detail: "Image exceeds 5 MB maximum.",
@@ -268,14 +247,14 @@ describe("setStreamError / clearStreamError", () => {
 		expect(notified).toBe(false);
 	});
 
-	it("clearStreamError is a no-op when already null", () => {
+	it("clearClientError is a no-op when already null", () => {
 		const store = createChatStore();
 
 		let notified = false;
 		store.subscribe(() => {
 			notified = true;
 		});
-		store.clearStreamError();
+		store.clearClientError();
 
 		expect(notified).toBe(false);
 	});
@@ -427,13 +406,13 @@ describe("setQueuedMessages", () => {
 		expect(notified).toBe(false);
 	});
 
-	it("applies a snapshot that only changes editing_since or content", () => {
+	it("applies a queue update that only changes editing_since, content or lane", () => {
 		const store = createChatStore();
 		const qm = makeQueuedMessage(10, "queued");
 		store.setQueuedMessages([qm]);
 
 		const editing = { ...qm, editing_since: "2025-01-01T00:01:00Z" };
-		store.applyAuthoritativeQueuedMessages([editing]);
+		store.setQueuedMessages([editing]);
 		expect(store.getSnapshot().queuedMessages).toEqual([editing]);
 
 		const edited: TypesGen.ChatQueuedMessage = {
@@ -442,285 +421,13 @@ describe("setQueuedMessages", () => {
 		};
 		store.setQueuedMessages([edited]);
 		expect(store.getSnapshot().queuedMessages).toEqual([edited]);
-	});
-});
 
-describe("applyAuthoritativeQueuedMessages", () => {
-	it("applies a snapshot that only moves a row to another lane", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-
-		store.applyAuthoritativeQueuedMessages([a, b]);
-		const steered = { ...b, busy_behavior: "steer" } as const;
-		store.applyAuthoritativeQueuedMessages([a, steered]);
-
-		expect(store.getSnapshot().queuedMessages).toEqual([a, steered]);
-	});
-
-	it("ignores stale snapshots that still list a promoted message", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-		const c = makeQueuedMessage(3, "C");
-
-		store.setQueuedMessages([b, c]);
-		store.markQueuedMessagePromoted(a.id);
-
-		store.applyAuthoritativeQueuedMessages([a, b]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id, c.id]);
-		expect(store.getSnapshot().promotedQueuedMessageIDs.has(a.id)).toBe(true);
-
-		store.applyAuthoritativeQueuedMessages([b, c]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id, c.id]);
-		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
-	});
-
-	it("records queued IDs the server has reported", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-		const c = makeQueuedMessage(3, "C");
-
-		expect(store.hasObservedQueuedMessageID(a.id)).toBe(false);
-		store.applyAuthoritativeQueuedMessages([a, b]);
-		expect(store.hasObservedQueuedMessageID(a.id)).toBe(true);
-		expect(store.hasObservedQueuedMessageID(b.id)).toBe(true);
-
-		store.applyAuthoritativeQueuedMessages([b]);
-		expect(store.hasObservedQueuedMessageID(a.id)).toBe(true);
-
-		store.setQueuedMessages([b, c]);
-		expect(store.hasObservedQueuedMessageID(c.id)).toBe(false);
-
-		store.resetQueuedMessageTracking();
-		expect(store.hasObservedQueuedMessageID(a.id)).toBe(false);
-	});
-
-	it("counts every server status report, including repeats", () => {
-		const store = createChatStore();
-
-		expect(store.getServerChatStatusVersion()).toBe(0);
-
-		store.setChatStatus("running");
-		expect(store.getServerChatStatusVersion()).toBe(0);
-
-		store.applyServerChatStatus("error");
-		expect(store.getServerChatStatusVersion()).toBe(1);
-		expect(store.getSnapshot().chatStatus).toBe("error");
-
-		store.applyServerChatStatus("error");
-		expect(store.getServerChatStatusVersion()).toBe(2);
-		expect(store.getSnapshot().chatStatus).toBe("error");
-	});
-
-	it("restores a promoted head that a fresh snapshot still queues", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-
-		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
-		store.markQueuedMessagePromoted(a.id);
-		const baseline = store.getQueueConvergenceFence();
-
-		expect(
-			store
-				.applyPromoteRefetchQueuedMessages(testChatID, [a.id], [a, b], baseline)
-				?.map((message) => message.id),
-		).toEqual([a.id, b.id]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([a.id, b.id]);
-		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
-	});
-
-	it("applies a promote refetch that only changes a row's content", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-
-		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
-		store.markQueuedMessagePromoted(a.id);
-		const baseline = store.getQueueConvergenceFence();
-
-		const editedB: TypesGen.ChatQueuedMessage = {
-			...b,
-			content: [{ type: "text", text: "edited" }],
+		const steered: TypesGen.ChatQueuedMessage = {
+			...edited,
+			busy_behavior: "steer",
 		};
-		store.applyPromoteRefetchQueuedMessages(
-			testChatID,
-			[a.id],
-			[editedB],
-			baseline,
-		);
-		expect(store.getSnapshot().queuedMessages).toEqual([editedB]);
-	});
-
-	it("ignores a promote refetch that a newer snapshot already superseded", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-		const c = makeQueuedMessage(3, "C");
-
-		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
-		store.markQueuedMessagePromoted(a.id);
-		const baseline = store.getQueueConvergenceFence();
-
-		store.applyAuthoritativeQueuedMessages([b, c]);
-
-		expect(
-			store.applyPromoteRefetchQueuedMessages(
-				testChatID,
-				[a.id],
-				[a, b],
-				baseline,
-			),
-		).toBeUndefined();
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id, c.id]);
-		expect(store.getSnapshot().promotedQueuedMessageIDs.size).toBe(0);
-	});
-
-	it("still applies a promote refetch after a stale snapshot was discarded", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-		const c = makeQueuedMessage(3, "C");
-
-		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
-		store.markQueuedMessagePromoted(a.id);
-		const baseline = store.getQueueConvergenceFence();
-
-		store.applyAuthoritativeQueuedMessages([a, b, c]);
-
-		expect(
-			store.applyPromoteRefetchQueuedMessages(
-				testChatID,
-				[a.id],
-				[b, c],
-				baseline,
-			),
-		).toEqual([b, c]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id, c.id]);
-	});
-
-	it("ignores a promote refetch that resolves after switching chats", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-
-		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
-		store.markQueuedMessagePromoted(a.id);
-		const baseline = store.getQueueConvergenceFence();
-
-		store.setActiveChatID("chat-other");
-		store.setQueuedMessages([]);
-
-		expect(
-			store.applyPromoteRefetchQueuedMessages(
-				testChatID,
-				[a.id],
-				[a, b],
-				baseline,
-			),
-		).toBeUndefined();
-		expect(store.getSnapshot().queuedMessages).toEqual([]);
-	});
-
-	it("ignores a promote refetch spanning a round trip back to the same chat", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-
-		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
-		store.markQueuedMessagePromoted(a.id);
-		const baseline = store.getQueueConvergenceFence();
-
-		store.setActiveChatID("chat-other");
-		store.setActiveChatID(testChatID);
-
-		expect(
-			store.applyPromoteRefetchQueuedMessages(
-				testChatID,
-				[a.id],
-				[a, b],
-				baseline,
-			),
-		).toBeUndefined();
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id]);
-	});
-
-	it("ignores a promote refetch naming another chat even at a matching fence", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-
-		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
-		store.markQueuedMessagePromoted(a.id);
-
-		expect(
-			store.applyPromoteRefetchQueuedMessages(
-				"chat-other",
-				[a.id],
-				[a, b],
-				store.getQueueConvergenceFence(),
-			),
-		).toBeUndefined();
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([b.id]);
-	});
-
-	it("returns the queue it applied, not the raw snapshot", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-		const b = makeQueuedMessage(2, "B");
-		const c = makeQueuedMessage(3, "C");
-
-		store.setActiveChatID(testChatID);
-		store.setQueuedMessages([b]);
-		store.markQueuedMessagePromoted(a.id);
-		store.markQueuedMessagePromoted(c.id);
-		const baseline = store.getQueueConvergenceFence();
-
-		expect(
-			store
-				.applyPromoteRefetchQueuedMessages(
-					testChatID,
-					[a.id],
-					[a, b, c],
-					baseline,
-				)
-				?.map((message) => message.id),
-		).toEqual([a.id, b.id]);
-		expect(
-			store.getSnapshot().queuedMessages.map((message) => message.id),
-		).toEqual([a.id, b.id]);
-	});
-
-	it("setQueuedMessages keeps the promoted IDs", () => {
-		const store = createChatStore();
-		const a = makeQueuedMessage(1, "A");
-
-		store.markQueuedMessagePromoted(99);
-		store.setQueuedMessages([a]);
-		expect(store.getSnapshot().promotedQueuedMessageIDs.has(99)).toBe(true);
+		store.setQueuedMessages([steered]);
+		expect(store.getSnapshot().queuedMessages).toEqual([steered]);
 	});
 });
 
@@ -809,10 +516,12 @@ describe("applyMessagePart / applyMessageParts", () => {
 // ---------------------------------------------------------------------------
 
 describe("resetTransientState", () => {
-	it("clears streamState, streamError, retryState, reconnectState, and subagentOverrides", () => {
+	it("clears streamState, chatStatus, clientError, retryState, turnError, reconnectState, and subagentOverrides", () => {
 		const store = createChatStore();
 		store.applyMessagePart({ type: "text", text: "stream" });
-		store.setStreamError({
+		store.applyServerChatStatus("running");
+		store.setTurnError({ kind: "generic", message: "turn failed" });
+		store.setClientError({
 			kind: "generic",
 			message: "oops",
 		});
@@ -834,17 +543,19 @@ describe("resetTransientState", () => {
 
 		const state = store.getSnapshot();
 		expect(state.streamState).toBeNull();
-		expect(state.streamError).toBeNull();
+		expect(state.chatStatus).toBeNull();
+		expect(state.clientError).toBeNull();
 		expect(state.retryState).toBeNull();
+		expect(state.turnError).toBeNull();
 		expect(state.reconnectState).toBeNull();
 		expect(state.subagentStatusOverrides.size).toBe(0);
 	});
 
 	it("preserves messages and queued messages", () => {
 		const store = createChatStore();
-		store.replaceMessages([makeMessage(1, "user", "hello")]);
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
 		store.setQueuedMessages([makeQueuedMessage(10, "queued")]);
-		store.setStreamError({
+		store.setClientError({
 			kind: "generic",
 			message: "oops",
 		});
@@ -881,11 +592,11 @@ describe("subscribe", () => {
 			callCount += 1;
 		});
 
-		store.setChatStatus("running");
+		store.applyServerChatStatus("running");
 		expect(callCount).toBe(1);
 
 		unsubscribe();
-		store.setChatStatus("error");
+		store.applyServerChatStatus("error");
 		expect(callCount).toBe(1);
 	});
 
@@ -900,7 +611,7 @@ describe("subscribe", () => {
 			countB += 1;
 		});
 
-		store.setChatStatus("running");
+		store.applyServerChatStatus("running");
 
 		expect(countA).toBe(1);
 		expect(countB).toBe(1);
@@ -914,25 +625,25 @@ describe("subscribe", () => {
 describe("selectIsAwaitingFirstStreamChunk", () => {
 	it("returns true when running with no stream state and no assistant message", () => {
 		const store = createChatStore();
-		store.setChatStatus("running");
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+		store.applyServerChatStatus("running");
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
 	});
 
 	it("returns false when the latest message is from the assistant", () => {
 		const store = createChatStore();
-		store.setChatStatus("running");
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
-		store.upsertDurableMessage(makeMessage(2, "assistant", "hi there"));
+		store.applyServerChatStatus("running");
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
+		store.upsertDurableMessages([makeMessage(2, "assistant", "hi there")]);
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
 	});
 
 	it("returns false when stream state is present", () => {
 		const store = createChatStore();
-		store.setChatStatus("running");
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+		store.applyServerChatStatus("running");
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
 		store.applyMessagePart({ type: "text", text: "response" });
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
@@ -940,8 +651,8 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 
 	it("returns false during waiting status when latest message is from user", () => {
 		const store = createChatStore();
-		store.setChatStatus("waiting");
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+		store.applyServerChatStatus("waiting");
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
 
 		// "waiting" means the chat is idle; nothing is generating,
 		// so no Thinking indicator should show.
@@ -950,37 +661,17 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 
 	it("returns false when chat status is null", () => {
 		const store = createChatStore();
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
 	});
 
 	it("returns true when latest message is a tool result during running", () => {
 		const store = createChatStore();
-		store.setChatStatus("running");
-		store.upsertDurableMessage(makeMessage(1, "user", "hello"));
-		store.upsertDurableMessage(makeMessage(2, "assistant", "calling tool"));
-		store.upsertDurableMessage(makeMessage(3, "tool", "tool result"));
-
-		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
-	});
-
-	it("returns true after optimistic send: clearStreamState + setChatStatus('running') + upsertDurableMessage", () => {
-		const store = createChatStore();
-		// Simulate a settled previous turn: assistant replied,
-		// then server transitioned to "waiting".
-		store.upsertDurableMessage(makeMessage(1, "user", "first question"));
-		store.upsertDurableMessage(makeMessage(2, "assistant", "first answer"));
-		store.setChatStatus("waiting");
-
-		// Verify baseline: not awaiting while idle.
-		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
-
-		// Simulate handleSend after POST returns (non-queued).
-		// This is the exact sequence from AgentChatPage.tsx.
-		store.clearStreamState();
-		store.setChatStatus("running");
-		store.upsertDurableMessage(makeMessage(3, "user", "follow-up"));
+		store.applyServerChatStatus("running");
+		store.upsertDurableMessages([makeMessage(1, "user", "hello")]);
+		store.upsertDurableMessages([makeMessage(2, "assistant", "calling tool")]);
+		store.upsertDurableMessages([makeMessage(3, "tool", "tool result")]);
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
 	});
@@ -991,28 +682,849 @@ describe("selectIsAwaitingFirstStreamChunk", () => {
 		// This is the event order from the server when the user
 		// sends a message. The Thinking indicator must appear
 		// before the first stream chunk arrives.
-		store.upsertDurableMessage(makeMessage(1, "user", "sweet ty"));
-		store.setChatStatus("running");
+		store.upsertDurableMessages([makeMessage(1, "user", "sweet ty")]);
+		store.applyServerChatStatus("running");
 		store.clearStreamState();
 
 		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(true);
 	});
+
+	it("returns false when the latest shown message is a pending edit", () => {
+		const store = seededStore(
+			[makeMessage(1, "user", "hello"), makeMessage(2, "assistant", "hi")],
+			[],
+			"running",
+		);
+		addPending(store, {
+			kind: "edit",
+			editedMessageID: 1,
+			content: [{ type: "text", text: "edited" }],
+		});
+
+		expect(selectIsAwaitingFirstStreamChunk(store.getSnapshot())).toBe(false);
+	});
 });
 
-describe("duplicate message deduplication", () => {
-	it("replaceMessages deduplicates orderedMessageIDs when input has duplicate IDs", () => {
-		const store = createChatStore();
-		const msg1 = makeMessage(1, "user", "hello");
-		const msg2 = makeMessage(2, "assistant", "hi");
-		// Simulate cross-page duplication: same ID appears twice.
-		const msg2Copy = makeMessage(2, "assistant", "hi");
+// ---------------------------------------------------------------------------
+// Pending actions
+// ---------------------------------------------------------------------------
 
-		store.replaceMessages([msg1, msg2, msg2Copy]);
+const seededStore = (
+	messages: readonly TypesGen.ChatMessage[],
+	queuedMessages: readonly TypesGen.ChatQueuedMessage[],
+	status: TypesGen.ChatStatus | null,
+): ChatStore => {
+	const store = createChatStore();
+	store.seed({
+		messages,
+		queued_messages: queuedMessages,
+		has_more: false,
+		snapshot_version: 1,
+	});
+	if (status) {
+		store.applyServerChatStatus(status);
+	}
+	return store;
+};
+
+const textOf = (content: readonly TypesGen.ChatMessagePart[] | undefined) => {
+	const part = content?.[0];
+	return part?.type === "text" ? part.text : "";
+};
+
+const mockFirstMessage = makeMessage(1, "user", "first");
+const mockQueuedRow10 = makeQueuedMessage(10, "q10");
+const mockQueuedRow11 = makeQueuedMessage(11, "q11");
+
+const steerRow = (id: number, text: string): TypesGen.ChatQueuedMessage => ({
+	...makeQueuedMessage(id, text),
+	busy_behavior: "steer",
+});
+
+// A queued row the owner is editing. It holds the next delivery.
+const underEdit = (
+	row: TypesGen.ChatQueuedMessage,
+): TypesGen.ChatQueuedMessage => ({
+	...row,
+	editing_since: "2025-01-01T00:01:00Z",
+});
+
+// The user message that the server makes from a queued row.
+const delivered = (
+	id: number,
+	text: string,
+	queuedMessageID: number,
+): TypesGen.ChatMessage => ({
+	...makeMessage(id, "user", text),
+	queued_message_id: queuedMessageID,
+});
+
+// What a viewer sees: the transcript, and the queue with each row's lane
+// and edit marker.
+const visible = (store: ChatStore) => {
+	const state = store.getSnapshot();
+	const byID = selectMessagesByID(state);
+	return {
+		transcript: selectOrderedMessageIDs(state).map((id) => {
+			const message = byID.get(id);
+			return `${message?.role}:${textOf(message?.content)}`;
+		}),
+		queue: selectQueuedMessages(state).map(
+			(row) =>
+				`${row.busy_behavior}:${textOf(row.content)}${row.editing_since ? " (editing)" : ""}`,
+		),
+	};
+};
+
+// A send as submitChatTurn passes it at the click.
+const pendingSend = (
+	text: string,
+	busyBehavior: TypesGen.ChatBusyBehavior = "steer",
+): PendingAction => ({
+	kind: "send",
+	chatID: "chat-1",
+	busyBehavior,
+	content: [{ type: "text", text }],
+});
+
+// The request never settles, so only the stream ends the action.
+const addPending = (store: ChatStore, action: PendingAction) =>
+	void store.runPendingAction(action, () => new Promise(() => {}));
+
+describe("pending actions", () => {
+	it("gives the rows it shows IDs the server never assigns", () => {
+		const store = seededStore(
+			[mockFirstMessage, makeMessage(2, "user", "old")],
+			[],
+			"running",
+		);
+		addPending(store, {
+			kind: "edit",
+			editedMessageID: 2,
+			content: [{ type: "text", text: "new" }],
+		});
+		addPending(store, pendingSend("queued"));
 
 		const state = store.getSnapshot();
-		// Map deduplicates by key — only 2 unique entries.
-		expect(state.messagesByID.size).toBe(2);
-		// orderedMessageIDs MUST also have only 2 entries.
-		expect(state.orderedMessageIDs).toEqual([1, 2]);
+		const shown = selectOrderedMessageIDs(state).map((id) => [
+			textOf(selectMessagesByID(state).get(id)?.content),
+			isPendingRowID(id),
+		]);
+		expect(shown).toEqual([
+			["first", false],
+			["new", true],
+		]);
+		expect(
+			selectQueuedMessages(state).map((row) => isPendingRowID(row.id)),
+		).toEqual([true]);
+	});
+
+	it("shows nothing for a promoted row the queue no longer holds", () => {
+		const store = seededStore([mockFirstMessage], [mockQueuedRow10], "error");
+		const before = visible(store);
+
+		addPending(store, { kind: "promoteQueued", queuedMessageID: 11 });
+
+		expect(visible(store)).toEqual(before);
+	});
+
+	it("stops showing a failed action", async () => {
+		const store = seededStore([mockFirstMessage], [mockQueuedRow10], "running");
+		const request = createDeferred<undefined>();
+		const run = store.runPendingAction(
+			{ kind: "deleteQueued", queuedMessageID: 10 },
+			() => request.promise,
+		);
+		expect(visible(store).queue).toEqual([]);
+
+		request.reject(new Error("failed"));
+
+		await expect(run).rejects.toThrow("failed");
+		expect(visible(store).queue).toEqual(["queue:q10"]);
+	});
+
+	it("a failed queued edit shows the queue as before and drops no row", async () => {
+		const store = seededStore(
+			[mockFirstMessage],
+			[mockQueuedRow10, underEdit(mockQueuedRow11)],
+			"running",
+		);
+		const request = createDeferred<undefined>();
+		const run = store.runPendingAction(
+			{ kind: "editQueued", queuedMessageID: 10, editing: true },
+			() => request.promise,
+		);
+		expect(visible(store).queue).toEqual(["queue:q10 (editing)", "queue:q11"]);
+
+		request.reject(new Error("not found"));
+
+		await expect(run).rejects.toThrow("not found");
+		expect(visible(store).queue).toEqual(["queue:q10", "queue:q11 (editing)"]);
+	});
+
+	it("shows each delete until the stored queue lacks its row", () => {
+		const mockQueuedRow12 = makeQueuedMessage(12, "q12");
+		const store = seededStore(
+			[mockFirstMessage],
+			[mockQueuedRow10, mockQueuedRow11, mockQueuedRow12],
+			"running",
+		);
+		addPending(store, { kind: "deleteQueued", queuedMessageID: 10 });
+		addPending(store, { kind: "deleteQueued", queuedMessageID: 11 });
+
+		store.setQueuedMessages([mockQueuedRow11, mockQueuedRow12]);
+		expect(visible(store).queue).toEqual(["queue:q12"]);
+
+		store.setQueuedMessages([mockQueuedRow12]);
+		expect(visible(store).queue).toEqual(["queue:q12"]);
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+	});
+
+	it("ends pending sends oldest first", () => {
+		const store = seededStore([mockFirstMessage], [], "running");
+		addPending(store, pendingSend("one"));
+		addPending(store, pendingSend("two"));
+
+		store.setQueuedMessages([steerRow(12, "one")]);
+
+		expect(
+			selectQueuedMessages(store.getSnapshot()).map((row) => [
+				textOf(row.content),
+				isPendingRowID(row.id),
+			]),
+		).toEqual([
+			["one", false],
+			["two", true],
+		]);
+	});
+
+	it("queues a send behind an earlier pending message", () => {
+		const store = seededStore([mockFirstMessage], [], "waiting");
+		addPending(store, pendingSend("one"));
+		addPending(store, pendingSend("two"));
+
+		expect(visible(store)).toEqual({
+			transcript: ["user:first", "user:one"],
+			queue: ["steer:two"],
+		});
+	});
+
+	it("keeps the shown queue's identity while a message part streams", () => {
+		const store = seededStore(
+			[mockFirstMessage],
+			[mockQueuedRow10, mockQueuedRow11],
+			"running",
+		);
+		addPending(store, { kind: "promoteQueued", queuedMessageID: 11 });
+		const shownQueue = selectQueuedMessages(store.getSnapshot());
+
+		store.applyMessagePart({ type: "text", text: "partial" });
+
+		expect(store.getSnapshot().streamState).not.toBeNull();
+		expect(selectQueuedMessages(store.getSnapshot())).toBe(shownQueue);
+	});
+
+	it.each<PendingAction>([
+		{ kind: "promoteQueued", queuedMessageID: 11 },
+		{ kind: "editQueued", queuedMessageID: 11, editing: true },
+	])(
+		"keeps a pending $kind through a queue update from before it",
+		(action) => {
+			const store = seededStore(
+				[mockFirstMessage],
+				[mockQueuedRow10, mockQueuedRow11],
+				"running",
+			);
+			addPending(store, action);
+			const shown = visible(store);
+
+			store.setQueuedMessages([mockQueuedRow10, mockQueuedRow11]);
+
+			expect(visible(store)).toEqual(shown);
+		},
+	);
+
+	const mockRowX = makeQueuedMessage(5, "X");
+	const mockRowY = makeQueuedMessage(6, "Y");
+	const beginEdits = () => {
+		const store = seededStore(
+			[mockFirstMessage],
+			[mockRowX, mockRowY],
+			"running",
+		);
+		addPending(store, {
+			kind: "editQueued",
+			queuedMessageID: 5,
+			editing: true,
+		});
+		addPending(store, {
+			kind: "editQueued",
+			queuedMessageID: 6,
+			editing: true,
+		});
+		expect(visible(store).queue).toEqual(["queue:X", "queue:Y (editing)"]);
+		return store;
+	};
+
+	it("ends a begin of an edit that replaced an earlier begin at one queue update", () => {
+		const store = beginEdits();
+
+		store.setQueuedMessages([mockRowX, underEdit(mockRowY)]);
+
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+		expect(visible(store).queue).toEqual(["queue:X", "queue:Y (editing)"]);
+	});
+
+	it("keeps a begin of an edit through the earlier begin's queue update", () => {
+		const store = beginEdits();
+
+		store.setQueuedMessages([underEdit(mockRowX), mockRowY]);
+		expect(visible(store).queue).toEqual(["queue:X", "queue:Y (editing)"]);
+
+		store.setQueuedMessages([mockRowX, underEdit(mockRowY)]);
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+	});
+
+	const mockTurnMessages = [
+		mockFirstMessage,
+		makeMessage(2, "assistant", "b"),
+		makeMessage(3, "user", "c"),
+		makeMessage(4, "assistant", "d"),
+	];
+	const editThird: PendingAction = {
+		kind: "edit",
+		editedMessageID: 3,
+		content: [{ type: "text", text: "c2" }],
+	};
+	// The edit deletes messages 3 and 4, clears the queue that held the send,
+	// and stores message 5.
+	const storeEditResult = (store: ChatStore, afterRead?: () => void) =>
+		store.batch(() => {
+			store.resetHistoryFrom(3, 7);
+			store.upsertDurableMessages([makeMessage(5, "user", "c2")]);
+			store.setQueuedMessages([]);
+			afterRead?.();
+		});
+
+	it("ends an edit whose request is in flight at a reconnect's first read", async () => {
+		const store = seededStore(mockTurnMessages, [], "running");
+		await store.runPendingAction(pendingSend("S1", "queue"), () =>
+			Promise.resolve(),
+		);
+		addPending(store, editThird);
+
+		storeEditResult(store, store.captureResolvedActions());
+
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+		expect(visible(store)).toEqual({
+			transcript: ["user:first", "assistant:b", "user:c2"],
+			queue: [],
+		});
+	});
+
+	it("ends a send and an edit that one read reports together", () => {
+		const store = seededStore(mockTurnMessages, [], "running");
+		addPending(store, pendingSend("S1", "queue"));
+		addPending(store, editThird);
+
+		storeEditResult(store);
+
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+		expect(visible(store)).toEqual({
+			transcript: ["user:first", "assistant:b", "user:c2"],
+			queue: [],
+		});
+	});
+
+	it("ends an edit and a later send each at its own content", () => {
+		const store = seededStore([mockFirstMessage], [], "waiting");
+		addPending(store, {
+			kind: "edit",
+			editedMessageID: 1,
+			content: [{ type: "text", text: "new" }],
+		});
+		addPending(store, pendingSend("two"));
+
+		store.batch(() => {
+			store.resetHistoryFrom(1, 2);
+			store.upsertDurableMessages([makeMessage(2, "user", "new")]);
+		});
+		expect(visible(store)).toEqual({
+			transcript: ["user:new"],
+			queue: ["steer:two"],
+		});
+		expect(
+			store.getSnapshot().pendingEntries.map(({ action }) => action.kind),
+		).toEqual(["send"]);
+
+		store.setQueuedMessages([steerRow(10, "two")]);
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+	});
+
+	it("ends an edit after a send that the stream already reported", () => {
+		const store = seededStore(mockTurnMessages.slice(0, 2), [], "waiting");
+		addPending(store, pendingSend("S"));
+		store.upsertDurableMessages([makeMessage(3, "user", "S")]);
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+
+		addPending(store, {
+			kind: "edit",
+			editedMessageID: 3,
+			content: [{ type: "text", text: "S2" }],
+		});
+		store.batch(() => {
+			store.resetHistoryFrom(3, 7);
+			store.upsertDurableMessages([makeMessage(4, "user", "S2")]);
+		});
+
+		expect(store.getSnapshot().pendingEntries).toEqual([]);
+		expect(visible(store).transcript).toEqual([
+			"user:first",
+			"assistant:b",
+			"user:S2",
+		]);
+	});
+
+	it("hides a promoted row once the stream stores its message", () => {
+		const store = seededStore(
+			[mockFirstMessage],
+			[mockQueuedRow10, mockQueuedRow11],
+			"error",
+		);
+		addPending(store, { kind: "promoteQueued", queuedMessageID: 11 });
+
+		store.upsertDurableMessages([delivered(2, "q11", 11)]);
+
+		expect(visible(store)).toEqual({
+			transcript: ["user:first", "user:q11"],
+			queue: ["queue:q10"],
+		});
+	});
+});
+
+// Each scenario applies the server's change for the action to a store that
+// acted and to one that did not. Both show the same chat after it, and the
+// acting store shows the whole change from the click unless partial.
+type PlacementScenario = {
+	name: string;
+	messages?: readonly TypesGen.ChatMessage[];
+	queue: readonly TypesGen.ChatQueuedMessage[];
+	status: TypesGen.ChatStatus | null;
+	action: PendingAction;
+	// The stream events of the server's change.
+	stream: (store: ChatStore) => void;
+	// The click shows only the change to the acted-on row or message: the
+	// server also changes other rows, or another viewer's change lands first.
+	partial?: boolean;
+};
+
+const placementScenarios: PlacementScenario[] = [
+	...([null, "waiting", "error"] as const).map(
+		(status): PlacementScenario => ({
+			name: `send with status ${status} and no queue`,
+			queue: [],
+			status,
+			action: pendingSend("second"),
+			stream: (store) =>
+				store.upsertDurableMessages([makeMessage(2, "user", "second")]),
+		}),
+	),
+	...(["running", "requires_action", "interrupting"] as const).map(
+		(status): PlacementScenario => ({
+			name: `send with status ${status}`,
+			queue: [mockQueuedRow10],
+			status,
+			action: pendingSend("s11"),
+			stream: (store) =>
+				store.setQueuedMessages([steerRow(11, "s11"), mockQueuedRow10]),
+		}),
+	),
+	{
+		name: "send after turn to a running chat",
+		queue: [steerRow(10, "s10")],
+		status: "running",
+		action: pendingSend("q11", "queue"),
+		stream: (store) =>
+			store.setQueuedMessages([steerRow(10, "s10"), mockQueuedRow11]),
+	},
+	{
+		name: "send to an errored chat with a queue",
+		queue: [mockQueuedRow10],
+		status: "error",
+		action: pendingSend("s11"),
+		stream: (store) => {
+			store.upsertDurableMessages([delivered(2, "s11", 11)]);
+			store.setQueuedMessages([mockQueuedRow10]);
+		},
+	},
+	{
+		name: "send after turn to an errored chat with a queue",
+		queue: [mockQueuedRow10],
+		status: "error",
+		action: pendingSend("q11", "queue"),
+		stream: (store) => {
+			store.upsertDurableMessages([delivered(2, "q10", 10)]);
+			store.setQueuedMessages([mockQueuedRow11]);
+		},
+		partial: true,
+	},
+	{
+		name: "send to a paused chat",
+		queue: [underEdit(mockQueuedRow10)],
+		status: "paused",
+		action: pendingSend("s11"),
+		stream: (store) => store.upsertDurableMessages([delivered(2, "s11", 11)]),
+	},
+	{
+		name: "send after turn to a paused chat",
+		queue: [underEdit(mockQueuedRow10)],
+		status: "paused",
+		action: pendingSend("q11", "queue"),
+		stream: (store) =>
+			store.setQueuedMessages([underEdit(mockQueuedRow10), mockQueuedRow11]),
+	},
+	{
+		name: "send to an errored chat whose steer row is under edit",
+		queue: [underEdit(steerRow(10, "s10"))],
+		status: "error",
+		action: pendingSend("s11"),
+		stream: (store) =>
+			store.setQueuedMessages([
+				underEdit(steerRow(10, "s10")),
+				steerRow(11, "s11"),
+			]),
+	},
+	{
+		name: "edit",
+		messages: [
+			mockFirstMessage,
+			makeMessage(2, "assistant", "a"),
+			makeMessage(3, "user", "old"),
+		],
+		queue: [mockQueuedRow10],
+		status: "running",
+		action: {
+			kind: "edit",
+			editedMessageID: 3,
+			content: [{ type: "text", text: "new" }],
+		},
+		stream: (store) => {
+			store.resetHistoryFrom(3, 2);
+			store.upsertDurableMessages([makeMessage(4, "user", "new")]);
+			store.setQueuedMessages([]);
+		},
+		partial: true,
+	},
+	...(["running", "error"] as const).map(
+		(status): PlacementScenario => ({
+			name: `delete queued with status ${status}`,
+			queue: [mockQueuedRow10, mockQueuedRow11],
+			status,
+			action: { kind: "deleteQueued", queuedMessageID: 10 },
+			stream: (store) => store.setQueuedMessages([mockQueuedRow11]),
+		}),
+	),
+	{
+		name: "delete the row that holds a paused chat",
+		queue: [underEdit(mockQueuedRow10), mockQueuedRow11],
+		status: "paused",
+		action: { kind: "deleteQueued", queuedMessageID: 10 },
+		stream: (store) => {
+			store.upsertDurableMessages([delivered(2, "q11", 11)]);
+			store.setQueuedMessages([]);
+		},
+		partial: true,
+	},
+	...(["running", "requires_action"] as const).map(
+		(status): PlacementScenario => ({
+			name: `promote with status ${status}`,
+			queue: [steerRow(9, "s9"), mockQueuedRow10, mockQueuedRow11],
+			status,
+			action: { kind: "promoteQueued", queuedMessageID: 11 },
+			stream: (store) =>
+				store.setQueuedMessages([
+					steerRow(9, "s9"),
+					steerRow(11, "q11"),
+					mockQueuedRow10,
+				]),
+		}),
+	),
+	{
+		name: "promote a row under edit in a running chat",
+		queue: [mockQueuedRow10, underEdit(mockQueuedRow11)],
+		status: "running",
+		action: { kind: "promoteQueued", queuedMessageID: 11 },
+		stream: (store) =>
+			store.setQueuedMessages([steerRow(11, "q11"), mockQueuedRow10]),
+	},
+	{
+		name: "promote in an errored chat",
+		queue: [steerRow(9, "s9"), mockQueuedRow10, mockQueuedRow11],
+		status: "error",
+		action: { kind: "promoteQueued", queuedMessageID: 11 },
+		stream: (store) => {
+			store.upsertDurableMessages([
+				delivered(2, "s9", 9),
+				delivered(3, "q11", 11),
+			]);
+			store.setQueuedMessages([mockQueuedRow10]);
+		},
+		partial: true,
+	},
+	{
+		name: "promote in a paused chat",
+		queue: [underEdit(mockQueuedRow10), mockQueuedRow11],
+		status: "paused",
+		action: { kind: "promoteQueued", queuedMessageID: 11 },
+		stream: (store) => {
+			store.upsertDurableMessages([delivered(2, "q11", 11)]);
+			store.setQueuedMessages([underEdit(mockQueuedRow10)]);
+		},
+		partial: true,
+	},
+	{
+		name: "begin a queued edit while another row is under edit",
+		queue: [mockQueuedRow10, underEdit(mockQueuedRow11)],
+		status: "running",
+		action: { kind: "editQueued", queuedMessageID: 10, editing: true },
+		stream: (store) =>
+			store.setQueuedMessages([underEdit(mockQueuedRow10), mockQueuedRow11]),
+	},
+	...(["running", "error"] as const).map(
+		(status): PlacementScenario => ({
+			name: `end a queued edit with status ${status}`,
+			queue: [underEdit(mockQueuedRow10)],
+			status,
+			action: { kind: "editQueued", queuedMessageID: 10, editing: false },
+			stream: (store) => store.setQueuedMessages([mockQueuedRow10]),
+		}),
+	),
+	{
+		name: "save a queued edit",
+		queue: [underEdit(mockQueuedRow10)],
+		status: "running",
+		action: {
+			kind: "editQueued",
+			queuedMessageID: 10,
+			editing: false,
+			content: [{ type: "text", text: "q10 saved" }],
+		},
+		stream: (store) =>
+			store.setQueuedMessages([makeQueuedMessage(10, "q10 saved")]),
+	},
+	...[undefined, "q10 saved"].map(
+		(saved): PlacementScenario => ({
+			name: `${saved ? "save" : "end"} the edit that holds a paused chat`,
+			queue: [underEdit(mockQueuedRow10), mockQueuedRow11],
+			status: "paused",
+			action: {
+				kind: "editQueued",
+				queuedMessageID: 10,
+				editing: false,
+				content: saved ? [{ type: "text", text: saved }] : undefined,
+			},
+			stream: (store) => {
+				store.upsertDurableMessages([delivered(2, saved ?? "q10", 10)]);
+				store.setQueuedMessages([mockQueuedRow11]);
+			},
+			partial: true,
+		}),
+	),
+	{
+		name: "another tab's message replaces the pending one",
+		queue: [],
+		status: "waiting",
+		action: pendingSend("mine"),
+		stream: (store) =>
+			store.upsertDurableMessages([makeMessage(2, "user", "theirs")]),
+		partial: true,
+	},
+	{
+		name: "another tab's edit deletes the pending send",
+		queue: [],
+		status: "waiting",
+		action: pendingSend("mine"),
+		stream: (store) => {
+			store.resetHistoryFrom(1, 2);
+			store.upsertDurableMessages([makeMessage(3, "user", "theirs")]);
+		},
+		partial: true,
+	},
+];
+
+describe("pending actions show the server's change", () => {
+	it.each(placementScenarios)("$name", (scenario) => {
+		const messages = scenario.messages ?? [mockFirstMessage];
+		const actor = seededStore(messages, scenario.queue, scenario.status);
+		const observer = seededStore(messages, scenario.queue, scenario.status);
+		addPending(actor, scenario.action);
+		const shownAtClick = visible(actor);
+
+		for (const store of [actor, observer]) {
+			store.batch(() => scenario.stream(store));
+		}
+
+		expect(visible(actor)).toEqual(visible(observer));
+		if (!scenario.partial) {
+			expect(shownAtClick).toEqual(visible(observer));
+		}
+	});
+});
+
+// An action outlives the events in others and ends at end.
+const endScenarios: {
+	name: string;
+	queue: readonly TypesGen.ChatQueuedMessage[];
+	status: TypesGen.ChatStatus;
+	action: PendingAction;
+	others: (store: ChatStore) => void;
+	end: (store: ChatStore) => void;
+}[] = [
+	{
+		name: "a send at a new user message",
+		queue: [],
+		status: "waiting",
+		action: pendingSend("mine"),
+		others: (store) => {
+			store.upsertDurableMessages([
+				mockFirstMessage,
+				makeMessage(2, "assistant", "late"),
+			]);
+			store.resetHistoryFrom(99, 2);
+		},
+		end: (store) =>
+			store.upsertDurableMessages([makeMessage(3, "user", "mine")]),
+	},
+	{
+		name: "a send at a new queued row",
+		queue: [mockQueuedRow10],
+		status: "running",
+		action: pendingSend("mine"),
+		others: (store) => {
+			store.setQueuedMessages([mockQueuedRow10]);
+			store.upsertDurableMessages([delivered(2, "q10", 10)]);
+		},
+		end: (store) => store.setQueuedMessages([steerRow(11, "mine")]),
+	},
+	{
+		name: "a promote at the queue update that moves the row to steer",
+		queue: [mockQueuedRow10, mockQueuedRow11],
+		status: "running",
+		action: { kind: "promoteQueued", queuedMessageID: 11 },
+		others: (store) => {
+			store.upsertDurableMessages([makeMessage(2, "user", "theirs")]);
+			store.setQueuedMessages([
+				mockQueuedRow10,
+				mockQueuedRow11,
+				makeQueuedMessage(12, "q12"),
+			]);
+		},
+		end: (store) =>
+			store.setQueuedMessages([
+				steerRow(11, "q11"),
+				mockQueuedRow10,
+				makeQueuedMessage(12, "q12"),
+			]),
+	},
+	{
+		name: "a delete at the queue update without the row",
+		queue: [mockQueuedRow10, mockQueuedRow11],
+		status: "running",
+		action: { kind: "deleteQueued", queuedMessageID: 10 },
+		others: (store) => {
+			store.upsertDurableMessages([makeMessage(2, "user", "theirs")]);
+			store.setQueuedMessages([mockQueuedRow10, mockQueuedRow11]);
+		},
+		end: (store) => store.setQueuedMessages([mockQueuedRow11]),
+	},
+	{
+		name: "a queued edit at the queue update that marks the row",
+		queue: [mockQueuedRow10],
+		status: "running",
+		action: { kind: "editQueued", queuedMessageID: 10, editing: true },
+		others: (store) =>
+			store.setQueuedMessages([mockQueuedRow10, makeQueuedMessage(12, "q12")]),
+		end: (store) =>
+			store.setQueuedMessages([
+				underEdit(mockQueuedRow10),
+				makeQueuedMessage(12, "q12"),
+			]),
+	},
+	{
+		name: "an edit at its new message",
+		queue: [mockQueuedRow10],
+		status: "waiting",
+		action: {
+			kind: "edit",
+			editedMessageID: 1,
+			content: [{ type: "text", text: "new" }],
+		},
+		others: (store) => {
+			store.resetHistoryFrom(1, 2);
+			store.setQueuedMessages([]);
+		},
+		end: (store) =>
+			store.upsertDurableMessages([makeMessage(2, "user", "new")]),
+	},
+];
+
+describe("pending action ends", () => {
+	it.each(endScenarios)("ends $name", (scenario) => {
+		const actor = seededStore(
+			[mockFirstMessage],
+			scenario.queue,
+			scenario.status,
+		);
+		const observer = seededStore(
+			[mockFirstMessage],
+			scenario.queue,
+			scenario.status,
+		);
+		addPending(actor, scenario.action);
+
+		for (const store of [actor, observer]) {
+			scenario.others(store);
+		}
+		expect(visible(actor)).not.toEqual(visible(observer));
+
+		for (const store of [actor, observer]) {
+			scenario.end(store);
+		}
+		expect(visible(actor)).toEqual(visible(observer));
+	});
+});
+
+describe("resetHistoryFrom", () => {
+	it("ignores a reset that a reconnect resends after the store applied it", () => {
+		const store = createChatStore();
+		store.seed({
+			messages: [makeMessage(3, "user", "c"), makeMessage(10, "user", "old")],
+			queued_messages: [],
+			has_more: true,
+			snapshot_version: 5,
+		});
+		store.resetHistoryFrom(10, 6);
+		store.upsertDurableMessages([makeMessage(11, "user", "edited")]);
+
+		store.resetHistoryFrom(10, 6);
+
+		expect(store.getSnapshot().orderedMessageIDs).toEqual([3, 11]);
+	});
+});
+
+describe("seed", () => {
+	it("stores the newest page and its snapshot version", () => {
+		const store = createChatStore();
+
+		store.seed({
+			messages: [makeMessage(2, "assistant", "b"), makeMessage(1, "user", "a")],
+			queued_messages: [],
+			has_more: true,
+			snapshot_version: 4,
+		});
+
+		expect(store.getSnapshot().orderedMessageIDs).toEqual([1, 2]);
+		expect(store.getSnapshot().hasMoreMessages).toBe(true);
+		expect(store.getSyncedSnapshotVersion()).toBe(4);
 	});
 });

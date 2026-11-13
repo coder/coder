@@ -75,6 +75,7 @@ import {
 	isUploadInProgress,
 	type UploadState,
 } from "./AttachmentPreview";
+import { isPendingRowID } from "./ChatConversation/chatStore";
 import type { EditingTarget } from "./ChatConversation/types";
 import {
 	ChatMessageInput,
@@ -130,6 +131,10 @@ type AgentChatInputProps = {
 	isDisabled: boolean;
 	isReadOnly?: boolean;
 	isLoading: boolean;
+	// Locks the editor while isLoading. Set it when the caller does not
+	// clear the composer at submit, so text typed during the request would
+	// join the sent text.
+	lockWhileLoading?: boolean;
 	// Ref for the Lexical editor, exposed for imperative access.
 	inputRef?: React.Ref<ChatMessageInputRef>;
 	// Initial text to seed the editor on first mount only.
@@ -528,6 +533,7 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 	placeholder = "Type a message...",
 	isDisabled,
 	isReadOnly = false,
+	lockWhileLoading = false,
 	isLoading,
 	inputRef,
 	initialValue,
@@ -601,7 +607,8 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		!isEditingMessage &&
 		queuedMessages.length > 0 &&
 		queuedMessages[0].id !== queuedMessageUnderEditID &&
-		canSendQueuedMessageNow(queuedMessages[0].busy_behavior);
+		canSendQueuedMessageNow(queuedMessages[0].busy_behavior) &&
+		!isPendingRowID(queuedMessages[0].id);
 	const warningId = useId();
 	const preferencesQuery = useQuery(preferenceSettings());
 	const sendShortcut = getAgentChatSendShortcut(
@@ -1154,16 +1161,16 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 		onContentChange(content, serializedEditorState, hasChipsInEditor);
 	};
 
-	// Re-focus the editor after a send completes (isLoading goes
-	// from true → false) so the user can immediately type again.
+	// A locked editor loses focus during the request, so re-focus it after
+	// a send completes.
 	const prevIsLoadingRef = useRef(isLoading);
 	useEffect(() => {
 		const wasLoading = prevIsLoadingRef.current;
 		prevIsLoadingRef.current = isLoading;
-		if (wasLoading && !isLoading && !isMobileViewport()) {
+		if (lockWhileLoading && wasLoading && !isLoading && !isMobileViewport()) {
 			internalRef.current?.focus();
 		}
-	}, [isLoading]);
+	}, [isLoading, lockWhileLoading]);
 	const workspaceUploadEntries = workspaceUploads?.uploads ?? [];
 	const hasActiveUploads =
 		attachments.some((file) => isUploadInProgress(uploadStates?.get(file))) ||
@@ -1522,7 +1529,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 					<ChatMessageInput
 						ref={internalRef}
 						onFilePaste={onAttach ? handleFilePaste : undefined}
-						acceptFilePasteWhileDisabled={isLoading && !isReadOnly}
+						acceptFilePasteWhileDisabled={
+							lockWhileLoading && isLoading && !isReadOnly
+						}
 						onPaste={resetPromptCycle}
 						aria-label="Chat message"
 						aria-describedby={warning ? warningId : undefined}
@@ -1538,7 +1547,9 @@ export const AgentChatInput: React.FC<AgentChatInputProps> = ({
 							offersSendAfterTurn ? handleSubmitAfterTurn : undefined
 						}
 						sendShortcut={sendShortcut}
-						disabled={isReadOnly || isLoading}
+						// An unlocked editor stays editable while isLoading, and
+						// submit sends nothing then.
+						disabled={isReadOnly || (lockWhileLoading && isLoading)}
 						hasWorkspace={hasSkillsWorkspace}
 						organizationId={chatOrganizationId}
 						projectId={chatProjectId}

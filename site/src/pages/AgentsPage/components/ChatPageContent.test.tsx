@@ -6,6 +6,7 @@ import { API } from "#/api/api";
 import { authorizationKey, getAuthorizationKey } from "#/api/queries/authCheck";
 import type * as TypesGen from "#/api/typesGenerated";
 import { MockChat, MockChatQueuedMessage } from "#/testHelpers/chatEntities";
+import { createDeferred } from "#/testHelpers/deferred";
 import { renderWithAuth } from "#/testHelpers/renderHelpers";
 import { MockSkill } from "#/testHelpers/skills";
 import type { ChatMessageInputRef } from "./AgentChatInput";
@@ -183,6 +184,9 @@ const mockSkillRequests = () => {
 };
 
 beforeEach(() => {
+	// Every test uses the same chat ID, so a draft one test saves would
+	// otherwise be restored in the next.
+	localStorage.clear();
 	// jsdom lacks Range geometry, which the slash menu reads to anchor.
 	// The method does not exist to spy on, so add it per test and remove
 	// it afterwards.
@@ -397,7 +401,7 @@ describe("ChatPageInput", () => {
 		const user = userEvent.setup();
 		const onInterrupt = vi.fn();
 		const store = createChatStore();
-		store.setChatStatus("requires_action");
+		store.applyServerChatStatus("requires_action");
 
 		renderChatPageInput(store, { onInterrupt });
 
@@ -438,5 +442,117 @@ describe("ChatPageInput", () => {
 				workspaceId: "ws-1",
 			},
 		]);
+	});
+
+	it("sends the attachments of a failed send again", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "uploadChatFile").mockResolvedValue({
+			id: "file-1",
+		});
+		const firstSend = createDeferred<undefined>();
+		const onSend = vi
+			.fn()
+			.mockReturnValueOnce(firstSend.promise)
+			.mockResolvedValue(undefined);
+
+		renderChatPageInput(createChatStore(), { onSend });
+		await user.upload(
+			await screen.findByTestId("chat-attachment-file-input"),
+			new File(["png"], "shot.png", { type: "image/png" }),
+		);
+		const send = screen.getByRole("button", { name: "Send" });
+		await waitFor(() => expect(send).toBeEnabled());
+		await user.click(send);
+
+		const sent = { fileId: "file-1", mediaType: "image/png" };
+		expect(onSend).toHaveBeenLastCalledWith(
+			expect.objectContaining({ attachments: [sent] }),
+		);
+
+		firstSend.reject(new Error("send failed"));
+		await screen.findByRole("button", { name: "Remove shot.png" });
+		await user.click(send);
+		expect(onSend).toHaveBeenCalledTimes(2);
+		expect(onSend).toHaveBeenLastCalledWith(
+			expect.objectContaining({ attachments: [sent] }),
+		);
+	});
+
+	it("keeps an attachment added while a send is pending", async () => {
+		const user = userEvent.setup();
+		vi.spyOn(API.experimental, "uploadChatFile")
+			.mockResolvedValueOnce({ id: "file-1" })
+			.mockResolvedValueOnce({ id: "file-2" });
+		const firstSend = createDeferred<undefined>();
+		const onSend = vi
+			.fn()
+			.mockReturnValueOnce(firstSend.promise)
+			.mockResolvedValue(undefined);
+
+		renderChatPageInput(createChatStore(), { onSend });
+		const fileInput = await screen.findByTestId("chat-attachment-file-input");
+		await user.upload(
+			fileInput,
+			new File(["png"], "first.png", { type: "image/png" }),
+		);
+		const send = await screen.findByRole("button", { name: "Send" });
+		await waitFor(() => expect(send).toBeEnabled());
+		await user.click(send);
+		await user.upload(
+			fileInput,
+			new File(["png"], "second.png", { type: "image/png" }),
+		);
+		await screen.findByRole("button", { name: "Remove second.png" });
+
+		await act(async () => {
+			firstSend.resolve(undefined);
+		});
+		await waitFor(() => expect(send).toBeEnabled());
+		await user.click(send);
+
+		expect(onSend).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				attachments: [{ fileId: "file-2", mediaType: "image/png" }],
+			}),
+		);
+	});
+
+	it("offers no queue actions on a row a pending send shows", async () => {
+		const user = userEvent.setup();
+		const onPromoteQueuedMessage = vi.fn();
+		const onDeleteQueuedMessage = vi.fn();
+		vi.spyOn(API, "checkAuthorization").mockImplementation(async ({ checks }) =>
+			Object.fromEntries(Object.keys(checks).map((key) => [key, true])),
+		);
+		const store = createChatStore();
+		store.seed({
+			messages: [],
+			queued_messages: [],
+			has_more: false,
+			snapshot_version: 1,
+		});
+		store.applyServerChatStatus("running");
+		void store.runPendingAction(
+			{
+				kind: "send",
+				busyBehavior: "queue",
+				chatID: "",
+				content: [{ type: "text", text: "not stored yet" }],
+			},
+			() => new Promise(() => {}),
+		);
+
+		renderChatPageInput(store, {
+			onPromoteQueuedMessage,
+			onDeleteQueuedMessage,
+		});
+		await screen.findByText("not stored yet");
+		await user.click(await screen.findByRole("button", { name: "Send now" }));
+		await user.click(screen.getByRole("button", { name: "Remove from queue" }));
+		await user.click(screen.getByRole("textbox", { name: "Chat message" }));
+		await user.keyboard("{Enter}");
+
+		expect(onPromoteQueuedMessage).not.toHaveBeenCalled();
+		expect(onDeleteQueuedMessage).not.toHaveBeenCalled();
 	});
 });

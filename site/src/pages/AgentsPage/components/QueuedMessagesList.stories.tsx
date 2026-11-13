@@ -351,76 +351,19 @@ export const PausedEditBehindHead: Story = {
 	},
 };
 
-// The begin request is in flight: the row shows as under edit and the Enter
-// hint is hidden because Enter saves the edit.
-export const BeginRequestPending: Story = {
-	args: {
-		queuedMessageUnderEditID: 1,
-		showEnterToSendHint: false,
-		messages: [
-			buildMessage(1, textContent("Run the test suite")),
-			buildMessage(2, textContent("Open the browser")),
-		],
-	},
-};
-
-// The end request is in flight while the row still carries the server
-// marker: the row shows no edit state.
-export const EndRequestPending: Story = {
-	args: {
-		queuedMessageUnderEditID: null,
-		messages: [
-			{
-				...MockChatQueuedMessageUnderEdit,
-				id: 1,
-				content: textContent("Run the test suite"),
-			},
-			buildMessage(2, textContent("Open the browser")),
-		],
-	},
-};
-
-export const SendNowPending: Story = {
+// The second row is a pending send that the server has not stored yet, so
+// its actions are unavailable.
+export const PendingRowDisablesActions: Story = {
 	args: {
 		messages: [
 			buildMessage(1, textContent("First queued")),
-			buildMessage(2, textContent("Second queued")),
+			buildMessage(Number.MAX_SAFE_INTEGER, textContent("Not stored yet")),
 		],
-		onPromote: () => new Promise<void>(() => {}),
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		const sendNowButtons = canvas.getAllByRole("button", { name: "Send now" });
-		await userEvent.click(sendNowButtons[0]);
-	},
-};
-
-let rejectQueuedDelete: ((error: Error) => void) | undefined;
-
-// Deleting hides the row optimistically and disables sibling actions while
-// pending; a rejected delete restores the row and re-enables actions.
-export const DeleteRejectionRestoresRow: Story = {
-	args: {
-		messages: [
-			buildMessage(1, textContent("First queued")),
-			buildMessage(2, textContent("Second queued")),
-		],
-		onDelete: () =>
-			new Promise<void>((_, reject) => {
-				rejectQueuedDelete = reject;
-			}),
-	},
-	play: async ({ canvasElement }) => {
-		const canvas = within(canvasElement);
-		const removeButtons = canvas.getAllByRole("button", {
-			name: "Remove from queue",
-		});
-		await userEvent.click(removeButtons[0]);
-
-		if (!rejectQueuedDelete) {
-			throw new Error("onDelete was not invoked");
-		}
-		rejectQueuedDelete(new Error("delete failed"));
+		const sendPending = canvas.getAllByRole("button", { name: "Send now" })[1];
+		await userEvent.hover(sendPending);
 	},
 };
 
