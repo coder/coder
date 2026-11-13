@@ -255,9 +255,7 @@ describe("ChatsSidebar projects", () => {
 					name: `Open project actions for ${name}`,
 				}),
 			);
-			await user.click(
-				screen.getByRole("menuitem", { name: "Delete project" }),
-			);
+			await user.click(screen.getByRole("menuitem", { name: "Delete" }));
 			await user.type(await screen.findByRole("textbox"), name);
 		};
 
@@ -609,7 +607,7 @@ describe("ChatsSidebar projects", () => {
 				name: `Open project actions for ${MockChatProject.name}`,
 			}),
 		);
-		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Delete" }));
 		await user.type(
 			screen.getByLabelText("Name of the project to delete"),
 			MockChatProject.name,
@@ -655,7 +653,7 @@ describe("ChatsSidebar projects", () => {
 				name: `Open project actions for ${MockChatProject.name}`,
 			}),
 		);
-		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Delete" }));
 		await user.type(
 			screen.getByLabelText("Name of the project to delete"),
 			MockChatProject.name,
@@ -691,7 +689,7 @@ describe("ChatsSidebar projects", () => {
 				name: `Open project actions for ${MockChatProject.name} (${MockOrganization2.display_name})`,
 			}),
 		);
-		await user.click(screen.getByRole("menuitem", { name: "Delete project" }));
+		await user.click(screen.getByRole("menuitem", { name: "Delete" }));
 
 		expect(
 			await screen.findByRole("dialog", {

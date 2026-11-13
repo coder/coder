@@ -302,8 +302,7 @@ export const ChatsSidebar: React.FC<ChatsSidebarProps> = (props) => {
 					!sidebarView.projectsPage
 				}
 				isProjectsActive={
-					sidebarView.panel === "chats" &&
-					(Boolean(sidebarView.projectsPage) || Boolean(viewedProjectId))
+					sidebarView.panel === "chats" && Boolean(sidebarView.projectsPage)
 				}
 				location={location}
 				currentUserId={currentUserId}
