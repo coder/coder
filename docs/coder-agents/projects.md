@@ -143,7 +143,8 @@ If you haven't edited anything, the dialog switches to the newer templates.
 If you have unsaved edits, it shows a warning and you can't save until you choose.
 Select **Load latest** to start over from the newer templates, or **Keep my draft** to replace them with yours when you save.
 The dialog also reloads the list of templates you can add when you return to its tab.
-If the check fails, or the templates, presets, or parameters the dialog needs don't load, saving is paused until you select **Retry**.
+If the check fails, or the list of templates or the default template's presets don't load, saving is paused until you select **Retry**.
+The same applies to parameters of a template in compatibility mode.
 If you edit the draft while the check runs, nothing is saved; select **Save** again.
 You can close the dialog while it checks; the save is then canceled.
 

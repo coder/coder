@@ -96,6 +96,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 	const [isEditorOpen, setIsEditorOpen] = useState(false);
 	const [isTemplatesEditorOpen, setIsTemplatesEditorOpen] = useState(false);
 	const editTemplatesButtonRef = useRef<HTMLButtonElement>(null);
+	const templateCountRef = useRef<HTMLSpanElement>(null);
 	// isPending reaches the dialog only after a render, so a fast double
 	// click could otherwise submit the same change twice.
 	const isTemplatesSaveInFlight = useRef(false);
@@ -135,6 +136,7 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 						: undefined
 				}
 				editTemplatesButtonRef={editTemplatesButtonRef}
+				templateCountRef={templateCountRef}
 				skillCount={skillsQuery.data?.length}
 				disabledSkillCount={
 					skillsQuery.data?.filter((skill) => !skill.enabled).length
@@ -174,12 +176,16 @@ const ProjectDetailsPanelContent: React.FC<ProjectDetailsPanelProps> = ({
 				open={isTemplatesEditorOpen}
 				onOpenChange={setIsTemplatesEditorOpen}
 				onCloseAutoFocus={(event) => {
-					// The button is gone if a refresh removed edit permission;
-					// Radix then picks the fallback focus.
+					// The button is gone if a refresh removed edit permission, so
+					// focus then goes to the template count that replaced it.
 					const button = editTemplatesButtonRef.current;
-					if (button?.isConnected && !button.disabled) {
+					const target =
+						button?.isConnected && !button.disabled
+							? button
+							: templateCountRef.current;
+					if (target?.isConnected) {
 						event.preventDefault();
-						button.focus();
+						target.focus();
 					}
 				}}
 				isSaving={updateTemplatesMutation.isPending}

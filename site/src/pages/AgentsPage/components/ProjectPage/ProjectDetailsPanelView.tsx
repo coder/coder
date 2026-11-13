@@ -54,6 +54,11 @@ type ProjectDetailsPanelViewProps = {
 	readonly onEditTemplates?: () => void;
 	/** The button that opens the templates editor, for restoring focus. */
 	readonly editTemplatesButtonRef?: React.Ref<HTMLButtonElement>;
+	/**
+	 * Takes focus when the templates editor closes after the user lost edit
+	 * permission, since the edit button is then gone.
+	 */
+	readonly templateCountRef?: React.Ref<HTMLSpanElement>;
 	/** `undefined` while the skills load or after loading fails. */
 	readonly skillCount: number | undefined;
 	/** `undefined` while the skills load or after loading fails. */
@@ -82,6 +87,7 @@ export const ProjectDetailsPanelView: React.FC<
 	templateCount,
 	onEditTemplates,
 	editTemplatesButtonRef,
+	templateCountRef,
 	skillCount,
 	disabledSkillCount,
 	skillsError,
@@ -179,7 +185,13 @@ export const ProjectDetailsPanelView: React.FC<
 								</button>
 							</Link>
 						) : (
-							templateCountLabel
+							<span
+								ref={templateCountRef}
+								tabIndex={-1}
+								className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-content-link"
+							>
+								{templateCountLabel}
+							</span>
 						)}
 					</DetailRow>
 					<DetailRow label="Skills">

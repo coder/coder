@@ -772,7 +772,7 @@ describe("ProjectDetailsPanel templates", () => {
 			screen.getByRole("button", { name: "Edit templates: 1 template" }),
 		);
 		const save = await screen.findByRole("button", { name: "Save" });
-		await waitFor(() => expect(save).toBeEnabled());
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
 		await user.click(save);
 
 		await waitFor(() =>
@@ -916,5 +916,20 @@ describe("ProjectDetailsPanel templates", () => {
 				},
 			),
 		);
+	});
+
+	it("returns focus to the template count when edit permission is lost while editing", async () => {
+		const { user, rerenderWithProject } = setup();
+
+		await user.click(
+			screen.getByRole("button", { name: "Edit templates: 0 templates" }),
+		);
+		rerenderWithProject({
+			...MockChatProject,
+			permissions: { ...MockChatProject.permissions, update: false },
+		});
+		await user.click(await screen.findByRole("button", { name: "Cancel" }));
+
+		await waitFor(() => expect(screen.getByText("0 templates")).toHaveFocus());
 	});
 });

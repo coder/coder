@@ -120,7 +120,7 @@ describe("ProjectTemplatesDialog", () => {
 		});
 
 		const save = await screen.findByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toBeEnabled());
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
 		await user.click(save);
 
 		await waitFor(() =>
@@ -150,7 +150,7 @@ describe("ProjectTemplatesDialog", () => {
 		);
 
 		const save = await screen.findByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toBeEnabled());
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
 		await user.click(save);
 
 		await waitFor(() =>
@@ -198,7 +198,7 @@ describe("ProjectTemplatesDialog", () => {
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 		await waitFor(() => expect(getProjects).toHaveBeenCalledTimes(2));
 		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toBeEnabled());
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
 		await user.click(save);
 		await waitFor(() => expect(props.onSave).toHaveBeenCalled());
 	});
@@ -264,7 +264,7 @@ describe("ProjectTemplatesDialog", () => {
 		const getProjects = vi.mocked(API.experimental.getChatProjects);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
 		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toBeEnabled());
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
 		const callsBeforeSave = getProjects.mock.calls.length;
 		getProjects.mockResolvedValue([
 			{
@@ -315,7 +315,7 @@ describe("ProjectTemplatesDialog", () => {
 		const getProjects = vi.mocked(API.experimental.getChatProjects);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
 		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toBeEnabled());
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
 		let finishCheck: (projects: ChatProject[]) => void = () => {};
 		getProjects.mockReturnValueOnce(
 			new Promise((resolve) => {
@@ -337,7 +337,7 @@ describe("ProjectTemplatesDialog", () => {
 		const getProjects = vi.mocked(API.experimental.getChatProjects);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
 		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toBeEnabled());
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
 		let finishCheck: (projects: ChatProject[]) => void = () => {};
 		getProjects.mockReturnValueOnce(
 			new Promise((resolve) => {
@@ -360,7 +360,7 @@ describe("ProjectTemplatesDialog", () => {
 		const getProjects = vi.mocked(API.experimental.getChatProjects);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
 		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toBeEnabled());
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
 		const newer = {
 			...MockChatProject,
 			templates: {
@@ -389,7 +389,7 @@ describe("ProjectTemplatesDialog", () => {
 		const getProjects = vi.mocked(API.experimental.getChatProjects);
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
 		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toBeEnabled());
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
 		getProjects.mockRejectedValueOnce(
 			mockApiError({ message: "Network error." }),
 		);
@@ -448,7 +448,7 @@ describe("ProjectTemplatesDialog", () => {
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 		await user.click(await screen.findByRole("button", { name: "Select all" }));
 		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toBeEnabled());
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
 		await user.click(save);
 
 		await waitFor(() =>
@@ -477,7 +477,7 @@ describe("ProjectTemplatesDialog", () => {
 
 		await user.click(await screen.findByRole("button", { name: "Retry" }));
 		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toBeEnabled());
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
 		await user.click(save);
 
 		await waitFor(() =>
@@ -513,7 +513,7 @@ describe("ProjectTemplatesDialog", () => {
 			"x",
 		);
 		const save = screen.getByRole("button", { name: /Save/ });
-		await waitFor(() => expect(save).toBeEnabled());
+		await waitFor(() => expect(save).toHaveAttribute("aria-disabled", "false"));
 		await user.click(save);
 
 		await waitFor(() =>

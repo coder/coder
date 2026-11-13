@@ -309,12 +309,14 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 		}
 		pendingFocusRef.current = null;
 		const focused = document.activeElement;
+		// The dialog container takes focus after a click on empty space, so it
+		// only counts as lost focus when an outcome is waiting to be shown.
 		const isFocusLost =
 			!focused ||
 			focused === document.body ||
-			focused.getAttribute("role") === "dialog" ||
 			focused === saveButtonRef.current ||
-			focused === retryButtonRef.current;
+			focused === retryButtonRef.current ||
+			(pending !== null && focused.getAttribute("role") === "dialog");
 		if (!isFocusLost) {
 			return;
 		}
@@ -492,7 +494,9 @@ const ProjectTemplatesForm: React.FC<ProjectTemplatesFormProps> = ({
 				<Button
 					ref={saveButtonRef}
 					type="submit"
-					disabled={!canSave}
+					// Unlike disabled, aria-disabled keeps focus on Save while it
+					// waits, so Tab cannot leave the dialog. Submit checks canSave.
+					aria-disabled={!canSave}
 					aria-busy={isBusy}
 				>
 					<Spinner loading={isBusy} />
