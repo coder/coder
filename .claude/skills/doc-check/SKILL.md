@@ -60,7 +60,12 @@ Walk the [quick decision checklist](../../../docs/.style/content-guidelines.md#q
 
 ### 3. Run the deterministic checks
 
-Run the checks that exist for the files the change touches, and record each result.
+In CI review, skip this step.
+CI runs every check below on the same PR, in the `lint` and `lint-docs` jobs of `.github/workflows/ci.yaml`, and both jobs are required, so a failure already blocks the merge.
+For the same reason, run no test suite, build, or generator in CI review, including one the PR adds.
+Record the skip in the trace as one `deterministic_checks` entry: `{name: all, result: skipped, reason: "CI runs them"}`.
+
+In every other mode, run the checks that exist for the files the change touches, and record each result.
 Use the result instead of re-deriving it, and never contradict a check's output.
 
 - `make lint/emdash`
