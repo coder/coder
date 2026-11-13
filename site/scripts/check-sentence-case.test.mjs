@@ -52,6 +52,8 @@ describe("findTitleCaseWords", () => {
 		expect(words("GitHub, GitLab, Bitbucket")).toEqual([]);
 		expect(words("Fonts: Menlo, Monaco, Consolas")).toEqual([]);
 		expect(words("Saved… Next step")).toEqual([]);
+		expect(words("Saved “done.” Next step")).toEqual([]);
+		expect(words("Saved {done.} Next step")).toEqual([]);
 	});
 
 	it("continues a sentence after a comma", () => {

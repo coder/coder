@@ -194,7 +194,7 @@ const CLOSING_MARK = /[)\]}”’"']/;
 // new phrase and may be capitalized. Commas and semicolons continue the
 // sentence ("Create a workspace; then open settings"); lists of names
 // such as "Menlo, Monaco" rely on PROPER_NOUNS.
-const PHRASE_END = /[.!?:…]["'’)\]]*$/;
+const PHRASE_END = /[.!?:…][)\]}”’"']*$/;
 
 /**
  * Returns the title case words in `text`. Each result has the word's
