@@ -359,6 +359,20 @@ function decodeEntity(match) {
 }
 
 /**
+ * Returns the known HTML entity at `position` in `sourceText` as its
+ * decoded text and source length, or null.
+ */
+function entityAt(sourceText, position) {
+	if (sourceText[position] !== "&") {
+		return null;
+	}
+	ENTITY.lastIndex = position;
+	const match = ENTITY.exec(sourceText);
+	const decoded = match && decodeEntity(match);
+	return decoded ? { decoded, length: match[0].length } : null;
+}
+
+/**
  * Appends the source text in [start, end) to `target`, recording the
  * source position of each character. With `decodeEntities`, HTML
  * entities are replaced by the characters they render, each mapped to
@@ -367,18 +381,14 @@ function decodeEntity(match) {
 function appendSource(target, sourceText, start, end, decodeEntities) {
 	let position = start;
 	while (position < end) {
-		if (decodeEntities && sourceText[position] === "&") {
-			ENTITY.lastIndex = position;
-			const match = ENTITY.exec(sourceText);
-			const decoded = match && decodeEntity(match);
-			if (decoded !== null && position + match[0].length <= end) {
-				target.text += decoded;
-				for (let i = 0; i < decoded.length; i++) {
-					target.positions.push(position);
-				}
-				position += match[0].length;
-				continue;
+		const entity = decodeEntities && entityAt(sourceText, position);
+		if (entity && position + entity.length <= end) {
+			target.text += entity.decoded;
+			for (let i = 0; i < entity.decoded.length; i++) {
+				target.positions.push(position);
 			}
+			position += entity.length;
+			continue;
 		}
 		target.text += sourceText[position];
 		target.positions.push(position);
@@ -873,10 +883,15 @@ export function checkSource(fileName, sourceText) {
 
 	let fixedText = sourceText;
 	for (const { position } of [...issues].reverse()) {
+		// A word that starts with an entity, such as "&#87;orkspace", maps
+		// to the "&"; replace the whole entity with the lowercase letter.
+		const entity = entityAt(sourceText, position);
+		const length = entity ? entity.length : 1;
+		const initial = entity ? entity.decoded : sourceText[position];
 		fixedText =
 			fixedText.slice(0, position) +
-			fixedText[position].toLowerCase() +
-			fixedText.slice(position + 1);
+			initial.toLowerCase() +
+			fixedText.slice(position + length);
 	}
 
 	// A zero-based expected line is also the one-based line of its

@@ -239,6 +239,13 @@ describe("checkSource", () => {
 		);
 	});
 
+	it("fixes words that start with an HTML entity", () => {
+		const source = "const a = <p>Create &#87;orkspace</p>;";
+		const { issues, fixedText } = checkSource("file.tsx", source);
+		expect(issues.map(({ word }) => word)).toEqual(["Workspace"]);
+		expect(fixedText).toBe("const a = <p>Create workspace</p>;");
+	});
+
 	it("starts a new phrase at elements without a rendered space", () => {
 		const source = [
 			"const a = (",
