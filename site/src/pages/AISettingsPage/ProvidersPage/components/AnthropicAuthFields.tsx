@@ -1,3 +1,4 @@
+import { cn } from "cn";
 import { useId } from "react";
 import { FormField } from "#/components/FormField/FormField";
 import { Label } from "#/components/Label/Label";
@@ -46,7 +47,10 @@ export const AnthropicAuthMethodField: React.FC<
 						onChange(next);
 				}}
 			>
-				<SelectTrigger id={id} className="w-full">
+				<SelectTrigger
+					id={id}
+					className={cn("w-full", disabled && "[&>svg]:hidden")}
+				>
 					<SelectValue />
 				</SelectTrigger>
 				<SelectContent>
@@ -88,6 +92,7 @@ export const ClaudePlatformFields: React.FC<ClaudePlatformFieldsProps> = ({
 				})}
 				label="Region"
 				description="AWS region serving the workspace and scoping request signatures."
+				descriptionPosition="below"
 				className="w-full"
 				placeholder={CLAUDE_PLATFORM_DEFAULT_REGION}
 				onChange={(event) => onRegionChange(event.target.value)}
@@ -99,6 +104,7 @@ export const ClaudePlatformFields: React.FC<ClaudePlatformFieldsProps> = ({
 				})}
 				label="Workspace ID"
 				description="Claude Platform workspace used for every request."
+				descriptionPosition="below"
 				className="w-full"
 				placeholder="wrkspc_..."
 			/>
@@ -108,6 +114,7 @@ export const ClaudePlatformFields: React.FC<ClaudePlatformFieldsProps> = ({
 			field={getFieldHelpers("baseUrl", { backendFieldName: "base_url" })}
 			label="Endpoint"
 			description="Defaults to the regional Claude Platform endpoint. Override it to route through a proxy."
+			descriptionPosition="below"
 			className="w-full"
 			placeholder={claudePlatformBaseUrl(CLAUDE_PLATFORM_DEFAULT_REGION)}
 		/>
@@ -117,22 +124,24 @@ export const ClaudePlatformFields: React.FC<ClaudePlatformFieldsProps> = ({
 			onBlur={() => onCredentialBlur("apiKey")}
 			onFocus={() => onCredentialFocus("apiKey")}
 			placeholder="sk-ant-..."
+			description={
+				<>
+					Optional. Client keys take precedence when BYOK is enabled, followed
+					by stored provider keys. Without either, requests use the gateway's
+					ambient AWS credentials. AWS identity is configured on the gateway,
+					not per provider.{" "}
+					<DocsLink
+						size="sm"
+						href={docs(
+							"/ai-governance/ai-gateway/providers#claude-platform-for-aws",
+						)}
+						target="_blank"
+						rel="noreferrer"
+					>
+						View docs
+					</DocsLink>
+				</>
+			}
 		/>
-		<p className="text-xs text-content-secondary m-0">
-			Optional. Client keys take precedence when BYOK is enabled, followed by
-			stored provider keys. Without either, requests use the gateway's ambient
-			AWS credentials. AWS identity is configured on the gateway, not per
-			provider.{" "}
-			<DocsLink
-				size="sm"
-				href={docs(
-					"/ai-governance/ai-gateway/providers#claude-platform-for-aws",
-				)}
-				target="_blank"
-				rel="noreferrer"
-			>
-				View docs
-			</DocsLink>
-		</p>
 	</>
 );
